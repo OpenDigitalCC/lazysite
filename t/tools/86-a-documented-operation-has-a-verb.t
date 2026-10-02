@@ -39,9 +39,23 @@ sub site {
     return ( $d, "$d/cgi-bin" );
 }
 
+
+# SM933 PR1: the install verbs now end by running the health check and return 4
+# when the site is not serviceable. A fixture tree belongs to the test user's
+# group, not the web server's, so name it on the verbs that install - the same
+# reason t/tools/04-check.t passes --group. Added here rather than at each call
+# site so there is one place to change.
+my $FIXTURE_GROUP = getgrgid( $) + 0 ) // ( $) + 0 );
+
+sub _with_serving_group {
+    my (@args) = @_;
+    return @args unless @args && $args[0] =~ /\A(?:provision|upgrade|reinstall)\z/;
+    return ( @args, '--serving-group', $FIXTURE_GROUP );
+}
+
 sub cli {
     my (@args) = @_;
-    my $out = run_cmd( $^X, $cli, @args );
+    my $out = run_cmd( $^X, $cli, _with_serving_group(@args) );
     return ( $? >> 8, $out );
 }
 

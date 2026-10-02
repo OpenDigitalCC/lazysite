@@ -1448,8 +1448,13 @@ sub apply_fixes {
         my $cur = $s[2] & 07777;
         $mode |= $cur if ( $how // '' ) eq 'add';
         next          if $mode == $cur;    # already in the target state - no re-print
+            # SM933 PR6: name the mode that was there. A repair that prints only the
+            # new value destroys the evidence of the fault it just corrected - the
+            # operator who runs --fix is often the one who has to explain afterwards
+            # what was wrong, and "chmod 2775" alone does not say whether anything
+            # was. The prior mode is already in hand from the stat above.
         if ( chmod $mode, $path ) {
-            printf "fixed: chmod %04o %s\n", $mode, $path;
+            printf "fixed: chmod %04o %s (was %04o)\n", $mode, $path, $cur;
             $fixed++;
         }
         else { warn "could not chmod $path: $!\n" }

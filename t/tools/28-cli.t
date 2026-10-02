@@ -35,6 +35,12 @@ sub run_cli {
     delete $ENV{LAZYSITE_CLI_FAKE_ROOT};
     delete $ENV{LAZYSITE_REGISTRY_DIR};
     $ENV{$_} = $env->{$_} for keys %$env;
+
+    # SM933 PR1: name the fixture's serving group on the verbs that install, or
+    # the health check they now run compares the tree against www-data and the
+    # verb returns 4. See t/tools/03-install-pl.t for the same note.
+    push @args, '--serving-group', ( getgrgid( $) + 0 ) // ( $) + 0 ) )
+        if @args && $args[0] =~ /\A(?:provision|upgrade|reinstall)\z/;
     my $cmd = join ' ', map { quotemeta } $^X, $CLI, @args;
     my $out = `$cmd 2>&1`;
     return ( $? >> 8, $out );

@@ -141,7 +141,8 @@ subtest 'installing over a migrated site does not recreate the tree' => sub {
     make_path( $d, $cgi );
 
     my $first = system( $^X, "$root/install.pl", '--docroot', $d,
-        '--cgibin', $cgi, '--mode', 'provision' );
+        '--cgibin', $cgi, '--mode', 'provision',
+        '--serving-group', getgrgid( $) + 0 ) // ( $) + 0 ) );
     is( $first, 0, 'a fresh install succeeds' );
     ok( -d "$d/lazysite", 'and puts the engine tree inside the docroot' );
 
@@ -149,7 +150,8 @@ subtest 'installing over a migrated site does not recreate the tree' => sub {
     is( $mv->{rc}, 0, 'the site migrates' ) or diag( $mv->{out} );
 
     my $second = system( $^X, "$root/install.pl", '--docroot', $d,
-        '--cgibin', $cgi, '--mode', 'reinstall' );
+        '--cgibin', $cgi, '--mode', 'reinstall',
+        '--serving-group', getgrgid( $) + 0 ) // ( $) + 0 ) );
     is( $second, 0, 'installing again over the migrated site succeeds' );
 
     ok( !-e "$d/lazysite",

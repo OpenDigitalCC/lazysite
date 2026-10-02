@@ -44,6 +44,56 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM933 (PENDING) **an install now says whether the site is healthy, and names its
+  own fault when it is not.** A fresh provision on a Hestia domain printed
+  `Installed: 265`, `Overwrote: 0` and four Next steps, and every request answered
+  500. The engine compiled; the fault was ownership and modes that provision itself
+  had just written. `lazysite-check.pl` could see all of it, and it was the one
+  thing nobody had run - separately, from memory, after the install said it was done.
+
+  The installer now ends by running the check it already ships with (PR1). The
+  wiring is the whole change; the diagnosis already existed.
+
+  **It exits 4, not 0 and not 1.** The files DID install, so treating it as a failed
+  command would be wrong in the other direction - SM899's rule is that a refusal is
+  not a failed command. 4 means "installed, and the site is not serviceable", which
+  a wrapper script can act on separately from a copy that broke (1) or a usage error
+  (2). Deliberately not 3: `--channel-check` already means "this upgrade would be
+  skipped by the site's channel", and two meanings on one code in one tool is how a
+  deploy script comes to read an unhealthy site as a routine skip.
+
+  `--serving-group` is new on `provision`, `upgrade` and `reinstall`, because the
+  check compares the tree against the group the web server runs as and its default
+  (www-data, where that group exists) is right on the platform this ships for and
+  wrong elsewhere - and a wrong guess would now turn a healthy install into a failed
+  one.
+
+  **`upgrade --all` gains a fourth outcome rather than folding it into one of the
+  three.** A site that upgraded and then failed its health check is not `done` -
+  "upgraded 26 sites" while one serves 500s is the reported defect at fleet scale -
+  and it is not `failed` either, because the files landed and the site needs repair
+  rather than a re-run. It is reported as NOT SERVICEABLE, by name, and the run
+  exits 4. Same lesson as SM626: a bucket mixing two states an operator must
+  respond to differently cannot be acted on.
+
+  **WIRING IT IN FOUND A DEFECT IMMEDIATELY, which is the argument for PR1 in one
+  line.** A fresh install laid down `lazysite/forms/smtp.conf` world-readable
+  (0644) and the shipped check calls that a failure - "a secret must not be". The
+  installer makes that file itself, by copying the 0640 template, and the mode rule
+  was anchored on `.example$` so the live copy - the one that gets the password -
+  missed it. SM907 AT5's own comment had said the concern was "what
+  `cp smtp.conf.example smtp.conf` produces"; the installer was doing the copying.
+  A fresh install now reaches 0 failures on its own output.
+
+  Also: Next steps names the vhost-rebuild hazard and how to re-check after one
+  (PR5), and a repair line records the mode that was there - `chmod 2775 (was
+  0755)` - so the evidence of a fault survives its fix (PR6).
+
+  NOT in this change: PR0's fixture measurement, and PR2/PR3, which depend on which
+  of three candidate mechanisms the measurement names. PR4 (`--fix` may set the bits
+  it created itself) is ruled and not built - it needs the install state to record
+  the mode the installer ACTUALLY left, which is a separate change.
+
 - SM931 (e1f7cf73) **a protected code span in a loop no longer publishes the engine's
   own placeholder.** A page rendering 27 rows from a `json:` file published the
   literal string `CODEBLOCK_0_END` in 22 customer-facing cells. Code is protected

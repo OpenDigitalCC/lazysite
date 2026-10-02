@@ -155,6 +155,19 @@ Maintenance modes:
                       channel? Exit 3 if yes, 0 otherwise - so a deploy can
                       bail BEFORE touching the site. Needs --docroot; reads
                       lazysite.conf and the manifest only.
+  --serving-group G   The group the web server runs as. The install ends by
+                      running the health check, which compares the tree against
+                      this group; it defaults to www-data where that group
+                      exists. Name it on a host serving under another group.
+
+Exit status:
+  0  installed, and the site passed its own health check
+  1  the install itself failed
+  2  a mistake in the invocation
+  3  --channel-check only: this upgrade would be skipped by the site's channel
+  4  installed, and the site is NOT serviceable - the health check named a
+     failure. The files are in place; `lazysite check --docroot D --fix`
+     repairs what it may.
 
 Example:
   install.pl --docroot /var/www/html --cgibin /usr/lib/cgi-bin
@@ -202,6 +215,13 @@ Getopt::Long::GetOptions(
     'force'          => \$opt{force},
     'mode=s'         => \$opt{mode},
     'invoked-as=s'   => \$opt{invoked_as},
+    # SM933 PR1: the group the web server runs as, for the post-install health
+    # check. The check's own default is www-data when that group exists, which
+    # is right on the platform this ships for and wrong on a host serving under
+    # another group - and since the check's verdict now decides the exit status,
+    # a wrong guess would turn a healthy install into a failed one. Naming it is
+    # the only way the installer can be told.
+    'serving-group=s' => \$opt{serving_group},
 ) or do {
     print {*STDERR} "install.pl: unknown option (run --help for the option list)\n";
     exit 2;
@@ -842,7 +862,8 @@ sub cmd_install {
     print_dep_check();
     print_next_steps( $o->{docroot} );
 
-    return 0;
+    # ---- health ----
+    return run_health_check($o);
 }
 
 # SM842: run the installed handler tool's conversion as the site's owner.
@@ -1491,6 +1512,18 @@ sub mode_for {
     #
     # The example holds no secret itself, so this is not about the shipped file:
     # it is about what `cp smtp.conf.example smtp.conf` produces.
+    #
+    # SM933 PR1, found by wiring the post-install check in: THE INSTALLER MAKES
+    # THAT COPY ITSELF. A fresh install lays down a live `lazysite/forms/smtp.conf`
+    # byte-identical to the example, and this rule was anchored on `.example$`, so
+    # the live file - the one that gets the password - landed 0644 while the
+    # template it came from was 0640. The shipped check calls that a FAILURE
+    # ("a secret must not be" world-accessible), which means a fresh install
+    # failed its own health check on its own output. Matching the live name too
+    # is the whole fix: 0640 satisfies both of the check's conditions (no world
+    # bits, readable by the CGI's group), and a manager save still widens it to
+    # 0660 when a password is entered.
+    return 0640 if $path =~ m{/lazysite/forms/smtp\.conf(?:\.example)?$};
     return 0640 if $path =~ m{/lazysite/forms/.*\.example$};
 
     return 0644;
@@ -2493,6 +2526,72 @@ sub print_dep_check {
     print STDERR "  sudo apt-get install $pkgs\n\n";
 }
 
+# SM933 PR1: AN INSTALL EITHER SAYS IT IS HEALTHY OR NAMES ITS OWN FAULT.
+#
+# The reported incident: provision printed `Installed: 265`, `Overwrote: 0` and
+# four Next steps, and every request to the site answered 500. The engine
+# compiled; the fault was ownership and modes that provision itself had just
+# written. `lazysite-check.pl` could see all of it, and it was the one thing
+# nobody had run - separately, from memory, after the install said it was done.
+#
+# So the installer ends by running the instrument it already ships with. The
+# wiring is the whole change; the diagnosis already existed.
+#
+# EXIT 4, NOT 1. The files DID install - treating that as a failed command would
+# be as wrong in the other direction, and SM899's rule is that a refusal is not a
+# failed command. 4 says "installed, and the site is not serviceable", which is a
+# different thing an operator or a wrapper script can act on separately from a
+# copy that broke (1) or a usage error (2).
+#
+# NOT 3: `--channel-check` already returns 3 for "this upgrade would be skipped
+# by the site's update channel". Two meanings on one code in one tool is how a
+# deploy script comes to treat an unhealthy site as a routine skip.
+sub run_health_check {
+    my ($o) = @_;
+    my $tool = "$STAGE_DIR/tools/lazysite-check.pl";
+
+    # An older payload, or a partial tree, may not carry the tool. Absence is
+    # reported rather than passed over: "no health check was run" and "the site
+    # is healthy" must never read the same way.
+    unless ( -f $tool ) {
+        print STDERR "Health check: SKIPPED - $tool is not in this payload.\n"
+            . "  Run `lazysite check --docroot $o->{docroot}` once it is available.\n\n";
+        return 0;
+    }
+
+    my @cmd = ( $^X, $tool, '--docroot', $o->{docroot} );
+    push @cmd, '--cgibin', $o->{cgibin} if length( $o->{cgibin} // '' );
+    push @cmd, '--group', $o->{serving_group}
+        if length( $o->{serving_group} // '' );
+
+    print STDERR "=== Health check ===\n";
+    my $rc = system(@cmd);
+
+    if ( $rc == -1 ) {
+        print STDERR "\nHealth check: COULD NOT RUN ($!).\n"
+            . "  Run `lazysite check --docroot $o->{docroot}` by hand.\n\n";
+        return 0;
+    }
+
+    my $status = $rc >> 8;
+    if ( $status == 0 ) {
+        print STDERR "\nThe site passed its own health check.\n\n";
+        return 0;
+    }
+
+    print STDERR <<"TEXT";
+
+THE INSTALL COMPLETED AND THE SITE IS NOT SERVICEABLE YET.
+The files are in place - the report above names what is wrong with them. Most of
+it is ownership or modes, and the check repairs what it may:
+
+  lazysite check --docroot $o->{docroot} --fix
+
+Anything it names as needing root is printed as the exact command to run.
+TEXT
+    return 4;
+}
+
 sub print_next_steps {
     my ($docroot) = @_;
     my $LAZYSITE_SHOWN = lazysite_dir_for($docroot);
@@ -2514,6 +2613,14 @@ Next steps:
      'layout:' and 'theme:' in lazysite.conf to point at them.
   3. Edit $LAZYSITE_SHOWN/lazysite.conf to configure your site.
   4. Replace $docroot/index.md with your content.
+  5. After any control-panel action that rebuilds this domain's web server
+     configuration, re-run the health check:
+
+       lazysite check --docroot $docroot
+
+     A rebuild can reset directory modes under the document root, and the
+     engine needs group write on the paths it was given. The check names any
+     path it finds in that state, and --fix repairs the ones it may.
 
 TEXT
 }

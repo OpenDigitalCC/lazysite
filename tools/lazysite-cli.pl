@@ -110,7 +110,7 @@ checkout/tarball root when run from a source tree.
 
 Verbs:
   provision --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable|certified]
-            [--policy auto|manual] [--dry-run]
+            [--policy auto|manual] [--dry-run] [--serving-group G]
         Install a site that does not exist yet, from the host payload.
         Runs as the SITE USER, never root (ownership correct by
         construction), and records the site in the registry at
@@ -120,7 +120,15 @@ Verbs:
         --installdir DIR stands for --docroot DIR/public_html
         --cgibin DIR/cgi-bin (the HestiaCP layout) on this verb and
         the two below; it does not combine with either.
-  upgrade --docroot D [--cgibin C] [--force] [--dry-run]
+        ENDS BY RUNNING THE HEALTH CHECK and prints the verdict: a
+        fresh site either says it passed or names its own fault, and
+        the verb exits 4 when the files are installed and the site is
+        not serviceable (`lazysite check --docroot D --fix` repairs
+        what it may). --serving-group names the group the web server
+        runs as, which is what the check compares the tree against;
+        it defaults to www-data where that group exists. The same is
+        true of the two verbs below.
+  upgrade --docroot D [--cgibin C] [--force] [--dry-run] [--serving-group G]
         Move an installed site to the payload's version, as the site
         user. --cgibin defaults to the site's registry entry; a site
         with no entry (provisioned before the registry existed, or on
@@ -131,7 +139,7 @@ Verbs:
         --dry-run reports the plan and changes nothing - run it before
         committing an upgrade. Single-site only; it does not combine
         with --all.
-  reinstall --docroot D [--cgibin C] [--dry-run]
+  reinstall --docroot D [--cgibin C] [--dry-run] [--serving-group G]
         Re-lay this version's files over a site that already has it,
         leaving content, accounts and config alone. For a site whose
         engine files were edited or lost. REFUSES when the versions
@@ -354,13 +362,24 @@ sub run_or_fail {
 # an installer that died on ENOENT also exits 2. Its own words ("Cannot create
 # directory ...: No such file or directory") are already on stderr; what is
 # lost is only the line that repeated the argv.
+# Returns the installer's own verdict: 0 healthy, 4 installed-but-not-serviceable.
+# Anything else is a failure and never returns.
 sub run_installer {
     my (@cmd) = @_;
     my $rc = system(@cmd);
-    return if $rc == 0;
+    return 0 if $rc == 0;
     if ( $rc != -1 ) {
         my $code = $rc >> 8;
         exit $code if $code == 2 || $code == 3;
+
+        # SM933 PR1: 4 means the files ARE installed and the health check named a
+        # failure. That is NOT a failed command - the caller must finish its
+        # bookkeeping (the channel and policy passes, and the registry entry: the
+        # site exists and an operator has to be able to address it to repair it)
+        # and then carry the 4 out as its own status. Treating it as a failure
+        # here would leave an installed site that `lazysite sites` cannot see,
+        # which is a worse state than the one the check was added to report.
+        return 4 if $code == 4;
     }
     my $why = $rc == -1 ? "cannot run: $!" : 'exit ' . ( $rc >> 8 );
     fail( "command failed ($why): " . join( ' ', @cmd ) );
@@ -417,6 +436,13 @@ sub _install_argv {
     # the verb would have meant either dropping the advice or naming install.pl
     # in it - and naming the implementation is the second spelling coming back.
     push @cmd, '--dry-run' if $o{dry_run};
+    # SM933 PR1: the install ends by running the health check, and the check
+    # compares the tree against the group the web server runs as. Its default is
+    # right on this platform and wrong on a host serving under another group -
+    # and since the verdict now decides the exit status, the verb has to be able
+    # to say so. Omitted means the installer's own default, unchanged.
+    push @cmd, '--serving-group', $o{serving_group}
+        if length( $o{serving_group} // '' );
     return @cmd;
 }
 
@@ -706,17 +732,18 @@ sub site_version {
 
 sub cmd_provision {
     my %o = (
-        docroot => '', cgibin => '', domain  => '', installdir => '',
-        channel => '', policy => '', dry_run => 0,
+        docroot => '', cgibin => '', domain  => '', installdir    => '',
+        channel => '', policy => '', dry_run => 0,  serving_group => '',
     );
     Getopt::Long::GetOptions(
-        'docroot=s'    => \$o{docroot},
-        'cgibin=s'     => \$o{cgibin},
-        'installdir=s' => \$o{installdir},
-        'domain=s'     => \$o{domain},
-        'channel=s'    => \$o{channel},
-        'policy=s'     => \$o{policy},
-        'dry-run'      => \$o{dry_run},
+        'docroot=s'       => \$o{docroot},
+        'cgibin=s'        => \$o{cgibin},
+        'installdir=s'    => \$o{installdir},
+        'domain=s'        => \$o{domain},
+        'channel=s'       => \$o{channel},
+        'policy=s'        => \$o{policy},
+        'dry-run'         => \$o{dry_run},
+        'serving-group=s' => \$o{serving_group},
     ) or usage(2);
     refuse_root('provision');
     _paths_from_installdir( \%o, 'provision' );
@@ -729,9 +756,11 @@ sub cmd_provision {
 
     my $root = payload_root();
     my @cmd  = _install_argv( $o{docroot}, $o{cgibin},
-        mode => 'provision', dry_run => $o{dry_run} );
+        mode          => 'provision',
+        dry_run       => $o{dry_run},
+        serving_group => $o{serving_group} );
     push @cmd, '--domain', $o{domain} if length $o{domain};
-    run_installer(@cmd);
+    my $health = run_installer(@cmd);
 
     # A dry run stops at the plan. The three passes below all WRITE - two conf
     # keys and a registry file - and a preview that leaves a registry entry
@@ -762,22 +791,27 @@ sub cmd_provision {
         channel => length $o{channel} ? $o{channel} : 'edge',
         policy  => length $o{policy}  ? $o{policy}  : 'manual',
     );
-    return 0;
+
+    # The registry entry exists and the channel and policy are set, so the site
+    # is addressable - and the health verdict is carried out verbatim, because a
+    # caller that reads the exit status is the reader SM933 is about.
+    return $health;
 }
 
 sub cmd_upgrade {
     my %o = (
-        docroot => '', cgibin         => '', all     => 0, installdir => '',
-        force   => 0,  force_security => 0,  dry_run => 0,
+        docroot => '', cgibin         => '', all     => 0, installdir    => '',
+        force   => 0,  force_security => 0,  dry_run => 0, serving_group => '',
     );
     Getopt::Long::GetOptions(
-        'docroot=s'      => \$o{docroot},
-        'cgibin=s'       => \$o{cgibin},
-        'installdir=s'   => \$o{installdir},
-        'all'            => \$o{all},
-        'force'          => \$o{force},
-        'force-security' => \$o{force_security},
-        'dry-run'        => \$o{dry_run},
+        'docroot=s'       => \$o{docroot},
+        'cgibin=s'        => \$o{cgibin},
+        'installdir=s'    => \$o{installdir},
+        'all'             => \$o{all},
+        'force'           => \$o{force},
+        'force-security'  => \$o{force_security},
+        'dry-run'         => \$o{dry_run},
+        'serving-group=s' => \$o{serving_group},
     ) or usage(2);
     # --dry-run is a single-site preview. Across a fleet it would report 26
     # plans and change nothing, which reads as a completed upgrade run to
@@ -817,15 +851,21 @@ sub cmd_upgrade {
     my $docroot = _resolve_docroot( \%o );
     my $cgibin  = _cgibin_for( $docroot, $o{cgibin} );
 
-    run_installer( _install_argv( $docroot, $cgibin,
-            mode => 'upgrade', force => $o{force}, dry_run => $o{dry_run} ) );
+    my $health = run_installer( _install_argv( $docroot, $cgibin,
+            mode          => 'upgrade',
+            force         => $o{force},
+            dry_run       => $o{dry_run},
+            serving_group => $o{serving_group} ) );
 
     # Nothing was replaced, so nothing is holding the previous engine. Saying
     # "restart these" after a preview would teach the operator that the line
     # means nothing, which is how the runbook's own restart line came to be
     # ignored for four releases.
     _say_what_needs_restarting($docroot) unless $o{dry_run};
-    return 0;
+
+    # SM933 PR1: the restart advice still stands when the health check failed -
+    # the engine WAS replaced - so the verdict is carried after it, not instead.
+    return $health;
 }
 
 # SM892 Q4, as ruled: "reinstall (that doesn't affect content) makes sense -
@@ -844,12 +884,14 @@ sub cmd_upgrade {
 # one puts the shipped files back. A site whose engine was edited wants this;
 # a site whose permissions drifted wants repair.
 sub cmd_reinstall {
-    my %o = ( docroot => '', cgibin => '', installdir => '', dry_run => 0 );
+    my %o = ( docroot => '', cgibin => '', installdir => '', dry_run => 0,
+        serving_group => '' );
     Getopt::Long::GetOptions(
-        'docroot=s'    => \$o{docroot},
-        'cgibin=s'     => \$o{cgibin},
-        'installdir=s' => \$o{installdir},
-        'dry-run'      => \$o{dry_run},
+        'docroot=s'       => \$o{docroot},
+        'cgibin=s'        => \$o{cgibin},
+        'installdir=s'    => \$o{installdir},
+        'dry-run'         => \$o{dry_run},
+        'serving-group=s' => \$o{serving_group},
     ) or usage(2);
 
     refuse_root('reinstall');
@@ -858,14 +900,16 @@ sub cmd_reinstall {
     my $docroot = _resolve_docroot( \%o );
     my $cgibin  = _cgibin_for( $docroot, $o{cgibin} );
 
-    run_installer( _install_argv( $docroot, $cgibin,
-            mode => 'reinstall', dry_run => $o{dry_run} ) );
+    my $health = run_installer( _install_argv( $docroot, $cgibin,
+            mode          => 'reinstall',
+            dry_run       => $o{dry_run},
+            serving_group => $o{serving_group} ) );
 
     # The same reason upgrade says it: a worker holding engine code in memory
     # goes on serving the code this just replaced. And the same reason upgrade
     # stays quiet on a preview: nothing was replaced.
     _say_what_needs_restarting($docroot) unless $o{dry_run};
-    return 0;
+    return $health;    # SM933 PR1, as upgrade does
 }
 
 # SM892 D5: the recovery side of the same operation, given a verb for the same
@@ -1123,7 +1167,14 @@ sub cmd_upgrade_all {
             if @foreign;
     }
 
-    my ( @done, @skipped, @failed );
+    # SM933 PR1 adds a FOURTH outcome, and it needs its own bucket rather than
+    # being folded into one of the three. A site that upgraded and then failed its
+    # health check is not `done` - saying "upgraded 26 sites" when one of them
+    # serves 500s is the reported defect at fleet scale - and it is not `failed`
+    # either, because the files DID land and the site needs repair rather than a
+    # re-run. SM626's lesson is the same one: a bucket that mixes two states an
+    # operator must respond to differently is a bucket that cannot be acted on.
+    my ( @done, @skipped, @failed, @unhealthy );
     for my $s (@$sites) {
         my $owner = site_owner($s);
         if ( !length $owner || $owner eq 'root' ) {
@@ -1147,7 +1198,10 @@ sub cmd_upgrade_all {
             push @skipped, $s->{name};
             next;
         }
-        my @cmd = _install_argv( $s->{docroot}, $s->{cgibin}, mode => 'upgrade', force => $o->{force} );
+        my @cmd = _install_argv( $s->{docroot}, $s->{cgibin},
+            mode          => 'upgrade',
+            force         => $o->{force},
+            serving_group => $o->{serving_group} );
         # The only place root is allowed: drop to the site's owner per site.
         @cmd = _as_owner( $owner, @cmd ) if $is_root && $owner ne $me;
         print "== $s->{name}: $s->{docroot} (as $owner)\n";
@@ -1163,6 +1217,16 @@ sub cmd_upgrade_all {
             my @r = $is_root ? _restart_site_workers( $s->{name} ) : ();
             print "   restarted: " . join( ', ', @r ) . "\n" if @r;
         }
+        elsif ( $rc != -1 && ( $rc >> 8 ) == 4 ) {
+            # Installed, and the health check named a failure. The code IS in
+            # place, so the restart still applies - a worker holding the old
+            # engine is a second fault on top of the first.
+            print "== $s->{name}: upgraded, and NOT serviceable - see its health "
+                . "check above (lazysite check --domain $s->{name} --fix)\n";
+            push @unhealthy, $s->{name};
+            my @r = $is_root ? _restart_site_workers( $s->{name} ) : ();
+            print "   restarted: " . join( ', ', @r ) . "\n" if @r;
+        }
         elsif ( $rc != -1 && ( $rc >> 8 ) == 3 ) {
             # install.pl exit 3 = clean channel skip (the site's
             # update_channel refused this payload; already explained and
@@ -1174,8 +1238,17 @@ sub cmd_upgrade_all {
     }
     print 'lazysite: upgraded ' . @done . ' site(s)'
         . ( @skipped ? ', skipped ' . @skipped . ' (' . join( ', ', @skipped ) . ')' : '' )
-        . ( @failed  ? ', FAILED: ' . join( ', ', @failed ) : '' ) . "\n";
-    return @failed ? 1 : 0;
+        . ( @unhealthy
+        ? ', NOT SERVICEABLE: ' . join( ', ', @unhealthy )
+        : '' )
+        . ( @failed ? ', FAILED: ' . join( ', ', @failed ) : '' ) . "\n";
+
+    # A failed upgrade outranks an unhealthy one: it is the stronger statement
+    # about the run. Both are non-zero, and they are different numbers so a
+    # deploy script can tell "re-run this" from "repair this".
+    return 1 if @failed;
+    return 4 if @unhealthy;
+    return 0;
 }
 
 # List the registered sites: name, owner, channel, policy, installed version,

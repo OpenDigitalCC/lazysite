@@ -80,6 +80,14 @@ sub run_install {
     local $ENV{PERL5LIB};
     delete $ENV{PERL5LIB};
     push @args, _mode_for(@args);
+
+    # SM933 PR1: the install ends by running the health check, which compares the
+    # tree against the group the web server runs as (www-data by default). A
+    # fixture tree belongs to the test user's group, so every install here would
+    # otherwise report group findings that are true of the fixture and false of a
+    # real site - and the install would return 4. Named once, for all 71 call
+    # sites, the same way t/tools/04-check.t passes --group.
+    push @args, '--serving-group', ( getgrgid( $) + 0 ) // ( $) + 0 ) );
     my $cmd  = join ' ', map { quotemeta } $^X, $INSTALL, @args;
     my $out  = `$cmd 2>&1`;
     return ( $? >> 8, $out );

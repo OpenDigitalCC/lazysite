@@ -42,8 +42,16 @@ sub build_manifest {
 
 # Run the CLI; returns (exit_code, combined_output). %env entries are set
 # for the child only.
+# SM933 PR1: the install verbs end by running the health check and return 4 when
+# the site is not serviceable. A fixture tree carries the test user's group, not
+# the web server's, so name it on the verbs that install - one place rather than
+# every call site, and the same reason t/tools/04-check.t passes --group.
+my $FIXTURE_GROUP = getgrgid( $) + 0 ) // ( $) + 0 );
+
 sub run_cli {
     my ( $env, @args ) = @_;
+    push @args, '--serving-group', $FIXTURE_GROUP
+        if @args && $args[0] =~ /\A(?:provision|upgrade|reinstall)\z/;
     local %ENV = %ENV;
     delete $ENV{LAZYSITE_CLI_FAKE_ROOT};
     delete $ENV{LAZYSITE_REGISTRY_DIR};

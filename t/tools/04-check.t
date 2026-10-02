@@ -83,6 +83,14 @@ sub run { run_as_group( $gname, @_ ) }
     like( $out, qr/fixed: chmod 2775/, '--fix repairs the cache dir mode' );
     like( $out, qr/fixed: chmod 0660/, '--fix repairs the secret mode' );
 
+    # SM933 PR6: the repair line carries the mode that WAS there, so the
+    # evidence of the fault survives the fix. The fixture set the cache dir to
+    # 0755 at line 52, which is SM933's own example - chmod 2775 (was 0755).
+    like( $out, qr/fixed: chmod 2775 \S*lazysite\/cache \(was 0755\)/,
+        'the repair line names the prior mode, not just the new one' );
+    unlike( $out, qr/fixed: chmod \d+ \S+\n/,
+        'no repair line is printed without a prior mode' );
+
     my $after = run();
     like( $after, qr/0 failure\(s\)/, 're-check is clean after --fix' );
     is( $? >> 8, 0, 'zero exit after repair' );

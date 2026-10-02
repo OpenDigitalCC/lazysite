@@ -25,6 +25,13 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_manifest_guard);
 
+# SM933 PR1: install.pl now ends by running the health check and returns 4 when
+# the site is not serviceable. A fixture tree belongs to the test user's group,
+# not the web server's, so name it - the same reason t/tools/04-check.t passes
+# --group. Taken from the effective GID, which is the group these temp trees get.
+my $FIXTURE_GROUP = getgrgid( $) + 0 ) // ( $) + 0 );
+
+
 my $ROOT     = "$FindBin::Bin/../..";
 my $INSTALL  = "$ROOT/install.pl";
 my $CHECK    = "$ROOT/tools/lazysite-check.pl";
@@ -45,7 +52,7 @@ my $docroot = "$base/site";
 my $cgibin  = "$base/cgi-bin";
 make_path( $docroot, $cgibin );
 
-my $out = `$^X \Q$INSTALL\E --mode provision --docroot \Q$docroot\E --cgibin \Q$cgibin\E 2>&1`;
+my $out = `$^X \Q$INSTALL\E --mode provision --docroot \Q$docroot\E --cgibin \Q$cgibin\E --serving-group \Q$FIXTURE_GROUP\E 2>&1`;
 is( $? >> 8, 0, 'install exited 0' ) or BAIL_OUT($out);
 
 subtest 'the install records the resolved directory modes' => sub {
