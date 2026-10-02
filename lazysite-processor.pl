@@ -4038,6 +4038,32 @@ sub _yaml_scalar {
     return $s;
 }
 
+# SM940: is this line a single quoted scalar, and nothing else?
+#
+# The question exists because `_yaml_block`'s mapping test splits on the first
+# colon, and a quote is exactly what an author adds to protect a value that
+# CONTAINS a colon - so `'https://github.com/x'` was read as the key `'https`
+# with the value `//github.com/x'`. Silent: a layout received single-key hashes
+# where it expected strings, and the page merely rendered wrong.
+#
+# THE OBVIOUS TEST IS WRONG, which is why this is a named sub rather than a
+# pattern inline. "Starts with a quote and ends with the same quote" also
+# describes `'a': 'b'`, a legitimate quoted-KEY mapping, and reading that as a
+# scalar would trade one defect for another. The discriminator is whether the
+# OPENING quote closes at the end of the line:
+#
+#   'https://github.com/x'   closes at the last character  -> scalar
+#   'a': 'b'                 closes before the colon       -> mapping
+sub _yaml_quoted_scalar_line {
+    my ($s) = @_;
+    return 0 unless defined $s;
+    $s =~ s/^\s+//;
+    $s =~ s/\s+$//;
+    return 0 unless length($s) >= 2;
+    return 0 unless $s =~ /^(["'])/;
+    return index( $s, $1, 1 ) == length($s) - 1 ? 1 : 0;
+}
+
 sub _yaml_split_flow {
     my ($s) = @_;
     my @parts;
@@ -4099,11 +4125,25 @@ sub _yaml_block {
         return \@seq;
     }
 
+    # SM940: a wholly quoted line is a SCALAR, and that has to be decided before
+    # the mapping test below, which splits on the first colon. The sequence branch
+    # above strips the `- ` and recurses, so `- 'https://github.com/x'` arrives
+    # here as a bare quoted string and was read as a mapping - key `'https`, value
+    # `//github.com/x'`. The flow form was always correct, because _yaml_split_flow
+    # tracks quote state; these two paths now agree.
+    if ( _yaml_quoted_scalar_line($first) ) {
+        $$i++;
+        return _yaml_scalar($first);
+    }
+
     if ( $first !~ /^[\[{]/ && $first =~ /^(.+?)\s*:\s*(.*)$/ ) {    # mapping
         my %map;
         while ( $$i <= $#$toks && $toks->[$$i][0] == $ind ) {
             my $line = $toks->[$$i][1];
             last if $line     =~ /^-(?:\s|$)/;
+            # SM940, the same question inside the loop: a quoted scalar at mapping
+            # indent is not a `key: value` pair and must not be accumulated as one.
+            last if $line     =~ /^(["'])/ && _yaml_quoted_scalar_line($line);
             last unless $line =~ /^(.+?)\s*:\s*(.*)$/;
             my ( $k, $v ) = ( _yaml_scalar($1), $2 );
             $$i++;

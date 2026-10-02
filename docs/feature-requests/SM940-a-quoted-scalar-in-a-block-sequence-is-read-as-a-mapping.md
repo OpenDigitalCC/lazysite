@@ -4,11 +4,11 @@ title: "SM940: a quoted scalar in a block sequence is read as a mapping"
 subtitle: "`- 'https://github.com/X'` under `sections:` parses to `{ \"'https\" => \"//github.com/X'\" }`. The sequence branch of `_yaml_block` strips the `- ` and recurses straight into the mapping test, which splits on the first colon before anything consults the quotes. The flow form is correct, because that path tracks quote state. Nothing warns: the layout receives maps where it expected strings and the page merely renders wrong."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-02
 raised-by: the sites agent (stuartjmackintosh.com), reproduced here against 0.15.1
 area: renderer
-status-note: "REPORTED against 0.14.4 and REPRODUCED HERE against the current tree, which is the part worth carrying: this is not a version gap. The reporter's own grade A stands - their probe diffs the engine's own subs against YAML::XS on a live page's front matter. The fix is an ordering change in one sub with one definition and no pinned copy, but the obvious spelling of it is wrong and this filing records why: a line that merely STARTS and ENDS with a quote includes `'a': 'b'`, a legitimate quoted-key mapping, so the test has to be that the opening quote CLOSES at the end of the line. Sized S. Not yet built."
+status-note: "SHIPPED (PENDING). `_yaml_quoted_scalar_line` answers whether the OPENING quote closes at end of line, and it is consulted between the sequence branch and the mapping test, and again in the mapping loop so a quoted scalar at mapping indent is never accumulated as a bogus key. SABOTAGE-VERIFIED BOTH WAYS: with the fix removed the reporter's case and the block/flow agreement both fail; and the NAIVE discriminator ("starts and ends with a quote") was compared directly against the shipped one - it calls `'a': 'b'` a scalar where the shipped one calls it a mapping, which is the assertion that stops the obvious fix shipping. ORIGINALLY REPORTED against 0.14.4 and REPRODUCED HERE against the current tree, which is the part worth carrying: this is not a version gap. The reporter's own grade A stands - their probe diffs the engine's own subs against YAML::XS on a live page's front matter. The fix is an ordering change in one sub with one definition and no pinned copy, but the obvious spelling of it is wrong and this filing records why: a line that merely STARTS and ENDS with a quote includes `'a': 'b'`, a legitimate quoted-key mapping, so the test has to be that the opening quote CLOSES at the end of the line. Sized S. Not yet built."
 ---
 
 # What was reported, and what I measured

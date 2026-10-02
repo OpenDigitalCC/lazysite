@@ -44,6 +44,28 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM940 (PENDING) **a quoted scalar in a block sequence under `sections:` is a
+  string again.** `- 'https://github.com/x'` parsed to
+  `{ "'https" => "//github.com/x'" }`: the sequence branch strips the `- ` and
+  recurses, and the recursion reached the mapping test - which splits on the first
+  colon - before anything consulted the quotes. A quote is exactly what an author
+  adds to protect a value containing a colon.
+
+  Silent, which is why it survived: no warning and no render error. The layout got
+  single-key hashes where it expected strings, so a `FOREACH` emitted empty cells
+  and the page merely looked wrong. The sites agent found it by diffing a live
+  page's front matter against `YAML::XS`, and reported it against 0.14.4 - it
+  reproduced against the current tree, which is the part that decided it was
+  scheduled rather than closed.
+
+  **The obvious fix would have introduced a second defect.** "Treat a wholly quoted
+  line as a scalar" also describes `'a': 'b'`, a legitimate quoted-KEY mapping. The
+  discriminator is whether the OPENING quote closes at the end of the line, and that
+  case is asserted: `'a': 'b'` stays a pair.
+
+  The flow form was always correct, because `_yaml_split_flow` tracks quote state.
+  The two spellings now agree, which is what the report was actually about.
+
 - SM942 (PENDING) **the generated feeds list items newest first, and the item count
   is bounded.** Reported from xisl.com: 59 pages, every `pubDate` correct, and the
   items in FILENAME order - so an aggregator taking "the latest 10" of a large feed
