@@ -20,7 +20,7 @@ out to hold seven reports, two of which ask questions only this side can answer.
 reused (SM064), so the next cut is **0.15.2**. The field-practice briefing is already
 stamped for it.
 
-# The seven rulings taken 2026-10-02
+# The eleven rulings taken 2026-10-02
 
 | Ref | Question | Ruling |
 | --- | --- | --- |
@@ -33,14 +33,31 @@ stamped for it.
 | **R6** | [[SM942]] FO3: a feed emits every dated page on every poll. Cap it? | **CAP AT 50, CONFIGURABLE.** The conventional shape, plus `lastBuildDate`. 50 costs no current site anything - xisl.com's 59 loses its 9 oldest from the FEED, not from the site |
 | **R7** | [[SM824]] F1: the head meta variables reach a layout already HTML-escaped with no inverse and there is no `json` filter, so JSON-LD from front matter is unreachable. Expose a raw copy and ship a filter, or walk-and-escape `sections` and foreclose it? | **EXPOSE A RAW COPY AND SHIP A `json` FILTER.** The single-escape-point invariant gains a documented exception - it already has an undocumented one, because `sections` reaches layouts raw today |
 
+| **R8** | [[SM941]]: `human` is the fall-through of `classify()` and means "no automation rule matched" - 43% of it is empty-UA or self-declared automation. Rename it? | **NEITHER OFFERED NAME. EXPLAIN IT INSTEAD**, in the release manager's words: "we can't know it is human, but we can know when it isn't, so whatever is human exists in this group." The group is an UPPER BOUND and the report says so. **The key is NOT renamed** - still open, and a rename is a breaking change that must not ride along with an arithmetic fix |
+| **R9** | 4,227 requests with NO user-agent are counted as human, because the `human` return never consults the `_is_browser` that `classify()` computed | **A POSITIVE BROWSER TEST, AND `no_agent` AS ITS OWN CLASS.** An absent user-agent is a fact worth reporting, not a residual - the 4,227 become visible and separable. Buckets still sum |
+| **R10** | `WP-Safe-Scanner`, `WordPress/6.4.3`, `UnifiedPaths`, `SeltzSitemapFetcher`, `GeedoShopProductFinder` and **our own `lzs-fetch`** all land in the human group | **MATCH SELF-DECLARATION, NOT A VENDOR LIST**: scanner, fetcher, crawler, spider, -finder, `WordPress/`, `curl/`, `wget/`, python-requests - so the next tool of this shape is caught before anyone notices it. `lzs-fetch` joins `$AGENT_RE` |
+| **R11** | `/websocket`, 5,418 requests, all 404 | **COUNTED OUTSIDE THE GROUP.** Cause identified by the release manager: the domain replaced a site that used websockets and a browser is still reconnecting. Not this engine's defect, and not a visit - a persistent reconnect to a path that has never resolved is automation by behaviour whatever its UA says |
+
+**R4 IS DISCHARGED AND H0 IS WITHDRAWN.** It asked for the gap to be measured before
+AV2 was ruled; the measurement found the answer in the SOURCE, so the diagnostic that
+was scheduled for it is not built. AV2 is answered rather than ruled - see [[SM941]].
+
+**R9/R10/R11 CARRY A MANDATORY CONSEQUENCE: counting basis 4 and schema_version 3.**
+They move traffic out of the reported group, so counts DROP per site on the upgrade
+date - a metric change wearing the clothes of a traffic change. `stats.pl:140` carries
+the basis ladder precisely because this went wrong once before ("an operator asked why
+traffic dropped on 27 July"). The bump ships with them or they do not ship.
+
 **R4 and R5 interlock, and the order is the point:** measure the gap, rule AV2 on
 what it shows, then H1 and the fix land together. R5 is the one ruling here that
 accepts a known gap rather than closing it, and it is recorded as a choice so that
 nobody later reads "no test" as an oversight.
 
-**R4 needs data this tree cannot see.** The gap is in xisl.com's live first-party
-log. The engine side is a diagnostic that characterises a window's gap set; running
-it against a live site is the sites agent's, and is asked for through its inbox.
+**What R4 cost, and what it bought.** It needed data this tree cannot see, and the
+release manager supplied one day's user-agent distribution. That, plus the source,
+answered AV2 outright and found three defects nobody had asked about - including our
+own `lzs-fetch` counted as a human visitor. The scheduled diagnostic was never
+written: measuring first removed the need for the instrument.
 
 R2 is already discharged: `/srv/projects/odoo/oom/inbox/2026-10-02-the-session-transport-lazysite-needs-from-oom.md`
 states the five outcomes OOM needs to provide, why the transport cannot live in
@@ -142,20 +159,24 @@ for another.
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| H0 | **MEASURE THE GAP (R4)**: a diagnostic that characterises the requests in the 2,870 - user agents by frequency, the paths behind the 8,023 404s, per-address intervals. Engine side ships with the stats tooling; the RUN is on a live site and is asked of the sites agent | S | nothing |
-| H1 | [[SM941]] AV1 - the invariant test: human totals in `totals`/`by_day`/`traffic_classes` agree, `unique_visitors <= human_visits`, `status_codes` sums to a named population. **HELD by R5** until AV2 is ruled, then it lands green beside the fix | S | H0, then AV2 |
-| H2 | [[SM941]] AV2 - which counter is the human population, and what `status_codes` counts | M | H0's measurement, then a ruling |
-| H3 | [[SM941]] AV3/AV4/AV5 - the unique-visitor contradiction (4,359 uniques across 4,241 visits), the duplicate `human_visits`/`pageviews` pair, and a `window_scoped` field on `months`. **AV5 is unblocked**: it is presentation, and needs no ruling | M | H2 for AV3/AV4; AV5 nothing |
+| H0 | ~~Measure the gap~~ **WITHDRAWN**: R4 is discharged and the diagnostic was never needed - the split was in the source. Kept as a row so the plan records that an instrument was scheduled and then not built |  | done |
+| H1 | [[SM941]] AV1 - the invariant test. **R5 held it so it would land GREEN beside the fixes**, which is now possible | S | H2, H3 |
+| H2 | [[SM941]] AV2 - **ANSWERED**: publish `asset_hits`, stop counting 404s as visits, and name each counter's population. The gap was requests-with-assets against requests-without-successful-assets, and neither figure was page views (7,956 on xisl, against a reported 15,979) | M | nothing |
+| H3 | [[SM941]] AV3/AV4/AV5 - `unique_visitors` reads `cls_ips` as the manager page already does; the duplicate `human_visits`/`pageviews` scalar; `window_scoped` on `months` | S+S+S | nothing |
+| H6 | [[SM941]] AV6-AV9 (**R8-R11**) - the upper-bound explanation, the positive browser test plus `no_agent`, the self-declaration tokens and `lzs-fetch`, and `/websocket` counted outside | M | nothing |
+| H7 | [[SM941]] AV10 - **counting basis 4 and schema_version 3**, with the ladder entry. Ships WITH H6 or H6 does not ship | S | H6 |
 | H4 | [[SM942]] FO1/FO2 - feeds sorted newest-first **in the engine, on the raw ISO date**. Not in the template (bucket `seed` - an upgrade never replaces it, so a template fix reaches no existing site) and not on `page.date` (already RFC 822 by then, so the sort would order by weekday name) | S | nothing |
 | H5 | [[SM942]] FO3 (R6) - `feed_items` capping at 50 by default, plus `lastBuildDate`. Same template and the same sort as H4, so it goes with it | S | H4 |
 
-**H4 + H5 are now one piece of work and need nothing from anybody** - the sort and
-the cap are the same template and the same pass, and R6 settled the cap. H0 and AV5
-are the other two unblocked rows.
+**Every row in this group is now unblocked.** H2, H3, H6 and H7 follow from the
+measurement; H4 + H5 are one piece of work (the sort and the cap are the same template
+and the same pass, settled by R6); and H1 lands last, green, which is what R5 held it
+for.
 
-H1 is deliberately held rather than deferred by accident: R5 chose to leave the
-arithmetic unchecked until AV2 can be ruled on measured data, rather than land a
-test that is red or marked-red from the day it arrives.
+**H6 and H7 are the ones to read carefully.** They change what every site's numbers
+say, downwards, and the basis bump is what keeps that honest. They are also the rows a
+site owner will notice, so they want the CHANGELOG entry written for a reader rather
+than for us.
 
 # Group F - held, and one of them asks a question
 
@@ -185,7 +206,7 @@ Nothing becomes reachable that was not reachable before.
 | The OOM delivery shape | Left open by the release manager while OOM is under test; it is a decision for all of OOM's consumers |
 | [[SM923]] limit 1, the section construct | Waiting for a second long form to ask |
 | B3's detection signatures | Not ruled, and offered as signatures rather than a request |
-| [[SM941]] AV2 (and AV3/AV4 behind it) | **Ruled R4: measure the gap first.** The ruling is the method, not the answer - AV2 itself is still open and is meant to be, until H0 reports |
+| Renaming the `human` key | **R8 deliberately left it open.** The report will explain the group rather than relabel it, because a rename breaks every reader, dashboard and layout and must not ride along with an arithmetic fix |
 
 # What this plan is honest about
 
