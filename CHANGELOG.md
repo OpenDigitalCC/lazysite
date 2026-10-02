@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM933 (PENDING) **an install now says whether the site is healthy, and names its
+- SM933 (31321799) **an install now says whether the site is healthy, and names its
   own fault when it is not.** A fresh provision on a Hestia domain printed
   `Installed: 265`, `Overwrote: 0` and four Next steps, and every request answered
   500. The engine compiled; the fault was ownership and modes that provision itself

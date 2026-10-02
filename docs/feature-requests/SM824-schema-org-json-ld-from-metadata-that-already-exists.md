@@ -62,6 +62,26 @@ is the only thing that says whether the emitted block is understood.
 2026-09-10. The doc cites this as "the existing D011 discoverability scope,
 promoted"; D011 has no filing in this tree, so this is its first.
 
+# RULED 2026-10-02 (R7): a raw copy, and a `json` filter
+
+The decision the measurements below ask for is taken. **Expose a raw copy of the head
+meta values and ship a `json` filter** - rather than walking and escaping `sections`
+to hold the invariant everywhere.
+
+Two reasons, and the second is the one that settles it:
+
+1. The alternative **forecloses the feature**. The reporter says so plainly: walk and
+   escape `sections` and "JSON-LD from front matter is not reachable from a layout at
+   all". There is a live use for it - `sameAs` on a published page.
+2. **The invariant already has this exception; it is just undocumented.** `sections`
+   reaches the layout raw today (`sections => $meta->{sections} || []`). Choosing the
+   raw copy does not introduce an exception, it names the one that exists and bounds
+   it.
+
+So the single-escape-point rule gains a documented exception, stated where the rule is
+stated rather than only in a plan. The work is three small rows - see Group I of
+WORK-PLAN-0152.
+
 # Three measurements a layout needs before it can emit this, 2026-10-02
 
 Offered by the sites agent as input to this filing rather than as a separate ask -

@@ -20,13 +20,27 @@ out to hold seven reports, two of which ask questions only this side can answer.
 reused (SM064), so the next cut is **0.15.2**. The field-practice briefing is already
 stamped for it.
 
-# The three rulings taken 2026-10-02
+# The seven rulings taken 2026-10-02
 
 | Ref | Question | Ruling |
 | --- | --- | --- |
 | **R1** | A native form's declared field rules (`required`, `email`, `max:N`, `pattern:`) are rendered as HTML attributes and enforced by nothing on the server - measured: the handler checks only uploads and "not entirely blank". What should the server do? | **ENFORCE AND REFUSE, with a named reason.** The declaration becomes a contract |
 | **R2** | SM747: both credential strategies need a session transport OOM does not have. Take OA3's key-in-cookie fallback, or wait? | **WAIT for OOM to gain the transport, and file to its inbox what is needed.** Filed 2026-10-02 |
 | **R3** | SM933: `--fix` declines to set bits it did not create (SM274), so a fresh install cannot reach a clean report. Does that still apply to the installer's own output? | **BOTH**: provision gets it right, and `--fix` repairs the installed set |
+
+| **R4** | [[SM941]] AV2: two human totals 2,870 apart on one report, and `status_codes` sums to the LARGER - so either 43% of human requests were 404s, or the status codes describe a population the report never names. Which counter is the human population? | **MEASURE THE GAP FIRST.** The 2,870 is a specific set of requests and can be characterised - agents, paths, intervals - so AV2 becomes a reading of data rather than a preference. Nothing is built on a guess |
+| **R5** | [[SM941]] H1: the invariant test fails on commit, because the contradictions are live. Land it failing-but-marked, land it as a reporting diagnostic, or hold it? | **HOLD H1 until AV2 is ruled**, then write the test and the fix together so it is green on arrival. The arithmetic stays unchecked in the meantime, and that is accepted deliberately |
+| **R6** | [[SM942]] FO3: a feed emits every dated page on every poll. Cap it? | **CAP AT 50, CONFIGURABLE.** The conventional shape, plus `lastBuildDate`. 50 costs no current site anything - xisl.com's 59 loses its 9 oldest from the FEED, not from the site |
+| **R7** | [[SM824]] F1: the head meta variables reach a layout already HTML-escaped with no inverse and there is no `json` filter, so JSON-LD from front matter is unreachable. Expose a raw copy and ship a filter, or walk-and-escape `sections` and foreclose it? | **EXPOSE A RAW COPY AND SHIP A `json` FILTER.** The single-escape-point invariant gains a documented exception - it already has an undocumented one, because `sections` reaches layouts raw today |
+
+**R4 and R5 interlock, and the order is the point:** measure the gap, rule AV2 on
+what it shows, then H1 and the fix land together. R5 is the one ruling here that
+accepts a known gap rather than closing it, and it is recorded as a choice so that
+nobody later reads "no test" as an oversight.
+
+**R4 needs data this tree cannot see.** The gap is in xisl.com's live first-party
+log. The engine side is a diagnostic that characterises a window's gap set; running
+it against a live site is the sites agent's, and is asked for through its inbox.
 
 R2 is already discharged: `/srv/projects/odoo/oom/inbox/2026-10-02-the-session-transport-lazysite-needs-from-oom.md`
 states the five outcomes OOM needs to provide, why the transport cannot live in
@@ -128,24 +142,40 @@ for another.
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| H1 | [[SM941]] AV1 - the invariant test: one `analyse_visitors` report, three assertions (the human totals in `totals`, `by_day` and `traffic_classes` agree; `unique_visitors <= human_visits`; `status_codes` sums to a named population). **It will fail on commit, which is its purpose** | S | nothing |
-| H2 | [[SM941]] AV2 - **which counter is the human population**, and what `status_codes` counts. Two totals 2,870 apart on one report, and `status_codes` sums to the larger: if that is the human figure then 43% of human requests were 404s | M | **a ruling** - it is a decision about what the product means by a human visit |
-| H3 | [[SM941]] AV3/AV4/AV5 - the unique-visitor contradiction (4,359 uniques across 4,241 visits), the duplicate `human_visits`/`pageviews` pair, and a `window_scoped` field on `months` | M | H2 for AV3/AV4; AV5 none |
+| H0 | **MEASURE THE GAP (R4)**: a diagnostic that characterises the requests in the 2,870 - user agents by frequency, the paths behind the 8,023 404s, per-address intervals. Engine side ships with the stats tooling; the RUN is on a live site and is asked of the sites agent | S | nothing |
+| H1 | [[SM941]] AV1 - the invariant test: human totals in `totals`/`by_day`/`traffic_classes` agree, `unique_visitors <= human_visits`, `status_codes` sums to a named population. **HELD by R5** until AV2 is ruled, then it lands green beside the fix | S | H0, then AV2 |
+| H2 | [[SM941]] AV2 - which counter is the human population, and what `status_codes` counts | M | H0's measurement, then a ruling |
+| H3 | [[SM941]] AV3/AV4/AV5 - the unique-visitor contradiction (4,359 uniques across 4,241 visits), the duplicate `human_visits`/`pageviews` pair, and a `window_scoped` field on `months`. **AV5 is unblocked**: it is presentation, and needs no ruling | M | H2 for AV3/AV4; AV5 nothing |
 | H4 | [[SM942]] FO1/FO2 - feeds sorted newest-first **in the engine, on the raw ISO date**. Not in the template (bucket `seed` - an upgrade never replaces it, so a template fix reaches no existing site) and not on `page.date` (already RFC 822 by then, so the sort would order by weekday name) | S | nothing |
+| H5 | [[SM942]] FO3 (R6) - `feed_items` capping at 50 by default, plus `lastBuildDate`. Same template and the same sort as H4, so it goes with it | S | H4 |
 
-H1 and H4 are the two rows here that need no decision. H4 is the smaller and has a
-named live symptom; H1 is the one that stops the next arithmetic defect arriving
-unnoticed.
+**H4 + H5 are now one piece of work and need nothing from anybody** - the sort and
+the cap are the same template and the same pass, and R6 settled the cap. H0 and AV5
+are the other two unblocked rows.
 
-[[SM942]] FO3 (an item cap plus `lastBuildDate`) is **not** in this group: a cap
-changes what subscribers can reach, which is a product decision. It sits with the
-other unruled rows below.
+H1 is deliberately held rather than deferred by accident: R5 chose to leave the
+arithmetic unchecked until AV2 can be ruled on measured data, rather than land a
+test that is red or marked-red from the day it arrives.
 
 # Group F - held, and one of them asks a question
 
 | Ref | What | Why held |
 | --- | --- | --- |
-| F1 | **FOLDED INTO [[SM824]] 2026-10-02** - three measured obstacles to a layout emitting JSON-LD: head meta vars are HTML-escaped with no inverse, there is no `json` filter reachable from a layout, and `sections` reaches the layout raw against the single-escape-point invariant. Input to [[SM824]], self-graded B, measured locally | **Asks a ruling**: expose a raw copy plus a `json` filter, or walk-and-escape `sections`. The reporter's words: "One of the two. Not neither, and not both silently." Park until SM824 is picked |
+| F1 | **RULED R7, so it is no longer held** - see Group I below |
+
+# Group I - JSON-LD from a layout becomes possible (R7)
+
+| Ref | The work | Cx | Blocked on |
+| --- | --- | --- | --- |
+| I1 | A RAW copy of the head meta values beside the escaped ones. `_esc_html` is applied in stash assembly over `page_meta_title`, `page_meta_desc`, `page_title`, `page_subtitle`, `page_author` and `page_<key>`, and there is no inverse - so a layout cannot recover the author's text | S | nothing |
+| I2 | A `json` filter in `%tt_opts` FILTERS, which ships `markdown` and no JSON encoder today. Hand-rolled quoting in a template is the thing this exists to avoid | S | nothing |
+| I3 | The documented exception: the single-escape-point invariant now has a named one, written where the invariant is stated rather than only in this plan. `sections` already reached layouts raw, so the exception describes what was true as well as what is new | S | I1, I2 |
+
+**The security angle is de-rated by the reporter and that matters for sizing:** an
+XSS-shaped payload in front matter renders through the shipped `bio-modest`
+components, and they say plainly *"it is not an escalation. Only the page author can
+write front matter, and that same author can already put raw HTML in the page body."*
+Nothing becomes reachable that was not reachable before.
 
 # Not in 0.15.2
 
@@ -154,9 +184,8 @@ other unruled rows below.
 | [[SM747]] slices B, C and D | R2: waiting on OOM's session transport. Slice E (the MCP surface) is unblocked but delivers an agent-facing surface and no page UI |
 | The OOM delivery shape | Left open by the release manager while OOM is under test; it is a decision for all of OOM's consumers |
 | [[SM923]] limit 1, the section construct | Waiting for a second long form to ask |
-| B3's detection signatures, F1 | Not ruled |
-| [[SM941]] AV2 (and AV3/AV4 behind it) | Not ruled: which counter is the human population is a decision about what a human visit MEANS, and the 43%-of-humans-hit-404 figure is the evidence that the two counters classify differently |
-| [[SM942]] FO3, the feed item cap | Not ruled: a cap changes what subscribers can reach |
+| B3's detection signatures | Not ruled, and offered as signatures rather than a request |
+| [[SM941]] AV2 (and AV3/AV4 behind it) | **Ruled R4: measure the gap first.** The ruling is the method, not the answer - AV2 itself is still open and is meant to be, until H0 reports |
 
 # What this plan is honest about
 

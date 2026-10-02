@@ -8,8 +8,36 @@ status: candidate
 raised: 2026-10-02
 raised-by: the sites agent (xisl.com, opendigital.cc), answering a site owner's question
 area: analytics
-status-note: "CANDIDATE. Grade A: measured on two live sites, reproduced across two window sizes, with the raw reports kept. NOT YET REPRODUCED HERE against a fixture - the numbers come from live first-party logs this tree cannot see, and the arithmetic contradictions are self-evident from the output rather than needing a repro. THREE FINDINGS, DELIBERATELY NOT MERGED: one is a hard contradiction (unique > visits), one is a split between two counters (two human totals), one is probably CORRECT behaviour that reads as broken (months not window-scoped). They are in one filing because they share a cause at the level that matters - nothing asserts that this report's numbers agree with each other - and the reporter says so: 'the arithmetic in this report is not being checked anywhere'. The report also names its own closing condition, which is a test rather than a fix: one call, three invariants."
+status-note: "CANDIDATE, AND THE METHOD IS RULED (R4/R5, 2026-10-02): measure the gap before ruling AV2, and HOLD the invariant test H1 until AV2 is ruled so it lands green beside the fix rather than red or marked-red. The consequence is accepted explicitly - until then nothing checks this report's arithmetic. The measurement needs the live log this tree cannot read, so the engine gains the diagnostic and the sites agent is asked to run it. Grade A: measured on two live sites, reproduced across two window sizes, with the raw reports kept. NOT YET REPRODUCED HERE against a fixture - the numbers come from live first-party logs this tree cannot see, and the arithmetic contradictions are self-evident from the output rather than needing a repro. THREE FINDINGS, DELIBERATELY NOT MERGED: one is a hard contradiction (unique > visits), one is a split between two counters (two human totals), one is probably CORRECT behaviour that reads as broken (months not window-scoped). They are in one filing because they share a cause at the level that matters - nothing asserts that this report's numbers agree with each other - and the reporter says so: 'the arithmetic in this report is not being checked anywhere'. The report also names its own closing condition, which is a test rather than a fix: one call, three invariants."
 ---
+
+# Rulings, 2026-10-02 (release manager)
+
+**R4 - MEASURE THE GAP BEFORE RULING AV2.** The question put was which counter is the
+human population. The answer is that the 2,870 is a *specific set of requests* and can
+be characterised, so AV2 becomes a reading of data rather than a preference:
+
+- the user agents in the gap set, by frequency;
+- the paths behind the 8,023 404s - `/wp-admin`, `/.env` and friends would settle it
+  in one glance;
+- per-address request intervals, because a human and a scanner do not pace alike.
+
+If the gap is scanner-shaped, the larger counter is absorbing bots and `totals` is the
+one telling the truth. If it is not, the status codes describe a population the report
+has never named. **Nothing is built on a guess, and that includes the test.**
+
+**R5 - H1 IS HELD, DELIBERATELY.** The invariant test fails on commit because the
+contradictions are live. It is not landing failing, and it is not landing marked as an
+expected failure: it waits for AV2 and then arrives green beside the fix. The
+consequence is accepted and recorded rather than discovered later - **until AV2 is
+ruled, nothing checks this report's arithmetic**, which is the condition that let
+three contradictions reach a site owner. It is a choice, not an oversight.
+
+**What this engine can and cannot do about R4.** The gap lives in xisl.com's live
+first-party log, which this tree cannot read. So the work splits: the engine gains a
+diagnostic that characterises a window's gap set (H0, and it ships, so any site can be
+asked the same question), and the RUN against a live site is the sites agent's. Asked
+for through its inbox rather than assumed.
 
 # What was measured
 

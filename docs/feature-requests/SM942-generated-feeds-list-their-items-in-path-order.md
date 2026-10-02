@@ -8,8 +8,23 @@ status: candidate
 raised: 2026-10-02
 raised-by: the sites agent (xisl.com), measured on a live feed after regenerating the registries
 area: renderer
-status-note: "CANDIDATE, and REPRODUCED HERE by reading the shipped template: `starter/lazysite/templates/registries/feed.rss.tt` has a bare `FOREACH page IN pages` with no sort. Grade A stands. TWO CORRECTIONS TO THE REPORT, both about where and how: (1) THE FIX CANNOT GO IN THE TEMPLATE. Registry templates install under bucket `seed`, so an upgrade never replaces them - a site installed a year ago keeps the template it was given, and fixing starter/ would fix new sites while leaving every feed that HAS a subscriber wrong. The engine already learnt this on this same feature: `_feed_dates` is applied in lazysite-processor.pl for exactly that reason and says so in a comment. (2) SORTING ON `page.date` WOULD ORDER BY DAY NAME. By the time the template sees it, `date` is already the RFC 822 string ('Fri, 02 Oct 2026'); the sort has to use the raw ISO value, which the engine keeps as `date_raw`. The item cap the report raises at the end is a decision, not a defect, and is not bundled in."
+status-note: "CANDIDATE. FO3 IS RULED (R6, 2026-10-02): cap at 50, configurable via `feed_items`, plus `lastBuildDate` - so FO3 ships WITH FO1 rather than waiting, because it is the same template and the same pass. REPRODUCED HERE by reading the shipped template: `starter/lazysite/templates/registries/feed.rss.tt` has a bare `FOREACH page IN pages` with no sort. Grade A stands. TWO CORRECTIONS TO THE REPORT, both about where and how: (1) THE FIX CANNOT GO IN THE TEMPLATE. Registry templates install under bucket `seed`, so an upgrade never replaces them - a site installed a year ago keeps the template it was given, and fixing starter/ would fix new sites while leaving every feed that HAS a subscriber wrong. The engine already learnt this on this same feature: `_feed_dates` is applied in lazysite-processor.pl for exactly that reason and says so in a comment. (2) SORTING ON `page.date` WOULD ORDER BY DAY NAME. By the time the template sees it, `date` is already the RFC 822 string ('Fri, 02 Oct 2026'); the sort has to use the raw ISO value, which the engine keeps as `date_raw`. The item cap the report raises at the end is a decision, not a defect, and is not bundled in."
 ---
+
+# Ruling, 2026-10-02 (release manager)
+
+**R6 - CAP AT 50, CONFIGURABLE, WITH `lastBuildDate`.** FO3 was filed as needing a
+ruling because a cap changes what subscribers can reach. It is taken: `feed_items`
+defaults to 50 and a site can set it.
+
+50 costs no current site anything - xisl.com's 59 items lose their 9 oldest **from the
+feed, not from the site**, and those pages stay in the sitemap, the search index and
+every link to them. The cap is what stops a site with a few hundred dated pages
+emitting all of them on every poll.
+
+**So FO3 goes WITH FO1 rather than after it.** The reporter said as much - "the same
+template and the same sort" - and splitting them would mean touching the feed
+construction twice.
 
 # Measured
 
