@@ -44,6 +44,39 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM942 (PENDING) **the generated feeds list items newest first, and the item count
+  is bounded.** Reported from xisl.com: 59 pages, every `pubDate` correct, and the
+  items in FILENAME order - so an aggregator taking "the latest 10" of a large feed
+  got ten articles chosen by path, and a human opening the feed URL saw the oldest
+  article in second position.
+
+  **Sorted in the engine, not in the template**, for the reason already written
+  beside the date formatting it sits next to: registry templates install under
+  bucket `seed`, so an upgrade never replaces them. A template-side sort would have
+  fixed new sites and left every feed that HAS a subscriber in filename order.
+
+  **And sorted on the raw date, before formatting.** By the time a template sees
+  `page.date` it is the RFC 822 string, so sorting that orders by weekday name -
+  wrong in a way that still looks sorted, which would be worse than the fault being
+  fixed because it would look deliberate.
+
+  **A `date:` the engine cannot parse sorts LAST.** Prose like "last Tuesday" is
+  passed through to the feed verbatim rather than invented, so it reaches the sort as
+  a bare string - and a bare string sorts above every real date, which would put the
+  one page nobody dated properly at the top of every reader. Only an ISO-looking
+  value is a sort key. This was caught by the existing feed-date test, which failed
+  the first time the sort was written without the guard.
+
+  `feed_items` caps the count (default **50**, `0` for all of them), and the shipped
+  templates gain `<lastBuildDate>` and Atom's feed-level `<updated>` from a new
+  `feed_updated` variable. An existing site keeps its own template and gains the
+  ORDER and the CAP without those two elements - the variable is passed regardless,
+  so adding them is a one-line edit.
+
+  A page with no `date:` was already dated from its file mtime rather than left
+  undated, and that is now pinned: the sort depends on it, and a change making the
+  fallback "now" would push every dateless page to the top of every reader.
+
 - SM933 (31321799) **an install now says whether the site is healthy, and names its
   own fault when it is not.** A fresh provision on a Hestia domain printed
   `Installed: 265`, `Overwrote: 0` and four Next steps, and every request answered

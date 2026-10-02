@@ -5,6 +5,9 @@
     <link>[% site_url %]</link>
     <description>[% site_name %] - RSS Feed</description>
     <atom:link href="[% site_url %]/feed.rss" rel="self" type="application/rss+xml"/>
+[% IF feed_updated %]
+    <lastBuildDate>[% feed_updated %]</lastBuildDate>
+[% END %]
 [% FOREACH page IN pages %]
     <item>
       <title>[% page.title %]</title>

@@ -69,10 +69,15 @@ sub body_of {
 my $rss  = body_of( scalar run_processor( $docroot, '/feed.rss' ) );
 my $atom = body_of( scalar run_processor( $docroot, '/feed.atom' ) );
 
-# BY ITEM, NOT BY POSITION. The feed's order is the registry's, not the
-# fixture's - here it is Home, Three, Two - so indexing into the date list
-# compares the wrong page against the wrong expectation, which the first draft
-# of this file did and reported as an engine fault.
+# BY ITEM, NOT BY POSITION. Indexing into the date list compares the wrong page
+# against the wrong expectation, which the first draft of this file did and
+# reported as an engine fault.
+#
+# The order was the registry's own (Home, Three, Two) when this was written.
+# SM942 made it NEWEST FIRST - Two, Home, then Three, whose date is prose and
+# therefore sorts last - so the old note is kept only to say that nothing here
+# may depend on either arrangement. t/integration/105 is where the order itself
+# is asserted.
 # WITHIN ONE ITEM, too: the channel has a <title> of its own, and a pattern
 # that walks from any title to the next date pairs the CHANNEL's title with the
 # FIRST item's date and shifts every row by one.
@@ -134,9 +139,17 @@ subtest 'the two feeds do not get the same string' => sub {
     # either check on its own and be wrong in one of the two feeds - which is
     # the shape of the original defect, one value used in two places that
     # want different things.
-    my ($r) = $rss  =~ m{<pubDate>(.*?)</pubDate>}s;
-    my ($a) = $atom =~ m{<updated>(.*?)</updated>}s;
-    isnt( $r, $a, 'RSS and Atom are formatted for their own specifications' );
+    #
+    # BY PAGE, NOT BY FIRST MATCH, and this file's own header already warned
+    # about the class: a pattern that grabs the first <updated> in the document
+    # now finds the FEED-LEVEL one that SM942 added beside <lastBuildDate>, not
+    # an entry's. It also used to depend on which page the registry happened to
+    # list first, which SM942's sort then changed. Naming the page removes both.
+    my $r = dated( $rss,  'pubDate', 'item' );
+    my $a = dated( $atom, 'updated', 'entry' );
+    isnt( $r->{Home}, $a->{Home},
+        'RSS and Atom format the SAME page for their own specifications' )
+        or diag("rss=$r->{Home} atom=$a->{Home}");
 };
 
 subtest 'a date nothing can parse is passed through, not invented' => sub {

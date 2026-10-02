@@ -7243,8 +7243,39 @@ sub _registry_stale {
             #
             # The raw value stays available as `date_raw` for a site that has
             # written its own template around it.
+            my $feed_updated = '';
             if ( $registry_name eq 'feed.rss' || $registry_name eq 'feed.atom' ) {
                 my $rss = $registry_name eq 'feed.rss';
+
+                # SM942 FO1: NEWEST FIRST, and the sort happens HERE for the same
+                # reason the date formatting does - the registry templates install
+                # under bucket `seed`, so an upgrade never replaces them and a
+                # template-side sort would fix new sites while leaving every feed
+                # that HAS a subscriber in filename order.
+                #
+                # SORTED BEFORE THE MAP, which is the whole trick. The map replaces
+                # `date` with the RFC 822 / RFC 3339 string, and sorting THAT orders
+                # by weekday name - wrong in a way that still looks sorted, which
+                # would be worse than the fault being fixed because it would look
+                # deliberate. An ISO date sorts chronologically as text, so the raw
+                # value is the right key.
+                #
+                # AND ONLY AN ISO-LOOKING VALUE IS A SORT KEY. A `date:` the engine
+                # cannot parse is passed through to the feed verbatim rather than
+                # invented (t/integration/102), so prose like "last Tuesday" reaches
+                # here - and as a bare string it sorts ABOVE every real date, which
+                # would put the one page nobody dated properly at the top of every
+                # reader. Caught by 102 when this sort was first written without the
+                # guard. Unparseable sorts last, with no date of its own to argue
+                # about.
+                my $key = sub {
+                    my $d = $_[0]->{date};
+                    return '' unless defined $d;
+                    return $d =~ /\A\d{4}-\d{2}-\d{2}/ ? $d : '';
+                };
+                @registered =
+                    sort { $key->($b) cmp $key->($a) } @registered;
+
                 @registered = map {
                     my ( $r822, $r3339 ) = _feed_dates( $_->{date} );
                     my $fmt = $rss ? $r822 : $r3339;
@@ -7253,11 +7284,29 @@ sub _registry_stale {
                         ( defined $fmt ? ( date => $fmt ) : () ),
                     };
                 } @registered;
+
+                # SM942 FO3 (ruled 2026-10-02): cap the item count. A site with a
+                # few hundred dated pages otherwise emits all of them on every
+                # poll. 50 is the conventional ceiling and costs no current site
+                # anything: the pages the cap drops stay in the sitemap, the search
+                # index and every link to them - only the FEED is bounded.
+                # `feed_items: 0` asks for all of them.
+                my $cap = _conf_value('feed_items');
+                $cap = 50 unless defined $cap && $cap =~ /\A\d+\z/;
+                splice @registered, $cap if $cap && @registered > $cap;
+
+                # The channel's own timestamp, for a template that carries
+                # <lastBuildDate> or <updated>. The feed is sorted, so the newest
+                # item IS the first one. Kept in a local rather than written into
+                # %site_vars, which is shared with sitemap.xml and llms.txt and has
+                # no business gaining a feed-only key.
+                $feed_updated = @registered ? ( $registered[0]{date} // '' ) : '';
             }
 
             my $vars = {
                 %site_vars,
-                pages => \@registered,
+                pages        => \@registered,
+                feed_updated => $feed_updated,    # SM942: '' for every non-feed registry
             };
 
             my $output = '';

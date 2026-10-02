@@ -175,7 +175,20 @@ Pages opt into **registries** via `register:`; each registry is a Template-Toolk
 template (`templates/registries/NAME.tt`) rendered to an output file  - 
 `sitemap.xml`, `llms.txt`, `feed.rss`, `feed.atom`, or any custom one you drop in. A
 recursive page scan collects registered pages; regeneration is TTL-gated (4h) and
-only happens on a real render. The **`scan:` directive** turns
+only happens on a real render.
+
+**The two feeds are ordered and bounded by the engine, not by their templates**
+(SM942). Items come out **newest first**, sorted on the raw `date:` before it is
+formatted - a template-side sort would order by weekday name, and would reach only
+sites installed after the change, since registry templates install under bucket
+`seed` and an upgrade never replaces them. A `date:` the engine cannot parse is
+passed through to the feed verbatim and sorts last rather than above every real
+date. `feed_items` caps the item count (default **50**; `0` means all of them), and
+the templates receive `feed_updated` - the newest item's date - for `<lastBuildDate>`
+and Atom's feed-level `<updated>`. The shipped templates use it; an older site keeps
+its own template and gains the order and the cap without those two elements.
+
+The **`scan:` directive** turns
 `scan:/path/**/*.md filter=… sort=…` into an array of page objects (url, title,
 date, tags, excerpt, searchable) usable in any template - the basis for blog
 indexes, card grids, and the search index.

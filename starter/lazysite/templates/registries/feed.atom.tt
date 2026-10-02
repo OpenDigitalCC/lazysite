@@ -4,6 +4,9 @@
   <link href="[% site_url %]"/>
   <link href="[% site_url %]/feed.atom" rel="self"/>
   <id>[% site_url %]/</id>
+[% IF feed_updated %]
+  <updated>[% feed_updated %]</updated>
+[% END %]
 [% FOREACH page IN pages %]
   <entry>
     <title>[% page.title %]</title>
