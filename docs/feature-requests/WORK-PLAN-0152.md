@@ -124,6 +124,23 @@ legitimate quoted-key mapping, so the test must be that the opening quote CLOSES
 the end of the line. That case has to be in the tests or the fix trades one defect
 for another.
 
+# Group H - what the reports tell a site owner
+
+| Ref | The work | Cx | Blocked on |
+| --- | --- | --- | --- |
+| H1 | [[SM941]] AV1 - the invariant test: one `analyse_visitors` report, three assertions (the human totals in `totals`, `by_day` and `traffic_classes` agree; `unique_visitors <= human_visits`; `status_codes` sums to a named population). **It will fail on commit, which is its purpose** | S | nothing |
+| H2 | [[SM941]] AV2 - **which counter is the human population**, and what `status_codes` counts. Two totals 2,870 apart on one report, and `status_codes` sums to the larger: if that is the human figure then 43% of human requests were 404s | M | **a ruling** - it is a decision about what the product means by a human visit |
+| H3 | [[SM941]] AV3/AV4/AV5 - the unique-visitor contradiction (4,359 uniques across 4,241 visits), the duplicate `human_visits`/`pageviews` pair, and a `window_scoped` field on `months` | M | H2 for AV3/AV4; AV5 none |
+| H4 | [[SM942]] FO1/FO2 - feeds sorted newest-first **in the engine, on the raw ISO date**. Not in the template (bucket `seed` - an upgrade never replaces it, so a template fix reaches no existing site) and not on `page.date` (already RFC 822 by then, so the sort would order by weekday name) | S | nothing |
+
+H1 and H4 are the two rows here that need no decision. H4 is the smaller and has a
+named live symptom; H1 is the one that stops the next arithmetic defect arriving
+unnoticed.
+
+[[SM942]] FO3 (an item cap plus `lastBuildDate`) is **not** in this group: a cap
+changes what subscribers can reach, which is a product decision. It sits with the
+other unruled rows below.
+
 # Group F - held, and one of them asks a question
 
 | Ref | What | Why held |
@@ -138,10 +155,19 @@ for another.
 | The OOM delivery shape | Left open by the release manager while OOM is under test; it is a decision for all of OOM's consumers |
 | [[SM923]] limit 1, the section construct | Waiting for a second long form to ask |
 | B3's detection signatures, F1 | Not ruled |
+| [[SM941]] AV2 (and AV3/AV4 behind it) | Not ruled: which counter is the human population is a decision about what a human visit MEANS, and the 43%-of-humans-hit-404 figure is the evidence that the two counters classify differently |
+| [[SM942]] FO3, the feed item cap | Not ruled: a cap changes what subscribers can reach |
 
 # What this plan is honest about
 
-**All eight inbox reports are now filed** - [[SM934]], [[SM935]], [[SM936]],
+**Ten inbox reports are now filed** - the eighth, ninth and tenth arrived while
+group A was being built. [[SM941]] and [[SM942]] are both grade A on live sites, and
+both needed a correction rather than straight transcription: SM942's proposed fix
+would have reached no existing site (the registry templates are bucket `seed`), and
+SM941's three findings include one that is probably correct behaviour reading as
+broken, which is recorded as a presentation row rather than an arithmetic one.
+
+**All eight earlier inbox reports are filed** - [[SM934]], [[SM935]], [[SM936]],
 [[SM937]], [[SM938]] (two reports, merged because the second says they are one
 problem), [[SM939]] and [[SM940]], with the JSON-LD measurements folded into
 [[SM824]] because the report that carried them asked for that rather than a filing of
