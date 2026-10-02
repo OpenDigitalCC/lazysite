@@ -322,7 +322,40 @@ sub _to_list {
 # Only entries carrying a non-empty list for the mode participate, so an
 # owner-only entry - which action_copy writes for every duplicated file - cannot
 # beat an enclosing folder rule. It is not a tighter rule, it is no rule.
+# SM936 AO2: ONE WALK, AND IT CAN ALSO SAY WHICH KEY WON.
+#
+# AO2 needs the KEY that governs a path, not just the entry - "there is a rule
+# somewhere above you" is the half that costs an author the time. The precedence
+# here is not trivial (exact key, then the extensionless stem, then the LONGEST
+# ancestor prefix, then the three site-wide spellings, weakest last), so a second
+# function that found the key by walking it again would be a second definition of
+# precedence. They would agree until one changed.
+#
+# So the walk returns BOTH and the two public questions are thin wrappers over
+# it. _acl_entry_for keeps its signature and its callers, which are many.
 sub _acl_entry_for {
+    my ( $map, $rel, $mode ) = @_;
+    my ($e) = _acl_entry_and_key( $map, $rel, $mode );
+    return $e;
+}
+
+# The KEY whose rule governs $rel for $mode, or undef. Public because AO2 reports
+# it to whoever just created a page under it.
+# ($docroot, $rel, $mode?) - THE SAME SHAPE AS gating_for, deliberately. These
+# are the two halves of one question ("is this gated, and by what?") and giving
+# them different signatures is how a caller passes one argument to a
+# two-argument sub and reads the resulting undef as an answer. That happened
+# while measuring this filing: gating_for called with one argument returned a
+# flat 'unknown' for every case and looked like a finding.
+sub governing_key {
+    my ( $docroot, $rel, $mode ) = @_;
+    return undef unless defined $rel && length $rel;
+    local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
+    my ( undef, $key ) = _acl_entry_and_key( load_acls(), $rel, ( $mode // 'read' ) );
+    return $key;
+}
+
+sub _acl_entry_and_key {
     my ( $map, $rel, $mode ) = @_;
     $rel = _acl_norm($rel) // '';
 
@@ -333,14 +366,15 @@ sub _acl_entry_for {
         return ( ref $e->{$mode} eq 'ARRAY' && @{ $e->{$mode} } ) ? 1 : 0;
     };
 
-    return $map->{$rel} if $governs->( $map->{$rel} );
+    return ( $map->{$rel}, $rel ) if $governs->( $map->{$rel} );
 
     if ( $rel =~ m{\A(.+)\.(?:md|url|html)\z} ) {
         my $stem = $1;
-        return $map->{$stem} if $governs->( $map->{$stem} );
+        return ( $map->{$stem}, $stem ) if $governs->( $map->{$stem} );
     }
 
     my $best;
+    my $best_key;
     my $best_len = -1;
     for my $k ( keys %$map ) {
         next unless $governs->( $map->{$k} );
@@ -350,9 +384,10 @@ sub _acl_entry_for {
         next unless index( $rel, "$p/" ) == 0;
         next unless length($p) > $best_len;
         $best     = $map->{$k};
+        $best_key = $k;
         $best_len = length $p;
     }
-    return $best if $best;
+    return ( $best, $best_key ) if $best;
 
     # SM287: the SITE-WIDE rule, and it is the WEAKEST - checked only when
     # nothing more specific governs, so a public carve-out inside a private site
@@ -372,7 +407,7 @@ sub _acl_entry_for {
     # Glob spellings are NOT accepted - the store has no matching language, and
     # audit_site's acl_keys_matching_nothing surfaces a key that governs nothing.
     for my $rk ( '/', '', '.' ) {
-        return $map->{$rk} if $governs->( $map->{$rk} );
+        return ( $map->{$rk}, $rk ) if $governs->( $map->{$rk} );
     }
     return;
 }

@@ -1154,12 +1154,59 @@ sub drop_table {
         $removed++;
     }
 
+    # SM936 AO3: THE TABLE'S ACCESS RULE GOES WITH THE TABLE.
+    #
+    # Table rules live in the same acls.json as page rules, keyed
+    # `lazysite/db/tables/<name>` - so a dropped table left its rule behind, and
+    # a table later created with the same name was born governed by it. MEASURED
+    # on this tree before building: set `read: ["@volunteers"]` on a table, drop
+    # it, recreate it as somebody else, and the new table answers
+    # `owner=sjm-claude-code read=@volunteers` - a read granted to a group
+    # nobody granted it to, and an owner who did not make the table.
+    #
+    # That is the direction SM936 said mattered. Its page half was already fixed
+    # (CF-2 in Manager::Files::action_delete, whose comment says the fix had
+    # "reached one surface out of four") and does not reproduce; the move half
+    # re-keys correctly. This was the surface still open, and it is the one where
+    # the accident GRANTS rather than withholds.
+    #
+    # HERE, NOT IN THE MANAGER ACTION, for CF-2's own reason: a fix in one
+    # caller is a fix one surface wide, and this function is what every surface
+    # routes through. `require` rather than `use` because this module is loaded
+    # on read paths that have no business pulling in the ACL store.
+    #
+    # A failure to forget is NOT fatal: the rows and the descriptor are already
+    # gone, so refusing here would report a failed drop that had happened. The
+    # count is returned instead, so a caller can say so.
+    my $forgot = 0;
+    eval {
+        require Lazysite::Auth::Acl;
+        require Lazysite::Data::Access;
+
+        # `no warnings 'once'` because Acl.pm declares $DOCROOT at ITS compile
+        # time, which is after this one - the name is real, it is simply not
+        # known here yet. `local` so a caller that already set it gets it back.
+        no warnings 'once';
+        local $Lazysite::Auth::Acl::DOCROOT = $docroot;
+
+        # Data::Access::acl_key is the ONE definition of a table's ACL key -
+        # `lazysite/db/tables/<name>`. Spelling it out here would be a second
+        # copy, and the two would agree until somebody changed one.
+        $forgot = Lazysite::Auth::Acl::forget_path(
+            Lazysite::Data::Access::acl_key($name) ) || 0;
+        1;
+    } or log_event( 'WARN', $name,
+        'the table was dropped but its access rule could not be removed',
+        error => ( $@ || 'unknown' ),
+        hint  => 'acl-remove it, or a table recreated under this name inherits it' );
+
     _record_history( $dbh, $opt{actor}, $name, 'drop',
         { rows_dropped => scalar @{ $rows->{rows} || [] },
             safety_export => $safe->{rel} } );
     return { ok => 1, table => $name, dropped => 1,
         rows_dropped  => scalar @{ $rows->{rows} || [] },
         descriptors   => $removed,
+        acl_forgotten => $forgot,                           # SM936 AO3
         safety_export => $safe->{rel} };
 }
 

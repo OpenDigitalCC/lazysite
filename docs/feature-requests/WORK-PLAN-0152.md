@@ -114,8 +114,8 @@ browser gives up:
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| C1 | [[SM936]] - a deleted page's ACL outlives it and is inherited by the next page written at that path. Observed failing safe (draft, so a 404) - *the direction of the accident is not a property of the mechanism*: a `read:` list on a reused path grants a read nobody granted, as silently. Two fixes: a content delete takes the path's rule with it or says it has not; a create at a path carrying a rule reports it. Also worth checking for `data-table-acl-set` on a dropped table, and for `rename_page`/`move_file` | M | nothing |
-| C2 | [[SM937]] - `acl_set` with `draft: true` answers `reads_unrestricted: 1` and "anyone may still fetch these pages" while the pages 404 to the public. The note measures the read **list** and reports it as the read **outcome** | S | nothing |
+| C1 | **MEASURED AND BUILT** (n234). Three answers, not one: AO1 (pages) does NOT reproduce - CF-2 already takes the rule with the content; AO4 (move) already re-keys correctly; **AO3 (tables) REPRODUCED in the GRANT direction** and is fixed in `drop_table`; AO2 (the create notice) built, narrowed to the ancestor-rule case that remains. Both already-correct halves are pinned by test, because nothing asserted them | M | nothing |
+| C2 | **SHIPPED** earlier in 0.15.2 (the small-batch commit, with a new SM937 subtest in t/integration/65): `_acl_gates_public` is consulted, so `draft` is no longer reported as an unrestricted read. Row corrected here - it shipped and the plan still said `nothing` | S | nothing |
 
 C1 is the one with a security direction. C2 is the shape the reporter named well:
 "the shape of defect that makes a correct operator do the wrong thing."

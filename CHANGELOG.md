@@ -44,6 +44,48 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM936 (PENDING) **an access rule does not outlive the thing it governed** -
+  and measuring the filing's four steps against this tree gave three different
+  answers, so three different things were done.
+
+  The report, from a live site at 0.14.4: draft a page, delete it, write a
+  DIFFERENT page at the same path, and the new page is born governed by a rule
+  nobody set. It failed safe there - `draft` withholds - and the argument for
+  building it was the reporter's own: **the direction of the accident is not a
+  property of the mechanism.**
+
+  **Pages: already fixed, and it does not reproduce.** `action_delete` has taken
+  the rule with the content since CF-2, whose comment tells this exact story.
+  Measured: the rule goes, and a new page at the path is `open`. Pinned by a test
+  anyway, because nothing asserted it from the delete side.
+
+  **Moves: already correct.** The rule re-keys with the content - the opposite
+  failure and just as bad, since a move that dropped the rule would publish a
+  private page by relocating it.
+
+  **Tables: REPRODUCED, in the direction that grants.** Table rules live in the
+  same store, keyed `lazysite/db/tables/<name>`, and `drop_table` never touched
+  it. Measured: set `read: ["@volunteers"]`, drop the table, recreate it as
+  somebody else, and the new table answers `read=@volunteers` with an owner who
+  did not make it - **a read granted to a group nobody granted it to.** The drop
+  now forgets the rule and says how many it removed, in `drop_table` rather than
+  in one caller, for CF-2's own reason: a fix in one caller is a fix one surface
+  wide.
+
+  **Creates: the remaining silence, and it is by design rather than a leak.** A
+  rule on an ANCESTOR governs a page created under it, which is correct - and the
+  create said nothing, so an author publishes a page meant to be public, it 404s
+  to the world, and the reply that caused it reported four fields none of which
+  was the reason. A create into a gated path now names **which key** gates it and
+  that it is inherited. Only on a create, and only when something actually gates
+  the path.
+
+  The resolver's scope walk - exact key, extensionless stem, longest ancestor,
+  then the site-wide spellings - now answers "which key won" as well as "which
+  rule", because a second walk would have been a second definition of
+  precedence. `t/lint/36` caught the move: it was reading the old name and its
+  ordering assertions had started matching a four-line wrapper.
+
 - SM934 (PENDING) **a form's declared field rules are enforced on the server, and
   a breach is refused naming the field and the rule** (ruled 2026-10-02, R1; the
   contract's home ruled 2026-10-02).

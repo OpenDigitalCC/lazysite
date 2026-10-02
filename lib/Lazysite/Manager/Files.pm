@@ -757,9 +757,54 @@ sub action_save {
     my $nav_change = _is_resolved_nav( $result->{rel} );
     my $cleared    = $nav_change ? _invalidate_all_html() : 0;
 
+    # SM936 AO2: A PAGE BORN GATED SAYS SO, ONCE, TO THE PERSON WHO MADE IT.
+    #
+    # The filing's four-step case - a deleted page's rule inherited by the next
+    # page at that path - does NOT reproduce any more: CF-2 above takes the rule
+    # with the content, and a move re-keys it. Measured on this tree before
+    # building, because a fix for a defect that is already fixed is worse than
+    # nothing.
+    #
+    # What remains is the case the filing's AO2 was really about, and it is by
+    # DESIGN rather than a leak: a rule on an ANCESTOR governs a page created
+    # under it. Measured - a page written into a folder carrying
+    # `read: ["@volunteers"]` answers `gated`, and the save reply said nothing at
+    # all. So an author publishes a page meant to be public, it 404s to the
+    # world, and the create that caused it reported four fields none of which
+    # was the reason.
+    #
+    # ONLY ON A CREATE, and only when a rule actually gates the path. A save
+    # over an existing page is not the moment of surprise - whoever wrote it the
+    # first time was told - and reporting it on every write would make the field
+    # noise an agent learns to skip.
+    #
+    # It names WHERE the rule sits, not just that one exists, because the page
+    # has no rule of its own and "there is a rule somewhere above you" is the
+    # half that costs the time. Failure is silent: a page that saved must not
+    # report a failed save because the explanation could not be assembled.
+    my @acl_note;
+    if ( !$existed ) {
+        my $gated = eval { Lazysite::Auth::Acl::gating_for( $DOCROOT, $result->{rel} ) };
+        if ( defined $gated && $gated eq 'gated' ) {
+            my $where = eval {
+                Lazysite::Auth::Acl::governing_key( $DOCROOT, $result->{rel} ) };
+            @acl_note = (
+                acl_in_force => (
+                    defined $where && length $where
+                    ? "this path is gated by the rule on '$where'"
+                        . ( $where eq $result->{rel} ? '' : ' (an ancestor)' )
+                        . ' - it will not serve publicly until that changes'
+                    : 'this path is gated by an existing access rule'
+                        . ' - it will not serve publicly until that changes'
+                ),
+            );
+        }
+    }
+
     my @st = stat($full);
     return { ok => 1, path => $rel_path, mtime => $st[9] // 0,
         created => $existed ? 0 : 1,
+        @acl_note,
         ( $nav_change
             ? ( cache_rebuilt => 'all-pages', cache_cleared => $cleared )
             : () ) };

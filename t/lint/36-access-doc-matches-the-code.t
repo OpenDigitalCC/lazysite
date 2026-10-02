@@ -68,8 +68,21 @@ subtest 'scope grammar' => sub {
 
     # Documented-but-unreachable is the exact defect SM287 was: a scope named
     # here must be reachable in the code.
-    my ($entry) = $ACL =~ /(sub _acl_entry_for\b.*?\n\})/s;
-    ok( $entry, 'found the resolver' );
+    # SM936 AO2: THE RESOLVER IS `_acl_entry_and_key` NOW, and this lint found
+    # the move - it was reading `_acl_entry_for`, which became a four-line
+    # wrapper, so the assertions below were matching against a stub. The walk
+    # was split so one function can answer both "is this gated" and "by which
+    # key", because AO2 reports the governing key to whoever created a page
+    # under it and a second walk would be a second definition of precedence.
+    #
+    # Anchored on the sub that CARRIES the walk rather than the one callers use,
+    # which is the distinction the lint cares about: what it checks is the
+    # ordering of the scopes, and that lives wherever the loop lives.
+    my ($entry) = $ACL =~ /(sub _acl_entry_and_key\b.*?\n\})/s;
+    ok( $entry, 'found the resolver' )
+        or diag( 'If the walk has been renamed again, point this at its new '
+            . 'name - the assertions below are about the ORDERING of the '
+            . 'scopes and they pass vacuously against a wrapper.' );
     like( $entry, qr{index\( \$rel, "\$p/" \)},
         'folder prefixes are matched by prefix, as documented' );
     my $root_at   = index( $entry, "for my \$rk" );
