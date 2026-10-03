@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM904 (PENDING) **a submission with a non-ASCII character is shown, and can be
+  acted on** - SM904's read half, found while building SM938 D5. SM904 made sure
+  a value is STORED as the visitor typed it; nothing checked that it could be
+  read back, and the submissions readers the manager table, the control API and
+  MCP share were wrong three ways. The store is read as characters and was
+  decoded as bytes, so **every row holding an accented letter or any other
+  non-ASCII character was counted "malformed" and left out of the table** - a
+  visitor called Herve-with-an-accent submitted and nobody saw it. The row id
+  hashed the character string, which dies on a character above U+00FF, so such a
+  row could not be deleted or confirmed. And confirming a quarantined row wrote
+  bytes through a UTF-8 layer, encoding its text twice. All three read and write
+  characters now, and the id is the hash of the line as it is on disk.
+
 - SM938 D4 (PENDING) **a form's `notify:` is set from the manager** (ruled R17).
   D2 made the Handlers page say where a form's notice goes and what stops it; the
   form's own `notify:` was still edited as text over WebDAV. The expanded form now

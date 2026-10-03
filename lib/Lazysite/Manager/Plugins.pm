@@ -1087,7 +1087,24 @@ sub _submissions_path {
 
 # A stable per-row id: a short hash of the raw JSONL line, so the UI can ask to
 # delete a specific record without a line number that shifts as rows are removed.
-sub _submission_row_id { substr( sha256_hex( $_[0] ), 0, 16 ) }
+#
+# HASHED AS UTF-8 BYTES. Every reader opens the store with :utf8, so a line is a
+# CHARACTER string, and sha256_hex dies on a character above U+00FF ("Wide
+# character") and hashes a Latin-1 one as a different byte than the file holds.
+# The id is the hash of the line as it is on disk, whatever the reader's layer.
+sub _submission_row_id {
+    my ($line) = @_;
+    utf8::encode($line) if utf8::is_utf8($line);
+    return substr( sha256_hex($line), 0, 16 );
+}
+
+# A stored row, read from a CHARACTER string. decode_json wants UTF-8 BYTES, so
+# on a :utf8-read line it refused every row holding a non-ASCII character as
+# "malformed UTF-8" - and the table counted the row malformed and did not show
+# it. SM904 made sure a value is STORED as the visitor typed it; this is the read
+# half. A visitor named Herve-with-an-accent submitted and nobody saw it.
+my $ROW_JSON = JSON::PP->new;
+sub _decode_row { return eval { $ROW_JSON->decode( $_[0] ) } }
 
 sub action_form_submissions {
     my ( $file, $form ) = @_;
@@ -1151,7 +1168,7 @@ sub action_form_submissions {
         ( my $trim = $line ) =~ s/\s+\z//;
         next unless length $trim;
         $total++;
-        my $rec = eval { decode_json($trim) };
+        my $rec = _decode_row($trim);
         if ( ref $rec ne 'HASH' ) { $malformed++; next }
         push @cols, $_ for grep { !$seen{$_}++ } keys %$rec;
         push @rows, $rec;
@@ -1167,7 +1184,7 @@ sub action_form_submissions {
         +{ _id => _submission_row_id($raw),
             map {
                 $_ => ( !defined $r->{$_} ? ''
-                    : ref $r->{$_} ? encode_json( $r->{$_} )
+                    : ref $r->{$_} ? $ROW_JSON->encode( $r->{$_} )  # characters, as above
                     :                "$r->{$_}" )
             } @cols
         }
@@ -1248,10 +1265,13 @@ sub action_form_submission_confirm {
     while ( my $line = <$fh> ) {
         ( my $trim = $line ) =~ s/\s+\z//;
         if ( !$confirmed && length $trim && _submission_row_id($trim) eq $id ) {
-            my $rec = eval { decode_json($trim) };
+            my $rec = _decode_row($trim);
             if ( ref $rec eq 'HASH' ) {
                 delete @{$rec}{qw(_quarantined _spam_reason)};
-                push @out, encode_json($rec) . "\n";
+                # Characters, not encode_json's bytes: the store is rewritten
+                # through a :utf8 layer, which would encode them a second time.
+                # Canonical, as the file handler writes it.
+                push @out, JSON::PP->new->canonical->encode($rec) . "\n";
                 $confirmed = 1;
                 next;
             }
