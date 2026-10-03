@@ -215,11 +215,26 @@ sub env_passthrough {
 # Returns the docroot path; everything the engine writes beside it lands
 # inside the tempdir and goes with it. Pass a name for the leaf (default
 # public_html, the Hestia shape) when a test cares what the docroot is called.
+# plugins => 1 puts real copies of the repo's plugins at DOCROOT/../plugins,
+# where the plugin registry looks. A test that asks what a plugin owns or whether
+# it is enabled needs them; under a bare tempdir() that path is /tmp/plugins, and
+# such tests passed on whatever another test had left in /tmp - until a reboot
+# cleared it. Copies, not symlinks: the registry refuses a symlinked plugin
+# (SM152).
 sub site_tempdir {
     my (%o) = @_;
     my $t   = File::Temp::tempdir( CLEANUP => 1 );
     my $d   = "$t/site/" . ( $o{leaf} // 'public_html' );
     make_path($d);
+    if ( $o{plugins} ) {
+        my $src = repo_root() . '/plugins';
+        make_path("$t/site/plugins");
+        opendir my $pd, $src or die "$src: $!";
+        for my $f ( grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
+            File::Copy::copy( "$src/$f", "$t/site/plugins/$f" ) or die "copy $f: $!";
+        }
+        closedir $pd;
+    }
     return $d;
 }
 

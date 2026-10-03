@@ -5,7 +5,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp   qw(tempdir);
 use File::Path   qw(make_path);
 use JSON::PP     qw(encode_json decode_json);
 use MIME::Base64 qw(encode_base64);
@@ -15,7 +14,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps);
+use TestHelper qw(repo_root grant_caps site_tempdir);
 
 my $root   = repo_root();
 my $utool  = "$root/tools/lazysite-users.pl";
@@ -58,7 +57,7 @@ sub mapi {
 sub basic { 'Basic ' . encode_base64( "$_[0]:$_[1]", '' ) }
 sub csrf  { hmac_sha256_hex( "csrf:$_[0]:" . int( time() / 3600 ), $secret ) }
 
-my $d = tempdir( CLEANUP => 1 );
+my $d = site_tempdir( plugins => 1 );    # the plugin inventory below needs real plugins
 make_path("$d/lazysite/auth");
 make_path("$d/lazysite/layouts/base/themes/live");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;

@@ -32,8 +32,8 @@ use warnings;
 use Exporter 'import';
 our @EXPORT_OK = qw(new_site);
 
-use File::Temp qw(tempdir);
 use File::Path qw(make_path);
+use TestHelper ();
 use IPC::Open3;
 use Symbol qw(gensym);
 use JSON::PP;
@@ -42,7 +42,9 @@ use Digest::SHA qw(hmac_sha256_hex);
 sub new_site {
     my (%o) = @_;
     my $root = $o{root} or die 'new_site needs root => repo_root()';
-    my $d = tempdir( CLEANUP => 1 );
+    # Site-shaped, with the repo's plugins beside it - see site_tempdir. Under
+    # a bare tempdir() the plugin registry read /tmp/plugins.
+    my $d = TestHelper::site_tempdir( plugins => 1 );
     make_path("$d/lazysite/auth");
 
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
