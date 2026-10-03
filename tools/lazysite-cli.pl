@@ -110,7 +110,7 @@ checkout/tarball root when run from a source tree.
 
 Verbs:
   provision --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable|certified]
-            [--policy auto|manual] [--dry-run] [--serving-group G]
+            [--policy auto|manual] [--dry-run] [--serving-group G] [--no-starter]
         Install a site that does not exist yet, from the host payload.
         Runs as the SITE USER, never root (ownership correct by
         construction), and records the site in the registry at
@@ -128,6 +128,10 @@ Verbs:
         runs as, which is what the check compares the tree against;
         it defaults to www-data where that group exists. The same is
         true of the two verbs below.
+        --no-starter installs WITHOUT lazysite's own demo pages and
+        /docs tree, keeping the system pages a site needs; the choice
+        is recorded in the site's install state, so upgrades honour it
+        without the flag.
   upgrade --docroot D [--cgibin C] [--force] [--dry-run] [--serving-group G]
         Move an installed site to the payload's version, as the site
         user. --cgibin defaults to the site's registry entry; a site
@@ -443,6 +447,9 @@ sub _install_argv {
     # to say so. Omitted means the installer's own default, unchanged.
     push @cmd, '--serving-group', $o{serving_group}
         if length( $o{serving_group} // '' );
+    # SM939 E2: only provision offers it - after that the install state carries
+    # the choice, so an upgrade does not need (or get) a flag to keep it.
+    push @cmd, '--no-starter' if $o{no_starter};
     return @cmd;
 }
 
@@ -732,10 +739,12 @@ sub site_version {
 
 sub cmd_provision {
     my %o = (
-        docroot => '', cgibin => '', domain  => '', installdir    => '',
-        channel => '', policy => '', dry_run => 0,  serving_group => '',
+        docroot    => '', cgibin => '', domain  => '', installdir    => '',
+        channel    => '', policy => '', dry_run => 0,  serving_group => '',
+        no_starter => 0,
     );
     Getopt::Long::GetOptions(
+        'no-starter'      => \$o{no_starter},      # SM939 E2 / R15
         'docroot=s'       => \$o{docroot},
         'cgibin=s'        => \$o{cgibin},
         'installdir=s'    => \$o{installdir},
@@ -758,7 +767,8 @@ sub cmd_provision {
     my @cmd  = _install_argv( $o{docroot}, $o{cgibin},
         mode          => 'provision',
         dry_run       => $o{dry_run},
-        serving_group => $o{serving_group} );
+        serving_group => $o{serving_group},
+        no_starter    => $o{no_starter} );
     push @cmd, '--domain', $o{domain} if length $o{domain};
     my $health = run_installer(@cmd);
 

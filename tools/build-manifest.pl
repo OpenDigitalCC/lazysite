@@ -121,6 +121,7 @@ sub load_config {
     for my $key (qw(rules exclude overrides runtime_paths runtime_files install_dirs)) {
         $cfg->{$key} //= [];
     }
+    $cfg->{starter_content} //= {};
     return $cfg;
 }
 
@@ -203,6 +204,18 @@ sub classify_file {
     return { unmatched => 1 };
 }
 
+# SM939 E2: is this file lazysite's own starter content? Declared once, in
+# classification.json's `starter_content`, and carried into the manifest so the
+# installer - which never sees the classification - can skip it on request.
+# `keep` wins: the system pages a site needs even when it ships nothing else.
+sub is_starter {
+    my ( $rel, $cfg ) = @_;
+    my $sc = $cfg->{starter_content} || {};
+    for my $k ( @{ $sc->{keep}     || [] } ) { return 0 if $rel =~ /$k/ }
+    for my $p ( @{ $sc->{patterns} || [] } ) { return 1 if $rel =~ /$p/ }
+    return 0;
+}
+
 sub apply_captures {
     my ( $template, $values ) = @_;
     return undef unless defined $template;
@@ -268,6 +281,7 @@ sub generate_manifest {
             bucket     => $cls->{bucket},
             sha256     => sha256_of($full),
             size       => 0 + ( $st[7] // 0 ),
+            ( is_starter( $rel, $cfg ) ? ( starter => JSON::PP::true ) : () ),
         };
     }
 

@@ -285,6 +285,17 @@
     "^scripts/install-hooks\\.sh$"
   ],
   "overrides": [],
+  "starter_content": {
+    "_doc": "SM939 E2 / R15: the files a fresh install ships that are lazysite's OWN content - its demo pages and the /docs tree - as opposed to what a site needs to work. install.pl --no-starter skips every file matched here, and records the choice in the install state so a later upgrade does not ship them either (docs/ is bucket code, so an upgrade would otherwise install it). `keep` names the system pages the engine genuinely needs even on an empty site; they win over `patterns`. The reporter's own list (SM939 SC3): 404, robots.txt, assets/, .well-known/, forgot, logout - the first four are not starter pages at all and are not matched here.",
+    "patterns": [
+      "^starter/docs/",
+      "^starter/[^/]+\\.md$"
+    ],
+    "keep": [
+      "^starter/forgot\\.md$",
+      "^starter/logout\\.md$"
+    ]
+  },
   "runtime_paths": [
     {
       "path": "{LAZYSITE}/auth",

@@ -44,6 +44,27 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM939 E2 (PENDING) **`--no-starter`: a fresh site without lazysite's own
+  pages** (ruled 2026-10-03, R15 - the default is unchanged). A fresh install
+  ships the demo pages and ~70 pages of `/docs/` onto the owner's domain,
+  publicly served and in the sitemap; removing them afterwards is seventy-odd
+  deletes to undo something the install did on purpose. `lazysite provision
+  --no-starter` (and `install.pl --no-starter`) leaves them out and keeps the
+  pages a site needs: forgot, logout, assets, `.well-known`, the manager.
+
+  What counts as starter content is declared once, in `classification.json`'s
+  `starter_content`, and carried into the manifest as a `starter` flag on each
+  entry - the installer never sees the classification. **The choice is recorded
+  in the install state**, because `docs/` is bucket `code` and every untracked
+  docs file would otherwise be planned as a fresh install on the next run: the
+  opt-out would have lasted exactly until the first upgrade. Only untracked files
+  are skipped, so the flag cannot delete content a site already has.
+
+  The test's first version proved the opposite of what it claimed for that half:
+  it used `upgrade --force` to the version already installed, which is a no-op,
+  and a sabotage that stopped the state being read still passed. It re-lays with
+  `reinstall` now, which plans every file.
+
 - SM933 A2 (PENDING) **everything provision creates takes the docroot's group**
   (ruled 2026-10-03, R13). Measured first (PR0): the installer set no group on
   anything it wrote, so all 202 created paths took whatever the kernel handed

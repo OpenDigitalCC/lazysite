@@ -155,6 +155,11 @@ Maintenance modes:
                       channel? Exit 3 if yes, 0 otherwise - so a deploy can
                       bail BEFORE touching the site. Needs --docroot; reads
                       lazysite.conf and the manifest only.
+  --no-starter        Install without lazysite's own starter content - the demo
+                      pages and the /docs tree - leaving the system pages a site
+                      needs (forgot, logout, assets, .well-known). Remembered in
+                      the install state, so a later upgrade does not ship them
+                      either. Has no effect on a site that already has them.
   --serving-group G   The group the web server runs as. The install ends by
                       running the health check, which compares the tree against
                       this group; it defaults to www-data where that group
@@ -222,6 +227,8 @@ Getopt::Long::GetOptions(
     # a wrong guess would turn a healthy install into a failed one. Naming it is
     # the only way the installer can be told.
     'serving-group=s' => \$opt{serving_group},
+    # SM939 E2 / R15: no starter content. See $NO_STARTER.
+    'no-starter' => \$opt{no_starter},
 ) or do {
     print {*STDERR} "install.pl: unknown option (run --help for the option list)\n";
     exit 2;
@@ -632,6 +639,30 @@ sub audit_install_event {
     return;
 }
 
+# SM939 E2 / R15: SKIP LAZYSITE'S OWN STARTER CONTENT.
+#
+# A fresh install puts the demo pages and ~70 docs pages on the owner's domain,
+# publicly served and in the sitemap. Right for a site that IS lazysite's
+# documentation, someone else's content on anybody else's - and removing it
+# afterwards is seventy-odd deletes to undo something the install did on
+# purpose. The ruling keeps today's default and adds this opt-out.
+#
+# WHAT counts as starter content is declared once, in classification.json's
+# `starter_content`, and arrives here as a `starter` flag on manifest entries.
+#
+# THE CHOICE IS REMEMBERED. docs/ is bucket `code`, so on an upgrade every docs
+# file not yet tracked in the state would be planned as a fresh install - the
+# opt-out would last exactly until the first upgrade. So the state records
+# `starter: none` and every later run honours it, with or without the flag.
+#
+# ONLY UNTRACKED FILES ARE SKIPPED. A site that already has the docs keeps them
+# and keeps getting their updates; this flag cannot delete content.
+#
+# Declared here, above every sub that reads them, and WITHOUT a file-scope
+# assignment: top-level code below `exit cmd_install(...)` never runs, so an
+# initialiser there would be a promise the program does not keep.
+our ( $NO_STARTER, $STARTER_SKIPPED );
+
 sub cmd_install {
     my ($o) = @_;
 
@@ -640,6 +671,10 @@ sub cmd_install {
 
     my $state_path = state_path( $o->{docroot} );
     my $state      = load_state($state_path);
+
+    # SM939 E2: the flag, or a choice an earlier run recorded.
+    $NO_STARTER = ( $o->{no_starter}
+            || ( ref $state eq 'HASH' && ( $state->{starter} // '' ) eq 'none' ) ) ? 1 : 0;
 
     # SM892 U2: THE OPERATOR SAYS WHICH, AND THIS CHECKS THEM.
     #
@@ -1043,6 +1078,12 @@ sub compute_plan {
         my $source = "$STAGE_DIR/$entry->{path}";
         $manifest_installs{$dest} = 1;
 
+        # SM939 E2: starter content the site has opted out of, and has not got.
+        if ( $NO_STARTER && $entry->{starter} && !exists $stored_files->{$dest} && !-e $dest ) {
+            $STARTER_SKIPPED = ( $STARTER_SKIPPED // 0 ) + 1;
+            next;
+        }
+
         if ( !exists $stored_files->{$dest} ) {
             # Not tracked in prior state. If the destination already EXISTS on disk
             # and this is a sysop-editable (non-code) file, treat it as
@@ -1313,6 +1354,7 @@ our $INSTALL_DOCROOT = '';
 # install says how many paths it could not give the site's group rather than
 # leaving the reader to infer it from a list of check failures.
 our $GROUP_ADOPT_FAILED = 0;
+
 
 sub _adopt_site_group {
     my ($path) = @_;
@@ -2324,6 +2366,7 @@ sub write_state {
         files          => $files,
         ( %dirs           ? ( dirs => \%dirs )          : () ),
         ( $once && @$once ? ( once => [ sort @$once ] ) : () ),   # SM798: steps done once
+        ( $NO_STARTER     ? ( starter => 'none' )       : () ),    # SM939 E2: remembered
     };
     make_path( dirname($path) );
     my $json = JSON::PP->new->utf8(1)->pretty(1)->indent_length(2)
@@ -2538,6 +2581,10 @@ sub print_summary {
         print STDERR "    - $_\n" for @{ $stats->{preserved} };
     }
     print STDERR "  Removed:    $stats->{removed}\n";
+    # SM939 E2: say it, so an empty site reads as a choice and not a failure.
+    print STDERR "  Starter:    not installed (" . ( $STARTER_SKIPPED // 0 ) . " file(s) skipped; "
+        . "--no-starter, remembered for upgrades)\n"
+        if $NO_STARTER;
     my $ocount = scalar @{ $stats->{orphaned} };
     if ($ocount) {
         print STDERR "  Orphans:    $ocount (edited post-install, left in place):\n";

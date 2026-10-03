@@ -89,6 +89,22 @@ that nothing in a site tree ends up owned by root. Each verb reads
 `release-manifest.json` from the payload and records what it installed at
 `{docroot}/lazysite/.install-state.json`.
 
+### A site without lazysite's own pages
+
+By default a new site arrives with lazysite's demo pages and its `/docs/`
+pages. That suits a site that *is* lazysite documentation. For anything else,
+provision with `--no-starter`:
+
+```bash
+lazysite provision --docroot /path/to/public_html --cgibin /path/to/cgi-bin --no-starter
+```
+
+The site gets the pages it needs to work - the password-reset and logout pages,
+`assets/`, `.well-known/` and the manager - and none of lazysite's own content.
+The choice is recorded in the install state, so later upgrades and reinstalls
+keep to it without the flag. It never deletes anything: a site that already has
+the pages keeps them.
+
 ### From an unpacked tarball
 
 There is no `lazysite` on `PATH` until the package is installed, so run the

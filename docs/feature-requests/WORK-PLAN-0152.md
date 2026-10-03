@@ -139,7 +139,7 @@ underlying problem: notification is invisible from the manager."
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
 | E1 | [[SM939]] - permissions half **CLOSED by A2** (n236): the directories were always 2775 and are now in the docroot's group. Content half ruled R15 -> E2 | M | done |
-| E2 | [[SM939]] SC3 - an install flag for no starter content. **RULED R15: build it; the default stays as today** | S | nothing |
+| E2 | **BUILT** (n236), to R15: `--no-starter` on provision; starter set declared in classification.json, recorded in the install state so upgrades keep to it. Default unchanged | S | nothing |
 
 E1's permissions half is a defect and is almost certainly the same mechanism as
 [[SM933]]: directories created with a group or mode the server cannot write. A1's
