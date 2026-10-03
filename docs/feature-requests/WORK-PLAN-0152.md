@@ -78,7 +78,7 @@ nobody has met, from a silent 500 into a named line at install time.
 | Ref | PR | The work | Cx | Blocked on |
 | --- | --- | --- | --- | --- |
 | A1 | PR0 | **MEASURED** (n233). Candidate 2, and wider than the filing supposed: `install.pl` never sets a group on anything - the kernel decides. Candidates 1 and 3 refuted (run A gave the PRIMARY group on all 202 paths, uniformly, from the first created directory). `secure_write_perms` works and is **never called** from the install path | S | nothing |
-| A2 | PR2 | Provision leaves the tree reachable by the CGI. **RULED R13: inherit from the docroot** - every path provision creates, the private store beside the docroot included, takes the docroot's group. A1 named the path that needs it | M | nothing |
+| A2 | PR2 | **BUILT** (n236), to R13: every path the installer creates takes the docroot's group, the private store included; existing paths untouched. The field-shape fixture now passes its own health check | M | nothing |
 | A3 | PR3 | **WITHDRAWN (R14).** Premise contradicted by A1: every directory provision creates already carries setgid. The reset case is PR5's warning plus PR1's check | - | done |
 | A4 | PR1 | **Provision ends by running the check it already ships with**, and prints the result. A fresh install either says healthy or names its own fault | S/M | nothing |
 | A5 | PR4 | `--fix` may correct modes on paths the install state declares - the engine's own output, not somebody's choice (R3) | S | nothing |
@@ -138,7 +138,7 @@ underlying problem: notification is invisible from the manager."
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| E1 | [[SM939]] - **MEASURED with A1 (n233), and the premise was wrong**: those directories are created **2775, group-writable with setgid**. The mode was never the fault - the GROUP is, and it is A1's cause exactly. E1's permissions half therefore needs NO separate build; it closes when A2 closes. Making them writable would have changed nothing. The content half (~70 docs pages on the owner's domain) is untouched and stands as filed | M | A2, for the permissions half. The content half needs a ruling |
+| E1 | [[SM939]] - permissions half **CLOSED by A2** (n236): the directories were always 2775 and are now in the docroot's group. Content half ruled R15 -> E2 | M | done |
 | E2 | [[SM939]] SC3 - an install flag for no starter content. **RULED R15: build it; the default stays as today** | S | nothing |
 
 E1's permissions half is a defect and is almost certainly the same mechanism as

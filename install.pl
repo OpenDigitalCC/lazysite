@@ -1286,6 +1286,46 @@ our %INSTALL_DIR_MODE;
 # need opposite advice.
 our $INSTALL_DOCROOT = '';
 
+# SM933 A2 / R13: EVERY PATH THE INSTALLER CREATES TAKES THE DOCROOT'S GROUP.
+#
+# Measured (SM933 PR0): install.pl set no group on anything it wrote. install_file
+# copied then chmod'ed; make_declared_path created with a declared mode; neither
+# called secure_write_perms. So the group of all 202 created paths was whatever
+# the kernel handed out - the docroot's group under a setgid docroot, the
+# installing process's primary group otherwise. And one path was wrong EVEN under
+# a setgid docroot: the private store is created BESIDE the docroot, so the
+# docroot's setgid bit never reaches it and it took the site root's group
+# (<user>:<user> on Hestia) - a store the CGI could not write, in both runs.
+#
+# The ruling (R13, 2026-10-03) is one rule: the DOCROOT's group, for everything
+# the installer creates, siblings outside the docroot included. Not the
+# immediate parent, which is what secure_write_perms inherits from and is the
+# wrong source for exactly the path that was broken.
+#
+# ON CREATION ONLY. Each call site passes a path it has just made - a directory
+# its mkdir succeeded on, a file that did not exist before the copy. An existing
+# path is never regrouped: on an upgrade the group may be a sysop's deliberate
+# choice, and "align everything" is the 0.6.5 outage's shape.
+#
+# BEST EFFORT, AND COUNTED. As non-root, chgrp succeeds only into a group the
+# installer is a member of. A failure is not fatal - the health check at the end
+# of the install names any path the CGI cannot reach - but it is counted, so the
+# install says how many paths it could not give the site's group rather than
+# leaving the reader to infer it from a list of check failures.
+our $GROUP_ADOPT_FAILED = 0;
+
+sub _adopt_site_group {
+    my ($path) = @_;
+    return unless length $INSTALL_DOCROOT && defined $path && length $path;
+    return if -l $path;    # SM268 H5: never act through a link
+    my $gid = ( stat $INSTALL_DOCROOT )[5];
+    return unless defined $gid;
+    my $cur = ( lstat $path )[5];
+    return if !defined $cur || $cur == $gid;
+    chown( -1, $gid, $path ) or $GROUP_ADOPT_FAILED++;
+    return;
+}
+
 sub load_install_dirs {
     my ( $manifest, $subs ) = @_;
     %INSTALL_DIR_MODE = ();
@@ -1388,6 +1428,7 @@ sub make_declared_path {
         # adversarial review put 2775 on an arbitrary file outside the docroot.
         mkdir $path or die "Cannot create directory $path: $!\n";
         _refuse_symlink( $path, 'set the mode' );
+        _adopt_site_group($path);    # SM933 A2: before the chmod, so setgid sticks
         chmod $mode, $path;    # mkdir's mode is masked by the umask; this is not
     }
     return 1;
@@ -1491,8 +1532,10 @@ sub install_file {
             . "  re-apply the lazysite-app web template (it pre-creates plugins/,\n"
             . "  tools/ and lib/ as root), then re-run the install.\n";
     }
+    my $new = !-e $dest;    # SM933 A2: regroup only what this copy CREATES
     File::Copy::copy( $src, $dest )
         or die "Failed to copy $src -> $dest: $!\n";
+    _adopt_site_group($dest) if $new;
     chmod mode_for($dest), $dest;
 }
 
@@ -1846,6 +1889,10 @@ sub create_runtime_paths {
         # mkdir - the same reason install_file's directory walk exists.
         make_declared_path( dirname($path) );
         mkdir $path unless -d $path;
+        # SM933 A2: this is the branch that creates the private store, beside
+        # the docroot where its setgid bit cannot reach - the one path that was
+        # wrong under every docroot mode in the measurement.
+        _adopt_site_group($path);
         chmod $mode, $path;
     }
 }
@@ -2497,6 +2544,18 @@ sub print_summary {
         print STDERR "    - $_\n" for @{ $stats->{orphaned} };
     }
     print STDERR "  Backup:     $backup_path\n" if $backup_path;
+
+    # SM933 A2: the paths this run could not give the docroot's group. Said in the
+    # summary rather than left for the reader to infer from check failures,
+    # because the cause is one fact - the installer is not a member of that
+    # group - and the check would report it as N separate paths.
+    if ($GROUP_ADOPT_FAILED) {
+        my $g = getgrgid( ( stat $INSTALL_DOCROOT )[5] // -1 ) // 'the docroot group';
+        print STDERR "  Group:      $GROUP_ADOPT_FAILED created path(s) could not be given "
+            . "group '$g'\n"
+            . "              (this user is not a member of it - run the install as the\n"
+            . "              site owner, or root, so new paths match the docroot)\n";
+    }
     if (@$warnings) {
         print STDERR "\nWarnings:\n";
         print STDERR "  $_\n" for @$warnings;

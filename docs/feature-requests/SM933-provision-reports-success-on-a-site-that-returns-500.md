@@ -11,6 +11,24 @@ area: installer
 status-note: "PARTIAL. PR1, PR5 AND PR6 LANDED IN 31321799, AND PR1, and PR1 found a defect on its first run - so the row that was argued for as the cheapest earned its place before it shipped. PR1: the installer ends by running the check it already ships with and exits 4 when the site is not serviceable (4, not 1 - the files DID install; not 3 - `--channel-check` already means that). `--serving-group` is new on provision/upgrade/reinstall because the check compares the tree against the web server's group and its www-data default is right on this platform and wrong elsewhere. `upgrade --all` gains a FOURTH bucket, NOT SERVICEABLE, rather than counting such a site as done or failed. PR5: Next steps names the vhost-rebuild hazard. PR6: a repair line records the prior mode - `chmod 2775 (was 0755)`. THE DEFECT PR1 FOUND: a fresh install wrote `lazysite/forms/smtp.conf` world-readable (0644), which the shipped check calls a failure; the installer makes that file by copying the 0640 template and the mode rule was anchored on `.example$`, so the live copy - the one that gets the password - missed it. SM907 AT5 had already named this exact risk as 'what cp smtp.conf.example smtp.conf produces' without noticing the installer does the copying. A fresh install now reaches 0 failures on its own output, measured. NOT BUILT: PR0 (the fixture measurement), PR2 and PR3 (both wait on it - the remedy depends on which of three mechanisms it names), and PR4, which is RULED and needs the install state to record the mode the installer ACTUALLY left so drift can be told from a sysop's deliberate choice; that is a separate change. ORIGINALLY SCHEDULED FOR 0.15.2 at the release manager's direction 2026-10-02: file the fixes and apply them before the next release. The install is unblocked - `--fix` repaired the site and it serves. WHAT IS MEASURED AND WHAT IS NOT, kept apart deliberately: the OUTCOME is measured on a real install (success report, 500 on every request, three repairs, five directories left without setgid). THE MECHANISM IS NOT ESTABLISHED - why the engine tree carried a group the CGI is not in has three candidate causes and naming it is the first task of the build, not an assumption to carry into it. This filing deliberately does NOT repeat the diagnosis offered during the incident: a vhost rebuild resetting the docroot (SM270) was proposed and the evidence refutes it - the docroot came back `group-writable + setgid (2775)` and was never the problem. The `chown -R` in the repair is where the fault was."
 ---
 
+# BUILT 2026-10-03 (PENDING): A2 / PR2, to R13
+
+`_adopt_site_group` in install.pl, called where a path is CREATED - a
+successful mkdir in `make_declared_path`, a file that did not exist before
+`install_file`'s copy, and the runtime-paths branch that makes the private store
+- and nowhere else, so an existing path's group is never changed. Before the
+chmod, so setgid survives the chown.
+
+Re-measured with the PR0 rig: run A (0755 docroot) 202/202 paths in the docroot's
+group (was 0/202) and 16 check failures down to 1, the docroot mode the fixture
+chose; run B (2775, the field shape) **passes its own health check**, where it
+failed on the private store. `t/tools/94` pins it on the discriminating fixture -
+a non-setgid docroot, where the kernel alone would give the wrong answer - with
+five sabotages (no regroup; private store branch; files; declared directories;
+existing files regrouped), each failing a named subtest.
+
+A path the installer could not regroup is counted and said in the summary.
+
 # RULED 2026-10-03
 
 - **R13 (A2/PR2): inherit from the docroot.** Every path provision creates takes the docroot's group - including the private store, which sits beside the docroot and so is not reached by its setgid bit.

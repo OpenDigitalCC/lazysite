@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM933 A2 (PENDING) **everything provision creates takes the docroot's group**
+  (ruled 2026-10-03, R13). Measured first (PR0): the installer set no group on
+  anything it wrote, so all 202 created paths took whatever the kernel handed
+  out - the process's primary group under a non-setgid docroot - and one path was
+  wrong under EVERY docroot mode: the private store, created beside the docroot
+  where its setgid bit cannot reach, took the site root's group. On Hestia that
+  is `<user>:<user>`, a store the www-data CGI cannot write.
+
+  Each path is regrouped at the moment the installer creates it - declared
+  directories, installed files, runtime paths including the private store - and
+  **never an existing one**, so an upgrade cannot undo a sysop's choice. Re-run
+  against the measurement fixture: 202 of 202 paths in the docroot's group, the
+  field-shape run passes its own health check where it failed on the private
+  store, and the non-setgid run goes from 16 failures to the one the fixture set
+  on purpose. A path the installer could not regroup (it is not a member of that
+  group) is counted in the install summary, as one fact rather than N check
+  failures. This also closes SM939's permissions half: `docs/features/` was
+  always group-writable, in the wrong group.
+
 - SM936 (PENDING) **an access rule does not outlive the thing it governed** -
   and measuring the filing's four steps against this tree gave three different
   answers, so three different things were done.

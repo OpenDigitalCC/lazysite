@@ -51,14 +51,19 @@ ok( defined $resolver, 'resolve_placeholders extracted' );
 my ($mkdirs)   = $src =~ /(sub make_declared_path\b.*?\n\})/s;
 my ($symguard) = $src =~ /(sub _refuse_symlink\b.*?\n\})/s;
 my ($symtest)  = $src =~ /(sub _is_symlink\b.*?\n\})/s;
+# SM933 A2: create_runtime_paths and make_declared_path now give each path they
+# create the docroot's group. Lifted from the source, not stubbed, so this file
+# keeps exercising the real creation path.
+my ($adopt)    = $src =~ /(sub _adopt_site_group\b.*?\n\})/s;
+ok( defined $adopt, '_adopt_site_group extracted' );
 ok( defined $symguard && defined $symtest, 'the SM268 symlink guards extracted' );
 ok( defined $mkdirs,                       'make_declared_path extracted' );
 
 {
     no warnings 'redefine';
     eval "use File::Path qw(make_path); use File::Basename qw(dirname);"
-        . " our %INSTALL_DIR_MODE; our \$INSTALL_DOCROOT;"
-        . " $resolver $symtest $symguard $mkdirs $fn 1"
+        . " our %INSTALL_DIR_MODE; our \$INSTALL_DOCROOT; our \$GROUP_ADOPT_FAILED = 0;"
+        . " $resolver $symtest $symguard $adopt $mkdirs $fn 1"
         or die $@;
 }
 
