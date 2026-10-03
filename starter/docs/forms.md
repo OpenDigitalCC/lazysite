@@ -391,6 +391,12 @@ form says which endpoints it is announced to, and for any it is not, the one
 setting that stops it - the form's own `notify: off`, the site's
 `lazysite/notify.conf`, or the XMPP extension and its account.
 
+The form's own setting can be changed there too: **This form's notice** is Off
+(no notice), On (one line) or Full (the notice carries the submission). It is
+written to the form's conf as `notify:`. Over the API the same change is
+`form-notify-save` (`{ "form": "contact", "notify": "off" }`), or
+`set_form_notify` over MCP; the reply says where a submission notice now goes.
+
 Quarantined submissions do not notify. A submission held back by the spam
 controls is recorded but does not raise a notice, so a spam run cannot flood you.
 

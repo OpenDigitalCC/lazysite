@@ -150,6 +150,7 @@ my %PAIR = (
     # SM905 U5: on both surfaces at once, because the caller it was built for is
     # an agent - the edge walk hit the wall it removes while working over the API.
     'form-uploads-save' => 'set_form_uploads',
+    'form-notify-save'  => 'set_form_notify',
     'handler-list'      => 'list_handlers',
     'handler-save'      => 'save_handler',
     'handler-delete'    => 'delete_handler',

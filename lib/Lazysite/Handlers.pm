@@ -1152,6 +1152,55 @@ sub action_form_uploads_save {
         path => "/lazysite/forms/$form.conf" };
 }
 
+# SM938 D4 / R17: SET WHAT A FORM ANNOUNCES, FROM THE MANAGER.
+#
+# D2 made the Handlers page say where a form's notice goes and what stops it; the
+# form's own `notify:` was the one deciding place an operator still had to edit
+# as text over WebDAV. This writes it - into the form's conf, the text that stays
+# the source of truth - and returns D2's report, read back after the write, so the
+# caller sees the effect rather than assuming it.
+#
+# Three values and nothing else: off (no notice), on (one line), full (the notice
+# carries the submission, SM928). Anything else is refused naming the three -
+# the parse that reads this line treats an unknown value as `on`, so writing one
+# would look like it took and change nothing.
+sub action_form_notify_save {
+    my ( $form, $mode ) = @_;
+    return { ok => 0, kind => 'invalid', field => 'form', error => 'form is required' }
+        unless defined $form && length $form;
+    return { ok => 0, kind => 'invalid', field => 'form',
+        error => "invalid form name '$form'"
+            . ( $RESERVED_FORM{$form} ? " - $form.conf is not a form" : '' ) }
+        unless valid_form_name($form);
+    $mode = lc( $mode // '' );
+    return { ok => 0, kind => 'invalid', field => 'notify',
+        error => "notify must be off, on or full, not '$mode'" }
+        unless $mode =~ /\A(?:off|on|full)\z/;
+
+    my $path = form_file($form);
+    my $text = _slurp( $path, "forms/$form.conf" );
+    return { ok => 0, error => _unreadable("$form.conf") . '; nothing was written' }
+        unless defined $text;
+    my ( $ids, undef, $other ) = parse_form_conf($text);
+
+    # Every notify: line goes and one is written. The reader takes the FIRST, so
+    # an edit in place that left a second behind could be the one that wins.
+    my @rest = grep { !/\Anotify\s*:/ } @{ $other || [] };
+    push @rest, "notify: $mode";
+
+    my ( $ok, $err ) = _write_text( $path, render_form_conf( $ids, \@rest ) );
+    return { ok => 0, error => $err } unless $ok;
+    log_event( 'INFO', 'handlers', 'form notify set', form => $form, notify => $mode );
+
+    my %r = ( ok => 1, form => $form, notify => $mode, path => "/lazysite/forms/$form.conf" );
+    if ( eval { require Lazysite::Notify; 1 } ) {
+        my $again = _slurp( $path, "forms/$form.conf" );
+        my ($read) = Lazysite::Notify::form_notify_mode($again);
+        $r{announces} = Lazysite::Notify::route_report( $DOCROOT, 'submission', $read );
+    }
+    return \%r;
+}
+
 # Why a form cannot use this handler, or ''. A connector that refuses public
 # invocation would refuse every submission, so the binding is refused instead,
 # at the moment of the mistake.

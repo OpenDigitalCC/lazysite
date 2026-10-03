@@ -494,6 +494,20 @@ function notifyDetail(n) {
   return '<div class="mg-section-label">Notifications</div>' + lines.join('');
 }
 
+// SM938 D4 / R17: the form's own notify: line, set here and written to its conf.
+// Only this one of the three deciding places is the form's; the site route and
+// the XMPP account are named above when they are what stops a notice.
+function notifyControl(n) {
+  var cur = (NOTIFY[n] && NOTIFY[n].mode) || 'on';
+  var opts = [['off', 'Off - no notice'], ['on', 'On - one line'], ['full', 'Full - the notice carries the submission']];
+  return '<div class="mg-field"><label for="nt-f-' + escHtml(n) + '">This form\'s notice</label>'
+    + '<select class="mg-inp" id="nt-f-' + escHtml(n) + '" data-was="' + escHtml(cur) + '">'
+    + opts.map(function(o) {
+        return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + escHtml(o[1]) + '</option>';
+      }).join('')
+    + '</select></div>';
+}
+
 function renderForms() {
   var el = document.getElementById('form-list');
   var names = Object.keys(FORMS).sort();
@@ -527,6 +541,7 @@ BUILD['form-list'] = function(key) {
     + '<div class="mg-checks">' + (boxes || '<span class="mg-muted">No handlers yet - create one above.</span>') + '</div>'
     + '<p class="mg-muted">Every ticked handler is called for each submission. The visitor is thanked when at least one delivers.</p>'
     + notifyDetail(form)
+    + notifyControl(form)
     + '<div class="mg-toolbar"><button class="mg-btn mg-btn-primary" data-impact="commit" onclick="saveForm(\'' + escHtml(form) + '\')">Save</button> '
     + dirtyNote(key) + '</div><div id="st-' + key + '" class="mg-status"></div></div>';
 };
@@ -536,7 +551,15 @@ function saveForm(form) {
   var boxes = document.querySelectorAll('#ed-' + key + ' input[data-handler]');
   var ids = [];
   for (var i = 0; i < boxes.length; i++) { if (boxes[i].checked) ids.push(boxes[i].getAttribute('data-handler')); }
+  var sel = document.getElementById('nt-' + key);
   post('form-targets-save', { form: form, handlers: ids })
+    .then(function(d) {
+      if (!d.ok) return d;
+      // Written only when it changed, so saving the handlers never rewrites a
+      // notify: line nobody touched.
+      if (!sel || sel.value === sel.getAttribute('data-was')) return d;
+      return post('form-notify-save', { form: form, notify: sel.value });
+    })
     .then(function(d) {
       if (!d.ok) { editorStatus(key, d.error, true); return; }
       cleanEditor(key);

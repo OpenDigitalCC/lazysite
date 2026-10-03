@@ -44,6 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM938 D4 (PENDING) **a form's `notify:` is set from the manager** (ruled R17).
+  D2 made the Handlers page say where a form's notice goes and what stops it; the
+  form's own `notify:` was still edited as text over WebDAV. The expanded form now
+  has **This form's notice** - Off, On, or Full (the notice carries the
+  submission) - written into the form's conf when Save is pressed and only if it
+  changed, so saving the handlers never rewrites a line nobody touched.
+
+  The same write is `form-notify-save` on the control API (gated `manage_forms`,
+  as `form-uploads-save` is for the same file) and `set_form_notify` over MCP.
+  Only `off`, `on` and `full` are accepted: the reader treats an unknown value as
+  `on`, so writing one would look like it took and change nothing. Every existing
+  `notify:` line is replaced by one, because the reader takes the first. The
+  reply carries `announces`, D2's report computed from the conf as written.
+
 - SM933 A5 (PENDING) **`check --fix` may correct what the installer itself left**
   (ruled R3, scheduled R16). SM274 holds `--fix` to the group-write bit on a
   declared directory, because the install state recorded only the DECLARED mode

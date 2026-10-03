@@ -1598,6 +1598,23 @@ my %TOOLS = (
                 { max_kb => $a->{max_kb}, max_files => $a->{max_files}, accept => $a->{accept} } );
         },
     },
+    # SM938 D4: the twin of form-notify-save, for the same reason set_form_uploads
+    # exists - an agent building a form is the caller this is for.
+    set_form_notify => {
+        description => 'Set what a form announces when a submission arrives: notify off (no notice), on (one line in the manager bell, and XMPP/email where the site routes them), or full (the notice carries the submission itself). Writes the `notify:` line in lazysite/forms/<form>.conf and keeps its bindings. The reply\'s `announces` says where a submission notice now goes - `reaches` - and, for each endpoint it will not reach, the first thing that stops it: the site\'s notify.conf (emit/route) or the XMPP extension and its account, which this call does not change.',
+        cap         => 'manage_forms',
+        inputSchema => { type => 'object',
+            properties => {
+                form => { type => 'string', description => 'the form name (its front-matter form key)' },
+                notify => { type => 'string', enum => [qw(off on full)],
+                    description => 'off, on or full' },
+            },
+            required => [ 'form', 'notify' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ($a) = @_;
+            return Lazysite::Handlers::action_form_notify_save( $a->{form}, $a->{notify} );
+        },
+    },
     audit_site => {
         description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL.',
         cap => 'manage_content',
@@ -3247,6 +3264,7 @@ my %ANNOTATE = (
     # upload_* keys, but another call puts them back, and the rule above is
     # explicit that a flag is a property of the action, never of an argument.
     set_form_uploads => [ 0, 0, 1 ],
+    set_form_notify  => [ 0, 0, 1 ],    # SM938 D4: a save; another call puts it back
     write_file       => [ 0, 0, 1 ],
     replace_text     => [ 0, 0, 1 ],
     copy_file        => [ 0, 0, 1 ],

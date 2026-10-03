@@ -990,8 +990,11 @@ principal.
 **Where a form is announced (SM938).** The Handlers page shows, for each form,
 the endpoints its submission notice reaches and, for each one it will not reach,
 the first thing that says no: the form's `notify: off`, `emit.submission: off`,
-a route without xmpp, or the XMPP extension off or its account incomplete. It is
-read-only - the form's text and `notify.conf` stay the source of truth.
+a route without xmpp, or the XMPP extension off or its account incomplete. The
+form's own `notify:` (off / on / full) can be set there, and over
+`form-notify-save` / `set_form_notify`; it is written into the form's conf, so the
+text stays the source of truth, and the reply carries the report read back after
+the write. The site route and the XMPP account are changed where they always were.
 
 **The channel (SM231).** A notice declares a **type**, and the type decides how
 it is rendered and where it goes. `lazysite/notify.conf` carries two keys per

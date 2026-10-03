@@ -226,6 +226,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     domains-list file-download file-upload file-zip-download form-list
     form-submission-confirm form-submission-delete form-submissions
     form-submissions-delete-bulk form-targets-read form-targets-save form-uploads-save
+    form-notify-save
     git-history git-history-summary git-init git-restore git-show
     form-delete
     git-status handler-delete handler-list handler-save key-revoke
@@ -644,7 +645,7 @@ my %MUTATING = map { $_ => 1 } qw(
     start-page-set
     layout-install layouts-install layouts-repo-set artifact-backups-delete
     preview-grant preview-clear nav-save handler-save handler-delete
-    form-targets-save form-uploads-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action page-pdf
+    form-targets-save form-uploads-save form-notify-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action page-pdf
     lock unlock renew-lock notices-seen regenerate-registries
     domain-add domain-alias-add domain-set domain-remove
     session-revoke user-revoke key-revoke
@@ -2405,6 +2406,12 @@ elsif ( $action eq 'form-uploads-save' ) {
             accept    => $req->{accept},
         },
     );
+}
+elsif ( $action eq 'form-notify-save' ) {
+    # SM938 D4 / R17: the form's own notify: line, written as text.
+    my $req = _json_body();
+    $result = Lazysite::Handlers::action_form_notify_save( $req->{form} // $params{form},
+        $req->{notify} );
 }
 elsif ( $action eq 'file-upload' ) {
     $result = action_file_upload( $path, $body );

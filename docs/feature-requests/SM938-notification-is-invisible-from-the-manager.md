@@ -19,6 +19,17 @@ status-note: "NOT YET RULED. TWO REPORTS, MERGED HERE BECAUSE THE SECOND SAYS SO
 - **R18: B-1 in 0.15.2 (plan D5).** An addressable view of one submission, and the
   submission notice's `url` pointed at it.
 
+# BUILT 2026-10-03 (PENDING): D4, to R17
+
+The Handlers page's expanded form has **This form's notice** (off / on / full),
+saved with the handlers and written only when changed. `form-notify-save`
+(manage_forms) and MCP `set_form_notify` are the same write: one `notify:` line
+in the form's conf, replacing any there, refusing anything but the three values,
+and replying with D2's report read back after the write. `t/unit/forms/32`; six
+sabotages each fail a named subtest (stale lines kept; any value accepted;
+bindings dropped; report computed from the conf as it was; the page rewriting an
+untouched line; the page without the control).
+
 # BUILT 2026-10-03 (PENDING)
 
 Two of the three halves. **B-1 (a notice links to the thing that happened) is NOT

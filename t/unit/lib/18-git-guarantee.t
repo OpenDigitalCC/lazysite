@@ -199,6 +199,8 @@ my %EXEMPT = (
     # lazysite/forms/, the same store action_form_targets_save writes targets:
     # into. Turning uploads off removes every upload_* line from that conf.
     'Handlers::action_form_uploads_save'  => 'as action_handler_save',
+    # SM938 D4: writes the notify: line into the same per-form conf.
+    'Handlers::action_form_notify_save'   => 'as action_handler_save',
     'Handlers::action_schedule_save'      => 'as action_handler_save',
     'Handlers::action_schedule_delete'    => 'as action_handler_save',
     # SM632: removes a form REGISTRATION, which lives under lazysite/forms/ and

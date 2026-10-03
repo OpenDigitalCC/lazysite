@@ -136,7 +136,7 @@ underlying problem: notification is invisible from the manager."
 | --- | --- | --- | --- |
 | D1 | **ANSWERED 2026-10-02, in [[SM938]]**: a submission notice carries `url => '/manager/handlers'` today. On 0.14.4 the operator saw `/manager/plugins`; SM928 defect 4 moved it. So an upgrade improves it and does NOT close it - both are a manager section, and nothing addresses a single submission, so the rest is an addressable view rather than a changed string | - | done |
 | D2 | **BUILT** (n236), read-only: the Handlers page says where each form's submission notice goes and, for an endpoint it will not reach, the first thing that says no - computed by delivery's own checks. Read-only as built. **R17: a write control follows in 0.15.2 (D4)** | M | nothing |
-| D4 | **R17**: a control on the Handlers page that sets a form's `notify:` (off / on / full), written through the existing form-conf writer so the text stays the source of truth; the D2 report re-reads it | M | nothing |
+| D4 | **BUILT** (n237), to R17: "This form's notice" on the Handlers page, `form-notify-save` and MCP `set_form_notify` - one `notify:` line written into the form's conf, and the reply carries D2's report read back after the write | M | nothing |
 | D5 | **R18**: an addressable submission view - one submission by form and id, under the same grant as the submissions table - and the submission notice's `url` pointed at it. Closes [[SM938]] B-1 | M | nothing |
 | D3 | **BUILT** (n236): per-notice read state, explicit "Mark all read", dismiss as a second marker (the store keeps every line). Opening the panel marks nothing; an old marker still reads | M | nothing |
 
