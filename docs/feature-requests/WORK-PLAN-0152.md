@@ -20,7 +20,7 @@ out to hold seven reports, two of which ask questions only this side can answer.
 reused (SM064), so the next cut is **0.15.2**. The field-practice briefing is already
 stamped for it.
 
-# The twelve rulings taken 2026-10-02
+# The rulings: R1-R12 taken 2026-10-02, R13-R15 taken 2026-10-03
 
 | Ref | Question | Ruling |
 | --- | --- | --- |
@@ -38,6 +38,9 @@ stamped for it.
 | **R9** | 4,227 requests with NO user-agent are counted as human, because the `human` return never consults the `_is_browser` that `classify()` computed | **A POSITIVE BROWSER TEST, AND `no_agent` AS ITS OWN CLASS.** An absent user-agent is a fact worth reporting, not a residual - the 4,227 become visible and separable. Buckets still sum |
 | **R10** | `WP-Safe-Scanner`, `WordPress/6.4.3`, `UnifiedPaths`, `SeltzSitemapFetcher`, `GeedoShopProductFinder` and **our own `lzs-fetch`** all land in the human group | **MATCH SELF-DECLARATION, NOT A VENDOR LIST**: scanner, fetcher, crawler, spider, -finder, `WordPress/`, `curl/`, `wget/`, python-requests - so the next tool of this shape is caught before anyone notices it. `lzs-fetch` joins `$AGENT_RE` |
 | **R11** | `/websocket`, 5,418 requests, all 404 | **COUNTED OUTSIDE THE GROUP.** Cause identified by the release manager: the domain replaced a site that used websockets and a browser is still reconnecting. Not this engine's defect, and not a visit - a persistent reconnect to a path that has never resolved is automation by behaviour whatever its UA says |
+| **R13** | [[SM933]] A2: the private store is created BESIDE the docroot, so it takes the site root's group and the CGI cannot write it. `secure_write_perms` inherits from the immediate parent - the wrong source for that path. Which group should provision give what it creates? | **INHERIT FROM THE DOCROOT.** One rule for everything provision creates, siblings outside the docroot included. No new argument; correct wherever the docroot is already set up for the server |
+| **R14** | [[SM933]] A3: measured, every directory provision creates already carries setgid (0 without, both runs), so the field report's five were pre-existing or reset afterwards. Proceed how? | **WITHDRAW A3**, with the measurement. PR5's rebuild warning and PR1's health check already cover the reset case |
+| **R15** | [[SM939]] E1 content half: a fresh install ships lazysite's demo and ~70 docs pages onto the owner's domain. What should it ship? | **KEEP THE DEFAULT, ADD AN OPT-OUT FLAG (E2).** The reporter's own ranking and the smallest change; the permissions half closes with A2 |
 
 **R4 IS DISCHARGED AND H0 IS WITHDRAWN.** It asked for the gap to be measured before
 AV2 was ruled; the measurement found the answer in the SOURCE, so the diagnostic that
@@ -75,8 +78,8 @@ nobody has met, from a silent 500 into a named line at install time.
 | Ref | PR | The work | Cx | Blocked on |
 | --- | --- | --- | --- | --- |
 | A1 | PR0 | **MEASURED** (n233). Candidate 2, and wider than the filing supposed: `install.pl` never sets a group on anything - the kernel decides. Candidates 1 and 3 refuted (run A gave the PRIMARY group on all 202 paths, uniformly, from the first created directory). `secure_write_perms` works and is **never called** from the install path | S | nothing |
-| A2 | PR2 | Provision leaves the tree reachable by the CGI, or refuses naming the path it could not place. **A1 names the path: the PRIVATE STORE**, created beside the docroot, so setgid never reaches it - it takes the SITE ROOT's group in both runs. **NEEDS A RULING** before building: `secure_write_perms` inherits from the immediate parent, which for this path is the wrong source. Inherit from the docroot, or chgrp to `--serving-group`? | M | a ruling, not A1 |
-| A3 | PR3 | **PREMISE CONTRADICTED** by A1: every directory provision creates already carries setgid (0 without it, 27 directories, both runs). The field report's five cannot be paths provision had just made that way - they pre-dated it or were reset later (PR5's hazard). **Do not build until the five are named from the field**; a fix against this premise would change nothing and read as closed | S | the five paths, by name |
+| A2 | PR2 | Provision leaves the tree reachable by the CGI. **RULED R13: inherit from the docroot** - every path provision creates, the private store beside the docroot included, takes the docroot's group. A1 named the path that needs it | M | nothing |
+| A3 | PR3 | **WITHDRAWN (R14).** Premise contradicted by A1: every directory provision creates already carries setgid. The reset case is PR5's warning plus PR1's check | - | done |
 | A4 | PR1 | **Provision ends by running the check it already ships with**, and prints the result. A fresh install either says healthy or names its own fault | S/M | nothing |
 | A5 | PR4 | `--fix` may correct modes on paths the install state declares - the engine's own output, not somebody's choice (R3) | S | nothing |
 | A6 | PR5 | Next steps names the rebuild hazard: any vhost rebuild can reset modes, so re-run the check after one | S | nothing |
@@ -136,7 +139,7 @@ underlying problem: notification is invisible from the manager."
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
 | E1 | [[SM939]] - **MEASURED with A1 (n233), and the premise was wrong**: those directories are created **2775, group-writable with setgid**. The mode was never the fault - the GROUP is, and it is A1's cause exactly. E1's permissions half therefore needs NO separate build; it closes when A2 closes. Making them writable would have changed nothing. The content half (~70 docs pages on the owner's domain) is untouched and stands as filed | M | A2, for the permissions half. The content half needs a ruling |
-| E2 | [[SM939]] SC3 - an install flag for no starter content. The reporter's own priority: "Low priority next to item 1" | S | E1 |
+| E2 | [[SM939]] SC3 - an install flag for no starter content. **RULED R15: build it; the default stays as today** | S | nothing |
 
 E1's permissions half is a defect and is almost certainly the same mechanism as
 [[SM933]]: directories created with a group or mode the server cannot write. A1's
