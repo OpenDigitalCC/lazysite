@@ -11,6 +11,14 @@ area: manager
 status-note: "NOT YET RULED. TWO REPORTS, MERGED HERE BECAUSE THE SECOND SAYS SO: 'Same operator, same underlying problem: notification is invisible from the manager.' THE OPERATOR'S WORDS: 'the bell is confusing - it shows but doesn't do anything. can you file to dev agent, that it should show link to the thing that happened, and requires some kind of mark as read.' ONE HALF IS ANSWERED HERE AND THE ANSWER IS PARTLY AN UPGRADE. The reporter asked explicitly to be told, because from the operator's seat a fix and an upgrade are indistinguishable: measured in the current tree, a submission notice carries `url => '/manager/handlers'` (plugins/form-handler.pl, the line carrying the comment 'SM928 defect 4 - see the notify call'). On 0.14.4 the operator saw `/manager/plugins`, the Extension Manager, which is a page about extensions - SM928 moved it to the Handlers page, which is at least about forms. SO AN UPGRADE IMPROVES IT AND DOES NOT CLOSE IT: both are a manager SECTION, and the ask was the row that was submitted. Measured further: nothing in the manager pages addresses a single submission, so that half is an addressable submissions view rather than a changed string. The read-state half has no dependency and applies to the tree as read: a per-principal last-seen marker exists and works, and the only thing that sets it is OPENING the panel - so the badge is a has-opened-the-panel indicator rather than an outstanding-work one, which is the opposite of what a bell is for."
 ---
 
+# RULED 2026-10-03
+
+- **R17: a write control for `notify:`, in 0.15.2 (plan D4).** The text stays the
+  source of truth: the control writes the form's `notify:` line through the
+  existing writer, and D2's report then shows the result.
+- **R18: B-1 in 0.15.2 (plan D5).** An addressable view of one submission, and the
+  submission notice's `url` pointed at it.
+
 # BUILT 2026-10-03 (PENDING)
 
 Two of the three halves. **B-1 (a notice links to the thing that happened) is NOT

@@ -20,7 +20,7 @@ out to hold seven reports, two of which ask questions only this side can answer.
 reused (SM064), so the next cut is **0.15.2**. The field-practice briefing is already
 stamped for it.
 
-# The rulings: R1-R12 taken 2026-10-02, R13-R15 taken 2026-10-03
+# The rulings: R1-R12 taken 2026-10-02, R13-R19 taken 2026-10-03
 
 | Ref | Question | Ruling |
 | --- | --- | --- |
@@ -41,6 +41,10 @@ stamped for it.
 | **R13** | [[SM933]] A2: the private store is created BESIDE the docroot, so it takes the site root's group and the CGI cannot write it. `secure_write_perms` inherits from the immediate parent - the wrong source for that path. Which group should provision give what it creates? | **INHERIT FROM THE DOCROOT.** One rule for everything provision creates, siblings outside the docroot included. No new argument; correct wherever the docroot is already set up for the server |
 | **R14** | [[SM933]] A3: measured, every directory provision creates already carries setgid (0 without, both runs), so the field report's five were pre-existing or reset afterwards. Proceed how? | **WITHDRAW A3**, with the measurement. PR5's rebuild warning and PR1's health check already cover the reset case |
 | **R15** | [[SM939]] E1 content half: a fresh install ships lazysite's demo and ~70 docs pages onto the owner's domain. What should it ship? | **KEEP THE DEFAULT, ADD AN OPT-OUT FLAG (E2).** The reporter's own ranking and the smallest change; the permissions half closes with A2 |
+| **R16** | [[SM933]] A5 (PR4, ruled R3): `--fix` may correct modes the installer itself created, which needs the install state to record the mode it actually left. Before the 0.15.2 cut, or after? | **BUILD NOW, IN 0.15.2.** SM933 closes whole in this release |
+| **R17** | [[SM938]] D2 was built read-only: the Handlers page says where a form's notice goes and why not. Should the manager also change it? | **ADD A WRITE CONTROL, IN 0.15.2.** The form's text stays the source of truth - the control writes `notify:` through the existing writer, and the report then shows the result |
+| **R18** | [[SM938]] B-1: a notice should link to the submission itself, and no manager page addresses a single submission. When? | **IN 0.15.2**: an addressable submission view, and the submission notice's `url` pointed at it |
+| **R19** | B3: the SQLi report's five candidate signatures; two already covered. The other three? | **PARK, UNRULED.** Recorded as offered; built only if quarantine misses a real case |
 
 **R4 IS DISCHARGED AND H0 IS WITHDRAWN.** It asked for the gap to be measured before
 AV2 was ruled; the measurement found the answer in the SOURCE, so the diagnostic that
@@ -81,7 +85,7 @@ nobody has met, from a silent 500 into a named line at install time.
 | A2 | PR2 | **BUILT** (n236), to R13: every path the installer creates takes the docroot's group, the private store included; existing paths untouched. The field-shape fixture now passes its own health check | M | nothing |
 | A3 | PR3 | **WITHDRAWN (R14).** Premise contradicted by A1: every directory provision creates already carries setgid. The reset case is PR5's warning plus PR1's check | - | done |
 | A4 | PR1 | **Provision ends by running the check it already ships with**, and prints the result. A fresh install either says healthy or names its own fault | S/M | nothing |
-| A5 | PR4 | `--fix` may correct modes on paths the install state declares - the engine's own output, not somebody's choice (R3) | S | nothing |
+| A5 | PR4 | `--fix` may correct modes on paths the install state declares - the engine's own output, not somebody's choice (R3). **R16: in 0.15.2.** Needs the install state to record the mode the installer actually left | S/M | nothing |
 | A6 | PR5 | Next steps names the rebuild hazard: any vhost rebuild can reset modes, so re-run the check after one | S | nothing |
 | A7 | PR6 | A repair line records the prior value - `chmod 2775 (was 0755)` | S | nothing |
 
@@ -97,7 +101,7 @@ answering its questions.
 | --- | --- | --- | --- |
 | B1 | **BUILT** (n233). Enforced from a RENDER-TIME SIDECAR, which was a ruling: the rules were not available to the handler at all, and `_page` is visitor-supplied so it could not locate them. The hazard is closed properly - a pattern the browser could not compile is asked about by name (lint 204's helper) rather than judged again. A validation refusal is counted under its OWN outcome, not as an anti-spam block | M | nothing |
 | B2 | [[SM935]] - the form rate limit buckets on a **calendar hour** (`"$ip:$hour"`, `$hour = int(time/3600)`), so five submissions at 10:59:59 and five at 11:00:00 is ten in one second within the rules. A rolling window, or the boundary stated as deliberate | S | nothing |
-| B3 | The SQLi report's five candidate detection signatures. **Not ruled, and offered as signatures rather than a request.** Two of the five are already covered: the own-domain sender ([[SM930]]) and "a value in a field declared `email` that does not parse" (B1) | - | a ruling, if ever |
+| B3 | The SQLi report's five candidate detection signatures. **Not ruled, and offered as signatures rather than a request.** Two of the five are already covered: the own-domain sender ([[SM930]]) and "a value in a field declared `email` that does not parse" (B1). **R19: PARKED** - built only if quarantine misses a real case | - | a real miss |
 
 **B1's hazard, which must be designed for rather than discovered.** Refusing on a
 declared rule means a form whose rule is wrong refuses *everybody*, and
@@ -131,7 +135,9 @@ underlying problem: notification is invisible from the manager."
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
 | D1 | **ANSWERED 2026-10-02, in [[SM938]]**: a submission notice carries `url => '/manager/handlers'` today. On 0.14.4 the operator saw `/manager/plugins`; SM928 defect 4 moved it. So an upgrade improves it and does NOT close it - both are a manager section, and nothing addresses a single submission, so the rest is an addressable view rather than a changed string | - | done |
-| D2 | **BUILT** (n236), read-only: the Handlers page says where each form's submission notice goes and, for an endpoint it will not reach, the first thing that says no - computed by delivery's own checks. No ruling was recorded, so nothing writes `notify:` or the route | M | nothing |
+| D2 | **BUILT** (n236), read-only: the Handlers page says where each form's submission notice goes and, for an endpoint it will not reach, the first thing that says no - computed by delivery's own checks. Read-only as built. **R17: a write control follows in 0.15.2 (D4)** | M | nothing |
+| D4 | **R17**: a control on the Handlers page that sets a form's `notify:` (off / on / full), written through the existing form-conf writer so the text stays the source of truth; the D2 report re-reads it | M | nothing |
+| D5 | **R18**: an addressable submission view - one submission by form and id, under the same grant as the submissions table - and the submission notice's `url` pointed at it. Closes [[SM938]] B-1 | M | nothing |
 | D3 | **BUILT** (n236): per-notice read state, explicit "Mark all read", dismiss as a second marker (the store keeps every line). Opening the panel marks nothing; an old marker still reads | M | nothing |
 
 # Group E - what a fresh install puts on somebody's domain

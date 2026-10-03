@@ -33,6 +33,7 @@ A path the installer could not regroup is counted and said in the summary.
 
 - **R13 (A2/PR2): inherit from the docroot.** Every path provision creates takes the docroot's group - including the private store, which sits beside the docroot and so is not reached by its setgid bit.
 - **R14 (A3/PR3): withdrawn.** The measurement above contradicts its premise; the reset case is covered by PR5's warning and PR1's health check.
+- **R16 (A5/PR4): build now, in 0.15.2.** `--fix` may correct modes on the paths the installer created; the install state first records the mode it actually left.
 
 # Measured, on one real install
 
