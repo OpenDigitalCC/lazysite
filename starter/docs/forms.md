@@ -397,6 +397,12 @@ written to the form's conf as `notify:`. Over the API the same change is
 `form-notify-save` (`{ "form": "contact", "notify": "off" }`), or
 `set_form_notify` over MCP; the reply says where a submission notice now goes.
 
+A notice for a form that keeps its submissions in a file **links to that
+submission**: following it from the bell opens the one row that arrived, with a
+link on to every submission in the store. An agent reading the bell can follow
+the same link with `read_form_submission` (MCP) or `form-submission` (API), using
+the `file` and `id` in the notice's url.
+
 Quarantined submissions do not notify. A submission held back by the spam
 controls is recorded but does not raise a notice, so a spam run cannot flood you.
 

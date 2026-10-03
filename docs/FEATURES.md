@@ -980,6 +980,12 @@ human-awaiting-a-response events: form submissions, a password-reset request whe
 no SMTP is configured (previously a silent dead-end), and agent feedback
 submissions.
 
+**A submission notice links to the submission (SM938).** The file handler
+reports the row it stored, and the notice's link opens that one submission at
+`/manager/submission` (read with `form-submission` / `read_form_submission`,
+under `read_submissions`). A form without a file handler links to the Handlers
+page.
+
 **Read state is per notice (SM938).** Opening the panel marks nothing. Following
 a notice's link marks that notice read, **Mark all read** marks the lot, and
 **Dismiss** takes one out of the panel - a second marker, so the store keeps

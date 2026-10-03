@@ -21,7 +21,7 @@ our @EXPORT_OK = qw(
     action_plugin_read action_plugin_save action_plugin_action
     action_form_list
     action_form_delete
-    action_form_submissions
+    action_form_submissions action_form_submission
     action_form_submission_delete action_form_submission_confirm
     action_form_submissions_delete_bulk
     resolve_plugin_script plugin_enabled
@@ -1092,11 +1092,7 @@ sub _submissions_path {
 # CHARACTER string, and sha256_hex dies on a character above U+00FF ("Wide
 # character") and hashes a Latin-1 one as a different byte than the file holds.
 # The id is the hash of the line as it is on disk, whatever the reader's layer.
-sub _submission_row_id {
-    my ($line) = @_;
-    utf8::encode($line) if utf8::is_utf8($line);
-    return substr( sha256_hex($line), 0, 16 );
-}
+sub _submission_row_id { return _handlers_module()->can('submission_row_id')->( $_[0] ) }
 
 # A stored row, read from a CHARACTER string. decode_json wants UTF-8 BYTES, so
 # on a :utf8-read line it refused every row holding a non-ASCII character as
@@ -1252,6 +1248,46 @@ sub action_form_submission_delete {
 # _spam_reason flags on the stored row (by stable id), so it leaves the Quarantine
 # filter. The row content is untouched; a false positive is recovered in one click.
 # (Deleting a genuine spam row stays action_form_submission_delete.)
+# SM938 D5: ONE SUBMISSION, BY ITS ID.
+#
+# A submission notice named the form and linked to a manager SECTION; the
+# operator asked for "a link to the thing that happened". The file handler now
+# reports the row it wrote (store + id) and the notice links here. Same path
+# confinement and the same grant as the table (read_submissions) - this reads one
+# row of what the table reads all of, and no more.
+sub action_form_submission {
+    my ( $file, $id ) = @_;
+    return { ok => 0, kind => 'missing-parameter', field => 'file',
+        error => 'file is required - the submissions store the row is in' }
+        unless defined $file && length $file;
+    return { ok => 0, kind => 'invalid', field => 'id',
+        error => 'id is required: 16 hex characters, as the notice link and the table give it' }
+        unless defined $id && $id =~ /\A[0-9a-f]{16}\z/;
+    my ( $abs, $rel, $err ) = _submissions_path($file);
+    return { ok => 0, error => $err } if $err;
+    open my $fh, '<:utf8', $abs
+        or return { ok => 0, kind => 'not-found', error => "no submissions store at $rel" };
+    my $found;
+    while ( my $line = <$fh> ) {
+        ( my $trim = $line ) =~ s/\s+\z//;
+        next unless length $trim && _submission_row_id($trim) eq $id;
+        $found = _decode_row($trim);
+        last;
+    }
+    close $fh;
+    # Not there is a fact worth its own words: it was deleted, or the link is
+    # older than an edit to the row. Either way the store still opens.
+    return { ok => 0, kind => 'not-found',
+        error => "no submission $id in $rel - it may have been deleted since the notice was sent" }
+        unless ref $found eq 'HASH';
+    my @fields = grep { !/\A_/ } sort keys %$found;
+    my @meta   = grep { /\A_/ } sort keys %$found;
+    my %out    = map {
+        $_ => ( !defined $found->{$_} ? '' : ref $found->{$_} ? $ROW_JSON->encode( $found->{$_} ) : "$found->{$_}" )
+    } keys %$found;
+    return { ok => 1, file => $rel, id => $id, record => \%out, fields => \@fields, meta => \@meta };
+}
+
 sub action_form_submission_confirm {
     my ( $file, $id ) = @_;
     my ( $abs, $rel, $err ) = _submissions_path($file);

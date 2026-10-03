@@ -19,6 +19,27 @@ status-note: "NOT YET RULED. TWO REPORTS, MERGED HERE BECAUSE THE SECOND SAYS SO
 - **R18: B-1 in 0.15.2 (plan D5).** An addressable view of one submission, and the
   submission notice's `url` pointed at it.
 
+# BUILT 2026-10-03 (PENDING): D5, to R18 - closes B-1
+
+The file handler's delivery result now carries `stored: { file, id }` - the store
+as the readers name it and the row's id - and the form handler links the notice
+to `/manager/submission?file=...&id=...`. The page reads one row through
+`form-submission` (MCP `read_form_submission`), gated `read_submissions` and
+confined to the submission stores like the table, and shows it with textContent
+only. A form with no file handler links to the Handlers page as before. The row
+id has one definition, `Lazysite::Handlers::submission_row_id`, which the file
+handler and every reader use.
+
+`t/unit/forms/34`, through the real form handler; seven sabotages each fail a
+named subtest (no row reported; the old url kept; a different id at write; the
+read returning the first row; the read unconfined; no fallback url; the page
+writing markup). Three of them passed the first version of the test - a store of
+one row, a refusal of a file that was absent rather than outside, and a sabotage
+the id function's own trimming undid - and the test was strengthened for each.
+
+FOUND ON THE WAY, fixed in its own commit: the submissions readers hid every row
+holding a non-ASCII character as "malformed" (SM904's read half).
+
 # BUILT 2026-10-03 (PENDING): D4, to R17
 
 The Handlers page's expanded form has **This form's notice** (off / on / full),
@@ -32,9 +53,8 @@ untouched line; the page without the control).
 
 # BUILT 2026-10-03 (PENDING)
 
-Two of the three halves. **B-1 (a notice links to the thing that happened) is NOT
-built**: no manager page addresses a single submission, so it needs an addressable
-submissions view first.
+Two of the three halves, on 2026-10-03; **B-1 followed the same day as D5** (see
+above).
 
 - **B-2 (D3), all three asks, in the report's order.** (1) Per-notice read state:
   each notice has a stable id, and marking one leaves the rest alone. (2) An

@@ -130,6 +130,7 @@ my %PAIR = (
     'site-backup-create'    => 'site_backup',
     'site-backup-apply'     => 'site_apply',
     'form-submissions'      => 'read_form_submissions',
+    'form-submission'       => 'read_form_submission',
     'form-list'             => 'form_list',
     # SM918: the notice bell, read by both doors through one reader
     # (Lazysite::Manager::Notices). Same capability either side - `notifications`

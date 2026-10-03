@@ -116,6 +116,7 @@ tone: medium
 `form-delete` | manage_forms | form (query_or_body), confirm (body)
 `form-list` | read_submissions |  
 `form-notify-save` | manage_forms | form (query_or_body), notify (body)
+`form-submission` | read_submissions | file (query), id (query)
 `form-submission-confirm` | cookie only | file (query_or_body), id (body)
 `form-submission-delete` | delete_submissions | file (query_or_body), id (body)
 `form-submissions` | read_submissions | form (query), file (query)

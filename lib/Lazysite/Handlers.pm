@@ -1423,6 +1423,18 @@ sub _visible {
     return map { ( $_ => $f->{$_} ) } grep { !/\A_/ } sort keys %$f;
 }
 
+# A stored submission's id: the first 16 hex characters of the SHA-256 of its
+# line as it is on disk (UTF-8 bytes). ONE definition: the file handler names
+# the row it just wrote with it (SM938 D5 - the notice links to that row), and
+# the submissions readers find a row by it. Two copies would be two ids.
+sub submission_row_id {
+    my ($line) = @_;
+    $line =~ s/\s+\z//;
+    utf8::encode($line) if utf8::is_utf8($line);
+    require Digest::SHA;
+    return substr( Digest::SHA::sha256_hex($line), 0, 16 );
+}
+
 sub _store_name {
     my ($ctx) = @_;
     ( my $n = $ctx->{store} // 'unknown' ) =~ s/[^A-Za-z0-9_-]//g;
@@ -1458,12 +1470,20 @@ sub _to_file {
     my $path = "$dir/$name.jsonl";
     open my $fh, '>>:utf8', $path or return { ok => 0, why => "cannot open the store: $!" };
     flock $fh, LOCK_EX;
-    my $wrote = print {$fh} JSON::PP->new->canonical->encode( \%rec ) . "\n";
+    my $line  = JSON::PP->new->canonical->encode( \%rec );
+    my $wrote = print {$fh} "$line\n";
     flock $fh, LOCK_UN;
     # SM020: a failed print surfaces at close. Without the check a disk-full
     # submission was acknowledged while the record never landed.
     return { ok => 0, why => "the store write did not complete: $!" } unless close($fh) && $wrote;
-    return { ok => 1, ( $up && @{ $up->{failed} } ? ( note => _files_note($up) ) : () ) };
+    # SM938 D5: WHICH ROW, so the notice can link to it. The store as the
+    # readers name it - the handler's configured directory, relative - and the
+    # row's id. Only the handler that wrote it knows either.
+    ( my $rel_dir = ( defined $h->{path} && length $h->{path} ) ? $h->{path} : 'lazysite/forms/submissions' )
+        =~ s{/+\z}{};
+    return { ok => 1,
+        stored => { file => "$rel_dir/$name.jsonl", id => submission_row_id($line) },
+        ( $up && @{ $up->{failed} } ? ( note => _files_note($up) ) : () ) };
 }
 
 # SM905 U4: the delivery SUCCEEDED and something is still missing, which is the

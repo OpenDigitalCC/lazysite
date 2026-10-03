@@ -89,8 +89,10 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #        capability its only writer form-targets-save already needed.
     #   107, SM938 D4 (0.15.2): form-notify-save, gated manage_forms, the same
     #        capability as form-uploads-save, which writes the same file.
+    #   108, SM938 D5 (0.15.2): form-submission, gated read_submissions - one
+    #        row of what form-submissions reads.
     my %caps = gate_caps($cgi);
-    is( scalar keys %caps, 107, '107 actions are reachable with a token' )
+    is( scalar keys %caps, 108, '108 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 

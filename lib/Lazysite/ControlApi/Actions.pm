@@ -190,6 +190,7 @@ our %GATE = (
         # declaration table above. manage_forms is definition-only now, so
         # the sysop parity note that stood here no longer applies.
     'form-submissions' => [qw(read_submissions)],
+    'form-submission'  => [qw(read_submissions)],    # SM938 D5: one row of the same
     'form-list'        => [qw(read_submissions)],
     # SM924: DELETING a submission is reachable on this channel now, and only
     # with a grant of its own. SM214 held it back - a destructive act on
@@ -427,6 +428,7 @@ our %ACTION = (
     # Neither is marked required: exactly one is needed, and the action answers
     # for that by name rather than letting the path validator call an absence a
     # malformed value.
+    'form-submission' => { params => [ { name => 'file', in => 'query', required => 1, note => 'the store the row is in, as a submission notice\'s link and the table give it' }, { name => 'id', in => 'query', required => 1, note => '16 hex characters: the row\'s id' } ] },
     'form-submissions' => {
         params => [
             { name => 'form', in => 'query',

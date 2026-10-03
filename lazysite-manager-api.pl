@@ -39,7 +39,7 @@ use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_
     check_upload_rate is_editable_text parse_multipart_body);
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action
-    action_form_submissions action_form_submission_delete action_form_list
+    action_form_submissions action_form_submission action_form_submission_delete action_form_list
     action_form_submission_confirm action_form_submissions_delete_bulk
     action_form_delete);
 use Lazysite::Manager::Notices ();    # SM918: one notice reader, shared with MCP
@@ -226,7 +226,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     domains-list file-download file-upload file-zip-download form-list
     form-submission-confirm form-submission-delete form-submissions
     form-submissions-delete-bulk form-targets-read form-targets-save form-uploads-save
-    form-notify-save
+    form-notify-save form-submission
     git-history git-history-summary git-init git-restore git-show
     form-delete
     git-status handler-delete handler-list handler-save key-revoke
@@ -893,6 +893,7 @@ if ( !$token_auth ) {
         # EXISTENCE even though it carries no content. MCP treats it that way
         # and always has.
         'form-submissions' => 'read_submissions',    # SM182/SM187: PII submissions (GET)
+        'form-submission'  => 'read_submissions',    # SM938 D5: one of them, by id
         'form-list'        => 'read_submissions',    # SM214: names + submission COUNTS
             # SM660: BOTH capabilities. SM652 narrowed the submission READS to
             # read_submissions and left these three behind, so a grant could delete
@@ -1268,7 +1269,7 @@ my %skip = map { $_ => 1 } qw(
     csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors start-page display-names remap-list audit-trail-set
     cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
     layouts-available layouts-releases layouts-repo-get layouts-release-contents
-    handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
+    handler-list plugin-list plugin-read form-targets-read form-submissions form-submission form-list artifact-manifest
     artifact-validate lock unlock renew-lock preview preview-clear preview-grant
     backup-list sessions-list keys-list git-status git-history git-history-summary git-show
     site-backup-inspect protected-sections
@@ -2347,6 +2348,10 @@ elsif ( $action eq 'form-submissions' ) {
     # not, so the reasonable call answered "Invalid submissions file" about a
     # parameter that had never been sent.
     $result = action_form_submissions( $params{file}, $params{form} );
+}
+elsif ( $action eq 'form-submission' ) {
+    # SM938 D5: one submission, by store and id - what a submission notice links to.
+    $result = action_form_submission( $params{file}, $params{id} );
 }
 elsif ( $action eq 'form-list' ) { # SM214: PII-free form discovery (names + types + row counts)
     $result = action_form_list();

@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM938 D5 (PENDING) **a submission notice links to the submission** (ruled
+  R18; closes SM938 B-1). The operator's words: the bell "should show link to
+  the thing that happened". A notice linked to the Handlers page, and no manager
+  page addressed one submission - SM928 defect 4 had recorded why it stopped
+  there: a deep link needs the store, which only the handler that wrote the row
+  knows. The file handler now reports the row it wrote (store and id), and the
+  notice links to **/manager/submission**, a new page showing that one
+  submission as text. A form with no file handler still links to the Handlers
+  page.
+
+  The read is `form-submission` (control API) and `read_form_submission` (MCP),
+  gated `read_submissions` like the table and confined to the same stores. A row
+  deleted since the notice was sent is not-found, in words saying so. The row id
+  now has ONE definition (`Lazysite::Handlers::submission_row_id`), used by the
+  file handler when it writes and by every submissions reader, so the link and
+  the table cannot name the same row differently.
+
 - SM904 (PENDING) **a submission with a non-ASCII character is shown, and can be
   acted on** - SM904's read half, found while building SM938 D5. SM904 made sure
   a value is STORED as the visitor typed it; nothing checked that it could be

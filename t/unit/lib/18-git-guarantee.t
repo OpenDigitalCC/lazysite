@@ -183,6 +183,7 @@ my %EXEMPT = (
         . 'that mutates content owns its capture (git-sync commits via Lazysite::Git '
         . 'and snapshots before any apply)',
     'Plugins::action_form_submissions'  => 'read-only',
+    'Plugins::action_form_submission'   => 'read-only',    # SM938 D5: one row
     'Plugins::action_form_list'         => 'read-only',
     'Plugins::action_plugin_enable'     => 'rewrites the plugins: list in lazysite.conf '
         . 'without a commit (pre-existing; folded into the next capture sweep)',

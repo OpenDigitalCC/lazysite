@@ -280,6 +280,7 @@ eval {
     # SM842: each target NAMES a handler, and the handler contract delivers -
     # the same code the schedule calls, one audit line per handler.
     my $handlers  = Lazysite::Handlers::read_handlers();
+    my $stored;    # SM938 D5: the row a file handler wrote - the notice links to it
     my $delivered = 0;
     my $processed = 0;    # SM579: a connector took it onward, see below
     for my $id ( @{ $conf->{targets} } ) {
@@ -296,6 +297,7 @@ eval {
             ( defined $handlers ? ( handlers => $handlers ) : () ),
         );
         $delivered++ if $r->{ok};
+        $stored //= $r->{stored} if $r->{ok} && ref $r->{stored} eq 'HASH';
         # SM579: DID ANYTHING LEAVE THE SITE FOR A SERVICE? A connector handler
         # sends the submission onward to be processed rather than to a person, so
         # "your message has been sent" is the one thing that did not happen. The
@@ -322,7 +324,7 @@ eval {
     _audit_submission( $name, '', _request_ip() );    # SM402: no verified actor
         # SM216: a quarantined (suspect) submission is stored but does NOT ring the
         # bell - the sysop finds it under the Submissions Quarantine filter.
-    _notify_submission( $name, $conf->{notify_mode}, \%form )
+    _notify_submission( $name, $conf->{notify_mode}, \%form, $stored )
         unless $form{_quarantined};    # SM113 badge
     _record_form_event( $name, $form{_quarantined} ? 'quarantined' : 'stored' ); # SM216-2
         # SM579: WHICH TRUE SENTENCE. A connector delivered means the submission left
@@ -844,8 +846,21 @@ sub _submitted_fields {
     return \@out;
 }
 
+# SM938 D5: where a submission notice links. The submission itself when a file
+# handler stored it and said which row; the Handlers page otherwise - a form that
+# only emails or writes a table row has no stored row this page can show.
+sub _submission_url {
+    my ($stored) = @_;
+    return '/manager/handlers'
+        unless ref $stored eq 'HASH'
+        && ( $stored->{id} // '' ) =~ /\A[0-9a-f]{16}\z/
+        && length( $stored->{file} // '' );
+    ( my $f = $stored->{file} ) =~ s{([^A-Za-z0-9/_.~-])}{sprintf '%%%02X', ord $1}ge;
+    return "/manager/submission?file=$f&id=$stored->{id}";
+}
+
 sub _notify_submission {
-    my ( $form, $notify_mode, $fields ) = @_;
+    my ( $form, $notify_mode, $fields, $stored ) = @_;
     $notify_mode = 'on' unless defined $notify_mode && length $notify_mode;
     return unless defined $LAZYSITE_DIR;
     my $logdir = "$LAZYSITE_DIR/logs";
@@ -879,13 +894,11 @@ sub _notify_submission {
     # processor's lazy-require does; on any failure fall through to the plain
     # bell-store append below so a submission notice is never lost.
     #
-    # SM928 defect 4: `url` POINTS AT THE HANDLERS PAGE, not the Extension Manager.
-    # It was `/manager/plugins`, which is where extensions are enabled and has
-    # nothing to do with a submission; the Submissions buttons are on the Handlers
-    # page. A deep link straight to THIS form's store needs the store PATH, which
-    # only the handler that stored it knows - a form may have several targets, and
-    # a file handler may carry a custom `path` - so it waits for defect 2's
-    # plumbing rather than being guessed here from the conventional directory.
+    # SM928 defect 4 moved `url` off `/manager/plugins` to the Handlers page; it
+    # said a deep link needed the store PATH, which only the handler that stored
+    # it knows. SM938 D5 is that plumbing: the file handler reports the row it
+    # wrote, and the notice links to that one submission.
+    my $url  = _submission_url($stored);
     my $sent = eval {
         unless ( $INC{'Lazysite/Notify.pm'} ) {
             _locate_lib();
@@ -895,7 +908,7 @@ sub _notify_submission {
                 type    => 'submission',
                 message => "New form submission: $f",
                 target  => $f,
-                url     => '/manager/handlers',
+                url     => $url,
                 ( $carry && @$carry ? ( fields => $carry ) : () ),
         } );
     };
@@ -920,7 +933,7 @@ sub _notify_submission {
             type    => 'submission',
             message => "New form submission: $f",
             target  => $f,
-            url     => '/manager/handlers',         # SM928 defect 4 - see the notify call
+            url     => $url,                        # SM938 D5 - see the notify call
     } );
     open my $fh, '>>', "$logdir/notices.jsonl" or return;
     print {$fh} "$line\n";
