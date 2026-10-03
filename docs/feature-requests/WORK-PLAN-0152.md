@@ -85,7 +85,7 @@ nobody has met, from a silent 500 into a named line at install time.
 | A2 | PR2 | **BUILT** (n236), to R13: every path the installer creates takes the docroot's group, the private store included; existing paths untouched. The field-shape fixture now passes its own health check | M | nothing |
 | A3 | PR3 | **WITHDRAWN (R14).** Premise contradicted by A1: every directory provision creates already carries setgid. The reset case is PR5's warning plus PR1's check | - | done |
 | A4 | PR1 | **Provision ends by running the check it already ships with**, and prints the result. A fresh install either says healthy or names its own fault | S/M | nothing |
-| A5 | PR4 | `--fix` may correct modes on paths the install state declares - the engine's own output, not somebody's choice (R3). **R16: in 0.15.2.** Needs the install state to record the mode the installer actually left | S/M | nothing |
+| A5 | PR4 | **BUILT** (n237), to R3/R16: the install state records the mode the installer LEFT on each directory it created (`dirs_left`); `--fix` sets the declared mode on a directory still at that mode, and keeps SM274's rule for one changed since | S/M | nothing |
 | A6 | PR5 | Next steps names the rebuild hazard: any vhost rebuild can reset modes, so re-run the check after one | S | nothing |
 | A7 | PR6 | A repair line records the prior value - `chmod 2775 (was 0755)` | S | nothing |
 

@@ -408,6 +408,11 @@ sub run_checks {
         my $st = _read_json("$LZ/.install-state.json");
         %declared = %{ $st->{dirs} }
             if ref $st eq 'HASH' && ref $st->{dirs} eq 'HASH';
+        # SM933 A5 / R16: the mode the installer actually LEFT on each directory
+        # it created. See the branch that reads it below.
+        my %left = ( ref $st eq 'HASH' && ref $st->{dirs_left} eq 'HASH' )
+            ? %{ $st->{dirs_left} }
+            : ();
 
         my $checked = 0;
         my $wrong   = 0;
@@ -472,6 +477,26 @@ sub run_checks {
             my $mode = mode_of($path);
             next if $mode == $want;
             $wrong++;
+            # SM933 A5 / R16: THE INSTALLER'S OWN OUTPUT, UNTOUCHED SINCE.
+            #
+            # The reasoning below holds --fix to group-write because the state
+            # could not tell drift from a deliberate choice. For a directory the
+            # installer created it now can: if the mode is STILL exactly what the
+            # installer left, nobody has chosen anything here - it is the
+            # installer's own result, and R3 says --fix repairs the installed
+            # set. So the whole declared mode is restored, setgid included. A
+            # mode that has moved since the install falls through to the rule
+            # below and stays the sysop's.
+            if ( defined $left{$path} && $mode == oct $left{$path} ) {
+                report( ( $mode & 0020 ) ? 'WARN' : 'FAIL',
+                    sprintf( '%s is %04o, as the installer left it; the model declares '
+                            . '%04o - --fix sets the declared mode (nothing has changed '
+                            . 'it since the install, so it is not a choice anybody made)',
+                        $rel, $mode, $want ),
+                    sprintf( "chmod %04o '%s'", $want, $path ) );
+                push @chmod_fixes, [ $want, $path ];
+                next;
+            }
             # SM274: two questions, not one - "is this mode different from the
             # model" and "can the CGI still write here".
             #

@@ -62,7 +62,7 @@ ok( defined $mkdirs,                       'make_declared_path extracted' );
 {
     no warnings 'redefine';
     eval "use File::Path qw(make_path); use File::Basename qw(dirname);"
-        . " our %INSTALL_DIR_MODE; our \$INSTALL_DOCROOT; our \$GROUP_ADOPT_FAILED = 0;"
+        . " our %INSTALL_DIR_MODE; our \$INSTALL_DOCROOT; our \$GROUP_ADOPT_FAILED = 0; our %DIRS_LEFT;"
         . " $resolver $symtest $symguard $adopt $mkdirs $fn 1"
         or die $@;
 }

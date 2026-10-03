@@ -663,6 +663,26 @@ sub audit_install_event {
 # initialiser there would be a promise the program does not keep.
 our ( $NO_STARTER, $STARTER_SKIPPED );
 
+# SM933 A5 / R16: THE MODE THE INSTALLER ACTUALLY LEFT on each directory it
+# created, as opposed to the mode the model declares (`dirs`).
+#
+# `check --fix` declines to set any bit but group-write on a declared directory
+# (SM274), because it cannot tell drift from a sysop's deliberate choice - and
+# so a fresh install could not reach a clean report from its own output (R3).
+# This record is what tells the two apart: a directory whose mode is STILL
+# exactly what the installer left is the installer's own output, untouched since,
+# and --fix may bring it to the declared mode. A directory whose mode has moved
+# since was changed by somebody, and stays theirs.
+#
+# How the installer can leave a mode other than the one it declares: a chmod by
+# an account that is not in the directory's group drops setgid silently (Linux
+# clears S_ISGID for a caller outside the group), which is exactly the case
+# where A2's regroup could not be applied.
+#
+# Recorded ONLY on creation and carried forward from the previous state, so a
+# directory that pre-dates the installer is never claimed as its output.
+our %DIRS_LEFT;
+
 sub cmd_install {
     my ($o) = @_;
 
@@ -673,6 +693,12 @@ sub cmd_install {
     my $state      = load_state($state_path);
 
     # SM939 E2: the flag, or a choice an earlier run recorded.
+    # SM933 A5: carried forward - a directory created by an earlier run is still
+    # that run's output.
+    %DIRS_LEFT = ( ref $state eq 'HASH' && ref $state->{dirs_left} eq 'HASH' )
+        ? %{ $state->{dirs_left} }
+        : ();
+
     $NO_STARTER = ( $o->{no_starter}
             || ( ref $state eq 'HASH' && ( $state->{starter} // '' ) eq 'none' ) ) ? 1 : 0;
 
@@ -1472,6 +1498,9 @@ sub make_declared_path {
         _refuse_symlink( $path, 'set the mode' );
         _adopt_site_group($path);    # SM933 A2: before the chmod, so setgid sticks
         chmod $mode, $path;    # mkdir's mode is masked by the umask; this is not
+
+        # SM933 A5: what is actually there, which is not always what was asked.
+        $DIRS_LEFT{$path} = sprintf '%04o', ( lstat $path )[2] & 07777;
     }
     return 1;
 }
@@ -2358,6 +2387,11 @@ sub write_state {
     # it having to guess at placeholders or find a manifest.
     my %dirs = map { $_ => sprintf '%04o', $INSTALL_DIR_MODE{$_} }
         keys %INSTALL_DIR_MODE;
+    # SM933 A5: only for directories the model still declares and that still
+    # exist - a record for a path nothing governs would be a claim with nothing
+    # behind it.
+    my %left = map { $_ => $DIRS_LEFT{$_} }
+        grep { exists $dirs{$_} && -d $_ && !-l $_ } keys %DIRS_LEFT;
 
     my $data = {
         schema_version => '1',
@@ -2365,6 +2399,7 @@ sub write_state {
         installed_at   => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         files          => $files,
         ( %dirs           ? ( dirs => \%dirs )          : () ),
+        ( %left           ? ( dirs_left => \%left )     : () ),    # SM933 A5
         ( $once && @$once ? ( once => [ sort @$once ] ) : () ),   # SM798: steps done once
         ( $NO_STARTER     ? ( starter => 'none' )       : () ),    # SM939 E2: remembered
     };

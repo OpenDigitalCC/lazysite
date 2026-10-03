@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM933 A5 (PENDING) **`check --fix` may correct what the installer itself left**
+  (ruled R3, scheduled R16). SM274 holds `--fix` to the group-write bit on a
+  declared directory, because the install state recorded only the DECLARED mode
+  and could not tell drift from a sysop's deliberate choice - so an install
+  whose own output came out wrong could not reach a clean report. The install
+  state now also records the mode the installer actually LEFT on each directory
+  it created (`dirs_left`). A directory still at exactly that mode is the
+  installer's output, untouched since, and `--fix` sets the declared mode,
+  setgid included. One whose mode has moved since stays the sysop's, under
+  SM274's rule.
+
+  Recorded only on creation and carried forward by later runs, so a directory
+  that was there before the install is never claimed. How the installer leaves
+  the wrong mode in the field: a chmod by an account outside the directory's
+  group drops setgid silently - the case where A2's regroup could not apply.
+  Existing sites have no record until a run creates something, so for them
+  `--fix` behaves as before.
+
 - SM938 D3 (PENDING) **the bell's read state is said, not inferred.** Opening
   the panel used to mark every notice read, below the fold included, so the badge
   counted panel openings rather than outstanding work. Opening no longer marks
