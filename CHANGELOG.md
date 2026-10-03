@@ -44,6 +44,41 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM938 D3 (PENDING) **the bell's read state is said, not inferred.** Opening
+  the panel used to mark every notice read, below the fold included, so the badge
+  counted panel openings rather than outstanding work. Opening no longer marks
+  anything. Following a notice's link marks THAT notice read; "Mark all read" marks
+  the lot; "Dismiss" takes one out of the panel. Dismissal is a second marker and
+  the store keeps every line, as the report asked ("the bell store is the record
+  and should stay one").
+
+  Each notice now carries a stable `id` (12 hex characters, from its stored line).
+  `notices-seen` takes `id` (mark one read) and `id` + `dismiss` (dismiss one), and
+  with neither marks all read as before. An unknown or malformed id is refused as
+  `not-found`, naming it. `notices` reports `read` on each notice, plus `unread`
+  and `dismissed` counts. A marker written before this (principal => epoch) still
+  reads, so an upgrade loses nobody's position. State is per principal, and ids
+  that have aged out of the notice window are pruned on the next write.
+
+- SM938 D2 (PENDING) **the Handlers page says where each form is announced, and
+  if not, what says no.** Whether a submission reaches XMPP is decided in three
+  places - the form's `notify:`, `lazysite/notify.conf` (`emit.submission`,
+  `route.submission`), and the extension plus its account - and only the last had
+  any interface. Each form row now shows "announces to bell, xmpp" (or "announced
+  nowhere"), and the expanded form shows each endpoint it will not reach with the
+  one reason: the FIRST no, in the order delivery meets them, because a later
+  reason sends somebody to fix something that is not the cause.
+
+  Read-only, by choice: the filing records no ruling, and its condition is that
+  the text stays the source of truth. The report is built from the SAME checks
+  delivery uses (`_emits`, `_route`, the XMPP account check), not from a
+  description of them, and the test runs a real delivery beside each case to show
+  the two agree. The XMPP account check is split so the report does not log: it
+  returns its WARN as a closure the delivery path runs. The `notify:` parse moved
+  from the form handler into `Lazysite::Notify::form_notify_mode`, so the page and
+  the handler cannot read `notify: fll` differently; the handler still logs the
+  unrecognised value.
+
 - SM939 E2 (PENDING) **`--no-starter`: a fresh site without lazysite's own
   pages** (ruled 2026-10-03, R15 - the default is unchanged). A fresh install
   ships the demo pages and ~70 pages of `/docs/` onto the owner's domain,

@@ -37,7 +37,7 @@ use Fcntl           qw(:flock);
 use Lazysite::Util  qw(log_event cannot_read interpolate_env);
 use Lazysite::Paths ();
 use Exporter 'import';
-our @EXPORT_OK = qw(notify notify_types);
+our @EXPORT_OK = qw(notify notify_types form_notify_mode route_report);
 
 # Test hook: overridable sender (t/ swaps this out to capture sends).
 our $XMPP_SENDER = \&_xmpp_send;
@@ -617,12 +617,112 @@ sub _mail_send {
 # the site cannot see it. The test action has to put the same sentence in front of
 # them, so one reader answers both: the config, or why there is none.
 #
+# SM938 D2: A FORM'S `notify:` STATE, PARSED ONCE.
+#
+# This parse lived in plugins/form-handler.pl, which is a CGI - the manager cannot
+# call it, so showing an operator what a form does with its notices would have
+# meant a second reader of the same line. It lives here now and the handler calls
+# it, so the page and the delivery path cannot disagree about what `notify: fll`
+# means.
+#
+# Returns ( $mode, $unrecognised ): mode is off / on / full, defaulting to on,
+# and the second value is the text that was not understood, if any - the caller
+# decides whether to log it (the handler does; a report does not).
+sub form_notify_mode {
+    my ($text) = @_;
+    for my $l ( split /\n/, ( $text // '' ) ) {
+        next unless $l =~ /^notify\s*:\s*(.+?)\s*$/;
+        my $raw = $1;
+        my $v   = lc $raw;
+        return ('off')  if $v =~ /^(?:0|off|false|no)$/;
+        return ('full') if $v =~ /^full$/;
+        return ('on')   if $v =~ /^(?:1|on|true|yes)$/;
+        return ( 'on', $raw );
+    }
+    return ('on');
+}
+
+# SM938 D2: WHERE WILL THIS BE ANNOUNCED, AND IF NOT, WHAT SAYS NO?
+#
+# Whether a submission reaches XMPP is decided in three places - the form's
+# `notify:`, the site's notify.conf (`emit.<type>`, `route.<type>`), and the
+# extension plus its account - and only the last had any interface. So an
+# operator could neither confirm from the manager that a form announces itself
+# nor diagnose it when it did not.
+#
+# This answers it from the SAME checks delivery uses (_emits, _route,
+# _xmpp_conf_state) rather than a description of them, so the report cannot say
+# "reaches XMPP" about a notice delivery would drop. Read-only: the text stays the
+# source of truth (the report's own condition), and this is what lets someone see
+# what the text currently does.
+#
+#   reaches   endpoints a notice of this type will reach, in order
+#   withheld  [ { endpoint, why } ] for each endpoint that will not, and the one
+#             thing that decides it - the FIRST no, in the order delivery meets
+#             them, because naming a later reason sends somebody to fix
+#             something that is not the cause
+#   mode      the form's own notify: state, when one was given
+sub route_report {
+    my ( $docroot, $type, $form_mode ) = @_;
+    $type //= 'submission';
+    my %r = ( type => $type, reaches => [], withheld => [] );
+    $r{mode} = $form_mode if defined $form_mode;
+
+    if ( defined $form_mode && $form_mode eq 'off' ) {
+        push @{ $r{withheld} },
+            { endpoint => 'all', why => "this form's own config says notify: off" };
+        return \%r;
+    }
+    my $conf = _notify_conf($docroot);
+    unless ( _emits( $conf, $type ) ) {
+        push @{ $r{withheld} },
+            { endpoint => 'all', why => "lazysite/notify.conf says emit.$type: off" };
+        return \%r;
+    }
+    my $route = _route( $conf, $type );
+    push @{ $r{reaches} }, 'bell';
+
+    if ( !$route->{xmpp} ) {
+        push @{ $r{withheld} }, { endpoint => 'xmpp',
+            why => "lazysite/notify.conf routes $type to "
+                . join( ',', sort keys %$route ) . ' - xmpp is not in it' };
+    }
+    else {
+        my ( $xc, $why ) = _xmpp_conf_state($docroot);
+        if   ($xc) { push @{ $r{reaches} },  'xmpp' }
+        else       { push @{ $r{withheld} }, { endpoint => 'xmpp', why => $why } }
+    }
+    if ( $route->{email} ) {
+        # Mail goes only to people who asked for it (SM485), so it is a reach
+        # with a condition rather than a promise.
+        push @{ $r{reaches} }, 'email';
+        $r{email_note} = 'only to accounts that have opted in to mail notices';
+    }
+    $r{reaches_xmpp} = ( grep { $_ eq 'xmpp' } @{ $r{reaches} } ) ? 1 : 0;
+    return \%r;
+}
+
 # RENAMED FROM `_xmpp_conf` ON PURPOSE. `return ( undef, $why )` in SCALAR context
 # yields $why, which is a non-empty string and therefore true - so a call site left
 # un-updated would have treated the reason as a config and gone on to send with it.
 # A rename makes every such call site a compile-time failure instead. There were
 # two (notify() and t/unit/lib/57).
 sub _xmpp_conf_or_why {
+    my ($docroot) = @_;
+    my ( $c, $why, $log ) = _xmpp_conf_state($docroot);
+    $log->() if $log;
+    return ( $c, $why );
+}
+
+# SM938 D2: THE SAME CHECKS, WITHOUT THE LOGGING.
+#
+# route_report asks this question every time an operator opens the Handlers page,
+# and _xmpp_conf_or_why logs a WARN for an unconfigured or incomplete account -
+# right when a submission is being dropped, noise when somebody is merely looking.
+# So the checks live here once and return the log line as a closure; the delivery
+# path runs it and the report does not. Two copies of "is XMPP usable" would be
+# the drift SM925 X3 spent a filing removing.
+sub _xmpp_conf_state {
     my ($docroot) = @_;
 
     # SM925 X3: FOUR DISTINCT CAUSES returned undef here, none of them saying
@@ -639,15 +739,18 @@ sub _xmpp_conf_or_why {
     my $fh;
     if ( !open( $fh, '<', $path ) ) {    # not a store - the xmpp client config
         if ( $!{ENOENT} ) {
-            log_event( 'WARN', 'notify',
-                'xmpp delivery is enabled and not configured, so nothing is sent',
-                file => $path );
             return ( undef, 'There is no XMPP configuration yet - fill the '
-                    . 'settings in and Save, then test.' );
+                    . 'settings in and Save, then test.',
+                sub {
+                    log_event( 'WARN', 'notify',
+                        'xmpp delivery is enabled and not configured, so nothing is sent',
+                        file => $path );
+                } );
         }
-        cannot_read( 'the xmpp client config', $path );
+        my $err = "$!";
         return ( undef, "The XMPP configuration cannot be read ($path) - check "
-                . 'its ownership and permissions.' );
+                . 'its ownership and permissions.',
+            sub { local $! = $err; cannot_read( 'the xmpp client config', $path ) } );
     }
     my %c;
     while ( my $l = <$fh> ) {
@@ -656,13 +759,15 @@ sub _xmpp_conf_or_why {
     close $fh;
     my @missing = grep { !length( $c{$_} // '' ) } qw(jid password to);
     if (@missing) {
-        log_event( 'WARN', 'notify',
-            'xmpp delivery is configured without a value it cannot work without, '
-                . 'so nothing is sent',
-            file    => $path,
-            missing => join( ', ', @missing ) );
         return ( undef, 'The XMPP configuration is incomplete: no '
-                . join( ', ', @missing ) . '.' );
+                . join( ', ', @missing ) . '.',
+            sub {
+                log_event( 'WARN', 'notify',
+                    'xmpp delivery is configured without a value it cannot work without, '
+                        . 'so nothing is sent',
+                    file    => $path,
+                    missing => join( ', ', @missing ) );
+            } );
     }
 
     # Default the sender nickname to the site name, sanitised to nick-safe

@@ -906,9 +906,24 @@ sub action_handler_list {
         $h{problem} = _legacy_problem($_) if length _legacy_problem($_);
         \%h;
     } @$all;
+    # SM938 D2: where each form's submission notice will be announced, and if
+    # an endpoint will not get it, the one thing that says no. Beside `forms`
+    # rather than inside it, because `forms` is name => [handler ids] and every
+    # caller already reads it as that.
+    my %notify;
+    if ( eval { require Lazysite::Notify; 1 } ) {
+        for my $f ( keys %$b ) {
+            my $t = _slurp( form_file($f), "forms/$f.conf" );
+            next unless defined $t;
+            my ($mode) = Lazysite::Notify::form_notify_mode($t);
+            $notify{$f} = Lazysite::Notify::route_report( $DOCROOT, 'submission', $mode );
+        }
+    }
+
     # Every form and the handlers it calls - the unbound ones included, which
     # used_by cannot show - so a page binding forms needs this one read.
-    return { ok => 1, handlers => \@out, types => types(), forms => $b };
+    return { ok => 1, handlers => \@out, types => types(), forms => $b,
+        form_notify => \%notify };
 }
 
 # A record the conversion has not reached yet, said on the listing so it is

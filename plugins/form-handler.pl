@@ -368,24 +368,21 @@ if ($@) {
 # value the code ignores is the shape feedback_a_declaration_the_code_ignores
 # refuses - and `notify: fll` failing quietly to the old behaviour is precisely
 # how an operator concludes the feature does not work.
+#
+# SM938 D2: THE PARSE IS Lazysite::Notify::form_notify_mode NOW, so the manager
+# can show what a form does with its notices without a second reader of this
+# line. The WARN stays here, on the delivery path, where it is news.
 sub _conf_notify_mode {
     my ( $text, $form ) = @_;
-    my $mode;
-    for my $l ( split /\n/, ( $text // '' ) ) {
-        next unless $l =~ /^notify\s*:\s*(.+?)\s*$/;
-        my $v = lc $1;
-        if    ( $v =~ /^(?:0|off|false|no)$/ ) { $mode = 'off' }
-        elsif ( $v =~ /^full$/ )               { $mode = 'full' }
-        elsif ( $v =~ /^(?:1|on|true|yes)$/ )  { $mode = 'on' }
-        else {
-            log_event( 'WARN', $form // 'form',
-                'unrecognised notify: value - the notice stays one line',
-                value => $1 );
-            $mode = 'on';
-        }
-        last;
-    }
-    return $mode // 'on';
+    my ( $mode, $bad )  = eval {
+        unless ( $INC{'Lazysite/Notify.pm'} ) { _locate_lib(); require Lazysite::Notify; }
+        Lazysite::Notify::form_notify_mode($text);
+    };
+    $mode //= 'on';    # the engine modules would not load: the default stands
+    log_event( 'WARN', $form // 'form',
+        'unrecognised notify: value - the notice stays one line', value => $bad )
+        if defined $bad;
+    return $mode;
 }
 
 # Optional binary-upload constraints. Present any of these keys to enable file

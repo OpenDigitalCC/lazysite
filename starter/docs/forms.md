@@ -386,6 +386,11 @@ Delivery is best-effort by design: the chat send is time-boxed so a slow or
 unreachable server can never delay the visitor's submission, and if it fails the
 stored notice is still there. The bell is authoritative; chat is a convenience.
 
+To check where a form's notice will go, open the manager's Handlers page: each
+form says which endpoints it is announced to, and for any it is not, the one
+setting that stops it - the form's own `notify: off`, the site's
+`lazysite/notify.conf`, or the XMPP extension and its account.
+
 Quarantined submissions do not notify. A submission held back by the spam
 controls is recorded but does not raise a notice, so a spam run cannot flood you.
 

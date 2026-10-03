@@ -73,6 +73,8 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 var HANDLERS = [];
 var TYPES = [];
 var FORMS = {};
+// SM938 D2: per form, where its submission notice is announced and what says no.
+var NOTIFY = {};
 var SCHEDULE = [];
 var FLOOR = 300;
 
@@ -172,6 +174,7 @@ function load() {
       HANDLERS = d.handlers || [];
       TYPES = d.types || [];
       FORMS = d.forms || {};
+      NOTIFY = d.form_notify || {};
       renderHandlers();
       renderForms();
     })
@@ -465,6 +468,32 @@ function deleteHandler(id) {
 
 // --- forms ------------------------------------------------------------------
 
+// SM938 D2: WHERE A FORM'S NOTICE GOES, said on the form.
+//
+// Whether a submission reaches XMPP is decided in three places - the form's
+// notify:, the site's notify.conf, and the extension's account - and the manager
+// showed none of them together, so an operator could neither confirm a form
+// announced itself nor see why it did not. The server answers from the same
+// checks delivery uses; this only words it.
+function notifyLine(n) {
+  var r = NOTIFY[n];
+  if (!r) return '';
+  if (!r.reaches || !r.reaches.length) return 'announces nothing';
+  return 'announces to ' + r.reaches.join(', ');
+}
+function notifyDetail(n) {
+  var r = NOTIFY[n];
+  if (!r) return '';
+  var lines = [];
+  lines.push('<div>' + escHtml(notifyLine(n)) + (r.mode ? ' <span class="mg-muted">(notify: ' + escHtml(r.mode) + ')</span>' : '') + '</div>');
+  (r.withheld || []).forEach(function(w) {
+    lines.push('<div class="mg-muted">' + escHtml(w.endpoint === 'all' ? 'Nothing is announced' : 'Not sent to ' + w.endpoint)
+      + ': ' + escHtml(w.why) + '</div>');
+  });
+  if (r.email_note) lines.push('<div class="mg-muted">Email: ' + escHtml(r.email_note) + '</div>');
+  return '<div class="mg-section-label">Notifications</div>' + lines.join('');
+}
+
 function renderForms() {
   var el = document.getElementById('form-list');
   var names = Object.keys(FORMS).sort();
@@ -477,7 +506,8 @@ function renderForms() {
     var key = 'f-' + n;
     return '<div class="mg-row">'
       + '<span class="mg-row-name">' + escHtml(n) + '</span>'
-      + '<span class="mg-row-meta">' + (ids.length ? 'calls ' + ids.map(escHtml).join(', ') : 'calls nothing - it refuses every submission') + '</span>'
+      + '<span class="mg-row-meta">' + (ids.length ? 'calls ' + ids.map(escHtml).join(', ') : 'calls nothing - it refuses every submission')
+      + (NOTIFY[n] ? '; ' + escHtml(notifyLine(n)) : '') + '</span>'
       + '<span class="mg-row-actions">' + chev('form-list', key, n, 'Handlers') + '</span>'
       + '</div>'
       + '<div class="mg-expand" id="exp-' + escHtml(key) + '" hidden></div>';
@@ -496,6 +526,7 @@ BUILD['form-list'] = function(key) {
     + '<div class="mg-section-label">Handlers this form calls</div>'
     + '<div class="mg-checks">' + (boxes || '<span class="mg-muted">No handlers yet - create one above.</span>') + '</div>'
     + '<p class="mg-muted">Every ticked handler is called for each submission. The visitor is thanked when at least one delivers.</p>'
+    + notifyDetail(form)
     + '<div class="mg-toolbar"><button class="mg-btn mg-btn-primary" data-impact="commit" onclick="saveForm(\'' + escHtml(form) + '\')">Save</button> '
     + dirtyNote(key) + '</div><div id="st-' + key + '" class="mg-status"></div></div>';
 };

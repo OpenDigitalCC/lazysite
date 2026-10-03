@@ -131,8 +131,8 @@ underlying problem: notification is invisible from the manager."
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
 | D1 | **ANSWERED 2026-10-02, in [[SM938]]**: a submission notice carries `url => '/manager/handlers'` today. On 0.14.4 the operator saw `/manager/plugins`; SM928 defect 4 moved it. So an upgrade improves it and does NOT close it - both are a manager section, and nothing addresses a single submission, so the rest is an addressable view rather than a changed string | - | done |
-| D2 | [[SM938]] - whether a submission reaches XMPP is decided in three places and only one has any UI. The reporter's own ranking puts "the smallest change" first | M | nothing now D1 is answered |
-| D3 | [[SM938]] - bell read state is implicit and whole-list: opening the panel marks everything seen. The report calls this "a design gap, not a bug" and ranks three asks | M | nothing |
+| D2 | **BUILT** (n236), read-only: the Handlers page says where each form's submission notice goes and, for an endpoint it will not reach, the first thing that says no - computed by delivery's own checks. No ruling was recorded, so nothing writes `notify:` or the route | M | nothing |
+| D3 | **BUILT** (n236): per-notice read state, explicit "Mark all read", dismiss as a second marker (the store keeps every line). Opening the panel marks nothing; an old marker still reads | M | nothing |
 
 # Group E - what a fresh install puts on somebody's domain
 

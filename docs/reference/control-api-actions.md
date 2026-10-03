@@ -152,7 +152,7 @@ tone: medium
 `nav-read` | manage_content / manage_nav | host (query)
 `nav-save` | manage_nav | items (body), host (query_or_body)
 `notices` | notifications |  
-`notices-seen` | cookie only |  
+`notices-seen` | cookie only | id (query), dismiss (query)
 `page-pdf` | manage_content | path (query)
 `pages` | manage_content / manage_nav |  
 `plugin-action` | cookie only | plugin (query), script (body), action_id (body), params (body)

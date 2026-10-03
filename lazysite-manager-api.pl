@@ -2178,18 +2178,19 @@ elsif ( $action eq 'plugin-action' ) {
 }
 elsif ( $action eq 'nav-read' ) { $result = action_nav_read( $params{host} ) }
 elsif ( $action eq 'pages' )    { $result = action_pages() }
-elsif ( $action eq 'notices' || $action eq 'notices-seen' ) {
+elsif ( $action eq 'notices' ) {
     # Operator notifications require the 'notifications' capability (granted via
     # a group; seeded on user-managers). Same cookie-side gate pattern as audit;
     # the bell UI hides itself when this returns forbidden.
-    if ( !$token_auth && !_user_caps($auth_user)->{notifications} ) {
-        $result = { ok => 0, kind => 'forbidden',
-            error => "Notifications require the 'Notifications' permission. An "
-                . "administrator can grant it on the Groups page." };
-    }
-    else {
-        $result = $action eq 'notices' ? action_notices() : action_notices_seen();
-    }
+    $result = _notices_gate() // action_notices();
+}
+elsif ( $action eq 'notices-seen' ) {
+    # SM938 D3: its own branch now, because it reads parameters `notices` does
+    # not - `id` marks one notice, `dismiss=1` takes it out of the panel, and
+    # neither means mark-all. Sharing a branch made the action reference
+    # (t/lint/58) attribute both to both.
+    $result = _notices_gate()
+        // action_notices_seen( id => $params{id}, dismiss => $params{dismiss} );
 }
 elsif ( $action eq 'nav-save' ) {
     my $req = _json_body();
@@ -3747,7 +3748,17 @@ sub action_site_backup_apply {
 # $auth_user is passed rather than read, because a module that reaches into one
 # CGI's globals only works inside that CGI.
 sub action_notices      { return Lazysite::Manager::Notices::action_notices($auth_user) }
-sub action_notices_seen { return Lazysite::Manager::Notices::action_notices_seen($auth_user) }
+sub action_notices_seen {
+    return Lazysite::Manager::Notices::action_notices_seen( $auth_user, @_ );
+}
+
+# The one gate both notice actions share: undef to proceed, a refusal otherwise.
+sub _notices_gate {
+    return undef if $token_auth || _user_caps($auth_user)->{notifications};
+    return { ok => 0, kind => 'forbidden',
+        error => "Notifications require the 'Notifications' permission. An "
+            . "administrator can grant it on the Groups page." };
+}
 
 # SM180: the per-channel service state for the Groups/Users capability grids.
 # A CHANNEL capability is DORMANT - granted but inert - when its site service is

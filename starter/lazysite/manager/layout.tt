@@ -392,9 +392,16 @@
     };
   })();
 
-  // SM113: operator notifications (poll-based). Badge shows the unread count;
-  // opening the panel marks everything seen. Both endpoints are GET (CSRF-exempt;
-  // the seen-marker is a harmless per-operator write).
+  // SM113: operator notifications (poll-based). Badge shows the unread count.
+  // Both endpoints are GET (CSRF-exempt; the seen-marker is a harmless
+  // per-operator write).
+  //
+  // SM938 D3: OPENING THE PANEL NO LONGER MARKS EVERYTHING READ. It did, which
+  // made the badge a has-opened-the-panel indicator rather than outstanding
+  // work: an operator who had acted on nothing had already lost the count.
+  // Reading is now said, not inferred - following a notice's link marks THAT
+  // notice read, "Mark all read" marks the lot, and "Dismiss" takes one out of
+  // the panel (a second marker; the store keeps the record).
   (function () {
     if (!document.getElementById('mg-notif')) return;
     var API = '/cgi-bin/lazysite-manager-api.pl';
@@ -421,18 +428,61 @@
         notices = d.notices || []; setBadge(d.unread || 0);
       }).catch(function(){});
     }
+    function unreadCount(){ return notices.filter(function(n){ return !n.read; }).length; }
+    function seen(qs){
+      // keepalive, so marking a notice read survives the navigation its link starts.
+      return fetch(API + '?action=notices-seen' + (qs || ''), { keepalive: true })
+        .then(function(r){ return r.json(); });
+    }
+    function render(){
+      var panel = document.getElementById('mg-notif-panel'); if (!panel) return;
+      if (!notices.length) { panel.innerHTML = '<div class="mg-notif-empty">No notifications.</div>'; return; }
+      var head = unreadCount()
+        ? '<div class="mg-notif-item"><button type="button" class="mg-btn-sm" data-notif-all="1">Mark all read</button></div>'
+        : '';
+      panel.innerHTML = head + notices.map(function(n){
+        var inner = '<div class="mg-notif-msg">' + (n.read ? '' : '<strong>') + nesc(n.message||'')
+                  + (n.read ? '' : '</strong>') + '</div>'
+                  + '<div class="mg-notif-time">' + nesc(nago(n.ts)) + (n.read ? '' : ' - unread') + '</div>';
+        var body = n.url ? '<a href="'+nesc(n.url)+'" data-notif-open="'+nesc(n.id)+'">'+inner+'</a>'
+                         : '<div>'+inner+'</div>';
+        return '<div class="mg-notif-item">' + body
+             + '<button type="button" class="mg-btn-sm" data-notif-dismiss="'+nesc(n.id)
+             + '" title="Remove this notification from the list">Dismiss</button></div>';
+      }).join('');
+    }
     window.mgToggleNotif = function(){
       var panel = document.getElementById('mg-notif-panel'); if (!panel) return;
       if (!panel.hidden) { panel.hidden = true; return; }
-      panel.innerHTML = notices.length ? notices.map(function(n){
-        var inner = '<div class="mg-notif-msg">' + nesc(n.message||'') + '</div>'
-                  + '<div class="mg-notif-time">' + nesc(nago(n.ts)) + '</div>';
-        return n.url ? '<a class="mg-notif-item" href="'+nesc(n.url)+'">'+inner+'</a>'
-                     : '<div class="mg-notif-item">'+inner+'</div>';
-      }).join('') : '<div class="mg-notif-empty">No notifications.</div>';
+      render();
       panel.hidden = false;
-      fetch(API + '?action=notices-seen').then(function(){ setBadge(0); }).catch(function(){});
     };
+    document.addEventListener('click', function(e){
+      var panel = document.getElementById('mg-notif-panel');
+      if (!panel || panel.hidden || !panel.contains(e.target)) return;
+      var t = e.target.closest('[data-notif-all],[data-notif-dismiss],[data-notif-open]');
+      if (!t) return;
+      if (t.hasAttribute('data-notif-all')) {
+        seen('').then(function(d){
+          if (d && d.ok) { notices.forEach(function(n){ n.read = true; }); setBadge(0); render(); }
+        }).catch(function(){});
+      } else if (t.hasAttribute('data-notif-dismiss')) {
+        var id = t.getAttribute('data-notif-dismiss');
+        seen('&id=' + encodeURIComponent(id) + '&dismiss=1').then(function(d){
+          if (d && d.ok) {
+            notices = notices.filter(function(n){ return n.id !== id; });
+            setBadge(d.unread || 0); render();
+          }
+        }).catch(function(){});
+      } else {
+        // Following the link is reading it. The navigation goes ahead; the mark
+        // travels with keepalive.
+        var oid = t.getAttribute('data-notif-open');
+        notices.forEach(function(n){ if (n.id === oid) n.read = true; });
+        setBadge(unreadCount());
+        seen('&id=' + encodeURIComponent(oid)).catch(function(){});
+      }
+    });
     document.addEventListener('click', function(e){
       var wrap=document.getElementById('mg-notif'), panel=document.getElementById('mg-notif-panel');
       if (wrap && panel && !panel.hidden && !wrap.contains(e.target)) panel.hidden = true;

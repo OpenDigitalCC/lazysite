@@ -11,6 +11,32 @@ area: manager
 status-note: "NOT YET RULED. TWO REPORTS, MERGED HERE BECAUSE THE SECOND SAYS SO: 'Same operator, same underlying problem: notification is invisible from the manager.' THE OPERATOR'S WORDS: 'the bell is confusing - it shows but doesn't do anything. can you file to dev agent, that it should show link to the thing that happened, and requires some kind of mark as read.' ONE HALF IS ANSWERED HERE AND THE ANSWER IS PARTLY AN UPGRADE. The reporter asked explicitly to be told, because from the operator's seat a fix and an upgrade are indistinguishable: measured in the current tree, a submission notice carries `url => '/manager/handlers'` (plugins/form-handler.pl, the line carrying the comment 'SM928 defect 4 - see the notify call'). On 0.14.4 the operator saw `/manager/plugins`, the Extension Manager, which is a page about extensions - SM928 moved it to the Handlers page, which is at least about forms. SO AN UPGRADE IMPROVES IT AND DOES NOT CLOSE IT: both are a manager SECTION, and the ask was the row that was submitted. Measured further: nothing in the manager pages addresses a single submission, so that half is an addressable submissions view rather than a changed string. The read-state half has no dependency and applies to the tree as read: a per-principal last-seen marker exists and works, and the only thing that sets it is OPENING the panel - so the badge is a has-opened-the-panel indicator rather than an outstanding-work one, which is the opposite of what a bell is for."
 ---
 
+# BUILT 2026-10-03 (PENDING)
+
+Two of the three halves. **B-1 (a notice links to the thing that happened) is NOT
+built**: no manager page addresses a single submission, so it needs an addressable
+submissions view first.
+
+- **B-2 (D3), all three asks, in the report's order.** (1) Per-notice read state:
+  each notice has a stable id, and marking one leaves the rest alone. (2) An
+  explicit "Mark all read"; opening the panel marks nothing. (3) Dismiss, as a
+  second per-principal marker - the store keeps every line. Following a notice's
+  link marks that notice read. A pre-existing marker (principal => epoch) still
+  reads. `t/unit/lib/196`; seven sabotages each fail a named subtest.
+- **H (D2), read-only.** The Handlers page shows, per form, the endpoints a
+  submission notice reaches and, for each one it will not, the first thing that
+  says no (the form's `notify: off`; `emit.submission: off`; a route without xmpp;
+  the extension off, or its account missing or incomplete). It is computed by the
+  checks delivery itself runs, and `t/unit/lib/197` runs a real delivery beside
+  each case to show the report and delivery agree. Six sabotages each fail a named
+  subtest.
+- **What D2 does not do: change anything.** This filing records no ruling, and
+  the work plan's "smallest change first" ranking is not written down here, so
+  the shape built is the one the report's own condition allows without a ruling:
+  text stays the source of truth, and the manager now shows what the text
+  currently does. A control that WRITES `notify:` or `route.submission` would need
+  a ruling.
+
 # The operator's report, verbatim
 
 > "the bell is confusing - it shows but doesn't do anything. can you file to dev

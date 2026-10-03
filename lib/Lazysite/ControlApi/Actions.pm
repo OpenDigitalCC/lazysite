@@ -491,7 +491,8 @@ our %ACTION = (
     'nav-read' => { params => [ { name => 'host', in => 'query' } ] },    # SM568
     'nav-save' => { params => [ { name => 'items', in => 'body' }, { name => 'host', in => 'query_or_body' } ] },
     'notices'      => { params => [] },
-    'notices-seen' => { params => [] },
+    'notices-seen' => {    # SM938 D3: one notice, or dismiss it; neither = all
+        params => [ { name => 'id', in => 'query' }, { name => 'dismiss', in => 'query' } ] },
     # SM732: the PDF render, which SM706 shipped with no caller at all.
     # manage_content because converting a page is reading it in another format -
     # the plugin's own reasoning, and the reason it declares no capability.

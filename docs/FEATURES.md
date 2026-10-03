@@ -980,6 +980,19 @@ human-awaiting-a-response events: form submissions, a password-reset request whe
 no SMTP is configured (previously a silent dead-end), and agent feedback
 submissions.
 
+**Read state is per notice (SM938).** Opening the panel marks nothing. Following
+a notice's link marks that notice read, **Mark all read** marks the lot, and
+**Dismiss** takes one out of the panel - a second marker, so the store keeps
+every line. Each notice carries a stable `id`; `notices-seen` takes `id` (mark
+one) or `id` plus `dismiss`, and with neither marks all read. State is per
+principal.
+
+**Where a form is announced (SM938).** The Handlers page shows, for each form,
+the endpoints its submission notice reaches and, for each one it will not reach,
+the first thing that says no: the form's `notify: off`, `emit.submission: off`,
+a route without xmpp, or the XMPP extension off or its account incomplete. It is
+read-only - the form's text and `notify.conf` stay the source of truth.
+
 **The channel (SM231).** A notice declares a **type**, and the type decides how
 it is rendered and where it goes. `lazysite/notify.conf` carries two keys per
 type and one global:
