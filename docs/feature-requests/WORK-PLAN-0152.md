@@ -84,10 +84,10 @@ nobody has met, from a silent 500 into a named line at install time.
 | A1 | PR0 | **MEASURED** (n233). Candidate 2, and wider than the filing supposed: `install.pl` never sets a group on anything - the kernel decides. Candidates 1 and 3 refuted (run A gave the PRIMARY group on all 202 paths, uniformly, from the first created directory). `secure_write_perms` works and is **never called** from the install path | S | nothing |
 | A2 | PR2 | **BUILT** (n236), to R13: every path the installer creates takes the docroot's group, the private store included; existing paths untouched. The field-shape fixture now passes its own health check | M | nothing |
 | A3 | PR3 | **WITHDRAWN (R14).** Premise contradicted by A1: every directory provision creates already carries setgid. The reset case is PR5's warning plus PR1's check | - | done |
-| A4 | PR1 | **Provision ends by running the check it already ships with**, and prints the result. A fresh install either says healthy or names its own fault | S/M | nothing |
+| A4 | PR1 | **SHIPPED** (31321799). **Provision ends by running the check it already ships with**, and prints the result. A fresh install either says healthy or names its own fault | S/M | nothing |
 | A5 | PR4 | **BUILT** (n237), to R3/R16: the install state records the mode the installer LEFT on each directory it created (`dirs_left`); `--fix` sets the declared mode on a directory still at that mode, and keeps SM274's rule for one changed since | S/M | nothing |
-| A6 | PR5 | Next steps names the rebuild hazard: any vhost rebuild can reset modes, so re-run the check after one | S | nothing |
-| A7 | PR6 | A repair line records the prior value - `chmod 2775 (was 0755)` | S | nothing |
+| A6 | PR5 | **SHIPPED** (31321799). Next steps names the rebuild hazard: any vhost rebuild can reset modes, so re-run the check after one | S | nothing |
+| A7 | PR6 | **SHIPPED** (31321799). A repair line records the prior value - `chmod 2775 (was 0755)` | S | nothing |
 
 A4, A5, A6 and A7 are independent of the measurement and can go first. A1 then A2
 and A3 close the cause.
@@ -100,7 +100,7 @@ answering its questions.
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
 | B1 | **BUILT** (n233). Enforced from a RENDER-TIME SIDECAR, which was a ruling: the rules were not available to the handler at all, and `_page` is visitor-supplied so it could not locate them. The hazard is closed properly - a pattern the browser could not compile is asked about by name (lint 204's helper) rather than judged again. A validation refusal is counted under its OWN outcome, not as an anti-spam block | M | nothing |
-| B2 | [[SM935]] - the form rate limit buckets on a **calendar hour** (`"$ip:$hour"`, `$hour = int(time/3600)`), so five submissions at 10:59:59 and five at 11:00:00 is ten in one second within the rules. A rolling window, or the boundary stated as deliberate | S | nothing |
+| B2 | **SHIPPED** (2cd7aaa1). [[SM935]] - the form rate limit buckets on a **calendar hour** (`"$ip:$hour"`, `$hour = int(time/3600)`), so five submissions at 10:59:59 and five at 11:00:00 is ten in one second within the rules. A rolling window, or the boundary stated as deliberate | S | nothing |
 | B3 | The SQLi report's five candidate detection signatures. **Not ruled, and offered as signatures rather than a request.** Two of the five are already covered: the own-domain sender ([[SM930]]) and "a value in a field declared `email` that does not parse" (B1). **R19: PARKED** - built only if quarantine misses a real case | - | a real miss |
 
 **B1's hazard, which must be designed for rather than discovered.** Refusing on a
@@ -156,7 +156,7 @@ answers both.
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| G1 | [[SM940]] - a quoted scalar in a block sequence under `sections:` is read as a mapping, so `- 'https://x'` becomes `{ "'https" => "//x'" }`. Silent: the layout gets maps where it expected strings and the page merely renders wrong. **Reported against 0.14.4 and reproduced here against 0.15.1** | S | nothing |
+| G1 | **SHIPPED** (448bc121). [[SM940]] - a quoted scalar in a block sequence under `sections:` is read as a mapping, so `- 'https://x'` becomes `{ "'https" => "//x'" }`. Silent: the layout gets maps where it expected strings and the page merely renders wrong. **Reported against 0.14.4 and reproduced here against 0.15.1** | S | nothing |
 
 G1 is an ordering change in one sub with one definition and no pinned copy, so ADR
 0001 does not apply. The filing records why the obvious spelling of the fix is wrong:
@@ -175,8 +175,8 @@ for another.
 | H3 | **BUILT** (n232). `unique_visitors` reads `cls_ips{unattributed}`; `traffic_classes[].visitors` added so nothing is lost; `totals.human_visits` REMOVED (one scalar, one name); `window_scoped` enumerated per field, with `events` deliberately absent from it | S+S+S | nothing |
 | H6 | **BUILT** (n232). Renamed, with the upper-bound explanation in `notes`, the manager tiles and the agent briefing. `no_agent` returns BEFORE the visit split. The cache is MIGRATED on load - a comment I wrote claiming schema 3 would discard it was measured false, and without the migration that traffic would have left every breakdown while staying in `hits` | M | nothing |
 | H7 | **BUILT** (n232), with H6 in one commit as required. Basis 4, schema 3, the ladder entry - and `counting_basis` + `counting_basis_in_window` **published in the report**, which they never were: the instrument SM338 built could not be read from the output that raises the question | S | H6 |
-| H4 | [[SM942]] FO1/FO2 - feeds sorted newest-first **in the engine, on the raw ISO date**. Not in the template (bucket `seed` - an upgrade never replaces it, so a template fix reaches no existing site) and not on `page.date` (already RFC 822 by then, so the sort would order by weekday name) | S | nothing |
-| H5 | [[SM942]] FO3 (R6) - `feed_items` capping at 50 by default, plus `lastBuildDate`. Same template and the same sort as H4, so it goes with it | S | H4 |
+| H4 | **SHIPPED** (8d981c71). [[SM942]] FO1/FO2 - feeds sorted newest-first **in the engine, on the raw ISO date**. Not in the template (bucket `seed` - an upgrade never replaces it, so a template fix reaches no existing site) and not on `page.date` (already RFC 822 by then, so the sort would order by weekday name) | S | nothing |
+| H5 | **SHIPPED** (8d981c71). [[SM942]] FO3 (R6) - `feed_items` capping at 50 by default, plus `lastBuildDate`. Same template and the same sort as H4, so it goes with it | S | H4 |
 
 **Every row in this group is now unblocked.** H2, H3, H6 and H7 follow from the
 measurement; H4 + H5 are one piece of work (the sort and the cap are the same template
@@ -200,9 +200,9 @@ not comparable with a day counted another.
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| I1 | A RAW copy of the head meta values beside the escaped ones. `_esc_html` is applied in stash assembly over `page_meta_title`, `page_meta_desc`, `page_title`, `page_subtitle`, `page_author` and `page_<key>`, and there is no inverse - so a layout cannot recover the author's text | S | nothing |
-| I2 | A `json` filter in `%tt_opts` FILTERS, which ships `markdown` and no JSON encoder today. Hand-rolled quoting in a template is the thing this exists to avoid | S | nothing |
-| I3 | The documented exception: the single-escape-point invariant now has a named one, written where the invariant is stated rather than only in this plan. `sections` already reached layouts raw, so the exception describes what was true as well as what is new | S | I1, I2 |
+| I1 | **SHIPPED** (27e41c5e). A RAW copy of the head meta values beside the escaped ones. `_esc_html` is applied in stash assembly over `page_meta_title`, `page_meta_desc`, `page_title`, `page_subtitle`, `page_author` and `page_<key>`, and there is no inverse - so a layout cannot recover the author's text | S | nothing |
+| I2 | **SHIPPED** (27e41c5e). A `json` filter in `%tt_opts` FILTERS, which ships `markdown` and no JSON encoder today. Hand-rolled quoting in a template is the thing this exists to avoid | S | nothing |
+| I3 | **SHIPPED** (27e41c5e). The documented exception: the single-escape-point invariant now has a named one, written where the invariant is stated rather than only in this plan. `sections` already reached layouts raw, so the exception describes what was true as well as what is new | S | I1, I2 |
 
 **The security angle is de-rated by the reporter and that matters for sizing:** an
 XSS-shaped payload in front matter renders through the shipped `bio-modest`

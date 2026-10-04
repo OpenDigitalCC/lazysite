@@ -306,7 +306,7 @@ The two sit in the same JSON with no field saying their scopes differ, and the f
 reading of "months sums to 2.6x the total" is that something is broken. A
 `window_scoped: false` on the block, or month rows clipped to the window, settles it.
 
-# BUILT 2026-10-02 (PENDING): AV1-AV10, counting basis 4, schema 3
+# BUILT 2026-10-02 (e4036dbc): AV1-AV10, counting basis 4, schema 3
 
 All ten rows are in, as one change - AV10 required it, and the three sabotage
 cases below show why splitting them would have published a report contradicting

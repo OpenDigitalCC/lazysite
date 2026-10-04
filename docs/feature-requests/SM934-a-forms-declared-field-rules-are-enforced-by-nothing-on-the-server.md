@@ -70,7 +70,7 @@ engine.
 | FV4 | The refusal is a user-facing one in the handler's existing voice (`reject_user`), not a 500 and not a silent store |
 | FV5 | A test per rule, and one that a form carrying an uncompilable pattern still accepts an ordinary submission - the SM921 case, asserted from the server side this time |
 
-# BUILT 2026-10-02 (PENDING): FV1-FV5, and the contract's home was a ruling
+# BUILT 2026-10-02 (8318f489): FV1-FV5, and the contract's home was a ruling
 
 | Ref | State |
 | --- | --- |

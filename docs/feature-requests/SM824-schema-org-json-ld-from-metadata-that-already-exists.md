@@ -62,7 +62,7 @@ is the only thing that says whether the emitted block is understood.
 2026-09-10. The doc cites this as "the existing D011 discoverability scope,
 promoted"; D011 has no filing in this tree, so this is its first.
 
-# BUILT 2026-10-02 (PENDING): I1, I2 and I3 are in
+# BUILT 2026-10-02 (27e41c5e): I1, I2 and I3 are in
 
 - **I1** - `page_title_raw`, `page_subtitle_raw`, `page_meta_title_raw`,
   `page_meta_desc_raw`, `page_author_raw`, beside the escaped names. The fallbacks

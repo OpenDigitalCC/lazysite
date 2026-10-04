@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM938 D5 (PENDING) **a submission notice links to the submission** (ruled
+- SM938 D5 (a5f431ea) **a submission notice links to the submission** (ruled
   R18; closes SM938 B-1). The operator's words: the bell "should show link to
   the thing that happened". A notice linked to the Handlers page, and no manager
   page addressed one submission - SM928 defect 4 had recorded why it stopped
@@ -61,7 +61,7 @@ Naming the commit: AFTER it lands, never before
   file handler when it writes and by every submissions reader, so the link and
   the table cannot name the same row differently.
 
-- SM904 (PENDING) **a submission with a non-ASCII character is shown, and can be
+- SM904 (b29b765c) **a submission with a non-ASCII character is shown, and can be
   acted on** - SM904's read half, found while building SM938 D5. SM904 made sure
   a value is STORED as the visitor typed it; nothing checked that it could be
   read back, and the submissions readers the manager table, the control API and
@@ -74,7 +74,7 @@ Naming the commit: AFTER it lands, never before
   bytes through a UTF-8 layer, encoding its text twice. All three read and write
   characters now, and the id is the hash of the line as it is on disk.
 
-- SM938 D4 (PENDING) **a form's `notify:` is set from the manager** (ruled R17).
+- SM938 D4 (8e1e5ec0) **a form's `notify:` is set from the manager** (ruled R17).
   D2 made the Handlers page say where a form's notice goes and what stops it; the
   form's own `notify:` was still edited as text over WebDAV. The expanded form now
   has **This form's notice** - Off, On, or Full (the notice carries the
@@ -88,7 +88,7 @@ Naming the commit: AFTER it lands, never before
   `notify:` line is replaced by one, because the reader takes the first. The
   reply carries `announces`, D2's report computed from the conf as written.
 
-- SM933 A5 (PENDING) **`check --fix` may correct what the installer itself left**
+- SM933 A5 (5a3b2a82) **`check --fix` may correct what the installer itself left**
   (ruled R3, scheduled R16). SM274 holds `--fix` to the group-write bit on a
   declared directory, because the install state recorded only the DECLARED mode
   and could not tell drift from a sysop's deliberate choice - so an install
@@ -106,7 +106,7 @@ Naming the commit: AFTER it lands, never before
   Existing sites have no record until a run creates something, so for them
   `--fix` behaves as before.
 
-- SM938 D3 (PENDING) **the bell's read state is said, not inferred.** Opening
+- SM938 D3 (1b3cdce4) **the bell's read state is said, not inferred.** Opening
   the panel used to mark every notice read, below the fold included, so the badge
   counted panel openings rather than outstanding work. Opening no longer marks
   anything. Following a notice's link marks THAT notice read; "Mark all read" marks
@@ -122,7 +122,7 @@ Naming the commit: AFTER it lands, never before
   reads, so an upgrade loses nobody's position. State is per principal, and ids
   that have aged out of the notice window are pruned on the next write.
 
-- SM938 D2 (PENDING) **the Handlers page says where each form is announced, and
+- SM938 D2 (1b3cdce4) **the Handlers page says where each form is announced, and
   if not, what says no.** Whether a submission reaches XMPP is decided in three
   places - the form's `notify:`, `lazysite/notify.conf` (`emit.submission`,
   `route.submission`), and the extension plus its account - and only the last had
@@ -141,7 +141,7 @@ Naming the commit: AFTER it lands, never before
   the handler cannot read `notify: fll` differently; the handler still logs the
   unrecognised value.
 
-- SM939 E2 (PENDING) **`--no-starter`: a fresh site without lazysite's own
+- SM939 E2 (d0ba81b2) **`--no-starter`: a fresh site without lazysite's own
   pages** (ruled 2026-10-03, R15 - the default is unchanged). A fresh install
   ships the demo pages and ~70 pages of `/docs/` onto the owner's domain,
   publicly served and in the sitemap; removing them afterwards is seventy-odd
@@ -162,7 +162,7 @@ Naming the commit: AFTER it lands, never before
   and a sabotage that stopped the state being read still passed. It re-lays with
   `reinstall` now, which plans every file.
 
-- SM933 A2 (PENDING) **everything provision creates takes the docroot's group**
+- SM933 A2 (371606be) **everything provision creates takes the docroot's group**
   (ruled 2026-10-03, R13). Measured first (PR0): the installer set no group on
   anything it wrote, so all 202 created paths took whatever the kernel handed
   out - the process's primary group under a non-setgid docroot - and one path was
@@ -181,7 +181,7 @@ Naming the commit: AFTER it lands, never before
   failures. This also closes SM939's permissions half: `docs/features/` was
   always group-writable, in the wrong group.
 
-- SM936 (PENDING) **an access rule does not outlive the thing it governed** -
+- SM936 (afe87085) **an access rule does not outlive the thing it governed** -
   and measuring the filing's four steps against this tree gave three different
   answers, so three different things were done.
 
@@ -223,7 +223,7 @@ Naming the commit: AFTER it lands, never before
   precedence. `t/lint/36` caught the move: it was reading the old name and its
   ordering assertions had started matching a four-line wrapper.
 
-- SM934 (PENDING) **a form's declared field rules are enforced on the server, and
+- SM934 (8318f489) **a form's declared field rules are enforced on the server, and
   a breach is refused naming the field and the rule** (ruled 2026-10-02, R1; the
   contract's home ruled 2026-10-02).
 
@@ -280,7 +280,7 @@ Naming the commit: AFTER it lands, never before
   `reject` / `reject_user` and the new codes are raised through `reject_invalid`.
   It now follows the channel rather than the spelling.
 
-- SM941 (PENDING) **a visitor report whose numbers agree with each other - and
+- SM941 (e4036dbc) **a visitor report whose numbers agree with each other - and
   no field that claims to have counted people** (ruled 2026-10-02, R8-R12).
   **COUNTING BASIS 4, `schema_version` 3: counts DROP SHARPLY on upgrade.**
 
@@ -341,7 +341,7 @@ Naming the commit: AFTER it lands, never before
   found** tile so the halved headline has its subtraction visible on the page -
   SM329's precedent, applied to the same kind of drop.
 
-- SM824 (PENDING) **a layout can emit JSON-LD from front matter that already
+- SM824 (27e41c5e) **a layout can emit JSON-LD from front matter that already
   exists** (ruled 2026-10-02: expose a raw copy and ship a filter, rather than
   walk-and-escape `sections`).
 
@@ -371,7 +371,7 @@ Naming the commit: AFTER it lands, never before
   author can write front matter, and that same author can already put raw HTML in
   the page body.
 
-- SM935 (PENDING) **the form rate limit is a rolling hour, so a limit of five no
+- SM935 (2cd7aaa1) **the form rate limit is a rolling hour, so a limit of five no
   longer permits ten.** The counter bucketed on `int(time/3600)` with the key
   `"$ip:$hour"`, so the window reset on the clock rather than on the submitter:
   five submissions at 10:59:59 and five at 11:00:00 is ten in one second, inside
@@ -389,7 +389,7 @@ Naming the commit: AFTER it lands, never before
   count, which is not a timestamp inside the window, so the first purge clears it.
   That is the safe direction and it is asserted.
 
-- SM937 (PENDING) **`acl-set` stops calling a draft rule unrestricted.** A rule
+- SM937 (2cd7aaa1) **`acl-set` stops calling a draft rule unrestricted.** A rule
   carrying `draft: true` 404s its pages to the public - a stronger restriction than
   gating, not a weaker one - and the reply said `reads_unrestricted: 1` with "anyone
   may still fetch these pages" about pages nobody could fetch.
@@ -403,7 +403,7 @@ Naming the commit: AFTER it lands, never before
   counted draft, with the reasoning written beside it. It now asks that one, and the
   caveat still fires on the owner-only rule it was written for.
 
-- SM940 (PENDING) **a quoted scalar in a block sequence under `sections:` is a
+- SM940 (448bc121) **a quoted scalar in a block sequence under `sections:` is a
   string again.** `- 'https://github.com/x'` parsed to
   `{ "'https" => "//github.com/x'" }`: the sequence branch strips the `- ` and
   recurses, and the recursion reached the mapping test - which splits on the first
@@ -425,7 +425,7 @@ Naming the commit: AFTER it lands, never before
   The flow form was always correct, because `_yaml_split_flow` tracks quote state.
   The two spellings now agree, which is what the report was actually about.
 
-- SM942 (PENDING) **the generated feeds list items newest first, and the item count
+- SM942 (8d981c71) **the generated feeds list items newest first, and the item count
   is bounded.** Reported from xisl.com: 59 pages, every `pubDate` correct, and the
   items in FILENAME order - so an aggregator taking "the latest 10" of a large feed
   got ten articles chosen by path, and a human opening the feed URL saw the oldest

@@ -19,7 +19,7 @@ status-note: "NOT YET RULED. TWO REPORTS, MERGED HERE BECAUSE THE SECOND SAYS SO
 - **R18: B-1 in 0.15.2 (plan D5).** An addressable view of one submission, and the
   submission notice's `url` pointed at it.
 
-# BUILT 2026-10-03 (PENDING): D5, to R18 - closes B-1
+# BUILT 2026-10-03 (a5f431ea): D5, to R18 - closes B-1
 
 The file handler's delivery result now carries `stored: { file, id }` - the store
 as the readers name it and the row's id - and the form handler links the notice
@@ -40,7 +40,7 @@ the id function's own trimming undid - and the test was strengthened for each.
 FOUND ON THE WAY, fixed in its own commit: the submissions readers hid every row
 holding a non-ASCII character as "malformed" (SM904's read half).
 
-# BUILT 2026-10-03 (PENDING): D4, to R17
+# BUILT 2026-10-03 (8e1e5ec0): D4, to R17
 
 The Handlers page's expanded form has **This form's notice** (off / on / full),
 saved with the handlers and written only when changed. `form-notify-save`
@@ -51,7 +51,7 @@ sabotages each fail a named subtest (stale lines kept; any value accepted;
 bindings dropped; report computed from the conf as it was; the page rewriting an
 untouched line; the page without the control).
 
-# BUILT 2026-10-03 (PENDING)
+# BUILT 2026-10-03 (1b3cdce4): D2 and D3
 
 Two of the three halves, on 2026-10-03; **B-1 followed the same day as D5** (see
 above).

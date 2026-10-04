@@ -11,7 +11,7 @@ area: installer
 status-note: "NOT YET RULED, and it has two independent halves. THE DEFECT: the installer creates `docs/features/` (plus `authoring/`, `configuration/`, `development/`) and `docs/integrations/` with permissions the server cannot write, while `/docs/` itself IS writable - measured as a DELETE table on one grant in one session, 204 at depths 1 and 2 and 507 at depths 3 and 4. The 507 is `lazysite-dav.pl`'s `_write_failure` doing its job and naming the cause; the reporter is explicit that 'this filing is not about the DAV layer, which behaved better than the thing it was reporting on'. THE CONSEQUENCE ON A NAMED LIVE SITE: four pages in the sitemap, three of them lazysite's own docs, and they cannot be taken out of it through the product - removing them needs shell access. THE DIFFERENTIAL IS THE USEFUL PART FOR DIAGNOSIS: whatever makes `/docs/` writable does not make `/docs/features/` writable, so the fault is in how the second level is created rather than in the docroot. THAT IS ALMOST CERTAINLY SM933's MECHANISM and the two should be measured together once rather than twice: SM933's fixture pass must record owner, group and mode for `docs/` as well as `lazysite/`. THE ASK, separately: an install-time flag for a site with NO starter content - an empty docroot plus the system pages the engine genuinely needs - which the reporter rates 'low priority next to item 1'."
 ---
 
-# BUILT 2026-10-03 (PENDING)
+# BUILT 2026-10-03 (d0ba81b2)
 
 - **SC1 (permissions)**: closed by SM933 A2 - the directories were always 2775
   and now take the docroot's group.

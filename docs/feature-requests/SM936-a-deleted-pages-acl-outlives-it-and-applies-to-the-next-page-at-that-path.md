@@ -46,7 +46,7 @@ direction and on this occasion it withheld a page rather than exposing one. The 
 mechanism runs the other way, and that is the part that makes this access control
 rather than ergonomics.
 
-# MEASURED AND BUILT 2026-10-02 (PENDING): three answers, not one
+# MEASURED AND BUILT 2026-10-02 (afe87085): three answers, not one
 
 The four steps were run against this tree before anything was built, because the
 filing was measured at 0.14.4 and never claimed to reproduce here. It gave three
