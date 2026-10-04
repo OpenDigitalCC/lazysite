@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- (PENDING) **the release gate runs apart from the build, and cannot prompt for a
+  password.** The 0.15.2 build stopped in the release manager's terminal on a
+  polkit prompt: t/tools/81 ran the package's postrm against a fake root that
+  redirected `/etc/lazysite` and nothing else, so the host's own `systemctl
+  daemon-reload` ran. The test now gives the fake root its own systemd directory
+  and a stand-in `systemctl` that records the call, and checks the reload reaches
+  the stand-in. Structurally: `release.sh gate` runs the suite, bench and
+  coverage with no controlling terminal (`setsid -w`, stdin from /dev/null) and
+  writes a receipt for the exact SHA, version and channel with every log beside
+  it; `release.sh build` needs that receipt (or `--run-gate`) and does only the
+  short packaging and tagging. Lint 208 holds both: every gate step is detached,
+  and the release script and gate tools call no sudo, systemctl or pkexec.
+
 - SM938 D5 (a5f431ea) **a submission notice links to the submission** (ruled
   R18; closes SM938 B-1). The operator's words: the bell "should show link to
   the thing that happened". A notice linked to the Handlers page, and no manager

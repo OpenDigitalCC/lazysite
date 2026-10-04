@@ -8,8 +8,24 @@
 # made on main. Main is unstable; tags are the stable identifiers.
 #
 # Usage:
-#   tools/release.sh build   VERSION [--notes NOTES_FILE] [--commit COMMIT]
+#   tools/release.sh gate    VERSION --commit SHA
+#   tools/release.sh build   VERSION --commit SHA [--notes NOTES_FILE]
 #   tools/release.sh publish VERSION
+#
+#   GATE runs the long part - the full suite, the bench and the ~1 hour
+#   instrumented coverage run - and writes a receipt for that exact commit,
+#   version and channel under tmp/release-gate/VERSION/, with every log beside
+#   it. It is the developer agent's job, run detached; nobody's terminal is held
+#   for an hour. BUILD then needs that receipt and does the short part:
+#   manifest, SBOM, man pages, tarball, packages, local tag. `build --run-gate`
+#   runs the gate inline instead, for a host with no receipt.
+#
+#   NO TEST OR GATE STEP CAN PROMPT FOR A PASSWORD. They run under `setsid -w`
+#   with stdin from /dev/null, so there is no controlling terminal: anything
+#   that reaches for sudo or polkit fails, visibly, in the log, instead of
+#   stopping the release on a password prompt (2026-10-04: a test ran the host's
+#   systemctl and polkit asked the release manager to authenticate). This script
+#   itself never calls sudo, systemctl or pkexec - t/lint pins that.
 #
 #   SM303: two jobs sharing only a version number. BUILD gates, packages and
 #   tags locally and never touches the remote - so it runs on the host with the
@@ -119,8 +135,9 @@ NO_FETCH=0              # inert for the origin checks since SM303; still
 # the other. Naming the job removes the flag that had to remember which host it
 # was on.
 MODE=""
+RUN_GATE_INLINE=0
 case "${1:-}" in
-    build|publish) MODE=$1; shift ;;
+    build|publish|gate) MODE=$1; shift ;;
     -h|--help)     ;;
     *)
         # Not a silent fallback to either. The old form's failure modes are the
@@ -174,8 +191,12 @@ while [ $# -gt 0 ]; do
             KEEP_STAGE=1
             shift
             ;;
+        --run-gate)
+            RUN_GATE_INLINE=1
+            shift
+            ;;
         -h|--help)
-            sed -n '2,27p' "$0" | sed 's/^# \?//'
+            sed -n '2,45p' "$0" | sed 's/^# \?//'
             exit 0
             ;;
         -*)
@@ -618,6 +639,52 @@ if [ -f "$PRACTICE" ]; then
     fi
 fi
 
+# --- the gate: run here, or proven by a receipt -------------------------------
+#
+# NO TERMINAL REACHES A GATE STEP. `setsid -w` starts each one in a new session
+# with no controlling terminal and stdin from /dev/null, so sudo cannot ask for
+# a password and polkit has no agent to ask with: a test that reaches for
+# either FAILS, in the log, rather than stopping a release on a prompt. The
+# exit status is passed through (-w), so the gate's verdict is unchanged.
+detached() { setsid -w "$@" </dev/null; }
+
+RECEIPT_DIR="$ORIGIN/tmp/release-gate/$VERSION"
+RECEIPT="$RECEIPT_DIR/receipt"
+receipt_field() { sed -n "s/^$1=//p" "$RECEIPT" 2>/dev/null | head -1; }
+
+RUN_GATE=1
+if [ "$MODE" = build ] && [ "$RUN_GATE_INLINE" != 1 ]; then
+    # A RECEIPT COUNTS ONLY FOR THE COMMIT, VERSION AND CHANNEL IT NAMES. The
+    # tree at a SHA cannot change, so a gate that passed for this SHA has
+    # validated exactly what is about to be packaged; anything else is refused
+    # rather than reused.
+    if [ ! -f "$RECEIPT" ]; then
+        abort_build "no gate receipt for $VERSION at $RECEIPT." \
+            "The gate runs separately: tools/release.sh gate $VERSION --commit $TARGET_SHA" \
+            "(or pass --run-gate to run it inline here, which takes about an hour)."
+    fi
+    if [ "$(receipt_field sha)" != "$TARGET_SHA" ] || [ "$(receipt_field version)" != "$VERSION" ] \
+        || [ "$(receipt_field channel)" != "$CHANNEL" ] || [ "$(receipt_field result)" != pass ]; then
+        abort_build "the gate receipt does not match this build:" \
+            "  receipt: sha=$(receipt_field sha) version=$(receipt_field version) channel=$(receipt_field channel) result=$(receipt_field result)" \
+            "  build:   sha=$TARGET_SHA version=$VERSION channel=$CHANNEL" \
+            "Re-run the gate for this commit, or build the commit the gate passed."
+    fi
+    GATE_FILES=$(receipt_field files)
+    GATE_TESTS=$(receipt_field tests)
+    RUN_GATE=0
+    echo "==> Gate passed earlier for $TARGET_SHA ($(receipt_field finished)): $GATE_FILES files, $GATE_TESTS tests"
+    echo "==>   receipt and logs: $RECEIPT_DIR"
+    if [ -f "$RECEIPT_DIR/coverage-last.json" ]; then
+        mkdir -p "$ORIGIN/dist/config"
+        cp "$RECEIPT_DIR/coverage-last.json" "$ORIGIN/dist/config/coverage-last.json"
+    fi
+fi
+
+if [ "$RUN_GATE" = 1 ]; then
+mkdir -p "$RECEIPT_DIR"
+rm -f "$RECEIPT"
+
 # --- run tests ---
 
 # `cd "$STAGE" && prove -lr t/`, and BOTH halves are load-bearing.
@@ -650,7 +717,7 @@ fi
 # exists to prevent, one layer up: a check that reports success without checking.
 GATE_OUT="$STAGE/.gate-output.txt"
 echo "==> Running full test suite"
-if ! ( cd "$STAGE" && set -o pipefail && prove -lr t/ 2>&1 | tee "$GATE_OUT" ); then
+if ! ( cd "$STAGE" && set -o pipefail && detached prove -lr t/ 2>&1 | tee "$GATE_OUT" ); then
     abort_build "test suite failed; not releasing."
 fi
 
@@ -668,7 +735,7 @@ echo "==> Gate: $GATE_FILES files, $GATE_TESTS tests, at $TARGET_SHA"
 # regression. Costs ~5 seconds, so it runs before the slow coverage gate.
 
 echo "==> bench.pl --check"
-if ! perl "$STAGE/tools/bench.pl" --check; then
+if ! ( set -o pipefail && detached perl "$STAGE/tools/bench.pl" --check 2>&1 | tee "$RECEIPT_DIR/bench.txt" ); then
     abort_build "benchmark regression; not releasing."
 fi
 
@@ -731,7 +798,7 @@ export LAZYSITE_COVER_SUITE_LOG="${STAGE}-coverage-suite.txt"
 # died here and the whole verdict block below was unreachable. Not `if !`
 # (58 forbids it: that form asserted a cause nobody had measured).
 COV_STATUS=0
-bash "$STAGE/tools/coverage.sh" --check > "$COV_LOG" 2>&1 || COV_STATUS=$?
+detached bash "$STAGE/tools/coverage.sh" --check > "$COV_LOG" 2>&1 || COV_STATUS=$?
 cat "$COV_LOG"
 if [ "$COV_STATUS" -ne 0 ]; then
     if grep -q 'COVERAGE BELOW FLOOR' "$COV_LOG"; then
@@ -774,7 +841,33 @@ COV_RECORD="$STAGE/dist/config/coverage-last.json"
 if [ -f "$COV_RECORD" ]; then
     mkdir -p "$ORIGIN/dist/config"
     cp "$COV_RECORD" "$ORIGIN/dist/config/coverage-last.json"
+    cp "$COV_RECORD" "$RECEIPT_DIR/coverage-last.json"
     echo "==> coverage record carried back to dist/config/coverage-last.json"
+fi
+
+# THE RECEIPT, written last: it exists only when every gate step passed. The
+# logs go beside it so a warning in any of them can be read after the stage is
+# gone.
+cp "$GATE_OUT" "$RECEIPT_DIR/suite.txt"
+cp "$COV_LOG" "$RECEIPT_DIR/coverage.txt"
+[ -f "$LAZYSITE_COVER_SUITE_LOG" ] && cp "$LAZYSITE_COVER_SUITE_LOG" "$RECEIPT_DIR/coverage-suite.txt"
+{
+    echo "sha=$TARGET_SHA"
+    echo "version=$VERSION"
+    echo "channel=$CHANNEL"
+    echo "files=$GATE_FILES"
+    echo "tests=$GATE_TESTS"
+    echo "result=pass"
+    echo "finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "host=$(hostname)"
+} > "$RECEIPT"
+echo "==> Gate receipt: $RECEIPT"
+fi    # RUN_GATE
+
+if [ "$MODE" = gate ]; then
+    echo "==> Gate passed for $TARGET_SHA ($VERSION, $CHANNEL)."
+    echo "==> The build is the short part: tools/release.sh build $VERSION --commit $TARGET_SHA --notes FILE"
+    exit 0
 fi
 
 # --- build the release manifest ---

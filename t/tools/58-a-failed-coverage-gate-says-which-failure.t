@@ -85,6 +85,10 @@ sub verdict {
     # on the line that ran it, before COV_STATUS was read.
     my ($block) = $src =~ /(^[^\n]*bash "\$STAGE\/tools\/coverage\.sh" --check.*?\n    exit 1\nfi\n)/ms;
     die 'the coverage block was not found in release.sh' unless defined $block;
+    # The block runs through `detached` (no controlling terminal - lint 208),
+    # lifted from release.sh like the block itself rather than re-typed.
+    my ($detached) = $src =~ /^(detached\(\) \{[^\n]*\})$/m;
+    die 'the detached helper was not found in release.sh' unless defined $detached;
 
     open my $r, '>', "$d/run.sh" or die $!;
     print {$r} <<"RUN";
@@ -93,6 +97,7 @@ STAGE="$d"
 COV_LOG="\$STAGE/coverage-check.txt"
 # SM560's abort helper, when the block calls it; inert here.
 stage_disposition() { echo "release.sh: staging dir: \$STAGE" >&2; }
+$detached
 $block
 echo "VERDICT: ok"
 RUN

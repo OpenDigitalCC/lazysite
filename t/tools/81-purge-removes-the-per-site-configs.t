@@ -71,12 +71,31 @@ sub run_postrm {
     $text =~ s{/etc/lazysite}{$root/etc/lazysite}g;
     $text =~ s{^\#DEBHELPER\#$}{}m;
 
+    # THE SCRIPT'S FIRST BLOCK TALKS TO THE HOST'S SYSTEMD. It asks whether
+    # /run/systemd/system exists and then runs `systemctl --system daemon-reload`
+    # - and this test rewrote only /etc/lazysite, so it ran the HOST's systemctl
+    # for real. From a terminal that is a polkit password prompt in the middle of
+    # a release gate (2026-10-04, the 0.15.2 build); from a session without one
+    # it failed quietly behind `|| true` and nobody saw it.
+    #
+    # So the fake root gets its own /run/systemd/system, and `systemctl` resolves
+    # to a stand-in in the fake root's bin/ that records its arguments. The
+    # reload branch is still EXERCISED - and checked below - without anything
+    # reaching the host.
+    $text =~ s{/run/systemd/system}{$root/run/systemd/system}g;
+    make_path( "$root/run/systemd/system", "$root/bin" );
+    open my $sc, '>', "$root/bin/systemctl" or die $!;
+    print {$sc} "#!/bin/sh\necho \"\$*\" >> \"$root/systemctl.calls\"\n";
+    close $sc;
+    chmod oct('0755'), "$root/bin/systemctl";
+
     my $script = "$root/postrm";
     open my $out, '>', $script or die $!;
     print {$out} $text;
     close $out;
     chmod oct('0755'), $script;
 
+    local $ENV{PATH} = "$root/bin:$ENV{PATH}";
     system( 'sh', $script, $arg );
     return $root;
 }
@@ -108,6 +127,15 @@ subtest 'purge leaves what the package did not put there' => sub {
         'and the directory stays, because something is still using it' )
         or diag( 'rmdir must fail quietly on a non-empty directory rather than '
             . 'the script forcing it.' );
+};
+
+subtest 'the reload reaches the stand-in, never the host' => sub {
+    my $root = run_postrm('remove');
+    open my $c, '<', "$root/systemctl.calls" or return fail('systemctl was not called at all');
+    my $calls = do { local $/; <$c> };
+    is( $calls, "--system daemon-reload\n", 'one call: the reload, to the stand-in' )
+        or diag( 'If this is empty the PATH shim was bypassed and the host\'s own '
+            . 'systemctl ran instead - which is a password prompt in a release gate.' );
 };
 
 done_testing();
