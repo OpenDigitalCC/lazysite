@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.14.5"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.2"
 brand: plain
 ---
 
