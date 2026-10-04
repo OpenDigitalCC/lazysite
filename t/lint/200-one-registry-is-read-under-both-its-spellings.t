@@ -50,7 +50,13 @@ for my $dir ( '', 'lib/Lazysite', 'lib/Lazysite/Manager', 'lib/Lazysite/Auth',
 }
 # The release stage is a copy of the tree; linting it double-counts and can fail
 # on an older stage nobody is editing.
-@FILES = grep { $_ !~ m{/(?:tmp|dist)/} } @FILES;
+#
+# RELATIVE TO THE ROOT. This matched `/tmp/` anywhere in the ABSOLUTE path, and
+# the release gate runs the suite from a stage under a tmp directory (/tmp, or
+# /srv/tmp) - so in the stage every file was excluded, nothing was found, and the
+# floor below failed the 0.15.2 gate. Only the tree's own tmp/ and dist/ are
+# meant.
+@FILES = grep { ( my $rel = $_ ) =~ s{^\Q$root\E/}{}; $rel !~ m{^(?:tmp|dist)/} } @FILES;
 
 my @sites;
 for my $f (@FILES) {
