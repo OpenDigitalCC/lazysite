@@ -176,6 +176,14 @@
       "alpine_pkg": "perl-net-ssleay",
       "used_by": "domain-check certificate expiry read (SM156; also IO::Socket::SSL's own backend)"
     },
+    "Net::DNS": {
+      "core": false,
+      "license": "MIT",
+      "debian_pkg": "libnet-dns-perl",
+      "rhel_pkg": "perl-Net-DNS",
+      "alpine_pkg": "perl-net-dns",
+      "used_by": "XMPP endpoint from the domain's SRV record (SM925 X2; notify-xmpp plugin, optional; lazy-required only when enabled)"
+    },
     "Net::XMPP": {
       "core": false,
       "license": "LGPL-2.1-only",

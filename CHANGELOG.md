@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SBOM (PENDING) **`Net::DNS` is declared in the SBOM, and an undeclared module
+  fails the handoff that adds it.** SM925 X2 (the XMPP endpoint from the domain's
+  SRV record) added `require Net::DNS` without an entry in
+  `dist/config/sbom-deps.json`. The strict SBOM check refuses exactly that, but it
+  ran only in the release build - after the gate had passed, in the release
+  manager's terminal - so the 0.15.2 build was the first thing to notice. Lint 209
+  runs the same strict check against the real tree on every handoff, and the
+  release gate now runs the manifest, SBOM and man-page checks too, before it
+  writes its receipt: the build that follows should refuse nothing the gate could
+  have found.
+
 - (PENDING) **the release gate runs apart from the build, and cannot prompt for a
   password.** The 0.15.2 build stopped in the release manager's terminal on a
   polkit prompt: t/tools/81 ran the package's postrm against a fake root that

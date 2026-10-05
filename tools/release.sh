@@ -845,30 +845,7 @@ if [ -f "$COV_RECORD" ]; then
     echo "==> coverage record carried back to dist/config/coverage-last.json"
 fi
 
-# THE RECEIPT, written last: it exists only when every gate step passed. The
-# logs go beside it so a warning in any of them can be read after the stage is
-# gone.
-cp "$GATE_OUT" "$RECEIPT_DIR/suite.txt"
-cp "$COV_LOG" "$RECEIPT_DIR/coverage.txt"
-[ -f "$LAZYSITE_COVER_SUITE_LOG" ] && cp "$LAZYSITE_COVER_SUITE_LOG" "$RECEIPT_DIR/coverage-suite.txt"
-{
-    echo "sha=$TARGET_SHA"
-    echo "version=$VERSION"
-    echo "channel=$CHANNEL"
-    echo "files=$GATE_FILES"
-    echo "tests=$GATE_TESTS"
-    echo "result=pass"
-    echo "finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    echo "host=$(hostname)"
-} > "$RECEIPT"
-echo "==> Gate receipt: $RECEIPT"
 fi    # RUN_GATE
-
-if [ "$MODE" = gate ]; then
-    echo "==> Gate passed for $TARGET_SHA ($VERSION, $CHANNEL)."
-    echo "==> The build is the short part: tools/release.sh build $VERSION --commit $TARGET_SHA --notes FILE"
-    exit 0
-fi
 
 # --- build the release manifest ---
 # release-manifest.json is generated, not tracked (SM065), so the fresh
@@ -919,6 +896,37 @@ if [ "${#MAN_ADD[@]}" -eq 0 ]; then
     abort_build "gen-manpages.pl produced no pages; not releasing."
 fi
 MAN_ADD+=("--prefix=lazysite-$VERSION/")
+
+if [ "$RUN_GATE" = 1 ]; then
+# THE RECEIPT, written last: it exists only when every gate step passed - the
+# suite, the bench, the coverage run AND the manifest, SBOM and man-page checks
+# above, which are cheap but can still refuse a release. The 0.15.2 build was
+# refused by the SBOM check (Net::DNS undeclared) after the gate had passed,
+# because those checks ran only in the build: the person running it found out,
+# not the agent running the gate. The logs go beside the receipt so a warning
+# in any of them can be read after the stage is gone.
+cp "$GATE_OUT" "$RECEIPT_DIR/suite.txt"
+cp "$COV_LOG" "$RECEIPT_DIR/coverage.txt"
+[ -f "$LAZYSITE_COVER_SUITE_LOG" ] && cp "$LAZYSITE_COVER_SUITE_LOG" "$RECEIPT_DIR/coverage-suite.txt"
+{
+    echo "sha=$TARGET_SHA"
+    echo "version=$VERSION"
+    echo "channel=$CHANNEL"
+    echo "files=$GATE_FILES"
+    echo "tests=$GATE_TESTS"
+    echo "result=pass"
+    echo "finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "host=$(hostname)"
+} > "$RECEIPT"
+echo "==> Gate receipt: $RECEIPT"
+fi
+
+if [ "$MODE" = gate ]; then
+    echo "==> Gate passed for $TARGET_SHA ($VERSION, $CHANNEL)."
+    echo "==> The build is the short part: tools/release.sh build $VERSION --commit $TARGET_SHA --notes FILE"
+    exit 0
+fi
+
 
 # --- build tarball ---
 
