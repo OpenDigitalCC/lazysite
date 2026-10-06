@@ -377,10 +377,16 @@ The notification appears in the manager's notification bell, which is the
 record. Where the `notify-xmpp` extension is configured, the same notice is also
 delivered as a chat message, so you hear about it without being logged in.
 
-The message names the form and when it arrived. It deliberately carries **none
-of the submitted content**, so it is safe to receive on a phone in a public
-place. To see what was submitted, follow it up with the actions in the next
-section.
+By default (`notify: on`) the message names the form and when it arrived, and
+carries **none of the submitted content**, so it is safe to receive on a phone in
+a public place. To see what was submitted, follow its link or use the actions in
+the next section.
+
+With `notify: full` the notice **carries the submitted fields** (long values are
+truncated) - to the bell and, where XMPP is configured, to the chat account the
+site names. That sends the submission off the site, as an email handler does by
+mail; XMPP delivery is encrypted in transit by default. Choose it for a form
+whose submissions you would be content to receive by email.
 
 Delivery is best-effort by design: the chat send is time-boxed so a slow or
 unreachable server can never delay the visitor's submission, and if it fails the

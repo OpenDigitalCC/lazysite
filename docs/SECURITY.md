@@ -950,7 +950,8 @@ verdict
 
 ### 2026-10-06 - SM924/SM925/SM928/SM929/SM938 (0.15.2): submission content can leave the site, and three new actions reach it
 
-DRAFT - the verdict below is proposed, not yet signed off by the release manager.
+Signed off by the release manager 2026-10-06, in their words: "notify - yes it
+may via xmpp, as email does. it is likely more contained than email."
 
 what changed
 : **SM928**: a submission notice can carry the submitted fields - over XMPP and
@@ -994,14 +995,15 @@ controls
 
 residual risk
 : a site that enables `notify: full` sends personal data to whoever operates
-  its XMPP account. That is the operator's choice, but the shipped form docs do
-  not yet say that `full` sends the submitted fields off the site, and nothing
-  records the choice beyond the form's own conf - a docs gap worth closing. The SRV lookup trusts
+  its XMPP account - the same exposure an email handler has always had, over a
+  transport that is encrypted by default. The form docs now say so (closed
+  with this entry); nothing records the choice beyond the form's own conf. The SRV lookup trusts
   the resolver the host is configured with.
 
 verdict
-: PROPOSED: accepted. The restricted-data trigger fired (SM928) and is contained
-  by an opt-in per form with an unchanged default and an encrypted transport;
-  the new actions sit behind existing, narrower-than-admin capabilities with the
-  table's confinement. No ahead-of-schedule third-party engagement proposed.
-  Not yet signed off.
+: accepted. The restricted-data trigger fired (SM928) and is contained: the data
+  flow is the one email delivery of a submission has always been, by the release
+  manager's ruling likely more contained than email, opt-in per form with an
+  unchanged default and an encrypted transport. The new actions sit behind
+  existing, narrower-than-admin capabilities with the table's confinement. No
+  ahead-of-schedule third-party engagement required.
