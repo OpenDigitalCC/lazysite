@@ -947,3 +947,61 @@ verdict
   external interface, authentication method or dependency; the new actor acts
   through the existing capability model with a second gate in front of it.
   Trigger review at phase 2 (the local socket), which IS a new interface.
+
+### 2026-10-06 - SM924/SM925/SM928/SM929/SM938 (0.15.2): submission content can leave the site, and three new actions reach it
+
+DRAFT - the verdict below is proposed, not yet signed off by the release manager.
+
+what changed
+: **SM928**: a submission notice can carry the submitted fields - over XMPP and
+  in the bell - when, and only when, the form says `notify: full`; on `on`, the
+  default, the notice stays one line. **SM938 D4/D5**: two control-API/MCP
+  actions and a manager page - `form-notify-save` / `set_form_notify` (writes a
+  form's `notify:`, gated `manage_forms`) and `form-submission` /
+  `read_form_submission` (reads one stored submission by store and row id, gated
+  `read_submissions`), with `/manager/submission` showing it. **SM924**:
+  deleting submissions over the API is a capability of its own,
+  `delete_submissions`, off by default, with no MCP twin. **SM925 X2**: the XMPP
+  endpoint is found from the domain's SRV record through `Net::DNS` - a new
+  dependency, lazy-loaded only when the XMPP extension is enabled. **SM929**: the
+  one reader that consulted `X-Forwarded-For` stops believing it.
+
+threat delta
+: Information disclosure is the question that moves: with `notify: full`,
+  submitted personal data leaves the site to a third-party XMPP server and a
+  phone, where before only the form's name did - new processing of restricted
+  data, which is a named trigger. The new read action exposes nothing the
+  submissions table did not, but it is an addressable URL carrying a store path
+  and an id, so confinement has to hold for a crafted one. `delete_submissions`
+  lets a token destroy personal data, which no token could before. `Net::DNS`
+  is a dependency with no authentication logic and adds an outbound DNS query to
+  the host's configured resolver. SM929 removes a spoofing path rather than
+  adding one.
+
+controls
+: `notify: full` is per form and opt-in, set by a `manage_forms` holder; the
+  shipped default is unchanged, so an upgrade emits nothing new. Fields in a
+  notice are truncated, and the XMPP transport is TLS with peer verification by
+  default (the SM136 entry). `form-submission` goes through the same
+  `_submissions_path` confinement as the table - a store outside the configured
+  submission directories is refused, which `t/unit/forms/34` asserts with a real
+  file outside them - and the page renders values with `textContent` only.
+  `delete_submissions` is held by no group after an upgrade, is named for what
+  it permits (any submission on the site), and the manager's own delete is
+  unchanged. Every new action is classified in the gate, audit and git
+  guarantees (lints 14, 98; t/unit/lib/16, 18), and the MCP/API parity lint
+  pins both twins.
+
+residual risk
+: a site that enables `notify: full` sends personal data to whoever operates
+  its XMPP account. That is the operator's choice, but the shipped form docs do
+  not yet say that `full` sends the submitted fields off the site, and nothing
+  records the choice beyond the form's own conf - a docs gap worth closing. The SRV lookup trusts
+  the resolver the host is configured with.
+
+verdict
+: PROPOSED: accepted. The restricted-data trigger fired (SM928) and is contained
+  by an opt-in per form with an unchanged default and an encrypted transport;
+  the new actions sit behind existing, narrower-than-admin capabilities with the
+  table's confinement. No ahead-of-schedule third-party engagement proposed.
+  Not yet signed off.
