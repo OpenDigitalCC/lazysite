@@ -1956,6 +1956,41 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.2** (2026-10-06, edge) - **An install says whether the site works,
+  the bell can be acted on, and a submission is shown as it was typed.**
+  Provision ends by running the health check and exits non-zero when the site
+  is not serviceable; everything it creates takes the docroot's group, and
+  `check --fix` may correct a mode the installer itself left (SM933). The bell
+  has per-notice read state, "Mark all read" and Dismiss, and a submission
+  notice links to the one submission it announces; the Handlers page says where
+  each form's notice goes and can set the form's `notify:` (SM938). Submissions
+  holding a non-ASCII character are shown rather than counted malformed (SM904).
+  Also: server-side field rules (SM934), a rolling-hour rate limit (SM935), ACLs
+  that do not outlive what they governed (SM936), `--no-starter` (SM939), a
+  visitor report on counting basis 4 (SM941), JSON-LD from a layout (SM824),
+  newest-first bounded feeds (SM942), and the release gate split from the build.
+- **0.15.1** (2026-09-30, edge) - **A file that will not open stops reading as
+  one with nothing in it, and a row's controls stay with the row.** The
+  store-reader rule reaches every reader that names a store, and two of the
+  twelve repaired were losing data (SM917); an agent can read the bell (SM918);
+  a submission sent to a service says so (SM579); a notice can reach a named
+  person by mail (SM485); a domain can be a second name for an existing site
+  (SM217); the perf gate stops measuring the clock (SM916).
+- **0.15.0** (2026-09-28, edge) - **An unreadable store stops speaking for the
+  site, and one table decides.** An unreadable auth store or audit trail is
+  reported as such rather than as empty (SM906, SM907); the capability table
+  that decides is the one that is published (SM662); an uploaded file can reach
+  a service and a form can ask for the camera (SM905); a pull no longer
+  publishes into a protected folder (SM881).
+- **0.14.4** (2026-09-22, stable) - **An include stays inside its section, and
+  a cut can complete on this host.** An include no longer lifts governed content
+  into a public page (SM898); the coverage gate stops exhausting inodes (SM896)
+  and names its own failures (SM895).
+- **0.14.3** (2026-09-21, stable) - **Installing a site is a verb the operator
+  chooses.** Install, upgrade and reinstall are three commands (SM892); page
+  validation is an engine capability that exits non-zero on a broken page
+  (SM887); included partials refresh the pages that include them and work in
+  protected sections (SM888).
 - **0.14.2** (2026-09-15, **STABLE**) - **Two ways a site could keep serving
   the build it no longer runs.** 0.14.1 restarted the workers, and the field
   then measured what that did not reach: ten sites answering a fresh,
