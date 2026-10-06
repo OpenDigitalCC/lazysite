@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SBOM (PENDING) **`Net::DNS` is declared in the SBOM, and an undeclared module
+## 0.15.2 - EDGE: an install says whether the site works, the bell can be acted on, and a submission is shown as it was typed (2026-10-06)
+
+- SBOM (d0ddee56) **`Net::DNS` is declared in the SBOM, and an undeclared module
   fails the handoff that adds it.** SM925 X2 (the XMPP endpoint from the domain's
   SRV record) added `require Net::DNS` without an entry in
   `dist/config/sbom-deps.json`. The strict SBOM check refuses exactly that, but it
@@ -55,7 +57,7 @@ Naming the commit: AFTER it lands, never before
   writes its receipt: the build that follows should refuse nothing the gate could
   have found.
 
-- (PENDING) **the release gate runs apart from the build, and cannot prompt for a
+- Gate (0c4f025d) **the release gate runs apart from the build, and cannot prompt for a
   password.** The 0.15.2 build stopped in the release manager's terminal on a
   polkit prompt: t/tools/81 ran the package's postrm against a fake root that
   redirected `/etc/lazysite` and nothing else, so the host's own `systemctl

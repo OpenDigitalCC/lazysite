@@ -15,10 +15,12 @@
 #   GATE runs the long part - the full suite, the bench and the ~1 hour
 #   instrumented coverage run - and writes a receipt for that exact commit,
 #   version and channel under tmp/release-gate/VERSION/, with every log beside
-#   it. It is the developer agent's job, run detached; nobody's terminal is held
-#   for an hour. BUILD then needs that receipt and does the short part:
-#   manifest, SBOM, man pages, tarball, packages, local tag. `build --run-gate`
-#   runs the gate inline instead, for a host with no receipt.
+#   it. BUILD then needs that receipt and does the short part: manifest, SBOM,
+#   man pages, tarball, packages, local tag. Both are the developer agent's
+#   job, run detached, with their output read and checked by it (ruled
+#   2026-10-06); nobody's terminal is held. PUBLISH - the push - is the one
+#   step that belongs to the release manager. `build --run-gate` runs the gate
+#   inline instead, for a host with no receipt.
 #
 #   NO TEST OR GATE STEP CAN PROMPT FOR A PASSWORD. They run under `setsid -w`
 #   with stdin from /dev/null, so there is no controlling terminal: anything
