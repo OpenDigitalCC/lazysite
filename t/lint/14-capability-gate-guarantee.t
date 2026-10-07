@@ -164,7 +164,10 @@ is( "@divergent", '',
 # POST). Reads are exempt via an explicit reviewed allowlist. This catches the
 # 0.8.1 site-backup-* gap class: capability-gated, state-changing, but not
 # POST-forced.
-my %COOKIE_READ = map { $_ => 1 } qw(
+# SM943 follow-up: a heredoc, comments stripped. As a qw() list the comment
+# lines below were split into words and every word became an entry - a comment
+# naming an action would have exempted it.
+my %COOKIE_READ = map { $_ => 1 } map { ( my $l = $_ ) =~ s/#.*//; split ' ', $l } split /\n/, <<'COOKIE_READ';
     connector-list connector-calls remap-list
     domains-list domain-preview domain-check config-read bad-url-blocks
     backup-list backup-download lang-status git-status git-history git-history-summary git-show
@@ -203,7 +206,7 @@ my %COOKIE_READ = map { $_ => 1 } qw(
     # binding, the schedule. Gated now that the Handlers page opens for any of
     # three capabilities; their writers are in %MUTATING.
     handler-list form-targets-read schedule-list
-);
+COOKIE_READ
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed
 # exception rather than a read.
