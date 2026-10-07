@@ -47,6 +47,7 @@ while (@ARGV) {
     elsif ( $a eq '--check-dav' )     { $opt{check_dav}     = shift @ARGV }
     elsif ( $a eq '--check-acl' )     { $opt{check_acl}     = shift @ARGV }
     elsif ( $a eq '--dependencies' )  { $opt{dependencies}  = 1 }
+    elsif ( $a eq '--sinks' )         { $opt{sinks}         = 1 }
     elsif ( $a eq '--handover-mode' ) { $opt{handover_mode} = shift @ARGV }
     elsif ( $a eq '--help' )          { usage(); exit 0 }
     else { print STDERR "lazysite-check.pl: unknown option '$a'\n"; exit 2 }
@@ -90,6 +91,12 @@ Usage: perl tools/lazysite-check.pl --docroot PATH [options]
                    gated .dat, so a one-extension probe reports OK on a leaking
                    site. Writes a temporary entry to the ACL store and removes
                    it, including after an interrupt.
+  --sinks          send one marked diagnostic line through the engine's syslog
+                   forwarding and report whether the system log received it
+                   (SM932). Writes one line to the host's log, so it is asked
+                   for, never run by default. The web server's error log (the
+                   CGI's STDERR) is not probed: this command's STDERR is the
+                   terminal, not the web server's.
   --dependencies   report the OS Perl packages lazysite needs (present vs missing)
                    and the install line for whatever is absent; no docroot needed
   --help           this help
@@ -1593,6 +1600,8 @@ if ( $opt{fix} ) {
     }
 }
 
+report_diagnostic_sinks() if $opt{sinks};    # SM932 (2), after any --fix re-run
+
 # --- report ------------------------------------------------------------------
 my %icon = ( OK => '  ok  ', WARN => ' warn ', FAIL => ' FAIL ' );
 my ( $fails, $warns ) = ( 0, 0 );
@@ -1645,6 +1654,101 @@ sub conf_value {
 # party before it is an exposure. This is also the migration list: an instance
 # upgrading into the release keeps every table working, and this names the ones
 # still to scope.
+# SM932 (2): DID THE DIAGNOSTICS REACH A SECOND SINK?
+#
+# syslog forwarding is on by default at WARN and above, so a failure has two
+# places to land - and each can fail quietly, syslog the quieter, because a
+# transport failure is reported once per process. This sends one marked line
+# through the engine's own forward_line (the path every log_event takes) and
+# looks for it: in the dump file when LAZYSITE_SYSLOG_DUMP redirects the engine,
+# otherwise in the journal, then /var/log/syslog or /var/log/messages.
+# LAZYSITE_CHECK_SINK_READ=journal forces the journal read (the tests use it
+# with a stand-in journalctl, so nothing reaches the host's log).
+sub report_diagnostic_sinks {
+    local $ENV{DOCUMENT_ROOT} = $DOC;
+    require Lazysite::Util;
+    my $set = Lazysite::Util::forward_diagnostics_setting();
+    if ( !$set->{forwarding} ) {
+        report( 'WARN', 'diagnostic sinks: syslog forwarding is off - the engine\'s '
+                . 'diagnostics reach only the web server\'s error log',
+            'forward_diagnostics: off in lazysite.conf; remove it for the default (WARN and above)' );
+        return;
+    }
+    my $nonce = join '', map { sprintf '%02x', int rand 256 } 1 .. 8;
+    my $line = "lazysite check: diagnostic sink probe $nonce (sent by lazysite check --sinks)";
+    # err, so any configured threshold forwards it.
+    my $sent = Lazysite::Util::forward_line( 'diag', 'err', $line );
+    if ( !$sent ) {
+        report( 'FAIL', 'diagnostic sinks: the probe line could not be sent to syslog',
+            'the engine logged why once on STDERR ("log forwarding failed"); check '
+                . 'that /dev/log exists and that Sys::Syslog is installed' );
+        return;
+    }
+    my ( $found, $where, $why ) = _sink_read_back($nonce);
+    if ($found) { report( 'OK', "diagnostic sinks: syslog received the probe ($where)" ) }
+    elsif ( defined $where ) {
+        report( 'FAIL', "diagnostic sinks: sent to syslog, but $where did not receive it within 3s",
+            "facility $set->{facility}; a log daemon filtering that facility, or one not "
+                . 'running, drops it - the engine cannot see that from its side' );
+    }
+    else {
+        report( 'WARN', 'diagnostic sinks: sent to syslog; cannot confirm it arrived - ' . $why,
+            'run as an account that can read the system log (journalctl), or look for '
+                . "'sink probe $nonce' in it yourself" );
+    }
+    return;
+}
+
+# Returns (found, where, why-unreadable): the first READABLE source is polled for
+# up to three seconds; where is undef when no source could be read at all.
+sub _sink_read_back {
+    my ($nonce) = @_;
+    require Time::HiRes;
+    my $dump        = $ENV{LAZYSITE_SYSLOG_DUMP};
+    my $force       = ( $ENV{LAZYSITE_CHECK_SINK_READ} // '' ) eq 'journal';
+    my $file_reader = sub {
+        my ($path) = @_;
+        return sub {
+            open my $fh, '<', $path or return ( 0, "$path: $!" );
+            local $/;
+            my $t = <$fh> // '';
+            close $fh;
+            return ( 1, $t );
+        };
+    };
+    my @sources;
+    if ( !$force && defined $dump && length $dump ) {
+        push @sources, [ 'the syslog dump file', $file_reader->($dump) ];
+    }
+    else {
+        push @sources, [ 'the system journal', sub {
+                my $out = `journalctl -q --no-pager -t lazysite --since=-10min -o cat 2>&1`;
+                return ( 0, 'journalctl is not available' ) if $? == -1;
+                ( my $first = $out ) =~ s/\n.*//s;
+                return ( 0, "journalctl: $first" )
+                    if $? || $out =~ /No\ journal\ files|insufficient\ permissions|not\ seeing\ messages/xi;
+                return ( 1, $out );
+        } ];
+        unless ($force) {
+            push @sources, [ $_, $file_reader->($_) ] for grep { -e } qw(/var/log/syslog /var/log/messages);
+        }
+    }
+
+    my ( $where, $read, @why );
+    for my $src (@sources) {
+        my ( $ok, $text ) = $src->[1]->();
+        if ($ok) { ( $where, $read ) = @$src; return ( 1, $where ) if index( $text, $nonce ) >= 0; last }
+        push @why, $text;
+    }
+    return ( 0, undef, join( '; ', @why ) || 'no system log could be read' ) unless $read;
+    for ( 1 .. 6 ) {
+        Time::HiRes::sleep(0.5);
+        my ( $ok, $text ) = $read->();
+        return ( 1, $where ) if $ok && index( $text, $nonce ) >= 0;
+    }
+    return ( 0, $where );
+}
+
 sub report_unscoped_data_tables {
     my $d   = $opt{docroot};
     my $dir = Lazysite::Paths::lazysite_dir($d) . "/db/tables";

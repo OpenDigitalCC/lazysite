@@ -719,6 +719,9 @@ sub _forward_warn {
     return;
 }
 
+# SM932 (2): returns 1 when the line went to the sink, 0 when sending failed,
+# and undef when the stream's setting does not forward it - so a probe can
+# tell "not sent" from "sent and lost". Every other caller ignores it.
 sub forward_line {
     my ( $stream, $priority, $line ) = @_;
     my $cfg = _forward_conf();
@@ -742,7 +745,7 @@ sub forward_line {
             1;
         };
         _forward_warn("syslog dump: $@") unless $ok;
-        return;
+        return $ok ? 1 : 0;
     }
     my $ok = eval {
         require Sys::Syslog;
@@ -754,7 +757,14 @@ sub forward_line {
         1;
     };
     _forward_warn($@) unless $ok;
-    return;
+    return $ok ? 1 : 0;
+}
+
+# SM932 (2): the diagnostics forwarding setting as a reader can say it - for
+# `lazysite check --sinks`, which must not re-read the config its own way.
+sub forward_diagnostics_setting {
+    my $cfg = _forward_conf();
+    return { forwarding => ( defined $cfg->{diag} ? 1 : 0 ), facility => $cfg->{facility} };
 }
 
 # SM110 phase 2: the host-keyed page cache. An alias host's rendered pages

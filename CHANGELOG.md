@@ -49,6 +49,18 @@ Archive
 
 ## Unreleased
 
+- SM932 (2) (PENDING) **`lazysite check --sinks` says whether syslog received a
+  line** (ruled R6). It sends one marked line through the engine's own
+  `forward_line` - the path every `log_event` takes - at `err`, so any
+  configured threshold forwards it, then looks for it in the journal, then
+  /var/log/syslog or /var/log/messages: received (ok), sent and not there
+  within 3 s (FAIL, naming the facility), could not be sent (FAIL), cannot
+  read the log to tell (warn, saying why), or forwarding off (warn). Opt-in,
+  because it writes to the host's log. `forward_line` now returns whether it
+  sent. t/tools/99 uses the engine's dump redirect and a stand-in journalctl,
+  so the suite writes nothing to the host log; three sabotages, three
+  failures. The web server's error log is not probed from the command line.
+
 - SM913 S2 + S4 (PENDING) **a link shortener holds a submission, and each form
   says whether its quarantine is on** (ruled R2). S2: one link to a shipped list
   of shortener hosts (`bit.ly`, `tinyurl.com`, `brnd.li` from the reported spam,

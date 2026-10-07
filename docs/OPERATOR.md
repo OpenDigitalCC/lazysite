@@ -296,7 +296,9 @@ systemctl restart lazysited@<domain>
   be unreadable. `forward_diagnostics` takes a level - blank for the default,
   `off`, a level name, or `on` for every level. **If you are looking for a
   warning the engine says it raised, look in syslog before concluding it never
-  happened.**
+  happened.** `lazysite check --docroot PATH --sinks` sends one marked line
+  through the engine's forwarding and says whether the journal or syslog
+  received it - or that this account cannot read the log to tell.
 - Optional syslog forwarding of the audit trail as well: `forward_audit`, a plain
   on/off, default **off**. Both keys and `syslog_facility` are managed by the
   **Logging & forwarding** plugin.
