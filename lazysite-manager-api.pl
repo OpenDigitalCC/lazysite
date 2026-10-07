@@ -41,6 +41,7 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
     action_plugin_read action_plugin_save action_plugin_action
     action_form_submissions action_form_submission action_form_submission_delete action_form_list
     action_form_submission_confirm action_form_submissions_delete_bulk
+    action_form_submission_approve
     action_form_delete);
 use Lazysite::Manager::Notices ();    # SM918: one notice reader, shared with MCP
 use Lazysite::Handlers         ();    # SM842: handlers, bindings, the schedule
@@ -2113,6 +2114,11 @@ elsif ( $action eq 'form-submissions-delete-bulk' ) {    # SM187: delete several
     my $req = _json_body();
     $result = action_form_submissions_delete_bulk( $req->{file} // $params{file}, $req->{ids} );
 }
+elsif ( $action eq 'form-submission-approve' ) {    # SM858: an account from a submission
+    my $req = _json_body();
+    $result = action_form_submission_approve( $req->{file} // $params{file}, $req->{id},
+        users => \&users_api, by => $auth_user );
+}
 elsif ( $action eq 'form-targets-save' ) {
     # SM842: handler ids only - `handlers` (a list of ids), or `targets` as the
     # manager has always sent them ({handler: id} each).
@@ -2366,6 +2372,12 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         # N141B-C: a success says what it did. Only when $ok, so the refusal
         # reason above always wins the field it was written for.
         $detail = $aud_extra if $ok && length $aud_extra;
+
+        # SM858: an approval names the row and the account it became - who
+        # approved is the trail's own `user` field, the store is the target.
+        if ( $ok && $aud_action eq 'form-submission-approve' && ref $result eq 'HASH' ) {
+            $detail = "id=$result->{id} account=$result->{user}";
+        }
 
         # SM465: an acl-set records WHAT THE RULE BECAME, and what it was.
         #
@@ -3590,6 +3602,7 @@ sub _audit_implicit_target {
     return 'default' if $action eq 'site-export-primary';    # SM185
     if ( $action eq 'form-submission-delete'
         || $action eq 'form-submission-confirm'
+        || $action eq 'form-submission-approve'              # SM858
         || $action eq 'form-submissions-delete-bulk' ) {     # SM187/SM216: name the store
         my $f = $params->{file} // $req->{file} // '';
         return $f if length $f;

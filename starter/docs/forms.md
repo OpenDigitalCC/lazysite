@@ -547,6 +547,45 @@ removes a set. The manager's Submissions page deletes without this capability, a
 it always has: it is for a person who signed in, and this grant is for a client
 that did not.
 
+### Approving an account from a submission
+
+A form that collects requests for an account says which of its fields holds the
+address, in its own conf:
+
+```yaml
+targets:
+  - handler: local-storage
+account_email: email
+```
+
+The manager's Submissions page then shows **Approve** on each of that form's
+rows. Approving creates the account in one step, with the same rules as
+`account-approve` (see [Letting people ask for an account](/docs/auth)): no
+password, the groups flagged to take registrations, the address recorded on the
+account, and a set-password link the person can also fetch for themselves from
+the Forgot password page.
+
+- **The address comes from the stored row**, never from the request. The
+  operator checks it and decides; the system does the typing.
+- **The username is the address's local part, lowercased** -
+  `Ada.Lovelace@example.org` becomes `ada.lovelace`. Nothing is stripped or
+  added. When that name cannot be used, the approval is refused with the reason
+  and nothing is created: a character a username may not hold (letters, digits,
+  `.`, `_` and `-` only), a name already taken in any letter case, or an address
+  another account already records. Create that account on the Users page with a
+  name you choose.
+- **A row is approved once.** It then shows the account it became, and
+  approving it again is refused. A second submission from the same address makes
+  the same name, so it is refused too.
+- **A quarantined row is not offered.** Confirm it first if it is genuine.
+- A form without `account_email:` offers no Approve, and its submissions stay
+  ordinary submissions.
+
+Approving needs both `read_submissions` and full user management
+(`manage_users`), and it is offered only on the manager's Submissions page: no
+token or MCP client can approve an account. Each approval is in the audit trail -
+who approved, which submission, and the account it became.
+
 ## Forms as an intake mechanism
 
 A form is the supported way for an anonymous browser to send something to a

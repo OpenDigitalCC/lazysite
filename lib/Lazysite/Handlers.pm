@@ -915,6 +915,29 @@ sub form_quarantine_state {
     };
 }
 
+# SM858: WHICH FIELD OF THIS FORM IS THE ADDRESS AN ACCOUNT IS APPROVED FROM.
+#
+# `account_email: <field>` in a form's conf turns its submissions into account
+# requests: the Submissions view offers Approve on a row and the approval reads
+# the address from that field. Absent means an ordinary form, and nothing offers
+# to approve anything - the flow is opt-in per form.
+#
+# THE ONE READER. The form handler does not act on this key (it stores fields
+# by the names they were posted under), so the manager is its only consumer;
+# t/unit/manager/200 posts through the real handler and approves from the row
+# it stored, which is what holds the conf's field name to the stored key.
+#
+# A value that cannot be a field name reads as ABSENT, never as a guess: a
+# typo'd declaration offers no button rather than one that reads the wrong
+# column. A name starting `_` is the handler's own bookkeeping, never a field.
+sub form_account_email {
+    my ($text) = @_;
+    return '' unless defined $text;
+    my ($f) = $text =~ /^\s*account_email\s*:\s*(\S+)\s*$/m;
+    return '' unless defined $f && $f =~ /\A[A-Za-z][A-Za-z0-9_-]*\z/;
+    return $f;
+}
+
 # --- the actions (every surface calls these) ---------------------------------
 
 sub action_handler_list {

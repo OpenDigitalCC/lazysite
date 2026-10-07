@@ -212,6 +212,15 @@ to find out who has one.
 A malformed address creates nothing at all - the approval is refused before the
 account exists, rather than leaving a credential-less account behind for a typo.
 
+**Or approve from the submission itself.** When the registration form's conf
+names its address field - `account_email: email` - the manager's Submissions
+page shows **Approve** on each of its rows. That runs this same approval with
+the address read from the stored row and the username taken from it (the local
+part, lowercased), so nobody retypes either. A name that cannot be used, is
+already taken, or an address already on another account is refused with the
+reason and creates nothing. See [Approving an account from a
+submission](/docs/forms).
+
 **Which group they land in is a group's own flag.** On the Groups page, a group
 can be marked *"add anonymous user registrations to this group"*. More than one
 group may carry it, and an approved account joins all of them.

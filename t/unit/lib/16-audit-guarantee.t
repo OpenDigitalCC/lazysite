@@ -222,7 +222,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         connector-save connector-secret-set connector-delete connector-call
         remap-save
         schedule-save schedule-delete
-        form-submission-confirm form-submissions-delete-bulk
+        form-submission-confirm form-submissions-delete-bulk form-submission-approve
         data-migrate data-row-save data-row-delete data-table-save data-rebuild
         data-export data-import data-table-drop data-safety-export-delete data-safety-export-restore
         brief-append brief-delete briefs-migrate

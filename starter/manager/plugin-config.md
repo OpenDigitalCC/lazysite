@@ -809,7 +809,11 @@ function showSubmissionTable(filePath, formName) {
       if (!d.ok) { setSubsBody(subsMessage(d.error || 'Could not read submissions'), 'Submissions'); return; }
       // SM216: _quarantined / _spam_reason are status meta, not form fields - drive
       // the row marking, not a data column.
-      var META = { _quarantined: 1, _spam_reason: 1 };
+      // SM858: _approved_* record the account a row became - status, not data.
+      var META = { _quarantined: 1, _spam_reason: 1, _approved_account: 1, _approved_by: 1, _approved_at: 1 };
+      // SM858: the field the form names as an account's address; set only when
+      // the form declares account_email:, and only then is Approve offered.
+      var acctField = d.account_email || '';
       var cols = (d.columns || []).filter(function(c) { return !META[c]; });
       var rows = d.rows || [];
       if (!rows.length || !cols.length) {
@@ -877,11 +881,25 @@ function showSubmissionTable(filePath, formName) {
           // invisible on a touch screen and easy to miss on any other.
           if (row._spam_reason) st.appendChild(subsNode('span', 'mg-sub-reason mg-muted', ' ' + row._spam_reason));
         }
+        if (row._approved_account) {
+          var ap = subsNode('span', 'mg-tag mg-tag-on', 'account: ' + row._approved_account);
+          ap.title = 'approved' + (row._approved_by ? ' by ' + row._approved_by : '')
+                   + (row._approved_at ? ' at ' + row._approved_at : '');
+          st.appendChild(ap);
+        }
         tr.appendChild(st);
         cols.forEach(function(c) { tr.appendChild(subsNode('td', null, row[c] == null ? '' : row[c])); });
         var act = subsNode('td', 'mg-cell-actions');
         if (row._quarantined) {
           act.appendChild(button('Confirm', 'mg-btn-sm', function() { confirmSubmissionRow(filePath, row._id, formName); }));
+        }
+        // SM858: Approve creates an account from this row. Offered only on a
+        // form that declares account_email:, on a row not yet approved and not
+        // quarantined - the server refuses those too.
+        if (acctField && !row._approved_account && !row._quarantined) {
+          act.appendChild(button('Approve', 'mg-btn-sm mg-btn-primary', function() {
+            approveSubmissionRow(filePath, row._id, formName, row[acctField]);
+          }));
         }
         act.appendChild(button('Delete', 'mg-btn-sm mg-btn-danger', function() { deleteSubmissionRow(filePath, row._id, formName); }));
         tr.appendChild(act);
@@ -912,6 +930,32 @@ function confirmSubmissionRow(filePath, rowId, formName) {
     showStatus('Submission confirmed - moved out of quarantine.');
     showSubmissionTable(filePath, formName);
   }).catch(function(e) { showStatus('Confirm error: ' + e.message, true); });
+}
+
+// SM858: approve an account from a submission. The server reads the address
+// from the stored row - `address` is only for the question asked here - and
+// derives the username from it; every refusal comes back in its own words.
+function approveSubmissionRow(filePath, rowId, formName, address) {
+  var go = function(ok) {
+    if (!ok) return;
+    fetch(API + '?action=form-submission-approve', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: filePath, id: rowId })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Approve failed', true); return; }
+      var msg = 'Account "' + d.user + '" created for ' + d.email
+              + ((d.group && d.group.length) ? ', in ' + d.group.join(', ') : ', in no group')
+              + '. They can fetch their own set-password link from the Forgot password page'
+              + ' with that address, or you can send them this one: ' + (d.url || d.path || '');
+      if (typeof mgConfirm === 'function') { mgConfirm(msg, { ok: 'Done' }); } else { showStatus(msg); }
+      showSubmissionTable(filePath, formName);
+    }).catch(function(e) { showStatus('Approve error: ' + e.message, true); });
+  };
+  var msg = 'Create an account for ' + (address == null ? '' : address) + ' from this "'
+          + formName + '" submission? The username is taken from the address.';
+  if (typeof mgConfirm === 'function') { mgConfirm(msg, { ok: 'Approve' }).then(go); }
+  else { go(window.confirm(msg)); }
 }
 
 function deleteSubmissionRow(filePath, rowId, formName) {

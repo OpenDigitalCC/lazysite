@@ -98,7 +98,10 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
 
     my @cookie_only = grep { !defined $Lazysite::ControlApi::Actions::ACTION{$_}{caps} }
         keys %Lazysite::ControlApi::Actions::ACTION;
-    is( scalar @cookie_only, 52, '52 are cookie-only' );
+    #   53 cookie-only, SM858 (0.15.3): form-submission-approve - it creates an
+    #        account, and SM268 keeps minting credentials a human act. The token
+    #        count does not move: no gate was added.
+    is( scalar @cookie_only, 53, '53 are cookie-only' );
 
     # Three spot checks, one per capability state, so a wholesale re-derivation
     # cannot pass by producing a table of the right size.

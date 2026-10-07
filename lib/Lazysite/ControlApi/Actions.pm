@@ -542,6 +542,15 @@ our %ACTION = (
                 note => 'the path to a .jsonl store, when naming one directly; `form` is preferred' },
         ],
     },
+    # SM858: approve an account from a stored submission. BOTH capabilities: it
+    # reads the row (read_submissions) and creates an account (manage_users -
+    # the full user-management grant account-approve has always needed; a
+    # delegate holding create_sub_users may not, as on the Users API).
+    # No %GATE line: cookie-only, see the reason.
+    'form-submission-approve' => { mutates => 1, changes_access => 1,
+        cookie_cap => 'manage_users+read_submissions',
+        cookie_only_reason => 'it creates an account for a person nobody has met, and SM268 ruled minting credentials a human-at-a-browser act - an operator looks at the submission and decides',
+        params => [ { name => 'file', in => 'query_or_body' }, { name => 'id', in => 'body' } ] },
     # [cookie_cap] SM187, SM660
     'form-submissions-delete-bulk' => { mutates => 1, destructive => 1, cookie_cap => 'manage_forms+read_submissions', params => [ { name => 'file', in => 'query_or_body' }, { name => 'ids', in => 'body' } ] },
     # SM842: a form's targets name handlers and nothing else, on the token

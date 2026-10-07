@@ -218,6 +218,9 @@ my %EXEMPT = (
     'Plugins::action_form_submissions_delete_bulk' =>
         'rewrites a submissions store under lazysite/forms/ (bulk row delete) - '
         . 'excluded from the versioned set (as action_form_submission_delete)',
+    'Plugins::action_form_submission_approve' =>
+        'marks a row approved in a submissions store under lazysite/forms/ and creates '
+        . 'the account through the users tool - neither is in the versioned set',
     # --- Layouts / Themes (artifact trees: captured wholesale by the
     #     commit_all sweeps, not per-action hooks - pre-existing design) ---
     'Layouts::action_layouts_releases'         => 'read-only',

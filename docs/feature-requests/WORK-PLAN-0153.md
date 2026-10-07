@@ -33,7 +33,7 @@ starts.
 | Q6 | **stage 1 built (n259)**: the manager API's ten per-action tables derive from `%ACTION`; stages 2-3 are Q13a - E5 [[SM943]] - one declaration per control-API action, the rest derived | must precede Q7/Q8, which add actions | L |
 | Q7 | ~~B3 [[SM857]]~~ **built (n260)** read half - `(mine)` views of a table (R3) | after E5 | M |
 | Q7a | **[[SM960]] security, found by the Q7 agent - built (n261)**: a custom auth header name was trusted from anyone | fixed before Q8 | S |
-| Q8 | B4 [[SM858]] - approve an account from the Submissions view (R4) | after E5 | M |
+| Q8 | ~~B4 [[SM858]]~~ **built (n262)** - approve an account from the Submissions view (R4) | after E5 | M |
 | Q9 | F7 [[SM957]] - Submissions page and menu entry with an unread count; menu regrouped; Handlers off the menu (R11) | after Q8, which adds to the Submissions view | M |
 | Q10 | A1 [[SM906]] T3 - a distinct "cannot tell" when the auth store is unreadable | ready | M |
 | Q11 | A3 [[SM869]] - raw and escaped query values separated, hostile-value test first; its adversarial review on its own branch (R7) | ready; last of the features so its review sees a settled tree | M |
@@ -78,7 +78,7 @@ Open questions raised while working the queue:
 | B1 | [[SM939]] SC2 - DELETE of a non-empty WebDAV collection answers 500 | S | Support recursive delete, or answer 405 saying "delete the contents first"? |
 | B2 | ~~[[SM913]]~~ **S2+S4 built (n254)** S2/S4/S5 - spam that passes quarantine | XS/S/XS | S2: ship a list of link-shortener hosts as a stronger signal? S4: show each form's quarantine on/off in the manager? S5: ship a default `spam_keywords` list, or say why not? |
 | B3 | ~~[[SM857]]~~ **built (n260)** read half - `(mine)` views of a table | M | Go-ahead to build it, with the filing's positions: an anonymous viewer sees no rows (never all rows), and a `(mine)` page bypasses the shared cache |
-| B4 | [[SM858]] - approve an account from a button on the Submissions view | M | Build it? It needs the form to declare `account_email:` and allocates the username from the address |
+| B4 | ~~[[SM858]]~~ **built (n262)** - approve an account from a button on the Submissions view | M | Build it? It needs the form to declare `account_email:` and allocates the username from the address |
 | B5 | ~~[[SM863]] part 2~~ **declined (R5)** - offer a known alias host as a labelled suggestion when a claim link has no site_url | S | Is a suggestion the operator must confirm better than none? |
 | B6 | ~~[[SM932]] (2)~~ **built (n255)** - `lazysite check` writes a known line and reports which log sinks received it | S | Schedule it? (Item (1), an engine-owned diagnostic log, stays deferred on OP-29) |
 

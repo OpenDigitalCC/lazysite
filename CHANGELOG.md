@@ -49,6 +49,17 @@ Archive
 
 ## Unreleased
 
+- SM858 (PENDING) **an operator approves an account from a button on the
+  Submissions view.** A form that names its address field in its conf
+  (`account_email: email`) gets Approve on each row; it runs `account-approve`
+  through the users tool with the address read from the stored row - never the
+  request - and the username is the local part, lowercased. Nothing is stripped
+  or suffixed: a character a username may not hold, a name taken in any case,
+  an address already on another account, a quarantined row or one already
+  approved is refused by name and creates nothing. The row records the account
+  it became. Needs `manage_users` and `read_submissions`, cookie-only, audited
+  with the row and the account. t/unit/manager/200-201, twelve sabotages.
+
 - SM960 (PENDING) **security: a custom auth header name was trusted from
   anyone.** With `auth_header_user` set (the docs' example is `Remote-User`) and
   no `auth_proxy_trusted: true`, a visitor sending `Remote-User: alice` passed a

@@ -4,8 +4,8 @@ title: "SM858: an approved registration carries no email, so the person it was c
 subtitle: "`account-approve` creates the account, places it in the flagged groups and mints a claim link - and records no address, so the operator must carry the link by hand and `forgot` can never resolve that account afterwards. The self-service the release manager asked for is `forgot`, which already exists and is already safe; what is missing is the one field it needs."
 brand: plain
 standard-margins: true
-status: partial
-status-note: "PARTIAL, BUILT 2026-09-12 for 0.13.14. `account-approve --email` records the address through cmd_set (validated BEFORE anything is created, so a typo leaves no credential-less account), and the API passes it through - which turns the self-service half on, because `forgot` then resolves that address and emails a fresh link to the mailbox on the account. FOUND WHILE BUILDING: the CLI command did not exist at all - the usage text has described account-approve since SM673 and the ladder never dispatched it, so the operator route that filing named was the API alone. Dispatched now, with --email and --group. t/lint/88 reads both tools' usage the other way round, which is the check that would have caught it and which its own header claimed to do. REMAINING: approval from a button on the Submissions view, which needs the form to declare `account_email:` - until then the operator passes the address rather than the system reading it off the submission."
+status: shipped
+status-note: "SHIPPED (PENDING) for 0.15.3 (n262). The second half: a form declaring `account_email:` gets Approve on the Submissions view, running account-approve with the address from the stored row and the username from it (local part, lowercased). Refused by name, creating nothing: a bad name, a taken name in any case, an address on another account, quarantined or already-approved rows."
 raised: 2026-09-12
 raised-by: release manager (expo loop)
 area: auth
@@ -102,6 +102,19 @@ own link through `forgot` and set a password at `/claim`; the same request for
 an unknown address answers identically; a form without `account_email` offers no
 approval; and the address recorded is the one from the submission rather than
 anything the caller supplied.
+
+# Build record
+
+**0.15.3 (n262), the button.** `form-submission-approve` (cookie-only;
+`manage_users` + `read_submissions`) reads the address from the row in the field
+the form's conf names, derives the username as the local part lowercased, and
+calls the users tool's `account-approve`. It refuses rather than guesses: an
+invalid character, a name taken in any letter case, an address already on an
+account (`forgot` resolves an address to the first account holding it), a
+quarantined row, a row already approved. The row records the account it became.
+t/unit/manager/200 posts through the real form handler; 201 drives the viewer.
+
+**0.13.14, the address.** The earlier status note, kept: PARTIAL, BUILT 2026-09-12 for 0.13.14. `account-approve --email` records the address through cmd_set (validated BEFORE anything is created, so a typo leaves no credential-less account), and the API passes it through - which turns the self-service half on, because `forgot` then resolves that address and emails a fresh link to the mailbox on the account. FOUND WHILE BUILDING: the CLI command did not exist at all - the usage text has described account-approve since SM673 and the ladder never dispatched it, so the operator route that filing named was the API alone. Dispatched now, with --email and --group. t/lint/88 reads both tools' usage the other way round, which is the check that would have caught it and which its own header claimed to do. REMAINING: approval from a button on the Submissions view, which needs the form to declare `account_email:` - until then the operator passes the address rather than the system reading it off the submission.
 
 # Related
 

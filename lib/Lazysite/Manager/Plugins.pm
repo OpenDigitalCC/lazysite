@@ -24,6 +24,7 @@ our @EXPORT_OK = qw(
     action_form_submissions action_form_submission
     action_form_submission_delete action_form_submission_confirm
     action_form_submissions_delete_bulk
+    action_form_submission_approve
     resolve_plugin_script plugin_enabled
 );
 
@@ -1186,6 +1187,10 @@ sub action_form_submissions {
         }
     } 0 .. $#rows;
 
+    # SM858: the field the form names as an account's address, when this store
+    # is that form's - the viewer offers Approve only then. Absent otherwise.
+    my ( undef, $account_email ) = _approval_form( $abs, $rel );
+
     return {
         ok        => 1,
         file      => $rel,
@@ -1195,6 +1200,7 @@ sub action_form_submissions {
         shown     => scalar(@out),
         truncated => ( $total > $CAP ? 1 : 0 ),
         malformed => ( $malformed || 0 ),
+        ( length $account_email ? ( account_email => $account_email ) : () ),
     };
 }
 
@@ -1323,6 +1329,218 @@ sub action_form_submission_confirm {
 
     if ( my $e = _rewrite_store( $abs, \@out ) ) { return $e }
     return { ok => 1, file => $rel, confirmed => 1 };
+}
+
+# SM858: WHICH FORM A STORE BELONGS TO, AND WHICH OF ITS FIELDS IS THE ADDRESS.
+#
+# The store is named for its form (<form>.jsonl, as the file handler writes it),
+# and that is a CLAIM about the file, not a fact: two forms can share a store
+# directory, and a store can sit in a directory its namesake form does not
+# write to. So the form's own store - resolved through Handlers, as every other
+# reader resolves it - must BE this file, or the form's `account_email:` says
+# nothing about these rows. Returns ( $form, $field, $why ): $field '' when the
+# store is not that form's or the form declares no address field, and $why says
+# which, in words a refusal can carry.
+sub _approval_form {
+    my ( $abs, $rel ) = @_;
+    ( my $form = $rel // '' ) =~ s{\A.*/}{};
+    $form =~ s/\.jsonl\z//;
+    my $none = "no form named '$form' writes this store";
+    return ( $form, '', $none ) unless length $form && $form =~ /\A[A-Za-z0-9_-]+\z/;
+    my $h  = _handlers_module();
+    my $fc = $h->can('form_file')->($form);
+    return ( $form, '', $none ) unless defined $fc && -f $fc;
+    my $want = $h->can('form_store_file')->($form);
+    return ( $form, '', "this store is not where the form '$form' writes its submissions" )
+        unless defined $want && defined $abs && _same_store( $want, $abs );
+    open my $fh, '<:utf8', $fc or return ( $form, '', "the form '$form' could not be read" );
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    my $field = $h->can('form_account_email')->($text);
+    return ( $form, $field, length $field ? '' : "the form '$form' does not declare account_email:" );
+}
+
+# One store, however it was spelt: the same leaf in the same real directory.
+sub _same_store {
+    my ( $x, $y ) = @_;
+    return 1 if $x eq $y;
+    my ( $lx, $ly ) = map { ( my $l = $_ ) =~ s{\A.*/}{}; $l } $x, $y;
+    return 0 unless $lx eq $ly;
+    my ( $dx, $dy ) = map { realpath( dirname($_) ) } $x, $y;
+    return ( defined $dx && defined $dy && $dx eq $dy ) ? 1 : 0;
+}
+
+# SM858: THE USERNAME, FROM THE ADDRESS - deterministic, and refused rather than
+# guessed. SM673 recommended allocating the name at approval from the address,
+# because a visitor-chosen name is both a collision problem and an
+# account-existence oracle.
+#
+# The name is the address's local part, lowercased. Nothing is stripped,
+# substituted or suffixed: a local part holding a character a username may not
+# (cmd_add would silently DROP it, so `jo+hn` would become `john` - somebody
+# else's name) is refused, naming the character. One address always yields one
+# name, which is what makes a second approval of the same person collide with
+# the first instead of creating a second account.
+#
+# Returns ( $name, undef ) or ( undef, $why ).
+sub approval_username {
+    my ($email) = @_;
+    $email = '' unless defined $email;
+    my ($local) = $email =~ /\A([^@\s]+)\@[^@\s]+\.[^@\s]+\z/;
+    return ( undef, "'$email' is not an email address" ) unless defined $local;
+    my $name = lc $local;
+    return ( undef, "the address's local part '$local' cannot be a username: '$1' is not "
+            . "allowed in one (letters, digits, '.', '_' and '-' only)" )
+        if $name =~ /([^a-z0-9_.-])/;
+    return ( undef, "the address's local part '$local' cannot be a username: it must start "
+            . 'with a letter or a digit' )
+        unless $name =~ /\A[a-z0-9]/;
+    return ( undef, "the address's local part '$local' is longer than 64 characters, too long "
+            . 'for a username' )
+        if length $name > 64;
+    return ( undef, "'local' is reserved - it is the sysadmin identity, not an account" )
+        if $name eq 'local';
+    return ( $name, undef );
+}
+
+# SM858: APPROVE AN ACCOUNT FROM A STORED SUBMISSION.
+#
+# The operator decides; the system does the typing. The address is the one the
+# SUBMISSION holds in the field its form names (`account_email:`), never one the
+# caller supplies, and the account is made by the users tool's account-approve -
+# the verb the CLI and the Users API already use: no password, the flagged
+# registration groups, the address recorded so `forgot` can reach it, a claim.
+#
+# NOTHING IS CREATED until every refusal has had its chance: a form without the
+# declaration, a quarantined row, a row already approved, an address that is not
+# one, a name the address cannot make, a name already taken (in any case), and
+# an address another account already records - `forgot` resolves an address to
+# the FIRST account holding it, so a second would be unreachable by its owner.
+#
+# AND APPROVING TWICE CANNOT MAKE TWO ACCOUNTS. The row is marked with the
+# account it became, and the name is a function of the address, so even an
+# unmarked row (a failed mark, a second row from the same person) arrives at an
+# existing name and is refused.
+#
+# `users` is the caller's door to the users tool (users_api in the CGI);
+# `by` is who approved, recorded on the row.
+sub action_form_submission_approve {
+    my ( $file, $id, %o ) = @_;
+    my $users = $o{users};
+    return { ok => 0, error => 'user management not available' } unless ref $users eq 'CODE';
+    return { ok => 0, kind => 'missing-parameter', field => 'file',
+        error => 'file is required - the submissions store the row is in' }
+        unless defined $file && length $file;
+    return { ok => 0, kind => 'invalid', field => 'id',
+        error => 'id is required: 16 hex characters, as the table gives it' }
+        unless defined $id && $id =~ /\A[0-9a-f]{16}\z/;
+    my ( $abs, $rel, $err ) = _submissions_path($file);
+    return { ok => 0, error => $err } if $err;
+
+    my ( $form, $field, $nofield ) = _approval_form( $abs, $rel );
+    return { ok => 0, kind => 'invalid',
+        error => "$nofield, so these submissions are not account requests - nothing was created" }
+        unless length $field;
+    return { ok => 0, kind => 'not-found', error => "no submissions for the form '$form'" }
+        unless -f $abs;
+
+    open my $fh, '<:utf8', $abs or return { ok => 0, error => 'Cannot read submissions' };
+    my $found;
+    while ( my $line = <$fh> ) {
+        ( my $trim = $line ) =~ s/\s+\z//;
+        next unless length $trim && _submission_row_id($trim) eq $id;
+        $found = _decode_row($trim);
+        last;
+    }
+    close $fh;
+    return { ok => 0, kind => 'not-found',
+        error => "no submission $id on the form '$form' - it may have been deleted or changed" }
+        unless ref $found eq 'HASH';
+
+    my $done = $found->{_approved_account};
+    return { ok => 0, kind => 'conflict', user => "$done",
+        error => "this submission was already approved as the account '$done' - nothing was created" }
+        if defined $done && !ref $done && length $done;
+    return { ok => 0, kind => 'invalid',
+        error => 'this submission is quarantined - confirm it first if it is genuine, then '
+            . 'approve it; nothing was created' }
+        if $found->{_quarantined};
+
+    my $email = $found->{$field};
+    $email = '' unless defined $email && !ref $email;
+    $email =~ s/^\s+|\s+$//g;
+    return { ok => 0, kind => 'invalid', field => $field,
+        error => "the submission has no '$field' value, which the form names as the account's "
+            . 'address - nothing was created' }
+        unless length $email;
+    my ( $user, $why ) = approval_username($email);
+    return { ok => 0, kind => 'invalid', field => $field,
+        error => "$why - nothing was created. Create this account on the Users page with a "
+            . 'name you choose.' }
+        unless defined $user;
+
+    # Taken, in ANY case: `John` and `john` are two names to the store and one
+    # person to everybody reading a list of them.
+    my $d = $users->( { action => 'users-detail' } );
+    return { ok => 0, error => 'the account store could not be read - nothing was created' }
+        unless ref $d eq 'HASH' && $d->{ok} && ref $d->{users} eq 'ARRAY';
+    for my $u ( @{ $d->{users} } ) {
+        my $n = ref $u eq 'HASH' ? $u->{user} : $u;
+        next unless defined $n && length $n;
+        return { ok => 0, kind => 'conflict', user => $n,
+            error => "an account named '$n' already exists, and '$email' makes the name "
+                . "'$user' - nothing was created or changed. Create this account on the Users "
+                . 'page with a name you choose.' }
+            if lc $n eq $user;
+        my $s = ref $u eq 'HASH' ? $u->{settings} : undef;
+        my $e = ref $s eq 'HASH' ? $s->{email}    : undef;
+        return { ok => 0, kind => 'conflict', user => $n,
+            error => "the address '$email' is already recorded on the account '$n' - nothing "
+                . 'was created. A second account with it could never fetch its own link.' }
+            if defined $e && !ref $e && lc $e eq lc $email;
+    }
+
+    my $r = $users->( { action => 'account-approve', username => $user, email => $email } );
+    return { ok => 0, error => 'user management gave no answer - check the Users page' }
+        unless ref $r eq 'HASH';
+    return { %$r, ok => 0 } unless $r->{ok};
+
+    if ( my $e = _mark_approved( $abs, $id, $user, $o{by} ) ) {
+        return { ok => 0, user => $user,
+            error => "the account '$user' was created, but the submission could not be marked "
+                . "approved ($e->{error}) - approving it again is refused by the name" };
+    }
+    return { ok => 1, file => $rel, id => $id, form => $form, user => $user, email => $email,
+        group => $r->{group}, claim => $r->{claim}, path => $r->{path},
+        ( defined $r->{url} ? ( url => $r->{url} ) : () ) };
+}
+
+# The row records the account it became, who approved it and when - which is
+# what the viewer shows in place of the button, and what refuses a second
+# approval of the same row by name before anything is asked of the users tool.
+sub _mark_approved {
+    my ( $abs, $id, $user, $by ) = @_;
+    open my $fh, '<:utf8', $abs or return { ok => 0, error => 'Cannot read submissions' };
+    my ( @out, $marked );
+    while ( my $line = <$fh> ) {
+        ( my $trim = $line ) =~ s/\s+\z//;
+        if ( !$marked && length $trim && _submission_row_id($trim) eq $id ) {
+            my $rec = _decode_row($trim);
+            if ( ref $rec eq 'HASH' ) {
+                require POSIX;
+                $rec->{_approved_account} = $user;
+                $rec->{_approved_by}      = $by // '';
+                $rec->{_approved_at} = POSIX::strftime( '%Y-%m-%dT%H:%M:%S', localtime );
+                push @out, JSON::PP->new->canonical->encode($rec) . "\n";
+                $marked = 1;
+                next;
+            }
+        }
+        push @out, $line;
+    }
+    close $fh;
+    return { ok => 0, error => 'Row not found' } unless $marked;
+    return _rewrite_store( $abs, \@out );
 }
 
 # SM187 v2: delete several rows in ONE atomic rewrite - bulk cleanup, e.g.

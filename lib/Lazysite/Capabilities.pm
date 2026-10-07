@@ -476,7 +476,10 @@ my %ACTION_INFO = (
         section => 'Accounts',
         title   => 'Manage user accounts and group membership.',
         grants => 'Create and delete accounts, and change who belongs to which group - including what those groups may do. Manager UI only: no remote surface offers it.',
-        unlocks => { ui => ['the manager Users and Groups pages'] },
+        # SM858: with read_submissions, the Approve button on a registration
+        # form's submissions.
+        unlocks => { ui => [ 'the manager Users and Groups pages',
+                'Approve (an account) on a submission whose form declares account_email' ] },
     },
     analytics => {
         section => 'Insight',
