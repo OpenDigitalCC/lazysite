@@ -8446,6 +8446,21 @@ sub render_content {
         $placeholder
     }gse;
 
+    # SM968: A PAGE BODY CANNOT CHANGE THE TEMPLATE TAGS.
+    #
+    # `[% TAGS {{ }} %]` switches the tags for the rest of the body. The form
+    # prefill and outcome banner write the visitor's text into this body BEFORE
+    # it is parsed, and _tt_inert makes it inert by encoding `[` and `%` - which
+    # holds only while the tags are `[% %]`. After a TAGS line, `?x={{ site_name }}`
+    # prefilled the site's own value: the visitor's text was the template. No
+    # escape can cover every tag pair an author might choose, so the directive
+    # is made a comment here, at the one point every body is parsed, and the
+    # author is told. Nothing shipped uses it; a layout keeps the ability.
+    if ( $protected_body =~ s/\[%([-=~+]?\s*)(?=TAGS\s)/[%#$1/g ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'a page body set TAGS - the directive is ignored: a page body uses [% %] tags' );
+    }
+
     my $processed_body = '';
     $tt->process( \$protected_body, $vars, \$processed_body )
         or do {

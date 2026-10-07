@@ -122,7 +122,6 @@ sub json_ok {
 sub shown { my $s = shift; return undef unless defined $s; $s =~ s/\0/\x{FFFD}/g; return $s }
 
 our $TODO;
-my $TODO_TAGS   = 'n271 before: a page that sets TAGS makes the pre-template sinks evaluate a value';
 my $TODO_BANNER = 'n271 before: the outcome banner is written to the page cache';
 
 # Every sink, for one query string. $raw is the value as the processor should
@@ -230,7 +229,9 @@ for my $style ( [ '{{ }}', '{{ site_name }}{{ 7 * 7 }}' ], [ 'star', '[* site_na
     my $slug = 'tags-' . unpack( 'H*', $tags );
     spit( "$docroot/$slug.md", "---\ntitle: Tags\nform: apply\nquery_params:\n  - x\n---\n\n"
             . "[% TAGS $tags %]\n\n:::form\ncode | Code | prefill:x\nnote | Note | textarea prefill:x\n:::\n" );
-    local $TODO = $tags eq '{{ }}' ? $TODO_TAGS : undef;
+    # BEFORE (measured): with TAGS {{ }}, the prefill and the banner evaluated
+    # `{{ site_name }}` - the site's name was prefilled. SM968: a body's TAGS is a
+    # comment. star and <+ +> were already inert: `[` and `<` are encoded.
     subtest "a page that sets TAGS $tags" => sub {
         my ( $h, $html ) = fetch( "/$slug", 'x=' . enc($v) );
         page_ok( $h, $html, 'prefill' );

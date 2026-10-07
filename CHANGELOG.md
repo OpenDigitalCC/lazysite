@@ -49,6 +49,14 @@ Archive
 
 ## Unreleased
 
+- SM968 (PENDING) **security: a page that set TAGS let a reflected value run as
+  a template.** The form prefill and outcome banner neutralise `[` and `%` in the
+  visitor's text, which holds only while the tags are `[% %]`; after
+  `[% TAGS {{ }} %]` in a page body, `{{ site_name }}` in a link's query was
+  evaluated. A page body's TAGS directive is now a comment, with a warning in the
+  log; layouts keep it. Found by the SM869 review's second pass;
+  t/unit/processor/90.
+
 - SM967 (PENDING) **security: a value could spell one of the engine's
   placeholders.** The passes that protect script, style, comments, code spans
   and tags restored them by a fixed word, so a value carrying the word was
