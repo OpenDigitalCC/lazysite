@@ -292,6 +292,11 @@ my @REQUEST_SCOPES;          # SM158: the request's resolved dav_scopes (union),
                 ? users_api(
                 { action => 'verify-credential', username => $u, secret => $secret } )
                 : Lazysite::Auth::Verify::verify_credential( $DOCROOT, $u, $secret );
+            # SM906 T3: the credential verified and the engine cannot tell what
+            # it may do - a distinct answer, never "Invalid credentials" and
+            # never an empty grant. No brute-force delay: the secret was right.
+            _bail( Lazysite::Auth::Settings::cannot_tell_refusal( $v->{cannot_tell} ) )
+                if $v && !$v->{ok} && $v->{cannot_tell};
             unless ( $v && $v->{ok} ) {
                 sleep 1;    # brute-force delay (per-IP limiter lands in P3.6)
                 _bail( { ok => 0, error => 'Invalid credentials' } );
@@ -459,6 +464,21 @@ $Lazysite::Auth::Acl::token_auth        = $token_auth;
     = $token_auth
     ? Lazysite::Auth::Acl::groups_for_user($auth_user)
     : grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+
+# SM906 T3: THE COOKIE DOOR ASKS THE SAME QUESTION. The token door's answer comes
+# from verify_credential; a cookie session was verified by the auth wrapper, so
+# it is asked here, once, before any gate reads a capability. Measured before:
+# a gated action refused "requires the 'X' permission. An administrator can
+# grant it" about an operator whose grant was intact, and whoami reported 0
+# held. Every request from the session gets the answer, ungated ones included:
+# an action that reaches no capability gate still runs on whatever the
+# account's record says, and that is what cannot be read.
+unless ($token_auth) {
+    if ( my $store = Lazysite::Auth::Settings::auth_cannot_tell() ) {
+        _refuse( Lazysite::Auth::Settings::cannot_tell_refusal($store),
+            'ui', "refused: cannot tell - $store unreadable" );
+    }
+}
 
 # SEC-2026-07 (M2) / SM154 (P1): the content path-bearing actions whose target a
 # dav_scope binding confines (WebDAV enforces the same). Non-content actions

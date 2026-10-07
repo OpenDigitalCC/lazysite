@@ -206,7 +206,17 @@ sub verify_credential {
     my $stored = $users{$user};
     return { ok => 0 } unless defined $stored && verify_secret( $secret, $stored );
 
+    # SM906 T3: THE SECRET IS RIGHT; WHETHER IT MAY BE USED IS NOT KNOWN. With
+    # user-settings.json unreadable, `disabled` and both expiries read as unset,
+    # so a DISABLED account's token verified and drove the API (measured: 200
+    # with the store chmod 000, 400 with it readable); with the group stores
+    # unreadable it verified holding nothing. Neither is an answer. Refused here,
+    # once, for every door that verifies a credential - and refused with the
+    # store named, because the caller has proved it holds the credential.
     my $eff = effective_settings( $docroot, $user );
+    if ( my $store = Lazysite::Auth::Settings::auth_cannot_tell() ) {
+        return { ok => 0, cannot_tell => $store };
+    }
     return { ok => 0 } if $eff->{disabled};
 
     my $exp = $eff->{token_expires_at};

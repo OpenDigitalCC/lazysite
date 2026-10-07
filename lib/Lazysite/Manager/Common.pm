@@ -695,6 +695,11 @@ our %REFUSAL_STATUS = (
     # `reason` for which fault it was; see Data::Tables.
     ( map { $_ => '500 Internal Server Error' }
             qw(render-failed snapshot-failed no-cgi-headers empty-render store-uninspectable) ),
+    # SM906 T3: an auth store exists and the web server cannot read it, so the
+    # engine cannot tell what the caller may do. Not 403 - nothing was decided
+    # about the caller - and not 500: the host is up and says exactly which
+    # file to repair. 503 is "cannot serve this now", which is the truth.
+    'cannot-tell' => '503 Service Unavailable',
 );
 
 sub refusal_status {

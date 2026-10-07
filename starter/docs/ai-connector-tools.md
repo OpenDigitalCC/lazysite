@@ -339,9 +339,20 @@ connector) vs `credential-invalid` (expired/revoked - reconnect).
 also answers with an HTTP status taken from its `kind` (SM670): `forbidden`,
 `permission`, `blocked`, `disabled` 403; `not-found` 404 (an unknown action too);
 `exists`, `in-use`, `confirm` 409; `too-large` 413; `rate` 429; a failure on the
-server 500; `partial` - part of the write happened - 207; anything else, and a
-refusal with no kind, 400. The body keeps `ok: false` either way, so a client may
-key on either. MCP tool results are JSON-RPC and stay 200.
+server 500; `partial` - part of the write happened - 207; `cannot-tell` 503;
+anything else, and a refusal with no kind, 400. The body keeps `ok: false` either
+way, so a client may key on either. MCP tool results are JSON-RPC and stay 200.
+
+**`cannot-tell` is not a refusal of your account.** It means an auth store the
+engine needs to answer "what may this account do" exists and the web server
+cannot read it - a file permission fault on the host. Your credential verified;
+nothing was decided about your grants, so do not ask for one. The body names the
+store (`store`, a docroot-relative path such as
+`lazysite/auth/groups-settings.json`) and the repair (`repair`: `lazysite check
+--docroot <docroot> --fix`, run by the operator). Every call answers this until
+the store is readable, `whoami` included, rather than reporting an empty grant.
+Over MCP the same answer is JSON-RPC error `-32003` with HTTP 503 and `kind`,
+`store` and `repair` in `error.data`.
 
 ## A reliable edit loop
 

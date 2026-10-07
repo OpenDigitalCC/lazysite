@@ -49,6 +49,19 @@ Archive
 
 ## Unreleased
 
+- SM906 T3 (PENDING) **an auth store the web server cannot read answers
+  `cannot-tell`, not an empty grant** (ruled 2026-09-29). With
+  `groups-settings.json` unreadable, `whoami` reported 0 of 29 capabilities
+  and a gated call told an account holding `api` to ask for it; MCP said the
+  same. Now the control API answers kind `cannot-tell`, HTTP 503, naming the
+  store (docroot-relative) and the repair (`lazysite check --docroot <docroot>
+  --fix`), on the token and cookie channels; MCP answers -32003 with the same
+  fields. It covers `groups`, `user-settings.json` and `users` too. Two
+  fail-opens closed on the way: an unreadable group store read as an unsecured
+  site, making every signed-in account an operator, and an unreadable
+  `user-settings.json` let a disabled account's token through.
+  t/integration/107.
+
 - SM939 SC2 (PENDING) **a WebDAV folder delete that cannot finish says what
   stopped it** (ruled R1, amended). Recursive DELETE works; when a directory
   INSIDE the folder is not writable it stops part way, and answered a bare 500

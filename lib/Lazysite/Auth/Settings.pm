@@ -18,7 +18,7 @@ our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     effective_groups touch_credential
     resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings group_is_assignable @CAP_KEYS
-    group_settings_unreadable);
+    group_settings_unreadable auth_cannot_tell cannot_tell_refusal);
 
 our $AUTH_DIR; # auth/ in the engine tree (Lazysite::Paths::lazysite_dir), set by the script
 
@@ -112,6 +112,9 @@ sub users_file           { "$AUTH_DIR/users" }
 # Names only. The credential half is deliberately not returned: nothing that
 # asks this question needs it, and a hash that never leaves this sub cannot be
 # logged by accident.
+# SM906 T3: the same fourth state as the group stores, for auth_cannot_tell.
+our $USERS_UNREADABLE = 0;
+
 sub account_names {
     my $path = users_file();
     # SM778: same guard, same hole in lint 121, and this one is worse - the
@@ -119,7 +122,11 @@ sub account_names {
     # unsearchable auth directory silently unlinked every actor in the trail.
     # Configuration is this module's question; absence is the open's.
     return {} unless defined $AUTH_DIR;
-    open my $fh, '<:utf8', $path or return ( cannot_read( 'users', $path ) // {} );
+    $USERS_UNREADABLE = 0;
+    open my $fh, '<:utf8', $path or do {
+        $USERS_UNREADABLE = $!{ENOENT} ? 0 : 1;    # errno first: cannot_read clobbers $!
+        return ( cannot_read( 'users', $path ) // {} );
+    };
     my %names;
     while ( my $line = <$fh> ) {
         chomp $line;
@@ -245,12 +252,22 @@ sub resolve_home_domain {
 }
 
 # Membership map { group => [members] } from the plain groups file.
+#
+# SM906 T3: the groups file decides capabilities as much as groups-settings.json
+# does - nobody is in a group it cannot read - so it records the same fourth
+# state, for auth_cannot_tell below. An ABSENT file stays an answer.
+our $GROUPS_UNREADABLE = 0;
+
 sub _groups_membership {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my %g;
     my $f = groups_file();
+    $GROUPS_UNREADABLE = 0;
     # SM770: the open decides.
-    open my $fh, '<:utf8', $f or return ( cannot_read( 'groups', $f ) // %g );
+    open my $fh, '<:utf8', $f or do {
+        $GROUPS_UNREADABLE = $!{ENOENT} ? 0 : 1;    # errno first: cannot_read clobbers $!
+        return ( cannot_read( 'groups', $f ) // %g );
+    };
     while (<$fh>) {
         chomp; s/^\s+|\s+$//g;
         next if /^#/ || !length;
@@ -440,8 +457,18 @@ sub _group_caps {
 # the unsecured/dev mode where any authenticated user is a manager (the fresh
 # checkout / dev-server experience). This replaces "is manager_groups set in
 # lazysite.conf" as the secured-site signal - the conf key is retired.
+#
+# SM906 T3: AN UNREADABLE STORE IS NOT AN UNSECURED SITE. read_group_settings
+# answers {} for one, and "no group grants manager access" is the unsecured/dev
+# mode in which every authenticated user is an operator - so a groups-settings.json
+# the web server could not open made every signed-in account an operator of the
+# manager API, every login a manager login, and every delegate able to confer any
+# capability. Measured before the change: a cookie request for a gated action
+# succeeded with the store chmod 000. Unknown is not "nothing is secured"; the
+# strict answer is the safe one, and an ABSENT store keeps its meaning.
 sub site_grants_manager {
     my $gs = read_group_settings();
+    return 1 if !%{$gs} && group_settings_unreadable();
     for my $g ( keys %{$gs} ) {
         my $cfg = $gs->{$g};
         next unless ref $cfg eq 'HASH';
@@ -540,6 +567,63 @@ sub display_names_block {
         display_names          => $r->{names},
         display_names_readable => ( $r->{readable} ? JSON::PP::true() : JSON::PP::false() ),
     );
+}
+
+# SM906 T3 (ruled 2026-09-29): CAN THE ENGINE TELL WHAT AN ACCOUNT MAY DO?
+#
+# caps_for answers a hash of zeros both for an account that holds nothing and
+# for a store the web server could not open, and every surface that read it
+# reported the second as the first: whoami said 0 of 29 held, and a gated call
+# told an account HOLDING the api capability to ask the operator to grant it.
+# The caller on the control API is a program, so "I hold nothing" and "I could
+# not read the store" must be different VALUES - a client that cannot branch on
+# it reads an unreadable store as a revoked grant.
+#
+# The four stores that decide what a signed-in account may do: what each group
+# grants, who is in which group, the account's own record (disabled, expiry,
+# interactive login), and the account list itself - the manager resolves a
+# cookie session's grant through it, and an account it cannot find holds nothing. Returns the docroot-relative name of the first one that
+# exists and could not be read, or '' when every one of them answered - absent
+# included, which is an answer. It OPENS each store rather than trusting a flag a
+# previous read left behind (SM770: the open decides), so it is right whichever
+# reads the caller happened to make first.
+#
+# Asked by every door after the caller's identity is established and never
+# before: the answer describes the host, and an unauthenticated caller is owed
+# nothing about it.
+sub auth_cannot_tell {
+    return '' unless defined $AUTH_DIR && length $AUTH_DIR;    # no store was named
+    read_group_settings();
+    return 'lazysite/auth/groups-settings.json' if group_settings_unreadable();
+    _groups_membership();
+    return 'lazysite/auth/groups' if $GROUPS_UNREADABLE;
+    read_settings();
+    return 'lazysite/auth/user-settings.json' unless settings_readable();
+    account_names();
+    return 'lazysite/auth/users' if $USERS_UNREADABLE;
+    return '';
+}
+
+# The one refusal every door answers with when auth_cannot_tell names a store.
+# `cannot-tell` maps to 503 in Manager::Common's %REFUSAL_STATUS: the host cannot
+# answer the question right now, and nothing about the request is wrong. The
+# sentence is the manager's (starter/manager/users.md) carried into the API, so a
+# person reading the log gets the repair without opening the other surface. The
+# path is docroot-relative: a filesystem path is not a partner's to see (SM494).
+sub cannot_tell_refusal {
+    my ($store) = @_;
+    return {
+        ok     => 0,
+        kind   => 'cannot-tell',
+        store  => $store,
+        repair => 'lazysite check --docroot <docroot> --fix',
+        error  => "Cannot tell what this account may do: $store exists and is not "
+            . 'readable by the web server. This is a file permission fault on the '
+            . 'host, not a decision about this account - its grants may be entirely '
+            . 'correct, so do not ask for one. `lazysite check --docroot <docroot>` '
+            . 'reports the file\'s owner and mode, and `lazysite check --docroot '
+            . '<docroot> --fix` repairs it.',
+    };
 }
 
 sub caps_for {

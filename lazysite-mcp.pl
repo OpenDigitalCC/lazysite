@@ -194,6 +194,26 @@ sub rpc_error {
             error => { code => $code, message => $msg } } );
 }
 
+# SM906 T3: the bearer verified and the engine cannot tell what it may do. Not
+# -32001 (that tells the agent to reissue a credential that is fine) and not
+# -32002 (that tells it a capability is missing): its own code, with the
+# control API's kind, store and repair in `data` so an agent can branch on it.
+our $BEARER_CANNOT_TELL = '';
+
+sub send_cannot_tell {
+    my ( $id, $store ) = @_;
+    my $r = Lazysite::Auth::Settings::cannot_tell_refusal($store);
+    binmode STDOUT;    # encode_json emits UTF-8 bytes; do not re-encode
+    print "Status: 503 Service Unavailable\r\n";
+    print "Content-Type: application/json\r\n";
+    print "MCP-Protocol-Version: $PROTOCOL\r\n\r\n";
+    print encode_json( { jsonrpc => '2.0', id => $id,
+            error => { code => -32003, message => $r->{error},
+                data => { reason => $r->{kind}, kind => $r->{kind},
+                    store => $r->{store}, repair => $r->{repair} } } } );
+    exit 0;
+}
+
 # SM076 OAuth: a tool call without valid auth returns HTTP 401 with a
 # WWW-Authenticate challenge pointing at the protected-resource metadata, so an
 # OAuth client (Claude.ai web) discovers the authorization server and starts the
@@ -356,6 +376,9 @@ sub verify_bearer {
             local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
             Lazysite::Auth::Verify::verify_credential( $DOCROOT, $user, $secret );
             };
+        # SM906 T3: verified, and what it may do cannot be told. Carried out to
+        # tools/call, which answers it; every other caller sees a failed bearer.
+        $BEARER_CANNOT_TELL = $v->{cannot_tell} if $v && !$v->{ok} && $v->{cannot_tell};
         return () unless $v && $v->{ok};
         # Audit the connector's first authentication with this credential (the
         # static-bearer "connected" moment - Claude Code / Desktop / a script).
@@ -372,6 +395,11 @@ sub verify_bearer {
     my $partner = Lazysite::Auth::OAuth::validate_token($cred);
     return () unless defined $partner;
     my $r = _users_api( { action => 'partner-caps', username => $partner } );
+    {
+        local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
+        $BEARER_CANNOT_TELL = Lazysite::Auth::Settings::auth_cannot_tell();
+        return () if length $BEARER_CANNOT_TELL;
+    }
     return () unless $r && $r->{ok};
     %AUTH_INFO = ( method => 'oauth',
         expires_at => Lazysite::Auth::OAuth::token_expiry($cred) );
@@ -3633,6 +3661,7 @@ elsif ( $method eq 'tools/call' ) {
     # a tool-name oracle that handed back the vocabulary SM210 withholds from an
     # anonymous tools/list, one probe at a time.
     my ( $user, $caps ) = verify_bearer();
+    send_cannot_tell( $id, $BEARER_CANNOT_TELL ) if length $BEARER_CANNOT_TELL;
     send_401($id)                                   unless defined $user;
     rpc_error( $id, -32602, "Unknown tool: $name" ) unless $tool;
 

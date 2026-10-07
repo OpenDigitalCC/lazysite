@@ -68,6 +68,9 @@ sub new_site {
 
 sub docroot { $_[0]{docroot} }
 
+# The HTTP status of the most recent call(), or undef before the first.
+sub last_status { $_[0]{last_status} }
+
 # Every store write goes through the tool that owns the store.
 sub users {
     my ( $self, @args ) = @_;
@@ -165,6 +168,9 @@ sub call {
     my $out = do { local $/; <$r> };
     my $err = do { local $/; <$e> };
     waitpid $pid, 0;
+    # SM906 T3: the STATUS LINE, kept beside the body rather than added to it -
+    # callers compare decoded bodies whole, and a key of ours would join them.
+    ( $self->{last_status} ) = $out =~ /^Status:\s*(\d+)/m;
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     my $res = eval { decode_json( $jb // '' ) };
     return ref $res eq 'HASH' ? $res : { _raw => $out, _err => $err };
