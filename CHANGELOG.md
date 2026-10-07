@@ -49,6 +49,12 @@ Archive
 
 ## Unreleased
 
+- SM954 (PENDING) **a quarantined submission shows why, in the table.** The
+  reason was stored (`_spam_reason`) and set as the tag's hover title, which a
+  touch screen never shows; the owner saw "quarantined" with no reason (0.15.2
+  edge walk, R3). It is now drawn as text beside the tag. t/unit/manager/180,
+  which runs the viewer's own code against a recording DOM, asserts it.
+
 - SM953 (PENDING) **a missing submission is named by its form, not its file.**
   The single-submission view answered "no submission <id> in
   lazysite/forms/submissions/contact.jsonl"; the owner ruled a message should not

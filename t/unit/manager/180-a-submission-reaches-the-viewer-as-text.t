@@ -102,6 +102,9 @@ ok( ( grep { $_ eq $P } @{ $r->{texts} } ), 'a value is shown as exactly the tex
 ok( ( grep { $_ eq $P } @{ $r->{texts} } ) && ( grep { $_ eq 'in a column whose NAME is the payload' } @{ $r->{texts} } ),
     'a column named by the payload is drawn too' );
 ok( ( grep { $_ eq $P } @{ $r->{titles} } ), 'the spam reason is a title property, not an attribute string' );
+# SM954: and it is SHOWN beside the tag, as text - a hover title alone is
+# invisible on a touch screen (the owner, 0.15.2 edge walk R3).
+ok( ( grep { $_ eq " $P" } @{ $r->{texts} } ), "the spam reason is drawn as visible text beside the tag" );
 ok( ( grep { $_ eq "id'$P" } @{ $r->{values} } ), 'the row id is the checkbox value as stored' );
 is( $r->{title}, "Submissions: form$P", 'the heading takes the form name as text' );
 

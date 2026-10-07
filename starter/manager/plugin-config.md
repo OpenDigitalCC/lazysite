@@ -873,6 +873,9 @@ function showSubmissionTable(filePath, formName) {
           var tag = subsNode('span', 'mg-tag mg-tag-off', 'quarantined');
           tag.title = String(row._spam_reason || '');
           st.appendChild(tag);
+          // SM954: the reason is SHOWN, not only a tooltip - a hover title is
+          // invisible on a touch screen and easy to miss on any other.
+          if (row._spam_reason) st.appendChild(subsNode('span', 'mg-sub-reason mg-muted', ' ' + row._spam_reason));
         }
         tr.appendChild(st);
         cols.forEach(function(c) { tr.appendChild(subsNode('td', null, row[c] == null ? '' : row[c])); });

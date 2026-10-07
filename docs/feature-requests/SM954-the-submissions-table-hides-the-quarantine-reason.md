@@ -4,11 +4,11 @@ title: "SM954: The submissions table shows \"quarantined\" without the reason"
 subtitle: "The reason is stored in the row (_spam_reason); the table omits it."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-07
 raised-by: the sites agent, 0.15.2 edge walk R3 (owner's browser), 2026-10-07
 area: manager
-status-note: "Owner finding 2026-10-07: Status says \"quarantined\" with no reason; the documentation says the reason is shown on the quarantine filter. The row holds _spam_reason (e.g. \"2 urls\"), so this is display only."
+status-note: "SHIPPED (PENDING): the reason is drawn as text beside the quarantined tag (it was only a hover title). t/unit/manager/180 runs the viewer code against a recording DOM and asserts the visible text; with the line removed it fails. The single-submission page already showed it."
 ---
 
 # Measured
