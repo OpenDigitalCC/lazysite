@@ -70,13 +70,13 @@ release, E5 before the new actions R3 and R4 add.
 
 | Ref | Item | Size | Needs |
 | --- | --- | --- | --- |
-| F1 | [[SM951]] - the manager bell is never wired: its script runs in `<head>` before the bell exists (since at least 0.10.0); blocks R1 | S | nothing - first |
+| F1 | ~~[[SM951]]~~ **built (n247)** - the manager bell is never wired: its script runs in `<head>` before the bell exists (since at least 0.10.0); blocks R1 | S | - |
 | F2 | [[SM952]] - a form's rate limit counts the address's posts to every form, and refused-as-invalid posts spend it | S | nothing - ruled (R8) |
 | F3 | [[SM953]] - a missing submission's message names the store file | XS | nothing |
 | F4 | [[SM954]] - the submissions table shows "quarantined" without the stored reason | XS | nothing |
 | F5 | [[SM955]] - the XMPP test says sent when the server bounces it; delivery failures are not audited | M | nothing - ruled (R9) |
 | F6 | [[SM956]] - a visit of more than five pages at under ten-second gaps is a bot (owner rule 2026-10-06) | S | nothing - ruled |
-| F7 | [[SM957]] - menu review: Submissions on the menu, Handlers off the top level, daily vs setup groups | M | a ruling on M1-M7 |
+| F7 | [[SM957]] - menu review: Submissions page and menu entry with an unread count, Handlers off the menu, daily vs setup groups | M | nothing - ruled (R11) |
 
 
 | Ref | Question | Ruling |
@@ -91,3 +91,4 @@ release, E5 before the new actions R3 and R4 add.
 | R8 | F2: SM952's rate-limit scope | **Per form**, and **only accepted submissions count** - a post refused by validation spends nothing |
 | R9 | F5: SM955's delivery reporting | **The test button reports a refused recipient** (it waits for the bounce); **every delivery failure goes to the audit log** so it can be exported |
 | R10 | Net::DNS's SBOM licence | **Keep MIT, with a note** naming the extra advertising clause |
+| R11 | F7: SM957 menu review | **M1-M7 accepted; Handlers off the menu** (reached from forms and Extensions); **the Submissions entry shows an unread count** |

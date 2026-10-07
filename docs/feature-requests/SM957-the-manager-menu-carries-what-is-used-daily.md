@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-10-07
 raised-by: release manager, 2026-10-07
 area: manager
-status-note: "Filed 2026-10-07 at the release manager's direction: Submissions is reached only through Extension Config, and Handlers is on the menu though rarely used. Measured the 17 entries; the placement below is a proposal for ruling, not a measured usage count."
+status-note: "RULED 2026-10-07 (release manager): M1-M7 accepted; Handlers comes OFF the menu (reached from each form and from Extensions); the Submissions entry shows an unread count. WORK-PLAN-0153 R11."
 ---
 
 # The request (release manager, 2026-10-07)
@@ -67,6 +67,15 @@ from the pages' purposes; there is no usage measurement to support it.
 1. Accept M1-M7 as a set, or which to change?
 2. M5: Handlers in Setup, or off the menu and reached from forms and Extensions only?
 3. Should the Submissions entry show an unread count, as the bell does?
+
+# Ruling (2026-10-07)
+
+The release manager: "accept M1-M7, handlers off menu, yes unread count."
+
+1. M1-M7 as proposed.
+2. M5: Handlers leaves the menu; it is reached from each form and from
+   Extensions.
+3. The Submissions entry shows an unread count.
 
 # Done when
 

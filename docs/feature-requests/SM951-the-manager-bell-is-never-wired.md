@@ -4,11 +4,11 @@ title: "SM951: The manager bell is never wired: its script runs before the bell 
 subtitle: "No badge, and a click throws \"mgToggleNotif is not defined\", on every manager page since at least 0.10.0."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-07
 raised-by: the sites agent, 0.15.2 edge walk R1 (owner's Firefox), 2026-10-07
 area: manager
-status-note: "Confirmed from source 2026-10-07. The guard runs in <head> (layout.tt:406) before the bell (line 654) exists, so it returns and nothing is set up. Same in v0.10.0..v0.15.1. t/unit/lib/196 extracts the function by regex, so it passes regardless. Blocks R1 of the 0.15.2 plan."
+status-note: "SHIPPED (PENDING): the block runs when the document is ready. t/unit/lib/198 loads the layout head script and bell in headless Chromium; on the 0.15.2 layout it reported handler=undefined, as the owner saw; after the fix the handler exists and a click opens the panel. R1 of the 0.15.2 plan can be walked again."
 ---
 
 # Measured

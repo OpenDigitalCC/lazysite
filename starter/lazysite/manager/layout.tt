@@ -402,7 +402,12 @@
   // Reading is now said, not inferred - following a notice's link marks THAT
   // notice read, "Mark all read" marks the lot, and "Dismiss" takes one out of
   // the panel (a second marker; the store keeps the record).
-  (function () {
+  //
+  // SM951: WHEN THE PAGE IS READY, not at once. This script is in <head> and the
+  // bell is in <body>, so a check made immediately never finds it - the block
+  // returned there from 0.10.0 to 0.15.2 and the bell was never wired.
+  // t/unit/lib/198 asks a browser.
+  function mgNotifInit() {
     if (!document.getElementById('mg-notif')) return;
     var API = '/cgi-bin/lazysite-manager-api.pl';
     function nesc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
@@ -488,7 +493,9 @@
       if (wrap && panel && !panel.hidden && !wrap.contains(e.target)) panel.hidden = true;
     });
     load();
-  })();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mgNotifInit);
+  else mgNotifInit();
 
   // SM305: ONE way to name a principal, shared by every page that names one.
   //

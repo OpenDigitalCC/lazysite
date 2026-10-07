@@ -49,6 +49,16 @@ Archive
 
 ## Unreleased
 
+- SM951 (PENDING) **the manager bell works.** Its script runs in `<head>` and
+  looked for the bell at once, before `<body>` was parsed, so it never found it
+  and set nothing up: no badge, no panel, and a click threw "mgToggleNotif is not
+  defined" - on every manager page since at least 0.10.0. Found by the 0.15.2
+  edge walk (R1) in the owner's browser. The block now runs when the document is
+  ready. The existing tests read the template's text and passed throughout;
+  t/unit/lib/198 loads the layout's own head script and bell in headless
+  Chromium and asserts the handler exists and opens the panel, and it fails on
+  the 0.15.2 layout.
+
 ## 0.15.2 - EDGE: an install says whether the site works, the bell can be acted on, and a submission is shown as it was typed (2026-10-06)
 
 - SBOM (d0ddee56) **`Net::DNS` is declared in the SBOM, and an undeclared module
