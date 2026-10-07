@@ -45,7 +45,7 @@ one. Rulings taken on this plan are recorded in the table at the end.
 | D2 | [[SM887]] A5, E2/E5/E7 - the claude.ai skill on a real site | The release manager running it in a real conversation |
 | D3 | [[SM888]] C3 - fix the five sites; C1/C2 live sweep | The sites agent (C3 is estate work) |
 | D4 | [[SM747]] - Odoo integration | Its ruling |
-| D5 | [[SM942]] - status reads partial though FO1-FO3 are built | A read of the filing to confirm nothing remains, then `shipped` |
+| D5 | ~~[[SM942]]~~ **closed 2026-10-07** - FO1-FO3 built; R11 passed on edge; status `shipped` | - |
 
 # Group E - development cost (filed 2026-10-07)
 
@@ -65,6 +65,17 @@ release, E5 before the new actions R3 and R4 add.
 | E7 | [[SM946]] - prose caps; the changelog keeps one minor, older ones archived | S | nothing |
 | E8 | [[SM945]] - comments state the invariant; history to git and the filing | ongoing | applied as files are touched |
 | E9 | [[SM944]] - the processor and the manager API split into modules, one area per branch | L | E5 for the manager API half |
+
+# Group F - from the 0.15.2 edge walk (filed 2026-10-07)
+
+| Ref | Item | Size | Needs |
+| --- | --- | --- | --- |
+| F1 | [[SM951]] - the manager bell is never wired: its script runs in `<head>` before the bell exists (since at least 0.10.0); blocks R1 | S | nothing - first |
+| F2 | [[SM952]] - a form's rate limit counts the address's posts to every form, and refused-as-invalid posts spend it | S | a ruling: per form or per address; should an invalid post count? |
+| F3 | [[SM953]] - a missing submission's message names the store file | XS | nothing |
+| F4 | [[SM954]] - the submissions table shows "quarantined" without the stored reason | XS | nothing |
+| F5 | [[SM955]] - a notification channel is reported from configuration, not delivery | M | a decision on what to show; shares SM932 (2)'s shape (B6) |
+| F6 | [[SM956]] - a visit of more than five pages at under ten-second gaps is a bot (owner rule 2026-10-06) | S | nothing - ruled |
 
 
 | Ref | Question | Ruling |
