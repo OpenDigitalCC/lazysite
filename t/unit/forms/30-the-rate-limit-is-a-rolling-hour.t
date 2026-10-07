@@ -13,6 +13,10 @@
 # a colon-separated number after an IPv6 address that already contains colons,
 # and the purge had to parse it back out.
 #
+# SM952 (ruled R8): the key is now FORM AND ADDRESS, and the check only reads -
+# a time is recorded only when the submission is stored (record_rate_stamp), so
+# a post refused by validation spends nothing.
+#
 # WHY THIS FILE CALLS THE SUB DIRECTLY. The boundary is a property of the clock,
 # and driving it through a real POST would need the test to wait an hour or to
 # fake time for the whole CGI. The sub takes the address and the ceiling and
@@ -40,8 +44,11 @@ my $src = do {
     local $/;
     <$fh>;
 };
-my ($sub) = $src =~ /^(sub check_rate_limit \{.*?^\})/ms
-    or BAIL_OUT('could not lift check_rate_limit out of plugins/form-handler.pl');
+my $sub = join "\n", map {
+    my ($one) = $src =~ /^(sub \Q$_\E \{.*?^\})/ms
+        or BAIL_OUT("could not lift $_ out of plugins/form-handler.pl");
+    $one;
+} qw(check_rate_limit record_rate_stamp _rate_key _rate_stamps);
 
 my @REJECTED;
 my $code = <<'HEAD' . $sub . "\n1;\n";
@@ -55,27 +62,33 @@ our $DB_HASH = $DB_File::DB_HASH;
 sub _ensure_dir_for { return 1 }
 sub reject { push @main::REJECTED, $_[1] // 'rate'; die "REJECTED\n" }
 HEAD
-eval $code or BAIL_OUT("lifted check_rate_limit did not compile: $@");
+eval $code or BAIL_OUT("lifted rate limiter did not compile: $@");
 $RL::FORMS_DIR = "$doc/lazysite/forms";
 
-# Returns 1 if the submission was accepted, 0 if the limiter refused it.
+# Returns 1 if the submission was accepted, 0 if the limiter refused it. An
+# accepted one is stored, so it is recorded; $invalid stands for a post the
+# form then refused, which is checked but never recorded.
 sub submit {
-    my ($ip) = @_;
+    my ( $ip, $form, $invalid ) = @_;
+    $form //= 'contact';
     @REJECTED = ();
-    my $ok = eval { RL::check_rate_limit( $ip, 5 ); 1 };
-    return ( $ok && !@REJECTED ) ? 1 : 0;
+    my $ok = eval { RL::check_rate_limit( $form, $ip, 5 ); 1 };
+    return 0 unless $ok && !@REJECTED;
+    RL::record_rate_stamp( $form, $ip, 5 ) unless $invalid;
+    return 1;
 }
 
 # Rewrite the stored times so a submission looks as though it happened N seconds
 # ago. This is the only way to reach across the window without waiting.
 sub age_stamps_by {
     my ( $ip, $secs ) = @_;
+    my $key = "contact $ip";
     my %db;
     tie( %db, 'DB_File', "$RL::FORMS_DIR/.rate-limit.db",
         O_RDWR | O_CREAT, 0o600, $DB_File::DB_HASH )
         or die 'tie failed';
-    my @s = map { $_ - $secs } grep { /\A\d+\z/ } split /,/, ( $db{$ip} // '' );
-    $db{$ip} = join ',', @s;
+    my @s = map { $_ - $secs } grep { /\A\d+\z/ } split /,/, ( $db{$key} // '' );
+    $db{$key} = join ',', @s;
     untie %db;
     return scalar @s;
 }
@@ -129,7 +142,7 @@ subtest 'the stored row stays bounded' => sub {
     tie( %db, 'DB_File', "$RL::FORMS_DIR/.rate-limit.db",
         O_RDWR | O_CREAT, 0o600, $DB_File::DB_HASH )
         or BAIL_OUT('tie failed');
-    my @s = split /,/, ( $db{'10.0.0.1'} // '' );
+    my @s = split /,/, ( $db{'contact 10.0.0.1'} // '' );
     untie %db;
     cmp_ok( scalar @s, '<=', 5, 'at most `limit` times are kept per address' );
 };
@@ -156,6 +169,24 @@ subtest 'a row left by the OLD scheme is cleared, not trusted' => sub {
         or BAIL_OUT('tie failed');
     ok( !exists $db{"10.9.9.9:$old_hour"}, 'and the legacy key is gone' );
     untie %db;
+};
+
+subtest 'SM952: one form does not spend another form allowance' => sub {
+    # The 0.15.2 edge walk, R8: five posts to `contact` refused a new form's
+    # first post from the same address.
+    submit( '10.0.0.5', 'contact' ) for 1 .. 5;
+    is( submit( '10.0.0.5', 'contact' ), 0, 'the address has spent contact' );
+    is( submit( '10.0.0.5', 'signup' ), 1, 'and another form still takes its first post' )
+        or diag('The limit is per form and address (R8). Keyed on the address alone it is not.');
+};
+
+subtest 'SM952: a post the form refuses spends nothing' => sub {
+    submit( '10.0.0.6', 'contact', 'invalid' ) for 1 .. 5;
+    is( submit( '10.0.0.6', 'contact' ), 1,
+        'five refused-as-invalid posts, and the next good one is still accepted' )
+        or diag('Only a stored submission counts (R8). A visitor correcting a mistake is never locked out.');
+    submit( '10.0.0.6', 'contact' ) for 1 .. 4;
+    is( submit( '10.0.0.6', 'contact' ), 0, 'and five stored ones still reach the ceiling' );
 };
 
 done_testing();

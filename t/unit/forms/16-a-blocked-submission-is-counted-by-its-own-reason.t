@@ -178,6 +178,40 @@ subtest 'rate: the limit blocks and is counted under its own reason' => sub {
     is( $blocked[0] ? $blocked[0]{reason} : '(none)', 'rate', "under 'rate'" );
 };
 
+# --- SM952 (ruled R8): per form, and only a stored submission spends it -------
+#
+# Driven through the real handler, because the second half is a property of WHERE
+# the time is recorded, which a test of the limiter alone cannot see.
+subtest 'rate: a post the form refuses spends nothing' => sub {
+    my $docroot = site( rate_limit => 1 );
+    open my $rf, '>', "$docroot/lazysite/forms/contact.rules" or die $!;
+    print {$rf} '{"form":"contact","version":1,"fields":['
+        . '{"name":"email","type":"email","bound":"length","max":1000}]}';
+    close $rf;
+    for ( 1 .. 2 ) {
+        my $bad = submit( $docroot, fields => { email => 'not-an-address' } );
+        unlike( $bad, qr/"ok":1/, "invalid post $_ is refused" ) or diag($bad);
+    }
+    my $good = submit( $docroot, fields => { email => 'a@example.org' } );
+    like( $good, qr/"ok":1/,
+        'with a limit of one, a good post after two invalid ones is accepted' )
+        or diag( "R8: only a stored submission counts.\n$good" );
+    my $again = submit( $docroot, fields => { email => 'b@example.org' } );
+    like( $again, qr/"ok":0/, 'and the stored one did spend the allowance' ) or diag($again);
+};
+
+subtest 'rate: one form does not spend another' => sub {
+    my $docroot = site( rate_limit => 1 );
+    open my $ff, '>', "$docroot/lazysite/forms/signup.conf" or die $!;
+    print {$ff} "rate_limit: 1\ntargets:\n  - handler: store\n";
+    close $ff;
+    like( submit($docroot), qr/"ok":1/, 'contact takes its one post' );
+    like( submit($docroot), qr/"ok":0/, 'and refuses the next' );
+    my $other = submit( $docroot, form => 'signup' );
+    like( $other, qr/"ok":1/, 'while signup, from the same address, takes its first' )
+        or diag( "R8: the limit is per form. The 0.15.2 edge walk's R8 was this.\n$other" );
+};
+
 # --- SM934: the second refusal channel, and it must not land in `blocked` ----
 #
 # THIS SECTION EXISTS BECAUSE THE ROLL-CALL BELOW DID NOT CATCH IT. SM934 added

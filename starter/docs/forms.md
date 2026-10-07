@@ -567,7 +567,10 @@ Bots that fill all fields are rejected.
 **HMAC timestamp token** - submissions must arrive between 3 seconds
 and 2 hours after the form was rendered. Prevents replay attacks.
 
-**Rate limiting** - maximum 5 submissions per IP per hour. Uses
+**Rate limiting** - maximum 5 stored submissions per form, per address, in any
+rolling hour. Each form has its own allowance, so posts to one form never
+refuse another, and only a submission the form stores spends it: a post
+refused for a missing or malformed field costs the visitor nothing. Uses
 `DB_File` for persistence.
 
 The ceiling is per form: `rate_limit: 200` in the form's config raises it, and `rate_limit: off` removes it. Five an hour is right for a public contact form and wrong for an authenticated team working through a set of data-entry pages from one office address. Set it only on a form whose access is already controlled another way - the limit is what protects an open form from being used as a relay.

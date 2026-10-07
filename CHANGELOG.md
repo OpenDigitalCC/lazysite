@@ -49,6 +49,17 @@ Archive
 
 ## Unreleased
 
+- SM952 (PENDING) **a form's rate limit is its own, and only a stored submission
+  spends it** (ruled R8). The limiter was keyed on the address alone and recorded
+  a time on every post that reached it, before validation: five posts to one form
+  refused another form's first, and a visitor who got a field wrong spent their
+  allowance correcting it. That was the 0.15.2 edge walk's R8. The check still
+  runs early and refuses a flood before any work, but only reads; the time is
+  recorded once the submission is stored (quarantined ones included - the form
+  kept them), keyed on form and address. Rows of the old key age out within the
+  hour. t/unit/forms/16 drives both cases through the handler; each fails with
+  the old key or with recording on every post.
+
 - SM951 (PENDING) **the manager bell works.** Its script runs in `<head>` and
   looked for the bell at once, before `<body>` was parsed, so it never found it
   and set nothing up: no badge, no panel, and a click threw "mgToggleNotif is not

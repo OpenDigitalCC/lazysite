@@ -794,7 +794,8 @@ break, will cross it and the person loses what they typed. Design for **partial
 submission**, keep pages short, and put "submit as you go" in the on-page
 guidance rather than in a briefing nobody re-reads.
 
-**Rate limiting is five submissions per IP per hour** by default, which is right
+**Rate limiting is five stored submissions per form, per address, in a rolling
+hour** by default (a post the form refuses spends nothing), which is right
 for a public contact form and wrong for a team working through data-entry pages
 from one office address. From SM425 a submission whose **session cookie
 verifies** bypasses the anonymous limit, so a signed-in team needs no tuning -

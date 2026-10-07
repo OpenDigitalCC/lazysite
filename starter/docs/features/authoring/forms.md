@@ -213,7 +213,7 @@ Notes:
 ### Notes
 
 - Security is automatic: honeypot, HMAC timestamp (3s-2h window),
-  rate limiting (5/hour/IP), header injection prevention
+  rate limiting (5 an hour per form and address), header injection prevention
 - Forms submit via fetch (AJAX) - no page reload
 - HMAC secret auto-generated at `lazysite/forms/.secret`
 - [Forms guide](/docs/forms) - full setup and configuration

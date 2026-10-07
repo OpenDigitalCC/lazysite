@@ -71,7 +71,7 @@ release, E5 before the new actions R3 and R4 add.
 | Ref | Item | Size | Needs |
 | --- | --- | --- | --- |
 | F1 | ~~[[SM951]]~~ **built (n247)** - the manager bell is never wired: its script runs in `<head>` before the bell exists (since at least 0.10.0); blocks R1 | S | - |
-| F2 | [[SM952]] - a form's rate limit counts the address's posts to every form, and refused-as-invalid posts spend it | S | nothing - ruled (R8) |
+| F2 | ~~[[SM952]]~~ **built (n248)** - a form's rate limit counts the address's posts to every form, and refused-as-invalid posts spend it | S | nothing - ruled (R8) |
 | F3 | [[SM953]] - a missing submission's message names the store file | XS | nothing |
 | F4 | [[SM954]] - the submissions table shows "quarantined" without the stored reason | XS | nothing |
 | F5 | [[SM955]] - the XMPP test says sent when the server bounces it; delivery failures are not audited | M | nothing - ruled (R9) |

@@ -243,7 +243,7 @@ eval {
     else {
         # SM929: per VISITOR. Keyed on REMOTE_ADDR the bucket was "$proxy:$hour",
         # so behind a front end one visitor's submissions spent everybody's quota.
-        check_rate_limit( _request_ip() || '0.0.0.0', $conf->{rate_limit} );
+        check_rate_limit( $name, _request_ip() || '0.0.0.0', $conf->{rate_limit} );
     }
 
     # Binary uploads: reject up front (before any handler runs) if the form does
@@ -327,6 +327,10 @@ eval {
     _notify_submission( $name, $conf->{notify_mode}, \%form, $stored )
         unless $form{_quarantined};    # SM113 badge
     _record_form_event( $name, $form{_quarantined} ? 'quarantined' : 'stored' ); # SM216-2
+        # SM952: stored, so it spends the allowance - quarantined included, since the
+        # form kept it. A member's post was waived above and spends nothing.
+    record_rate_stamp( $name, _request_ip() || '0.0.0.0', $conf->{rate_limit} )
+        unless $signed_in;
         # SM579: WHICH TRUE SENTENCE. A connector delivered means the submission left
         # for a service, so it was received and sent for processing - which is what
         # happened, and it promises neither a reply nor a page, because only the author
@@ -1314,68 +1318,72 @@ sub check_timestamp {
 # An operator setting `rate_limit:` on the one gated form they built is explicit,
 # auditable, and needs no trust decision about a header nobody verified.
 sub check_rate_limit {
-    my ( $ip, $limit ) = @_;
+    my ( $form, $ip, $limit ) = @_;
+    my ( $stamps, $limit_n ) = _rate_stamps( $form, $ip, $limit );
+    return unless defined $stamps;
+    reject( 'Rate limit exceeded', 'rate' ) if @$stamps >= $limit_n;
+    return;
+}
 
-    # Absent = 5, the shipped default. 0 or `off` = no limit, for a form whose
-    # access is already controlled by something better than an address count.
+# SM952 (ruled R8): the count is PER FORM AND ADDRESS, and only a STORED
+# submission spends it. The check above runs early and only reads, so a flood
+# is still refused before any work; this records the time once the submission
+# is stored, so a post refused by validation costs the visitor nothing. Before
+# SM952 the key was the address alone, so five posts to one form refused the
+# next form's first post (the 0.15.2 edge walk, R8).
+sub record_rate_stamp {
+    my ( $form,   $ip,      $limit ) = @_;
+    my ( $stamps, $limit_n, $db )    = _rate_stamps( $form, $ip, $limit, 1 );
+    return unless defined $stamps;
+    my @stamps = ( @$stamps, time() );
+
+    # Bounded by the limit: a decision only ever needs to know whether there are
+    # $limit stamps inside the window, so older ones carry no information.
+    shift @stamps while @stamps > $limit_n;
+    $db->{ _rate_key( $form, $ip ) } = join ',', @stamps;
+
+    # Purge ONCE PER CLOCK HOUR: this walks every key, the one unbounded thing on
+    # the submission path. A row of the old schemes (a bare count, or an address
+    # key) holds no time inside the window, so it is cleared - counters start
+    # from zero, the safe direction.
+    my $now        = time();
+    my $clock_hour = int( $now / 3600 );
+    if ( ( $db->{_purged_hour} // -1 ) != $clock_hour ) {
+        for my $k ( keys %$db ) {
+            next if $k eq '_purged_hour';
+            my @keep = grep { /\A\d+\z/ && $_ > $now - 3600 }
+                split /,/, ( $db->{$k} // '' );
+            if (@keep) { $db->{$k} = join ',', @keep }
+            else       { delete $db->{$k} }
+        }
+        $db->{_purged_hour} = $clock_hour;
+    }
+    untie %$db;
+    return;
+}
+
+# One key for both halves. A space separates the form from the address: a form
+# name is reduced to [a-zA-Z0-9_-] on arrival and an address carries no space.
+sub _rate_key { return "$_[0] $_[1]" }
+
+# The submission TIMES inside the rolling hour (SM935: a calendar-hour bucket
+# let a limit of five permit ten). Returns nothing when the limit is off.
+# Absent = 5, the shipped default; 0 or `off` = no limit, for a form whose
+# access is already controlled by something better than an address count.
+sub _rate_stamps {
+    my ( $form, $ip, $limit, $keep_open ) = @_;
     $limit = defined $limit ? $limit : 5;
     return if $limit <= 0;
     _ensure_dir_for("$FORMS_DIR/.rate-limit.db");
     my %db;
     tie( %db, 'DB_File', "$FORMS_DIR/.rate-limit.db",
         O_RDWR | O_CREAT, 0o600, $DB_HASH ) or return;
-    # SM935: A ROLLING HOUR, NOT A CALENDAR HOUR.
-    #
-    # The counter used to bucket on int(time/3600) with the key "$ip:$hour", so
-    # the window reset on the clock rather than on the submitter. Five at
-    # 10:59:59 and five at 11:00:00 is ten submissions in one second, inside the
-    # rules - and a limit of five that permits ten is not the limit the operator
-    # set. Measured rather than reasoned: the default is 5, and the boundary is
-    # reachable by anyone who notices the clock.
-    #
-    # So the value is the submission TIMES, not a count, and the window is the
-    # hour before now. The key is the address ALONE, which also removes an
-    # ambiguity the old scheme carried: "$ip:$hour" put a colon-separated
-    # timestamp after an IPv6 address that already contains colons, and the purge
-    # had to parse it back out.
     my $now    = time();
-    my $window = 3600;
-    my @stamps = grep { /\A\d+\z/ && $_ > $now - $window }
-        split /,/, ( $db{$ip} // '' );
-
-    if ( @stamps >= $limit ) { untie %db; reject( 'Rate limit exceeded', 'rate' ); }
-
-    push @stamps, $now;
-
-    # Bounded by the limit: a decision only ever needs to know whether there are
-    # $limit stamps inside the window, so older ones carry no information. Without
-    # this an address submitting under the limit for a year would grow one row
-    # without bound, which is the shape of defect the old purge existed to avoid.
-    shift @stamps while @stamps > $limit;
-    $db{$ip} = join ',', @stamps;
-
-    # Purge ONCE PER CLOCK HOUR, not once per submission: this walks every key in
-    # the DB, which is the one unbounded thing on the submission path. The marker
-    # is not an address, so it can never be mistaken for one - and it is skipped
-    # explicitly rather than by pattern, because an address has no shape this file
-    # should be asserting.
-    #
-    # An entry left by the OLD scheme ("ip:hour" => a count) is removed here on
-    # the first pass: a bare count is not a timestamp inside the window, so the
-    # filter empties it. The one visible consequence of the upgrade is that
-    # counters start from zero, which is the safe direction.
-    my $clock_hour = int( $now / 3600 );
-    if ( ( $db{_purged_hour} // -1 ) != $clock_hour ) {
-        for my $k ( keys %db ) {
-            next if $k eq '_purged_hour';
-            my @keep = grep { /\A\d+\z/ && $_ > $now - $window }
-                split /,/, ( $db{$k} // '' );
-            if (@keep) { $db{$k} = join ',', @keep }
-            else       { delete $db{$k} }
-        }
-        $db{_purged_hour} = $clock_hour;
-    }
+    my @stamps = grep { /\A\d+\z/ && $_ > $now - 3600 }
+        split /,/, ( $db{ _rate_key( $form, $ip ) } // '' );
+    if ($keep_open) { return ( \@stamps, $limit, \%db ) }
     untie %db;
+    return ( \@stamps, $limit );
 }
 
 sub load_form_secret {

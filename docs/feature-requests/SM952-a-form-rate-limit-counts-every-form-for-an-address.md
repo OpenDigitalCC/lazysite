@@ -4,11 +4,11 @@ title: "SM952: A form's rate limit counts an address's posts to every form, incl
 subtitle: "R8 of the 0.15.2 walk could not be settled: a new form refused its first post because the address had posted to another form."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-07
 raised-by: the sites agent, 0.15.2 edge walk R8, 2026-10-07
 area: forms
-status-note: "RULED 2026-10-07 (release manager): the limit is PER FORM, and only ACCEPTED submissions count - a post refused by validation spends nothing. Key the stamps on form and address; record the stamp only when the submission is stored. WORK-PLAN-0153 R8."
+status-note: "SHIPPED (PENDING), as ruled R8: stamps keyed on form and address; check_rate_limit only reads and record_rate_stamp writes once the submission is stored, so a refused-as-invalid post spends nothing. Sabotage-verified: the address-only key fails t/unit/forms/30 and 16; recording on every post fails 16. Docs: forms.md and the practice briefing."
 ---
 
 # Measured

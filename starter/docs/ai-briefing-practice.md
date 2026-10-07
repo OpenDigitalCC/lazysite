@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.15.2
-     imported: 2026-10-01
+     engine-version: 0.15.3
+     imported: 2026-10-07
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite/docs/practice/authoring-practice.md sha256=b519875859b5ed7681abbdc511c5cf5da3ebff747b11a0fd7178140a8ac87377 modified=2026-10-01
-     source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=79a3068e9597c73f7cea535d660862446335da198793f1e7623eefca17632e9f modified=2026-09-15
-     body-sha256: 7ba13ab2566c8045ec9019b5c0675562913b357d441c723356b591b558de1536
+     source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=9c739819844db9743643d7edbf54df0e572dde36aeb3841cdad50d1195f8502a modified=2026-10-07
+     body-sha256: 82e32278a76377eabde9fe03989214205ed7176d3a384089c82832fae23d9953
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.15.2**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.15.3**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -1375,7 +1375,8 @@ break, will cross it and the person loses what they typed. Design for **partial
 submission**, keep pages short, and put "submit as you go" in the on-page
 guidance rather than in a briefing nobody re-reads.
 
-**Rate limiting is five submissions per IP per hour** by default, which is right
+**Rate limiting is five stored submissions per form, per address, in a rolling
+hour** by default (a post the form refuses spends nothing), which is right
 for a public contact form and wrong for a team working through data-entry pages
 from one office address. From SM425 a submission whose **session cookie
 verifies** bypasses the anonymous limit, so a signed-in team needs no tuning -
@@ -1648,12 +1649,12 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-10-01** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-10-07** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
 | `/srv/projects/lazysite/docs/practice/authoring-practice.md` | sites and content | 2026-10-01 |
-| `/srv/projects/lazysite/docs/practice/app-practice.md` | apps and data | 2026-09-15 |
+| `/srv/projects/lazysite/docs/practice/app-practice.md` | apps and data | 2026-10-07 |
 
 Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
 

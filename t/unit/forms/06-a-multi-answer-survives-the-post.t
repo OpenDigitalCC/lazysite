@@ -90,7 +90,8 @@ is( scalar( () = $src =~ /_field_add\( \\%form,/g ), 2,
     'both parser branches add fields through the shared helper' );
 
 # --- the rate limit ----------------------------------------------------
-like( $src, qr/sub check_rate_limit \{\s*my \( \$ip, \$limit \) = \@_;/,
+# SM952: the form is part of the key now (per form AND address).
+like( $src, qr/sub check_rate_limit \{\s*my \( \$form, \$ip, \$limit \) = \@_;/,
     'the rate limit takes a per-form ceiling' );
 like( $src, qr/\$limit = defined \$limit \? \$limit : 5;/,
     'defaulting to the shipped 5 when the form does not set one' );
@@ -99,7 +100,7 @@ like( $src, qr/return if \$limit <= 0;/, 'and 0 / off removes it' );
 # than a per-calendar-hour tally - so the comparison is now against the list. The
 # assertion's intent is unchanged and is the reason it is kept: whatever the
 # counter holds, it is compared against the CONFIGURED ceiling and not a literal.
-like( $src, qr/\@stamps >= \$limit/, 'the comparison uses the configured value' );
+like( $src, qr/\@\$stamps >= \$limit_n/, 'the comparison uses the configured value' );
 unlike( $src, qr/>= 5\b/, 'and never against a hard-coded 5' );
 
 # The header-based exemption that was ASKED for is deliberately absent: this
