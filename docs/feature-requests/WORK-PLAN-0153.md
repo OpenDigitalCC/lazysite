@@ -47,7 +47,25 @@ one. Rulings taken on this plan are recorded in the table at the end.
 | D4 | [[SM747]] - Odoo integration | Its ruling |
 | D5 | [[SM942]] - status reads partial though FO1-FO3 are built | A read of the filing to confirm nothing remains, then `shipped` |
 
-# Rulings taken on this plan
+# Group E - development cost (filed 2026-10-07)
+
+From the cost analysis: 98 of 529 commits since 2026-09-01 were bookkeeping, a
+gate is ~90 minutes and 0.15.2 needed three, and an ordinary new action touches
+13 files. In build order - E1-E3 first because they pay back inside this
+release, E5 before the new actions R3 and R4 add.
+
+| Ref | Item | Size | Needs |
+| --- | --- | --- | --- |
+| E1 | [[SM950]] (1) - the gate suite runs with -j4 (17 min -> ~6); the host has the memory now | XS | nothing |
+| E2 | [[SM948]] - handoff regenerates the generated docs instead of failing on them | S | nothing |
+| E3 | [[SM949]] - a one-minute pre-check (lints, related tests, changed-line tidy) before the full suite | S | nothing |
+| E4 | [[SM947]] - landing keeps the branch's SHAs (fast-forward), or stamps refs itself | M | the toolchain - vcs-review is theirs; brief filed |
+| E5 | [[SM943]] - one declaration per control-API action, the rest derived | L | before R3/R4 add actions |
+| E6 | [[SM950]] (2)(3) - gate run on landing; coverage reused when its inputs are unchanged | M | E1 |
+| E7 | [[SM946]] - prose caps; the changelog keeps one minor, older ones archived | S | nothing |
+| E8 | [[SM945]] - comments state the invariant; history to git and the filing | ongoing | applied as files are touched |
+| E9 | [[SM944]] - the processor and the manager API split into modules, one area per branch | L | E5 for the manager API half |
+
 
 | Ref | Question | Ruling |
 | --- | --- | --- |
