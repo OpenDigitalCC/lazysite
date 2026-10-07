@@ -75,6 +75,7 @@ var TYPES = [];
 var FORMS = {};
 // SM938 D2: per form, where its submission notice is announced and what says no.
 var NOTIFY = {};
+var QUARANTINE = {};    // SM913 S4
 var SCHEDULE = [];
 var FLOOR = 300;
 
@@ -175,6 +176,7 @@ function load() {
       TYPES = d.types || [];
       FORMS = d.forms || {};
       NOTIFY = d.form_notify || {};
+      QUARANTINE = d.form_quarantine || {};
       renderHandlers();
       renderForms();
     })
@@ -494,6 +496,32 @@ function notifyDetail(n) {
   return '<div class="mg-section-label">Notifications</div>' + lines.join('');
 }
 
+// SM913 S4: WHETHER SUSPECT SUBMISSIONS ARE HELD, said on the form. A quarantined
+// submission is stored and kept off the bell; with quarantine off it is delivered
+// and announced like any other.
+function quarantineLine(n) {
+  var q = QUARANTINE[n];
+  if (!q) return '';
+  return q.on ? 'quarantine on' : 'quarantine off';
+}
+function quarantineDetail(n) {
+  var q = QUARANTINE[n];
+  if (!q) return '';
+  var text;
+  if (!q.on) {
+    text = 'Off - suspect submissions are delivered and announced like any other (quarantine: off in the form config).';
+  } else {
+    var why = [];
+    if (q.url_threshold > 0) why.push(q.url_threshold + ' or more links');
+    why.push('a link shortener', 'a disguised link', 'one value repeated in every field');
+    if (q.keywords) why.push(q.keywords + (q.keywords === 1 ? ' keyword' : ' keywords'));
+    if (q.own_domain) why.push("a sender on the site's own domain");
+    text = 'On - a submission is held, unannounced, under the Submissions quarantine filter when it has '
+      + why.join(', ') + '.';
+  }
+  return '<div class="mg-section-label">Spam</div><div>' + escHtml(text) + '</div>';
+}
+
 // SM938 D4 / R17: the form's own notify: line, set here and written to its conf.
 // Only this one of the three deciding places is the form's; the site route and
 // the XMPP account are named above when they are what stops a notice.
@@ -521,7 +549,8 @@ function renderForms() {
     return '<div class="mg-row">'
       + '<span class="mg-row-name">' + escHtml(n) + '</span>'
       + '<span class="mg-row-meta">' + (ids.length ? 'calls ' + ids.map(escHtml).join(', ') : 'calls nothing - it refuses every submission')
-      + (NOTIFY[n] ? '; ' + escHtml(notifyLine(n)) : '') + '</span>'
+      + (NOTIFY[n] ? '; ' + escHtml(notifyLine(n)) : '')
+      + (QUARANTINE[n] ? '; ' + escHtml(quarantineLine(n)) : '') + '</span>'
       + '<span class="mg-row-actions">' + chev('form-list', key, n, 'Handlers') + '</span>'
       + '</div>'
       + '<div class="mg-expand" id="exp-' + escHtml(key) + '" hidden></div>';
@@ -542,6 +571,7 @@ BUILD['form-list'] = function(key) {
     + '<p class="mg-muted">Every ticked handler is called for each submission. The visitor is thanked when at least one delivers.</p>'
     + notifyDetail(form)
     + notifyControl(form)
+    + quarantineDetail(form)
     + '<div class="mg-toolbar"><button class="mg-btn mg-btn-primary" data-impact="commit" onclick="saveForm(\'' + escHtml(form) + '\')">Save</button> '
     + dirtyNote(key) + '</div><div id="st-' + key + '" class="mg-status"></div></div>';
 };

@@ -422,6 +422,9 @@ visitor, no tracker, nothing sent anywhere. It holds a submission back when:
   written, and an email address is not a link.
 - it contains a **link written to dodge a filter** - `example .com/offer`, with a
   space inside the host. One is enough; nobody types that by accident.
+- it links to a **link shortener** (`bit.ly`, `tinyurl.com` and similar - a
+  shipped list). One link is enough: a stranger hiding where a link goes is
+  close to a sure sign. Naming a shortener in a sentence is not a link.
 - **every field holds the same value**, or one run of five or more digits appears
   in every field, on a form with three or more filled in. That is a bot checking
   whether the form delivers, not a message.
@@ -430,6 +433,10 @@ visitor, no tracker, nothing sent anywhere. It holds a submission back when:
 
 The reason is stored with the submission and shown on the quarantine filter, so
 you can see which control held it and tune the threshold rather than guess.
+
+**Is it on for this form?** The Handlers page says, on each form's row
+("quarantine on" or "quarantine off"), and the form's expanded view lists what
+holds a submission.
 
 **One control you have to ask for: `spam_own_domain: on`.** With it, a submission
 whose sender field holds an address at **this site's own domain** is quarantined -

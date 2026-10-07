@@ -49,6 +49,17 @@ Archive
 
 ## Unreleased
 
+- SM913 S2 + S4 (PENDING) **a link shortener holds a submission, and each form
+  says whether its quarantine is on** (ruled R2). S2: one link to a shipped list
+  of shortener hosts (`bit.ly`, `tinyurl.com`, `brnd.li` from the reported spam,
+  and others) is a reason on its own, matched as a link - a scheme, `www.`, or a
+  path - so naming one in a sentence is not. S4: the Handlers page shows
+  "quarantine on/off" on each form and lists what holds a submission; the
+  manager reads the form config through `Lazysite::Handlers`, and
+  t/unit/forms/35 posts through the real handler for every spelling of
+  `quarantine:` and threshold to hold the two readers together. S5 (a default
+  keyword list) is not shipped, as ruled.
+
 - SM912 P4 (PENDING) **recorded: a rule checked against nothing says so.**
   Built in commit e765424f and shipped without a changelog entry, and the filing still read "P4
   remains". An ACL write against an auth store that knows no accounts or groups

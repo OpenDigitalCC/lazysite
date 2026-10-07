@@ -891,6 +891,30 @@ sub _destination_problem {
     return '';
 }
 
+# SM913 S4: A FORM'S QUARANTINE STATE, read for the manager.
+#
+# An operator could not tell from any page whether a public form's quarantine
+# was on. The form handler (plugins/form-handler.pl, load_form_conf) is a CGI the
+# manager cannot load, so this reads the same four keys with the same defaults;
+# t/unit/forms/35 posts through the real handler for every spelling and asserts
+# the two agree, so they cannot drift apart unseen.
+sub form_quarantine_state {
+    my ($text) = @_;
+    $text = '' unless defined $text;
+    my ($q)  = $text            =~ /^\s*quarantine\s*:\s*(\S+)/m;
+    my ($kw) = $text            =~ /^\s*spam_keywords\s*:\s*(.+?)\s*$/m;
+    my ($ut) = $text            =~ /^\s*spam_url_threshold\s*:\s*(\d+)/m;
+    my ($od) = $text            =~ /^\s*spam_own_domain\s*:\s*(\S+)/m;
+    my $on   = lc( $q // 'on' ) =~ /^(?:0|off|no|false|disabled)$/ ? 0 : 1;
+    my @kw   = grep { length } split /\s*,\s*/, ( $kw // '' );
+    return {
+        on            => $on ? JSON::PP::true : JSON::PP::false,
+        url_threshold => ( defined $ut ? $ut + 0 : 2 ),
+        keywords      => scalar @kw,
+        own_domain => ( lc( $od // 'off' ) =~ /^(?:1|on|yes|true)$/ ? JSON::PP::true : JSON::PP::false ),
+    };
+}
+
 # --- the actions (every surface calls these) ---------------------------------
 
 sub action_handler_list {
@@ -910,7 +934,11 @@ sub action_handler_list {
     # an endpoint will not get it, the one thing that says no. Beside `forms`
     # rather than inside it, because `forms` is name => [handler ids] and every
     # caller already reads it as that.
-    my %notify;
+    my ( %notify, %quarantine );
+    for my $f ( keys %$b ) {    # SM913 S4
+        my $t = _slurp( form_file($f), "forms/$f.conf" );
+        $quarantine{$f} = form_quarantine_state($t) if defined $t;
+    }
     if ( eval { require Lazysite::Notify; 1 } ) {
         for my $f ( keys %$b ) {
             my $t = _slurp( form_file($f), "forms/$f.conf" );
@@ -923,7 +951,7 @@ sub action_handler_list {
     # Every form and the handlers it calls - the unbound ones included, which
     # used_by cannot show - so a page binding forms needs this one read.
     return { ok => 1, handlers => \@out, types => types(), forms => $b,
-        form_notify => \%notify };
+        form_notify => \%notify, form_quarantine => \%quarantine };
 }
 
 # A record the conversion has not reached yet, said on the listing so it is

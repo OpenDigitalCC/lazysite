@@ -24,8 +24,8 @@ starts.
 | Q | Item | Why here | Size |
 | --- | --- | --- | --- |
 | Q1 | ~~A2 [[SM912]] P4~~ **already built (e765424f, 0.15.1); recorded (n253)** - an ACL fixture with an empty auth store is visible | ready, XS | XS |
-| Q2 | B1 [[SM939]] SC2 - DELETE of a non-empty collection answers 405 "delete the contents first" (R1) | ruled, S | S |
-| Q3 | B2 [[SM913]] S2 + S4 - link-shortener hosts as a stronger signal; each form's quarantine state shown (R2) | ruled, small | XS+S |
+| Q2 | **SKIPPED - see open questions** B1 [[SM939]] SC2 - DELETE of a non-empty collection answers 405 "delete the contents first" (R1) | ruled, S | S |
+| Q3 | ~~B2 [[SM913]]~~ **built (n254)** S2 + S4 - link-shortener hosts as a stronger signal; each form's quarantine state shown (R2) | ruled, small | XS+S |
 | Q4 | B6 [[SM932]] (2) - `lazysite check` writes a known line and reports which sinks received it (R6) | ruled; Q5 shares its shape | S |
 | Q5 | F5 [[SM955]] - the XMPP test reports a bounce; every delivery failure audited (R9) | after Q4, same reporting shape | M |
 | Q6 | E5 [[SM943]] - one declaration per control-API action, the rest derived | must precede Q7/Q8, which add actions | L |
@@ -45,7 +45,19 @@ Not in the queue, and why:
 - D1-D4 - each waits on something outside this plan (named in Group D).
 - E4 [[SM947]] - the toolchain's; brief filed.
 
-Open questions raised while working the queue: none yet.
+Open questions raised while working the queue:
+
+- **Q2 (SM939 SC2) - R1 was ruled on a wrong premise.** My B1 row asked "support
+  recursive delete, or answer 405?" as if recursive delete were missing. It is not:
+  `do_delete` removes a collection with `remove_tree`, SM535 cleans up its pages,
+  and t/unit/dav/04 asserts a non-empty collection DELETE answers 204 with the
+  contents gone. The reported 500 is a PARTIAL failure - a directory INSIDE the
+  collection not writable (the installer-made `docs/features/` tree SC1 fixed) -
+  which `_write_failure` reports as a bare "Cannot delete the entry." because it
+  checks only the top-level parent. Options: (a) keep recursive delete and make a
+  partial failure answer 507 naming the directory that blocked it and what was
+  left; (b) the 405 as ruled, which removes a working, tested capability.
+  Recommended: (a). Skipped until ruled.
 
 # Group A - ruled and ready to build
 
@@ -60,7 +72,7 @@ Open questions raised while working the queue: none yet.
 | Ref | Item | Size | The question |
 | --- | --- | --- | --- |
 | B1 | [[SM939]] SC2 - DELETE of a non-empty WebDAV collection answers 500 | S | Support recursive delete, or answer 405 saying "delete the contents first"? |
-| B2 | [[SM913]] S2/S4/S5 - spam that passes quarantine | XS/S/XS | S2: ship a list of link-shortener hosts as a stronger signal? S4: show each form's quarantine on/off in the manager? S5: ship a default `spam_keywords` list, or say why not? |
+| B2 | ~~[[SM913]]~~ **S2+S4 built (n254)** S2/S4/S5 - spam that passes quarantine | XS/S/XS | S2: ship a list of link-shortener hosts as a stronger signal? S4: show each form's quarantine on/off in the manager? S5: ship a default `spam_keywords` list, or say why not? |
 | B3 | [[SM857]] read half - `(mine)` views of a table | M | Go-ahead to build it, with the filing's positions: an anonymous viewer sees no rows (never all rows), and a `(mine)` page bypasses the shared cache |
 | B4 | [[SM858]] - approve an account from a button on the Submissions view | M | Build it? It needs the form to declare `account_email:` and allocates the username from the address |
 | B5 | ~~[[SM863]] part 2~~ **declined (R5)** - offer a known alias host as a labelled suggestion when a claim link has no site_url | S | Is a suggestion the operator must confirm better than none? |

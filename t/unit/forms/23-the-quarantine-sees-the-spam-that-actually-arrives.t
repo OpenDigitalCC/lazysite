@@ -227,4 +227,40 @@ subtest 'a space before a full stop is not a disguised link' => sub {
         or diag( 'reason: ' . ( $r->{_spam_reason} // '' ) );
 };
 
+# --- SM913 S2 (ruled R2): a link shortener is a reason on its own -----------
+
+subtest 'one shortened link is enough' => sub {
+    my $r = submit(
+        name    => 'Sam',
+        subject => 'Partnership',
+        message => 'We grow traffic fast. Details: https://bit.ly/3xYz9Qa',
+    );
+    ok( $r && $r->{_quarantined}, 'a single shortener link is held' )
+        or diag( 'reason: ' . ( $r && $r->{_spam_reason} // '' ) );
+    like( $r && $r->{_spam_reason} // '', qr/a link shortener 'bit\.ly'/, 'and says which' );
+};
+
+subtest 'a shortener written with www. is still one' => sub {
+    my $r = submit( name => 'Sam', message => 'see www.tinyurl.com/abc123 for more' );
+    like( $r && $r->{_spam_reason} // '', qr/a link shortener 'tinyurl\.com'/, 'www. is not a disguise' );
+};
+
+subtest 'the NAME of a shortener in a sentence is not a link' => sub {
+    # Matched as a link (a scheme, www., or a path), never as a word - somebody
+    # asking whether their bit.ly links are safe is writing an honest message.
+    my $r = submit(
+        name    => 'Ada',
+        subject => 'Question',
+        message => 'Do you allow links from bit.ly in comments? Thanks.',
+    );
+    ok( $r && !$r->{_quarantined}, 'a mention is left alone' )
+        or diag( 'reason: ' . ( $r && $r->{_spam_reason} // '' ) );
+};
+
+subtest 'an ordinary single link is still not enough' => sub {
+    my $r = submit( name => 'Ada', message => 'Our order page: https://shop.example.com/orders/12' );
+    ok( $r && !$r->{_quarantined}, 'one ordinary link stays under the threshold of two' )
+        or diag( 'reason: ' . ( $r && $r->{_spam_reason} // '' ) );
+};
+
 done_testing();

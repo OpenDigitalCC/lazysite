@@ -524,6 +524,7 @@ sub _spam_assessment {
     }
 
     if ( my $host = _disguised_link($text) ) { push @reasons, "a link written as '$host'" }
+    if ( my $host = _shortener_link($text) ) { push @reasons, "a link shortener '$host'" }
     if ( my $why = _one_value_everywhere($form) )       { push @reasons, $why }
     if ( my $why = _own_domain_sender( $form, $conf ) ) { push @reasons, $why }
 
@@ -655,9 +656,12 @@ sub _site_own_domains {
 #
 # Each match counts once however it is written, so a pitch quoting one host three
 # ways is one link, not three.
-sub _count_links {
+sub _count_links { my @hosts = _link_hosts( $_[0] ); return scalar @hosts }
+
+# The hosts of the links counted above, each once, lower-case, `www.` removed.
+sub _link_hosts {
     my ($text) = @_;
-    return 0 unless defined $text && length $text;
+    return () unless defined $text && length $text;
 
     # Addresses first: the local part would otherwise leave a bare host behind.
     ( my $t = $text ) =~ s/\S+@\S+//g;
@@ -675,7 +679,32 @@ sub _count_links {
     # And the shape the field actually found - see _disguised_link.
     if ( my $host = _disguised_link($t) ) { $note->($host) }
 
-    return scalar keys %seen;
+    my @hosts = sort keys %seen;
+    return @hosts;
+}
+
+# SM913 S2 (ruled R2): A LINK SHORTENER IS A REASON ON ITS OWN.
+#
+# A first-contact message from a stranger that hides its destination behind a
+# shortener is close to diagnostic, and the reported spam carried two on one host.
+# One link, not two, is enough - the URL threshold stays for ordinary links. A
+# shortener is matched as a LINK (a scheme, `www.`, or a path after the host, as
+# _link_hosts finds them), so the word `bit.ly` in a sentence is not one.
+#
+# The list is INSIDE the sub: this CGI runs its request before the file's later
+# top-level statements execute, so an `our` list down here would still be empty.
+sub _shortener_link {
+    my ($text) = @_;
+    my %short = map { ( $_ => 1 ) } qw(
+        bit.ly      bitly.com tinyurl.com t.co      goo.gl    ow.ly
+        is.gd       v.gd      buff.ly     rebrand.ly brnd.li  cutt.ly
+        shorturl.at tiny.cc   rb.gy       t.ly      bl.ink    short.io
+        s.id        lnkd.in   tr.im       shorte.st adf.ly    soo.gd
+    );
+    for my $host ( _link_hosts($text) ) {
+        return $host if $short{$host};
+    }
+    return '';
 }
 
 # SM913 S1, the part that is a signal on its own rather than a countable link.
