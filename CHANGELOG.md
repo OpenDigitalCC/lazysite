@@ -49,6 +49,15 @@ Archive
 
 ## Unreleased
 
+- SM967 (PENDING) **security: a value could spell one of the engine's
+  placeholders.** The passes that protect script, style, comments, code spans
+  and tags restored them by a fixed word, so a value carrying the word was
+  restored as the block: a copy of the page's code span, or the page's own
+  script moved into a prefilled form field, where its quotes ended the
+  attribute. Each placeholder now carries a per-call key the content cannot
+  contain. Found by the SM869 review's second pass; t/unit/processor/91,
+  t/unit/data/65.
+
 - SM966 (PENDING) **security: a data value could become a link, or break an
   api page's JSON.** A query value or a db: row was HTML-escaped and nothing
   more, so `[text](javascript:...)` in it became an anchor after the template

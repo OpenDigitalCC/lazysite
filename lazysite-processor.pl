@@ -5703,8 +5703,29 @@ sub unwrap_block_html {
     return $html;
 }
 
+# SM967: A PLACEHOLDER THE CONTENT CANNOT SPELL.
+#
+# Three passes lift text out of the page and put it back by a placeholder:
+# convert_md (script, style, comments - RAWBLOCK), render_content (code spans -
+# CODEBLOCK) and convert_p_links (tags - NUL RAW). Each placeholder was a fixed
+# word and a counter, so a value carrying the word was restored as the block:
+# `?x=CODEBLOCK_0_END` printed a copy of the page's first code span, and a
+# prefilled `RAWBLOCK_0_END` moved the page's own <script> into the field's
+# value attribute, where its quotes could end the attribute. The key makes each
+# placeholder specific to one call: random, and never a string already present
+# in the text being protected, so neither a value nor an author can spell it.
+sub _placeholder_key {
+    my ($text) = @_;
+    $text //= '';
+    my $k;
+    do { $k = sprintf '%08x%08x', int rand 0xffffffff, int rand 0xffffffff }
+        while index( $text, $k ) >= 0;
+    return $k;
+}
+
 sub convert_md {
     my ($body) = @_;
+    my $k = _placeholder_key($body);    # SM967
 
     # Protect <script> AND <style> blocks from Markdown processing. CSS/JS is not
     # Markdown: emphasis would mangle it - e.g. the `*/ ... /*` between two CSS
@@ -5712,7 +5733,7 @@ sub convert_md {
     # page's inline styles regressed exactly this way).
     my @rawblocks;
     $body =~ s{(<(script|style)\b[^>]*>)(.*?)(</\2>)}{
-        my $placeholder = "RAWBLOCK_" . scalar(@rawblocks) . "_END";
+        my $placeholder = "RAWBLOCK${k}_" . scalar(@rawblocks) . "_END";
         push @rawblocks, "$1$3$4";
         $placeholder
     }gsei;
@@ -5735,7 +5756,7 @@ sub convert_md {
     # Comments survive into the output verbatim, which is what an HTML comment
     # in a page is for.
     $body =~ s{(<!--.*?-->)}{
-        my $placeholder = "RAWBLOCK_" . scalar(@rawblocks) . "_END";
+        my $placeholder = "RAWBLOCK${k}_" . scalar(@rawblocks) . "_END";
         push @rawblocks, "$1";
         $placeholder
     }gse;
@@ -5747,7 +5768,7 @@ sub convert_md {
 
     # Restore the protected blocks
     for my $i ( 0 .. $#rawblocks ) {
-        $html =~ s/(?:<p>)?RAWBLOCK_${i}_END(?:<\/p>)?/$rawblocks[$i]/;
+        $html =~ s/(?:<p>)?RAWBLOCK${k}_${i}_END(?:<\/p>)?/$rawblocks[$i]/;
     }
 
     return unwrap_block_html($html);
@@ -5841,15 +5862,19 @@ sub convert_p_links {
     # out first, then every remaining tag - which is what keeps an attribute
     # value out of reach as well - and both go back afterwards. The placeholder
     # carries NULs, a byte no HTML document and no link target contains.
+    #
+    # SM967: a VALUE could contain one (`%00` in a query), and spelled this
+    # placeholder; so it carries a per-call key as well (_placeholder_key).
     my @raw;
+    my $k = _placeholder_key($html);
     $html =~ s{(<(script|style|pre|code)\b[^>]*>.*?</\2\s*>)}{
-        push @raw, $1; "\0RAW" . $#raw . "\0"
+        push @raw, $1; "\0RAW${k}_" . $#raw . "\0"
     }gsei;
-    $html =~ s{(<[^>]+>)}{ push @raw, $1; "\0RAW" . $#raw . "\0" }ge;
+    $html =~ s{(<[^>]+>)}{ push @raw, $1; "\0RAW${k}_" . $#raw . "\0" }ge;
 
     $html =~ s{\[([^\]]+)\]\(([^)]+)\)}{<a href="$2">$1</a>}g;
 
-    $html =~ s{\0RAW(\d+)\0}{ $raw[$1] }ge;
+    $html =~ s{\0RAW\Q$k\E_(\d+)\0}{ $raw[$1] }ge;
     return $html;
 }
 
@@ -8409,13 +8434,14 @@ sub render_content {
     # Protect <pre><code> blocks and inline <code> elements from TT processing
     my $protected_body = $html_body;
     my @code_blocks;
+    my $cbk = _placeholder_key($protected_body);    # SM967: a value cannot spell it
     $protected_body =~ s{(<pre><code[^>]*>)(.*?)(</code></pre>)}{
-        my $placeholder = "CODEBLOCK_" . scalar(@code_blocks) . "_END";
+        my $placeholder = "CODEBLOCK${cbk}_" . scalar(@code_blocks) . "_END";
         push @code_blocks, "$1$2$3";
         $placeholder
     }gse;
     $protected_body =~ s{(<code>)(.*?)(</code>)}{
-        my $placeholder = "CODEBLOCK_" . scalar(@code_blocks) . "_END";
+        my $placeholder = "CODEBLOCK${cbk}_" . scalar(@code_blocks) . "_END";
         push @code_blocks, "$1$2$3";
         $placeholder
     }gse;
@@ -8449,8 +8475,8 @@ sub render_content {
     # string: an author who writes CODEBLOCK_7_END in their own prose keeps it, and
     # a genuine internal leak stays visible to the check below rather than being
     # quietly swallowed.
-    $processed_body =~ s{CODEBLOCK_(\d+)_END}
-                        { defined $code_blocks[$1] ? $code_blocks[$1] : "CODEBLOCK_$1_END" }gse;
+    $processed_body =~ s{(CODEBLOCK\Q$cbk\E_(\d+)_END)}
+                        { defined $code_blocks[$2] ? $code_blocks[$2] : $1 }gse;
 
     # SM931 item 2: SAY SO WHEN THE RENDER MULTIPLIED PROTECTED CONTENT.
     #

@@ -65,18 +65,15 @@ sub render {
     return $body // '';
 }
 
-our $TODO;
 my $list = render('/list');
 like( $list, qr/ordinary row/, 'the canary: the page lists the table' );
 my @cells = $list =~ m{<div class="r">(.*?)</div>}sg;
 is( scalar @cells, scalar @ROWS, 'one cell per row' );
-{
-    local $TODO = 'n271 before: a row can spell a placeholder';
-    ok( !( grep {/</} @cells ), 'every row value is text: no cell opens a tag' );
-    # BEFORE (measured): the row rendered <a href="javascript:void">. SM966.
-    { local $TODO; unlike( $list, qr/href="javascript/i, 'a row cannot become a link' ); }
-    is( scalar( () = $list =~ /<code\b/g ), 1, 'a row cannot copy the author code span' );
-}
+# BEFORE (measured): the link row rendered <a href="javascript:void"> (SM966),
+# and the CODEBLOCK_0_END row a copy of the page's code span (SM967).
+ok( !( grep {/</} @cells ), 'every row value is text: no cell opens a tag' );
+unlike( $list, qr/href="javascript/i, 'a row cannot become a link' );
+is( scalar( () = $list =~ /<code\b/g ), 1, 'a row cannot copy the author code span' );
 
 # BEFORE (measured): the backslash, control character, tab and line break rows
 # reached the JSON strings raw, and the page did not parse. SM966.

@@ -122,7 +122,6 @@ sub json_ok {
 sub shown { my $s = shift; return undef unless defined $s; $s =~ s/\0/\x{FFFD}/g; return $s }
 
 our $TODO;
-my $TODO_PH     = 'n271 before: a value can spell one of the engine placeholders';
 my $TODO_TAGS   = 'n271 before: a page that sets TAGS makes the pre-template sinks evaluate a value';
 my $TODO_BANNER = 'n271 before: the outcome banner is written to the page cache';
 

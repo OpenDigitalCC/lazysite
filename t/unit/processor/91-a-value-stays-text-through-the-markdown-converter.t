@@ -36,7 +36,6 @@ sub unesc {
 }
 
 our $TODO;
-my $TODO_PH     = 'n271 before: a value can spell one of the engine placeholders';
 my $TODO_BANNER = 'n271 before: the outcome banner is written to the page cache, and can spell a placeholder';
 
 my $docroot = site_tempdir();
@@ -84,7 +83,8 @@ for my $v (
     [ 'a full reference link',              '[m] [ref]' ],
     [ 'an autolink',                        '<http://m.example/>' ],
     [ 'a code span',                        '`m`' ],
-    [ 'the code-span placeholder',          'CODEBLOCK_0_END', $TODO_PH ],
+    # BEFORE (measured): restored as a copy of the page's code span. SM967.
+    [ 'the code-span placeholder',          'CODEBLOCK_0_END' ],
     [ 'a link that closes the author link', ') [m](javascript:void' ],
     [ 'a bracket that closes a link label', '](javascript:void)' ],
     )
@@ -129,7 +129,9 @@ my $fbase = fetch( '/form', 'x=plain' );
 is( count( $fbase, qr/var marker/ ), 1, 'baseline: the author script once' );
 
 for my $v (
-    [ 'the converter placeholder',   'RAWBLOCK_0_END RAWBLOCK_1_END', $TODO_PH ],
+    # BEFORE (measured): the page's <script> moved into the field, and out of
+    # the attribute its quotes ended. SM967.
+    [ 'the converter placeholder',   'RAWBLOCK_0_END RAWBLOCK_1_END' ],
     [ 'Markdown emphasis and code',  '`m` *m* _m_ **m**' ],
     [ 'link and reference syntax',   '[m](javascript:void) [m][ref]' ],
     [ 'an autolink',                 '<http://m.example/>' ],
