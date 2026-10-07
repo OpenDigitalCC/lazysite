@@ -3320,10 +3320,27 @@ sub _esc_query_stash {
 # change: `?x=[% site_name %]` prefilled the site's own value. Applied AFTER the
 # HTML escape for the sink's context, so `[` and `%` become character references
 # the browser shows as the same characters and TT does not read as a tag.
+#
+# SM965: AND ITS LINE BREAKS, for the same reason the stash copy encodes them
+# (`_esc_query_value`). A value this sink emits lands in the body BEFORE the
+# FIRST include pass (convert_fenced_form runs before convert_fenced_include in
+# process_md), and that pass reads a newline-delimited `::: include` block as a
+# directive. `[%` alone was not enough: a value carrying a line of its own -
+# `?x=<LF>::: include<LF>/file<LF>:::<LF>` - spelled a block the include pass
+# resolved, pulling a file under the content root into the page (reflected, via
+# the prefill textarea and the outcome banner; measured by t/unit/processor/89).
+# CR/LF become `&#13;`/`&#10;`, which a browser renders as the line breaks the
+# visitor typed, so a genuine multi-line value is displayed, not mangled - while
+# no literal line break remains for the include pass to key on. This is the one
+# place every pre-template-body sink passes through, so the three callers
+# (prefill attribute, prefill textarea, outcome banner) are covered at once and
+# a fourth cannot reopen it.
 sub _tt_inert {
     my ($s) = @_;
     $s =~ s/\[/&#91;/g;
     $s =~ s/%/&#37;/g;
+    $s =~ s/\r/&#13;/g;
+    $s =~ s/\n/&#10;/g;
     return $s;
 }
 

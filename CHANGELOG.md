@@ -49,6 +49,14 @@ Archive
 
 ## Unreleased
 
+- SM965 (PENDING) **security: a reflected form value could become an
+  include.** A form's prefill and outcome banner are written into the page
+  before the first `::: include` pass, and kept their line breaks - so a link
+  carrying a crafted value could spell an include block and pull a file from
+  the content root into the page (never `lazysite/`, never `..`). The one helper
+  all three use now encodes line breaks as character references, which display
+  as typed. Found by the SM869 adversarial review; t/unit/processor/89.
+
 - SM964 (PENDING) **security: a value that reached a page as data could become
   an include.** The processor ran its `::: include` pass a second time over the
   template's output. That never resolved an author's template-path block

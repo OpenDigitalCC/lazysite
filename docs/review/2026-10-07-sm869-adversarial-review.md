@@ -24,6 +24,12 @@ unlisted file and a sign-in-only page's body into the output. Fixed at the root
 by removing the second pass (it had never resolved an author's block);
 t/unit/data/64.
 
+**Reflected include through the form prefill and banner (SM965, fixed).** The
+same block shape, through the values SM869 writes into the body before the FIRST
+include pass; `_tt_inert` kept their line breaks. Fixed in that one helper;
+t/unit/processor/89, which also shows the include reach stops at the content
+root.
+
 # What was not covered
 
 The review agent stopped before finishing, and its report was cut short. These
@@ -40,5 +46,5 @@ classes from the brief were NOT tried and remain owed (WORK-PLAN-0153 Q11b):
 
 # Outcome
 
-SM869's build stands; SM964 is fixed on n270. A second review pass over the
+SM869's build stands; SM964 and SM965 are fixed on n270. A second review pass over the
 classes above is queued.

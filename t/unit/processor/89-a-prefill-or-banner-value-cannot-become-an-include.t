@@ -64,12 +64,9 @@ sub payload { my ($target) = @_; return "a\n::: include\n$target\n:::\n" }
         'canary: the input carries the value' );
 
     # BEFORE (measured, n270 tip): the textarea value pulled the file in.
-    TODO: {
-        local $TODO = 'SM965: _tt_inert does not neutralise CR/LF, so a prefill '
-            . 'value spells a block for the first include pass';
-        unlike( $html, qr/\Q$SECRET_TEXT\E/,
-            'B: a prefill value cannot name a file to include' );
-    }
+    # Fixed by SM965 - _tt_inert neutralises CR/LF.
+    unlike( $html, qr/\Q$SECRET_TEXT\E/,
+        'B: a prefill value cannot name a file to include' );
 }
 
 # --- C: the form outcome banner ---------------------------------------------
@@ -78,12 +75,9 @@ sub payload { my ($target) = @_; return "a\n::: include\n$target\n:::\n" }
     my $html = run_processor( $docroot, '/ban', QUERY_STRING => $qs ) // '';
     like( $html, qr/class="form-status form-status-error"/,
         'canary: the outcome banner is rendered' );
-    TODO: {
-        local $TODO = 'SM965: the outcome banner value is placed before the '
-            . 'first include pass and its CR/LF is not neutralised';
-        unlike( $html, qr/\Q$SECRET_TEXT\E/,
-            'C: an outcome banner value cannot name a file to include' );
-    }
+    # Fixed by SM965 - the banner value passes through _tt_inert too.
+    unlike( $html, qr/\Q$SECRET_TEXT\E/,
+        'C: an outcome banner value cannot name a file to include' );
 }
 
 # --- The reach boundary holds (independent of the fix) ----------------------
