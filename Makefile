@@ -1,5 +1,5 @@
 .PHONY: test test-unit test-integration test-smoke test-journey test-safety test-verbose \
-        tier-dev tier-review tier-release tiers handoff
+        tier-dev tier-precheck tier-review tier-release tiers handoff
 
 test:
 	prove -r t/
@@ -32,6 +32,10 @@ endif
 
 # REVIEW - ~2 minutes. Branch handoff. The whole plain suite in parallel.
 # Phase 1 made this safe: prove -j4 is green on 321 files.
+# PRECHECK - lints + the tests naming a changed file, ~10 s (SM949)
+tier-precheck:
+	bash tools/precheck.sh
+
 tier-review:
 	prove -lr -j4 t/
 
@@ -50,6 +54,7 @@ tier-release:
 
 tiers:
 	@echo "tier-dev      seconds   every edit      lint + AREA=<area>"
+	@echo "tier-precheck ~10 s    before handoff  lints + tests naming changed files (SM949)"
 	@echo "tier-review   ~2 min    branch handoff  full suite at -j4"
 	@echo "handoff       ~2 min    before review   tier-review + tripwires; prints READY (SM764)"
 	@echo "tier-release  ~80 min   once per cut    suite + bench + coverage"

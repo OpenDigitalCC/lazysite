@@ -55,7 +55,9 @@ if [ "$RC" = 0 ]; then
   fi
 fi
 
-if git diff "$BASE"...HEAD | grep -q "gh\.072103"; then
+# Added lines only: a context line of this very file carries the literal in the
+# message below, and matched itself once handoff.sh was edited near it.
+if git diff "$BASE"...HEAD | grep '^+' | grep -v '^+++' | grep -q "gh\.072103"; then
   fail "the diff carries the mangled literal 'gh.072103' - repair it"
 fi
 
@@ -69,6 +71,18 @@ done
 
 # 4. The tier: the whole plain suite at -j4. Not the touched files, not the
 #    area - the suite. A textual pin one file over is what the area misses.
+# SM949: the one-minute pre-check first. What it catches - a lint, tidy, a file
+# that does not compile, a test naming a changed file - is known in seconds, so
+# a failure stops here instead of after the six-minute suite.
+if [ "$RC" = 0 ]; then
+  say "==> precheck (lints + related tests, ~10 s)"
+  if ! bash tools/precheck.sh "$BASE"; then
+    fail "precheck failed - fix it before the full suite (tmp/precheck.log)"
+    say "NOT READY: $BRANCH $SHA"
+    exit 1
+  fi
+fi
+
 say "==> tier-review (whole plain suite, -j4)"
 if ! prove -lr -j4 t/ > tmp/handoff-suite.log 2>&1; then
   fail "tier-review: the suite did not pass - tmp/handoff-suite.log"

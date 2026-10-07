@@ -18,6 +18,14 @@ plan skip_all => 'perlcritic not installed' unless $critic;
 plan skip_all => 'no profile'               unless -f "$root/.perlcriticrc";
 
 my @scripts = sort glob("$root/*.pl $root/tools/*.pl $root/plugins/*.pl $root/lib/Lazysite/*.pm $root/lib/Lazysite/*/*.pm");
+# SM949: tools/precheck.sh narrows this to the files a branch changed, so the
+# one-minute pre-check does not spend 40 s on files nobody touched. Unset - in
+# the suite, the handoff and the gate - every file is checked, as before.
+if ( defined $ENV{LAZYSITE_LINT_FILES} ) {
+    my %want = map { ( "$root/$_" => 1 ) } split ' ', $ENV{LAZYSITE_LINT_FILES};
+    @scripts = grep { $want{$_} } @scripts;
+    plan skip_all => 'no changed production scripts' unless @scripts;
+}
 ok( scalar @scripts, 'found production scripts to lint' );
 
 # SM269 phase 1: SHARDED across forks, not one invocation.
