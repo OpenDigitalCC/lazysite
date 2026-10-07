@@ -461,6 +461,14 @@ my %STATIC_CT = (
             # and the two together cover all three. See try_serve_cache.
             $m{tt_deps} = 1 if $line =~ /^tt_page_var\s*:\s*$/;
 
+            # SM857: a `db:...(mine)` binding renders per viewer, so the page
+            # takes the gated page's cache treatment (see `$per_viewer` in
+            # main). DELIBERATELY WIDER THAN THE GRAMMAR: any front-matter line
+            # with `db:` and the word `mine` on it. This is a trigger, not a
+            # second parser - a false positive costs a cached render, and a
+            # binding this misses is refused by resolve_db, never cached.
+            $m{db_mine} = 1 if $line =~ /\bdb:/i && $line =~ /\bmine\b/;
+
             # query_params: block
             if ( $line =~ /^query_params\s*:\s*$/ ) {
                 $in_qp = 1; $in_groups = 0; next;
@@ -2809,7 +2817,14 @@ sub main {
     # from front-matter; is_auth_surface() covers login/logout, which
     # ship with `auth: none` but must never be cached because they
     # embed per-request TT variables (query.next etc.).
-    my $protected = $auth_protected || $payment_protected
+    #
+    # SM857: and a page binding `db:<table>(mine)`, which renders the signed-in
+    # viewer's own rows. A shared cache would serve one person's rows to the
+    # next, so it takes exactly the gated page's treatment: never read from or
+    # written to the page cache, no-store on output. `_protected` reaching
+    # process_md is also what resolve_db checks before it will apply (mine).
+    my $per_viewer = ( @md_stat && _peek_md($md_path)->{db_mine} ) ? 1 : 0;
+    my $protected  = $auth_protected || $payment_protected || $per_viewer
         || is_auth_surface($uri);
 
     # SM071: theme/layout preview. A valid preview cookie overrides the
@@ -6195,6 +6210,12 @@ sub resolve_db {
     # for whoever is looking at it: a sysop seeing rows a visitor cannot is
     # a preview that means nothing, which is the fault SM466 fixed for layouts
     # and themes. So the identity here is the request's, whatever it is.
+    #
+    # SM857: and it is the identity (mine) filters on. X-Remote-User survives
+    # to this point only when apply_trust_gate let it - the auth wrapper's
+    # LAZYSITE_AUTH_TRUSTED after it verified the session cookie, or an
+    # operator's auth_proxy_trusted - and is deleted otherwise, so a header a
+    # visitor sends reads as anonymous, which (mine) answers with no rows.
     my $r = Lazysite::Data::Tables::resolve_binding(
         $DOCROOT, $spec,
         { user => ( $ENV{HTTP_X_REMOTE_USER} // '' ),
@@ -6261,7 +6282,43 @@ sub resolve_db {
             key => $key, table => $table );
     }
 
+    # SM857: (mine) ONLY INTO A RENDER NOBODY ELSE WILL BE SERVED.
+    #
+    # main() marks a page whose front matter binds (mine) as per-viewer, and
+    # that arrives here as RENDER_QUERY's `_protected` - the gated page's own
+    # token, which stops process_md writing the cache. A (mine) binding found
+    # anywhere that mark did not reach - a site-wide variable (memoised per
+    # host), an error page, a .url page, a binding the front-matter peek could
+    # not see - is REFUSED rather than rendered, because the rows it read
+    # would be cached for everyone.
+    if ( $r->{mine} && !$RENDER_QUERY{_protected} ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db: (mine) binding refused - it is not in a page\'s own '
+                . 'tt_page_var, so the render could be cached and served to '
+                . 'another viewer',
+            key => $key, table => $table );
+        return _db_empty($spec);
+    }
+
+    # An anonymous viewer owns no rows. Ordinary, not a fault - a page showing
+    # "your applications" to somebody who has not signed in - so INFO.
+    if ( $r->{mine_anonymous} ) {
+        log_event( 'INFO', $ENV{REDIRECT_URL} // '-',
+            'db: (mine) binding has no signed-in viewer - rendering no rows',
+            key => $key, table => $table );
+    }
+
     unless ( $r->{ok} ) {
+        # SM857: (mine) on a table with no created_by is an AUTHOR error, said
+        # with the table and the reason. The page renders the binding empty -
+        # the same shape every broken binding renders - and the line below
+        # names why, so it is never silently empty and never every row.
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db: (mine) binding refused - the table has no created_by, set '
+                . 'timestamps: true on it',
+            key => $key, table => $table, why => ( $r->{error} // '' ) )
+            if ( $r->{kind} // '' ) eq 'mine_needs_timestamps';
+
         # A TABLE THAT IS NOT PUBLISHED LOOKS EXACTLY LIKE ONE THAT IS ABSENT,
         # on purpose - see Access.pm - so the log is the only place the
         # difference can be said, and an author who has just added `db:` and

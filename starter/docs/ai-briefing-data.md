@@ -84,6 +84,10 @@ tt_page_var:
 `sort=` takes a **declared field name**. The layout then iterates it exactly as
 it would a `scan:` list.
 
+`db:applications(mine)` is the signed-in viewer's own rows (`created_by` is
+theirs): none for an anonymous viewer, refused by name on a table without
+`timestamps: true`, and the page is never cached - see /docs/data-tables.
+
 **Do not add `| html` to a db value.** Since SM786 the engine escapes every
 `db:` value where it enters the page, so a template writes `[% p.title %]` and
 gets escaped text. Whoever can write a row would otherwise control markup - and

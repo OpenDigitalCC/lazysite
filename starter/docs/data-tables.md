@@ -154,6 +154,7 @@ tone: medium
 `db:tasks(order=due)` / `(order=-due)` | ordered, ascending or descending
 `db:tasks.count(done=false)` | a number, not a list
 `db:products.field(price,code=SKU1)` | one value out of one row
+`db:applications(mine,status=open)` | the signed-in viewer's own rows -- see *A page that shows each viewer their own rows*
 ```
 
 The older spacing -- `db:products sort=name asc limit=20` -- still means
@@ -511,7 +512,8 @@ an anonymous visitor matches no entry in a list.
 answered the capability question with `manage_data`, so they read regardless. A
 **page** is never treated as an operator -- it renders the same rows for
 whoever is looking at it, so what you see while signed in is what your visitors
-see.
+see. The one exception is a binding that says `(mine)`, which asks for the
+viewer's own rows -- see *A page that shows each viewer their own rows*, below.
 
 ### Collecting data from visitors
 
@@ -621,9 +623,49 @@ them. The row is still stored in that case -- losing a submission to a
 misconfiguration the visitor cannot see would be worse -- and the delivery's
 audit line says what happened.
 
-Reads are **not** confined by this -- a page renders the same rows for whoever
-is looking at it, and a per-viewer read is a separate piece of work. To show one
-person their own row today, bind their key as a literal.
+Reads are **not** confined by this -- `row_policy` decides who may write a row.
+To show each person their own rows, bind with `(mine)`, which is the next
+section.
+
+### A page that shows each viewer their own rows
+
+```yaml
+tt_page_var:
+  applications: db:applications(mine,order=-created_at)
+  mine_open:    db:applications.count(mine,status=open)
+```
+
+**`mine` adds `created_by = <the signed-in viewer>` to the binding**, and the
+engine writes that value -- the page never does, and nothing a visitor sends can
+change it. The viewer is the account the sign-in verified (or the one an auth
+proxy names, where the operator has set `auth_proxy_trusted: true`); an identity
+header a visitor sends is discarded before the page renders. `mine` combines with the
+other filters (AND), with `order=`, `limit=` and `offset=`, and with `.count()`
+and `.field()`. It is the bare word: `mine=x` is an ordinary filter on a field
+called `mine`, and a literal `created_by=` beside `mine` is refused.
+
+- **An anonymous viewer sees no rows.** Not every row, and not an error page:
+  the binding renders empty, and the page around it renders as usual. Gate the
+  page (`auth: required`) if a signed-out visitor should be sent to sign in
+  rather than shown an empty list.
+- **The table needs `timestamps: true`**, because that is what creates
+  `created_by`. `(mine)` on a table without it is refused by name: the binding
+  renders nothing and the render log says *"(mine) binding refused - the table
+  has no created_by"*, naming the table. `validate_page` reports it too, so it
+  can be caught before publishing. It never falls back to every row.
+- **Rows with no owner are nobody's.** A row written by a public form, or
+  written before 0.14 stamped the author, has an empty `created_by`, and an
+  empty owner matches no viewer -- signed in or not. Nothing assigns them an
+  owner after the fact.
+- **The page is not cached.** One viewer's rows must not be served to the next,
+  so a page whose front matter binds `(mine)` is treated exactly as a gated page
+  is: never read from or written to the page cache, and sent `no-store`. It is
+  rendered on every request, `ttl:` included. A `(mine)` binding anywhere else
+  -- a site-wide variable, an error page -- is refused and logged, because that
+  render could be shared.
+
+The table's own read rules still apply first: a table the viewer may not read
+renders nothing to them, `(mine)` or not.
 
 ### Who may write
 

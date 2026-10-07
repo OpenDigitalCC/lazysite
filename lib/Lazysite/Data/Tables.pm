@@ -852,6 +852,31 @@ sub resolve_binding {
 
     my $scalar = $q->{scalar} // '';
 
+    # SM857: (mine) - THE ONE FILTER THE SERVER WRITES.
+    #
+    # The value is the caller's identity as `as` carries it, which the caller
+    # established - the processor from the trust-gated session, never from the
+    # binding or the request. Nothing in the spec can name it, so no visitor
+    # can steer it (SM856's refusal stands).
+    #
+    # NO IDENTITY MEANS NO ROWS, answered here without reading the store. Not
+    # "drop the filter", which renders every row and is the failure SM857 was
+    # filed about; and not `created_by = ''`, which would hand an anonymous
+    # viewer every row written anonymously or before SM860 - an empty
+    # created_by belongs to NOBODY, and the equality below is what makes that
+    # so for a signed-in viewer too.
+    if ( $q->{mine} ) {
+        my $who = ( ref $as eq 'HASH' && defined $as->{user} ) ? $as->{user} : '';
+        unless ( length $who ) {
+            my $empty = { ok => 1, table => $shape->{table}, mode => $q->{mode},
+                mine => 1, mine_anonymous => 1 };
+            return { %{$empty}, value => undef } if $scalar eq 'field';
+            return { %{$empty}, value => 0 }     if $scalar eq 'count';
+            return { %{$empty}, rows  => [], total => 0 };
+        }
+        $opt{where} = { %{ $opt{where} || {} }, created_by => $who };
+    }
+
     # TIMED, so the diagnosis is about what happened rather than about what
     # might. SLOW_MS is deliberately well above the measured worst case for a
     # table of any size these are meant to hold - about 5 ms at 100,000 rows -
@@ -909,6 +934,11 @@ sub _now {
 # too, because an index on a table that large only moves the problem.
 sub _timed {
     my ( $q, $t0, $out ) = @_;
+
+    # SM857: every answer to a (mine) binding says so, because the caller has
+    # to treat it as per-viewer - the processor refuses to let it into a render
+    # that could be shared. _timed is the one exit all three shapes leave by.
+    $out->{mine} = 1 if $q->{mine};
     return $out unless $t0;
     my $ms = ( _now() - $t0 ) * 1000;
     $out->{elapsed_ms} = sprintf '%.1f', $ms;

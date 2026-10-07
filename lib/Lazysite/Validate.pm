@@ -329,6 +329,24 @@ sub _check_db_bindings {
             next;
         }
 
+        # SM857: (mine) on a table with no created_by renders nothing and says
+        # so only in the render log, so it is said here too - by the parser the
+        # render uses, not a second reading of the grammar.
+        my ($spec) = $line =~ /:\s*(db:.*?)\s*\z/;
+        my $q = eval { require Lazysite::Data::Query;
+            Lazysite::Data::Query::parse_binding( $spec, $d ) } || {};
+        if ( ( $q->{kind} // '' ) eq 'mine_needs_timestamps' ) {
+            push @$issues, { kind => 'db-mine-no-owner',
+                message => "this page binds db:$table with (mine), and $q->{error}." };
+            next;
+        }
+
+        # A (mine) BINDING IS NOT HELPED BY PUBLISHING. An anonymous viewer
+        # owns no rows, so it renders nothing to them whether or not the table
+        # is public, and any signed-in account may read an unpublished table -
+        # advice to add public: true would widen a table for no gain.
+        next if $q->{mine};
+
         # THE ONE THAT COST THE AFTERNOON. An unpublished table answers a
         # visitor exactly as a table that was never declared does - which is
         # deliberate, and is why nothing on the page could say which it was.

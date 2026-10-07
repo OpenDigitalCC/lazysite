@@ -10,8 +10,8 @@ register:
      imported: 2026-10-07
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite/docs/practice/authoring-practice.md sha256=b519875859b5ed7681abbdc511c5cf5da3ebff747b11a0fd7178140a8ac87377 modified=2026-10-01
-     source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=9c739819844db9743643d7edbf54df0e572dde36aeb3841cdad50d1195f8502a modified=2026-10-07
-     body-sha256: 82e32278a76377eabde9fe03989214205ed7176d3a384089c82832fae23d9953
+     source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=a6475e0c96e9f7a2b9fdefb59caca8464b47e372ae66c67def4481ac58dbb38b modified=2026-10-07
+     body-sha256: e30afc0d7c5e8d2532dc7ba7121e6cb52755c765336d6c947d45f77bb6eb1aa3
 -->
 
 ## What this is, and what it is not
@@ -1024,6 +1024,7 @@ The two read paths do not have the same grammar, and the difference is silent.
 | Read path | Filtering |
 | --- | --- |
 | `db:t(col=v,order=x,limit=n)` in front matter | conditions AND-combine; `.count(col=v)` and `.field(col,key=x)` too |
+| `db:t(mine)` in front matter | the signed-in viewer's own rows; none when signed out; needs `timestamps: true`; the page is never cached |
 | `/cgi-bin/lazysite-data.pl?table=t` | `order_by`, `order`, `limit`, `offset` **only** - anything else is IGNORED, and the reply looks exactly like a filtered one |
 
 `data-rows&table=t&chunk=AAA` returns every row including the ones where

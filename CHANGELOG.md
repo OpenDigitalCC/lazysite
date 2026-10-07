@@ -49,6 +49,18 @@ Archive
 
 ## Unreleased
 
+- SM857 (PENDING) **a page can show each signed-in viewer their own rows:
+  `db:<table>(mine)`.** No filter in the engine was written by the server, so a
+  page rendered the same rows for everybody. `mine` makes the engine add
+  `created_by = <viewer>` from the trust-gated identity; the page and request
+  never supply it, and it ANDs with the other filters, `.count` and `.field`. An
+  anonymous viewer gets no rows (never all, never an error); rows with an empty
+  created_by belong to nobody. A table without `timestamps: true` is refused by
+  name, logged and reported by `validate_page`. A `(mine)` page takes the gated
+  page's cache treatment, and a `(mine)` binding the page did not declare is
+  refused. t/unit/data/63 renders as ann, then bob, then signed out, on a
+  `ttl:` page; removing the bypass served ann's rows to both.
+
 - SM943 (PENDING) **every per-action fact the manager API keeps is declared
   once, on the action's entry in `Lazysite::ControlApi::Actions`.** Ten tables
   in `lazysite-manager-api.pl` were hand-kept copies: the known set, mutating,

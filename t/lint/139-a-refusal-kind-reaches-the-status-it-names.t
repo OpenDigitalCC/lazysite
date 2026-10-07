@@ -66,7 +66,16 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     public-credential public-phone public-postcode
 
     form-binding-unchecked no-content unreadable
+
+    mine_needs_timestamps db-mine-no-owner
 );
+
+# SM857: `mine_needs_timestamps` is the binding grammar refusing (mine) on a
+# table with no created_by - an author's binding that cannot work as written,
+# the same class as `invalid`. Only a page binding can say (mine): the data
+# endpoint assembles its binding from four parameters and never writes it.
+# `db-mine-no-owner` is Lazysite::Validate reporting the same thing, GROUP 2
+# like the db- kinds above.
 
 # SM921: `uncompilable-pattern` is GROUP 2 for the same reason `invalid-form-rule`
 # beside it is - both are Lazysite::Validate issues about a form field, reported to

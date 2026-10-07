@@ -446,6 +446,7 @@ bold: 1
 tone: medium
 ---
 `db:t(col=v,order=x,limit=n)` in front matter | conditions AND-combine; `.count(col=v)` and `.field(col,key=x)` too
+`db:t(mine)` in front matter | the signed-in viewer's own rows; none when signed out; needs `timestamps: true`; the page is never cached
 `/cgi-bin/lazysite-data.pl?table=t` | `order_by`, `order`, `limit`, `offset` **only** - anything else is IGNORED, and the reply looks exactly like a filtered one
 ```
 

@@ -12,6 +12,7 @@ package Lazysite::Data::Query;
 #     featured: db:products(featured=true,limit=4)
 #     total:    db:tasks.count(done=false)           a scalar
 #     price:    db:products.field(price,key=SKU1)    one value from one row
+#     own:      db:applications(mine,limit=20)       the viewer's own rows (SM857)
 #
 # AN UNINDEXED FILTER OR ORDER IS ALLOWED, AND REPORTED. It was refused at
 # first, on the reasoning that a scan "works on twelve test rows and stops
@@ -162,6 +163,13 @@ sub parse_binding {
         # The space form's bare direction word.
         if ( $p =~ /\A(asc|desc)\z/i ) { $out{order} = lc $1; next }
 
+        # SM857: THE BARE WORD `mine`, and only the bare word. It carries no
+        # value because the value is not the author's to give: the engine adds
+        # `created_by = <the signed-in viewer>` in resolve_binding, from the
+        # identity the caller passed as `as`. `mine=x` is not this - it is a
+        # filter on a field called mine, and falls through to the filters below.
+        if ( $p eq 'mine' ) { $out{mine} = 1; next }
+
         my ( $k, $v ) = split /=/, $p, 2;
         next    unless defined $k && length $k;
         $v = '' unless defined $v;
@@ -218,6 +226,30 @@ sub _validate {
     if ( ( $q->{scalar} // '' ) eq 'field' ) {
         return _err("'$q->{column}' is not a field of '$d->{table}'")
             unless exists $d->{fields}{ $q->{column} };
+    }
+
+    # SM857: (mine) NEEDS AN OWNER COLUMN, REFUSED BY NAME. created_by exists
+    # only where `timestamps: true` creates it. Without it the filter has
+    # nothing to compare: dropping it would render every row, and an empty
+    # answer would look like a viewer who owns nothing. Neither is true, so the
+    # author is told which table and what to set.
+    if ( $q->{mine} ) {
+        return {
+            ok    => 0,
+            kind  => 'mine_needs_timestamps',
+            table => $d->{table},
+            error => "(mine) cannot be applied to '$d->{table}': it has no "
+                . "created_by column, so no row in it has an owner. Set "
+                . "timestamps: true on '$d->{table}' and migrate - until then "
+                . 'the binding renders nothing rather than every row'
+        } unless is_owned( $d, 'created_by' );
+
+        # A literal owner beside (mine) is two answers to one question, and
+        # the literal would be the one an author typed. Refused rather than
+        # resolved either way.
+        return _err( "(mine) supplies created_by itself - remove the literal "
+                . "created_by filter from the '$d->{table}' binding" )
+            if exists $q->{filters}{created_by};
     }
 
     $q->{scans} = [];

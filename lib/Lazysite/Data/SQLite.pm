@@ -439,9 +439,13 @@ sub _where {
     my ( $d, $filter, $caller ) = @_;
     my $fields = $d->{fields};
     my ( @where, @binds );
+    # SM857: AND THE COLUMNS THE TABLE'S FLAGS GIVE IT, as select_sql's ORDER
+    # BY already allowed. Query's _validate admitted a created_by filter and
+    # this refused it, so `created_by=ann` passed the parser and died here;
+    # (mine) is that filter written by the engine, and needs it to work.
     for my $f ( sort keys %{ $filter || {} } ) {
         die "$caller: '$f' is not a field of '$d->{table}'"
-            unless exists $fields->{$f} || $f eq $d->{key};
+            unless exists $fields->{$f} || $f eq $d->{key} || is_owned( $d, $f );
         if ( defined $filter->{$f} ) {
             push @where, _ident($f) . ' = ?';
             push @binds, $filter->{$f};
