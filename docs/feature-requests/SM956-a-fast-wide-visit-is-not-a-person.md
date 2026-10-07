@@ -4,11 +4,11 @@ title: "SM956: A visit of more than five pages at under ten-second gaps is class
 subtitle: "An owner-ruled rule for the visitor classifier."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-07
 raised-by: the sites agent (xisl.com), carrying the owner's ruling, 2026-10-06
 area: analytics
-status-note: "Owner rule 2026-10-06: >5 pages in a visit, all gaps <10 s, is not a person. Edge case: a visit with fewer than two gaps stays in its class. Since 0.15.2 the class is unattributed (R10, SM941), so the rule moves visits from unattributed to bot."
+status-note: "SHIPPED (PENDING): a third promotion trigger in stats.pl (_pace) - a run of more than 5 page views each <10 s apart moves the source to bot, with reach-back; counted in bot_paced; basis 5. t/unit/plugins/47 covers the ruled cases and two false-positive guards; seven sabotages each fail a subtest."
 ---
 
 # The rule (owner, 2026-10-06)

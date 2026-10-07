@@ -176,9 +176,13 @@ our @CLASSES = qw(unattributed no_agent ai bot noise scanner);
 #       drift, and this is the integer that lets an operator tell the two
 #       apart. `unattributed` is an upper bound on people; it was never a
 #       measurement of them.
+#   5 - a PACED run is a bot (SM956, the owner's rule, from 0.15.3): more than
+#       five page views from one source, each under ten seconds after the
+#       last, move that source from `unattributed` to `bot`, counted in
+#       `bot_paced` so the move can be inspected. `unattributed` steps DOWN.
 #
 # A day-bucket carrying no basis at all predates the field, which is basis 1.
-our $COUNTING_BASIS = 4;
+our $COUNTING_BASIS = 5;
 
 # SM342: WHAT THE OPERATION ACTUALLY DID, counted rather than timed.
 #
@@ -443,6 +447,14 @@ sub _promo_key {
     require Digest::SHA;    # loaded on demand, as _visitor_token does
     return substr( Digest::SHA::sha256_hex("$tok|$ua"), 0, 16 );
 }
+
+# SM956: the owner's rule (2026-10-06) - "a visit with more than five pages at
+# under ten-second gaps is not a person". Read as a RUN: a sixth page view
+# inside ten seconds of the fifth, each of those inside ten of the one before,
+# promotes the source to `bot`. One or two views have no run to judge and
+# never promote; a gap of ten seconds or more starts the count again.
+our $PACE_PAGES = 5;     # MORE than this many, in one run
+our $PACE_GAP   = 10;    # seconds; each gap strictly under it
 
 sub _sweep_thresholds {
     my ($cfg) = @_;
@@ -1665,6 +1677,7 @@ sub _day_rollup {
         pageviews        => ( $bucket->{hits}             // 0 ),
         asset_hits       => ( $bucket->{asset_hits}       // 0 ),    # SM329
         scanner_inferred => ( $bucket->{scanner_inferred} // 0 ),    # SM332
+        bot_paced        => ( $bucket->{bot_paced}        // 0 ),    # SM956
 
         # SM389: generated registries. Reported beside pageviews and NOT folded
         # into them, for the SM329 reason - a sitemap fetch is not a page view,
@@ -1748,7 +1761,7 @@ sub _month_rollup {
     my ( $mon, $days, $top_n ) = @_;
     my ( %cls, %pages, %ips, %status, %nf_pl, %forms );
     my %auth_ref;    # SM223
-    my ( $pv, $ndays, $nf_junk, $asset_pv, $inferred ) = ( 0, 0, 0, 0, 0 );
+    my ( $pv, $ndays, $nf_junk, $asset_pv, $inferred, $paced ) = ( 0, 0, 0, 0, 0, 0 );
     my %bases;       # SM338
     for my $day ( grep { index( $_, $mon ) == 0 } keys %$days ) {
         my $b = $days->{$day};
@@ -1756,6 +1769,7 @@ sub _month_rollup {
         $pv       += ( $b->{hits}             // 0 );
         $asset_pv += ( $b->{asset_hits}       // 0 );    # SM329
         $inferred += ( $b->{scanner_inferred} // 0 );    # SM332
+        $paced    += ( $b->{bot_paced}        // 0 );    # SM956
         $bases{$_} = 1 for _basis_of($b);                # SM338
         $nf_junk      += ( $b->{nf_junk} // 0 );
         $cls{$_}      += $b->{cls}{$_}          for keys %{ $b->{cls}          || {} };
@@ -1774,6 +1788,7 @@ sub _month_rollup {
         pageviews        => $pv,
         asset_hits       => $asset_pv,
         scanner_inferred => $inferred,
+        bot_paced        => $paced,
 
         # SM338: a MONTH is where this bites hardest. The current month is
         # refreshed on every call, so in the month an instance upgrades it sums
@@ -2064,6 +2079,7 @@ sub _new_day_bucket {
         nf_plausible     => {}, nf_junk => 0,  auth_refused => {},
         asset_hits       => 0,    # SM329
         scanner_inferred => 0,    # SM332
+        bot_paced        => 0,    # SM956
 
         # SM389: generated registries (sitemap.xml, the feeds). Their own
         # counters and NOT part of hits: a crawler fetching a sitemap is not a
@@ -2127,6 +2143,7 @@ sub _apply_event {
     delete $b->{cls}{$cls} if ( $b->{cls}{$cls} // 0 ) <= 0;
 
     $b->{scanner_inferred} += $sign if $cls eq 'scanner' && $inferred;
+    $b->{bot_paced}        += $sign if $cls eq 'bot'     && $inferred;    # SM956
 
     if ( $st == 404 ) {
         if ( $cls eq 'unattributed' ) {
@@ -2550,6 +2567,28 @@ sub _close_session {
     return;
 }
 
+# SM956: one page view's step in its source's run. Only a page view a person
+# could have made counts - `unattributed`, under 400, not an asset - so an
+# asset burst behind a page never promotes the reader who loaded it.
+sub _pace {
+    my ( $cache, $tok, $r, $newly ) = @_;
+    return if $cache->{paced}{$tok};
+    return unless ( $r->{class}  // '' ) eq 'unattributed';
+    return unless ( $r->{status} // 0 ) < 400;
+    return if _is_asset( $r->{path} ) || $r->{path} =~ $NOT_A_PAGE_RE;
+    my $now = $r->{t} // 0;
+    my ( $last, $n ) = split /,/, ( $cache->{pace}{$tok} // '' );
+    $n = ( defined $last && length $last && $now - $last < $PACE_GAP ) ? $n + 1 : 1;
+    if ( $n > $PACE_PAGES ) {
+        $cache->{paced}{$tok} = 1;
+        delete $cache->{pace}{$tok};
+        push @$newly, $tok;
+        return;
+    }
+    $cache->{pace}{$tok} = "$now,$n";
+    return;
+}
+
 sub _tally_batch {
     my ( $cache, $batch, $cfg ) = @_;
 
@@ -2582,6 +2621,9 @@ sub _tally_batch {
     # the moment trail metrics existed.
     my ( $sweep_n, $sweep_w ) = _sweep_thresholds($cfg);
     my @newly_promoted;    # SM340: tokens that became scanners in THIS batch
+    my @newly_paced;       # SM956: sources that became bots by pace
+    $cache->{pace}  ||= {};
+    $cache->{paced} ||= {};
     for my $r (@$batch) {
         # SM392: promotion keys on token+UA, not the counting token.
         my $tok = $r->{pkey} || $r->{token} || '';
@@ -2594,6 +2636,7 @@ sub _tally_batch {
             next;
         }
         next if $cache->{scanner}{$tok};
+        _pace( $cache, $tok, $r, \@newly_paced );
         next unless ( $r->{status} // 0 ) == 404;
 
         # DISTINCT paths, timestamped. One path retried is a broken link or a
@@ -2647,11 +2690,29 @@ sub _tally_batch {
         }
     }
 
+    # SM956: the same reach-back for a paced source - its earlier page views in
+    # the ring move from `unattributed` to `bot`. Only `unattributed` moves: a
+    # scanner stays a scanner and the other classes were never counted as people.
+    if (@newly_paced) {
+        my %paced = map { ( $_ => 1 ) } @newly_paced;
+        for my $e ( @{ $cache->{events} } ) {
+            my $tok = $e->{pkey} || $e->{visitor} || '';
+            next unless length $tok && $paced{$tok};
+            next unless ( $e->{class} // '' ) eq 'unattributed';
+            my $b = $cache->{days}{ $e->{day} // '' } or next;
+            _apply_event( $b, $e, 'unattributed', -1, $site_host, 0, $NF_CAP );
+            _apply_event( $b, $e, 'bot',           1, $site_host, 1, $NF_CAP );
+            $e->{class} = 'bot';
+        }
+    }
+
     # Both maps self-obsolete on a salt roll; the sweep map is transient working
     # state and is bounded harder, because it holds a path set per token rather
     # than a flag.
     $cache->{scanner} = {} if keys %{ $cache->{scanner} } > 200_000;
     $cache->{sweep}   = {} if keys %{ $cache->{sweep} } > 20_000;
+    $cache->{pace}    = {} if keys %{ $cache->{pace} } > 20_000;
+    $cache->{paced}   = {} if keys %{ $cache->{paced} } > 200_000;
     delete $cache->{scanner_by}{$_}
         for grep { !$cache->{scanner}{$_} } keys %{ $cache->{scanner_by} };
 
@@ -2662,7 +2723,8 @@ sub _tally_batch {
         # not reclassify the browsers beside it.
         my $pk  = $r->{pkey} || $tok;
         my $cls = ( length($pk) && $cache->{scanner}{$pk} ) ? 'scanner' : $r->{class};
-        my $b   = $cache->{days}{ $r->{day} } ||= _new_day_bucket();
+        $cls = 'bot' if $cls eq 'unattributed' && length($pk) && $cache->{paced}{$pk}; # SM956
+        my $b = $cache->{days}{ $r->{day} } ||= _new_day_bucket();
         # PLO-5: the session gate below and _apply_event both ask whether this
         # path is an asset, for the same string. Asked once, and only for the
         # class either of them acts on - _apply_event returns before its own
@@ -2727,7 +2789,8 @@ sub _tally_batch {
         # server-log ingester propagated the same miss there, which is how the
         # sweep test caught a defect that had been live on the other path.
         _apply_event( $b, $r, $cls, 1, $site_host,
-            ( ( $cache->{scanner_by}{$pk} // '' ) eq 'behaviour' ),
+            ( ( $cache->{scanner_by}{$pk} // '' ) eq 'behaviour' )
+                || ( $cls eq 'bot' && $cache->{paced}{$pk} ),
             $NF_CAP, $is_asset );
 
         # SM223: refusals are counted per PATH, for every class rather than

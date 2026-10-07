@@ -96,7 +96,10 @@ ev( 5250, '/pricing',      'READER', $HUMAN );
 # A person who reads a great many pages, to exercise the cap. It has to be a
 # person: a crawler never opens a session at all, so a bot UA here would cap
 # nothing and the assertion would pass on an empty set.
-ev( 5200 - $_, "/deep/$_", 'GRAZER', $HUMAN ) for 0 .. 59;
+#
+# Ten seconds a page: a page a second is a paced run, which SM956 classes as a bot
+# (the owner's rule), and a bot opens no session either.
+ev( 5200 - $_ * 10, "/deep/$_", 'GRAZER', $HUMAN ) for 0 .. 59;
 
 # And a real crawler, which must leave NO trail. Trails are the most
 # person-adjacent thing the store holds; a search engine is not a person and

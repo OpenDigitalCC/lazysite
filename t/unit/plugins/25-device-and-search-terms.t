@@ -54,6 +54,9 @@ my %UA = (
         'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Mobile Safari/537.36',
 );
 
+# Six visitors are six NETWORKS (10.0.N.1): the server-log token zeroes the last
+# octet, so 10.0.0.1-6 would be one source, and six pages in one second from one
+# source is a paced run - a bot (SM956).
 sub line {
     my ( $ip, $target, $ua ) = @_;
     return qq{$ip - - [$NOW] "GET $target HTTP/1.1" 200 100 "-" "$ua"\n};
@@ -140,7 +143,7 @@ subtest 'two searches are one page, not two' => sub {
 subtest 'search terms are off unless asked for' => sub {
     my ( $d, $log ) = site(
         undef,
-        map { line( "10.0.0.$_", '/search-results?q=shoes', $UA{desktop} ) } 1 .. 6
+        map { line( "10.0.$_.1", '/search-results?q=shoes', $UA{desktop} ) } 1 .. 6
     );
     my $r = day_rollup( $d, $log );
     ok( !exists $r->{search_terms},
@@ -157,7 +160,7 @@ subtest 'and a setting that says off means off' => sub {
     for my $value (qw(off no 0 false maybe)) {
         my ( $d, $log ) = site(
             "search_terms: $value\n",
-            map { line( "10.0.0.$_", '/search-results?q=shoes', $UA{desktop} ) } 1 .. 6
+            map { line( "10.0.$_.1", '/search-results?q=shoes', $UA{desktop} ) } 1 .. 6
         );
         my $r = day_rollup( $d, $log );
         ok( !exists $r->{search_terms},
@@ -170,7 +173,7 @@ subtest 'and a setting that says off means off' => sub {
 subtest 'and are recorded once turned on' => sub {
     my ( $d, $log ) = site(
         "search_terms: on\n",
-        map { line( "10.0.0.$_", '/search-results?q=shoes', $UA{desktop} ) } 1 .. 6
+        map { line( "10.0.$_.1", '/search-results?q=shoes', $UA{desktop} ) } 1 .. 6
     );
     my $r = day_rollup( $d, $log );
     is_deeply( $r->{search_terms}, [ { key => 'shoes', count => 6 } ],
@@ -225,7 +228,7 @@ subtest 'terms are normalised before they are counted' => sub {
 subtest 'a request with no q is not a search' => sub {
     my ( $d, $log ) = site(
         "search_terms: on\n",
-        map { line( "10.0.0.$_", '/about?utm_source=news', $UA{desktop} ) } 1 .. 5
+        map { line( "10.0.$_.1", '/about?utm_source=news', $UA{desktop} ) } 1 .. 5
     );
     my $r = day_rollup( $d, $log );
     ok( !exists $r->{search_terms}, 'a tracking parameter is not a search term' );
@@ -252,7 +255,7 @@ subtest 'the Stats page sees them too' => sub {
     # from the other end.
     my ( $d, $log ) = site(
         "search_terms: on\n",
-        ( map { line( "10.0.0.$_", '/search-results?q=shoes', $UA{mobile} ) } 1 .. 4 ),
+        ( map { line( "10.0.$_.1", '/search-results?q=shoes', $UA{mobile} ) } 1 .. 4 ),
         line( '10.0.1.1', '/about', $UA{desktop} ),
     );
     # BOTH projections, because an agent reading the export and an operator
@@ -272,7 +275,7 @@ subtest 'the Stats page sees them too' => sub {
 subtest 'and the window view stays quiet when the switch is off' => sub {
     my ( $d, $log ) = site(
         undef,
-        map { line( "10.0.0.$_", '/search-results?q=shoes', $UA{mobile} ) } 1 .. 4
+        map { line( "10.0.$_.1", '/search-results?q=shoes', $UA{mobile} ) } 1 .. 4
     );
     for my $how (qw(page export)) {
         my $w = window_view( $d, $log, $how );

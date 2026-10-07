@@ -112,7 +112,8 @@ subtest 'a short day file is rewritten from the bucket that has the whole day'
     # needs a file that is already short and a cache that has never finalised
     # it, which is exactly what an upgrading site has.
     my $d = site();
-    log_event( $d, $YEST + $_, "/p$_" ) for 1 .. 10;
+    # Fifteen seconds apart: ten pages a second apart is a paced run, a bot (SM956).
+    log_event( $d, $YEST + $_ * 15, "/p$_" ) for 1 .. 10;
     run( $d, '--export', '--window', 30 );
     is( day_file( $d, $YESTDAY )->{pageviews}, 10,
         'the bucket holds the whole day' );
@@ -245,12 +246,13 @@ subtest 'the recount repairs a truncated day, and says what it changed' => sub {
     # The whole point, end to end: a day damaged by SM343 on an engine that had
     # the defect, then repaired by the verb.
     my $d = site();
-    log_event( $d, $YEST + $_, "/p$_" ) for 1 .. 3;
+    # Fifteen seconds apart, as above: a page a second is a paced run (SM956).
+    log_event( $d, $YEST + $_ * 15, "/p$_" ) for 1 .. 3;
     run( $d, '--export', '--window', 30 );
 
     # Freeze the file as the old engine would have left it, and add the rest of
     # the day to the log. The file is now short by seven.
-    log_event( $d, $YEST + $_, "/p$_" ) for 4 .. 10;
+    log_event( $d, $YEST + $_ * 15, "/p$_" ) for 4 .. 10;
     my $path   = "$d/lazysite/stats/daily/$YESTDAY.json";
     my $frozen = day_file( $d, $YESTDAY );
     is( $frozen->{pageviews}, 3, 'the file is short, as the old engine left it' );

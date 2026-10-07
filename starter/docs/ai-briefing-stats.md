@@ -29,8 +29,8 @@ The response has these fields:
 ```
 window           { days, from, to }            the period covered
 schema_version   "3"                            the shape of this reply
-counting_basis   4                              HOW these were counted
-counting_basis_in_window  [ 4 ]                 more than one = a mixed window
+counting_basis   5                              HOW these were counted
+counting_basis_in_window  [ 5 ]                 more than one = a mixed window
 totals           { pageviews, asset_hits, error_hits, unique_visitors }
 traffic_classes  { unattributed|no_agent|ai|bot|noise|scanner:
                    { visits, share, visitors } }
@@ -63,7 +63,7 @@ reporting either number.
 ### `counting_basis` - before you compare two reports
 
 A day's numbers only mean anything beside another day's if both were counted the
-same way, and the way has changed over time. The current basis is **4**.
+same way, and the way has changed over time. The current basis is **5**.
 
 `counting_basis_in_window` lists every basis the window actually contains. **If
 it holds more than one entry, the totals add together days counted differently**
@@ -75,9 +75,23 @@ responses of 400 or more, and socket endpoints all left the visit count. **Count
 fell sharply** on upgrade. A report comparing before and after must name the
 basis change or it is describing an engine change as a loss of audience.
 
+Basis 5 (lazysite 0.15.3) applies the site owner's rule for pace: **more than
+five page views from one source, each under ten seconds after the last, is a
+bot**. That source moves from `unattributed` to `bot`, including its earlier
+page views. One or two requests never move (there is no run to judge), and a
+gap of ten seconds or more starts the count again. `unattributed` steps down on
+upgrade; the day rollup's `bot_paced` counts what moved, so the change can be
+inspected rather than taken on trust.
+
+A source is the visitor token and the user-agent together, and on a server log
+the token is the address with its last part zeroed. Several people behind one
+network with identical browsers, clicking quickly at the same moment, can
+therefore read as one fast source. The scanner rule has the same limit.
+
 A day rollup (`day=YYYY-MM-DD`) additionally carries:
 
 ```
+bot_paced        n                              requests moved to bot by pace (basis 5)
 registry_hits    n                              generated registries served
 registry_by      { "sitemap.xml": n, ... }       which one, and how often
 ```

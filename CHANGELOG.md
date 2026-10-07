@@ -49,6 +49,18 @@ Archive
 
 ## Unreleased
 
+- SM956 (PENDING) **a fast run of pages is a bot** - the site owner's rule: "a
+  visit with more than five pages at under ten-second gaps is not a person". A
+  sixth page view from one source inside ten seconds of the fifth, each inside
+  ten of the one before, moves that source from `unattributed` to `bot`,
+  including the earlier views (the same reach-back the scanner rule uses). One
+  or two requests never move, a gap of ten seconds or more restarts the count,
+  and assets are not page views. **Counting basis 5: `unattributed` steps down**
+  on upgrade; the day rollup's `bot_paced` counts what moved. A source is the
+  token and user-agent, so identical browsers behind one network clicking fast
+  together can read as one - the scanner rule's limit too. Three test fixtures
+  that modelled a "person" as a page a second now read at a person's pace.
+
 - SM954 (PENDING) **a quarantined submission shows why, in the table.** The
   reason was stored (`_spam_reason`) and set as the tag's hover title, which a
   touch screen never shows; the owner saw "quarantined" with no reason (0.15.2

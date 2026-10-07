@@ -101,8 +101,13 @@ subtest 'unique visitors stays ONE - counting keeps the bare token' => sub {
     # release counts" - and pinning the number here would make every future
     # basis change look like a failure of SM417's rule, which is a different
     # thing entirely.
-    is( $doc->{counting_basis}, 4,
-        'the day SAYS it counts the new way (SM338 basis 4) - the visit-count '
+    my ($current) = do {
+        open my $ph, q{<}, repo_root() . q{/plugins/stats.pl} or die $!;
+        local $/;
+        <$ph> =~ /our \$COUNTING_BASIS = (\d+);/;
+    };
+    is( $doc->{counting_basis}, $current,
+        "the day SAYS it counts the current way (SM338 basis $current) - the visit-count "
             . 'step is attributable to rules, not traffic' );
 };
 
