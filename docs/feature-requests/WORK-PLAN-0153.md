@@ -32,6 +32,7 @@ starts.
 | Q5b | **[[SM959]] robustness, found by Q5a's handoff - built (n258)**: a child that exits early killed its caller (SIGPIPE) | fixed before Q6 continues | S |
 | Q6 | **stage 1 built (n259)**: the manager API's ten per-action tables derive from `%ACTION`; stages 2-3 are Q13a - E5 [[SM943]] - one declaration per control-API action, the rest derived | must precede Q7/Q8, which add actions | L |
 | Q7 | ~~B3 [[SM857]]~~ **built (n260)** read half - `(mine)` views of a table (R3) | after E5 | M |
+| Q7a | **[[SM960]] security, found by the Q7 agent - built (n261)**: a custom auth header name was trusted from anyone | fixed before Q8 | S |
 | Q8 | B4 [[SM858]] - approve an account from the Submissions view (R4) | after E5 | M |
 | Q9 | F7 [[SM957]] - Submissions page and menu entry with an unread count; menu regrouped; Handlers off the menu (R11) | after Q8, which adds to the Submissions view | M |
 | Q10 | A1 [[SM906]] T3 - a distinct "cannot tell" when the auth store is unreadable | ready | M |

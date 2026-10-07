@@ -635,11 +635,18 @@ If your proxy uses different header names, configure them in
 `lazysite/lazysite.conf`:
 
 ```yaml
+auth_proxy_trusted: true
 auth_header_user: Remote-User
 auth_header_name: Remote-Name
 auth_header_email: Remote-Email
 auth_header_groups: Remote-Groups
 ```
+
+**A custom name needs `auth_proxy_trusted: true`.** The engine accepts an
+identity header only from a proxy it has been told to trust; without the flag a
+custom-named header is discarded and logged, because a visitor can send any
+header they like. Make sure the proxy strips these headers from incoming
+requests before setting its own.
 
 ### Authentik
 
@@ -665,6 +672,7 @@ Apache with Authentik:
 Configure header names in `lazysite.conf` to match Authelia:
 
 ```yaml
+auth_proxy_trusted: true
 auth_header_user: Remote-User
 auth_header_name: Remote-Name
 auth_header_email: Remote-Email

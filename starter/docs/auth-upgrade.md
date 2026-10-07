@@ -20,9 +20,13 @@ built-in to external requires no changes to pages or the processor.
 3. If your proxy uses different header names, update `lazysite.conf`:
 
 ```yaml
+auth_proxy_trusted: true
 auth_header_user: Remote-User
 auth_header_groups: Remote-Groups
 ```
+
+   `auth_proxy_trusted: true` is required: without it the engine discards
+   identity headers it did not set itself, custom-named ones included.
 
 4. Change the Apache `FallbackResource` from `lazysite-auth.pl` back
    to `lazysite-processor.pl`:

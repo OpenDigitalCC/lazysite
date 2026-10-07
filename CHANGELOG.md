@@ -49,6 +49,17 @@ Archive
 
 ## Unreleased
 
+- SM960 (PENDING) **security: a custom auth header name was trusted from
+  anyone.** With `auth_header_user` set (the docs' example is `Remote-User`) and
+  no `auth_proxy_trusted: true`, a visitor sending `Remote-User: alice` passed a
+  page gate as alice - and behind the built-in auth wrapper too, which vouches
+  for `X-Remote-*` alone. The trust gate stripped only the fixed `X-Remote-*`
+  names; it now strips the configured ones unless a proxy is trusted, and logs
+  each. **A site using custom header names must set `auth_proxy_trusted: true`**
+  - until it does, those headers are discarded and visitors read as signed out.
+  Default-named sites are unaffected. t/integration/106; the auth docs show the
+  flag.
+
 - SM857 (PENDING) **a page can show each signed-in viewer their own rows:
   `db:<table>(mine)`.** No filter in the engine was written by the server, so a
   page rendered the same rows for everybody. `mine` makes the engine add

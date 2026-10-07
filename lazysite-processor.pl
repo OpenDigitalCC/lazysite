@@ -2102,7 +2102,30 @@ sub apply_trust_gate {
     my %sv            = resolve_site_vars();
     my $proxy_trusted = lc( $sv{auth_proxy_trusted} // 'false' );
     my $auth_trusted  = $ENV{LAZYSITE_AUTH_TRUSTED} // '';
-    return if ( $auth_trusted eq '1' ) || ( $proxy_trusted eq 'true' );
+    return if $proxy_trusted eq 'true';
+
+    # SM960: THE HEADERS check_auth ACTUALLY READS. auth_header_user and its three
+    # siblings rename the identity headers for a proxy (the docs' example is
+    # Remote-User), and this gate stripped only the fixed X-Remote-* names - so
+    # with a custom name configured and no auth_proxy_trusted, a header any
+    # visitor sends passed a page gate. The built-in auth wrapper vouches for
+    # X-Remote-* alone, so a custom name is stripped behind it too: only a
+    # trusted proxy (auth_proxy_trusted: true) may supply one.
+    my @custom;
+    for my $k (qw(auth_header_user auth_header_name auth_header_email auth_header_groups)) {
+        my $h = $sv{$k};
+        next unless defined $h && length $h;
+        ( my $e = 'HTTP_' . uc $h ) =~ s/-/_/g;
+        push @custom, $e unless $e =~ /\AHTTP_X_REMOTE_(?:USER|NAME|EMAIL|GROUPS)\z/;
+    }
+    for my $e (@custom) {
+        next unless defined $ENV{$e};
+        log_event( 'WARN', $uri,
+            'untrusted auth header ignored - a custom auth_header_* name needs auth_proxy_trusted: true',
+            header => $e );
+        delete $ENV{$e};
+    }
+    return if $auth_trusted eq '1';
 
     if ( $ENV{HTTP_X_REMOTE_USER} ) {
         log_event( 'WARN', $uri,
