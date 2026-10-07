@@ -39,8 +39,12 @@ subtest 'it is gated, on both sides' => sub {
     require Lazysite::ControlApi::Actions;
     is_deeply( $Lazysite::ControlApi::Actions::GATE{'page-pdf'},
         ['manage_content'], 'the TOKEN gate requires manage_content' );
-    like( $api, qr/'page-pdf' => 'manage_content'/,
-        'and so does the cookie gate' );
+    # SM943: the cookie gate is the action's `cookie_cap` in the same module,
+    # and the CGI builds %COOKIE_CAP from it.
+    like( $api, qr/my %COOKIE_CAP = Lazysite::ControlApi::Actions::cookie_caps\(\);/,
+        'the CGI builds its cookie gate from the declaration' );
+    is( { Lazysite::ControlApi::Actions::cookie_caps() }->{'page-pdf'},
+        'manage_content', 'and so does the cookie gate' );
 
     # The register the generated reference is built from must agree, or an
     # integrator is told to ask for the wrong grant. Derived, so this now asserts

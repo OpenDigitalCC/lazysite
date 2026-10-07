@@ -108,7 +108,12 @@ subtest 'each need is the capability the manager charges for the same work' => s
     # if the manager moves analyse_visitors to another capability, this test
     # is what says the scheduler must move with it.
     my $api = slurp("$ROOT/lazysite-manager-api.pl");
-    my ($gate) = $api =~ /'analyse_visitors'\s*=>\s*'(\w+)'/;
+    # SM943: the cookie gate is a field on the action's declaration, which the
+    # CGI builds %COOKIE_CAP from.
+    like( $api, qr/my %COOKIE_CAP = Lazysite::ControlApi::Actions::cookie_caps\(\);/,
+        'the manager builds its cookie gate from the declaration' );
+    require Lazysite::ControlApi::Actions;
+    my $gate = { Lazysite::ControlApi::Actions::cookie_caps() }->{analyse_visitors};
     is( $JOBS{'stats-rollup'}{needs}, $gate,
         "stats-rollup needs what analyse_visitors is gated on ($gate)" );
 

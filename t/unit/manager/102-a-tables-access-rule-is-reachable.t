@@ -23,7 +23,9 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(gate_caps);
+use Lazysite::ControlApi::Actions ();
 
 BEGIN {
     eval { require YAML::PP; 1 } or plan skip_all => 'YAML::PP not available';
@@ -101,12 +103,15 @@ subtest 'the verbs are gated, and on the capability that owns access rules' => s
         <$fh>;
     };
     # SM662 made the token gate declarative, so the `sub { ... }` this used to
-    # match is not written anywhere. The cookie gate is still source text and
-    # is still read as such; the token gate is read as data.
+    # match is not written anywhere. SM943 did the same for the cookie gate: it
+    # is each action's `cookie_cap` in Lazysite::ControlApi::Actions, which the
+    # CGI builds %COOKIE_CAP from. Both are read as data.
     my %caps = gate_caps($src);
+    like( $src, qr/my %COOKIE_CAP = Lazysite::ControlApi::Actions::cookie_caps\(\);/,
+        'the CGI builds its cookie gate from the declaration' );
+    my %cookie = Lazysite::ControlApi::Actions::cookie_caps();
     for my $a (qw(data-table-acl-get data-table-acl-set data-table-acl-remove)) {
-        like( $src, qr/'\Q$a\E'\s*=>\s*'manage_content'/,
-            "$a carries a cookie gate" );
+        is( $cookie{$a}, 'manage_content', "$a carries a cookie gate" );
         ok( $caps{$a} && $caps{$a}{manage_content},
             "$a carries a token gate, on the capability that owns access rules" );
     }

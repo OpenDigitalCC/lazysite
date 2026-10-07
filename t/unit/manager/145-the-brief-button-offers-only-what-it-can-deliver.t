@@ -20,7 +20,9 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use lib "$FindBin::Bin/../../../lib";
+use TestHelper                    qw(repo_root);
+use Lazysite::ControlApi::Actions ();
 
 my $root = repo_root();
 my $src  = do {
@@ -38,9 +40,14 @@ subtest 'the asymmetry this is about is real, and still there' => sub {
     # If these two ever gate the same way, the whole problem dissolves and this
     # file should be revisited rather than left asserting a distinction that no
     # longer exists.
-    like( $api, qr/'brief-read'\s*=>\s*'manage_content\|manage_briefs'/,
+    # SM943: the cookie gate is each action's `cookie_cap` in the declaration,
+    # which the CGI builds %COOKIE_CAP from.
+    like( $api, qr/my %COOKIE_CAP = Lazysite::ControlApi::Actions::cookie_caps\(\);/,
+        'the CGI builds its cookie gate from the declaration' );
+    my %cookie = Lazysite::ControlApi::Actions::cookie_caps();
+    is( $cookie{'brief-read'}, 'manage_content|manage_briefs',
         'reading admits either capability' );
-    like( $api, qr/'brief-append'\s*=>\s*'manage_briefs'/,
+    is( $cookie{'brief-append'}, 'manage_briefs',
         'appending admits only manage_briefs' )
         or diag( 'If append now accepts manage_content too, the button need '
             . 'not distinguish and this test is obsolete.' );
