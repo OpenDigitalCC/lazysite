@@ -179,6 +179,7 @@
     "Net::DNS": {
       "core": false,
       "license": "MIT",
+      "_note": "Recorded as MIT by the release manager's ruling (2026-10-07). The upstream notice is MIT-family: MIT's grant and disclaimer, plus a clause that the author's name not be used in advertising without permission. Debian lists it as License: other.",
       "debian_pkg": "libnet-dns-perl",
       "rhel_pkg": "perl-Net-DNS",
       "alpine_pkg": "perl-net-dns",

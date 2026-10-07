@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-10-07
 raised-by: the sites agent, 0.15.2 edge walk R8, 2026-10-07
 area: forms
-status-note: "Confirmed from source 2026-10-07: the counter is keyed on the address alone in one .rate-limit.db, and check_rate_limit runs before validation, so invalid posts spend the allowance. Explains R8: 5 posts to contact, then zz-r8 refused at once. Needs a ruling: per form or per address."
+status-note: "RULED 2026-10-07 (release manager): the limit is PER FORM, and only ACCEPTED submissions count - a post refused by validation spends nothing. Key the stamps on form and address; record the stamp only when the submission is stored. WORK-PLAN-0153 R8."
 ---
 
 # Measured
@@ -42,6 +42,12 @@ the owner pulled; which sink receives it is SM932 (2), scheduled (R6).
 1. Should the count be per form and address, as the setting's name suggests, or
    per address across all forms, as built?
 2. Should a post refused by validation spend the allowance?
+
+# Ruling (2026-10-07)
+
+1. Per form: the count is kept per form and address.
+2. Only accepted submissions count: a post refused by validation spends no
+   allowance.
 
 # Done when
 

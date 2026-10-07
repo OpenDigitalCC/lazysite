@@ -71,10 +71,10 @@ release, E5 before the new actions R3 and R4 add.
 | Ref | Item | Size | Needs |
 | --- | --- | --- | --- |
 | F1 | [[SM951]] - the manager bell is never wired: its script runs in `<head>` before the bell exists (since at least 0.10.0); blocks R1 | S | nothing - first |
-| F2 | [[SM952]] - a form's rate limit counts the address's posts to every form, and refused-as-invalid posts spend it | S | a ruling: per form or per address; should an invalid post count? |
+| F2 | [[SM952]] - a form's rate limit counts the address's posts to every form, and refused-as-invalid posts spend it | S | nothing - ruled (R8) |
 | F3 | [[SM953]] - a missing submission's message names the store file | XS | nothing |
 | F4 | [[SM954]] - the submissions table shows "quarantined" without the stored reason | XS | nothing |
-| F5 | [[SM955]] - a notification channel is reported from configuration, not delivery | M | a decision on what to show; shares SM932 (2)'s shape (B6) |
+| F5 | [[SM955]] - the XMPP test says sent when the server bounces it; delivery failures are not audited | M | nothing - ruled (R9) |
 | F6 | [[SM956]] - a visit of more than five pages at under ten-second gaps is a bot (owner rule 2026-10-06) | S | nothing - ruled |
 
 
@@ -87,3 +87,6 @@ release, E5 before the new actions R3 and R4 add.
 | R5 | B5: SM863 part 2 | **No.** The message names the path and the cause; setting site_url is the fix |
 | R6 | B6: SM932 sink probe | **Schedule for 0.15.3**; item (1) stays deferred on OP-29 |
 | R7 | A3: SM869's release | **In 0.15.3 with the rest**; the adversarial review still runs on its own branch |
+| R8 | F2: SM952's rate-limit scope | **Per form**, and **only accepted submissions count** - a post refused by validation spends nothing |
+| R9 | F5: SM955's delivery reporting | **The test button reports a refused recipient** (it waits for the bounce); **every delivery failure goes to the audit log** so it can be exported |
+| R10 | Net::DNS's SBOM licence | **Keep MIT, with a note** naming the extra advertising clause |
