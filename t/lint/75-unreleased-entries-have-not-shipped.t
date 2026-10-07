@@ -85,6 +85,20 @@ for my $j ( 0 .. $#heads ) {
     }
 }
 
+# SM946 MOVES A FINISHED MINOR'S SECTIONS to docs/releases/CHANGELOG-archive.md,
+# and every one of them is a released section. Read only CHANGELOG.md, this
+# called a filing STRANDED when its first part shipped in an archived minor and
+# its second part is the Unreleased entry - SM858, whose 0.13.14 half is in the
+# archive and whose 0.15.3 button was refused as already released. Found
+# landing n262. The archive holds released entries only, so an SM there counts
+# as announced.
+if ( open my $ah, '<', "$root/docs/releases/CHANGELOG-archive.md" ) {
+    for my $l ( split /\n/, do { local $/; <$ah> } ) {
+        $released_sm{$1} = 1 if $l =~ /^- (SM\d+)\b/;
+    }
+    close $ah;
+}
+
 # Every SM whose WORK a release tag already contains.
 #
 # FILINGS DO NOT COUNT, and getting this wrong made the check's first run a

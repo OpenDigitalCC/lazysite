@@ -684,7 +684,7 @@ our %REFUSAL_STATUS = (
             qw(not-found unknown-domain
             no_such_table no_such_row no_such_form db-table-missing) ),
     ( map { $_ => '409 Conflict' }
-            qw(exists in-use confirm needs_confirmation has_submissions) ),
+            qw(exists in-use confirm needs_confirmation has_submissions conflict) ), # SM858
     'too-large' => '413 Payload Too Large',
     'rate'      => '429 Too Many Requests',
     'partial'   => '207 Multi-Status',
