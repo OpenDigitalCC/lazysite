@@ -49,6 +49,13 @@ Archive
 
 ## Unreleased
 
+- SM912 P4 (PENDING) **recorded: a rule checked against nothing says so.**
+  Built in commit e765424f and shipped without a changelog entry, and the filing still read "P4
+  remains". An ACL write against an auth store that knows no accounts or groups
+  returns `principals_unchecked: 1`, so "accepted, unchecked" is no longer
+  reported as "accepted, verified"; t/tools/91 asserts both states. Found while
+  starting it as WORK-PLAN-0153 Q1.
+
 - SM956 (PENDING) **a fast run of pages is a bot** - the site owner's rule: "a
   visit with more than five pages at under ten-second gaps is not a person". A
   sixth page view from one source inside ten seconds of the fifth, each inside

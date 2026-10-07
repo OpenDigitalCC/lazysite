@@ -23,7 +23,7 @@ starts.
 
 | Q | Item | Why here | Size |
 | --- | --- | --- | --- |
-| Q1 | A2 [[SM912]] P4 - an ACL fixture with an empty auth store is visible | ready, XS | XS |
+| Q1 | ~~A2 [[SM912]] P4~~ **already built (e765424f, 0.15.1); recorded (n253)** - an ACL fixture with an empty auth store is visible | ready, XS | XS |
 | Q2 | B1 [[SM939]] SC2 - DELETE of a non-empty collection answers 405 "delete the contents first" (R1) | ruled, S | S |
 | Q3 | B2 [[SM913]] S2 + S4 - link-shortener hosts as a stronger signal; each form's quarantine state shown (R2) | ruled, small | XS+S |
 | Q4 | B6 [[SM932]] (2) - `lazysite check` writes a known line and reports which sinks received it (R6) | ruled; Q5 shares its shape | S |
@@ -52,7 +52,7 @@ Open questions raised while working the queue: none yet.
 | Ref | Item | Size | Needs |
 | --- | --- | --- | --- |
 | A1 | [[SM906]] T3 - the control API answers a distinct "cannot tell" state when the auth store is unreadable, with the repair in the message (ruled 2026-09-29; not built) | M | nothing |
-| A2 | [[SM912]] P4 - a fixture that writes an ACL with an empty auth store exempts itself from SM901; make it visible (t/integration/43's fixture has no accounts) | XS | nothing |
+| A2 | ~~[[SM912]] P4~~ **built e765424f; recorded n253** - a fixture that writes an ACL with an empty auth store exempts itself from SM901; make it visible (t/integration/43's fixture has no accounts) | XS | nothing |
 | A3 | [[SM869]] - raw and escaped query values separated: escape at stash insertion, `%RENDER_QUERY` raw, the sink escapes unconditionally. Hostile-value render test first. XSS-adjacent, so the filing asks for an adversarial review | M | nothing - the release manager said "take it next" |
 
 # Group B - needs a ruling
