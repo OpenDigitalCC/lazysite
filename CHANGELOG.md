@@ -49,6 +49,23 @@ Archive
 
 ## Unreleased
 
+- SM943 stages 2-3 (PENDING) **an action's MCP twin and the twin's hints are
+  declared on the action, and the lints that kept the copies in step check the
+  declaration instead.** `mcp => 'tool'` on an `%ACTION` entry names the twin
+  (60 of them). The twin's readOnly, destructive and changesAccess hints are
+  derived from the action's `mutates`, `destructive` and `changes_access`; only
+  openWorld is declared, as `mcp_open_world`. `lazysite-mcp.pl` builds
+  `%ANNOTATE` from these plus its own rows for the 24 tools with no API twin, and
+  the audit's skip list from readOnly less 17 named reads it has always
+  recorded. tools/list is byte-identical and no audit row changes. The unlocks
+  map no longer claims `save_data_row` and `delete_data_row` for `write_data`
+  (both are gated on `manage_data`, and neither applies its allow-list) or
+  `read_nav` for `manage_content` (it is `manage_nav`'s since SM421); t/lint/90
+  now checks that direction. Lints 14, 22, 23, 58 and t/unit/lib/16 lose the
+  assertions that compared a value with itself or repeated another file's, and
+  one completeness check of every declaration replaces them
+  (t/unit/lib/200).
+
 - SM906 T3 (PENDING) **an unreadable account store answers `cannot-tell`, not
   "Invalid credentials"** (ruled 2026-10-07). With `lazysite/auth/users`
   unreadable no secret can be checked, and a caller holding a good token was
@@ -251,8 +268,7 @@ Archive
   exceptions. The CGI builds every table from it. A test proved all ten
   derived tables equal to the literals before those were removed. Ten lints and
   tests now read the declaration, and a misspelt field is refused at load. No
-  behaviour changes. This is stage 1; the MCP twins and the lint consolidation
-  remain.
+  behaviour changes. This was stage 1; stages 2-3 are the entry above.
 
 - SM959 (PENDING) **a helper that exits before reading no longer kills the
   process writing to it.** Eleven places wrote to a child's stdin with SIGPIPE
