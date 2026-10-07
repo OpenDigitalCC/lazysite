@@ -45,6 +45,12 @@ sub slurp {
     return <$fh>;
 }
 
+# The release history: the live changelog and its archive (SM946 keeps one
+# minor live). A check that measures against past releases reads this.
+sub changelog_history {
+    return slurp('CHANGELOG.md') . "\n" . slurp('docs/releases/CHANGELOG-archive.md');
+}
+
 # A scalar out of a YAML-ish front-matter or fenced block. Deliberately simple:
 # these are our own files in a known shape, not arbitrary YAML.
 sub meta_field {
@@ -255,7 +261,7 @@ for my $r (
 # dependency versions, and a naive match reports "current" off a 5.40.1.
 {
     my %release = map { $_ => 1 }
-        ( slurp('CHANGELOG.md') =~ /^## (\d+\.\d+\.\d+)/mg );
+        ( changelog_history() =~ /^## (\d+\.\d+\.\d+)/mg );
     my $feat     = slurp('docs/FEATURES.md');
     my @vs       = grep { $release{$_} } ( $feat =~ /\b(\d+\.\d+\.\d+)\b/g );
     my ($newest) = sort { vcmp( $b, $a ) } @vs;
@@ -305,7 +311,7 @@ for my $r (
     # cycle went without one. On the tree this was written against, the newest
     # rehearsal was 2026-07-12 and four stable releases had shipped since.
     my ($last_stable) = sort { $b cmp $a }
-        ( slurp('CHANGELOG.md') =~ /^##[^\n]*STABLE[^\n]*\((\d{4}-\d{2}-\d{2})\)/mgi );
+        ( changelog_history() =~ /^##[^\n]*STABLE[^\n]*\((\d{4}-\d{2}-\d{2})\)/mgi );
 
     if    ( !$latest ) { advisory('RELIABILITY.md: no rehearsal entries found') }
     elsif ( !$last_stable ) {

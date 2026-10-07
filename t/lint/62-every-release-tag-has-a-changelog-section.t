@@ -23,7 +23,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root changelog_text);
 
 my $root = repo_root();
 
@@ -32,7 +32,7 @@ plan skip_all => 'not a git checkout - tags cannot be resolved here'
     unless $is_repo;
 
 my $changelog = "$root/CHANGELOG.md";
-my $src       = do { open my $fh, '<', $changelog or die $!; local $/; <$fh> };
+my $src       = changelog_text( history => 1 );    # SM946: live + archive
 
 my %heading;
 for my $line ( split /\n/, $src ) {

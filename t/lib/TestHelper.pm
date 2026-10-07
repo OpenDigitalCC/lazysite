@@ -24,6 +24,7 @@ our @EXPORT_OK = qw(
     repo_manifest_guard repo_root_lock
     run_cmd
     preserve_tracked
+    changelog_text
 );
 
 # Run a command and capture its output. LIST FORM - no shell, ever.
@@ -369,6 +370,26 @@ sub gate_predicates {
             : sub { 1 };
     }
     return %need;
+}
+
+# SM946: THE ONE READER OF THE CHANGELOG. CHANGELOG.md holds the current minor
+# line and Unreleased; earlier releases are in docs/releases/CHANGELOG-archive.md.
+# A check about the current entries reads the live file (the default); a check
+# about history - every tag has a section, everything shipped is marked shipped -
+# passes history => 1 and gets both, live first.
+sub changelog_text {
+    my (%o) = @_;
+    my $root = repo_root();
+    my @f = ("$root/CHANGELOG.md");
+    push @f, "$root/docs/releases/CHANGELOG-archive.md" if $o{history};
+    my $t = '';
+    for my $f (@f) {
+        open my $fh, '<:utf8', $f or die "$f: $!";
+        local $/;
+        $t .= <$fh> . "\n";
+        close $fh;
+    }
+    return $t;
 }
 
 sub repo_root {

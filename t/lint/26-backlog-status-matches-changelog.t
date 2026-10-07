@@ -34,13 +34,12 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root changelog_text);
 
 my $root = repo_root();
 
-open my $cfh, '<:utf8', "$root/CHANGELOG.md" or die "CHANGELOG.md: $!";
-my @lines = <$cfh>;
-close $cfh;
+# SM946: the live file and the archive - history spans both.
+my @lines = map {"$_\n"} split /\n/, changelog_text( history => 1 );
 
 # --- the convention is written down -----------------------------------------
 {

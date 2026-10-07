@@ -28,15 +28,11 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root changelog_text);
 
 my $root = repo_root();
 
-my $log = do {
-    open my $fh, '<', "$root/CHANGELOG.md" or BAIL_OUT("no CHANGELOG: $!");
-    local $/;
-    <$fh>;
-};
+my $log = changelog_text( history => 1 );    # SM946: live + archive
 ok( length $log, 'the CHANGELOG is readable' ) or do { done_testing(); exit };
 
 # Every filing, open and archived: being archived does not unship it.

@@ -62,6 +62,7 @@ cmp_ok( scalar keys %DISPATCHED, '>=', 30,
 # the only thing a future author has to think about.
 my @EXEMPT = (
     qr{^CHANGELOG\.md$},           # dated entries describe the release they shipped in
+    qr{^docs/releases/CHANGELOG-archive\.md$},    # SM946: the same entries, archived
     qr{^docs/review/},             # eight-dimension snapshots, true as at their date
     qr{^docs/feature-requests/},   # filings ABOUT a rename must quote the old name
 );

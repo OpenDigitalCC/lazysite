@@ -18,6 +18,7 @@ my $root = repo_root();
 my @exclude = (
     ':(exclude)t/*', ':(exclude)*.example*', ':(exclude)docs/*',
     ':(exclude)CHANGELOG.md',
+    ':(exclude)docs/releases/CHANGELOG-archive.md',    # SM946
 );
 
 my %checks = (

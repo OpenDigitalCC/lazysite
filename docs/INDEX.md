@@ -180,6 +180,7 @@ What each release was gated on.
 
 | Document | What it is |
 | --- | --- |
+| [`CHANGELOG-archive.md`](CHANGELOG-archive.md) - lazysite - Changelog archive | Releases before the current minor line, moved unchanged from CHANGELOG.md (SM946). Newest first. |
 | [`GATE-LOG.md`](GATE-LOG.md) - lazysite - release gate record | Which commit each release was validated at, newest last. Appended by tools/release.sh. |
 
 # starter/docs
@@ -224,4 +225,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*109 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*110 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*

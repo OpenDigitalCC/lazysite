@@ -36,6 +36,9 @@ File::Find::find(
         wanted   => sub {
             return unless /\.md\z/;
             return if $File::Find::name =~ m{/feature-requests/};
+            # SM946: the changelog archive is the CHANGELOG's history, exempt for
+            # the reason given below.
+            return if $File::Find::name =~ m{/docs/releases/CHANGELOG-archive\.md\z};
             push @DOCS, $File::Find::name;
         },
     },

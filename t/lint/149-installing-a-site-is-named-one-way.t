@@ -95,6 +95,7 @@ SKIP: {
 # record.
 my @EXEMPT = (
     qr{^CHANGELOG\.md$},           # dated entries describe the release they shipped in
+    qr{^docs/releases/CHANGELOG-archive\.md$},    # SM946: the same entries, archived
     qr{^docs/review/},             # eight-dimension snapshots, true as at their date
     qr{^docs/feature-requests/},   # a filing ABOUT this must quote what was run
     qr{^inbox/},                   # field reports quote the command the operator typed

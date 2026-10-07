@@ -30,6 +30,7 @@ my %retired = (
 # migration itself (plus its tests).
 my @exclude = (
     ':(exclude)CHANGELOG.md',
+    ':(exclude)docs/releases/CHANGELOG-archive.md',    # SM946
     ':(exclude)UPGRADE.md',
     ':(exclude)docs/review/*',
     ':(exclude)docs/adr/*',
@@ -38,7 +39,7 @@ my @exclude = (
 );
 
 for my $term ( sort keys %retired ) {
-    my $out = qx(git -C \Q$root\E grep -nI -e \Q$term\E -- '*.md' ':(exclude)CHANGELOG.md' ':(exclude)UPGRADE.md' ':(exclude)docs/review/' ':(exclude)docs/adr/' ':(exclude)docs/feature-requests/' 2>/dev/null);
+    my $out = qx(git -C \Q$root\E grep -nI -e \Q$term\E -- '*.md' ':(exclude)CHANGELOG.md' ':(exclude)docs/releases/CHANGELOG-archive.md' ':(exclude)UPGRADE.md' ':(exclude)docs/review/' ':(exclude)docs/adr/' ':(exclude)docs/feature-requests/' 2>/dev/null);
     # A doc may still MENTION the term while explicitly marking it retired -
     # that is currency, not rot. Anything else teaches it as current.
     my @bad = grep { !/retir|legacy|SM138|histor|migrat|no longer|removed/i }
