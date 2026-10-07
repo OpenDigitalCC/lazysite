@@ -331,12 +331,24 @@ our %GATE = (
 #   cookie_gates_itself => why the action decides for itself on the cookie
 #                              channel (%COOKIE_GATES_ITSELF)
 #   cookie_only_reason => why a token client may not call it (%COOKIE_ONLY_REASON)
+#   mcp => 'tool_name'         SM943 stage 2: the action's MCP twin - the tool that
+#                              does the same thing through the other door. The
+#                              twin's readOnly, destructive and changesAccess hints
+#                              are DERIVED from this entry (mcp_annotations), so
+#                              the two doors cannot describe one act differently
+#   mcp_open_world => 1        the twin's openWorldHint: the call publishes to or
+#                              changes the live site. MCP's own axis, with no
+#                              meaning on the control API, so it is declared
+#                              rather than derived - and only beside `mcp`
 #
 # A comment tagged [field] on an entry is the reason that stood beside it in the
 # CGI table it came from. A key not in that list is refused at load, so a
 # misspelt field cannot quietly mean its default.
 our %ACTION = (
-    'acl-get' => { scoped => 1, file_surface => 'read', cookie_gates_itself => 'the owner reads their rule, manage_users reads any (SM464, Files::action_acl_get)', params => [ { name => 'path', in => 'query' } ] },
+    # [mcp] SM431: the permissions twins, recorded as twins. acl-remove has no
+    # named MCP twin (set_permissions with empty lists clears a rule) and
+    # passes the completeness check under manage_content like the others.
+    'acl-get' => { mcp => 'get_permissions', scoped => 1, file_surface => 'read', cookie_gates_itself => 'the owner reads their rule, manage_users reads any (SM464, Files::action_acl_get)', params => [ { name => 'path', in => 'query' } ] },
     # [changes_access] see acl-set: one rule, set or cleared.
     'acl-remove' => { mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may remove its rule (Files::action_acl_remove)', params => [ { name => 'path', in => 'query' } ] },
 # [changes_access] acl-set / acl-remove   set or clear the rule that decides who may read a
@@ -344,7 +356,8 @@ our %ACTION = (
 #                          filing names - there is no separate publish verb;
 #                          setting `draft` gates the path and clearing it
 #                          publishes, so one action carries both directions.
-    'acl-set' => { mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may change its rule (Files::action_acl_set)', params => [ { name => 'path', in => 'query_or_body' }, { name => 'read', in => 'body' }, { name => 'write', in => 'body' }, { name => 'owner', in => 'body' }, { name => 'draft', in => 'body' } ] },
+# [mcp] set_permissions: SM587: acl-set's twin - it moves the read boundary
+    'acl-set' => { mcp => 'set_permissions', mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may change its rule (Files::action_acl_set)', params => [ { name => 'path', in => 'query_or_body' }, { name => 'read', in => 'body' }, { name => 'write', in => 'body' }, { name => 'owner', in => 'body' }, { name => 'draft', in => 'body' } ] },
     'actions-list' => { params => [] },
     # SM576 part 1: the brief store's own capability. A read takes EITHER
     # (the three-state note above: any ONE of the listed caps is enough), so a
@@ -354,14 +367,18 @@ our %ACTION = (
     # manage_briefs (the plugin-declared capability), READING one is
     # admitted by either, so an existing manage_content grant keeps the
     # reads it has always had and loses only the write.
-    'brief-read' => { cookie_cap => 'manage_content|manage_briefs', params => [ { name => 'path', in => 'query', required => 1 } ] },
-    'brief-append' => { mutates => 1, cookie_cap => 'manage_briefs', params => [ { name => 'path', in => 'query', required => 1 }, { name => 'entry', in => 'body', required => 1 } ] },
-    'briefs-migrate' => { mutates    => 1, cookie_cap => 'manage_briefs', params => [] },
-    'briefs-list'    => { cookie_cap => 'manage_content|manage_briefs', params => [] },
+    # [mcp] SM245: the brief store's twins.
+    'brief-read' => { mcp => 'read_brief', cookie_cap => 'manage_content|manage_briefs', params => [ { name => 'path', in => 'query', required => 1 } ] },
+    # [mcp] append_brief: writes the engine store, changes nothing live
+    'brief-append' => { mcp => 'append_brief', mutates => 1, cookie_cap => 'manage_briefs', params => [ { name => 'path', in => 'query', required => 1 }, { name => 'entry', in => 'body', required => 1 } ] },
+    'briefs-migrate' => { mutates => 1, cookie_cap => 'manage_briefs', params => [] },
+    # [mcp] SM508: the lifecycle's discovery and cleanup halves.
+    'briefs-list' => { mcp => 'list_briefs', cookie_cap => 'manage_content|manage_briefs', params => [] },
     # [cookie_cap] SM591: no copy survives
-    'brief-delete' => { mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'path', in => 'query' } ] },
+    # [mcp] delete_brief: destroys a record; changes nothing live
+    'brief-delete' => { mcp => 'delete_brief', mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'path', in => 'query' } ] },
     'aliases-list' => { params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },
-    'analyse_visitors' => { cookie_cap => 'analytics', params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' } ] },
+    'analyse_visitors' => { mcp => 'analyse_visitors', cookie_cap => 'analytics', params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' } ] },
     # [cookie_cap] SM591: no copy survives
     'artifact-backups-delete' => { mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'path', in => 'query' } ] },
     'artifact-manifest'       => { params => [] },
@@ -407,16 +424,21 @@ our %ACTION = (
     # deliberately: a descriptor may declare a field called `table` or `key`,
     # and flattening the row into the query would make the site's own data
     # collide with the action's own parameters.
-    'data-migrate' => { mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' } ] },
-    'data-rebuild' => { mutates => 1, destructive => 1, cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query_or_body' }, { name => 'confirm_lost', in => 'body' } ] },
-    'data-row-delete' => { mutates => 1, destructive => 1, cookie_cap => 'manage_data|write_data', params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' } ] },
+    # [mcp] migrate_data_table: applies the safe changes to the live table
+    'data-migrate' => { mcp => 'migrate_data_table', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' } ] },
+    # [mcp] rebuild_data_table: drops columns, by named confirmation
+    'data-rebuild' => { mcp => 'rebuild_data_table', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query_or_body' }, { name => 'confirm_lost', in => 'body' } ] },
+    'data-row-delete' => { mcp => 'delete_data_row', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_data|write_data', params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' } ] },
     # [cookie_cap] SM682: either capability reaches a ROW write; the descriptor's
     # writable_by then decides, and means different things to the two.
-    'data-row-save' => { mutates => 1, cookie_cap => 'manage_data|write_data', params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' }, { name => 'row', in => 'body' } ] },
-    'data-rows' => { cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' }, { name => 'order_by', in => 'query' }, { name => 'order', in => 'query' }, { name => 'limit', in => 'query' }, { name => 'offset', in => 'query' } ] },
-    'data-table' => { cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' } ] },
-    'data-table-source' => { cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' } ] },
-    'data-migrate-plan' => { cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' } ] },
+    'data-row-save' => { mcp => 'save_data_row', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data|write_data', params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' }, { name => 'row', in => 'body' } ] },
+    'data-rows' => { mcp => 'read_data_rows', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' }, { name => 'order_by', in => 'query' }, { name => 'order', in => 'query' }, { name => 'limit', in => 'query' }, { name => 'offset', in => 'query' } ] },
+    'data-table' => { mcp => 'describe_data_table', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' } ] },
+    # [mcp] SM566: the safety step and the descriptor as text. Both were API-only
+    # with reasons written when the plugin was new; an agent could migrate a
+    # table without previewing what the migration would refuse.
+    'data-table-source' => { mcp => 'read_data_table_source', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' } ] },
+    'data-migrate-plan' => { mcp => 'plan_data_migration', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' } ] },
     # SM687: a table's access rule. Gated on manage_content, matching a file's
     # rule rather than inventing a separate policy for tables - reaching the
     # Data page needs manage_data too, so in practice a person holds both.
@@ -430,7 +452,8 @@ our %ACTION = (
             { name => 'read',  in => 'body' },
             { name => 'write', in => 'body' } ] },
     'data-table-acl-remove' => { mutates => 1, cookie_cap => 'manage_content', params => [ { name => 'table', in => 'query' } ] },
-    'data-table-save' => { mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query_or_body' }, { name => 'descriptor', in => 'body' } ] },
+    # [mcp] save_data_table: a descriptor's public flag decides what the site serves
+    'data-table-save' => { mcp => 'save_data_table', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query_or_body' }, { name => 'descriptor', in => 'body' } ] },
     'data-import' => { mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' }, { name => 'apply', in => 'query' } ] },
     'data-export' => { audited => 1, cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query' }, { name => 'format', in => 'query' } ] },
     # [cookie_cap] SM591: the lateral tiers. The module capability carries the working
@@ -438,24 +461,34 @@ our %ACTION = (
     # SM587's copy test - a drop mints a safety export, so it is the
     # recoverable tier; deleting that export is what makes the drop
     # permanent, so it is the irreversible one.
-    'data-table-drop' => { mutates => 1, destructive => 1, cookie_cap => 'housekeeping', params => [ { name => 'table', in => 'query_or_body' }, { name => 'confirm', in => 'body' } ] },
+    'data-table-drop' => { mcp => 'drop_data_table', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'housekeeping', params => [ { name => 'table', in => 'query_or_body' }, { name => 'confirm', in => 'body' } ] },
     # [cookie_cap] SM160: domains + the portable site-package family are their own
     # capability (manage_domains), carved out of the broad manage_config.
     # SM447: the data plugin's capability. Reads and writes alike -
     # unlike content, a table row has no per-file ACL to self-authorize
     # against, so the capability IS the gate.
-    'data-tables'         => { cookie_cap => 'manage_data', params => [] },
-    'data-safety-exports' => { cookie_cap => 'manage_data', params => [] },
-    'data-safety-export-delete' => { mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'file', in => 'query_or_body' } ] },
-    'data-safety-export-read' => { cookie_cap => 'manage_data', params => [ { name => 'file', in => 'query' } ] },
-    'data-safety-export-restore' => { mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'file', in => 'query_or_body' }, { name => 'apply', in => 'query_or_body' } ] },
+    # [mcp] SM447: the data tables. Both channels, one implementation - each pair
+    # routes through Lazysite::Manager::Data, so a difference between them
+    # would have to be introduced deliberately.
+    'data-tables' => { mcp => 'list_data_tables', cookie_cap => 'manage_data', params => [] },
+    # [mcp] SM512: the safety exports, listed and cleared - the SM508 pattern for tables.
+    'data-safety-exports' => { mcp => 'list_data_safety_exports', cookie_cap => 'manage_data', params => [] },
+    # [mcp] delete_data_safety_export: destroys the only copy of dropped rows
+    'data-safety-export-delete' => { mcp => 'delete_data_safety_export', mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'file', in => 'query_or_body' } ] },
+    'data-safety-export-read' => { mcp => 'read_data_safety_export', cookie_cap => 'manage_data', params => [ { name => 'file', in => 'query' } ] },
+    # [mcp] restore_data_safety_export: writes rows into a live table
+    'data-safety-export-restore' => { mcp => 'restore_data_safety_export', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'file', in => 'query_or_body' }, { name => 'apply', in => 'query_or_body' } ] },
     'delete' => { mutates => 1, destructive => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'describe-capabilities' => { params => [] },
 
     # SM778: resolve logins the caller ALREADY HOLDS to display names. No
     # capability beyond being signed in, because it answers only for the logins
     # it is given: it is not a listing of accounts and must never become one.
-    'display-names' => { params => [ { name => 'logins', in => 'query_or_body', required => 1, note => 'an array of logins in the body, or a comma-separated list in the query' } ] },
+    # [mcp] SM778: added to both surfaces at once, which is the point - the site that
+    # needed it is a token client, and the manager screens that carry names are
+    # cookie-only.
+    # [mcp] display_names: SM778: a read, and it touches nothing
+    'display-names' => { mcp => 'display_names', params => [ { name => 'logins', in => 'query_or_body', required => 1, note => 'an array of logins in the body, or a comma-separated list in the query' } ] },
     # SM217: no content_root parameter, deliberately - the whole point is that the
     # shared root is READ from the canonical domain. A caller that could supply
     # it could supply the wrong one, which is the hand-copying mistake this
@@ -463,7 +496,7 @@ our %ACTION = (
     'domain-alias-add' => { mutates => 1, cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'body' }, { name => 'alias_of', in => 'body' }, { name => 'site_url', in => 'body' }, { name => 'site_name', in => 'body' }, { name => 'theme', in => 'body' }, { name => 'layout', in => 'body' }, { name => 'nav_file', in => 'body' }, { name => 'search_default', in => 'body' }, { name => 'lang', in => 'body' }, { name => 'lang_group', in => 'body' } ] },
     'domain-add' => { mutates => 1, cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'body' }, { name => 'content_root', in => 'body' }, { name => 'site_url', in => 'body' }, { name => 'site_name', in => 'body' }, { name => 'theme', in => 'body' }, { name => 'layout', in => 'body' }, { name => 'nav_file', in => 'body' }, { name => 'search_default', in => 'body' }, { name => 'lang', in => 'body' }, { name => 'lang_group', in => 'body' }, { name => 'seed', in => 'body' } ] },
     'domain-check' => { cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'query' } ] },
-    'domain-preview' => { cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'query' } ] },
+    'domain-preview' => { mcp => 'preview_domain', cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'query' } ] },
     'domain-remove' => { mutates => 1, cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'body' }, { name => 'purge', in => 'body' } ] },
  # [changes_access] domain-set             writes a domain's `allowed_groups` - the domain
  #                          access model itself, which is what decides which
@@ -471,7 +504,10 @@ our %ACTION = (
  #                          absent, so the one flag a caller can consult said
  #                          `false` about the action in this group that moves
  #                          the broadest boundary.
-    'domain-set' => { mutates => 1, changes_access => 1, cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'body' }, { name => 'key', in => 'body' }, { name => 'value', in => 'body' } ] },
+ # [mcp] domain_set: SM647: the fourth slot. domain_set writes allowed_groups - the domain
+ # access model - so it moves the read boundary as surely as set_permissions
+ # does, and the twin table on the control API says so now too.
+    'domain-set' => { mcp => 'domain_set', mcp_open_world => 1, mutates => 1, changes_access => 1, cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'body' }, { name => 'key', in => 'body' }, { name => 'value', in => 'body' } ] },
     # SM802: the URL remapper - per-host rules, operator-only.
     # [cookie_cap] SM802
     'remap-list' => { cookie_cap => 'manage_domains', params => [] },
@@ -480,7 +516,7 @@ our %ACTION = (
 # N13-04: the audit trail's switch - audit_switch AND manage_config (the second checked in the dispatch).
 # [cookie_cap] N13-04: AND manage_config, in the dispatch
     'audit-trail-set' => { mutates => 1, audited => 0, cookie_cap => 'audit_switch', params => [ { name => 'state', in => 'body', required => 1 }, { name => 'reason', in => 'body' } ] },
-    'domains-list' => { cookie_cap => 'manage_domains', params => [] },
+    'domains-list' => { mcp => 'list_domains', cookie_cap => 'manage_domains', params => [] },
     # [file_surface] SM517: the two download verbs reached the same files through a
     # different door. Neither was here, so a manage_content-only account
     # on a secured site was refused `read` of the submission store and
@@ -498,7 +534,7 @@ our %ACTION = (
     # SM652: read_submissions ONLY, on both channels - form-list returns
     # row_count, which is a read of submission EXISTENCE.
     # [cookie_cap] SM214: names + submission COUNTS
-    'form-list' => { cookie_cap => 'read_submissions', params => [] },
+    'form-list' => { mcp => 'form_list', cookie_cap => 'read_submissions', params => [] },
     # [cookie_cap] SM216, SM660
     'form-submission-confirm' => { mutates => 1, cookie_cap => 'manage_forms+read_submissions', params => [ { name => 'file', in => 'query_or_body' }, { name => 'id', in => 'body' } ] },
     # [cookie_cap] SM660: BOTH capabilities. SM652 narrowed the submission READS to
@@ -521,7 +557,8 @@ our %ACTION = (
     # for that by name rather than letting the path validator call an absence a
     # malformed value.
     # [cookie_cap] SM938 D5: one of them, by id
-    'form-submission' => { cookie_cap => 'read_submissions', params => [ { name => 'file', in => 'query', required => 1, note => 'the store the row is in, as a submission notice\'s link and the table give it' }, { name => 'id', in => 'query', required => 1, note => '16 hex characters: the row\'s id' } ] },
+    # [mcp] read_form_submission: SM938 D5
+    'form-submission' => { mcp => 'read_form_submission', cookie_cap => 'read_submissions', params => [ { name => 'file', in => 'query', required => 1, note => 'the store the row is in, as a submission notice\'s link and the table give it' }, { name => 'id', in => 'query', required => 1, note => '16 hex characters: the row\'s id' } ] },
     # [cookie_cap] SM652: read_submissions ONLY, so the two channels agree about who may
     # read a submission. MCP has required it for both since it was written;
     # the control API also accepted manage_forms, and the divergence was
@@ -534,7 +571,7 @@ our %ACTION = (
     # EXISTENCE even though it carries no content. MCP treats it that way
     # and always has.
     # [cookie_cap] SM182/SM187: PII submissions (GET)
-    'form-submissions' => { cookie_cap => 'read_submissions',
+    'form-submissions' => { mcp => 'read_form_submissions', cookie_cap => 'read_submissions',
         params => [
             { name => 'form', in => 'query',
                 note => 'the form\'s name; its store is resolved from the handler it binds to' },
@@ -556,10 +593,19 @@ our %ACTION = (
     # SM842: a form's targets name handlers and nothing else, on the token
     # channel as on every other.
     'form-targets-read' => { cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'form', in => 'query', required => 1 } ] },
-    'form-targets-save' => { mutates => 1, cookie_cap => 'manage_forms', params => [ { name => 'form', in => 'query_or_body', required => 1 }, { name => 'handlers', in => 'body', note => 'a list of handler ids; `targets` as [{handler: id}] is read the same way' }, { name => 'targets', in => 'body' } ] },
-    'form-uploads-save' => { mutates => 1, params => [ { name => 'form', in => 'query_or_body', required => 1 }, { name => 'uploads', in => 'body', note => 'on turns file uploads on for this form; off removes every upload_* key. A JSON boolean, 1/0, or "true"/"on"/"yes"' }, { name => 'max_kb', in => 'body', note => 'per FILE, default 5120' }, { name => 'max_files', in => 'body', note => 'per submission, default 5' }, { name => 'accept', in => 'body', note => 'file EXTENSIONS, comma-separated - `png, jpg, pdf`. Not a media type: the page grammar\'s accept: rule is the media-type one' } ] },
-    'form-notify-save' => { mutates => 1, params => [ { name => 'form', in => 'query_or_body', required => 1 }, { name => 'notify', in => 'body', required => 1, note => 'off (no notice), on (one line) or full (the notice carries the submission). The reply carries `announces`: where a submission notice now goes, and what stops it where it does not' } ] },
-    'git-history' => { scoped => 1, file_surface => 'read', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' }, { name => 'limit', in => 'query' } ] },
+    # [mcp] SM842: the handler contract on both surfaces at once - handler CRUD
+    # reversed SM799's cookie-only rule, and bind_form stopped being MCP-only
+    # now that form-targets-save takes handler ids and nothing else.
+    'form-targets-save' => { mcp => 'bind_form', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms', params => [ { name => 'form', in => 'query_or_body', required => 1 }, { name => 'handlers', in => 'body', note => 'a list of handler ids; `targets` as [{handler: id}] is read the same way' }, { name => 'targets', in => 'body' } ] },
+# [mcp] SM905 U5: on both surfaces at once, because the caller it was built for is
+# an agent - the edge walk hit the wall it removes while working over the API.
+# [mcp] set_form_uploads: SM905 U5: a save, and not destructive - `uploads: false` removes the
+# upload_* keys, but another call puts them back, and the rule above is
+# explicit that a flag is a property of the action, never of an argument.
+    'form-uploads-save' => { mcp => 'set_form_uploads', mcp_open_world => 1, mutates => 1, params => [ { name => 'form', in => 'query_or_body', required => 1 }, { name => 'uploads', in => 'body', note => 'on turns file uploads on for this form; off removes every upload_* key. A JSON boolean, 1/0, or "true"/"on"/"yes"' }, { name => 'max_kb', in => 'body', note => 'per FILE, default 5120' }, { name => 'max_files', in => 'body', note => 'per submission, default 5' }, { name => 'accept', in => 'body', note => 'file EXTENSIONS, comma-separated - `png, jpg, pdf`. Not a media type: the page grammar\'s accept: rule is the media-type one' } ] },
+    # [mcp] set_form_notify: SM938 D4: a save; another call puts it back
+    'form-notify-save' => { mcp => 'set_form_notify', mcp_open_world => 1, mutates => 1, params => [ { name => 'form', in => 'query_or_body', required => 1 }, { name => 'notify', in => 'body', required => 1, note => 'off (no notice), on (one line) or full (the notice carries the submission). The reply carries `announces`: where a submission notice now goes, and what stops it where it does not' } ] },
+    'git-history' => { mcp => 'list_versions', scoped => 1, file_surface => 'read', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' }, { name => 'limit', in => 'query' } ] },
     # SM664: reachable with either - the overview sits on the Plugin Config
     # page, whose audience holds manage_config, and is a reporting read.
     # [cookie_cap] SM664: the overview moved to the content-history plugin's row on the
@@ -567,15 +613,23 @@ our %ACTION = (
     # capability reads it - a reporting read reachable from either the app
     # that writes the content or the page that configures the plugin.
     # [cookie_cap] SM199, SM664
-    'git-history-summary' => { cookie_cap => 'manage_content|manage_config', params => [] },
+    'git-history-summary' => { mcp => 'list_content_history', cookie_cap => 'manage_content|manage_config', params => [] },
     'git-init' => { mutates => 1, cookie_cap => 'manage_config', params => [] },
-    'git-restore' => { mutates => 1, scoped => 1, file_surface => 'write', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
-    'git-show' => { scoped => 1, file_surface => 'read', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
+    'git-restore' => { mcp => 'restore_version', mcp_open_world => 1, mutates => 1, scoped => 1, file_surface => 'write', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
+    'git-show' => { mcp => 'view_version', scoped => 1, file_surface => 'read', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
     'git-status' => { scoped => 1, cookie_cap => 'manage_content', params => [] },
     # SM632: the inverse of bind_form. Gated on manage_forms for a token, and
     # confirmation names the form - a destructive verb taking only an id is one
     # an agent fires by having the wrong id.
-    'form-delete' => { mutates => 1, destructive => 1, cookie_cap => 'manage_forms', # Exactly data-table-drop's shape: the OBJECT may come either way, the
+# [mcp] SM632: the inverse of bind_form, added to both surfaces at once. bind_form
+# is MCP-only by long standing (the API writes the conf directly), so the
+# DESTROY is the first half of that pair to exist on both - which is the
+# right way round: a create with no undo is what left a registration on a
+# live site that nobody with a token could remove.
+# [mcp] delete_form: SM632: destroys a registration; the twin form-delete is in %DESTRUCTIVE.
+# Not idempotent in the third slot's sense - a second call finds nothing to
+# remove and says so, which is a different answer, not the same one again.
+    'form-delete' => { mcp => 'delete_form', mutates => 1, destructive => 1, cookie_cap => 'manage_forms', # Exactly data-table-drop's shape: the OBJECT may come either way, the
             # CONFIRMATION is body-only. Declaring `form` as body-only was wrong -
             # the dispatch reads `$req->{form} // $params{form}` - and t/lint/58
             # extracts the branch rather than trusting this table, so it said so.
@@ -584,31 +638,34 @@ our %ACTION = (
     # SM842: handler CRUD reaches the token channel, reversing SM799's
     # cookie-only rule. Any of the three destination capabilities opens the
     # door; the handler's type then decides (Lazysite::Handlers::cap_for_type).
-    'handler-delete' => { mutates => 1, destructive => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
+    # [mcp] delete_handler: refused while in use, so nothing live changes
+    'handler-delete' => { mcp => 'delete_handler', mutates => 1, destructive => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
     # [cookie_cap] SM842: the door to the handler actions opens for any of the three
     # destination capabilities; Lazysite::Handlers then decides by the
     # handler's type (a table handler needs manage_data, a connector
     # handler manage_connectors, email and file manage_forms). Binding a
     # form to a handler that exists is manage_forms alone.
-    'handler-list' => { cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [] },
-    'handler-save' => { mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'type', in => 'body', required => 1, note => 'smtp, file, table or connector; handler-list returns each type\'s fields' }, { name => 'name', in => 'body', required => 1 }, { name => 'enabled', in => 'body' } ] },
-    'schedule-list' => { cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [] },
-    'schedule-save' => { mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'handler', in => 'body', required => 1 }, { name => 'every', in => 'body', required => 1, note => 'seconds, at least 300' }, { name => 'payload', in => 'body', note => 'a flat object of fixed fields' }, { name => 'enabled', in => 'body' } ] },
-    'schedule-delete' => { mutates => 1, destructive => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
+    'handler-list' => { mcp => 'list_handlers', cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [] },
+    # [mcp] save_handler: a bound handler's destination is live delivery
+    'handler-save' => { mcp => 'save_handler', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'type', in => 'body', required => 1, note => 'smtp, file, table or connector; handler-list returns each type\'s fields' }, { name => 'name', in => 'body', required => 1 }, { name => 'enabled', in => 'body' } ] },
+    'schedule-list' => { mcp => 'list_schedule', cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [] },
+    # [mcp] save_schedule: what the timer calls
+    'schedule-save' => { mcp => 'save_schedule', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'handler', in => 'body', required => 1 }, { name => 'every', in => 'body', required => 1, note => 'seconds, at least 300' }, { name => 'payload', in => 'body', note => 'a flat object of fixed fields' }, { name => 'enabled', in => 'body' } ] },
+    'schedule-delete' => { mcp => 'delete_schedule', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
     'key-revoke' => { mutates => 1, params => [] },
     'keys-list'       => { params => [] },
     # [cookie_cap] SM179 P6: read-only set coverage (a translation agent's cap)
     'lang-status' => { cookie_cap => 'manage_content', params => [ { name => 'group', in => 'query' } ] },
     # SM920: `layout` ALONE. `path` was the generic spelling and took precedence
     # over it, so a caller sending both had the specific one dropped in silence.
-    'layout-activate' => { mutates => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query', required => 1 } ] },
+    'layout-activate' => { mcp => 'activate_layout', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query', required => 1 } ] },
     # SM911 LD2: `layout` is the spelling its siblings take and the one a partner
     # tries; `path` is what the dispatcher had always passed, and stays.
-    'layout-delete' => { mutates => 1, destructive => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query' }, { name => 'path', in => 'query' } ] },
-    'layout-install'    => { mutates => 1, cookie_cap => 'manage_layouts', params => [] },
+    'layout-delete' => { mcp => 'delete_layout', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query' }, { name => 'path', in => 'query' } ] },
+    'layout-install' => { mcp => 'install_layout', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [] },
     'layouts-available'        => { params => [] },
     'layouts-install'   => { mutates => 1, cookie_cap => 'manage_layouts', params => [] },
-    'layouts-manifest'         => { params => [] },
+    'layouts-manifest'  => { mcp     => 'list_layout_catalogue', params => [] },
     'layouts-release-contents' => { params => [ { name => 'tag', in => 'query' } ] },
     'layouts-releases'         => { params => [] },
     'layouts-repo-get'         => { params => [] },
@@ -618,16 +675,22 @@ our %ACTION = (
     'migrate-to-local' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'mkdir' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'move' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
-    'nav-read' => { params => [ { name => 'host', in => 'query' } ] },    # SM568
-    'nav-save' => { mutates => 1, cookie_cap => 'manage_nav', params => [ { name => 'items', in => 'body' }, { name => 'host', in => 'query_or_body' } ] },
-    'notices'      => { params => [] },
+    'nav-read' => { mcp => 'read_nav', params => [ { name => 'host', in => 'query' } ] }, # SM568
+    'nav-save' => { mcp => 'set_nav', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_nav', params => [ { name => 'items', in => 'body' }, { name => 'host', in => 'query_or_body' } ] },
+    # [mcp] SM918: the notice bell, read by both doors through one reader
+    # (Lazysite::Manager::Notices). Same capability either side - `notifications`
+    # - because the ruling was that the capability is the gate and not the
+    # channel. Its `notices-seen` half is one-sided on purpose; the reason is
+    # recorded above rather than left as "undecided".
+    # [mcp] read_notices: SM918: reads the bell; writes nothing, not even a cursor
+    'notices'      => { mcp => 'read_notices', params => [] },
     'notices-seen' => { mutates => 1, # SM938 D3: one notice, or dismiss it; neither = all
         params => [ { name => 'id', in => 'query' }, { name => 'dismiss', in => 'query' } ] },
     # SM732: the PDF render, which SM706 shipped with no caller at all.
     # manage_content because converting a page is reading it in another format -
     # the plugin's own reasoning, and the reason it declares no capability.
     'page-pdf' => { mutates => 1, cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' } ] },
-    'pages'    => { params => [] },                                      # SM568
+    'pages' => { mcp => 'list_pages', params => [] },    # SM568
     'plugin-action' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'action_id', in => 'body' }, { name => 'params', in => 'body' } ] },
     'plugin-disable' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
     'plugin-enable' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
@@ -645,7 +708,9 @@ our %ACTION = (
 # the flag, which is part of why domain-set's absence was easy to miss: the
 # same table was wrong in both directions at once.
     'preview-grant' => { mutates => 1, audited => 0, cookie_cap => 'manage_themes|manage_layouts', params => [] },
-    'preview-public'        => { params => [ { name => 'path', in => 'query' } ] },
+    # [mcp] SM466: the existing preview-public action, given an MCP door so the field
+    # can confirm what a visitor receives without stepping outside the grant.
+    'preview-public' => { mcp => 'preview_public_page', params => [ { name => 'path', in => 'query' } ] },
     # [cookie_cap] F3 audit: the account/group roster backs the ACL "grant to whom" picker
     # (Files, manage_content) and the domain-groups picker (Domains,
     # manage_domains). Gate it to those callers so a user with no
@@ -657,7 +722,10 @@ our %ACTION = (
     'protected-sections' => { cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' } ] },
     'read' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' } ] },
     'recent-changes'        => { params => [ { name => 'window', in => 'query' } ] },
-    'regenerate-registries' => { mutates => 1, audited => 0, params => [] },
+    # [mcp] SM301: was an MCP-only entry whose recorded reason was "the API path can
+    # add one when someone asks for it". A live site asked, having taken its own
+    # sitemap.xml down by deleting the generated file for want of this.
+    'regenerate-registries' => { mcp => 'regenerate_registries', mcp_open_world => 1, mutates => 1, audited => 0, params => [] },
     'renew-lock' => { mutates => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'rotate-auth-secret' => { mutates => 1, cookie_cap => 'manage_config', cookie_only_reason => 'rotating the signing secret invalidates every live session, including the caller\'s own, so it is done by a human who can see what breaks', params => [] },
     'save' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'content', in => 'body' }, { name => 'mtime', in => 'body' } ] },
@@ -666,8 +734,10 @@ our %ACTION = (
 # [destructive] SM572 follow-through: site-backup-apply REPLACES the live content tree with
 # the package's - MCP has always annotated its twin (site_apply) as
 # destructive, and the two tables disagreed until the twin check compared them.
-    'site-backup-apply' => { mutates => 1, destructive => 1, cookie_cap => 'manage_domains', params => [] },
-    'site-backup-create' => { mutates => 1, cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'query_or_body' }, { name => 'data_tables', in => 'body' } ] },
+# [mcp] site_apply: overwrites the live content tree
+    'site-backup-apply' => { mcp => 'site_apply', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_domains', params => [] },
+    # [mcp] site_backup: writes an archive; changes nothing live
+    'site-backup-create' => { mcp => 'site_backup', mutates => 1, cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'query_or_body' }, { name => 'data_tables', in => 'body' } ] },
     # [cookie_cap] SM183: remove a package
     'site-backup-delete' => { mutates => 1, destructive => 1, cookie_cap => 'manage_domains', params => [ { name => 'name', in => 'query_or_body', required => 1 } ] },
     # [cookie_cap] SM193: token-client package download
@@ -678,13 +748,18 @@ our %ACTION = (
     # [cookie_cap] SM185: package the DEFAULT site (no domains feature needed)
     'site-export-primary' => { mutates => 1, cookie_cap => 'manage_content', params => [ { name => 'data_tables', in => 'body' } ] },
     # SM920: `theme` ALONE, for the same reason layout-activate takes `layout`.
-    'theme-activate' => { mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'theme', in => 'query', required => 1 } ] },
-    'theme-copy' => { mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'path', in => 'query', required => 1 }, { name => 'new_name', in => 'body', required => 1 }, { name => 'layout', in => 'body' } ] },
-    'theme-delete' => { mutates => 1, destructive => 1, cookie_cap => 'manage_themes', params => [ { name => 'path', in => 'query' } ] },
+    'theme-activate' => { mcp => 'activate_theme', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'theme', in => 'query', required => 1 } ] },
+    # [mcp] copy_theme: SM749: a copy changes nothing live
+    'theme-copy' => { mcp => 'copy_theme', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'path', in => 'query', required => 1 }, { name => 'new_name', in => 'body', required => 1 }, { name => 'layout', in => 'body' } ] },
+    # [mcp] SM262: paired, but NOT identical - the MCP tool is always restricted to
+    # themes the caller created, while the API action restricts only for token
+    # clients and leaves the manager UI's cookie session unrestricted. Same
+    # action, two channels, one of which can have a human behind it.
+    'theme-delete' => { mcp => 'delete_theme', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_themes', params => [ { name => 'path', in => 'query' } ] },
     'theme-list'        => { params => [] },
     'theme-upload' => { mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'filename', in => 'query' } ] },
     'themes-for-layout' => { params => [ { name => 'layout', in => 'query' } ] },
-    'themes-list-all'   => { params => [] },
+    'themes-list-all'   => { mcp    => 'list_themes', params => [] },
     'unlock' => { mutates => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'user-revoke' => { mutates => 1, params => [] },
     # [cookie_cap] SEC-2026-07 (C1): the account-management action requires a user-mgmt
@@ -709,7 +784,12 @@ our %ACTION = (
     # served on every channel (gate 'ALWAYS'); the field found it working and
     # missing from actions-list, and SM779's map would have marked it
     # cookie_only. The connector gates it (Connectors::may_call).
-    'connector-call' => { mutates => 1, params => [ { name => 'id', in => 'body' }, { name => 'payload', in => 'body' }, { name => 'row', in => 'body', note => 'a row key: the connector\'s row_map decides which of its columns are sent' } ] },
+# [mcp] SM579 phase 2: calling gets a twin because it IS mode 2 - an
+# authenticated caller, gated by the connector itself. Configuring does
+# not; see %API_ONLY.
+# [mcp] connector_call: SM579: openWorld, and the only tool here that is. A connector call
+# leaves this instance; that is the whole point of it, and the hint says so.
+    'connector-call' => { mcp => 'connector_call', mcp_open_world => 1, mutates => 1, params => [ { name => 'id', in => 'body' }, { name => 'payload', in => 'body' }, { name => 'row', in => 'body', note => 'a row key: the connector\'s row_map decides which of its columns are sent' } ] },
     'connector-calls' => { cookie_cap => 'manage_connectors', params => [ { name => 'connector', in => 'query' }, { name => 'state', in => 'query' }, { name => 'limit', in => 'query' } ] },
     'start-page' => { params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { mutates => 1, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body', required => 1, note => 'an empty string clears the start page' } ] },
@@ -805,7 +885,7 @@ sub need_caps {
 # hand-kept literals before those were removed.
 my %FIELD = map { $_ => 1 } qw(
     params caps mutates destructive changes_access audited scoped file_surface
-    cookie_cap cookie_gates_itself cookie_only_reason
+    cookie_cap cookie_gates_itself cookie_only_reason mcp mcp_open_world
 );
 for my $name ( sort keys %ACTION ) {
     my $spec = $ACTION{$name};
@@ -820,6 +900,24 @@ for my $name ( sort keys %ACTION ) {
     my $cc = $spec->{cookie_cap};
     die "Lazysite::ControlApi::Actions: '$name' cookie_cap mixes | and +\n"
         if defined $cc && $cc =~ /\|/ && $cc =~ /\+/;
+    my $t = $spec->{mcp};
+    die "Lazysite::ControlApi::Actions: '$name' mcp must name one tool\n"
+        if defined $t && $t !~ /\A[a-z][a-z_]*\z/;
+    die "Lazysite::ControlApi::Actions: '$name' declares mcp_open_world with no mcp twin\n"
+        if exists $spec->{mcp_open_world} && !defined $t;
+}
+
+# One tool is the twin of one action: two actions naming the same tool would give
+# it two sets of hints, and the later one would win in silence.
+{
+    my %twin_of;
+    for my $name ( sort keys %ACTION ) {
+        my $t = $ACTION{$name}{mcp} // next;
+        die "Lazysite::ControlApi::Actions: '$name' and '$twin_of{$t}' both name "
+            . "the MCP twin '$t'\n"
+            if exists $twin_of{$t};
+        $twin_of{$t} = $name;
+    }
 }
 
 sub _flagged { my ($k) = @_; return map { $_ => 1 } grep { $ACTION{$_}{$k} } sort keys %ACTION }
@@ -848,5 +946,32 @@ sub audited {
 
 # The audit trail's %skip: every action that is not audited.
 sub unaudited { return map { $_ => 1 } grep { !audited($_) } sort keys %ACTION }
+
+# SM943 stage 2: THE MCP TWINS, DERIVED.
+#
+# action => tool, for every action with an MCP twin. t/lint/23's pairing reads
+# this; it used to keep its own %PAIR.
+sub mcp_twins { return _valued('mcp') }
+
+# tool => [ readOnly, destructive, openWorld, changesAccess ] for every twin, in
+# the shape of lazysite-mcp.pl's %ANNOTATE, which takes these rows as they are.
+# Three of the four hints are facts about the ACT, so they come from the action's
+# own entry: a twin is read-only exactly when the action does not mutate, and
+# destructive and access-changing exactly when the action is. The fourth,
+# openWorld, has no meaning on the control API and is declared beside `mcp`.
+sub mcp_annotations {
+    my %ann;
+    for my $name ( sort keys %ACTION ) {
+        my $s = $ACTION{$name};
+        my $t = $s->{mcp} // next;
+        $ann{$t} = [
+            $s->{mutates}        ? 0 : 1,
+            $s->{destructive}    ? 1 : 0,
+            $s->{mcp_open_world} ? 1 : 0,
+            $s->{changes_access} ? 1 : 0,
+        ];
+    }
+    return %ann;
+}
 
 1;
