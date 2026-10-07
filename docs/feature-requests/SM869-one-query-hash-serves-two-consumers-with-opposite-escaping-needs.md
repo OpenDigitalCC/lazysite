@@ -5,7 +5,7 @@ subtitle: "`parse_query_string` escapes each value as it stores it, because the 
 brand: plain
 standard-margins: true
 status: shipped
-status-note: "SHIPPED (PENDING) n269: parse_query_string raw; the stash escapes query/params once; prefill and outcome banner escape unconditionally and make [% inert; login/claim drop | html. Before-state measured by t/unit/processor/88: template injection via prefill and banner, include injection via a value's newlines. Adversarial review pending (R7)."
+status-note: "ADVERSARIAL REVIEW PARTIAL (n270): one hole proved and fixed (SM964, stored include via the second include pass); encodings, Markdown interplay and attribute contexts still owed (Q11b). SHIPPED (PENDING) n269: parse_query_string raw; the stash escapes query/params once; prefill and outcome banner escape unconditionally and make [% inert; login/claim drop | html. Before-state measured by t/unit/processor/88: template injection via prefill and banner, include injection via a value's newlines. Adversarial review pending (R7)."
 raised: 2026-09-12
 raised-by: engine (from the SM868 fix, at the release manager's direction)
 area: processor

@@ -5441,7 +5441,8 @@ sub convert_fenced_include {
         my $modifiers = $1 // '';
         my $source    = $2;
 
-        # Skip if source contains unresolved TT variables - leave for second pass
+        # A path holding a template variable is NOT resolved, and never by a later
+        # pass (SM964): the block is left as written, as the docs say.
         if ( $source =~ /\[%.*%\]/ ) {
             "::: include" . ( length $modifiers ? " $modifiers" : '' ) . "\n$source\n:::\n";
         }
@@ -8902,10 +8903,15 @@ sub render_template {
         sub { ( $layout, $layout_key ) = resolve_layout_vars( $meta, $_[0] ) },
     );
 
-    # Second include pass - resolves :::include blocks with TT-variable paths
-    if ( $meta->{_md_path} ) {
-        $processed_body = convert_fenced_include( $processed_body, $meta->{_md_path}, $meta );
-    }
+    # SM964: NO SECOND INCLUDE PASS. There was one here, over the template's
+    # OUTPUT, meant for `::: include` blocks whose path is a template variable.
+    # It never served that: Markdown has wrapped such a block in a paragraph by
+    # now, so it did not match, and the docs say these blocks are not resolved.
+    # What it DID match was a block that arrived as data - a visitor-written
+    # table row listed on a public page could pull an unpublished file, or a
+    # sign-in-only page's body, into the output (the SM869 adversarial review).
+    # A path taken from data would hand the choice of file to whoever writes the
+    # data, so the feature is not built either. t/unit/data/64.
 
     $vars->{content} = $processed_body;
     my $output = '';

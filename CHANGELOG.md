@@ -49,6 +49,16 @@ Archive
 
 ## Unreleased
 
+- SM964 (PENDING) **security: a value that reached a page as data could become
+  an include.** The processor ran its `::: include` pass a second time over the
+  template's output. That never resolved an author's template-path block
+  (Markdown had wrapped it, and the docs said such blocks are not resolved), but
+  it did resolve a block that arrived as data: a visitor-written row in a public
+  table, listed on a public page, could pull an unlisted file - or the body of a
+  sign-in-only page - into the output. The second pass is removed; a path from
+  a template variable stays unresolved by design. Found by the SM869
+  adversarial review; t/unit/data/64.
+
 - SM869 (PENDING) **security: a query value is raw in the engine and escaped
   once where it is emitted; a visitor's `[% ... %]` and `::: include` no longer
   run.** parse_query_string returns raw values; the stash escapes its own copy

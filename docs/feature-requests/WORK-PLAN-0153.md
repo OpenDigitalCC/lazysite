@@ -41,6 +41,8 @@ starts.
 | Q10 | ~~A1 [[SM906]] T3~~ **built (n267)** - a distinct "cannot tell" when the auth store is unreadable | ready | M |
 | Q10a | **[[SM906]] T3 follow-up, security - built (n268)**: the processor's own copy of the manager-grant check failed open on an unreadable or corrupt group store | found by the Q10 agent | XS |
 | Q11 | ~~A3 [[SM869]]~~ **built (n269); adversarial review pending** - raw and escaped query values separated, hostile-value test first; its adversarial review on its own branch (R7) | ready; last of the features so its review sees a settled tree | M |
+| Q11a | **[[SM964]] security, found by the Q11 review - built (n270)**: a value that reached a page as data could become an include | fixed at once | S |
+| Q11b | [[SM869]] adversarial review, second pass: encodings, Markdown interplay, attribute contexts, split template syntax, api: JSON (the first pass stopped early) | owed | M |
 | Q12 | E6 [[SM950]] (2)(3) - gate on landing; coverage reused when its inputs are unchanged | tooling; after the feature work it speeds up | M |
 | Q13a | E5 [[SM943]] stages 2-3 - the MCP twins and annotations from the declaration; the consistency lints reduced to one completeness check | Q7/Q8 need only stage 1 | M |
 | Q13 | C2 [[SM883]] - measure the 1.20-1.27x slowdown on this machine, then bisect | measurement, no ruling needed | S-M |

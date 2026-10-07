@@ -180,9 +180,10 @@ This fetches and renders the most recent 4 posts inline. Suitable for a
 home page "latest posts" section. The full post content is rendered
 rather than just a listing.
 
-Note that `:::include` blocks containing TT variables are not yet
-resolved before inclusion - use `.url` files for per-post pages and
-`:::include` for inline rendering of specific known posts.
+Note that `:::include` blocks whose path is a TT variable are not
+resolved, by design: a path taken from data would let whoever writes the
+data choose which file the page includes. Use `.url` files for per-post
+pages and `:::include` with a literal path for specific known posts.
 
 ## Caching behaviour
 
