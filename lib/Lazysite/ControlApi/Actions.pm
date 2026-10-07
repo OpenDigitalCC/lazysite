@@ -249,7 +249,8 @@ our %GATE = (
     # inherits manage_content / webdav), so a WebDAV/API partner can read and
     # write the site nav without the MCP connector or raw WebDAV to lazysite/.
     # SM568: reading the navigation is a content read as much as a nav
-    # editor's; manage_content admits it, as it does the MCP twin read_nav.
+    # editor's; manage_content admits it. (The MCP twin read_nav does not: it
+    # is gated on manage_nav alone since SM421 - see Capabilities.pm.)
     'nav-read' => [qw(manage_content manage_nav)],
     'nav-save' => [qw(manage_nav)],
     # SM134 follow-ups: the alias-redirect map is content-derived - a content

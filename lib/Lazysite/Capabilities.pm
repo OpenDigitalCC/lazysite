@@ -77,7 +77,7 @@ my %ACTION_INFO = (
             mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
-                    validate_page invalidate_cache regenerate_registries read_nav audit_site create_form
+                    validate_page invalidate_cache regenerate_registries audit_site create_form
                     get_permissions set_permissions read_brief
                     list_briefs
                     list_versions list_content_history view_version restore_version preview_public_page)
@@ -90,9 +90,12 @@ my %ACTION_INFO = (
         title   => 'Edit site navigation.',
         grants => 'Edit the site\'s navigation - what appears in the menu, and in what order.',
         # SM568: nav-read and pages are reads a content author needs as much
-        # as a nav editor, so manage_content admits them too (the MCP twins
-        # read_nav and list_pages sit under manage_content). Listed under
+        # as a nav editor, so manage_content admits them too. Listed under
         # both, as form-submissions is under manage_forms and read_submissions.
+        # SM943: list_pages sits under manage_content over MCP; read_nav does
+        # NOT - SM421 moved it to manage_nav five days before SM568, whose
+        # record took it to be under manage_content still - so the map lists
+        # it here only, which is what the gate does.
         unlocks => {
             api => [qw(nav-read nav-save pages)],
             # SM654 (U-3): read_nav declares cap => 'manage_nav' in %TOOLS, the
@@ -278,7 +281,15 @@ my %ACTION_INFO = (
             'Insert, update and delete ROWS in the data tables whose `writable_by` names one of your groups - and no others. It does NOT declare, alter, migrate or drop a table, and it reaches no table that does not name you. Grant this to an app\'s own users where `manage_data` (every table on the instance, plus schema control) would be far too wide.',
         unlocks => {
             api => [qw(data-row-save data-row-delete)],
-            mcp => [qw(save_data_row delete_data_row)],
+            # SM943: NO `mcp` HALF, and it was an over-claim while it stood.
+            # save_data_row and delete_data_row are gated on manage_data alone
+            # (`cap` in lazysite-mcp.pl), so a write_data-only partner is
+            # refused both and this map told it otherwise. The gate is what is
+            # right: neither tool asks Manager::Data::row_write_refusal, so
+            # admitting write_data there would make it an instance-wide row
+            # write over MCP - the SM682 round-2 escalation, on the other
+            # door. A write_data MCP door needs that check first. t/lint/90
+            # now compares the map with each tool's gate in this direction.
         },
     },
 

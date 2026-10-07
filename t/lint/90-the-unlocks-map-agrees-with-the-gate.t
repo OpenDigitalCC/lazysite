@@ -129,4 +129,36 @@ for my $cap ( sort keys %$info ) {
 is_deeply( \@ghosts, [], 'every tool named in an unlocks.mcp really exists' )
     or diag( join "\n  ", '', @ghosts );
 
+# --- and every tool a capability names, that capability really opens --------
+# SM943: THE OVER-CLAIM. The check above asks whether a named tool exists; it
+# never asked whether the capability naming it opens it. write_data named
+# save_data_row and delete_data_row while both are gated on manage_data alone,
+# and manage_content named read_nav, gated on manage_nav alone since SM421 - so
+# an operator granting either was told it reached a tool that refuses it, which
+# is the read_nav defect above in the other direction. The map is an upper bound
+# on nothing if it can name what the grant does not open.
+#
+# No path_aware exemption is made in this direction, deliberately: a map that
+# listed a tool under manage_themes BECAUSE of the path rule would be claiming
+# "callable" for "callable on some paths", which is SM653's open question - it
+# fails here until that is decided, rather than being decided by an exemption.
+my @overclaim;
+my $named = 0;
+for my $cap ( sort keys %$info ) {
+    my $list = $info->{$cap}{unlocks}{mcp} or next;
+    for my $tool ( @{$list} ) {
+        next unless exists $gate{$tool};    # a ghost, reported above
+        $named++;
+        next if grep { $_ eq $cap } @{ $gate{$tool} };
+        push @overclaim, "$cap names $tool, whose gate is ["
+            . join( ', ', @{ $gate{$tool} } ) . ']';
+    }
+}
+cmp_ok( $named, '>', 40, 'the reverse comparison really ran (not vacuous)' );
+is_deeply( \@overclaim, [], 'every tool an unlocks.mcp names is one that capability opens' )
+    or diag( join "\n  ", '', @overclaim, '',
+    'A map naming a tool the grant does not open tells an operator it reaches '
+        . 'something that will refuse it. Fix the claim, or the gate - whichever '
+        . 'is what the tool really does.' );
+
 done_testing();
