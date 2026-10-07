@@ -46,7 +46,7 @@ const BASE   = process.env.LZS_BASE || 'http://127.0.0.1:8412';
 const AUTH   = process.env.LZS_AUTH || '';
 const WIDTHS = (process.env.LZS_WIDTHS || '320,420,560,740,900,1200')
   .split(',').map(n => parseInt(n, 10));
-const PAGES = (process.env.LZS_PAGES || 'data groups config plugin-config plugins stats nav sessions domains edit users files backups audit cache appearance')
+const PAGES = (process.env.LZS_PAGES || 'submissions data groups config plugin-config plugins stats nav sessions domains edit users files backups audit cache appearance')
   .split(/[\s,]+/).filter(Boolean);
 
 const get = p => new Promise((res, rej) =>

@@ -50,12 +50,15 @@ our $DOCROOT = '';
 # page needs enabled. Pages that take a path (edit) or are a reference
 # (style-guide) are not start pages.
 our %PAGES = (
+    # SM957: the menu's first entry - every form's submissions in one place.
+    'submissions' => { label => 'Submissions',   caps => ['read_submissions'] },
     'index'      => { label => 'Site settings', caps => [] },
     'files'      => { label => 'Files',         caps => ['manage_content'] },
     'nav'        => { label => 'Navigation',    caps => ['manage_nav'] },
     'appearance' => { label => 'Appearance', caps => [ 'manage_themes', 'manage_layouts' ] },
-    'plugins'       => { label => 'Plugin Manager',  caps => [] },
-    'plugin-config' => { label => 'Plugin Config',   caps => [] },
+    # SM957: ONE entry, "Extensions"; its configuration is a tab of the same
+    # page (/manager/plugin-config), so it is not a start page of its own.
+    'plugins'  => { label => 'Extensions',      caps => [] },
     'users'         => { label => 'Users',           caps => [] },
     'groups'        => { label => 'Groups',          caps => [] },
     'sessions'      => { label => 'Sessions & keys', caps => [] },
@@ -67,16 +70,15 @@ our %PAGES = (
     # send to. manage_connectors, the capability that already gates every
     # connector action - writing a destination IS the authority here.
     'connectors' => { label => 'Connectors', caps => ['manage_connectors'] },
-    # SM842: the named functions a form or the schedule calls. Any of the
-    # three destination capabilities reaches it; each handler's own type then
-    # decides what that account may change.
-    'handlers' => { label => 'Handlers', caps => [ 'manage_forms', 'manage_data', 'manage_connectors' ] },
+    # SM957: Handlers left the menu (reached from each form and from
+    # Extensions), so it is not offered as a start page either - lint 116.
     # SM759: registry keys, as the conf lists them - a bare name matches nothing.
     'data' => { label => 'Data tables', caps => ['manage_data'], plugin => 'plugins/data.pl' },
     'stats' => { label => 'Visitor statistics', caps => [], plugin => 'plugins/stats.pl' },
 );
-my @PAGE_ORDER = qw(index files nav appearance plugins plugin-config users groups
-    sessions domains cache backups audit connectors handlers data stats);
+# SM957: the menu's order.
+my @PAGE_ORDER = qw(submissions files nav stats appearance plugins connectors data
+    domains users groups sessions index cache backups audit);
 
 sub manager_pages { return map { { id => $_, %{ $PAGES{$_} } } } @PAGE_ORDER }
 

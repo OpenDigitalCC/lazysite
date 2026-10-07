@@ -213,6 +213,17 @@ a.mg-nav-locked:hover { background: var(--mg-surface-alt); color: var(--mg-text-
    title attribute alone is mouse-only. */
 .mg-nav-lock { font-size: 11px; opacity: 0.75; }
 .mg-nav-lock:focus { outline: 2px solid var(--mg-accent); outline-offset: 1px; }
+/* SM957: the Submissions entry's unread count - the bell's per-operator read
+   state, counted for submission notices only. A pill beside the label, in the
+   accent rather than the bell's red: it is work waiting, not an alarm. The
+   `hidden` attribute is what hides it while there is no count to show. */
+.mg-nav-count {
+    display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px;
+    font: 600 11px/18px var(--mg-font); text-align: center; font-style: normal;
+    color: var(--mg-surface); background: var(--mg-accent-deep);
+    border-radius: var(--mg-radius-pill);
+}
+.mg-nav-count[hidden] { display: none; }
 .mg-main { flex: 1; min-width: 0; padding: 24px; max-width: 1040px; }
 .mg-page-title {
     font-family: var(--mg-font-heading); font-size: var(--mg-text-xl); font-weight: 600;

@@ -76,7 +76,7 @@ subtest 'a contract plugin is BORN DISABLED and executes nothing' => sub {
     my $r = action_plugin_action( 'contract-demo', 'plugins/contract-demo.pl',
         'touch', {} );
     ok( !$r->{ok}, 'execution refused' );
-    like( $r->{error}, qr/disabled.*Plugin Manager/s,
+    like( $r->{error}, qr/disabled.*Extensions page/s,
         'with the house sentence pointing at the enable surface' );
     ok( !-f "$base/contract-ran",
         'and the plugin really did not run - no witness file' );

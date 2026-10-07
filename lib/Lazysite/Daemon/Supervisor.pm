@@ -482,7 +482,7 @@ sub status {
     my ($first_bad) = grep { !$_->{ok} && $_->{check} =~ /^job/ } @checks;
     my $summary = $whole->{message}
         . ( $whole->{remedy} ? " - $whole->{remedy}"                              : '' )
-        . ( !$enabled ? ' - enable it on the Plugin Manager to start the runtime' : '' )
+        . ( !$enabled ? ' - enable it on the Extensions page to start the runtime' : '' )
         . ( $first_bad && $first_bad->{remedy}
         ? ". Also: $first_bad->{message} - $first_bad->{remedy}" : '' )
         . '.';

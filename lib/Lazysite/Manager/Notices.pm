@@ -159,6 +159,14 @@ sub action_notices {
 
     $out{last_seen} = $e->{mark};
     $out{unread}    = scalar grep { !_is_read( $e, $_ ) } @{ $out{notices} };
+
+    # SM957: THE SAME COUNT, BY TYPE. The manager's Submissions entry shows how
+    # many submission notices THIS principal has not read - the bell's own read
+    # state narrowed to one type, so there is one store of what has been read
+    # and two places that count from it, never two stores that can disagree.
+    my %by_type;
+    $by_type{ $_->{type} // '' }++ for grep { !_is_read( $e, $_ ) } @{ $out{notices} };
+    $out{unread_by_type} = \%by_type;
     return \%out;
 }
 

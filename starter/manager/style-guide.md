@@ -366,12 +366,13 @@ capability-hint shape above: focusable and labelled, because a title attribute a
 is mouse-only.</p>
 <div class="mg-sg-demo">
 <nav class="mg-nav">
-  <div class="mg-nav-group">Content</div>
+  <div class="mg-nav-group">Site</div>
+  <a href="#" onclick="return false;">Submissions <span class="mg-nav-count">3</span></a>
   <a href="#" onclick="return false;">Files</a>
   <span class="mg-nav-locked" title="Edit the site navigation menu. This account does not hold the capability it needs; a user manager can grant it.">Navigation <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>
   <a href="#" class="mg-nav-locked" onclick="return false;" title="Read the append-only audit trail. To enable it, grant 'Audit trail' to a group on the Groups page.">Audit log <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>
 </nav>
-<span class="mg-muted">Reachable, unreachable, and unreachable-but-you-can-grant-it.</span>
+<span class="mg-muted">A count, reachable, unreachable, and unreachable-but-you-can-grant-it. The count (<code>.mg-nav-count</code>, SM957) is the operator's unread submission notices.</span>
 </div>
 
 <h2 class="mg-sg-h">Button labels &mdash; the vocabulary</h2>

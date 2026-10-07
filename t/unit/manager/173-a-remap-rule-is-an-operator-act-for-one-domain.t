@@ -44,7 +44,7 @@ my $rule = [ { prefix => '/web', destination => 'https://backend.example.com' } 
     my $r = $s->call( 'boss', 'remap-save', body => { host => 'other.example.org', rules => $rule } );
     ok( !$r->{ok}, 'with the extension off, a save is refused' );
     is( $r->{kind} // '', 'disabled', '...as switched off, not as forbidden' );
-    like( $r->{error} // '', qr/Extension Manager/, '...naming where it is turned on' );
+    like( $r->{error} // '', qr/Extensions page/, '...naming where it is turned on' );
 }
 
 # Switch it on the way an operator would.

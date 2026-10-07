@@ -133,14 +133,24 @@ JS
 
 subtest 'the page is registered, and the old handler UI is gone' => sub {
     my $layout = do { open my $fh, '<', "$root/starter/lazysite/manager/layout.tt" or die $!; local $/; <$fh> };
-    like( $layout, qr/manager_caps\.manage_forms \|\| manager_caps\.manage_data \|\| manager_caps\.manage_connectors %\]<a href="\/manager\/handlers"/,
-        'the nav offers it to any of the three destination capabilities' );
+    # SM957 (ruled 2026-10-07): Handlers is OFF the menu - set up once, not used
+    # daily - and reached from each form and from the Extensions page instead.
+    my ($nav) = $layout =~ /(<nav class="mg-nav".*?<\/nav>)/s;
+    ok( $nav, 'found the nav' );
+    unlike( $nav // '', qr{/manager/handlers}, 'the nav no longer carries Handlers' );
+    my $subs = PageScript::page_source("$root/starter/manager/submissions.md");
+    like( $subs, qr{'/manager/handlers\?form=' \+ encodeURIComponent\(name\)},
+        'each form on the Submissions page links to its handlers' );
+    my $ext = PageScript::page_source("$root/starter/manager/plugins.md");
+    like( $ext, qr{href="/manager/handlers"}, 'and the Extensions page links here' );
     my $pc = PageScript::page_source("$root/starter/manager/plugin-config.md");
     unlike( $pc, qr/handler-save|form-targets-save|renderHandlerList|showAddHandlerForm/,
         'the Extension Config page no longer draws or saves handlers' );
     like( $pc, qr/href="\/manager\/handlers">Handlers</, 'its form handler row links here' );
-    like( $pc, qr/function openRequestedSubmissions\(\)/, 'and it opens the submissions viewer this page links to' );
-    like( $page, qr/\/manager\/plugin-config\?submissions=/, 'which a file handler\'s card does' );
+    # SM957: the viewer is the Submissions page; the old address redirects there.
+    like( $pc, qr/function redirectLegacySubmissions\(loc\)/, 'its old submissions address redirects' );
+    like( $page, qr/\/manager\/submissions\?store=/, 'and a file handler\'s card links to the Submissions page' );
+    like( $page, qr/function openRequestedForm\(\)/, 'and ?form=<name> opens that form\'s card here' );
 };
 
 done_testing();

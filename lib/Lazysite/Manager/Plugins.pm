@@ -159,7 +159,7 @@ sub _gate_execution {
         plugin => $script );
     return { ok => 0,
         error => 'This plugin is disabled. A sysop can enable it on the '
-            . 'Plugin Manager page.' };
+            . 'Extensions page.' };
 }
 
 # Resolve a request-named plugin to its absolute path via the registry ONLY.

@@ -234,21 +234,30 @@
   })();
 
   // SM109 phase 5: command palette (Ctrl/Cmd-K) - jump to a page or run a command.
+  //
+  // SM957: THE SAME PAGES AS THE MENU, IN THE MENU'S ORDER, UNDER THE SAME
+  // CONDITIONS. This list named Handlers and both extension pages after the menu
+  // had moved on, left out three pages the menu carries, and offered gated pages
+  // to accounts the menu shows them locked to. A locked menu entry is not a link,
+  // so it is not a destination here: each line below takes its menu entry's
+  // condition. t/unit/manager/202 renders the two and compares them.
   window.MG_DESTINATIONS = [
-    { label: 'Site settings', url: '/manager' },
-    { label: 'Files',      url: '/manager/files' },
-    { label: 'Navigation', url: '/manager/nav' },
-    { label: 'Appearance', url: '/manager/appearance' },
-    { label: 'Extension Manager', url: '/manager/plugins' },
-    { label: 'Extension Config', url: '/manager/plugin-config' },
+    [% IF manager_caps.read_submissions %]{ label: 'Submissions', url: '/manager/submissions' },[% END %]
+    [% IF manager_caps.manage_content %]{ label: 'Files',      url: '/manager/files' },[% END %]
+    [% IF manager_caps.manage_nav %]{ label: 'Navigation', url: '/manager/nav' },[% END %]
+    [% IF enabled_plugins.stats %]{ label: 'Visitor statistics', url: '/manager/stats' },[% END %]
+    [% IF manager_caps.manage_themes || manager_caps.manage_layouts %]{ label: 'Appearance', url: '/manager/appearance' },[% END %]
+    { label: 'Extensions', url: '/manager/plugins' },
+    [% IF manager_caps.manage_connectors %]{ label: 'Connectors', url: '/manager/connectors' },[% END %]
+    [% IF enabled_plugins.data && manager_caps.manage_data %]{ label: 'Data tables', url: '/manager/data' },[% END %]
+    [% IF manager_caps.manage_domains %]{ label: 'Domains',    url: '/manager/domains' },[% END %]
     { label: 'Users',      url: '/manager/users' },
     { label: 'Groups',     url: '/manager/groups' },
-    { label: 'Sessions &amp; keys', url: '/manager/sessions' },
+    { label: 'Sessions & keys', url: '/manager/sessions' },
+    { label: 'Site settings', url: '/manager' },
     { label: 'Cache',      url: '/manager/cache' },
     { label: 'Backups',    url: '/manager/backups' },
-    { label: 'Audit log',  url: '/manager/audit' },
-    { label: 'Handlers',   url: '/manager/handlers' },
-    [% IF enabled_plugins.stats %]{ label: 'Visitor statistics', url: '/manager/stats' },[% END %]
+    [% IF manager_caps.audit %]{ label: 'Audit log',  url: '/manager/audit' },[% END %]
     { label: 'View site',  url: '/' },
     { label: 'Toggle dark mode', action: 'theme' },
     { label: 'Sign out',   url: '/cgi-bin/lazysite-auth.pl?action=logout' }
@@ -393,8 +402,8 @@
   })();
 
   // SM113: operator notifications (poll-based). Badge shows the unread count.
-  // Both endpoints are GET (CSRF-exempt; the seen-marker is a harmless
-  // per-operator write).
+  // `notices` is a GET. `notices-seen` WRITES (the per-operator marker), so it
+  // is a POST and carries the CSRF token like every other write - see seen().
   //
   // SM938 D3: OPENING THE PANEL NO LONGER MARKS EVERYTHING READ. It did, which
   // made the badge a has-opened-the-panel indicator rather than outstanding
@@ -420,6 +429,21 @@
       var btn=document.querySelector('#mg-notif .mg-notif-btn');
       if(btn) btn.classList.toggle('mg-notif-unread', n>0);
     }
+    // SM957: THE SUBMISSIONS ENTRY'S COUNT IS THIS BELL'S, NARROWED. Not a second
+    // read state: the same notices, the same per-operator marks (SM938 D3), the
+    // submission ones counted. So opening the Submissions page marks nothing -
+    // reading is said, not inferred - and following a notice's link, "Mark all
+    // read" and Dismiss each move this count exactly as they move the bell's.
+    // The element exists only for an account holding read_submissions AND
+    // notifications (the template decides); without a count it stays hidden.
+    function subsUnread(){ return notices.filter(function(n){ return !n.read && n.type === 'submission'; }).length; }
+    function setSubsCount(n){
+      var c=document.getElementById('mg-nav-subs-count'); if(!c)return;
+      if(n>0){
+        c.textContent=n>99?'99+':String(n); c.hidden=false;
+        c.title=n+' unread submission notice'+(n===1?'':'s');
+      } else { c.hidden=true; c.textContent=''; }
+    }
     function load(){
       fetch(API + '?action=notices').then(function(r){return r.json();}).then(function(d){
         if (!d || !d.ok) {
@@ -431,12 +455,18 @@
           return;
         }
         notices = d.notices || []; setBadge(d.unread || 0);
+        setSubsCount(d.store_unreadable ? 0 : ((d.unread_by_type || {}).submission || 0));
       }).catch(function(){});
     }
     function unreadCount(){ return notices.filter(function(n){ return !n.read; }).length; }
     function seen(qs){
       // keepalive, so marking a notice read survives the navigation its link starts.
-      return fetch(API + '?action=notices-seen' + (qs || ''), { keepalive: true })
+      // SM957: POST. It was a GET, and the API refuses a write sent as a GET
+      // ("This action must be sent as POST.") - so from SM938 D3 on, no mark this
+      // bell made was kept: the badge dropped on screen and came back on the next
+      // page. The Submissions count reads the same marks. t/unit/manager/204.
+      return fetch(API + '?action=notices-seen' + (qs || ''),
+                   { method: 'POST', credentials: 'same-origin', keepalive: true })
         .then(function(r){ return r.json(); });
     }
     function render(){
@@ -456,6 +486,21 @@
              + '" title="Remove this notification from the list">Dismiss</button></div>';
       }).join('');
     }
+    // SM957: opening a submission's own page from a Submissions row is the same
+    // act as following its notice, so THAT notice is read - matched by the store
+    // and row its link names, never inferred from having opened the list.
+    window.mgNoticeFollowed = function(file, id){
+      var norm = function(s){ return String(s == null ? '' : s).replace(/^\/+/, ''); };
+      notices.forEach(function(n){
+        if (n.read || !n.url) return;
+        var u; try { u = new URL(n.url, location.href); } catch (e) { return; }
+        if (u.pathname !== '/manager/submission') return;
+        if (norm(u.searchParams.get('file')) !== norm(file) || u.searchParams.get('id') !== String(id)) return;
+        n.read = true;
+        seen('&id=' + encodeURIComponent(n.id)).catch(function(){});
+      });
+      setBadge(unreadCount()); setSubsCount(subsUnread());
+    };
     window.mgToggleNotif = function(){
       var panel = document.getElementById('mg-notif-panel'); if (!panel) return;
       if (!panel.hidden) { panel.hidden = true; return; }
@@ -469,14 +514,14 @@
       if (!t) return;
       if (t.hasAttribute('data-notif-all')) {
         seen('').then(function(d){
-          if (d && d.ok) { notices.forEach(function(n){ n.read = true; }); setBadge(0); render(); }
+          if (d && d.ok) { notices.forEach(function(n){ n.read = true; }); setBadge(0); setSubsCount(0); render(); }
         }).catch(function(){});
       } else if (t.hasAttribute('data-notif-dismiss')) {
         var id = t.getAttribute('data-notif-dismiss');
         seen('&id=' + encodeURIComponent(id) + '&dismiss=1').then(function(d){
           if (d && d.ok) {
             notices = notices.filter(function(n){ return n.id !== id; });
-            setBadge(d.unread || 0); render();
+            setBadge(d.unread || 0); setSubsCount(subsUnread()); render();
           }
         }).catch(function(){});
       } else {
@@ -484,7 +529,7 @@
         // travels with keepalive.
         var oid = t.getAttribute('data-notif-open');
         notices.forEach(function(n){ if (n.id === oid) n.read = true; });
-        setBadge(unreadCount());
+        setBadge(unreadCount()); setSubsCount(subsUnread());
         seen('&id=' + encodeURIComponent(oid)).catch(function(){});
       }
     });
@@ -708,26 +753,26 @@
          style guide is the contract and a hand-styled page is the thing it
          exists to stop. -->
     <nav class="mg-nav" aria-label="Manager navigation">
-      <div class="mg-nav-group">Content</div>
+      <div class="mg-nav-group">Site</div>
+      [% IF manager_caps.read_submissions %]<a href="/manager/submissions" [% IF request_uri.match('^/manager/submission') %]class="active" aria-current="page"[% END %]>Submissions[% IF manager_caps.notifications %] <span class="mg-nav-count" id="mg-nav-subs-count" hidden></span>[% END %]</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Read what visitors have sent through the site's forms. To enable it, grant 'Read form submissions' to a group on the Groups page.">Submissions <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Read what visitors have sent through the site's forms. This account does not hold the capability it needs; a user manager can grant it.">Submissions <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
       [% IF manager_caps.manage_content %]<a href="/manager/files" [% IF request_uri.match('^/manager/files') %]class="active" aria-current="page"[% END %]>Files</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Read and write site content. To enable it, grant 'Content' to a group on the Groups page.">Files <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Read and write site content. This account does not hold the capability it needs; a user manager can grant it.">Files <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
       [% IF manager_caps.manage_nav %]<a href="/manager/nav" [% IF request_uri.match('^/manager/nav') %]class="active" aria-current="page"[% END %]>Navigation</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Edit the site navigation menu. To enable it, grant 'Navigation' to a group on the Groups page.">Navigation <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Edit the site navigation menu. This account does not hold the capability it needs; a user manager can grant it.">Navigation <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
+      [% IF enabled_plugins.stats %]<a href="/manager/stats" [% IF request_uri.match('^/manager/stats') %]class="active" aria-current="page"[% END %]>Visitor statistics</a>[% END %]
+      <div class="mg-nav-group">Setup</div>
       [% IF manager_caps.manage_themes || manager_caps.manage_layouts %]<a href="/manager/appearance" [% IF request_uri.match('^/manager/(appearance|themes)') %]class="active" aria-current="page"[% END %]>Appearance</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Choose themes and layouts. To enable it, grant 'Themes' or 'Layouts' to a group on the Groups page.">Appearance <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Choose themes and layouts. This account does not hold the capability it needs; a user manager can grant it.">Appearance <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
-      <a href="/manager/plugins" [% IF request_uri.match('^/manager/plugins$') %]class="active" aria-current="page"[% END %]>Extension Manager</a>
-      <a href="/manager/plugin-config" [% IF request_uri.match('^/manager/plugin-config') %]class="active" aria-current="page"[% END %]>Extension Config</a>
+      <a href="/manager/plugins" [% IF request_uri.match('^/manager/plugin') %]class="active" aria-current="page"[% END %]>Extensions</a>
+      [% IF manager_caps.manage_connectors %]<a href="/manager/connectors" [% IF request_uri.match('^/manager/connectors') %]class="active" aria-current="page"[% END %]>Connectors</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Configure the destinations this site may send to. To enable it, grant 'Connectors' to a group on the Groups page.">Connectors <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Configure the destinations this site may send to. This account does not hold the capability it needs; a user manager can grant it.">Connectors <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
+      [% IF enabled_plugins.data %][% IF manager_caps.manage_data %]<a href="/manager/data" [% IF request_uri.match('^/manager/data') %]class="active" aria-current="page"[% END %]>Data tables</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="See and manage the site's data tables. To enable it, grant 'Data' to a group on the Groups page.">Data tables <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="See and manage the site's data tables. This account does not hold the capability it needs; a user manager can grant it.">Data tables <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %][% END %]
+      [% IF manager_caps.manage_domains %]<a href="/manager/domains" [% IF request_uri.match('^/manager/domains') %]class="active" aria-current="page"[% END %]>Domains</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Serve additional domains from this instance. To enable it, grant 'Domains &amp; site packages' to a group on the Groups page.">Domains <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Serve additional domains from this instance. This account does not hold the capability it needs; a user manager can grant it.">Domains <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
       <div class="mg-nav-group">Access</div>
       <a href="/manager/users" [% IF request_uri.match('^/manager/users') %]class="active" aria-current="page"[% END %]>Users</a>
       <a href="/manager/groups" [% IF request_uri.match('^/manager/groups') %]class="active" aria-current="page"[% END %]>Groups</a>
       <a href="/manager/sessions" [% IF request_uri.match('^/manager/sessions') %]class="active" aria-current="page"[% END %]>Sessions &amp; keys</a>
       <div class="mg-nav-group">System</div>
       <a href="/manager" [% IF request_uri == '/manager' || request_uri == '/manager/' || request_uri.match('^/manager/config') %]class="active" aria-current="page"[% END %]>Site settings</a>
-      [% IF manager_caps.manage_domains %]<a href="/manager/domains" [% IF request_uri.match('^/manager/domains') %]class="active" aria-current="page"[% END %]>Domains</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Serve additional domains from this instance. To enable it, grant 'Domains &amp; site packages' to a group on the Groups page.">Domains <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Serve additional domains from this instance. This account does not hold the capability it needs; a user manager can grant it.">Domains <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
       <a href="/manager/cache" [% IF request_uri.match('^/manager/cache') %]class="active" aria-current="page"[% END %]>Cache</a>
       <a href="/manager/backups" [% IF request_uri.match('^/manager/backups') %]class="active" aria-current="page"[% END %]>Backups</a>
       [% IF manager_caps.audit %]<a href="/manager/audit" [% IF request_uri.match('^/manager/audit') %]class="active" aria-current="page"[% END %]>Audit log</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Read the append-only audit trail. To enable it, grant 'Audit trail' to a group on the Groups page.">Audit log <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Read the append-only audit trail. This account does not hold the capability it needs; a user manager can grant it.">Audit log <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
-      [% IF manager_caps.manage_connectors %]<a href="/manager/connectors" [% IF request_uri.match('^/manager/connectors') %]class="active" aria-current="page"[% END %]>Connectors</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Configure the destinations this site may send to. To enable it, grant 'Connectors' to a group on the Groups page.">Connectors <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Configure the destinations this site may send to. This account does not hold the capability it needs; a user manager can grant it.">Connectors <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
-      [% IF manager_caps.manage_forms || manager_caps.manage_data || manager_caps.manage_connectors %]<a href="/manager/handlers" [% IF request_uri.match('^/manager/handlers') %]class="active" aria-current="page"[% END %]>Handlers</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Configure what a form or the schedule delivers to. To enable it, grant 'Forms', 'Data' or 'Connectors' to a group on the Groups page.">Handlers <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Configure what a form or the schedule delivers to. This account does not hold the capability it needs; a user manager can grant it.">Handlers <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
-      [% IF enabled_plugins.data %][% IF manager_caps.manage_data %]<a href="/manager/data" [% IF request_uri.match('^/manager/data') %]class="active" aria-current="page"[% END %]>Data tables</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="See and manage the site's data tables. To enable it, grant 'Data' to a group on the Groups page.">Data tables <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="See and manage the site's data tables. This account does not hold the capability it needs; a user manager can grant it.">Data tables <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %][% END %]
-      [% IF enabled_plugins.stats %]<a href="/manager/stats" [% IF request_uri.match('^/manager/stats') %]class="active" aria-current="page"[% END %]>Visitor statistics</a>[% END %]
     </nav>
   </aside>
   <main class="mg-main">

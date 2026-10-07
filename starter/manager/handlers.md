@@ -179,6 +179,7 @@ function load() {
       QUARANTINE = d.form_quarantine || {};
       renderHandlers();
       renderForms();
+      openRequestedForm();
     })
     .catch(function(e) { showStatus('Failed to load handlers: ' + e.message, true); });
   fetch(API + '?action=schedule-list')
@@ -383,7 +384,7 @@ function handlerEditor(h, key, isNew) {
     html += '<button class="mg-btn" data-impact="inert" onclick="closeNew(\'exp-new-handler\', \'' + escHtml(key) + '\')">Cancel</button>';
   } else {
     if (h.type === 'file' || (h.type === 'table' && h.keep_copy !== 'false')) {
-      html += '<a class="mg-btn" href="/manager/plugin-config?submissions='
+      html += '<a class="mg-btn" href="/manager/submissions?store='
         + encodeURIComponent('/' + (h.type === 'file' ? (h.path || 'lazysite/forms/submissions') : 'lazysite/forms/submissions') + '/')
         + '">Submissions</a>';
     }
@@ -551,7 +552,7 @@ function renderForms() {
       + '<span class="mg-row-meta">' + (ids.length ? 'calls ' + ids.map(escHtml).join(', ') : 'calls nothing - it refuses every submission')
       + (NOTIFY[n] ? '; ' + escHtml(notifyLine(n)) : '')
       + (QUARANTINE[n] ? '; ' + escHtml(quarantineLine(n)) : '') + '</span>'
-      + '<span class="mg-row-actions">' + chev('form-list', key, n, 'Handlers') + '</span>'
+      + '<span class="mg-row-actions"><a class="mg-btn mg-btn-sm" href="/manager/submissions?form=' + encodeURIComponent(n) + '">Submissions</a> ' + chev('form-list', key, n, 'Handlers') + '</span>'
       + '</div>'
       + '<div class="mg-expand" id="exp-' + escHtml(key) + '" hidden></div>';
   }).join('');
@@ -575,6 +576,27 @@ BUILD['form-list'] = function(key) {
     + '<div class="mg-toolbar"><button class="mg-btn mg-btn-primary" data-impact="commit" onclick="saveForm(\'' + escHtml(form) + '\')">Save</button> '
     + dirtyNote(key) + '</div><div id="st-' + key + '" class="mg-status"></div></div>';
 };
+
+// SM957: HANDLERS LEFT THE MENU and is reached from each form - the Submissions
+// page links a form here as ?form=<name>, and that form's card opens, once, on
+// the first load. A name that is not a form opens nothing. The address is read
+// here rather than at load so a page script driven outside a browser still runs.
+var FORM_ASKED_DONE = false;
+function openRequestedForm() {
+  if (FORM_ASKED_DONE) return;
+  FORM_ASKED_DONE = true;
+  var want = (typeof location !== 'undefined' && location.search)
+    ? (new URLSearchParams(location.search).get('form') || '') : '';
+  if (!want || !Object.prototype.hasOwnProperty.call(FORMS, want)) return;
+  var chevs = document.querySelectorAll('#form-list .mg-chev');
+  for (var i = 0; i < chevs.length; i++) {
+    if (chevs[i].getAttribute('data-key') === 'f-' + want) {
+      toggleRow(chevs[i], 'form-list', 'f-' + want);
+      if (chevs[i].scrollIntoView) chevs[i].scrollIntoView({ block: 'center' });
+      return;
+    }
+  }
+}
 
 function saveForm(form) {
   var key = 'f-' + form;

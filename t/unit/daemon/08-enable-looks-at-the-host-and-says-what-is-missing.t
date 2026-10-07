@@ -101,7 +101,7 @@ subtest 'the plugin runs Status on Enable and the toggle line gets the summary' 
     like( $src, qr/on_enable\s*=>\s*'status'/, 'on_enable names the status action' );
     like( $src, qr/\$st->\{message\} = \$st->\{summary\}/, 'and the action puts the summary where the toggle line reads' );
     my $plugins = do { local ( @ARGV, $/ ) = "$root/starter/manager/plugins.md"; <> };
-    like( $plugins, qr/if \(h && h\.message\) \{ warn\(name \+ ': ' \+ h\.message\); \}/, 'which is h.message on the Plugin Manager page' );
+    like( $plugins, qr/if \(h && h\.message\) \{ warn\(name \+ ': ' \+ h\.message\); \}/, 'which is h.message on the Extensions page' );
 };
 
 # SM759: the field's list of the states the line must distinguish, and the
@@ -116,7 +116,7 @@ subtest 'disabled: the line says so and says what to do' => sub {
     like( $st->{message}, qr/plugin is disabled/, 'the state' );
     # 'off' is a healthy verdict by the lifecycle contract (desired off, not
     # running), so it carries no remedy field; the next step is in the line.
-    like( summary_of(), qr/disabled and the runtime is stopped.*enable it on the Plugin Manager/, 'the state and the next step, in the one line' );
+    like( summary_of(), qr/disabled and the runtime is stopped.*enable it on the Extensions page/, 'the state and the next step, in the one line' );
     put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
 };
 

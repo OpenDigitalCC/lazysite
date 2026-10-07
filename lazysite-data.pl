@@ -115,7 +115,7 @@ sub main {
     return reply( 403,
         { ok => 0,
             error => 'The data plugin is disabled. A sysop can enable it '
-                . 'on the Plugin Manager page.' } )
+                . 'on the Extensions page.' } )
         unless Lazysite::Manager::Plugins::plugin_enabled('plugins/data.pl');
 
     my %q;

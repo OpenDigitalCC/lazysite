@@ -64,8 +64,8 @@ function loadStats() {
     if (!p) { body.innerHTML = 'The Visitor Stats extension is not installed.'; return; }
     if (!p._enabled) {
       body.innerHTML = 'Enable the <b>Visitor Statistics</b> extension on the '
-        + '<a href="/manager/plugins">Extension Manager</a> page, then set its access-log path on the '
-        + '<a href="/manager/plugin-config">Extension Config</a> page.';
+        + '<a href="/manager/plugins">Extensions</a> page, then set its access-log path on the '
+        + '<a href="/manager/plugin-config">Extensions - configure</a> page.';
       return;
     }
     statsScript = p._script;
@@ -84,7 +84,7 @@ function renderStats(d) {
     body.innerHTML = '<p class="mg-muted">' + sesc((d && d.error) || 'No stats available.') + '</p>'
       + '<p class="mg-muted">Visits are recorded automatically (the first-party access log); '
       + 'this message appears only when that is turned off on the '
-      + '<a href="/manager/plugin-config">Extension Config</a> page and the web-server log is not readable.</p>';
+      + '<a href="/manager/plugin-config">Extensions - configure</a> page and the web-server log is not readable.</p>';
     return;
   }
   var h = '';

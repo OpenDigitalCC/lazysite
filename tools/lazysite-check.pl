@@ -1039,7 +1039,7 @@ sub run_checks {
         if ( !-d $gd ) {
             report( 'WARN',
                 "git_history is enabled but lazysite/git is not initialised",
-                "use the Content history plugin's Enable action on Plugin Config "
+                "tick the Content history extension on the Extensions page "
                     . "(or the git-init control-API action)" );
         }
         else {

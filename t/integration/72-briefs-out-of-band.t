@@ -67,7 +67,7 @@ sub api_post {
 subtest 'DISABLED MEANS DISABLED (ADR 0009, the SM469 clause)' => sub {
     my $r = api_get('action=brief-read&path=/content/page.md');
     ok( !$r->{ok}, 'a contract plugin executes nothing while disabled' );
-    like( $r->{error} // '', qr/disabled|Plugin Manager/i, 'and says so' );
+    like( $r->{error} // '', qr/disabled|Extensions page/i, 'and says so' );
 };
 
 open my $ap, '>>', "$docroot/lazysite/lazysite.conf" or die $!;

@@ -94,7 +94,7 @@ sub _gate {
     return undef if Lazysite::Manager::Plugins::plugin_enabled('plugins/data.pl');
     return { ok => 0,
         error => 'The data plugin is disabled. An operator can enable it on '
-            . 'the Plugin Manager page.' };
+            . 'the Extensions page.' };
 }
 
 # ---------------------------------------------------------------------------

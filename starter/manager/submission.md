@@ -58,7 +58,7 @@ function render(d) {
 
   var dir = d.file.replace(/\/[^\/]*$/, '');
   var a = node('a', 'mg-btn', 'All submissions in this store');
-  a.href = '/manager/plugin-config?submissions=' + encodeURIComponent('/' + dir + '/');
+  a.href = '/manager/submissions?store=' + encodeURIComponent('/' + dir + '/');   // SM957
   document.getElementById('sub-actions').appendChild(a);
 }
 

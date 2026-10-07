@@ -43,6 +43,6 @@ unlike( $off, qr{/manager/stats}, 'disabled: no stats nav link' );
 unlike( $off, qr{Visitor statistics}, 'disabled: no stats nav label' );
 
 # The rest of the nav is unaffected either way.
-like( $off, qr{/manager/files}, 'other nav items still present when stats off' );
+like( $off, qr{/manager/cache}, 'other nav items still present when stats off' );
 
 done_testing;

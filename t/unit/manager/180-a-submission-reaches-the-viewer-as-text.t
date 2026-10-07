@@ -22,8 +22,10 @@ use PageScript qw(extract_function page_source);
 chomp( my $node = `sh -c 'command -v node || command -v nodejs' 2>/dev/null` );
 plan skip_all => 'node not installed' unless length $node && -x $node;
 
-my $page = page_source( repo_root() . '/starter/manager/plugin-config.md' );
-my $defs = join "\n", map { extract_function( $page, $_, 'plugin-config.md' ) }
+# SM957: the viewer is the Submissions page's own code now (it moved from
+# plugin-config.md, which keeps no copy - t/unit/manager/202).
+my $page = page_source( repo_root() . '/starter/manager/submissions.md' );
+my $defs = join "\n", map { extract_function( $page, $_, 'submissions.md' ) }
     qw(subsNode subsMessage setSubsBody showSubmissionTable);
 my $dir = File::Temp->newdir;    # scratch for the node script, not a docroot
 
@@ -52,7 +54,7 @@ var document = {
   createElement: function (t) { return new Node(t); },
   createTextNode: function (s) { var n = new Node('#text'); n._text = String(s); return n; },
   createDocumentFragment: function () { return new Node('#fragment'); },
-  getElementById: function (id) { return id === 'subs-modal-body' ? BODY : id === 'subs-modal-title' ? TITLE : null; }
+  getElementById: function (id) { return id === 'subs-body' ? BODY : id === 'subs-title' ? TITLE : null; }
 };
 function walk(n, fn) { fn(n); n.children.forEach(function (c) { walk(c, fn); }); }
 var API = '/api', subsFilter = 'all', subsCurrent = null, subsLoaded = null;

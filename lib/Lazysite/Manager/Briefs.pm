@@ -28,7 +28,7 @@ sub _gate {
         if Lazysite::Manager::Plugins::plugin_enabled('plugins/briefs.pl');
     return { ok => 0,
         error => 'The briefs plugin is disabled. An operator can enable it '
-            . 'on the Plugin Manager page.' };
+            . 'on the Extensions page.' };
 }
 
 # SM507: the store entry follows its file. SM245 recorded a moved file's

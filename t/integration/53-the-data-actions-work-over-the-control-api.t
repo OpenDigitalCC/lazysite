@@ -125,7 +125,7 @@ subtest 'SM469: with the plugin DISABLED, every action refuses' => sub {
     }
     my $m = api_post('action=data-migrate&table=products');
     ok( !$m->{ok}, 'data-migrate refuses while disabled' );
-    like( $m->{error}, qr/Plugin Manager/,
+    like( $m->{error}, qr/Extensions page/,
         'and names where to turn it on' )
         or diag( 'A refusal that does not say how to proceed leaves the '
             . 'operator with nowhere to go.' );

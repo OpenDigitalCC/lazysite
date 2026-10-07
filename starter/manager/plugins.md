@@ -1,10 +1,20 @@
 ---
-title: Extension Manager
+title: Extensions
 auth: manager
 search: false
 ---
 
-<div class="mg-note mg-note-info">Enable or disable extensions. Configure an enabled extension on the <a href="/manager/plugin-config">Extension Config</a> page.</div>
+<!-- SM957: ONE MENU ENTRY, "Extensions", for two pages that were two entries:
+     this one enables and disables, /manager/plugin-config configures what is
+     enabled. Both addresses work and both light the same entry; each links to
+     the other. Handlers left the menu by ruling and is reached from here and
+     from each form on the Submissions page. -->
+<div class="mg-toolbar">
+  <a class="mg-btn mg-btn-sm" href="/manager/plugin-config">Configure</a>
+  <a class="mg-btn mg-btn-sm" href="/manager/handlers">Handlers</a>
+</div>
+
+<div class="mg-note mg-note-info">Enable or disable extensions here. Configure an enabled extension under <a href="/manager/plugin-config">Configure</a>; choose what each form delivers to under <a href="/manager/handlers">Handlers</a>.</div>
 
 <div id="plugin-status" class="mg-status"></div>
 <div id="plugin-registry">Loading&hellip;</div>

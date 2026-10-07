@@ -8018,10 +8018,13 @@ sub render_content {
         # A capability the layout gates on and this list omits is a nav entry
         # that is invisible to everyone, including its holder - t/lint/83 asks
         # exactly that question, and asked it of this.
+        # SM957: read_submissions gates the Submissions entry, and notifications
+        # decides whether that entry carries the bell's unread count.
         for my $cap (
             qw(manage_config manage_domains manage_users
             manage_content manage_nav manage_themes manage_layouts audit
-            manage_data manage_connectors manage_forms)
+            manage_data manage_connectors manage_forms read_submissions
+            notifications)
             )
         {
             $manager_caps{$cap}
