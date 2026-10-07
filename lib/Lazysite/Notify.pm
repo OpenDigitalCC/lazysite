@@ -599,6 +599,7 @@ sub _mail_send {
             form   => { message => $text },
     } );
     my ( $out, $in );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval { IPC::Open2::open2( $out, $in, $^X, $script, '--pipe' ) }
         or die "the extension's script could not be started\n";
     print {$in} $payload;

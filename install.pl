@@ -2020,6 +2020,7 @@ sub create_backup {
         '--files-from', '-',
     );
     my $rc;
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     if ( open my $tar, '|-', @cmd ) {
         print {$tar} "$_\n" for @paths;
         close $tar;

@@ -49,6 +49,16 @@ Archive
 
 ## Unreleased
 
+- SM959 (PENDING) **a helper that exits before reading no longer kills the
+  process writing to it.** Eleven places wrote to a child's stdin with SIGPIPE
+  at its default - the form handler's mail, the manager API's plugin and users
+  calls, the auth CGI, MCP, OAuth, the installer - so a helper that died on
+  start (a missing module, a compile error) killed the caller mid-request with
+  nothing logged. Only the processor guarded. Each spawn now runs with SIGPIPE
+  ignored and the write fails as a write; lint 211 holds the rule and
+  t/unit/lib/199 proves it (signal 13 without the guard). Found as a flaky
+  t/unit/forms/24 - 4 failures in 8 parallel runs on main, now 0 in 8.
+
 - SM958 (PENDING) **security: a token-gated action was open to any manager
   account.** On the manager channel a non-operator was capability-checked only
   for actions in `%COOKIE_CAP`; an action with a token gate and no line there

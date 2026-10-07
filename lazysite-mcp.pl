@@ -262,6 +262,7 @@ sub _sibling_tool {
 sub _run_json_tool {
     my ( $argv, $stdin ) = @_;
     my ( $out, $in );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval { open2( $out, $in, $^X, @$argv ) } or return ( 0, undef );
     print {$in} $stdin if defined $stdin;
     close $in;

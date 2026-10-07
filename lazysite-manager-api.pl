@@ -3232,6 +3232,7 @@ sub _users_tool_run {
     my $script = _users_tool_path();
     return { ok => 0, error => $unavailable } unless $script;
     my ( $out, $in );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval { open2( $out, $in, $^X, $script, '--api', '--docroot', $DOCROOT ) };
     return { ok => 0, error => sprintf( $cannot_run, $@ ) } unless $pid;
     print $in encode_json($payload);
@@ -4942,6 +4943,7 @@ sub action_analyse_visitors {
     }
 
     my ( $out, $in );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval {
         open2( $out, $in, $^X, $tool, '--export', '--docroot', $DOCROOT, '--window', $window, @sel );
     } or return { ok => 0, error => 'Cannot run the stats plugin' };
@@ -5164,6 +5166,7 @@ sub action_users {
     }
 
     my ( $child_out, $child_in );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval {
         open2( $child_out, $child_in,
             $^X, $users_script, '--api', '--docroot', $DOCROOT );

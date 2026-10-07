@@ -29,6 +29,7 @@ starts.
 | Q4 | ~~B6 [[SM932]]~~ **built (n255)** (2) - `lazysite check` writes a known line and reports which sinks received it (R6) | ruled; Q5 shares its shape | S |
 | Q5 | ~~F5 [[SM955]]~~ **built (n256)** - the XMPP test reports a bounce; every delivery failure audited (R9) | after Q4, same reporting shape | M |
 | Q5a | **[[SM958]] security, found by the Q6 survey - built (n257)**: a token-gated action was open to any manager account | fixed before Q6 continues | S |
+| Q5b | **[[SM959]] robustness, found by Q5a's handoff - built (n258)**: a child that exits early killed its caller (SIGPIPE) | fixed before Q6 continues | S |
 | Q6 | E5 [[SM943]] - one declaration per control-API action, the rest derived | must precede Q7/Q8, which add actions | L |
 | Q7 | B3 [[SM857]] read half - `(mine)` views of a table (R3) | after E5 | M |
 | Q8 | B4 [[SM858]] - approve an account from the Submissions view (R4) | after E5 | M |

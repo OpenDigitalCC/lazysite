@@ -115,6 +115,7 @@ sub users_api {
     }
     return { ok => 0 } unless $tool;
     my ( $out, $in );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval { open2( $out, $in, $^X, $tool, '--api', '--docroot', $DOCROOT ) }
         or return { ok => 0 };
     print $in encode_json($payload);

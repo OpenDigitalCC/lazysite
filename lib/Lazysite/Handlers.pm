@@ -1731,6 +1731,7 @@ sub _run_smtp_script {
     require IPC::Open2;
     local $ENV{DOCUMENT_ROOT} = $DOCROOT;
     my ( $out, $in );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval { IPC::Open2::open2( $out, $in, $^X, $script, '--pipe' ) }
         or return { ok => 0, error => "cannot run the Form SMTP script: $@" };
     print {$in} JSON::PP::encode_json($payload);

@@ -350,6 +350,7 @@ sub send_via_sendmail {
 
     die "sendmail not found at $sendmail\n" unless -x $sendmail;
 
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     open( my $fh, '|-', $sendmail, '-t', '-oi', '-f', $from )
         or die "Cannot run sendmail: $!\n";
     print $fh "From: $from\n";

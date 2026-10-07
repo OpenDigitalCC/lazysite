@@ -63,6 +63,7 @@ my $stats = "$ROOT/plugins/stats.pl";          # SM340
 sub uapi {
     my ( $d, $p ) = @_;
     my ( $o, $i );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = open2( $o, $i, $^X, $utool, '--api', '--docroot', $d );
     print $i encode_json($p); close $i;
     my $out = do { local $/; <$o> }; close $o; waitpid $pid, 0;

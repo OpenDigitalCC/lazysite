@@ -688,6 +688,7 @@ sub users_tool_api {
     my $tool = _users_tool_path() or return undef;
     require JSON::PP;
     my ( $out, $in );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval { open2( $out, $in, $^X, $tool, '--api', '--docroot', $DOCROOT ) };
     return undef unless $pid;
     print $in JSON::PP::encode_json($payload);
@@ -948,6 +949,7 @@ sub _send_setup_email {
                     . "If you did not request this, you can ignore this email." },
     } );
     my ( $out, $in );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval { open2( $out, $in, $^X, $smtp, '--pipe' ) };
     return unless $pid;
     print $in $payload;
