@@ -40,6 +40,21 @@ fi
 # 2. The mangled-literal check on everything this branch changed. A tool in
 #    use here rewrites a quote followed by a slash into a URL; it has landed
 #    in a fixture before (t/unit/daemon/05, 0.13.1).
+# SM948: generated documents are regenerated, not failed on. Run after the
+# clean-tree check, so the only change in the tree is the generators' own, and
+# committed on its own so the work commits stay as they were written.
+# (`= 0`, not `-eq 0`: t/tools/63 finds the success path by that spelling.)
+if [ "$RC" = 0 ]; then
+  REGEN=$(bash tools/regen-generated.sh) || fail "a generator failed (tools/regen-generated.sh)"
+  if [ -n "$REGEN" ]; then
+    say "==> regenerated: $(echo $REGEN)"
+    # shellcheck disable=SC2086
+    git add $REGEN && git commit -q -m "Regenerate generated documents (tools/regen-generated.sh)" \
+      || fail "could not commit the regenerated documents"
+    SHA=$(git rev-parse --short HEAD)
+  fi
+fi
+
 if git diff "$BASE"...HEAD | grep -q "gh\.072103"; then
   fail "the diff carries the mangled literal 'gh.072103' - repair it"
 fi
