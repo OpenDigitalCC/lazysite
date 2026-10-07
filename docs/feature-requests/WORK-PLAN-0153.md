@@ -24,7 +24,7 @@ starts.
 | Q | Item | Why here | Size |
 | --- | --- | --- | --- |
 | Q1 | ~~A2 [[SM912]] P4~~ **already built (e765424f, 0.15.1); recorded (n253)** - an ACL fixture with an empty auth store is visible | ready, XS | XS |
-| Q2 | **SKIPPED - see open questions** B1 [[SM939]] SC2 - DELETE of a non-empty collection answers 405 "delete the contents first" (R1) | ruled, S | S |
+| Q2 | ~~B1 [[SM939]] SC2~~ **built (n266) as ruled R1-amended** - DELETE of a non-empty collection answers 405 "delete the contents first" (R1) | ruled, S | S |
 | Q3 | ~~B2 [[SM913]]~~ **built (n254)** S2 + S4 - link-shortener hosts as a stronger signal; each form's quarantine state shown (R2) | ruled, small | XS+S |
 | Q4 | ~~B6 [[SM932]]~~ **built (n255)** (2) - `lazysite check` writes a known line and reports which sinks received it (R6) | ruled; Q5 shares its shape | S |
 | Q5 | ~~F5 [[SM955]]~~ **built (n256)** - the XMPP test reports a bounce; every delivery failure audited (R9) | after Q4, same reporting shape | M |
@@ -54,7 +54,7 @@ Not in the queue, and why:
 
 Open questions raised while working the queue:
 
-- **Q2 (SM939 SC2) - R1 was ruled on a wrong premise.** My B1 row asked "support
+- ~~**Q2 (SM939 SC2) - R1 was ruled on a wrong premise.**~~ **RULED 2026-10-07: option (a).** My B1 row asked "support
   recursive delete, or answer 405?" as if recursive delete were missing. It is not:
   `do_delete` removes a collection with `remove_tree`, SM535 cleans up its pages,
   and t/unit/dav/04 asserts a non-empty collection DELETE answers 204 with the
@@ -136,7 +136,7 @@ release, E5 before the new actions R3 and R4 add.
 
 | Ref | Question | Ruling |
 | --- | --- | --- |
-| R1 | B1: a non-empty collection DELETE | **405 with a "delete the contents first" body**; no recursive delete |
+| R1 | B1: a non-empty collection DELETE | ~~405 with a "delete the contents first" body; no recursive delete~~ **AMENDED 2026-10-07: keep recursive delete; a partial failure answers 507 naming the directory that blocked it** (the first ruling was made on a plan row that wrongly said recursive delete was missing) |
 | R2 | B2: SM913 S2/S4/S5 | **Ship S2** (link-shortener hosts as a stronger signal) **and S4** (show each form's quarantine state). **S5 not shipped** - no default keyword list |
 | R3 | B3: SM857 read half | **Build it in 0.15.3**, with the filing's positions: an anonymous viewer sees no rows; `(mine)` pages bypass the shared cache |
 | R4 | B4: SM858 approve from a submission | **Build it in 0.15.3** - `account_email:` on the form, username from the address |

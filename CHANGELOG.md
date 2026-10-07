@@ -49,6 +49,16 @@ Archive
 
 ## Unreleased
 
+- SM939 SC2 (PENDING) **a WebDAV folder delete that cannot finish says what
+  stopped it** (ruled R1, amended). Recursive DELETE works; when a directory
+  INSIDE the folder is not writable it stops part way, and answered a bare 500
+  "Cannot delete the entry" while skipping the housekeeping for the pages it had
+  removed. It now answers 507 naming that directory (relative to the site) and
+  how many files were left, cleans up after the pages that are gone, commits
+  the partial removal, and KEEPS the access rules on what is left - forgetting
+  the folder's rules would unprotect it. Sending the DELETE again once the
+  directory is fixed finishes it. t/unit/dav/31.
+
 - SM957 (PENDING) **Submissions is the manager menu's first entry, with an
   unread count.** The menu is four groups: Site (Submissions, Files, Navigation,
   Visitor statistics), Setup (Appearance, Extensions, Connectors, Data tables,

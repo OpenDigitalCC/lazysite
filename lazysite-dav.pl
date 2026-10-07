@@ -804,10 +804,16 @@ sub do_delete {
     # walked.
     my @pages = $key =~ /\.md\z/ ? ($key) : Lazysite::Aliases::md_rels( $DOCROOT, $key );
 
-    my $ok;
+    my ( $ok, $partial );
     if ( -d $r->{abs} ) {
         remove_tree( $r->{abs}, { safe => 1, error => \my $err } );
         $ok = !-e $r->{abs};
+        # SM939 SC2 (ruled R1, amended 2026-10-07): A COLLECTION THAT IS PARTLY GONE.
+        # The top-level check below cannot see this - the parent is writable and
+        # remove_tree got some way in before a directory INSIDE refused it - so it
+        # answered a bare 500 and skipped every housekeeping step for the pages
+        # that WERE removed. Name the directory that stopped it and what is left.
+        $partial = _partial_delete( $r->{abs}, $err ) if !$ok && $err && @$err;
     }
     else {
         $ok = unlink $r->{abs};
@@ -816,7 +822,8 @@ sub do_delete {
     # an unwritable parent fails a DELETE for exactly the reason it fails a PUT -
     # and used to answer "Delete failed", which tells an agent nothing it can act
     # on. Same helper, same 507-versus-500 split.
-    return _write_failure( 'delete the entry', $!, $r->{abs} ) unless $ok;
+    return _write_failure( 'delete the entry', $!, $r->{abs} ) unless $ok || $partial;
+    return _partial_delete_answer( \%a, $key, \@pages, $partial ) if $partial;
 
     remove_lock( $a{rel} );
     invalidate_cache( $r->{abs} );
@@ -867,6 +874,59 @@ sub do_delete {
 }
 
 # CF-2: the ACL key, spelled the same way DELETE already spells it.
+# SM939 SC2: what remove_tree's error list says stopped it, and what is left.
+# The first entry naming a path is the blocker; a path under the docroot is
+# reported relative to it and nothing else is (the SM-wide rule: no filesystem
+# paths in answers).
+sub _partial_delete {
+    my ( $abs, $err ) = @_;
+    my ( $blocker, $why );
+    for my $e (@$err) {
+        my ( $p, $m ) = %$e;
+        next unless length $p;
+        # remove_tree names the FILE it could not unlink; what refused is the
+        # directory holding it (unlinking is a write to the directory).
+        $p =~ s{/[^/]+\z}{} if !-d $p;
+        ( $blocker, $why ) = ( $p, $m );
+        last;
+    }
+    return undef unless defined $blocker;
+    my $left = 0;
+    require File::Find;
+    File::Find::find( { no_chdir => 1, wanted => sub { $left++ if -f $_ } }, $abs ) if -d $abs;
+    ( my $rel = $blocker ) =~ s{\A\Q$DOCROOT\E/*}{};
+    $rel = '(outside the site)' if $rel eq $blocker;
+    return { blocker => $rel, why => $why // '', left => $left };
+}
+
+# Housekeeping for the pages that ARE gone, and a 507 that says what stopped the
+# rest. The collection's own ACL entry is NOT forgotten: forget_path takes every
+# rule beneath a key, and the files still there keep their protection.
+sub _partial_delete_answer {
+    my ( $a, $key, $pages, $p ) = @_;
+    my @gone = grep { !-e "$DOCROOT/$_" } @$pages;
+    require Lazysite::Aliases;
+    require Lazysite::Manager::Briefs;
+    for my $page (@gone) {
+        Lazysite::Aliases::deindex_page( $DOCROOT, $page );
+        invalidate_cache("$DOCROOT/$page");
+        Lazysite::Auth::Acl::forget_path($page);
+        Lazysite::Manager::Briefs::store_entry_remove( $DOCROOT, $page );
+    }
+    _invalidate_registries_as( $a->{user} ) if @gone;
+    require Lazysite::Git;
+    Lazysite::Git::commit_paths( $DOCROOT, $a->{user}, "delete $a->{rel} (partial)", $a->{rel} );
+    $REFUSAL_DETAIL = "partial-delete: '$p->{blocker}' is not writable by the server; $p->{left} file(s) left";
+    log_event( 'ERROR', $a->{user}, 'dav delete partial', path => $a->{rel},
+        blocker => $p->{blocker}, left => $p->{left}, error => $p->{why}, status => 507 );
+    return send_status( 507,
+        body => "Cannot delete '$a->{rel}' completely: the directory '$p->{blocker}' inside it is "
+            . "not writable by the server, so $p->{left} file(s) were left in place. Everything "
+            . "else was removed. This is a server configuration fault, not a permission "
+            . "decision about your request - the operator must fix that directory's "
+            . "permissions, then the DELETE can be sent again.\n" );
+}
+
 sub _dav_acl_key { my ($r) = @_; $r =~ s{\A/+}{}; return $r }
 
 # CF-2: put the bytes where the rule now says they belong.
