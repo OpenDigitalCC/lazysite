@@ -48,11 +48,26 @@ subtest 'every gate step runs without a terminal' => sub {
 };
 
 subtest 'no privilege is hidden in the release script or the gate tools' => sub {
-    for my $f (qw(tools/release.sh tools/coverage.sh tools/bench.pl tools/handoff.sh tools/build-deb.sh)) {
+    for my $f (
+        qw(tools/release.sh tools/coverage.sh tools/bench.pl tools/handoff.sh tools/build-deb.sh
+        tools/gate-main.sh tools/coverage-inputs.pl)
+        )
+    {
         next unless -f "$root/$f";
         my @hits = grep { /\b(?:sudo|systemctl|pkexec)\b/ } code_lines( slurp("$root/$f") );
         is_deeply( \@hits, [], "$f calls no sudo, systemctl or pkexec" );
     }
+};
+
+# SM950 (2): the gate run on main after a landing starts release.sh the same
+# way - its own session, stdin from /dev/null - because the agent runs it with
+# nobody watching, and a prompt there would wait for ever.
+subtest 'the gate on main runs detached too' => sub {
+    my $g    = slurp("$root/tools/gate-main.sh");
+    my @runs = grep { /tools\/release\.sh" gate/ } code_lines($g);
+    ok( scalar @runs, 'gate-main.sh starts release.sh gate' ) or return;
+    is( scalar( grep { !/^\s*setsid -w bash / } @runs ), 0, 'every time under setsid -w' );
+    like( $g, qr/release\.sh" gate [^\n]*\\\n[^\n]*<\/dev\/null/, 'with stdin from /dev/null' );
 };
 
 done_testing();

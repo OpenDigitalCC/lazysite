@@ -57,6 +57,14 @@ answering "has coverage fallen". SM736 skips it when every input that decides it
 is byte-identical to a run that passed, which fires on a promotion and correctly
 does not fire between two real releases.
 
+SM950 makes the skip reachable between releases. `tools/gate-main.sh` gates main
+after each landing (a rehearsal until the pre-cut pass lands), every passing
+coverage run is kept by its inputs digest, and a later gate with the same digest
+reuses it - so a cut's gate normally takes the suite's time, and its receipt
+says `coverage=reused` and from which run. The digest leaves out tests that, read
+with PPI, can start no process, load no file and call no sub that does: across
+24 commits on main it moved on 9 rather than 11. See `docs/development.md`.
+
 **The correctness suite is never skipped**, and the reasoning that licenses
 skipping coverage does not reach it: a gate result is a fact about a tree AT A
 TIME, and date-sensitive tests are a known class here. Coverage is a structural

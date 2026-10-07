@@ -130,8 +130,13 @@ fi
 # shortcut whose whole purpose is to be safe.
 #
 # So t/unit/tools/76 points this at a temporary file and proves the decision
-# without touching the repository. Nothing else sets it; release.sh does not,
-# and the default is the only path any build uses.
+# without touching the repository.
+#
+# SM950 (3): release.sh sets it too, and only to a pass an earlier gate kept
+# under tmp/release-gate/coverage-passes/ FOR THIS DIGEST. The decision below is
+# unchanged and still made here: a record that is not a pass, or whose digest is
+# not the one computed below, runs the stage. A run that measures writes its
+# record to this path, so what release.sh offers is a copy beside the stage.
 COVER_RECORD="${LAZYSITE_COVER_RECORD:-$ROOT/dist/config/coverage-last.json}"
 COVER_DIGEST=$(perl "$ROOT/tools/coverage-inputs.pl" 2>/dev/null | awk '{print $1}')
 if [ "${LAZYSITE_COVER_FORCE:-}" != "1" ] && [ -n "$COVER_DIGEST" ] && [ -f "$COVER_RECORD" ]; then

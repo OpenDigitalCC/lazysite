@@ -4,11 +4,11 @@ title: "SM950: Release gate: parallel suite, run on landing, coverage reused whe
 subtitle: "A gate is ~90 minutes and any later commit restarts it; 0.15.2 needed three."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: release
-status-note: "Filed 2026-10-07 at the release manager's direction, from the development-cost analysis. Size M. Planned in WORK-PLAN-0153 group E."
+status-note: "SHIPPED (PENDING). (1) the gate suite runs -j4 (n244). (2) tools/gate-main.sh gates main after each landing, a rehearsal until the pre-cut pass. (3) passing coverage runs are kept by inputs digest and reused by a later gate; the digest leaves out tests that reach nothing measured (n272)."
 ---
 
 # Measured

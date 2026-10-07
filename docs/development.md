@@ -108,6 +108,39 @@ Point it once and forget it:
 export LAZYSITE_STAGE_DIR=/srv/tmp
 ```
 
+### Gating main after a landing (SM950)
+
+After the release manager lands a branch, the developer agent runs, in the
+background:
+
+```bash
+tools/gate-main.sh                 # main's tip, NEXT_VERSION, edge
+tools/gate-main.sh --beta          # or --final / --certified, --version X.Y.Z
+```
+
+It gates main's tip for `NEXT_VERSION` (refusing if that is not the patch bump
+of the newest tag that `release.sh` would propose, or is already tagged) through
+`tools/release.sh gate`, under `setsid -w ... </dev/null`, with the output in
+`tmp/release-gate/VERSION/gate-main.log`. If a receipt for that exact commit,
+version and channel has already passed, it prints the receipt and runs nothing.
+
+Until the pre-cut pass lands, main cannot pass a real gate - the practice
+briefing is stamped for the last release - so it **rehearses**:
+`release.sh gate --rehearse` gates the tree as committed and writes a receipt
+with `result=rehearsal`, which `build` refuses. Once the pre-cut pass lands, the
+next run gates for real, and that receipt is what `build` uses.
+
+**Coverage may be reused.** Every passing coverage run is kept in
+`tmp/release-gate/coverage-passes/DIGEST.json`, stamped with the commit that
+measured it. A later gate whose coverage-inputs digest matches offers coverage.sh
+that record and skips the hour-long instrumented run; the receipt says
+`coverage=reused` and `coverage_from=sha=... version=...`, and `build` prints
+it. The pre-cut pass changes nothing the digest reads, so a cut's gate normally
+reuses the rehearsal's coverage and takes the suite's time. `LAZYSITE_COVER_FORCE=1`
+measures anyway. The digest (`tools/coverage-inputs.pl --list` says why for each
+test) leaves out a test only when its code, read with PPI, can start no process,
+load no file and call no sub that does.
+
 ### Cutting a release
 
 Interactive form - release.sh proposes the next patch bump

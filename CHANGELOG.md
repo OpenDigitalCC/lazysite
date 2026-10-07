@@ -49,6 +49,17 @@ Archive
 
 ## Unreleased
 
+- SM950 (2)(3) (PENDING) **the gate runs on main after each landing, and a cut's
+  gate reuses coverage instead of spending an hour re-measuring it.**
+  `tools/gate-main.sh` gates main's tip for NEXT_VERSION, detached, and prints
+  the receipt instead when that commit already passed; before the pre-cut pass
+  it rehearses (`release.sh gate --rehearse`, a receipt `build` refuses). Every
+  passing coverage run is kept by its inputs digest and offered to the next gate
+  with the same digest; the receipt says `coverage=reused` and from which run.
+  The digest now leaves out tests that, read with PPI, can start no process,
+  load no file and call no sub that does (moved on 9 of 24 commits, was 11).
+  t/tools/100-102, t/lint/208.
+
 - SM969 (PENDING) **security: a form outcome was written to the page cache and
   shown to the next visitor.** The outcome banner reads `form=` and `outcome=`
   from the query string, which the cache decision did not count, so a request

@@ -36,7 +36,8 @@ RELATED=$( (printf '%s\n' $RELATED; printf '%s\n' $PERL | grep '^t/.*\.t$' | gre
 
 # Left to the full suite: tests measured over 20 s (2026-10-07, prove --timer
 # at -j4). The handoff still runs every one; the pre-check is for what can be
-# known in about a minute.
+# known in about a minute. t/unit/tools/76 is ~80 s whenever
+# tools/coverage-inputs.pl has changed (its PPI cache is keyed on that file).
 SLOW='t/tools/60-coverage-cannot-report-what-it-did-not-measure.t
 t/smoke/01-all-starter-pages.t
 t/tools/01-build-manifest.t
@@ -44,7 +45,8 @@ t/tools/03-install-pl.t
 t/unit/plugins/41-a-composed-document-is-refused-not-quietly-shortened.t
 t/tools/36-check-verifies-install-dirs.t
 t/tools/35-install-dirs-declared.t
-t/tools/31-webserver-glue.t'
+t/tools/31-webserver-glue.t
+t/unit/tools/76-the-coverage-skip-actually-fires.t'
 RELATED=$(printf '%s\n' $RELATED | grep -vxF "$SLOW" || true)
 
 # The three changelog lints read the whole 1 MB CHANGELOG (lint 53 alone ~57 s);

@@ -44,7 +44,7 @@ starts.
 | Q11a | **[[SM964]] security, found by the Q11 review - built (n270)**: a value that reached a page as data could become an include | fixed at once | S |
 | Q11a2 | **[[SM965]] security, found by the Q11 review - built (n270)**: a reflected form value could become an include | fixed at once | XS |
 | Q11b | ~~[[SM869]] adversarial review, second pass: encodings, Markdown interplay, attribute contexts, split template syntax, api: JSON (the first pass stopped early)~~ **done (n271)** - all five covered; [[SM966]], [[SM967]], [[SM968]] and [[SM969]] found and fixed | owed | M |
-| Q12 | E6 [[SM950]] (2)(3) - gate on landing; coverage reused when its inputs are unchanged | tooling; after the feature work it speeds up | M |
+| Q12 | ~~E6 [[SM950]] (2)(3)~~ **built (n272)** - gate on landing; coverage reused when its inputs are unchanged | tooling; after the feature work it speeds up | M |
 | Q13a | E5 [[SM943]] stages 2-3 - the MCP twins and annotations from the declaration; the consistency lints reduced to one completeness check | Q7/Q8 need only stage 1 | M |
 | Q13 | C2 [[SM883]] - measure the 1.20-1.27x slowdown on this machine, then bisect | measurement, no ruling needed | S-M |
 | Q14 | E9 [[SM944]] - split the processor and the manager API, one area per branch | after E5; largest, so last | L |
@@ -128,7 +128,7 @@ release, E5 before the new actions R3 and R4 add.
 | E3 | ~~[[SM949]]~~ **built (n244)** - a one-minute pre-check (lints, related tests, changed-line tidy) before the full suite | S | nothing |
 | E4 | [[SM947]] - landing keeps the branch's SHAs (fast-forward), or stamps refs itself | M | the toolchain - vcs-review is theirs; brief filed |
 | E5 | [[SM943]] - one declaration per control-API action, the rest derived | L | before R3/R4 add actions |
-| E6 | [[SM950]] (2)(3) - gate run on landing; coverage reused when its inputs are unchanged | M | E1 |
+| E6 | ~~[[SM950]] (2)(3)~~ **built (n272)** - gate run on landing; coverage reused when its inputs are unchanged | M | E1 |
 | E7 | ~~[[SM946]]~~ **built (n245)** - prose caps; the changelog keeps one minor, older ones archived | S | nothing |
 | E8 | [[SM945]] - comments state the invariant; history to git and the filing | ongoing | applied as files are touched |
 | E9 | [[SM944]] - the processor and the manager API split into modules, one area per branch | L | E5 for the manager API half |

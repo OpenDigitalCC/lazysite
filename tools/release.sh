@@ -22,6 +22,17 @@
 #   step that belongs to the release manager. `build --run-gate` runs the gate
 #   inline instead, for a host with no receipt.
 #
+#   SM950: tools/gate-main.sh runs the gate on main's tip after each landing,
+#   for NEXT_VERSION, so a receipt is usually there when a cut is called. Until
+#   the pre-cut pass has landed, main cannot pass a real gate (the practice
+#   briefing is stamped for the last release), so it runs `gate --rehearse`:
+#   the tree exactly as committed, no stamping, a receipt with
+#   result=rehearsal that `build` refuses. What a rehearsal buys is its
+#   coverage: every passing coverage run is kept under
+#   tmp/release-gate/coverage-passes/ by its inputs digest, and a later gate
+#   whose digest matches reuses it instead of spending an hour re-measuring.
+#   The receipt says which (coverage=measured|reused, coverage_from=...).
+#
 #   NO TEST OR GATE STEP CAN PROMPT FOR A PASSWORD. They run under `setsid -w`
 #   with stdin from /dev/null, so there is no controlling terminal: anything
 #   that reaches for sudo or polkit fails, visibly, in the log, instead of
@@ -63,6 +74,10 @@
 #                   build whose compliance records have been WALKED -
 #                   the signed declaration, restore rehearsal and pentest
 #                   posture gates block THIS cut, not a stable one.
+#   --rehearse      gate only (SM950): gate the commit as committed - no
+#                   VERSION stamp, no practice-briefing stamp check - and
+#                   write result=rehearsal, which build refuses. For main
+#                   between cuts; tools/gate-main.sh decides when.
 #   --no-fetch      declares that this host has no remote. Its original
 #                   job - skipping the two ORIGIN tag checks - became the
 #                   only behaviour at SM303, so that part is inert and the
@@ -138,6 +153,7 @@ NO_FETCH=0              # inert for the origin checks since SM303; still
 # was on.
 MODE=""
 RUN_GATE_INLINE=0
+REHEARSE=0
 case "${1:-}" in
     build|publish|gate) MODE=$1; shift ;;
     -h|--help)     ;;
@@ -197,8 +213,12 @@ while [ $# -gt 0 ]; do
             RUN_GATE_INLINE=1
             shift
             ;;
+        --rehearse)
+            REHEARSE=1
+            shift
+            ;;
         -h|--help)
-            sed -n '2,45p' "$0" | sed 's/^# \?//'
+            sed -n '2,60p' "$0" | sed 's/^# \?//'
             exit 0
             ;;
         -*)
@@ -262,6 +282,13 @@ if [ "$MODE" = publish ]; then
     echo ""
     echo "==> Published $TAG"
     exit 0
+fi
+
+# SM950: a rehearsal is a gate of a commit nobody can build from. Anywhere else
+# the flag would make a build or a publish look gated when it was not.
+if [ "$REHEARSE" = 1 ] && [ "$MODE" != gate ]; then
+    echo "release.sh: --rehearse belongs to 'gate' only; a rehearsal receipt cannot be built from." >&2
+    exit 2
 fi
 
 # SM064: when VERSION is omitted, propose the next patch bump from
@@ -559,6 +586,15 @@ git -C "$STAGE" checkout --quiet --detach "$TARGET_SHA"
 # release.sh does not touch main (SM063). t/lint/63 fails when the repo's copy
 # falls behind the newest tag, which is what makes the post-release bump happen
 # rather than be remembered.
+#
+# SM950: NOT IN A REHEARSAL. A rehearsal gates main between cuts, when the tree
+# still describes the last release (VERSION, the practice briefing's stamp), and
+# it is consistent as committed. Stamping half of it would fail lint 89 for a
+# reason that only the pre-cut pass can fix - and the rehearsal exists to learn
+# everything else before then.
+if [ "$REHEARSE" = 1 ]; then
+    echo "==> REHEARSAL: gating $TARGET_SHA as committed - VERSION and NEXT_VERSION are not stamped"
+else
 echo "==> Stamping VERSION at $VERSION (was $(cat "$STAGE/VERSION" 2>/dev/null || echo none))"
 printf '%s\n' "$VERSION" > "$STAGE/VERSION"
 
@@ -578,6 +614,7 @@ printf '%s\n' "$VERSION" > "$STAGE/VERSION"
 STAGE_NEXT=$(printf '%s' "$VERSION" | awk -F. '{ printf "%d.%d.%d", $1, $2, $3 + 1 }')
 echo "==> Stamping NEXT_VERSION at $STAGE_NEXT (the pair moves together)"
 printf '%s\n' "$STAGE_NEXT" > "$STAGE/NEXT_VERSION"
+fi    # REHEARSE
 
 # --- precondition: sbom-deps.json exists at target ---
 
@@ -626,8 +663,11 @@ fi
 # This does not re-import: the staging tree is a checkout of a COMMIT, and
 # writing to it here would ship an artefact that does not match the tag. It
 # says what to do, before anything slow starts.
+#
+# SM950: a rehearsal skips this - the stamp is the pre-cut pass's job, and
+# tools/gate-main.sh rehearses precisely because that pass has not landed.
 PRACTICE="$STAGE/starter/docs/ai-briefing-practice.md"
-if [ -f "$PRACTICE" ]; then
+if [ -f "$PRACTICE" ] && [ "$REHEARSE" != 1 ]; then
     stamped=$(sed -n 's/^[[:space:]]*engine-version:[[:space:]]*\([0-9.]*\).*/\1/p' "$PRACTICE" | head -1)
     if [ -n "$stamped" ] && [ "$stamped" != "$VERSION" ]; then
         printf '\n' >&2
@@ -654,6 +694,61 @@ RECEIPT_DIR="$ORIGIN/tmp/release-gate/$VERSION"
 RECEIPT="$RECEIPT_DIR/receipt"
 receipt_field() { sed -n "s/^$1=//p" "$RECEIPT" 2>/dev/null | head -1; }
 
+# SM950 (3): EVERY PASSING COVERAGE RUN IS KEPT, BY ITS INPUTS DIGEST.
+#
+# coverage.sh already skips when its inputs match a recorded pass (SM736), but
+# the only record it read was the one committed in the tree - written at the
+# last release and committed by the post-release record. So two gates between
+# releases both measured, even when nothing coverage reads had changed: 74
+# minutes each on 0.15.2. The store is outside any clone (tmp/ in the origin,
+# never committed), one file per digest, and a gate OFFERS coverage.sh the
+# record for its own digest; coverage.sh still makes the decision (a pass, and
+# a digest equal to the one it computes) and still refuses on anything else.
+COV_STORE="$ORIGIN/tmp/release-gate/coverage-passes"
+
+# The record to offer for a digest, or nothing.
+coverage_offer() {
+    local store=$1 digest=$2
+    [ -n "$digest" ] || return 0
+    [ -f "$store/$digest.json" ] || return 0
+    printf '%s\n' "$store/$digest.json"
+}
+
+# Where a record's pass was measured, in one line, for the output and receipt.
+coverage_origin() {
+    perl -MJSON::PP -e '
+        local $/; open my $f, "<", $ARGV[0] or exit 1;
+        my $j = eval { JSON::PP->new->decode(<$f>) } or exit 1;
+        printf "sha=%s version=%s captured=%s digest=%s\n",
+            $j->{measured_at_sha} // "unknown(committed-record)", $j->{measured_for_version} // "unknown",
+            $j->{captured} // "unknown", $j->{inputs_digest} // "none";
+    ' "$1" 2>/dev/null || echo "unreadable record $1"
+}
+
+# Keep a passing record, stamped with the gate that measured it - and only one
+# whose digest is the one this gate computed, so a stale committed record is
+# never kept under this gate's name.
+coverage_store() {
+    local record=$1 store=$2 sha=$3 version=$4 digest=$5
+    mkdir -p "$store"
+    perl -MJSON::PP -e '
+        my ( $rec, $store, $sha, $ver, $want ) = @ARGV;
+        local $/; open my $f, "<", $rec or die "$rec: $!\n";
+        my $j = JSON::PP->new->decode(<$f>);
+        die "not a pass\n" unless ( $j->{result} // "" ) eq "pass" && $j->{inputs_digest};
+        die "record digest $j->{inputs_digest} is not this gate'"'"'s ($want)\n"
+            unless $j->{inputs_digest} eq ( $want // "" );
+        $j->{measured_at_sha}      = $sha;
+        $j->{measured_for_version} = $ver;
+        my $out = "$store/$j->{inputs_digest}.json";
+        open my $o, ">", "$out.$$" or die "$out: $!\n";
+        print {$o} JSON::PP->new->canonical->pretty->encode($j);
+        close $o or die "$out: $!\n";
+        rename "$out.$$", $out or die "$out: $!\n";
+        print "$out\n";
+    ' "$record" "$store" "$sha" "$version" "$digest"
+}
+
 RUN_GATE=1
 if [ "$MODE" = build ] && [ "$RUN_GATE_INLINE" != 1 ]; then
     # A RECEIPT COUNTS ONLY FOR THE COMMIT, VERSION AND CHANNEL IT NAMES. The
@@ -670,12 +765,14 @@ if [ "$MODE" = build ] && [ "$RUN_GATE_INLINE" != 1 ]; then
         abort_build "the gate receipt does not match this build:" \
             "  receipt: sha=$(receipt_field sha) version=$(receipt_field version) channel=$(receipt_field channel) result=$(receipt_field result)" \
             "  build:   sha=$TARGET_SHA version=$VERSION channel=$CHANNEL" \
-            "Re-run the gate for this commit, or build the commit the gate passed."
+            "Re-run the gate for this commit, or build the commit the gate passed." \
+            "(result=rehearsal is a gate of main before its pre-cut pass: never buildable.)"
     fi
     GATE_FILES=$(receipt_field files)
     GATE_TESTS=$(receipt_field tests)
     RUN_GATE=0
     echo "==> Gate passed earlier for $TARGET_SHA ($(receipt_field finished)): $GATE_FILES files, $GATE_TESTS tests"
+    echo "==>   coverage: $(receipt_field coverage) $(receipt_field coverage_from)"
     echo "==>   receipt and logs: $RECEIPT_DIR"
     if [ -f "$RECEIPT_DIR/coverage-last.json" ]; then
         mkdir -p "$ORIGIN/dist/config"
@@ -798,6 +895,21 @@ COV_LOG="${STAGE}-coverage-check.txt"
 # the run reported "the suite did not pass" and then deleted the evidence.
 # Alongside COV_LOG, which is already outside the stage for the same reason.
 export LAZYSITE_COVER_SUITE_LOG="${STAGE}-coverage-suite.txt"
+
+# SM950 (3): offer coverage.sh a pass an earlier gate recorded for this exact
+# input set. Computed here (the stage is quiet: the suite has finished) and
+# again by coverage.sh, which decides; LAZYSITE_COVER_FORCE=1 still measures.
+COV_DIGEST=$(perl "$STAGE/tools/coverage-inputs.pl" 2>/dev/null | awk '{print $1}')
+COV_OFFER=$(coverage_offer "$COV_STORE" "$COV_DIGEST")
+if [ -n "$COV_OFFER" ]; then
+    # A COPY, beside the stage: a run that measures after all writes its own
+    # record to the path it was given, and the store must keep its file.
+    cp "$COV_OFFER" "${STAGE}-coverage-offer.json"
+    export LAZYSITE_COVER_RECORD="${STAGE}-coverage-offer.json"
+    echo "==> coverage inputs digest $COV_DIGEST matches a recorded pass: $(coverage_origin "$COV_OFFER")"
+else
+    echo "==> coverage inputs digest ${COV_DIGEST:-(none)}: no recorded pass in $COV_STORE"
+fi
 # SM552: CAPTURED ON THE SAME LINE. Under `set -e` a bare `cmd` followed by
 # `STATUS=$?` never reaches the second statement when cmd fails - the script
 # died here and the whole verdict block below was unreachable. Not `if !`
@@ -842,12 +954,35 @@ fi
 # inside the staging clone is worth nothing unless it is carried out of it. Left
 # UNCOMMITTED like GATE-LOG, so the operator lands it with everything else
 # rather than the release churning git.
+#
+# SM950 (3): which record that is depends on whether coverage was measured.
+# Measured: the one coverage.sh just wrote, which also goes into the store for
+# the next gate. Reused: the record that licensed the skip - the offered one, or
+# the committed one - and the receipt names where its pass came from.
 COV_RECORD="$STAGE/dist/config/coverage-last.json"
+COV_RECORD="${LAZYSITE_COVER_RECORD:-$COV_RECORD}"
+if grep -q '^coverage: SKIPPED' "$COV_LOG"; then
+    COV_MODE=reused
+    COV_FROM=$(coverage_origin "$COV_RECORD")
+    echo "==> coverage REUSED, not re-measured: the pass at $COV_FROM"
+else
+    COV_MODE=measured
+    COV_FROM="sha=$TARGET_SHA version=$VERSION (this gate)"
+    if [ -f "$COV_RECORD" ]; then
+        coverage_store "$COV_RECORD" "$COV_STORE" "$TARGET_SHA" "$VERSION" "$COV_DIGEST" \
+            || echo "release.sh: WARNING - the coverage pass was not kept for reuse" >&2
+    fi
+fi
 if [ -f "$COV_RECORD" ]; then
-    mkdir -p "$ORIGIN/dist/config"
-    cp "$COV_RECORD" "$ORIGIN/dist/config/coverage-last.json"
+    # Into the working tree only for an inline build: a gate run after a
+    # landing must not leave the developer's checkout dirty. `build` copies it
+    # from the receipt directory, below the receipt check.
+    if [ "$MODE" = build ]; then
+        mkdir -p "$ORIGIN/dist/config"
+        cp "$COV_RECORD" "$ORIGIN/dist/config/coverage-last.json"
+        echo "==> coverage record carried back to dist/config/coverage-last.json"
+    fi
     cp "$COV_RECORD" "$RECEIPT_DIR/coverage-last.json"
-    echo "==> coverage record carried back to dist/config/coverage-last.json"
 fi
 
 fi    # RUN_GATE
@@ -919,15 +1054,25 @@ cp "$COV_LOG" "$RECEIPT_DIR/coverage.txt"
     echo "channel=$CHANNEL"
     echo "files=$GATE_FILES"
     echo "tests=$GATE_TESTS"
-    echo "result=pass"
+    # SM950: a rehearsal passed every step on a tree nobody can build from;
+    # `build` accepts result=pass only.
+    if [ "$REHEARSE" = 1 ]; then echo "result=rehearsal"; else echo "result=pass"; fi
+    echo "coverage=$COV_MODE"
+    echo "coverage_from=$COV_FROM"
     echo "finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "host=$(hostname)"
 } > "$RECEIPT"
 echo "==> Gate receipt: $RECEIPT"
 fi
 
+if [ "$MODE" = gate ] && [ "$REHEARSE" = 1 ]; then
+    echo "==> Rehearsal passed for $TARGET_SHA ($VERSION, $CHANNEL); coverage $COV_MODE."
+    echo "==> Not buildable: once the pre-cut pass lands, tools/gate-main.sh gates it for real,"
+    echo "==> and reuses this coverage if nothing coverage reads has changed."
+    exit 0
+fi
 if [ "$MODE" = gate ]; then
-    echo "==> Gate passed for $TARGET_SHA ($VERSION, $CHANNEL)."
+    echo "==> Gate passed for $TARGET_SHA ($VERSION, $CHANNEL); coverage $COV_MODE."
     echo "==> The build is the short part: tools/release.sh build $VERSION --commit $TARGET_SHA --notes FILE"
     exit 0
 fi
