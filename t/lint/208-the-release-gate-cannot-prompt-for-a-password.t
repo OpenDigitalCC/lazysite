@@ -37,7 +37,7 @@ subtest 'every gate step runs without a terminal' => sub {
     like( $rel, qr/^detached\(\) \{ setsid -w "\$\@" <\/dev\/null; \}$/m,
         '`detached` is setsid -w with stdin from /dev/null' );
     my @code = code_lines($rel);
-    for my $step ( [ 'the suite', qr/\bprove -lr t\// ], [ 'the bench', qr/tools\/bench\.pl" --check/ ],
+    for my $step ( [ 'the suite', qr/\bprove -lr (?:-j\d+ )?t\// ], [ 'the bench', qr/tools\/bench\.pl" --check/ ],
         [ 'the coverage run', qr/tools\/coverage\.sh" --check/ ] )
     {
         my @uses = grep { $_ =~ $step->[1] } @code;

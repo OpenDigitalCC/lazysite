@@ -719,7 +719,10 @@ rm -f "$RECEIPT"
 # exists to prevent, one layer up: a check that reports success without checking.
 GATE_OUT="$STAGE/.gate-output.txt"
 echo "==> Running full test suite"
-if ! ( cd "$STAGE" && set -o pipefail && detached prove -lr t/ 2>&1 | tee "$GATE_OUT" ); then
+# SM950 (1): -j4, as the handoff runs it - 17 minutes serial, about 6 parallel.
+# The suite is parallel-safe (SM269 phase 1); the host has the memory since
+# 2026-10-07. prove's summary line is the same either way.
+if ! ( cd "$STAGE" && set -o pipefail && detached prove -lr -j4 t/ 2>&1 | tee "$GATE_OUT" ); then
     abort_build "test suite failed; not releasing."
 fi
 
