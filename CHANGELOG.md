@@ -49,6 +49,14 @@ Archive
 
 ## Unreleased
 
+- SM969 (PENDING) **security: a form outcome was written to the page cache and
+  shown to the next visitor.** The outcome banner reads `form=` and `outcome=`
+  from the query string, which the cache decision did not count, so a request
+  after any page edit baked its banner - the text of the link followed - into
+  the cached page for every later visitor. Such a request is now rendered for
+  itself only, as a `nocache: true` page is. Found by the SM869 review's second
+  pass; t/unit/processor/90.
+
 - SM968 (PENDING) **security: a page that set TAGS let a reflected value run as
   a template.** The form prefill and outcome banner neutralise `[` and `%` in the
   visitor's text, which holds only while the tags are `[% %]`; after

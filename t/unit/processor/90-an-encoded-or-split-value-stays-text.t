@@ -121,14 +121,10 @@ sub json_ok {
 # HTML parser replaces with U+FFFD anyway - is shown as U+FFFD.
 sub shown { my $s = shift; return undef unless defined $s; $s =~ s/\0/\x{FFFD}/g; return $s }
 
-our $TODO;
-my $TODO_BANNER = 'n271 before: the outcome banner is written to the page cache';
-
 # Every sink, for one query string. $raw is the value as the processor should
 # see it (after ONE percent-decode), or undef where it is not a character string.
 sub every_sink {
-    my ( $qs, $raw, $label, $todo ) = @_;
-    local $TODO = $todo;
+    my ( $qs, $raw, $label ) = @_;
     subtest "every sink: $label" => sub {
         my ( $h, $html ) = fetch( '/body', $qs );
         page_ok( $h, $html, 'page' );
@@ -155,10 +151,10 @@ sub every_sink {
         page_ok( $h, $html, 'banner page' );
         my $ban = seg( $html, qr{<p class="form-status form-status-error" role="alert">(.*?)</p>}s );
         text_ok( $ban, 'outcome banner' );
-        if ( defined $raw ) {
-            local $TODO = $TODO_BANNER;
-            is( unesc( $ban // '' ), shown($raw), 'the outcome banner shows THIS request\'s value' );
-        }
+        # BEFORE (measured): the banner page was written to the page cache, so
+        # every request after the first showed the FIRST visitor's text. SM969.
+        is( unesc( $ban // '' ), shown($raw), 'the outcome banner shows THIS request\'s value' )
+            if defined $raw;
     };
 }
 
@@ -243,6 +239,22 @@ for my $style ( [ '{{ }}', '{{ site_name }}{{ 7 * 7 }}' ], [ 'star', '[* site_na
         page_ok( $h, $html, 'banner' );
     };
 }
+
+# --- The outcome banner is never the page's ---------------------------------
+#
+# BEFORE (measured): a request carrying form=&outcome= on a cold cache wrote its
+# banner into the page cache, and the next visitor - with no query at all - was
+# shown it, in the alert style. SM969.
+spit( "$docroot/ban2.md", "---\ntitle: Ban2\nform: apply\n---\n\n::: form\nname | Name |\n:::\n" );
+subtest 'a visitor\'s outcome is not shown to the next visitor' => sub {
+    my ( undef, $first ) = fetch( '/ban2', 'form=apply&outcome=FIRST-VISITOR-TEXT' );
+    like( $first, qr/FIRST-VISITOR-TEXT/, 'the visitor sees their own outcome' );
+    my ( undef, $next ) = fetch( '/ban2', '' );
+    unlike( $next, qr/FIRST-VISITOR-TEXT/, 'the next visitor, with no query, does not' );
+    unlike( $next, qr/form-status-error/, 'and sees no banner at all' );
+    my ( undef, $other ) = fetch( '/ban2', 'form=apply&outcome=SECOND' );
+    like( $other, qr/SECOND/, 'a later outcome is shown, not the cached page' );
+};
 
 # --- 5. api: true - a value cannot make the JSON invalid ---------------------
 #

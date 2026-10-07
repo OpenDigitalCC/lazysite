@@ -35,8 +35,6 @@ sub unesc {
     return $s;
 }
 
-our $TODO;
-my $TODO_BANNER = 'n271 before: the outcome banner is written to the page cache, and can spell a placeholder';
 
 my $docroot = site_tempdir();
 setup_minimal_site($docroot);
@@ -89,8 +87,7 @@ for my $v (
     [ 'a bracket that closes a link label', '](javascript:void)' ],
     )
 {
-    my ( $label, $raw, $todo ) = @$v;
-    local $TODO = $todo;
+    my ( $label, $raw ) = @$v;
     subtest "a query value: $label" => sub {
         my $html = fetch( '/md', 'x=' . enc($raw) );
         is( count( $html, qr/<code\b/ ), $codes,   'no code element added' );
@@ -137,9 +134,8 @@ for my $v (
     [ 'an autolink',                 '<http://m.example/>' ],
     )
 {
-    my ( $label, $raw, $todo ) = @$v;
+    my ( $label, $raw ) = @$v;
     subtest "a prefilled value: $label" => sub {
-        local $TODO = $todo;
         my $html = fetch( '/form', 'x=' . enc($raw) );
         my $ta   = seg( $html, qr{<textarea[^>]*name="note"[^>]*>(.*?)</textarea>}s );
         my $at   = seg( $html, qr{<input[^>]*name="code"[^>]*\svalue="([^"]*)"}s );
@@ -149,7 +145,8 @@ for my $v (
         like( $html, qr{</form>.*var marker}s, 'and after the form' );
         unlike( $html, qr/href="javascript/i, 'no javascript: link' );
 
-        local $TODO = $TODO_BANNER;
+        # BEFORE (measured): the banner page was cached on first render, so this
+        # showed the first value (SM969); and that one spelled RAWBLOCK (SM967).
         my $b = fetch( '/form', 'form=apply&outcome=' . enc($raw) );
         my $s = seg( $b, qr{<p class="form-status form-status-error" role="alert">(.*?)</p>}s );
         ok( defined $s && $s !~ /</, 'the outcome banner holds text' );

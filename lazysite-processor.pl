@@ -2903,6 +2903,17 @@ sub main {
         $ENV{LAZYSITE_NOCACHE} = '1';
     }
 
+    # SM969: A FORM OUTCOME IS THIS REQUEST'S, NEVER THE PAGE'S. The banner reads
+    # `form=` and `outcome=` from the query string itself (convert_fenced_form),
+    # and neither is a declared query_params name - so the request counted as
+    # query-free: it was answered from the cache (the visitor did not see their
+    # outcome), and when the cache was cold the render WAS the cache. One
+    # visitor's link text then stood on the page, in the alert style, for every
+    # later visitor. The same treatment as `nocache: true`, for this request only.
+    if ( exists $query_params{form} && exists $query_params{outcome} ) {
+        $ENV{LAZYSITE_NOCACHE} = '1';
+    }
+
     # Fast path: serve from cache if eligible. Skip when NOCACHE,
     # query-carrying request, or any protection flag is set.
     unless ( $ENV{LAZYSITE_NOCACHE} || $has_query_request || $protected ) {
