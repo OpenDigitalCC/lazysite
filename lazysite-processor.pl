@@ -5736,7 +5736,7 @@ sub _placeholder_key {
 
 sub convert_md {
     my ($body) = @_;
-    my $k = _placeholder_key($body);    # SM967
+    my $k = _placeholder_key($body);         # SM967
 
     # Protect <script> AND <style> blocks from Markdown processing. CSS/JS is not
     # Markdown: emphasis would mangle it - e.g. the `*/ ... /*` between two CSS
