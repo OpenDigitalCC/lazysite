@@ -111,114 +111,19 @@ for my $t ( sort @mcp_live ) {
 }
 
 # --- 2. the twins, by name ---------------------------------------------------
-my %PAIR = (
-    'analyse_visitors' => 'analyse_visitors',
-    # SM778: added to both surfaces at once, which is the point - the site that
-    # needed it is a token client, and the manager screens that carry names are
-    # cookie-only.
-    'display-names' => 'display_names',
-    # SM579 phase 2: calling gets a twin because it IS mode 2 - an
-    # authenticated caller, gated by the connector itself. Configuring does
-    # not; see %API_ONLY.
-    'connector-call' => 'connector_call',
-    # SM301: was an MCP-only entry whose recorded reason was "the API path can
-    # add one when someone asks for it". A live site asked, having taken its own
-    # sitemap.xml down by deleting the generated file for want of this.
-    'regenerate-registries' => 'regenerate_registries',
-    'domains-list'          => 'list_domains',
-    'domain-set'            => 'domain_set',
-    'domain-preview'        => 'preview_domain',
-    'site-backup-create'    => 'site_backup',
-    'site-backup-apply'     => 'site_apply',
-    'form-submissions'      => 'read_form_submissions',
-    'form-submission'       => 'read_form_submission',
-    'form-list'             => 'form_list',
-    # SM918: the notice bell, read by both doors through one reader
-    # (Lazysite::Manager::Notices). Same capability either side - `notifications`
-    # - because the ruling was that the capability is the gate and not the
-    # channel. Its `notices-seen` half is one-sided on purpose; the reason is
-    # recorded above rather than left as "undecided".
-    'notices'               => 'read_notices',
-    # SM632: the inverse of bind_form, added to both surfaces at once. bind_form
-    # is MCP-only by long standing (the API writes the conf directly), so the
-    # DESTROY is the first half of that pair to exist on both - which is the
-    # right way round: a create with no undo is what left a registration on a
-    # live site that nobody with a token could remove.
-    'form-delete'         => 'delete_form',
-    # SM842: the handler contract on both surfaces at once - handler CRUD
-    # reversed SM799's cookie-only rule, and bind_form stopped being MCP-only
-    # now that form-targets-save takes handler ids and nothing else.
-    'form-targets-save' => 'bind_form',
-    # SM905 U5: on both surfaces at once, because the caller it was built for is
-    # an agent - the edge walk hit the wall it removes while working over the API.
-    'form-uploads-save' => 'set_form_uploads',
-    'form-notify-save'  => 'set_form_notify',
-    'handler-list'      => 'list_handlers',
-    'handler-save'      => 'save_handler',
-    'handler-delete'    => 'delete_handler',
-    'schedule-list'     => 'list_schedule',
-    'schedule-save'     => 'save_schedule',
-    'schedule-delete'   => 'delete_schedule',
-    'git-history'         => 'list_versions',
-    'git-history-summary' => 'list_content_history',
-    'git-show'            => 'view_version',
-    'git-restore'         => 'restore_version',
-    'layout-activate'     => 'activate_layout',
-    'layout-install'      => 'install_layout',
-    'layout-delete'       => 'delete_layout',
-    'layouts-manifest'    => 'list_layout_catalogue',
-    'theme-activate'      => 'activate_theme',
-    'theme-copy'          => 'copy_theme',
-    # SM262: paired, but NOT identical - the MCP tool is always restricted to
-    # themes the caller created, while the API action restricts only for token
-    # clients and leaves the manager UI's cookie session unrestricted. Same
-    # action, two channels, one of which can have a human behind it.
-    'theme-delete'    => 'delete_theme',
-    'themes-list-all' => 'list_themes',
-    'nav-read'        => 'read_nav',
-
-    # SM447: the data tables. Both channels, one implementation - each pair
-    # routes through Lazysite::Manager::Data, so a difference between them
-    # would have to be introduced deliberately.
-    'data-tables'     => 'list_data_tables',
-    'data-table'      => 'describe_data_table',
-    'data-table-save' => 'save_data_table',
-    # SM566: the safety step and the descriptor as text. Both were API-only
-    # with reasons written when the plugin was new; an agent could migrate a
-    # table without previewing what the migration would refuse.
-    'data-table-source' => 'read_data_table_source',
-    'data-migrate-plan' => 'plan_data_migration',
-
-    # SM466: the existing preview-public action, given an MCP door so the field
-    # can confirm what a visitor receives without stepping outside the grant.
-    'preview-public'  => 'preview_public_page',
-    'data-rows'       => 'read_data_rows',
-    'data-migrate'    => 'migrate_data_table',
-    'data-rebuild'    => 'rebuild_data_table',
-    'data-table-drop' => 'drop_data_table',
-    'data-row-save'   => 'save_data_row',
-    'data-row-delete' => 'delete_data_row',
-    # SM512: the safety exports, listed and cleared - the SM508 pattern for tables.
-    'data-safety-exports'        => 'list_data_safety_exports',
-    'data-safety-export-delete'  => 'delete_data_safety_export',
-    'data-safety-export-read'    => 'read_data_safety_export',
-    'data-safety-export-restore' => 'restore_data_safety_export',
-    'nav-save'                   => 'set_nav',
-    'pages'                      => 'list_pages',
-    # SM431: the permissions twins, recorded as twins. acl-remove has no
-    # named MCP twin (set_permissions with empty lists clears a rule) and
-    # passes the completeness check under manage_content like the others.
-    'acl-get' => 'get_permissions',
-    'acl-set' => 'set_permissions',
-    # SM245: the brief store's twins.
-    'brief-read'   => 'read_brief',
-    'brief-append' => 'append_brief',
-    # SM508: the lifecycle's discovery and cleanup halves.
-    'briefs-list'  => 'list_briefs',
-    'brief-delete' => 'delete_brief',
-);
+# SM943 stage 2: the twin is DATA on the action now - `mcp => 'tool'` on its
+# entry in Lazysite::ControlApi::Actions - and this lint's own %PAIR, which was
+# the only map between the two channels, is gone. The history each pair carried
+# moved onto the action beside it, tagged [mcp]. One tool per action is refused
+# at load otherwise.
+my %PAIR = Lazysite::ControlApi::Actions::mcp_twins();
+cmp_ok( scalar keys %PAIR, '>=', 40, 'the declared twins were read' );
 for my $a ( sort keys %PAIR ) {
-    ok( ( grep { $_ eq $a } @api_live ), "paired API action '$a' still exists" );
+    # SM943: the action exists by construction (the twin is a field on it). What
+    # can still be wrong is the door: a twin of a cookie-only action would give
+    # a token over MCP what the same token is refused on the control API.
+    ok( ( grep { $_ eq $a } @api_live ),
+        "the action '$a' with an MCP twin is reachable with a token" );
     ok( ( grep { $_ eq $PAIR{$a} } @mcp_live ),
         "paired MCP tool '$PAIR{$a}' still exists" );
 
@@ -439,13 +344,14 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
     }
 };
 
-# --- 4. the destructive twins agree ------------------------------------------
+# --- 4. destruction is a mutation ---------------------------------------------
 # SM572: the control API declares its destructive actions in %DESTRUCTIVE (by
 # action name, beside %MUTATING) and MCP declares destructive hints in
 # %ANNOTATE (by tool name, beside readOnly and openWorld hints the API has no
-# use for). Two spellings of one fact; the twin map above is what keeps them
-# equal. A destructive API action whose MCP twin says otherwise - or the
-# reverse - fails here with both names.
+# use for). Two spellings of one fact, which this section used to keep equal
+# twin by twin - SM572 found site-backup-apply and site_apply disagreeing. Since
+# SM943 stage 2 there is one spelling: a twin's row is derived from the action.
+# What remains here is the rule the fact obeys.
 {
     # SM943: both are DERIVED from Lazysite::ControlApi::Actions now, and the CGI
     # is held to building them from it, so the declaration is what is compared.
@@ -459,31 +365,21 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
     my @not_mut = sort grep { !$api_mut{$_} } keys %api_destr;
     is( "@not_mut", '', 'every destructive action is a mutating one' );
 
-    my ($ann_block) = $mcp_src =~ /my %ANNOTATE = \((.*?)\n\);/s;
-    ok( defined $ann_block, 'the MCP %ANNOTATE table was found' );
-    my %mcp_destr;
-    while ( ( $ann_block // '' ) =~ /^\s*([a-z_]+)\s*=>\s*\[\s*[01]\s*,\s*([01])\s*,/mg ) {
-        $mcp_destr{$1} = $2;
-    }
-    cmp_ok( scalar keys %mcp_destr, '>=', 30, '%ANNOTATE parsed non-trivially' );
-
-    my @twin_disagree;
-    for my $a ( sort keys %PAIR ) {
-        my $t   = $PAIR{$a};
-        my $api = $api_destr{$a} ? 1 : 0;
-        my $mcp = $mcp_destr{$t} // 0;   # an unannotated tool defaults to not destructive
-        push @twin_disagree, "$a=$api / $t=$mcp" if $api != $mcp;
-    }
-    is( "@twin_disagree", '', 'API %DESTRUCTIVE and MCP %ANNOTATE agree on every twin' )
-        or diag( join "\n", @twin_disagree );
+    # SM943 stage 2: THE COMPARISON THAT STOOD HERE IS TRUE BY CONSTRUCTION, and
+    # is removed rather than kept as a check that cannot fail. It read %ANNOTATE's
+    # second slot out of lazysite-mcp.pl and required it to equal the twin's
+    # %DESTRUCTIVE. A twin's row is now derived from the action's own entry
+    # (Lazysite::ControlApi::Actions::mcp_annotations), so there is one spelling
+    # of the fact and nothing to disagree.
 }
 
-# --- 5. the exposure twins agree ---------------------------------------------
+# --- 5. the exposure axis is its own ----------------------------------------
 # SM587: the second axis, kept honest exactly as the destructive pair is. The
 # control API declares %CHANGES_ACCESS by action name; MCP declares the same
 # fact in the FOURTH slot of %ANNOTATE and publishes it as changesAccessHint.
-# Two spellings of one fact means two places to forget, which is what SM572
-# found on site-backup-apply and what this closes before it can happen again.
+# Two spellings of one fact meant two places to forget; since SM943 stage 2 a
+# twin's fourth slot is derived from the action, so what remains here is that
+# the two axes stay independent.
 {
     ok( $api_src =~ /my %CHANGES_ACCESS = Lazysite::ControlApi::Actions::changes_access\(\);/,
         'the control API declares %CHANGES_ACCESS' )
@@ -504,22 +400,9 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
     ok( !$api_ca{'brief-delete'},
         'brief-delete does not change who can see things - the axes are independent' );
 
-    my ($ann_block) = $mcp_src =~ /my %ANNOTATE = \((.*?)\n\);/s;
-    my %mcp_ca;
-    while ( ( $ann_block // '' ) =~ /^\s*([a-z_]+)\s*=>\s*\[\s*[01]\s*,\s*[01]\s*,\s*[01]\s*(?:,\s*([01])\s*)?\]/mg ) {
-        $mcp_ca{$1} = $2 // 0;
-    }
-    cmp_ok( scalar keys %mcp_ca, '>=', 30, '%ANNOTATE parsed for the fourth slot' );
-
-    my @ca_disagree;
-    for my $a ( sort keys %PAIR ) {
-        my $t   = $PAIR{$a};
-        my $api = $api_ca{$a} ? 1 : 0;
-        my $mcp = $mcp_ca{$t} // 0;      # an unannotated tool moves no read boundary
-        push @ca_disagree, "$a=$api / $t=$mcp" if $api != $mcp;
-    }
-    is( "@ca_disagree", '', 'API %CHANGES_ACCESS and MCP %ANNOTATE agree on every twin' )
-        or diag( join "\n", @ca_disagree );
+    # SM943 stage 2: the twin comparison that stood here - %ANNOTATE's fourth
+    # slot against the twin's %CHANGES_ACCESS - is true by construction for the
+    # same reason as the destructive one above, and is removed with it.
 }
 
 done_testing();

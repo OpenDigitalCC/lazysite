@@ -12,6 +12,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root = repo_root();
@@ -42,10 +43,27 @@ is_deeply( \@wrong_key, [], 'no tool uses the key `schema` - it is silently igno
 # open-world writes, drops and deletes as non-destructive - and clients drive
 # per-call approval from those hints. The default stays as a safety net for
 # the dispatcher, but no table entry may rely on it.
+#
+# SM943 stage 2: a twin's row comes from its action's declaration
+# (Lazysite::ControlApi::Actions::mcp_annotations), and %OWN_ANNOTATE holds the
+# rest - so "annotated" is the union of the two.
 {
-    my ($ann) = $src =~ /^my \%ANNOTATE = \((.*?)^\);/ms;
-    ok( $ann, 'the %ANNOTATE map was found' );
-    my %annotated = map { $_ => 1 } ( $ann // '' ) =~ /^\s*([a-z_]+)\s*=>\s*\[/mg;
+    my ($ann) = $src =~ /^my \%OWN_ANNOTATE = \((.*?)^\);/ms;
+    ok( $ann, 'the %OWN_ANNOTATE map was found' );
+    like( $src, qr/^my \%ANNOTATE\s*=\s*Lazysite::ControlApi::Actions::mcp_annotations\(\);/m,
+        'and %ANNOTATE starts from the twins\' derived rows' );
+    my @own = ( $ann // '' ) =~ /^\s*([a-z_]+)\s*=>\s*\[/mg;
+    # Four tools were written twice in the hand-kept table, and a Perl hash keeps
+    # the LAST row in silence - so two rows that disagreed would publish whichever
+    # was typed second.
+    my %count;
+    $count{$_}++ for @own;
+    my @twice = grep { $count{$_} > 1 } sort keys %count;
+    is_deeply( \@twice, [], 'no tool has two rows' )
+        or diag("written more than once: @twice");
+    require Lazysite::ControlApi::Actions;
+    my %twin      = Lazysite::ControlApi::Actions::mcp_annotations();
+    my %annotated = ( map { $_ => 1 } @own, keys %twin );
     cmp_ok( scalar keys %annotated, '>=', 60, 'the annotation map was parsed' );
     my @default = grep { !$annotated{$_} } sort keys %body;
     is_deeply( \@default, [], 'every tool has an explicit annotation (none falls to the default)' )

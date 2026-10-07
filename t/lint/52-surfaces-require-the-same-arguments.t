@@ -34,7 +34,9 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
+use Lazysite::ControlApi::Actions ();
 
 my $root = repo_root();
 
@@ -47,7 +49,6 @@ sub slurp {
 
 my $mcp = slurp("$root/lazysite-mcp.pl");
 my $api = slurp("$root/lazysite-manager-api.pl");
-my $l23 = slurp( ( glob "$root/t/lint/23*.t" )[0] );
 
 # --- the dispatcher's silent defaults ----------------------------------------
 # Whatever the control API supplies without the caller asking. If a second one is
@@ -65,11 +66,9 @@ ok( exists $api_default{path},
     'and `path` is one of them - the argument SM306 was about' );
 
 # --- the paired surfaces -----------------------------------------------------
-my %pair;
-if ( $l23 =~ /%PAIR = \((.*?)\n\);/s ) {
-    my $block = $1;
-    %pair = $block =~ /'([a-z0-9-]+)'\s*=>\s*'([a-z0-9_]+)'/g;
-}
+# SM943 stage 2: the twins are declared on the actions (`mcp => 'tool'`), and
+# t/lint/23 reads them from there too, so this no longer parses lint 23's source.
+my %pair = Lazysite::ControlApi::Actions::mcp_twins();
 cmp_ok( scalar keys %pair, '>=', 10, 'the action/tool pairing was parsed' );
 
 # What each MCP tool requires.

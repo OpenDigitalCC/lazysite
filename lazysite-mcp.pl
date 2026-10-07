@@ -55,6 +55,7 @@ use Lazysite::Manager::Notices ();
 use Lazysite::Handlers         ();               # SM842: handlers, bindings, the schedule
 use Lazysite::Lang             qw(set_members);
 use Lazysite::Validate         ();               # SM887 F2: the engine owns validation
+use Lazysite::ControlApi::Actions ();            # SM943: the twins' annotations
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
@@ -3212,24 +3213,18 @@ sub _rename_page {
     return $r;
 }
 
-# MCO-1: two constant rosters the dispatch reads and never writes - which tools
-# are reads (so the audit skips them) and which refusal kinds are worth retrying.
-# Both were built inside the request path, one of them inside an `if` that runs
-# only on a failure, so a literal that cannot change was assembled per request
-# and per refusal. They live with %ANNOTATE now: same three lists, one place a
-# reader looks to find out what the dispatch believes about a tool.
-my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-    page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_handlers => 1, list_schedule => 1, form_list => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, theme_tokens => 1, analyse_visitors => 1,
-    list_versions => 1, list_content_history => 1, view_version => 1, # history reads: audit-skipped like the API's git-history/show
-    display_names => 1 );    # SM778: a lookup of names the caller already sees
-
+# MCO-1: a constant roster the dispatch reads and never writes - which refusal
+# kinds are worth retrying. It was built inside the request path, inside an `if`
+# that runs only on a failure, so a literal that cannot change was assembled per
+# refusal. (Its sibling, the audit's skip list, is %READ below %ANNOTATE: it is
+# derived from the annotations now.)
 my %TRANSIENT = ( 'lock-held' => 1, 'locked' => 1, 'rate-limited' => 1, 'busy' => 1 );
 
 # MCP tool annotation hints [readOnly, destructive, openWorld, changesAccess].
 # The first three are the MCP spec's own hints, required by ChatGPT (they drive
 # its per-call approval + read/write gating) and good practice for every client.
 # openWorld = the action publishes to / changes the live site.
-# SM537: EVERY tool is named here - t/lint/85 refuses one that is not. The
+# SM537: EVERY tool has a row - t/lint/85 refuses one that has not. The
 # default in tool_list is a safety net for the dispatcher, never a value an
 # entry may rely on: a read that falls to it advertises as an open-world write,
 # and a drop advertises as non-destructive.
@@ -3239,115 +3234,72 @@ my %TRANSIENT = ( 'lock-held' => 1, 'locked' => 1, 'rate-limited' => 1, 'busy' =
 # once, beside %MUTATING / %DESTRUCTIVE / %CHANGES_ACCESS in
 # lazysite-manager-api.pl - read it there rather than inferring a rule from the
 # rows below. In one line: `destructive` asks whether a copy survives, and
-# `changesAccess` asks whether the call alters who may read. t/lint/23 keeps
-# both this table's second slot and its fourth equal to the API's twins, so the
-# two spellings of each fact cannot drift.
+# `changesAccess` asks whether the call alters who may read.
+#
+# SM943 stage 2: A TWIN'S HINTS ARE NOT WRITTEN HERE. A tool that is the MCP
+# twin of a control-API action (`mcp => 'tool'` on its entry in
+# Lazysite::ControlApi::Actions) takes its row from mcp_annotations(): readOnly
+# exactly when the action does not mutate, destructive and changesAccess
+# exactly when the action is, and openWorld as declared beside `mcp`. So the
+# two doors cannot describe one act differently - there is one spelling of
+# each fact, not two kept equal by a lint. %OWN_ANNOTATE is for the tools
+# with no API twin (MCP-only, and the file tools WebDAV pairs with), and a
+# row there for a twin is refused at load rather than allowed to override.
 # The fourth slot may be omitted - an absent value is 0, as it is for a tool
 # that moves no read boundary, which is nearly all of them.
-my %ANNOTATE = (
-    # SM632: destroys a registration; the twin form-delete is in %DESTRUCTIVE.
-    # Not idempotent in the third slot's sense - a second call finds nothing to
-    # remove and says so, which is a different answer, not the same one again.
-    delete_form            => [ 0, 1, 0 ],
+my %ANNOTATE     = Lazysite::ControlApi::Actions::mcp_annotations();
+my %OWN_ANNOTATE = (
     whoami                 => [ 1, 0, 0 ],
     describe_capabilities  => [ 1, 0, 0 ],
     upload_file            => [ 0, 0, 1 ],
-    list_data_tables       => [ 1, 0, 0 ],
-    describe_data_table    => [ 1, 0, 0 ],
-    read_data_table_source => [ 1, 0, 0 ],
-    plan_data_migration    => [ 1, 0, 0 ],
-    read_data_rows         => [ 1, 0, 0 ],
-    save_data_table => [ 0, 0, 1 ], # a descriptor's public flag decides what the site serves
-    migrate_data_table => [ 0, 0, 1 ],    # applies the safe changes to the live table
-    rebuild_data_table => [ 0, 1, 1 ],    # drops columns, by named confirmation
-    drop_data_table    => [ 0, 1, 1 ],
-    save_data_row      => [ 0, 0, 1 ],
-    delete_data_row    => [ 0, 1, 1 ],
-    list_domains       => [ 1, 0, 0 ],
-    # SM647: the fourth slot. domain_set writes allowed_groups - the domain
-    # access model - so it moves the read boundary as surely as set_permissions
-    # does, and the twin table on the control API says so now too.
-    domain_set            => [ 0, 0, 1, 1 ],
-    preview_public_page   => [ 1, 0, 0 ],
-    preview_domain        => [ 1, 0, 0 ],
-    site_backup           => [ 0, 0, 0 ],    # writes an archive; changes nothing live
-    site_apply            => [ 0, 1, 1 ],    # overwrites the live content tree
-    delete_theme          => [ 0, 1, 1 ],
-    read_form_submissions => [ 1, 0, 0 ],
-    read_notices => [ 1, 0, 0 ], # SM918: reads the bell; writes nothing, not even a cursor
     create_form           => [ 0, 0, 1 ],
-    analyse_visitors      => [ 1, 0, 0 ],
-    regenerate_registries => [ 0, 0, 1 ],
-    read_brief            => [ 1, 0, 0 ],
-    append_brief          => [ 0, 0, 0 ],  # writes the engine store, changes nothing live
-    list_briefs           => [ 1, 0, 0 ],
-    list_data_safety_exports   => [ 1, 0, 0 ],
-    delete_data_safety_export  => [ 0, 1, 0 ],   # destroys the only copy of dropped rows
-    read_data_safety_export    => [ 1, 0, 0 ],
-    restore_data_safety_export => [ 0, 0, 1 ],   # writes rows into a live table
-    delete_brief               => [ 0, 1, 0 ],   # destroys a record; changes nothing live
-
     list_files           => [ 1, 0, 0 ],
     read_file            => [ 1, 0, 0 ],
     search_files         => [ 1, 0, 0 ],
     page_status          => [ 1, 0, 0 ],
     preview_page         => [ 1, 0, 0 ],
-    list_pages           => [ 1, 0, 0 ],
     read_page            => [ 1, 0, 0 ],
     validate_page        => [ 1, 0, 0 ],
     audit_site           => [ 1, 0, 0 ],
-    list_handlers   => [ 1, 0, 0 ],
-    list_schedule   => [ 1, 0, 0 ],
-    save_handler    => [ 0, 0, 1 ],    # a bound handler's destination is live delivery
-    delete_handler  => [ 0, 1, 0 ],    # refused while in use, so nothing live changes
-    save_schedule   => [ 0, 0, 1 ],    # what the timer calls
-    delete_schedule => [ 0, 1, 1 ],
-    form_list       => [ 1, 0, 0 ],
-    read_form_submission => [ 1, 0, 0 ],  # SM938 D5
-    bind_form       => [ 0, 0, 1 ],
-    # SM905 U5: a save, and not destructive - `uploads: false` removes the
-    # upload_* keys, but another call puts them back, and the rule above is
-    # explicit that a flag is a property of the action, never of an argument.
-    set_form_uploads => [ 0, 0, 1 ],
-    set_form_notify  => [ 0, 0, 1 ],    # SM938 D4: a save; another call puts it back
     write_file       => [ 0, 0, 1 ],
     replace_text     => [ 0, 0, 1 ],
     copy_file        => [ 0, 0, 1 ],
     create_page      => [ 0, 0, 1 ],
-    read_nav         => [ 1, 0, 0 ],
-    set_nav          => [ 0, 0, 1 ],
     submit_feedback => [ 0, 0, 0 ], # writes a report, but changes nothing on the live site
     delete_page     => [ 0, 1, 1 ],
     rename_page     => [ 0, 0, 1 ],
-    get_permissions => [ 1, 0, 0 ],
-    display_names   => [ 1, 0, 0 ],    # SM778: a read, and it touches nothing
-        # SM579: openWorld, and the only tool here that is. A connector call
-        # leaves this instance; that is the whole point of it, and the hint says so.
-    connector_call  => [ 0, 0, 1 ],
     move_file       => [ 0, 0, 1 ],
     delete_file     => [ 0, 1, 1 ],
-    set_permissions => [ 0, 0, 0, 1 ], # SM587: acl-set's twin - it moves the read boundary
-    list_themes           => [ 1, 0, 0 ],
     theme_tokens          => [ 1, 0, 0 ],
-    activate_theme        => [ 0, 0, 1 ],
     create_theme          => [ 0, 0, 1 ],
-    copy_theme            => [ 0, 0, 1 ],    # SM749: a copy changes nothing live
-    activate_layout       => [ 0, 0, 1 ],
-    list_layout_catalogue => [ 1, 0, 0 ],
-    install_layout        => [ 0, 0, 1 ],
-    delete_layout         => [ 0, 1, 1 ],
-    # SM572: the four twins of the API's %DESTRUCTIVE that carried no hint
-    # and so defaulted to "not destructive"; t/lint/23 keeps the pair equal.
-    delete_theme         => [ 0, 1, 1 ],
-    drop_data_table      => [ 0, 1, 1 ],
-    rebuild_data_table   => [ 0, 1, 1 ],
-    delete_data_row      => [ 0, 1, 1 ],
     invalidate_cache     => [ 0, 0, 0 ],
-    list_versions        => [ 1, 0, 0 ],
-    list_content_history => [ 1, 0, 0 ],
-    view_version         => [ 1, 0, 0 ],
-    restore_version      => [ 0, 0, 1 ],
 );
+for my $t ( sort keys %OWN_ANNOTATE ) {
+    die "lazysite-mcp.pl: %OWN_ANNOTATE names '$t', the MCP twin of a control-API "
+        . "action - its hints come from that action's declaration\n"
+        if exists $ANNOTATE{$t};
+    $ANNOTATE{$t} = $OWN_ANNOTATE{$t};
+}
+
+# MCO-1 / SM943 stage 2: WHICH TOOLS THE AUDIT SKIPS. This was a hand-kept list
+# of 22 reads beside the annotations. It is now the rule that list was written to
+# state - a read-only tool is not audited - with its exceptions named.
+#
+# %AUDITED_READ is the seventeen read-only tools the MCP trail has always
+# recorded, kept so that deriving the list changed no audit row. Sixteen are
+# twins of control-API reads that the API trail SKIPS (data-rows,
+# form-submissions, briefs-list, notices, ...), and describe_capabilities is
+# audited while whoami is not. Whether those reads belong in either trail is an
+# open question on SM943, recorded here rather than decided by a refactor. A new
+# read-only tool is not audited unless it is named here.
+my %AUDITED_READ = map { $_ => 1 } qw(
+    describe_capabilities describe_data_table list_briefs list_data_safety_exports
+    list_data_tables list_domains list_layout_catalogue plan_data_migration
+    preview_domain preview_public_page read_brief read_data_rows
+    read_data_safety_export read_data_table_source read_form_submission
+    read_form_submissions read_notices
+);
+my %READ = map { $_ => 1 } grep { $ANNOTATE{$_}[0] && !$AUDITED_READ{$_} } keys %ANNOTATE;
 
 # SM525: whoami's tool list is tools/list's answer for the same session - one
 # filtered source, so the two cannot disagree about what a grant may call.

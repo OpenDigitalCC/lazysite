@@ -23,6 +23,8 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../../../lib";
+use Lazysite::ControlApi::Actions ();
 use TestHelper qw(repo_root grant_caps);
 
 my $root   = repo_root();
@@ -160,14 +162,17 @@ like( $api, qr/who may read/i,
     'the access test is written down beside it' );
 
 # --- 4. the MCP twin says the same thing -------------------------------------
-# set_permissions is acl-set's twin (SM431). Two spellings of one fact; t/lint/23
-# keeps them equal, and this asserts the fact is spelled on the MCP side at all.
+# set_permissions is acl-set's twin (SM431). SM943 stage 2: one spelling of the
+# fact now - the twin's row is derived from acl-set's entry - and this asserts it
+# reaches the MCP side at all: the CGI starts %ANNOTATE from the derived rows and
+# publishes the fourth slot as changesAccessHint.
 my $mcp = slurp("$root/lazysite-mcp.pl");
 like( $mcp, qr/changesAccessHint/,
     'MCP publishes the exposure hint beside its three annotation hints' );
-my ($ann) = $mcp =~ /^my \%ANNOTATE = \((.*?)^\);/ms;
-ok( $ann, 'the %ANNOTATE table was found' );
-like( $ann, qr/^\s*set_permissions\s*=>\s*\[\s*0\s*,\s*0\s*,\s*0\s*,\s*1\s*\]/m,
+like( $mcp, qr/^my \%ANNOTATE\s*=\s*Lazysite::ControlApi::Actions::mcp_annotations\(\);/m,
+    'the %ANNOTATE table starts from the declaration' );
+my %twin_ann = Lazysite::ControlApi::Actions::mcp_annotations();
+is_deeply( $twin_ann{set_permissions}, [ 0, 0, 0, 1 ],
     'set_permissions is annotated as changing access' );
 
 done_testing();

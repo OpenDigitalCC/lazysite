@@ -126,62 +126,59 @@ subtest 'every derived table names declared actions, and the old pairings hold' 
     is( "@both", '', 'an action that gates itself names no cookie capability' );
 };
 
-# SM943 stage 2, THE EQUALITY PROOF FOR THE MCP SIDE. The hand-kept tables are
-# read out of their sources as they stand - t/lint/23's %PAIR, lazysite-mcp.pl's
-# %ANNOTATE and %READ - and each derived table must equal its literal exactly.
-# The next commit switches the code to the derived tables.
-subtest 'SM943 stage 2: the derived MCP tables equal the hand-kept ones' => sub {
+# SM943 stage 2: THE MCP SIDE IS DERIVED TOO. The equality proof came first: the
+# commit that declared `mcp` and `mcp_open_world` carried this subtest in a form
+# that read t/lint/23's %PAIR and lazysite-mcp.pl's %ANNOTATE and %READ out of
+# their sources and required each derived table to equal its literal - 60 twins,
+# 84 annotated tools (88 rows: four were written twice, alike), 22 unaudited
+# tools. The literals are gone, so this pins what replaced them, as subtest 1
+# does for the CGI.
+subtest 'SM943 stage 2: the MCP tables are built from the declaration' => sub {
     my $slurp = sub { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> };
     my $mcp   = $slurp->( repo_root() . '/lazysite-mcp.pl' );
     my $l23   = $slurp->( repo_root() . '/t/lint/23-mcp-api-action-parity.t' );
 
-    my ($pb) = $l23 =~ /^my %PAIR = \(\n(.*?)^\);/ms;
-    my %PAIR = ( $pb // '' ) =~ /^\s*'([a-z_-]+)'\s*=>\s*'([a-z_]+)',/mg;
-    is( scalar keys %PAIR, 60, "lint 23's %PAIR read: 60 twins" );
-    my %twins = $A->can('mcp_twins')->();
-    is_deeply( \%twins, \%PAIR, 'mcp_twins() is exactly lint 23\'s %PAIR' );
+    my @ann = $mcp =~ /\bmy %ANNOTATE\s*=\s*([^;]*);/g;
+    is_deeply( \@ann, ['Lazysite::ControlApi::Actions::mcp_annotations()'],
+        '%ANNOTATE starts from mcp_annotations() - no literal copy of a twin' );
+    my @read = $mcp =~ /\bmy %READ\s*=\s*([^;]*);/g;
+    is_deeply( \@read,
+        [q{map { $_ => 1 } grep { $ANNOTATE{$_}[0] && !$AUDITED_READ{$_} } keys %ANNOTATE}],
+        '%READ is the read-only tools less the named audited reads' );
+    my @pair = $l23 =~ /\bmy %PAIR\s*=\s*([^;]*);/g;
+    is_deeply( \@pair, ['Lazysite::ControlApi::Actions::mcp_twins()'],
+        'lint 23 pairs the twins the declaration names - no %PAIR of its own' );
 
-    # %ANNOTATE as written, a missing fourth slot read as 0 (tool_list's reading).
-    # Four tools were written twice; a duplicate must agree with itself or the
-    # later row silently won.
-    my ($ab) = $mcp =~ /^my %ANNOTATE = \((.*?)^\);/ms;
-    my ( %LIT, @dup_disagree, $rows );
-    while ( ( $ab // '' ) =~ /^\s*([a-z_]+)\s*=>\s*\[([^\]]*)\]/mg ) {
+    # What the dispatch then holds, rebuilt the way it builds it.
+    my ($own) = $mcp =~ /^my %OWN_ANNOTATE = \((.*?)^\);/ms;
+    my %ANN = $A->can('mcp_annotations')->();
+    while ( ( $own // '' ) =~ /^\s*([a-z_]+)\s*=>\s*\[([^\]]*)\]/mg ) {
         my ( $t, @v ) = ( $1, map { s/\s//gr } split /,/, $2 );
-        $v[3] //= 0;
-        $rows++;
-        push @dup_disagree, $t if $LIT{$t} && "@{$LIT{$t}}" ne "@v";
-        $LIT{$t} = [ map { 0 + $_ } @v ];
+        $ANN{$t} = \@v;
     }
-    is( $rows,            88, '%ANNOTATE read: 88 rows' );
-    is( scalar keys %LIT, 84, '84 tools - four are written twice' );
-    is( "@dup_disagree",  '', 'and each duplicate agrees with itself' );
+    my ($ar)         = $mcp =~ /^my %AUDITED_READ = map \{ \$_ => 1 \} qw\((.*?)\);/ms;
+    my %AUDITED_READ = map { $_ => 1 } split ' ', $ar // '';
+    is( scalar keys %AUDITED_READ, 17, 'the seventeen audited reads were found' );
+    my @not_read = grep { !( $ANN{$_} && $ANN{$_}[0] ) } sort keys %AUDITED_READ;
+    is( "@not_read", '', 'each one names a read-only tool - otherwise it means nothing' );
+    my %READ = map { $_ => 1 } grep { $ANN{$_}[0] && !$AUDITED_READ{$_} } keys %ANN;
 
-    my %ann = $A->can('mcp_annotations')->();
-    is( scalar keys %ann, 60, 'mcp_annotations() covers every twin' );
-    for my $t ( sort keys %ann ) {
-        is_deeply( $ann{$t}, $LIT{$t}, "$t: derived hints equal %ANNOTATE's row" );
-    }
-    my %derived = ( ( map { $_ => $LIT{$_} } grep { !$ann{$_} } keys %LIT ), %ann );
-    is_deeply( \%derived, \%LIT,
-        'the twins\' derived rows plus the rest as written ARE %ANNOTATE' );
+    # The audit decisions, unchanged by the derivation.
+    ok( $READ{list_files} && $READ{whoami} && $READ{list_versions},
+        'plain reads are not audited' );
+    ok( !$READ{read_form_submissions} && !$READ{read_data_rows},
+        'the submission and row reads the MCP trail has always recorded still are' );
+    ok( !$READ{save_data_row} && !$READ{delete_file},
+        'a write is audited' );
+    ok( !$READ{regenerate_registries},
+        'regenerate_registries is audited here, though its API twin is not' );
 
-    # %READ, the audit's skip list: today it is the read-only tools minus these
-    # seventeen, which the MCP trail records although they read.
-    my %AUDITED_READ = map { $_ => 1 } qw(
-        describe_capabilities describe_data_table list_briefs list_data_safety_exports
-        list_data_tables list_domains list_layout_catalogue plan_data_migration
-        preview_domain preview_public_page read_brief read_data_rows
-        read_data_safety_export read_data_table_source read_form_submission
-        read_form_submissions read_notices
-    );
-    my ($rb) = $mcp =~ /^my %READ = \((.*?)\);/ms;
-    my %READ = map { $_ => 1 } ( $rb // '' ) =~ /([a-z_]+)\s*=>\s*1/g;
-    is( scalar keys %READ, 22, '%READ read: 22 tools' );
-    my %read_derived
-        = map { $_ => 1 } grep { $derived{$_}[0] && !$AUDITED_READ{$_} } keys %derived;
-    is_deeply( \%read_derived, \%READ,
-        '%READ is the read-only tools less the seventeen audited reads' );
+    # The hints, from the act.
+    is_deeply( $ANN{set_permissions}, [ 0, 0, 0, 1 ],
+        "set_permissions moves the read boundary, as acl-set does" );
+    is_deeply( $ANN{site_apply}, [ 0, 1, 1, 0 ], 'site_apply is destructive, as site-backup-apply is' );
+    is_deeply( $ANN{connector_call}, [ 0, 0, 1, 0 ], 'connector_call is open-world' );
+    is_deeply( $ANN{read_notices},   [ 1, 0, 0, 0 ], 'read_notices is read-only' );
 };
 
 done_testing();
