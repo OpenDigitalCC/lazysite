@@ -1265,8 +1265,12 @@ sub action_form_submission {
         unless defined $id && $id =~ /\A[0-9a-f]{16}\z/;
     my ( $abs, $rel, $err ) = _submissions_path($file);
     return { ok => 0, error => $err } if $err;
+    # SM953: the answer names the form and the id, never the store's path - the
+    # owner's ruling on what a message may expose. The store is named for its form.
+    ( my $form = $rel ) =~ s{\A.*/}{};
+    $form =~ s/\.jsonl\z//;
     open my $fh, '<:utf8', $abs
-        or return { ok => 0, kind => 'not-found', error => "no submissions store at $rel" };
+        or return { ok => 0, kind => 'not-found', error => "no submissions for the form '$form'" };
     my $found;
     while ( my $line = <$fh> ) {
         ( my $trim = $line ) =~ s/\s+\z//;
@@ -1278,7 +1282,7 @@ sub action_form_submission {
     # Not there is a fact worth its own words: it was deleted, or the link is
     # older than an edit to the row. Either way the store still opens.
     return { ok => 0, kind => 'not-found',
-        error => "no submission $id in $rel - it may have been deleted since the notice was sent" }
+        error => "no submission $id on the form '$form' - it may have been deleted since the notice was sent" }
         unless ref $found eq 'HASH';
     my @fields = grep { !/\A_/ } sort keys %$found;
     my @meta   = grep { /\A_/ } sort keys %$found;

@@ -113,6 +113,13 @@ subtest 'a gone row, a malformed id, a store outside the stores' => sub {
     my $r = Lazysite::Manager::Plugins::action_form_submission( $STORE, $id );
     is( $r->{kind}, 'not-found', 'a deleted row is not-found' );
     like( $r->{error}, qr/deleted since the notice was sent/, 'in words that say what probably happened' );
+    like( $r->{error}, qr/\Q$id\E on the form 'contact'/, 'naming the id and the form' );
+    unlike( $r->{error}, qr{/|\.jsonl}, 'and no path to the store (SM953)' )
+        or diag('The owner: a message should not expose file paths.');
+    my $gone = Lazysite::Manager::Plugins::action_form_submission(
+        'lazysite/forms/submissions/nosuch.jsonl', $id );
+    is( $gone->{kind}, 'not-found', 'a store that does not exist is not-found' );
+    unlike( $gone->{error} // '', qr{/|\.jsonl}, 'and says so without a path' ) or diag( $gone->{error} );
     is( Lazysite::Manager::Plugins::action_form_submission( $STORE, 'nothex' )->{field}, 'id',
         'a malformed id is refused, naming the field' );
     # A real file outside the stores, holding a row with a known id - so the

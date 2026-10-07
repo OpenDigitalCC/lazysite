@@ -49,6 +49,13 @@ Archive
 
 ## Unreleased
 
+- SM953 (PENDING) **a missing submission is named by its form, not its file.**
+  The single-submission view answered "no submission <id> in
+  lazysite/forms/submissions/contact.jsonl"; the owner ruled a message should not
+  expose file paths (0.15.2 edge walk, R2). It now says "no submission <id> on the
+  form 'contact'", and a missing store "no submissions for the form '<name>'".
+  t/unit/forms/34 asserts the form and id are named and no path appears.
+
 - SM952 (PENDING) **a form's rate limit is its own, and only a stored submission
   spends it** (ruled R8). The limiter was keyed on the address alone and recorded
   a time on every post that reached it, before validation: five posts to one form
