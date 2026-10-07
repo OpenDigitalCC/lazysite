@@ -77,6 +77,13 @@ open $nf, '<', "$d/lazysite/logs/notices.jsonl" or die $!;
 @lines = <$nf>;
 close $nf;
 is( scalar @lines, 5, 'the notice was still appended to the bell store' );
+# SM955 (ruled R9): and the failure is in the audit log, from a real notice.
+{
+    my @a;
+    if ( open my $al, '<', "$d/lazysite/logs/audit.log" ) { @a = grep { /\| notify \|/ } <$al>; close $al }
+    like( $a[-1] // '', qr/\| notify \| xmpp -> ops\@example\.com \|\s+\| failed \| notify \| server unreachable/,
+        'a real delivery failure is audited, as notify, with its cause' );
+}
 
 # --- incomplete conf (no recipient) -> no send attempted ---
 open $xc, '>', "$d/lazysite/notify-xmpp.conf" or die $!;

@@ -51,6 +51,20 @@ our %BEHAVIOUR;
         return 1;
     }
     sub Disconnect { push @CALLS, ['Disconnect']; 1 }
+    # SM955: the stream after the send. A refusal arrives as an error stanza.
+    sub SetMessageCallBacks { my ( $self, %cb ) = @_; $self->{cb} = \%cb; push @CALLS, ['SetMessageCallBacks']; 1 }
+    sub Process {
+        my ($self) = @_;
+        if ( my $xml = delete $BEHAVIOUR{bounce} ) {
+            $self->{cb}{error}->( 1, bless( { xml => $xml }, 'StubMessage' ) ) if $self->{cb}{error};
+            return 1;
+        }
+        select undef, undef, undef, 0.05;
+        return 1;
+    }
+    package StubMessage;
+    sub GetXML { $_[0]{xml} }
+    package Net::XMPP::Client;
 
     package Net::XMPP::Presence;
     sub new          { bless {}, shift }
@@ -61,6 +75,7 @@ our %BEHAVIOUR;
 }
 $INC{'Net/XMPP.pm'} = 'stubbed-by-test';
 $Lazysite::Notify::SRV_RESOLVER = sub { return () };
+$Lazysite::Notify::XMPP_BOUNCE_WAIT = 1;    # the window, shortened for the suite
 
 # A site with the extension enabled unless told otherwise, an optional
 # notify-xmpp.conf, and a site_url that is a literal by default.
@@ -142,8 +157,8 @@ subtest 'a configured site: every stage reported, in order' => sub {
     is( $res->{stage}, 'ok', 'and says so' );
 
     my @names = map { $_->{step} } @{ $res->{steps} };
-    is_deeply( \@names, [qw(config library endpoint connect auth send)],
-        'config, library, endpoint, connect, auth, send' )
+    is_deeply( \@names, [qw(config library endpoint connect auth send delivery)],
+        'config, library, endpoint, connect, auth, send, delivery' )
         or diag explain \@names;
     ok( ( !grep { !$_->{ok} } @{ $res->{steps} } ), 'every stage passed' );
 
@@ -246,6 +261,42 @@ subtest 'a stage that dies is still named' => sub {
 };
 
 # --- the room ---------------------------------------------------------------
+
+# --- SM955 (ruled R9): a refused recipient fails the test, and is audited ----
+
+sub audit_lines {
+    my ($d) = @_;
+    open my $fh, '<', "$d/lazysite/logs/audit.log" or return ();
+    return grep { /\| notify \|/ } <$fh>;
+}
+
+subtest 'the server refuses the recipient: the test fails at delivery' => sub {
+    my $d   = site( conf => $GOOD );
+    my $res = test_on( $d, bounce => q{<message from='ops@chat.example' type='error'>}
+            . q{<error type='cancel'><item-not-found xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>}
+            . q{<text xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'>no such user</text></error></message>} );
+    ok( !$res->{ok}, 'the test does not report success' ) or diag explain $res;
+    is( $res->{stage}, 'delivery', 'it stops at delivery, after the send' );
+    like( $res->{error}, qr/refused delivery to ops\@chat\.example \(item-not-found: no such user\)/,
+        'naming the recipient and the server\'s reason' );
+    my @a = audit_lines($d);
+    is( scalar @a, 1, 'one line in the audit log' );
+    like( $a[0] // '', qr/\| notify \| xmpp -> ops\@chat\.example \|\s+\| failed \| test \| .*item-not-found/,
+        'action notify, the recipient, failed, from the test, with the cause' );
+};
+
+subtest 'a refusal about somebody else is not this one' => sub {
+    my $res = test_on( site( conf => $GOOD ), bounce => q{<message from='other@elsewhere.example' type='error'>}
+            . q{<error type='cancel'><item-not-found xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error></message>} );
+    ok( $res->{ok}, 'an error stanza from another sender does not fail the test' ) or diag explain $res;
+};
+
+subtest 'a failure before the send is audited too' => sub {
+    my $d   = site( conf => $GOOD );
+    my $res = test_on( $d, connect_fails => 1 );
+    my @a   = audit_lines($d);
+    like( $a[0] // '', qr/\| failed \| test \| connect to chat\.example:5222 failed/, 'the connect failure, in the audit log' );
+};
 
 subtest 'a MUC recipient: the join is reported, and NOT claimed as confirmed' => sub {
     my $res = test_on( site( conf => $GOOD . "muc: 1\n" ) );

@@ -41,6 +41,7 @@ our @EXPORT_OK = qw(notify notify_types form_notify_mode route_report);
 
 # Test hook: overridable sender (t/ swaps this out to capture sends).
 our $XMPP_SENDER = \&_xmpp_send;
+our $XMPP_BOUNCE_WAIT = 3;              # SM955: seconds the TEST waits for a refusal
 
 # SM485: the same hook for mail. The transport is the Form SMTP extension,
 # reached over its `--pipe` interface, so a test that swapped only the conf would
@@ -396,7 +397,9 @@ sub notify {
             my $text = _render( $body, $from_file, \%vars );
             local $@;
             eval { $XMPP_SENDER->( $xconf, $text ); 1 } or do {
-                log_event( 'WARN', 'notify', 'xmpp delivery failed', error => "$@" );
+                my $err = "$@";
+                log_event( 'WARN', 'notify', 'xmpp delivery failed', error => $err );
+                _audit_delivery_failure( $docroot, $xconf->{to}, $err, 'notify' ); # SM955
             };
         }
     }
@@ -1058,12 +1061,18 @@ sub _xmpp_send {
                     . 'message never arriving' );
             $steps->[-1]{unconfirmed} = 1 if ref $steps eq 'ARRAY';
 
-            $client->MessageSend( to => $conf->{to}, body => $text, type => 'groupchat' );
+            my $refused = _xmpp_send_and_await( $client, $conf->{to},
+                sub { $client->MessageSend( to => $conf->{to}, body => $text, type => 'groupchat' ) },
+                ( $conf->{_await_bounce} ? $XMPP_BOUNCE_WAIT : 0 ) );
             $note->( 'send', 1, "sent to the room $conf->{to} as groupchat" );
+            _xmpp_delivery_step( $note, $steps, $conf, $refused );
         }
         else {
-            $client->MessageSend( to => $conf->{to}, body => $text, type => 'chat' );
+            my $refused = _xmpp_send_and_await( $client, $conf->{to},
+                sub { $client->MessageSend( to => $conf->{to}, body => $text, type => 'chat' ) },
+                ( $conf->{_await_bounce} ? $XMPP_BOUNCE_WAIT : 0 ) );
             $note->( 'send', 1, "sent to $conf->{to} as a chat message" );
+            _xmpp_delivery_step( $note, $steps, $conf, $refused );
         }
         1;
     };
@@ -1072,6 +1081,78 @@ sub _xmpp_send {
     alarm 0;
     die $err unless $ok;
     return 1;
+}
+
+# SM955 (ruled R9): A REFUSED RECIPIENT IS A FAILED TEST.
+#
+# The server accepts a message to a JID it cannot deliver to and answers with an
+# error stanza AFTER the send - `item-not-found`, `remote-server-not-found`,
+# `service-unavailable`. This path used to disconnect straight after sending, so
+# the test reported "sent" for a recipient that does not exist (the 0.15.2 edge
+# walk, R4). The callback is set BEFORE the send so a fast bounce is not missed;
+# then the stream is read for up to $secs. Only the TEST waits: a real notice is
+# sent while a visitor's form submission is waiting for its reply, so it does
+# not pay three seconds for this.
+#
+# Returns '' when nothing was refused, else the server's condition (and text).
+sub _xmpp_send_and_await {
+    my ( $client, $to, $send, $secs ) = @_;
+    my $refused = '';
+    ( my $bare_to = lc( $to // '' ) ) =~ s{/.*}{}s;
+    my ($to_domain) = $bare_to =~ /\@(.+)\z/;
+    $to_domain //= $bare_to;    # a room or a bare domain: the bounce comes from it
+    if ($secs) {
+        $client->SetMessageCallBacks( error => sub {
+                my ( undef, $msg ) = @_;
+                # From the XML: GetXML is a real method; the Get* accessors are made
+                # on demand by AUTOLOAD and `can` does not see them.
+                my $xml = eval { $msg->GetXML() } // '';
+                my ($from) = $xml =~ m{\A\s*<message\b[^>]*\bfrom=["']([^"']+)};
+                $from = lc( $from // '' );
+                $from =~ s{/.*}{}s;
+                return if length $from && $from ne $bare_to && $from ne $to_domain;
+                my ($cond) = $xml =~ m{<error\b[^>]*>.*?<([a-z-]+)\b[^>]*xmlns=["']urn:ietf:params:xml:ns:xmpp-stanzas}sx;
+                my ($why) = $xml =~ m{<text\b[^>]*>([^<]*)</text>}s;
+                $refused = ( $cond // 'error' ) . ( defined $why && length $why ? ": $why" : '' );
+        } );
+    }
+    $send->();
+    my $until = time + ( $secs || 0 );
+    while ( $secs && !length $refused && time < $until ) {
+        last unless defined $client->Process(0.5);    # undef: the stream closed
+    }
+    return $refused;
+}
+
+# The delivery stage, said only when the bounce was awaited.
+sub _xmpp_delivery_step {
+    my ( $note, $steps, $conf, $refused ) = @_;
+    return unless $conf->{_await_bounce};
+    if ( length $refused ) {
+        $note->( 'delivery', 0, "the server refused delivery to $conf->{to}: $refused" );
+        die "notify-xmpp: the server refused delivery to $conf->{to} ($refused)\n";
+    }
+    $note->( 'delivery', 1, "no refusal from the server within $XMPP_BOUNCE_WAIT seconds" );
+    return;
+}
+
+# SM955 (ruled R9): every delivery failure, from the test or a real notice, is in
+# the audit log, so it can be exported. The bell and STDERR said it before; the
+# audit trail is the record an operator keeps.
+sub _audit_delivery_failure {
+    my ( $docroot, $to, $err, $origin ) = @_;
+    $err = defined $err ? "$err" : '';
+    $err =~ s/\A\s*notify-xmpp:\s*//;
+    $err =~ s/\s+\z//;
+    eval {
+        require Lazysite::Audit;
+        no warnings 'once';
+        local $Lazysite::Audit::LAZYSITE_DIR = $Lazysite::Audit::LAZYSITE_DIR
+            // Lazysite::Paths::lazysite_dir($docroot);
+        Lazysite::Audit::audit_log( '', 'notify', 'xmpp -> ' . ( $to // '' ), '', 'failed', $origin, $err );
+        1;
+    } or log_event( 'WARN', 'notify', 'delivery failure not audited', error => "$@" );
+    return;
 }
 
 # --- SM927: the test an operator can run before anything real happens ---------
@@ -1146,13 +1227,14 @@ sub test_xmpp {
 
     # Through $XMPP_SENDER, which is the hook notify() delivers through, so this
     # tests the path in use and not a second one that resembles it.
-    my $ok  = eval { $XMPP_SENDER->( $conf, $text, \@steps ); 1 };
+    my $ok = eval { $XMPP_SENDER->( { %$conf, _await_bounce => 1 }, $text, \@steps ); 1 }; # SM955
     my $err = $@ // '';
     $err =~ s/\A\s*notify-xmpp:\s*//;
     $err =~ s/\s+\z//;
 
     if ($ok) {
         my ($endpoint) = grep { $_->{step} eq 'endpoint' } @steps;
+        my ($awaited)  = grep { $_->{step} eq 'delivery' } @steps;
         return {
             ok      => 1,
             stage   => 'ok',
@@ -1160,8 +1242,11 @@ sub test_xmpp {
             sent    => $text,
             message => "Test message sent to $conf->{to}"
                 . ( $endpoint ? ' via ' . $endpoint->{detail} : '' )
-                . '. Check that it arrived - a server can accept a message it '
-                . 'then declines to deliver.',
+                . ( $awaited
+                ? ". The server raised no refusal within $XMPP_BOUNCE_WAIT seconds. Check that it "
+                    . 'arrived - a server can still drop a message silently.'
+                : '. Check that it arrived - a server can accept a message it '
+                    . 'then declines to deliver.' ),
         };
     }
 
@@ -1171,6 +1256,7 @@ sub test_xmpp {
     push @steps, { step => 'send', ok => 0, detail => $err }
         unless grep { !$_->{ok} } @steps;
     my ($failed) = grep { !$_->{ok} } @steps;
+    _audit_delivery_failure( $docroot, $conf->{to}, ( length $err ? $err : $failed->{detail} ), 'test' );
 
     return {
         ok    => 0,

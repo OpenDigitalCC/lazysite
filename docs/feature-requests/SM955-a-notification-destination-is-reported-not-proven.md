@@ -4,11 +4,11 @@ title: "SM955: The Notifications section reports where a notice is meant to go, 
 subtitle: "With a wrong XMPP destination the form row reads \"announces to bell, xmpp\" and nothing arrives."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-07
 raised-by: the sites agent, 0.15.2 edge walk R4 (owner's finding), 2026-10-07
 area: notifications
-status-note: "RULED 2026-10-07 (release manager): the test button must report a delivery the server refuses - today it says sent when the server accepts a message to an invalid JID and bounces it after. Every delivery failure, test or real, is written to the audit log so it can be exported. WORK-PLAN-0153 R9."
+status-note: "SHIPPED (PENDING) as ruled R9: the XMPP test waits up to 3 s for a bounce and fails at a delivery stage with the server's condition; every delivery failure, test or real notice, is audited (notify ... failed). Tests: t/unit/lib/62 (stand-in client bounces), t/unit/lib/14. A real notice does not wait."
 ---
 
 # Measured

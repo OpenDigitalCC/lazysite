@@ -472,6 +472,16 @@ nick: My-Site                  # optional - defaults to the site name
 All three of `jid`, `password` and `to` must be present or delivery is skipped -
 and the reason is logged, naming which key is missing.
 
+**Test it before relying on it.** **Send a test notification** on the extension's
+row signs in, sends, and then waits three seconds for the server to refuse the
+recipient - a JID that does not exist is accepted at first and refused a moment
+later, and the test reports that refusal with the server's reason. No refusal
+is not proof of arrival: a server can still drop a message silently, so check
+it came. Every delivery failure - from the test or from a real notice - is
+written to the audit log (action `notify`, status `failed`, with the cause), so
+it can be exported. A real notice does not wait for a refusal, because it is
+sent while the visitor's form submission waits for its reply.
+
 **Leave `host` and `port` both blank unless you know better.** With neither set,
 the engine asks the account's own domain where its client endpoint is
 (`_xmpp-client._tcp.<domain>`, the SRV record), which is how most servers publish

@@ -49,6 +49,18 @@ Archive
 
 ## Unreleased
 
+- SM955 (PENDING) **the XMPP test reports a recipient the server refuses, and
+  every delivery failure is audited** (ruled R9). A server accepts a message to
+  a JID it cannot deliver to and bounces it a moment later; the test
+  disconnected straight after sending and said "sent" (the 0.15.2 edge walk,
+  R4). It now waits up to three seconds for an error stanza about that
+  recipient and fails at a new `delivery` stage with the server's condition -
+  `item-not-found: no such user`. A real notice does not wait (it is sent while
+  a form submission waits for its reply). Every failure, test or real, is in
+  the audit log as `notify ... failed` with its cause. t/unit/lib/62 drives a
+  stand-in client that bounces; t/unit/lib/14 asserts the real-notice audit
+  line. Three sabotages, three named failures.
+
 - SM932 (2) (PENDING) **`lazysite check --sinks` says whether syslog received a
   line** (ruled R6). It sends one marked line through the engine's own
   `forward_line` - the path every `log_event` takes - at `err`, so any

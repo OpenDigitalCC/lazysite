@@ -27,7 +27,7 @@ starts.
 | Q2 | **SKIPPED - see open questions** B1 [[SM939]] SC2 - DELETE of a non-empty collection answers 405 "delete the contents first" (R1) | ruled, S | S |
 | Q3 | ~~B2 [[SM913]]~~ **built (n254)** S2 + S4 - link-shortener hosts as a stronger signal; each form's quarantine state shown (R2) | ruled, small | XS+S |
 | Q4 | ~~B6 [[SM932]]~~ **built (n255)** (2) - `lazysite check` writes a known line and reports which sinks received it (R6) | ruled; Q5 shares its shape | S |
-| Q5 | F5 [[SM955]] - the XMPP test reports a bounce; every delivery failure audited (R9) | after Q4, same reporting shape | M |
+| Q5 | ~~F5 [[SM955]]~~ **built (n256)** - the XMPP test reports a bounce; every delivery failure audited (R9) | after Q4, same reporting shape | M |
 | Q6 | E5 [[SM943]] - one declaration per control-API action, the rest derived | must precede Q7/Q8, which add actions | L |
 | Q7 | B3 [[SM857]] read half - `(mine)` views of a table (R3) | after E5 | M |
 | Q8 | B4 [[SM858]] - approve an account from the Submissions view (R4) | after E5 | M |
@@ -122,7 +122,7 @@ release, E5 before the new actions R3 and R4 add.
 | F2 | ~~[[SM952]]~~ **built (n248)** - a form's rate limit counts the address's posts to every form, and refused-as-invalid posts spend it | S | nothing - ruled (R8) |
 | F3 | ~~[[SM953]]~~ **built (n249)** - a missing submission's message names the store file | XS | nothing |
 | F4 | ~~[[SM954]]~~ **built (n250)** - the submissions table shows "quarantined" without the stored reason | XS | nothing |
-| F5 | [[SM955]] - the XMPP test says sent when the server bounces it; delivery failures are not audited | M | nothing - ruled (R9) |
+| F5 | ~~[[SM955]]~~ **built (n256)** - the XMPP test says sent when the server bounces it; delivery failures are not audited | M | nothing - ruled (R9) |
 | F6 | ~~[[SM956]]~~ **built (n251)** - a visit of more than five pages at under ten-second gaps is a bot (owner rule 2026-10-06) | S | nothing - ruled |
 | F7 | [[SM957]] - menu review: Submissions page and menu entry with an unread count, Handlers off the menu, daily vs setup groups | M | nothing - ruled (R11) |
 
