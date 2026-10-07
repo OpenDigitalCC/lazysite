@@ -930,11 +930,33 @@ if ( !$token_auth ) {
     # construction, rather than relying on their target param arriving in the
     # POST body.
 
+    # SM958: actions that decide for themselves on this channel, and why.
+    my %COOKIE_GATES_ITSELF = (
+        'acl-get' => 'the owner reads their rule, manage_users reads any (SM464, Files::action_acl_get)',
+        'acl-set' => 'only the owner of a file may change its rule (Files::action_acl_set)',
+        'acl-remove' => 'only the owner of a file may remove its rule (Files::action_acl_remove)',
+        'audit' => 'create_sub_users without audit gets a scoped view (SM173), not a refusal',
+    );
     if ( !_operator() ) {
         my $caps = _user_caps($auth_user);
 
         # Capability gate (H1): the escalation-sensitive actions need their cap.
-        if ( my $req_cap = $COOKIE_CAP{$action} ) {
+        #
+        # SM958: AND AN ACTION WITH A TOKEN GATE NEEDS THE SAME CAPABILITY HERE.
+        # An action absent from %COOKIE_CAP had NO capability check on this channel,
+        # so every token-gated action added without a %COOKIE_CAP line was open to
+        # any manager account: form-uploads-save (0.15.0) and form-notify-save
+        # (0.15.2) let a manager without manage_forms turn uploads on for a public
+        # form. %COOKIE_CAP still wins where it says something different (its `+`
+        # entries); otherwise the token gate applies, so a new action is gated on
+        # both channels by its one %GATE line. %COOKIE_GATES_ITSELF is the short,
+        # reasoned list of actions that decide for themselves.
+        my $req_cap = $COOKIE_CAP{$action};
+        if ( !defined $req_cap && !$COOKIE_GATES_ITSELF{$action} ) {
+            my $g = $Lazysite::ControlApi::Actions::GATE{$action};
+            $req_cap = join '|', @$g if ref $g eq 'ARRAY' && @$g;
+        }
+        if ($req_cap) {
             # `a|b` = EITHER will do. `a+b` = BOTH are required (SM660). A value
             # uses one or the other, never both: a mixed expression would need
             # precedence rules, and no action has yet wanted one.

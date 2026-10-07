@@ -36,7 +36,7 @@ my %all = map { $_ => 1 } ( $src =~ /\$action eq '([a-z0-9-]+)'/g );
 my ($cc_block) = $src =~ /my %COOKIE_CAP = \((.*?)\n    \);/s;
 ok( $cc_block, 'found the %COOKIE_CAP map' );
 my %cookie_caps;    # action => { cap => 1, ... }  (OR-set: any listed cap passes)
-while ( $cc_block =~ /'([a-z0-9-]+)'\s*=>\s*'([a-z0-9_|]+)'/g ) {
+while ( $cc_block =~ /'([a-z0-9_-]+)'\s*=>\s*'([a-z0-9_|+]+)'/g ) {    # SM958: `a+b` values and `_` names too - both were dropped
     $cookie_caps{$1} = { map { $_ => 1 } split /\|/, $2 };
 }
 
@@ -125,7 +125,16 @@ is( "@ungated", '',
 # For an action gated on BOTH channels, the OR-set of accepted capabilities must
 # be identical - otherwise one channel is a weaker door than the other. Any
 # deliberate exception must be enrolled here with its rationale.
-my %ALLOW_DIVERGENCE;    # action => 1  (none today)
+# SM958: these two were never compared - the parser above dropped every `a+b`
+# value until SM958 - and they differ ON PURPOSE. A manager deletes a submission
+# with manage_forms AND read_submissions (SM660: you may not destroy what you may
+# not see); a token uses delete_submissions, a dedicated, off-by-default grant for
+# the API alone (Capabilities.pm). Two models, both deliberate, so listed here
+# with the reason rather than reported.
+my %ALLOW_DIVERGENCE = (
+    'form-submission-delete'       => 'manager: manage_forms+read_submissions (SM660); token: delete_submissions',
+    'form-submissions-delete-bulk' => 'the same split as form-submission-delete',
+);
 my @divergent;
 for my $act ( sort keys %all ) {
     next unless $cookie_caps{$act} && $need_caps{$act};

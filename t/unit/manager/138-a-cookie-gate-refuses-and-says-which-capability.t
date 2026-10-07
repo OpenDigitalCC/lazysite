@@ -77,4 +77,45 @@ subtest 'SM664: the either-spelling still means either' => sub {
         'naming both, joined by "or"' );
 };
 
+# --- SM958: a token-gated action is gated on this channel too ---------------
+#
+# An action with no %COOKIE_CAP line had NO capability check for a manager
+# account. form-uploads-save and form-notify-save shipped that way: a manager
+# without manage_forms could turn uploads on for a public form.
+
+subtest 'SM958: the form writers need manage_forms here too' => sub {
+    hold('manage_content');
+    for my $act (qw(form-uploads-save form-notify-save)) {
+        my $r = $s->call( 'clerk', $act, body => { form => 'contact', uploads => 'on', notify => 'off' } );
+        ok( ManagerSession->refused_for_capability($r), "$act is refused without manage_forms" )
+            or diag( 'got: ' . ( $r->{error} // '(no error)' ) );
+        like( $r->{error} // '', qr/manage_forms/, 'naming it' );
+    }
+    hold('manage_forms');
+    for my $act (qw(form-uploads-save form-notify-save)) {
+        my $r = $s->call( 'clerk', $act, body => { form => 'contact', uploads => 'on', notify => 'off' } );
+        ok( !ManagerSession->refused_for_capability($r), "$act is past the gate with it" )
+            or diag( 'got: ' . ( $r->{error} // '(no error)' ) );
+    }
+};
+
+subtest 'SM958: any token-gated action - regenerate-registries needs manage_content' => sub {
+    hold('manage_forms');
+    my $r = $s->call( 'clerk', 'regenerate-registries', body => { go => 1 } );
+    ok( ManagerSession->refused_for_capability($r), 'refused without manage_content' )
+        or diag( 'got: ' . ( $r->{error} // '(no error)' ) );
+    hold('manage_content');
+    ok( !ManagerSession->refused_for_capability( $s->call( 'clerk', 'regenerate-registries', body => { go => 1 } ) ),
+        'and reached with it' );
+};
+
+subtest 'SM958: the actions that decide for themselves are not capability-refused' => sub {
+    # acl-set is owner-checked inside; a manager without manage_content who owns a
+    # file may still set its rule. The answer may be a refusal - but not THIS one.
+    hold('manage_forms');
+    my $r = $s->call( 'clerk', 'acl-set', body => { path => 'x.md', read => [] } );
+    ok( !ManagerSession->refused_for_capability($r), 'acl-set reaches its own ownership check' )
+        or diag( 'got: ' . ( $r->{error} // '(no error)' ) );
+};
+
 done_testing();

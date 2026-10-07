@@ -38,7 +38,7 @@ my $dav_src = slurp("$root/lazysite-dav.pl");
 my ($cc_block) = $api_src =~ /my %COOKIE_CAP = \((.*?)\n    \);/s;
 ok( $cc_block, 'found %COOKIE_CAP' );
 my %cookie_caps;
-while ( ( $cc_block // '' ) =~ /'([a-z0-9-]+)'\s*=>\s*'([a-z0-9_|]+)'/g ) {
+while ( ( $cc_block // '' ) =~ /'([a-z0-9_-]+)'\s*=>\s*'([a-z0-9_|+]+)'/g ) {    # SM958: `a+b` values and `_` names too - both were dropped
     $cookie_caps{$1} = { map { $_ => 1 } split /\|/, $2 };
 }
 cmp_ok( scalar keys %cookie_caps, '>=', 30, '%COOKIE_CAP parsed non-trivially' );

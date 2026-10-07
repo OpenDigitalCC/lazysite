@@ -49,6 +49,19 @@ Archive
 
 ## Unreleased
 
+- SM958 (PENDING) **security: a token-gated action was open to any manager
+  account.** On the manager channel a non-operator was capability-checked only
+  for actions in `%COOKIE_CAP`; an action with a token gate and no line there
+  was unchecked. Fifteen were, three of them writes: `form-uploads-save`
+  (0.15.x) and `form-notify-save` (0.15.2) let a manager without `manage_forms`
+  turn file uploads on for a public form or change its notices, and
+  `regenerate-registries` needed no `manage_content`. Token clients were never
+  affected. The token gate now applies on the manager channel wherever
+  `%COOKIE_CAP` is silent, so a new action is gated on both by its one `%GATE`
+  line; four actions that decide for themselves are named with reasons. Lints
+  14 and 87 now read `a+b` values and `_` names - they had dropped five
+  entries. Found by the SM943 survey; t/unit/manager/138.
+
 - SM955 (PENDING) **the XMPP test reports a recipient the server refuses, and
   every delivery failure is audited** (ruled R9). A server accepts a message to
   a JID it cannot deliver to and bounces it a moment later; the test
