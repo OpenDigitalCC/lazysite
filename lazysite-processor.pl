@@ -1204,10 +1204,23 @@ sub _acl_refused {
 sub _site_grants_manager {
     my $f = "$LAZYSITE_DIR/auth/groups-settings.json";
     return 0 unless -f $f;
-    open my $fh, '<:raw', $f or return 0;
+    # SM906 T3 follow-up: A STORE THAT EXISTS AND CANNOT BE READ IS SECURED.
+    # "0" here means "unsecured site - every signed-in user is a manager", so an
+    # unreadable or undecodable groups-settings.json made every session render as
+    # an operator. Absent stays unsecured (a site with no groups yet); present but
+    # unreadable fails closed, as Auth::Settings::site_grants_manager now does.
+    open my $fh, '<:raw', $f or do {
+        log_event( 'WARN', '-', 'cannot read groups-settings.json - treating the site as secured',
+            error => "$!" );
+        return 1;
+    };
     local $/;
-    my $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
+    my $gs = eval { JSON::PP::decode_json(<$fh>) };
     close $fh;
+    if ( ref $gs ne 'HASH' ) {
+        log_event( 'WARN', '-', 'groups-settings.json does not decode - treating the site as secured' );
+        return 1;
+    }
     for my $g ( keys %{$gs} ) {
         my $cfg = $gs->{$g};
         next unless ref $cfg eq 'HASH';

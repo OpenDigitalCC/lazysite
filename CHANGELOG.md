@@ -49,6 +49,16 @@ Archive
 
 ## Unreleased
 
+- SM906 T3 follow-up (PENDING) **security: an unreadable or corrupt group store
+  no longer makes every signed-in user a manager on the page side.** The
+  processor keeps its own module-free copy of "does any group grant manager
+  access" (ADR 0001), and answered "no - an unsecured site" when
+  groups-settings.json existed but could not be opened or did not decode; an
+  unsecured site lets any signed-in account into the manager and renders it
+  with every capability. It now treats a present-but-unreadable store as
+  secured and logs it, as T3 made the API's copy do. Absent still means a site
+  with no groups yet. t/integration/108 (both cases fail on the old copy).
+
 - SM906 T3 (PENDING) **an auth store the web server cannot read answers
   `cannot-tell`, not an empty grant** (ruled 2026-09-29). With
   `groups-settings.json` unreadable, `whoami` reported 0 of 29 capabilities

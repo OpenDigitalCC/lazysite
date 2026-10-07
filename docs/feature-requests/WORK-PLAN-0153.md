@@ -39,6 +39,7 @@ starts.
 | Q8c | ~~[[SM963]]~~ **built (n264)** - account-approve hides a failed group placement | reproduce, then report it | S |
 | Q9 | ~~F7 [[SM957]]~~ **built (n265)** - Submissions page and menu entry with an unread count; menu regrouped; Handlers off the menu (R11) | after Q8, which adds to the Submissions view | M |
 | Q10 | ~~A1 [[SM906]] T3~~ **built (n267)** - a distinct "cannot tell" when the auth store is unreadable | ready | M |
+| Q10a | **[[SM906]] T3 follow-up, security - built (n268)**: the processor's own copy of the manager-grant check failed open on an unreadable or corrupt group store | found by the Q10 agent | XS |
 | Q11 | A3 [[SM869]] - raw and escaped query values separated, hostile-value test first; its adversarial review on its own branch (R7) | ready; last of the features so its review sees a settled tree | M |
 | Q12 | E6 [[SM950]] (2)(3) - gate on landing; coverage reused when its inputs are unchanged | tooling; after the feature work it speeds up | M |
 | Q13a | E5 [[SM943]] stages 2-3 - the MCP twins and annotations from the declaration; the consistency lints reduced to one completeness check | Q7/Q8 need only stage 1 | M |
@@ -53,6 +54,14 @@ Not in the queue, and why:
 - E4 [[SM947]] - the toolchain's; brief filed.
 
 Open questions raised while working the queue:
+
+- **Q10 (SM906 T3): what should a token caller be told when the USERS file is
+  unreadable?** Today it is "Invalid credentials" (MCP: reissue the token) - the
+  secret cannot be checked, so naming the store to a caller who is not yet
+  authenticated would disclose a host fault to anyone. Options: (a) keep it,
+  and rely on the operator's log line; (b) answer `cannot-tell` 503 without the
+  store name. Recommended: (b) - it fails closed and stops an agent being told
+  to reissue a token that is fine. Open.
 
 - ~~**Q2 (SM939 SC2) - R1 was ruled on a wrong premise.**~~ **RULED 2026-10-07: option (a).** My B1 row asked "support
   recursive delete, or answer 405?" as if recursive delete were missing. It is not:
