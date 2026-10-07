@@ -11,6 +11,42 @@ Every row is an open item in a filing, by the filing's own label. **Needs** says
 what has to happen before it can be built. Sizes are the filing's where it gives
 one. Rulings taken on this plan are recorded in the table at the end.
 
+# Build queue - worked in this order (set 2026-10-07)
+
+The release manager: "keep progressing through task list sequentially, i will run
+reviews in a batch later". The developer agent works down this list without
+stopping for review. Each item is one branch, stacked on the previous one,
+handed off READY (`tools/handoff.sh`); the release manager lands them in a batch.
+An item that needs a ruling the plan does not hold is skipped, its question is
+added to the open-questions list at the end of this section, and the next item
+starts.
+
+| Q | Item | Why here | Size |
+| --- | --- | --- | --- |
+| Q1 | A2 [[SM912]] P4 - an ACL fixture with an empty auth store is visible | ready, XS | XS |
+| Q2 | B1 [[SM939]] SC2 - DELETE of a non-empty collection answers 405 "delete the contents first" (R1) | ruled, S | S |
+| Q3 | B2 [[SM913]] S2 + S4 - link-shortener hosts as a stronger signal; each form's quarantine state shown (R2) | ruled, small | XS+S |
+| Q4 | B6 [[SM932]] (2) - `lazysite check` writes a known line and reports which sinks received it (R6) | ruled; Q5 shares its shape | S |
+| Q5 | F5 [[SM955]] - the XMPP test reports a bounce; every delivery failure audited (R9) | after Q4, same reporting shape | M |
+| Q6 | E5 [[SM943]] - one declaration per control-API action, the rest derived | must precede Q7/Q8, which add actions | L |
+| Q7 | B3 [[SM857]] read half - `(mine)` views of a table (R3) | after E5 | M |
+| Q8 | B4 [[SM858]] - approve an account from the Submissions view (R4) | after E5 | M |
+| Q9 | F7 [[SM957]] - Submissions page and menu entry with an unread count; menu regrouped; Handlers off the menu (R11) | after Q8, which adds to the Submissions view | M |
+| Q10 | A1 [[SM906]] T3 - a distinct "cannot tell" when the auth store is unreadable | ready | M |
+| Q11 | A3 [[SM869]] - raw and escaped query values separated, hostile-value test first; its adversarial review on its own branch (R7) | ready; last of the features so its review sees a settled tree | M |
+| Q12 | E6 [[SM950]] (2)(3) - gate on landing; coverage reused when its inputs are unchanged | tooling; after the feature work it speeds up | M |
+| Q13 | C2 [[SM883]] - measure the 1.20-1.27x slowdown on this machine, then bisect | measurement, no ruling needed | S-M |
+| Q14 | E9 [[SM944]] - split the processor and the manager API, one area per branch | after E5; largest, so last | L |
+
+Applied throughout: E8 (comments state the invariant) on every file touched.
+
+Not in the queue, and why:
+- C1 [[SM911]] - needs live scope state on edge; a request to the sites agent.
+- D1-D4 - each waits on something outside this plan (named in Group D).
+- E4 [[SM947]] - the toolchain's; brief filed.
+
+Open questions raised while working the queue: none yet.
+
 # Group A - ruled and ready to build
 
 | Ref | Item | Size | Needs |
@@ -56,13 +92,13 @@ release, E5 before the new actions R3 and R4 add.
 
 | Ref | Item | Size | Needs |
 | --- | --- | --- | --- |
-| E1 | [[SM950]] (1) - the gate suite runs with -j4 (17 min -> ~6); the host has the memory now | XS | nothing |
-| E2 | [[SM948]] - handoff regenerates the generated docs instead of failing on them | S | nothing |
-| E3 | [[SM949]] - a one-minute pre-check (lints, related tests, changed-line tidy) before the full suite | S | nothing |
+| E1 | ~~[[SM950]] (1)~~ **built (n244)** - the gate suite runs with -j4 (17 min -> ~6); the host has the memory now | XS | nothing |
+| E2 | ~~[[SM948]]~~ **built (n244)** - handoff regenerates the generated docs instead of failing on them | S | nothing |
+| E3 | ~~[[SM949]]~~ **built (n244)** - a one-minute pre-check (lints, related tests, changed-line tidy) before the full suite | S | nothing |
 | E4 | [[SM947]] - landing keeps the branch's SHAs (fast-forward), or stamps refs itself | M | the toolchain - vcs-review is theirs; brief filed |
 | E5 | [[SM943]] - one declaration per control-API action, the rest derived | L | before R3/R4 add actions |
 | E6 | [[SM950]] (2)(3) - gate run on landing; coverage reused when its inputs are unchanged | M | E1 |
-| E7 | [[SM946]] - prose caps; the changelog keeps one minor, older ones archived | S | nothing |
+| E7 | ~~[[SM946]]~~ **built (n245)** - prose caps; the changelog keeps one minor, older ones archived | S | nothing |
 | E8 | [[SM945]] - comments state the invariant; history to git and the filing | ongoing | applied as files are touched |
 | E9 | [[SM944]] - the processor and the manager API split into modules, one area per branch | L | E5 for the manager API half |
 
