@@ -49,6 +49,15 @@ Archive
 
 ## Unreleased
 
+- SM963 (PENDING) **an approval says which groups it could not place the
+  account in.** account-approve joined each group flagged for registrations
+  inside an eval whose failure was dropped: with a flagged backend group it
+  answered "Approved 'alice' into learners." and ok, the other group gone
+  unsaid. Each failure now comes back in `unplaced` with its reason - a line
+  each on the CLI, the Users API result, both audit trails (`NOT placed in` /
+  `not-placed=`), and SM858's approve result and success dialog. The account
+  and its link are still made. t/unit/users/49, ten sabotages.
+
 - SM962 (PENDING) **a username is refused by name, never silently rewritten.**
   `account-approve jo+hn` created `john`, then minted its claim for `jo+hn` and
   failed - leaving a credential-less account with no link, under a name that may

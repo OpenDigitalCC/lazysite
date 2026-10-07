@@ -2377,6 +2377,14 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         # approved is the trail's own `user` field, the store is the target.
         if ( $ok && $aud_action eq 'form-submission-approve' && ref $result eq 'HASH' ) {
             $detail = "id=$result->{id} account=$result->{user}";
+            $detail .= _audit_unplaced($result);
+        }
+
+        # SM963: an approval through the Users API names the groups it could not
+        # place the account in, as the CLI's own trail line does.
+        if ( $ok && $aud_action eq 'user-account-approve' && ref $result eq 'HASH' ) {
+            ( my $np = _audit_unplaced($result) ) =~ s/\A //;
+            $detail = join ' ', grep { length } $detail, $np;
         }
 
         # SM465: an acl-set records WHAT THE RULE BECAME, and what it was.
@@ -2769,6 +2777,16 @@ sub _acl_audit_fmt {
         if defined $acl->{owner} && length $acl->{owner};
     push @bits, 'draft' if $acl->{draft};
     return @bits ? join( '; ', @bits ) : 'no restriction';
+}
+
+# SM963: " not-placed=a,b" for an account-approve result that could not place
+# the account in every group it was meant to join; '' when everything took.
+sub _audit_unplaced {
+    my ($result) = @_;
+    my $u        = ref $result eq 'HASH' ? $result->{unplaced} : undef;
+    my @np       = map { ref $_ eq 'HASH' && defined $_->{group} ? $_->{group} : () }
+        ( ref $u eq 'ARRAY' ? @$u : () );
+    return @np ? ' not-placed=' . join( ',', @np ) : '';
 }
 
 sub _acl_audit_detail {

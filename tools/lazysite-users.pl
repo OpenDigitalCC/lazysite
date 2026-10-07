@@ -2449,10 +2449,22 @@ sub cmd_account_approve {
     my @want = ( defined $opt{group} && length $opt{group} )
         ? ( $opt{group} )
         : _registration_groups();
-    my @placed;
+    # SM963: A PLACEMENT THAT DID NOT TAKE IS REPORTED, not skipped. This was
+    # an eval whose failure was dropped, so an approval read as complete for an
+    # account missing a group it was meant to have - a flagged backend group, or
+    # one the actor may not confer, vanished without a word. The account is
+    # still created and the link still minted (a group is for an operator to fix
+    # on the Groups page, not a reason to throw the approval away); each failure
+    # goes back in `unplaced`, with cmd_group_add's own reason.
+    my ( @placed, @unplaced );
     for my $g (@want) {
-        my $r = eval { cmd_group_add( $user, $g, $opt{actor} ) };
-        push @placed, $g if $r && ( !ref $r || $r->{ok} );
+        if ( eval { cmd_group_add( $user, $g, $opt{actor} ); 1 } ) {
+            push @placed, $g;
+            next;
+        }
+        my $why = $@ || 'the group could not be joined';
+        $why =~ s/\s+\z//;
+        push @unplaced, { group => $g, error => $why };
     }
 
     # SM858: through cmd_set, the one writer of this setting - so the value is
@@ -2463,7 +2475,7 @@ sub cmd_account_approve {
             my $why = $@ // 'the address could not be recorded';
             chomp $why;
             return { ok => 0, error => "the account was created but $why",
-                user => $user, group => \@placed };
+                user => $user, group => \@placed, unplaced => \@unplaced };
         }
     }
 
@@ -2472,12 +2484,15 @@ sub cmd_account_approve {
         my $why = $@ // 'the claim link could not be minted';
         chomp $why;
         return { ok => 0, error => "the account was created but $why",
-            user => $user, group => \@placed };
+            user => $user, group => \@placed, unplaced => \@unplaced };
     }
 
     cli_audit( 'user-account-approve', $user,
         'registration approved'
-            . ( @placed ? '; placed in ' . join( ',', @placed ) : '; no group' ) );
+            . ( @placed ? '; placed in ' . join( ',', @placed ) : '; no group' )
+            . ( @unplaced
+            ? '; NOT placed in ' . join( ',', map { $_->{group} } @unplaced )
+            : '' ) );
 
     # SM863: `url` IS ABSOLUTE OR IT IS ABSENT. It used to carry whatever
     # _claim_url returned, which is a bare path when no site base resolves - and
@@ -2492,7 +2507,7 @@ sub cmd_account_approve {
     # site agent, not by t/tools/74, which asserted `path` was DEFINED in the
     # one fixture where it is relative anyway.
     my $cu = _claim_url( $user, $claim->{claim} );
-    return { ok => 1, user => $user, group => \@placed,
+    return { ok => 1, user => $user, group => \@placed, unplaced => \@unplaced,
         claim => $claim->{claim}, path => _claim_path( $user, $claim->{claim} ),
         ( $cu =~ m{\A\w+://} ? ( url => $cu ) : () ) };
 }
@@ -2695,6 +2710,12 @@ sub cmd_account_approve_cli {
     print "Approved '$r->{user}'"
         . ( @{ $r->{group} || [] } ? ' into ' . join( ', ', @{ $r->{group} } ) : ' (no group)' )
         . ".\n";
+    # SM963: and the groups it was meant to join and could not, each with why.
+    for my $u ( @{ $r->{unplaced} || [] } ) {
+        print "NOT placed in '$u->{group}': $u->{error}\n";
+    }
+    print "Place the account on the Groups page, or with: group-add $r->{user} <group>\n"
+        if @{ $r->{unplaced} || [] };
     # SM863: through the same helper as every other printer - `url` is now
     # absent when no site base resolves, so interpolating it printed an empty
     # line at exactly the moment the operator needs the link most.

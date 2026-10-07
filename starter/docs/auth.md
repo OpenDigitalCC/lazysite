@@ -211,6 +211,13 @@ to find out who has one.
 
 A malformed address creates nothing at all - the approval is refused before the
 account exists, rather than leaving a credential-less account behind for a typo.
+So does a username holding anything but letters, digits, `.`, `_` and `-`: it
+is refused naming the character, never shortened to a different name.
+
+A flagged group the account cannot be placed in - a backend group, or one you
+may not confer - does not stop the approval: the account and its link are made,
+and the approval names each group that did not take and why (on the command
+line, in the result, and in the audit trail), so you can place it yourself.
 
 **Or approve from the submission itself.** When the registration form's conf
 names its address field - `account_email: email` - the manager's Submissions

@@ -1516,8 +1516,12 @@ sub action_form_submission_approve {
             error => "the account '$user' was created, but the submission could not be marked "
                 . "approved ($e->{error}) - approving it again is refused by the name" };
     }
+    # SM963: `unplaced` - the flagged groups account-approve could not put the
+    # account in, each with its reason - goes back to the operator who pressed
+    # the button; dropping it here would hide it again one layer up.
     return { ok => 1, file => $rel, id => $id, form => $form, user => $user, email => $email,
-        group => $r->{group}, claim => $r->{claim}, path => $r->{path},
+        group => $r->{group}, unplaced => ( ref $r->{unplaced} eq 'ARRAY' ? $r->{unplaced} : [] ),
+        claim => $r->{claim}, path => $r->{path},
         ( defined $r->{url} ? ( url => $r->{url} ) : () ) };
 }
 
