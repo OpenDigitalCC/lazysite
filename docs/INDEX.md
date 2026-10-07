@@ -173,7 +173,7 @@ Review registers: one row per piece of feedback, with what was done or why not.
 | [`2026-07-11-field-validation.md`](2026-07-11-field-validation.md) - Field validation checklist - the 0.7.x line | Human review of everything shipped 0.7.0-0.7.4, on real infrastructure - 2026-07-11 |
 | [`2026-08-31-manager-review-register.md`](2026-08-31-manager-review-register.md) - Manager review, 2026-08-30/31: every item the release manager raised, and where it got to | One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Ninety-four done, two open. The done rows l... |
 | [`2026-09-11-docroot-write-paths.md`](2026-09-11-docroot-write-paths.md) - Docroot-built write paths against the private store (SM836 review, SM852) | Read-only survey of lib//*.pm, tools/*.pl, plugins/*.pl and lazysite-*.pl, taken 2026-09-11 from the working tree. |
-| [`2026-10-07-sm869-adversarial-review.md`](2026-10-07-sm869-adversarial-review.md) - SM869 adversarial review - 2026-10-07 | Query values to rendered output, and the render path around them. One hole proved and fixed (SM964); the review stopped early, so several attack class... |
+| [`2026-10-07-sm869-adversarial-review.md`](2026-10-07-sm869-adversarial-review.md) - SM869 adversarial review - 2026-10-07 | Query values to rendered output, and the render path around them. The first pass proved and fixed SM964 and SM965 and stopped early; the second pass (... |
 | [`README.md`](README.md) - lazysite - non-functional review record | Where the eight-dimension reviews live, and how they are named |
 
 # docs/releases
