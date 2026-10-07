@@ -471,7 +471,7 @@ always did, and one with it must produce the fields. The default is what a
 regression would break quietly, and it would leak content to a phone on a lock
 screen.
 
-For XMPP, press **Send a test notification** on the Extension Manager row FIRST
+For XMPP, press **Send a test notification** on the Extensions page's row FIRST
 (SM927). It reaches the socket without a submission, so a configuration fault is
 separated from a delivery fault before a real notice is involved - and the stage
 report names which of them you have. Then do the submission pass above, which is

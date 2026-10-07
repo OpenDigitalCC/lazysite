@@ -15,7 +15,7 @@ mechanism it uses for everything else.
 Tables hold **site** data. Per-visitor state -- a session, a shopping basket,
 somebody's profile -- is an application, and deliberately out of scope.
 
-The feature ships **disabled**. Enable *Data tables* on the Extension Manager page
+The feature ships **disabled**. Enable *Data tables* on the Extensions page
 before anything below will answer.
 
 ## The three steps

@@ -43,6 +43,7 @@ my %seen;
 my @items;
 while ( $nav =~ m{<a\s+href="(/manager[^"]*)"[^>]*>(.*?)</a>}gs ) {
     my ( $href, $text ) = ( $1, $2 );
+    $text =~ s/\[%.*?%\]//gs;  # SM957: a directive inside the link (the count is gated)
     $text =~ s/&\#?\w+;//g;    # padlocks, ampersand entities
     $text =~ s/<[^>]*>//g;
     $text =~ s/^\s+|\s+$//g;

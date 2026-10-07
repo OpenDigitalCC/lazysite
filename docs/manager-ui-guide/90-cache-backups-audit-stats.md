@@ -115,7 +115,7 @@ Negative
 Present only when the stats extension is enabled.
 
 Where
-: System -> Visitor statistics
+: Site -> Visitor statistics
 
 Do
 : Visit the public site from a normal browser, then with a

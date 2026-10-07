@@ -16,7 +16,7 @@ group holds **Data**.
 ## See what tables the site holds
 
 Where
-: Content -> Data tables
+: Setup -> Data tables
 
 Do
 : Open the page on a site with at least one table declared. Then declare a new
@@ -37,7 +37,7 @@ Negative
 ## Read a table's rows
 
 Where
-: Content -> Data tables -> Rows
+: Setup -> Data tables -> Rows
 
 Do
 : Open a table that has rows, including one with a field left blank in some
@@ -70,7 +70,7 @@ directly without `manage_data` is refused rather than served.
 ## Download a table
 
 Where
-: Content -> Data tables -> JSON or CSV
+: Setup -> Data tables -> JSON or CSV
 
 Do
 : Download both formats for a table that has a decimal field, a row with a
@@ -96,7 +96,7 @@ Negative
 ## Add, edit or delete a row
 
 Where
-: Content -> Data tables -> Rows -> Add a row, or Edit / Delete beside a row
+: Setup -> Data tables -> Rows -> Add a row, or Edit / Delete beside a row
 
 Do
 : Add a row leaving a field with a declared default blank. Edit a row and type
@@ -120,7 +120,7 @@ Negative
 ## Import a CSV
 
 Where
-: Content -> Data tables -> Rows -> Import CSV
+: Setup -> Data tables -> Rows -> Import CSV
 
 Do
 : Download a table as CSV, change a few cells in a spreadsheet, add a row, and
@@ -144,7 +144,7 @@ Negative
 ## Change a table's fields
 
 Where
-: Content -> Data tables -> Fields
+: Setup -> Data tables -> Fields
 
 Do
 : Add an optional field and save. Then make an existing field required while

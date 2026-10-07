@@ -328,7 +328,7 @@ systemctl restart lazysited@<domain>
   needs `lazysite/forms/smtp.conf` (operator-only - it holds credentials).
 - **Scanner blocking:** the bad-URL auto-blocker (on by default) blocks a source
   IP after repeated scanner-probe hits; review and unblock on the manager **Stats**
-  page, and tune the threshold/window on **Plugin Config**.
+  page, and tune the threshold/window under **Extensions -> Configure**.
 
 ## What a site is running, read from outside
 

@@ -11,7 +11,7 @@ so it can be delegated separately.
 ## Add a domain
 
 Where
-: System -> Domains -> Add domain
+: Setup -> Domains -> Add domain
 
 Do
 : Add one three ways: with a content folder, title, appearance and seed ticked;
@@ -32,7 +32,7 @@ Negative
 ## Configure a domain
 
 Where
-: System -> Domains -> Configure
+: Setup -> Domains -> Configure
 
 Do
 : Open the sheet for a domain you just added.
@@ -47,7 +47,7 @@ Negative
 ## Preview, check, export and delete
 
 Where
-: System -> Domains -> a domain's controls
+: Setup -> Domains -> a domain's controls
 
 Do
 : **Preview** a domain with no DNS pointed at it. **Check** it. **Export site**.
@@ -66,7 +66,7 @@ Negative
 ## Access, and therefore confinement
 
 Where
-: System -> Domains -> a domain -> allowed groups / locked users
+: Setup -> Domains -> a domain -> allowed groups / locked users
 
 Do
 : Name a group in a domain's `allowed_groups`, add a user to that group, and sign

@@ -11,7 +11,10 @@ connector. One page holds the three things that name a handler - the handlers,
 which forms call which, and what the timer calls - and the control API, MCP and
 `lazysite-handlers.pl` do exactly what it does, through the same code (SM842).
 
-The page is offered to an account holding any of Forms, Data or Connectors.
+It is not on the menu (SM957: set up once, not used daily). It is reached from
+the Extensions page and from each form on the Submissions page, which opens that
+form's card. The page is offered to an account holding any of Forms, Data or
+Connectors.
 What that account may change depends on **where each handler sends**: a table
 handler needs Data, a connector handler Connectors, an email or file handler
 Forms.
@@ -19,7 +22,7 @@ Forms.
 ## Make a handler
 
 Where
-: System -> Handlers -> New handler
+: Setup -> Extensions -> Handlers -> New handler
 
 Do
 : Choose "Store in a data table", give it an id and a name, choose the table from
@@ -40,7 +43,7 @@ Negative
 ## Bind a form
 
 Where
-: System -> Handlers -> Forms -> a form's Handlers
+: Site -> Submissions -> a form's Handlers (or Setup -> Extensions -> Handlers -> Forms)
 
 Do
 : Tick the handlers the form should call and save. Submit the form on the public
@@ -60,7 +63,7 @@ Negative
 ## Schedule a handler
 
 Where
-: System -> Handlers -> Schedule -> New schedule entry
+: Setup -> Extensions -> Handlers -> Schedule -> New schedule entry
 
 Do
 : Choose a handler, an interval (at least 300 seconds) and the fields it is

@@ -12,7 +12,7 @@ confinement is untested.
 ## Browse and filter
 
 Where
-: Content -> Files
+: Site -> Files
 
 Do
 : Open a folder from the breadcrumb, filter by name, then filter by type.
@@ -31,7 +31,7 @@ Negative
 ## Create, edit and save a page
 
 Where
-: Content -> Files -> Add File
+: Site -> Files -> Add File
 
 Do
 : Create `walkthrough.md`, edit it, save. Then open it a second time in another
@@ -49,7 +49,7 @@ Negative
 ## Upload and download
 
 Where
-: Content -> Files -> Upload / Download selected
+: Site -> Files -> Upload / Download selected
 
 Do
 : Upload an image, a text file, and something over the size limit. Select two
@@ -67,7 +67,7 @@ Negative
 ## Per-file permissions
 
 Where
-: Content -> Files -> a file's Access column
+: Site -> Files -> a file's Access column
 
 Do
 : Claim a file, set a read list and a write list, then sign in as an excluded
@@ -85,7 +85,7 @@ Negative
 ## Protected sections
 
 Where
-: Content -> Files -> Protected sections
+: Site -> Files -> Protected sections
 
 Do
 : Add a folder ACL with `draft: true` on a section, reload, then Publish it.
@@ -105,8 +105,8 @@ Negative
 ## Content history
 
 Where
-: Content -> Files -> a file's History. The all-files History overview is on
-  Configuration -> Extension Config -> Content history (SM664).
+: Site -> Files -> a file's History. The all-files History overview is on
+  Setup -> Extensions -> Configure -> Content history (SM664).
 
 Do
 : Edit a file three times, open its history, view an old revision, restore it.
@@ -124,7 +124,7 @@ Negative
 ## Aliases
 
 Where
-: Content -> Files -> Aliases
+: Site -> Files -> Aliases
 
 Do
 : Add `aliases:` to a page's front matter, save, and reload the panel.

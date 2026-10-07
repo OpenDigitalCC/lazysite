@@ -385,10 +385,10 @@ Extensions are CGI scripts and tools that register themselves with the
 manager through a `--describe` JSON protocol. They extend the core rather
 than plug into it: the renderer requires nothing from them, and every one
 ships in the package rather than being installed. Enabled extensions
-appear on the Extension Manager page.
+appear on the Extensions page.
 
 Auto-discovery scans `cgi-bin/` and `tools/` for scripts supporting
-`--describe`. Enable or disable from the Extension Manager page.
+`--describe`. Enable or disable from the Extensions page.
 
 To pre-enable without the manager, list scripts in `lazysite.conf`:
 
@@ -412,7 +412,7 @@ a path boundary - `/web` covers `/web` and `/web/login`, never `/website-terms`.
 302 unless a rule asks for 301; a migration's destination can move, and a
 cached permanent redirect to a host that later moves is a trap.
 
-**Switch it on** on the Extension Manager page (it ships off). **Set a domain's
+**Switch it on** on the Extensions page (it ships off). **Set a domain's
 rules** with the `remap-save` action, which needs *Domains & site packages* and
 replaces that one domain's rules:
 
@@ -429,7 +429,7 @@ is no `?to=`, and there will not be one, because that would make the site an
 open redirect.
 
 **When can a rule go?** *Rules and use*, on the extension's own row on the
-Extension Config page, shows how often each rule was followed and when it was
+Extensions -> Configure page, shows how often each rule was followed and when it was
 last used, read from the visitor log. When the last-used date stops moving, the
 links it covered have stopped arriving. If the visitor log is not recording, the
 report says so rather than showing zero - "nobody followed it" and "nothing was

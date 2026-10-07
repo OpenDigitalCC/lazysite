@@ -49,6 +49,19 @@ Archive
 
 ## Unreleased
 
+- SM957 (PENDING) **Submissions is the manager menu's first entry, with an
+  unread count.** The menu is four groups: Site (Submissions, Files, Navigation,
+  Visitor statistics), Setup (Appearance, Extensions, Connectors, Data tables,
+  Domains), Access and System; locked entries keep their padlock and reason.
+  `/manager/submissions` lists every form and shows its rows newest first with the
+  quarantine filter, each opening `/manager/submission`; the viewer moved there
+  from Extension Config, whose `?submissions=` now redirects. Extension Manager
+  and Extension Config are one entry, "Extensions". Handlers left the menu and is
+  reached from each form and from Extensions. The count is the bell's own read
+  state for submission notices (`notices` returns `unread_by_type`). Found on the
+  way: the bell sent its read marks as GETs, which the API refuses, so none was
+  kept; they are POSTs now. t/unit/manager/202-204, 28 sabotages.
+
 - SM963 (PENDING) **an approval says which groups it could not place the
   account in.** account-approve joined each group flagged for registrations
   inside an eval whose failure was dropped: with a flagged backend group it

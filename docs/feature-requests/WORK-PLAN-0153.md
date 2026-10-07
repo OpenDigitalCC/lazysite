@@ -37,7 +37,7 @@ starts.
 | Q8a | **[[SM961]] data loss, found by the Q8 agent - built (n263)**: a submission arriving during a store rewrite was lost | fixed before Q9 | S |
 | Q8b | ~~[[SM962]]~~ **built (n264)** - account-approve strips a name it then uses unstripped (CLI/Users API) | reproduce, then refuse by name | S |
 | Q8c | ~~[[SM963]]~~ **built (n264)** - account-approve hides a failed group placement | reproduce, then report it | S |
-| Q9 | F7 [[SM957]] - Submissions page and menu entry with an unread count; menu regrouped; Handlers off the menu (R11) | after Q8, which adds to the Submissions view | M |
+| Q9 | ~~F7 [[SM957]]~~ **built (n265)** - Submissions page and menu entry with an unread count; menu regrouped; Handlers off the menu (R11) | after Q8, which adds to the Submissions view | M |
 | Q10 | A1 [[SM906]] T3 - a distinct "cannot tell" when the auth store is unreadable | ready | M |
 | Q11 | A3 [[SM869]] - raw and escaped query values separated, hostile-value test first; its adversarial review on its own branch (R7) | ready; last of the features so its review sees a settled tree | M |
 | Q12 | E6 [[SM950]] (2)(3) - gate on landing; coverage reused when its inputs are unchanged | tooling; after the feature work it speeds up | M |
@@ -131,7 +131,7 @@ release, E5 before the new actions R3 and R4 add.
 | F4 | ~~[[SM954]]~~ **built (n250)** - the submissions table shows "quarantined" without the stored reason | XS | nothing |
 | F5 | ~~[[SM955]]~~ **built (n256)** - the XMPP test says sent when the server bounces it; delivery failures are not audited | M | nothing - ruled (R9) |
 | F6 | ~~[[SM956]]~~ **built (n251)** - a visit of more than five pages at under ten-second gaps is a bot (owner rule 2026-10-06) | S | nothing - ruled |
-| F7 | [[SM957]] - menu review: Submissions page and menu entry with an unread count, Handlers off the menu, daily vs setup groups | M | nothing - ruled (R11) |
+| F7 | ~~[[SM957]]~~ **built (n265)** - menu review: Submissions page and menu entry with an unread count, Handlers off the menu, daily vs setup groups | M | nothing - ruled (R11) |
 
 
 | Ref | Question | Ruling |

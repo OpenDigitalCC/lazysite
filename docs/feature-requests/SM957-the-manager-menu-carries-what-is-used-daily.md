@@ -4,11 +4,11 @@ title: "SM957: The manager menu carries what an operator uses daily; the rest is
 subtitle: "A review of the 17 menu entries: Submissions has no entry, while Handlers, used at setup, sits in the menu."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-07
 raised-by: release manager, 2026-10-07
 area: manager
-status-note: "RULED 2026-10-07 (release manager): M1-M7 accepted; Handlers comes OFF the menu (reached from each form and from Extensions); the Submissions entry shows an unread count. WORK-PLAN-0153 R11."
+status-note: "SHIPPED (PENDING): menu Site/Setup/Access/System; /manager/submissions (the viewer moved, ?submissions= redirects) with the bell's unread submission count; one Extensions entry; Handlers off the menu, linked from each form and Extensions. Also: the bell's marks were refused GETs, now POST. t/unit/manager/202-204."
 ---
 
 # The request (release manager, 2026-10-07)
@@ -76,6 +76,44 @@ The release manager: "accept M1-M7, handlers off menu, yes unread count."
 2. M5: Handlers leaves the menu; it is reached from each form and from
    Extensions.
 3. The Submissions entry shows an unread count.
+
+# Built (n265)
+
+The menu (`starter/lazysite/manager/layout.tt`):
+
+| Group | Entries |
+| --- | --- |
+| Site | Submissions (with the count), Files, Navigation, Visitor statistics (when enabled) |
+| Setup | Appearance, Extensions, Connectors, Data tables (when enabled), Domains |
+| Access | Users, Groups, Sessions & keys |
+| System | Site settings, Cache, Backups, Audit log |
+
+- M1: `/manager/submissions` (`starter/manager/submissions.md`) lists every form
+  (form-list) with its count and a link to its handlers, and shows a form's rows
+  newest first with the quarantine filter; each row opens `/manager/submission`.
+  The viewer MOVED from `plugin-config.md`, which keeps no copy;
+  `plugin-config?submissions=<store>` redirects to `?store=<store>`. Gated on
+  `read_submissions`, now derived for the menu by the processor.
+- M4: one entry, "Extensions", lit for both `/manager/plugins` and
+  `/manager/plugin-config`; each page links to the other and to Handlers.
+- M5: Handlers is off the menu, the palette and the start-page choices; reached
+  from each form on Submissions (`/manager/handlers?form=<name>` opens its card),
+  from Handlers' own form rows, and from Extensions.
+- M7: locks unchanged in shape and reason; Submissions has its own.
+- The count: `notices` answers `unread_by_type` from the same per-operator marks
+  (SM938 D3); the bell draws it into the entry when the account holds
+  `notifications`, and moves it when a notice - or a row's Open - is followed,
+  on Mark all read and on Dismiss. Opening the page marks nothing.
+- Found: the bell sent `notices-seen` as a GET, which the API refuses as a
+  write, so no mark it made was kept. It is a POST now.
+- The command palette lists exactly what the menu links to, under the same
+  conditions; sentences that send an operator to the extensions page by name
+  say "Extensions page".
+
+Tests: t/unit/manager/202 (the menu rendered for every grant and none, the
+palette, the one viewer, the redirect, newest first), 203 (the count through
+the API, per operator, gated), 204 (the count in headless Chromium), with 180,
+201 and 178 following the moved code. Twenty-eight sabotages, each caught (two first drawn too narrow, then widened).
 
 # Done when
 

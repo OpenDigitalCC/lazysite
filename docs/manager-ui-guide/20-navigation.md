@@ -10,7 +10,7 @@ Governing capability: `manage_nav`.
 ## Edit the menu
 
 Where
-: Content -> Navigation
+: Site -> Navigation
 
 Do
 : Add an item, reorder two, nest one under another, and save. Then visit the
@@ -30,7 +30,7 @@ Negative
 ## Per-domain navigation
 
 Where
-: Content -> Navigation, with more than one domain configured
+: Site -> Navigation, with more than one domain configured
 
 Do
 : Switch to a secondary domain and give it its own menu.

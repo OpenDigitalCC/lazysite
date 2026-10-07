@@ -38,7 +38,8 @@ same handler, and a form can dispatch to multiple handlers at once.
 
 1. Add `form: formname` to the page's front matter
 2. Add a `:::form` block with field definitions
-3. Create the handler it delivers through, on the Handlers page (or with
+3. Create the handler it delivers through, on the Handlers page - reached from
+   Extensions, or from a form on Submissions - (or with
    `save_handler` / `handler-save`)
 4. Bind the form to it - the Forms list on the same page, `bind_form`, or
    `form-targets-save`
@@ -454,7 +455,7 @@ subdomain (`shop.example.com`), only that name and its subdomains count.
 
 ### Configuring chat delivery
 
-Chat delivery needs the `notify-xmpp` extension enabled (the Extension Manager
+Chat delivery needs the `notify-xmpp` extension enabled (the Extensions
 page, or the `extensions:` list in `lazysite.conf`) and a client config at
 `lazysite/notify-xmpp.conf`:
 
@@ -496,7 +497,7 @@ and `libnet-dns-perl`.
 
 ### Testing it before anything happens
 
-The Extension Manager row for XMPP notifications carries **Send a test
+The Extensions page's row for XMPP notifications carries **Send a test
 notification**. It signs in and sends one message that says it is a test, then
 reports every stage it reached - the client library, the endpoint it chose and
 where that came from, the connection, the sign-in, and the send - along with the

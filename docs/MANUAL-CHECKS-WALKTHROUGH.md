@@ -174,7 +174,7 @@ removed; or if the saved reader list in step 2 did not match what you chose.
 
 # Task 5 - a table, from nothing to a spreadsheet and back
 
-You need the **Data tables** plugin switched on (Plugin Manager), and your
+You need the **Data tables** plugin switched on (Extensions), and your
 account in a group that holds **Data**.
 
 **This task has two halves, and they are walked by different people.** Steps

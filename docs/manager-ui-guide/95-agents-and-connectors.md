@@ -81,7 +81,7 @@ Negative
 
 Where
 : all three channels above, plus the manager UI. Set at
-  System -> Domains -> a domain -> allowed groups.
+  Setup -> Domains -> a domain -> allowed groups.
 
 Do
 : Confine a partner by naming its group in one domain's `allowed_groups`. Then,

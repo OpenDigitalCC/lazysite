@@ -49,6 +49,37 @@ visitors are redirected to `/login`.
 
 ## Pages
 
+The sidebar is four groups, ordered by how often each page is wanted (SM957):
+
+- **Site** - Submissions, Files, Navigation, and Visitor statistics when that
+  extension is enabled: what an operator opens on an ordinary visit.
+- **Setup** - Appearance, Extensions, Connectors, Data tables (when enabled) and
+  Domains: set once, revisited when something changes.
+- **Access** - Users, Groups, Sessions & keys.
+- **System** - Site settings, Cache, Backups, Audit log.
+
+A page the account cannot open is shown locked, with a padlock and the reason -
+never hidden - and for an account that can grant capabilities it links to the
+Groups page. The command palette (**Jump to**, Ctrl K) lists the same pages the
+menu links to. **Handlers** is not on the menu: it is reached from Extensions and
+from each form on Submissions.
+
+### Submissions
+
+`/manager/submissions` - the first entry. Every form on the site with what it
+has kept; choose one to see its rows, newest first, with the quarantine filter,
+Confirm, Approve (on a registration form), Delete, bulk delete and CSV download.
+Each row's **Open** shows that one submission at `/manager/submission`, the page
+a submission notice links to, and each form's **Handlers** opens its card on the
+Handlers page. Reading needs `read_submissions`; Confirm, Approve and Delete
+need `manage_forms` as well.
+
+The menu entry shows a count when the account holds `notifications`: its unread
+submission notices, from the bell's own read state. Opening the page marks
+nothing read; following a notice, or a row's Open, marks that notice read, and
+the bell's Mark all read clears the count. The address the viewer used to live
+at, `/manager/plugin-config?submissions=<store>`, redirects here.
+
 ### Site settings
 
 `/manager/` (or `/manager/config`) - the **Site settings** item. Edit site
@@ -63,11 +94,8 @@ identity and review the extension registry.
   manager style, and the update channel. The active layout and theme are
   **not** shown on this page - they live on **Appearance**, reached from the
   sidebar. Saves to `lazysite/lazysite.conf`.
-- **Extension Manager** (`/manager/plugins`) - lists all discovered extensions
-  (every `plugins/*.pl` that answers `--describe`); tick to enable, untick
-  to disable.
-- **Extension Config** (`/manager/plugin-config`) - the per-extension configuration
-  UI for the extensions that are enabled.
+- **Extensions** (`/manager/plugins`, under Setup) - enable and disable the
+  extensions; their configuration is its **Configure** page (see below).
 
 ### Files
 
@@ -120,13 +148,14 @@ an "Unsaved changes" note appears next to the Save button as soon as you
 modify anything, and the browser warns before you leave the page with
 unsaved changes.
 
-### Extension Manager and Extension Config
+### Extensions
 
-Extensions are split across two pages: **Extension Manager** (`/manager/plugins`)
-enables and disables them, and **Extension Config** (`/manager/plugin-config`)
-configures the enabled ones.
+One menu entry, **Extensions**, over two pages: `/manager/plugins` lists every
+discovered extension (each `plugins/*.pl` that answers `--describe`) to enable
+or disable, and its **Configure** page (`/manager/plugin-config`) configures the
+enabled ones. Each links to the other, and both to **Handlers**.
 
-On Extension Config, each enabled extension appears with a form generated from its
+On Configure, each enabled extension appears with a form generated from its
 `config_schema`. Save writes the extension's config file (e.g.
 `lazysite/forms/smtp.conf` for the SMTP extension).
 
@@ -138,14 +167,14 @@ you choose **Keep mine** or **Take theirs** (a safety snapshot is taken
 first either way).
 
 The **Content history** extension (`content-history`) turns on per-file
-version history for the site content. Ticking the extension on Extension Manager
+version history for the site content. Ticking the extension on Extensions
 is all it takes: an initial snapshot of the current site is recorded, then
 every save (manager, WebDAV, or AI connector) becomes a recorded version,
 browsable per file on the Files page (History / Diff / Restore). Unticking
-the extension pauses recording and keeps every recorded version. On Extension
-Config, **Status** reports whether it is recording, how many versions are
+the extension pauses recording and keeps every recorded version. On Configure,
+**Status** reports whether it is recording, how many versions are
 recorded, and whether the host has the `git` package it needs, and **History
-overview** summarises what is recorded; the tick on Extension Manager is the
+overview** summarises what is recorded; the tick on Extensions is the
 one control that starts or pauses recording. The history covers the content plus `lazysite.conf` / `nav.conf`
 and never includes secrets or personal data (accounts, form submissions,
 logs), so it is safe to sync to a private remote; full-system backups (see
@@ -248,7 +277,7 @@ download, in-app restore with an automatic pre-restore safety snapshot) and
 line the page prints - since they carry the auth secrets). Backups
 are the disaster-recovery mechanism, including config and secrets;
 day-to-day content versioning lives in the **Content history** extension
-(Extension Manager / Extension Config). Theme and layout snapshots are managed
+(Extensions, and its Configure page). Theme and layout snapshots are managed
 on the Appearance page.
 
 ### Cache
@@ -303,7 +332,7 @@ file's path, and the raw logs are not downloadable through the manager.
 Provided by the opt-in
 **Visitor Statistics**
 extension: the nav item appears only when the extension is enabled - enable it on Extension
-Manager (recording and retention are tunable on Extension Config). An AI connector granted
+Manager (recording and retention are tunable under Extensions -> Configure). An AI connector granted
 the **Analytics** permission can analyse the same data for trends via the
 `analyse_visitors` tool, getting only the aggregated, IP-anonymised figures (see
 [AI connector tools](/docs/ai-connector-tools) and

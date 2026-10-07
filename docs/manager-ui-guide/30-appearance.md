@@ -11,7 +11,7 @@ page, and the controls inside are gated separately.
 ## Choose a theme
 
 Where
-: Content -> Appearance
+: Setup -> Appearance
 
 Do
 : Preview a theme, then activate it. Check the public site on a hard reload.
@@ -30,7 +30,7 @@ Negative
 ## Install and manage layouts
 
 Where
-: Content -> Appearance -> layouts
+: Setup -> Appearance -> layouts
 
 Do
 : Install a layout from the configured repository, activate it, then try to
@@ -49,7 +49,7 @@ Negative
 ## Upload a theme
 
 Where
-: Content -> Appearance -> upload
+: Setup -> Appearance -> upload
 
 Do
 : Upload a theme archive, including one containing a path that escapes its own
@@ -65,7 +65,7 @@ Negative
 ## No CDN
 
 Where
-: Content -> Appearance, any bundled theme
+: Setup -> Appearance, any bundled theme
 
 Do
 : View source on a public page and look for third-party origins.

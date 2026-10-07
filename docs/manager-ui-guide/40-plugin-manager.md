@@ -1,18 +1,20 @@
 ---
-title: "Extension Manager and Extension Config"
+title: "Extensions"
 brand: plain
 ---
 
-# Extension Manager
+# Extensions
 
-Two adjacent menu items with a deliberate split: **Extension Manager** decides what
-runs, **Extension Config** decides how it behaves. They are separate because
-enabling something and configuring it are separate authorities.
+One menu entry, two pages with a deliberate split (SM957 made them one entry):
+the Extensions page decides what runs, and its **Configure** page
+(`/manager/plugin-config`) decides how it behaves. They are separate pages because
+enabling something and configuring it are separate authorities; each links to the
+other, and both to **Handlers**, which left the menu.
 
 ## Enable and disable a extension
 
 Where
-: Content -> Extension Manager
+: Setup -> Extensions
 
 Do
 : Disable the form handler, submit a form on the public site, then re-enable it.
@@ -27,23 +29,23 @@ Negative
 : A extension that fails to describe itself is listed as unavailable with its error,
   rather than silently omitted.
 
-# Extension Config
+# Configure
 
 ## Edit a extension's settings
 
 Where
-: Content -> Extension Config
+: Setup -> Extensions -> Configure
 
 Do
 : Open the Form SMTP extension's Configure and set the mail transport; run its
-  Validate action. Then open the Form Handler's Submissions.
+  Validate action. Then use the Form Handler's Submissions.
 
 Expect
 : The form is built from the extension's declared schema, so the fields and their
   types come from the extension rather than from the manager. Saving writes only the
   keys the schema declares. The Form Handler's row links to the Handlers page, where
-  handlers and form bindings are configured (see *Handlers*), and opens the
-  submissions viewer.
+  handlers and form bindings are configured (see *Handlers*), and to the Submissions
+  page (see *Submissions*).
 
 Negative
 : The password is never shown back: a blank password field keeps the stored one.
@@ -51,7 +53,7 @@ Negative
 ## Notification routing
 
 Where
-: Content -> Extension Config, and `lazysite/notify.conf`
+: Setup -> Extensions -> Configure, and `lazysite/notify.conf`
 
 Do
 : Set `notify: off` in one form's `.conf` and submit it; submit a different form.

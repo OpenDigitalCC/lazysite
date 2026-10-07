@@ -115,10 +115,11 @@ The manager, page by page, as an operator meets it.
 | Document | What it is |
 | --- | --- |
 | [`00-how-to-use-this-guide.md`](00-how-to-use-this-guide.md) - Lazysite manager - the walkthrough guide | Every menu item, what to do with it, what to expect, and what a user without the capability should see. |
+| [`05-submissions.md`](05-submissions.md) - Submissions | Governing capability: read_submissions; the menu count also needs notifications. |
 | [`10-files.md`](10-files.md) - Files | Governing capability: manage_content. |
 | [`20-navigation.md`](20-navigation.md) - Navigation | Governing capability: manage_nav. |
 | [`30-appearance.md`](30-appearance.md) - Appearance | Governing capabilities: manage_themes or manage_layouts - either opens the page, and the controls inside are gated separately. |
-| [`40-plugin-manager.md`](40-plugin-manager.md) - Extension Manager and Extension Config | Two adjacent menu items with a deliberate split: Extension Manager decides what runs, Extension Config decides how it behaves. |
+| [`40-plugin-manager.md`](40-plugin-manager.md) - Extensions | One menu entry, two pages with a deliberate split (SM957 made them one entry): the Extensions page decides what runs, and its Configure page (/manager... |
 | [`45-data-tables.md`](45-data-tables.md) - Data tables | A table holds site data -- a product list, an events calendar, a directory. |
 | [`47-handlers.md`](47-handlers.md) - Handlers | A handler is a named function a form or the schedule calls: it sends email, keeps each submission in a file, stores a row in a data table, or sends th... |
 | [`50-users.md`](50-users.md) - Users | Governing capability: manage_users. |
@@ -225,4 +226,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*110 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*111 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
