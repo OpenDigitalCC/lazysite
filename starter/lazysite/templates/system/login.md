@@ -106,7 +106,7 @@ query_params:
 
 [% IF query.next %]
 <p class="login-context" data-ls-auth-in>
-  <span class="login-context-url">[% query.next | html %]</span> requires you to sign in.
+  <span class="login-context-url">[% query.next %]</span> requires you to sign in.
 </p>
 [% END %]
 
@@ -116,7 +116,7 @@ query_params:
 </div>
 
 <form method="POST" action="/cgi-bin/lazysite-auth.pl?action=login" class="login-form" data-ls-auth-in>
-  <input type="hidden" name="next" value="[% query.next | html %]">
+  <input type="hidden" name="next" value="[% query.next %]">
   <label for="username">Username</label>
   <input type="text" name="username" id="username" required autocomplete="username">
   <label for="password">Password</label>

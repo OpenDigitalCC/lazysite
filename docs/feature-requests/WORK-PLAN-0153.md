@@ -40,7 +40,7 @@ starts.
 | Q9 | ~~F7 [[SM957]]~~ **built (n265)** - Submissions page and menu entry with an unread count; menu regrouped; Handlers off the menu (R11) | after Q8, which adds to the Submissions view | M |
 | Q10 | ~~A1 [[SM906]] T3~~ **built (n267)** - a distinct "cannot tell" when the auth store is unreadable | ready | M |
 | Q10a | **[[SM906]] T3 follow-up, security - built (n268)**: the processor's own copy of the manager-grant check failed open on an unreadable or corrupt group store | found by the Q10 agent | XS |
-| Q11 | A3 [[SM869]] - raw and escaped query values separated, hostile-value test first; its adversarial review on its own branch (R7) | ready; last of the features so its review sees a settled tree | M |
+| Q11 | ~~A3 [[SM869]]~~ **built (n269); adversarial review pending** - raw and escaped query values separated, hostile-value test first; its adversarial review on its own branch (R7) | ready; last of the features so its review sees a settled tree | M |
 | Q12 | E6 [[SM950]] (2)(3) - gate on landing; coverage reused when its inputs are unchanged | tooling; after the feature work it speeds up | M |
 | Q13a | E5 [[SM943]] stages 2-3 - the MCP twins and annotations from the declaration; the consistency lints reduced to one completeness check | Q7/Q8 need only stage 1 | M |
 | Q13 | C2 [[SM883]] - measure the 1.20-1.27x slowdown on this machine, then bisect | measurement, no ruling needed | S-M |
@@ -81,7 +81,7 @@ Open questions raised while working the queue:
 | --- | --- | --- | --- |
 | A1 | ~~[[SM906]] T3~~ **built (n267)** - the control API answers a distinct "cannot tell" state when the auth store is unreadable, with the repair in the message (ruled 2026-09-29) | M | nothing |
 | A2 | ~~[[SM912]] P4~~ **built e765424f; recorded n253** - a fixture that writes an ACL with an empty auth store exempts itself from SM901; make it visible (t/integration/43's fixture has no accounts) | XS | nothing |
-| A3 | [[SM869]] - raw and escaped query values separated: escape at stash insertion, `%RENDER_QUERY` raw, the sink escapes unconditionally. Hostile-value render test first. XSS-adjacent, so the filing asks for an adversarial review | M | nothing - the release manager said "take it next" |
+| A3 | ~~[[SM869]]~~ **built (n269); adversarial review pending** - raw and escaped query values separated: escape at stash insertion, `%RENDER_QUERY` raw, the sink escapes unconditionally. Hostile-value render test first. XSS-adjacent, so the filing asks for an adversarial review | M | nothing - the release manager said "take it next" |
 
 # Group B - needs a ruling
 

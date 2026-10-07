@@ -155,6 +155,41 @@ subtest 'no example filters an already-escaped variable' => sub {
         'exactly where copy goes - read by machines, and by nobody in review.' );
 };
 
+# SM869: query.* and params.* are escaped where they enter the stash too, so a
+# `| html` on one escapes it twice - and in a hidden field that posts back, the
+# visitor's `&` returns as `&amp;`. The shipped login and claim pages did exactly
+# that until SM869. Every shipped page, layout and example is checked, not only
+# the docs: the pages are what a site copies.
+subtest 'no shipped page or example filters a query value' => sub {
+    my $proc = slurp("$root/lazysite-processor.pl");
+    like( $proc, qr/\bquery\s*=>\s*\$query_esc\b/,
+        'query really is the escaped copy in the stash' );
+    like( $proc, qr/\bparams\s*=>\s*\$query_esc\b/, 'and so is params' );
+    like( $proc, qr/\$query_esc\s*=\s*_esc_query_stash\(/,
+        'built by the stash escape' );
+
+    my @files;
+    find(
+        {   no_chdir => 1,
+            wanted   => sub { push @files, $_ if /\.(?:md|html|tt)\z/ && -f $_ },
+        },
+        "$root/starter"
+    );
+    my @offenders;
+    for my $p ( sort @files ) {
+        my $text = slurp($p);
+        ( my $rel = $p ) =~ s{\A\Q$root/\E}{};
+        $text
+            =~ s/<!--\s*lint-48:\s*counter-example.*?lint-48:\s*end counter-example\s*-->//gs;
+        while ( $text =~ /(\[%-?\s*(?:query|params)\.\w+\s*\|\s*html\s*-?%\])/g ) {
+            push @offenders, "$rel: $1";
+        }
+    }
+    is_deeply( \@offenders, [], 'no query value is filtered through | html' )
+        or diag( join "\n  ", '', @offenders, '',
+        'query.* arrives HTML-escaped (SM869). Drop the filter.' );
+};
+
 subtest 'the briefing states the contract, not just the variable names' => sub {
     my $brief = "$root/starter/docs/ai-briefing-layouts.md";
     ok( -f $brief, 'the layouts briefing is present' ) or return;

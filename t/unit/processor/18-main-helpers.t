@@ -40,8 +40,10 @@ load_processor($docroot);
     is( $h->{x}, "\xFF\xFE",
         'invalid UTF-8 sequence falls back to raw bytes' );
 
+    # SM869: RAW. The stash escapes its own copy; every sink escapes for its
+    # own context. t/unit/processor/88 drives the escaped side.
     $h = main::parse_query_string('x=<script>');
-    is( $h->{x}, '&lt;script&gt;', 'value HTML-escaped' );
+    is( $h->{x}, '<script>', 'value returned raw, as the visitor sent it' );
 
     $h = main::parse_query_string('x=a&&y=b');
     is_deeply( $h, { x => 'a', y => 'b' },

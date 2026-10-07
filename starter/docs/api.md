@@ -84,8 +84,10 @@ Requests with matching query parameters bypass the cache - the page always
 regenerates. Requests without matching parameters (or to pages without
 `query_params:`) use the normal cache path.
 
-Query parameter values are HTML-escaped before being passed to TT.
-Undeclared parameters are never passed to TT regardless of the URL.
+Query parameter values are HTML-escaped before being passed to TT, so do not
+add `| html` to them - that escapes them twice. There is no unescaped form
+available to a page. Undeclared parameters are never passed to TT regardless
+of the URL.
 
 ### Combining with api mode
 

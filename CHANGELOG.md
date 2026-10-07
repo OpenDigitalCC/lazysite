@@ -49,6 +49,19 @@ Archive
 
 ## Unreleased
 
+- SM869 (PENDING) **security: a query value is raw in the engine and escaped
+  once where it is emitted; a visitor's `[% ... %]` and `::: include` no longer
+  run.** parse_query_string returns raw values; the stash escapes its own copy
+  of `query.*`/`params.*` (line breaks as `&#10;` too); the form prefill sink
+  and the outcome banner escape unconditionally and make `[%` inert. Measured
+  before: `?x=[% site_name %]` prefilled the site's value, an outcome banner
+  ran the same, and a declared value carrying a `::: include` fence pulled a
+  content-root file into the page. **Authoring change:** `query.*` was and is
+  escaped, so `| html` on it escapes twice - the shipped login and claim pages
+  dropped theirs (`next=` with `&` posted back as `&amp;`); remove it from your
+  own pages and layouts. A `[%` in a form `value:` is now shown, not run.
+  t/unit/processor/88. Adversarial review pending.
+
 - SM906 T3 follow-up (PENDING) **security: an unreadable or corrupt group store
   no longer makes every signed-in user a manager on the page side.** The
   processor keeps its own module-free copy of "does any group grant manager

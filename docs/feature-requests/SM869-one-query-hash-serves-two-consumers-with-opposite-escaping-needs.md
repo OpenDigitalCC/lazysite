@@ -4,7 +4,8 @@ title: "SM869: one query hash serves the TT stash and the form sink, and they ne
 subtitle: "`parse_query_string` escapes each value as it stores it, because the same hash becomes `query.*`/`params.*` in the template stash and an author interpolating it without a filter must be safe. The SM856 prefill sink reads that same hash and places values into an attribute, where they arrive pre-escaped. SM868 fixed the resulting double-escape by escaping only the raw source. That is correct and it is a dependency at a distance: the sink's safety now rests on an invariant held 2,300 lines away."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING) n269: parse_query_string raw; the stash escapes query/params once; prefill and outcome banner escape unconditionally and make [% inert; login/claim drop | html. Before-state measured by t/unit/processor/88: template injection via prefill and banner, include injection via a value's newlines. Adversarial review pending (R7)."
 raised: 2026-09-12
 raised-by: engine (from the SM868 fix, at the release manager's direction)
 area: processor
@@ -107,6 +108,28 @@ fixed point of HTML escaping, so the test value could not change under the
 transform it was meant to detect. A sink whose escaping depends on where its
 input came from will keep producing that class of defect, because the failure is
 invisible to the tests one naturally writes for it.
+
+# Built (n269) - adversarial review pending
+
+Test first, as asked: t/unit/processor/88 drives eight hostile values through
+every path a query value reaches a page, committed with the then-failing
+assertions as TODO. The stash itself was already safe. What the test found was
+worse than the double-escape this filing was about:
+
+- **template injection** - the prefill sink and the outcome banner write into
+  the body BEFORE its template pass, so `?x=[% site_name %]` rendered the
+  site's own value;
+- **include injection** - the second include pass reads the body AFTER the
+  template pass, so a declared value carrying newlines and a `::: include`
+  fence pulled a content-root file into the page;
+- login.md and claim.md filtered already-escaped values through `| html`.
+
+Built as step 1's second option: parse_query_string returns raw values; the
+stash escapes its copy in render_content (`_esc_query_stash` - HTML, plus line
+breaks as `&#10;`); `%RENDER_QUERY` stays raw; the prefill attribute, the
+textarea and the banner escape unconditionally and are TT-inert (`_tt_inert`);
+`$from_query` is gone. The shipped pages dropped `| html`; lint 48 now refuses
+one on a query value anywhere in starter/.
 
 # Related
 

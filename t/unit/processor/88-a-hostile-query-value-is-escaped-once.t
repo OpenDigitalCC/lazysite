@@ -3,7 +3,8 @@
 #
 # THE FILING'S ORDER, followed: this test was written first, against the code
 # before the refactor, with what failed then marked TODO and the reason given -
-# so the commit that added it records the measured "before". The refactor moved
+# so the commit that added it records the measured "before"; each TODO became
+# a "BEFORE" note when it passed. The refactor moved
 # the escape out of parse_query_string and into the stash build, and left
 # %RENDER_QUERY raw for the engine; this is the test that fails if the escape
 # lands in the wrong place.
@@ -28,8 +29,6 @@ use Encode     qw(decode encode);
 use File::Copy qw(copy);
 use File::Path qw(make_path);
 use TestHelper qw(setup_minimal_site run_processor site_tempdir repo_root);
-
-our $TODO;
 
 binmode Test::More->builder->$_, ':encoding(UTF-8)'
     for qw(output failure_output todo_output);
@@ -230,10 +229,8 @@ for my $v (@VALUES) {
     subtest "the form prefill sink: $label" => sub {
         my $uri = write_page( "form: apply\nquery_params:\n  - x\n", $FORM );
         my ( undef, $html ) = fetch( $uri, $qs );
-        local $TODO = $raw =~ /\[%/
-            ? 'BEFORE (measured): the prefilled value is inserted ahead of the '
-            . 'body\'s template pass, and nothing makes [% inert - TT evaluates it'
-            : undef;
+        # BEFORE (measured): a `[%` value was evaluated by the body's
+        # template pass - `[% site_name %]` prefilled the site's own value.
         attr_ok( segment( $html, qr{<input[^>]*name="x"[^>]*\svalue="([^"]*)"}s ), $raw,
             'prefill attribute' );
         text_ok( segment( $html, qr{<textarea[^>]*name="note"[^>]*>(.*?)</textarea>}s ), $raw,
@@ -250,14 +247,8 @@ for my $v (@VALUES) {
     subtest "the form outcome banner: $label" => sub {
         my $uri = write_page( "form: apply\n", "::: form\nname | Name |\n:::\n" );
         my ( undef, $html ) = fetch( $uri, "form=apply&outcome=$o" );
-        local $TODO
-            = $raw =~ /\[%/
-            ? 'BEFORE (measured): the banner is inserted ahead of the body\'s '
-            . 'template pass, and nothing makes [% inert - TT evaluates it'
-            : $raw =~ /[^\x00-\x7f]/
-            ? 'BEFORE (measured): the banner percent-decodes to bytes and never '
-            . 'decodes UTF-8, so a non-ASCII outcome arrives as mojibake'
-            : undef;
+        # BEFORE (measured): a `[%` outcome was evaluated by the
+        # body's template pass, and a non-ASCII one arrived as mojibake.
         text_ok( segment( $html, qr{<p class="form-status form-status-error" role="alert">(.*?)</p>}s ),
             $raw, 'outcome banner' );
         unlike( $html, qr/\b49\b|SITE-NAME-LEAKED.*SITE-NAME-LEAKED/s,
@@ -280,9 +271,9 @@ subtest 'the form _page field carries the path and nothing from the query' => su
 subtest 'a value cannot become an include directive' => sub {
     my $uri = write_page( "query_params:\n  - x\n", "[% query.x %]\n" );
     my ( undef, $html ) = fetch( $uri, qs_for("\n::: include\n/partial-secret.md\n:::\n") );
-    local $TODO = 'BEFORE (measured): the second include pass reads the body '
-        . 'AFTER the template pass, so a query value printed at the start of a '
-        . 'line can name a file to include';
+    # BEFORE (measured): the file WAS included - the second include
+    # pass reads the body after the template pass. The stash now carries a
+    # value's line breaks as character references.
     unlike( $html, qr/PARTIAL-SECRET-TEXT/, 'the named file is not included' );
 };
 
@@ -292,8 +283,8 @@ subtest 'the shipped login page carries next= once' => sub {
         or die "copy login.md: $!";
     my $raw = '/members?a=1&b="2"';
     my ( undef, $html ) = fetch( '/login', 'next=' . substr( qs_for($raw), 2 ) );
-    local $TODO = 'BEFORE (measured): login.md filters an already-escaped value '
-        . 'through | html, so next= posts back as entity text';
+    # BEFORE (measured): login.md filtered the already-escaped value
+    # through | html, so next= posted back as entity text.
     attr_ok( segment( $html, qr{<input type="hidden" name="next" value="([^"]*)"} ), $raw,
         'the hidden next field' );
     text_ok( segment( $html, qr{<span class="login-context-url">(.*?)</span>}s ), $raw,
@@ -307,8 +298,8 @@ subtest 'the shipped claim page carries u= and c= once' => sub {
     my $c = 'tok<en>';
     my ( undef, $html ) = fetch( '/claim',
         'u=' . substr( qs_for($u), 2 ) . '&c=' . substr( qs_for($c), 2 ) );
-    local $TODO = 'BEFORE (measured): claim.md filters already-escaped values '
-        . 'through | html';
+    # BEFORE (measured): claim.md filtered already-escaped values
+    # through | html.
     attr_ok( segment( $html, qr{<input type="hidden" name="username" value="([^"]*)"} ), $u,
         'the hidden username field' );
     attr_ok( segment( $html, qr{<input type="hidden" name="claim" value="([^"]*)"} ), $c,

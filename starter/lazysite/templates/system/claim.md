@@ -59,12 +59,12 @@ work once and are short-lived &mdash; ask your site operator for a new one.</p>
 
 [% ELSE %]
 
-<p>Set a password for <strong>[% query.u | html %]</strong>. This link works
+<p>Set a password for <strong>[% query.u %]</strong>. This link works
 once.</p>
 
 <form method="POST" action="/cgi-bin/lazysite-auth.pl?action=claim" class="claim-form">
-  <input type="hidden" name="username" value="[% query.u | html %]">
-  <input type="hidden" name="claim" value="[% query.c | html %]">
+  <input type="hidden" name="username" value="[% query.u %]">
+  <input type="hidden" name="claim" value="[% query.c %]">
 
   <label for="password">New password</label>
   <input type="password" name="password" id="password" required autocomplete="new-password">

@@ -165,6 +165,10 @@ put it last among a field's rules.
   `/apply?c=ODX-4417` opens with the code already in the field - one tap from a
   QR code or an emailed link.
 
+  The value is escaped where the field is written, so `Smith & Sons` arrives
+  in the field as typed. Text that looks like a template tag - `[% ... %]` - is
+  shown as written, never run. The same is true of a `value:` default.
+
   **A prefilled value proves nothing.** It arrives from the URL, so a visitor
   can change it exactly as they could change something they typed. Treat it as
   what somebody claims, never as something the site has verified - if the value

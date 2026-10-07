@@ -110,21 +110,24 @@ PAGE
     like( $lit, qr/value="x&amp;y"/, 'and an ampersand in a literal is escaped too' );
 };
 
-# THE INVARIANT THE SINK NOW RELIES ON, pinned so it cannot quietly go.
+# SM869: THE SINK ESCAPES WHAT IT IS GIVEN, and what it is given is raw.
 #
-# The sink escapes a `value:` literal and does NOT escape a query value,
-# because parse_query_string already did. That is correct and it is also a
-# dependency at a distance: if parse_query_string ever stopped escaping, the
-# sink would emit a visitor's raw value into an attribute. Nothing in the sink
-# could detect that. So it is asserted here, next to the code that depends on
-# it, rather than trusted.
-subtest 'parse_query_string escapes, which is why the sink does not' => sub {
+# SM868 left this sink passing a query value through unescaped, because
+# parse_query_string escaped it for the stash - a dependency at a distance that
+# this file used to pin with "parse_query_string escapes". SM869 removed the
+# dependency rather than pinning it: the parser returns raw values, the stash
+# escapes its own copy, and the sink escapes unconditionally. So both halves
+# are asserted here: the engine's copy is raw, and the sink alone makes it safe.
+subtest 'the sink escapes a raw value itself' => sub {
     my $q = main::parse_query_string('c=a%22b%3Cc%26d');
-    is( $q->{c}, 'a&quot;b&lt;c&amp;d',
-        'a parsed query value arrives HTML-escaped, covering both the attribute '
-            . 'and the textarea sink' )
-        or diag( 'If this changed, the prefill sink must escape again - see the '
-            . '$from_query branch in _render_form.' );
+    is( $q->{c}, 'a"b<c&d', 'a parsed query value arrives RAW' );
+    local %main::RENDER_QUERY = %{$q};
+    my $meta = { form => 't', query_params => ['c'] };
+    my $html = main::_render_form( "c | C | prefill:c\nn | N | textarea prefill:c\n", $meta );
+    like( $html, qr/value="a&quot;b&lt;c&amp;d"/, 'the attribute escapes it, once' )
+        or diag( 'The sink must escape unconditionally: nothing upstream does it '
+            . 'for this consumer any more (SM869).' );
+    like( $html, qr/>a&quot;b&lt;c&amp;d</, 'and so does the textarea' );
 };
 
 subtest 'the value reaches the browser through a real render' => sub {
@@ -161,8 +164,9 @@ PAGE
 #   in the served HTML   value="Smith &amp;amp; Sons"
 #   browser displays     Smith &amp; Sons
 #
-# parse_query_string escapes &<>"' as it STORES a parameter - the same hash is
-# the `query.*`/`params.*` stash, so it has to - and this sink escaped it again.
+# parse_query_string escaped &<>"' as it STORED a parameter - the same hash was
+# the `query.*`/`params.*` stash - and this sink escaped it again. (SM869 since
+# made the hash raw and the sink the only escape.)
 #
 # WHY MY ORIGINAL TESTS ABOVE PASS ANYWAY, which is the part worth keeping:
 # every one of them uses a value like ODX-4417, and alphanumerics are a FIXED
@@ -194,8 +198,8 @@ PAGE
 
     like( $out, qr/value="Smith &amp; Sons"/,
         'the attribute carries the value escaped ONCE, so a browser shows "Smith & Sons"' )
-        or diag( 'Escaped twice: parse_query_string escapes on the way in, for '
-            . 'the TT stash, and this sink escaped it again. Nothing is exposed '
+        or diag( 'Escaped twice: something upstream escaped the engine\'s copy '
+            . '(%RENDER_QUERY must be raw - SM869), and this sink escaped it again. Nothing is exposed '
             . '- over-escaping is safe - but every prefilled name, company or '
             . 'address containing & < > " or \' displays as entity text, and '
             . '"Smith & Sons" is not an exotic input for the case this was built '
@@ -215,7 +219,7 @@ subtest 'a literal, which IS raw, is still escaped' => sub {
 };
 
 subtest 'a textarea follows the same rule' => sub {
-    local %main::RENDER_QUERY = ( note => 'Jones &amp; Co' );    # as stored
+    local %main::RENDER_QUERY = ( note => 'Jones & Co' );    # raw, as stored (SM869)
     my $meta = { form => 't', query_params => ['note'] };
     my $html = main::_render_form( "note | Note | textarea prefill:note\n", $meta );
     like( $html, qr/>Jones &amp; Co</, 'content escaped once' );

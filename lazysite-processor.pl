@@ -2060,8 +2060,19 @@ else {
 sub _runtime { return $RUNTIME }
 
 # Parse the request's query string into a hash of name => value.
-# Values are URL-decoded, UTF-8 decoded, and HTML-escaped so they
-# are safe for interpolation in rendered pages. Returns a hashref.
+# Values are URL-decoded and UTF-8 decoded, and returned RAW - exactly what
+# the visitor sent. Returns a hashref.
+#
+# SM869: RAW HERE, AND ESCAPED AT EACH PLACE A VALUE IS EMITTED. This hash used
+# to be HTML-escaped here, because it was also the template stash - which made
+# it the wrong input for every other consumer. The form prefill sink had to know
+# its input arrived pre-escaped and skip its own escape (SM868), a safety held
+# by this function, two thousand lines from the sink. Now:
+#
+#   - the stash escapes ITS copy where query/params enter it (render_content,
+#     via _esc_query_stash) - SM709's single point, as for auth_* and page_*;
+#   - %RENDER_QUERY carries these raw values, for the engine, never for output;
+#   - every sink that emits a value escapes it for its own context.
 #
 # UTF-8 handling: after percent-decoding to raw bytes, we decode
 # the byte string as UTF-8 so the resulting Perl string holds
@@ -2090,15 +2101,6 @@ sub parse_query_string {
         # the raw byte string on malformed input.
         $key = eval { decode( 'UTF-8', $key, 1 ) } // $key;
         $val = eval { decode( 'UTF-8', $val, 1 ) } // $val;
-
-        # HTML-escape value before storing so TT renders it safely.
-        # Applied after UTF-8 decode so we're escaping Unicode
-        # characters, not individual UTF-8 bytes.
-        $val =~ s/&/&amp;/g;
-        $val =~ s/</&lt;/g;
-        $val =~ s/>/&gt;/g;
-        $val =~ s/"/&quot;/g;
-        $val =~ s/'/&#39;/g;
         $query_params{$key} = $val;
     }
     return \%query_params;
@@ -3290,6 +3292,41 @@ sub _esc_html {
     return $s;
 }
 
+# SM869: a query value as the template stash holds it. HTML-escaped, as every
+# other client-influenced value entering the stash is - and its line breaks as
+# character references, because the body's template OUTPUT is scanned once more
+# for `::: include` blocks (render_template's second include pass). A value
+# carrying lines of its own could spell such a block and name a file for the
+# engine to pull into the page; measured before this change, with a shipped page
+# shape. &#10; renders as the newline it replaces, in text and in attributes.
+sub _esc_query_value {
+    my $s = _esc_html(shift);
+    $s =~ s/\r/&#13;/g;
+    $s =~ s/\n/&#10;/g;
+    return $s;
+}
+
+# SM869: the stash's escaped COPY of the request's declared query values. The
+# raw hash is left as it is: it is %RENDER_QUERY, the engine's copy.
+sub _esc_query_stash {
+    my ($q) = @_;
+    $q //= {};
+    return { map { ( $_ => _esc_query_value( $q->{$_} ) ) } keys %{$q} };
+}
+
+# SM869: text a sink emits INTO A PAGE BODY BEFORE THE BODY'S OWN TEMPLATE PASS -
+# a form field's value, the form outcome banner - is read by TT next, so a `[%`
+# in it would run, with the visitor's text as the template. Measured before this
+# change: `?x=[% site_name %]` prefilled the site's own value. Applied AFTER the
+# HTML escape for the sink's context, so `[` and `%` become character references
+# the browser shows as the same characters and TT does not read as a tag.
+sub _tt_inert {
+    my ($s) = @_;
+    $s =~ s/\[/&#91;/g;
+    $s =~ s/%/&#37;/g;
+    return $s;
+}
+
 # SM151 §7: the directories declared as content roots in lazysite.conf (the base
 # `content_root:` and every `alias.<host>.content_root:`), as absolute paths
 # under the docroot. A page scan skips any directory in this set that is not its
@@ -3758,6 +3795,10 @@ sub _serve_content_static {
 # here rather than threaded through render_content -> components -> _render_form,
 # and it is set per render so a pooled process cannot serve one visitor's value
 # to the next.
+#
+# SM869: RAW. These are the values the visitor sent, for the engine to act on -
+# never to be emitted as they are. A sink that outputs one escapes it for its own
+# context; the template stash gets its own escaped copy (render_content).
 our %RENDER_QUERY;
 
 sub process_md {
@@ -4799,31 +4840,28 @@ sub _render_form {
         my $val_attr = '';
         my $value    = $rules{value};
 
-        # SM868: WHICH SOURCE THE VALUE CAME FROM DECIDES WHETHER IT NEEDS
-        # ESCAPING, and conflating the two escaped it twice.
+        # SM869: ONE INPUT STATE, AND THIS SINK ESCAPES IT, UNCONDITIONALLY.
         #
-        # A query value is ALREADY escaped: parse_query_string escapes &<>"' as
-        # it stores, "so TT renders it safely", because the same hash IS the
-        # `query.*`/`params.*` stash. A `value:` literal comes from the form
-        # definition and is raw. Escaping both sent `Smith & Sons` out as
-        # `Smith &amp;amp; Sons`, which the browser then displays as
-        # `Smith &amp; Sons`.
+        # SM868 escaped by SOURCE - a `value:` literal escaped, a query value
+        # passed through because parse_query_string had already escaped it for
+        # the stash. Correct, and the sink could not verify its own safety: it
+        # rested on a substitution in another function written for another
+        # consumer. Now %RENDER_QUERY is raw, a literal is raw, and both are
+        # escaped here for this context. (SM868's lesson stays in the tests: a
+        # fixture of alphanumerics is a fixed point of escaping, so the values
+        # that pin this carry & < > " ' - t/unit/processor/80 and 88.)
         #
-        # Nothing was ever exposed - over-escaping is safe, which is exactly why
-        # my own test could not see it: it asserted the value arrived and that a
-        # hostile payload did not execute, and both hold when the value is
-        # escaped twice. The site agent found it by reading what a person reads,
-        # with a value containing `&`. My fixture used `ODX-0001`, and
-        # alphanumerics are a fixed point of HTML escaping - a test value that
-        # could not fail.
-        my $from_query = 0;
+        # The context is an attribute, or textarea text, inside a body that TT
+        # renders NEXT - so the value is made TT-inert as well as HTML-escaped.
+        # A visitor's `[% ... %]` used to run here. It also means a `[%` in a
+        # `value:` literal is now shown as typed rather than evaluated: the rule
+        # takes TEXT.
         if ( defined $rules{prefill} ) {
             my $p = $rules{prefill};
             my @declared = @{ ( ref $meta->{query_params} eq 'ARRAY' ) ? $meta->{query_params} : [] };
             if ( grep { $_ eq $p } @declared ) {
                 if ( defined $RENDER_QUERY{$p} && length $RENDER_QUERY{$p} ) {
-                    $value      = $RENDER_QUERY{$p};
-                    $from_query = 1;
+                    $value = $RENDER_QUERY{$p};
                 }
             }
             else {
@@ -4834,10 +4872,11 @@ sub _render_form {
             }
         }
         if ( defined $value && length $value ) {
-            # Escape the RAW source only. parse_query_string already escaped
-            # &<>"' on the way in, which covers this attribute and the textarea
-            # below - both contexts - so a query value needs nothing further.
-            my $v = $from_query ? $value : _esc_attr($value);
+            # _esc_html rather than _esc_attr: the form's HTML passes through the
+            # Markdown converter before TT, and a bare `<` inside an attribute is
+            # one more thing for it to misread. Escaping all five is valid in an
+            # attribute and displays the same.
+            my $v = _tt_inert( _esc_html($value) );
             $val_attr = qq( value="$v");
         }
 
@@ -4925,11 +4964,11 @@ sub _render_form {
             # A textarea carries its value as CONTENT, not an attribute - and it
             # is escaped as text, not as an attribute, or a `<` in a prefilled
             # value would open a tag inside the field (SM856).
-            # SM868: the same rule as the attribute above - a query value is
-            # already escaped, a `value:` literal is not.
+            # SM869: the same rule as the attribute above - escaped here,
+            # whatever the source, and TT-inert.
             my $ta
                 = ( defined $value && length $value )
-                ? ( $from_query ? $value : _esc_html($value) )
+                ? _tt_inert( _esc_html($value) )
                 : '';
             $field_html = qq(    <textarea name="$name" id="$name")
                 . qq( maxlength="$max"$ph_attr$req_attr>$ta</textarea>\n);
@@ -5100,10 +5139,12 @@ sub _render_form {
         my $o = $1;
         $o =~ tr/+/ /;
         $o =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
+        # SM869: decoded as parse_query_string decodes (non-ASCII was mojibake),
+        # and escaped as every sink into a pre-template body is: all five
+        # characters, then TT-inert - a `[%` here used to run.
+        $o = eval { decode( 'UTF-8', $o, 1 ) } // $o;
         $o = substr( $o, 0, 300 );
-        $o =~ s/&/&amp;/g;
-        $o =~ s/</&lt;/g;
-        $o =~ s/>/&gt;/g;
+        $o = _tt_inert( _esc_html($o) );
         # SM579: A SECOND SUCCESS STATE, AND THE VOCABULARY IS CLOSED.
         #
         # There was one success sentence and one style for everything else, so a
@@ -8077,6 +8118,8 @@ sub render_content {
         ( $ENV{REDIRECT_URL}     // $ENV{REQUEST_URI} // '/' ),
     );
 
+    my $query_esc = _esc_query_stash($query);    # SM869: see query => below
+
     my $reserved = _front_matter_reserved();
     my $vars     = {
         %site_vars,
@@ -8093,8 +8136,9 @@ sub render_content {
         # is what the shipped example in docs/auth.md does, and what an author
         # copying it will do.
         #
-        # THEY WERE THE ONLY UNESCAPED FAMILY IN THE STASH. query.* is escaped in
-        # parse_query_string, page_title/page_subtitle four lines down; auth_* came
+        # THEY WERE THE ONLY UNESCAPED FAMILY IN THE STASH. query.* is escaped
+        # below (SM869; it was in parse_query_string), page_title/page_subtitle
+        # four lines down; auth_* came
         # straight from X-Remote-* and was escaped nowhere. Two families sat here
         # with different safety properties, documented in one list, and nothing
         # told an author which was which.
@@ -8258,8 +8302,13 @@ sub render_content {
             my $rel = _content_rel( $meta->{_md_path} // '' );
             defined $rel && length $rel ? "/$rel" : '';
         },
-        query            => $query,
-        params           => $query,
+        # SM869: THE STASH'S COPY, ESCAPED HERE AND ONLY HERE - the single point
+        # the family enters the stash (SM709), so a page or layout printing
+        # [% query.x %] without a filter is safe. Already escaped, so a
+        # `| html` on it escapes twice: the shipped pages no longer add one.
+        # $query itself stays raw - it is %RENDER_QUERY, the engine's copy.
+        query            => $query_esc,
+        params           => $query_esc,
         lazysite_version => _lazysite_version(),    # asset cache-buster (?v=)
 
         # SM698: WHICH MANAGER STYLE. The name of a shipped sheet, never a path
