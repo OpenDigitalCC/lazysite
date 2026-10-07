@@ -864,6 +864,7 @@ sub setup_multi_domain_site {
 # pid that took the backup, and run_cmd's exec-failure `exit 127` would
 # otherwise run END in the child.
 our @PRESERVED;
+our %LOCKS_HELD;    # paths this process holds a preserve lock on
 my $SIGNALS_INSTALLED = 0;
 
 sub preserve_dir {
@@ -875,6 +876,22 @@ sub preserve_tracked {
     my (@paths) = @_;
     my $dir = preserve_dir();
     make_path($dir) unless -d $dir;
+    # Two tests that rewrite the same tracked file must not overlap: under
+    # prove -j each reads the other's mutation (t/tools/52 and 57 both rewrite
+    # SIGNOFF.md). An exclusive lock per path, taken in sorted order and held
+    # until restore, serialises them. The lock files live beside the backups,
+    # not among them: what is left in the preserve dir is a restore that never ran.
+    my $lockdir = "$dir.locks";
+    make_path($lockdir) unless -d $lockdir;
+    my @locks;
+    for my $p ( sort @paths ) {
+        next if $LOCKS_HELD{$p};
+        ( my $key = $p ) =~ s{[^A-Za-z0-9._-]}{_}g;
+        open my $lk, '>>', "$lockdir/$key" or die "preserve_tracked: lock $p: $!\n";
+        flock( $lk, LOCK_EX ) or die "preserve_tracked: lock $p: $!\n";
+        $LOCKS_HELD{$p} = 1;
+        push @locks, { path => $p, fh => $lk };
+    }
     my @entries;
     for my $p (@paths) {
         die "preserve_tracked: $p is not a file\n" unless -f $p;
@@ -886,7 +903,7 @@ sub preserve_tracked {
         close $m;
         push @entries, { path => $p, bak => $bak };
     }
-    my $g = bless { entries => \@entries, pid => $$, done => 0 }, 'TestHelper::Preserved';
+    my $g = bless { entries => \@entries, locks => \@locks, pid => $$, done => 0 }, 'TestHelper::Preserved';
     # WEAK, or the list itself keeps the guard alive and DESTROY never runs at
     # the brace - the first draft did exactly that, and its own test caught it:
     # "restores when it goes out of scope" read MUTATED. The list exists for
@@ -940,6 +957,10 @@ sub restore {
         next unless -f $e->{bak};
         File::Copy::copy( $e->{bak}, $e->{path} );
         unlink $e->{bak}, "$e->{bak}.owner";
+    }
+    for my $l ( @{ $self->{locks} || [] } ) {
+        delete $TestHelper::LOCKS_HELD{ $l->{path} };
+        close $l->{fh};
     }
     $self->{done} = 1;
     return;

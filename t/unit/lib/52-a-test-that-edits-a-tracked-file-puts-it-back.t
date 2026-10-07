@@ -147,4 +147,35 @@ subtest 'an untracked file does not count' => sub {
     is( $?, 0, 'untracked files are the suite\'s business' ) or diag($rep);
 };
 
+subtest 'two tests that edit the same file take turns' => sub {
+    # Under prove -j, t/tools/52 and t/tools/57 both rewrote SIGNOFF.md and each
+    # read the other's edit (4 of 4 runs failed). The guard holds a lock on the
+    # path until it restores, so a second guard on that path waits.
+    my ( $r, $w );
+    pipe( $r, $w ) or die "pipe: $!";
+    my $pid = fork();
+    die "fork: $!" unless defined $pid;
+    if ( !$pid ) {
+        close $r;
+        $ENV{LAZYSITE_PRESERVE_DIR} = $preserve;
+        my $g = TestHelper::preserve_tracked($file);
+        _write( $file, "HOLDER\n" );
+        syswrite $w, "held\n";
+        sleep 1;
+        undef $g;
+        exit 0;
+    }
+    close $w;
+    my $sig = <$r>;
+    is( $sig, "held\n", 'the first guard is holding the file' );
+    local $ENV{LAZYSITE_PRESERVE_DIR} = $preserve;
+    my $g  = TestHelper::preserve_tracked($file);
+    my $seen = _read($file);
+    undef $g;
+    waitpid $pid, 0;
+    is( $seen, "ORIGINAL\n", 'the second guard saw the file only after the first put it back' );
+    is( _read($file), "ORIGINAL\n", 'and the file is back' );
+    is( scalar( () = glob("$preserve/*") ), 0, 'and no backup survived' );
+};
+
 done_testing();
