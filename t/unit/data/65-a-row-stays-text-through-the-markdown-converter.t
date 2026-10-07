@@ -71,13 +71,15 @@ like( $list, qr/ordinary row/, 'the canary: the page lists the table' );
 my @cells = $list =~ m{<div class="r">(.*?)</div>}sg;
 is( scalar @cells, scalar @ROWS, 'one cell per row' );
 {
-    local $TODO = 'n271 before: Markdown link syntax in a row becomes a link, and a row can spell a placeholder';
+    local $TODO = 'n271 before: a row can spell a placeholder';
     ok( !( grep {/</} @cells ), 'every row value is text: no cell opens a tag' );
-    unlike( $list, qr/href="javascript/i, 'a row cannot become a link' );
+    # BEFORE (measured): the row rendered <a href="javascript:void">. SM966.
+    { local $TODO; unlike( $list, qr/href="javascript/i, 'a row cannot become a link' ); }
     is( scalar( () = $list =~ /<code\b/g ), 1, 'a row cannot copy the author code span' );
 }
 
-local $TODO = 'n271 before: a row value reaches a JSON string unescaped';
+# BEFORE (measured): the backslash, control character, tab and line break rows
+# reached the JSON strings raw, and the page did not parse. SM966.
 my $json = render('/rows');
 my $d    = eval { JSON::PP->new->decode($json) };
 ok( ref $d eq 'ARRAY', 'an api page listing the rows is valid JSON' )

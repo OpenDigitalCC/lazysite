@@ -161,8 +161,19 @@ sub filtered_ok {
     my ( $seg, $raw, $what ) = @_;
     ok( defined $seg, "$what: rendered" ) or return;
     unlike( $seg, qr/</, "$what: cannot open a tag" );
-    is( unesc($seg), esc($raw),
+    is( unesc($seg), stash_esc($raw),
         "$what: escaped twice - the stash escaped it and so did the filter" );
+}
+
+# What the stash makes of a value: the five HTML characters, and (SM966) the
+# data set - brackets, backslash and the C0 controls as character references.
+sub stash_esc {
+    my $s = esc(shift);
+    $s =~ s/\[/&#91;/g;
+    $s =~ s/\]/&#93;/g;
+    $s =~ s/\\/&#92;/g;
+    $s =~ s/([\x00-\x1f])/'&#' . ord($1) . ';'/ge;
+    return $s;
 }
 
 # --- The stash: page body, page body `| html`, params.*, layout ------------

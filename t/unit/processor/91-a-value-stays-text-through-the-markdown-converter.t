@@ -36,7 +36,6 @@ sub unesc {
 }
 
 our $TODO;
-my $TODO_DATA   = 'n271 before: Markdown link syntax in a value becomes a link';
 my $TODO_PH     = 'n271 before: a value can spell one of the engine placeholders';
 my $TODO_BANNER = 'n271 before: the outcome banner is written to the page cache, and can spell a placeholder';
 
@@ -78,13 +77,15 @@ like( $base, qr{<a href="/next\?q=plain">Go</a>},      'baseline: the author lin
 like( $base, qr{<a href="http://example\.com/ref">},  'baseline: the reference link' );
 
 for my $v (
-    [ 'inline link syntax',                 '[m](javascript:void)', $TODO_DATA ],
+    # BEFORE (measured): these two became <a href="javascript:void"> - convert_p_links
+    # reads the rendered text. SM966: [ and ] are character references in a value.
+    [ 'inline link syntax',                 '[m](javascript:void)' ],
     [ 'a reference-link label',             '[m][ref]' ],
     [ 'a full reference link',              '[m] [ref]' ],
     [ 'an autolink',                        '<http://m.example/>' ],
     [ 'a code span',                        '`m`' ],
     [ 'the code-span placeholder',          'CODEBLOCK_0_END', $TODO_PH ],
-    [ 'a link that closes the author link', ') [m](javascript:void', $TODO_DATA ],
+    [ 'a link that closes the author link', ') [m](javascript:void' ],
     [ 'a bracket that closes a link label', '](javascript:void)' ],
     )
 {

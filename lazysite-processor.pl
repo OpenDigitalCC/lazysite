@@ -3299,10 +3299,38 @@ sub _esc_html {
 # carrying lines of its own could spell such a block and name a file for the
 # engine to pull into the page; measured before this change, with a shipped page
 # shape. &#10; renders as the newline it replaces, in text and in attributes.
+#
+# SM966: the line breaks are now part of _data_inert, with the rest of the set.
 sub _esc_query_value {
-    my $s = _esc_html(shift);
-    $s =~ s/\r/&#13;/g;
-    $s =~ s/\n/&#10;/g;
+    return _data_inert( _esc_html(shift) );
+}
+
+# SM966: WHAT A DATA VALUE MAY NOT CARRY LITERALLY, past the HTML escape - for a
+# value the page's author did not write: a query value (the stash copy, above), a
+# db: row (_escape_db_rows), and through _tt_inert the form prefill and banner.
+#
+# The HTML escape makes a value safe for the HTML parser, and two more readers
+# see the page. convert_p_links turns `[text](url)` in the rendered TEXT into an
+# anchor - it exists for an author's link whose URL holds a template variable -
+# so a value spelling one became a link: `?x=[m](javascript:void)` printed by
+# [% query.x %] rendered `<a href="javascript:void">`, and a visitor-written row
+# did the same on every page listing it. And an `api: true` page puts the value
+# inside a JSON string, where a backslash or a control character is not text:
+# `?x=a\` or a row with a tab made the whole response invalid JSON.
+#
+# All become character references, which a browser shows as the characters
+# typed and which are inert in JSON: `[` and `]` (no link can open or close
+# around the value), `\`, and the C0 controls - CR and LF among them, which
+# _esc_query_value encoded alone before (SM869). NUL becomes U+FFFD, which is
+# what an HTML parser would show for it. One set, here, so the query stash, the
+# rows and the pre-template sinks cannot drift apart.
+sub _data_inert {
+    my ($s) = @_;
+    $s =~ s/\[/&#91;/g;
+    $s =~ s/\]/&#93;/g;
+    $s =~ s/\\/&#92;/g;
+    $s =~ s/\0/&#xFFFD;/g;
+    $s =~ s/([\x01-\x1f])/'&#' . ord($1) . ';'/ge;
     return $s;
 }
 
@@ -3335,12 +3363,12 @@ sub _esc_query_stash {
 # place every pre-template-body sink passes through, so the three callers
 # (prefill attribute, prefill textarea, outcome banner) are covered at once and
 # a fourth cannot reopen it.
+#
+# SM966: `[`, CR and LF now come from _data_inert, with the rest of that set.
 sub _tt_inert {
     my ($s) = @_;
-    $s =~ s/\[/&#91;/g;
+    $s = _data_inert($s);
     $s =~ s/%/&#37;/g;
-    $s =~ s/\r/&#13;/g;
-    $s =~ s/\n/&#10;/g;
     return $s;
 }
 
@@ -6513,7 +6541,8 @@ sub _escape_db_rows {
                     key => $key, table => $table, column => $col );
             }
 
-            $row->{$col} = _esc_html($v);
+            # SM966: and the data set - a row cannot spell a link or break JSON.
+            $row->{$col} = _data_inert( _esc_html($v) );
         }
     }
     return $rows;

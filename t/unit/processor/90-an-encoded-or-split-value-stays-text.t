@@ -122,7 +122,6 @@ sub json_ok {
 sub shown { my $s = shift; return undef unless defined $s; $s =~ s/\0/\x{FFFD}/g; return $s }
 
 our $TODO;
-my $TODO_DATA   = 'n271 before: a value reaches a JSON string unescaped, and Markdown link syntax in it becomes a link';
 my $TODO_PH     = 'n271 before: a value can spell one of the engine placeholders';
 my $TODO_TAGS   = 'n271 before: a page that sets TAGS makes the pre-template sinks evaluate a value';
 my $TODO_BANNER = 'n271 before: the outcome banner is written to the page cache';
@@ -187,8 +186,11 @@ every_sink( 'x=' . enc("a\x{2028}::: include\x{2029}/secret-part.txt\x{2028}:::\
     "a\x{2028}::: include\x{2029}/secret-part.txt\x{2028}:::\x{2029}<m>[% 7 * 7 %]", 'U+2028 and U+2029' );
 
 # NUL, alone and spelling an engine placeholder.
-every_sink( 'x=' . enc("a\0<m>\0b"), "a\0<m>\0b", 'NUL', $TODO_DATA );
-every_sink( 'x=' . enc("\0RAW0\0 \0RAW1\0"), "\0RAW0\0 \0RAW1\0", 'NUL spelling an engine placeholder', $TODO_PH );
+# BEFORE (measured): the api page carried the NUL raw, which is not JSON; and a
+# value spelling convert_p_links' NUL placeholder pulled a protected tag (the
+# layout's own <script>) into the text. SM966: NUL is U+FFFD in a data value.
+every_sink( 'x=' . enc("a\0<m>\0b"), "a\0<m>\0b", 'NUL' );
+every_sink( 'x=' . enc("\0RAW0\0 \0RAW1\0"), "\0RAW0\0 \0RAW1\0", 'NUL spelling an engine placeholder' );
 
 # Invalid UTF-8 bytes, around a tag and a template tag.
 every_sink( 'x=%FF%FE%3Cm%3E%C3%28%5B%25%207%20*%207%20%25%5D', undef, 'invalid UTF-8' );
@@ -243,12 +245,15 @@ for my $style ( [ '{{ }}', '{{ site_name }}{{ 7 * 7 }}' ], [ 'star', '[* site_na
 }
 
 # --- 5. api: true - a value cannot make the JSON invalid ---------------------
+#
+# BEFORE (measured): a backslash, a tab, a control character or NUL reached the
+# JSON string raw and the response did not parse. SM966: they are character
+# references in a data value, as a line break already was.
 for my $v ( [ 'a trailing backslash', 'a\\' ], [ 'a backslash before a quote', 'a\\"b' ],
     [ 'a control character', "a\x01b" ], [ 'a tab', "a\tb" ], [ 'a line break', "a\nb\r" ],
     [ 'NUL', "a\0b" ], [ 'U+2028', "a\x{2028}b" ], [ 'DEL', "a\x7fb" ] )
 {
     my ( $label, $raw ) = @$v;
-    local $TODO = ( $raw =~ /[\\\x00\x01\t]/ ) ? $TODO_DATA : undef;
     subtest "an api page: $label" => sub {
         my ( $h, $json ) = fetch( '/apip', 'x=' . enc($raw) );
         unlike( $h, qr/^Status:\s*[45]/m, 'answered' );

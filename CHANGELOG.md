@@ -49,6 +49,15 @@ Archive
 
 ## Unreleased
 
+- SM966 (PENDING) **security: a data value could become a link, or break an
+  api page's JSON.** A query value or a db: row was HTML-escaped and nothing
+  more, so `[text](javascript:...)` in it became an anchor after the template
+  pass (on every page listing a visitor-written row), and a backslash or control
+  character in it made an `api: true` response invalid JSON. One helper now
+  encodes brackets, backslash and control characters as character references in
+  every value the author did not write. Found by the SM869 review's second pass;
+  t/unit/processor/90 and 91, t/unit/data/65.
+
 - SM965 (PENDING) **security: a reflected form value could become an
   include.** A form's prefill and outcome banner are written into the page
   before the first `::: include` pass, and kept their line breaks - so a link
