@@ -76,6 +76,7 @@ release, E5 before the new actions R3 and R4 add.
 | F4 | [[SM954]] - the submissions table shows "quarantined" without the stored reason | XS | nothing |
 | F5 | [[SM955]] - the XMPP test says sent when the server bounces it; delivery failures are not audited | M | nothing - ruled (R9) |
 | F6 | [[SM956]] - a visit of more than five pages at under ten-second gaps is a bot (owner rule 2026-10-06) | S | nothing - ruled |
+| F7 | [[SM957]] - menu review: Submissions on the menu, Handlers off the top level, daily vs setup groups | M | a ruling on M1-M7 |
 
 
 | Ref | Question | Ruling |
