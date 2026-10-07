@@ -45,6 +45,8 @@ starts.
 | Q11a2 | **[[SM965]] security, found by the Q11 review - built (n270)**: a reflected form value could become an include | fixed at once | XS |
 | Q11b | ~~[[SM869]] adversarial review, second pass: encodings, Markdown interplay, attribute contexts, split template syntax, api: JSON (the first pass stopped early)~~ **done (n271)** - all five covered; [[SM966]], [[SM967]], [[SM968]] and [[SM969]] found and fixed | owed | M |
 | Q12 | ~~E6 [[SM950]] (2)(3)~~ **built (n272)** - gate on landing; coverage reused when its inputs are unchanged | tooling; after the feature work it speeds up | M |
+| Q12a | **[[SM906]] T3 users store, as ruled 2026-10-07 - built (n273)**: an unreadable account store answers cannot-tell, naming nothing | ruled | XS |
+| Q12b | [[SM970]] - a value used as a whole link target keeps its URL scheme | **needs a ruling** (options in the filing) | S |
 | Q13a | E5 [[SM943]] stages 2-3 - the MCP twins and annotations from the declaration; the consistency lints reduced to one completeness check | Q7/Q8 need only stage 1 | M |
 | Q13 | C2 [[SM883]] - measure the 1.20-1.27x slowdown on this machine, then bisect | measurement, no ruling needed | S-M |
 | Q14 | E9 [[SM944]] - split the processor and the manager API, one area per branch | after E5; largest, so last | L |
@@ -58,8 +60,8 @@ Not in the queue, and why:
 
 Open questions raised while working the queue:
 
-- **Q10 (SM906 T3): what should a token caller be told when the USERS file is
-  unreadable?** Today it is "Invalid credentials" (MCP: reissue the token) - the
+- ~~**Q10 (SM906 T3): what should a token caller be told when the USERS file is
+  unreadable?**~~ **RULED 2026-10-07: (b) cannot-tell, unnamed; built n273.** Today it is "Invalid credentials" (MCP: reissue the token) - the
   secret cannot be checked, so naming the store to a caller who is not yet
   authenticated would disclose a host fault to anyone. Options: (a) keep it,
   and rely on the operator's log line; (b) answer `cannot-tell` 503 without the

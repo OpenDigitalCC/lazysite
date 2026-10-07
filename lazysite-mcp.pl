@@ -210,7 +210,9 @@ sub send_cannot_tell {
     print encode_json( { jsonrpc => '2.0', id => $id,
             error => { code => -32003, message => $r->{error},
                 data => { reason => $r->{kind}, kind => $r->{kind},
-                    store => $r->{store}, repair => $r->{repair} } } } );
+                    # SM906 T3: only what the refusal carries - the unnamed
+                    # (users-store) form has no store and no repair.
+                    map { exists $r->{$_} ? ( $_ => $r->{$_} ) : () } qw(store repair) } } } );
     exit 0;
 }
 

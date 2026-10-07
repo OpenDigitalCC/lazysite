@@ -354,6 +354,11 @@ the store is readable, `whoami` included, rather than reporting an empty grant.
 Over MCP the same answer is JSON-RPC error `-32003` with HTTP 503 and `kind`,
 `store` and `repair` in `error.data`.
 
+**When the account store itself cannot be read**, the engine cannot check your
+credential at all, so it has not verified you: you get `cannot-tell` 503 with
+no `store` and no `repair`, and a message saying it is not a verdict on your
+credential. Do not reissue the credential; the operator's log names the cause.
+
 ## A reliable edit loop
 
 1. `whoami` - confirm identity, capabilities, and that tools are loaded.

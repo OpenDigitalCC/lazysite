@@ -612,6 +612,21 @@ sub auth_cannot_tell {
 # path is docroot-relative: a filesystem path is not a partner's to see (SM494).
 sub cannot_tell_refusal {
     my ($store) = @_;
+    # SM906 T3, ruled 2026-10-07 (WORK-PLAN-0153 Q12a): '-' means the USERS store,
+    # which is read before the secret is checked - so the caller has proved
+    # nothing yet and is told no file name and no repair (a host fault is not a
+    # stranger's to map). It is still told the truth that matters to it: this
+    # is not a verdict on its credential, so it should not reissue one.
+    if ( defined $store && $store eq '-' ) {
+        return {
+            ok    => 0,
+            kind  => 'cannot-tell',
+            error => 'Cannot check this credential right now: the site cannot read its '
+                . 'account store. This is a fault on the host, not a decision about the '
+                . 'credential - do not reissue it; the site operator can see the cause '
+                . 'in the site log.',
+        };
+    }
     return {
         ok     => 0,
         kind   => 'cannot-tell',

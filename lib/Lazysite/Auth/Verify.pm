@@ -202,6 +202,17 @@ sub verify_credential {
     # The rule that cannot fail this way: the surfaces decide whether to shell
     # out, and the tool never consults the variable that named it.
 
+    # SM906 T3, ruled 2026-10-07: an unreadable USERS store cannot verify any
+    # secret, and "Invalid credentials" told a caller holding a good one to
+    # reissue it. Answer cannot-tell - unnamed ('-'), because nothing is proved
+    # yet - and name the store in the operator's log instead.
+    Lazysite::Auth::Settings::account_names();
+    if ($Lazysite::Auth::Settings::USERS_UNREADABLE) {
+        Lazysite::Util::log_event( 'WARN', 'auth',
+            'cannot verify a credential: lazysite/auth/users exists and is not readable',
+            repair => 'lazysite check --docroot <docroot> --fix' );
+        return { ok => 0, cannot_tell => '-' };
+    }
     my %users  = read_users();
     my $stored = $users{$user};
     return { ok => 0 } unless defined $stored && verify_secret( $secret, $stored );

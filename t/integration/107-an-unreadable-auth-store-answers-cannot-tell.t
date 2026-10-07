@@ -156,6 +156,25 @@ subtest 'UNREADABLE users: the cookie session cannot be resolved either' => sub 
     chmod 0660, "$auth/users" or BAIL_OUT("chmod back users: $!");
 };
 
+subtest 'UNREADABLE users, token caller: cannot-tell, naming nothing (ruled 2026-10-07)' => sub {
+    # The secret cannot be checked, so the caller has proved nothing: it is told
+    # this is not a verdict on its credential, and nothing about the host.
+    chmod 0000, "$auth/users" or BAIL_OUT("chmod users: $!");
+    my ( $s, $b ) = token_api('action=whoami');
+    is( $s, 503, 'the API answers 503, not 400 "Invalid credentials"' );
+    is( $b->{kind}, 'cannot-tell', 'kind cannot-tell' );
+    ok( !exists $b->{store}, 'and names no store' );
+    unlike( $b->{error} // '', qr{lazysite/|auth/|users|\Q$d\E}, 'no path or file in the message' );
+    like( $b->{error} // '', qr/do not reissue/i, 'and tells the caller not to reissue a credential' );
+    my ( $ms, $m ) = mcp_call('whoami');
+    is( $ms, 503, 'MCP answers 503 too' );
+    is( $m->{error}{code}, -32003, 'with -32003, not -32001 "reissue the token"' );
+    ok( !exists $m->{error}{data}{store}, 'and names no store' );
+    chmod 0660, "$auth/users" or BAIL_OUT("chmod back users: $!");
+    my ( $s2, $b2 ) = token_api( 'action=whoami', 'agent', 'not-the-secret' );
+    isnt( $s2, 503, 'a wrong secret on a readable store is still an ordinary refusal' );
+};
+
 subtest 'FAIL CLOSED: cannot-tell grants nothing a readable store refuses' => sub {
     chmod 0000, "$auth/user-settings.json" or BAIL_OUT("chmod: $!");
     my ( $s, $b ) = token_api( 'action=pages', 'gone', $gone_tok );

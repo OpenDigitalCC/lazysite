@@ -49,6 +49,14 @@ Archive
 
 ## Unreleased
 
+- SM906 T3 (PENDING) **an unreadable account store answers `cannot-tell`, not
+  "Invalid credentials"** (ruled 2026-10-07). With `lazysite/auth/users`
+  unreadable no secret can be checked, and a caller holding a good token was
+  told it was invalid (MCP: "reissue the token"). It now gets `cannot-tell` 503
+  naming no store and no repair - it has proved nothing yet, and a host fault is
+  not a stranger's to map - and is told not to reissue; the operator's log
+  names the file. t/integration/107.
+
 - SM950 (2)(3) (PENDING) **the gate runs on main after each landing, and a cut's
   gate reuses coverage instead of spending an hour re-measuring it.**
   `tools/gate-main.sh` gates main's tip for NEXT_VERSION, detached, and prints
