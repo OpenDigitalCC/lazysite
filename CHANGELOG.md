@@ -49,6 +49,16 @@ Archive
 
 ## Unreleased
 
+- SM962 (PENDING) **a username is refused by name, never silently rewritten.**
+  `account-approve jo+hn` created `john`, then minted its claim for `jo+hn` and
+  failed - leaving a credential-less account with no link, under a name that may
+  be somebody else's. `add` stripped every character a username cannot hold and
+  every caller carried on with the original. It now refuses, naming the
+  character and the allowed set (letters, digits, `.`, `_`, `-`), before
+  anything is written - for approve, `add`, `setup-sysop` and the Users API
+  alike. **A name with other characters that `add` used to shorten is now an
+  error.** t/unit/users/48, three sabotages.
+
 - SM961 (PENDING) **a submission arriving during a delete, confirm or approve
   is no longer lost.** Those rewrite the submissions store - read it, write a
   copy, rename it over - and nothing locked that window; the file handler's lock

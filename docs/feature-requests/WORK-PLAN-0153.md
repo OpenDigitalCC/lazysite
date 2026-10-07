@@ -35,7 +35,7 @@ starts.
 | Q7a | **[[SM960]] security, found by the Q7 agent - built (n261)**: a custom auth header name was trusted from anyone | fixed before Q8 | S |
 | Q8 | ~~B4 [[SM858]]~~ **built (n262)** - approve an account from the Submissions view (R4) | after E5 | M |
 | Q8a | **[[SM961]] data loss, found by the Q8 agent - built (n263)**: a submission arriving during a store rewrite was lost | fixed before Q9 | S |
-| Q8b | [[SM962]] - account-approve strips a name it then uses unstripped (CLI/Users API) | reproduce, then refuse by name | S |
+| Q8b | ~~[[SM962]]~~ **built (n264)** - account-approve strips a name it then uses unstripped (CLI/Users API) | reproduce, then refuse by name | S |
 | Q8c | [[SM963]] - account-approve hides a failed group placement | reproduce, then report it | S |
 | Q9 | F7 [[SM957]] - Submissions page and menu entry with an unread count; menu regrouped; Handlers off the menu (R11) | after Q8, which adds to the Submissions view | M |
 | Q10 | A1 [[SM906]] T3 - a distinct "cannot tell" when the auth store is unreadable | ready | M |

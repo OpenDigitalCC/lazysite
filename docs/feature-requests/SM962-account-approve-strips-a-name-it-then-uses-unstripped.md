@@ -4,11 +4,11 @@ title: "SM962: account-approve creates a stripped username, then uses the unstri
 subtitle: "cmd_add silently strips invalid characters (jo+hn becomes john) while cmd_account_approve goes on with the original name for groups and the claim."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-07
 raised-by: the developer agent, found while building SM858 (approve from a submission)
 area: auth
-status-note: "Filed 2026-10-07 from the SM858 build (reported, not reproduced here yet). Through the CLI or Users API, account-approve with an invalid name may create a stripped account the rest of the step never reaches. SM858's button validates first, so it is unaffected. WORK-PLAN-0153 Q8b."
+status-note: "SHIPPED (PENDING) (n264). Reproduced: account-approve jo+hn created john, then failed its claim for jo+hn. cmd_add now refuses a name holding any character outside letters, digits, . _ - by name, before anything is written - so approve, add, setup-sysop and the Users API refuse it alike. t/unit/users/48, three sabotages."
 ---
 
 # Reported
@@ -28,3 +28,39 @@ does), rather than stripping it in `cmd_add`. Reproduce first.
 
 account-approve with an invalid name creates nothing and says why; a test
 asserts it.
+
+# Reproduced (n264)
+
+Through the real tool on a fresh site, before any change:
+`lazysite-users.pl account-approve jo+hn` logged `[john] user added`, printed
+`User 'john' added.`, then failed with "the account was created but User
+'jo+hn' not found" - the claim was minted for a name that does not exist. The
+store held `john:` with no credential and no link. Through the Users API with a
+group flagged for registrations, the same: `{"ok":0,"user":"jo+hn","group":[],
+"error":"the account was created but User 'jo+hn' not found"}`, `john` in the
+store, the group join skipped (it also failed on `jo+hn`). setup-sysop had the
+same shape - `add` stripped the name, `group-add` used the original.
+
+# The fix
+
+No caller relied on the stripping: every one went on with the name it passed
+in. So `cmd_add` refuses instead, through one rule (`_username_fault`) that
+names the first character it cannot hold and the set it can: "'jo+hn' cannot be
+a username: '+' is not allowed in one (letters, digits, '.', '_' and '-' only) -
+nothing was created". account-approve calls `cmd_add` before any group, setting
+or claim is written, so the refusal reaches it with nothing behind it. SM858's
+button refuses such a name itself first and is unchanged (t/unit/manager/200
+passes as it was).
+
+`cmd_rename` and `cmd_account_create` still strip with their own copy of the
+class; they use the stripped name consistently afterwards, so they do not have
+this defect, but they do rewrite a name silently. Not changed here.
+
+# Evidence
+
+t/unit/users/48: the CLI and the Users API refuse `jo+hn` by name and create no
+account, no setting and no group membership; `add`, the API `add` (`jo hn`) and
+`setup-sysop` refuse the same way; `jo.hn_s-2` is still accepted. Before the
+fix 12 of its assertions failed. Sabotaged three ways: the strip restored (13
+fail), the rule accepting every name (18 fail), and the rule refusing `.` (the
+three accepted-name controls fail).

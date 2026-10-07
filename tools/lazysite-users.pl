@@ -834,11 +834,28 @@ sub _reserved_username {
     return lc($name) eq 'local' ? 1 : 0;
 }
 
+# SM962: WHAT A USERNAME MAY HOLD, AND THE REFUSAL THAT NAMES WHAT IT MAY NOT.
+#
+# cmd_add used to strip anything else - `jo+hn` became `john` - and say
+# nothing. Every caller then carried on with the name it had passed in, so
+# account-approve created `john` and minted its claim for `jo+hn` (which does
+# not exist), and setup-sysop did the same with its group. A rewritten name may
+# also be somebody else's. Nothing relied on the stripping, so it refuses now.
+#
+# Returns undef for a good name, else the reason, naming the first character
+# that cannot be held.
+sub _username_fault {
+    my ($name) = @_;
+    return "'$name' cannot be a username: '$1' is not allowed in one "
+        . "(letters, digits, '.', '_' and '-' only) - nothing was created"
+        if $name =~ /([^a-zA-Z0-9_.-])/;
+    return;
+}
+
 sub cmd_add {
     my ( $user, $pass ) = @_;
     die "Username required\n" unless defined $user && length $user;
-    $user =~ s/[^a-zA-Z0-9_.-]//g;
-    die "Username required\n" unless length $user;
+    if ( my $why = _username_fault($user) ) { die "$why\n" }
     die "'local' is reserved - it is the SYSADMIN identity (the CLI), not an account\n"
         if _reserved_username($user);
     $pass = '' unless defined $pass;
