@@ -49,6 +49,19 @@ Archive
 
 ## Unreleased
 
+- SM943 (PENDING) **every per-action fact the manager API keeps is declared
+  once, on the action's entry in `Lazysite::ControlApi::Actions`.** Ten tables
+  in `lazysite-manager-api.pl` were hand-kept copies: the known set, mutating,
+  destructive, changes-access, dav-scoped, the file-surface mode, the cookie
+  capability, the self-gating and cookie-only reasons, and the audit skip list.
+  Each is now a field on `%ACTION`, written only where it differs from its
+  default. Audit's default is "audited when it mutates", which leaves 14
+  exceptions. The CGI builds every table from it. A test proved all ten
+  derived tables equal to the literals before those were removed. Ten lints and
+  tests now read the declaration, and a misspelt field is refused at load. No
+  behaviour changes. This is stage 1; the MCP twins and the lint consolidation
+  remain.
+
 - SM959 (PENDING) **a helper that exits before reading no longer kills the
   process writing to it.** Eleven places wrote to a child's stdin with SIGPIPE
   at its default - the form handler's mail, the manager API's plugin and users

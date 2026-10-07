@@ -4,11 +4,11 @@ title: "SM943: One declaration per control-API action"
 subtitle: "Adding an action touches 13 files and about 15 edit sites; declare it once and generate the rest."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: control-api
-status-note: "Filed 2026-10-07 at the release manager's direction, from the development-cost analysis. Size L. Planned in WORK-PLAN-0153 group E."
+status-note: "Stage 1 built 2026-10-07 on n259: every per-action fact the manager API kept in ten hand-kept tables is a field on %ACTION in ControlApi/Actions.pm, and the CGI derives its tables from it (proved equal first, t/unit/lib/200). Remaining: stage 2, the MCP twins and annotations (%TOOLS, %ANNOTATE); stage 3, consolidating lints 14, 22, 23, 58, 98."
 ---
 
 # Measured

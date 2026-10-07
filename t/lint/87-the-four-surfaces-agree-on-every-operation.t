@@ -26,7 +26,9 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root gate_caps);
+use lib "$FindBin::Bin/../../lib";
+use TestHelper                    qw(repo_root gate_caps);
+use Lazysite::ControlApi::Actions ();
 
 my $root = repo_root();
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
@@ -34,12 +36,15 @@ my $api_src = slurp("$root/lazysite-manager-api.pl");
 my $mcp_src = slurp("$root/lazysite-mcp.pl");
 my $dav_src = slurp("$root/lazysite-dav.pl");
 
-# --- column 1: %COOKIE_CAP (lint 14's parser) --------------------------------
-my ($cc_block) = $api_src =~ /my %COOKIE_CAP = \((.*?)\n    \);/s;
-ok( $cc_block, 'found %COOKIE_CAP' );
+# --- column 1: %COOKIE_CAP --------------------------------------------------
+# SM943: derived from Lazysite::ControlApi::Actions, as lint 14 reads it; the CGI
+# is held to building it from there.
+like( $api_src, qr/my %COOKIE_CAP = Lazysite::ControlApi::Actions::cookie_caps\(\);/,
+    'found %COOKIE_CAP' );
+my %cc_decl = Lazysite::ControlApi::Actions::cookie_caps();
 my %cookie_caps;
-while ( ( $cc_block // '' ) =~ /'([a-z0-9_-]+)'\s*=>\s*'([a-z0-9_|+]+)'/g ) {    # SM958: `a+b` values and `_` names too - both were dropped
-    $cookie_caps{$1} = { map { $_ => 1 } split /\|/, $2 };
+for my $act ( keys %cc_decl ) {    # SM958: `a+b` values stay whole, as before
+    $cookie_caps{$act} = { map { $_ => 1 } split /\|/, $cc_decl{$act} };
 }
 cmp_ok( scalar keys %cookie_caps, '>=', 30, '%COOKIE_CAP parsed non-trivially' );
 

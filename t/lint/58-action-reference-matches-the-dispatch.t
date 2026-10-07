@@ -39,8 +39,12 @@ my $src  = do {
 my @lines = split /\n/, $src, -1;
 
 # --- what the chain actually is ----------------------------------------------
-my ($known_src) = $src =~ /my %KNOWN_ACTION = map \{ \$_ => 1 \} qw\(\s*(.*?)\s*\);/s;
-my @known       = sort split /\s+/, $known_src;
+# SM943: %KNOWN_ACTION is derived from the reference now, so comparing the two
+# would compare it with itself. The chain's own `$action eq '...'` names are what
+# the reference must match, as t/lint/22 extracts them.
+my %chain = map { $_ => 1 } ( $src =~ /\$action\s+eq\s+'([a-z0-9_-]+)'/g );
+my @known = sort keys %chain;
+cmp_ok( scalar @known, '>=', 90, 'the dispatch chain was found and parsed' );
 
 # SM662: read as DATA. The warning that stood here is worth keeping as
 # history: parsing a predicate with /sub \{([^}]*)\}/ stopped at the closing

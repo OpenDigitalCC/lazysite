@@ -21,7 +21,9 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root gate_caps);
+use lib "$FindBin::Bin/../../lib";
+use TestHelper                    qw(repo_root gate_caps);
+use Lazysite::ControlApi::Actions ();
 
 my $root = repo_root();
 my $src  = do {
@@ -33,11 +35,22 @@ my $src  = do {
 # --- parse the dispatch action set and the three gate maps from source --------
 my %all = map { $_ => 1 } ( $src =~ /\$action eq '([a-z0-9-]+)'/g );
 
-my ($cc_block) = $src =~ /my %COOKIE_CAP = \((.*?)\n    \);/s;
-ok( $cc_block, 'found the %COOKIE_CAP map' );
+# SM943: the CGI's tables are DERIVED from Lazysite::ControlApi::Actions, so the
+# data is read from there; the CGI is held to building them from it, so what is
+# checked below is what the dispatcher consults.
+like( $src, qr/my %COOKIE_CAP = Lazysite::ControlApi::Actions::cookie_caps\(\);/,
+    'the CGI builds %COOKIE_CAP from the declaration' );
+like( $src, qr/my %MUTATING = Lazysite::ControlApi::Actions::mutating\(\);/,
+    'the CGI builds %MUTATING from the declaration' );
+like( $src, qr/my %file_surface = Lazysite::ControlApi::Actions::file_surface\(\);/,
+    'the CGI builds %file_surface from the declaration' );
+like( $src, qr/my %SCOPED_ACTION = Lazysite::ControlApi::Actions::scoped_actions\(\);/,
+    'the CGI builds %SCOPED_ACTION from the declaration' );
+my %cc_decl = Lazysite::ControlApi::Actions::cookie_caps();
+ok( %cc_decl, 'found the %COOKIE_CAP map' );
 my %cookie_caps;    # action => { cap => 1, ... }  (OR-set: any listed cap passes)
-while ( $cc_block =~ /'([a-z0-9_-]+)'\s*=>\s*'([a-z0-9_|+]+)'/g ) {    # SM958: `a+b` values and `_` names too - both were dropped
-    $cookie_caps{$1} = { map { $_ => 1 } split /\|/, $2 };
+for my $act ( keys %cc_decl ) {    # SM958: `a+b` values stay whole, as before
+    $cookie_caps{$act} = { map { $_ => 1 } split /\|/, $cc_decl{$act} };
 }
 
 # SM662: the gate DECLARES its capabilities, so this reads data rather than
@@ -46,8 +59,7 @@ while ( $cc_block =~ /'([a-z0-9_-]+)'\s*=>\s*'([a-z0-9_|+]+)'/g ) {    # SM958: 
 my %need_caps = gate_caps($src);
 ok( scalar keys %need_caps, 'found the token gate table' );
 
-my ($mut_block) = $src =~ /my %MUTATING = map \{ \$_ => 1 \} qw\((.*?)\)/s;
-my %mutating = map { $_ => 1 } split ' ', ( $mut_block // '' );
+my %mutating = Lazysite::ControlApi::Actions::mutating();
 
 # --- 1. the token channel is DEFAULT-DENY -------------------------------------
 ok( $src =~ /my \$check = \$need\{\$action\};/,
@@ -109,11 +121,10 @@ is( "@read_but_mutating", '',
 # closed for file-upload. %SCOPED_ACTION is the reviewed set of verbs that take
 # a content path; every one of them must be in %file_surface, except the two
 # that carry no path at all.
-my ($fs_block) = $src =~ /my %file_surface = \((.*?)\n    \);/s;
-ok( $fs_block, 'found the %file_surface carve-out map' );
-my %file_surface = map { $_ => 1 } ( $fs_block =~ /'([a-z0-9-]+)'\s*=>\s*'(?:read|write)'/g );
-my ($scoped_block) = $src =~ /my %SCOPED_ACTION = map \{ \$_ => 1 \} qw\((.*?)\)/s;
-my %scoped         = map { $_ => 1 } split ' ', ( $scoped_block // '' );
+my %fs_decl = Lazysite::ControlApi::Actions::file_surface();
+ok( %fs_decl, 'found the %file_surface carve-out map' );
+my %file_surface = map { $_ => 1 } grep { $fs_decl{$_} =~ /\A(?:read|write)\z/ } keys %fs_decl;
+my %scoped       = Lazysite::ControlApi::Actions::scoped_actions();
 cmp_ok( scalar keys %scoped, '>=', 20, '%SCOPED_ACTION parsed non-trivially' );
 my %NO_PATH = map       { $_ => 1 } qw( git-status cache-invalidate );
 my @ungated = sort grep { !$file_surface{$_} && !$NO_PATH{$_} } keys %scoped;

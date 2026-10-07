@@ -18,7 +18,9 @@ use File::Path  qw(make_path);
 use Digest::SHA qw(hmac_sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(run_script);
+use Lazysite::ControlApi::Actions ();
 
 my $SECRET = 'testsecret0123456789abcdef0123456789abcdef0123456789abcdef012345';
 my $d      = tempdir( CLEANUP => 1 );
@@ -87,9 +89,10 @@ ok( !( grep { /\| layouts-manifest \|/ } @l ),
     open my $fh, '<', "$FindBin::Bin/../../../lazysite-manager-api.pl" or die $!;
     my $src = do { local $/; <$fh> };
     close $fh;
-    my ($skip) = $src =~ /my %skip = map \{ \$_ => 1 \} qw\((.*?)\);/s;
-    ok( defined $skip, 'the audit %skip list is where it was' );
-    my %s = map { $_ => 1 } split ' ', $skip // '';
+    # SM943: derived from the declaration, which the CGI builds %skip from.
+    like( $src, qr/my %skip = Lazysite::ControlApi::Actions::unaudited\(\);/,
+        'the audit %skip list is where it was' );
+    my %s = Lazysite::ControlApi::Actions::unaudited();
     ok( $s{notices},            'notices is in the audit %skip list' );
     ok( $s{'layouts-manifest'}, 'layouts-manifest is in the audit %skip list' );
 }

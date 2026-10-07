@@ -204,52 +204,12 @@ my ( $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
 # knows %need (the token subset), so without this it cannot tell "exists, but
 # cookie-only" from "no such action" - and reported both as the former.
 #
-# This is a literal because the dispatch is an if/elsif chain rather than a
-# table, so there is no runtime set to consult. That is the underlying issue and
-# it deserves its own request; a guarded list fixes the misreport now without a
-# 108-branch refactor in a copy-and-discoverability release. Drift is impossible:
-# t/lint/22-known-action-parity.t extracts the chain's action names and asserts
-# this set matches exactly.
-my %KNOWN_ACTION = map { $_ => 1 } qw(
-    acl-get acl-remove acl-set actions-list aliases-list analyse_visitors
-    brief-read brief-append briefs-migrate briefs-list brief-delete
-    artifact-backups-delete artifact-manifest artifact-validate audit
-    backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
-    bad-url-block bad-url-unblock cache-invalidate cache-list channel-services
-    config-read config-set copy csrf-token
-    data-export data-import data-migrate data-rebuild data-row-delete data-row-save data-rows
-    data-migrate-plan data-table data-table-drop data-table-save data-table-source data-tables
-    data-table-acl-get data-table-acl-set data-table-acl-remove
-    data-safety-exports data-safety-export-delete data-safety-export-read data-safety-export-restore
-    delete describe-capabilities
-    domain-add domain-alias-add domain-check domain-preview domain-remove domain-set preview-public
-    domains-list file-download file-upload file-zip-download form-list
-    form-submission-confirm form-submission-delete form-submissions
-    form-submissions-delete-bulk form-targets-read form-targets-save form-uploads-save
-    form-notify-save form-submission
-    git-history git-history-summary git-init git-restore git-show
-    form-delete
-    git-status handler-delete handler-list handler-save key-revoke
-    keys-list lang-status layout-activate layout-delete layout-install
-    regenerate-registries
-    layouts-available layouts-install layouts-manifest
-    layouts-release-contents layouts-releases layouts-repo-get
-    layouts-repo-set list lock migrate-to-local mkdir move nav-read
-    nav-save notices notices-seen page-pdf pages plugin-action plugin-disable
-    plugin-enable plugin-list plugin-read plugin-save preview preview-clear
-    preview-grant principals protected-sections read recent-changes renew-lock
-    display-names
-    rotate-auth-secret save session-revoke sessions-list site-backup-apply
-    site-backup-create site-backup-delete site-backup-download
-    site-backup-inspect site-backup-upload site-export-primary
-    theme-activate theme-copy theme-delete theme-list themes-for-layout
-    themes-list-all theme-upload unlock user-revoke users version whoami
-    start-page start-page-set
-    connector-list connector-save connector-secret-set connector-delete connector-call connector-calls
-    remap-list remap-save
-    audit-trail-set
-    schedule-list schedule-save schedule-delete
-);
+# The dispatch is an if/elsif chain rather than a table, so there is no runtime
+# set to consult. SM943: the set is the actions declared in
+# Lazysite::ControlApi::Actions' %ACTION, which is where every per-action table
+# in this file now comes from. t/lint/22-known-action-parity.t extracts the
+# chain's action names and asserts the declaration matches exactly.
+my %KNOWN_ACTION = Lazysite::ControlApi::Actions::known_actions();
 
 # SM230: the control API is not callable from a browser page, by design. Its
 # authenticated surfaces are for agents, scripts and the manager, all of which
@@ -503,12 +463,8 @@ $Lazysite::Auth::Acl::token_auth        = $token_auth;
 # dav_scope binding confines (WebDAV enforces the same). Non-content actions
 # carry no path (or $path defaults to '/'); the lazysite/ theme-authoring
 # namespace is outside scope's remit (governed by manage_themes/manage_layouts).
-my %SCOPED_ACTION = map { $_ => 1 } qw(
-    list read save delete mkdir move copy migrate-to-local file-upload
-    file-download file-zip-download
-    acl-get acl-set acl-remove git-status git-history git-show git-restore
-    cache-invalidate preview lock unlock renew-lock
-);
+# SM943: declared as `scoped => 1` on the action in Lazysite::ControlApi::Actions.
+my %SCOPED_ACTION = Lazysite::ControlApi::Actions::scoped_actions();
 
 # Confine this request to a SET of content-root scopes, refusing any content
 # path outside EVERY scope. SM155: the binding moved to groups, so the set is the
@@ -628,33 +584,13 @@ if ( $action eq 'csrf-token' ) {
 # can paste. "It changes something" and "it is a GET" should not both be true,
 # whoever is asking.
 #
-my %MUTATING = map { $_ => 1 } qw(
-    form-delete start-page-set
-    schedule-save schedule-delete
-    connector-save connector-secret-set connector-delete connector-call
-    remap-save
-    audit-trail-set
-    data-migrate data-row-save data-row-delete data-table-save
-    data-table-acl-set data-table-acl-remove
-    data-rebuild data-import data-table-drop data-safety-export-delete data-safety-export-restore
-    save delete mkdir move copy migrate-to-local file-upload git-restore
-    git-init cache-invalidate acl-set acl-remove config-set bad-url-block bad-url-unblock
-    brief-append briefs-migrate brief-delete
-    rotate-auth-secret backup-create backup-delete backup-restore theme-activate
-    theme-delete theme-copy theme-upload layout-activate layout-delete
-    start-page-set
-    layout-install layouts-install layouts-repo-set artifact-backups-delete
-    preview-grant preview-clear nav-save handler-save handler-delete
-    form-targets-save form-uploads-save form-notify-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action page-pdf
-    lock unlock renew-lock notices-seen regenerate-registries
-    domain-add domain-alias-add domain-set domain-remove
-    session-revoke user-revoke key-revoke
-    site-backup-create site-backup-upload site-backup-apply site-backup-delete
-    site-export-primary
-);
+# SM943: declared as `mutates => 1` on the action in
+# Lazysite::ControlApi::Actions, and derived here.
+my %MUTATING = Lazysite::ControlApi::Actions::mutating();
 
-# SM587: HOW AN ACTION IS CLASSIFIED. Read this before adding a name to either
-# table below, because the whole value of the two flags is that neither is ever
+# SM587: HOW AN ACTION IS CLASSIFIED. Read this before setting either flag on an
+# action (SM943: `destructive` / `changes_access` in Lazysite::ControlApi::Actions),
+# because the whole value of the two flags is that neither is ever
 # assigned by an argument about consequences.
 #
 #   destructive     - DOES A COPY SURVIVE THE CALL? If the engine retains one,
@@ -689,21 +625,9 @@ my %MUTATING = map { $_ => 1 } qw(
 # above, never restated. MCP spells the same fact by tool name in its
 # %ANNOTATE (with the readOnly/openWorld hints the API has no use for);
 # t/lint/23 keeps the two tables equal through its twin map.
-# SM572 follow-through: site-backup-apply REPLACES the live content tree with
-# the package's - MCP has always annotated its twin (site_apply) as
-# destructive, and the two tables disagreed until the twin check compared them.
-# NOTE: no comments inside the qw() below - the lint parses it as words.
-my %DESTRUCTIVE = map { $_ => 1 } qw(
-    delete data-row-delete data-table-drop data-rebuild data-safety-export-delete
-    connector-delete
-    brief-delete backup-delete theme-delete layout-delete artifact-backups-delete
-    handler-delete form-submission-delete form-submissions-delete-bulk
-    form-delete
-    schedule-delete
-    site-backup-delete
-
-    site-backup-apply
-);
+# SM943: declared as `destructive => 1` on the action in
+# Lazysite::ControlApi::Actions, with the reason an entry needs beside it.
+my %DESTRUCTIVE = Lazysite::ControlApi::Actions::destructive();
 
 # SM587: the second axis - the actions that move the read boundary. Published
 # as `changes_access: true` beside `mutating` and `destructive`, from the same
@@ -711,34 +635,12 @@ my %DESTRUCTIVE = map { $_ => 1 } qw(
 # it by tool name in the fourth slot of its %ANNOTATE and publishes it as
 # `changesAccessHint`; t/lint/23's third twin check keeps the two equal.
 #
-# THE CARRIERS, each by the test above and not by argument:
-#   acl-set / acl-remove   set or clear the rule that decides who may read a
-#                          path. acl-set is also the draft/publish pair the
-#                          filing names - there is no separate publish verb;
-#                          setting `draft` gates the path and clearing it
-#                          publishes, so one action carries both directions.
-#   domain-set             writes a domain's `allowed_groups` - the domain
-#                          access model itself, which is what decides which
-#                          groups reach that domain's content. SM647: it was
-#                          absent, so the one flag a caller can consult said
-#                          `false` about the action in this group that moves
-#                          the broadest boundary.
-#
-# SM649: preview-grant and preview-clear are NOT here, and were. The comment
-# that justified them said a preview "lets somebody read a page"; it does not.
-# check_preview() returns { layout, theme } and overrides how a page is
-# RENDERED - a preview cookie does not bypass `auth: required`, an ACL or a
-# draft, which t/integration/52 now proves rather than asserts. Over-flagging
-# points a reviewer at a door that is not there and spends the credibility of
-# the flag, which is part of why domain-set's absence was easy to miss: the
-# same table was wrong in both directions at once.
-#
-# acl-get and get_permissions READ the rule and move nothing, so they are not
-# here. NOTE: no comments inside the qw() below - the lint parses it as words.
-my %CHANGES_ACCESS = map { $_ => 1 } qw(
-    acl-set acl-remove
-    domain-set
-);
+# SM943: declared as `changes_access => 1` on the action in
+# Lazysite::ControlApi::Actions. THE CARRIERS (acl-set, acl-remove, domain-set)
+# each carry their reason there, and preview-grant carries SM649's note on why
+# it and preview-clear are NOT flagged. acl-get and get_permissions READ the
+# rule and move nothing, so they are not flagged.
+my %CHANGES_ACCESS = Lazysite::ControlApi::Actions::changes_access();
 
 if ( $MUTATING{$action} && $method ne 'POST' ) {
     _bail( { ok => 0, error => "This action must be sent as POST." } );
@@ -756,168 +658,19 @@ if ( !$token_auth ) {
     # the rest of the manager. The users/sessions/keys/audit/notices actions keep
     # their own bespoke gates in dispatch (they carry actor confinement / forbidden
     # messaging), so they are not listed here.
-    my %COOKIE_CAP = (
-        # Content-mutation actions (save/delete/mkdir/move/copy/file-upload/
-        # migrate-to-local) and acl-get/set/remove self-authorize per file via
-        # the ACL layer (action_save -> _acl_can_write; action_acl_* by
-        # ownership): a file owner or @group-listed writer need not hold the
-        # global manage_content cap. They are absent from the token %need map
-        # for the same reason (token clients write over WebDAV). So they are NOT
-        # capability-gated here - only POST-gated below (CSRF). Content-history
-        # reads/restore ARE gated (they mirror the token %need manage_content).
-        'git-restore' => 'manage_content', 'git-status' => 'manage_content',
-        'git-history' => 'manage_content', 'git-show'   => 'manage_content',
-        # SM664: the overview moved to the content-history plugin's row on the
-        # Plugin Config page, whose audience holds manage_config. Either
-        # capability reads it - a reporting read reachable from either the app
-        # that writes the content or the page that configures the plugin.
-        'git-history-summary' => 'manage_content|manage_config',    # SM199, SM664
-            # SM160: domains + the portable site-package family are their own
-            # capability (manage_domains), carved out of the broad manage_config.
-            # SM447: the data plugin's capability. Reads and writes alike -
-            # unlike content, a table row has no per-file ACL to self-authorize
-            # against, so the capability IS the gate.
-        'data-tables' => 'manage_data', 'data-table'   => 'manage_data',
-        'data-rows'   => 'manage_data', 'data-migrate' => 'manage_data',
-        # SM682: either capability reaches a ROW write; the descriptor's
-        # writable_by then decides, and means different things to the two.
-        'data-row-save'   => 'manage_data|write_data',
-        'data-row-delete' => 'manage_data|write_data',
-        # SM579: see the cookie table; connector-call is gated by the connector.
-        'connector-list'       => 'manage_connectors',
-        'connector-save'       => 'manage_connectors',
-        'connector-secret-set' => 'manage_connectors',
-        'connector-delete'     => 'manage_connectors',
-        'connector-calls'      => 'manage_connectors',
-        'data-table-save'      => 'manage_data',
-        # SM687: who may read a table is an access rule, so it takes the
-        # capability that governs access rules - the same one a file's rule
-        # takes - rather than manage_data alone. Reaching the Data page needs
-        # manage_data too, so in practice a person holds both.
-        'data-table-acl-get'    => 'manage_content',
-        'data-table-acl-set'    => 'manage_content',
-        'data-table-acl-remove' => 'manage_content',
-        'data-rebuild'          => 'manage_data',
-        'data-export'           => 'manage_data',
-        'data-import'           => 'manage_data',
-        'data-table-source'     => 'manage_data',
-        'data-migrate-plan'     => 'manage_data',
-        # SM591: the lateral tiers. The module capability carries the working
-        # verbs; destroying inside the module is its own grant, assigned by
-        # SM587's copy test - a drop mints a safety export, so it is the
-        # recoverable tier; deleting that export is what makes the drop
-        # permanent, so it is the irreversible one.
-        'data-table-drop'            => 'housekeeping',
-        'data-safety-exports'        => 'manage_data',
-        'data-safety-export-delete'  => 'purge',
-        'data-safety-export-read'    => 'manage_data',
-        'data-safety-export-restore' => 'manage_data',
-        # SM245: the brief store. SM576 part 1 splits it: WRITING a brief needs
-        # manage_briefs (the plugin-declared capability), READING one is
-        # admitted by either, so an existing manage_content grant keeps the
-        # reads it has always had and loses only the write.
-        'brief-read'         => 'manage_content|manage_briefs',
-        'brief-append'       => 'manage_briefs',
-        'briefs-migrate'     => 'manage_briefs',
-        'briefs-list'        => 'manage_content|manage_briefs',
-        'brief-delete'       => 'purge',                         # SM591: no copy survives
-        'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
-        'site-backup-apply'  => 'manage_domains',
-        'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
-        'site-backup-delete'   => 'manage_domains', # SM183: remove a package
-        'site-backup-download' => 'manage_domains', # SM193: token-client package download
-        'site-export-primary' => 'manage_content', # SM185: package the DEFAULT site (no domains feature needed)
-        'git-init'            => 'manage_config',
-        'config-set'       => 'manage_config', 'config-read' => 'manage_config',
-        'bad-url-blocks'   => 'manage_config',
-        'domains-list'     => 'manage_domains', 'domain-add' => 'manage_domains',
-        'domain-alias-add' => 'manage_domains',
-        'domain-set' => 'manage_domains', 'domain-remove' => 'manage_domains',
-        'remap-list' => 'manage_domains', 'remap-save'    => 'manage_domains',    # SM802
-        'audit-trail-set' => 'audit_switch',  # N13-04: AND manage_config, in the dispatch
-        'domain-preview'  => 'manage_domains', 'domain-check' => 'manage_domains',
-        'lang-status' => 'manage_content', # SM179 P6: read-only set coverage (a translation agent's cap)
-            # F3 audit: the account/group roster backs the ACL "grant to whom" picker
-            # (Files, manage_content) and the domain-groups picker (Domains,
-            # manage_domains). Gate it to those callers so a user with no
-            # grant-related capability cannot enumerate every username/group.
-        'principals' => 'manage_content|manage_domains',
-        # SM267: the Protected sections list names ACL prefixes and their read
-        # lists, which is the same disclosure acl-get carries per file - so it
-        # takes the same capability, and the response is scope-filtered on top.
-        'protected-sections' => 'manage_content',
-        'bad-url-block'      => 'manage_config',
-        'bad-url-unblock'    => 'manage_config', 'rotate-auth-secret' => 'manage_config',
-        'backup-create'      => 'manage_config', 'backup-restore'     => 'manage_config',
-        # SM268 03-F11: removing a snapshot is the same authority as taking or
-        # restoring one.
-        # SM591 + SM577: the backups store is INSTANCE-wide (package_create
-        # writes any configured domain's archive into the local _backups_dir),
-        # so this reaches archives of other sites on the same instance. Still
-        # cookie-only - SM591 changes WHICH grant reaches it, not whether a
-        # token can.
-        'backup-delete'    => 'purge',
-        'backup-download'  => 'manage_config',  'backup-list'     => 'manage_config',
-        'theme-activate'   => 'manage_themes',  'theme-delete'    => 'manage_themes',
-        'theme-upload'     => 'manage_themes',  'theme-copy'      => 'manage_themes',
-        'layout-activate'  => 'manage_layouts', 'layout-delete'   => 'manage_layouts',
-        'layout-install'   => 'manage_layouts', 'layouts-install' => 'manage_layouts',
-        'layouts-repo-set' => 'manage_layouts',
-        'preview-grant'    => 'manage_themes|manage_layouts',
-        'preview-clear'    => 'manage_themes|manage_layouts',
-        'artifact-backups-delete' => 'purge',        # SM591: no copy survives
-        'nav-save'                => 'manage_nav',
-        # SM842: the door to the handler actions opens for any of the three
-        # destination capabilities; Lazysite::Handlers then decides by the
-        # handler's type (a table handler needs manage_data, a connector
-        # handler manage_connectors, email and file manage_forms). Binding a
-        # form to a handler that exists is manage_forms alone.
-        'handler-list'      => 'manage_forms|manage_data|manage_connectors',
-        'handler-save'      => 'manage_forms|manage_data|manage_connectors',
-        'handler-delete'    => 'manage_forms|manage_data|manage_connectors',
-        'schedule-list'     => 'manage_forms|manage_data|manage_connectors',
-        'schedule-save'     => 'manage_forms|manage_data|manage_connectors',
-        'schedule-delete'   => 'manage_forms|manage_data|manage_connectors',
-        'form-targets-read' => 'manage_forms|manage_data|manage_connectors',
-        'form-targets-save' => 'manage_forms',
-        'form-delete'       => 'manage_forms',
-        # SM652: read_submissions ONLY, so the two channels agree about who may
-        # read a submission. MCP has required it for both since it was written;
-        # the control API also accepted manage_forms, and the divergence was
-        # documented on the surface that does NOT implement it, in the
-        # description of the other tool. An operator's expectation was set by
-        # whichever surface they happened to read.
-        #
-        # form-list is included because it returns row_count - whether a form
-        # has submissions and how many - which is a read of submission
-        # EXISTENCE even though it carries no content. MCP treats it that way
-        # and always has.
-        'form-submissions' => 'read_submissions',    # SM182/SM187: PII submissions (GET)
-        'form-submission'  => 'read_submissions',    # SM938 D5: one of them, by id
-        'form-list'        => 'read_submissions',    # SM214: names + submission COUNTS
-            # SM660: BOTH capabilities. SM652 narrowed the submission READS to
-            # read_submissions and left these three behind, so a grant could delete
-            # a submission row and clear a quarantine flag while being unable to
-            # read either - destroying personal data it may not see, often the only
-            # copy. You may not destroy what you may not see.
-            #
-            # No control starts refusing: reaching these buttons means opening the
-            # submissions viewer, which needs form-submissions, which SM652 already
-            # gated on read_submissions. Anyone who can see a row holds it. What
-            # this closes is the direct call that never read anything.
-        'form-submission-delete'       => 'manage_forms+read_submissions',  # SM187, SM660
-        'form-submission-confirm'      => 'manage_forms+read_submissions',  # SM216, SM660
-        'form-submissions-delete-bulk' => 'manage_forms+read_submissions',  # SM187, SM660
-        'plugin-enable' => 'manage_config', 'plugin-disable' => 'manage_config',
-        'plugin-read'   => 'manage_config', 'plugin-save'    => 'manage_config',
-        'plugin-action' => 'manage_config', 'page-pdf' => 'manage_content', 'analyse_visitors' => 'analytics',
-        # SEC-2026-07 (C1): the account-management action requires a user-mgmt
-        # capability to be reached at all - a content-only account could
-        # previously reset any password (incl. the admin's). A delegated
-        # sub-manager (create_sub_users) is then confined to its own sub-tree by
-        # the actor logic in the users tool.
-        'users' => 'manage_users|create_sub_users|delegate_sub_user_creation',
-    );
+    #
+    # Content-mutation actions (save/delete/mkdir/move/copy/file-upload/
+    # migrate-to-local) and acl-get/set/remove self-authorize per file via
+    # the ACL layer (action_save -> _acl_can_write; action_acl_* by
+    # ownership): a file owner or @group-listed writer need not hold the
+    # global manage_content cap. They are absent from the token %need map
+    # for the same reason (token clients write over WebDAV). So they are NOT
+    # capability-gated here - only POST-gated below (CSRF). Content-history
+    # reads/restore ARE gated (they mirror the token %need manage_content).
+    #
+    # SM943: each entry is `cookie_cap` on the action in
+    # Lazysite::ControlApi::Actions, with the reason that stood beside it here.
+    my %COOKIE_CAP = Lazysite::ControlApi::Actions::cookie_caps();
     # Mutating actions are cookie-manager-only; a token client gets "not available".
     # SM214: form-submission-delete is in this set DELIBERATELY - deleting a stored
     # submission is a destructive PII operation, so it stays interactive-only. A
@@ -931,12 +684,8 @@ if ( !$token_auth ) {
     # POST body.
 
     # SM958: actions that decide for themselves on this channel, and why.
-    my %COOKIE_GATES_ITSELF = (
-        'acl-get' => 'the owner reads their rule, manage_users reads any (SM464, Files::action_acl_get)',
-        'acl-set' => 'only the owner of a file may change its rule (Files::action_acl_set)',
-        'acl-remove' => 'only the owner of a file may remove its rule (Files::action_acl_remove)',
-        'audit' => 'create_sub_users without audit gets a scoped view (SM173), not a refusal',
-    );
+    # SM943: `cookie_gates_itself` on the action in Lazysite::ControlApi::Actions.
+    my %COOKIE_GATES_ITSELF = Lazysite::ControlApi::Actions::cookie_gates_itself();
     if ( !_operator() ) {
         my $caps = _user_caps($auth_user);
 
@@ -1108,12 +857,8 @@ if ($token_auth) {
     # the only copy - now sets the DEFAULT rather than closing the door. A reason
     # left behind for an action that is reachable would be a sentence nothing can
     # print, which is how a file comes to describe a system it no longer has.
-    my %COOKIE_ONLY_REASON = (
-        'rotate-auth-secret' =>
-            'rotating the signing secret invalidates every live session, '
-            . 'including the caller\'s own, so it is done by a human who can see '
-            . 'what breaks',
-    );
+    # SM943: `cookie_only_reason` on the action in Lazysite::ControlApi::Actions.
+    my %COOKIE_ONLY_REASON = Lazysite::ControlApi::Actions::cookie_only_reasons();
 
     my $check = $need{$action};
     unless ($check) {
@@ -1210,41 +955,11 @@ if ($token_auth) {
 # Skipped on an unsecured site (no group grants manager access at all), which is
 # the dev/first-run state where _is_operator() already treats every
 # authenticated user as the operator - the same exemption, not a new one.
+#
+# SM943: the mode is `file_surface` on the action in Lazysite::ControlApi::Actions,
+# with the SM418 and SM517 reasons beside the entries they explain.
 {
-    my %file_surface = (
-        'list'        => 'read',
-        'read'        => 'read',
-        'acl-get'     => 'read',
-        'preview'     => 'read',
-        'git-history' => 'read',
-        'git-show'    => 'read',
-        # SM517: the two download verbs reached the same files through a
-        # different door. Neither was here, so a manage_content-only account
-        # on a secured site was refused `read` of the submission store and
-        # nav.conf and then downloaded both - the SM418 defect in its
-        # read-side form. The zip is gated over every requested path below.
-        'file-download'     => 'read',
-        'file-zip-download' => 'read',
-        'save'              => 'write',
-        'delete'            => 'write',
-        'acl-set'           => 'write',
-        'acl-remove'        => 'write',
-        'mkdir'             => 'write',
-        'move'              => 'write',
-        'copy'              => 'write',
-        # SM418: the DISPATCHED action name, which is 'file-upload'. Keyed
-        # 'upload' this lookup was always undef, so the carve-out gate never
-        # ran for a single upload - an unscoped manage_content account could
-        # upload onto lazysite/nav.conf without manage_nav, and into the form
-        # submission store, which are the exact bypasses SM268 H4 closed on
-        # every other verb.
-        'file-upload'      => 'write',
-        'git-restore'      => 'write',
-        'migrate-to-local' => 'write',
-        'lock'             => 'write',
-        'unlock'           => 'write',
-        'renew-lock'       => 'write',
-    );
+    my %file_surface = Lazysite::ControlApi::Actions::file_surface();
     my $fs_mode = $file_surface{$action};
     if ( defined $fs_mode && $site_secured ) {
         my $caps = $token_auth ? \%token_caps : _user_caps($auth_user);
@@ -1274,9 +989,11 @@ if ($token_auth) {
 # that consults it (lint/39's rule stated positively).
 #
 # %skip: the read-ish actions the audit trail deliberately does not record.
-# t/unit/lib/16-audit-guarantee.t reads this list out of the source and requires
-# every dispatched action to be here or on its expected-audited list, so an
-# action added to the chain and to neither fails.
+# SM943: derived from Lazysite::ControlApi::Actions - an action is audited
+# exactly when it mutates unless its entry says `audited => 0|1`.
+# t/unit/lib/16-audit-guarantee.t requires every dispatched action to be
+# skipped here or on its expected-audited list, so an action added to the
+# chain and to neither fails.
 #
 # SM447: the three data READS are skip-listed for the same reason as every other
 # read here - they change nothing, and an audit trail of who looked at a table
@@ -1287,21 +1004,7 @@ if ($token_auth) {
 # brief-append and briefs-migrate stay out for the same reason the data writers
 # do. SM508: briefs-list skips as a read; brief-delete is audited - removing a
 # record of intent is exactly what a trail should remember.
-my %skip = map { $_ => 1 } qw(
-    csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors start-page display-names remap-list audit-trail-set
-    cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
-    layouts-available layouts-releases layouts-repo-get layouts-release-contents
-    handler-list plugin-list plugin-read form-targets-read form-submissions form-submission form-list artifact-manifest
-    artifact-validate lock unlock renew-lock preview preview-clear preview-grant
-    backup-list sessions-list keys-list git-status git-history git-history-summary git-show
-    site-backup-inspect protected-sections
-    data-tables data-table data-rows
-    data-table-source data-migrate-plan data-safety-exports data-safety-export-read
-    data-table-acl-get
-    brief-read briefs-list notices layouts-manifest
-    connector-list connector-calls
-    schedule-list
-);
+my %skip = Lazysite::ControlApi::Actions::unaudited();
 
 # %uskip: the same decision one level down, for the sub-actions action=users
 # carries in its POST body - the reads of the account store.

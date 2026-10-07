@@ -147,8 +147,13 @@ ok( !( $eff->{'acl-get'} || {} )->{changes_access},
 # The operator's ruling is worth nothing if the next action is classified from
 # memory. The tables must carry the two tests in words.
 my $api = slurp("$root/lazysite-manager-api.pl");
-like( $api, qr/my \%CHANGES_ACCESS = map \{ \$_ => 1 \} qw\(/,
+# SM943: the three are derived from one declaration now, each a field on the
+# action's entry in Lazysite::ControlApi::Actions; the CGI builds them side by side.
+like( $api, qr/my \%CHANGES_ACCESS = Lazysite::ControlApi::Actions::changes_access\(\);/,
     'the control API declares %CHANGES_ACCESS beside %MUTATING and %DESTRUCTIVE' );
+my $actions_pm = slurp("$root/lib/Lazysite/ControlApi/Actions.pm");
+like( $actions_pm, qr/changes_access => 1\s+moves the read boundary/,
+    'the declaration names the field and what it means' );
 like( $api, qr/does a copy survive/i,
     'the copy test is written down where actions are classified' );
 like( $api, qr/who may read/i,

@@ -30,29 +30,21 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use FindBin;
 use Lazysite::Auth::Settings;
-
-my $api = "$FindBin::Bin/../lazysite-manager-api.pl";
-my $src = do { open my $fh, '<', $api or die "$api: $!\n"; local $/; <$fh> };
+use Lazysite::ControlApi::Actions ();
 
 my @CAPS = @Lazysite::Auth::Settings::CAP_KEYS;
 
+# SM943: BOTH gate tables are declarations in Lazysite::ControlApi::Actions now -
+# the token gate since SM662 / A1 (which left this tool extracting a `my
+# %need_caps = (` literal the CGI no longer had, so it died before printing),
+# and the cookie gate since SM943. The CGI builds %need_caps and %COOKIE_CAP from
+# need_caps() and cookie_caps(); t/lint/14 and t/unit/lib/200 hold it to that.
 sub table {
-    my ($name)  = @_;
-    my ($block) = $src =~ /\n( *my \%\Q$name\E = \(.*?\n *\);)/s
-        or die "could not extract %$name\n";
-    my %h;
-    ( my $code = $block ) =~ s/^ *my \%\Q$name\E = \(/\%h = (/;
-    # A STRING eval, deliberately, and the only way to do this honestly. The
-    # whole point of the fingerprint is that the gate predicates cannot be READ
-    # reliably - that is SM662's subject - so they are compiled and RUN. A block
-    # eval cannot compile source extracted at runtime, and reimplementing the
-    # table here would fingerprint the copy rather than the gate.
-    ## no critic (BuiltinFunctions::ProhibitStringyEval)
-    eval "package SM662Print; no warnings; $code; 1" or die "compiling %$name: $@";
-    ## use critic
-    return %h;
+    my ($name) = @_;
+    return %{ Lazysite::ControlApi::Actions::need_caps() } if $name eq 'need_caps';
+    return Lazysite::ControlApi::Actions::cookie_caps()    if $name eq 'COOKIE_CAP';
+    die "no declaration for %$name\n";
 }
 
 # none / all / the capabilities that grant it alone. An AND-shaped gate shows
@@ -67,10 +59,9 @@ sub _describe {
         ( @singles ? join( ',', @singles ) : '-' );
 }
 
-# SM662: %need is now DERIVED from %need_caps, so extracting the literal
-# `my %need = (` block no longer finds the decision - it finds the map that
-# rebuilds it. Extract the declaration and rebuild the predicates the same way
-# the API does, so this still fingerprints what the gate DECIDES.
+# SM662: %need is now DERIVED from %need_caps. Read the declaration and rebuild
+# the predicates the same way the API does, so this still fingerprints what the
+# gate DECIDES.
 #
 # The rebuild is duplicated here on purpose and it is two lines: the tool must
 # not import from the script it is auditing, or a fault in the rebuild would

@@ -31,6 +31,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root gate_caps);
 
 my $root = repo_root();
@@ -53,8 +54,13 @@ my $mcp = do {
 my %need_caps = gate_caps($api);
 ok( scalar keys %need_caps, 'the token gate table was found' )
     or BAIL_OUT('no gate table - nothing below compares anything');
-my ($cookie) = $api =~ /\n( *my %COOKIE_CAP = \(.*?\n *\);)/s;
-ok( $cookie, 'the cookie gate table was found' ) or BAIL_OUT('no %COOKIE_CAP');
+# SM943: the cookie gate is DERIVED from Lazysite::ControlApi::Actions (each
+# action's `cookie_cap`); the CGI is held to building %COOKIE_CAP from it.
+like( $api, qr/my %COOKIE_CAP = Lazysite::ControlApi::Actions::cookie_caps\(\);/,
+    'the CGI builds its cookie gate from the declaration' );
+require Lazysite::ControlApi::Actions;
+my %cookie = Lazysite::ControlApi::Actions::cookie_caps();
+ok( scalar keys %cookie, 'the cookie gate table was found' ) or BAIL_OUT('no %COOKIE_CAP');
 
 for my $act (qw(form-submissions form-list)) {
     my $caps = $need_caps{$act};
@@ -65,9 +71,9 @@ for my $act (qw(form-submissions form-list)) {
             . 'definition-only now' );
 }
 
-# The cookie gate is still source text, so it is still read as text.
+# The cookie gate, read as data from the declaration (SM943).
 for my $act (qw(form-submissions form-list)) {
-    my ($line) = $cookie =~ /^\s*'\Q$act\E'\s*=>\s*(.+)$/m;
+    my $line = $cookie{$act};
     ok( defined $line, "cookie gate names $act" ) or next;
     like( $line, qr/read_submissions/, "cookie: $act needs read_submissions" );
     unlike( $line, qr/manage_forms/,
@@ -87,7 +93,7 @@ for my $act (qw(form-submissions form-list)) {
 for my $act (
     qw(form-submission-delete form-submission-confirm form-submissions-delete-bulk) )
 {
-    my ($line) = $cookie =~ /^\s*'\Q$act\E'\s*=>\s*(.+)$/m;
+    my $line = $cookie{$act};
     ok( defined $line, "cookie gate names $act" ) or next;
     like( $line, qr/manage_forms\+read_submissions/,
         "$act needs manage_forms AND read_submissions" )

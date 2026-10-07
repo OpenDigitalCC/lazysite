@@ -14,7 +14,9 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root grant_caps site_tempdir);
+use Lazysite::ControlApi::Actions ();
 
 my $root   = repo_root();
 my $utool  = "$root/tools/lazysite-users.pl";
@@ -276,8 +278,11 @@ ok( exists $dcap->{holds}{capabilities}{delegate_sub_user_creation},
     open my $sfh, '<', $mapi or die $!;
     my $src = do { local $/; <$sfh> };
     close $sfh;
-    my ($mut_block) = $src =~ /my %MUTATING = map \{ \$_ => 1 \} qw\((.*?)\)/s;
-    my %mutating = map { $_ => 1 } split ' ', ( $mut_block // '' );
+    # SM943: %MUTATING is derived from Lazysite::ControlApi::Actions; the CGI is
+    # held to building it from there, so the declaration is what the gate uses.
+    like( $src, qr/my %MUTATING = Lazysite::ControlApi::Actions::mutating\(\);/,
+        'SM943: the CGI builds %MUTATING from the declaration' );
+    my %mutating = Lazysite::ControlApi::Actions::mutating();
     cmp_ok( scalar keys %mutating, '>=', 30, 'SM572: %MUTATING parsed from the source' );
     my $family = qr/(?:^|-)(?:delete|drop|rebuild)(?:-|\z)/;
 

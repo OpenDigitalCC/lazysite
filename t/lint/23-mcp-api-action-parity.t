@@ -27,6 +27,7 @@ use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
 use TestHelper             qw(repo_root gate_caps);
 use Lazysite::Capabilities qw(describe action_keys);
+use Lazysite::ControlApi::Actions ();
 
 my $root = repo_root();
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
@@ -446,13 +447,16 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
 # equal. A destructive API action whose MCP twin says otherwise - or the
 # reverse - fails here with both names.
 {
-    my ($destr_block) = $api_src =~ /my %DESTRUCTIVE = map \{ \$_ => 1 \} qw\((.*?)\)/s;
-    ok( defined $destr_block, 'the control API declares %DESTRUCTIVE' );
-    my %api_destr = map { $_ => 1 } split ' ', ( $destr_block // '' );
+    # SM943: both are DERIVED from Lazysite::ControlApi::Actions now, and the CGI
+    # is held to building them from it, so the declaration is what is compared.
+    like( $api_src, qr/my %DESTRUCTIVE = Lazysite::ControlApi::Actions::destructive\(\);/,
+        'the control API declares %DESTRUCTIVE' );
+    my %api_destr = Lazysite::ControlApi::Actions::destructive();
     cmp_ok( scalar keys %api_destr, '>=', 10, '%DESTRUCTIVE parsed non-trivially' );
-    my ($mut_block) = $api_src =~ /my %MUTATING = map \{ \$_ => 1 \} qw\((.*?)\)/s;
-    my %api_mut     = map       { $_ => 1 } split ' ', ( $mut_block // '' );
-    my @not_mut     = sort grep { !$api_mut{$_} } keys %api_destr;
+    # Once a relationship between two hand-kept tables; now two fields on one
+    # entry, and still a rule: nothing is destroyed by a GET.
+    my %api_mut = Lazysite::ControlApi::Actions::mutating();
+    my @not_mut = sort grep { !$api_mut{$_} } keys %api_destr;
     is( "@not_mut", '', 'every destructive action is a mutating one' );
 
     my ($ann_block) = $mcp_src =~ /my %ANNOTATE = \((.*?)\n\);/s;
@@ -481,19 +485,18 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
 # Two spellings of one fact means two places to forget, which is what SM572
 # found on site-backup-apply and what this closes before it can happen again.
 {
-    my ($ca_block) = $api_src =~ /my %CHANGES_ACCESS = map \{ \$_ => 1 \} qw\((.*?)\)/s;
-    ok( defined $ca_block, 'the control API declares %CHANGES_ACCESS' )
+    ok( $api_src =~ /my %CHANGES_ACCESS = Lazysite::ControlApi::Actions::changes_access\(\);/,
+        'the control API declares %CHANGES_ACCESS' )
         or diag( 'SM587 named the second axis; without the table there is '
             . 'nothing for a caller to read and nothing here to compare.' );
-    my %api_ca = map { $_ => 1 } split ' ', ( $ca_block // '' );
+    my %api_ca = Lazysite::ControlApi::Actions::changes_access();
     cmp_ok( scalar keys %api_ca, '>=', 3, '%CHANGES_ACCESS parsed non-trivially' );
 
     # The two axes are INDEPENDENT, and an implementation that quietly made one
     # imply the other would pass every other assertion in this file. acl-remove
     # is the case the operator ruled on: it changes access and is not
     # destructive.
-    my ($destr_block) = $api_src =~ /my %DESTRUCTIVE = map \{ \$_ => 1 \} qw\((.*?)\)/s;
-    my %api_destr = map { $_ => 1 } split ' ', ( $destr_block // '' );
+    my %api_destr = Lazysite::ControlApi::Actions::destructive();
     ok( $api_ca{'acl-remove'}, 'acl-remove carries the exposure flag' );
     ok( !$api_destr{'acl-remove'},
         'acl-remove is NOT destructive - the rule can be re-set, so a copy survives' );

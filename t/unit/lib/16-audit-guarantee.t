@@ -185,9 +185,14 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
     ok( scalar keys %dispatch > 40, 'dispatch table extracted from source' );
 
     # The audit %skip list (read-ish actions, deliberately not audited).
-    my ($skip_src) = $src =~ /my\s+%skip\s*=\s*map\s*\{[^}]*\}\s*qw\(\s*(.*?)\)/s;
-    ok( defined $skip_src, 'audit %skip list extracted' );
-    my %skip = map { $_ => 1 } split ' ', ( $skip_src // '' );
+    # SM943: derived from Lazysite::ControlApi::Actions - audited exactly when
+    # the action mutates, unless its entry says `audited`. The CGI is held to
+    # building %skip from there, so this reads what the audit block consults.
+    like( $src, qr/my %skip = Lazysite::ControlApi::Actions::unaudited\(\);/,
+        'audit %skip list extracted' );
+    require Lazysite::ControlApi::Actions;
+    my %skip = Lazysite::ControlApi::Actions::unaudited();
+    ok( scalar keys %skip > 40, 'the derived %skip list is not empty' );
 
     # Actions we EXPECT the generic POST block to audit (everything not in
     # %skip is audited by construction - the fail-safe direction). Adding a
