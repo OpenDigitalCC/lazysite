@@ -1233,6 +1233,8 @@ sub action_form_submission_delete {
         unless defined $id && $id =~ /\A[0-9a-f]{16}\z/;
     return { ok => 0, error => 'No such submissions store' } unless -f $abs;
 
+    my $store_lock = Lazysite::Util::store_lock($abs) # SM961: across the read and the rewrite
+        or return { ok => 0, error => "Cannot lock submissions: $!" };
     open my $fh, '<:utf8', $abs or return { ok => 0, error => 'Cannot read submissions' };
     my ( @keep, $deleted );
     while ( my $line = <$fh> ) {
@@ -1306,6 +1308,8 @@ sub action_form_submission_confirm {
         unless defined $id && $id =~ /\A[0-9a-f]{16}\z/;
     return { ok => 0, error => 'No such submissions store' } unless -f $abs;
 
+    my $store_lock = Lazysite::Util::store_lock($abs) # SM961: across the read and the rewrite
+        or return { ok => 0, error => "Cannot lock submissions: $!" };
     open my $fh, '<:utf8', $abs or return { ok => 0, error => 'Cannot read submissions' };
     my ( @out, $confirmed );
     while ( my $line = <$fh> ) {
@@ -1444,6 +1448,8 @@ sub action_form_submission_approve {
     return { ok => 0, kind => 'not-found', error => "no submissions for the form '$form'" }
         unless -f $abs;
 
+    my $store_lock = Lazysite::Util::store_lock($abs) # SM961: across the read and the rewrite
+        or return { ok => 0, error => "Cannot lock submissions: $!" };
     open my $fh, '<:utf8', $abs or return { ok => 0, error => 'Cannot read submissions' };
     my $found;
     while ( my $line = <$fh> ) {
@@ -1520,6 +1526,10 @@ sub action_form_submission_approve {
 # approval of the same row by name before anything is asked of the users tool.
 sub _mark_approved {
     my ( $abs, $id, $user, $by ) = @_;
+    # SM961: NO lock taken here - the caller (action_form_submission_approve)
+    # holds the store's lock from its read to this rewrite, so one approval
+    # cannot interleave with another. A second flock on a new handle in the
+    # same process would wait for itself.
     open my $fh, '<:utf8', $abs or return { ok => 0, error => 'Cannot read submissions' };
     my ( @out, $marked );
     while ( my $line = <$fh> ) {
@@ -1561,6 +1571,8 @@ sub action_form_submissions_delete_bulk {
     }
     return { ok => 0, error => 'No such submissions store' } unless -f $abs;
 
+    my $store_lock = Lazysite::Util::store_lock($abs) # SM961: across the read and the rewrite
+        or return { ok => 0, error => "Cannot lock submissions: $!" };
     open my $fh, '<:utf8', $abs or return { ok => 0, error => 'Cannot read submissions' };
     my ( @keep, $deleted );
     $deleted = 0;

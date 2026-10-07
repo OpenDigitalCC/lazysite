@@ -1519,6 +1519,10 @@ sub _to_file {
     # two of the three files a visitor sent reads as a visitor who sent two.
     $rec{_files_failed} = $up->{failed} if $up && @{ $up->{failed} };
     my $path = "$dir/$name.jsonl";
+    # SM961: the store's sidecar lock, the one delete/confirm/approve take across
+    # their read-and-rewrite - a lock on the store file itself is lost to their rename.
+    my $store_lock = Lazysite::Util::store_lock($path)
+        or return { ok => 0, why => "cannot lock the store: $!" };
     open my $fh, '>>:utf8', $path or return { ok => 0, why => "cannot open the store: $!" };
     flock $fh, LOCK_EX;
     my $line  = JSON::PP->new->canonical->encode( \%rec );

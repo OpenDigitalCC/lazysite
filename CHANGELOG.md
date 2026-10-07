@@ -49,6 +49,15 @@ Archive
 
 ## Unreleased
 
+- SM961 (PENDING) **a submission arriving during a delete, confirm or approve
+  is no longer lost.** Those rewrite the submissions store - read it, write a
+  copy, rename it over - and nothing locked that window; the file handler's lock
+  was on the store file, which the rename swaps out. A row appended meanwhile
+  went into the discarded file, with the visitor already thanked. Both sides now
+  take one sidecar lock (`.<store>.lock`, `Lazysite::Util::store_lock`) that the
+  rename never moves. t/unit/forms/36 forces each direction by holding the lock;
+  either half removed fails it. Found while building SM858.
+
 - SM858 (PENDING) **an operator approves an account from a button on the
   Submissions view.** A form that names its address field in its conf
   (`account_email: email`) gets Approve on each row; it runs `account-approve`

@@ -8,13 +8,14 @@ package Lazysite::Util;
 # attributed to the right component.
 
 use strict;
+use Fcntl ();    # SM961: store_lock
 use warnings;
 use Lazysite::Paths ();
 use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies);
 
 our $COMPONENT = 'lazysite';
 
@@ -762,6 +763,25 @@ sub forward_line {
 
 # SM932 (2): the diagnostics forwarding setting as a reader can say it - for
 # `lazysite check --sinks`, which must not re-read the config its own way.
+# SM961: ONE LOCK FOR A STORE THAT IS BOTH APPENDED TO AND REWRITTEN.
+#
+# A submissions store is appended to by the file handler and rewritten whole
+# (read, edit, write a copy, rename it over the original) by delete, confirm
+# and approve. Locking the store file itself cannot serialise the two: the
+# rename swaps the file, so an appender holding a lock on the old one writes
+# into a file that is about to be thrown away - a submission lost with nothing
+# logged. The lock is a SIDECAR that never moves: `.<name>.lock` beside the
+# store. Returns the held handle (the lock is released when it goes out of
+# scope, or on close) or undef with $! set. A reader-then-rewriter must take it
+# BEFORE its read, so the rows it rewrites are all the rows there are.
+sub store_lock {
+    my ($path) = @_;
+    my ( $dir, $base ) = $path =~ m{\A(.*)/([^/]+)\z} ? ( $1, $2 ) : ( '.', $path );
+    open my $lk, '>>', "$dir/.$base.lock" or return undef;
+    flock( $lk, Fcntl::LOCK_EX() ) or return undef;
+    return $lk;
+}
+
 sub forward_diagnostics_setting {
     my $cfg = _forward_conf();
     return { forwarding => ( defined $cfg->{diag} ? 1 : 0 ), facility => $cfg->{facility} };
