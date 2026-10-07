@@ -188,58 +188,31 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
     # SM943: derived from Lazysite::ControlApi::Actions - audited exactly when
     # the action mutates, unless its entry says `audited`. The CGI is held to
     # building %skip from there, so this reads what the audit block consults.
-    like( $src, qr/my %skip = Lazysite::ControlApi::Actions::unaudited\(\);/,
-        'audit %skip list extracted' );
+    # That the CGI builds %skip from the declaration is asserted with the other
+    # nine tables in t/unit/lib/200 (subtest 1).
     require Lazysite::ControlApi::Actions;
     my %skip = Lazysite::ControlApi::Actions::unaudited();
     ok( scalar keys %skip > 40, 'the derived %skip list is not empty' );
 
-    # Actions we EXPECT the generic POST block to audit (everything not in
-    # %skip is audited by construction - the fail-safe direction). Adding a
-    # manager-api action means deciding: read-ish (the %skip list in the
-    # source) or material (THIS list). An action in neither fails the test.
-    # The streaming downloads (file-download, backup-download...) sit here
-    # deliberately: they exit before the audit block on GET, and if ever
-    # POSTed they audit, which errs loud rather than silent. SM554 moved
-    # notices and layouts-manifest OUT of this list: the manager UI POSTs
-    # everything, so those two reads audited on every call and buried the
-    # rows recording who changed something.
-    my %audited = map { $_ => 1 } qw(
-        acl-remove acl-set artifact-backups-delete backup-create backup-delete
-        backup-download backup-restore bad-url-block bad-url-unblock config-set copy delete
-        domain-add domain-alias-add domain-remove domain-set
-        file-download file-upload file-zip-download form-targets-save
-        form-uploads-save form-notify-save git-init
-        git-restore handler-delete handler-save layout-activate layout-delete
-        layout-install layouts-install layouts-repo-set
-        migrate-to-local mkdir move nav-save notices-seen page-pdf
-        key-revoke plugin-action plugin-disable plugin-enable plugin-save
-        rotate-auth-secret save session-revoke theme-activate theme-delete
-        theme-copy theme-upload user-revoke users start-page-set
-        site-backup-create site-backup-upload site-backup-apply site-backup-delete
-        site-backup-download
-        site-export-primary form-submission-delete form-delete
-        connector-save connector-secret-set connector-delete connector-call
-        remap-save
-        schedule-save schedule-delete
-        form-submission-confirm form-submissions-delete-bulk form-submission-approve
-        data-migrate data-row-save data-row-delete data-table-save data-rebuild
-        data-export data-import data-table-drop data-safety-export-delete data-safety-export-restore
-        brief-append brief-delete briefs-migrate
-        data-table-acl-set data-table-acl-remove);
-
-    # SM447 note, OUTSIDE the qw() because qw() has no comments - a `#` inside
-    # one is a literal word, and putting it there added twenty imaginary action
-    # names to this list. The three data WRITERS are audited: a schema
-    # migration and a row edit are exactly what an operator asks the trail
-    # about, and a row is site data somebody may later dispute. The three data
-    # READS are in the %skip list instead - an audit of who LOOKED at a table
-    # would bury the entries recording who changed one.
+    # SM943 stage 3: THE DECISIONS, NOT A SECOND COPY OF THEM.
     #
-    # SM687: the two table-ACL WRITERS are audited and the READ is skipped, on
-    # the same rule as acl-set/acl-remove for a file: changing who may read a
-    # table is exactly what an operator asks the trail about, and asking who
-    # LOOKED at a rule would bury the entries recording who changed one.
+    # An expected-audited list of 85 names stood here: every audited action,
+    # kept beside the declaration as an independent copy. The declaration
+    # (Lazysite::ControlApi::Actions) states a RULE - an action is audited
+    # exactly when it mutates - and its exceptions, so what a reviewer decides
+    # per action is only the exceptions. Those are kept here as the
+    # independent, reviewed list, and the declaration must hold exactly them:
+    # an ordinary new action needs no line in this file, and an exception -
+    # a write the trail skips, or a read it records - cannot be made without
+    # one. Flipping an ordinary action either way (`save` unaudited, `notices`
+    # audited) still fails, which is what the long list was for.
+    #
+    # The streaming downloads (file-download, backup-download...) are audited
+    # reads deliberately: they exit before the audit block on GET, and if ever
+    # POSTed they audit, which errs loud rather than silent. SM554 moved
+    # notices and layouts-manifest OUT of the audited set: the manager UI POSTs
+    # everything, so those two reads audited on every call and buried the rows
+    # recording who changed something.
     #
     # DM-2's data-export is audited DESPITE being a read, and the distinction
     # is not "read versus write" but "a page versus the whole thing". Paging
@@ -247,24 +220,35 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
     # file is a discrete, deliberate act with a copy of the data at the end of
     # it. That is the shape of event a trail exists to hold, and there will not
     # be enough of them to bury anything.
+    #
+    # SM447 / SM687, unchanged by this: the data and table-ACL WRITERS are
+    # audited by the rule and their READS skipped by it - asking who LOOKED at
+    # a table or a rule would bury the entries recording who changed one.
+    my %WRITE_UNAUDITED = map { $_ => 1 } qw(
+        audit-trail-set cache-invalidate lock unlock renew-lock
+        preview-grant preview-clear regenerate-registries
+    );
+    my %READ_AUDITED = map { $_ => 1 } qw(
+        backup-download data-export file-download file-zip-download
+        site-backup-download users
+    );
 
-    my @unclassified;
-    for my $a ( sort keys %dispatch ) {
-        next if $skip{$a} || $audited{$a};
-        push @unclassified, $a;
-    }
-    ok( !@unclassified,
-        'no unclassified manager-api action (each is skip-listed or expected-audited)' )
-        or diag "UNCLASSIFIED (decide: audit or skip): @unclassified";
+    my %mut          = Lazysite::ControlApi::Actions::mutating();
+    my %declared     = Lazysite::ControlApi::Actions::known_actions();
+    my @unclassified = grep { !$declared{$_} } sort keys %dispatch;
+    ok( !@unclassified, 'every dispatched action carries an audit decision (it is declared)' )
+        or diag "UNCLASSIFIED (declare it in ControlApi::Actions): @unclassified";
 
-    # And the lists must not drift: nothing in %skip is also expected-audited,
-    # and every expected-audited name is a real dispatch action (no staleness).
-    my @both = grep { $audited{$_} } sort keys %skip;
-    ok( !@both, 'no action is both skip-listed and expected-audited' )
-        or diag "IN BOTH: @both";
-    my @stale = grep { !$dispatch{$_} } sort keys %audited;
-    ok( !@stale, 'expected-audited names all exist in the dispatch table' )
-        or diag "STALE: @stale";
+    my @wu = grep { $mut{$_} && $skip{$_} } sort keys %dispatch;
+    is_deeply( \@wu, [ sort keys %WRITE_UNAUDITED ],
+        'the writes the trail skips are exactly the reviewed exceptions' )
+        or diag 'A mutating action the trail does not record is a decision: '
+        . 'name it in %WRITE_UNAUDITED, or audit it.';
+    my @ra = grep { !$mut{$_} && !$skip{$_} } sort keys %dispatch;
+    is_deeply( \@ra, [ sort keys %READ_AUDITED ],
+        'the reads the trail records are exactly the reviewed exceptions' )
+        or diag 'A read the trail records is a decision: name it in '
+        . '%READ_AUDITED, or leave it to the rule.';
 };
 
 # =========================================================================

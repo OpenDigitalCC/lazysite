@@ -124,8 +124,9 @@ for my $a ( sort keys %PAIR ) {
     # a token over MCP what the same token is refused on the control API.
     ok( ( grep { $_ eq $a } @api_live ),
         "the action '$a' with an MCP twin is reachable with a token" );
-    ok( ( grep { $_ eq $PAIR{$a} } @mcp_live ),
-        "paired MCP tool '$PAIR{$a}' still exists" );
+    # SM943 stage 3: that the twin names a real tool is part of the declaration's
+    # completeness check (t/unit/lib/200), with every other field an entry must
+    # carry; the copy that stood here went.
 
     # SM567 (the operator's four-surface check, API-to-MCP column): twins sit
     # under the SAME capability. SM570 was two tables disagreeing about WHO
@@ -353,10 +354,10 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
 # SM943 stage 2 there is one spelling: a twin's row is derived from the action.
 # What remains here is the rule the fact obeys.
 {
-    # SM943: both are DERIVED from Lazysite::ControlApi::Actions now, and the CGI
-    # is held to building them from it, so the declaration is what is compared.
-    like( $api_src, qr/my %DESTRUCTIVE = Lazysite::ControlApi::Actions::destructive\(\);/,
-        'the control API declares %DESTRUCTIVE' );
+    # SM943: both are DERIVED from Lazysite::ControlApi::Actions now, so the
+    # declaration is what is read. That the CGI builds %DESTRUCTIVE and
+    # %CHANGES_ACCESS from it is asserted with the other eight tables in
+    # t/unit/lib/200 (subtest 1); the copies of that here went in stage 3.
     my %api_destr = Lazysite::ControlApi::Actions::destructive();
     cmp_ok( scalar keys %api_destr, '>=', 10, '%DESTRUCTIVE parsed non-trivially' );
     # Once a relationship between two hand-kept tables; now two fields on one
@@ -381,10 +382,6 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
 # twin's fourth slot is derived from the action, so what remains here is that
 # the two axes stay independent.
 {
-    ok( $api_src =~ /my %CHANGES_ACCESS = Lazysite::ControlApi::Actions::changes_access\(\);/,
-        'the control API declares %CHANGES_ACCESS' )
-        or diag( 'SM587 named the second axis; without the table there is '
-            . 'nothing for a caller to read and nothing here to compare.' );
     my %api_ca = Lazysite::ControlApi::Actions::changes_access();
     cmp_ok( scalar keys %api_ca, '>=', 3, '%CHANGES_ACCESS parsed non-trivially' );
 

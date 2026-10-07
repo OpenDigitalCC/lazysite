@@ -181,4 +181,91 @@ subtest 'SM943 stage 2: the MCP tables are built from the declaration' => sub {
     is_deeply( $ANN{read_notices},   [ 1, 0, 0, 0 ], 'read_notices is read-only' );
 };
 
+# SM943 stage 3: THE ONE COMPLETENESS CHECK. With every per-action table derived
+# from %ACTION, the lints that kept copies in step (14, 22, 23, 58, 98 and the
+# action tables in t/unit/lib/16) have no copies left to compare; what can still
+# be wrong is the declaration itself. So this asks, of every entry, that it says
+# what an entry must say and says it in a shape the derivations read correctly.
+# A misspelt FIELD is refused at load already; this covers the values. Adding an
+# action is one entry, its handler and its test - and this holds the entry to
+# the shape.
+subtest 'SM943 stage 3: every action declaration is complete' => sub {
+    require Lazysite::Capabilities;
+    my %CAP   = map { $_ => 1 } Lazysite::Capabilities::capability_keys();
+    my %IN    = map { $_ => 1 } qw(query body query_or_body);
+    my %PKEY  = map { $_ => 1 } qw(name in required note);
+    my @FLAGS = qw(mutates destructive changes_access scoped mcp_open_world);
+    my $mcp   = do {
+        open my $fh, '<', repo_root() . '/lazysite-mcp.pl' or die $!;
+        local $/;
+        <$fh>;
+    };
+    my ($tools) = $mcp =~ /\nmy %TOOLS = \((.*?)\n\);\n/s;
+    my %TOOL = map { $_ => 1 } ( $tools // '' ) =~ /^    ([a-z_]+) => \{\n/mg;
+    cmp_ok( scalar keys %TOOL, '>=', 60, 'the MCP tool table was read' );
+
+    my $decl = \%Lazysite::ControlApi::Actions::ACTION;
+    cmp_ok( scalar keys %$decl, '>=', 100, 'the declaration was read' );
+    my @bad;
+    for my $name ( sort keys %$decl ) {
+        my $s = $decl->{$name};
+        push @bad, "$name: the name is not an action name" unless $name =~ /\A[a-z][a-z0-9_-]*\z/;
+
+        # params: REQUIRED, the one field with no default - the reference and the
+        # missing-parameter check (SM773) both read it.
+        if ( ref $s->{params} ne 'ARRAY' ) { push @bad, "$name: no params list"; }
+        else {
+            my %seen;
+            for my $p ( @{ $s->{params} } ) {
+                my $pn = ref $p eq 'HASH' ? $p->{name} // '' : '';
+                push @bad, "$name: a parameter with no name" unless $pn =~ /\A[a-z_]+\z/;
+                push @bad, "$name: '$pn' is listed twice" if $seen{$pn}++;
+                push @bad, "$name: '$pn' is read from '" . ( $p->{in} // '' ) . "'"
+                    unless $IN{ $p->{in} // '' };
+                push @bad, "$name: '$pn' marks required as '$p->{required}'"
+                    if exists $p->{required} && $p->{required} ne '1';
+                push @bad, "$name: '$pn' has an empty note"
+                    if exists $p->{note} && !length( $p->{note} // '' );
+                push @bad, "$name: '$pn' declares '$_', which a parameter does not have"
+                    for grep { !$PKEY{$_} } sort keys %$p;
+            }
+        }
+
+        # A flag is written only where it is true; a written 0 reads as a
+        # decision and means the default.
+        for my $f (@FLAGS) {
+            push @bad, "$name: $f is written as '$s->{$f}'"
+                if exists $s->{$f} && $s->{$f} ne '1';
+        }
+        # `audited` states an EXCEPTION to "audited exactly when it mutates";
+        # one that restates the default is noise that hides the real exceptions.
+        if ( exists $s->{audited} ) {
+            push @bad, "$name: audited is '$s->{audited}'" unless $s->{audited} =~ /\A[01]\z/;
+            push @bad, "$name: audited => $s->{audited} only restates the default"
+                if $s->{audited} eq ( $s->{mutates} ? '1' : '0' );
+        }
+        for my $f (qw(cookie_gates_itself cookie_only_reason)) {
+            push @bad, "$name: $f gives no reason"
+                if exists $s->{$f} && length( $s->{$f} // '' ) < 20;
+        }
+        if ( defined( my $cc = $s->{cookie_cap} ) ) {
+            push @bad, "$name: cookie_cap '$cc' names a capability that does not exist"
+                for grep { !$CAP{$_} } split /[|+]/, $cc;
+        }
+        if ( defined $s->{caps} ) {
+            push @bad, "$name: the gate names '$_', which is not a capability"
+                for grep { !$CAP{$_} } @{ $s->{caps} };
+        }
+
+        # The MCP twin: a tool that exists. Its hints are derived, so nothing else
+        # about it can disagree.
+        if ( defined( my $t = $s->{mcp} ) ) {
+            push @bad, "$name: its MCP twin '$t' is not a tool in lazysite-mcp.pl"
+                unless $TOOL{$t};
+        }
+    }
+    is_deeply( \@bad, [], 'every action declares params, and every field it writes is well formed' )
+        or diag( join "\n  ", '', @bad );
+};
+
 done_testing();

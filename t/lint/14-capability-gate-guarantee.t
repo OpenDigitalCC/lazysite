@@ -36,16 +36,10 @@ my $src  = do {
 my %all = map { $_ => 1 } ( $src =~ /\$action eq '([a-z0-9-]+)'/g );
 
 # SM943: the CGI's tables are DERIVED from Lazysite::ControlApi::Actions, so the
-# data is read from there; the CGI is held to building them from it, so what is
-# checked below is what the dispatcher consults.
-like( $src, qr/my %COOKIE_CAP = Lazysite::ControlApi::Actions::cookie_caps\(\);/,
-    'the CGI builds %COOKIE_CAP from the declaration' );
-like( $src, qr/my %MUTATING = Lazysite::ControlApi::Actions::mutating\(\);/,
-    'the CGI builds %MUTATING from the declaration' );
-like( $src, qr/my %file_surface = Lazysite::ControlApi::Actions::file_surface\(\);/,
-    'the CGI builds %file_surface from the declaration' );
-like( $src, qr/my %SCOPED_ACTION = Lazysite::ControlApi::Actions::scoped_actions\(\);/,
-    'the CGI builds %SCOPED_ACTION from the declaration' );
+# data is read from there. That the CGI builds each of them from it, and keeps
+# no copy, is asserted once for all ten tables in
+# t/unit/lib/200-every-action-table-derives-from-one-declaration.t (subtest 1);
+# the four lines that repeated it here for this lint's tables went in stage 3.
 my %cc_decl = Lazysite::ControlApi::Actions::cookie_caps();
 ok( %cc_decl, 'found the %COOKIE_CAP map' );
 my %cookie_caps;    # action => { cap => 1, ... }  (OR-set: any listed cap passes)

@@ -70,35 +70,18 @@ for my $i ( 0 .. $#lines ) {
     @cur = () if $depth <= 0;
 }
 
-# --- 1. the same set ---------------------------------------------------------
-subtest 'the reference lists exactly the actions that exist' => sub {
-    my @declared = sort keys %Lazysite::ControlApi::Actions::ACTION;
-    is_deeply( \@declared, \@known,
-        scalar(@known) . ' actions, no more and no fewer' )
-        or diag( 'A published reference naming an action that does not exist '
-            . 'sends a caller after nothing; one missing an action hides it.' );
-};
-
-# --- 2. the same capabilities ------------------------------------------------
-subtest 'and requires what the token gate requires' => sub {
-    for my $a (@known) {
-        my $spec = $Lazysite::ControlApi::Actions::ACTION{$a} or next;
-        if ( exists $need{$a} ) {
-            # SM662: gate_caps hands back a SET per action, so the comparison
-            # is against its keys. The old array shape died here as an
-            # "Not an ARRAY reference", which took the whole file with it.
-            is_deeply( [ sort @{ $spec->{caps} // [] } ],
-                [ sort keys %{ $need{$a} } ],
-                "$a: capabilities match the token gate" );
-        }
-        else {
-            # The state a caller cannot discover any other way, and the reason
-            # SM237 needed %KNOWN_ACTION: without it the token gate could not
-            # tell "exists, but cookie-only" from "no such action".
-            is( $spec->{caps}, undef, "$a: cookie-only, and declared so" );
-        }
-    }
-};
+# --- 1 and 2, removed in SM943 stage 3 ----------------------------------------
+# Two subtests stood here, and neither could still fail on its own:
+#
+#   1. "the reference lists exactly the actions that exist" compared %ACTION's
+#      names with the chain's. t/lint/22 makes the same comparison, action by
+#      action, since stage 1 made %KNOWN_ACTION the declared set - so this was a
+#      second copy of one check, and the copy went.
+#   2. "and requires what the token gate requires" compared each entry's `caps`
+#      with need_caps(). Both are read from %GATE by the same module - `caps` is
+#      derived from it at load and need_caps() reads `caps` back - so the two
+#      sides were one value and the comparison was true by construction. What
+#      the gate decides is pinned by t/lint/98's ledger and spot checks.
 
 # --- 3. the same parameters --------------------------------------------------
 subtest 'and names the parameters each branch reads' => sub {

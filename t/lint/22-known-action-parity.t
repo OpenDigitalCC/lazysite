@@ -32,9 +32,13 @@ my %dispatched = map { $_ => 1 } ( $src =~ /\$action\s+eq\s+'([a-z0-9_-]+)'/g );
 cmp_ok( scalar keys %dispatched, '>=', 90,
     'the dispatch chain was found and parsed' );
 
-# The declared set: %ACTION's names, which the CGI's %KNOWN_ACTION is built from.
-like( $src, qr/my %KNOWN_ACTION = Lazysite::ControlApi::Actions::known_actions\(\);/,
-    '%KNOWN_ACTION is built from the declaration' );
+# The declared set: %ACTION's names, which the CGI's %KNOWN_ACTION is built from
+# (asserted with the other nine tables in t/unit/lib/200, subtest 1; SM943 stage 3
+# removed the copy of that assertion that stood here).
+#
+# SM943 stage 3: THIS IS NOW THE ONE CHECK THAT THE DECLARATION AND THE CHAIN
+# NAME THE SAME ACTIONS. t/lint/58 made the same comparison as one is_deeply;
+# that copy went, and this one, which names each missing or stale action, stays.
 my %declared = Lazysite::ControlApi::Actions::known_actions();
 cmp_ok( scalar keys %declared, '>=', 90, 'the declared set was found' );
 
