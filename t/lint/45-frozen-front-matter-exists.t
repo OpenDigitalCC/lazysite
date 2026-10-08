@@ -61,8 +61,10 @@ cmp_ok( scalar keys %claimed, '>=', 8, 'parsed the frozen field list' )
 # Every engine reader, not just the processor: `translated_from` is read by
 # Lazysite::Lang, and a haystack that missed it reported a field that has worked
 # since SM179 as absent.
-my @readers = ( "$root/lazysite-processor.pl", glob("$root/lib/Lazysite/*.pm"),
-    glob("$root/lib/Lazysite/*/*.pm") );
+# SM944: the processor is the script and its parts (lazysite-processor/); a key
+# read only in a part - `register`, in scan_pages, since S15 - is read.
+my @readers = ( "$root/lazysite-processor.pl", glob("$root/lazysite-processor/*.pm"),
+    glob("$root/lib/Lazysite/*.pm"), glob("$root/lib/Lazysite/*/*.pm") );
 # COMMENTS STRIPPED, so a field that is only ever discussed in a comment cannot
 # satisfy the check - which would defeat the point, since the ADR entry is
 # itself a description of a field nobody implemented.
