@@ -100,10 +100,10 @@ sub render_content {
     my $tt = Template->new(
         ABSOLUTE    => 0,
         ENCODING    => 'utf8',
-        EVAL_PERL   => 0,                  # L-2
+        EVAL_PERL   => 0,                                     # L-2
         FILTERS     => { url_safe => \&_url_safe_filter },    # SM970
-        COMPILE_DIR => $TT_COMPILE_DIR,    # P-4
-        COMPILE_EXT => '.ttc',             # P-4
+        COMPILE_DIR => $TT_COMPILE_DIR,                       # P-4
+        COMPILE_EXT => '.ttc',                                # P-4
     ) or do { umask $old_umask; die "Template error: " . Template->error() . "\n" };
     umask $old_umask;
 
@@ -308,8 +308,8 @@ sub render_content {
         # already named as frozen front-matter in ADR 0008 and neither existed.
         page_meta_desc =>
             _esc_html( $meta->{meta_desc} // $meta->{subtitle} ),
-        page_meta_title   => _esc_html( $meta->{meta_title} // $meta->{title} ),
-        page_author       => _esc_html( $meta->{author} ),
+        page_meta_title => _esc_html( $meta->{meta_title} // $meta->{title} ),
+        page_author     => _esc_html( $meta->{author} ),
 
         # SM824 I1: the raw twins, under the contract documented above. The
         # fallbacks mirror the escaped pairs exactly - meta_desc falls back to
@@ -318,8 +318,8 @@ sub render_content {
         page_meta_desc_raw  => ( $meta->{meta_desc}  // $meta->{subtitle} // '' ),
         page_meta_title_raw => ( $meta->{meta_title} // $meta->{title}    // '' ),
         page_author_raw     => ( $meta->{author}     // '' ),
-        page_modified     => $meta->{page_modified}     || '',
-        page_modified_iso => $meta->{page_modified_iso} || '',
+        page_modified       => $meta->{page_modified}     || '',
+        page_modified_iso   => $meta->{page_modified_iso} || '',
         # SM796: escaped, like every other client-influenced value entering
         # this stash. It sat raw between two _esc_html'd neighbours and is
         # interpolated into an href by the shipped 402 and 403 pages. Live
