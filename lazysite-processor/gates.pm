@@ -29,6 +29,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $DOCROOT, $LAZYSITE_DIR, $PREVIEW_COOKIE, %PAYMENT_CONTEXT );
+
 sub peek_payment {
     my ($path) = @_;
     my $m = _peek_md($path);
