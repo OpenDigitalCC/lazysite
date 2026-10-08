@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the content-type cache is the processor's fifth
+  part** (S6 of the plan in the filing). `ct_cache_path`, `read_ct`, `write_ct`
+  and `write_html` move unchanged to `lazysite-processor/ct-cache.pm`. No
+  behaviour change.
+
 - WORK-PLAN-0153 Q14b (PENDING) **the release gate can run from a `git
   worktree`.** It refused one ("no git repo": it looked for a `.git` directory,
   which a worktree has as a file) - and a long gate is safest run from a
