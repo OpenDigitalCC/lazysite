@@ -50,6 +50,7 @@ File::Find::find(
     },
     "$root/lib",
     "$root/tools",
+    "$root/lazysite-processor",    # SM944: the processor's parts
     ( -d "$root/plugins" ? "$root/plugins" : () ),
 );
 # The CGI entry points live at the top level, not under lib/.

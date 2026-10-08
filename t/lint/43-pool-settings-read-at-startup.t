@@ -55,29 +55,38 @@ cmp_ok( scalar keys %exported, '>=', 4,
 # Where the processor's top-level subs start and end. The file is perltidy-clean,
 # so a top-level sub closes with a brace in column 0 - the same assumption
 # t/lint/37 already relies on to extract a sub body.
-my @lines = split /\n/, $proc, -1;
-my @in_sub;    # line index -> 1 when inside a top-level sub
-my $depth = 0;
-for my $i ( 0 .. $#lines ) {
-    if ( !$depth && $lines[$i] =~ /^sub\s+\w+/ ) { $depth = 1 }
-    $in_sub[$i] = $depth;
-    if ( $depth && $lines[$i] =~ /^\}/ ) { $depth = 0 }
+#
+# SM944: the processor's parts (lazysite-processor/) are the processor - their
+# subs run per request exactly as the script's do - so each is scanned too.
+my %scan = ( 'lazysite-processor.pl' => $proc );
+$scan{ $_ =~ s{\A\Q$root/\E}{}r } = slurp($_) for glob("$root/lazysite-processor/*.pm");
+my ( %lines, %in_sub );    # file -> lines; file -> line index -> 1 inside a sub
+for my $file ( keys %scan ) {
+    my @l     = split /\n/, $scan{$file}, -1;
+    my $depth = 0;
+    for my $i ( 0 .. $#l ) {
+        if ( !$depth && $l[$i] =~ /^sub\s+\w+/ ) { $depth = 1 }
+        $in_sub{$file}[$i] = $depth;
+        if ( $depth && $l[$i] =~ /^\}/ ) { $depth = 0 }
+    }
+    $lines{$file} = \@l;
 }
 
 subtest 'every pool setting is captured at startup, not per request' => sub {
     my @offenders;
-    for my $i ( 0 .. $#lines ) {
-        my $l = $lines[$i];
-        next if $l =~ /^\s*#/;      # a comment describing the rule
-        next unless $in_sub[$i];    # file scope is where they belong
-        while ( $l =~ /\$ENV\{([A-Z_]+)\}/g ) {
-            my $name = $1;
-            next unless $exported{$name};
-            # A WRITE inside a sub is fine - that is building the environment for
-            # a child process, not reading the pool's own settings.
-            next if $l =~ /\$ENV\{\Q$name\E\}\s*=[^=]/;
-            push @offenders, sprintf '%s:%d: %s', 'lazysite-processor.pl',
-                $i + 1, $l =~ s/^\s+//r;
+    for my $file ( sort keys %lines ) {
+        for my $i ( 0 .. $#{ $lines{$file} } ) {
+            my $l = $lines{$file}[$i];
+            next if $l =~ /^\s*#/;             # a comment describing the rule
+            next unless $in_sub{$file}[$i];    # file scope is where they belong
+            while ( $l =~ /\$ENV\{([A-Z_]+)\}/g ) {
+                my $name = $1;
+                next unless $exported{$name};
+                # A WRITE inside a sub is fine - that is building the environment for
+                # a child process, not reading the pool's own settings.
+                next if $l =~ /\$ENV\{\Q$name\E\}\s*=[^=]/;
+                push @offenders, sprintf '%s:%d: %s', $file, $i + 1, $l =~ s/^\s+//r;
+            }
         }
     }
 

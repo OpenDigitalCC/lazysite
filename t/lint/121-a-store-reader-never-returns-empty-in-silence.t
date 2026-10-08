@@ -42,6 +42,7 @@ subtest 'the catalogue names every lazysite/ directory the engine uses' => sub {
         "$root/lib" );
     push @src, grep { -f } map { "$root/$_" } qw(lazysite-manager-api.pl lazysite-mcp.pl
         lazysite-auth.pl lazysite-processor.pl lazysite-dav.pl);
+    push @src, glob("$root/lazysite-processor/*.pm");    # SM944: its parts
 
     my %seen;
     for my $f (@src) {
@@ -217,6 +218,7 @@ subtest 'a read-open naming a store reports, whichever file it is in' => sub {
         lazysite-processor.pl lazysite-dav.pl
         plugins/stats.pl plugins/form-handler.pl tools/lazysite-users.pl
     );
+    push @src, glob("$root/lazysite-processor/*.pm");    # SM944: its parts
 
     my ( $n, @bad ) = (0);
     for my $f ( sort @src ) {

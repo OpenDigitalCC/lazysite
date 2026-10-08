@@ -8,7 +8,7 @@ package main;
 #         _yaml_scalar, _yaml_split_flow, _yaml_quoted_scalar_line.
 # OWNS    what a page's front matter means to the engine: process_md, the
 #         include path and the registry scan all read it through this one parse.
-# CALLS   strip_tt_directives (lazysite-processor.pl, oEmbed section).
+# CALLS   strip_tt_directives (lazysite-processor/oembed.pm).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S1). It is package main, required
 # by absolute path from lazysite-processor.pl's BEGIN and never through @INC, and

@@ -34,7 +34,9 @@ for my $f (qw(lazysite-manager-api.pl lazysite-mcp.pl lazysite-dav.pl
 
 # --- the processor's exceptions are exactly the two discovery documents ------
 {
-    my $src   = slurp("$root/lazysite-processor.pl");
+    # SM944: the processor's parts are the processor, so they are counted too.
+    my $src = join "\n", map { slurp($_) } "$root/lazysite-processor.pl",
+        sort glob("$root/lazysite-processor/*.pm");
     my @lines = ( $src =~ /^.*Access-Control-Allow-.*$/mg );
     is( scalar @lines, 2,
         'the processor carries exactly two cross-origin responses' );
