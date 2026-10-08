@@ -31,6 +31,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $DOCROOT, $LAZYSITE_DIR, $RESPONSE_LANG, $TT_COMPILE_DIR, %AUTH_CONTEXT, %PAYMENT_CONTEXT, %PREVIEW_CONTEXT );
+
 # Mixed-identity compile cache (field 2026-07-11): TT creates its compile
 # cache mirror dirs itself with plain mkdir, i.e. with the PROCESS umask -
 # under the usual 0022 that yields 0755 dirs, and on a group-shared docroot
