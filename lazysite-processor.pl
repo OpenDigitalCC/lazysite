@@ -28,7 +28,7 @@ use Socket       qw(inet_pton inet_ntop AF_INET AF_INET6);    # SM929: the reque
 # lib tree. A part is package main and loads nothing; a missing one fails here.
 BEGIN {
     my $parts = dirname( realpath(__FILE__) ) . '/lazysite-processor';
-    for my $part (qw(front-matter.pm oembed.pm remap.pm components.pm)) {
+    for my $part (qw(front-matter.pm oembed.pm remap.pm components.pm ct-cache.pm)) {
         my $file = "$parts/$part";
         require $file;
     }

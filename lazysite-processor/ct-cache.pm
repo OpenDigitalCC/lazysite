@@ -18,6 +18,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $CT_CACHE_DIR, $DOCROOT );
+
 # --- Content type cache ---
 
 sub ct_cache_path {
