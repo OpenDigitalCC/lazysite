@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, the first part, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3 (n281) oEmbed; S4 (n282) the URL remapper. Next: S5, content components."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3 (n281) oEmbed; S4 (n282) URL remapper; S5 (n283) content components. Next: S6, the content-type cache."
 ---
 
 # Measured
@@ -110,3 +110,6 @@ S3 (n281)
 
 S4 (n282)
 : the URL remapper section (3 subs, 126 lines) moved to `lazysite-processor/remap.pm`, reaching `$LAZYSITE_DIR` and `%ACCESS_REC` through a bare `our` alias.
+
+S5 (n283)
+: the content components section (4 subs, 154 lines) moved to `lazysite-processor/components.pm`; lints 212 and 213 read the parts. Measured S2-S5 interleaved (n279-n283, 6 rounds): render_cache_hit_ms 73.5 to 74.2, render_miss_ms 97.5 to 97.3, each inside its tree's 2-4% spread.

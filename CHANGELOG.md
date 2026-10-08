@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: content components are the processor's fourth
+  part** (S5 of the plan in the filing). `convert_fenced_components` and its
+  helpers move unchanged to `lazysite-processor/components.pm`; lints 212 and
+  213 read the parts. No behaviour change; across S2-S5 the cache-hit and miss
+  render times are unchanged (1.010x and 0.998x, inside each tree's spread).
+
 - SM944 (PENDING) **internal: the URL remapper is the processor's third part**
   (S4 of the plan in the filing). `_remap_parse` (the marked copy of
   Lazysite::Remap's parser), `_remap_redirect` and `_alias_lookup` move
