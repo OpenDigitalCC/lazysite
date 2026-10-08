@@ -71,12 +71,19 @@ subtest 'the processor keeps its own copy, because it may not import this' => su
     # forever - shipped, apparently working, doing nothing.
     #
     # So the local copy must EXIST and must not be a call to the shared one.
-    my $root = "$FindBin::Bin/../../..";
-    my $src  = do {
-        open my $p, '<', "$root/lazysite-processor.pl" or die $!;
+    #
+    # SM944 S19: the copy is in the processor's ACL part, so that is where it
+    # is read; whether anything CALLS the shared helper is asked of the script
+    # and every part, since a call anywhere in the processor is the defect.
+    my $root  = "$FindBin::Bin/../../..";
+    my $slurp = sub {
+        open my $p, '<', $_[0] or die "$_[0]: $!";
         local $/;
         <$p>;
     };
+    my $src   = $slurp->("$root/lazysite-processor/acl.pm");
+    my $whole = join "\n", map { $slurp->($_) } "$root/lazysite-processor.pl",
+        sort glob("$root/lazysite-processor/*.pm");
 
     like( $src, qr/sub _display_name_for/,
         'the processor defines its own reader' );
@@ -87,7 +94,7 @@ subtest 'the processor keeps its own copy, because it may not import this' => su
     # cannot tell code from prose ABOUT code reports the explanation as the
     # defect - which is the same shape as every other check that matched the
     # wrong thing this week.
-    my $code = join "\n", grep { !/^\s*#/ } split /\n/, $src;
+    my $code = join "\n", grep { !/^\s*#/ } split /\n/, $whole;
     unlike( $code, qr/Lazysite::Auth::Settings::display_name_for\s*\(/,
         'and does NOT call the shared one, which it cannot load' );
 

@@ -193,7 +193,18 @@ for my $rel (@NGINX) {
 # --- 2. the processor's local copy matches the shared decision --------------
 
 {
-    my $proc = slurp("$root/lazysite-processor.pl");
+    # SM944 S19: the copy is in the processor's ACL part. It is looked for in
+    # the script and EVERY part, and must be defined there exactly once: two
+    # definitions in one processor compile, the later one wins, and the rules
+    # below would be checked against the copy that does not answer.
+    my %src = map { $_ => slurp($_) } "$root/lazysite-processor.pl",
+        sort glob("$root/lazysite-processor/*.pm");
+    my @defs = map { s{\A\Q$root/\E}{}r }
+        grep { $src{$_} =~ /^\s*sub _acl_allows_read\b/m } sort keys %src;
+    is_deeply( \@defs, ['lazysite-processor/acl.pm'],
+        'the processor defines its read-decision copy once, in its ACL part' );
+
+    my $proc = $src{"$root/lazysite-processor/acl.pm"} // '';
     my $acl  = slurp("$root/lib/Lazysite/Auth/Acl.pm");
 
     like( $proc, qr/sub _acl_allows_read/,
@@ -225,8 +236,7 @@ for my $rel (@NGINX) {
     #
     # SM944: of the WHOLE processor, so its parts are read too - the include
     # path's SM898 refusal is an ACL decision, and it lives in include.pm.
-    my $whole = join "\n", $proc,
-        map { slurp($_) } sort glob("$root/lazysite-processor/*.pm");
+    my $whole = join "\n", map { $src{$_} } sort keys %src;
     unlike( code_of($whole), qr/_acl_denied/,
         'the public path never uses _acl_denied - it bypasses via _is_operator '
             . 'on an unsecured site' );
