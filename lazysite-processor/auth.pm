@@ -33,6 +33,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $DOCROOT, $LAZYSITE_DIR, %ACCESS_REC );
+
 # --- Auth ---
 
 {
