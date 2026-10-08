@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the auth gate is the processor's nineteenth
+  part, the last of the processor's rows** (S20 of the plan in the filing).
+  `check_auth`, `peek_auth` with the front-matter peek and its per-request
+  memo, `_is_manager`, `_site_grants_manager`, `_serve_manager_forbidden`
+  and `serve_403` move unchanged to `lazysite-processor/auth.pm`. The trust
+  gate stays in the script's request entry, where lints 13 and 38 look for
+  it. No check read the moved code's text from the script, so none changed;
+  the checks that guard the gate were each seen to fail with a violation
+  placed in the part. No behaviour change; the render times are unchanged.
+
 - SM973 (PENDING) **security: a pooled worker kept serving a file after it was
   protected.** The processor read `acls.json` once and, under the FastCGI
   pool, kept that answer until the worker restarted (500 requests by default).
