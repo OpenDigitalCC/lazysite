@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S8 (n281-n288) oEmbed, URL remapper, content components, content-type cache, payment and preview gates, access log. Next: S9, the front door."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S9 (n281-n289) oEmbed, URL remapper, components, content-type cache, payment and preview gates, access log, front door. Next: S10, include and Markdown."
 ---
 
 # Measured
@@ -122,3 +122,6 @@ S7 (n287)
 
 S8 (n288)
 : the access log and unit registry sections (8 subs, 229 lines, the end of the script) moved to `lazysite-processor/access-log.pm`. Its one file-scope state, `my $_UNITS;` in a bare block, has no initialiser, so running the block at load rather than after the request leaves it undef until the first lookup, as before. Lints 159 and 198 read the part; lint 215 ends an indented sub at its own `}`; the two sysopen calls write the Fcntl constants as calls, so the part compiles alone (lint 04).
+
+S9 (n289)
+: the front door section (7 subs, 365 lines) moved to `lazysite-processor/front-door.pm`; lint 42 and test 47 lift its subs from the part. Measured S6-S9 interleaved (main = the S5 tree, n286-n289, 6 rounds, beside a coverage run): render_cache_hit_ms 100.0 to 99.2, render_miss_ms 132.6 to 129.7, inside each tree's 6-17% spread; `perl -c` median 97.96 to 98.58 ms. The processor is 9,126 lines.

@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the front door is the processor's eighth part**
+  (S9 of the plan in the filing). `_front_door`, `_front_route` (the copy of
+  Lazysite::FrontDoor::route) and the relay move unchanged to
+  `lazysite-processor/front-door.pm`; lint 42 and test 47 read them there. No
+  behaviour change; across S6-S9 the cache-hit and miss render times are
+  unchanged (0.993x and 0.978x, inside each tree's spread).
+
 - SM944 (PENDING) **internal: the access log and the unit registry are the
   processor's seventh part** (S8 of the plan in the filing). The SM140 access
   recorder and the SM222 `plugins:` read move unchanged to
