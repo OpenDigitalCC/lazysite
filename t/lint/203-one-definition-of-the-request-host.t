@@ -50,9 +50,10 @@ sub body_of {
     return join '', @body;
 }
 
+# SM944 S13: the processor's copy is in its request part.
 my %HOST = (
-    'lazysite-processor.pl' => body_of( 'lazysite-processor.pl',  '_request_host' ),
-    'lib/Lazysite/Util.pm'  => body_of( 'lib/Lazysite/Util.pm',   'request_host' ),
+    'lazysite-processor/request.pm' => body_of( 'lazysite-processor/request.pm', '_request_host' ),
+    'lib/Lazysite/Util.pm'          => body_of( 'lib/Lazysite/Util.pm',          'request_host' ),
 );
 my %ENVV = (
     'lazysite-processor.pl' => body_of( 'lazysite-processor.pl', '_env_value' ),
@@ -100,9 +101,9 @@ sub norm {
     $b =~ s/\A\s+|\s+\z//g;
     return $b;
 }
-is( norm( $HOST{'lazysite-processor.pl'} ), norm( $HOST{'lib/Lazysite/Util.pm'} ),
+is( norm( $HOST{'lazysite-processor/request.pm'} ), norm( $HOST{'lib/Lazysite/Util.pm'} ),
     'the two request-host bodies are the SAME decision, line for line' )
-    or diag( "  processor: " . norm( $HOST{'lazysite-processor.pl'} ) . "\n"
+    or diag( "  processor: " . norm( $HOST{'lazysite-processor/request.pm'} ) . "\n"
         . "  util:      " . norm( $HOST{'lib/Lazysite/Util.pm'} ) . "\n"
         . "  Two copies of one judgement. A site's alias selection and its own\n"
         . "  links would disagree about what host it is on, which is the whole of\n"

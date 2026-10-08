@@ -68,7 +68,8 @@ my @PAIRS = (
     [ 'the range match',       '_address_in_set',        '_address_in_set' ],
 );
 
-my %PROC = map { $_->[1] => body_of( 'lazysite-processor.pl', $_->[1] ) } @PAIRS;
+# SM944 S13: the processor's copies are in its request part.
+my %PROC = map { $_->[1] => body_of( 'lazysite-processor/request.pm', $_->[1] ) } @PAIRS;
 my %UTIL = map { $_->[2] => body_of( 'lib/Lazysite/Util.pm',  $_->[2] ) } @PAIRS;
 
 for my $p (@PAIRS) {
@@ -79,7 +80,7 @@ for my $p (@PAIRS) {
 
 # --- the clauses, asserted against BOTH copies ------------------------------
 for my $pair (
-    [ 'lazysite-processor.pl', $PROC{_request_address} ],
+    [ 'lazysite-processor/request.pm', $PROC{_request_address} ],
     [ 'lib/Lazysite/Util.pm',  $UTIL{request_address} ],
     )
 {
@@ -105,7 +106,7 @@ for my $pair (
 }
 
 for my $pair (
-    [ 'lazysite-processor.pl', $PROC{_parse_trusted_proxies} ],
+    [ 'lazysite-processor/request.pm', $PROC{_parse_trusted_proxies} ],
     [ 'lib/Lazysite/Util.pm',  $UTIL{parse_trusted_proxies} ],
     )
 {
@@ -123,7 +124,7 @@ for my $pair (
 }
 
 for my $pair (
-    [ 'lazysite-processor.pl', $PROC{_address_in_set} ],
+    [ 'lazysite-processor/request.pm', $PROC{_address_in_set} ],
     [ 'lib/Lazysite/Util.pm',  $UTIL{_address_in_set} ],
     )
 {
@@ -139,6 +140,10 @@ sub norm {
     $b =~ s/^\s*#.*$//mg;    # comments are allowed to differ
     $b =~ s/\bsub\s+_(request_address|parse_trusted_proxies)\b/sub $1/;
     $b =~ s/\b_(request_address|parse_trusted_proxies)\(/$1(/g;
+    # SM944 S13: the processor's copy lives in a part, which loads nothing and so
+    # names the Socket constants as calls, AF_INET() - the same constant, folded
+    # to the same number at compile time. One spelling here.
+    $b =~ s/\b(AF_INET6?)\(\)/$1/g;
     $b =~ s/\s+/ /g;
     $b =~ s/\A\s+|\s+\z//g;
     return $b;
@@ -161,10 +166,18 @@ for my $p (@PAIRS) {
 # request is served (t/lint/39 names exactly this). As a package array the default
 # silently became "trust nothing" in the render path, which failed safe and failed
 # to work - caught by t/unit/processor/27 before it ever ran anywhere.
-for my $file ( 'lazysite-processor.pl', 'lib/Lazysite/Util.pm' ) {
-    open my $fh, '<', "$root/$file" or die "$file: $!";
-    my $src = do { local $/; <$fh> };
-    close $fh;
+#
+# The processor is the script and its parts (SM944): file-scoped state in any of
+# them is the processor's, so its source here is all of them.
+my @PROCESSOR = ( 'lazysite-processor.pl',
+    map { s{\A\Q$root/\E}{}r } sort glob("$root/lazysite-processor/*.pm") );
+for my $file ( 'the processor', 'lib/Lazysite/Util.pm' ) {
+    my $src = '';
+    for my $f ( $file eq 'the processor' ? @PROCESSOR : ($file) ) {
+        open my $fh, '<', "$root/$f" or die "$f: $!";
+        $src .= do { local $/; <$fh> };
+        close $fh;
+    }
     unlike( $src, qr/our \@TRUSTED_PROXY_DEFAULT/,
         "$file: the private-range default is a sub, not file-scoped state" );
     like( $src, qr/sub _trusted_proxy_default/,

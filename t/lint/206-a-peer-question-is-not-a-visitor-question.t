@@ -52,7 +52,8 @@ my %LEDGER = (
             'the DAV transport gate - never accept Basic credentials over plaintext'
         ],
     ],
-    'lazysite-processor.pl' => [
+    # SM944: the processor is the script and its parts; code_lines reads them all.
+    'the processor' => [
         [ qr/my \$peer\s+= \$ENV\{REMOTE_ADDR\}/,
             'the trust check inside the one definition - the peer is the trust basis'
         ],
@@ -70,15 +71,20 @@ my @NO_BARE_READS = qw(
     plugins/payment-demo.pl
 );
 
+my @PROCESSOR = ( 'lazysite-processor.pl',
+    map { s{\A\Q$root/\E}{}r } sort glob("$root/lazysite-processor/*.pm") );
+
 sub code_lines {
     my ($file) = @_;
-    open my $fh, '<', "$root/$file" or die "$file: $!";
     my @out;
-    while ( my $l = <$fh> ) {
-        next if $l =~ /^\s*#/;    # a comment may name the variable freely
-        push @out, $l;
+    for my $f ( $file eq 'the processor' ? @PROCESSOR : ($file) ) {
+        open my $fh, '<', "$root/$f" or die "$f: $!";
+        while ( my $l = <$fh> ) {
+            next if $l =~ /^\s*#/;    # a comment may name the variable freely
+            push @out, $l;
+        }
+        close $fh;
     }
-    close $fh;
     return @out;
 }
 
