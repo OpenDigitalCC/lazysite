@@ -27,8 +27,10 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root      = repo_root();
-my $processor = "$root/lazysite-processor.pl";
-plan skip_all => "no $processor" unless -f $processor;
+# SM944 S15: the regenerator is in the processor's registries part.
+my $processor = "$root/lazysite-processor/registries.pm";
+# No skip when it is missing: a part the sub has left would make this test pass
+# by running nothing. The open below fails it instead.
 
 my $src = do { open my $fh, '<', $processor or die $!; local $/; <$fh> };
 

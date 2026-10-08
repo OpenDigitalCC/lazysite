@@ -91,6 +91,21 @@ for my $rel (@SCRIPTS) {
     my @lines = <$fh>;
     close $fh;
 
+    # SM944: the processor's subs are also in its parts (lazysite-processor/),
+    # required in a BEGIN and so defined before the main body runs. A part's sub
+    # reading script state initialised down here sees it just as empty, so the
+    # parts' lines are where "read by a sub" is looked for too - after the
+    # script's, so a line index into @lines still names a script line. Their own
+    # file-scope code runs at BEGIN and is not what this rule is about.
+    my @readers = @lines;
+    if ( $rel eq 'lazysite-processor.pl' ) {
+        for my $p ( sort glob("$root/lazysite-processor/*.pm") ) {
+            open my $ph, '<', $p or die "$p: $!";
+            push @readers, <$ph>;
+            close $ph;
+        }
+    }
+
     # Walk the file at brace depth zero and remember the last statement that
     # RUNS something - not a use, not a declaration, not a sub definition. That
     # is where the main body ends.
@@ -134,14 +149,17 @@ for my $rel (@SCRIPTS) {
         my $used_in_sub = 0;
         my $in_sub      = 0;
         my $depth       = 0;
-        for my $j ( 0 .. $#lines ) {
+        # A sub may sit indented in a bare block that holds its memo
+        # (`{ my $memo; sub f { ... } }`, update_registries' shape); its body
+        # still counts from its own brace.
+        for my $j ( 0 .. $#readers ) {
             next if $j == $i;
-            if ( !$in_sub && $lines[$j] =~ /^sub\s+\w+/ ) { $in_sub = 1; $depth = 0 }
+            if ( !$in_sub && $readers[$j] =~ /^\s*sub\s+\w+/ ) { $in_sub = 1; $depth = 0 }
             next unless $in_sub;
-            $depth += ( $lines[$j] =~ tr/{// );
-            $depth -= ( $lines[$j] =~ tr/}// );
-            $used_in_sub = 1 if $lines[$j] =~ /\Q$sigil$name\E\b|\$\Q$name\E\{|\$\Q$name\E\[/;
-            $in_sub      = 0 if $depth <= 0 && $lines[$j] =~ /\}/;
+            $depth += ( $readers[$j] =~ tr/{// );
+            $depth -= ( $readers[$j] =~ tr/}// );
+            $used_in_sub = 1 if $readers[$j] =~ /\Q$sigil$name\E\b|\$\Q$name\E\{|\$\Q$name\E\[/;
+            $in_sub      = 0 if $depth <= 0 && $readers[$j] =~ /\}/;
         }
         next unless $used_in_sub;
 

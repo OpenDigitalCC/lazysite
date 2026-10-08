@@ -27,7 +27,12 @@ plan skip_all => "no $plugin" unless -f $plugin;
 
 # --- the processor must record the hit at all -------------------------
 {
-    my $src = do { open my $fh, '<', "$root/lazysite-processor.pl" or die $!; local $/; <$fh> };
+    # SM944 S15: _serve_registry is in the processor's registries part.
+    my $src = do {
+        open my $fh, '<', "$root/lazysite-processor/registries.pm" or die $!;
+        local $/;
+        <$fh>;
+    };
     my ($serve) = $src =~ /(sub _serve_registry \{.*?\n\})/s;
     ok( $serve, 'the registry server can be isolated' );
     like( $serve, qr/\$ACCESS_REC\{s\}\s*=\s*200/,

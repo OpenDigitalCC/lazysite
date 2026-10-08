@@ -36,21 +36,30 @@ my $src = do {
     <$fh>;
 };
 
+# The processor is the script and its parts (SM944): the one declaration, the
+# absence of any other copy, and the uses by the scan (registries.pm since S15)
+# and the stash (the script) are properties of all of them together.
+my $all = join '', $src, map {
+    open my $fh, '<', $_ or die "$_: $!";
+    local $/;
+    <$fh>;
+} sort glob( repo_root() . '/lazysite-processor/*.pm' );
+
 subtest 'the reserved list is declared ONCE and shared' => sub {
     # SM522: a SUB, not a file-scoped hash. `our %FRONT_MATTER_RESERVED = ...`
     # sat below the dispatch and was EMPTY when a CGI request was served, so
     # the reserved keys leaked into the stash and the scan - t/lint/39 pins
     # the shape; this pins that the one list is the sub.
-    my $decls = () = $src =~ /^sub _front_matter_reserved \{/mg;
+    my $decls = () = $all =~ /^sub _front_matter_reserved \{/mg;
     is( $decls, 1, 'one declaration, as a sub (SM522)' );
-    unlike( $src, qr/^our %FRONT_MATTER_RESERVED/m,
+    unlike( $all, qr/^our %FRONT_MATTER_RESERVED/m,
         'no file-scoped copy below the dispatch to be empty at request time' );
-    my $uses = () = $src =~ /_front_matter_reserved\(\)/g;
+    my $uses = () = $all =~ /_front_matter_reserved\(\)/g;
     cmp_ok( $uses, '>=', 2, 'used by the scan and by the stash' )
         or diag( 'Two copies of the reserved list would let the scan and the '
             . 'page disagree about what is custom - the very asymmetry this '
             . 'change removes, one level up.' );
-    unlike( $src, qr/my %reserved = map \{ \$_ => 1 \} qw\(\s*\n\s*url title/,
+    unlike( $all, qr/my %reserved = map \{ \$_ => 1 \} qw\(\s*\n\s*url title/,
         'the scan no longer carries its own copy' );
 };
 
