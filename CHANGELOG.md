@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM973 (PENDING) **security: a pooled worker kept serving a file after it was
+  protected.** The processor read `acls.json` once and, under the FastCGI
+  pool, kept that answer until the worker restarted (500 requests by default).
+  A file protected after that was still served to anonymous visitors, and a
+  reader removed from a list kept access. The store is now read again for
+  every request, as its declaration always said. Found while moving the ACL
+  copies (SM944 S19); t/integration/110.
+
 - SM944 (PENDING) **internal: the ACL, group and domain copies are the
   processor's eighteenth part** (S19 of the plan in the filing).
   `_acl_allows_read` and the ACL family, the private-store copies,

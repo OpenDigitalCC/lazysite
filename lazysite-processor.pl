@@ -238,7 +238,7 @@ our $REQUEST_CROOT;    # SM151: the request's confined content root (undef => do
 our $ACL_MAP_CACHE;    # SM268 H13: acls.json parsed at most once per request -
                       # a scan asks the read decision up to 200 times. undef =
                       # not loaded, 0 = load failed (fail closed), hashref = the
-                      # store.
+                       # store. reset_request_state clears it (SM973).
 
 # Built-in fallback template - used when no layout.tt is found
 our $FALLBACK_LAYOUT = <<'END_FALLBACK';
@@ -2108,6 +2108,7 @@ sub _lazy_lib {
         $_site_vars_loaded = 0;
         $_site_vars_sig    = '';
         undef $REQUEST_CROOT;    # SM151: recomputed per request in main()
+        undef $ACL_MAP_CACHE;    # SM973: a pooled worker re-reads acls.json
         _reset_peek_cache();
     }
 }
