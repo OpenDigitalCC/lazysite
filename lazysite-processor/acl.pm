@@ -35,6 +35,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $DOCROOT, $LAZYSITE_DIR, $ACL_MAP_CACHE, %ACCESS_REC );
+
 # --- ACL, group and domain copies ---
 
 # SM743: the display name for an account, or '' when it has none.
