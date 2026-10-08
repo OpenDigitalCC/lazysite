@@ -20,7 +20,7 @@ package main;
 #         status line), _tt_dep, _cache_umask, read_file, log_event (the script
 #         and its parts); Template->new; dirname, realpath, make_path and the
 #         Fcntl LOCK_* constants (imported by the script's `use`, before its
-#         parts load).
+#         parts load; the constants written as calls, so the part compiles alone).
 # READS   $DOCROOT, $LAZYSITE_DIR, $REGISTRY_DIR, $REGISTRY_CACHE_DIR,
 #         $REGISTRY_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %ACCESS_REC (the
 #         script's, declared `our` there).
@@ -30,6 +30,8 @@ package main;
 # it loads nothing - ADR 0001 keeps the render path free of the Lazysite:: tree.
 use strict;
 use warnings;
+
+our ( $DOCROOT, $LAZYSITE_DIR, $REGISTRY_DIR, $REGISTRY_CACHE_DIR, $REGISTRY_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %ACCESS_REC );
 
 # --- Scan and registries ---
 #
@@ -862,14 +864,14 @@ sub _regenerate_registries_once {
     # declining to serve. A herd is a cost; not answering is a fault.
     open my $lh, '>>', "$path.lock" or return $regen->();
 
-    if ( flock $lh, LOCK_EX | LOCK_NB ) {
+    if ( flock $lh, LOCK_EX() | LOCK_NB() ) {
 
         # Re-check UNDER the lock. A winner may have finished between the stat
         # that sent us here and the lock we just took, and regenerating again on
         # its fresh output is the same herd in slow motion.
         $regen->()
             if !-f $path || ( time() - ( stat($path) )[9] ) >= $REGISTRY_TTL;
-        flock $lh, LOCK_UN;
+        flock $lh, LOCK_UN();
         close $lh;
         return;
     }
@@ -879,8 +881,8 @@ sub _regenerate_registries_once {
 
     # Nothing to serve. Wait for the winner rather than joining it - a blocking
     # lock here is one process waiting, where the alternative is N scans.
-    flock $lh, LOCK_EX;
-    flock $lh, LOCK_UN;
+    flock $lh, LOCK_EX();
+    flock $lh, LOCK_UN();
     close $lh;
     return;
 }
