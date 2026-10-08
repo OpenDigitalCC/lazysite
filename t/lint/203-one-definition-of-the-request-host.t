@@ -55,9 +55,10 @@ my %HOST = (
     'lazysite-processor/request.pm' => body_of( 'lazysite-processor/request.pm', '_request_host' ),
     'lib/Lazysite/Util.pm'          => body_of( 'lib/Lazysite/Util.pm',          'request_host' ),
 );
+# SM944 S14: and its _env_value is in its sources part.
 my %ENVV = (
-    'lazysite-processor.pl' => body_of( 'lazysite-processor.pl', '_env_value' ),
-    'lib/Lazysite/Util.pm'  => body_of( 'lib/Lazysite/Util.pm',  '_env_value' ),
+    'lazysite-processor/sources.pm' => body_of( 'lazysite-processor/sources.pm', '_env_value' ),
+    'lib/Lazysite/Util.pm'          => body_of( 'lib/Lazysite/Util.pm',          '_env_value' ),
 );
 
 for my $file ( sort keys %HOST ) {
@@ -108,7 +109,7 @@ is( norm( $HOST{'lazysite-processor/request.pm'} ), norm( $HOST{'lib/Lazysite/Ut
         . "  Two copies of one judgement. A site's alias selection and its own\n"
         . "  links would disagree about what host it is on, which is the whole of\n"
         . "  what SM926 ruled against.\n" );
-is( norm( $ENVV{'lazysite-processor.pl'} ), norm( $ENVV{'lib/Lazysite/Util.pm'} ),
+is( norm( $ENVV{'lazysite-processor/sources.pm'} ), norm( $ENVV{'lib/Lazysite/Util.pm'} ),
     'and so are the two _env_value bodies' );
 
 done_testing();

@@ -112,8 +112,9 @@ subtest 'the processor and the module agree where a configured path lives' => su
     # tree wherever it is. The manager writes through Lazysite::Paths::site_path
     # and the processor reads through its own copy; if they drift, a nav save
     # answers ok and the live nav does not change. Driven, not compared as text.
+    # SM944 S14: the copy, and the nav file's call to it, are in the sources part.
     my $src = do {
-        open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+        open my $fh, '<', "$root/lazysite-processor/sources.pm" or die $!;
         local $/;
         <$fh>;
     };
