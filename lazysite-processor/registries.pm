@@ -528,10 +528,10 @@ sub _registry_stale {
         my $tt = Template->new(
             ABSOLUTE    => 1,
             ENCODING    => 'utf8',
-            EVAL_PERL   => 0,                  # L-2
+            EVAL_PERL   => 0,                                     # L-2
             FILTERS     => { url_safe => \&_url_safe_filter },    # SM970
-            COMPILE_DIR => $TT_COMPILE_DIR,    # P-4
-            COMPILE_EXT => '.ttc',             # P-4
+            COMPILE_DIR => $TT_COMPILE_DIR,                       # P-4
+            COMPILE_EXT => '.ttc',                                # P-4
         ) or do { umask $old_umask; return };
 
         for my $tmpl (@templates) {
