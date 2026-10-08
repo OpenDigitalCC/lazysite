@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S9 (n281-n289) oEmbed, URL remapper, components, content-type cache, payment and preview gates, access log, front door. Next: S10, include and Markdown."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S10 (n281-n291) oEmbed, URL remapper, components, content-type cache, payment and preview gates, access log, front door, include and Markdown. Next: S11, forms."
 ---
 
 # Measured
@@ -125,3 +125,6 @@ S8 (n288)
 
 S9 (n289)
 : the front door section (7 subs, 365 lines) moved to `lazysite-processor/front-door.pm`; lint 42 and test 47 lift its subs from the part. Measured S6-S9 interleaved (main = the S5 tree, n286-n289, 6 rounds, beside a coverage run): render_cache_hit_ms 100.0 to 99.2, render_miss_ms 132.6 to 129.7, inside each tree's 6-17% spread; `perl -c` median 97.96 to 98.58 ms. The processor is 9,126 lines.
+
+S10 (n291)
+: the Include section (12 subs, 464 lines) moved to `lazysite-processor/include.pm`. Its file-scope state, the url_safe filter's two scheme tables, is a `my` filled in BEGIN as in the script: full before any request either way. Test 71 lifts `_resolve_include` from the part; lints 31 and 36 read the script and every part for the `_acl_denied` rule.

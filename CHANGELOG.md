@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: include and Markdown are the processor's ninth
+  part** (S10 of the plan in the filing). The `::: include` resolver,
+  `convert_md`, the code-fence pass, the `markdown`/`json`/`url_safe` filters
+  and the link passes move unchanged to `lazysite-processor/include.pm`; test
+  71 reads the include path there, and lints 31 and 36 hold their
+  never-`_acl_denied` rule over the script and every part. No behaviour change.
+
 - SM972 (PENDING) **security: a custom payment header name was trusted from
   anyone.** With `payment_header_verified` set to a custom name and no
   `auth_proxy_trusted: true`, a visitor sending that header was served paid
