@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- WORK-PLAN-0153 Q14a (PENDING) **a code count in the bench baseline moves with
+  the code that changes it.** The release gate refused main after the last
+  landing: `work_users_tool_statements` read 3378 against 3359, the 19
+  statements SM962 and SM963 added to the users tool on purpose. That counter
+  is about the code, not the host, yet it could only be updated at a cut - so
+  under SM971's gate-after-every-landing, every deliberate growth would fail
+  every gate until then. `tools/bench.pl --work` now prints the counts read from
+  the source alone, and t/lint/216 fails a branch whose code changes one
+  without updating the baseline in the same commit. The baseline moves to
+  3378. Timings stay host-relative and re-captured at a cut.
+
 - SM944 (PENDING) **internal: the processor's first part** (S1 of the plan in
   the filing). The front-matter parser moves, unchanged, from
   `lazysite-processor.pl` to `lazysite-processor/front-matter.pm`, which the

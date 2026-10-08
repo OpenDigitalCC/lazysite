@@ -52,6 +52,14 @@ my $ITER = 20;
 # engine look identical in milliseconds.
 my $TOLERANCE = 1.25;
 my $BASELINE  = "$ROOT/dist/config/bench-baseline.json";
+# WORK-PLAN-0153 Q14a: --work prints the STATIC work counters - the ones read
+# from the source alone () - as JSON, and exits. They are about the
+# code, not the host and not a run, so a branch that changes one updates the
+# baseline in the same commit (t/lint/216 holds it), instead of the gate finding
+# it after landing. The log-reading counters depend on what the timing runs
+# wrote and warmed first, so they stay with the full bench and the gate.
+my @STATIC_WORK = qw(work_users_tool_statements);
+my $WORK_ONLY   = ( grep { $_ eq '--work' } @ARGV )     ? 1 : 0;
 my $mode      = ( grep { $_ eq '--baseline' } @ARGV ) ? 'baseline'
     : ( grep { $_ eq '--check' } @ARGV ) ? 'check'
     :                                      'run';
@@ -148,7 +156,7 @@ die "bench setup failed (no token)\n" unless $token;
 # most visitors hit).
 local %ENV = %ENV;
 $ENV{DOCUMENT_ROOT} = $d; $ENV{REQUEST_METHOD} = 'GET'; $ENV{QUERY_STRING} = '';
-my %result = (
+my %result = $WORK_ONLY ? () : (
     render_cache_hit_ms => bench( $ITER, sub {
             local $ENV{REDIRECT_URL} = '/index';
             qx($^X \Q$proc\E 2>/dev/null);
@@ -248,8 +256,8 @@ sub work_of {
     return ( $r && ref $r->{work} eq 'HASH' ) ? $r->{work} : {};
 }
 unlink "$d/lazysite/cache/stats-export.json";
-my $cold = work_of();
-my $warm = work_of();
+my $cold = $WORK_ONLY ? {} : work_of();
+my $warm = $WORK_ONLY ? {} : work_of();
 
 %result = (
     %result,
@@ -280,6 +288,10 @@ my $warm = work_of();
     # in worse code.
     work_users_tool_statements => _statement_count("$ROOT/tools/lazysite-users.pl"),
 );
+if ($WORK_ONLY) {
+    print JSON::PP->new->canonical->encode( { map { ( $_ => $result{$_} ) } @STATIC_WORK } ), "\n";
+    exit 0;
+}
 
 for my $op ( sort grep { !/^work_/ } keys %result ) {
     printf "%-22s %8.1f ms\n", $op, $result{$op};
