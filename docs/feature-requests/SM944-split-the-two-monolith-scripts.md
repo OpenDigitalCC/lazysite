@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S6 (n281-n286) oEmbed, URL remapper, content components, content-type cache. Next: S7, the payment and preview gates."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S7 (n281-n287) oEmbed, URL remapper, content components, content-type cache, payment and preview gates. Next: S8, the access log."
 ---
 
 # Measured
@@ -116,3 +116,6 @@ S5 (n283)
 
 S6 (n286)
 : the content type cache section (4 subs, 118 lines) moved to `lazysite-processor/ct-cache.pm`, reaching `$CT_CACHE_DIR` and `$DOCROOT` through a bare `our` alias; it has no file-scope state. The move and the loader are separate commits.
+
+S7 (n287)
+: the payment subs and the SM071 preview-cookie section (7 subs, 127 + 71 lines, two blocks) moved to `lazysite-processor/gates.pm`. `%PAYMENT_CONTEXT` and `%PREVIEW_CONTEXT` stay declared in the script, where main() sets them and render_content() reads them; the part aliases `%PAYMENT_CONTEXT`, which serve_402 fills.

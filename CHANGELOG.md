@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the payment and preview gates are the
+  processor's sixth part** (S7 of the plan in the filing). `peek_payment`,
+  `check_payment`, `serve_402` and the SM071 preview-cookie check move
+  unchanged to `lazysite-processor/gates.pm`; the two contexts they fill stay
+  declared in the script. No behaviour change.
+
 - SM944 (PENDING) **internal: the content-type cache is the processor's fifth
   part** (S6 of the plan in the filing). `ct_cache_path`, `read_ct`, `write_ct`
   and `write_html` move unchanged to `lazysite-processor/ct-cache.pm`. No
