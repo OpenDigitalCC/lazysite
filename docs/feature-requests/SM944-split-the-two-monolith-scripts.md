@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. S1 built (n278): the front-matter parser is the processor's first part, required by path beside the script, keeping ADR 0001's module-free render path. Next: S2, the shared state the other processor areas read."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) the front-matter parser, the first part, required by path beside the script (ADR 0001); S2 (n280) the 27 variables parts read are `our`, lint 215 holds it. Next: S3, oEmbed."
 ---
 
 # Measured
@@ -101,3 +101,6 @@ Every row is a pure move in its own branch: the moved block appears in `git diff
 
 S1 (n278)
 : the front-matter parser moved to `lazysite-processor/front-matter.pm`; the loader, the manifest rule, the deb payload, the lint scopes and lint 215 (the parts stay module-free and loaded by path) landed with it.
+
+S2 (n280)
+: the 27 file-scope variables a planned part reads are `our` in the script, set where they were; 15 stay `my` (read only by the script, or moving into one part with their only reader). Lint 215 rule 5: a part names no script `my`, keeps strict on, and its file-scope code reads no script variable.

@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the state the processor's parts read is declared
+  `our`** (S2 of the plan in the filing). The 27 file-scope variables a planned
+  part reads become package variables in place, initialised where they were;
+  the other 15 stay `my`. t/lint/215 now fails a part that names one of the
+  script's `my` variables, or reads script state from its own file-scope code.
+  No behaviour change.
+
 - WORK-PLAN-0153 Q14a (PENDING) **a code count in the bench baseline moves with
   the code that changes it.** The release gate refused main after the last
   landing: `work_users_tool_statements` read 3378 against 3359, the 19
