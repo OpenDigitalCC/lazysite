@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: layout, theme and injection are the processor's
+  sixteenth part** (S17 of the plan in the filing). `render_template`, the
+  layout and theme resolution, `generate_theme_css`, the injectors and the
+  admin bar move unchanged to `lazysite-processor/layout.pm`, with the
+  per-process memos of the engine version and install time (shown to keep
+  the same answers). Lint 56 finds the processor's inline blocks in every
+  part. No behaviour change; across S16-S17 the render times are unchanged.
+
 - SM944 (PENDING) **internal: the template render is the processor's
   fifteenth part** (S16 of the plan in the filing). `render_content`, the
   TT-render-with-retry pair and `_cache_umask` move unchanged to

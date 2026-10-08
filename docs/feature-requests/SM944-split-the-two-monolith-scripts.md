@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S16 (n281-n298) oEmbed, remapper, components, ct cache, gates, access log, front door, include, forms, output, request, sources (memo stays), registries, template render. Next: S17, layout."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S17 (n281-n299) oEmbed, remapper, components, ct cache, gates, access log, front door, include, forms, output, request, sources (memo stays), registries, render, layout. Next: S18, the page pipeline."
 ---
 
 # Measured
@@ -146,3 +146,6 @@ S15 (n297)
 
 S16 (n298)
 : the template render (4 subs, 485 lines: `_cache_umask`, `_tt_render`, `_tt_render_impl`, `render_content`) moved to `lazysite-processor/render.pm`; it has no file-scope state and names no imported constant. Every processor sub (227) deparses identically before and after. Lints 48 and 83 and tests manager/161, processor/60, 62, 71 and 87 read the stash's construction from the part; each was seen to fail with its violation in the part. Measured S16-S17 interleaved, 6 rounds, both orders: render_cache_hit_ms S15/S16/S17 78.0/82.5/80.2, then reversed 83.0/81.5/83.6 - no step measurable; `perl -c` median 77.27/77.33/77.22 and 87.06/85.64/86.70 ms. The processor is 4,890 lines.
+
+S17 (n299)
+: the Layout, theme and injection section (24 subs, 1,101 lines) moved to `lazysite-processor/layout.pm`. Its file-scope state, `my $LAZYSITE_VERSION;` and `my $ENGINE_MTIME;`, has no initialiser (the S8 shape); tmp/sm944-s17-memo-probe.pl shows both memos answering the same before and after, a memo filled during the load request and one filled after it, in both orders, and tells apart a copy given an initialiser. No constant is rewritten; every processor sub deparses identically. Lint 61 and tests manager/110 and 128 read the part (110 and 128 now fail, not skip, if it is missing); lint 56's presence check reads the script and every part, as its count does. Measured with S16. The processor is 3,788 lines.
