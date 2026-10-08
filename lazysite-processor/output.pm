@@ -29,6 +29,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $DOCROOT, $LAZYSITE_DIR, $REQUEST_CROOT, $RESPONSE_LANG, %ACCESS_REC, $FORM_TS_PLACEHOLDER, $FORM_TK_PLACEHOLDER );
+
 # --- Output ---
 
 sub output_page {
