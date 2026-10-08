@@ -516,8 +516,8 @@ sub parse_query_string {
 
         # Decode as UTF-8. eval + strict-mode guard falls back to
         # the raw byte string on malformed input.
-        $key = eval { decode( 'UTF-8', $key, 1 ) } // $key;
-        $val = eval { decode( 'UTF-8', $val, 1 ) } // $val;
+        $key                = eval { decode( 'UTF-8', $key, 1 ) } // $key;
+        $val                = eval { decode( 'UTF-8', $val, 1 ) } // $val;
         $query_params{$key} = $val;
     }
     return \%query_params;
