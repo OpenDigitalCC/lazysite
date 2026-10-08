@@ -29,6 +29,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $LAZYSITE_DIR, %ACCESS_REC );
+
 # --- SM140: first-party access log -------------------------------------------
 # The processor records its own traffic - one JSON line per request under
 # lazysite/logs/access-YYYYMMDD.jsonl - so visitor analytics need no access to
