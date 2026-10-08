@@ -44,6 +44,9 @@ like( $validate, qr/%CLASS_RESERVED/,
 
 # THE LIST, ONCE. Any other file that spells out the same set of characters as a
 # Perl list is a second copy of the judgement, whatever it is called.
+#
+# SM944: the processor is the script AND its parts. A copy in a part is a copy
+# in the processor, so every part is read too, each named by its own path.
 my @sources = grep { -f "$root/$_" } qw(
     lib/Lazysite/Validate.pm
     tools/lazysite-check.pl
@@ -52,7 +55,10 @@ my @sources = grep { -f "$root/$_" } qw(
     lazysite-mcp.pl
     lazysite-manager-api.pl
     lib/Lazysite/Manager/Common.pm
-);
+    ),
+    map { s{\A\Q$root\E/}{}r } sort glob("$root/lazysite-processor/*.pm");
+cmp_ok( scalar( grep { m{\Alazysite-processor/} } @sources ), '>', 0,
+    "the processor's parts are read (the check is not blind to them)" );
 my @carriers;
 for my $f (@sources) {
     my $src = slurp($f);
