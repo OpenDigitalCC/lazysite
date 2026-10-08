@@ -39,6 +39,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $CONF_FILE, $REMOTE_TTL, $TT_DEP_LIVE, @TT_DEPS, %ACCESS_REC, %STATIC_CT );
+
 # --- Processing ---
 
 sub sanitise_uri {

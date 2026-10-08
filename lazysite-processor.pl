@@ -28,7 +28,7 @@ use Socket       qw(inet_pton inet_ntop AF_INET AF_INET6);    # SM929: the reque
 # lib tree. A part is package main and loads nothing; a missing one fails here.
 BEGIN {
     my $parts = dirname( realpath(__FILE__) ) . '/lazysite-processor';
-    for my $part (qw(front-matter.pm oembed.pm remap.pm components.pm ct-cache.pm gates.pm access-log.pm front-door.pm include.pm forms.pm output.pm request.pm sources.pm registries.pm render.pm layout.pm)) {
+    for my $part (qw(front-matter.pm oembed.pm remap.pm components.pm ct-cache.pm gates.pm access-log.pm front-door.pm include.pm forms.pm output.pm request.pm sources.pm registries.pm render.pm layout.pm pipeline.pm)) {
         my $file = "$parts/$part";
         require $file;
     }
@@ -2636,6 +2636,18 @@ sub main {
     # No source found - serve 404 page
     not_found($uri);
 }
+
+# --- Declared content roots and the lazy-load bootstrap ---
+#
+# SM944 S18: THESE TWO STAY IN THE SCRIPT while the page pipeline they sat in is
+# a part (lazysite-processor/pipeline.pm), because moving either changes
+# behaviour. _declared_content_roots' memo statements carry initialisers, which
+# run here after the main flow and in a part would run inside the loader's
+# BEGIN: the processor loaded as the tests load it (`do`, which serves one
+# request) clears the memo that request filled, and a part would keep it (the
+# S14 shape; tmp/sm944-s18-memo-probe.pl). _lazy_lib finds the Lazysite tree
+# from __FILE__, which in a part names a file one directory lower, so the three
+# directories it searches would each move up one level.
 
 # SM151 §7: the directories declared as content roots in lazysite.conf (the base
 # `content_root:` and every `alias.<host>.content_root:`), as absolute paths
