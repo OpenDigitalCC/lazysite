@@ -116,6 +116,15 @@ like( verdict( "echo 'Running the suite under Devel::Cover, 4-way'", 137 ),
     or diag( '137 is SIGKILL - an OOM-killed worker, the leading candidate '
         . 'for what actually happened to the 0.10.20 build.' );
 
+# Q14d: the log holds cover's source listing, which quotes the tests that NAME
+# the marker. A failed suite must not be read as a floor breach because a
+# listed line contains the words (the 2026-10-08 gate of main was).
+my $quoted = verdict( "echo '35  ***  unless like(\$src, qr/COVERAGE BELOW FLOOR/)'; "
+        . "echo 'coverage: NOT CHECKING FLOORS - the suite did not pass under'", 1 );
+like( $quoted, qr/FAILED \(exit 1\) WITHOUT reaching/,
+    'a failed suite whose log QUOTES the marker is not a floor breach' );
+unlike( $quoted, qr/coverage below the declared floor/, 'and is not called one' );
+
 like( verdict( "echo 'Devel::Cover not installed' >&2", 2 ),
     qr/FAILED \(exit 2\) WITHOUT reaching/,
     'and neither is a run that could not start' );

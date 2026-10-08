@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- WORK-PLAN-0153 Q14d (PENDING) **the release gate names a failed suite as a
+  failed suite, not a coverage shortfall.** The gate of main on 2026-10-08 said
+  "coverage below the declared floor" when the instrumented suite had failed
+  and no floor was checked: it searched the whole coverage log for the marker,
+  and the log's source listing quotes the tests that name it - the SM444
+  misdiagnosis that block exists to prevent. Both markers are now matched as
+  coverage.sh prints them (t/tools/58 covers the quoted case). The suite
+  failure itself was t/tools/106 reading Devel::Cover's stderr notice as part
+  of a branch name; its git helper now compares stdout only. Lint 38 reads the
+  processor and its parts as one unit, ahead of the auth gate's own move.
+
 - SM944 (PENDING) **internal: output and headers are the processor's eleventh
   part** (S12 of the plan in the filing). `output_page`, the 403/404 paths, the
   security-header and CSP copy, the conf readers and the ai-partner document

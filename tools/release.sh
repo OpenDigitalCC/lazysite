@@ -973,10 +973,16 @@ COV_STATUS=0
 detached bash "$STAGE/tools/coverage.sh" --check > "$COV_LOG" 2>&1 || COV_STATUS=$?
 cat "$COV_LOG"
 if [ "$COV_STATUS" -ne 0 ]; then
-    if grep -q 'COVERAGE BELOW FLOOR' "$COV_LOG"; then
+    # Q14d: THE MARKERS ARE MATCHED AS coverage.sh PRINTS THEM, whole and
+    # anchored. The log also holds cover's source listing, which quotes every
+    # measured file - including the tests that name these markers - so a bare
+    # substring match called a failed SUITE a floor breach (measured on the
+    # 2026-10-08 gate of main: three flaky tool tests, "coverage below the
+    # declared floor"). That is the SM444 misdiagnosis this block exists to stop.
+    if grep -qx 'COVERAGE BELOW FLOOR' "$COV_LOG"; then
         echo "release.sh: coverage below the declared floor; not releasing." >&2
         grep -E 'BELOW' "$COV_LOG" >&2
-    elif grep -q 'THE REPORT STEP FAILED' "$COV_LOG"; then
+    elif grep -q '^coverage: THE REPORT STEP FAILED' "$COV_LOG"; then
         # SM895: the suite PASSED and cover(1) could not report on it. Twice
         # on 0.14.3 this was announced as "the instrumented run did not
         # finish", inferred from the absence of a string - and the cause was
@@ -984,7 +990,7 @@ if [ "$COV_STATUS" -ne 0 ]; then
         # the suite log, and the message names the stage that failed.
         echo "release.sh: the instrumented suite PASSED; the coverage REPORT failed." >&2
         echo "release.sh: not a shortfall, not a suite failure - cover's own words:" >&2
-        grep -A20 'THE REPORT STEP FAILED' "$COV_LOG" >&2
+        grep -A20 '^coverage: THE REPORT STEP FAILED' "$COV_LOG" >&2
     else
         echo "release.sh: coverage gate FAILED (exit $COV_STATUS) WITHOUT reaching" >&2
         echo "release.sh: the floor comparison - so this is NOT a coverage" >&2

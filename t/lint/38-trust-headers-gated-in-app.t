@@ -46,6 +46,16 @@ for my $rel (@cgis) {
     open my $fh, '<', "$root/$rel" or die "$rel: $!";
     my $src = do { local $/; <$fh> };
     close $fh;
+    # SM944 (Q14d): the processor is the script AND its parts, read as one
+    # unit - a part that reads a trust header is governed by the gate in the
+    # script, and a part this lint did not read would be a reader it never saw.
+    if ( $rel eq 'lazysite-processor.pl' ) {
+        for my $part ( sort glob("$root/lazysite-processor/*.pm") ) {
+            open my $ph, '<', $part or die "$part: $!";
+            $src .= "\n" . do { local $/; <$ph> };
+            close $ph;
+        }
+    }
 
     # Strip comments, so a file that only DISCUSSES the headers does not count
     # as reading them. This matters: several files explain the mechanism at

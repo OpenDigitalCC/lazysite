@@ -32,7 +32,18 @@ sub spit {
     close $f;
 }
 sub slurp { open my $f, '<', $_[0] or return ''; local $/; my $t = <$f>; close $f; $t }
-sub git { my ( $d, @a ) = @_; my $o = run_cmd( 'git', '-C', $d, @a ); die "git @a: $o" if $?; chomp $o; $o }
+# STDOUT ONLY (Q14d): under the coverage gate a perl child prints Devel::Cover
+# notices on stderr, and run_cmd merges stderr in - so the branch name compared
+# below read 'Devel::Cover: Deleting old coverage ...\nmain' and failed the gate.
+sub git {
+    my ( $d, @a ) = @_;
+    open my $ph, '-|', 'git', '-C', $d, @a or die "git @a: $!";
+    my $o = do { local $/; <$ph> } // '';
+    close $ph;
+    die "git @a: exit $?" if $?;
+    chomp $o;
+    return $o;
+}
 
 sub stack {
     my $d = tempdir( CLEANUP => 1 );
