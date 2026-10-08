@@ -34,6 +34,8 @@ my $auth = src('lazysite-auth.pl');
 my $proc = src('lazysite-processor.pl');
 # SM944 S10: the include path is in the processor's include part.
 my $include = src('lazysite-processor/include.pm');
+# SM944 S16: the stash is built in the processor's render part.
+my $render = src('lazysite-processor/render.pm');
 
 subtest 'the trust source clears every trusted field it does not produce' => sub {
     # The six the gate covers. Two are produced from the verified cookie; the
@@ -78,7 +80,7 @@ subtest 'the canonical serve excludes the engine tree, as the include path does'
 };
 
 subtest 'every client-influenced value enters the stash escaped' => sub {
-    like( $proc, qr/request_uri\s*=>\s*_esc_html\(/,
+    like( $render, qr/request_uri\s*=>\s*_esc_html\(/,
         'request_uri is escaped where the stash is built' )
         or diag( 'It sat raw between two _esc_html neighbours, and the shipped '
             . '402/403 pages interpolate it into an href.' );

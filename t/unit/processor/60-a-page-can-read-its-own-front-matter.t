@@ -38,12 +38,19 @@ my $src = do {
 
 # The processor is the script and its parts (SM944): the one declaration, the
 # absence of any other copy, and the uses by the scan (registries.pm since S15)
-# and the stash (the script) are properties of all of them together.
+# and the stash (render.pm since S16) are properties of all of them together.
 my $all = join '', $src, map {
     open my $fh, '<', $_ or die "$_: $!";
     local $/;
     <$fh>;
 } sort glob( repo_root() . '/lazysite-processor/*.pm' );
+
+# The stash is built in render_content, in the render part (SM944 S16).
+my $render = do {
+    open my $fh, '<', repo_root() . '/lazysite-processor/render.pm' or die $!;
+    local $/;
+    <$fh>;
+};
 
 subtest 'the reserved list is declared ONCE and shared' => sub {
     # SM522: a SUB, not a file-scoped hash. `our %FRONT_MATTER_RESERVED = ...`
@@ -64,7 +71,7 @@ subtest 'the reserved list is declared ONCE and shared' => sub {
 };
 
 subtest 'custom keys reach the stash, escaped and prefixed' => sub {
-    my ($stash) = $src =~ /(page_title\s*=> _esc_html.*?keys %\{\$meta\})/s;
+    my ($stash) = $render =~ /(page_title\s*=> _esc_html.*?keys %\{\$meta\})/s;
     ok( defined $stash, 'the stash block is present' )
         or BAIL_OUT('cannot find the custom-key block');
 
@@ -87,10 +94,10 @@ subtest 'a reserved key is not duplicated as page_<key>' => sub {
     # title already arrives as page_title, escaped, from its own line. Letting
     # the map produce a second one would be harmless today and a divergence
     # waiting to happen.
-    my ($stash) = $src =~ /(page_title\s*=> _esc_html.*?keys %\{\$meta\})/s;
+    my ($stash) = $render =~ /(page_title\s*=> _esc_html.*?keys %\{\$meta\})/s;
     like( $stash, qr/!\$reserved->\{\$_\}/,
         'reserved keys are skipped by the map' );
-    like( $src, qr/my \$reserved = _front_matter_reserved\(\);\n\s*my \$vars\s+=\s*\{/,
+    like( $render, qr/my \$reserved = _front_matter_reserved\(\);\n\s*my \$vars\s+=\s*\{/,
         'read from the sub just before the stash is built' );
 };
 

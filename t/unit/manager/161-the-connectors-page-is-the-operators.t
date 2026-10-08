@@ -49,8 +49,9 @@ subtest 'the page is a manager page the table and the nav agree about' => sub {
     ok( ( grep { $_->{id} eq 'connectors' } Lazysite::Manager::StartPage::manager_pages() ),
         'and it is in the page order, so it can be chosen as a start page' );
 
+    # render_content derives the caps, in the processor's render part (SM944 S16).
     my $proc = do {
-        open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+        open my $fh, '<', "$root/lazysite-processor/render.pm" or die $!;
         local $/;
         <$fh>;
     };

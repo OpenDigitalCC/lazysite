@@ -139,8 +139,9 @@ subtest 'the contract: a _raw value is not safe in markup, and says so' => sub {
         'the plain name is escaped in markup' )
         or diag($html);
 
+    # The invariant is stated at the stash, in the render part (SM944 S16).
     my $src = do {
-        open my $fh, '<', "$FindBin::Bin/../../../lazysite-processor.pl" or die $!;
+        open my $fh, '<', "$FindBin::Bin/../../../lazysite-processor/render.pm" or die $!;
         local $/;
         <$fh>;
     };

@@ -83,8 +83,9 @@ subtest 'the boundary is what fixes it' => sub {
     # docroot is a string prefix of the private root. This asserts the
     # translation used is the boundary-safe one rather than the outcome only,
     # since the outcome above could be reached by a lucky substitution.
+    # render_content builds the stash, in the processor's render part (SM944 S16).
     my $src = do {
-        open my $fh, '<', "$FindBin::Bin/../../../lazysite-processor.pl" or die $!;
+        open my $fh, '<', "$FindBin::Bin/../../../lazysite-processor/render.pm" or die $!;
         local $/;
         <$fh>;
     };

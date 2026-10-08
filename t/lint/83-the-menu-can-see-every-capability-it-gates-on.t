@@ -29,8 +29,9 @@ my $layout = do {
 my %gated = map { $_ => 1 } $layout =~ /manager_caps\.([a-z_]+)/g;
 ok( %gated, 'the manager layout gates on at least one capability' );
 
+# render_content derives it, in the processor's render part since SM944 S16.
 my $proc = do {
-    open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+    open my $fh, '<', "$root/lazysite-processor/render.pm" or die $!;
     local $/; <$fh>;
 };
 # The one derivation site: the qw() list resolved into %manager_caps. Anchored

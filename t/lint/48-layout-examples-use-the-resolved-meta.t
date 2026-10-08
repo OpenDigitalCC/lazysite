@@ -124,8 +124,9 @@ subtest 'no example filters an already-escaped variable' => sub {
     #
     # Asserted against the processor rather than against a list kept here: the
     # authority is _esc_html at the point of construction, and a second list
-    # would be a second place to forget.
-    my $proc = slurp("$root/lazysite-processor.pl");
+    # would be a second place to forget. The stash is built in render_content,
+    # in the processor's render part since SM944 S16.
+    my $proc = slurp("$root/lazysite-processor/render.pm");
     for my $v (@PRE_ESCAPED) {
         like( $proc, qr/\b\Q$v\E\s*=>\s*\n?\s*_esc_html\b/,
             "$v really is escaped by the processor" );
@@ -161,7 +162,7 @@ subtest 'no example filters an already-escaped variable' => sub {
 # that until SM869. Every shipped page, layout and example is checked, not only
 # the docs: the pages are what a site copies.
 subtest 'no shipped page or example filters a query value' => sub {
-    my $proc = slurp("$root/lazysite-processor.pl");
+    my $proc = slurp("$root/lazysite-processor/render.pm");    # SM944 S16
     like( $proc, qr/\bquery\s*=>\s*\$query_esc\b/,
         'query really is the escaped copy in the stash' );
     like( $proc, qr/\bparams\s*=>\s*\$query_esc\b/, 'and so is params' );
