@@ -69,11 +69,13 @@ like(
 
 # --- 2. the engine still writes an integer ----------------------------------
 
-my $proc = do {
-    open my $fh, '<', "$ROOT/lazysite-processor.pl" or die "lazysite-processor.pl: $!";
+# The script and its parts (SM944): _access_record is in access-log.pm, and an
+# import that would make its time() a float would be the script's.
+my $proc = join '', map {
+    open my $fh, '<', $_ or die "$_: $!";
     local $/;
     <$fh>;
-};
+} "$ROOT/lazysite-processor.pl", sort glob("$ROOT/lazysite-processor/*.pm");
 
 # Single-quoted, then quotemeta: the literal being matched contains $line, and
 # \Q..\E inside a qr// does not stop Perl interpolating it first.

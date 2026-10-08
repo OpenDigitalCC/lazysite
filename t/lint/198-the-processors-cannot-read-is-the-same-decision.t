@@ -100,8 +100,9 @@ for my $which ( sort keys %impl ) {
 # secret existed and could not be read - so an unreadable secret silently
 # re-keyed every visitor token. The symptom is returning visitors counting as new
 # ones, which looks like traffic rather than a fault.
+# (SM944 S8: _visitor_key is in the processor's access-log part.)
 subtest 'the auth-secret read reports when it cannot read' => sub {
-    my $body = body_of( 'lazysite-processor.pl', '_visitor_key' );
+    my $body = body_of( 'lazysite-processor/access-log.pm', '_visitor_key' );
     ok( length $body, '_visitor_key was found' ) or return;
 
     like( $body, qr/auth\/\.secret/, 'it reads the auth secret' );
