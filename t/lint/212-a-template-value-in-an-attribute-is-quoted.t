@@ -25,7 +25,8 @@ my $root = repo_root();
 my @files;
 find( { no_chdir => 1, wanted => sub { push @files, $_ if -f $_ && /\.(?:md|tt|html)\z/ } },
     "$root/starter" );
-push @files, "$root/lazysite-processor.pl";
+push @files, "$root/lazysite-processor.pl",
+    sort glob("$root/lazysite-processor/*.pm");    # SM944: and its parts
 cmp_ok( scalar @files, '>', 50, 'the shipped pages, layouts and templates were found' );
 
 my ( @bare, $seen );

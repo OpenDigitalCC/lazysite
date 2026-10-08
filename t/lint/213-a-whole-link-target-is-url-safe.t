@@ -37,7 +37,8 @@ find(
     },
     "$root/starter"
 );
-push @files, "$root/lazysite-processor.pl";
+push @files, "$root/lazysite-processor.pl",
+    sort glob("$root/lazysite-processor/*.pm");    # SM944: and its parts
 cmp_ok( scalar @files, '>', 50, 'the shipped pages, layouts and templates were found' );
 
 my ( @bad, $whole, $filtered );
