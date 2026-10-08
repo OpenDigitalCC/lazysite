@@ -17,9 +17,10 @@
 #   5. it names none of the script's file-scope `my` variables. A part is a
 #      separate file and cannot see them: under strict a bare name fails to
 #      compile, but `our $X` or `$main::X` compiles and reads a DIFFERENT,
-#      empty variable. Shared state is declared `our` in the script (SM944 S2),
-#      and a part keeps strict vars on so every other name it uses must be its
-#      own. Its file-scope code also reads none of the script's variables: a
+#      empty variable. Shared state is declared `our` in the script (SM944 S2)
+#      and a part aliases it with a bare `our ( ... );`; a part keeps strict
+#      vars on so every other name it uses must be its own. Its file-scope
+#      code, the alias aside, reads none of the script's variables: a
 #      part is compiled and run inside the loader's BEGIN, before the script's
 #      own initialisations have executed, so it would see them empty.
 #
@@ -130,7 +131,10 @@ for my $p (@parts) {
         }
         is_deeply( \@named, [], "names none of the script's own (my) variables" )
           or diag("declare it `our` in lazysite-processor.pl (SM944 S2): @named");
-        my $top  = file_scope_code($code);
+        # A bare `our ( ... );` is how a part reaches shared state: an alias,
+        # not a read. With an initialiser it would be a write, and stays flagged.
+        ( my $top = file_scope_code($code) ) =~
+          s/^\s*our\s*(?:\([^)]*\)|[\$\@%]\w+)\s*;//mg;
         my @read = grep { !$own_my{$_} && names_var( $top, $_ ) } sort keys %scope;
         is_deeply( \@read, [], "its file-scope code reads none of the script's variables" )
           or diag("they are still empty when the loader's BEGIN runs it: @read");
