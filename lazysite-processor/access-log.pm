@@ -144,7 +144,7 @@ sub _access_salt {
         return $s if length $s;
     }
     my $salt = hmac_sha256_hex( join( '|', time, $$, rand, rand ), $LAZYSITE_DIR );
-    if ( sysopen( my $fh, $path, O_WRONLY | O_CREAT, 0660 ) ) {
+    if ( sysopen( my $fh, $path, O_WRONLY() | O_CREAT(), 0660 ) ) {
         # sysopen's mode is umask-filtered - re-assert 0660 so BOTH identities
         # (site-user CLI/dev-server and the www-data CGI) can rewrite it.
         chmod 0660, $path;
@@ -233,7 +233,7 @@ sub _access_record {
         my $host = _request_host();
         $line .= ',"h":"' . _access_field( $host, 253 ) . '"' if length $host;
         $line .= "}\n";
-        sysopen( my $fh, $file, O_WRONLY | O_APPEND | O_CREAT, 0664 )
+        sysopen( my $fh, $file, O_WRONLY() | O_APPEND() | O_CREAT(), 0664 )
             or return 1;    # silent: lazysite-check owns the writability story
         binmode $fh;
         syswrite( $fh, $line );
