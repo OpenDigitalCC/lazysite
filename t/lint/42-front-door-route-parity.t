@@ -4,9 +4,9 @@
 # There are now two places that answer "who handles this URL?":
 #
 #   - Lazysite::FrontDoor::route, used by lazysite-front.pl (the CGI front door);
-#   - a module-free copy inside lazysite-processor.pl, used when the FastCGI pool
-#     worker IS the front door (ADR 0001 - the render path loads no Lazysite
-#     modules, so it cannot simply call the first one).
+#   - a module-free copy in the processor's front-door part, used when the
+#     FastCGI pool worker IS the front door (ADR 0001 - the render path loads
+#     no Lazysite modules, so it cannot simply call the first one).
 #
 # WHY THIS MATTERS MORE THAN AN ORDINARY DUPLICATE. Every incident this whole
 # line of work exists to close - SM248, SM268 H17, SM283 - was the same shape: a
@@ -38,7 +38,15 @@ my $src = do {
     <$fh>;
 };
 
-my ($route_block) = $src =~ m{\nsub _front_route \{\n(.*?)\n\}\n}s;
+# SM944 S9: the copy is in the processor's front-door part; the engine-dir
+# resolver it calls stays in the script.
+my $door = do {
+    open my $fh, '<', "$root/lazysite-processor/front-door.pm" or die $!;
+    local $/;
+    <$fh>;
+};
+
+my ($route_block) = $door =~ m{\nsub _front_route \{\n(.*?)\n\}\n}s;
 my ($dir_block)   = $src =~ m{\nsub _lazysite_dir_for \{\n(.*?)\n\}\n}s;
 
 ok( $route_block, 'the processor carries its routing table in one sub' );

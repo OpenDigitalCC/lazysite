@@ -30,7 +30,9 @@ my $root      = repo_root();
 my $processor = "$root/lazysite-processor.pl";
 plan skip_all => "no $processor" unless -f $processor;
 
-my $src = do { open my $fh, '<', $processor or die $!; local $/; <$fh> };
+# SM944 S9: the relay's subs are in the processor's front-door part.
+my $part = "$root/lazysite-processor/front-door.pm";
+my $src  = do { open my $fh, '<', $part or die "$part: $!"; local $/; <$fh> };
 
 my ($reader) = $src =~ /(sub _read_request_body \{.*?\n\}\n)/s;
 my ($capper) = $src =~ /(sub _front_body_cap \{.*?\n\}\n)/s;
