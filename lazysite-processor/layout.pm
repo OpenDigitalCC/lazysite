@@ -34,6 +34,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $LAYOUT_CACHE_DIR, $MANAGER_LAYOUT, $FALLBACK_LAYOUT, $REMOTE_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %AUTH_CONTEXT );
+
 # --- Layout, theme and injection ---
 #
 # Layout and theme resolution (local and remote), render_template and the
