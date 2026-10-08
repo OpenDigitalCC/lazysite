@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S11 (n281-n292) oEmbed, URL remapper, components, content-type cache, payment and preview gates, access log, front door, include and Markdown, forms. Next: S12, output and headers."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S12 (n281-n293) oEmbed, URL remapper, components, content-type cache, gates, access log, front door, include and Markdown, forms, output and headers. Next: S13, request address and host."
 ---
 
 # Measured
@@ -131,3 +131,6 @@ S10 (n291)
 
 S11 (n292)
 : the Forms section (10 subs, 815 lines; `_render_form` whole) moved to `lazysite-processor/forms.pm`; it has no file-scope state. The SM071 header the plan names left with the preview cookie in S7, so `# --- Forms ---` heads the block. Lint 156 reads the banner's sentence map from the part; lint 56 counts inline blocks in the script and every part.
+
+S12 (n293)
+: the Output section (14 subs, 566 lines) moved to `lazysite-processor/output.pm`; it has no file-scope state. Lint 55 subtest 1, test 42, test 06, tools/89 and mcp/24 read the part; lint 55's status-line and header sweeps, lint 56's CSP subtest and lint 57's redirect sweep read the script and every part (remap.pm and front-door.pm print status lines and had been outside lint 55 since S4 and S9; both pass). S10 also: test render/70 reads `convert_md` from include.pm. Measured S10-S12 interleaved (n290-n293, 6 rounds): render_cache_hit_ms 76.8 to 75.2, render_miss_ms 101.0 to 100.2, inside each tree's 3-9% spread; `perl -c` median 73.71 to 73.31 ms. The processor is 7,285 lines.

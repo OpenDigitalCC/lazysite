@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: output and headers are the processor's eleventh
+  part** (S12 of the plan in the filing). `output_page`, the 403/404 paths, the
+  security-header and CSP copy, the conf readers and the ai-partner document
+  move unchanged to `lazysite-processor/output.pm`. Lints 55, 56 and 57 now
+  sweep every status line, header and redirect in the script and all its
+  parts. No behaviour change; across S10-S12 the cache-hit and miss render
+  times are unchanged (0.980x and 0.992x, inside each tree's spread).
+
 - SM944 (PENDING) **internal: forms are the processor's tenth part** (S11 of
   the plan in the filing). `convert_fenced_form`, `_render_form` (whole, 562
   lines), the SM934 rules sidecar, the form secret and `convert_fenced_divs`
