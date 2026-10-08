@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S14 (n281-n296) oEmbed, remapper, components, content-type cache, gates, access log, front door, include, forms, output, request host and address, sources (memo stays). Next: S15, scan and registries."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S15 (n281-n297) oEmbed, remapper, components, ct cache, gates, access log, front door, include, forms, output, request, sources (memo stays), scan and registries. Next: S16, the template render."
 ---
 
 # Measured
@@ -140,3 +140,6 @@ S13 (n295)
 
 S14 (n296)
 : the Sources and site vars section (22 subs, 828 lines, two blocks) moved to `lazysite-processor/sources.pm`. Between them, the P-2 site-vars memo with `resolve_site_vars` and `reset_request_state` STAYS in the script: its `my` statements carry initialisers, which run after the main flow in the script and would run at BEGIN in a part. Loaded as the tests load it, the script clears the memo after the load request and the part would not (rewrite the conf under the same mtime: the script answers the new conf, the part the old). `_scan_identity`'s bare block moves; it has no initialiser (the S8 shape). Lints 203 (`_env_value`) and 37 (`_site_path`) read the part.
+
+S15 (n297)
+: the Scan and registries section (14 subs, 938 lines) moved to `lazysite-processor/registries.pm`. Its file-scope state, update_registries' `my $_has_registries;`, has no initialiser (the S8 shape). `LOCK_EX`, `LOCK_NB`, `LOCK_UN` are written as calls (B::Deparse identical). Tests 46 and plugins/16 lift their subs from the part (46 now fails, not skips, if it is missing); test 60's reserved-list subtest reads the script and every part; lint 39 looks for a reading sub in every part too, and counts an indented sub; lint 45 reads every part for front-matter readers (`register` is read only in parts now, its parser since S1). Measured S13-S15 interleaved, 6 rounds, twice in opposite orders beside a release gate: render_cache_hit_ms S12 to S15 81.6 to 86.5, then 95.7 to 91.2 - the sign follows the order, so no step is measurable; `perl -c` median 82.54 to 82.31 and 98.61 to 97.81 ms. The processor is 5,376 lines.

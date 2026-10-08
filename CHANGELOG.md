@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: scan and registries are the processor's
+  fourteenth part** (S15 of the plan in the filing). `resolve_scan`,
+  `scan_pages`, the registry regenerator and its serving path move unchanged
+  to `lazysite-processor/registries.pm`, the lock constants written as calls
+  so the part compiles alone. Lints 39 and 45 now read every part: late script
+  state read by a part's sub, and front-matter keys read only in a part. No
+  behaviour change; across S13-S15 the render times are unchanged (the order
+  of the trees in the bench decides which looks faster).
+
 - SM944 (PENDING) **internal: sources and site vars are the processor's
   thirteenth part** (S14 of the plan in the filing). The tt-var sources
   (`json:`, `db:`, env interpolation), the dependency record, nav, the conf
