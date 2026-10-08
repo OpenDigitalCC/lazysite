@@ -39,7 +39,18 @@ sub tree {
     spit( "$d/docs/INDEX.md", "index\n" );
     return $d;
 }
-sub run { my ($d) = @_; my $o = `bash \Q$d/tools/regen-generated.sh\E 2>&1`; return ( $? >> 8, $o ) }
+# The handoff reads the script's stdout as the list of changed paths, so stdout
+# is compared exactly and stderr is kept apart. PERL5OPT is cleared: in a
+# coverage run the stand-ins, run as tools/gen-*.pl from the temporary tree,
+# would be measured under the real generators' names, print Devel::Cover's
+# notices, and replace the real generators' coverage.
+sub run {
+    my ($d) = @_;
+    local $ENV{PERL5OPT}              = '';
+    local $ENV{HARNESS_PERL_SWITCHES} = '';
+    my $o = `bash \Q$d/tools/regen-generated.sh\E 2>\Q$d/stderr\E`;
+    return ( $? >> 8, $o, slurp("$d/stderr") );
+}
 
 subtest 'a current tree is left alone and nothing is named' => sub {
     my ( $rc, $out ) = run( tree() );
@@ -58,9 +69,10 @@ subtest 'a stale document is rewritten and named' => sub {
 
 subtest 'a failing generator fails, and leaves the document as it was' => sub {
     my $d = tree( fail => 1 );
-    my ( $rc, $out ) = run($d);
+    my ( $rc, $out, $err ) = run($d);
     isnt( $rc, 0, 'non-zero, so the handoff fails on it' );
-    like( $out, qr/regen: FAILED/, 'saying which' );
+    like( $err, qr/regen: FAILED/, 'saying which, on stderr' );
+    is( $out, '', 'and naming nothing for the handoff to commit' );
     is( slurp("$d/docs/reference/capability-map.md"), "doc:map\n", 'the document is untouched' );
 };
 
