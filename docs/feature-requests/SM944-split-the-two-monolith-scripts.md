@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, the first part, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3 (n281) oEmbed. Next: S4, the URL remapper."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, the first part, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3 (n281) oEmbed; S4 (n282) the URL remapper. Next: S5, content components."
 ---
 
 # Measured
@@ -107,3 +107,6 @@ S2 (n280)
 
 S3 (n281)
 : the oEmbed section (6 subs, 119 lines) moved to `lazysite-processor/oembed.pm`; lints 21, 25, 43 and 121, which state properties of the whole processor, read its parts.
+
+S4 (n282)
+: the URL remapper section (3 subs, 126 lines) moved to `lazysite-processor/remap.pm`, reaching `$LAZYSITE_DIR` and `%ACCESS_REC` through a bare `our` alias.

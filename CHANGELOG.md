@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the URL remapper is the processor's third part**
+  (S4 of the plan in the filing). `_remap_parse` (the marked copy of
+  Lazysite::Remap's parser), `_remap_redirect` and `_alias_lookup` move
+  unchanged to `lazysite-processor/remap.pm`, the first part to read the
+  script's shared state, through `our`. No behaviour change.
+
 - SM944 (PENDING) **internal: oEmbed is the processor's second part** (S3 of
   the plan in the filing). The oEmbed converter, with `uri_encode` and
   `strip_tt_directives`, moves unchanged to `lazysite-processor/oembed.pm`. The

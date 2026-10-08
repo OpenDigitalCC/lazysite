@@ -51,7 +51,7 @@ starts.
 | Q13a | ~~E5 [[SM943]] stages 2-3~~ **built (n274)** - the MCP twins and annotations from the declaration; the consistency lints reduced to one completeness check | Q7/Q8 need only stage 1 | M |
 | Q13 | ~~C2 [[SM883]] - measure the 1.20-1.27x slowdown on this machine, then bisect~~ **measured (n277): the machine, not the code** - v0.14.1 is 1.01-1.03x the baseline's commit on the same host; no bisect, no code change; a 0.05 ms verify cost found at 416bdffb (SM906 T3, deliberate) | measurement, no ruling needed | S-M |
 | Q14a | **built (n279)**: a static work counter in the bench baseline is updated with the code that changes it (t/lint/216); the gate's refusal of main (3378 vs 3359, SM962/963) resolved | found by the gate on main after the last landing | XS |
-| Q14 | E9 [[SM944]] - split the processor and the manager API, one area per branch. **Planned** (SM944 § Plan, rows S1-S34: S1-S20 the processor's parts, S21-S34 the manager API's modules); **S1 (n278), S2 (n280), S3 (n281) built** - the front-matter parser; the shared state as `our`; oEmbed; next S4 | after E5; largest, so last | L |
+| Q14 | E9 [[SM944]] - split the processor and the manager API, one area per branch. **Planned** (SM944 § Plan, rows S1-S34: S1-S20 the processor's parts, S21-S34 the manager API's modules); **S1 (n278), S2 (n280), S3 (n281), S4 (n282) built** - the front-matter parser; the shared state as `our`; oEmbed; the URL remapper; next S5 | after E5; largest, so last | L |
 
 Applied throughout: E8 (comments state the invariant) on every file touched.
 
