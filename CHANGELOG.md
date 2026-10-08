@@ -49,6 +49,20 @@ Archive
 
 ## Unreleased
 
+- SM970 (PENDING) **security: a value used as a whole link target can be kept
+  to a safe scheme with `| url_safe`.** The stash escapes a query or db value so
+  it cannot leave its attribute, but `javascript:` written as a whole `href`
+  stayed a script link. The new filter, on every page, layout, component and
+  registry render, passes a value with no scheme (a path, `?query`, `#fragment`,
+  `//host`) or an `http:`, `https:`, `mailto:` or `tel:` one unchanged - no
+  second escape - and turns anything else into `#`, reading the scheme through
+  character references, percent-encoding, case and leading controls. The
+  built-in fallback layout's nav links use it; the authoring docs for query
+  parameters, data tables, auth values, navigation and layouts say where to;
+  t/lint/213 holds every whole-value `href`/`src`/`action` in the shipped pages,
+  templates and fallback layout to it, exempting by name only the engine-built
+  language alternates and `site_url`. Ruled 2026-10-07: option 1 with 3.
+
 - SM943 stages 2-3 (PENDING) **an action's MCP twin and the twin's hints are
   declared on the action, and the lints that kept the copies in step check the
   declaration instead.** `mcp => 'tool'` on an `%ACTION` entry names the twin
