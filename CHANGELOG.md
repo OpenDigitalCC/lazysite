@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: oEmbed is the processor's second part** (S3 of
+  the plan in the filing). The oEmbed converter, with `uri_encode` and
+  `strip_tt_directives`, moves unchanged to `lazysite-processor/oembed.pm`. The
+  lints that check a property of the whole processor (21, 25, 43, 121) now read
+  its parts too. No behaviour change.
+
 - SM944 (PENDING) **internal: the state the processor's parts read is declared
   `our`** (S2 of the plan in the filing). The 27 file-scope variables a planned
   part reads become package variables in place, initialised where they were;

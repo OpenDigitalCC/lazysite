@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) the front-matter parser, the first part, required by path beside the script (ADR 0001); S2 (n280) the 27 variables parts read are `our`, lint 215 holds it. Next: S3, oEmbed."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, the first part, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3 (n281) oEmbed. Next: S4, the URL remapper."
 ---
 
 # Measured
@@ -104,3 +104,6 @@ S1 (n278)
 
 S2 (n280)
 : the 27 file-scope variables a planned part reads are `our` in the script, set where they were; 15 stay `my` (read only by the script, or moving into one part with their only reader). Lint 215 rule 5: a part names no script `my`, keeps strict on, and its file-scope code reads no script variable.
+
+S3 (n281)
+: the oEmbed section (6 subs, 119 lines) moved to `lazysite-processor/oembed.pm`; lints 21, 25, 43 and 121, which state properties of the whole processor, read its parts.
