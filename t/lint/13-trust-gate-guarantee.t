@@ -24,6 +24,17 @@ my $root = repo_root();
 sub slurp { open my $fh, '<', $_[0] or return ''; local $/; <$fh> }
 sub base  { ( $_[0] =~ m{([^/]+)\z} )[0] }
 
+# A file's code without its POD, its comments or what follows __END__/__DATA__.
+# A comment is a `#` at the start of a line or after whitespace (so `$#x` and
+# `s#a#b#` survive), to the end of the line.
+sub code_only {
+    my ($s) = @_;
+    $s =~ s/^__(?:END|DATA)__\n.*\z//ms;
+    $s =~ s/^=[a-zA-Z]\w*.*?(?:^=cut\b[^\n]*(?:\n|\z)|\z)//msg;
+    $s =~ s/(?:^|(?<=\s))#[^\n]*//mg;
+    return $s;
+}
+
 # The wrapper is the trusted SETTER of the identity headers (it writes them from
 # the verified cookie), so it is exempt from the consumer rule.
 my %exempt = ( 'lazysite-auth.pl' => 1 );
@@ -56,12 +67,28 @@ for my $cgi (@cgis) {
     next unless $reads =~ /\$ENV\{\s*['"]?HTTP_X_REMOTE_USER/;
     push @sinks, $b;
 
+    # THE GATE IS LOOKED FOR IN CODE, NOT IN PROSE. Every shape below is the
+    # presence of some text, and a comment can carry any of it: the manager
+    # API passed this check for years on its comment "exactly as
+    # lazysite-processor.pl's apply_trust_gate does", while its real gate - a
+    # `delete @ENV{` whose header list is on the next line - matched no
+    # pattern here (tmp/sm944-s18-lint13-manager-probe.sh). With the delete
+    # removed and the comment kept, the file passed. So POD and comments are
+    # stripped first. The strip errs one way: a `#` after whitespace inside a
+    # string is cut as if it began a comment, which can only remove text, so it
+    # can make this check fail and never makes it pass. The sink test above
+    # reads the raw text for the same reason the other way round: reading more
+    # can only count more files as sinks.
+    my $code = code_only($src);
+
     # Must gate it: either the shared/inline gate (LAZYSITE_AUTH_TRUSTED checked
-    # AND the X-Remote-* headers deleted when untrusted), or a call to
-    # apply_trust_gate (the processor's named form).
-    my $inline_gate = ( $src =~ /LAZYSITE_AUTH_TRUSTED/ )
-        && ( $src =~ /delete[^\n]*HTTP_X_REMOTE/ );
-    my $named_gate = $src =~ /apply_trust_gate/;
+    # AND the X-Remote-* headers deleted when untrusted - one `delete` per
+    # header on its line, or one `delete @ENV{ ... }` slice over any number of
+    # lines), or a CALL of apply_trust_gate (the processor's named form; its
+    # definition alone gates nothing).
+    my $inline_gate = ( $code =~ /LAZYSITE_AUTH_TRUSTED/ )
+        && ( $code =~ /delete[^\n]*HTTP_X_REMOTE/ || $code =~ /\bdelete\s+\@ENV\s*\{[^}]*HTTP_X_REMOTE/ );
+    my $named_gate = $code =~ /(?<!sub )\bapply_trust_gate\s*\(/;
 
     # A THIRD, STRICTER SHAPE: never trust the header at all.
     #
@@ -77,8 +104,8 @@ for my $cgi (@cgis) {
     # own would leave a surface with no identity, and verify_session_cookie on
     # its own would leave the claimed header in place beside the verified one.
     # A file that stops doing either falls back to the gates above.
-    my $self_verifies = ( $src =~ /^\s*delete \$ENV\{\$_\} for grep \{[^\n]*HTTP_X_REMOTE/m )
-        && ( $src =~ /verify_session_cookie/ );
+    my $self_verifies = ( $code =~ /^\s*delete \$ENV\{\$_\} for grep \{[^\n]*HTTP_X_REMOTE/m )
+        && ( $code =~ /verify_session_cookie/ );
 
     ok( $inline_gate || $named_gate || $self_verifies,
         "$b gates client-supplied X-Remote-* (LAZYSITE_AUTH_TRUSTED + delete, apply_trust_gate, or unconditional delete + self-verified session) before trusting it"
