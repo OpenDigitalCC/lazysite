@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the request address and host are the processor's
+  twelfth part** (S13 of the plan in the filing). `_request_host`,
+  `_request_address` and the trusted-proxy readers move unchanged to
+  `lazysite-processor/request.pm`, the Socket constants written as calls so
+  the part compiles alone. Lint 206's REMOTE_ADDR ledger now counts the script
+  and all its parts. No behaviour change.
+
 - WORK-PLAN-0153 Q14d (PENDING) **the release gate names a failed suite as a
   failed suite, not a coverage shortfall.** The gate of main on 2026-10-08 said
   "coverage below the declared floor" when the instrumented suite had failed
