@@ -53,6 +53,19 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the page pipeline is the processor's
+  seventeenth part** (S18 of the plan in the filing). `process_md`,
+  `process_url`, `sanitise_uri`, `confine_content_root`, the static serve,
+  the escapers, the source alternate and the freshness checks move unchanged
+  to `lazysite-processor/pipeline.pm`. Two pieces stay in the script because
+  moving them would change behaviour: `_lazy_lib` (it finds the module tree
+  from its own file's location) and the declared-content-roots memo (its
+  initialisers would run before the request rather than after). Lint 204
+  finds a copy of the reserved-character list in any processor part; lint 13
+  asks whether the processor reads the identity header of the script and its
+  parts, and still looks for the gate in the script. No behaviour change;
+  the render times are unchanged.
+
 - SM944 (PENDING) **internal: layout, theme and injection are the processor's
   sixteenth part** (S17 of the plan in the filing). `render_template`, the
   layout and theme resolution, `generate_theme_css`, the injectors and the

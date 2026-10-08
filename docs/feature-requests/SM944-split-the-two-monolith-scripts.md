@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S17 (n281-n299) oEmbed, remapper, components, ct cache, gates, access log, front door, include, forms, output, request, sources (memo stays), registries, render, layout. Next: S18, the page pipeline."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S18 (n281-n301) oEmbed, remapper, components, ct cache, gates, access log, front door, include, forms, output, request, sources, registries, render, layout, pipeline. Next: S19, the ACL copies."
 ---
 
 # Measured
@@ -149,3 +149,6 @@ S16 (n298)
 
 S17 (n299)
 : the Layout, theme and injection section (24 subs, 1,101 lines) moved to `lazysite-processor/layout.pm`. Its file-scope state, `my $LAZYSITE_VERSION;` and `my $ENGINE_MTIME;`, has no initialiser (the S8 shape); tmp/sm944-s17-memo-probe.pl shows both memos answering the same before and after, a memo filled during the load request and one filled after it, in both orders, and tells apart a copy given an initialiser. No constant is rewritten; every processor sub deparses identically. Lint 61 and tests manager/110 and 128 read the part (110 and 128 now fail, not skip, if it is missing); lint 56's presence check reads the script and every part, as its count does. Measured with S16. The processor is 3,788 lines.
+
+S18 (n301)
+: the page pipeline (25 subs, 855 lines in four blocks) moved to `lazysite-processor/pipeline.pm`. Two pieces the row names stay in the script, each with a comment saying why: `_lazy_lib` searches for the module tree from `__FILE__`, which in a part names a file one directory lower; and `_declared_content_roots` with its PO-3 memo, whose `my` statements carry initialisers (the S14 shape). tmp/sm944-s18-memo-probe.pl shows it: after a load request that scans, the memo cut into a part answers the old conf and the script the new. `%STATIC_DENY` and `@SOURCE_ALTERNATE_KEYS` are filled in BEGIN (the S10 shape) and answer the same before and after; `%RENDER_QUERY` is declared in the part. No constant is rewritten; every processor sub deparses identically. Seven readers follow the part (tests integration/64, lib/43, processor/43, 45, 71; lints 127 and 131). Lint 204 reads every part. Lint 13 decides whether the processor reads the identity header from the script and every part, and still looks for the gate in the script alone: in the parts as well, a comment in sources.pm satisfied it with the gate removed. Measured n299 against n301, 6 rounds, both orders: render_cache_hit_ms 74.5/75.0, then 74.2/74.6, inside each tree's 2-3% spread; `perl -c` median 72.00/71.95 and 72.12/72.36 ms. The processor is 2,942 lines.
