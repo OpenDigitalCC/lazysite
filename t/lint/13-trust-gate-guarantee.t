@@ -34,8 +34,26 @@ for my $cgi (@cgis) {
     my $b   = base($cgi);
     my $src = slurp($cgi);
     next if $exempt{$b};
+
+    # SM944: WHETHER the processor reads the identity header is asked of the
+    # script AND its parts, read as one unit (as lint 38 reads them). Its parts
+    # read it too (layout.pm, sources.pm); read alone, the script would stop
+    # counting as a sink once its own reads moved into a part, and the gate
+    # check below would not run for it at all.
+    #
+    # THE GATE is still looked for in the script's own text. It runs in the
+    # request entry, before any part's code runs for a request, and the SM944
+    # plan keeps it there. Looked for in the parts as well, it was satisfied by
+    # a COMMENT: sources.pm explains that the identity reaches it "only when
+    # apply_trust_gate let it", and that sentence passed this check with the
+    # script's gate removed (tmp/sm944-s18-sab13.sh).
+    my $reads = $src;
+    if ( $b eq 'lazysite-processor.pl' ) {
+        $reads .= "\n" . slurp($_) for sort glob("$root/lazysite-processor/*.pm");
+    }
+
     # Consumes the client-influenceable identity header?
-    next unless $src =~ /\$ENV\{\s*['"]?HTTP_X_REMOTE_USER/;
+    next unless $reads =~ /\$ENV\{\s*['"]?HTTP_X_REMOTE_USER/;
     push @sinks, $b;
 
     # Must gate it: either the shared/inline gate (LAZYSITE_AUTH_TRUSTED checked
