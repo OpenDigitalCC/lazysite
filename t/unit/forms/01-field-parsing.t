@@ -7,9 +7,10 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(load_processor setup_minimal_site);
 
-# convert_fenced_form lives in lazysite-processor.pl; these tests pin the
-# per-rule HTML output. The form-handler side (POST processing) is covered
-# by integration/subprocess tests.
+# convert_fenced_form lives in the processor's forms part (SM944 S11), loaded
+# with the processor; these tests pin the per-rule HTML output. The
+# form-handler side (POST processing) is covered by integration/subprocess
+# tests.
 
 my $docroot = tempdir( CLEANUP => 1 );
 setup_minimal_site($docroot);

@@ -65,12 +65,14 @@ sub said_in {
 }
 
 my ( $handler,   $h_pairs ) = said_in( slurp("$root/plugins/form-handler.pl"), 'our %OUTCOME_SAID' );
-my ( $processor, $p_pairs ) = said_in( slurp("$root/lazysite-processor.pl"),   'my %SAID' );
+# SM944 S11: the banner is rendered by _render_form, in the processor's forms part.
+my $FORMS = "$root/lazysite-processor/forms.pm";
+my ( $processor, $p_pairs ) = said_in( slurp($FORMS), 'my %SAID' );
 
 cmp_ok( scalar keys %{$handler}, '>=', 2, 'the handler declares its sentences' )
     or diag( 'Looked for `our %OUTCOME_SAID = (...)` in plugins/form-handler.pl.' );
 cmp_ok( scalar keys %{$processor}, '>=', 2, 'and the processor declares the banner\'s' )
-    or diag( 'Looked for `my %SAID = (...)` beside the banner in lazysite-processor.pl.' );
+    or diag('Looked for `my %SAID = (...)` beside the banner in lazysite-processor/forms.pm.');
 
 # THE MEASUREMENT IS WHOLE, asserted before anything is concluded from it. Without
 # this, an entry this file cannot parse reads as an entry that is not there.
@@ -103,9 +105,12 @@ for my $tok ( sort keys %{$handler} ) {
 # AND THE SENTENCE IS NEVER THE OUTCOME ITSELF. `$o` is attacker-writable; it may
 # only ever be a KEY.
 {
-    my $src = slurp("$root/lazysite-processor.pl");
-    like( $src, qr/\$SAID\{\$o\}/,
+    like( slurp($FORMS), qr/\$SAID\{\$o\}/,
         'the banner looks the sentence up by token' );
+    # Anywhere in the processor - the script and every part - not only where
+    # the banner is today.
+    my $src = join "\n", map { slurp($_) } "$root/lazysite-processor.pl",
+        sort glob("$root/lazysite-processor/*.pm");
     unlike( $src, qr/form-status-ok[^\n]*role="status">\$o</,
         'and never prints the outcome itself in the success style' )
         or diag( 'That is the phishing shape the closed map exists to prevent: a '

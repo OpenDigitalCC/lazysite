@@ -121,16 +121,24 @@ subtest 'and no unrecorded one has appeared' => sub {
     $expected{ $_->{file} }++ for @INLINE;
 
     for my $file ( sort keys %expected ) {
-        open my $fh, '<', "$root/$file" or die "$file: $!";
-        my ( $n, @found ) = (0);
-        while ( my $l = <$fh> ) {
-            $n++;
-            next if $l =~ /^\s*#/;                 # a comment is not an emission
-            next if $l =~ m{s\{|s/|=~|message};    # matching content, not writing it
-            next unless $l =~ /<(?:script|style)\b[^>]*>/i;
-            push @found, $n;
+        # SM944: the processor is the script and its parts, so an inline block
+        # in a part counts against the processor's entry.
+        my @scan = ($file);
+        push @scan, map { s{\A\Q$root/\E}{}r } sort glob("$root/lazysite-processor/*.pm")
+            if $file eq 'lazysite-processor.pl';
+        my @found;
+        for my $f (@scan) {
+            open my $fh, '<', "$root/$f" or die "$f: $!";
+            my $n = 0;
+            while ( my $l = <$fh> ) {
+                $n++;
+                next if $l =~ /^\s*#/;                 # a comment is not an emission
+                next if $l =~ m{s\{|s/|=~|message};    # matching content, not writing it
+                next unless $l =~ /<(?:script|style)\b[^>]*>/i;
+                push @found, $f eq $file ? $n : "$f:$n";
+            }
+            close $fh;
         }
-        close $fh;
         is( scalar @found, $expected{$file}, "$file inlines $expected{$file}" )
             or diag( "Found at lines: @found\n"
                 . "Expected $expected{$file}. A new inline block is a new CSP "
