@@ -23,6 +23,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $DOCROOT, $FRONT_CGIBIN, $RELAY_TIMEOUT, %ACCESS_REC );
+
 # --- The front door (SM294) ---
 
 # SM293 step 5 put every routing decision the vhost templates used to make into
