@@ -35,7 +35,7 @@ use TestHelper qw(repo_root);
 
 my $root = repo_root();
 my $src  = do {
-    open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+    open my $fh, '<', "$root/lazysite-processor/front-matter.pm" or die $!;
     local $/;
     <$fh>;
 };
@@ -49,7 +49,7 @@ my @want = qw(_parse_sections _yaml_block _yaml_value _yaml_scalar
 my $code = "package SecProbe;\nuse strict;\nuse warnings;\n";
 for my $name (@want) {
     $src =~ /^(sub \Q$name\E \{.*?^\})/ms
-        or BAIL_OUT("could not lift $name out of lazysite-processor.pl");
+        or BAIL_OUT("could not lift $name out of lazysite-processor/front-matter.pm");
     $code .= "$1\n";
 }
 $code .= "1;\n";
