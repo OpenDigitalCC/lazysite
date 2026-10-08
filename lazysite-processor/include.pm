@@ -34,6 +34,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $DOCROOT, $LAZYSITE_DIR, $REQUEST_CROOT, %LANG_MAP );
+
 # --- Include ---
 
 sub convert_fenced_include {
