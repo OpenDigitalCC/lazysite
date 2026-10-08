@@ -121,7 +121,8 @@ subtest 'the connector instructions say the listing is filtered before naming a 
 };
 
 subtest 'the bootstrap document states the rule' => sub {
-    my $src = do { local ( @ARGV, $/ ) = "$root/lazysite-processor.pl"; <> };
+    # SM944 S12: the document is _ai_partner_doc, in the processor's output part.
+    my $src = do { local ( @ARGV, $/ ) = "$root/lazysite-processor/output.pm"; <> };
     like( $src, qr/tools\/list is filtered to what .{0,20}the presenting credential may call/s,
         'the ai-partner document explains a short listing' );
 };
