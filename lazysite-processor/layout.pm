@@ -557,19 +557,19 @@ sub render_template {
         ? dirname($layout) : undef;
 
     my %tt_opts = (
-        ABSOLUTE     => 1,                                 # needed to read cache path
+        ABSOLUTE     => 1,                 # needed to read cache path
         ENCODING     => 'utf8',
-        EVAL_PERL    => 0,                                 # L-2: no embedded Perl
-        INCLUDE_PATH => $component_dir,                    # D035: layout-local components
+        EVAL_PERL    => 0,                 # L-2: no embedded Perl
+        INCLUDE_PATH => $component_dir,    # D035: layout-local components
         FILTERS      => {
             markdown => \&_markdown_filter,
             json     => \&_json_filter,
             url_safe => \&_url_safe_filter,    # SM970
         },
-        COMPILE_DIR  => $TT_COMPILE_DIR,                   # P-4
-        COMPILE_EXT  => '.ttc',                            # P-4
+        COMPILE_DIR => $TT_COMPILE_DIR,        # P-4
+        COMPILE_EXT => '.ttc',                 # P-4
     );
-    $tt_opts{RELATIVE} = 0 if $is_remote;                  # sandbox remote layouts
+    $tt_opts{RELATIVE} = 0 if $is_remote;      # sandbox remote layouts
 
     # Try specified layout (with the compile-cache-immune helper - an
     # unwritable cache/tt silently knocked every page down to the fallback
