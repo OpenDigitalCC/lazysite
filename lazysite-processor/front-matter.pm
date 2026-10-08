@@ -135,7 +135,7 @@ sub _yaml_block {
         my %map;
         while ( $$i <= $#$toks && $toks->[$$i][0] == $ind ) {
             my $line = $toks->[$$i][1];
-            last if $line     =~ /^-(?:\s|$)/;
+            last if $line =~ /^-(?:\s|$)/;
             # SM940, the same question inside the loop: a quoted scalar at mapping
             # indent is not a `key: value` pair and must not be accumulated as one.
             last if $line     =~ /^(["'])/ && _yaml_quoted_scalar_line($line);
