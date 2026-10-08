@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the template render is the processor's
+  fifteenth part** (S16 of the plan in the filing). `render_content`, the
+  TT-render-with-retry pair and `_cache_umask` move unchanged to
+  `lazysite-processor/render.pm`. Seven source checks of the stash's
+  construction (the escaped families, the manager caps, page_source, the
+  `_raw` contract) read the part. No behaviour change: every sub deparses
+  identically, and across S16-S17 the render times are unchanged.
+
 - SM944 (PENDING) **internal: scan and registries are the processor's
   fourteenth part** (S15 of the plan in the filing). `resolve_scan`,
   `scan_pages`, the registry regenerator and its serving path move unchanged

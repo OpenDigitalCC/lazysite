@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S15 (n281-n297) oEmbed, remapper, components, ct cache, gates, access log, front door, include, forms, output, request, sources (memo stays), scan and registries. Next: S16, the template render."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S16 (n281-n298) oEmbed, remapper, components, ct cache, gates, access log, front door, include, forms, output, request, sources (memo stays), registries, template render. Next: S17, layout."
 ---
 
 # Measured
@@ -143,3 +143,6 @@ S14 (n296)
 
 S15 (n297)
 : the Scan and registries section (14 subs, 938 lines) moved to `lazysite-processor/registries.pm`. Its file-scope state, update_registries' `my $_has_registries;`, has no initialiser (the S8 shape). `LOCK_EX`, `LOCK_NB`, `LOCK_UN` are written as calls (B::Deparse identical). Tests 46 and plugins/16 lift their subs from the part (46 now fails, not skips, if it is missing); test 60's reserved-list subtest reads the script and every part; lint 39 looks for a reading sub in every part too, and counts an indented sub; lint 45 reads every part for front-matter readers (`register` is read only in parts now, its parser since S1). Measured S13-S15 interleaved, 6 rounds, twice in opposite orders beside a release gate: render_cache_hit_ms S12 to S15 81.6 to 86.5, then 95.7 to 91.2 - the sign follows the order, so no step is measurable; `perl -c` median 82.54 to 82.31 and 98.61 to 97.81 ms. The processor is 5,376 lines.
+
+S16 (n298)
+: the template render (4 subs, 485 lines: `_cache_umask`, `_tt_render`, `_tt_render_impl`, `render_content`) moved to `lazysite-processor/render.pm`; it has no file-scope state and names no imported constant. Every processor sub (227) deparses identically before and after. Lints 48 and 83 and tests manager/161, processor/60, 62, 71 and 87 read the stash's construction from the part; each was seen to fail with its violation in the part. Measured S16-S17 interleaved, 6 rounds, both orders: render_cache_hit_ms S15/S16/S17 78.0/82.5/80.2, then reversed 83.0/81.5/83.6 - no step measurable; `perl -c` median 77.27/77.33/77.22 and 87.06/85.64/86.70 ms. The processor is 4,890 lines.
