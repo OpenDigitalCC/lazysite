@@ -90,14 +90,20 @@ sub names_var {
     return $code =~ $re;
 }
 
-# Lines of code outside every sub body: what runs when the part is required.
+# Lines of code outside every sub body: what runs when the part is required. A
+# sub may sit indented inside a bare block that holds its state (`{ my $memo;
+# sub f { ... } }`); its body ends at the `}` at its own indentation. The block's
+# own statements stay file-scope code.
 sub file_scope_code {
     my ($code) = @_;
     my ( @out, $in );
     for my $l ( split /\n/, $code ) {
-        if ( !$in && $l =~ /^sub \w+/ ) { $in = $l !~ /\}\s*$/; next }
-        if ( $in && $l =~ /^\}/ ) { $in = 0; next }
-        push @out, $l unless $in;
+        if ( !defined $in && $l =~ /^(\s*)sub \w+/ ) {
+            $in = $1 if $l !~ /\}\s*$/;
+            next;
+        }
+        if ( defined $in && $l =~ /^\Q$in\E\}/ ) { undef $in; next }
+        push @out, $l unless defined $in;
     }
     return join "\n", @out;
 }
