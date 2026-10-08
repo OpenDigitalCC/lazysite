@@ -15,6 +15,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM944: the processor's parts - package-main files it requires by absolute path from beside itself, never through @INC (ADR 0001: the render path has no lib tree), so they install into the same cgi-bin under its own directory. .pm, so the installer leaves them 0644 and no web server runs one as a CGI.",
+      "pattern": "^lazysite-processor/([a-z][a-z0-9-]*\\.pm)$",
+      "install_to": "{CGIBIN}/lazysite-processor/$1",
+      "bucket": "code"
+    },
+    {
       "pattern": "^tools/lazysite-users\\.pl$",
       "install_to": "{DOCROOT}/../tools/lazysite-users.pl",
       "bucket": "code"
@@ -481,6 +487,11 @@
       "path": "{CGIBIN}",
       "mode": "0755",
       "why": "CGI scripts are executed by the web server, never written by it"
+    },
+    {
+      "path": "{CGIBIN}/lazysite-processor",
+      "mode": "0755",
+      "why": "the processor's parts (SM944), required by the processor from beside it - read, never executed or written by the web server"
     },
     {
       "path": "{DOCROOT}",

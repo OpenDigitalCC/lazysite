@@ -21,7 +21,7 @@ my @files = grep { -f } map { "$root/$_" } (
     qw(install.pl lazysite-auth.pl lazysite-manager-api.pl lazysite-mcp.pl lazysite-oauth.pl
         lazysite-processor.pl lazysite-dav.pl),
     ( map { s{^\Q$root\E/}{}r } glob("$root/lib/Lazysite/*.pm"), glob("$root/lib/Lazysite/*/*.pm"),
-        glob("$root/plugins/*.pl"), glob("$root/tools/*.pl") ),
+        glob("$root/plugins/*.pl"), glob("$root/tools/*.pl"), glob("$root/lazysite-processor/*.pm") ),
 );
 cmp_ok( scalar @files, '>', 50, 'the shipped code was found' );
 

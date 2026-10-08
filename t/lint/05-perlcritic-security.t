@@ -16,7 +16,7 @@ my $root = repo_root();
 chomp( my $critic = `which perlcritic 2>/dev/null` );
 plan skip_all => 'perlcritic not installed' unless $critic;
 
-my @scripts = sort glob("$root/*.pl $root/tools/*.pl $root/plugins/*.pl $root/lib/Lazysite/*.pm $root/lib/Lazysite/*/*.pm");
+my @scripts = sort glob("$root/*.pl $root/tools/*.pl $root/plugins/*.pl $root/lib/Lazysite/*.pm $root/lib/Lazysite/*/*.pm $root/lazysite-processor/*.pm");
 # SM949: tools/precheck.sh narrows this to the files a branch changed, so the
 # one-minute pre-check does not spend 40 s on files nobody touched. Unset - in
 # the suite, the handoff and the gate - every file is checked, as before.

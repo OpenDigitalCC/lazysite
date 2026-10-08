@@ -70,7 +70,9 @@ my @EXPLICIT = qw(
 # or to which tests are counted, is a change to the answer.
 my @HARNESS = qw(tools/coverage.sh tools/coverage-inputs.pl);
 
-my @files = grep { -f } @EXPLICIT, @HARNESS;
+# SM944: the processor's parts are the processor - it requires them by path - so
+# a change to one moves the digest exactly as a change to the script does.
+my @files = grep { -f } @EXPLICIT, @HARNESS, glob('lazysite-processor/*.pm');
 my ( @tests, @code );
 for my $dir (qw(t lib plugins)) {
     next unless -d $dir;

@@ -27,7 +27,7 @@ my $root = repo_root();
 my @files;
 find( sub { push @files, $File::Find::name if /\.(?:pm|pl)\z/ && -f },
     "$root/lib", "$root/tools", "$root/plugins" );
-push @files, grep { -f } glob "$root/lazysite-*.pl";
+push @files, grep { -f } glob("$root/lazysite-*.pl"), glob("$root/lazysite-processor/*.pm");
 
 my @offenders;
 for my $f (@files) {

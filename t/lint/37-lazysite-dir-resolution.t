@@ -189,7 +189,7 @@ subtest 'nothing derives the engine dir behind the resolver' => sub {
         sub { push @files, $File::Find::name if /\.(?:pm|pl)\z/ && -f },
         "$root/lib", "$root/tools", "$root/plugins"
     );
-    push @files, grep { -f } glob("$root/lazysite-*.pl"), "$root/install.pl";
+    push @files, grep { -f } glob("$root/lazysite-*.pl"), glob("$root/lazysite-processor/*.pm"), "$root/install.pl";
     cmp_ok( scalar @files, '>', 100, 'the canary: found the Perl that ships' );
 
     my @offenders;

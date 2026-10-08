@@ -11,7 +11,10 @@ tree** (19 modules since the SM079 modular refactor: `Util`, `Audit`,
 `Auth::*`, `Manager::*`, `Capabilities`, `Fetch`, `BadUrl`, `Aliases`). The one deliberate exception is the **processor's
 render path**, which stays module-free so the page-serving hot path has no
 `@INC` dependency (see `docs/adr/0001-capability-resolution.md` and
-`docs/architecture/code-quality.md`). Core-Perl only, plus optional Template
+`docs/architecture/code-quality.md`). Since SM944 the processor is split by area
+into **parts** under `lazysite-processor/`: package-main files it requires by
+absolute path from beside itself, never through `@INC`, so the property holds.
+Core-Perl only, plus optional Template
 Toolkit / Archive::Zip / DB_File.
 
 | Script | Role |

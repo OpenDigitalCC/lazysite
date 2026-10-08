@@ -3,6 +3,7 @@
 # payload is the source `lazysite provision|upgrade` copies FROM, as the
 # site user.
 lazysite-processor.pl   usr/share/lazysite
+lazysite-processor      usr/share/lazysite
 lazysite-auth.pl        usr/share/lazysite
 lazysite-dav.pl         usr/share/lazysite
 lazysite-manager-api.pl usr/share/lazysite

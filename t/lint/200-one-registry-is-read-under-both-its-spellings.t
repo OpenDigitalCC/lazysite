@@ -43,7 +43,7 @@ my $HEADER_SITE = qr{
 
 my @FILES;
 for my $dir ( '', 'lib/Lazysite', 'lib/Lazysite/Manager', 'lib/Lazysite/Auth',
-    'lib/Lazysite/Daemon', 'plugins', 'tools', 'cgi-bin' )
+    'lib/Lazysite/Daemon', 'plugins', 'tools', 'cgi-bin', 'lazysite-processor' )
 {
     my $glob = $root . ( length $dir ? "/$dir" : '' );
     push @FILES, glob("$glob/*.pl"), glob("$glob/*.pm");

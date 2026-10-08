@@ -14,12 +14,16 @@
   installer). The **one deliberate exception is the processor's render
   path**, which stays module-free so the page-serving hot path runs with no
   `@INC` dependency - its single duplicated helper is marked and recorded in
-  `docs/adr/0001-capability-resolution.md`.
+  `docs/adr/0001-capability-resolution.md`. Its areas are moving into parts
+  under `lazysite-processor/` (SM944): package-main files the script requires
+  by absolute path from beside itself, never through `@INC`; t/lint/215 keeps
+  them module-free.
 
 ## Script inventory
 
 ```
 lazysite-processor.pl       Core page processor and renderer (module-free render path)
+lazysite-processor/*.pm     The processor's parts, one area each (SM944)
 lazysite-auth.pl            Cookie authentication wrapper
 lazysite-manager-api.pl     Manager web UI API + token control API
 lazysite-dav.pl             WebDAV (class 1+2) publishing endpoint

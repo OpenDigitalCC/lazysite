@@ -47,6 +47,15 @@ subtest 'every root CGI surface is in the deb payload' => sub {
         '',
         'These ship in the tarball and are ABSENT from the package. A site',
         'installed from the deb never receives them, and nothing else notices.' );
+
+    # SM944: a surface's parts (lazysite-processor/) are required by path from
+    # beside the script, so a payload without the directory is a script that
+    # does not compile - the same silence, one step worse.
+    my @parts = sort map { s{\A\Q$root/\E}{}r } grep { -d } glob("$root/lazysite-*");
+    my @no_parts = grep { $install !~ /^\Q$_\E\s/m } @parts;
+    is_deeply( \@no_parts, [],
+        'every lazysite-* parts directory is named in debian/lazysite-common.install' )
+        or diag( join "\n  ", '', @no_parts );
 };
 
 subtest 'every shipped vhost example is in its flavour package' => sub {

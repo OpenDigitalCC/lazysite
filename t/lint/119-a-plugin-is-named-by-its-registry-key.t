@@ -29,7 +29,7 @@ my $bare = join '|', map { quotemeta } @names;
 my @src;
 find( { wanted => sub { push @src, $File::Find::name if /\.(pm|pl)\z/ && -f }, no_chdir => 1 },
     "$root/lib", "$root/tools", "$root/plugins" );
-push @src, glob("$root/lazysite-*.pl");
+push @src, glob("$root/lazysite-*.pl"), glob("$root/lazysite-processor/*.pm");
 
 my @bad;
 for my $f ( sort @src ) {
