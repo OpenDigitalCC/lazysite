@@ -21,14 +21,14 @@ Two scripts, each doing one thing:
 - **`tools/commit.sh`** - commits CC's in-place working-tree edits
   with CC's message and pushes to `origin/main`. No tagging, no
   version bump, no tarball build.
-- **`tools/release.sh`** - cuts a tagged release from any
-  commit on main. Fresh staging clone, full test suite, SBOM
-  strictness gate, tarball, tag, push tag. Does not modify
-  main.
+- **`tools/release.sh`** - gates main, builds a release as one
+  release commit on main with a local tag, and publishes main and
+  the tag together. See "Releasing" below.
 
-Main is *unstable*: every commit lands, no gate, no version
-bump. Tags are the stable identifiers. Pull a tag if you want
-a stable version; pull main if you're developing.
+Main is *unstable*: every landing is gated after it lands, and a
+release adds one commit carrying its CHANGELOG section, version
+pair and records. Tags are the stable identifiers. Pull a tag if
+you want a stable version; pull main if you're developing.
 
 ### Commit convention (for CC)
 
@@ -75,25 +75,130 @@ for a future run.
 
 ## Releasing
 
-Release produces a tarball, an `.sha256`, and a git tag
-pointing at a commit on main. Tarballs live at
-`/srv/projects/lazysite/dist/lazysite-VERSION.tar.gz`.
+    land -> (auto) gate -> "cut X" -> build -> publish
 
-Main is never modified. Any commit on main is a potential
-release target. Whatever `VERSION` says in the committed tree
-is the committed value; the RELEASE version lives in the tag
-name (`vX.Y.Z`), not a per-release commit.
+The release manager lands branches. After each landing Claude gates main's tip
+in the background, unattended. When the release manager says "cut X", Claude
+runs `build` - minutes, from the receipt the gate already wrote. The release
+manager then runs `publish`, which pushes main and the tag together. Nobody waits
+for a test, and a release is one commit on main (SM971).
+
+| Step | Who | Command | Takes |
+| --- | --- | --- | --- |
+| land | release manager | vcs-review | - |
+| gate | Claude, after each landing | `tools/gate-main.sh [--version X.Y.Z] [--beta\|--final]` | the suite, bench and coverage (~6 min to ~75 min; coverage is reused when its inputs are unchanged) |
+| cut | release manager | says "cut X" | - |
+| build | Claude | `tools/release.sh build X --notes FILE [--beta\|--final]` | minutes |
+| publish | release manager | `tools/release.sh publish X` | seconds |
+
+### The release material, written by one generator
+
+`tools/release-material.pl VERSION --dir DIR [--channel C] [--notes FILE]
+[--date D]` writes everything mechanical about a release into a clean checkout:
+
+- `CHANGELOG.md` - `## Unreleased` becomes `## X.Y.Z - CHANNEL: subtitle
+  (DATE)` under a fresh empty `## Unreleased`, and every entry whose first line
+  still carries `(PENDING)` gets its landed SHA;
+- `docs/releases/CHANGELOG-archive.md` - at a new minor (X.Y.0), the earlier
+  minors' sections move there unchanged (lint 210);
+- `docs/FEATURES.md` - the timeline entry and the subtitle's "as of vX.Y.Z";
+- `VERSION` X.Y.Z and `NEXT_VERSION` X.Y.(Z+1), by `tools/bump-version.pl`;
+- `starter/docs/ai-briefing-practice.md`, by `tools/import-field-practice.pl`;
+- `docs/INDEX.md`, by `tools/gen-doc-index.pl --write`.
+
+**A PENDING ref is resolved from git, never guessed.** The SHA is the one commit,
+since the newest tag reachable from HEAD, whose diff added that exact line to
+`CHANGELOG.md`. No such commit, more than one, or the same line twice: the
+generator refuses, naming the entry, and writes nothing. Stamp that one by hand
+in a landing; a main that moved only in release material needs no new gate.
+
+`--paths` prints the **release-material allowlist** - the files above plus
+`docs/releases/GATE-LOG.md` and `dist/config/coverage-last.json`, which the build
+writes itself - and `--lints` the checks that read them (t/lint/214 keeps that
+list complete).
+
+### Gate
+
+`tools/gate-main.sh` resolves main to a SHA, takes `NEXT_VERSION` (refusing when
+it is not the patch after the newest tag, or is already tagged - pass `--version`
+for a new minor), and runs `tools/release.sh gate VERSION --commit SHA` under
+`setsid -w ... </dev/null`, its output in `tmp/release-gate/VERSION/gate-main.log`.
+A receipt for that commit, version and channel that already passed is printed
+instead.
+
+The gate clones the commit into a stage, **runs the generator there** with a
+placeholder subtitle, commits that in the stage only, and runs the compliance
+check, the full suite at -j4, the bench, coverage, and the manifest, SBOM and
+man-page checks on that tree. So it tests exactly what will ship apart from the
+subtitle and FEATURES prose, and any commit on main can pass. The receipt
+(`tmp/release-gate/VERSION/receipt`, every log beside it) records the commit, the
+counts, the coverage verdict and the generator's digest (`material_tool`).
+
+**Coverage may be reused.** Every passing coverage run is kept in
+`tmp/release-gate/coverage-passes/DIGEST.json`, stamped with the commit that
+measured it. A later gate whose coverage-inputs digest matches offers coverage.sh
+that record and skips the instrumented run; the receipt says `coverage=reused`
+and `coverage_from=sha=... version=...`. The release material changes nothing
+the digest reads. `LAZYSITE_COVER_FORCE=1` measures anyway. The digest
+(`tools/coverage-inputs.pl --list` says why for each test) leaves out a test only
+when its code, read with PPI, can start no process, load no file and call no sub
+that does.
+
+### Build
+
+`tools/release.sh build X --notes FILE`. The notes file is a header block ended
+by a blank line, then the tag annotation:
+
+    Subtitle: an install says whether the site works
+    Features: Provision ends by running the health check (SM933) ...
+      continuation lines are indented
+    Assisted-by: Claude:claude-opus-5-5[1m]
+    Claude-Session: https://claude.ai/code/session_...
+
+    lazysite 0.15.3 (edge)
+    ...
+
+Subtitle and Features are required; Assisted-by is required and, with
+Claude-Session, becomes the release commit's trailers. Then build:
+
+1. refuses unless a receipt for X passed on main's tip, for this channel, from a
+   gate that ran the generator. If main has moved past the receipt it refuses
+   unless every commit since touched only the allowlist - exactly the files
+   build rewrites and then re-checks, so such a landing changes nothing the gate
+   measured;
+2. refuses if main is checked out in a worktree with uncommitted changes;
+3. makes a worktree of main, runs the generator with the notes, appends the
+   GATE-LOG row (naming the gated commit) and copies the gate's coverage record;
+4. commits that as ONE release commit on top of main, and refuses unless its
+   diff touches only the allowlist;
+5. runs the checks that read the material (`release-material.pl --lints`) and
+   the compliance check on it;
+6. builds the manifest, SBOM, man pages, tarball, the four .debs and the
+   claude.ai skill from the release commit;
+7. on a stable cut, commits the new `download/` set on top (download/ only;
+   lint 113 runs on it);
+8. tags the release commit `vX` LOCALLY and moves main to it (fast-forward:
+   the worktree on main moves with it). Until this step main and the tags are
+   untouched, whatever failed.
+
+The artefacts land in `dist/`. There is no post-release record: the GATE-LOG row
+and the coverage record are in the release commit.
+
+### Publish
+
+`tools/release.sh publish X` - the release manager's only step, and the only one
+that touches the network. It pushes main and `vX` together (`git push
+--atomic`), and refuses when the tag is not on local main, when origin's main is
+not an ancestor of local main (nothing is forced), or when `vX` is already on
+origin (a burned version is never reused, SM064).
 
 ### Where the gate runs, and why it matters
 
-`release.sh` stages a clone and runs the **entire gate** in it - the full suite,
-the perf bench and a Devel::Cover run. That last one is the constraint, and not
-in the way anyone expects.
-
-**Devel::Cover writes one directory per instrumented process.** This suite drives
-real CGI subprocesses rather than mocking them, so a gate run produces hundreds
-of thousands of small directories - two integration test files alone produce 53.
-It exhausts a filesystem's **inodes**, not its bytes.
+The gate's Devel::Cover run is the constraint, and not in the way anyone
+expects. **Devel::Cover writes one directory per instrumented process.** This
+suite drives real CGI subprocesses rather than mocking them, so a gate run
+produces hundreds of thousands of small directories. It exhausts a filesystem's
+**inodes**, not its bytes.
 
 That is why the staging location is `${LAZYSITE_STAGE_DIR:-${TMPDIR:-/tmp}}` and
 overridable with `--stage-dir`, and why the pre-flight check reads `df
@@ -102,131 +207,22 @@ a fixed 1,048,576 inodes; a release fills it while reporting 3% of bytes used, s
 `df -h` looks healthy right up to the failure. **Build scratch belongs on `/srv`
 here** - the root filesystem is small and `/tmp` cannot hold a gate run.
 
-Point it once and forget it:
-
 ```bash
 export LAZYSITE_STAGE_DIR=/srv/tmp
 ```
 
-### Gating main after a landing (SM950)
+On any abort the stage is kept and its path printed, and the NEXT run removes it
+at start once the process that made it is gone (SM895 G3), so at most one failed
+stage sits there at a time and a live run's stage is never touched.
 
-After the release manager lands a branch, the developer agent runs, in the
-background:
+### Handing off a stack of branches
 
-```bash
-tools/gate-main.sh                 # main's tip, NEXT_VERSION, edge
-tools/gate-main.sh --beta          # or --final / --certified, --version X.Y.Z
-```
-
-It gates main's tip for `NEXT_VERSION` (refusing if that is not the patch bump
-of the newest tag that `release.sh` would propose, or is already tagged) through
-`tools/release.sh gate`, under `setsid -w ... </dev/null`, with the output in
-`tmp/release-gate/VERSION/gate-main.log`. If a receipt for that exact commit,
-version and channel has already passed, it prints the receipt and runs nothing.
-
-Until the pre-cut pass lands, main cannot pass a real gate - the practice
-briefing is stamped for the last release - so it **rehearses**:
-`release.sh gate --rehearse` gates the tree as committed and writes a receipt
-with `result=rehearsal`, which `build` refuses. Once the pre-cut pass lands, the
-next run gates for real, and that receipt is what `build` uses.
-
-**Coverage may be reused.** Every passing coverage run is kept in
-`tmp/release-gate/coverage-passes/DIGEST.json`, stamped with the commit that
-measured it. A later gate whose coverage-inputs digest matches offers coverage.sh
-that record and skips the hour-long instrumented run; the receipt says
-`coverage=reused` and `coverage_from=sha=... version=...`, and `build` prints
-it. The pre-cut pass changes nothing the digest reads, so a cut's gate normally
-reuses the rehearsal's coverage and takes the suite's time. `LAZYSITE_COVER_FORCE=1`
-measures anyway. The digest (`tools/coverage-inputs.pl --list` says why for each
-test) leaves out a test only when its code, read with PPI, can start no process,
-load no file and call no sub that does.
-
-### Cutting a release
-
-Interactive form - release.sh proposes the next patch bump
-from the most recent `v*.*.*` tag and prompts (SM064):
-
-```
-tools/release.sh
-# Latest tag: v0.2.19
-# Release as 0.2.20 [Y/n/edit]?
-```
-
-Answers:
-
-- `Y`, `y`, or empty → proceed with the proposed version.
-- `n` → abort with no side effects.
-- `edit` or `e` → prompt for a version string, validate as
-  X.Y.Z, then proceed. Useful for minor or major bumps.
-
-Non-interactive form - pass VERSION explicitly to skip the
-prompt (matches 0.2.19 behaviour):
-
-```
-tools/release.sh 0.2.20
-```
-
-Both forms default to releasing `origin/main` HEAD. Tag
-annotation is the target commit's own message.
-
-Other forms:
-
-```
-tools/release.sh 0.2.20 --commit abc1234     # specific commit
-tools/release.sh 0.2.20 --notes NOTES.md     # override annotation
-tools/release.sh 0.2.20 --commit HEAD~3 --notes NOTES.md
-```
-
-### What release.sh does
-
-1. Proposes / accepts VERSION (see above), verifies it's
-   semver and the tag is unused.
-2. Stages a fresh clone of `/srv/projects/lazysite` at
-   `/tmp/lazysite-release-$$/`.
-3. Checks out the target commit (detached HEAD in staging).
-4. Runs the full Perl test suite via `prove -r t/`.
-5. Runs `tools/manifest-to-sbom.pl --strict`. Aborts if any
-   `use Some::Module` in shipped code is missing from
-   `dist/config/sbom-deps.json`.
-6. Builds the tarball via `git archive`. Content matches the
-   target commit exactly; no staging-dir edits leak in.
-7. Computes SHA-256, writes the `.sha256` sidecar.
-8. Tags the commit in the ORIGIN working tree (not staging)
-   so the tag is immediately pushable. Annotation from
-   `--notes` file if given, else the commit's own message.
-9. Pushes the tag.
-10. Copies tarball + sha256 to `/srv/projects/lazysite/dist/`.
-11. Removes the staging dir (`--keep-stage` keeps it).
-
-On any abort, the staging dir is retained and its path printed so the
-operator can inspect what failed - and the NEXT run removes it at start,
-once the process that made it is gone (SM895 G3). So at most one failed
-stage sits under the staging directory at a time, a live run's stage is
-never touched, and the logs kept beside a stage
-(`lazysite-release-PID-coverage-*.txt`) survive its removal.
-
-### No version-bump commit
-
-Unlike the pre-SM063 flow, release.sh does NOT commit to
-main. `VERSION` and `NEXT_VERSION` files in the committed
-tree stay at whatever the last commit left them at. The
-release identifier is the tag name. Operators looking for
-"what version is this" run `git describe --tags` on a checkout
-or read the tag.
-
-This is intentional: the pre-SM063 flow shipped three
-classes of regression (audit findings saved as
-`.release-audit.md` while SM062 cleared the backlog) in
-part because the release flow rsync'd, tested, committed,
-tagged, and version-bumped in one tangled step. Separating
-commit from release removes the coupling.
-
-The files are still kept roughly current for human clarity (the 2026
-seven-dimension review flagged them stuck at 0.2.18 while releases were at
-0.3.x): run `tools/bump-version.pl` after a release to promote `NEXT_VERSION`
-into `VERSION` and advance `NEXT_VERSION`. It does not commit - fold it into a
-normal commit - and the **git tag remains the authoritative release
-identifier**.
+`bash tools/handoff.sh --stack BASE` hands off every branch from BASE to the
+checked-out tip at once: the one-minute precheck on each, against the branch
+below it, and the full suite once, on the tip. Each branch is READY only if all
+of it passed; the first precheck that fails stops the run, naming the branch.
+When only part of a stack lands, rebase what is left onto the new main and run
+`--stack main` again on it.
 
 ### Strict dependency check
 

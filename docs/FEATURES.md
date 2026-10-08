@@ -1798,12 +1798,16 @@ Pages, Netlify, or Cloudflare Pages.
   `use`/`require` and **fails the release** if a dependency isn't declared - so a new
   dependency can't ship unaccounted-for. The product licence is **MIT**;
   dependencies carry their own declared licences, overwhelmingly Perl-core.
-- **Release pipeline** (`release.sh`) - never touches `main`: clones fresh, checks
-  out a commit, runs the **full test suite**, builds the manifest, runs the strict
-  SBOM gate, builds a reproducible tarball via `git archive` (man pages included
-  under `man/man1/`), records a SHA sidecar, and tags + pushes `vX.Y.Z`. Tags are
-  the only stable identifiers; since the 0.4.x line, `main` is unstable and
-  carries unreleased work with no per-release bump commit. Builds are **`edge`**
+- **Release pipeline** (`release.sh`, SM971) - `gate` runs after every landing:
+  it writes the release material into a stage (`release-material.pl`: the
+  CHANGELOG section with every PENDING ref stamped, FEATURES, the version pair,
+  the briefing, the index) and runs the **full test suite**, bench, coverage,
+  manifest, strict SBOM and man-page checks on it. `build` turns a passing
+  receipt into ONE release commit on `main`, checked to touch only release
+  material, packages a reproducible tarball via `git archive` (man pages under
+  `man/man1/`) and the .debs from it, and tags it locally; `publish` pushes
+  `main` and the tag together. Tags are the stable identifiers; `main` is
+  unstable and carries unreleased work. Builds are **`edge`**
   by default; `--final` stamps `channel: stable` into the manifest - the
   certified releases that `stable`-channel sites accept. **0.7.0 is the first
   stable release**, opening the declared five-year support period
@@ -1821,7 +1825,7 @@ Pages, Netlify, or Cloudflare Pages.
   use); `--fix` re-runs every check afterwards and prints the **post-fix**
   report, with queued chmods on one path composing additively.
 - **Versioning** (`bump-version.pl`) - promotes `NEXT_VERSION` into `VERSION` and
-  advances the next, once per release.
+  advances the next; the release commit runs it, once per release.
 - **User admin** (`lazysite-users.pl`) - the full credential/account/MFA/claim/
   pairing lifecycle as a CLI and a JSON `--api` (used by the manager Users page).
 - **Offline bundle apply** (`lazysite-bundle-apply.pl`) - applies a network-less

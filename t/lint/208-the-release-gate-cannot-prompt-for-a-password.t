@@ -50,7 +50,7 @@ subtest 'every gate step runs without a terminal' => sub {
 subtest 'no privilege is hidden in the release script or the gate tools' => sub {
     for my $f (
         qw(tools/release.sh tools/coverage.sh tools/bench.pl tools/handoff.sh tools/build-deb.sh
-        tools/gate-main.sh tools/coverage-inputs.pl)
+        tools/gate-main.sh tools/coverage-inputs.pl tools/release-material.pl tools/precheck.sh)
         )
     {
         next unless -f "$root/$f";
@@ -68,6 +68,15 @@ subtest 'the gate on main runs detached too' => sub {
     ok( scalar @runs, 'gate-main.sh starts release.sh gate' ) or return;
     is( scalar( grep { !/^\s*setsid -w bash / } @runs ), 0, 'every time under setsid -w' );
     like( $g, qr/release\.sh" gate [^\n]*\\\n[^\n]*<\/dev\/null/, 'with stdin from /dev/null' );
+};
+
+# SM971: the build runs the checks on the release material (and a stable cut's
+# download set) itself, unattended, so they are detached the same way.
+subtest 'the build\'s own checks run detached too' => sub {
+    my @runs = grep { /\bprove -l\b/ && !/\bprove -lr\b/ } code_lines($rel);
+    ok( scalar @runs >= 2, 'the release-material checks and the download check are in the build' ) or return;
+    is( scalar( grep { !/\bdetached prove\b/ } @runs ), 0, 'and each is detached' )
+        or diag( join "\n", @runs );
 };
 
 done_testing();

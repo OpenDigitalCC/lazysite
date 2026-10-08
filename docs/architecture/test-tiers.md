@@ -1,18 +1,20 @@
 ---
 title: "Test tiers: what to run when, and why"
-subtitle: "Four tiers, chosen from measurements rather than intuition - what each costs, what each is capable of finding, and the one thing none of them can do. SM737."
+subtitle: "The tiers, chosen from measurements rather than intuition - what each costs, what each is capable of finding, and the one thing none of them can do. SM737."
 brand: plain
 standard-margins: true
 ---
 
-# The four tiers
+# The tiers
 
 | Tier | Command | Cost | When |
 | --- | --- | --- | --- |
 | **fast** | `scripts/pre-review.sh fast` | **~4s** | While you work |
 | **review** | `scripts/pre-review.sh review` | **~45s** | Before offering a branch |
 | **suite** | `scripts/pre-review.sh suite` | **~4 min** at `-j4` | When behaviour changed, not only its description |
-| **release** | `tools/release.sh build` | **~2.5 h** | A cut |
+| **handoff** | `bash tools/handoff.sh [--stack BASE]` | precheck **~10s** a branch, then the suite **~6 min** once | Before offering a branch, or a stack of them |
+| **gate** | `tools/gate-main.sh` (runs `tools/release.sh gate`) | the suite, bench and coverage: **~6 min**, **~75 min** when coverage is re-measured | After every landing, unattended |
+| **build** | `tools/release.sh build X --notes FILE` | **minutes**: the release-material checks, then packaging | When the cut is called |
 
 # Why these boundaries and not others
 
@@ -45,7 +47,7 @@ Three independent confirmations of the same pattern:
 **So the fast tier is not the cheap tier. It is the tier most likely to find
 something**, which is why it is the one to run often.
 
-# The release tier, and why coverage is last
+# The gate, and why coverage is last
 
 | Stage | 0.11.11 |
 | --- | --- |
@@ -58,10 +60,12 @@ is byte-identical to a run that passed, which fires on a promotion and correctly
 does not fire between two real releases.
 
 SM950 makes the skip reachable between releases. `tools/gate-main.sh` gates main
-after each landing (a rehearsal until the pre-cut pass lands), every passing
-coverage run is kept by its inputs digest, and a later gate with the same digest
-reuses it - so a cut's gate normally takes the suite's time, and its receipt
-says `coverage=reused` and from which run. The digest leaves out tests that, read
+after each landing, every passing coverage run is kept by its inputs digest, and
+a later gate with the same digest reuses it - and its receipt says
+`coverage=reused` and from which run. Since SM971 the gate writes the release
+material (`tools/release-material.pl`) into the tree it tests, so every commit
+on main can pass, the gate has finished before a cut is called, and the build
+re-runs only the checks that read the material it rewrites. The digest leaves out tests that, read
 with PPI, can start no process, load no file and call no sub that does: across
 24 commits on main it moved on 9 rather than 11. See `docs/development.md`.
 

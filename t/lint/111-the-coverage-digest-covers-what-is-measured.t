@@ -88,8 +88,10 @@ subtest 'the record survives the build that wrote it' => sub {
     };
     like( $rel, qr/COV_RECORD="\$STAGE\/dist\/config\/coverage-last\.json"/,
         'release.sh looks for the record in the staging clone' );
-    like( $rel, qr/cp "\$COV_RECORD" "\$ORIGIN\/dist\/config\/coverage-last\.json"/,
-        'and carries it back to the origin, where the next build will read it' );
+    like( $rel, qr/cp "\$COV_RECORD" "\$RECEIPT_DIR\/coverage-last\.json"/,
+        'and carries it out to the receipt directory' );
+    like( $rel, qr/cp "\$RECEIPT_DIR\/coverage-last\.json" "\$STAGE\/dist\/config\/coverage-last\.json"/,
+        'from where build commits it into the release commit (SM971)' );
 
     my $carry = index( $rel, 'COV_RECORD="$STAGE' );
     my $clean = index( $rel, 'stage_disposition' );

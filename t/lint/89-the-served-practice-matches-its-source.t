@@ -80,6 +80,10 @@ ok( defined $imported, 'it records the date it was imported' );
 ok( defined $agent && length $agent,
     'it names the agent whose field notes these are' );
 is( scalar(@sources) / 2, 2, 'it records both import sources with a checksum' );
+# SM971: the import runs in a release stage too, and an absolute path would
+# print that stage's location into a page every site serves.
+is_deeply( [ grep { m{\A/} } @sources[ grep { $_ % 2 == 0 } 0 .. $#sources ] ], [],
+    'named relative to the repository, never by where it was checked out' );
 ok( defined $body_sha, 'it records a checksum of its own body' );
 
 # THE VERSION STAMP IS EITHER THE LAST RELEASE OR THE ONE BEING CUT, and nothing
@@ -126,7 +130,11 @@ is( sha256_hex( $body // '' ),
 my @source_paths = @sources[ grep { $_ % 2 == 0 } 0 .. $#sources ];
 my @source_sums  = @sources[ grep { $_ % 2 == 1 } 0 .. $#sources ];
 
-my @missing = grep { !-r $_ } @source_paths;
+# SM971: recorded relative to the repository (the import names them that way so
+# a checkout's own location never reaches the shipped page), read against it.
+my @source_files = map { m{\A/} ? $_ : "$root/$_" } @source_paths;
+
+my @missing = grep { !-r $_ } @source_files;
 
 if (@missing) {
 
@@ -138,7 +146,7 @@ if (@missing) {
 }
 else {
     for my $i ( 0 .. $#source_paths ) {
-        is( sha256_hex( slurp( $source_paths[$i] ) ),
+        is( sha256_hex( slurp( $source_files[$i] ) ),
             $source_sums[$i],
             "$source_paths[$i] is unchanged since the import" )
             or diag( 'The practice has moved on. Re-run '

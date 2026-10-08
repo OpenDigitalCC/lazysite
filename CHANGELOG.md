@@ -9,8 +9,10 @@ standard-margins: true
 
 Versioning
 : Releases are git tags (`vX.Y.Z`). Since SM063, `main` is unstable and
-  carries unreleased work; a release is a tag cut from a commit on `main`,
-  with no per-release version-bump commit.
+  carries unreleased work. Since SM971 a release is ONE commit on `main` -
+  this file's section, the FEATURES entry, `VERSION`/`NEXT_VERSION`, the
+  briefing, the index and the gate record, written by
+  `tools/release-material.pl` - and the tag names that commit.
 
 Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
@@ -35,8 +37,9 @@ Naming the commit: AFTER it lands, never before
   for a spot check to pass ([[SM354]], where seventeen entries were wrong and
   seven named commits that no longer existed).
 
-  While the work is on a branch, write `(PENDING)`. Once it is on `main`,
-  replace that with the landed SHA.
+  While the work is on a branch, write `(PENDING)`. The release commit
+  replaces it with the landed SHA - the commit that added that exact line -
+  and the build refuses an entry whose commit it cannot tell (SM971).
   `t/lint/53-changelog-commit-refs-exist.t` ignores `(PENDING)` and fails on any
   ref that no branch contains, so the placeholder is safe and a stale ref is
   not. SM354's own entry went stale in its own landing, which is how this
@@ -45,9 +48,25 @@ Naming the commit: AFTER it lands, never before
 Archive
 : This file holds the current minor release line and Unreleased. Earlier
   releases are in `docs/releases/CHANGELOG-archive.md` (SM946), moved there
-  unchanged when a new minor begins; the lints that check history read both.
+  unchanged by the release commit of a new minor; the lints that check history
+  read both.
 
 ## Unreleased
+
+- SM971 (PENDING) **a release is one commit on main, and its gate has already
+  run** (release manager, 2026-10-08). `tools/release-material.pl` writes the
+  CHANGELOG section, every PENDING ref's landed SHA (the commit that added that
+  line, or a refusal naming the entry), the FEATURES entry, `VERSION` and
+  `NEXT_VERSION`, the briefing, the index and, at a new minor, the archive move.
+  `release.sh gate` runs it in its stage, so main can pass at any moment - the
+  pre-cut landing and `--rehearse` are gone. `release.sh build X --notes FILE`
+  makes one release commit on main with the GATE-LOG row and coverage record,
+  refuses one that touches anything else or fails the lints reading it, packages
+  and tags it, and leaves main untouched on any failure; the post-release record
+  is gone. `publish` pushes main and the tag atomically, refusing a
+  non-fast-forward main or a tag already on origin. `handoff.sh --stack BASE`
+  runs one suite per stack. Coverage at -j4 measured per file against serial:
+  one file differs (filed). t/tools/103-106, t/lint/214.
 
 - SM970 (PENDING) **security: a value used as a whole link target can be kept
   to a safe scheme with `| url_safe`.** The stash escapes a query or db value so

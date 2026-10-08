@@ -12,18 +12,14 @@
 #   - a receipt for that SHA, version and channel already passed: prints it and
 #     exits 0 without running anything - the gate is a fact about a commit, and
 #     that commit has not changed;
-#   - main is cut-ready (the practice briefing is stamped for the version, so
-#     the pre-cut pass has landed): `tools/release.sh gate VERSION --commit SHA`,
-#     the real gate, whose receipt `build` accepts;
-#   - otherwise: the same with --rehearse - the tree as committed, every gate
-#     step, a receipt with result=rehearsal that `build` refuses. Its value is
-#     the coverage pass it keeps by digest: when the pre-cut pass lands (it
-#     changes nothing coverage reads), the real gate reuses it and takes the
-#     suite's time rather than the hour coverage takes.
+#   - otherwise: `tools/release.sh gate VERSION --commit SHA`, which writes the
+#     release material into its stage (tools/release-material.pl) and gates
+#     that tree - the receipt `build` needs when the cut is called. Any commit
+#     on main can pass; there is no pre-cut pass to wait for (SM971).
 #
-# THE VERSION is the one release.sh would propose: the newest local v*.*.* tag
-# with its patch bumped (SM064), which is also what NEXT_VERSION at the gated
-# commit says once the post-release record has rolled the pair. If the two
+# THE VERSION is the newest local v*.*.* tag with its patch bumped (SM064),
+# which is also what NEXT_VERSION at the gated
+# commit says: the release commit rolled the pair when it was tagged. If the two
 # disagree - a new minor line, say - nothing is guessed: pass --version, after
 # the release manager has said which. A version already tagged is refused.
 #
@@ -87,7 +83,7 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         -h | --help)
-            sed -n '2,37p' "$0" | sed 's/^# \?//'
+            sed -n '2,33p' "$0" | sed 's/^# \?//'
             exit 0
             ;;
         *) refuse "unknown argument '$1' (see --help)" ;;
@@ -107,15 +103,15 @@ NEXT=$(git -C "$ROOT" show "$SHA:NEXT_VERSION" 2>/dev/null | tr -d '[:space:]' |
 burned() {
     if git -C "$ROOT" rev-parse --verify --quiet "refs/tags/v$1" >/dev/null; then
         refuse "v$1 is already tagged - a burned version is never gated again (SM064)." \
-            "NEXT_VERSION rolls in the post-release record; gate after it lands."
+            "The release commit rolls NEXT_VERSION; pass --version if this one is meant."
     fi
 }
 if [ -z "$VERSION" ]; then
-    # Burned first: just after a cut, NEXT_VERSION still names the version cut,
-    # and that - not a disagreement with the proposal - is what to say.
+    # Burned first: a NEXT_VERSION already tagged is what to say, before any
+    # disagreement with the tag-derived proposal.
     [ -z "$NEXT" ] || burned "$NEXT"
     if [ -n "$PROPOSED" ] && [ -n "$NEXT" ] && [ "$PROPOSED" != "$NEXT" ]; then
-        refuse "NEXT_VERSION at ${SHA:0:12} says $NEXT; release.sh would propose $PROPOSED (from $LAST_TAG)." \
+        refuse "NEXT_VERSION at ${SHA:0:12} says $NEXT; the patch after $LAST_TAG is $PROPOSED." \
             "Not guessing which is meant: pass --version once the release manager has said."
     fi
     VERSION=${NEXT:-$PROPOSED}
@@ -129,17 +125,12 @@ RECEIPT_DIR="$GATE_DIR/$VERSION"
 RECEIPT="$RECEIPT_DIR/receipt"
 field() { sed -n "s/^$1=//p" "$RECEIPT" 2>/dev/null | head -1; }
 
-STAMP=$(git -C "$ROOT" show "$SHA:starter/docs/ai-briefing-practice.md" 2>/dev/null \
-    | sed -n 's/^[[:space:]]*engine-version:[[:space:]]*\([0-9.]*\).*/\1/p' | head -1 || true)
-REHEARSE=()
-WANT=pass
-if [ -n "$STAMP" ] && [ "$STAMP" != "$VERSION" ]; then
-    REHEARSE=(--rehearse)
-    WANT=rehearsal
-fi
-
+# A receipt with no material_tool is from a gate that did not write the release
+# material into what it tested (before SM971); build refuses it, so it is not
+# "already gated".
 if [ -f "$RECEIPT" ] && [ "$(field sha)" = "$SHA" ] && [ "$(field version)" = "$VERSION" ] \
-    && [ "$(field channel)" = "$CHANNEL" ] && [ "$(field result)" = "$WANT" ]; then
+    && [ "$(field channel)" = "$CHANNEL" ] && [ "$(field result)" = pass ] \
+    && [ -n "$(field material_tool)" ]; then
     echo "gate-main: ${SHA:0:12} ($VERSION, $CHANNEL) is already gated - not running it again:"
     sed 's/^/    /' "$RECEIPT"
     exit 0
@@ -155,10 +146,6 @@ fi
 if [ -f "$RECEIPT" ]; then
     echo "gate-main: superseding the receipt for $(field sha) ($(field result), $(field finished))"
 fi
-if [ "$WANT" = rehearsal ]; then
-    echo "gate-main: main is not cut-ready - the practice briefing is stamped $STAMP, not $VERSION -"
-    echo "gate-main: so this is a REHEARSAL: every gate step, a receipt build refuses, coverage kept."
-fi
 
 LOG="$RECEIPT_DIR/gate-main.log"
 echo "gate-main: gating ${SHA:0:12} ($REF) as $VERSION, $CHANNEL; output in $LOG"
@@ -167,10 +154,10 @@ RC=0
 # 9>&- : the lock is this script's, not the gate's - a process the gate leaves
 # behind must not hold it for ever.
 setsid -w bash "$ROOT/tools/release.sh" gate "$VERSION" --commit "$SHA" \
-    "${CHANNEL_FLAG[@]}" "${STAGE_FLAG[@]}" "${REHEARSE[@]}" </dev/null >"$LOG" 2>&1 9>&- || RC=$?
+    "${CHANNEL_FLAG[@]}" "${STAGE_FLAG[@]}" </dev/null >"$LOG" 2>&1 9>&- || RC=$?
 SECS=$(($(date +%s) - START))
 
-if [ "$RC" -ne 0 ] || [ "$(field sha)" != "$SHA" ] || [ "$(field result)" != "$WANT" ]; then
+if [ "$RC" -ne 0 ] || [ "$(field sha)" != "$SHA" ] || [ "$(field result)" != pass ]; then
     echo "gate-main: the gate FAILED for ${SHA:0:12} (exit $RC, ${SECS}s). Last lines of $LOG:" >&2
     tail -20 "$LOG" >&2
     exit 1

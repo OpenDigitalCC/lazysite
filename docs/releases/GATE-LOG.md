@@ -17,6 +17,10 @@ Every row is written by `tools/release.sh` after its gate passed and before it
 tagged, so a row exists only for a build that was actually gated. The same facts
 travel inside the artefact, in `release-manifest.json` under `validated`.
 
+From SM971 the row is part of the release commit itself, and Commit names the
+gated commit that release commit sits on: a commit cannot name its own SHA, and
+the two differ only by the release material (`tools/release-material.pl --paths`).
+
 | Version | Channel | Commit | Files | Tests | Gated (UTC) |
 |---|---|---|---|---|---|
 | 0.10.16 | edge | `06566c426ac35c0a33b863bff10e034cd20f3fe1` | 462 | 8415 | 2026-08-19 16:52 |

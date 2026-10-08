@@ -15,22 +15,53 @@
 # handover message carries. A branch is not offered for review without
 # this line.
 #
-#   bash tools/handoff.sh            # gates the checked-out branch against main
-#   bash tools/handoff.sh --release  # also bench, for a branch bound for a cut
+#   bash tools/handoff.sh                 # the checked-out branch against main
+#   bash tools/handoff.sh --stack BASE    # every branch from BASE to this one
+#   bash tools/handoff.sh --release       # also bench, for a branch bound for a cut
+#
+# SM971: ONE FULL SUITE PER STACK. Branches built on one another were each
+# handed off alone, and each paid the six-minute suite on a tree the next one
+# contains. --stack BASE runs the precheck on every branch between BASE and the
+# checked-out tip, in order - each against the branch below it - and the full
+# suite ONCE, on the tip. Every branch is READY only if all of that passed; the
+# first branch whose precheck fails stops the run, by name. Without --stack the
+# stack is the one checked-out branch against main ($HANDOFF_BASE overrides),
+# so there is one way through this script, not two.
+#
+# Nothing per-branch is written for review to read: vcs-review offers a branch
+# that is neither author-held (refs/vcs-review/hold/*) nor checked out, so what
+# a passing handoff must do is release the worktree - it returns to BASE.
+#
+# A stack landed in part: vcs-review rebases what it lands, so rebase what is
+# left onto the new main and run `--stack main` again on it.
 #
 # Exit 0 = READY. Anything else = not ready, and it says what.
 set -u
 cd "$(dirname "$0")/.." || exit 2
 
+BASE=${HANDOFF_BASE:-main}
+STACKED=0
+RELEASE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --release) RELEASE=1; shift ;;
+    --stack)
+      [ $# -ge 2 ] || { echo "handoff: --stack needs a BASE branch" >&2; exit 2; }
+      BASE=$2; STACKED=1; shift 2 ;;
+    *) echo "handoff: unknown argument '$1'" >&2; exit 2 ;;
+  esac
+done
+
 BRANCH=$(git branch --show-current)
 SHA=$(git rev-parse --short HEAD)
-BASE=${HANDOFF_BASE:-main}
 RC=0
 
 say() { printf '%s\n' "$*"; }
 fail() { say "handoff: FAIL - $*"; RC=1; }
 
 say "==> handoff: $BRANCH ($SHA) against $BASE"
+
+git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null || { say "handoff: no branch $BASE"; exit 2; }
 
 # 1. A clean tree: what is reviewed is what is committed.
 if [ -n "$(git status --porcelain)" ]; then
@@ -42,7 +73,8 @@ fi
 #    in a fixture before (t/unit/daemon/05, 0.13.1).
 # SM948: generated documents are regenerated, not failed on. Run after the
 # clean-tree check, so the only change in the tree is the generators' own, and
-# committed on its own so the work commits stay as they were written.
+# committed on its own so the work commits stay as they were written. On a
+# stack, on the tip only: a branch below it that is stale fails its precheck.
 # (`= 0`, not `-eq 0`: t/tools/63 finds the success path by that spelling.)
 if [ "$RC" = 0 ]; then
   REGEN=$(bash tools/regen-generated.sh) || fail "a generator failed (tools/regen-generated.sh)"
@@ -55,35 +87,70 @@ if [ "$RC" = 0 ]; then
   fi
 fi
 
-# Added lines only: a context line of this very file carries the literal in the
-# message below, and matched itself once handoff.sh was edited near it.
-if git diff "$BASE"...HEAD | grep '^+' | grep -v '^+++' | grep -q "gh\.072103"; then
-  fail "the diff carries the mangled literal 'gh.072103' - repair it"
+# 3. The stack: the local branches between BASE and this one, lowest first, each
+#    with the branch below it as its parent. Without --stack, just this branch.
+STACK=()
+PARENTS=()
+if [ "$STACKED" = 1 ] && [ "$RC" = 0 ]; then
+  # Ordered by distance from BASE; of two at one commit, the checked-out one last.
+  while read -r _n _tip b; do
+    STACK+=("$b")
+  done < <(git for-each-ref --format='%(refname:short)' refs/heads | while read -r b; do
+      [ "$b" = "$BASE" ] && continue
+      git merge-base --is-ancestor "$b" HEAD || continue
+      git merge-base --is-ancestor "$b" "$BASE" && continue
+      printf '%s %s %s\n' "$(git rev-list --count "$BASE..$b")" "$([ "$b" = "$BRANCH" ] && echo 1 || echo 0)" "$b"
+    done | sort -k1,1n -k2,2n -k3,3)
+  prev=$BASE
+  for b in "${STACK[@]}"; do
+    if ! git merge-base --is-ancestor "$prev" "$b"; then
+      say "handoff: $b does not sit on $prev - not a stack; hand them off one at a time"
+      exit 2
+    fi
+    PARENTS+=("$prev")
+    prev=$b
+  done
+  if [ "${#STACK[@]}" -eq 0 ] || [ "${STACK[${#STACK[@]}-1]}" != "$BRANCH" ]; then
+    say "handoff: the checked-out branch ($BRANCH) is not the top of a stack on $BASE"
+    exit 2
+  fi
+  say "==> stack on $BASE: ${STACK[*]}"
+else
+  STACK=("$BRANCH")
+  PARENTS=("$BASE")
 fi
 
-# 3. Every changed Perl file compiles.
-for f in $(git diff --name-only "$BASE"...HEAD | grep -E '\.(pm|pl|t)$'); do
-  [ -f "$f" ] || continue
-  if ! perl -Ilib -It/lib -c "$f" >/dev/null 2>&1; then
-    fail "does not compile: $f"
-  fi
-done
-
-# 4. The tier: the whole plain suite at -j4. Not the touched files, not the
-#    area - the suite. A textual pin one file over is what the area misses.
-# SM949: the one-minute pre-check first. What it catches - a lint, tidy, a file
-# that does not compile, a test naming a changed file - is known in seconds, so
-# a failure stops here instead of after the six-minute suite.
+# 4. Each branch, lowest first: the mangled literal in what IT added, then the
+#    one-minute precheck (SM949) against the branch below it. What it catches -
+#    a lint, tidy, a file that does not compile, a test naming a changed file -
+#    is known in seconds, so a failure stops here instead of after the suite.
 if [ "$RC" = 0 ]; then
-  say "==> precheck (lints + related tests, ~10 s)"
-  if ! bash tools/precheck.sh "$BASE"; then
-    fail "precheck failed - fix it before the full suite (tmp/precheck.log)"
-    say "NOT READY: $BRANCH $SHA"
-    exit 1
-  fi
+  for i in "${!STACK[@]}"; do
+    b=${STACK[$i]}
+    parent=${PARENTS[$i]}
+    if [ "$b" != "$(git branch --show-current)" ]; then
+      git checkout -q "$b" || { say "NOT READY: could not check out $b"; exit 1; }
+    fi
+    # Added lines only: a context line of this very file carries the literal in
+    # the message below, and matched itself once handoff.sh was edited near it.
+    if git diff "$parent"...HEAD | grep '^+' | grep -v '^+++' | grep -q "gh\.072103"; then
+      fail "$b: the diff carries the mangled literal 'gh.072103' - repair it"
+    fi
+    say "==> precheck $b against $parent (lints + related tests, ~10 s)"
+    if [ "$RC" != 0 ] || ! bash tools/precheck.sh "$parent"; then
+      fail "precheck failed on $b - fix it before the full suite (tmp/precheck.log)"
+      [ "$b" = "$BRANCH" ] || git checkout -q "$BRANCH"
+      say "NOT READY: $b $(git rev-parse --short "$b") - the stack stops there"
+      exit 1
+    fi
+  done
+  [ "$(git branch --show-current)" = "$BRANCH" ] || git checkout -q "$BRANCH"
 fi
 
-say "==> tier-review (whole plain suite, -j4)"
+# 5. The tier: the whole plain suite at -j4, ONCE, on the tip. Not the touched
+#    files, not the area - the suite. A textual pin one file over is what the
+#    area misses.
+say "==> tier-review on $BRANCH (whole plain suite, -j4)"
 if ! prove -lr -j4 t/ > tmp/handoff-suite.log 2>&1; then
   fail "tier-review: the suite did not pass - tmp/handoff-suite.log"
   grep -E "^#   Failed test|\(Wstat" tmp/handoff-suite.log | head -10
@@ -91,7 +158,7 @@ else
   grep -E "^Files=" tmp/handoff-suite.log
 fi
 
-# 4b. SM894: the suite put back every tracked file it edited. Three tests
+# 5b. SM894: the suite put back every tracked file it edited. Three tests
 #     edit VERSION, the sign-off switch, the reliability record and the
 #     practice briefing for real, and a run that is killed mid-test leaves
 #     them edited - which then fails a version lint on the NEXT run, on a
@@ -100,13 +167,16 @@ if ! perl tools/tracked-tree-check.pl .; then
   fail "a test left a tracked file edited (named above)"
 fi
 
-# 5. For a branch bound for a cut: the bench gate too.
-if [ "${1:-}" = "--release" ]; then
+# 6. For a branch bound for a cut: the bench gate too.
+if [ "$RELEASE" = 1 ]; then
   say "==> bench --check"
   if ! perl tools/bench.pl --check > tmp/handoff-bench.log 2>&1; then
     fail "bench: a counter or timing failed - tmp/handoff-bench.log"
   fi
 fi
+
+WHAT="tier-review passed$( [ "$RELEASE" = 1 ] && printf ', bench passed' )"
+[ "${#STACK[@]}" -gt 1 ] && WHAT="precheck passed; $WHAT on $BRANCH"
 
 if [ "$RC" -eq 0 ]; then
   # SM829: RELEASING THE BRANCH IS PART OF SAYING READY, not a step afterwards.
@@ -123,15 +193,17 @@ if [ "$RC" -eq 0 ]; then
   # to prevent. Nothing is left to remember.
   if [ "$BRANCH" != "$BASE" ] && [ -n "$BRANCH" ]; then
     if git checkout "$BASE" >/dev/null 2>&1; then
-      say "READY FOR REVIEW: $BRANCH $SHA (tier-review passed$( [ "${1:-}" = "--release" ] && printf ', bench passed' ))"
-      say "    the worktree is back on $BASE, so $BRANCH is free to review"
+      for b in "${STACK[@]}"; do
+        say "READY FOR REVIEW: $b $(git rev-parse --short "$b") ($WHAT)"
+      done
+      say "    the worktree is back on $BASE, so ${STACK[*]} is free to review"
     else
       say "NOT READY: $BRANCH $SHA - gates passed, but the worktree could not"
       say "    return to $BASE, so the branch is still held and cannot be offered"
       RC=1
     fi
   else
-    say "READY FOR REVIEW: $BRANCH $SHA (tier-review passed$( [ "${1:-}" = "--release" ] && printf ', bench passed' ))"
+    say "READY FOR REVIEW: $BRANCH $SHA ($WHAT)"
   fi
 else
   say "NOT READY: $BRANCH $SHA"

@@ -34,7 +34,7 @@ my ($offer)      = $src =~ /^(coverage_offer\(\) \{\n.*?\n\})\n/ms;
 my ($origin)     = $src =~ /^(coverage_origin\(\) \{\n.*?\n\})\n/ms;
 my ($store)      = $src =~ /^(coverage_store\(\) \{\n.*?\n\})\n/ms;
 my ($detached)   = $src =~ /^(detached\(\) \{.*\})$/m;
-my ($block)      = $src =~ /^(COV_DIGEST=\$\(perl .*?\n)\nfi    # RUN_GATE$/ms;
+my ($block)      = $src =~ /^(COV_DIGEST=\$\(perl .*?\n)\nfi    # gate$/ms;
 ok( $_->[1], "release.sh has $_->[0]" ) or BAIL_OUT('nothing to drive')
     for [ 'the store path', $store_line ], [ 'coverage_offer()', $offer ], [ 'coverage_origin()', $origin ],
     [ 'coverage_store()', $store ], [ 'detached()', $detached ], [ 'the coverage block', $block ];
@@ -157,26 +157,17 @@ subtest 'a stored FAILURE is offered and refused' => sub {
     like( $out, qr/^RESULT coverage=measured$/m, 'the gate says measured' );
 };
 
-subtest 'an inline build carries the record into the working tree' => sub {
-    my $o = tempdir( CLEANUP => 1 );
-    my ($out) = gate( origin => $o, sha => 'fff666', digest => $D, mode => 'build' );
-    ok( -f "$o/dist/config/coverage-last.json", 'build mode copies it to dist/config' ) or diag($out);
-};
-
-subtest 'a rehearsal gates the tree as committed and cannot be built from' => sub {
-    # An invalid version, so that a missing refusal still stops at the version
-    # check - before any clone - and this assertion is what tells the two apart.
-    my $out = run_cmd( 'bash', $release, 'build', 'not-a-version', '--rehearse' );
-    is( $? >> 8, 2, 'build --rehearse is refused' );
-    like( $out, qr/--rehearse belongs to 'gate' only/, 'saying why' );
-    unlike( $out, qr/not a valid semver/, 'before anything else is looked at' );
-    like( $src, qr/if \[ "\$REHEARSE" = 1 \]; then\n    echo "==> REHEARSAL: gating .*?\nelse\necho "==> Stamping VERSION/s,
-        'a rehearsal does not stamp VERSION' );
-    like( $src, qr/^if \[ -f "\$PRACTICE" \] && \[ "\$REHEARSE" != 1 \]; then$/m,
-        'nor demand the pre-cut practice stamp' );
-    like( $src, qr/if \[ "\$REHEARSE" = 1 \]; then echo "result=rehearsal"; else echo "result=pass"; fi/,
-        'and its receipt says rehearsal, which build (result=pass only) refuses' );
-    like( $src, qr/\[ "\$\(receipt_field result\)" != pass \]/, 'build still accepts pass only' );
+subtest 'SM971: there is no rehearsal, and the record goes into the release commit' => sub {
+    # The gate writes the release material into its stage, so every commit is
+    # gated for real; the rehearsal and its receipt are gone, not disused.
+    my $out = run_cmd( 'bash', $release, 'gate', '0.0.1', '--rehearse' );
+    is( $? >> 8, 2, '--rehearse is an unknown flag' );
+    like( $out, qr/unknown flag '--rehearse'/, 'saying so' );
+    unlike( $src, qr/REHEARSE|result=rehearsal|--run-gate/, 'nothing in release.sh rehearses or gates inline' );
+    like( $src, qr/^    echo "result=pass"$/m,                  'a receipt says pass' );
+    like( $src, qr/\[ "\$\(receipt_field result\)" != pass \]/, 'and build accepts pass only' );
+    like( $src, qr/cp "\$RECEIPT_DIR\/coverage-last\.json" "\$STAGE\/dist\/config\/coverage-last\.json"/,
+        'build commits the gate\'s coverage record into the release commit' );
 };
 
 subtest 'the receipt carries the coverage verdict' => sub {

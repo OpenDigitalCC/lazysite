@@ -171,6 +171,15 @@ if [ "${LAZYSITE_COVER_DECIDE_ONLY:-}" = "1" ]; then
     exit 0
 fi
 
+# SM971 MEASURED -j AGAINST SERIAL PER FILE, not only in total (2026-10-08,
+# t/unit/lib + t/unit/forms, 93 files, two runs of each): serial 234 s / 239 s,
+# -j4 78 s / 79 s, -j8 59 s. Of 148 per-file rows and the total, all agreed but
+# one, the same way every time: lib/Lazysite/Util.pm statements 83.3% serial,
+# 83.0% at -j4 and -j8. At -j the counts land on env_allowlist(), which nothing
+# in that subset calls, and leave _json_str(), which it does - a merge
+# attribution fault, not noise. The gated CGIs the subset reaches (processor,
+# users tool) agreed exactly. Left at -j4 for the release manager to rule on
+# (serial costs about three times as long), recorded in SM971.
 JOBS=${LAZYSITE_COVER_JOBS:-4}
 echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumented)..." >&2
 # `+ignore,^/tmp/` KEEPS THE INSTRUMENT OUT OF EPHEMERAL COPIES.

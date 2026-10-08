@@ -47,6 +47,7 @@ starts.
 | Q12 | ~~E6 [[SM950]] (2)(3)~~ **built (n272)** - gate on landing; coverage reused when its inputs are unchanged | tooling; after the feature work it speeds up | M |
 | Q12a | **[[SM906]] T3 users store, as ruled 2026-10-07 - built (n273)**: an unreadable account store answers cannot-tell, naming nothing | ruled | XS |
 | Q12b | ~~[[SM970]] - a value used as a whole link target keeps its URL scheme~~ **built (n275) as ruled** - the `url_safe` filter, authoring docs, lint 213 | ruled 2026-10-07: option 1 with 3 | S |
+| Q12c | ~~[[SM971]] release process: one generator, gate tests the material, one release commit, publish pushes main and the tag~~ **built (n276)** - tools/release-material.pl, no rehearsal, build commits and tags, handoff --stack | release manager 2026-10-08 | M |
 | Q13a | ~~E5 [[SM943]] stages 2-3~~ **built (n274)** - the MCP twins and annotations from the declaration; the consistency lints reduced to one completeness check | Q7/Q8 need only stage 1 | M |
 | Q13 | C2 [[SM883]] - measure the 1.20-1.27x slowdown on this machine, then bisect | measurement, no ruling needed | S-M |
 | Q14 | E9 [[SM944]] - split the processor and the manager API, one area per branch | after E5; largest, so last | L |

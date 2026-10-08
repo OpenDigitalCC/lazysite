@@ -7,11 +7,11 @@ register:
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
      engine-version: 0.15.3
-     imported: 2026-10-07
+     imported: 2026-10-08
      agent: the lazysite site agent (Claude Code)
-     source: /srv/projects/lazysite/docs/practice/authoring-practice.md sha256=b519875859b5ed7681abbdc511c5cf5da3ebff747b11a0fd7178140a8ac87377 modified=2026-10-01
-     source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=a6475e0c96e9f7a2b9fdefb59caca8464b47e372ae66c67def4481ac58dbb38b modified=2026-10-07
-     body-sha256: e30afc0d7c5e8d2532dc7ba7121e6cb52755c765336d6c947d45f77bb6eb1aa3
+     source: docs/practice/authoring-practice.md sha256=b519875859b5ed7681abbdc511c5cf5da3ebff747b11a0fd7178140a8ac87377 modified=2026-10-01
+     source: docs/practice/app-practice.md sha256=a6475e0c96e9f7a2b9fdefb59caca8464b47e372ae66c67def4481ac58dbb38b modified=2026-10-07
+     body-sha256: 3534861c70b5ee7d6be28507473e9d157f09222228af692ad0d6a3f561e3a321
 -->
 
 ## What this is, and what it is not
@@ -1650,13 +1650,13 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-10-07** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-10-08** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
-| `/srv/projects/lazysite/docs/practice/authoring-practice.md` | sites and content | 2026-10-01 |
-| `/srv/projects/lazysite/docs/practice/app-practice.md` | apps and data | 2026-10-07 |
+| `docs/practice/authoring-practice.md` | sites and content | 2026-10-01 |
+| `docs/practice/app-practice.md` | apps and data | 2026-10-07 |
 
-Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
+Those paths are in the lazysite source repository and are **not** installed with this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
 
 If you have found something durable that is missing - a mechanism worth reaching for, a trap worth naming, a measurement worth keeping - send it to the sysop for the source files rather than adding it to the site.

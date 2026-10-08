@@ -65,8 +65,15 @@ my $ROOT = dirname( dirname( abs_path($0) ) );
 # The site agent still MAINTAINS them; the release side is custodian of what
 # ships. That split is the point: whoever answers for the published document
 # holds the copy that gets published.
-my $SITES_SRC = "$ROOT/docs/practice/authoring-practice.md";
-my $APPS_SRC  = "$ROOT/docs/practice/app-practice.md";
+#
+# SM971: NAMED RELATIVE TO THE REPOSITORY, read from wherever it is checked out.
+# The paths are printed into the shipped page, and an absolute default printed
+# the checkout's own location - the developer's tree, or the release stage that
+# now runs this import - into a document that ships to every site. A relative
+# path is read against this tree's root; an absolute one (--sites/--apps) is
+# used and printed as given.
+my $SITES_SRC = 'docs/practice/authoring-practice.md';
+my $APPS_SRC  = 'docs/practice/app-practice.md';
 my $OUT       = "$ROOT/starter/docs/ai-briefing-practice.md";
 
 # Sections that are instructions to the AUTHOR of the source, not practice. They
@@ -175,6 +182,9 @@ sub default_engine_version {
     die "import-field-practice.pl: no usable VERSION/NEXT_VERSION;"
         . " pass --engine-version\n";
 }
+
+# A source path as given, made readable from any working directory.
+sub in_tree { my ($p) = @_; return $p =~ m{\A/} ? $p : "$ROOT/$p" }
 
 sub read_file_or_undef {
     my ($path) = @_;
@@ -378,19 +388,19 @@ sub render_section {
 }
 
 sub build_doc {
-    my $sites_text = slurp($SITES_SRC);
-    my $apps_text  = slurp($APPS_SRC);
+    my $sites_text = slurp( in_tree($SITES_SRC) );
+    my $apps_text  = slurp( in_tree($APPS_SRC) );
 
     my %source = (
         sites => {
             path     => $SITES_SRC,
             sha256   => sha256_hex($sites_text),
-            modified => file_date($SITES_SRC),
+            modified => file_date( in_tree($SITES_SRC) ),
         },
         apps => {
             path     => $APPS_SRC,
             sha256   => sha256_hex($apps_text),
-            modified => file_date($APPS_SRC),
+            modified => file_date( in_tree($APPS_SRC) ),
         },
     );
 
@@ -570,8 +580,8 @@ sub provenance_section {
         "| `$source->{apps}{path}` | apps and data"
             . " | $source->{apps}{modified} |",
         '',
-        'Those paths are on the site agent\'s own machine and are **not** part of'
-            . ' this engine. **Updates come from re-running the import**, which'
+        'Those paths are in the lazysite source repository and are **not**'
+            . ' installed with this engine. **Updates come from re-running the import**, which'
             . ' happens when a release is cut; a sysop can also run it between'
             . ' releases. Nothing you edit on this page survives the next import,'
             . ' and the engine\'s own test suite fails the build if this copy stops'

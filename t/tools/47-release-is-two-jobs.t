@@ -80,17 +80,14 @@ subtest 'publish needs a version' => sub {
     like( $out, qr/publish needs a version|not found locally/, 'plainly' );
 };
 
-subtest 'and --no-fetch is accepted and inert' => sub {
-    # The flag existed to tell a build not to reach the network. That is now
-    # the only behaviour, so the flag means nothing - but an invocation
-    # carrying it must not error, because the scripts and habits that pass it
-    # are the ones that were working around the defect.
-    open my $fh, '<', $REL or die $!;
-    local $/;
-    my $src = <$fh>;
-    close $fh;
-    like( $src, qr/--no-fetch is still accepted and ignored/,
-        'documented as inert rather than removed' );
+subtest 'and --no-fetch, inert since SM303, is gone' => sub {
+    # The flag told a build not to reach the network, which became the only
+    # behaviour at SM303; what it still did - downgrade the "tag on no branch"
+    # refusal - went with SM971, where build puts the tag on main itself. A flag
+    # that does nothing is a second way to call the same thing, so it is refused.
+    my ( $rc, $out ) = run( 'build', '0.0.1', '--no-fetch' );
+    is( $rc, 2, 'refused' );
+    like( $out, qr/unknown flag '--no-fetch'/, 'as unknown' );
 };
 
 done_testing();

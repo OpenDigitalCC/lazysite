@@ -132,7 +132,8 @@ like( $rel_src, qr/--commit\s+"\$TARGET_SHA"/,
 like( $rel_src, qr/--gate-files\s+"\$GATE_FILES"/, 'and the file count' );
 like( $rel_src, qr/--gate-tests\s+"\$GATE_TESTS"/, 'and the test count' );
 like( $rel_src, qr/GATE-LOG\.md/,                  'and appends the tracked log' );
-like( $rel_src, qr/UNCOMMITTED:/,                  'and says the log needs committing' );
+like( $rel_src, qr/GATE_LOG="\$STAGE\/docs\/releases\/GATE-LOG\.md"/,
+    'into the release commit, so no record is left to land afterwards (SM971)' );
 
 # It must REFUSE rather than record a release whose gate summary it could not
 # read - a blank row is worse than no row, because it looks like a record.

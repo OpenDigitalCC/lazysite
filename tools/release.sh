@@ -1,109 +1,72 @@
 #!/bin/bash
-# tools/release.sh - cut a tagged release from any commit on main.
+# tools/release.sh - gate, build and publish a lazysite release.
 #
-# SM063 split: this script DOES NOT touch main. It clones the repo
-# fresh into a staging dir, checks out the target commit, runs the
-# full Perl test suite, verifies the SBOM strictness gate, packages
-# a tarball, and tags the commit. The tag is pushed; no commit is
-# made on main. Main is unstable; tags are the stable identifiers.
+#   land -> (auto) gate -> "cut X" -> build -> publish
+#
+#   The release manager lands branches; tools/gate-main.sh gates main's tip after
+#   each landing, unattended. When the release manager says "cut X", Claude runs
+#   `build`. The release manager then runs `publish`, which pushes main and the
+#   tag together. Nobody waits for a test: the gate has run before the call.
 #
 # Usage:
-#   tools/release.sh gate    VERSION --commit SHA
-#   tools/release.sh build   VERSION --commit SHA [--notes NOTES_FILE]
+#   tools/release.sh gate    VERSION [--commit SHA] [--beta|--final|--certified]
+#   tools/release.sh build   VERSION --notes FILE   [--beta|--final|--certified]
 #   tools/release.sh publish VERSION
 #
-#   GATE runs the long part - the full suite, the bench and the ~1 hour
-#   instrumented coverage run - and writes a receipt for that exact commit,
-#   version and channel under tmp/release-gate/VERSION/, with every log beside
-#   it. BUILD then needs that receipt and does the short part: manifest, SBOM,
-#   man pages, tarball, packages, local tag. Both are the developer agent's
-#   job, run detached, with their output read and checked by it (ruled
-#   2026-10-06); nobody's terminal is held. PUBLISH - the push - is the one
-#   step that belongs to the release manager. `build --run-gate` runs the gate
-#   inline instead, for a host with no receipt.
+#   GATE (Claude, detached, usually via tools/gate-main.sh): clones the commit
+#   into a stage, writes the release material into it with
+#   tools/release-material.pl - the CHANGELOG section with every PENDING ref
+#   stamped, the FEATURES entry, VERSION/NEXT_VERSION, the practice briefing,
+#   the doc index, the archive at a new minor - with a placeholder subtitle, and
+#   runs the full suite, the bench, coverage, the manifest, SBOM and man-page
+#   checks on that tree. A pass writes a receipt for the commit under
+#   tmp/release-gate/VERSION/, with every log beside it. So the gate tests what
+#   will ship, and main can pass a gate at any moment.
 #
-#   SM950: tools/gate-main.sh runs the gate on main's tip after each landing,
-#   for NEXT_VERSION, so a receipt is usually there when a cut is called. Until
-#   the pre-cut pass has landed, main cannot pass a real gate (the practice
-#   briefing is stamped for the last release), so it runs `gate --rehearse`:
-#   the tree exactly as committed, no stamping, a receipt with
-#   result=rehearsal that `build` refuses. What a rehearsal buys is its
-#   coverage: every passing coverage run is kept under
-#   tmp/release-gate/coverage-passes/ by its inputs digest, and a later gate
-#   whose digest matches reuses it instead of spending an hour re-measuring.
-#   The receipt says which (coverage=measured|reused, coverage_from=...).
+#   BUILD (Claude, minutes): needs a passing receipt for main's tip. It writes
+#   the release material into a worktree of main with the notes' subtitle and
+#   FEATURES text, adds the GATE-LOG row and the gate's coverage record, and
+#   makes ONE release commit on top of main. It refuses unless that commit
+#   touches only the release-material paths (release-material.pl --paths) and
+#   the lints that read them pass on it. It then packages from the commit -
+#   tarball, the four .debs, the claude.ai skill - tags it LOCALLY, and moves
+#   local main to it. A stable cut adds a second commit replacing download/.
+#   Any failure leaves main and the tags exactly as they were.
 #
-#   NO TEST OR GATE STEP CAN PROMPT FOR A PASSWORD. They run under `setsid -w`
-#   with stdin from /dev/null, so there is no controlling terminal: anything
-#   that reaches for sudo or polkit fails, visibly, in the log, instead of
-#   stopping the release on a password prompt (2026-10-04: a test ran the host's
-#   systemctl and polkit asked the release manager to authenticate). This script
-#   itself never calls sudo, systemctl or pkexec - t/lint pins that.
+#   PUBLISH (the release manager - the one step that is theirs, and the only one
+#   that touches the network): pushes main and the tag together, atomically.
+#   Refused when origin's main is not an ancestor of local main (no force) or
+#   the tag is already on origin (a burned version is never reused, SM064).
 #
-#   SM303: two jobs sharing only a version number. BUILD gates, packages and
-#   tags locally and never touches the remote - so it runs on the host with the
-#   toolchain, which is not the host with the credentials. PUBLISH confirms the
-#   tag upstream and pushes it, and does nothing else.
+#   NOTES FILE (build): a header block ended by a blank line, then the tag
+#   annotation. Subtitle and Features are required; Assisted-by (required) and
+#   Claude-Session become the release commit's trailers:
 #
-#   Builds the tarball AND the .deb set (SM372). LAZYSITE_SKIP_DEB=1 cuts a
-#   tarball-only release and says so; without it a missing dpkg-buildpackage is
-#   an error, because packages that nobody remembers to build stop existing -
-#   which is what happened between 0.10.8 and 0.10.13.
+#     Subtitle: an install says whether the site works
+#     Features: Provision ends by running the health check (SM933) ...
+#       continuation lines indented
+#     Assisted-by: Claude:claude-opus-5-5[1m]
+#     Claude-Session: https://claude.ai/code/session_...
 #
-#   VERSION         optional, e.g. 0.2.19 (semver X.Y.Z). When
-#                   omitted, release.sh proposes the next patch bump
-#                   from the most recent v*.*.* tag and prompts for
-#                   confirmation (SM064). Pass VERSION explicitly to
-#                   skip the prompt - useful for non-interactive
-#                   runs.
-#   --notes FILE    release-notes file. Default: use the target
-#                   commit's own commit message.
-#   --commit REF    SHA or ref to release. Default: origin/main HEAD.
-#                   PREFER THE SHA. The ref is resolved INSIDE the staging
-#                   clone, and a local clone carries only the launching
-#                   worktree's current branch as a local ref - launched from
-#                   a worktree on a feature branch, `--commit main` was
-#                   "unknown revision" and the cut died before its gate
-#                   (0.14.3, third attempt). A SHA resolves anywhere.
-#   --beta          mark the release 'beta' on the channel ladder
-#                   (edge < beta < stable < certified): a bedded-in
-#                   candidate for sites that want tested builds.
-#   --final         mark the release 'stable' (alias: --stable) - the
-#                   supported customer-rollout channel. Default: 'edge'.
-#   --certified     mark the release 'certified' (ADR 0010): a stable
-#                   build whose compliance records have been WALKED -
-#                   the signed declaration, restore rehearsal and pentest
-#                   posture gates block THIS cut, not a stable one.
-#   --rehearse      gate only (SM950): gate the commit as committed - no
-#                   VERSION stamp, no practice-briefing stamp check - and
-#                   write result=rehearsal, which build refuses. For main
-#                   between cuts; tools/gate-main.sh decides when.
-#   --no-fetch      declares that this host has no remote. Its original
-#                   job - skipping the two ORIGIN tag checks - became the
-#                   only behaviour at SM303, so that part is inert and the
-#                   flag is still accepted rather than removed. What it
-#                   STILL does: it downgrades the "commit is on no branch"
-#                   refusal to a warning (a host without a remote may
-#                   legitimately have an incomplete branch set), and it
-#                   makes the closing summary say the tag is local and
-#                   unpushed. It is an explicit flag and never
-#                   an automatic fallback, because a precondition that
-#                   silently downgrades itself when it cannot run is the
-#                   defect class this project keeps removing.
+#     lazysite 0.15.3 (edge)
+#     ...the annotation...
 #
-# Preconditions:
-#   - VERSION (provided or proposed) is a semver string.
-#   - Tag vVERSION does not already exist on origin.
-#   - dist/config/sbom-deps.json exists in the target commit.
+#   NO STEP CAN PROMPT FOR A PASSWORD. Gate and build steps run under
+#   `setsid -w` with stdin from /dev/null, so there is no controlling terminal:
+#   anything that reaches for sudo or polkit fails, visibly, in the log, instead
+#   of stopping the release on a prompt (2026-10-04). This script never calls
+#   sudo, systemctl or pkexec - t/lint/208 pins that.
 #
-# On abort: the staging dir is KEPT (SM895 G3) and the abort message names
-# it; the NEXT run removes it at start, once its process is gone. On
-# success it is removed unless --keep-stage was given. A kept stage can also
-# be removed by hand:
-#   rm -rf $STAGE_BASE/lazysite-release-$$  (PID is in the printed path).
+#   Channels: edge (default) < --beta < --final (alias --stable) < --certified
+#   (ADR 0010: the signed declaration, restore rehearsal and pentest posture
+#   block a certified cut). LAZYSITE_SKIP_DEB=1 cuts a tarball-only release and
+#   says so. --stage-dir DIR (or LAZYSITE_STAGE_DIR) says where the stage goes;
+#   --keep-stage keeps a successful one. A failed stage is always kept, and the
+#   next run removes it.
 set -e
 
-ORIGIN=/srv/projects/lazysite
+# The repository this script belongs to - the one it gates, builds and tags.
+ORIGIN=$(cd "$(dirname "$0")/.." && pwd)
 
 # SM328: where the gate runs, taken from the environment rather than hard-coded.
 #
@@ -128,32 +91,23 @@ KEEP_STAGE=0
 
 VERSION=""
 NOTES_FILE=""
-COMMIT_REF="origin/main"
+COMMIT_REF=""
 CHANNEL="edge"          # ladder: edge (default) < beta < stable < certified
-NO_FETCH=0              # inert for the origin checks since SM303; still
-                        # gates the no-branch refusal and the closing summary
 
-# SM303: TWO OPERATIONS THAT SHARE ONLY A VERSION NUMBER.
+# SM303: THREE JOBS THAT SHARE ONLY A VERSION NUMBER.
 #
-#   build    the tree, the toolchain, CPU. Gate, manifest, SBOM, man pages,
-#            tarball, packages, LOCAL tag. Needs no remote access at all.
-#   publish  remote credentials, and the judgement that this tag should exist
-#            upstream. Needs nothing else.
+#   gate     the tree, the toolchain, CPU - the hour of tests. No remote.
+#   build    the release commit, the packages and the LOCAL tag. No remote.
+#   publish  remote credentials, and the judgement that this release should
+#            exist upstream. Needs nothing else.
 #
-# Conflating them cost two flags and two failures pointing opposite ways. The
-# build host has no remote credentials by design, so `git fetch --tags origin`
-# under `set -e` aborted before a single gate step ran - asking the one person
-# who COULD reach the remote to supervise a fifty-minute test run needing none.
-# The repair was --no-fetch, and the run then died at the LAST step on
-# `git push`, killing the artefact copy and leaving a fully gated, built and
-# tagged release reporting exit 128 with its tarball stranded in staging.
-#
-# One command doing two jobs, failing at either end for reasons belonging to
-# the other. Naming the job removes the flag that had to remember which host it
+# Conflating build and publish cost two flags and two failures pointing
+# opposite ways: a fetch under `set -e` aborted a build host that had no
+# credentials before a single gate step ran, and the repair then died at the
+# LAST step on `git push`, leaving a gated, built and tagged release reporting
+# exit 128. Naming the job removes the flag that had to remember which host it
 # was on.
 MODE=""
-RUN_GATE_INLINE=0
-REHEARSE=0
 case "${1:-}" in
     build|publish|gate) MODE=$1; shift ;;
     -h|--help)     ;;
@@ -165,7 +119,7 @@ case "${1:-}" in
             echo "release.sh: say which job. Building needs no remote access;" >&2
             echo "release.sh: publishing needs nothing else." >&2
             echo "release.sh:" >&2
-            echo "release.sh:   tools/release.sh build   VERSION [--commit REF]" >&2
+            echo "release.sh:   tools/release.sh build   VERSION --notes FILE" >&2
             echo "release.sh:   tools/release.sh publish VERSION" >&2
             echo "release.sh:" >&2
             echo "release.sh: The single-command form did both and could fail at" >&2
@@ -197,10 +151,6 @@ while [ $# -gt 0 ]; do
             CHANNEL="certified"
             shift
             ;;
-        --no-fetch)
-            NO_FETCH=1
-            shift
-            ;;
         --stage-dir)
             STAGE_BASE="$2"
             shift 2
@@ -209,16 +159,8 @@ while [ $# -gt 0 ]; do
             KEEP_STAGE=1
             shift
             ;;
-        --run-gate)
-            RUN_GATE_INLINE=1
-            shift
-            ;;
-        --rehearse)
-            REHEARSE=1
-            shift
-            ;;
         -h|--help)
-            sed -n '2,60p' "$0" | sed 's/^# \?//'
+            sed -n '2,65p' "$0" | sed 's/^# \?//'
             exit 0
             ;;
         -*)
@@ -238,12 +180,16 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# --- publish: a short path sharing only the version number --------------------
+# --- publish: the push, and the only network this script touches -------------
 #
-# SM303. Everything below is BUILD and none of it runs here. Publish needs the
-# tag to exist locally (so it cannot invent one), needs the remote (so it fails
-# honestly on a host without credentials rather than half way through), and does
-# nothing else.
+# SM303. Everything below is gate or build and none of it runs here. Publish
+# needs the tag to exist locally (so it cannot invent one) and to be on local
+# main (build put it there), needs the remote (so it fails honestly on a host
+# without credentials rather than half way through), and does nothing else.
+#
+# MAIN AND THE TAG GO TOGETHER (SM971): the tag names the release commit, which
+# is on local main and nowhere else. `--atomic` pushes both or neither, and
+# nothing is forced: origin's main must already be an ancestor of local main.
 if [ "$MODE" = publish ]; then
     if [ -z "$VERSION" ]; then
         echo "release.sh: publish needs a version, e.g. release.sh publish 0.10.14" >&2
@@ -253,143 +199,199 @@ if [ "$MODE" = publish ]; then
 
     if ! git -C "$ORIGIN" rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
         echo "release.sh: $TAG not found locally. Build it first:" >&2
-        echo "release.sh:   tools/release.sh build $VERSION" >&2
+        echo "release.sh:   tools/release.sh build $VERSION --notes FILE" >&2
+        exit 1
+    fi
+    TAG_SHA=$(git -C "$ORIGIN" rev-parse "$TAG^{commit}")
+    LOCAL_MAIN=$(git -C "$ORIGIN" rev-parse --verify --quiet refs/heads/main || true)
+    if [ -z "$LOCAL_MAIN" ] || ! git -C "$ORIGIN" merge-base --is-ancestor "$TAG_SHA" "$LOCAL_MAIN"; then
+        echo "release.sh: $TAG ($TAG_SHA) is not on local main. build puts the release" >&2
+        echo "release.sh: commit on main; a tag anywhere else is a release no branch traces." >&2
         exit 1
     fi
 
-    # SM325 still applies at publish: a tag on no branch is a release whose
-    # provenance cannot be reconstructed, and pushing one makes that permanent.
-    if [ -z "$(git -C "$ORIGIN" branch --contains "$TAG" 2>/dev/null)" ]; then
-        echo "release.sh: $TAG is on no branch. Pushing it would make a" >&2
-        echo "release.sh: release nobody can trace back to a line of work." >&2
-        exit 1
-    fi
-
-    echo "==> Fetching origin tags"
-    if ! git -C "$ORIGIN" fetch --tags origin; then
+    echo "==> Asking origin for main and $TAG"
+    if ! REMOTE_REFS=$(git -C "$ORIGIN" ls-remote origin refs/heads/main "refs/tags/$TAG"); then
         echo "release.sh: cannot reach origin. Publishing is the half that" >&2
         echo "release.sh: needs credentials - run it where they are." >&2
         exit 1
     fi
-    if git -C "$ORIGIN" ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+    if printf '%s\n' "$REMOTE_REFS" | grep -q "refs/tags/$TAG\$"; then
         echo "release.sh: $TAG is ALREADY on origin. A burned version is never" >&2
         echo "release.sh: reused (SM064) - cut a new one." >&2
         exit 1
     fi
+    REMOTE_MAIN=$(printf '%s\n' "$REMOTE_REFS" | awk '$2 == "refs/heads/main" { print $1 }')
+    if [ -n "$REMOTE_MAIN" ]; then
+        if ! git -C "$ORIGIN" cat-file -e "$REMOTE_MAIN^{commit}" 2>/dev/null; then
+            git -C "$ORIGIN" fetch --quiet origin main || true
+        fi
+        if ! git -C "$ORIGIN" merge-base --is-ancestor "$REMOTE_MAIN" "$LOCAL_MAIN" 2>/dev/null; then
+            echo "release.sh: origin's main ($REMOTE_MAIN) is not an ancestor of local main" >&2
+            echo "release.sh: ($LOCAL_MAIN). Pushing would discard commits on origin, and" >&2
+            echo "release.sh: publish never forces. Reconcile main first, then publish." >&2
+            exit 1
+        fi
+    fi
 
-    echo "==> Pushing $TAG"
-    git -C "$ORIGIN" push origin "$TAG"
+    echo "==> Pushing main ($LOCAL_MAIN) and $TAG ($TAG_SHA) together"
+    git -C "$ORIGIN" push --atomic origin "$LOCAL_MAIN:refs/heads/main" "refs/tags/$TAG:refs/tags/$TAG"
     echo ""
     echo "==> Published $TAG"
     exit 0
 fi
 
-# SM950: a rehearsal is a gate of a commit nobody can build from. Anywhere else
-# the flag would make a build or a publish look gated when it was not.
-if [ "$REHEARSE" = 1 ] && [ "$MODE" != gate ]; then
-    echo "release.sh: --rehearse belongs to 'gate' only; a rehearsal receipt cannot be built from." >&2
-    exit 2
+if [ -z "$MODE" ]; then
+    sed -n '2,65p' "$0" | sed 's/^# \?//'
+    exit 0
 fi
 
-# SM064: when VERSION is omitted, propose the next patch bump from
-# the most recent v*.*.* tag and prompt. Explicit VERSION argument
-# bypasses the prompt for non-interactive use.
-if [ -z "$VERSION" ]; then
-    # Need the repo's tags available. Origin is our source of truth.
-    if [ ! -d "$ORIGIN/.git" ]; then
-        echo "release.sh: no git repo at $ORIGIN" >&2
-        exit 1
-    fi
-    # SM303: no fetch. This proposes a version from LOCAL tags, and the build
-    # host has nothing to fetch with. Local is the right source anyway - it
-    # names the last version this tree actually built.
-
-    # `tag -l 'v*.*.*' | sort -V | tail -1` is deterministic across
-    # mixed-tag repos in a way `git describe --tags` isn't.
-    LAST_TAG=$(git -C "$ORIGIN" tag -l 'v*.*.*' | sort -V | tail -1)
-    if [ -z "$LAST_TAG" ]; then
-        echo "release.sh: no v*.*.* tags on origin; cannot propose a version." >&2
-        echo "release.sh: pass VERSION explicitly for the first release." >&2
-        exit 1
-    fi
-
-    # Strip leading 'v', split on '.', bump the patch field.
-    LAST_VER="${LAST_TAG#v}"
-    IFS='.' read -r _M _m _p <<< "$LAST_VER"
-    if ! [[ "$_M" =~ ^[0-9]+$ && "$_m" =~ ^[0-9]+$ && "$_p" =~ ^[0-9]+$ ]]; then
-        echo "release.sh: latest tag '$LAST_TAG' doesn't look like vX.Y.Z" >&2
-        echo "release.sh: pass VERSION explicitly." >&2
-        exit 1
-    fi
-    PROPOSED="$_M.$_m.$((_p + 1))"
-
-    echo "Latest tag: $LAST_TAG"
-    read -r -p "Release as $PROPOSED [Y/n/edit]? " ans
-    case "$ans" in
-        ''|y|Y|yes|YES)
-            VERSION="$PROPOSED"
-            ;;
-        n|N|no|NO)
-            echo "release.sh: aborted."
-            exit 0
-            ;;
-        e|E|edit|EDIT)
-            read -r -p "Enter version: " edited
-            # Strip any leading 'v' to be kind.
-            edited="${edited#v}"
-            if ! [[ "$edited" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                echo "release.sh: '$edited' is not a valid semver (X.Y.Z). Aborted." >&2
-                exit 2
-            fi
-            VERSION="$edited"
-            ;;
-        *)
-            echo "release.sh: unrecognised response '$ans'. Aborted." >&2
-            exit 2
-            ;;
-    esac
-fi
-
+# A version is always given: gate-main.sh decides it for a gate, and the
+# release manager's "cut X" names it for a build. Nothing here prompts.
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "release.sh: '$VERSION' is not a valid semver (X.Y.Z)" >&2
+    echo "release.sh: '$VERSION' is not a valid semver (X.Y.Z); $MODE needs VERSION" >&2
     exit 2
 fi
 
 TAG="v$VERSION"
-
-# --- precondition: tag not already on origin ---
 
 if [ ! -d "$ORIGIN/.git" ]; then
     echo "release.sh: no git repo at $ORIGIN" >&2
     exit 1
 fi
 
-# SM303: BUILD NEVER TOUCHES THE REMOTE. Not "skips when asked" - never. The
-# origin check belongs to publish, where the credentials and the judgement are.
-# --no-fetch is still accepted and ignored, so invocations carrying it keep
-# working rather than erroring on a flag that has become the only behaviour.
-echo "==> Building locally; origin is not consulted (publish does that)"
+# SM303: GATE AND BUILD NEVER TOUCH THE REMOTE. The origin check belongs to
+# publish, where the credentials and the judgement are.
+echo "==> Working locally; origin is not consulted (publish does that)"
 
-# The LOCAL check runs either way - it is the one this host can answer.
+# The LOCAL check - the one this host can answer.
 if git -C "$ORIGIN" rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
     echo "release.sh: tag $TAG already exists locally" >&2
     exit 1
 fi
 
-# SM303: the origin check lives in `publish`, which refuses a burned version
-# (SM064). Said here once so a build is never mistaken for a publication.
-echo "release.sh: NOTE - origin not consulted; release.sh publish checks it." >&2
+RECEIPT_DIR="$ORIGIN/tmp/release-gate/$VERSION"
+RECEIPT="$RECEIPT_DIR/receipt"
+receipt_field() { sed -n "s/^$1=//p" "$RECEIPT" 2>/dev/null | head -1; }
 
-# --- precondition: notes file readable if specified ---
+# The release date, written into the CHANGELOG heading and the FEATURES entry.
+REL_DATE=$(date +%Y-%m-%d)
 
-if [ -n "$NOTES_FILE" ]; then
-    if [ ! -f "$NOTES_FILE" ]; then
-        echo "release.sh: notes file '$NOTES_FILE' not found" >&2
+if [ "$MODE" = gate ]; then
+    # The gate has no notes - its subtitle and FEATURES prose are placeholders -
+    # and it gates one commit, main's tip unless told otherwise. The ref is
+    # resolved HERE, in the repository, not inside the stage clone: a clone
+    # carries only the launching worktree's branch, and `--commit main` from a
+    # worktree on a feature branch was once "unknown revision" (0.14.3).
+    if [ -n "$NOTES_FILE" ]; then
+        echo "release.sh: the gate takes no notes - build writes them into the release commit" >&2
+        exit 2
+    fi
+    TARGET_SHA=$(git -C "$ORIGIN" rev-parse --verify --quiet "${COMMIT_REF:-main}^{commit}") || {
+        echo "release.sh: '${COMMIT_REF:-main}' does not name a commit in $ORIGIN" >&2
+        exit 1
+    }
+fi
+
+if [ "$MODE" = build ]; then
+    # BUILD BUILDS MAIN'S TIP. The commit it makes goes on main, so there is no
+    # other commit it could sensibly build from.
+    if [ -n "$COMMIT_REF" ]; then
+        echo "release.sh: build takes no --commit - it builds main's tip, whose gate receipt it needs" >&2
+        exit 2
+    fi
+    if [ -z "$NOTES_FILE" ] || [ ! -f "$NOTES_FILE" ]; then
+        echo "release.sh: build needs --notes FILE (the subtitle, the FEATURES text, the" >&2
+        echo "release.sh: trailers and the tag annotation; see --help). Got: '${NOTES_FILE:-none}'" >&2
+        exit 2
+    fi
+    NOTES_FILE=$(cd "$(dirname "$NOTES_FILE")" && pwd)/$(basename "$NOTES_FILE")
+
+    MAIN_SHA=$(git -C "$ORIGIN" rev-parse --verify --quiet refs/heads/main) || {
+        echo "release.sh: no local main in $ORIGIN" >&2
+        exit 1
+    }
+    if ! git -C "$ORIGIN" cat-file -e "$MAIN_SHA:tools/release-material.pl" 2>/dev/null; then
+        echo "release.sh: main ($MAIN_SHA) has no tools/release-material.pl to build with" >&2
+        exit 1
+    fi
+    material_at_main() { git -C "$ORIGIN" show "$MAIN_SHA:tools/release-material.pl" | perl - "$@"; }
+
+    # The notes are read before anything else, so a missing header is a
+    # second's refusal rather than a stage's.
+    if ! TRAILERS=$(material_at_main --notes "$NOTES_FILE" --print trailers) \
+        || ! SUBTITLE=$(material_at_main --notes "$NOTES_FILE" --print subtitle); then
+        echo "release.sh: the notes file is not usable (above)" >&2
+        exit 2
+    fi
+    if ! printf '%s\n' "$TRAILERS" | grep -q '^Assisted-by: '; then
+        echo "release.sh: the notes file has no 'Assisted-by:' header - the release commit" >&2
+        echo "release.sh: carries the same trailers as every other commit Claude makes." >&2
+        exit 2
+    fi
+    if ! material_at_main --notes "$NOTES_FILE" --print annotation | grep -q '[^[:space:]]'; then
+        echo "release.sh: the notes file has nothing after its header - that is the tag annotation" >&2
+        exit 2
+    fi
+
+    # A RECEIPT COUNTS ONLY FOR THE COMMIT, VERSION AND CHANNEL IT NAMES, and
+    # only from a gate that wrote the release material into what it tested.
+    if [ ! -f "$RECEIPT" ]; then
+        echo "release.sh: no gate receipt for $VERSION at $RECEIPT." >&2
+        echo "release.sh: gate main's tip first: tools/gate-main.sh --version $VERSION" >&2
+        exit 1
+    fi
+    TARGET_SHA=$(receipt_field sha)
+    if [ "$(receipt_field version)" != "$VERSION" ] || [ "$(receipt_field channel)" != "$CHANNEL" ] \
+        || [ "$(receipt_field result)" != pass ] || [ -z "$(receipt_field material_tool)" ]; then
+        echo "release.sh: the gate receipt does not match this build:" >&2
+        echo "release.sh:   receipt: sha=$TARGET_SHA version=$(receipt_field version) channel=$(receipt_field channel) result=$(receipt_field result) material_tool=$(receipt_field material_tool)" >&2
+        echo "release.sh:   build:   version=$VERSION channel=$CHANNEL (a receipt with no material_tool" >&2
+        echo "release.sh:            is from a gate that did not test the release material)" >&2
+        exit 1
+    fi
+    echo "==> Gate passed for ${TARGET_SHA:0:12} ($(receipt_field finished)): $(receipt_field files) files, $(receipt_field tests) tests"
+    echo "==>   coverage: $(receipt_field coverage) $(receipt_field coverage_from)"
+    echo "==>   receipt and logs: $RECEIPT_DIR"
+
+    # MAIN MAY HAVE MOVED PAST THE GATE ONLY THROUGH RELEASE MATERIAL. Those
+    # paths are exactly what this build rewrites and then re-checks with the
+    # lints that read them, so a landing that only touched them - a PENDING ref
+    # stamped by hand after the generator refused it, a FEATURES wording fix -
+    # changes nothing the hour-long gate measured. Anything else needs a gate.
+    if [ "$TARGET_SHA" != "$MAIN_SHA" ]; then
+        if ! git -C "$ORIGIN" merge-base --is-ancestor "$TARGET_SHA" "$MAIN_SHA" 2>/dev/null; then
+            echo "release.sh: main ($MAIN_SHA) does not descend from the gated commit" >&2
+            echo "release.sh: ($TARGET_SHA). Gate main's tip: tools/gate-main.sh --version $VERSION" >&2
+            exit 1
+        fi
+        MOVED=$(git -C "$ORIGIN" log --format= --name-only "$TARGET_SHA..$MAIN_SHA" | sort -u | grep . || true)
+        OUTSIDE=$(printf '%s\n' "$MOVED" | grep -vxF -f <(material_at_main --paths) || true)
+        if [ -n "$OUTSIDE" ]; then
+            echo "release.sh: main has moved past the gated commit ${TARGET_SHA:0:12} and changed" >&2
+            echo "release.sh: more than release material - a new gate is needed:" >&2
+            printf '%s\n' "$OUTSIDE" | sed 's/^/release.sh:   /' >&2
+            echo "release.sh: tools/gate-main.sh --version $VERSION" >&2
+            exit 1
+        fi
+        echo "==> main moved past the gated commit ${TARGET_SHA:0:12} only in release material:"
+        printf '%s\n' "$MOVED" | sed 's/^/      /'
+    fi
+
+    # Where main is checked out, if anywhere: the build moves main, and a
+    # worktree on main moves with it - which needs that worktree clean. Asked
+    # now, not after the packages are built.
+    MAIN_WT=$(git -C "$ORIGIN" worktree list --porcelain \
+        | awk '/^worktree /{ wt = substr($0, 10) } $0 == "branch refs/heads/main" { print wt }')
+    if [ -n "$MAIN_WT" ] && [ -n "$(git -C "$MAIN_WT" status --porcelain --untracked-files=no)" ]; then
+        echo "release.sh: main is checked out at $MAIN_WT with uncommitted changes, and" >&2
+        echo "release.sh: build moves main. Commit or move them first:" >&2
+        git -C "$MAIN_WT" status --short --untracked-files=no >&2
         exit 1
     fi
 fi
 
-# --- stage: fresh clone ---
+# --- the stage: a clone (gate) or a worktree of main (build) ---
 
 # SM328: the staging path, and a trap that removes it however this run ends.
 #
@@ -409,12 +411,17 @@ fi
 # predecessors at START, when it can tell which of them are dead, so at most
 # one failed stage sits on the filesystem at a time and a live run is never
 # touched. Success still removes (--keep-stage keeps even then).
+#
+# SM971: a build stage is a WORKTREE of this repository, so the release commit it
+# makes is already here when main is moved to it. A removed worktree leaves an
+# entry that `git worktree prune` clears, and both removals below prune.
 STAGE="$STAGE_BASE/lazysite-release-$$"
 cleanup_stage() {
     local rc="${1:-0}"
     [ "$KEEP_STAGE" = 1 ] && return 0
     [ "$rc" -ne 0 ] && return 0
     rm -rf "$STAGE"
+    git -C "$ORIGIN" worktree prune 2>/dev/null || true
 }
 trap 'cleanup_stage $?' EXIT
 
@@ -452,6 +459,7 @@ prune_dead_stages() {
         echo "release.sh: removing the stage a previous run left behind: $d" >&2
         rm -rf "$d"
     done
+    git -C "$ORIGIN" worktree prune 2>/dev/null || true
 }
 
 # Every gate failure said the same three things in the same order: what failed,
@@ -552,69 +560,150 @@ if [ -n "$_free_kb" ] && [ "$_free_kb" -lt 2000000 ]; then
     exit 5
 fi
 
-echo "==> Staging clone at $STAGE"
-git clone --quiet "$ORIGIN" "$STAGE"
 
-# Resolve the target commit inside the staging clone so refs like
-# origin/main resolve correctly.
-TARGET_SHA=$(git -C "$STAGE" rev-parse "$COMMIT_REF")
-echo "==> Target commit: $TARGET_SHA ($COMMIT_REF)"
+# NO TERMINAL REACHES A GATE OR BUILD STEP. `setsid -w` starts each one in a new
+# session with no controlling terminal and stdin from /dev/null, so sudo cannot
+# ask for a password and polkit has no agent to ask with: a test that reaches
+# for either FAILS, in the log, rather than stopping a release on a prompt. The
+# exit status is passed through (-w), so the verdict is unchanged.
+detached() { setsid -w "$@" </dev/null; }
 
-git -C "$STAGE" checkout --quiet --detach "$TARGET_SHA"
-
-# --- VERSION is STAMPED, NOT READ (SM375) ---
-#
-# The same defect SM372 fixed for debian/changelog, in the file next to it, and
-# missed at the time because only one of the two was being looked at. VERSION
-# sat at 0.10.9 while 0.10.10 through 0.10.14 were released.
-#
-# WHY IT DRIFTED, AND WHY IT WILL AGAIN IF LEFT TO A PERSON. tools/bump-version.pl
-# exists precisely for this - its own header records that a 2026 review found
-# VERSION "stuck at 0.2.18 while releases were at 0.3.x" - and it says "the
-# release process should call this AFTER a tag is cut". The release process never
-# did. So the fix for the defect was written, committed, and never wired in, and
-# the defect recurred identically five releases later.
-#
-# WHAT IT AFFECTED. The compliance gate below reads this file and compares
-# records against it, so for five releases it asked whether records were current
-# as of 0.10.9. build-manifest.pl and manifest-to-sbom.pl DEFAULT to it and were
-# saved only by release.sh passing --version explicitly - authoritative by
-# accident of invocation rather than by design. And the file ships INSIDE the
-# tarball, where those same tools have no --version to be passed.
-#
-# Stamped in the STAGE, from $VERSION, leaving the repo's own copy alone -
-# release.sh does not touch main (SM063). t/lint/63 fails when the repo's copy
-# falls behind the newest tag, which is what makes the post-release bump happen
-# rather than be remembered.
-#
-# SM950: NOT IN A REHEARSAL. A rehearsal gates main between cuts, when the tree
-# still describes the last release (VERSION, the practice briefing's stamp), and
-# it is consistent as committed. Stamping half of it would fail lint 89 for a
-# reason that only the pre-cut pass can fix - and the rehearsal exists to learn
-# everything else before then.
-if [ "$REHEARSE" = 1 ]; then
-    echo "==> REHEARSAL: gating $TARGET_SHA as committed - VERSION and NEXT_VERSION are not stamped"
+if [ "$MODE" = gate ]; then
+    echo "==> Staging clone at $STAGE"
+    git clone --quiet "$ORIGIN" "$STAGE"
+    git -C "$STAGE" checkout --quiet --detach "$TARGET_SHA"
+    # The clone names this repository's main origin/main, and has a local main
+    # only when the launching worktree was on it. Lint 53 asks whether every
+    # stamped ref is on main, so the stage has the same main this repository has.
+    if MAIN_NOW=$(git -C "$ORIGIN" rev-parse --verify --quiet refs/heads/main); then
+        git -C "$STAGE" branch --quiet -f main "$MAIN_NOW"
+    fi
+    echo "==> Target commit: $TARGET_SHA"
 else
-echo "==> Stamping VERSION at $VERSION (was $(cat "$STAGE/VERSION" 2>/dev/null || echo none))"
-printf '%s\n' "$VERSION" > "$STAGE/VERSION"
+    echo "==> Staging a worktree of main ($MAIN_SHA) at $STAGE"
+    git -C "$ORIGIN" worktree add --quiet --detach "$STAGE" "$MAIN_SHA"
+fi
 
-# SM383: NEXT_VERSION MOVES WITH IT, or the stage contradicts itself.
+# --- the release material (SM971) ---------------------------------------------
 #
-# VERSION and NEXT_VERSION are a PAIR - "the last released version" and "the one
-# after it" - and tools/bump-version.pl advances both together for that reason.
-# SM375 taught this script to stamp VERSION and left NEXT_VERSION alone, so a
-# stage cutting 0.10.15 had VERSION=0.10.15 and NEXT_VERSION=0.10.15: the next
-# release would propose a version already cut, and burned versions are never
-# reused (SM064).
+# ONE GENERATOR, IN BOTH JOBS. tools/release-material.pl writes the CHANGELOG
+# section (every PENDING ref stamped with its landed SHA, or a refusal naming
+# the entry), the FEATURES entry, VERSION/NEXT_VERSION, the practice briefing,
+# the doc index and, at a new minor, the archive move. The gate runs it with no
+# notes - a placeholder subtitle and FEATURES text - so what it tests differs
+# from what ships only in that prose; the build runs it with the notes.
 #
-# t/lint/63 caught it by failing the release, which is the gate working - but it
-# is worth being precise about what went wrong. The defect was not the lint. It
-# was stamping one half of a pair and leaving the other, in the very change that
-# existed because the pair had drifted.
-STAGE_NEXT=$(printf '%s' "$VERSION" | awk -F. '{ printf "%d.%d.%d", $1, $2, $3 + 1 }')
-echo "==> Stamping NEXT_VERSION at $STAGE_NEXT (the pair moves together)"
-printf '%s\n' "$STAGE_NEXT" > "$STAGE/NEXT_VERSION"
-fi    # REHEARSE
+# This replaces the pre-cut pass, a landing that had to happen before main could
+# pass a gate at all (the practice briefing's version stamp, lint 89), and the
+# VERSION stamp this script used to write into the stage (SM375, SM383): the
+# generator sets the pair through tools/bump-version.pl, BEFORE the compliance
+# gate, the manifest, the SBOM check and the tarball read it.
+MATERIAL_TOOL=$(sha256sum "$STAGE/tools/release-material.pl" 2>/dev/null | awk '{print $1}')
+if [ -z "$MATERIAL_TOOL" ]; then
+    abort_build "the commit has no tools/release-material.pl; not releasing."
+fi
+if [ "$MODE" = build ] && [ "$MATERIAL_TOOL" != "$(receipt_field material_tool)" ]; then
+    abort_build "tools/release-material.pl differs from the one the gate ran" \
+        "(gate $(receipt_field material_tool), build $MATERIAL_TOOL); gate main's tip again."
+fi
+MATERIAL_ARGS=("$VERSION" --dir "$STAGE" --channel "$CHANNEL" --date "$REL_DATE")
+if [ "$MODE" = build ]; then
+    MATERIAL_ARGS+=(--notes "$NOTES_FILE")
+fi
+echo "==> release-material.pl ${MATERIAL_ARGS[*]}"
+if ! perl "$STAGE/tools/release-material.pl" "${MATERIAL_ARGS[@]}"; then
+    abort_build "the release material could not be written (above); not releasing."
+fi
+
+# The release-material allowlist, from the generator that owns it.
+material_paths() { perl "$STAGE/tools/release-material.pl" --paths; }
+
+# Paths a commit range touched outside a list of allowed paths (or prefixes,
+# when the list entry ends in /), one per line; nothing when it stayed inside.
+outside_of() {
+    local from=$1 to=$2 allowed=$3 p a ok
+    git -C "$STAGE" diff --name-only "$from" "$to" | while IFS= read -r p; do
+        ok=0
+        while IFS= read -r a; do
+            case "$a" in
+                */) case "$p" in "$a"*) ok=1 ;; esac ;;
+                *) [ "$p" = "$a" ] && ok=1 ;;
+            esac
+        done <<< "$allowed"
+        [ "$ok" = 1 ] || printf '%s\n' "$p"
+    done
+}
+
+if [ "$MODE" = gate ]; then
+    # Committed IN THE STAGE ONLY, so the suite runs on a clean tree exactly as
+    # the release commit will be. The clone is thrown away; nothing leaves it.
+    git -C "$STAGE" add -A
+    git -C "$STAGE" -c user.name="lazysite gate" -c user.email="gate@lazysite.invalid" \
+        commit --quiet -m "Release material for $VERSION (gate stage only)"
+    MATERIAL_SHA=$(git -C "$STAGE" rev-parse HEAD)
+fi
+
+if [ "$MODE" = build ]; then
+    # --- the GATE-LOG row and the coverage record, INTO the release commit -----
+    #
+    # SM400: the manifest inside the artefact attests the gate; GATE-LOG is the
+    # copy that answers the same question WITHOUT the artefact, because the
+    # question is always asked later, by someone who has the repo. Its Commit
+    # column is the GATED commit: the release commit cannot name itself, and it
+    # differs from the gated one only by the release material.
+    #
+    # Both used to be appended to the working tree UNCOMMITTED and landed by a
+    # post-release record branch. They are part of the release commit now, so
+    # there is no second landing and no record to remember.
+    GATE_FILES=$(receipt_field files)
+    GATE_TESTS=$(receipt_field tests)
+    GATE_LOG="$STAGE/docs/releases/GATE-LOG.md"
+    mkdir -p "$STAGE/docs/releases"
+    if [ ! -f "$GATE_LOG" ]; then
+        {
+            printf -- '---\n'
+            printf 'title: "lazysite - release gate record"\n'
+            printf 'subtitle: "Which commit each release was validated at, newest last. Appended by tools/release.sh."\n'
+            printf 'brand: plain\n'
+            printf 'standard-margins: true\n'
+            printf -- '---\n\n'
+            printf '| Version | Channel | Commit | Files | Tests | Gated (UTC) |\n'
+            printf '|---|---|---|---|---|---|\n'
+        } > "$GATE_LOG"
+    fi
+    printf '| %s | %s | `%s` | %s | %s | %s |\n' \
+        "$VERSION" "$CHANNEL" "$TARGET_SHA" "$GATE_FILES" "$GATE_TESTS" \
+        "$(date -u '+%Y-%m-%d %H:%M')" >> "$GATE_LOG"
+    if [ -f "$RECEIPT_DIR/coverage-last.json" ]; then
+        mkdir -p "$STAGE/dist/config"
+        cp "$RECEIPT_DIR/coverage-last.json" "$STAGE/dist/config/coverage-last.json"
+    fi
+
+    # --- ONE release commit, on top of main ------------------------------------
+    COMMIT_MSG="${STAGE}-release-commit.txt"
+    {
+        printf 'lazysite %s (%s): %s\n\n' "$VERSION" "$CHANNEL" "$SUBTITLE"
+        printf 'The release material for %s, written by tools/release-material.pl on\n' "$VERSION"
+        printf 'main at %s. Gated at %s: %s files, %s tests,\n' "${MAIN_SHA:0:12}" "${TARGET_SHA:0:12}" "$GATE_FILES" "$GATE_TESTS"
+        printf 'coverage %s. The GATE-LOG row and the coverage record are the gate'"'"'s.\n\n' "$(receipt_field coverage)"
+        git -C "$STAGE" status --porcelain | awk '{ print "  " $2 }'
+        printf '\n%s\n' "$TRAILERS"
+    } > "$COMMIT_MSG"
+    git -C "$STAGE" add -A
+    git -C "$STAGE" commit --quiet -F "$COMMIT_MSG"
+    RELEASE_SHA=$(git -C "$STAGE" rev-parse HEAD)
+    echo "==> Release commit $RELEASE_SHA on main $MAIN_SHA (not yet on main)"
+
+    # NOTHING BUT RELEASE MATERIAL. A release commit is reviewed by nobody - the
+    # release manager decided the cut, not its diff - so what it may touch is a
+    # fixed list, checked rather than trusted.
+    OUTSIDE=$(outside_of "$MAIN_SHA" "$RELEASE_SHA" "$(material_paths)")
+    if [ -n "$OUTSIDE" ]; then
+        abort_build "the release commit touches paths outside the release-material allowlist:" \
+            "$(printf '%s ' $OUTSIDE)" "main is unchanged; nothing was tagged."
+    fi
+    echo "==> The release commit touches only release material"
+fi
 
 # --- precondition: sbom-deps.json exists at target ---
 
@@ -651,54 +740,44 @@ if ! perl "$STAGE/tools/lazysite-compliance.pl" --check --channel "$CHANNEL"; th
     abort_build "compliance records are not current for this cut; not releasing."
 fi
 
-# SM597: THE PRACTICE BRIEFING'S STAMP, CHECKED IN A SECOND RATHER THAN IN NINE
-# MINUTES.
+# --- build: the checks that read the release material, on the release commit -
 #
-# starter/docs/ai-briefing-practice.md records the engine version it was
-# generated for, and t/lint/89 asserts that stamp equals the version being
-# built. So EVERY release needs a re-import - the version bump alone
-# invalidates it, with no content change at all - and the 0.10.34 beta
-# discovered that nine minutes in, after the full suite had run.
+# Every lint that names a release-material path, and the briefing's unit test
+# (release-material.pl --lints; t/lint/214 keeps the list complete). Seconds to
+# a minute, against the gate's hour: the gate already ran them on the same
+# material with a placeholder subtitle, and this is the check that the notes'
+# prose, the GATE-LOG row and the coverage record broke nothing.
 #
-# This does not re-import: the staging tree is a checkout of a COMMIT, and
-# writing to it here would ship an artefact that does not match the tag. It
-# says what to do, before anything slow starts.
-#
-# SM950: a rehearsal skips this - the stamp is the pre-cut pass's job, and
-# tools/gate-main.sh rehearses precisely because that pass has not landed.
-PRACTICE="$STAGE/starter/docs/ai-briefing-practice.md"
-if [ -f "$PRACTICE" ] && [ "$REHEARSE" != 1 ]; then
-    stamped=$(sed -n 's/^[[:space:]]*engine-version:[[:space:]]*\([0-9.]*\).*/\1/p' "$PRACTICE" | head -1)
-    if [ -n "$stamped" ] && [ "$stamped" != "$VERSION" ]; then
-        printf '\n' >&2
-        printf 'The field-practice briefing is stamped %s and this cut is %s.\n' \
-            "$stamped" "$VERSION" >&2
-        printf 'Its content may be identical - the stamp alone fails t/lint/89.\n' >&2
-        printf 'In the SOURCE repo, before cutting:\n\n' >&2
-        printf '    perl tools/import-field-practice.pl\n' >&2
-        printf '    git add starter/docs/ai-briefing-practice.md && git commit\n\n' >&2
-        abort_build "the practice briefing is stamped for a different version; not releasing."
+# Lint 113 waits for a stable cut's download commit: the GATE-LOG row makes the
+# new version the newest stable, and download/ is replaced only after the
+# packages exist.
+if [ "$MODE" = build ]; then
+    MATERIAL_LINTS=$(perl "$STAGE/tools/release-material.pl" --lints --dir "$STAGE") \
+        || abort_build "the release-material checks could not be listed (above)."
+    if [ "$CHANNEL" = stable ]; then
+        MATERIAL_LINTS=$(printf '%s\n' "$MATERIAL_LINTS" | grep -v '^t/lint/113-')
     fi
+    LINT_LOG="${STAGE}-material-lints.txt"
+    echo "==> the release-material checks on $RELEASE_SHA ($(printf '%s\n' "$MATERIAL_LINTS" | wc -l) files)"
+    # shellcheck disable=SC2086  # one argument per file name
+    if ! ( cd "$STAGE" && detached prove -l $MATERIAL_LINTS > "$LINT_LOG" 2>&1 ); then
+        grep -E '^#   Failed test|\(Wstat|^Failed|not ok' "$LINT_LOG" | head -20 >&2
+        abort_build "a check on the release material failed (log: $LINT_LOG)." \
+            "main is unchanged; nothing was tagged."
+    fi
+    grep -E '^Files=' "$LINT_LOG"
 fi
 
-# --- the gate: run here, or proven by a receipt -------------------------------
-#
-# NO TERMINAL REACHES A GATE STEP. `setsid -w` starts each one in a new session
-# with no controlling terminal and stdin from /dev/null, so sudo cannot ask for
-# a password and polkit has no agent to ask with: a test that reaches for
-# either FAILS, in the log, rather than stopping a release on a prompt. The
-# exit status is passed through (-w), so the gate's verdict is unchanged.
-detached() { setsid -w "$@" </dev/null; }
+# --- the gate: the suite, the bench and coverage (gate only) -------------------
+if [ "$MODE" = gate ]; then
 
-RECEIPT_DIR="$ORIGIN/tmp/release-gate/$VERSION"
-RECEIPT="$RECEIPT_DIR/receipt"
-receipt_field() { sed -n "s/^$1=//p" "$RECEIPT" 2>/dev/null | head -1; }
+
 
 # SM950 (3): EVERY PASSING COVERAGE RUN IS KEPT, BY ITS INPUTS DIGEST.
 #
 # coverage.sh already skips when its inputs match a recorded pass (SM736), but
 # the only record it read was the one committed in the tree - written at the
-# last release and committed by the post-release record. So two gates between
+# last release and committed with it. So two gates between
 # releases both measured, even when nothing coverage reads had changed: 74
 # minutes each on 0.15.2. The store is outside any clone (tmp/ in the origin,
 # never committed), one file per digest, and a gate OFFERS coverage.sh the
@@ -749,38 +828,6 @@ coverage_store() {
     ' "$record" "$store" "$sha" "$version" "$digest"
 }
 
-RUN_GATE=1
-if [ "$MODE" = build ] && [ "$RUN_GATE_INLINE" != 1 ]; then
-    # A RECEIPT COUNTS ONLY FOR THE COMMIT, VERSION AND CHANNEL IT NAMES. The
-    # tree at a SHA cannot change, so a gate that passed for this SHA has
-    # validated exactly what is about to be packaged; anything else is refused
-    # rather than reused.
-    if [ ! -f "$RECEIPT" ]; then
-        abort_build "no gate receipt for $VERSION at $RECEIPT." \
-            "The gate runs separately: tools/release.sh gate $VERSION --commit $TARGET_SHA" \
-            "(or pass --run-gate to run it inline here, which takes about an hour)."
-    fi
-    if [ "$(receipt_field sha)" != "$TARGET_SHA" ] || [ "$(receipt_field version)" != "$VERSION" ] \
-        || [ "$(receipt_field channel)" != "$CHANNEL" ] || [ "$(receipt_field result)" != pass ]; then
-        abort_build "the gate receipt does not match this build:" \
-            "  receipt: sha=$(receipt_field sha) version=$(receipt_field version) channel=$(receipt_field channel) result=$(receipt_field result)" \
-            "  build:   sha=$TARGET_SHA version=$VERSION channel=$CHANNEL" \
-            "Re-run the gate for this commit, or build the commit the gate passed." \
-            "(result=rehearsal is a gate of main before its pre-cut pass: never buildable.)"
-    fi
-    GATE_FILES=$(receipt_field files)
-    GATE_TESTS=$(receipt_field tests)
-    RUN_GATE=0
-    echo "==> Gate passed earlier for $TARGET_SHA ($(receipt_field finished)): $GATE_FILES files, $GATE_TESTS tests"
-    echo "==>   coverage: $(receipt_field coverage) $(receipt_field coverage_from)"
-    echo "==>   receipt and logs: $RECEIPT_DIR"
-    if [ -f "$RECEIPT_DIR/coverage-last.json" ]; then
-        mkdir -p "$ORIGIN/dist/config"
-        cp "$RECEIPT_DIR/coverage-last.json" "$ORIGIN/dist/config/coverage-last.json"
-    fi
-fi
-
-if [ "$RUN_GATE" = 1 ]; then
 mkdir -p "$RECEIPT_DIR"
 rm -f "$RECEIPT"
 
@@ -950,10 +997,10 @@ fi
 # longer exists, and the skip it exists to license could never fire. Measured
 # after the 0.11.12 cut: the file was simply not in the origin repo.
 #
-# The same shape as GATE-LOG below, and for the same reason: a fact established
-# inside the staging clone is worth nothing unless it is carried out of it. Left
-# UNCOMMITTED like GATE-LOG, so the operator lands it with everything else
-# rather than the release churning git.
+# The same shape as the GATE-LOG row, and for the same reason: a fact
+# established inside the staging clone is worth nothing unless it is carried
+# out of it. It goes to the receipt directory, and build commits it into the
+# release commit with the row (SM971).
 #
 # SM950 (3): which record that is depends on whether coverage was measured.
 # Measured: the one coverage.sh just wrote, which also goes into the store for
@@ -974,18 +1021,13 @@ else
     fi
 fi
 if [ -f "$COV_RECORD" ]; then
-    # Into the working tree only for an inline build: a gate run after a
-    # landing must not leave the developer's checkout dirty. `build` copies it
-    # from the receipt directory, below the receipt check.
-    if [ "$MODE" = build ]; then
-        mkdir -p "$ORIGIN/dist/config"
-        cp "$COV_RECORD" "$ORIGIN/dist/config/coverage-last.json"
-        echo "==> coverage record carried back to dist/config/coverage-last.json"
-    fi
+    # Beside the receipt, never into a working tree: build commits it into the
+    # release commit from here.
     cp "$COV_RECORD" "$RECEIPT_DIR/coverage-last.json"
 fi
 
-fi    # RUN_GATE
+
+fi    # gate
 
 # --- build the release manifest ---
 # release-manifest.json is generated, not tracked (SM065), so the fresh
@@ -1037,7 +1079,8 @@ if [ "${#MAN_ADD[@]}" -eq 0 ]; then
 fi
 MAN_ADD+=("--prefix=lazysite-$VERSION/")
 
-if [ "$RUN_GATE" = 1 ]; then
+
+if [ "$MODE" = gate ]; then
 # THE RECEIPT, written last: it exists only when every gate step passed - the
 # suite, the bench, the coverage run AND the manifest, SBOM and man-page checks
 # above, which are cheap but can still refuse a release. The 0.15.2 build was
@@ -1045,38 +1088,33 @@ if [ "$RUN_GATE" = 1 ]; then
 # because those checks ran only in the build: the person running it found out,
 # not the agent running the gate. The logs go beside the receipt so a warning
 # in any of them can be read after the stage is gone.
+#
+# SM971: it names the release material the gate tested - the generator's digest
+# (build refuses a different one) and the stage commit that held its output.
 cp "$GATE_OUT" "$RECEIPT_DIR/suite.txt"
 cp "$COV_LOG" "$RECEIPT_DIR/coverage.txt"
 [ -f "$LAZYSITE_COVER_SUITE_LOG" ] && cp "$LAZYSITE_COVER_SUITE_LOG" "$RECEIPT_DIR/coverage-suite.txt"
+git -C "$STAGE" show --stat --format='%H %s' "$MATERIAL_SHA" > "$RECEIPT_DIR/material.txt"
 {
     echo "sha=$TARGET_SHA"
     echo "version=$VERSION"
     echo "channel=$CHANNEL"
     echo "files=$GATE_FILES"
     echo "tests=$GATE_TESTS"
-    # SM950: a rehearsal passed every step on a tree nobody can build from;
-    # `build` accepts result=pass only.
-    if [ "$REHEARSE" = 1 ]; then echo "result=rehearsal"; else echo "result=pass"; fi
+    echo "result=pass"
     echo "coverage=$COV_MODE"
     echo "coverage_from=$COV_FROM"
+    echo "material_tool=$MATERIAL_TOOL"
+    echo "material_commit=$MATERIAL_SHA"
+    echo "material_date=$REL_DATE"
     echo "finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "host=$(hostname)"
 } > "$RECEIPT"
 echo "==> Gate receipt: $RECEIPT"
+echo "==> Gate passed for $TARGET_SHA ($VERSION, $CHANNEL); coverage $COV_MODE."
+echo "==> When the cut is called: tools/release.sh build $VERSION --notes FILE"
+exit 0
 fi
-
-if [ "$MODE" = gate ] && [ "$REHEARSE" = 1 ]; then
-    echo "==> Rehearsal passed for $TARGET_SHA ($VERSION, $CHANNEL); coverage $COV_MODE."
-    echo "==> Not buildable: once the pre-cut pass lands, tools/gate-main.sh gates it for real,"
-    echo "==> and reuses this coverage if nothing coverage reads has changed."
-    exit 0
-fi
-if [ "$MODE" = gate ]; then
-    echo "==> Gate passed for $TARGET_SHA ($VERSION, $CHANNEL); coverage $COV_MODE."
-    echo "==> The build is the short part: tools/release.sh build $VERSION --commit $TARGET_SHA --notes FILE"
-    exit 0
-fi
-
 
 # --- build tarball ---
 
@@ -1085,7 +1123,7 @@ TARBALL="$DIST_DIR/lazysite-$VERSION.tar.gz"
 
 mkdir -p "$DIST_DIR"
 
-# Use git archive against the target SHA. This captures the COMMIT
+# Use git archive against the release commit. This captures the COMMIT
 # state exactly - staging dir edits (if any) don't leak in.
 echo "==> Building tarball $TARBALL"
 # release-manifest.json + sbom.json are generated (untracked, SM065), so
@@ -1097,7 +1135,7 @@ git -C "$STAGE" archive --format=tar.gz \
     --add-file=release-manifest.json \
     --add-file=sbom.json \
     "${MAN_ADD[@]}" \
-    -o "$TARBALL" "$TARGET_SHA"
+    -o "$TARBALL" "$RELEASE_SHA"
 
 SHA256=$(sha256sum "$TARBALL" | awk '{print $1}')
 printf "%s  lazysite-%s.tar.gz\n" "$SHA256" "$VERSION" > "$TARBALL.sha256"
@@ -1226,60 +1264,81 @@ else
     fi
 fi
 
-# --- tag ---
-
-# Annotation source: --notes file if given, otherwise the target
-# commit's own message. git tag -a -F reads the annotation from a
-# file, so we stage the message into a temp file either way for
-# consistency.
-ANNOT_FILE="$STAGE/.release-annotation"
-if [ -n "$NOTES_FILE" ]; then
-    cp "$NOTES_FILE" "$ANNOT_FILE"
-else
-    git -C "$ORIGIN" log -1 --format=%B "$TARGET_SHA" > "$ANNOT_FILE"
-fi
-
-# SM325: refuse to tag a commit that is on no branch.
+# --- a stable cut: download/ holds the new stable set -------------------------
 #
-# 0.10.10 was cut twice. The first tag named a branch tip; vcs-review then landed
-# that branch onto main with new SHAs, and the tag was left pointing at a commit
-# no branch contained. Nothing had been pushed so it cost only a re-cut - but a
-# re-cut is a full gate run, and `git branch --contains` answers the question in
-# a second.
-#
-# It matters beyond tidiness: a tag on no branch is a release whose provenance
-# cannot be followed from any branch history, and if the tag were ever deleted
-# the commit becomes unreachable. Anyone auditing later runs --contains, gets
-# nothing, and has to work out whether that is a problem.
-#
-# A warning rather than a refusal when --no-fetch is set, because on a build host
-# with no remote the local branch set may legitimately be incomplete.
-if ! git -C "$ORIGIN" branch --contains "$TARGET_SHA" 2>/dev/null | grep -q .; then
-    echo "==> WARNING: $TARGET_SHA is on no branch." >&2
-    echo "    A tag here records a release whose history no branch contains." >&2
-    echo "    This is what a rebase (vcs-review landing a branch) leaves behind:" >&2
-    echo "    tag AFTER the branch lands, not before." >&2
-    if [ "$NO_FETCH" != 1 ]; then
-        echo "    Refusing. Re-run against a commit on a branch, or pass --no-fetch" >&2
-        echo "    if this host legitimately has an incomplete branch set." >&2
-        exit 4
+# download/ is the current STABLE release, tracked so it can be downloaded
+# without a build (lint 113), and export-ignored so no tarball carries it. It can
+# only be filled once the packages exist, so it is a second commit on top of the
+# release commit, touching download/ and nothing else; the tag stays on the
+# release commit. Lint 113, held back from the release commit, runs here.
+NEW_MAIN="$RELEASE_SHA"
+if [ "$CHANNEL" = stable ]; then
+    DL="$STAGE/download"
+    OLD_DL=$(find "$DL" -maxdepth 1 -name 'lazysite-*.tar.gz' 2>/dev/null \
+        | sed -n 's|.*/lazysite-\([0-9][0-9.]*[0-9]\)\.tar\.gz$|\1|p' | head -1)
+    mkdir -p "$DL"
+    find "$DL" -maxdepth 1 -type f ! -name README.md -delete
+    cp "$TARBALL" "$TARBALL.sha256" "$DL/"
+    for deb in "$DIST_DIR"/*_"$VERSION"-1_all.deb "$DIST_DIR/lazysite-skill-$VERSION.zip"; do
+        [ -f "$deb" ] && cp "$deb" "$DL/"
+    done
+    if [ -n "$OLD_DL" ] && [ -f "$DL/README.md" ]; then
+        sed -i "s/$(printf '%s' "$OLD_DL" | sed 's/\./\\./g')/$VERSION/g" "$DL/README.md"
     fi
-    echo "    --no-fetch is set, so continuing - this host may not have every branch." >&2
+    {
+        printf 'download/: the %s stable set\n\n' "$VERSION"
+        printf 'The tarball, its checksum, the packages and the claude.ai skill built from\n'
+        printf 'the %s release commit %s, replacing %s.\n\n' "$VERSION" "${RELEASE_SHA:0:12}" "${OLD_DL:-nothing}"
+        printf '%s\n' "$TRAILERS"
+    } > "${STAGE}-download-commit.txt"
+    git -C "$STAGE" add -A download
+    git -C "$STAGE" commit --quiet -F "${STAGE}-download-commit.txt"
+    NEW_MAIN=$(git -C "$STAGE" rev-parse HEAD)
+    OUTSIDE=$(outside_of "$RELEASE_SHA" "$NEW_MAIN" "download/")
+    if [ -n "$OUTSIDE" ]; then
+        abort_build "the download commit touches more than download/: $(printf '%s ' $OUTSIDE)" \
+            "main is unchanged; nothing was tagged."
+    fi
+    if ! ( cd "$STAGE" && detached prove -l t/lint/113-*.t > "${STAGE}-download-lint.txt" 2>&1 ); then
+        cat "${STAGE}-download-lint.txt" >&2
+        abort_build "lint 113 refused the download set; main is unchanged; nothing was tagged."
+    fi
+    echo "==> download/ commit $NEW_MAIN (the $VERSION stable set)"
 fi
 
-echo "==> Tagging $TAG on $TARGET_SHA in origin repo"
-# Tag is created in the ORIGIN working tree so it's immediately
-# pushable. The staging clone is throwaway.
-git -C "$ORIGIN" tag -a "$TAG" -F "$ANNOT_FILE" "$TARGET_SHA"
+# --- tag the release commit, then move main to it ------------------------------
+#
+# The LAST step, after every check and every package: until here main and the
+# tags are exactly as they were, whatever failed. The tag goes first because a
+# local tag is free to remove; if main cannot move, it is removed again.
+#
+# Main moves by fast-forward only. Where a worktree has main checked out (the
+# developer's, after a handoff), that worktree moves with it - it was checked
+# clean before anything started; elsewhere the ref moves, and only if it still
+# names the commit this build started from.
+ANNOT_FILE="${STAGE}-annotation.txt"
+perl "$STAGE/tools/release-material.pl" --notes "$NOTES_FILE" --print annotation > "$ANNOT_FILE"
 
-# --no-fetch means this host has no remote credentials, so it cannot push
-# either. Skipping it here rather than letting `set -e` kill the run at the last
-# step: the previous behaviour left the tarball stranded in the staging
-# directory with the artefact copy and cleanup unreached, and reported failure
-# for a release that had in fact been built and tagged.
-# SM303: a build does not push, on any host, under any flag.
-echo "==> $TAG is local and unpushed. To publish it:"
-echo "    tools/release.sh publish $VERSION"
+land_main() {
+    if [ "$(git -C "$ORIGIN" rev-parse refs/heads/main)" != "$MAIN_SHA" ]; then
+        echo "release.sh: main moved while this build ran" >&2
+        return 1
+    fi
+    if [ -n "$MAIN_WT" ]; then
+        git -C "$MAIN_WT" merge --ff-only --quiet "$NEW_MAIN"
+    else
+        git -C "$ORIGIN" update-ref refs/heads/main "$NEW_MAIN" "$MAIN_SHA"
+    fi
+}
+
+echo "==> Tagging $TAG on the release commit $RELEASE_SHA"
+git -C "$ORIGIN" tag -a "$TAG" -F "$ANNOT_FILE" "$RELEASE_SHA"
+if ! land_main; then
+    git -C "$ORIGIN" tag -d "$TAG" >/dev/null
+    abort_build "main could not be moved to $NEW_MAIN; the tag was removed again" \
+        "and main is still $MAIN_SHA."
+fi
+echo "==> main is now $NEW_MAIN (was $MAIN_SHA)"
 
 # --- final artefact copy ---
 
@@ -1301,69 +1360,29 @@ done
 [ -f "$DIST_DIR/lazysite-skill-$VERSION.zip" ] \
     && cp "$DIST_DIR/lazysite-skill-$VERSION.zip" "$FINAL_DIST/"
 
-# --- the tracked gate record (SM400) ---
-#
-# The manifest inside the artefact already attests the gate. This is the copy
-# that answers the same question WITHOUT the artefact, because the question is
-# always asked later and by someone who has the repo rather than the tarball.
-#
-# APPENDED, NEVER COMMITTED. This script does not commit and does not push
-# (SM303), and a release is the worst moment to start churning git. The operator
-# lands it with everything else; the reminder below is deliberately the last
-# thing printed after the summary so it is not scrolled past.
-GATE_LOG="$ORIGIN/docs/releases/GATE-LOG.md"
-mkdir -p "$ORIGIN/docs/releases"
-if [ ! -f "$GATE_LOG" ]; then
-    {
-        printf -- '---\n'
-        printf 'title: "lazysite - release gate record"\n'
-        printf 'subtitle: "Which commit each release was validated at, newest last. Appended by tools/release.sh."\n'
-        printf 'brand: plain\n'
-        printf 'standard-margins: true\n'
-        printf -- '---\n\n'
-        printf '# Why this file exists\n\n'
-        printf 'A promotion review could establish which VERSION was being proposed and not\n'
-        printf 'which COMMIT had been validated: the gate summary went to a terminal and to\n'
-        printf '`tmp/gate-result.txt`, which is gitignored. "The build that would go to beta is\n'
-        printf 'not the build that was validated" was a reasonable conclusion and nothing cheap\n'
-        printf 'could disprove it.\n\n'
-        printf 'Every row is written by `tools/release.sh` after its gate passed and before it\n'
-        printf 'tagged, so a row exists only for a build that was actually gated. The same facts\n'
-        printf 'travel inside the artefact, in `release-manifest.json` under `validated`.\n\n'
-        printf '| Version | Channel | Commit | Files | Tests | Gated (UTC) |\n'
-        printf '|---|---|---|---|---|---|\n'
-    } > "$GATE_LOG"
-fi
-printf '| %s | %s | `%s` | %s | %s | %s |\n' \
-    "$VERSION" "$CHANNEL" "$TARGET_SHA" "$GATE_FILES" "$GATE_TESTS" \
-    "$(date -u '+%Y-%m-%d %H:%M')" >> "$GATE_LOG"
-
 # --- cleanup ---
 
 # SM895 G3: --keep-stage means "even on success"; a failed stage is kept by the
 # trap regardless, and the next run removes it (prune_dead_stages).
-[ "$KEEP_STAGE" = 1 ] || rm -rf "$STAGE"
+if [ "$KEEP_STAGE" != 1 ]; then
+    git -C "$ORIGIN" worktree remove --force "$STAGE" 2>/dev/null || rm -rf "$STAGE"
+    git -C "$ORIGIN" worktree prune 2>/dev/null || true
+fi
 
 echo ""
-echo "==> Released $TAG"
-printf "    commit:  %s\n" "$TARGET_SHA"
-printf "    tag:     %s\n" "$TAG"
-printf "    tarball: %s\n" "$FINAL_DIST/lazysite-$VERSION.tar.gz"
-printf "    sha256:  %s\n" "$SHA256"
+echo "==> Built $TAG"
+printf "    release commit: %s (on main)\n" "$RELEASE_SHA"
+printf "    gated commit:   %s\n" "$TARGET_SHA"
+printf "    main:           %s\n" "$NEW_MAIN"
+printf "    tag:            %s (LOCAL)\n" "$TAG"
+printf "    tarball:        %s\n" "$FINAL_DIST/lazysite-$VERSION.tar.gz"
+printf "    sha256:         %s\n" "$SHA256"
 for deb in "$FINAL_DIST"/*_"$VERSION"-1_all.deb; do
-    [ -f "$deb" ] && printf "    package: %s\n" "$(basename "$deb")"
+    [ -f "$deb" ] && printf "    package:        %s\n" "$(basename "$deb")"
 done
 [ -f "$FINAL_DIST/lazysite-skill-$VERSION.zip" ] \
-    && printf "    skill:   lazysite-skill-%s.zip (claude.ai, carries the deb)\n" "$VERSION"
-if [ "$NO_FETCH" = 1 ]; then
-    printf "    tag:     LOCAL AND UNPUSHED - tools/release.sh publish $VERSION\n"
-fi
-printf "    gate:    %s files, %s tests\n" "$GATE_FILES" "$GATE_TESTS"
+    && printf "    skill:          lazysite-skill-%s.zip (claude.ai, carries the deb)\n" "$VERSION"
+printf "    gate:           %s files, %s tests\n" "$GATE_FILES" "$GATE_TESTS"
 echo ""
-echo "==> UNCOMMITTED: docs/releases/GATE-LOG.md gained a row for $VERSION."
-if [ -f "$ORIGIN/dist/config/coverage-last.json" ]; then
-    echo "==> UNCOMMITTED: dist/config/coverage-last.json records this run's"
-    echo "    coverage against the digest of what produced it. Commit it, or the"
-    echo "    next identical build re-derives an answer it already has."
-fi
-echo "    Commit it, or the next promotion review has no record of what was gated."
+echo "==> The release manager's step - pushes main and $TAG together:"
+echo "    tools/release.sh publish $VERSION"

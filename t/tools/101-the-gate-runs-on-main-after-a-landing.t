@@ -12,8 +12,9 @@
 #     prompt (t/lint/208);
 #   - a passed receipt for the same commit, version and channel is printed, and
 #     nothing runs again;
-#   - before the pre-cut pass (the practice briefing stamped for the last
-#     release) it rehearses, which `build` will refuse;
+#   - every commit is gated for real - the gate writes the release material
+#     into its stage, so there is no pre-cut pass to wait for and no rehearsal
+#     (SM971) - and a receipt from before that is not taken as "already gated";
 #   - the version is NEXT_VERSION, and only when it is what release.sh would
 #     propose; a burned version, a second concurrent run and a failed gate are
 #     each refused or reported, never guessed past.
@@ -54,13 +55,13 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
     [ -e /proc/$$/fd/9 ] && echo "FD9-INHERITED"
 } >> "$ROOT/calls"
 if [ -n "${STANDIN_FAIL:-}" ]; then echo "the suite failed here"; exit 1; fi
-V=$2 SHA=$4 RES=pass CH=edge
+V=$2 SHA=$4 CH=edge
 for a in "$@"; do
-    case $a in --rehearse) RES=rehearsal ;; --beta) CH=beta ;; --final) CH=stable ;; esac
+    case $a in --beta) CH=beta ;; --final) CH=stable ;; esac
 done
 mkdir -p "$ROOT/tmp/release-gate/$V"
-printf 'sha=%s\nversion=%s\nchannel=%s\nresult=%s\ncoverage=reused\ncoverage_from=sha=abc\nfinished=now\n' \
-    "$SHA" "$V" "$CH" "$RES" > "$ROOT/tmp/release-gate/$V/receipt"
+printf 'sha=%s\nversion=%s\nchannel=%s\nresult=pass\ncoverage=reused\ncoverage_from=sha=abc\nmaterial_tool=abc\nfinished=now\n' \
+    "$SHA" "$V" "$CH" > "$ROOT/tmp/release-gate/$V/receipt"
 SH
 
 sub git { my ( $d, @a ) = @_; my $o = run_cmd( 'git', '-C', $d, @a ); die "git @a: $o" if $?; chomp $o; $o }
@@ -132,23 +133,31 @@ subtest 'a passed receipt for the same commit is printed, not re-run' => sub {
     like( slurp("$d/calls"), qr/^ARGS gate 0\.1\.1 --commit $sha2 --beta$/m, 'with the channel passed on' );
 };
 
-subtest 'before the pre-cut pass it rehearses' => sub {
+subtest 'a tree still stamped for the last release is gated for real' => sub {
     my $d = repo( stamp => '0.1.0' );
     my ( $rc, $out ) = gate_main($d);
     is( $rc, 0, 'exit 0' ) or diag($out);
-    like( slurp("$d/calls"), qr/^ARGS gate 0\.1\.1 --commit \S+ --rehearse$/m, 'release.sh gate --rehearse' );
-    like( $out, qr/not cut-ready - the practice briefing is stamped 0\.1\.0/, 'saying why' );
-    like( $out, qr/rehearsal for /, 'and reports a rehearsal' );
-    ( $rc, $out ) = gate_main($d);
-    like( $out, qr/already gated/, 'which is not repeated for the same commit either' );
-    is( calls($d), 1, 'release.sh ran once' );
+    like( slurp("$d/calls"), qr/^ARGS gate 0\.1\.1 --commit [0-9a-f]{40}$/m,
+        'release.sh gate, with no rehearsal - the gate writes the material itself' );
+    unlike( $out,                           qr/rehears/i, 'and nothing says rehearsal' );
+    unlike( slurp("$d/tools/gate-main.sh"), qr/rehears/i, 'gate-main.sh has no rehearsal left in it' );
+};
+
+subtest 'a receipt from a gate that did not test the release material is gated again' => sub {
+    my $d = repo();
+    gate_main($d);
+    my $r = "$d/tmp/release-gate/0.1.1/receipt";
+    my $t = slurp($r) =~ s/^material_tool=.*\n//mr;
+    spit( $r, $t );
+    my ( $rc, $out ) = gate_main($d);
+    is( calls($d), 2, 'a receipt with no material_tool is not "already gated"' );
 };
 
 subtest 'the version is not guessed' => sub {
     my $d = repo( next => '0.2.0', stamp => '0.2.0' );
     my ( $rc, $out ) = gate_main($d);
     is( $rc, 2, 'NEXT_VERSION disagreeing with release.sh\'s proposal is refused' );
-    like( $out, qr/NEXT_VERSION .* says 0\.2\.0; release\.sh would propose 0\.1\.1/, 'naming both' );
+    like( $out, qr/NEXT_VERSION .* says 0\.2\.0; the patch after v0\.1\.0 is 0\.1\.1/, 'naming both' );
     is( calls($d), 0, 'and nothing ran' );
     ( $rc, $out ) = gate_main( $d, '--version', '0.2.0' );
     is( $rc, 0, 'a version given explicitly is used' ) or diag($out);
