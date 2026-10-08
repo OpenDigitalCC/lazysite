@@ -134,7 +134,7 @@ if [ "$RC" = 0 ]; then
     # Added lines only: a context line of this very file carries the literal in
     # the message below, and matched itself once handoff.sh was edited near it.
     if git diff "$parent"...HEAD | grep '^+' | grep -v '^+++' | grep -q "gh\.072103"; then
-      fail "$b: the diff carries the mangled literal 'gh.072103' - repair it"
+      fail "$b: the diff carries the mangled literal (gh, a dot, 072103) - repair it"
     fi
     say "==> precheck $b against $parent (lints + related tests, ~10 s)"
     if [ "$RC" != 0 ] || ! bash tools/precheck.sh "$parent"; then
