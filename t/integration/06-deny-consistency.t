@@ -36,9 +36,12 @@ sub deny_set {
     return [ sort @items ];
 }
 
-# SM190: the .well-known/ai-partner deny list is now CODE-SERVED from
-# lazysite-processor.pl (_ai_partner_doc), not the static page - read it there.
-my $wk = deny_set( "$root/lazysite-processor.pl",   qr/deny\s*=>/ );
+# SM190: the .well-known/ai-partner deny list is now CODE-SERVED by the
+# processor (_ai_partner_doc, in its output part since SM944 S12), not the
+# static page - read it there.
+my $AI_PARTNER = "$root/lazysite-processor/output.pm";
+
+my $wk = deny_set( $AI_PARTNER,                     qr/deny\s*=>/ );
 my $br = deny_set( "$root/tools/lazysite-users.pl", qr/\bdeny:/ );
 
 is_deeply( $wk, \@CANONICAL,
@@ -71,7 +74,7 @@ sub note_for {
     return $joined;
 }
 
-my $wk_note = note_for( "$root/lazysite-processor.pl",   '/lazysite/forms/submissions/' );
+my $wk_note = note_for( $AI_PARTNER,                     '/lazysite/forms/submissions/' );
 my $br_note = note_for( "$root/tools/lazysite-users.pl", '/lazysite/forms/submissions/' );
 
 like( $wk_note, qr/WebDAV/i,

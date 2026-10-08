@@ -88,9 +88,11 @@ subtest 'every redirect states its content type' => sub {
     # rather than fixing the reported instance found seven, three of them in the
     # auth wrapper, which is also on the gating path.
     my @bare;
+    # SM944: the processor's parts are the processor, and answer its requests.
+    my @parts = map { s{\A\Q$root/\E}{}r } sort glob("$root/lazysite-processor/*.pm");
     for my $file (
         qw(lazysite-processor.pl lazysite-front.pl
-        lazysite-manager-api.pl lazysite-auth.pl)
+        lazysite-manager-api.pl lazysite-auth.pl), @parts
         )
     {
         my @l = split /\n/, slurp($file);

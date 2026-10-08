@@ -33,11 +33,17 @@ use Lazysite::SecurityHeaders ();
 
 my $root = repo_root();
 
+# SM944 S12: the copy is in the processor's output part.
 my $src = do {
-    open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+    open my $fh, '<', "$root/lazysite-processor/output.pm" or die $!;
     local $/;
     <$fh>;
 };
+
+# The processor is the script and its parts: a response path in any of them is
+# a response path of the processor (SM944).
+my @PROCESSOR = ( 'lazysite-processor.pl',
+    map { s{\A\Q$root/\E}{}r } sort glob("$root/lazysite-processor/*.pm") );
 
 # A body with the shapes that actually decide the answer: two distinct inline
 # scripts, one REPEAT (which must collapse to a single hash rather than being
@@ -72,7 +78,7 @@ subtest 'the processor carries the copy, and it agrees' => sub {
         )
     {
         my ($sub) = $src =~ /(\nsub \Q$name\E \{.*?\n\}\n)/s;
-        ok( $sub, "lazysite-processor.pl carries its own $name" ) or return;
+        ok( $sub, "the processor's output part carries its own $name" ) or return;
         # _conf_value reads $LAZYSITE_DIR, a package global in the processor's
         # own main::. Declared here so the extracted copy compiles under strict
         # in its own package - and so the fixture below can point it at a
@@ -223,22 +229,25 @@ subtest 'and no response path answers without it' => sub {
     # COMMENTS ARE SKIPPED, because the corrected comment quotes the very string
     # this searches for and an earlier version of this check flagged it. The
     # same self-match that made the subtest below need its $in_def guard.
-    open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
-    my @lines = <$fh>;
-    close $fh;
+    my @naked;
+    for my $file (@PROCESSOR) {
+        open my $fh, '<', "$root/$file" or die "$file: $!";
+        my @lines = <$fh>;
+        close $fh;
 
-    my ( @naked, $sub );
-    for my $i ( 0 .. $#lines ) {
-        my $l = $lines[$i];
-        $sub = $1 if $l =~ /^sub (\w+)/;
-        next if $l =~ /^\s*#/;
-        next unless $l =~ /print "Status:/;
-        next if ( $sub // '' ) eq 'output_page';    # the choke point itself
+        my $sub;
+        for my $i ( 0 .. $#lines ) {
+            my $l = $lines[$i];
+            $sub = $1 if $l =~ /^\s*sub (\w+)/;
+            next if $l =~ /^\s*#/;
+            next unless $l =~ /print "Status:/;
+            next if ( $sub // '' ) eq 'output_page';    # the choke point itself
 
-        my $window = join '', grep { !/^\s*#/ }
-            @lines[ $i .. ( $i + 7 > $#lines ? $#lines : $i + 7 ) ];
-        push @naked, ( $sub // '?' ) . " (line @{[ $i + 1 ]})"
-            unless $window =~ /_security_headers/;
+            my $window = join '', grep { !/^\s*#/ }
+                @lines[ $i .. ( $i + 7 > $#lines ? $#lines : $i + 7 ) ];
+            push @naked, "$file: " . ( $sub // '?' ) . " (line @{[ $i + 1 ]})"
+                unless $window =~ /_security_headers/;
+        }
     }
 
     is_deeply( \@naked, [],
@@ -254,7 +263,7 @@ subtest 'every response path emits the set' => sub {
     # The defect this replaces was three paths writing a shorter list. Anything
     # printing the first header by hand is a path that has started its own.
     my @stray;
-    for my $file (qw(lazysite-processor.pl lazysite-front.pl)) {
+    for my $file ( @PROCESSOR, 'lazysite-front.pl' ) {
         open my $fh, '<', "$root/$file" or die $!;
         my ( $n, $in_def ) = ( 0, 0 );
         while ( my $l = <$fh> ) {

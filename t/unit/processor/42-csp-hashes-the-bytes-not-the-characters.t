@@ -31,10 +31,11 @@ use TestHelper                ();
 use Lazysite::SecurityHeaders qw(inline_script_hashes);
 
 # The processor's ADR-0001 copy, evaluated out of its source - it cannot be
-# loaded, because the file runs its main body at file scope.
+# loaded, because the file runs its main body at file scope. It is in the
+# processor's output part (SM944 S12).
 my $root = TestHelper::repo_root();
 my $src  = do {
-    open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+    open my $fh, '<', "$root/lazysite-processor/output.pm" or die $!;
     local $/;
     <$fh>;
 };

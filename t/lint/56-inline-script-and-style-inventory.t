@@ -159,11 +159,13 @@ subtest 'and the CSP is honest about every one of them' => sub {
     # (`unlike` on a literal print of the header) would have gone on PASSING
     # after the header was added, because the header is pushed onto a list
     # rather than printed - a test surviving the change it existed to notice.
-    my $src = do {
-        open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+    # SM944: the processor is the script and its parts; the policy is built in
+    # its output part.
+    my $src = join "\n", map {
+        open my $fh, '<', $_ or die "$_: $!";
         local $/;
-        <$fh>;
-    };
+        scalar <$fh>;
+    } "$root/lazysite-processor.pl", sort glob("$root/lazysite-processor/*.pm");
 
     like( $src, qr/Content-Security-Policy/,
         'a CSP is emitted' );

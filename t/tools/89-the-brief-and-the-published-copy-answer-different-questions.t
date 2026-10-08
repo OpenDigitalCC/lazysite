@@ -28,7 +28,9 @@ sub slurp {
 }
 
 my $users = slurp("$root/tools/lazysite-users.pl");
-my $proc  = slurp("$root/lazysite-processor.pl");
+# The published site document is _ai_partner_doc, in the processor's output
+# part (SM944 S12).
+my $proc = slurp("$root/lazysite-processor/output.pm");
 my $dav   = slurp("$root/lazysite-dav.pl");
 
 subtest 'the brief sends a grant question to whoami, not to the site document' => sub {
