@@ -4,11 +4,11 @@ title: "SM944: Split the processor and the manager API into modules by area"
 subtitle: "lazysite-processor.pl is 10,378 lines and lazysite-manager-api.pl 5,247; reading any part costs navigating the whole."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08 (the Plan section, rows S1-S34): one area per branch, the processor as parts required by path beside the script (ADR 0001), the manager API into Manager modules. Next: S1."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. S1 built (n278): the front-matter parser is the processor's first part, required by path beside the script, keeping ADR 0001's module-free render path. Next: S2, the shared state the other processor areas read."
 ---
 
 # Measured
@@ -97,3 +97,7 @@ What stays in `lazysite-manager-api.pl`: the trust gate, the auth check, request
 
 Every row is a pure move in its own branch: the moved block appears in `git diff --color-moved`; anything adapted (a declaration, an import, a re-laid line) is a separate commit after it; tests that read the moved code by path, and the lints that list files, follow it in the same branch.
 
+# Built
+
+S1 (n278)
+: the front-matter parser moved to `lazysite-processor/front-matter.pm`; the loader, the manifest rule, the deb payload, the lint scopes and lint 215 (the parts stay module-free and loaded by path) landed with it.

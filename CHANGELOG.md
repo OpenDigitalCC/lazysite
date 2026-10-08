@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the processor's first part** (S1 of the plan in
+  the filing). The front-matter parser moves, unchanged, from
+  `lazysite-processor.pl` to `lazysite-processor/front-matter.pm`, which the
+  script requires by absolute path from beside itself, never through `@INC`, so
+  the render path stays free of the `lib/` tree (ADR 0001). The manifest installs
+  parts to `{CGIBIN}/lazysite-processor/` and the deb payload carries them; the
+  lints that sweep the shipped Perl read them; t/lint/215 keeps each one package
+  main, loading nothing, loaded by name and defining no sub twice. No behaviour
+  change; cache-hit and miss render times unchanged.
+
 - SM971 (PENDING) **a release is one commit on main, and its gate has already
   run** (release manager, 2026-10-08). `tools/release-material.pl` writes the
   CHANGELOG section, every PENDING ref's landed SHA (the commit that added that
