@@ -53,6 +53,19 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the ACL, group and domain copies are the
+  processor's eighteenth part** (S19 of the plan in the filing).
+  `_acl_allows_read` and the ACL family, the private-store copies,
+  `_groups_grant_cap` (ADR 0001's marked copy), the group closure, the
+  display-name copy and the domain-access copy move unchanged to
+  `lazysite-processor/acl.pm`. Lint 31 and test processor/70 follow their
+  copies into the part and still compare them with the shared
+  implementations; lint 31 also requires the read-decision copy to be
+  defined once in the whole processor. Lint 13 now looks for the trust gate
+  in code rather than comments and accepts a `delete @ENV{...}` spanning
+  lines: it had been passing the manager API on a comment. No behaviour
+  change; the render times are unchanged.
+
 - SM944 (PENDING) **internal: the page pipeline is the processor's
   seventeenth part** (S18 of the plan in the filing). `process_md`,
   `process_url`, `sanitise_uri`, `confine_content_root`, the static serve,
