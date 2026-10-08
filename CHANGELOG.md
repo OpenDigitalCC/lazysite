@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: sources and site vars are the processor's
+  thirteenth part** (S14 of the plan in the filing). The tt-var sources
+  (`json:`, `db:`, env interpolation), the dependency record, nav, the conf
+  peeks and the scan's visibility tests move unchanged to
+  `lazysite-processor/sources.pm`. The site-vars memo stays in the script:
+  its initialisers would run earlier in a part, which is a change, not a move.
+  No behaviour change.
+
 - SM944 (PENDING) **internal: the request address and host are the processor's
   twelfth part** (S13 of the plan in the filing). `_request_host`,
   `_request_address` and the trusted-proxy readers move unchanged to

@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S13 (n281-n295) oEmbed, URL remapper, components, content-type cache, gates, access log, front door, include and Markdown, forms, output, request host and address. Next: S14, sources and site vars."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S14 (n281-n296) oEmbed, remapper, components, content-type cache, gates, access log, front door, include, forms, output, request host and address, sources (memo stays). Next: S15, scan and registries."
 ---
 
 # Measured
@@ -137,3 +137,6 @@ S12 (n293)
 
 S13 (n295)
 : the request host and address (9 subs, 150 lines, `_instance_id` among them) moved to `lazysite-processor/request.pm`; it has no file-scope state. `AF_INET` and `AF_INET6` are written as calls (B::Deparse identical). Lints 203 and 205 read the part, 205's norm reading the call form as the constant; lint 206's REMOTE_ADDR ledger and 205's default-is-a-sub check read the script and every part.
+
+S14 (n296)
+: the Sources and site vars section (22 subs, 828 lines, two blocks) moved to `lazysite-processor/sources.pm`. Between them, the P-2 site-vars memo with `resolve_site_vars` and `reset_request_state` STAYS in the script: its `my` statements carry initialisers, which run after the main flow in the script and would run at BEGIN in a part. Loaded as the tests load it, the script clears the memo after the load request and the part would not (rewrite the conf under the same mtime: the script answers the new conf, the part the old). `_scan_identity`'s bare block moves; it has no initialiser (the S8 shape). Lints 203 (`_env_value`) and 37 (`_site_path`) read the part.
