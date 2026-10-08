@@ -139,9 +139,16 @@ In production, configure a payment proxy to:
 Configure header names in `lazysite/lazysite.conf`:
 
 ```yaml
+auth_proxy_trusted: true
 payment_header_verified: X-Payment-Verified
 payment_header_payer: X-Payment-Payer
 ```
+
+**The engine believes these headers only from a proxy it trusts.** Set
+`auth_proxy_trusted: true` whenever a proxy supplies them, and make sure the
+proxy strips them from incoming requests before setting its own: without the
+flag the engine discards them and logs it, because a visitor can send any
+header they like.
 
 ## Demo mode
 

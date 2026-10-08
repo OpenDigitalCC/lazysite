@@ -1650,16 +1650,23 @@ sub apply_trust_gate {
     # X-Remote-* alone, so a custom name is stripped behind it too: only a
     # trusted proxy (auth_proxy_trusted: true) may supply one.
     my @custom;
-    for my $k (qw(auth_header_user auth_header_name auth_header_email auth_header_groups)) {
+    # SM972: and the two PAYMENT header names (payment_header_verified/_payer) -
+    # the same shape: a custom name for a header the paid-content gate believes.
+    for my $k (
+        qw(auth_header_user auth_header_name auth_header_email auth_header_groups
+        payment_header_verified payment_header_payer)
+        )
+    {
         my $h = $sv{$k};
         next unless defined $h && length $h;
         ( my $e = 'HTTP_' . uc $h ) =~ s/-/_/g;
-        push @custom, $e unless $e =~ /\AHTTP_X_REMOTE_(?:USER|NAME|EMAIL|GROUPS)\z/;
+        push @custom, $e
+            unless $e =~ /\AHTTP_X_(?:REMOTE_(?:USER|NAME|EMAIL|GROUPS)|PAYMENT_(?:VERIFIED|PAYER))\z/x;
     }
     for my $e (@custom) {
         next unless defined $ENV{$e};
         log_event( 'WARN', $uri,
-            'untrusted auth header ignored - a custom auth_header_* name needs auth_proxy_trusted: true',
+            'untrusted header ignored - a custom auth_header_*/payment_header_* name needs auth_proxy_trusted: true',
             header => $e );
         delete $ENV{$e};
     }

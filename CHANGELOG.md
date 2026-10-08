@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM972 (PENDING) **security: a custom payment header name was trusted from
+  anyone.** With `payment_header_verified` set to a custom name and no
+  `auth_proxy_trusted: true`, a visitor sending that header was served paid
+  content - the trust gate stripped only the fixed `X-Payment-*` names (SM960
+  fixed the same for auth headers, not payment). It now strips configured
+  payment names too. **A site using custom payment header names must set
+  `auth_proxy_trusted: true`.** Found while moving the payment gate (SM944 S7);
+  t/integration/109.
+
 - SM944 (PENDING) **internal: the front door is the processor's eighth part**
   (S9 of the plan in the filing). `_front_door`, `_front_route` (the copy of
   Lazysite::FrontDoor::route) and the relay move unchanged to
