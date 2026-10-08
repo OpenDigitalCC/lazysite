@@ -41,7 +41,11 @@ sub slurp {
 my $DOC  = slurp("$root/docs/architecture/access-control-model.md");
 my $FEAT = slurp("$root/docs/FEATURES.md");
 my $ACL  = slurp("$root/lib/Lazysite/Auth/Acl.pm");
-my $PROC = slurp("$root/lazysite-processor.pl");
+# SM944: the processor is the script and its parts; a decision that moves into
+# a part (the include path's ACL refusal is in include.pm) is still the
+# processor's.
+my $PROC = join "\n", map { slurp($_) } "$root/lazysite-processor.pl",
+    sort glob("$root/lazysite-processor/*.pm");
 
 # The reference half only - the appendix is history and may say what was true
 # when it was written.

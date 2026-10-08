@@ -32,6 +32,8 @@ sub src {
 }
 my $auth = src('lazysite-auth.pl');
 my $proc = src('lazysite-processor.pl');
+# SM944 S10: the include path is in the processor's include part.
+my $include = src('lazysite-processor/include.pm');
 
 subtest 'the trust source clears every trusted field it does not produce' => sub {
     # The six the gate covers. Two are produced from the verified cookie; the
@@ -70,7 +72,7 @@ subtest 'the canonical serve excludes the engine tree, as the include path does'
             . 'STRING. A symlink resolves past it.' );
 
     # The include path is the reference, and the point is that they now agree.
-    my ($inc) = $proc =~ /(sub _resolve_include.{0,4000})/s;
+    my ($inc) = $include =~ /(sub _resolve_include.{0,4000})/s;
     like( $inc, qr/_path_under\(\s*\$real,\s*"?\$LAZYSITE_DIR"?\s*\)/,
         'the include path makes the same test - one rule, two sinks' );
 };

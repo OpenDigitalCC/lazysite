@@ -222,7 +222,12 @@ for my $rel (@NGINX) {
     # to notice.
     # Comments stripped: the processor DESCRIBES this trap at length, and the
     # description must not be what satisfies the check.
-    unlike( code_of($proc), qr/_acl_denied/,
+    #
+    # SM944: of the WHOLE processor, so its parts are read too - the include
+    # path's SM898 refusal is an ACL decision, and it lives in include.pm.
+    my $whole = join "\n", $proc,
+        map { slurp($_) } sort glob("$root/lazysite-processor/*.pm");
+    unlike( code_of($whole), qr/_acl_denied/,
         'the public path never uses _acl_denied - it bypasses via _is_operator '
             . 'on an unsecured site' );
 
