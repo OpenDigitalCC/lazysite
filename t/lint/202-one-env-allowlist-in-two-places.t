@@ -28,7 +28,7 @@ open my $fh, '<', "$root/lazysite-processor.pl" or BAIL_OUT("processor: $!");
 my $src = do { local $/; <$fh> };
 close $fh;
 
-my ($block) = $src =~ /my \s+ %ENV_ALLOWLIST \s* = \s* map \s* \{[^}]*\} \s* qw\( ([^)]*) \)/xs;
+my ($block) = $src =~ /our \s+ %ENV_ALLOWLIST \s* = \s* map \s* \{[^}]*\} \s* qw\( ([^)]*) \)/xs;
 ok( defined $block, 'the processor still carries its own %ENV_ALLOWLIST' )
     or BAIL_OUT('the processor copy could not be found - this lint is now blind');
 

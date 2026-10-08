@@ -14,6 +14,8 @@ render path**, which stays module-free so the page-serving hot path has no
 `docs/architecture/code-quality.md`). Since SM944 the processor is split by area
 into **parts** under `lazysite-processor/`: package-main files it requires by
 absolute path from beside itself, never through `@INC`, so the property holds.
+State a part shares with the script is declared `our` in the script; a part
+never names the script's `my` variables (t/lint/215).
 Core-Perl only, plus optional Template
 Toolkit / Archive::Zip / DB_File.
 

@@ -78,7 +78,12 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
 
 # --- Configuration ---
 
-my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
+# SM944: `our` marks file-scope state a part in lazysite-processor/ reads; `my`
+# is state only this script reads. A part is a separate file and cannot see a
+# `my` here, and an `our` it declared for one would be a different, empty
+# variable - t/lint/215 holds that line. Each is still initialised here, above
+# the request dispatch, which runs before execution reaches anything below it.
+our $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 
 # SM293: ASK where the engine tree is, do not compute one answer.
@@ -107,7 +112,7 @@ sub _lazysite_dir_for {
     my $ext = "$parent/$leaf-lazysite";
     return -d $ext ? $ext : "$d/lazysite";
 }
-my $LAZYSITE_DIR = _lazysite_dir_for($DOCROOT);
+our $LAZYSITE_DIR = _lazysite_dir_for($DOCROOT);
 
 # SM270: can THIS process write here? Ownership and mode arithmetic, never -w.
 #
@@ -141,9 +146,9 @@ my $LAZYSITE_URI = "/lazysite";
 # always-off in exactly the deployment it exists for. $DOCROOT above is captured
 # for the same reason. t/lint/43 pins it.
 my $FRONT_DOOR     = $ENV{LAZYSITE_FRONT_DOOR} ? 1 : 0;
-my $FRONT_CGIBIN   = $ENV{LAZYSITE_CGIBIN} // '';
-my $RELAY_TIMEOUT  = ( $ENV{LAZYSITE_RELAY_TIMEOUT} || 120 ) + 0;
-my $PREVIEW_COOKIE = 'lzs_preview';    # SM071: theme/layout preview cookie
+our $FRONT_CGIBIN   = $ENV{LAZYSITE_CGIBIN} // '';
+our $RELAY_TIMEOUT  = ( $ENV{LAZYSITE_RELAY_TIMEOUT} || 120 ) + 0;
+our $PREVIEW_COOKIE = 'lzs_preview';    # SM071: theme/layout preview cookie
 
 # SM201: engine-required system pages (auth + error) are served with a fallback so
 # a deleted or never-seeded content copy never 404s the sign-in / sign-up flow,
@@ -177,7 +182,7 @@ for my $i ( 0 .. $#ARGV ) {
 }
 $CONF_OVERRIDE //= $ENV{LAZYSITE_CONF};
 
-my $CONF_FILE = $CONF_OVERRIDE
+our $CONF_FILE = $CONF_OVERRIDE
     ? $CONF_OVERRIDE
     : "$LAZYSITE_DIR/lazysite.conf";
 # D013: layouts/ is the new structural root. A local layout lives at
@@ -186,19 +191,19 @@ my $CONF_FILE = $CONF_OVERRIDE
 # fallback ($LAZYSITE_DIR/templates/*.tt) and no default view.tt path —
 # if no layout is installed, the embedded $FALLBACK_LAYOUT is the sole
 # fallback.
-my $LAYOUT_DIR     = "$LAZYSITE_DIR/layouts";
-my $REGISTRY_DIR   = "$LAZYSITE_DIR/templates/registries";
-my $MANAGER_LAYOUT = "$LAZYSITE_DIR/manager/layout.tt";
-my $REMOTE_TTL     = 3600;   # seconds before remote content is refetched (default 1 hour)
-my $REGISTRY_TTL   = 14400;  # seconds before registries are regenerated (default 4 hours)
+our $LAYOUT_DIR     = "$LAZYSITE_DIR/layouts";
+our $REGISTRY_DIR   = "$LAZYSITE_DIR/templates/registries";
+our $MANAGER_LAYOUT = "$LAZYSITE_DIR/manager/layout.tt";
+our $REMOTE_TTL     = 3600;  # seconds before remote content is refetched (default 1 hour)
+our $REGISTRY_TTL   = 14400; # seconds before registries are regenerated (default 4 hours)
 # SM091: the cache base normally lives under the docroot, but a read-only
 # browse (the dev server's --auto-index) can relocate it off the docroot via
 # LAZYSITE_CACHE_DIR so pointing the processor at an arbitrary tree writes
 # nothing into it. Unset (production / tests) keeps the original location.
 my $CACHE_BASE       = $ENV{LAZYSITE_CACHE_DIR} || "$LAZYSITE_DIR/cache";
-my $LAYOUT_CACHE_DIR = "$CACHE_BASE/layouts";
-my $CT_CACHE_DIR     = "$CACHE_BASE/ct";
-my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";       # P-4 TT on-disk compile cache
+our $LAYOUT_CACHE_DIR = "$CACHE_BASE/layouts";
+our $CT_CACHE_DIR     = "$CACHE_BASE/ct";
+our $TT_COMPILE_DIR   = "$CACHE_BASE/tt";        # P-4 TT on-disk compile cache
 my $HOST_CACHE_DIR   = "$CACHE_BASE/hosts";    # SM110 phase 2: per-alias-host page cache
 
 # SM311's dependency record: what this render READ, beyond its own source, so
@@ -221,22 +226,22 @@ our $TT_DEP_LIVE;    # a source with no local mtime (url:) was used
 #
 # Under $CACHE_BASE, so on a migrated site (SM293 step 2) it is outside the
 # document root along with everything else the engine owns.
-my $REGISTRY_CACHE_DIR = "$CACHE_BASE/registries";
-my %AUTH_CONTEXT;         # populated by main() auth check, read by render_content()
-my %ACCESS_REC;           # SM140: per-request outcome for the first-party access log
-my $RESPONSE_LANG = 'en'; # SM179 (P1): the rendered page's language, set per
-                          # request from page_lang; emitted as Content-Language.
-my $REQUEST_CROOT;        # SM151: the request's confined content root (undef => docroot),
-                          # set by main(), read by resolve_scan() so per-domain search is
-                          # boxed to the requesting domain's subtree without re-entering
+our $REGISTRY_CACHE_DIR = "$CACHE_BASE/registries";
+our %AUTH_CONTEXT;            # populated by main() auth check, read by render_content()
+our %ACCESS_REC;              # SM140: per-request outcome for the first-party access log
+our $RESPONSE_LANG = 'en';    # SM179 (P1): the rendered page's language, set per
+                              # request from page_lang; emitted as Content-Language.
+our $REQUEST_CROOT;    # SM151: the request's confined content root (undef => docroot),
+                       # set by main(), read by resolve_scan() so per-domain search is
+                       # boxed to the requesting domain's subtree without re-entering
     # resolve_site_vars (which calls resolve_scan for conf directives)
-my $ACL_MAP_CACHE;    # SM268 H13: acls.json parsed at most once per request -
+our $ACL_MAP_CACHE;    # SM268 H13: acls.json parsed at most once per request -
                       # a scan asks the read decision up to 200 times. undef =
                       # not loaded, 0 = load failed (fail closed), hashref = the
                       # store.
 
 # Built-in fallback template - used when no layout.tt is found
-my $FALLBACK_LAYOUT = <<'END_FALLBACK';
+our $FALLBACK_LAYOUT = <<'END_FALLBACK';
 <!DOCTYPE html>
 <html lang="[% page_lang || 'en' %]">
 <head>
@@ -309,7 +314,7 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 END_FALLBACK
 
 # Extension to language identifier map for include code block wrapping
-my %LANG_MAP = (
+our %LANG_MAP = (
     md   => 'markdown',
     yml  => 'yaml', yaml => 'yaml',
     sh   => 'bash', bash => 'bash',
@@ -328,7 +333,7 @@ my %LANG_MAP = (
 # Allowlist of CGI environment variables that may be interpolated in lazysite.conf
 # Note: HTTP_HOST is intentionally excluded - it is request-supplied and untrusted.
 # Use SERVER_NAME for host-based URL construction.
-my %ENV_ALLOWLIST = map { $_ => 1 } qw(
+our %ENV_ALLOWLIST = map { $_ => 1 } qw(
     SERVER_NAME SERVER_PORT REQUEST_SCHEME HTTPS
     REQUEST_URI REDIRECT_URL
     DOCUMENT_ROOT SERVER_ADMIN
@@ -349,7 +354,7 @@ my %ENV_ALLOWLIST = map { $_ => 1 } qw(
 # its own canonical/absolute base URL for links, sitemap and feeds. Both are
 # still presentation/routing only - they move no auth, management or update
 # surface, so they stay safe to select via a declared Host.
-my %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
+our %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
     qw(site_name theme layout nav_file search_default content_root site_url
     lang lang_group);    # SM179: per-host language + language-set membership
 
@@ -358,7 +363,7 @@ my %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
 # (xml/rss/atom/txt) plus common web assets; anything unlisted falls back to
 # octet-stream (a safe download). Declared here in the config block so it is
 # initialised before the request is dispatched.
-my %STATIC_CT = (
+our %STATIC_CT = (
     xml   => 'application/xml; charset=utf-8',
     rss   => 'application/rss+xml; charset=utf-8',
     atom  => 'application/atom+xml; charset=utf-8',
@@ -1486,8 +1491,8 @@ sub serve_403 {
 
 # --- Payment ---
 
-my %PAYMENT_CONTEXT;    # populated by main(), read by render_content()
-my %PREVIEW_CONTEXT;    # SM071: preview layout/theme override, set by main()
+our %PAYMENT_CONTEXT;    # populated by main(), read by render_content()
+our %PREVIEW_CONTEXT;    # SM071: preview layout/theme override, set by main()
 
 sub peek_payment {
     my ($path) = @_;
