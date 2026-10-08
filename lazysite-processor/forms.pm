@@ -30,6 +30,8 @@ package main;
 use strict;
 use warnings;
 
+our ( $FORM_TS_PLACEHOLDER, $FORM_TK_PLACEHOLDER, $LAZYSITE_DIR, %RENDER_QUERY );
+
 # --- Forms ---
 
 sub load_form_secret {
