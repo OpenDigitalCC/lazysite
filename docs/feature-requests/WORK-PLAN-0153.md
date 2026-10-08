@@ -49,7 +49,7 @@ starts.
 | Q12b | ~~[[SM970]] - a value used as a whole link target keeps its URL scheme~~ **built (n275) as ruled** - the `url_safe` filter, authoring docs, lint 213 | ruled 2026-10-07: option 1 with 3 | S |
 | Q12c | ~~[[SM971]] release process: one generator, gate tests the material, one release commit, publish pushes main and the tag~~ **built (n276)** - tools/release-material.pl, no rehearsal, build commits and tags, handoff --stack | release manager 2026-10-08 | M |
 | Q13a | ~~E5 [[SM943]] stages 2-3~~ **built (n274)** - the MCP twins and annotations from the declaration; the consistency lints reduced to one completeness check | Q7/Q8 need only stage 1 | M |
-| Q13 | C2 [[SM883]] - measure the 1.20-1.27x slowdown on this machine, then bisect | measurement, no ruling needed | S-M |
+| Q13 | ~~C2 [[SM883]] - measure the 1.20-1.27x slowdown on this machine, then bisect~~ **measured (n277): the machine, not the code** - v0.14.1 is 1.01-1.03x the baseline's commit on the same host; no bisect, no code change; a 0.05 ms verify cost found at 416bdffb (SM906 T3, deliberate) | measurement, no ruling needed | S-M |
 | Q14 | E9 [[SM944]] - split the processor and the manager API, one area per branch | after E5; largest, so last | L |
 
 Applied throughout: E8 (comments state the invariant) on every file touched.
@@ -105,7 +105,7 @@ Open questions raised while working the queue:
 | Ref | Item | Needs |
 | --- | --- | --- |
 | C1 | [[SM911]] LD4 - MKCOL on an existing collection answers 405 under /assets/ and 403 under /lazysite/layouts/ | Reproduce with live scope state; size XS once found |
-| C2 | [[SM883]] - six operations uniformly 1.20-1.27x slower since ~0.14.0 | Check the machine, then bisect 2026-09-10..13 |
+| C2 | ~~[[SM883]] - six operations uniformly 1.20-1.27x slower since ~0.14.0~~ **measured (n277): the host on 2026-09-14; the window's code is flat** | Check the machine, then bisect 2026-09-10..13 |
 
 # Group D - waiting on something outside this plan
 
