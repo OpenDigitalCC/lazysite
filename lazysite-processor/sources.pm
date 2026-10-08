@@ -33,12 +33,14 @@ package main;
 use strict;
 use warnings;
 
+our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $CT_CACHE_DIR, $REQUEST_CROOT, $TT_DEP_LIVE, @TT_DEPS, %ENV_ALLOWLIST, %RENDER_QUERY );
+
 # --- Sources and site vars ---
 #
-# From here to the scan section below: environment interpolation, content-path
-# resolution, the language set, the json/db/tt-var sources a page can name, site
-# vars and their memo, the request host, nav, the lazysite.conf peeks and the
-# scan identity. The file ran 2,700 lines without a heading through here.
+# Environment interpolation, content-path resolution, the language set, the
+# json/db/tt-var sources a page can name, nav, the lazysite.conf peeks and the
+# scan identity. The site-vars memo stays in the script (see the note there) and
+# the request host is in request.pm (SM944 S13, S14).
 
 # SM926, RULED 2026-10-01: SERVER_NAME resolves to the host PRESENTED.
 #

@@ -28,7 +28,7 @@ use Socket       qw(inet_pton inet_ntop AF_INET AF_INET6);    # SM929: the reque
 # lib tree. A part is package main and loads nothing; a missing one fails here.
 BEGIN {
     my $parts = dirname( realpath(__FILE__) ) . '/lazysite-processor';
-    for my $part (qw(front-matter.pm oembed.pm remap.pm components.pm ct-cache.pm gates.pm access-log.pm front-door.pm include.pm forms.pm output.pm request.pm)) {
+    for my $part (qw(front-matter.pm oembed.pm remap.pm components.pm ct-cache.pm gates.pm access-log.pm front-door.pm include.pm forms.pm output.pm request.pm sources.pm)) {
         my $file = "$parts/$part";
         require $file;
     }
@@ -3573,6 +3573,17 @@ sub is_fresh {
     return $h >= ( ( stat $CONF_FILE )[9] // 0 );
 }
 
+# --- Site vars and their memo ---
+#
+# SM944 S14: THIS BLOCK STAYS IN THE SCRIPT while the sources around it are a
+# part (lazysite-processor/sources.pm), because its `my` statements carry
+# initialisers and where they run is behaviour. Here they run after the main
+# flow, so the processor loaded as the tests load it (`do`, which serves one
+# request) has the memo cleared once the load is done. In a part they would run
+# inside the loader's BEGIN, before that request, and leave the load request's
+# vars cached: rewrite the conf under the same mtime and ask again, and the part
+# answers the old conf where the script answers the new. Moving it is a change
+# of behaviour, not a move.
 {
     # P-2: per-process memoization of resolve_site_vars(). The file now calls it
     # from twenty-odd sites - main() alone reaches it five times, and
