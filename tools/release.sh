@@ -255,10 +255,18 @@ fi
 
 TAG="v$VERSION"
 
-if [ ! -d "$ORIGIN/.git" ]; then
+# Q14b: asked of git, not of a `.git` DIRECTORY - in a worktree it is a file.
+if ! git -C "$ORIGIN" rev-parse --git-dir >/dev/null 2>&1; then
     echo "release.sh: no git repo at $ORIGIN" >&2
     exit 1
 fi
+# Q14b: THE STATE LIVES IN THE MAIN CHECKOUT, wherever the code runs from.
+# Receipts, the coverage store and the lock go under the repository's main
+# working tree (the parent of git's common dir), so a gate run from a
+# `git worktree` - which keeps the tree it reads stable while development
+# switches branches in the main checkout - leaves its receipt where build looks.
+STATE_ROOT=$(git -C "$ORIGIN" rev-parse --path-format=absolute --git-common-dir)
+STATE_ROOT=$(dirname "$STATE_ROOT")
 
 # SM303: GATE AND BUILD NEVER TOUCH THE REMOTE. The origin check belongs to
 # publish, where the credentials and the judgement are.
@@ -270,7 +278,7 @@ if git -C "$ORIGIN" rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
     exit 1
 fi
 
-RECEIPT_DIR="$ORIGIN/tmp/release-gate/$VERSION"
+RECEIPT_DIR="$STATE_ROOT/tmp/release-gate/$VERSION"
 RECEIPT="$RECEIPT_DIR/receipt"
 receipt_field() { sed -n "s/^$1=//p" "$RECEIPT" 2>/dev/null | head -1; }
 
@@ -783,7 +791,7 @@ if [ "$MODE" = gate ]; then
 # never committed), one file per digest, and a gate OFFERS coverage.sh the
 # record for its own digest; coverage.sh still makes the decision (a pass, and
 # a digest equal to the one it computes) and still refuses on anything else.
-COV_STORE="$ORIGIN/tmp/release-gate/coverage-passes"
+COV_STORE="$STATE_ROOT/tmp/release-gate/coverage-passes"
 
 # The record to offer for a digest, or nothing.
 coverage_offer() {

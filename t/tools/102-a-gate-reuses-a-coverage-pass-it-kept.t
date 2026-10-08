@@ -72,6 +72,7 @@ sub gate {
     spit( "$o{origin}/run.sh", <<"RUN" );
 set -e
 ORIGIN="$o{origin}"
+STATE_ROOT="$o{origin}"    # Q14b: an ordinary checkout is its own state root
 STAGE="$stage"
 MODE=$mode
 TARGET_SHA=$o{sha}

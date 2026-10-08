@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- WORK-PLAN-0153 Q14b (PENDING) **the release gate can run from a `git
+  worktree`.** It refused one ("no git repo": it looked for a `.git` directory,
+  which a worktree has as a file) - and a long gate is safest run from a
+  worktree, because the main checkout switches branches during development and
+  bash reads a script as it runs. `release.sh` now asks git, and it and
+  `gate-main.sh` keep receipts, the coverage store and the lock in the main
+  checkout's `tmp/release-gate/` wherever they run from, so build finds them.
+  t/tools/101.
+
 - SM944 (PENDING) **internal: content components are the processor's fourth
   part** (S5 of the plan in the filing). `convert_fenced_components` and its
   helpers move unchanged to `lazysite-processor/components.pm`; lints 212 and

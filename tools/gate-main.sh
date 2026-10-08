@@ -120,7 +120,14 @@ fi
 burned "$VERSION"
 
 # --- already gated? ----------------------------------------------------------
-GATE_DIR="$ROOT/tmp/release-gate"
+# Q14b: THE STATE LIVES IN THE MAIN CHECKOUT, wherever the code runs from.
+# Receipts, the coverage store and the lock go under the repository's main
+# working tree (the parent of git's common dir), so a gate run from a
+# `git worktree` - which keeps the tree it reads stable while development
+# switches branches in the main checkout - leaves its receipt where build looks.
+STATE_ROOT=$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || STATE_ROOT="$ROOT/.git"
+STATE_ROOT=$(dirname "$STATE_ROOT")
+GATE_DIR="$STATE_ROOT/tmp/release-gate"
 RECEIPT_DIR="$GATE_DIR/$VERSION"
 RECEIPT="$RECEIPT_DIR/receipt"
 field() { sed -n "s/^$1=//p" "$RECEIPT" 2>/dev/null | head -1; }

@@ -59,9 +59,10 @@ V=$2 SHA=$4 CH=edge
 for a in "$@"; do
     case $a in --beta) CH=beta ;; --final) CH=stable ;; esac
 done
-mkdir -p "$ROOT/tmp/release-gate/$V"
+STATE=$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir); STATE=$(dirname "$STATE")    # as release.sh (Q14b)
+mkdir -p "$STATE/tmp/release-gate/$V"
 printf 'sha=%s\nversion=%s\nchannel=%s\nresult=pass\ncoverage=reused\ncoverage_from=sha=abc\nmaterial_tool=abc\nfinished=now\n' \
-    "$SHA" "$V" "$CH" > "$ROOT/tmp/release-gate/$V/receipt"
+    "$SHA" "$V" "$CH" > "$STATE/tmp/release-gate/$V/receipt"
 SH
 
 sub git { my ( $d, @a ) = @_; my $o = run_cmd( 'git', '-C', $d, @a ); die "git @a: $o" if $?; chomp $o; $o }
@@ -189,6 +190,37 @@ subtest 'one run at a time' => sub {
     like( $out, qr/another gate-main run holds/, 'saying why' );
     is( calls($d), 0, 'and nothing ran' );
     close $lk;
+};
+
+# --- Q14b: a gate run from a `git worktree` ---------------------------------
+#
+# Development switches branches in the main checkout, and bash reads a script as
+# it runs, so a long gate is safest started from a worktree of main. release.sh
+# refused one ("no git repo": it looked for a .git DIRECTORY, which a worktree
+# has as a file), and the state it writes must land where build looks - the main
+# checkout - not in the worktree.
+
+subtest 'gate-main from a worktree keeps its state in the main checkout' => sub {
+    my $d  = repo();
+    my $wt = tempdir( CLEANUP => 1 ) . '/wt';
+    git( $d, 'worktree', 'add', '-q', '--detach', $wt, 'main' );
+    my ( $rc, $out ) = gate_main($wt);
+    is( $rc, 0, 'exit 0' ) or diag($out);
+    ok( -f "$d/tmp/release-gate/0.1.1/gate-main.log", 'the log is in the main checkout' );
+    ok( !-e "$wt/tmp/release-gate/0.1.1/gate-main.log", 'and not in the worktree' );
+};
+
+subtest 'release.sh run from a worktree is a git repository' => sub {
+    my $d = repo();
+    copy( "$root/tools/release.sh", "$d/tools/release-real.sh" ) or die $!;
+    git( $d, 'add', '-A' );
+    git( $d, 'commit', '-q', '-m', 'real release.sh' );
+    my $wt = tempdir( CLEANUP => 1 ) . '/wt';
+    git( $d, 'worktree', 'add', '-q', '--detach', $wt, 'main' );
+    my $out = run_cmd( 'bash', "$wt/tools/release-real.sh", 'gate', '9.9.9', '--commit', 'no-such-ref' );
+    unlike( $out, qr/no git repo/, 'it gets past the repository check' ) or diag($out);
+    like( $out, qr/no-such-ref|not a commit|unknown|cannot/i, 'and stops at the commit it was given instead' )
+        or diag($out);
 };
 
 done_testing();

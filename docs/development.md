@@ -126,6 +126,12 @@ for a new minor), and runs `tools/release.sh gate VERSION --commit SHA` under
 A receipt for that commit, version and channel that already passed is printed
 instead.
 
+Run it from a worktree of main when the main checkout is in use - bash reads a
+script as it runs, so switching branches under a running gate is unsafe:
+`git worktree add --detach tmp/wt-gate main`, then `tmp/wt-gate/tools/gate-main.sh`.
+Receipts, the coverage store and the lock are kept in the MAIN checkout's
+`tmp/release-gate/` wherever the gate runs from, so build finds them.
+
 The gate clones the commit into a stage, **runs the generator there** with a
 placeholder subtitle, commits that in the stage only, and runs the compliance
 check, the full suite at -j4, the bench, coverage, and the manifest, SBOM and
