@@ -26,7 +26,9 @@ BEGIN {
 my $processor = "$FindBin::Bin/../../../lazysite-processor.pl";
 plan skip_all => "no $processor" unless -f $processor;
 
-my $src = do { open my $fh, '<', $processor or die $!; local $/; <$fh> };
+# SM944 S10: convert_md is in the processor's include part.
+my $part = "$FindBin::Bin/../../../lazysite-processor/include.pm";
+my $src  = do { open my $fh, '<', $part or die "$part: $!"; local $/; <$fh> };
 
 # THE PROPERTY, not the implementation: comments are protected from the
 # markdown pass the same way scripts and styles already are.
