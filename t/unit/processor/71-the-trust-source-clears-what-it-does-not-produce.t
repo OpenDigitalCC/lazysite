@@ -36,6 +36,8 @@ my $proc = src('lazysite-processor.pl');
 my $include = src('lazysite-processor/include.pm');
 # SM944 S16: the stash is built in the processor's render part.
 my $render = src('lazysite-processor/render.pm');
+# SM944 S18: the static serve is in the processor's page pipeline part.
+my $pipeline = src('lazysite-processor/pipeline.pm');
 
 subtest 'the trust source clears every trusted field it does not produce' => sub {
     # The six the gate covers. Two are produced from the verified cookie; the
@@ -66,7 +68,7 @@ subtest 'the trust source clears every trusted field it does not produce' => sub
 };
 
 subtest 'the canonical serve excludes the engine tree, as the include path does' => sub {
-    my ($serve) = $proc =~ /(sub _serve_content_static.{0,3000})/s;
+    my ($serve) = $pipeline =~ /(sub _serve_content_static.{0,3000})/s;
     ok( $serve, 'the static serve was found' ) or return;
     like( $serve, qr/_path_under\(\s*\$real,\s*\$LAZYSITE_DIR\s*\)/,
         'it tests the RESOLVED path against the engine tree' )

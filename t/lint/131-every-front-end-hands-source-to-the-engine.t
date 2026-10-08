@@ -37,7 +37,8 @@ sub code_of { return join "\n", grep { !/^\s*#/ } split /\n/, $_[0] }
 
 # --- the engine's list, and what a front end carries ------------------------
 
-my ($body) = slurp("$root/lazysite-processor.pl") =~ /BEGIN \{ %STATIC_DENY = map \{[^}]*\} qw\(([^)]*)\)/s;
+# SM944 S18: the list is in the processor's page pipeline part.
+my ($body) = slurp("$root/lazysite-processor/pipeline.pm") =~ /BEGIN \{ %STATIC_DENY = map \{[^}]*\} qw\(([^)]*)\)/s;
 ok( defined $body, 'found the engine\'s static-serve deny list' ) or BAIL_OUT('no %STATIC_DENY');
 my @engine = grep { length } split /\s+/, $body;
 cmp_ok( scalar @engine, '>', 10, 'and it is not empty - an empty list agrees with every front end' );

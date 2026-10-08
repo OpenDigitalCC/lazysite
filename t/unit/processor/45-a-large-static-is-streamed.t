@@ -67,9 +67,10 @@ subtest 'and it is read in blocks rather than slurped' => sub {
     # A SOURCE assertion, and stated as one. Memory use cannot be observed
     # honestly from inside the same process, and the property that matters -
     # the worker's footprint is a constant, not a function of the file - is
-    # structural.
+    # structural. The serve is in the processor's page pipeline part (SM944
+    # S18).
     my $src = do {
-        my $p = repo_root() . '/lazysite-processor.pl';
+        my $p = repo_root() . '/lazysite-processor/pipeline.pm';
         open my $fh, '<', $p or die $!;
         local $/;
         <$fh>;

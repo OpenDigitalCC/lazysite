@@ -33,7 +33,9 @@ sub qw_after {
     return grep { length } split /\s+/, $body;
 }
 
-my @serve = qw_after( slurp("$root/lazysite-processor.pl"), 'BEGIN { %STATIC_DENY', 'static-serve deny' );
+# SM944 S18: the static serve and its list are in the processor's page pipeline
+# part.
+my @serve = qw_after( slurp("$root/lazysite-processor/pipeline.pm"), 'BEGIN { %STATIC_DENY', 'static-serve deny' );
 my %serve = map { $_ => 1 } @serve;
 cmp_ok( scalar @serve, '>', 10, 'the serve list is not empty - a denylist that refuses nothing passes every subset check' );
 

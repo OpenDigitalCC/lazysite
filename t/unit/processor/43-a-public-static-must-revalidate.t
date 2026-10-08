@@ -78,8 +78,9 @@ subtest 'a public static revalidates rather than caching for a decade' => sub {
 subtest 'and the reasoning is recorded where the decision is made' => sub {
     # This was reported as a regression precisely because nothing said it was
     # deliberate. A choice with no stated reason gets re-litigated, or worse,
-    # "fixed".
-    my $proc = TestHelper::repo_root() . '/lazysite-processor.pl';
+    # "fixed". The decision is made in _serve_content_static, in the
+    # processor's page pipeline part (SM944 S18).
+    my $proc = TestHelper::repo_root() . '/lazysite-processor/pipeline.pm';
     my $src  = do {
         open my $fh, '<', $proc or die "$proc: $!";
         local $/;

@@ -168,9 +168,10 @@ subtest 'BOTH RENDER PATHS INJECT IT' => sub {
 subtest 'SM382: THE ASSET RESOLVES ON A CONTENT-ROOTED DOMAIN' => sub {
     # Static resolution is content-root scoped and refuses anything outside it,
     # so an engine asset on a secondary domain 404s unless it is on the exact
-    # list. The chrome bundle was measured failing exactly this way.
+    # list. The chrome bundle was measured failing exactly this way. The list
+    # is in the processor's page pipeline part (SM944 S18).
     my $src = do {
-        open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+        open my $fh, '<', "$root/lazysite-processor/pipeline.pm" or die $!;
         local $/;
         <$fh>;
     };

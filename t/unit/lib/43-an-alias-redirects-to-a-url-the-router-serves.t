@@ -82,10 +82,11 @@ subtest 'an alias on an index page redirects somewhere that resolves' => sub {
     }
 };
 
-# The rule above is transcribed, so this is what catches it drifting.
+# The rule above is transcribed, so this is what catches it drifting. The router
+# is in the processor's page pipeline part (SM944 S18).
 subtest 'the router still appends /index only for a trailing slash' => sub {
     my $src = do {
-        open my $fh, '<', "$FindBin::Bin/../../../lazysite-processor.pl" or die $!;
+        open my $fh, '<', "$FindBin::Bin/../../../lazysite-processor/pipeline.pm" or die $!;
         local $/;
         <$fh>;
     };
