@@ -148,7 +148,10 @@ Template::Plugin::JSON module, which is not bundled; prefer `json:`.)
 
 `query_params`
 : List of accepted URL query parameter names. Matched parameters are
-  available as `[% query.NAME %]` and bypass the cache.
+  available as `[% query.NAME %]` and bypass the cache. Values arrive
+  HTML-escaped; one used as a whole `href`, `src` or `action` is written
+  `[% query.NAME | url_safe %]`, which passes paths and http, https,
+  mailto and tel URLs unchanged and turns any other scheme into `#`.
 
 `tags`
 : Tags for page scan results. YAML list, comma-separated, or single

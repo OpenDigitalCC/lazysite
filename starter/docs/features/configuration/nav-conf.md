@@ -57,11 +57,11 @@ Each nav item is a hash with:
 In the view template:
 
     [% FOREACH item IN nav %]
-    <a href="[% item.url %]">[% item.label %]</a>
+    <a href="[% item.url | url_safe %]">[% item.label %]</a>
     [% IF item.children.size %]
     <ul>
     [% FOREACH child IN item.children %]
-      <li><a href="[% child.url %]">[% child.label %]</a></li>
+      <li><a href="[% child.url | url_safe %]">[% child.label %]</a></li>
     [% END %]
     </ul>
     [% END %]
@@ -69,6 +69,9 @@ In the view template:
 
 ### Notes
 
+- `| url_safe` keeps a nav entry's link to a path or an http, https,
+  mailto or tel URL; a `javascript:` entry renders as `#`. Whoever can edit
+  the navigation then cannot put script behind a menu item.
 - Only one level of nesting is supported - children cannot have
   their own children
 - An indented line before any top-level item is treated as a

@@ -157,7 +157,8 @@ subtest 'both render paths offer the filter' => sub {
         local $/;
         <$fh>;
     };
-    my $n = () = $src =~ /FILTERS\s+=> \{ markdown => \\&_markdown_filter, json => \\&_json_filter \}/g;
+    # One entry per line since SM970 added url_safe to the same maps.
+    my $n = () = $src =~ /FILTERS\s+=>\s*\{[^}]*\bjson\s*=>\s*\\&_json_filter\b[^}]*\}/g;
     is( $n, 2, 'json is registered in BOTH tt_opts blocks' );
 };
 

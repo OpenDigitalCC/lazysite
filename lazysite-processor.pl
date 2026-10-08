@@ -267,13 +267,13 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
           - url present                : leaf link or clickable parent
           - url empty/absent           : group heading (not a link) %]
     [% IF item.url %]
-    <a href="[% item.url %]" class="nav-link"[% IF request_uri == item.url %] aria-current="page"[% END %]>[% item.label %]</a>
+    <a href="[% item.url | url_safe %]" class="nav-link"[% IF request_uri == item.url %] aria-current="page"[% END %]>[% item.label %]</a>
     [% ELSE %]
     <span class="nav-group">[% item.label %]</span>
     [% END %]
     [% IF item.children %]
       [% FOREACH child IN item.children %]
-      <a href="[% child.url %]" class="nav-link nav-child"[% IF request_uri == child.url %] aria-current="page"[% END %]>[% child.label %]</a>
+      <a href="[% child.url | url_safe %]" class="nav-link nav-child"[% IF request_uri == child.url %] aria-current="page"[% END %]>[% child.label %]</a>
       [% END %]
     [% END %]
   [% END %]
@@ -5469,7 +5469,11 @@ sub _render_component {
         # Layout components win; built-in components (lazysite/templates) are the
         # fallback so ::: qr resolves on any layout.
         INCLUDE_PATH => [ grep { defined } ( $layout_dir, "$LAZYSITE_DIR/templates" ) ],
-        FILTERS      => { markdown => \&_markdown_filter, json => \&_json_filter },
+        FILTERS      => {
+            markdown => \&_markdown_filter,
+            json     => \&_json_filter,
+            url_safe => \&_url_safe_filter,    # SM970
+        },
     );
     my $rendered = '';
     $tt->process( "components/$name.tt",
@@ -5841,6 +5845,65 @@ sub _json_filter {
     $s =~ s/>/\\u003e/g;
     $s =~ s/&/\\u0026/g;
     return '"' . $s . '"';
+}
+
+# SM970: `| url_safe` - a value placed as a WHOLE link target (href, src,
+# action) keeps only a scheme that cannot run script. The stash escapes a value
+# so it cannot leave its attribute; that does not stop the attribute BEING
+# `javascript:...`. The value passes unchanged when, read as a URL, it has no
+# scheme - a relative path, `/abs`, `?q`, `#frag`, or `//host`, which inherits
+# the page's own http/https - or one of http, https, mailto, tel. Anything else
+# becomes `#`.
+#
+# The value is decoded - character references and percent-encoding - ONLY to
+# read the scheme, layer by layer (the stash has already escaped it once, and an
+# author's literal may carry more), and the scheme is checked at EVERY layer: a
+# browser decodes an attribute once and does not percent-decode a scheme, so
+# checking every layer is stricter than any browser, never looser. Leading
+# controls and spaces are dropped and tab/CR/LF removed, as a URL parser does.
+# What is returned is the original text, so nothing is escaped twice.
+#
+# Set in BEGIN, like %STATIC_DENY: main() runs from the middle of this file,
+# before execution would reach a plain assignment down here.
+my %URL_SAFE_SCHEME;
+BEGIN { %URL_SAFE_SCHEME = map { $_ => 1 } qw(http https mailto tel) }
+
+# The named references that can change how a scheme reads: the colon, the two
+# characters a URL parser deletes, the scheme punctuation, and the `&` and `%`
+# that open another layer. No named reference decodes to an ASCII letter.
+my %URL_SAFE_NAMED;
+BEGIN {
+    %URL_SAFE_NAMED = (
+        colon  => ':', Tab => "\t", NewLine => "\n", plus   => '+',
+        period => '.', amp => '&',  AMP     => '&',  percnt => '%',
+    );
+}
+
+sub _url_safe_chr {
+    my ($n) = @_;
+    return ( $n > 0 && $n <= 0x10FFFF ) ? chr $n : "\x{FFFD}";
+}
+
+sub _url_safe_filter {
+    my ($text) = @_;
+    return '' unless defined $text;
+    return '#' if ref $text;
+    my $s = "$text";
+    for ( 1 .. 8 ) {
+        ( my $r = $s ) =~ s/\A[\x00-\x20]+//;
+        $r =~ tr/\t\n\r//d;
+        if ( $r =~ /\A([a-zA-Z][a-zA-Z0-9+.\-]*):/ ) {
+            return '#' unless $URL_SAFE_SCHEME{ lc $1 };
+        }
+        my $d = $s;
+        $d =~ s/&#[xX]([0-9a-fA-F]{1,8});?/_url_safe_chr(hex $1)/ge;
+        $d =~ s/&#([0-9]{1,10});?/_url_safe_chr($1)/ge;
+        $d =~ s/&([a-zA-Z]+);/exists $URL_SAFE_NAMED{$1} ? $URL_SAFE_NAMED{$1} : "&$1;"/ge;
+        $d =~ s/%([0-9a-fA-F]{2})/chr hex $1/ge;
+        return $text if $d eq $s;
+        $s = $d;
+    }
+    return '#';    # still decoding after eight layers: not a link anyone wrote
 }
 
 sub convert_dt_links {
@@ -7609,6 +7672,7 @@ sub _registry_stale {
             ABSOLUTE    => 1,
             ENCODING    => 'utf8',
             EVAL_PERL   => 0,                  # L-2
+            FILTERS     => { url_safe => \&_url_safe_filter },    # SM970
             COMPILE_DIR => $TT_COMPILE_DIR,    # P-4
             COMPILE_EXT => '.ttc',             # P-4
         ) or do { umask $old_umask; return };
@@ -8119,6 +8183,7 @@ sub render_content {
         ABSOLUTE    => 0,
         ENCODING    => 'utf8',
         EVAL_PERL   => 0,                  # L-2
+        FILTERS     => { url_safe => \&_url_safe_filter },    # SM970
         COMPILE_DIR => $TT_COMPILE_DIR,    # P-4
         COMPILE_EXT => '.ttc',             # P-4
     ) or do { umask $old_umask; die "Template error: " . Template->error() . "\n" };
@@ -8971,7 +9036,11 @@ sub _theme_version {
 sub _render_fallback_layout {
     my ( $vars, $out_ref ) = @_;
 
-    my $tt_fallback = Template->new( ENCODING => 'utf8', EVAL_PERL => 0 )
+    my $tt_fallback = Template->new(
+        ENCODING  => 'utf8',
+        EVAL_PERL => 0,
+        FILTERS   => { url_safe => \&_url_safe_filter },    # SM970
+        )
         or do {
         log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance' );
         return 0;
@@ -9057,7 +9126,11 @@ sub render_template {
         ENCODING     => 'utf8',
         EVAL_PERL    => 0,                                 # L-2: no embedded Perl
         INCLUDE_PATH => $component_dir,                    # D035: layout-local components
-        FILTERS      => { markdown => \&_markdown_filter, json => \&_json_filter },
+        FILTERS      => {
+            markdown => \&_markdown_filter,
+            json     => \&_json_filter,
+            url_safe => \&_url_safe_filter,    # SM970
+        },
         COMPILE_DIR  => $TT_COMPILE_DIR,                   # P-4
         COMPILE_EXT  => '.ttc',                            # P-4
     );

@@ -278,7 +278,7 @@ need to duplicate CSS structure.
       [% IF nav.size %]
       <nav>
         [% FOREACH item IN nav %]
-        <a href="[% item.url %]">[% item.label %]</a>
+        <a href="[% item.url | url_safe %]">[% item.label %]</a>
         [% END %]
       </nav>
       [% END %]
@@ -289,6 +289,13 @@ need to duplicate CSS structure.
       </main>
     </body>
     </html>
+
+A value that is a whole `href`, `src` or `action` - a nav entry's URL, a
+`query.*` or db value, an attribute a page passes to a component - is written
+through `| url_safe` (SM970), as `item.url` is above. It passes a path or an
+http, https, mailto or tel URL unchanged and turns any other scheme, such as
+`javascript:`, into `#`. The filter is available to layouts, components and
+pages alike; lint 213 holds every shipped layout and page to it.
 
 ## Components: a layout's reusable pieces (GS9)
 

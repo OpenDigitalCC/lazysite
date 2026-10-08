@@ -70,6 +70,15 @@ Request `/greeting?name=Alice` renders "Hello, Alice!".
 - There is no unescaped form for a page. The engine keeps the visitor's
   original value for its own use - a form field's `prefill:` - and that
   feature escapes it where it writes the field.
+- **A value used as a whole link target needs `| url_safe`.** Escaping keeps
+  a value inside its attribute; it does not change `javascript:` into
+  anything else. Write `<a href="[% query.next | url_safe %]">` (and the
+  same for `src` and `action`): a value with no scheme - a path, `?query`,
+  `#fragment` or `//host` - or one starting `http:`, `https:`, `mailto:`
+  or `tel:` passes unchanged, and anything else becomes `#`. The filter
+  reads the scheme through character references and percent-encoding, so
+  `&#106;avascript:` and `java%73cript:` become `#` too. It does not
+  escape the value again.
 - Only declared parameters are passed through - undeclared parameters
   in the URL are dropped entirely
 - URL-decoding is applied (`%XX` hex sequences and `+` for spaces)

@@ -141,6 +141,26 @@ There is no switch that turns the escaping off. `db_render_raw`, which did,
 shipped deprecated and was removed in 0.13.13 - no site was found to need it -
 and an upgrade deletes the key.
 
+### A value used as a link target - add `| url_safe`
+
+Escaping keeps a value inside its attribute; it does not change what the value
+says. A row whose `url` is `javascript:alert(1)` is still a script link when
+it is written straight into an `href`. Wherever a value is the WHOLE `href`,
+`src` or `action`, write it through the filter:
+
+```
+<a href="[% r.url | url_safe %]">[% r.label %]</a>
+<img src="[% r.photo | url_safe %]" alt="[% r.label %]">
+```
+
+`url_safe` passes a value with no scheme (a path, `?query`, `#fragment` or
+`//host`) or one starting `http:`, `https:`, `mailto:` or `tel:` unchanged, and
+turns anything else - `javascript:`, `data:`, `vbscript:`, `file:` - into `#`.
+It reads the scheme through character references and percent-encoding and
+ignores case and leading spaces, and it does not escape the value a second
+time. A value with fixed text before it (`href="/people/[% r.id %]"`) takes its
+scheme from that text and does not need it.
+
 ### What you may ask for
 
 ```datatable

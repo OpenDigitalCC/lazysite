@@ -101,6 +101,13 @@ by eye: the site log names the table and the column, and says to remove the
 filter. Nothing breaks in the meantime - a double-escaped page is readable and
 wrong, not broken - which is why this is a warning and not a refusal.
 
+**A value that is a whole link target goes through `| url_safe`** (SM970).
+Escaping keeps `javascript:` inside the attribute but does not remove it, so
+write `<a href="[% r.url | url_safe %]">` - and the same for `src` and
+`action`. It passes paths, `?query`, `#fragment`, `//host`, `http:`, `https:`,
+`mailto:` and `tel:` unchanged and turns any other scheme into `#`, reading it
+through character references and percent-encoding; it never escapes again.
+
 **There is no switch that turns the escaping off.** `db_render_raw` did, shipped
 deprecated, and was removed in 0.13.13: a survey of fourteen sites and around
 1,100 files found no column carrying authored HTML, and an upgrade deletes the

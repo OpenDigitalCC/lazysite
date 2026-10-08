@@ -585,7 +585,10 @@ safe with no filter and **you should not add `| html` to them**. Doing so
 escapes an already-escaped value, and a display name of `O'Brien` renders as
 `O&#39;Brien` on the page.
 
-The same is true of `[% query.<name> %]`.
+The same is true of `[% query.<name> %]`. One used as a whole link target -
+`<a href="[% query.next | url_safe %]">` - also goes through `| url_safe`,
+which keeps a path or an http, https, mailto or tel URL and turns any other
+scheme into `#`; see [Query parameters](/docs/features/authoring/query-params).
 
 ### Do not interpolate them into a `<script>` block
 
