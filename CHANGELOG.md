@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: forms are the processor's tenth part** (S11 of
+  the plan in the filing). `convert_fenced_form`, `_render_form` (whole, 562
+  lines), the SM934 rules sidecar, the form secret and `convert_fenced_divs`
+  move unchanged to `lazysite-processor/forms.pm`; lint 156 reads the banner
+  there, and lint 56 counts inline blocks in the script and every part. No
+  behaviour change.
+
 - SM944 (PENDING) **internal: include and Markdown are the processor's ninth
   part** (S10 of the plan in the filing). The `::: include` resolver,
   `convert_md`, the code-fence pass, the `markdown`/`json`/`url_safe` filters

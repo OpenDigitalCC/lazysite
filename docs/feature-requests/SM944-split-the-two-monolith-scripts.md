@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S10 (n281-n291) oEmbed, URL remapper, components, content-type cache, payment and preview gates, access log, front door, include and Markdown. Next: S11, forms."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S11 (n281-n292) oEmbed, URL remapper, components, content-type cache, payment and preview gates, access log, front door, include and Markdown, forms. Next: S12, output and headers."
 ---
 
 # Measured
@@ -128,3 +128,6 @@ S9 (n289)
 
 S10 (n291)
 : the Include section (12 subs, 464 lines) moved to `lazysite-processor/include.pm`. Its file-scope state, the url_safe filter's two scheme tables, is a `my` filled in BEGIN as in the script: full before any request either way. Test 71 lifts `_resolve_include` from the part; lints 31 and 36 read the script and every part for the `_acl_denied` rule.
+
+S11 (n292)
+: the Forms section (10 subs, 815 lines; `_render_form` whole) moved to `lazysite-processor/forms.pm`; it has no file-scope state. The SM071 header the plan names left with the preview cookie in S7, so `# --- Forms ---` heads the block. Lint 156 reads the banner's sentence map from the part; lint 56 counts inline blocks in the script and every part.
