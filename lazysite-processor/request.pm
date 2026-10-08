@@ -15,7 +15,7 @@ package main;
 # OWNS    the request's identity facts: its host and its address.
 # CALLS   realpath, hmac_sha256_hex, inet_pton, inet_ntop and the Socket
 #         AF_INET/AF_INET6 constants (imported by the script's `use`, before its
-#         parts load).
+#         parts load; the constants written as calls, so the part compiles alone).
 # READS   $DOCROOT, $CONF_FILE (the script's, declared `our` there).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S13). It is package main, required
@@ -23,6 +23,8 @@ package main;
 # it loads nothing - ADR 0001 keeps the render path free of the Lazysite:: tree.
 use strict;
 use warnings;
+
+our ( $DOCROOT, $CONF_FILE );
 
 # SM110: the request's Host header, sanitised for alias matching: lowercased,
 # port stripped, trailing dot dropped, validated against the DNS hostname
@@ -126,14 +128,14 @@ sub _packed_address {
     my ($text) = @_;
     return '' unless defined $text && length $text;
     return '' if $text =~ /[^0-9A-Fa-f:.]/;
-    my $family = ( index( $text, ':' ) >= 0 ) ? AF_INET6 : AF_INET;
+    my $family = ( index( $text, ':' ) >= 0 ) ? AF_INET6() : AF_INET();
     my $packed = eval { inet_pton( $family, $text ) };
     return ( defined $packed && length $packed ) ? $packed : '';
 }
 
 sub _text_address {
     my ($packed) = @_;
-    my $family   = length($packed) == 4 ? AF_INET : AF_INET6;
+    my $family   = length($packed) == 4 ? AF_INET() : AF_INET6();
     my $text     = eval { inet_ntop( $family, $packed ) };
     return defined $text ? $text : '';
 }
