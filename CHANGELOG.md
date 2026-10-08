@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the access log and the unit registry are the
+  processor's seventh part** (S8 of the plan in the filing). The SM140 access
+  recorder and the SM222 `plugins:` read move unchanged to
+  `lazysite-processor/access-log.pm`; lints 159 and 198 read them there, and
+  lint 215 reads a sub inside a part's bare block as a sub. No behaviour change.
+
 - SM944 (PENDING) **internal: the payment and preview gates are the
   processor's sixth part** (S7 of the plan in the filing). `peek_payment`,
   `check_payment`, `serve_402` and the SM071 preview-cookie check move

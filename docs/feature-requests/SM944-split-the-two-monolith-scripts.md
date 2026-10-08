@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S7 (n281-n287) oEmbed, URL remapper, content components, content-type cache, payment and preview gates. Next: S8, the access log."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1 (n278) front-matter parser, required by path (ADR 0001); S2 (n280) the 27 variables parts read are `our`; S3-S8 (n281-n288) oEmbed, URL remapper, content components, content-type cache, payment and preview gates, access log. Next: S9, the front door."
 ---
 
 # Measured
@@ -119,3 +119,6 @@ S6 (n286)
 
 S7 (n287)
 : the payment subs and the SM071 preview-cookie section (7 subs, 127 + 71 lines, two blocks) moved to `lazysite-processor/gates.pm`. `%PAYMENT_CONTEXT` and `%PREVIEW_CONTEXT` stay declared in the script, where main() sets them and render_content() reads them; the part aliases `%PAYMENT_CONTEXT`, which serve_402 fills.
+
+S8 (n288)
+: the access log and unit registry sections (8 subs, 229 lines, the end of the script) moved to `lazysite-processor/access-log.pm`. Its one file-scope state, `my $_UNITS;` in a bare block, has no initialiser, so running the block at load rather than after the request leaves it undef until the first lookup, as before. Lints 159 and 198 read the part; lint 215 ends an indented sub at its own `}`; the two sysopen calls write the Fcntl constants as calls, so the part compiles alone (lint 04).
