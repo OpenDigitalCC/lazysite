@@ -22,8 +22,10 @@ use File::Path qw(make_path);
 use FindBin;
 
 my $root = "$FindBin::Bin/../../..";
-my $proc = "$root/lazysite-processor.pl";
-plan skip_all => "no $proc" unless -f $proc;
+# SM944 S17: _manager_style is in the processor's layout part. No skip when the
+# file is missing: with the subject in a part, a skip would pass by running
+# nothing the next time it moves. The open fails instead.
+my $proc = "$root/lazysite-processor/layout.pm";
 
 my $src = do { open my $fh, '<', $proc or die $!; local $/; <$fh> };
 my ($fn) = $src =~ /(sub _manager_style \{.*?\n\})/s;

@@ -25,10 +25,17 @@ use File::Temp qw(tempdir);
 use FindBin;
 
 my $root = "$FindBin::Bin/../../..";
+# The check is the script's; the banner that reports it is in render_template,
+# in the processor's layout part since SM944 S17. Neither skips when missing: a
+# skip would pass by running nothing the next time one moves.
 my $proc = "$root/lazysite-processor.pl";
-plan skip_all => "no $proc" unless -f $proc;
 
-my $src = do { open my $fh, '<', $proc or die $!; local $/; <$fh> };
+my $src    = do { open my $fh, '<', $proc or die $!; local $/; <$fh> };
+my $layout = do {
+    open my $fh, '<', "$root/lazysite-processor/layout.pm" or die $!;
+    local $/;
+    <$fh>;
+};
 
 # --- 1. the check exists and is arithmetic, not a probe ---------------------
 my ($fn) = $src =~ /(sub _cgi_can_write \{.*?\n\})/s;
@@ -86,7 +93,7 @@ unlike( $fn, qr/open|mkdir|unlink/,
 
 # --- 3. the banner is manager-only and says what to do ----------------------
 {
-    my ($blk) = $src =~ /(# SM270: say so the moment.*?\n    \}\n)/s;
+    my ($blk) = $layout =~ /(# SM270: say so the moment.*?\n    \}\n)/s;
     ok( $blk, 'the banner block is present' ) or do { done_testing(); exit };
 
     like( $blk, qr/\$layout eq \$MANAGER_LAYOUT/,

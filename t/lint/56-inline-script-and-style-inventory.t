@@ -102,11 +102,16 @@ my @INLINE = (
 subtest 'every recorded inline block is still there' => sub {
     my %src;
     for my $e (@INLINE) {
-        $src{ $e->{file} } //= do {
-            open my $fh, '<', "$root/$e->{file}" or die "$e->{file}: $!";
+        # SM944: the processor is the script and its parts, as in the count
+        # below; the theme block is in its layout part since S17.
+        my @read = ("$root/$e->{file}");
+        push @read, sort glob("$root/lazysite-processor/*.pm")
+            if $e->{file} eq 'lazysite-processor.pl';
+        $src{ $e->{file} } //= join "\n", map {
+            open my $fh, '<', $_ or die "$_: $!";
             local $/;
-            <$fh>;
-        };
+            scalar <$fh>;
+        } @read;
         like( $src{ $e->{file} }, $e->{re}, "$e->{kind}: $e->{name}" )
             or diag( "$e->{note}\n"
                 . 'If this block was removed, remove it from the inventory too '

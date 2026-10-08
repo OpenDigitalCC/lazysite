@@ -31,9 +31,10 @@ use Lazysite::Manager::Themes ();
 my $root = repo_root();
 
 # The processor's copy, evaluated out of its source - it cannot be loaded,
-# because the file runs its main body at file scope.
+# because the file runs its main body at file scope. It is in the processor's
+# layout part (SM944 S17).
 my $src = do {
-    open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+    open my $fh, '<', "$root/lazysite-processor/layout.pm" or die $!;
     local $/;
     <$fh>;
 };
