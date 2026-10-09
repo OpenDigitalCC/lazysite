@@ -71,6 +71,7 @@ use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domai
 use Lazysite::Manager::Data        ();
 use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
+use Lazysite::Manager::Remap qw(_remap_list _remap_save); # SM944 S22: SM802's two actions
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 # SM556: resolved once, here, so every module confines against one spelling
@@ -90,6 +91,7 @@ $Lazysite::Manager::Backups::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::Domains::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::Data::DOCROOT        = $DOCROOT;
 $Lazysite::Manager::SitePackage::DOCROOT = $DOCROOT;
+$Lazysite::Manager::Remap::DOCROOT       = $DOCROOT;           # SM944 S22
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
 # SM929: THE request address for this request - the visitor, not the front proxy.
 # One reader, cached, because everything below asks the same question about one
