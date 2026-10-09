@@ -20,7 +20,7 @@ use Lazysite::Private ();
 use Exporter 'import';
 use Lazysite::Paths ();
 
-our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
+our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes no_scope_refusal reserved_roots path_is_reserved
     caller_may_reach_domain request_domain_confined reachable_domains domain_reach_refusal
@@ -1544,13 +1544,13 @@ sub respond {
 
 # --- SM944 S23b: the script's own JSON responses ---------------------------
 #
-# Moved unchanged out of lazysite-manager-api.pl (ruled 2026-10-09).
+# Moved out of lazysite-manager-api.pl (ruled 2026-10-09); the script imports it.
 
-# The four responses this file prints itself rather than handing to respond():
-# the OPTIONS refusal and the rate-limit 429 (both need their own status), and
-# the two preview verbs (both need Set-Cookie). Content-Type is always last
-# before the blank line, and STDOUT is always put in binmode first - encode_json
-# emits UTF-8 bytes and must not be re-encoded.
+# The four responses lazysite-manager-api.pl prints itself rather than handing
+# to respond(): the OPTIONS refusal and the rate-limit 429 (both need their own
+# status), and the two preview verbs (both need Set-Cookie). Content-Type is
+# always last before the blank line, and STDOUT is always put in binmode first -
+# encode_json emits UTF-8 bytes and must not be re-encoded.
 sub _emit_json {
     my ( $status, $headers, $body ) = @_;
     binmode(STDOUT);

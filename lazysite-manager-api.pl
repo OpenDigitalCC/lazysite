@@ -32,7 +32,7 @@ use Lazysite::BadUrl              qw(list_blocks block unblock);
 use Lazysite::Auth::Settings      qw(site_grants_manager);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
-use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
+use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key processor_path
     reset_request_context
