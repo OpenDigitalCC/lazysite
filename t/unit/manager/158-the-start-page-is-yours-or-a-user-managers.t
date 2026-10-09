@@ -80,4 +80,17 @@ subtest 'set: another account' => sub {
     is( $s->call( 'ed', 'start-page' )->{current}, '', 'cleared' );
 };
 
+# SM944 S23 (c), ruled 2026-10-09: no account, no subject. A name that sanitises
+# to nothing read and set the start page of account '' for a caller holding
+# manage_users; it is refused, and nothing is written.
+subtest 'an account name that is empty once sanitised is refused' => sub {
+    my $r = $s->call( 'boss', 'start-page', query => 'action=start-page&username=%21%21%21' );
+    ok( !$r->{ok}, 'start-page for "!!!" is refused' ) or diag explain $r;
+    is( $r->{kind}, 'forbidden', '...as forbidden' );
+    like( $r->{error} // '', qr/No account is named/, '...saying no account is named' );
+    $r = $s->call( 'boss', 'start-page-set', body => { username => '!!!', value => 'manager:index' } );
+    ok( !$r->{ok}, 'start-page-set for "!!!" is refused' );
+    is( $s->call( 'boss', 'start-page' )->{username}, 'boss', 'and an own read still answers for the caller' );
+};
+
 done_testing();

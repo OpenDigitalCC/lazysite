@@ -4297,6 +4297,12 @@ sub _start_page_subject {
     my ($username) = @_;
     my $u = defined $username && length $username ? $username : $auth_user;
     $u =~ s/[^a-zA-Z0-9_.-]//g;
+    # SM944 S23 (c), ruled 2026-10-09: no account, no subject. Outside a request
+    # $auth_user is '' and this answered for account ''; so did a name that
+    # sanitises to nothing, for a caller holding manage_users.
+    return ( undef, { ok => 0, kind => 'forbidden',
+            error => 'No account is named or signed in, so there is no start page to read or set.' } )
+        unless length $u;
     return ( undef, { ok => 0, kind => 'forbidden',
             error => "Setting another account's start page needs the 'Users & groups' "
                 . 'permission; you may set your own.' } )
