@@ -49,6 +49,13 @@ print {$cf} "site_url: https://d.example.io\n";
 close $cf;
 
 my $now = time();
+# Q14g (SM974): AND THE RECORDS ARE ONE DAY. They span a few minutes after
+# $rec, and for those minutes after 01:30 UTC a midnight fell inside the span:
+# half the fixture on each day, and the day asked for held only half. Moving
+# $now BACK - never forward - keeps every record older than SESSION_GAP, so
+# the export still closes them.
+my $spill = ( $now - 5400 + 600 ) % 86400;
+$now -= $spill + 1 if $spill < 600;
 # SM600: THE DAY COMES FROM THE RECORDS, NOT FROM NOW.
 #
 # This fixture stamps its records 90 minutes back so the session is older than
