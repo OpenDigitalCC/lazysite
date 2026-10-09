@@ -100,6 +100,85 @@ sub reset_request_context {
 }
 reset_request_context();
 
+# --- SM944 S22b: the users-tool client and the caps memo --------------------
+#
+# Moved unchanged out of lazysite-manager-api.pl (ruled 2026-10-09).
+
+my %USER_CAPS;      # SM516 MO-1: the memo behind _user_caps()
+
+# Resolve a shipped tool across install layouts: the cgi-bin sibling in
+# production, the repo root in tests, the docroot's parent for a packaged
+# install. The named environment variable wins, so a test or an operator can
+# point at one directly.
+sub _tool_path {
+    my ( $env_key, $rel ) = @_;
+    for my $c (
+        $ENV{$env_key},
+        dirname($0) . "/../$rel",
+        dirname($0) . "/$rel",
+        "$DOCROOT/../$rel",
+    ) {
+        return $c if defined $c && -f $c;
+    }
+    return undef;
+}
+
+# The user-management tool. LAZYSITE_USERS_TOOL wins.
+sub _users_tool_path { return _tool_path( 'LAZYSITE_USERS_TOOL', 'tools/lazysite-users.pl' ) }
+
+# One request against tools/lazysite-users.pl --api, decoded. The three
+# failure sentences are PASSED IN rather than unified: both callers surface
+# their own wording to the client, so folding them would change what a caller
+# reads on a failure - a behaviour change, not a tidy-up. $cannot_run is a
+# sprintf template so the caller that reports $@ still can.
+sub _users_tool_run {
+    my ( $payload, $unavailable, $cannot_run, $invalid ) = @_;
+    my $script = _users_tool_path();
+    return { ok => 0, error => $unavailable } unless $script;
+    my ( $out, $in );
+    local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
+    my $pid = eval { open2( $out, $in, $^X, $script, '--api', '--docroot', $DOCROOT ) };
+    return { ok => 0, error => sprintf( $cannot_run, $@ ) } unless $pid;
+    print $in encode_json($payload);
+    close $in;
+    my $resp = do { local $/; <$out> };
+    close $out;
+    waitpid $pid, 0;
+    return eval { decode_json( $resp // '{}' ) } // { ok => 0, error => $invalid };
+}
+
+# Run a request against tools/lazysite-users.pl --api and return the
+# decoded response (used by the token front-path's verify-credential).
+sub users_api {
+    my ($payload) = @_;
+    return _users_tool_run( $payload, 'user management unavailable',
+        'cannot run user management', 'invalid response' );
+}
+
+# SEC-2026-07 (H1): the acting cookie user's full effective capability hash, for
+# the cookie-side authorization gate (the token path uses %token_caps). Every
+# cookie-side capability question is one read of this hash - SM141's session and
+# key gate, the notifications bell, the audit scope and action_users' own gate.
+sub _user_caps {
+    my ($user) = @_;
+    return {} unless defined $user && length $user;
+
+    # SM516 MO-1: MEMOISED PER USER, PER REQUEST. Every call forks the users
+    # tool and reads the account store, and an ordinary cookie request asks
+    # twice - the gate ahead of dispatch, then the action's own gate - while
+    # whoami asks three times. Nothing writes the account store before a read
+    # of it in the same request: action_users' own gate runs before its write,
+    # and every other reader is a gate that runs before dispatch. So a second
+    # ask inside one request cannot return a different answer.
+    #
+    # Callers only READ the hash. Handing back the same reference each time is
+    # what makes this a memo rather than a copy, and carveout_refusal - the one
+    # place it is passed on - reads it too.
+    return $USER_CAPS{$user}
+        //= ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings}
+        || {};
+}
+
 our @BLOCKED_PATHS = (
     'lazysite/auth/.secret',
     'lazysite/forms/.secret',
