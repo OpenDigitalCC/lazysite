@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, from the gaps SM975 found and did not change
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). Rulings R1-R4 built (n314): no instance-wide writes for a confined caller, unbound cookie manager unconfined, unbound grants keep the primary, the data surface asks the shared rule. t/integration/112, 114, 115. Three findings open for a ruling."
+status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 built (n314). F1-F4 built (n315): served themes and layouts are their sites', forms and briefs are confined, exports record their domain, Appearance activates on the manager's domain. t/integration/112, 114-116."
 ---
 
 # What was wrong
@@ -251,6 +251,145 @@ Evidence (n314)
 - A dropped table's safety export carries no domain, so it is reached as an
   untagged table is. Recommendation: record the table's `domain:` in the
   export when it is written.
+
+# Found in Q15c, ruled
+The release manager ruled the three findings above, and the Appearance page
+they bore on, on 2026-10-09:
+
+F1 (security), "Yes, any served artifact"
+: A confined caller may write a theme or layout only if it is unused, or used
+  only by domains inside its scope. Extend active_artifact_refusal (or its
+  equivalent) to every theme/layout served by the primary or any domain; same
+  rule on MCP (write_file etc.), WebDAV, the cookie file editor, theme/layout
+  upload/copy/delete - every write path into themes/layouts. Lint 218 covers
+  it.
+
+F2 (security), "Confine both"
+: Form actions reach only forms bound on pages inside the caller's scope (an
+  unbound form counts as the primary's); brief actions reach only briefs for
+  paths inside scope, or for tables that pass the data rule. Listings
+  filtered. All form-* and brief* actions on API and MCP. Lint 218 covers them
+  (remove them from its closed list).
+
+F3, "Record domain"
+: New safety exports carry the table's domain and are confined like the
+  table; existing exports with no domain are treated as the primary's (a
+  scoped caller can't reach them; operator and unbound callers per the
+  primary rule can).
+
+F4 (UI), "Activate on its domain"
+: For a scoped cookie manager, the Appearance page activates on the manager's
+  own domain via host-addressed activation (not domain-set, so no
+  manage_domains needed); with several domains it asks which; the operator's
+  page unchanged.
+
+# The findings, built (n315)
+
+Who is confined
+: As for every domain object: `caller_may_reach_domain`'s caller - a token
+  and an MCP grant or WebDAV account always, a cookie manager with a scope.
+  The operator and an unbound cookie manager are not asked. An unbound token,
+  grant or account reaches the primary (R3) and no domain with a content root
+  of its own; for a content path its scope is the whole content.
+
+F1, a served theme or layout
+: `Manager::Common::served_artifact_refusal(rel, scopes?)`. Who serves a path
+  under `lazysite/layouts/<L>`: for `themes/<T>/...` the sites whose
+  effective layout and theme are L and T, otherwise every site using L
+  (`Domains::domain_usage`, so a domain inheriting the primary's theme serves
+  it too). Refused when any of them is a site the caller does not reach, or the
+  usage cannot be read; the refusal names the theme and not the site, and the
+  way to work (copy, edit the copy, bind it with host). Status 403.
+  SM749's rule still holds the instance's active pair for everyone.
+  Write paths, every one into lazysite/layouts:
+  - the file choke point, `Manager::Files::_active_artifact_guard` (asked by
+    action_save, action_save_binary, action_delete, action_mkdir, action_move
+    and action_copy): the cookie file editor and the control API's save,
+    delete, mkdir, move, copy, git-restore; MCP write_file, upload_file,
+    delete_file, move_file, copy_file, replace_text, restore_version. MCP hands
+    it the grant's scopes (`Manager::Files::$CALLER_SCOPES`), since that
+    process holds no manager request;
+  - the multipart upload, `Manager::Upload::action_file_upload`, per file
+    through `Files::artifact_write_guard` - it asked neither rule, and
+    replaced files in the instance's active theme;
+  - WebDAV, `authorise_layout` in lazysite-dav.pl, with the account's scopes;
+  - theme-copy, theme-upload and create_theme write only a theme of a new name
+    (an existing one is refused or installed under a dated name), which no
+    site serves; theme-delete refuses a theme any site uses, to everyone
+    (SM177), and a confined caller deletes only its own (R1); layout-install,
+    layouts-install and layout-delete are instance-wide (R1); site-backup-apply
+    only adds a layout or theme that is not there.
+
+F2, forms
+: `caller_may_reach_form(name)`: the pages binding a form are the Markdown
+  pages, public or in the private store, whose front matter says `form: NAME`
+  (`form_pages`/`form_bindings`, one walk per listing). Every one must lie
+  inside the caller's scope (`caller_may_reach_path`, the content-path rule,
+  which refuses a `..` segment and the engine tree); a form no page binds is
+  the primary's. Asked before the form is looked at, so another site's form
+  and a missing one answer alike. Control API: form-targets-read,
+  form-targets-save, form-uploads-save, form-notify-save, form-delete,
+  form-submissions (by form or store), form-submission,
+  form-submission-delete, form-submission-confirm,
+  form-submissions-delete-bulk, form-submission-approve
+  (`_refuse_unreachable_form`); form-list filtered. MCP: bind_form,
+  set_form_uploads, set_form_notify, delete_form, read_form_submissions,
+  read_form_submission (`_form_refusal`), form_list filtered, and create_form
+  naming a form that already exists (a registration, a store or a page) - a
+  new name is the page's own. WebDAV: `lazysite/forms/<name>.conf`
+  (`_form_reach_deny`).
+
+F2, briefs
+: `caller_may_reach_brief(path, type/table)`: a page's brief by its path
+  (`caller_may_reach_path`); a row's - typed, or a store path under
+  `.typed/` - by its table's domain (`caller_may_reach_table`, the data rule:
+  a table naming none is everyone's). Control API: brief-read, brief-append,
+  brief-delete (the entry it removes: the path when given, else the typed
+  reference) through `_refuse_unreachable_brief`; briefs-list filtered. MCP:
+  read_brief, append_brief, delete_brief (`_brief_refusal`); list_briefs
+  filtered. briefs-migrate is instance-wide (R1).
+
+F3, safety exports
+: `Data::Tables::_safety_export` writes `domain` (the table's, '' for none)
+  into every drop and rebuild export. `Manager::Data::_export_reach` reaches an
+  export by that domain; one without the key is the primary's. The listing,
+  read, delete and restore ask it, and restore asks the live table's reach as
+  well, since the rows go into the table as declared now.
+
+F4, activation on a domain
+: The control API's `theme-activate` and `layout-activate` take `host` (and
+  layout-activate `theme`), as MCP's activate_theme and activate_layout do:
+  bound through `Domains::domain_set` for that host, asked of the domain rule
+  (a token naming no scope is refused, SM975), the instance untouched, and
+  exempt from the instance-wide refusal only when given a host. No
+  manage_domains: the theme or layout capability, on a domain the caller
+  reaches. `themes-list-all` carries `acts_on` - a confined caller's domains -
+  and the Appearance page binds there: one domain directly, several by asking
+  which, none by saying so; Deactivate (the instance's theme) is not offered.
+  The operator's page sends what it always sent.
+
+Evidence (n315)
+: t/integration/116 (F1, F2, F4 through every door and caller),
+  t/unit/manager/209 (the rules' truth tables), t/unit/manager/208 (the
+  Appearance page under node), t/unit/data/68 and 67 (F3), lint 218 sections
+  6-7 and lint 114 (the new rule on both write stacks). The probe
+  tmp/q15d-probe.pl (tmp/q15c-probe.pl's cells and F1-F4, 816 cells) on n314
+  and n315: 667 unchanged, 149 changed, every one a narrowing named above or
+  one of these: the host-addressed activations (the ruling's own), and an
+  unbound token or grant reaching the legacy exports of domain tables (F3's
+  own words). Every new assertion sabotage-verified (tmp/q15d-sabotage.pl, 20
+  cases).
+
+Found in Q15d, not changed
+: A page saved with `form: NAME` naming a form no page bound before makes that
+  form the page's: a scoped caller that writes such a page in its own content
+  then reaches the form and its submissions (measured: tmp/q15d-hijack-probe.out,
+  a cookie manager scoped to sites/mine refused `leads`, saved
+  sites/mine/hook.md naming it, then read its one submission). create_form
+  asks; a plain save does not read the front matter for it. Reported for a
+  ruling: refusing, at the content-write rules, a page that newly binds a form
+  the caller does not reach is one way; it is a new content-write rule, so it
+  waits for the ruling.
 
 # Related
 

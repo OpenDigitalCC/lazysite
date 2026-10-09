@@ -32,6 +32,13 @@
 #      twin), confined by a content path, addressed to a domain as above, or on
 #      a closed list with the reason it is not an instance-wide write; and
 #      MCP's own mutating tools likewise.
+#   6. SM976 F2: every form and brief verb, on the control API and MCP, asks
+#      the form or brief rule (Manager::Common::form_reach_refusal /
+#      brief_reach_refusal, or the predicate a listing filters by), and the
+#      WebDAV form-conf branch asks it too.
+#   7. SM976 F1: every write path into lazysite/layouts asks the served-artifact
+#      rule (Manager::Common::served_artifact_refusal): the file choke point's
+#      guard, which every write verb consults, the multipart upload, and WebDAV.
 #
 # Files are named relative to the repository root, so the lint judges the same
 # set from any checkout - including one under tmp/.
@@ -103,6 +110,24 @@ for ( my $grew = 1; $grew; ) {
         next unless grep { $b =~ /\b\Q$_\E\b/ } keys %ASKS;
         $ASKS{$s} = $grew = 1;
     }
+}
+# SM976 F2: the form and brief rules, by the same closure. A form or brief verb
+# asks when its code names one of these, or a sub whose body does.
+my %FB_ASKS = map { $_ => 1 } qw(form_reach_refusal caller_may_reach_form brief_reach_refusal caller_may_reach_brief);
+ok( $BODY{$_}, "$_ is defined where it is looked for" ) for sort keys %FB_ASKS;
+for ( my $grew = 1; $grew; ) {
+    $grew = 0;
+    for my $s ( keys %BODY ) {
+        next if $FB_ASKS{$s};
+        my $b = $BODY{$s};
+        next unless grep { $b =~ /\b\Q$_\E\b/ } keys %FB_ASKS;
+        $FB_ASKS{$s} = $grew = 1;
+    }
+}
+sub fb_asks_in {
+    my ($text) = @_;
+    return 1 if grep { $text =~ /\b\Q$_\E\b/ } keys %FB_ASKS;
+    return 0;
 }
 sub asks_in {
     my ($text) = @_;
@@ -195,29 +220,19 @@ ok( $ASKS{_nav_reach_deny}, '...through a sub that asks it' );
 # EVERY MUTATING ACTION IS ACCOUNTED FOR, so a new one is a decision: it is
 # declared instance-wide, or it is confined by a content path (`scoped`), or it
 # asks the domain rule (sections 1-2's closure, which reaches the data surface's
-# table actions too), or it is on %NOT_INSTANCE_WIDE below with the reason it is
-# not an instance-wide write. An entry there that is held any other way fails:
+# table actions too) or the form or brief rule (section 6's closure), or it
+# is on %NOT_INSTANCE_WIDE below with the reason it is not an instance-wide
+# write. An entry there that is held any other way fails:
 # the list stays closed and true.
 my %IW     = Lazysite::ControlApi::Actions::instance_wide();
 my %SCOPED = Lazysite::ControlApi::Actions::scoped_actions();
 my %MUT    = Lazysite::ControlApi::Actions::mutating();
 
-my $FOUND = 'its reach is not domain-checked either: found in Q15c and reported for a ruling';
 my $OPERATOR_ONLY = 'needs manage_users on the cookie channel, which makes the caller the '
     . 'operator (Acl::_is_operator), and no token reaches it';
 my %NOT_INSTANCE_WIDE = (
-    'brief-append'   => "a brief about one page or row, not the instance; $FOUND",
-    'brief-delete'   => "a brief about one page or row, not the instance; $FOUND",
     'connector-call' => 'calls a connector an operator configured, which decides who may '
         . '(Connectors::may_call); it changes no setting',
-    'form-delete' => "one form's definition, not the instance; forms carry no domain, so $FOUND",
-    'form-notify-save' => "one form's definition, not the instance; forms carry no domain, so $FOUND",
-    'form-targets-save' => "one form's definition, not the instance; forms carry no domain, so $FOUND",
-    'form-uploads-save' => "one form's definition, not the instance; forms carry no domain, so $FOUND",
-    'form-submission-confirm' => "one form's submissions; forms carry no domain, so $FOUND",
-    'form-submission-delete' => "one form's submissions; forms carry no domain, so $FOUND",
-    'form-submissions-delete-bulk' => "one form's submissions; forms carry no domain, so $FOUND",
-    'form-submission-approve' => $OPERATOR_ONLY,
     'key-revoke'              => $OPERATOR_ONLY,
     'session-revoke'          => $OPERATOR_ONLY,
     'user-revoke'             => $OPERATOR_ONLY,
@@ -239,7 +254,7 @@ my %NOT_INSTANCE_WIDE = (
 );
 my ( @iw_missing, @iw_stale );
 for my $a ( sort keys %MUT ) {
-    my $asks = $BRANCH{$a} ? asks_in( with_callees( $BRANCH{$a} ) ) : 0;
+    my $asks = $BRANCH{$a} ? ( asks_in( with_callees( $BRANCH{$a} ) ) || fb_asks_in( with_callees( $BRANCH{$a} ) ) ) : 0;
     my $held = $IW{$a} || $SCOPED{$a} || $asks;
     push @iw_stale,   $a if $NOT_INSTANCE_WIDE{$a} && $held;
     push @iw_missing, $a if !$held                 && !$NOT_INSTANCE_WIDE{$a};
@@ -287,5 +302,45 @@ my @mcp_iw_missing = grep {
 } sort keys %OWN_MUT;
 is_deeply( \@mcp_iw_missing, [], 'every MCP-only mutating tool is path-confined or accounted for' );
 like( $TOOL{create_theme} // '', qr/activate\b.*?instance_wide_refusal\(/s, 'create_theme asks before activating' );
+
+# --- 6: forms and briefs (SM976 F2) ----------------------------------------------
+#
+# Ruled 2026-10-09, "Confine both": a form verb reaches only a form bound on
+# pages inside the caller's scope (an unbound form is the primary's); a brief
+# verb only the brief of a page inside it, or of a row of a table that passes
+# the data rule. Listings filter. briefs-migrate is instance-wide (section 5).
+my @fb_actions = grep { /\A(?:form|brief)/ && !$IW{$_} } sort keys %ACTION;
+cmp_ok( scalar @fb_actions, '>=', 16, 'the form and brief actions were found' );
+my @fb_missing = grep { !( $BRANCH{$_} && fb_asks_in( with_callees( $BRANCH{$_} ) ) ) } @fb_actions;
+is_deeply( \@fb_missing, [], 'every form and brief action on the control API asks the form or brief rule' )
+    or diag( 'Ask Lazysite::Manager::Common::form_reach_refusal or brief_reach_refusal in the branch '
+        . '(_refuse_unreachable_form / _refuse_unreachable_brief), or filter a listing by the predicate.' );
+my @fb_tools = grep { /form|brief/ } sort keys %TOOL;
+cmp_ok( scalar @fb_tools, '>=', 12, 'the MCP form and brief tools were found' );
+my @fb_tool_missing = grep { !fb_asks_in( with_callees( $TOOL{$_} =~ s/\\&(\w+)/$1(/gr ) ) } @fb_tools;
+is_deeply( \@fb_tool_missing, [], 'every MCP form and brief tool asks the form or brief rule' );
+like( $auth, qr/return\s+_form_reach_deny\(/, 'WebDAV: the form-conf branch of authorise() asks the form rule' );
+ok( $FB_ASKS{_form_reach_deny}, '...through a sub that asks it' );
+
+# --- 7: a theme or layout another site serves (SM976 F1) ---------------------------
+#
+# Ruled 2026-10-09, "Yes, any served artifact": a domain-confined caller writes a
+# theme or layout only if it is unused, or used only by domains inside its scope.
+# Every write path into lazysite/layouts asks Manager::Common::served_artifact_refusal:
+my $files_pm = $CODE{'lib/Lazysite/Manager/Files.pm'};
+like( $BODY{_active_artifact_guard} // '', qr/\bserved_artifact_refusal\(/,
+    'the file choke point\'s guard asks the served-artifact rule' );
+for my $verb (qw(action_save action_save_binary action_delete action_mkdir action_move action_copy)) {
+    like( $BODY{$verb} // '', qr/\b_active_artifact_guard\(/, "$verb consults the guard" );
+}
+like( $BODY{artifact_write_guard} // '', qr/\b_active_artifact_guard\(/, 'the public guard is the same guard' );
+like( $BODY{action_file_upload} // '', qr/\bartifact_write_guard\(/,
+    'the multipart upload asks the guard for every file it writes' );
+like( $BODY{authorise_layout} // '', qr/served_artifact_refusal\(\s*\$rel,\s*scopes\s*=>/,
+    'WebDAV asks the served-artifact rule with the account\'s scopes' );
+like( $auth, qr/authorise_layout\(\s*\$rel,\s*\$is_write,\s*\$conf,\s*\$user,\s*\$scope\s*\)/,
+    '...and authorise() hands it those scopes' );
+like( $mcp, qr/\$Lazysite::Manager::Files::CALLER_SCOPES\s*=/,
+    'MCP hands the choke point the grant\'s scopes before a tool runs' );
 
 done_testing();

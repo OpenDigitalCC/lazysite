@@ -24,6 +24,8 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes no_scope_refusal reserved_roots path_is_reserved
     caller_may_reach_domain request_domain_confined reachable_domains domain_reach_refusal
     caller_is_confined instance_wide_refusal
+    served_artifact_refusal caller_may_reach_path form_pages form_bindings caller_may_reach_form form_reach_refusal
+    caller_may_reach_table caller_may_reach_brief brief_reach_refusal
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
     active_artifact_refusal refusal_detail refusal_status
@@ -593,6 +595,233 @@ sub instance_wide_refusal {
             . 'instance-wide changes.' };
 }
 
+# The `scopes` override, passed on unchanged: present for MCP and WebDAV, absent
+# for the manager request.
+sub _who { my (%a) = @_; return exists $a{scopes} ? ( scopes => $a{scopes} ) : () }
+
+# Is the caller confined at all, in caller_may_reach_domain's sense? Every grant
+# passed as `scopes` is; on the manager request, a token always and a cookie
+# manager with a scope.
+sub _confined_who { my (%who) = @_; return exists $who{scopes} ? 1 : request_domain_confined() }
+
+# SM976 F1 (ruled 2026-10-09, "Yes, any served artifact"): A THEME OR LAYOUT A
+# SITE SERVES IS THAT SITE'S. A domain-confined caller writes a theme or layout
+# only if no site serves it, or only domains inside its scope do. SM749's
+# reasoning, carried from the instance's active pair to every pair the primary
+# or a domain serves: a grant scoped to one domain wrote into the theme another
+# domain is bound to (Q15c), because the active-theme rule protects only the
+# instance's own.
+#
+# Who serves it: Domains::domain_usage, the effective layout and theme of the
+# primary and of every configured host - so a domain that inherits the primary's
+# theme serves it too, and the primary is reached as caller_may_reach_domain
+# says (an unbound grant does, a scoped one does not). A theme path is served by
+# the sites using that theme under that layout; any other path under a layout
+# (its template, its assets, its themes/ folder) by every site using the layout.
+# When the usage cannot be read, nothing is known to be unused: refused.
+#
+# The operator and an unbound cookie manager are not confined and are not asked;
+# SM749's rule (active_artifact_refusal) still holds the instance's active pair
+# for everyone. Pure apart from the domain configuration it reads, and shaped as
+# the other content-write rules (error, or error and audit detail), so the choke
+# point and the WebDAV stack share it (t/lint/114, t/lint/218).
+sub served_artifact_refusal {
+    my ( $rel, %who ) = @_;
+    return unless defined $rel;
+    ( my $r = $rel ) =~ s{^/+}{};
+    my ( $layout, $rest ) = $r =~ m{^lazysite/layouts/([^/]+)(?:/(.*))?$};
+    return unless defined $layout;
+    my %by = _who(%who);
+    return unless _confined_who(%by);
+    my ($theme) = ( $rest // '' ) =~ m{^themes/([^/]+)};
+
+    require Lazysite::Manager::Domains;
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT
+        = $Lazysite::Manager::Domains::DOCROOT // $DOCROOT // $ENV{DOCUMENT_ROOT};
+    my $use = eval { Lazysite::Manager::Domains::domain_usage() };
+    my @hosts;
+    my $known = ref $use eq 'HASH';
+    if ($known) {
+        my $list = defined $theme ? $use->{themes}{"$layout\0$theme"} : $use->{layouts}{$layout};
+        @hosts = map { $_ eq '(default)' ? '' : $_ } @{ $list || [] };
+    }
+    return if $known && !grep { !caller_may_reach_domain( %by, host => $_ ) } @hosts;
+
+    my $what = defined $theme ? "the theme '$theme' (layout '$layout')" : "the layout '$layout'";
+    my @mine = grep { $_ ne '(default)' } reachable_domains(%by);
+    my $how  = defined $theme
+        ? 'To change it for your own domain: copy it (copy_theme over MCP, theme-copy on the '
+        . 'control API), edit the copy, then bind the copy to your domain (activate_theme or '
+        . 'theme-activate with host).'
+        : 'Edit a layout no other site serves, then bind it to your domain (activate_layout or '
+        . 'layout-activate with host).';
+    return _refusal(
+        "$what is served by a site you do not reach. A domain-confined caller writes only a "
+            . 'theme or layout that no site serves, or that only its own domains serve'
+            . ( @mine ? ' (' . join( ', ', @mine ) . ')' : '' ) . ". $how",
+        'served-artifact-refused',
+        "$what is served by a site outside the caller's domains",
+        defined $theme ? 'copy it, edit the copy, then activate the copy with host'
+        : 'edit a layout no other site serves, then activate it with host'
+    );
+}
+
+# SM976 F2: is a CONTENT PATH inside the caller's scope? The content-path rule
+# the scope checks have always applied, as one predicate the form and brief
+# rules can ask: an unconfined caller, and a grant naming no scope (R3, "keep
+# for primary": its whoami says allow: /), reach every content path; a scoped
+# one reaches the paths inside one of its scopes. The engine tree (lazysite/)
+# and the site root lie inside no scope.
+sub caller_may_reach_path {
+    my ( $rel, %who ) = @_;
+    my %by = _who(%who);
+    return 1 unless _confined_who(%by);
+    my @scopes = exists $by{scopes}
+        ? grep { defined && length } @{ $by{scopes} || [] }
+        : @REQUEST_SCOPES;
+    return 1 unless @scopes;
+    # Asked of the path as the caller sent it, which the action resolves later:
+    # a `..` segment could leave the scope after this check passed, so it is
+    # inside none.
+    return 0 if ( $rel // '' ) =~ m{(?:\A|/)\.\.(?:/|\z)};
+    my $p = _clean_root($rel);
+    return 0 if $p eq '' || $p =~ m{^lazysite(?:/|\z)};
+    return outside_all_scopes( \@scopes, $p ) ? 0 : 1;
+}
+
+# SM976 F2: the pages that bind a form - every Markdown page, public or in the
+# private store (SM286), whose front matter names it (`form: NAME`, the key the
+# processor renders the form from). Returned as docroot-relative paths.
+sub form_pages {
+    my ($name) = @_;
+    return () unless defined $name && length $name;
+    return @{ form_bindings()->{ lc $name } || [] };
+}
+
+# Every form's binding pages in one walk: { lc(form) => [ pages, sorted ] }.
+sub form_bindings {
+    my $doc = ( defined $DOCROOT && length $DOCROOT ) ? $DOCROOT : ( $ENV{DOCUMENT_ROOT} // '' );
+    return {} unless length $doc;
+    require File::Find;
+    require Lazysite::Private;
+    no warnings 'once';    # File::Find::prune is the module's, set from the callback
+    my %pages;
+    for my $base ( grep { defined && -d } $doc, Lazysite::Private::private_root($doc) ) {
+        File::Find::find(
+            { no_chdir => 1,
+                wanted => sub {
+                    my $f = $File::Find::name;
+                    ( my $rel = $f ) =~ s{\A\Q$base\E/?}{};
+                    if ( -d $f ) {
+                        $File::Find::prune = 1
+                            if $rel =~ m{(?:\A|/)\.}
+                            || $rel =~ m{\A(?:lazysite|cgi-bin|manager)(?:/|\z)};
+                        return;
+                    }
+                    return unless $rel =~ /\.md\z/;
+                    open my $fh, '<:encoding(UTF-8)', $f or return;
+                    my $head = '';
+                    read $fh, $head, 16384;
+                    close $fh;
+                    return unless $head =~ /\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\z)/s;
+                    my $fm = $1;
+                    return unless $fm =~ /^form[ \t]*:[ \t]*["']?([A-Za-z0-9_-]+)["']?[ \t]*\r?$/m;
+                    $pages{ lc $1 }{$rel} = 1;
+                },
+            },
+            $base
+        );
+    }
+    return { map { $_ => [ sort keys %{ $pages{$_} } ] } keys %pages };
+}
+
+# SM976 F2 (ruled 2026-10-09, "Confine both"): A FORM IS REACHED THROUGH THE
+# PAGES THAT BIND IT. Forms carry no domain; a confined caller listed another
+# domain's form and rewrote its upload settings (Q15c). So a confined caller
+# reaches a form only when every page binding it lies inside its scope - one
+# page outside is another site's visitors posting to it - and a form no page
+# binds counts as the primary's, reached as caller_may_reach_domain reaches the
+# primary (an unbound grant does, a scoped one does not). Unconfined callers are
+# not asked. Takes the predicate's `scopes => [...]` override, and `bindings`
+# (form_bindings' map) so a listing walks the site once rather than per form.
+sub caller_may_reach_form {
+    my ( $name, %who ) = @_;
+    my %by = _who(%who);
+    return 1 unless _confined_who(%by);
+    my @pages = ref $who{bindings} eq 'HASH'
+        ? @{ $who{bindings}{ lc( $name // '' ) } || [] }
+        : form_pages($name);
+    return caller_may_reach_domain( %by, host => '' ) ? 1 : 0 unless @pages;
+    for my $p (@pages) { return 0 unless caller_may_reach_path( $p, %by ) }
+    return 1;
+}
+
+# The refusal for a form this caller does not reach, or undef. It is given
+# before the form is looked at, so another site's form and a form that does not
+# exist get the same answer.
+sub form_reach_refusal {
+    my ( $name, %who ) = @_;
+    my %by = _who(%who);
+    return undef if caller_may_reach_form( $name, %by );
+    my @mine = reachable_domains(%by);
+    return { ok => 0, kind => 'forbidden', domains => \@mine,
+        error => "You cannot reach the form '" . ( $name // '' ) . "'. A domain-confined "
+            . 'caller reaches only the forms bound (front matter "form: NAME") on pages inside '
+            . 'its scope; a form no page binds is the primary site\'s'
+            . ( @mine ? '. Your domains: ' . join( ', ', @mine ) . '.' : '.' ) };
+}
+
+# SM976 F2: a table's reach, by the data surface's rule (R4): a table naming a
+# domain is that domain's, one naming none is everyone's. For a brief keyed on a
+# row (`.typed/row/<table>/<key>`), whose table may since have gone.
+sub caller_may_reach_table {
+    my ( $table, %who ) = @_;
+    my %by = _who(%who);
+    return 1 unless _confined_who(%by);
+    require Lazysite::Data::Tables;
+    my $doc = ( defined $DOCROOT && length $DOCROOT ) ? $DOCROOT : ( $ENV{DOCUMENT_ROOT} // '' );
+    my $d = eval { Lazysite::Data::Tables::load_table( $doc, $table ) };
+    my $dom = ( ref $d eq 'HASH' && $d->{ok} && defined $d->{domain} && !ref $d->{domain} ) ? $d->{domain} : '';
+    return 1 unless length $dom;
+    return caller_may_reach_domain( %by, host => $dom ) ? 1 : 0;
+}
+
+# SM976 F2 (ruled 2026-10-09, "Confine both"): A BRIEF IS ITS SUBJECT'S. A brief
+# about a content path is reached when the path is (caller_may_reach_path); one
+# about a row (typed, or a store path under .typed/) when its table passes the
+# data rule. A confined caller appended to and read another domain's page brief
+# (Q15c). %o carries the typed reference (type, table) and `scopes`.
+sub caller_may_reach_brief {
+    my ( $path, %o ) = @_;
+    my %by = _who(%o);
+    return 1 unless _confined_who(%by);
+    my $table;
+    if ( length( $o{type} // '' ) ) { $table = $o{table} }
+    else {
+        ( my $p = $path // '' )                           =~ s{^/+}{};
+        return caller_may_reach_path( $p, %by ) unless $p =~ m{\A\.typed/[^/]+/([^/]+)(?:/|\z)};
+        $table = $1;
+    }
+    return 0 unless defined $table && length $table;
+    return caller_may_reach_table( $table, %by );
+}
+
+# The refusal for a brief this caller does not reach, or undef.
+sub brief_reach_refusal {
+    my ( $path, %o ) = @_;
+    return undef if caller_may_reach_brief( $path, %o );
+    my %by   = _who(%o);
+    my @mine = reachable_domains(%by);
+    my $what = length( $o{type} // '' )
+        ? "the brief of a row of '" . ( $o{table} // '' ) . "'"
+        : "the brief of '" . ( $path // '' ) . "'";
+    return { ok => 0, kind => 'forbidden', domains => \@mine,
+        error => "You cannot reach $what. A domain-confined caller reaches only the briefs of "
+            . 'pages inside its scope, and of rows of the tables its domains hold'
+            . ( @mine ? ' (' . join( ', ', @mine ) . ').' : '.' ) };
+}
+
 # The carve-outs from the whole-lazysite/ denial, named ONCE. is_blocked_path
 # asks "is this path one of them", path_leads_to_carveout asks "is this
 # directory on the way to one" - a listing must offer lazysite/layouts even
@@ -911,7 +1140,7 @@ sub processor_path {
 # t/lint/139 holds this closed: every `kind => '...'` the tree emits is either
 # a key here or named in that test's "400 is the right answer" list.
 our %REFUSAL_STATUS = (
-    ( map { $_ => '403 Forbidden' } qw(forbidden not-yours permission blocked disabled) ),
+    ( map { $_ => '403 Forbidden' } qw(forbidden not-yours permission blocked disabled served-artifact-refused) ),
     ( map { $_ => '404 Not Found' }
             qw(not-found unknown-domain
             no_such_table no_such_row no_such_form db-table-missing) ),

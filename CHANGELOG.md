@@ -53,6 +53,40 @@ Archive
 
 ## Unreleased
 
+- SM976 (PENDING) **security: the three Q15c findings, ruled** (2026-10-09). F1
+  "Yes, any served artifact": a theme or layout a site serves is that site's.
+  **Behaviour change:** a confined caller (a scoped token, MCP grant, WebDAV
+  account or cookie manager, and an unbound token, grant or account for every
+  domain with a content root of its own) writes into a theme or layout only if
+  no site serves it or only its own domains do - on the file editor, the
+  control API, MCP `write_file` and its siblings, WebDAV and the multipart
+  upload; it copies another site's theme, edits the copy and binds the copy to
+  its own domain. The multipart upload (`file-upload`) also asks SM749's rule
+  now: it replaced files in the instance's active theme for everyone. F2
+  "Confine both": **Behaviour change:** a confined caller reaches a form only
+  when every page binding it (`form: NAME`) lies inside its scope - a form no
+  page binds is the primary's - on every form verb of the control API and MCP
+  and on the form's conf over WebDAV; `form-list`/`form_list` show only those;
+  MCP `create_form` naming an existing form asks the same. It reaches a brief
+  only of a page inside its scope or of a row of a table it reaches;
+  `briefs-list`/`list_briefs` show only those. An unbound token or grant keeps
+  every page's form and brief (its scope is the whole content, R3). F3 "Record
+  domain": a safety export written by a drop or a rebuild records its table's
+  domain and is confined as the table was. **Behaviour change:** an export
+  written before this records none and is the primary's: a scoped caller no
+  longer reaches it, even of its own table, and an unbound token or grant now
+  does, of any table (restoring still needs the live table's reach). F4
+  "Activate on its domain": `theme-activate` and `layout-activate` take `host`
+  on the control API, as their MCP twins do, binding that domain only and
+  asking the domain rule, with no `manage_domains`; `themes-list-all` names a
+  confined caller's domains as `acts_on`, and the Appearance page of a scoped
+  manager activates there (asking which when it has several) and offers no
+  Deactivate. **Behaviour change:** a `host` sent to either action was ignored
+  and the instance changed; it now addresses the domain, and a token naming no
+  scope is refused it (SM975). The operator and an unbound cookie manager are
+  unchanged throughout. Lint 218 sections 6 and 7. t/integration/116,
+  t/unit/manager/208, 209, t/unit/data/67, 68.
+
 ## 0.15.3 - EDGE: a confined caller reaches only its own domains (2026-10-09)
 
 - SM976 (5a8bb72c) **security: the four rulings on domain confinement**

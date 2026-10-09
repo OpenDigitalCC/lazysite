@@ -38,6 +38,7 @@ my %RULES = (
     page_parse_refusal      => 'SM748 / SM729',
     brief_write_refusal     => 'SM504',
     active_artifact_refusal => 'SM749',
+    served_artifact_refusal => 'SM976 F1',
 );
 
 for my $rule ( sort keys %RULES ) {
@@ -60,6 +61,8 @@ subtest 'every *_refusal rule in Common is in the table - a new rule is a decisi
         no_scope_refusal => 'the words of a domain-write refusal for a token naming no scope (SM975), not a content rule',
         domain_reach_refusal => 'the refusal of the domain-reach rule (SM976), asked by every host-addressed action and held by t/lint/218, not a content rule',
         instance_wide_refusal => 'the refusal of an instance-wide write by a domain-confined caller (SM976 R1), applied by the API and MCP dispatchers and held by t/lint/218, not a content rule',
+        form_reach_refusal => 'the refusal of the form-reach rule (SM976 F2), asked by every form verb on the control API and MCP and by the WebDAV form-conf branch, held by t/lint/218, not a content rule',
+        brief_reach_refusal => 'the refusal of the brief-reach rule (SM976 F2), asked by every brief verb on the control API and MCP, held by t/lint/218, not a content rule',
     );
     my @unaccounted = grep { !$RULES{$_} && !$EXEMPT{$_} } @defined;
     is_deeply( \@unaccounted, [],

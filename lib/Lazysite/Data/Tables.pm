@@ -565,6 +565,13 @@ sub _safety_export {
     my $file   = "$name$infix-$stamp.json";
     my $safety = "$dir/$file";
     my $export = Lazysite::Data::Export::export_table( $d, $rows );
+
+    # SM976 F3 (ruled 2026-10-09, "Record domain"): a safety export is its
+    # table's, and outlives it - a drop leaves no descriptor to ask. So it
+    # carries the table's domain, '' for a table naming none, and the export
+    # verbs confine it as the table was confined. An export written before this
+    # has no `domain` and is treated as the primary's.
+    $export->{domain} = ( defined $d->{domain} && !ref $d->{domain} ) ? $d->{domain} : '';
     if ( open my $fh, '>:utf8', $safety ) {
         my $ok = print {$fh} JSON::PP->new->canonical->pretty->encode($export);
         $ok = 0 unless close $fh;

@@ -65,7 +65,14 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
   `activate`, and on the control API the site configuration, extensions,
   connectors and instance backups are refused to it; it changes its own
   domains through the `host` forms. A grant with no scope keeps them: it
-  reaches the primary, whose settings they are.
+  reaches the primary, whose settings they are. A theme or layout a site
+  serves is that site's: a confined grant writes one only when no site serves
+  it or only its own domains do (copy it, edit the copy, bind the copy with
+  `host`). A form is reached through the pages that bind it (`form: NAME`),
+  and a form no page binds is the primary's; a brief is its page's, or its
+  row's table's; `form_list` and `list_briefs` show only those the grant
+  reaches. A safety export is its table's domain's, and one written before
+  exports recorded a domain is the primary's.
 - `webdav` - the WebDAV transport / file-API mechanism flag.
 - `manage_config` - site configuration (control API, not exposed as MCP tools).
 - `manage_connectors` - where site data may be sent: define connectors, set their

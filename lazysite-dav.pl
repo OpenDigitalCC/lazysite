@@ -1563,6 +1563,22 @@ sub _nav_reach_deny {
     return _deny( 403, $r->{error} );
 }
 
+# SM976 F2 (ruled 2026-10-09, "Confine both"): a form's conf is that form's, and
+# a form is reached through the pages that bind it - Manager::Common's rule,
+# which the control API and MCP ask of every form verb. Every WebDAV account is a
+# grant, so it is asked with its scopes.
+sub _form_reach_deny {
+    my ( $name, $scope ) = @_;
+    require Lazysite::Manager::Common;
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT  = $DOCROOT;
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my $r = Lazysite::Manager::Common::form_reach_refusal( $name,
+        scopes => ( ref $scope eq 'ARRAY' ? $scope : [] ) )
+        or return undef;
+    return _deny( 403, $r->{error} );
+}
+
 # Returns an HTTP error code if denied, or undef if allowed.
 sub authorise {
     my ( $rel, $scope, $is_write, $conf, $user ) = @_;
@@ -1621,7 +1637,7 @@ sub authorise {
         my $name = $1;
         return _deny( 403, "lazysite/forms/$name.conf is protected (it holds credentials/handler definitions) and is not editable over WebDAV" )
             if $name eq 'smtp' || $name eq 'handlers' || $name eq 'schedule';
-        return undef if manage_forms_for($user);
+        return _form_reach_deny( $name, $scope ) if manage_forms_for($user);
         return _deny( 403, "editing lazysite/forms/$name.conf requires the manage_forms capability" );
     }
 
@@ -1630,7 +1646,7 @@ sub authorise {
     # by the manage_themes / manage_layouts capabilities and the active
     # pointers. Everything else under lazysite/ stays denied.
     if ( $rel eq 'lazysite' || $rel =~ m{^lazysite/} ) {
-        return authorise_layout( $rel, $is_write, $conf, $user );
+        return authorise_layout( $rel, $is_write, $conf, $user, $scope );
     }
 
     # SM082: the content namespace requires the content capability (defaults to
@@ -1671,10 +1687,11 @@ sub authorise {
 
 # SM071 Phase 3: per-object authorisation for the lazysite/layouts/** tree.
 # Returns 403 (deny) or undef (allow). dav_scope is a content-namespace
-# control and does not apply here - theme/layout reachability is governed
-# solely by the capabilities and the active-pointer read-only rule.
+# control and does not apply here - theme/layout reachability is governed by
+# the capabilities, the active-pointer read-only rule and (SM976 F1) the reach
+# of the sites that serve the theme or layout.
 sub authorise_layout {
-    my ( $rel, $is_write, $conf, $user ) = @_;
+    my ( $rel, $is_write, $conf, $user, $scope ) = @_;
 
     my $can_themes  = manage_themes_for($user);
     my $can_layouts = manage_layouts_for($user);
@@ -1698,6 +1715,18 @@ sub authorise_layout {
         require Lazysite::Manager::Common;
         if ( my ( $err, $why ) = Lazysite::Manager::Common::active_artifact_refusal(
                 $rel, $active_layout, $active_theme ) )
+        {
+            return _deny( 403, $err, $why );
+        }
+        # SM976 F1 (ruled 2026-10-09, "Yes, any served artifact"): and a theme
+        # or layout another site serves is that site's. dav_scope does not confine
+        # this tree as a content path, but it is the account's reach: a scoped
+        # account writes only a pair no site serves, or one only its own domains
+        # serve. The rule is Manager::Common's, as the choke point asks it.
+        no warnings 'once';
+        local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+        if ( my ( $err, $why ) = Lazysite::Manager::Common::served_artifact_refusal(
+                $rel, scopes => ( ref $scope eq 'ARRAY' ? $scope : [] ) ) )
         {
             return _deny( 403, $err, $why );
         }

@@ -667,7 +667,7 @@ our %ACTION = (
     'lang-status' => { cookie_cap => 'manage_content', params => [ { name => 'group', in => 'query' } ] },
     # SM920: `layout` ALONE. `path` was the generic spelling and took precedence
     # over it, so a caller sending both had the specific one dropped in silence.
-    'layout-activate' => { instance_wide => 1, mcp => 'activate_layout', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query', required => 1 } ] },
+    'layout-activate' => { instance_wide => 1, mcp => 'activate_layout', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query', required => 1 }, { name => 'theme', in => 'query' }, { name => 'host', in => 'query', note => 'SM976 F4: a configured domain to bind the layout to, instead of the instance' } ] },
     # SM911 LD2: `layout` is the spelling its siblings take and the one a partner
     # tries; `path` is what the dispatcher had always passed, and stays.
     'layout-delete' => { instance_wide => 1, mcp => 'delete_layout', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query' }, { name => 'path', in => 'query' } ] },
@@ -757,7 +757,7 @@ our %ACTION = (
     # [cookie_cap] SM185: package the DEFAULT site (no domains feature needed)
     'site-export-primary' => { mutates => 1, cookie_cap => 'manage_content', params => [ { name => 'data_tables', in => 'body' } ] },
     # SM920: `theme` ALONE, for the same reason layout-activate takes `layout`.
-    'theme-activate' => { instance_wide => 1, mcp => 'activate_theme', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'theme', in => 'query', required => 1 } ] },
+    'theme-activate' => { instance_wide => 1, mcp => 'activate_theme', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'theme', in => 'query', required => 1 }, { name => 'host', in => 'query', note => 'SM976 F4: a configured domain to bind the theme to, instead of the instance' } ] },
     # [mcp] copy_theme: SM749: a copy changes nothing live
     'theme-copy' => { mcp => 'copy_theme', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'path', in => 'query', required => 1 }, { name => 'new_name', in => 'body', required => 1 }, { name => 'layout', in => 'body' } ] },
     # [mcp] SM262: paired, but NOT identical - the MCP tool is always restricted to

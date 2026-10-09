@@ -19,6 +19,7 @@ query_params:
 <button id="lzs-stop-preview" class="mg-btn mg-btn-sm" onclick="clearPreview()" style="display:none">Stop preview</button></div>
 <div class="mg-card-body">
 <p class="mg-card-subtitle" style="margin:0 0 8px 0;">The layout is the page structure; the theme is its colours and fonts. Activating one sets the site default for all visitors and clears the page cache. This is the single place to switch layout or theme.</p>
+<p id="acts-on-note" class="mg-note mg-note-info" hidden></p>
 <div id="installed">
 <div class="mg-row"><span class="mg-file-name">Loading...</span></div>
 </div>
@@ -73,6 +74,50 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 var ACTIVE_LAYOUT = '';
 var ACTIVE_THEME  = '';
 
+// SM976 F4 (ruled 2026-10-09, "Activate on its domain"): a manager confined to
+// some domains changes no instance-wide setting (R1), so its Activate binds the
+// layout or theme to its OWN domain - theme-activate / layout-activate with
+// host, which needs no domain-management permission. themes-list-all names
+// those domains as `acts_on`; it is absent for the operator and every other
+// unconfined caller, whose page is unchanged.
+var ACTS_ON = null;
+
+// The host an activation is addressed to: '' for an unconfined caller (the
+// instance, as before), the one domain of a manager confined to one, the domain
+// it names when it has several, and null when it declines to choose.
+function activationHost() {
+  if (!ACTS_ON) return Promise.resolve('');
+  if (!ACTS_ON.length) return Promise.reject(new Error('You reach no domain to activate on.'));
+  if (ACTS_ON.length === 1) return Promise.resolve(ACTS_ON[0]);
+  return mgPrompt('Activate on which of your domains? ' + ACTS_ON.join(', '), ACTS_ON[0])
+    .then(function (h) {
+      if (h === null || h === false) return null;
+      h = String(h).trim();
+      if (ACTS_ON.indexOf(h) < 0) {
+        throw new Error('"' + h + '" is not one of your domains: ' + ACTS_ON.join(', ') + '.');
+      }
+      return h;
+    });
+}
+
+// The request: kind is 'theme' or 'layout'; a host addresses that one domain.
+function activateQuery(kind, name, host) {
+  return '?action=' + kind + '-activate&' + kind + '=' + encodeURIComponent(name)
+    + (host ? '&host=' + encodeURIComponent(host) : '');
+}
+
+function renderActsOn() {
+  var el = document.getElementById('acts-on-note');
+  if (!el) return;
+  if (!ACTS_ON) { el.hidden = true; el.textContent = ''; return; }
+  el.textContent = ACTS_ON.length
+    ? 'You manage ' + ACTS_ON.join(', ') + ': Activate applies to '
+      + (ACTS_ON.length === 1 ? 'that domain' : 'the one of them you choose')
+      + ', not to the whole site.'
+    : 'You reach no domain, so nothing here can be activated.';
+  el.hidden = false;
+}
+
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
   if (isError) {
@@ -104,6 +149,8 @@ function loadAll() {
     var ta = res[0] || {}, la = res[1] || {};
     ACTIVE_LAYOUT = ta.active_layout || '';
     ACTIVE_THEME  = ta.active || '';
+    ACTS_ON = Array.isArray(ta.acts_on) ? ta.acts_on : null;   // SM976 F4
+    renderActsOn();
     var themes  = ta.themes || [];                 // [{name, layout, used_by}]
     var layouts = (la.layouts || []).slice();      // [name]
     LAYOUT_USED = la.layout_usage || {};           // SM234: layout -> [hosts]
@@ -213,7 +260,9 @@ function renderInstalled(layouts, byLayout) {
         // first step of the only way to change it (copy, edit, activate).
         html += '<button class="mg-btn mg-btn-sm" data-impact="commit" onclick="copyTheme(\'' + escHtml(t) + '\')">Copy</button>';
         if (isActiveT) {
-          html += '<button class="mg-btn mg-btn-sm" onclick="deactivateTheme()">Deactivate</button>';
+          // SM976 F4: deactivating is the instance's theme; a confined manager
+          // binds its own domain instead, and is not offered it.
+          if (!ACTS_ON) html += '<button class="mg-btn mg-btn-sm" onclick="deactivateTheme()">Deactivate</button>';
         } else {
           html += '<button class="mg-btn mg-btn-change mg-btn-sm mg-btn-change" onclick="activateThemeOnly(\'' + escHtml(t) + '\')">Activate</button>';
           if (tUsed.length) {
@@ -282,17 +331,21 @@ function purgeAllBackups() {
 }
 
 function activateLayout(name) {
-  mgConfirm('Activate layout "' + name + '"? Its default theme is used; cached pages clear.',
-    { ok: 'Activate' }).then(function(ok) {
-    if (!ok) return;
-    // SM920: `layout=`, the one spelling this action takes now. It was `path=`,
-    // which took precedence over `layout=` and silently won when both were sent.
-    fetch(API + '?action=layout-activate&layout=' + encodeURIComponent(name), { method: 'POST' })
-      .then(function(r){ return r.json(); }).then(function(d) {
-        if (!d.ok) { showStatus(d.error, true); return; }
-        showStatus('Layout "' + name + '" activated.'); loadAll();
-      }).catch(function(e){ showStatus('Error: ' + e.message, true); });
-  });
+  // SM976 F4: the domain first, for a confined manager; '' is the instance.
+  activationHost().then(function(host) {
+    if (host === null) return;
+    return mgConfirm('Activate layout "' + name + '"' + (host ? ' on ' + host : '')
+      + '? Its default theme is used; cached pages clear.', { ok: 'Activate' }).then(function(ok) {
+      if (!ok) return;
+      // SM920: `layout=`, the one spelling this action takes now. It was `path=`,
+      // which took precedence over `layout=` and silently won when both were sent.
+      return fetch(API + activateQuery('layout', name, host), { method: 'POST' })
+        .then(function(r){ return r.json(); }).then(function(d) {
+          if (!d.ok) { showStatus(d.error, true); return; }
+          showStatus('Layout "' + name + '" activated' + (host ? ' on ' + host : '') + '.'); loadAll();
+        });
+    });
+  }).catch(function(e){ showStatus('Error: ' + e.message, true); });
 }
 
 function deleteLayout(name, themeCount) {
@@ -314,12 +367,16 @@ function deleteLayout(name, themeCount) {
 }
 
 function activateThemeOnly(name) {
-  // SM920: `theme=`, the one spelling this action takes now.
-  fetch(API + '?action=theme-activate&theme=' + encodeURIComponent(name), { method: 'POST' })
-    .then(function(r){ return r.json(); }).then(function(d) {
-      if (!d.ok) { showStatus(d.error, true); return; }
-      showStatus('Theme "' + name + '" activated.'); loadAll();
-    }).catch(function(e){ showStatus('Error: ' + e.message, true); });
+  // SM976 F4: on the confined manager's own domain; '' is the instance.
+  activationHost().then(function(host) {
+    if (host === null) return;
+    // SM920: `theme=`, the one spelling this action takes now.
+    return fetch(API + activateQuery('theme', name, host), { method: 'POST' })
+      .then(function(r){ return r.json(); }).then(function(d) {
+        if (!d.ok) { showStatus(d.error, true); return; }
+        showStatus('Theme "' + name + '" activated' + (host ? ' on ' + host : '') + '.'); loadAll();
+      });
+  }).catch(function(e){ showStatus('Error: ' + e.message, true); });
 }
 
 function deactivateTheme() {

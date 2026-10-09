@@ -19,7 +19,7 @@ use Cwd             qw(realpath);
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal refusal_detail load_upload_limits outside_all_scopes);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal refusal_detail load_upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -36,6 +36,7 @@ our @EXPORT_OK = qw(
     invalidate_registries registry_roots action_regenerate_registries
     action_git_status action_git_history action_git_history_summary
     action_git_show action_git_restore action_git_init
+    artifact_write_guard
 );
 
 our $DOCROOT;
@@ -48,6 +49,13 @@ our $LOCK_DIR;
 our $LOCK_TIMEOUT = 300;
 our $auth_user    = '';
 our $action       = '';
+
+# SM976 F1: WHOSE REACH the served-artifact rule asks. Undef is the manager
+# request (Manager::Common's request context, set by lazysite-manager-api.pl);
+# an MCP tool call sets the grant's dav_scopes here, as it sets
+# Manager::Data's, because that process establishes no manager request and the
+# context there is fail-closed (it reaches nothing).
+our $CALLER_SCOPES;
 
 # SM085: content-history commit hook. One cheap enabled() check inside
 # commit_paths makes every call an instant no-op when the feature is off, and
@@ -538,9 +546,19 @@ sub _active_artifact_guard {
         if ( my ( $err, $why ) = active_artifact_refusal( $rel, $layout, $theme ) ) {
             return { ok => 0, error => $err, kind => 'active-artifact-refused', audit_detail => $why };
         }
+        # SM976 F1: and a theme or layout another site serves is that site's.
+        if ( my ( $err, $why ) = served_artifact_refusal( $rel,
+                ( ref $CALLER_SCOPES eq 'ARRAY' ? ( scopes => $CALLER_SCOPES ) : () ) ) )
+        {
+            return { ok => 0, error => $err, kind => 'served-artifact-refused', audit_detail => $why };
+        }
     }
     return undef;
 }
+
+# The same guard, for a write path outside this module (Manager::Upload's
+# multipart upload, which writes files into a folder it was given).
+sub artifact_write_guard { return _active_artifact_guard(@_) }
 
 sub action_save_binary {
     my ( $rel_path, $username, $bytes ) = @_;

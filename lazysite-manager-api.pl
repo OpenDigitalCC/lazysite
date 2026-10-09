@@ -1068,9 +1068,17 @@ $Lazysite::Manager::Data::CALLER_CONFINED = Lazysite::Manager::Common::request_d
 # branch below has to remember it, and t/lint/218 holds every mutating action to
 # the list. The operator, an unbound cookie manager and an unbound token (which
 # reaches the primary, whose settings these are) are unaffected.
+#
+# SM976 F4 (ruled 2026-10-09, "Activate on its domain"): an instance-wide action
+# that also takes a `host`, and was given one, is addressed to that domain
+# instead (theme-activate, layout-activate) and answers to the domain rule in its
+# branch - as MCP's twins do.
 {
     my %instance_wide = Lazysite::ControlApi::Actions::instance_wide();
-    if ( $instance_wide{$action} ) {
+    my $addressed     = length( $params{host} // '' )
+        && grep { ( $_->{name} // '' ) eq 'host' }
+        @{ ( $Lazysite::ControlApi::Actions::ACTION{$action} || {} )->{params} || [] };
+    if ( $instance_wide{$action} && !$addressed ) {
         if ( my $r = Lazysite::Manager::Common::instance_wide_refusal( action => $action ) ) {
             _refuse( $r, ( $token_auth ? 'api' : 'ui' ), 'denied: instance-wide' );
         }
@@ -1447,6 +1455,7 @@ elsif ( $action eq 'brief-read' ) {
     }
     else {
         _briefs();
+        _refuse_unreachable_brief( $path, %typed );    # SM976 F2
         $result = Lazysite::Manager::Briefs::action_brief_read( $path, %typed );
     }
 }
@@ -1464,6 +1473,7 @@ elsif ( $action eq 'brief-append' ) {
                 . '(type=row&table=NAME&key=KEY).' };
     }
     else {
+        _refuse_unreachable_brief( $path, %typed );    # SM976 F2
         $result = Lazysite::Manager::Briefs::action_brief_append(
             $path, $req->{entry}, %typed );
     }
@@ -1475,6 +1485,12 @@ elsif ( $action eq 'briefs-migrate' ) {
 elsif ( $action eq 'briefs-list' ) {
     _briefs();
     $result = Lazysite::Manager::Briefs::action_briefs_list();
+    # SM976 F2: a confined caller is shown the briefs it reaches, and no other.
+    if ( ref $result eq 'HASH' && ref $result->{briefs} eq 'ARRAY' ) {
+        $result->{briefs} = [ grep { Lazysite::Manager::Common::caller_may_reach_brief( $_->{path} ) }
+                @{ $result->{briefs} } ];
+        $result->{count} = scalar @{ $result->{briefs} };
+    }
 }
 elsif ( $action eq 'brief-delete' ) {
 
@@ -1496,6 +1512,10 @@ elsif ( $action eq 'brief-delete' ) {
     }
     else {
         _briefs();
+        # SM976 F2: the entry the delete removes - the path when one is given,
+        # else the typed reference (Briefs::action_brief_delete's order).
+        if ( defined $params{path} && length $params{path} ) { _refuse_unreachable_brief($path) }
+        else { _refuse_unreachable_brief( undef, %dtyped ) }
         $result = Lazysite::Manager::Briefs::action_brief_delete(
             ( defined $params{path} && length $params{path} ) ? $path : undef,
             %dtyped );
@@ -1842,7 +1862,17 @@ elsif ( $action eq 'bad-url-unblock' ) {
     $result = { ok => 1, removed => ( $removed ? JSON::PP::true : JSON::PP::false ) };
 }
 elsif ( $action eq 'theme-list' )      { $result = action_theme_list() }
-elsif ( $action eq 'themes-list-all' ) { $result = action_themes_list_all() }
+elsif ( $action eq 'themes-list-all' ) {
+    $result = action_themes_list_all();
+    # SM976 F4 (ruled 2026-10-09, "Activate on its domain"): a domain-confined
+    # caller activates on its own domains, never on the instance (R1). The
+    # Appearance page reads which from here - the listing it already loads -
+    # and binds there through theme-activate/layout-activate with host. Absent
+    # for the operator and every unconfined caller, whose page is unchanged.
+    if ( ref $result eq 'HASH' && Lazysite::Manager::Common::caller_is_confined() ) {
+        $result->{acts_on} = [ grep { $_ ne '(default)' } Lazysite::Manager::Common::reachable_domains() ];
+    }
+}
 
 # SM920: ONE NAME FOR THE THING BEING ACTIVATED - `theme=` and `layout=`.
 #
@@ -1864,10 +1894,31 @@ elsif ( $action eq 'themes-list-all' ) { $result = action_themes_list_all() }
 #
 # Our own Appearance page was a `path=` caller and changes with this.
 elsif ( $action eq 'theme-activate' ) {
-    $result = action_theme_activate( $params{theme} // '', \%params );
+    # SM976 F4 (ruled 2026-10-09, "Activate on its domain"): with `host`, the theme
+    # is bound to that one configured domain - MCP activate_theme's host form,
+    # which the control API did not have - and the instance's theme is untouched.
+    # The domain must be one the caller reaches (a token naming no scope reaches
+    # none, SM975). No manage_domains: the theme capability acts on a domain the
+    # caller already reaches, which is how a scoped manager's Appearance page
+    # activates a theme for its own site.
+    if ( length( $params{host} // '' ) ) {
+        _refuse_unscoped_token();
+        _refuse_unreachable_domain( undef, host => $params{host} );
+        $result = _domain_presentation_set( $params{host}, theme => $params{theme} // '' );
+    }
+    else { $result = action_theme_activate( $params{theme} // '', \%params ) }
 }
 elsif ( $action eq 'layout-activate' ) {
-    $result = action_layout_activate( $params{layout} // '', \%params );
+    # SM976 F4: the same host form, and as MCP's activate_layout does it - the
+    # layout, then the theme if one was named, so the domain is left servable.
+    if ( length( $params{host} // '' ) ) {
+        _refuse_unscoped_token();
+        _refuse_unreachable_domain( undef, host => $params{host} );
+        $result = _domain_presentation_set( $params{host}, layout => $params{layout} // '' );
+        $result = _domain_presentation_set( $params{host}, theme => $params{theme} )
+            if $result->{ok} && length( $params{theme} // '' );
+    }
+    else { $result = action_layout_activate( $params{layout} // '', \%params ) }
 }
 elsif ( $action eq 'theme-delete' ) {
     # SM262: a token client may remove a theme it created; a cookie session (a
@@ -2151,20 +2202,33 @@ elsif ( $action eq 'schedule-delete' ) {
     $result = Lazysite::Handlers::action_schedule_delete( $req->{id}, _handler_who() );
 }
 elsif ( $action eq 'form-targets-read' ) {
+    _refuse_unreachable_form( $params{form} );    # SM976 F2
     $result = Lazysite::Handlers::action_form_targets_read( $params{form} );
 }
 elsif ( $action eq 'form-submissions' ) {
     # SM862: `form` as well as `file`. MCP's twin takes a form name and this did
     # not, so the reasonable call answered "Invalid submissions file" about a
     # parameter that had never been sent.
+    _refuse_unreachable_form( length( $params{form} // '' ) ? $params{form} : _form_of_store( $params{file} ) ); # SM976 F2
     $result = action_form_submissions( $params{file}, $params{form} );
 }
 elsif ( $action eq 'form-submission' ) {
     # SM938 D5: one submission, by store and id - what a submission notice links to.
+    _refuse_unreachable_form( _form_of_store( $params{file} ) );    # SM976 F2
     $result = action_form_submission( $params{file}, $params{id} );
 }
 elsif ( $action eq 'form-list' ) { # SM214: PII-free form discovery (names + types + row counts)
     $result = action_form_list();
+    # SM976 F2: a confined caller is shown the forms it reaches, and no other -
+    # one walk of the site for every form's binding pages.
+    if ( ref $result eq 'HASH' && ref $result->{forms} eq 'ARRAY'
+        && Lazysite::Manager::Common::request_domain_confined() )
+    {
+        my $bound = Lazysite::Manager::Common::form_bindings();
+        $result->{forms} = [ grep {
+                Lazysite::Manager::Common::caller_may_reach_form( $_->{name}, bindings => $bound )
+        } @{ $result->{forms} } ];
+    }
 }
 elsif ( $action eq 'form-delete' ) {    # SM632: the inverse of bind_form
     my $req = _json_body();
@@ -2182,24 +2246,29 @@ elsif ( $action eq 'form-delete' ) {    # SM632: the inverse of bind_form
                 . 'the query string - {"form":"...","confirm":"..."}' };
     }
     else {
+        _refuse_unreachable_form( $req->{form} // $params{form} );    # SM976 F2
         $result = action_form_delete( $req->{form} // $params{form},
             $req->{confirm} );
     }
 }
 elsif ( $action eq 'form-submission-delete' ) {
     my $req = _json_body();
+    _refuse_unreachable_form( _form_of_store( $req->{file} // $params{file} ) ); # SM976 F2
     $result = action_form_submission_delete( $req->{file} // $params{file}, $req->{id} );
 }
 elsif ( $action eq 'form-submission-confirm' ) {    # SM216: un-quarantine a row
     my $req = _json_body();
+    _refuse_unreachable_form( _form_of_store( $req->{file} // $params{file} ) ); # SM976 F2
     $result = action_form_submission_confirm( $req->{file} // $params{file}, $req->{id} );
 }
 elsif ( $action eq 'form-submissions-delete-bulk' ) {    # SM187: delete several rows
     my $req = _json_body();
+    _refuse_unreachable_form( _form_of_store( $req->{file} // $params{file} ) ); # SM976 F2
     $result = action_form_submissions_delete_bulk( $req->{file} // $params{file}, $req->{ids} );
 }
 elsif ( $action eq 'form-submission-approve' ) {    # SM858: an account from a submission
     my $req = _json_body();
+    _refuse_unreachable_form( _form_of_store( $req->{file} // $params{file} ) ); # SM976 F2
     $result = action_form_submission_approve( $req->{file} // $params{file}, $req->{id},
         users => \&users_api, by => $auth_user );
 }
@@ -2207,6 +2276,7 @@ elsif ( $action eq 'form-targets-save' ) {
     # SM842: handler ids only - `handlers` (a list of ids), or `targets` as the
     # manager has always sent them ({handler: id} each).
     my $req = _json_body();
+    _refuse_unreachable_form( $req->{form} // $params{form} );    # SM976 F2
     $result = Lazysite::Handlers::action_form_targets_save( $req->{form} // $params{form},
         $req->{handlers} // $req->{targets} );
 }
@@ -2214,6 +2284,7 @@ elsif ( $action eq 'form-uploads-save' ) {
     # SM905 U5: the three upload_* keys the form handler reads had no writer, so
     # an upload form could not be finished over the API at all.
     my $req = _json_body();
+    _refuse_unreachable_form( $req->{form} // $params{form} );    # SM976 F2
     # Each parameter read by name, not through a qw() map: lint 58 extracts this
     # branch's parameters by scanning it, so a map hides three of them from the
     # table that publishes the action - and a parameter nobody publishes is one
@@ -2230,6 +2301,7 @@ elsif ( $action eq 'form-uploads-save' ) {
 elsif ( $action eq 'form-notify-save' ) {
     # SM938 D4 / R17: the form's own notify: line, written as text.
     my $req = _json_body();
+    _refuse_unreachable_form( $req->{form} // $params{form} );    # SM976 F2
     $result = Lazysite::Handlers::action_form_notify_save( $req->{form} // $params{form},
         $req->{notify} );
 }
@@ -2632,6 +2704,44 @@ sub _root_outside_grant {
 sub _no_scope_refusal {
     return undef unless $token_auth && !@REQUEST_SCOPES;
     return Lazysite::Manager::Common::no_scope_refusal();
+}
+
+# SM976 F4: bind a theme or layout to one domain - Domains::domain_set, which
+# validates the name and mirrors the theme's assets for that host (SM241), with
+# the scope the answer is about, as MCP's _domain_presentation_set says it.
+sub _domain_presentation_set {
+    my ( $host, $key, $value ) = @_;
+    my $r = domain_set( $host, $key, $value );
+    return $r unless ref $r eq 'HASH' && $r->{ok};
+    return { %$r, scope => "domain:$host" };
+}
+
+# SM976 F2 (ruled 2026-10-09, "Confine both"): a form verb reaches only a form
+# bound on pages inside the caller's scope (an unbound form is the primary's),
+# asked before the form is looked at. Manager::Common::form_reach_refusal.
+sub _refuse_unreachable_form {
+    my ($name) = @_;
+    my $r = Lazysite::Manager::Common::form_reach_refusal($name) or return;
+    _refuse( $r, ( $token_auth ? 'api' : 'ui' ), 'denied: outside domain scope', $name // '' );
+    return;
+}
+
+# The form a submissions store belongs to: its file name, which is the form's
+# (<dir>/<form>.jsonl, whichever directory its file handler names).
+sub _form_of_store {
+    my ($file) = @_;
+    ( my $leaf = $file // '' ) =~ s{.*/}{};
+    $leaf =~ s/\.jsonl\z//;
+    return $leaf;
+}
+
+# SM976 F2: a brief verb reaches only the brief of a page inside the caller's
+# scope, or of a row of a table that passes the data rule.
+sub _refuse_unreachable_brief {
+    my ( $bpath, %typed ) = @_;
+    my $r = Lazysite::Manager::Common::brief_reach_refusal( $bpath, %typed ) or return;
+    _refuse( $r, ( $token_auth ? 'api' : 'ui' ), 'denied: outside domain scope', $bpath // '' );
+    return;
 }
 
 # The dispatch branches' form: refuse and audit, or return.

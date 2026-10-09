@@ -137,7 +137,7 @@ tone: medium
 `key-revoke` | cookie only |  
 `keys-list` | cookie only |  
 `lang-status` | manage_content | group (query)
-`layout-activate` | manage_layouts | layout (query)
+`layout-activate` | manage_layouts | layout (query), theme (query), host (query)
 `layout-delete` | manage_layouts | layout (query), path (query)
 `layout-install` | manage_layouts |  
 `layouts-available` | manage_themes / manage_layouts |  
@@ -192,7 +192,7 @@ tone: medium
 `site-export-primary` | manage_content | data_tables (body)
 `start-page` | cookie only | username (query)
 `start-page-set` | cookie only | username (body), value (body)
-`theme-activate` | manage_themes | theme (query)
+`theme-activate` | manage_themes | theme (query), host (query)
 `theme-copy` | manage_themes | path (query), new_name (body), layout (body)
 `theme-delete` | manage_themes | path (query)
 `theme-list` | manage_themes / manage_layouts |  

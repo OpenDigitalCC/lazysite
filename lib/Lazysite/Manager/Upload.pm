@@ -303,6 +303,17 @@ sub action_file_upload {
             next;
         }
 
+        # SM976 F1: the choke point's theme and layout rules - the active pair
+        # is read-only (SM749) and a pair another site serves is that site's.
+        # This writer never asked either: a multipart upload replaced a file in
+        # the instance's active theme, and a domain-confined caller's in the
+        # theme another domain serves (tmp/q15d-probe.before.out).
+        require Lazysite::Manager::Files;
+        if ( my $g = Lazysite::Manager::Files::artifact_write_guard($rel_target) ) {
+            push @errors, { name => $fname, error => $g->{error}, kind => $g->{kind} };
+            next;
+        }
+
         if ( -e $full_target && !$overwrite ) {
             push @skipped, $fname;
             next;

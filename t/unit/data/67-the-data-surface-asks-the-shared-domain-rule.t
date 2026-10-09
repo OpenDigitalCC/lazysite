@@ -68,8 +68,13 @@ for my $t ( sort keys %TABLE ) {
     spit( "$d/lazysite/db/rebuilds/$t-20260101T000000Z.json",
         encode_json( { lazysite_data => 1, table => $t, key => 'slug',
                 fields => { slug => { type => 'text' } }, rows => [ { slug => 'kept' } ] } ) );
+    # SM976 F3: an export written since records its table's domain ('' for none).
+    spit( "$d/lazysite/db/rebuilds/$t-20260102T000000Z.json",
+        encode_json( { lazysite_data => 1, table => $t, key => 'slug', domain => ( $TABLE{$t} // '' ),
+                fields => { slug => { type => 'text' } }, rows => [ { slug => 'kept' } ] } ) );
 }
-sub export_of { return "$_[0]-20260101T000000Z.json" }
+sub export_of { return "$_[0]-20260102T000000Z.json" }    # recorded (F3)
+sub legacy_of { return "$_[0]-20260101T000000Z.json" }    # written before F3: no domain
 
 # A caller as the surface establishes it: the resolved scopes, and whether
 # they were resolved at all.
@@ -80,11 +85,11 @@ sub reaches {
     return action_data_table($t)->{ok} ? 1 : 0;
 }
 sub tables_seen {
-    my ( $confined, $scopes ) = @_;
+    my ( $confined, $scopes, $stamp ) = @_;
     local @Lazysite::Manager::Data::CALLER_SCOPES   = @{$scopes};
     local $Lazysite::Manager::Data::CALLER_CONFINED = $confined;
     my $r = action_data_safety_exports();
-    return join ',', sort map { $_->{table} } @{ $r->{exports} || [] };
+    return join ',', sort map { $_->{table} } grep { $_->{file} =~ /\Q$stamp\E/ } @{ $r->{exports} || [] };
 }
 
 subtest 'NARROWS: a scope inside a domain reaches that domain, not the one around it' => sub {
@@ -134,12 +139,14 @@ subtest 'NARROWS: a table\'s access rule is that table\'s' => sub {
     ok( action_table_acl_get( 't_alpha', 'alice' )->{ok}, '...and read' );
 };
 
-subtest 'NARROWS: a safety export is its table\'s' => sub {
-    # Before: every confined caller listed, read, restored and deleted every
-    # domain's exports.
-    is( tables_seen( 1, ['sites/alpha'] ), 't_alpha,t_blog,t_free', 'alpha.test\'s grant lists its own' );
-    is( tables_seen( 1, [] ), 't_free,t_mirror', 'an unbound grant lists the primary\'s' );
-    is( tables_seen( 0, [] ), 't_alpha,t_beta,t_blog,t_free,t_mirror', 'the unconfined caller lists all' );
+subtest 'NARROWS: a safety export is its table\'s, by the domain it records (F3)' => sub {
+    # Before R4: every confined caller listed, read, restored and deleted every
+    # domain's exports. F3 (ruled 2026-10-09, "Record domain"): the export
+    # carries its table's domain and is reached as the table was.
+    my $rec = '20260102T000000Z';
+    is( tables_seen( 1, ['sites/alpha'], $rec ), 't_alpha,t_blog,t_free', 'alpha.test\'s grant lists its own' );
+    is( tables_seen( 1, [], $rec ), 't_free,t_mirror', 'an unbound grant lists the primary\'s' );
+    is( tables_seen( 0, [], $rec ), 't_alpha,t_beta,t_blog,t_free,t_mirror', 'the unconfined caller lists all' );
     local @Lazysite::Manager::Data::CALLER_SCOPES   = ('sites/alpha');
     local $Lazysite::Manager::Data::CALLER_CONFINED = 1;
     for my $verb ( [ read => \&action_data_safety_export_read ], [ restore => \&action_data_safety_export_restore ],
@@ -151,6 +158,32 @@ subtest 'NARROWS: a safety export is its table\'s' => sub {
     }
     ok( -f "$d/lazysite/db/rebuilds/" . export_of('t_beta'), 'beta.test\'s export is still there' );
     ok( action_data_safety_export_read( export_of('t_alpha') )->{ok}, 'its own export still reads' );
+};
+
+subtest 'F3: an export written before the domain was recorded is the primary\'s' => sub {
+    # Ruled 2026-10-09: "existing exports with no domain are treated as the
+    # primary's (a scoped caller can't reach them; operator and unbound callers
+    # per the primary rule can)". NARROWS for a scoped grant, which reached the
+    # legacy export of its own domain's table by the live descriptor (R4);
+    # WIDENS for an unbound grant, which now reaches the legacy export of a
+    # domain's table, as it reaches the primary.
+    my $old = '20260101T000000Z';
+    is( tables_seen( 1, ['sites/alpha'], $old ), '', 'alpha.test\'s grant lists none of them' );
+    is( tables_seen( 1, [], $old ), 't_alpha,t_beta,t_blog,t_free,t_mirror', 'an unbound grant lists all of them' );
+    is( tables_seen( 0, [], $old ), 't_alpha,t_beta,t_blog,t_free,t_mirror', 'the unconfined caller lists all' );
+    {
+        local @Lazysite::Manager::Data::CALLER_SCOPES   = ('sites/alpha');
+        local $Lazysite::Manager::Data::CALLER_CONFINED = 1;
+        my $r = action_data_safety_export_read( legacy_of('t_alpha') );
+        is( $r->{error}, 'no such safety export', 'a scoped grant: even its own table\'s, as one that does not exist' );
+    }
+    {
+        local @Lazysite::Manager::Data::CALLER_SCOPES   = ();
+        local $Lazysite::Manager::Data::CALLER_CONFINED = 1;
+        ok( action_data_safety_export_read( legacy_of('t_beta') )->{ok}, 'an unbound grant reads one' );
+        my $r = action_data_safety_export_restore( legacy_of('t_beta') );
+        is( $r->{kind}, 'no_such_table', '...but restores none into a table it does not reach' );
+    }
 };
 
 done_testing();

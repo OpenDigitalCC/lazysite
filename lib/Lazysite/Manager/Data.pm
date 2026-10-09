@@ -1089,13 +1089,29 @@ sub _export_path {
 
 # SM976 R4: AN EXPORT IS ITS TABLE'S. A confined caller listed, read, deleted and
 # restored the safety exports of every domain's tables - the export verbs never
-# asked whose table it was. The answer is the table's (_may_reach), and the
-# refusal is the one a missing export gets, so an export outside the caller's
-# domains cannot be told from one that does not exist. A dropped table has no
-# descriptor and so no domain: its export is reached as an untagged table is.
+# asked whose table it was. The refusal is the one a missing export gets, so an
+# export outside the caller's domains cannot be told from one that does not
+# exist.
+#
+# SM976 F3 (ruled 2026-10-09, "Record domain"): WHOSE TABLE IS ASKED OF THE
+# EXPORT, NOT OF THE DESCRIPTOR. A dropped table has no descriptor, so R4 reached
+# its export as an untagged table - everyone's. An export now records its table's
+# domain when it is written (Data::Tables::_safety_export) and is reached as the
+# table was: a domain the caller reaches, or '' for a table naming none. An export
+# written before that records nothing and is the primary's: an unbound grant and
+# the operator reach it, a scoped caller does not.
+sub _export_reach {
+    my ($data) = @_;
+    return 1                   unless $CALLER_CONFINED || @CALLER_SCOPES;
+    return _reaches_domain('') unless ref $data eq 'HASH' && exists $data->{domain};
+    my $dom = $data->{domain};
+    return 1 unless defined $dom && !ref $dom && length $dom;
+    return _reaches_domain($dom);
+}
+
 sub _export_outside_scope {
     my ($e) = @_;
-    return undef if _may_reach( $e->{table} );
+    return undef if _export_reach( _read_export_file( $e->{abs} ) );
     return { ok => 0, error => 'no such safety export', kind => 'not-found' };
 }
 
@@ -1107,13 +1123,14 @@ sub action_data_safety_exports {
         for my $f ( readdir $dh ) {
             next unless $f =~ $EXPORT_NAME;
             my ( $table, $dropped, $stamp ) = ( $1, $2, $3 );
-            next unless _may_reach($table);    # SM976 R4
+            my $data = _read_export_file("$dir/$f");
+            next unless _export_reach($data);    # SM976 R4, F3
             my @st = stat "$dir/$f";
 
             # SM514: a summary, so an export can be judged without opening
             # it - the row count and a sample of keys.
             my ( $rows, $keys ) = ( undef, [] );
-            if ( my $data = _read_export_file("$dir/$f") ) {
+            if ($data) {
                 my $k = $data->{key} // '';
                 my @r = @{ $data->{rows} || [] };
                 $rows = scalar @r;
@@ -1195,6 +1212,9 @@ sub action_data_safety_export_restore {
     my ( $e, $bad ) = _export_path($file);
     return $bad if $bad;
     if ( my $no = _export_outside_scope($e) ) { return $no }
+    # SM976 F3: and the rows go into the table as it is declared NOW, which is
+    # the caller's to write only if it reaches that table.
+    if ( my $no = _outside_scope( $e->{table} ) ) { return $no }
     my $data = _read_export_file( $e->{abs} )
         or return { ok => 0, error => 'the export is not a readable lazysite data export' };
     my $d = load_table( $DOCROOT, $e->{table} );

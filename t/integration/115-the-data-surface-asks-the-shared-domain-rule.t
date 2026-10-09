@@ -64,8 +64,10 @@ my %TABLE = ( t_mine => 'mine.example.org', t_other => 'other.example.org', t_mi
     t_free => undef );
 for my $t ( sort keys %TABLE ) {
     spit( "$d/lazysite/db/tables/$t.yaml", desc( $TABLE{$t} ) );
+    # SM976 F3: written as an export is written now, carrying its table's domain
+    # (t/unit/data/67 holds one written before, which is the primary's).
     spit( "$d/lazysite/db/rebuilds/$t-20260101T000000Z.json",
-        encode_json( { lazysite_data => 1, table => $t, key => 'slug',
+        encode_json( { lazysite_data => 1, table => $t, key => 'slug', domain => ( $TABLE{$t} // q() ),
                 fields => { slug => { type => 'text' } }, rows => [] } ) );
 }
 

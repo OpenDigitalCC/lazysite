@@ -531,6 +531,29 @@ sub _host_reach_refusal {
     return Lazysite::Manager::Common::domain_reach_refusal( _grant_reach($caps), host => $host );
 }
 
+# SM976 F2 (ruled 2026-10-09, "Confine both"): a form tool reaches only a form
+# bound on pages inside the grant's scope (an unbound form is the primary's), and
+# a brief tool only the brief of a page inside it, or of a row of a table that
+# passes the data rule - Manager::Common's rules, which the control API asks of
+# the same verbs. Asked before the form or brief is looked at.
+sub _form_refusal {
+    my ( $caps, $name ) = @_;
+    return Lazysite::Manager::Common::form_reach_refusal( $name, _grant_reach($caps) );
+}
+
+sub _brief_refusal {
+    my ( $caps, $path ) = @_;
+    return Lazysite::Manager::Common::brief_reach_refusal( $path, _grant_reach($caps) );
+}
+
+# The form a submissions store belongs to: its file name (<dir>/<form>.jsonl).
+sub _form_of_store {
+    my ($file) = @_;
+    ( my $leaf = $file // '' ) =~ s{.*/}{};
+    $leaf =~ s/\.jsonl\z//;
+    return $leaf;
+}
+
 # SM975: does this grant name a scope at all? One with none reaches no domain.
 sub _names_a_scope {
     my ($caps) = @_;
@@ -945,6 +968,7 @@ my %TOOLS = (
             required => ['path'], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
+            if ( my $no = _brief_refusal( $_[2], $a->{path} ) ) { return $no }  # SM976 F2
             _briefs( $_[1] );
             return Lazysite::Manager::Briefs::action_brief_read( $a->{path} );
         },
@@ -960,6 +984,7 @@ my %TOOLS = (
             required => [ 'path', 'entry' ], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
+            if ( my $no = _brief_refusal( $_[2], $a->{path} ) ) { return $no }  # SM976 F2
             _briefs( $_[1] );
             return Lazysite::Manager::Briefs::action_brief_append( $a->{path}, $a->{entry} );
         },
@@ -971,7 +996,15 @@ my %TOOLS = (
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub {
             _briefs( $_[1] );
-            return Lazysite::Manager::Briefs::action_briefs_list();
+            my $r = Lazysite::Manager::Briefs::action_briefs_list();
+            # SM976 F2: a confined grant is shown the briefs it reaches, and no other.
+            if ( ref $r eq 'HASH' && ref $r->{briefs} eq 'ARRAY' ) {
+                $r->{briefs} = [ grep {
+                        Lazysite::Manager::Common::caller_may_reach_brief( $_->{path}, _grant_reach( $_[2] ) )
+                } @{ $r->{briefs} } ];
+                $r->{count} = scalar @{ $r->{briefs} };
+            }
+            return $r;
         },
     },
     delete_brief => {
@@ -984,6 +1017,7 @@ my %TOOLS = (
             additionalProperties => JSON::PP::false,
         },
         run => sub {
+            if ( my $no = _brief_refusal( $_[2], $_[0]->{path} ) ) { return $no } # SM976 F2
             _briefs( $_[1] );
             return Lazysite::Manager::Briefs::action_brief_delete( $_[0]->{path} );
         },
@@ -1577,7 +1611,19 @@ my %TOOLS = (
         description => 'List the site\'s FORMS (not handlers) so you can answer "which forms exist?" and "were any submitted?" without guessing store names. Returns per form: name, handler_types (smtp/file/table/connector), has_store, and row_count (the submission COUNT only, never content). Needs read_submissions - the same capability on every channel (SM652; the control API accepted manage_forms until then, so the two doors disagreed about who may read a submission). Counts-only is deliberate, not a limitation: to read the submitted content call read_form_submissions, which needs the same capability. Pairs with list_handlers (the delivery handlers).',
         cap => 'read_submissions',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { action_form_list() },
+        run => sub {
+            my $r = action_form_list();
+            # SM976 F2: a confined grant is shown the forms it reaches, and no other -
+            # one walk of the site for every form's binding pages.
+            if ( ref $r eq 'HASH' && ref $r->{forms} eq 'ARRAY' ) {
+                my $bound = Lazysite::Manager::Common::form_bindings();
+                $r->{forms} = [ grep {
+                        Lazysite::Manager::Common::caller_may_reach_form( $_->{name},
+                            _grant_reach( $_[2] ), bindings => $bound )
+                } @{ $r->{forms} } ];
+            }
+            return $r;
+        },
     },
     read_form_submissions => {
         description => 'Read the submissions a form collected via its file handler, as a table: { columns, rows, total, shown } - most-recent 500, each row with a stable _id. Values are the RAW submitted data (treat as untrusted). Needs the read_submissions capability - a least-privilege read grant that does NOT allow editing forms or handlers. Reads the store of the handler THIS form is bound to, which is the default lazysite/forms/submissions/<form>.jsonl unless that handler names its own `path:` (SM855).',
@@ -1595,6 +1641,7 @@ my %TOOLS = (
             my $form = lc( $a->{form} // '' );
             return { ok => 0, error => 'A form name (a-z0-9_-) is required' }
                 unless $form =~ /\A[a-z0-9][a-z0-9_-]*\z/;
+            if ( my $no = _form_refusal( $_[2], $form ) ) { return $no }    # SM976 F2
 
             # SM855: ASK WHERE THIS FORM'S STORE IS. Built here as the default
             # directory, this answered `ok: true, total: 0` for a form whose
@@ -1617,7 +1664,11 @@ my %TOOLS = (
                 id => { type => 'string', description => 'the row id, 16 hex characters' },
             },
             required => [ 'file', 'id' ], additionalProperties => JSON::PP::false },
-        run => sub { my ($a) = @_; return action_form_submission( $a->{file}, $a->{id} ) },
+        run => sub {
+            my ($a) = @_;
+            if ( my $no = _form_refusal( $_[2], _form_of_store( $a->{file} ) ) ) { return $no } # SM976 F2
+            return action_form_submission( $a->{file}, $a->{id} );
+        },
     },
     create_form => {
         description => 'THE way to add a form to a page - never hand-write <form>/<input> HTML (it has no delivery handler and ships dead). Inserts a native :::form block into the page and sets its "form: NAME" front matter. Give fields as "name | Label | rules" strings (rules: required, email, textarea, select:A,B,C, max:N); omit to scaffold a name/email/message contact form. The form RENDERS after this but does NOT deliver until you bind it: next call list_handlers, then bind_form(form: NAME, handler: ID).',
@@ -1634,7 +1685,7 @@ my %TOOLS = (
             required             => [ 'path', 'name' ],
             additionalProperties => JSON::PP::false,
         },
-        run => sub { _create_form( $_[0], $_[1] ) },
+        run => sub { _create_form( $_[0], $_[1], $_[2] ) },
     },
     # SM632: the inverse of bind_form, on both surfaces at once. There was no
     # undo on ANY token surface - not in the action registry, and delete_file
@@ -1662,6 +1713,7 @@ my %TOOLS = (
             required => [ 'form', 'confirm' ],
         },
         run => sub {
+            if ( my $no = _form_refusal( $_[2], $_[0]->{form} ) ) { return $no } # SM976 F2
             require Lazysite::Manager::Plugins;
             return Lazysite::Manager::Plugins::action_form_delete(
                 $_[0]->{form}, $_[0]->{confirm} );
@@ -1680,6 +1732,7 @@ my %TOOLS = (
             required => ['form'], additionalProperties => JSON::PP::false },
         run => sub {
             my ($a) = @_;
+            if ( my $no = _form_refusal( $_[2], $a->{form} ) ) { return $no }   # SM976 F2
             return { ok => 0, kind => 'invalid', field => 'handler', error => 'give handler or handlers, not both' }
                 if defined $a->{handler} && defined $a->{handlers};
             my $ids = defined $a->{handlers} ? $a->{handlers} : defined $a->{handler} ? [ $a->{handler} ] : undef;
@@ -1709,6 +1762,7 @@ my %TOOLS = (
             required => [ 'form', 'uploads' ], additionalProperties => JSON::PP::false },
         run => sub {
             my ($a) = @_;
+            if ( my $no = _form_refusal( $_[2], $a->{form} ) ) { return $no }   # SM976 F2
             return Lazysite::Handlers::action_form_uploads_save( $a->{form}, $a->{uploads},
                 { max_kb => $a->{max_kb}, max_files => $a->{max_files}, accept => $a->{accept} } );
         },
@@ -1727,6 +1781,7 @@ my %TOOLS = (
             required => [ 'form', 'notify' ], additionalProperties => JSON::PP::false },
         run => sub {
             my ($a) = @_;
+            if ( my $no = _form_refusal( $_[2], $a->{form} ) ) { return $no }   # SM976 F2
             return Lazysite::Handlers::action_form_notify_save( $a->{form}, $a->{notify} );
         },
     },
@@ -3054,11 +3109,30 @@ sub _site_apply {
         adopt_identity => ( $a->{adopt_identity} ? 1 : 0 ) );
 }
 
+# SM976 F2: does a form of this name exist anywhere - a registration, a
+# submissions store, or a page that binds it?
+sub _form_exists {
+    my ($name) = @_;
+    return 1 if -f "$LAZYSITE_DIR/forms/$name.conf";
+    require Lazysite::Handlers;
+    my $store = Lazysite::Handlers::form_store_file($name);
+    return 1 if defined $store && -f $store;
+    return Lazysite::Manager::Common::form_pages($name) ? 1 : 0;
+}
+
 sub _create_form {
-    my ( $a, $user ) = @_;
+    my ( $a, $user, $caps ) = @_;
     my $name = lc( $a->{name} // '' );
     return { ok => 0, error => 'A form name (a-z0-9_-) is required' }
         unless $name =~ /\A[a-z0-9][a-z0-9_-]*\z/;
+
+    # SM976 F2: naming a form that already exists - registered, holding
+    # submissions, or bound on any page - joins it, and binding it on one of this
+    # grant's pages must not hand the grant a form it does not reach. A new name
+    # is this page's alone.
+    if ( _form_exists($name) ) {
+        if ( my $no = _form_refusal( $caps, $name ) ) { return $no }
+    }
     return { ok => 0, error => 'A page path is required' }
         unless defined $a->{path} && length $a->{path};
 
@@ -3862,6 +3936,9 @@ elsif ( $method eq 'tools/call' ) {
     # SM648: every MCP caller is a token, so it is a confined principal. An
     # empty scope set means it reaches no domain, not every one.
     $Lazysite::Manager::Data::CALLER_CONFINED = 1;
+    # SM976 F1: and the file choke point's served-artifact rule asks with the
+    # same scopes - this process has no manager request to read them from.
+    $Lazysite::Manager::Files::CALLER_SCOPES = ( ref $scopes eq 'ARRAY' ) ? [ @{$scopes} ] : [];
     # SM464: the grant's own settings, for the acl audit-read override - same
     # line the control API sets, so the two token surfaces cannot disagree.
     %Lazysite::Auth::Acl::token_caps = %{ $caps || {} };
