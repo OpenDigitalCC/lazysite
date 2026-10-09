@@ -63,4 +63,51 @@ require Lazysite::Manager::Files;
 require Lazysite::Manager::Domains;
 fail_closed('after loading the daemon\'s handlers and two manager modules');
 
+# SM944 S22: a real handler. The remap actions read the context from Common;
+# loaded here, with a site that has a domain and a rule for it (made through
+# the manager API, as an operator would), they refuse every host and list no
+# rule - and the same calls with an operator's context see both, so it is the
+# context that refuses, not the fixture.
+subtest 'the remap handlers, loaded outside a request, reach no domain' => sub {
+    require ManagerSession;
+    require Lazysite::Manager::Remap;
+    my $s   = ManagerSession::new_site( root => repo_root() );
+    my @ALL = qw(ui manage_domains manage_users manage_config);
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', \@ALL, \@ALL );
+    open my $cf, '>>', $s->docroot . '/lazysite/lazysite.conf' or die $!;
+    print {$cf} "extensions:\n  - plugins/remap.pl\n";
+    close $cf;
+    my $d = $s->call( 'boss', 'domain-add',
+        body => { host => 'mine.example.org', content_root => 'sites/mine',
+            site_url => 'https://mine.example.org', site_name => 'mine' } );
+    ok( $d->{ok}, 'set up a domain' ) or diag( $d->{error} // '' );
+    my $w = $s->call( 'boss', 'remap-save',
+        body => { host => 'mine.example.org', rules => [ { prefix => '/web', destination => 'https://b.example.com' } ] } );
+    ok( $w->{ok}, '...and a rule for it' ) or diag( $w->{error} // '' );
+
+    no warnings 'once';
+    $Lazysite::Manager::Remap::DOCROOT = $s->docroot; # what an entry point that loads it would set:
+    $Lazysite::Manager::Plugins::DOCROOT = $s->docroot; # where the site is - never who is asking
+    $Lazysite::Manager::Domains::DOCROOT = $s->docroot;
+    $Lazysite::Manager::Common::DOCROOT  = $s->docroot;
+    my $rule = [ { prefix => '/x', destination => 'https://elsewhere.example.com' } ];
+
+    my $l = Lazysite::Manager::Remap::_remap_list();
+    is_deeply( $l->{rules}, [], 'remap-list lists no rule' ) or diag explain $l;
+    my $r = Lazysite::Manager::Remap::_remap_save( { host => 'mine.example.org', rules => $rule } );
+    is( $r->{kind} // '', 'forbidden', 'remap-save refuses the registered domain' ) or diag explain $r;
+    $r = Lazysite::Manager::Remap::_remap_save( { host => 'unregistered.example.net', rules => $rule } );
+    is( $r->{kind} // '', 'forbidden', '...and an unregistered host' ) or diag explain $r;
+
+    # The operator's context, as the script sets it.
+    $token_auth     = 0;
+    %token_caps     = ();
+    @REQUEST_SCOPES = ();
+    $l              = Lazysite::Manager::Remap::_remap_list();
+    is( scalar @{ $l->{rules} || [] }, 1, 'with an operator\'s context the same call lists the rule' );
+    reset_request_context();
+    is_deeply( Lazysite::Manager::Remap::_remap_list()->{rules}, [], '...and reset, none again' );
+};
+
 done_testing();
