@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the manager API's request context is shared,
+  and refuses until a request sets it** (S21 of the plan in the filing, as
+  the release manager ruled on 2026-10-09). Who is asking, through which
+  door, how far the request reaches, whether it is the operator and what it
+  asked for are `Lazysite::Manager::Common`'s, imported by the manager API in
+  place of its own variables, so a handler can move into a module unchanged.
+  Until a request sets them they describe nobody with no capability, confined
+  to no path: a handler loaded by the daemon, MCP, WebDAV or a test refuses
+  rather than inheriting the operator's reach. Only the manager API sets them
+  (lint 217). No behaviour change for a request.
+
 - SM944 (PENDING) **internal: the auth gate is the processor's nineteenth
   part, the last of the processor's rows** (S20 of the plan in the filing).
   `check_auth`, `peek_auth` with the front-matter peek and its per-request
