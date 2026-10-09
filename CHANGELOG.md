@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM976 (PENDING) **security: the four rulings on domain confinement**
+## 0.15.3 - EDGE: a confined caller reaches only its own domains (2026-10-09)
+
+- SM976 (5a8bb72c) **security: the four rulings on domain confinement**
   (2026-10-09). R1 "Confined = no instance-wide": a token, MCP grant or cookie
   manager whose scope binds some domains no longer changes what the whole
   instance reads. **Behaviour change:** it is refused `config-set`,
@@ -78,12 +80,12 @@ Archive
   every mutating action to the instance-wide list. t/integration/114, 115,
   t/unit/data/67.
 
-- bad-url-block (PENDING) **blocking an address by hand never ran.** SM704's
+- bad-url-block (fb695d7a) **blocking an address by hand never ran.** SM704's
   `bad-url-block` called `block()`, which the manager API never imported, so
   every call died and answered nothing; the automatic blocker was unaffected.
   It blocks now. t/integration/114.
 
-- SM943 ruling 2 (PENDING) **the structured nav read needs no capability**
+- SM943 ruling 2 (a50a57e6) **the structured nav read needs no capability**
   (ruled 2026-10-09: "As nav is public, do we need a cap to be able to read
   it? ... Surfaces should be consistent"). `nav-read` on the control API and
   `read_nav` over MCP need only the surface's base access, and read only the
@@ -93,7 +95,7 @@ Archive
   (`nav-save`, `set_nav`) and the raw `nav.conf` (WebDAV GET) stay
   `manage_nav`. t/integration/113.
 
-- SM976 (PENDING) **security: a confined caller reached other domains on every
+- SM976 (44526d39) **security: a confined caller reached other domains on every
   surface.** A token, MCP grant, WebDAV account or cookie manager confined to
   one domain could add a domain at any content root, alias or remove any
   domain, repoint its own domain at another's content, write another domain's
@@ -110,7 +112,7 @@ Archive
   with its own content root inherits it. The operator, an unbound cookie
   manager and single-site instances are unchanged. t/integration/112.
 
-- SM975 (PENDING) **security: a token with no scope wrote every domain.** A
+- SM975 (8b8f2515) **security: a token with no scope wrote every domain.** A
   `manage_domains` token whose group no domain names could set, add, alias,
   remove and overwrite (site-backup-apply) any domain on the instance, and
   write remap rules for any host, including hosts the instance does not serve.
@@ -123,12 +125,12 @@ Archive
   own session are unchanged, and content reach is unchanged.
   t/integration/111.
 
-- SM944 (PENDING) **internal: the URL remapper's two manager actions are a
+- SM944 (c57b9dc8) **internal: the URL remapper's two manager actions are a
   module** (S22 of the plan in the filing). remap-list and remap-save, with
   the scope check they share, move unchanged to `Lazysite::Manager::Remap`,
   which reads the request context from `Lazysite::Manager::Common`; loaded
   outside a request they refuse every host. No behaviour change.
-- SM943 ruling 1 (PENDING) **a read is not audited on either door unless it is
+- SM943 ruling 1 (9a6b574b) **a read is not audited on either door unless it is
   refused or fails** (ruled 2026-10-09: "Surfaces should be consistent. Drop all
   17."). MCP stops recording the seventeen reads whose control-API twins were
   never recorded (`read_form_submissions`, `read_data_rows`, `read_notices`,
@@ -139,7 +141,7 @@ Archive
   are unchanged. t/lint/23 holds the two trails to one declaration;
   t/unit/mcp/28 and t/unit/manager/206 drive both doors.
 
-- SM944 (PENDING) **internal: the manager API's request context is shared,
+- SM944 (3b68b1ba) **internal: the manager API's request context is shared,
   and refuses until a request sets it** (S21 of the plan in the filing, as
   the release manager ruled on 2026-10-09). Who is asking, through which
   door, how far the request reaches, whether it is the operator and what it
@@ -150,7 +152,7 @@ Archive
   rather than inheriting the operator's reach. Only the manager API sets them
   (lint 217). No behaviour change for a request.
 
-- SM944 (PENDING) **internal: the auth gate is the processor's nineteenth
+- SM944 (6d5ab3aa) **internal: the auth gate is the processor's nineteenth
   part, the last of the processor's rows** (S20 of the plan in the filing).
   `check_auth`, `peek_auth` with the front-matter peek and its per-request
   memo, `_is_manager`, `_site_grants_manager`, `_serve_manager_forbidden`
@@ -160,7 +162,7 @@ Archive
   the checks that guard the gate were each seen to fail with a violation
   placed in the part. No behaviour change; the render times are unchanged.
 
-- SM973 (PENDING) **security: a pooled worker kept serving a file after it was
+- SM973 (b94809d5) **security: a pooled worker kept serving a file after it was
   protected.** The processor read `acls.json` once and, under the FastCGI
   pool, kept that answer until the worker restarted (500 requests by default).
   A file protected after that was still served to anonymous visitors, and a
@@ -168,7 +170,7 @@ Archive
   every request, as its declaration always said. Found while moving the ACL
   copies (SM944 S19); t/integration/110.
 
-- SM944 (PENDING) **internal: the ACL, group and domain copies are the
+- SM944 (5aa23486) **internal: the ACL, group and domain copies are the
   processor's eighteenth part** (S19 of the plan in the filing).
   `_acl_allows_read` and the ACL family, the private-store copies,
   `_groups_grant_cap` (ADR 0001's marked copy), the group closure, the
@@ -181,7 +183,7 @@ Archive
   lines: it had been passing the manager API on a comment. No behaviour
   change; the render times are unchanged.
 
-- SM944 (PENDING) **internal: the page pipeline is the processor's
+- SM944 (59d3ad80) **internal: the page pipeline is the processor's
   seventeenth part** (S18 of the plan in the filing). `process_md`,
   `process_url`, `sanitise_uri`, `confine_content_root`, the static serve,
   the escapers, the source alternate and the freshness checks move unchanged
@@ -194,7 +196,7 @@ Archive
   parts, and still looks for the gate in the script. No behaviour change;
   the render times are unchanged.
 
-- SM944 (PENDING) **internal: layout, theme and injection are the processor's
+- SM944 (bfa54c26) **internal: layout, theme and injection are the processor's
   sixteenth part** (S17 of the plan in the filing). `render_template`, the
   layout and theme resolution, `generate_theme_css`, the injectors and the
   admin bar move unchanged to `lazysite-processor/layout.pm`, with the
@@ -202,7 +204,7 @@ Archive
   the same answers). Lint 56 finds the processor's inline blocks in every
   part. No behaviour change; across S16-S17 the render times are unchanged.
 
-- SM944 (PENDING) **internal: the template render is the processor's
+- SM944 (3f169712) **internal: the template render is the processor's
   fifteenth part** (S16 of the plan in the filing). `render_content`, the
   TT-render-with-retry pair and `_cache_umask` move unchanged to
   `lazysite-processor/render.pm`. Seven source checks of the stash's
@@ -210,7 +212,7 @@ Archive
   `_raw` contract) read the part. No behaviour change: every sub deparses
   identically, and across S16-S17 the render times are unchanged.
 
-- SM944 (PENDING) **internal: scan and registries are the processor's
+- SM944 (0f4c3d2b) **internal: scan and registries are the processor's
   fourteenth part** (S15 of the plan in the filing). `resolve_scan`,
   `scan_pages`, the registry regenerator and its serving path move unchanged
   to `lazysite-processor/registries.pm`, the lock constants written as calls
@@ -219,7 +221,7 @@ Archive
   behaviour change; across S13-S15 the render times are unchanged (the order
   of the trees in the bench decides which looks faster).
 
-- SM944 (PENDING) **internal: sources and site vars are the processor's
+- SM944 (4e9f2bb5) **internal: sources and site vars are the processor's
   thirteenth part** (S14 of the plan in the filing). The tt-var sources
   (`json:`, `db:`, env interpolation), the dependency record, nav, the conf
   peeks and the scan's visibility tests move unchanged to
@@ -227,7 +229,7 @@ Archive
   its initialisers would run earlier in a part, which is a change, not a move.
   No behaviour change.
 
-- SM974 (PENDING) **a stats day is a UTC day, so a day's last hours east of
+- SM974 (8779e337) **a stats day is a UTC day, so a day's last hours east of
   UTC reach its durable file.** Every first-party day bucket is a UTC day, but
   the stats plugin judged "today" and "closed" on the local calendar. East of
   UTC it closed and finalised the current day at local midnight, and views
@@ -240,14 +242,14 @@ Archive
   assumed the local calendar and are fixed (WORK-PLAN-0153 Q14g: three failed
   on main between midnight and 01:00 BST); t/unit/plugins/48.
 
-- SM944 (PENDING) **internal: the request address and host are the processor's
+- SM944 (acf2d082) **internal: the request address and host are the processor's
   twelfth part** (S13 of the plan in the filing). `_request_host`,
   `_request_address` and the trusted-proxy readers move unchanged to
   `lazysite-processor/request.pm`, the Socket constants written as calls so
   the part compiles alone. Lint 206's REMOTE_ADDR ledger now counts the script
   and all its parts. No behaviour change.
 
-- WORK-PLAN-0153 Q14d (PENDING) **the release gate names a failed suite as a
+- WORK-PLAN-0153 Q14d (b297af18) **the release gate names a failed suite as a
   failed suite, not a coverage shortfall.** The gate of main on 2026-10-08 said
   "coverage below the declared floor" when the instrumented suite had failed
   and no floor was checked: it searched the whole coverage log for the marker,
@@ -258,7 +260,7 @@ Archive
   of a branch name; its git helper now compares stdout only. Lint 38 reads the
   processor and its parts as one unit, ahead of the auth gate's own move.
 
-- SM944 (PENDING) **internal: output and headers are the processor's eleventh
+- SM944 (193d7c42) **internal: output and headers are the processor's eleventh
   part** (S12 of the plan in the filing). `output_page`, the 403/404 paths, the
   security-header and CSP copy, the conf readers and the ai-partner document
   move unchanged to `lazysite-processor/output.pm`. Lints 55, 56 and 57 now
@@ -266,21 +268,21 @@ Archive
   parts. No behaviour change; across S10-S12 the cache-hit and miss render
   times are unchanged (0.980x and 0.992x, inside each tree's spread).
 
-- SM944 (PENDING) **internal: forms are the processor's tenth part** (S11 of
+- SM944 (3f1962f8) **internal: forms are the processor's tenth part** (S11 of
   the plan in the filing). `convert_fenced_form`, `_render_form` (whole, 562
   lines), the SM934 rules sidecar, the form secret and `convert_fenced_divs`
   move unchanged to `lazysite-processor/forms.pm`; lint 156 reads the banner
   there, and lint 56 counts inline blocks in the script and every part. No
   behaviour change.
 
-- SM944 (PENDING) **internal: include and Markdown are the processor's ninth
+- SM944 (a4b2455a) **internal: include and Markdown are the processor's ninth
   part** (S10 of the plan in the filing). The `::: include` resolver,
   `convert_md`, the code-fence pass, the `markdown`/`json`/`url_safe` filters
   and the link passes move unchanged to `lazysite-processor/include.pm`; test
   71 reads the include path there, and lints 31 and 36 hold their
   never-`_acl_denied` rule over the script and every part. No behaviour change.
 
-- SM972 (PENDING) **security: a custom payment header name was trusted from
+- SM972 (ed165133) **security: a custom payment header name was trusted from
   anyone.** With `payment_header_verified` set to a custom name and no
   `auth_proxy_trusted: true`, a visitor sending that header was served paid
   content - the trust gate stripped only the fixed `X-Payment-*` names (SM960
@@ -289,31 +291,31 @@ Archive
   `auth_proxy_trusted: true`.** Found while moving the payment gate (SM944 S7);
   t/integration/109.
 
-- SM944 (PENDING) **internal: the front door is the processor's eighth part**
+- SM944 (bfc5e664) **internal: the front door is the processor's eighth part**
   (S9 of the plan in the filing). `_front_door`, `_front_route` (the copy of
   Lazysite::FrontDoor::route) and the relay move unchanged to
   `lazysite-processor/front-door.pm`; lint 42 and test 47 read them there. No
   behaviour change; across S6-S9 the cache-hit and miss render times are
   unchanged (0.993x and 0.978x, inside each tree's spread).
 
-- SM944 (PENDING) **internal: the access log and the unit registry are the
+- SM944 (e8b5e07e) **internal: the access log and the unit registry are the
   processor's seventh part** (S8 of the plan in the filing). The SM140 access
   recorder and the SM222 `plugins:` read move unchanged to
   `lazysite-processor/access-log.pm`; lints 159 and 198 read them there, and
   lint 215 reads a sub inside a part's bare block as a sub. No behaviour change.
 
-- SM944 (PENDING) **internal: the payment and preview gates are the
+- SM944 (a7b5c8f9) **internal: the payment and preview gates are the
   processor's sixth part** (S7 of the plan in the filing). `peek_payment`,
   `check_payment`, `serve_402` and the SM071 preview-cookie check move
   unchanged to `lazysite-processor/gates.pm`; the two contexts they fill stay
   declared in the script. No behaviour change.
 
-- SM944 (PENDING) **internal: the content-type cache is the processor's fifth
+- SM944 (c3a36c98) **internal: the content-type cache is the processor's fifth
   part** (S6 of the plan in the filing). `ct_cache_path`, `read_ct`, `write_ct`
   and `write_html` move unchanged to `lazysite-processor/ct-cache.pm`. No
   behaviour change.
 
-- WORK-PLAN-0153 Q14b (PENDING) **the release gate can run from a `git
+- WORK-PLAN-0153 Q14b (b4b9891c) **the release gate can run from a `git
   worktree`.** It refused one ("no git repo": it looked for a `.git` directory,
   which a worktree has as a file) - and a long gate is safest run from a
   worktree, because the main checkout switches branches during development and
@@ -322,32 +324,32 @@ Archive
   checkout's `tmp/release-gate/` wherever they run from, so build finds them.
   t/tools/101.
 
-- SM944 (PENDING) **internal: content components are the processor's fourth
+- SM944 (18310443) **internal: content components are the processor's fourth
   part** (S5 of the plan in the filing). `convert_fenced_components` and its
   helpers move unchanged to `lazysite-processor/components.pm`; lints 212 and
   213 read the parts. No behaviour change; across S2-S5 the cache-hit and miss
   render times are unchanged (1.010x and 0.998x, inside each tree's spread).
 
-- SM944 (PENDING) **internal: the URL remapper is the processor's third part**
+- SM944 (2a0213c3) **internal: the URL remapper is the processor's third part**
   (S4 of the plan in the filing). `_remap_parse` (the marked copy of
   Lazysite::Remap's parser), `_remap_redirect` and `_alias_lookup` move
   unchanged to `lazysite-processor/remap.pm`, the first part to read the
   script's shared state, through `our`. No behaviour change.
 
-- SM944 (PENDING) **internal: oEmbed is the processor's second part** (S3 of
+- SM944 (da1d5329) **internal: oEmbed is the processor's second part** (S3 of
   the plan in the filing). The oEmbed converter, with `uri_encode` and
   `strip_tt_directives`, moves unchanged to `lazysite-processor/oembed.pm`. The
   lints that check a property of the whole processor (21, 25, 43, 121) now read
   its parts too. No behaviour change.
 
-- SM944 (PENDING) **internal: the state the processor's parts read is declared
+- SM944 (89dd2944) **internal: the state the processor's parts read is declared
   `our`** (S2 of the plan in the filing). The 27 file-scope variables a planned
   part reads become package variables in place, initialised where they were;
   the other 15 stay `my`. t/lint/215 now fails a part that names one of the
   script's `my` variables, or reads script state from its own file-scope code.
   No behaviour change.
 
-- WORK-PLAN-0153 Q14a (PENDING) **a code count in the bench baseline moves with
+- WORK-PLAN-0153 Q14a (0e03edc4) **a code count in the bench baseline moves with
   the code that changes it.** The release gate refused main after the last
   landing: `work_users_tool_statements` read 3378 against 3359, the 19
   statements SM962 and SM963 added to the users tool on purpose. That counter
@@ -358,7 +360,7 @@ Archive
   without updating the baseline in the same commit. The baseline moves to
   3378. Timings stay host-relative and re-captured at a cut.
 
-- SM944 (PENDING) **internal: the processor's first part** (S1 of the plan in
+- SM944 (07143256) **internal: the processor's first part** (S1 of the plan in
   the filing). The front-matter parser moves, unchanged, from
   `lazysite-processor.pl` to `lazysite-processor/front-matter.pm`, which the
   script requires by absolute path from beside itself, never through `@INC`, so
@@ -368,7 +370,7 @@ Archive
   main, loading nothing, loaded by name and defining no sub twice. No behaviour
   change; cache-hit and miss render times unchanged.
 
-- SM971 (PENDING) **a release is one commit on main, and its gate has already
+- SM971 (35e02539) **a release is one commit on main, and its gate has already
   run** (release manager, 2026-10-08). `tools/release-material.pl` writes the
   CHANGELOG section, every PENDING ref's landed SHA (the commit that added that
   line, or a refusal naming the entry), the FEATURES entry, `VERSION` and
@@ -383,7 +385,7 @@ Archive
   runs one suite per stack. Coverage at -j4 measured per file against serial:
   one file differs (filed). t/tools/103-106, t/lint/214.
 
-- SM970 (PENDING) **security: a value used as a whole link target can be kept
+- SM970 (4dc68058) **security: a value used as a whole link target can be kept
   to a safe scheme with `| url_safe`.** The stash escapes a query or db value so
   it cannot leave its attribute, but `javascript:` written as a whole `href`
   stayed a script link. The new filter, on every page, layout, component and
@@ -397,7 +399,7 @@ Archive
   templates and fallback layout to it, exempting by name only the engine-built
   language alternates and `site_url`. Ruled 2026-10-07: option 1 with 3.
 
-- SM943 stages 2-3 (PENDING) **an action's MCP twin and the twin's hints are
+- SM943 stages 2-3 (4c7c87dd) **an action's MCP twin and the twin's hints are
   declared on the action, and the lints that kept the copies in step check the
   declaration instead.** `mcp => 'tool'` on an `%ACTION` entry names the twin
   (60 of them). The twin's readOnly, destructive and changesAccess hints are
@@ -414,7 +416,7 @@ Archive
   one completeness check of every declaration replaces them
   (t/unit/lib/200).
 
-- SM906 T3 (PENDING) **an unreadable account store answers `cannot-tell`, not
+- SM906 T3 (a5c9632d) **an unreadable account store answers `cannot-tell`, not
   "Invalid credentials"** (ruled 2026-10-07). With `lazysite/auth/users`
   unreadable no secret can be checked, and a caller holding a good token was
   told it was invalid (MCP: "reissue the token"). It now gets `cannot-tell` 503
@@ -422,7 +424,7 @@ Archive
   not a stranger's to map - and is told not to reissue; the operator's log
   names the file. t/integration/107.
 
-- SM950 (2)(3) (PENDING) **the gate runs on main after each landing, and a cut's
+- SM950 (2)(3) (0fb8c870) **the gate runs on main after each landing, and a cut's
   gate reuses coverage instead of spending an hour re-measuring it.**
   `tools/gate-main.sh` gates main's tip for NEXT_VERSION, detached, and prints
   the receipt instead when that commit already passed; before the pre-cut pass
@@ -433,7 +435,7 @@ Archive
   load no file and call no sub that does (moved on 9 of 24 commits, was 11).
   t/tools/100-102, t/lint/208.
 
-- SM969 (PENDING) **security: a form outcome was written to the page cache and
+- SM969 (e4b8b74e) **security: a form outcome was written to the page cache and
   shown to the next visitor.** The outcome banner reads `form=` and `outcome=`
   from the query string, which the cache decision did not count, so a request
   after any page edit baked its banner - the text of the link followed - into
@@ -441,7 +443,7 @@ Archive
   itself only, as a `nocache: true` page is. Found by the SM869 review's second
   pass; t/unit/processor/90.
 
-- SM968 (PENDING) **security: a page that set TAGS let a reflected value run as
+- SM968 (b3c9181a) **security: a page that set TAGS let a reflected value run as
   a template.** The form prefill and outcome banner neutralise `[` and `%` in the
   visitor's text, which holds only while the tags are `[% %]`; after
   `[% TAGS {{ }} %]` in a page body, `{{ site_name }}` in a link's query was
@@ -449,7 +451,7 @@ Archive
   log; layouts keep it. Found by the SM869 review's second pass;
   t/unit/processor/90.
 
-- SM967 (PENDING) **security: a value could spell one of the engine's
+- SM967 (1b28cf5a) **security: a value could spell one of the engine's
   placeholders.** The passes that protect script, style, comments, code spans
   and tags restored them by a fixed word, so a value carrying the word was
   restored as the block: a copy of the page's code span, or the page's own
@@ -458,7 +460,7 @@ Archive
   contain. Found by the SM869 review's second pass; t/unit/processor/91,
   t/unit/data/65.
 
-- SM966 (PENDING) **security: a data value could become a link, or break an
+- SM966 (7894a882) **security: a data value could become a link, or break an
   api page's JSON.** A query value or a db: row was HTML-escaped and nothing
   more, so `[text](javascript:...)` in it became an anchor after the template
   pass (on every page listing a visitor-written row), and a backslash or control
@@ -467,7 +469,7 @@ Archive
   every value the author did not write. Found by the SM869 review's second pass;
   t/unit/processor/90 and 91, t/unit/data/65.
 
-- SM965 (PENDING) **security: a reflected form value could become an
+- SM965 (fd858c00) **security: a reflected form value could become an
   include.** A form's prefill and outcome banner are written into the page
   before the first `::: include` pass, and kept their line breaks - so a link
   carrying a crafted value could spell an include block and pull a file from
@@ -475,7 +477,7 @@ Archive
   all three use now encodes line breaks as character references, which display
   as typed. Found by the SM869 adversarial review; t/unit/processor/89.
 
-- SM964 (PENDING) **security: a value that reached a page as data could become
+- SM964 (6a167a55) **security: a value that reached a page as data could become
   an include.** The processor ran its `::: include` pass a second time over the
   template's output. That never resolved an author's template-path block
   (Markdown had wrapped it, and the docs said such blocks are not resolved), but
@@ -485,7 +487,7 @@ Archive
   a template variable stays unresolved by design. Found by the SM869
   adversarial review; t/unit/data/64.
 
-- SM869 (PENDING) **security: a query value is raw in the engine and escaped
+- SM869 (d836836e) **security: a query value is raw in the engine and escaped
   once where it is emitted; a visitor's `[% ... %]` and `::: include` no longer
   run.** parse_query_string returns raw values; the stash escapes its own copy
   of `query.*`/`params.*` (line breaks as `&#10;` too); the form prefill sink
@@ -498,7 +500,7 @@ Archive
   own pages and layouts. A `[%` in a form `value:` is now shown, not run.
   t/unit/processor/88. Adversarial review pending.
 
-- SM906 T3 follow-up (PENDING) **security: an unreadable or corrupt group store
+- SM906 T3 follow-up (47f167e8) **security: an unreadable or corrupt group store
   no longer makes every signed-in user a manager on the page side.** The
   processor keeps its own module-free copy of "does any group grant manager
   access" (ADR 0001), and answered "no - an unsecured site" when
@@ -508,7 +510,7 @@ Archive
   secured and logs it, as T3 made the API's copy do. Absent still means a site
   with no groups yet. t/integration/108 (both cases fail on the old copy).
 
-- SM906 T3 (PENDING) **an auth store the web server cannot read answers
+- SM906 T3 (2a84406e) **an auth store the web server cannot read answers
   `cannot-tell`, not an empty grant** (ruled 2026-09-29). With
   `groups-settings.json` unreadable, `whoami` reported 0 of 29 capabilities
   and a gated call told an account holding `api` to ask for it; MCP said the
@@ -521,7 +523,7 @@ Archive
   `user-settings.json` let a disabled account's token through.
   t/integration/107.
 
-- SM939 SC2 (PENDING) **a WebDAV folder delete that cannot finish says what
+- SM939 SC2 (9e6e8d72) **a WebDAV folder delete that cannot finish says what
   stopped it** (ruled R1, amended). Recursive DELETE works; when a directory
   INSIDE the folder is not writable it stops part way, and answered a bare 500
   "Cannot delete the entry" while skipping the housekeeping for the pages it had
@@ -531,7 +533,7 @@ Archive
   the folder's rules would unprotect it. Sending the DELETE again once the
   directory is fixed finishes it. t/unit/dav/31.
 
-- SM957 (PENDING) **Submissions is the manager menu's first entry, with an
+- SM957 (368fb6a6) **Submissions is the manager menu's first entry, with an
   unread count.** The menu is four groups: Site (Submissions, Files, Navigation,
   Visitor statistics), Setup (Appearance, Extensions, Connectors, Data tables,
   Domains), Access and System; locked entries keep their padlock and reason.
@@ -544,7 +546,7 @@ Archive
   way: the bell sent its read marks as GETs, which the API refuses, so none was
   kept; they are POSTs now. t/unit/manager/202-204, 28 sabotages.
 
-- SM963 (PENDING) **an approval says which groups it could not place the
+- SM963 (133e6aba) **an approval says which groups it could not place the
   account in.** account-approve joined each group flagged for registrations
   inside an eval whose failure was dropped: with a flagged backend group it
   answered "Approved 'alice' into learners." and ok, the other group gone
@@ -553,7 +555,7 @@ Archive
   `not-placed=`), and SM858's approve result and success dialog. The account
   and its link are still made. t/unit/users/49, ten sabotages.
 
-- SM962 (PENDING) **a username is refused by name, never silently rewritten.**
+- SM962 (7fde49f8) **a username is refused by name, never silently rewritten.**
   `account-approve jo+hn` created `john`, then minted its claim for `jo+hn` and
   failed - leaving a credential-less account with no link, under a name that may
   be somebody else's. `add` stripped every character a username cannot hold and
@@ -563,7 +565,7 @@ Archive
   alike. **A name with other characters that `add` used to shorten is now an
   error.** t/unit/users/48, three sabotages.
 
-- SM961 (PENDING) **a submission arriving during a delete, confirm or approve
+- SM961 (a940e873) **a submission arriving during a delete, confirm or approve
   is no longer lost.** Those rewrite the submissions store - read it, write a
   copy, rename it over - and nothing locked that window; the file handler's lock
   was on the store file, which the rename swaps out. A row appended meanwhile
@@ -572,7 +574,7 @@ Archive
   rename never moves. t/unit/forms/36 forces each direction by holding the lock;
   either half removed fails it. Found while building SM858.
 
-- SM858 (PENDING) **an operator approves an account from a button on the
+- SM858 (33660970) **an operator approves an account from a button on the
   Submissions view.** A form that names its address field in its conf
   (`account_email: email`) gets Approve on each row; it runs `account-approve`
   through the users tool with the address read from the stored row - never the
@@ -583,7 +585,7 @@ Archive
   it became. Needs `manage_users` and `read_submissions`, cookie-only, audited
   with the row and the account. t/unit/manager/200-201, twelve sabotages.
 
-- SM960 (PENDING) **security: a custom auth header name was trusted from
+- SM960 (5208b395) **security: a custom auth header name was trusted from
   anyone.** With `auth_header_user` set (the docs' example is `Remote-User`) and
   no `auth_proxy_trusted: true`, a visitor sending `Remote-User: alice` passed a
   page gate as alice - and behind the built-in auth wrapper too, which vouches
@@ -594,7 +596,7 @@ Archive
   Default-named sites are unaffected. t/integration/106; the auth docs show the
   flag.
 
-- SM857 (PENDING) **a page can show each signed-in viewer their own rows:
+- SM857 (05454ed6) **a page can show each signed-in viewer their own rows:
   `db:<table>(mine)`.** No filter in the engine was written by the server, so a
   page rendered the same rows for everybody. `mine` makes the engine add
   `created_by = <viewer>` from the trust-gated identity; the page and request
@@ -606,7 +608,7 @@ Archive
   refused. t/unit/data/63 renders as ann, then bob, then signed out, on a
   `ttl:` page; removing the bypass served ann's rows to both.
 
-- SM943 (PENDING) **every per-action fact the manager API keeps is declared
+- SM943 (df6d9406) **every per-action fact the manager API keeps is declared
   once, on the action's entry in `Lazysite::ControlApi::Actions`.** Ten tables
   in `lazysite-manager-api.pl` were hand-kept copies: the known set, mutating,
   destructive, changes-access, dav-scoped, the file-surface mode, the cookie
@@ -618,7 +620,7 @@ Archive
   tests now read the declaration, and a misspelt field is refused at load. No
   behaviour changes. This was stage 1; stages 2-3 are the entry above.
 
-- SM959 (PENDING) **a helper that exits before reading no longer kills the
+- SM959 (7d1234f8) **a helper that exits before reading no longer kills the
   process writing to it.** Eleven places wrote to a child's stdin with SIGPIPE
   at its default - the form handler's mail, the manager API's plugin and users
   calls, the auth CGI, MCP, OAuth, the installer - so a helper that died on
@@ -628,7 +630,7 @@ Archive
   t/unit/lib/199 proves it (signal 13 without the guard). Found as a flaky
   t/unit/forms/24 - 4 failures in 8 parallel runs on main, now 0 in 8.
 
-- SM958 (PENDING) **security: a token-gated action was open to any manager
+- SM958 (181fa14a) **security: a token-gated action was open to any manager
   account.** On the manager channel a non-operator was capability-checked only
   for actions in `%COOKIE_CAP`; an action with a token gate and no line there
   was unchecked. Fifteen were, three of them writes: `form-uploads-save`
@@ -641,7 +643,7 @@ Archive
   14 and 87 now read `a+b` values and `_` names - they had dropped five
   entries. Found by the SM943 survey; t/unit/manager/138.
 
-- SM955 (PENDING) **the XMPP test reports a recipient the server refuses, and
+- SM955 (eaf23857) **the XMPP test reports a recipient the server refuses, and
   every delivery failure is audited** (ruled R9). A server accepts a message to
   a JID it cannot deliver to and bounces it a moment later; the test
   disconnected straight after sending and said "sent" (the 0.15.2 edge walk,
@@ -653,7 +655,7 @@ Archive
   stand-in client that bounces; t/unit/lib/14 asserts the real-notice audit
   line. Three sabotages, three named failures.
 
-- SM932 (2) (PENDING) **`lazysite check --sinks` says whether syslog received a
+- SM932 (2) (e5b1c92e) **`lazysite check --sinks` says whether syslog received a
   line** (ruled R6). It sends one marked line through the engine's own
   `forward_line` - the path every `log_event` takes - at `err`, so any
   configured threshold forwards it, then looks for it in the journal, then
@@ -665,7 +667,7 @@ Archive
   so the suite writes nothing to the host log; three sabotages, three
   failures. The web server's error log is not probed from the command line.
 
-- SM913 S2 + S4 (PENDING) **a link shortener holds a submission, and each form
+- SM913 S2 + S4 (2b75d122) **a link shortener holds a submission, and each form
   says whether its quarantine is on** (ruled R2). S2: one link to a shipped list
   of shortener hosts (`bit.ly`, `tinyurl.com`, `brnd.li` from the reported spam,
   and others) is a reason on its own, matched as a link - a scheme, `www.`, or a
@@ -676,14 +678,14 @@ Archive
   `quarantine:` and threshold to hold the two readers together. S5 (a default
   keyword list) is not shipped, as ruled.
 
-- SM912 P4 (PENDING) **recorded: a rule checked against nothing says so.**
+- SM912 P4 (d58a2376) **recorded: a rule checked against nothing says so.**
   Built in commit e765424f and shipped without a changelog entry, and the filing still read "P4
   remains". An ACL write against an auth store that knows no accounts or groups
   returns `principals_unchecked: 1`, so "accepted, unchecked" is no longer
   reported as "accepted, verified"; t/tools/91 asserts both states. Found while
   starting it as WORK-PLAN-0153 Q1.
 
-- SM956 (PENDING) **a fast run of pages is a bot** - the site owner's rule: "a
+- SM956 (a25f5760) **a fast run of pages is a bot** - the site owner's rule: "a
   visit with more than five pages at under ten-second gaps is not a person". A
   sixth page view from one source inside ten seconds of the fifth, each inside
   ten of the one before, moves that source from `unattributed` to `bot`,
@@ -695,20 +697,20 @@ Archive
   together can read as one - the scanner rule's limit too. Three test fixtures
   that modelled a "person" as a page a second now read at a person's pace.
 
-- SM954 (PENDING) **a quarantined submission shows why, in the table.** The
+- SM954 (37f02c18) **a quarantined submission shows why, in the table.** The
   reason was stored (`_spam_reason`) and set as the tag's hover title, which a
   touch screen never shows; the owner saw "quarantined" with no reason (0.15.2
   edge walk, R3). It is now drawn as text beside the tag. t/unit/manager/180,
   which runs the viewer's own code against a recording DOM, asserts it.
 
-- SM953 (PENDING) **a missing submission is named by its form, not its file.**
+- SM953 (290fa182) **a missing submission is named by its form, not its file.**
   The single-submission view answered "no submission <id> in
   lazysite/forms/submissions/contact.jsonl"; the owner ruled a message should not
   expose file paths (0.15.2 edge walk, R2). It now says "no submission <id> on the
   form 'contact'", and a missing store "no submissions for the form '<name>'".
   t/unit/forms/34 asserts the form and id are named and no path appears.
 
-- SM952 (PENDING) **a form's rate limit is its own, and only a stored submission
+- SM952 (8aa93327) **a form's rate limit is its own, and only a stored submission
   spends it** (ruled R8). The limiter was keyed on the address alone and recorded
   a time on every post that reached it, before validation: five posts to one form
   refused another form's first, and a visitor who got a field wrong spent their
@@ -719,7 +721,7 @@ Archive
   hour. t/unit/forms/16 drives both cases through the handler; each fails with
   the old key or with recording on every post.
 
-- SM951 (PENDING) **the manager bell works.** Its script runs in `<head>` and
+- SM951 (68a21c22) **the manager bell works.** Its script runs in `<head>` and
   looked for the bell at once, before `<body>` was parsed, so it never found it
   and set nothing up: no badge, no panel, and a click threw "mgToggleNotif is not
   defined" - on every manager page since at least 0.10.0. Found by the 0.15.2

@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.2"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.3"
 brand: plain
 ---
 
@@ -1960,6 +1960,12 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.3** (2026-10-09, edge) - **A confined caller reaches only its own
+  domains.** Domain confinement on every surface (SM975, SM976); pooled workers
+  re-read the ACL store (SM973); stats days are UTC days (SM974); reflected and
+  data values stay inert (SM964-SM969, SM869); reads are not audited unless
+  they fail (SM943); the manager bell, submissions menu and approvals
+  (SM951-SM963, SM857, SM858); the processor is split into parts (SM944 S1-S20)
 - **0.15.2** (2026-10-06, edge) - **An install says whether the site works,
   the bell can be acted on, and a submission is shown as it was typed.**
   Provision ends by running the health check and exits non-zero when the site
