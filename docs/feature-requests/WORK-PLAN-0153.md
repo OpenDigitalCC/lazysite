@@ -77,6 +77,27 @@ Not in the queue, and why:
 
 Open questions raised while working the queue:
 
+- **Q14 (SM944 S24): stopped on a design question, 2026-10-09.** The preview
+  subs (`_preview_secret`, `action_preview_grant`, `action_preview_clear`,
+  `action_preview`) cannot move verbatim to `Manager/Preview.pm` and pass test
+  205's proof that a handler outside a request reaches nothing
+  (tmp/sm944-s24-refusal-probe.pl, .out):
+  - grant and clear print their responses through the script's `_emit_json`,
+    which is on no row; the OPTIONS refusal and the rate-limit 429 use it too.
+  - Outside a request `action_preview_grant` minted a signed preview cookie
+    for account '' and, on a site with no auth secret, created one.
+  - `action_preview` shells the processor for any path it is given.
+  Not choices: `$PREVIEW_COOKIE` and `$PREVIEW_TTL` move with the area, and
+  the dispatcher sets Preview's `$DOCROOT` and `$LAZYSITE_DIR` as for every
+  module. Recommended: (a) a row before S24 that moves `_emit_json` and its
+  comment into Manager::Common, imported by the script (a pure move, as S22b
+  was); (b) `action_preview_grant` and (c) `action_preview` refuse an empty
+  `$auth_user` - the dispatcher has authenticated a manager before either
+  runs, so the answer inside a request is the same; (d) `action_preview_clear`
+  unchanged, since it only expires the caller's own cookies. The comment above
+  `action_preview` describes `processor_path`, already in Common, and would
+  move there. Skipped until ruled.
+
 - ~~**Q15g (SM976): malformed UTF-8 on the raw-bytes doors, 2026-10-09.**~~ **RULED 2026-10-09: "Refuse + walker skips", "Refuse existing target", "Pin with a test"; built as Q15h (n321).** A
   confined grant's upload of a page with one malformed byte in its front
   matter binds a form the write rule did not read, and so reaches that form
