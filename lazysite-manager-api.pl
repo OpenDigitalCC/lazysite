@@ -34,7 +34,9 @@ use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _i
 use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
-    _write_conf_key processor_path);
+    _write_conf_key processor_path
+    reset_request_context
+    $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body);
 use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download collect_zip_paths
     check_upload_rate is_editable_text parse_multipart_body);
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
@@ -249,13 +251,22 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
 # verified against the user database (via the users tool, which owns the
 # hashing), gated per-action by capability (below), and exempt from the
 # CSRF check (no cookie ⇒ no ambient authority ⇒ no CSRF vector).
-my $auth_user;
-my $token_auth = 0;
-my %token_caps;
-my $REQUEST_CONFINED = 0;    # SM648: were this caller's scopes RESOLVED?
-my @REQUEST_SCOPES;          # SM158: the request's resolved dav_scopes (union), for
-                             # per-domain content-access checks in actions like
-                             # site-backup-create/apply. Empty => unconfined sysop.
+#
+# SM944 S21: THE REQUEST CONTEXT IS Lazysite::Manager::Common's, imported above
+# in place of the file-scope `my` variables this file declared, so an area
+# module reads the same facts. reset_request_context() leaves it fail-closed
+# (nobody, a token client with no capability, confined to no path); this file
+# then gives each fact the value its `my` declaration gave it, here and at the
+# lines below where the others were declared ($action, $path, $body,
+# $IS_OPERATOR), so the request runs as before. Only this file sets them
+# (t/lint/217).
+reset_request_context();
+$token_auth       = 0;
+%token_caps       = ();
+$REQUEST_CONFINED = 0;     # SM648: were this caller's scopes RESOLVED?
+@REQUEST_SCOPES   = ();    # SM158: the request's resolved dav_scopes (union), for
+                           # per-domain content-access checks in actions like
+                           # site-backup-create/apply. Empty => unconfined sysop.
 {
     my $hdr = $ENV{HTTP_AUTHORIZATION} // '';
     if ( $hdr =~ /^Basic\s+(\S+)/ ) {
@@ -363,7 +374,7 @@ for my $pair ( split /&/, $ENV{QUERY_STRING} // '' ) {
     $params{$k} = $v;
 }
 
-my $action = $params{action} // '';
+$action = $params{action} // '';
 
 # SM817: `extension-*` IS THE NAME. `plugin-*` IS THE OLD ONE, KEPT AND
 # DEPRECATED THE DAY THE NEW ONE SHIPS.
@@ -429,10 +440,11 @@ sub _audit_detail {
     return "$detail; spelling=deprecated";
 }
 
-my $path = $params{path} // '/';
-# Mirror the per-request context into Manager::Common for log attribution.
-$Lazysite::Manager::Common::action      = $action;
-$Lazysite::Manager::Common::auth_user   = $auth_user;
+$path = $params{path} // '/';
+# Mirror the per-request context into the modules that keep their own copy, for
+# log attribution. SM944 S21: Manager::Common's $action and $auth_user ARE this
+# file's now (imported), so the two lines that copied them here are gone; each
+# module below loses its copy at its own row and imports from Common instead.
 $Lazysite::Manager::Upload::auth_user   = $auth_user;
 $Lazysite::Manager::Backups::auth_user  = $auth_user;
 $Lazysite::Manager::Plugins::action     = $action;
@@ -509,7 +521,7 @@ sub _confine_scope {
     }
 }
 
-my $body = '';
+$body = '';
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my $len = $ENV{CONTENT_LENGTH} // 0;
 
@@ -536,7 +548,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 }
 my $JSON_BODY;      # SM516 MA-2: the memo behind _json_body()
 my %USER_CAPS;      # SM516 MO-1: the memo behind _user_caps()
-my $IS_OPERATOR;    # SM516 MO-3: the memo behind _operator()
+$IS_OPERATOR = undef;    # SM516 MO-3: the memo behind _operator(), empty until asked
 
 # --- M-1: CSRF gate on write actions --------------------------------
 # The gate is keyed on HTTP method, not action name. Every write action
