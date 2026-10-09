@@ -17,8 +17,9 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 use lib repo_root() . '/lib';
-use Lazysite::Manager::Common qw(outside_all_scopes reset_request_context NO_REQUEST_CONTEXT
-    $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body);
+use Lazysite::Manager::Common qw(outside_all_scopes reset_request_context NO_REQUEST_CONTEXT _user_caps
+    $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body
+    %USER_CAPS);
 
 my @PATHS = ( '', '/', 'index.md', 'sites/clienta/index.md', 'lazysite/auth/users', 'no request context',
     'sites', '/sites/clienta/' );
@@ -38,6 +39,8 @@ sub fail_closed {
     is( $action, '',    "$when: no action" );
     is( $path,   undef, "$when: no path" );
     is( $body,   '',    "$when: no body" );
+    is_deeply( \%USER_CAPS,            {}, "$when: no account's caps remembered (S22b)" );
+    is_deeply( _user_caps($auth_user), {}, "$when: the request's user holds no capability" );
 }
 
 fail_closed('loaded, never set');
@@ -54,6 +57,7 @@ $IS_OPERATOR      = 1;
 $action           = 'acl-set';
 $path             = 'secret/page.md';
 $body             = '{"read":["@everyone"]}';
+%USER_CAPS        = ( boss => { manage_users => 1, ui => 1 } );
 reset_request_context();
 fail_closed('after a request, reset');
 
@@ -108,6 +112,29 @@ subtest 'the remap handlers, loaded outside a request, reach no domain' => sub {
     is( scalar @{ $l->{rules} || [] }, 1, 'with an operator\'s context the same call lists the rule' );
     reset_request_context();
     is_deeply( Lazysite::Manager::Remap::_remap_list()->{rules}, [], '...and reset, none again' );
+};
+
+# SM944 S22b: the users-tool client and the caps memo, moved into Common. Loaded
+# here they still reach the users tool (the client is not identity-gated: it
+# answers what it is asked), the request's user - nobody - holds no capability,
+# and a caps answer the memo kept for one request is gone after the reset, so
+# a pooled worker re-reads the account store for the next.
+subtest 'the caps memo, loaded outside a request, answers nothing and is emptied by the reset' => sub {
+    require ManagerSession;
+    my $s = ManagerSession::new_site( root => repo_root() );
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', [qw(ui manage_users)], [qw(ui manage_users)] );
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT = $s->docroot;
+    local $ENV{LAZYSITE_USERS_TOOL} = repo_root() . '/tools/lazysite-users.pl';
+    is_deeply( _user_caps($auth_user), {}, 'the request\'s user, nobody, holds no capability' );
+    is_deeply( \%USER_CAPS,            {}, '...and asking remembers nothing' );
+    my $caps = _user_caps('boss');
+    ok( $caps->{manage_users}, 'a named account\'s caps come from the users tool through the moved client' )
+        or diag explain $caps;
+    ok( exists $USER_CAPS{boss}, '...and are remembered for the rest of the request' );
+    reset_request_context();
+    is_deeply( \%USER_CAPS, {}, 'the reset forgets them' );
 };
 
 done_testing();

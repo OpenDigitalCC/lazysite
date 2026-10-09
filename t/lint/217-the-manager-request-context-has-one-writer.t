@@ -4,7 +4,8 @@
 # WHAT IT IS. What a manager-API request establishes about itself - who is
 # asking ($auth_user), through which door ($token_auth, %token_caps), how far it
 # reaches (@REQUEST_SCOPES, $REQUEST_CONFINED), whether it is the operator
-# ($IS_OPERATOR), what it asked for ($action, $path, $body) - lives in
+# ($IS_OPERATOR), what it asked for ($action, $path, $body), and since S22b the
+# account caps memo behind _user_caps (%USER_CAPS) - lives in
 # Lazysite::Manager::Common as package variables, imported by the script and by
 # the area modules that read them. Before SM944 it was file-scope `my` variables
 # of lazysite-manager-api.pl, which nothing else could touch; moving it to
@@ -19,12 +20,17 @@
 # would carry what it set into whatever runs next.
 #
 # WHAT IT CHECKS.
-#   1. Common declares the nine with no initialiser, assigns them only inside
+#   1. Common declares the ten with no initialiser, assigns them only inside
 #      reset_request_context() (a sub that declares its own lexical of the same
 #      name is reading that, not the fact), resets every one of them, exports
-#      every one, and calls the reset at load.
-#   2. The script imports every one, declares none of them at file scope, and
-#      calls reset_request_context() before it reads a credential.
+#      every one, and calls the reset at load. The one other writer in Common is
+#      the memo's own reader: _user_caps fills %USER_CAPS one account at a time
+#      (S22b, ruled 2026-10-09); a reset that left the memo full would carry one
+#      request's account caps into the next in a pooled worker.
+#   2. The script imports every one but the memo, which it neither reads nor
+#      writes now that _user_caps lives in Common, declares none of them at file
+#      scope, writes the memo by no name, and calls reset_request_context()
+#      before it reads a credential.
 #   3. Every other source file: no write to a fact by its full name
 #      ($Lazysite::Manager::Common::auth_user = ...), outside the closed list
 #      below of sites that pre-date the rule; and a file that imports a fact
@@ -53,7 +59,13 @@ my %SIGIL = (
     auth_user   => '$', token_auth     => '$', REQUEST_CONFINED => '$',
     IS_OPERATOR => '$', action         => '$', path             => '$',
     body        => '$', REQUEST_SCOPES => '@', token_caps       => '%',
+    USER_CAPS   => '%',
 );
+
+# Common's own writers beyond the reset: the memo and the one sub that fills it.
+my %FILLED_BY = ( USER_CAPS => '_user_caps' );
+# The facts the script reads and so imports: all but the memo (S22b).
+my @SCRIPT_FACTS = grep { $_ ne 'USER_CAPS' } sort keys %SIGIL;
 my @FACTS = sort keys %SIGIL;
 
 my %KNOWN = (
@@ -122,6 +134,18 @@ sub writes {
             if ( $line =~ $re ) { ( my $t = $line ) =~ s/^\s+//; push @hits, "line $ln: $t"; last }
         }
     }
+    # S22b: the operator on the next line - `$X{$k}` ending one line and `//=`
+    # starting the next, as _user_caps fills its memo - is an assignment too.
+    my $lhs
+        = $s eq '%'     ? qr/\$$n\s*\{[^}\n]*\}/
+        : $s eq '@'     ? qr/\$$n\s*\[[^\]\n]*\]/
+        : $prefix eq '' ? qr/\$$n\b(?!\s*(?:\[|\{|::))/
+        :                 qr/\$$n\b(?!\s*(?:\[|\{))/;
+    while ( $code =~ /($lhs)[ \t]*\n[ \t]*$op/g ) {
+        my ( $what, $from ) = ( $1, $-[0] );
+        my $at = 1 + ( () = substr( $code, 0, $from ) =~ /\n/g );
+        push @hits, "line $at: $what (operator on the next line)";
+    }
     return @hits;
 }
 
@@ -175,6 +199,7 @@ sub imported_facts {
         next if $sub eq 'reset_request_context';
         my $body = $subs{$sub};
         for my $f (@FACTS) {
+            next if ( $FILLED_BY{$f} // '' ) eq $sub;
             # A sub's own `my $path` is a lexical; its writes are not the fact's.
             next if $sub ne '(file scope)'
                 && $body =~ /\b(?:my|state)\b\s*(?:\([^)]*?)?\Q$SIGIL{$f}$f\E\b/;
@@ -185,13 +210,21 @@ sub imported_facts {
     is_deeply( \@stray, [], 'Common assigns the context only in reset_request_context' )
         or diag( join "\n", @stray );
     like( $subs{'(file scope)'}, qr/^reset_request_context\(\);/m, 'Common resets the context when it loads' );
+    for my $f ( sort keys %FILLED_BY ) {
+        my $by = $subs{ $FILLED_BY{$f} } // '';
+        is_deeply( [ map { s/^line \d+: //r } writes( $by, $f, '' ) ],
+            ["\$$f\{\$user\} (operator on the next line)"],
+            "$FILLED_BY{$f} fills $SIGIL{$f}$f one element at a time (\$$f\{\$user\} //= ...), and only that" );
+    }
 }
 
 # --- 2. The script is the writer ----------------------------------------------
 {
     my $code = code_of( slurp("$root/lazysite-manager-api.pl") );
     my %imp  = map { $_ => 1 } imported_facts($code);
-    is_deeply( [ grep { !$imp{$_} } @FACTS ], [], 'the script imports every fact from Common' );
+    is_deeply( [ grep { !$imp{$_} } @SCRIPT_FACTS ], [], 'the script imports every fact it reads from Common' );
+    is_deeply( [ map { writes( $code, $_, '' ), writes( $code, $_, $Q ) } grep { !$imp{$_} } @FACTS ],
+        [], '...and writes the memo by no name' );
     my @mine = grep { $code =~ /^(?:my|our|state)\b\s*(?:\([^)]*?)?\Q$SIGIL{$_}$_\E\b/m } @FACTS;
     is_deeply( \@mine, [], 'the script declares none of them at file scope (no private copy beside the shared one)' );
 
