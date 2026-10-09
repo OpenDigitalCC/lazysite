@@ -25,7 +25,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     caller_may_reach_domain request_domain_confined reachable_domains domain_reach_refusal
     caller_is_confined instance_wide_refusal
     served_artifact_refusal caller_may_reach_path form_pages form_bindings caller_may_reach_form form_reach_refusal
-    page_form_names form_bind_refusal form_bind_tree_refusal
+    page_form page_form_names text_as_processor_reads form_bind_refusal form_bind_tree_refusal
     caller_may_reach_table caller_may_reach_brief brief_reach_refusal
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
@@ -721,11 +721,9 @@ sub form_bindings {
                         return;
                     }
                     return unless $rel =~ /\.md\z/;
-                    open my $fh, '<:encoding(UTF-8)', $f or return;
-                    my $head = '';
-                    read $fh, $head, 16384;
-                    close $fh;
-                    my $name = _bound_form_of($head);
+                    # SM976 Q15f: the whole page, read as the processor reads it
+                    # (read_file), and its form as the processor renders it.
+                    my $name = page_form( _read_as_processor($f) );
                     return unless defined $name;
                     $pages{ lc $name }{$rel} = 1;
                 },
@@ -736,14 +734,65 @@ sub form_bindings {
     return { map { $_ => [ sort keys %{ $pages{$_} } ] } keys %pages };
 }
 
-# The form a page's front matter binds, as form_bindings reads it: one
-# `form: NAME` line, the first, in a front matter block at the top of the text.
-sub _bound_form_of {
+# A file's text as the processor's read_file holds it: the whole file through
+# the :utf8 layer, so its front matter is matched with the same character
+# semantics. undef when it cannot be read.
+sub _read_as_processor {
+    my ($abs) = @_;
+    open my $fh, '<:utf8', $abs or return undef;
+    local $/;
+    my $t = <$fh>;
+    close $fh;
+    return $t;
+}
+
+# Bytes about to be written raw (an upload, a binary save), as the processor
+# will read them back: decoded as UTF-8 when they are UTF-8. Malformed bytes
+# are left as they are.
+sub text_as_processor_reads {
+    my ($bytes) = @_;
+    return $bytes unless defined $bytes && !utf8::is_utf8($bytes);
+    my $t = $bytes;
+    utf8::decode($t);
+    return $t;
+}
+
+# SM976 Q15f (ruled 2026-10-09, "One reading, processor's"): THE FORM A PAGE
+# BINDS, as the processor renders it - so "which form a page binds" has one
+# answer everywhere: the form rule's walker (form_bindings), the write rule
+# (form_bind_refusal, through page_form_names), create_form and the validators.
+#
+# A MARKED COPY of the processor's reading: lazysite-processor/front-matter.pm,
+# parse_yaml_front_matter - the front matter block, the scalar `key: value`
+# loop (the last column-0 `form:` wins, and its `\s*` reads a value on the next
+# line), strip_tt_directives, one pair of quotes, then the form sanitiser. The
+# render path loads no modules (ADR 0001), so it cannot call this; t/lint/219
+# runs both over the same texts and fails when they differ.
+#
+# $text is the page as the processor holds it after read_file: characters. The
+# copy matches with character semantics, as the processor's :utf8 read gives
+# it (a byte string is upgraded, never decoded, here: bytes about to be written
+# raw go through text_as_processor_reads first). Returns the form's name, case
+# as written, or undef.
+sub page_form {
     my ($text) = @_;
-    return undef unless defined $text && $text =~ /\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\z)/s;
-    my $fm = $1;
-    return undef unless $fm =~ /^form[ \t]*:[ \t]*["']?([A-Za-z0-9_-]+)["']?[ \t]*\r?$/m;
-    return $1;
+    return undef unless defined $text;
+    my $t = $text;
+    utf8::upgrade($t);
+    return undef unless $t =~ /\A---\s*\n(.*?)\n---\s*\n/s;
+    my ( $yaml, $form ) = ($1);
+    while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
+        next unless $1 eq 'form';
+        my $v = $2;
+        $v =~ s/\[%//g;
+        $v =~ s/%\]//g;
+        $v =~ s/\s+\z//;
+        $v =~ s/\A"(.*)"\z/$1/s or $v =~ s/\A'(.*)'\z/$1/s;
+        $form = $v;
+    }
+    return undef unless defined $form;
+    $form =~ s/[^a-zA-Z0-9_-]//g;
+    return length $form ? $form : undef;
 }
 
 # SM976 F2 (ruled 2026-10-09, "Confine both"): A FORM IS REACHED THROUGH THE
@@ -782,43 +831,14 @@ sub form_reach_refusal {
             . ( @mine ? '. Your domains: ' . join( ', ', @mine ) . '.' : '.' ) };
 }
 
-# SM976 Q15e: EVERY FORM A PAGE'S TEXT NAMES, lower-cased. Two readings, and the
-# page names a form when either finds one:
-#   - the processor's (lazysite-processor/front-matter.pm, parse_yaml_front_matter
-#     and its form sanitising): the last column-0 `form:` key in the front
-#     matter, its value read past a line break, TT markers and one pair of quotes
-#     removed, then everything outside [A-Za-z0-9_-] - which is the form the page
-#     renders and its visitors post to;
-#   - form_bindings' (_bound_form_of): the first `form: NAME` line - which is the
-#     binding the form rule reaches the form through.
-# They differ on unusual front matter (a second form: line, a value on the next
-# line, a dot in the name), and a check that read one could be passed by a page
-# the other reads differently. t/unit/manager/210 holds the first to the
-# processor's own parse.
+# SM976 Q15e/Q15f: the form a page's text binds, lower-cased, as a list (empty
+# or one). One reading since Q15f - page_form, the processor's - which is also
+# the reading form_bindings walks, so the write rule and the reach rule agree
+# on what a page binds.
 sub page_form_names {
     my ($text) = @_;
-    return () unless defined $text && length $text;
-    my %n;
-    if ( $text =~ /\A---\s*\n(.*?)\n---\s*\n/s ) {
-        my ( $yaml, $form ) = ($1);
-        while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
-            next unless $1 eq 'form';
-            my $v = $2;
-            $v =~ s/\[%//g;
-            $v =~ s/%\]//g;
-            $v =~ s/\s+\z//;
-            $v =~ s/\A"(.*)"\z/$1/s or $v =~ s/\A'(.*)'\z/$1/s;
-            $form = $v;
-        }
-        if ( defined $form ) {
-            $form =~ s/[^a-zA-Z0-9_-]//g;
-            $n{ lc $form } = 1 if length $form;
-        }
-    }
-    my $bound = _bound_form_of($text);
-    $n{ lc $bound } = 1 if defined $bound;
-    my @names = sort keys %n;
-    return @names;
+    my $f = page_form($text);
+    return defined $f ? ( lc $f ) : ();
 }
 
 # Does a form of this name exist anywhere: a registration (lazysite/forms/
@@ -854,11 +874,7 @@ sub _current_page_text {
     return undef unless length $doc;
     my ($abs) = Lazysite::Private::resolve( $doc, $rel );
     return undef unless defined $abs && -f $abs && !-l $abs;
-    open my $fh, '<:raw', $abs or return undef;
-    local $/;
-    my $t = <$fh>;
-    close $fh;
-    return $t;
+    return _read_as_processor($abs);
 }
 
 # SM976 Q15e (ruled 2026-10-09, "Refuse new binding"): A CONFINED CALLER BINDS NO
@@ -933,12 +949,11 @@ sub form_bind_tree_refusal {
     for my $pr ( sort { $a->[1] cmp $b->[1] } @pairs ) {
         next unless $pr->[1] =~ /\.md\z/;
         # A page that cannot be read cannot be judged: refused, not passed.
-        open my $fh, '<:raw', $pr->[0]
+        my $t = _read_as_processor( $pr->[0] );
+        defined $t
             or return _refusal( "The page '$pr->[1]' could not be read to check the form it binds.",
             'form-bind-refused', "the page '$pr->[1]' could not be read to check its form binding",
             'make it readable, or move the folder without it' );
-        my $t = do { local $/; <$fh> };
-        close $fh;
         my @no = form_bind_refusal( $pr->[1], $t, %by );
         return wantarray ? @no : $no[0] if @no;
     }

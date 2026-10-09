@@ -2559,7 +2559,8 @@ sub _audit_collect {
                         . '.html file to serve it unchanged, or author it as Markdown.' };
             }
             if ( $c =~ /^:::[ \t]*form\b/m ) {
-                my $fname = $h->{form};
+                # SM976 Q15f: the form the page binds as the processor renders it.
+                my $fname = Lazysite::Manager::Common::page_form($c);
                 if ( !defined $fname || !length $fname ) {
                     push @forms, { page => $slug, kind => 'unnamed',
                         message => ':::form block with no "form: NAME" - cannot be bound' };
@@ -3151,13 +3152,22 @@ sub _create_form {
     my $content = ( ref $rd eq 'HASH' && $rd->{ok} ) ? ( $rd->{content} // '' ) : '';
     if ( length $content && $content =~ /\A---\s*\n(.*?)\n---\s*\n/s ) {
         my $fm = $1;
-        if ( $fm =~ /^\s*form\s*:\s*(\S+)/m && lc($1) ne $name ) {
-            return { ok => 0, error => "Page already has a different form ('$1'); "
+        # SM976 Q15f ("One reading, processor's"): the form the page binds is
+        # the one the processor renders (Manager::Common::page_form).
+        my $cur = Lazysite::Manager::Common::page_form($content);
+        if ( defined $cur && lc($cur) ne $name ) {
+            return { ok => 0, error => "Page already has a different form ('$cur'); "
                     . 'edit it directly or pick that name.' };
         }
         $content =~ s/\A(---\s*\n)/$1form: $name\n/ unless $fm =~ /^\s*form\s*:/m;
         $content =~ s/\s*\z/\n/;
         $content .= "\n$block";
+        # A form: line the processor reads as no form (an empty or sanitised-away
+        # value, or one an earlier key's value swallowed) is left alone, so the
+        # page would not render this form: said rather than written.
+        return { ok => 0, error => "The page's front matter has a form: line that binds no form "
+                . "as the page renders; edit it directly." }
+            unless lc( Lazysite::Manager::Common::page_form($content) // '' ) eq $name;
     }
     else {
         # No usable front matter - create a fresh page.

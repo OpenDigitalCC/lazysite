@@ -125,4 +125,34 @@ sub call { my $r = mcp( { jsonrpc => '2.0', id => 1, method => 'tools/call',
     unlike( encode_json($fl), qr/alice|bob/, 'form_list carries no submission content (PII-free)' );
 }
 
+# --- SM976 Q15f: create_form and audit_site read the form the page renders -----
+# ("One reading, processor's" - Manager::Common::page_form, t/lint/219.)
+{
+    my $put = sub {
+        open my $fh, '>', "$d/$_[0]" or die $!;
+        print {$fh} $_[1];
+        close $fh;
+    };
+    $put->( 'nextline.md', "---\ntitle: N\nform:\n  other\n---\n\nbody\n" );
+    my $r = call( 'create_form', { path => '/nextline.md', name => 'mine' } );
+    ok( !$r->{ok}, 'create_form: a page whose form is on the next line already has one' );
+    like( $r->{error} // '', qr/different form \('other'\)/, '...named as the page renders it' );
+
+    $put->( 'empty.md', "---\ntitle: E\nform: mine\nform: ''\n---\n\nbody\n" );
+    $r = call( 'create_form', { path => '/empty.md', name => 'mine' } );
+    ok( !$r->{ok}, 'create_form: a page whose last form: line binds nothing is not reported bound' );
+    like( $r->{error} // '', qr/binds no form as the page renders/, '...and says why' );
+
+    $put->( 'twolines.md', "---\ntitle: T\nform: decoy\nform: mine\n---\n\nbody\n" );
+    $r = call( 'create_form', { path => '/twolines.md', name => 'mine' } );
+    ok( $r && $r->{ok}, 'create_form: a page rendering this form (the last line) takes it' )
+        or diag encode_json( $r || {} );
+
+    $put->( 'audited.md', "---\ntitle: A\nform:\n  leadsq\n---\n\n:::form\nn | N\n:::\n" );
+    my $au = call( 'audit_site', {} );
+    my ($row) = grep { ( $_->{page} // '' ) =~ /audited/ } @{ $au->{broken_forms} || [] };
+    is( $row && $row->{kind}, 'unbound', 'audit_site: the form on the next line is the page\'s' );
+    is( $row && $row->{form}, 'leadsq', '...named as it renders' );
+}
+
 done_testing();

@@ -53,6 +53,23 @@ Archive
 
 ## Unreleased
 
+- SM976 (PENDING) **security: a page binds the form the processor renders, on
+  every rule** (ruled 2026-10-09, "One reading, processor's"). The form rule
+  found a page's form with its own reading - the first plain `form: NAME` line
+  in the first 16 KB - so another domain's page with the name on the next line
+  rendered and received a form the rule did not count, and a caller scoped to a
+  domain also binding it reached the other site's submissions. **Behaviour
+  change:** the form rule (`form_bindings`, `form-list`/`form_list`, every form
+  verb's reach), the content-write rule, MCP `create_form`, `validate_page` and
+  `audit_site` read the form as the processor renders it: the last `form:` key,
+  a value on the next line, TT markers and other characters removed, the whole
+  front matter. A confined caller no longer reaches a form another domain's page
+  binds in such a shape; a form its own pages bind in such a shape is now its
+  own; a `form:` line the processor does not render (the first of two, one
+  followed by `form: ''`, one an earlier empty key swallows) binds nothing. The
+  manager's reading is a marked copy of the processor's, pinned by lint 219.
+  t/unit/manager/211.
+
 - SM976 (PENDING) **security: a confined caller binds no form it does not
   reach** (ruled 2026-10-09, "Refuse new binding"). A form is reached through
   the pages that bind it, so a cookie manager scoped to one domain could save a

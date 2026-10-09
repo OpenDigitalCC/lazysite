@@ -633,6 +633,8 @@ sub do_put {
         my $text;
         if ( open my $ff, '<:raw', $tmp ) { $text = do { local $/; <$ff> }; close $ff }
         else { unlink $tmp; return _write_failure( 'read the file back', $!, $r->{abs} ) }
+        # Q15f: the bytes landed raw; read them as the processor will.
+        $text = Lazysite::Manager::Common::text_as_processor_reads($text);
         if ( my ( $err, $why ) = Lazysite::Manager::Common::form_bind_refusal(
                 $a{rel}, $text, scopes => ( ref $a{scope} eq 'ARRAY' ? $a{scope} : [] ) ) )
         {

@@ -513,6 +513,72 @@ Evidence (n316)
   Plain' is outside your assigned scope". Fails closed; not changed (a fix
   widens what a grant can call).
 
+# Found in Q15e, ruled
+
+The release manager ruled n316's decision and both findings above on
+2026-10-09:
+
+A form that exists nowhere, "Keep"
+: a3686669 "Keep": a form that exists nowhere (no conf, no stored submissions,
+  no binding page) is new and a scoped caller may bind it; any form existing
+  anywhere is judged by the reach rule. Recorded only; n316's build stands.
+
+Form reading (security), "One reading, processor's"
+: `form_bindings` (and anything else deciding which form a page binds, incl.
+  `page_form_names`) uses the SAME front-matter parse the processor renders
+  with, so "which form a page binds" has one answer everywhere. ADR 0001 forbids
+  the processor loading modules, so the processor keeps its own copy; lib's
+  reading is a marked copy, and a lint or test pins them equal. The 16 KB
+  first-line plain-name reading is removed. Another domain's page with `form:`
+  and the name on the next line now counts as binding `contact`, so the scoped
+  caller no longer reaches it.
+
+replace_text, "Fix: per-tool path args"
+: Each MCP tool declares which of its arguments are content paths; rename_page's
+  `old`/`new` stay path-checked; replace_text's `old`/`new` are text. The global
+  `@PATH_ARGS` name list is replaced with the per-tool declaration; a lint holds
+  every tool that takes a path-like argument to a declaration, and fails a tool
+  whose declared path argument is missing from its schema.
+
+# The rulings, built (n317)
+
+One reading, the processor's
+: `Manager::Common::page_form(text)` is a marked copy of the processor's reading
+  (`lazysite-processor/front-matter.pm`, `parse_yaml_front_matter`: the front
+  matter block, the scalar `key: value` loop - the last column-0 `form:` wins,
+  its `\s*` reading a value on the next line - `strip_tt_directives`, one pair
+  of quotes, the sanitiser), matched with the character semantics the
+  processor's `:utf8` read gives. The processor's sanitiser carries the mark
+  back. Asked by: `form_bindings` (the whole page, read as the processor's
+  `read_file` reads it - the 16 KB first-line reading is gone), `page_form_names`
+  (so the write rule asks the one form the page renders), `form_bind_refusal`'s
+  current-page and tree reads, MCP `create_form` (the page's existing form, and
+  a refusal when its front matter would still render another), the validator
+  and `audit_site` (the form a `:::form` page delivers to). Bytes written raw
+  (`upload_file`, the multipart upload, WebDAV PUT) are decoded as the processor
+  will read them first (`text_as_processor_reads`).
+
+The pin
+: `t/lint/219` runs `page_form` and the processor's own parse over 39 texts
+  (the shapes a hand-rolled parser gets wrong, a BOM, a no-break space, a
+  non-ASCII key, front matter past 16 KB), over the same texts written to a site
+  and read back (the processor through `read_file`, the manager through
+  `form_bindings`' walk), and over 2,000 seeded generated front matters.
+
+Every case where the answer changed
+: `t/unit/manager/211`, each against n316's answer (tmp/q15f-was-check.out), a
+  caller scoped to one domain: narrows across domains - N1, another domain's page
+  with the name on the next line now binds there (the probe's case); widens
+  inside its scope - W1 a second `form:` line, W2 a name the sanitiser
+  completes, W3 a trailing comment, W4 a TT marker, W5 front matter past 16 KB,
+  W6 a no-break space on a fence, each now binding the caller's page; narrows
+  inside its scope - R1 the first of two `form:` lines, R2 a later `form: ''`,
+  R3 a closing fence with no newline, R4 an empty value swallowing the line, R5
+  a non-ASCII key swallowing it, on which the processor renders no such form.
+  The write rule (t/unit/manager/210) now asks only the rendered form: a first
+  `form:` line the processor does not render is no binding. The validator reads
+  a form on the next line (V1).
+
 # Related
 
 [[SM975]], [[SM943]], [[SM578]], [[SM647]], [[SM648]], [[SM802]].

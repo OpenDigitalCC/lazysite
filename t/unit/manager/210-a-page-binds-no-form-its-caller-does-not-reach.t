@@ -5,8 +5,8 @@
 # a cookie manager scoped to one domain saved a page naming the primary's form
 # and then read its submissions (tmp/q15d-hijack-probe.out).
 #
-#   page_form_names         every form a page's text names - as the processor
-#                           renders it, and as form_bindings reads it
+#   page_form_names         the form a page's text binds - as the processor
+#                           renders it (one reading since Q15f, t/lint/219)
 #   form_bind_refusal       the rule, for a page about to be written
 #   form_bind_tree_refusal  the rule, for pages carried somewhere (move, copy)
 #   Manager::Files guards   the choke point asks it, with MCP's grant scopes
@@ -76,8 +76,9 @@ subtest 'page_form_names reads the form as the processor renders it' => sub {
         ok( length $want, 'the processor binds a form for: ' . ( $c =~ s/\n/\\n/gr ) );
         ok( ( grep { $_ eq $want } page_form_names($c) ), "...and page_form_names names it ($want)" );
     }
-    is_deeply( [ page_form_names("---\nform: leads\nform: other\n---\n") ], [qw(leads other)],
-        'both readings are named: the binding (first line) and the render (last)' );
+    # SM976 Q15f ("One reading, processor's"): one reading, so one name.
+    is_deeply( [ page_form_names("---\nform: leads\nform: other\n---\n") ], [qw(other)],
+        'one reading: the form the processor renders (the last form: key), not the first line' );
     is_deeply( [ page_form_names("---\ntitle: T\n---\nform: leads\n") ], [], 'a body line binds nothing' );
     is_deeply( [ page_form_names("# no front matter\n") ], [], 'nor does a page without front matter' );
     is_deeply( [ page_form_names(undef) ],                 [], 'nor no text' );
@@ -115,8 +116,11 @@ subtest 'form_bind_refusal: what is unchanged, and the readings it must not miss
     ok( form_bind_refusal( 'sites/alpha/new.md', "---\nform:\n  fp\n---\n", @$alpha ), 'the value on the next line' );
     ok( form_bind_refusal( 'sites/alpha/new.md', "---\nform: fa\nform: fp\n---\n", @$alpha ),
         'a second form: line, which the processor renders' );
-    ok( form_bind_refusal( 'sites/alpha/new.md', "---\nform: fp\nform: fa\n---\n", @$alpha ),
-        'a first form: line, which form_bindings reads' );
+    # SM976 Q15f: the page renders fa, and form_bindings now reads fa too - fp is
+    # bound by nothing here, so this is no binding of fp (it was refused in n316,
+    # when the walker read the first line).
+    ok( !form_bind_refusal( 'sites/alpha/new.md', "---\nform: fp\nform: fa\n---\n", @$alpha ),
+        'a first form: line the processor does not render binds nothing' );
     ok( form_bind_refusal( 'sites/alpha/new.md', "---\nform: f.p\n---\n", @$alpha ), 'a name the sanitiser completes' );
 
     my ( $err, $detail ) = form_bind_refusal( 'sites/alpha/new.md', page('fp'), @$alpha );

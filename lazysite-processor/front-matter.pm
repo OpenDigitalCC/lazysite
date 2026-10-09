@@ -282,6 +282,13 @@ sub parse_yaml_front_matter {
         }
 
         # Sanitise form name
+        #
+        # SM976 Q15f: WHICH FORM A PAGE BINDS IS READ HERE, and nowhere else
+        # decides it differently. Lazysite::Manager::Common::page_form is a
+        # MARKED COPY of this reading - the block above, the scalar loop and
+        # this sanitiser - for the manager's form rule, which cannot load the
+        # processor; t/lint/219 runs both over the same texts. Change one, change
+        # both.
         if ( defined $meta{form} ) {
             $meta{form} =~ s/[^a-zA-Z0-9_-]//g;
             delete $meta{form} unless length $meta{form};

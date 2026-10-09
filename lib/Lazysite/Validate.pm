@@ -501,7 +501,8 @@ sub _check_form_delivery {
     # deliver. It is bound by front matter "form: NAME" + a lazysite/forms/NAME.conf
     # (written by bind_form); warn when the block is present but unbound.
     if ($has_fenced_form) {
-        my $fname = $h->{form};
+        # SM976 Q15f: the form the page binds as the processor renders it.
+        my $fname = Lazysite::Manager::Common::page_form($content);
         if ( !defined $fname || !length $fname ) {
             push @$warnings, { kind => 'form-unnamed',
                 message => 'a :::form block has no "form: NAME" in the front matter, so '
