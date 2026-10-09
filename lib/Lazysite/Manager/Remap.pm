@@ -43,7 +43,8 @@ our $DOCROOT;    # set by the script
 # answers for its primary hostname and for any unregistered host pointed at it,
 # so a scoped caller naming one could send another site's visitors anywhere. A
 # scoped caller may name only a REGISTERED domain whose content lies inside its
-# scope; everything else is refused.
+# scope; everything else is refused. A token with no scope names no domain
+# (SM975).
 
 sub _remap_unit_off {
     return undef if Lazysite::Manager::Plugins::plugin_enabled('plugins/remap.pl');
@@ -56,10 +57,14 @@ sub _remap_scopes {
     return $token_auth ? @{ $token_caps{dav_scopes} || [] } : @REQUEST_SCOPES;
 }
 
+# SM975: NO SCOPE IS NO DOMAIN, FOR A TOKEN. An empty scope is unconfined only
+# for the cookie session, which is the sysop at their own manager. A token
+# naming no scope is a grant nobody confined, and it reaches no host at all
+# (ruled 2026-10-09; the same rule SM578 gave the site-package verbs).
 sub _remap_host_in_scope {
     my ($host) = @_;
     my @scopes = _remap_scopes();
-    return 1 unless @scopes;
+    return ( $token_auth ? 0 : 1 ) unless @scopes;
     my $root = domain_content_root($host);
     return 0 unless defined $root && length $root;
     return Lazysite::Manager::Common::outside_all_scopes( \@scopes, $root ) ? 0 : 1;
@@ -70,7 +75,8 @@ sub _remap_list {
     require Lazysite::Remap;
     my $r      = Lazysite::Remap::report( Lazysite::Paths::lazysite_dir($DOCROOT) );
     my @scopes = _remap_scopes();
-    $r->{rules} = [ grep { _remap_host_in_scope( $_->{host} ) } @{ $r->{rules} } ] if @scopes;
+    $r->{rules} = [ grep { _remap_host_in_scope( $_->{host} ) } @{ $r->{rules} } ]
+        if @scopes || $token_auth;    # SM975: an unscoped token lists no domain's rules
     return $r;
 }
 
@@ -82,6 +88,8 @@ sub _remap_save {
     return { ok => 0, kind => 'invalid', field => 'host',
         error => 'remap-save needs a host: the domain whose rules these are.' }
         unless length $host;
+    return Lazysite::Manager::Common::no_scope_refusal()    # SM975: says which rule
+        if $token_auth && !_remap_scopes();
     return { ok => 0, kind => 'forbidden',
         error => "Domain '$host' is not a registered domain inside your assigned "
             . 'scope, so you cannot set where its visitors are redirected.' }

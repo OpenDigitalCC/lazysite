@@ -21,7 +21,7 @@ use Lazysite::Paths ();
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
-    _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
+    _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes no_scope_refusal reserved_roots path_is_reserved
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
     active_artifact_refusal refusal_detail refusal_status
@@ -65,8 +65,9 @@ sub render_source_exists {
 # and by the script before its auth check, and it leaves a request that is
 # nobody, holds no capability, is a token client (so never the cookie operator)
 # and is confined to a scope that contains no path. An empty @REQUEST_SCOPES
-# means UNCONFINED to every reader (outside_all_scopes, the script's scope
-# checks), so empty would be the wrong default: an entry point that loads a
+# means UNCONFINED to the content readers (outside_all_scopes, the script's
+# path checks) - for a token's domain writes it means no domain (SM975) - so
+# empty would be the wrong default: an entry point that loads a
 # handler and never establishes a request - the daemon, the MCP server, WebDAV,
 # a test - would hand it the sysop's reach. The scope is NO_REQUEST_CONTEXT, a
 # string with a NUL in it: no path, host or content root can contain one, so
@@ -411,6 +412,20 @@ sub outside_all_scopes {
         return 0 unless path_out_of_scope( $s, $path );    # inside one => allowed
     }
     return 1;
+}
+
+# SM975: the refusal a TOKEN naming no scope gets from a domain write. Empty is
+# unconfined above, which is what a CONTENT path check means by it (an unbound
+# WebDAV or MCP account reaches the whole primary site). For a domain it is the
+# opposite: a token reaches only the domains its scope names, and none when it
+# names none (ruled 2026-10-09). Each surface decides who is a token; the words
+# are here so the manager API, the remap module and MCP say the same thing.
+sub no_scope_refusal {
+    return { ok => 0, kind => 'forbidden',
+        error => 'A token reaches only the domains its scope names, and this grant '
+            . 'names no dav_scope, so it reaches no domain. An operator gives it one '
+            . "by naming the token account's group in that domain's allowed_groups "
+            . '(Domains page).' };
 }
 
 # The carve-outs from the whole-lazysite/ denial, named ONCE. is_blocked_path

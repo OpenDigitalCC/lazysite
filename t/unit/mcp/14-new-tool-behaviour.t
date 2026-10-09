@@ -73,6 +73,7 @@ my $u  = $r->{username} // '';
 my %caps = ( mcp => 1, manage_content => 1, manage_domains => 1,
              manage_themes => 1, manage_layouts => 1 );
 delete $caps{manage_domains} if $u =~ /nodom/;
+$caps{dav_scopes} = ['sites/clienta'] if $u =~ /inscope/;    # SM975: a domain write needs a scope
 print encode_json({ ok => 1, settings => \%caps });
 STUB
 close $sf;
@@ -112,6 +113,7 @@ sub slurp {
 
 my $ok    = 'Bearer agent:lzs_tok';
 my $nodom = 'Bearer nodomagent:lzs_tok';
+my $mine  = 'Bearer inscopeagent:lzs_tok';    # scoped to sites/clienta
 
 # =========================================================================
 # SM240: upload_file
@@ -178,7 +180,7 @@ my $GIF = pack 'H*',
 
 {
     my $r = sc( call( 'domain_set',
-            { host => 'shop.clienta.com', key => 'site_name', value => 'Client A' }, $ok ) );
+            { host => 'shop.clienta.com', key => 'site_name', value => 'Client A' }, $mine ) );
     ok( $r && $r->{ok}, 'domain_set writes a presentation key' ) or diag encode_json( $r // {} );
     like( slurp("$d/lazysite/lazysite.conf"),
         qr/^alias\.shop\.clienta\.com\.site_name: Client A$/m,
@@ -187,12 +189,12 @@ my $GIF = pack 'H*',
     # content_root is refused BY THIS TOOL specifically - repointing a live
     # domain is a migration, and the refusal names where that lives.
     my $cr = sc( call( 'domain_set',
-            { host => 'shop.clienta.com', key => 'content_root', value => 'sites/other' }, $ok ) );
+            { host => 'shop.clienta.com', key => 'content_root', value => 'sites/other' }, $mine ) );
     ok( $cr && !$cr->{ok}, 'domain_set refuses content_root' );
     like( $cr->{error}, qr/site_apply/, 'and names the tool that does take a snapshot' );
 
     my $unknown = sc( call( 'domain_set',
-            { host => 'nope.example', key => 'site_name', value => 'X' }, $ok ) );
+            { host => 'nope.example', key => 'site_name', value => 'X' }, $mine ) );
     ok( $unknown && !$unknown->{ok}, 'domain_set refuses an unregistered host' );
 }
 

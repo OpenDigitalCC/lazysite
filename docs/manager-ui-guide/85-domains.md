@@ -81,4 +81,7 @@ Expect
 Negative
 : A locked user with no allowed domain is denied everywhere - never silently
   unconfined. That sentinel is the whole safety of the model: confirm it by
-  locking a user to a domain and then removing their group from it.
+  locking a user to a domain and then removing their group from it. A TOKEN
+  whose group no domain names writes no domain at all (domain-add, -set,
+  -remove, remap-save, site-backup-apply); only the operator's own session
+  reaches every domain without a scope (SM975).

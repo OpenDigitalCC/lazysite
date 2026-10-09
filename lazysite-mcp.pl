@@ -500,9 +500,16 @@ sub _domain_row {
 sub _croot_outside_scope {
     my ( $caps, $croot ) = @_;
     my $scopes = $caps->{dav_scopes};
-    return 1 unless ref $scopes eq 'ARRAY' && @$scopes;
+    return 1 unless _names_a_scope($caps);
     return 1 unless length $croot;
     return Lazysite::Manager::Common::outside_all_scopes( $scopes, $croot ) ? 1 : 0;
+}
+
+# SM975: does this grant name a scope at all? One with none reaches no domain.
+sub _names_a_scope {
+    my ($caps) = @_;
+    my $scopes = ref $caps eq 'HASH' ? $caps->{dav_scopes} : undef;
+    return ( ref $scopes eq 'ARRAY' && @$scopes ) ? 1 : 0;
 }
 
 # --- tool registry --------------------------------------------------------
@@ -1066,7 +1073,11 @@ my %TOOLS = (
             },
             required => [ 'host', 'key' ], additionalProperties => JSON::PP::false },
         run => sub {
-            my $a = $_[0];
+            my ( $a, undef, $caps ) = @_;
+            # SM975: no scope = no domain. This tool asked nothing of the scope,
+            # so a grant naming none set keys on every domain; it is refused
+            # now, as site_backup and site_apply refuse it (_croot_outside_scope).
+            return Lazysite::Manager::Common::no_scope_refusal() unless _names_a_scope($caps);
             # content_root is deliberately not settable here: repointing a live
             # domain's content is a migration, not a presentation tweak, and it
             # belongs with site_apply where a safety snapshot is taken.

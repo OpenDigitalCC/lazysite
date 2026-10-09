@@ -52,7 +52,9 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
 - `manage_layouts` - activate layouts.
 - `manage_domains` - manage the domains this instance serves, and move whole
   sites between them (the `site_backup` / `site_apply` tools; the `domain-*`
-  control-API actions).
+  control-API actions). A token reaches only the domains its scope names, and
+  a token with no scope reaches none: the operator gives it one by naming its
+  group in a domain's `allowed_groups`.
 - `webdav` - the WebDAV transport / file-API mechanism flag.
 - `manage_config` - site configuration (control API, not exposed as MCP tools).
 - `manage_connectors` - where site data may be sent: define connectors, set their

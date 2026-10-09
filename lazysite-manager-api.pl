@@ -1270,6 +1270,7 @@ elsif ( $action eq 'config-read' )  { $result = action_config_read() }
 elsif ( $action eq 'domains-list' ) { $result = action_domains_list() }
 elsif ( $action eq 'domain-add' ) {
     my $req = _json_body();
+    _refuse_unscoped_token();    # SM975
     $result = domain_add(
         $req->{host},
         content_root   => $req->{content_root},
@@ -1289,6 +1290,7 @@ elsif ( $action eq 'domain-alias-add' ) {
     # Each parameter read BY NAME: lint 58 extracts what an action publishes by
     # scanning this branch, so a map over a qw() list would hide them from the
     # table a caller finds the action in.
+    _refuse_unscoped_token();    # SM975
     $result = domain_add_alias(
         $req->{host},
         $req->{alias_of},
@@ -1340,7 +1342,9 @@ elsif ( $action eq 'domain-set' ) {
 
         # The reach: a domain's content_root is the thing a scope confines, and
         # this action is addressed by HOST, so _confine_scope (which inspects
-        # paths) never saw it.
+        # paths) never saw it. An empty scope skips the check below for the
+        # cookie session only; a token naming no scope is refused (SM975).
+        _refuse_unscoped_token();
         my @scopes = $token_auth
             ? @{ $token_caps{dav_scopes} || [] }
             : @REQUEST_SCOPES;
@@ -1366,6 +1370,7 @@ elsif ( $action eq 'domain-set' ) {
 }
 elsif ( $action eq 'domain-remove' ) {
     my $req = _json_body();
+    _refuse_unscoped_token();    # SM975
     $result = domain_remove( $req->{host}, purge => ( $req->{purge} ? 1 : 0 ) );
 }
 elsif ( $action eq 'remap-list' ) { $result = _remap_list() }    # SM802
@@ -2535,6 +2540,28 @@ sub _root_outside_grant {
         : 0;
 }
 
+# SM975: NO SCOPE = NO DOMAIN, for every domain write a token can make.
+#
+# A token reaches only the domains its scope names, and a token naming no scope
+# reaches none (ruled 2026-10-09). domain-set, remap-save and site-backup-apply
+# read an empty scope as unconfined, and domain-add, domain-alias-add and
+# domain-remove did not ask, so a manage_domains token that nobody had scoped
+# wrote every domain on the instance, and remap-save also accepted hosts the
+# instance does not serve. The cookie session is the sysop and stays exempt,
+# as in _root_outside_grant. The answer for a token with a scope is unchanged
+# here; each action checks that scope itself.
+sub _no_scope_refusal {
+    return undef unless $token_auth && !@REQUEST_SCOPES;
+    return Lazysite::Manager::Common::no_scope_refusal();
+}
+
+# The dispatch branches' form: refuse and audit, or return.
+sub _refuse_unscoped_token {
+    my $r = _no_scope_refusal() or return;
+    _refuse( $r, 'api', 'denied: no dav_scope' );
+    return;
+}
+
 sub _package_scope_refusal {
     my ($pkg) = @_;
 
@@ -3349,6 +3376,11 @@ sub action_site_backup_apply {
 
     my $pkg = _site_package_path($name) or return _package_name_refusal($name);
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg; # not a store: a backup archive
+
+    # SM975: the scope test below skips an empty scope, which is right for the
+    # cookie session and wrong for a token: an unscoped token applied a package
+    # over any domain's content and presentation. It reaches no target now.
+    if ( my $r = _no_scope_refusal() ) { return $r }
 
     # Resolve the TARGET content root.
     my $croot;

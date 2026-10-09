@@ -53,6 +53,19 @@ Archive
 
 ## Unreleased
 
+- SM975 (PENDING) **security: a token with no scope wrote every domain.** A
+  `manage_domains` token whose group no domain names could set, add, alias,
+  remove and overwrite (site-backup-apply) any domain on the instance, and
+  write remap rules for any host, including hosts the instance does not serve.
+  Ruled 2026-10-09: no scope means no domain. **Behaviour change:** an existing
+  unscoped token is now refused on `domain-set`, `domain-add`,
+  `domain-alias-add`, `domain-remove`, `remap-save`, `site-backup-apply` and
+  MCP `domain_set`, and `remap-list` shows it no rules. It gets those writes
+  back once it is given a scope: name the token account's group in the
+  domain's `allowed_groups` (Domains page). Scoped tokens and the operator's
+  own session are unchanged, and content reach is unchanged.
+  t/integration/111.
+
 - SM944 (PENDING) **internal: the URL remapper's two manager actions are a
   module** (S22 of the plan in the filing). remap-list and remap-save, with
   the scope check they share, move unchanged to `Lazysite::Manager::Remap`,
