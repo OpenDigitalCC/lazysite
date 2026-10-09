@@ -497,12 +497,38 @@ sub _domain_row {
 # one, never "this is the operator". The operator's ruling was explicit that an
 # empty scope stops meaning unconfined for a token OR MCP partner, so an
 # unscoped MCP grant reaches no domain's content rather than every domain's.
+#
+# SM976: the reach is Lazysite::Manager::Common::caller_may_reach_domain, asked
+# with the grant's scopes; a grant naming none is refused here first (SM975).
 sub _croot_outside_scope {
     my ( $caps, $croot ) = @_;
-    my $scopes = $caps->{dav_scopes};
     return 1 unless _names_a_scope($caps);
-    return 1 unless length $croot;
-    return Lazysite::Manager::Common::outside_all_scopes( $scopes, $croot ) ? 1 : 0;
+    return Lazysite::Manager::Common::caller_may_reach_domain( _grant_reach($caps), root => $croot )
+        ? 0
+        : 1;
+}
+
+# SM976: the caller, as caller_may_reach_domain takes it. Every MCP caller is a
+# grant, so it is always confined, to the scopes the grant names.
+sub _grant_reach {
+    my ($caps) = @_;
+    my $s = ref $caps eq 'HASH' ? $caps->{dav_scopes} : undef;
+    return ( scopes => ( ref $s eq 'ARRAY' ? $s : [] ) );
+}
+
+# SM976: binding a theme or layout to a domain is the domain_set write by
+# another name, so it is refused as domain_set refuses: no scope, no domain
+# (SM975), then the reach. Both forms skipped both checks.
+sub _binding_refusal {
+    my ( $caps, $host ) = @_;
+    return Lazysite::Manager::Common::no_scope_refusal() unless _names_a_scope($caps);
+    return _host_reach_refusal( $caps, $host );
+}
+
+# SM976: the refusal for a host this grant does not reach, or undef.
+sub _host_reach_refusal {
+    my ( $caps, $host ) = @_;
+    return Lazysite::Manager::Common::domain_reach_refusal( _grant_reach($caps), host => $host );
 }
 
 # SM975: does this grant name a scope at all? One with none reaches no domain.
@@ -1059,7 +1085,15 @@ my %TOOLS = (
         inputSchema => { type => 'object', properties => {},
             additionalProperties => JSON::PP::false },
         run => sub {
-            return Lazysite::Manager::Domains::domains_list();
+            # SM976: a grant is shown the domains it reaches, no others.
+            my ( undef, undef, $caps ) = @_;
+            my $r = Lazysite::Manager::Domains::domains_list();
+            $r->{domains} = [ grep {
+                    Lazysite::Manager::Common::caller_may_reach_domain( _grant_reach($caps),
+                        host => $_->{host} )
+            } @{ $r->{domains} || [] } ]
+                if ref $r eq 'HASH' && $r->{ok};
+            return $r;
         },
     },
     domain_set => {
@@ -1086,6 +1120,17 @@ my %TOOLS = (
                     . 'a domain\'s content is a migration. Use site_apply, which '
                     . 'takes a snapshot first.' }
                 if ( $a->{key} // '' ) eq 'content_root';
+            # SM976: SM647 made allowed_groups and locked_users need manage_users
+            # as well as manage_domains, and confined domain-set to the caller's
+            # scope - on the control API. This tool asked neither, so a grant
+            # scoped to one domain wrote another domain's access groups.
+            return { ok => 0, kind => 'forbidden',
+                error => "Setting '$a->{key}' decides WHO may reach this domain's "
+                    . "content, so it requires the 'Users & groups' permission "
+                    . '(manage_users) as well as domain management.' }
+                if ( $a->{key} // '' ) =~ /\A(?:allowed_groups|locked_users)\z/
+                && !$caps->{manage_users};
+            if ( my $r = _host_reach_refusal( $caps, $a->{host} ) ) { return $r }
             return _domain_presentation_set( $a->{host}, $a->{key}, $a->{value} // '' );
         },
     },
@@ -1124,7 +1169,9 @@ my %TOOLS = (
             properties => { host => { type => 'string', description => 'The configured domain to render' } },
             required => ['host'], additionalProperties => JSON::PP::false },
         run => sub {
-            return Lazysite::Manager::Domains::domain_preview( $_[0]->{host} );
+            my ( $a, undef, $caps ) = @_;
+            if ( my $r = _host_reach_refusal( $caps, $a->{host} ) ) { return $r }  # SM976
+            return Lazysite::Manager::Domains::domain_preview( $a->{host} );
         },
     },
     site_backup => {
@@ -1295,8 +1342,10 @@ my %TOOLS = (
             # theme's assets under that domain's own layout (SM241) and never
             # touches the site-wide theme: key. Without a host the old
             # instance-wide behaviour is unchanged.
-            return _domain_presentation_set( $a->{host}, 'theme', $a->{theme} )
-                if defined $a->{host} && length $a->{host};
+            if ( defined $a->{host} && length $a->{host} ) {
+                if ( my $r = _binding_refusal( $_[2], $a->{host} ) ) { return $r } # SM976
+                return _domain_presentation_set( $a->{host}, 'theme', $a->{theme} );
+            }
             return action_theme_activate( $a->{theme}, {} );
         },
     },
@@ -1365,6 +1414,7 @@ my %TOOLS = (
                 # SM238: bind the layout, then the theme if one was named, so a
                 # single call leaves the domain in a consistent, servable state
                 # rather than a layout with the previous layout's theme.
+                if ( my $no = _binding_refusal( $_[2], $a->{host} ) ) { return $no } # SM976
                 my $r = _domain_presentation_set( $a->{host}, 'layout', $a->{layout} );
                 return $r unless $r->{ok};
                 return $r unless defined $a->{theme} && length $a->{theme};
@@ -1718,7 +1768,7 @@ my %TOOLS = (
                 host => { type => 'string', description => 'configured domain to read; omit for the primary site' },
             },
             additionalProperties => JSON::PP::false },
-        run => sub { action_nav_read( $_[0]->{host} ) },
+        run => sub { action_nav_read( $_[0]->{host}, _grant_reach( $_[2] ) ) },    # SM976
     },
     set_nav => {
         description => 'Replace a site navigation. items is an ordered list of { label, url } (a child list under "children" becomes an indented sub-menu; an item with no url is a section header). WITHOUT `host` this writes the PRIMARY site nav. WITH `host` it writes that one configured domain and leaves the others alone - call list_domains first if the instance may serve more than one site. Writes the domain nav_file and clears the render cache, reporting how many pages were refreshed: the nav is baked into every page, so a nav change is invisible until they re-render.',
@@ -1729,7 +1779,7 @@ my %TOOLS = (
                 host => { type => 'string', description => 'configured domain to write; omit for the primary site' },
             },
             required => ['items'], additionalProperties => JSON::PP::false },
-        run => sub { action_nav_save( $_[0]->{items}, $_[0]->{host} ) },
+        run => sub { action_nav_save( $_[0]->{items}, $_[0]->{host}, _grant_reach( $_[2] ) ) }, # SM976
     },
     submit_feedback => {
         description => 'Submit a brief feedback report on your experience building this site through the connector - what worked, what got in the way, anything confusing or missing. You are encouraged to use this whenever something helps or hinders: it is how the operators improve the tools. Provide the content; your identity and context are recorded automatically. Returns the saved report id.',
@@ -2986,7 +3036,9 @@ sub _site_apply {
         return { ok => 0, error => "$host has no content folder of its own" }
             unless length $croot;
     }
-    if ( _croot_outside_scope( $caps, $croot ) ) {
+    if ( _croot_outside_scope( $caps, $croot )
+        || !Lazysite::Manager::Common::caller_may_reach_domain( _grant_reach($caps), host => $host ) )
+    {
         return { ok => 0, error => 'Target is outside your assigned scope.' };
     }
     local $Lazysite::Manager::SitePackage::auth_user = $user;

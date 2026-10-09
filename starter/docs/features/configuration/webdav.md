@@ -46,6 +46,12 @@ Access is decided per user, from two sides:
 | `ui` | on the account (default `on`) | Whether this account may log in through the browser. |
 | `dav_scope` | on the account (default unset) | If set (e.g. `/content`), confines this account's WebDAV access to that subtree. |
 
+A navigation file - `lazysite/nav.conf`, or a domain's own `nav_file` - needs
+`manage_nav` and belongs to the domains that render it. Reading one needs one
+of those domains to be inside the account's scope; writing one needs all of
+them, since a file a domain inherits changes that domain too. An account with
+no scope reaches the primary site's navigation and no domain's.
+
 Capabilities are always granted to groups, never to individual
 accounts; the account keeps only account-shaped fields (`ui`,
 `dav_scope`). There is no separate "machine account" type — a deploy

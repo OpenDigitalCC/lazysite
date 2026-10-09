@@ -71,7 +71,8 @@ the test fails. Restored by cp and checked with cmp, it passes.
 # Found, not changed
 
 These were probed and are reported for a ruling. They concern scoped callers,
-which this ruling leaves as they were:
+which this ruling leaves as they were. Ruled the same day ("One rule, fix all")
+and built as [[SM976]]:
 
 - A SCOPED token's `domain-add` (any content_root), `domain-alias-add` (an
   alias of any domain) and `domain-remove` (any domain) are not checked

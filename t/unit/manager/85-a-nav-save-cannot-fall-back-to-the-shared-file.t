@@ -49,6 +49,13 @@ sub fixture {
     $Lazysite::Manager::Domains::DOCROOT   = $d;
     $Lazysite::Manager::Themes::DOCROOT      = $d;
     $Lazysite::Manager::Themes::LAZYSITE_DIR = "$d/lazysite";
+
+    # SM976: the nav actions ask whether the caller reaches the domain, and a
+    # process no request set up reaches none. This file is about which file a
+    # save writes, so it runs as the unconfined operator.
+    $Lazysite::Manager::Common::token_auth       = 0;
+    $Lazysite::Manager::Common::REQUEST_CONFINED = 0;
+    @Lazysite::Manager::Common::REQUEST_SCOPES   = ();
     return $d;
 }
 

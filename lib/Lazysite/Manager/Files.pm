@@ -1480,6 +1480,17 @@ sub action_aliases_list {
             last;
         }
     }
+
+    # SM976: with no host, a folder inside a domain's content root is THAT
+    # domain's, so its map is the one listed. The Files page sends no host, and
+    # a manager standing in its own domain's folder was shown the primary's map.
+    elsif ( defined $path && length $path ) {
+        my ($cr) = _with_domains(
+            sub { Lazysite::Manager::Domains::content_root_for_path( $path =~ s{^/+}{}r ) } );
+        $cr //= '';
+        $cr =~ s{^/+|/+$}{}g;
+        ( $key = $cr ) =~ s{[^A-Za-z0-9._-]+}{_}g if length $cr;
+    }
     my $rows = Lazysite::Aliases::list_aliases( $DOCROOT, $key );
 
     # SM447-adjacent (sysop): SCOPE THE LIST TO THE FOLDER BEING BROWSED.

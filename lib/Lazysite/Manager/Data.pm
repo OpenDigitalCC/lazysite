@@ -719,6 +719,22 @@ sub action_data_table_save {
                     . 'serves'
                     . ( @hosts ? ' - configured: ' . join( ', ', sort @hosts ) : '' ) };
         }
+
+        # SM976: AND IT MUST BE ONE OF THE CALLER'S. A caller confined to one
+        # domain created a table bound to another domain, and re-bound its own
+        # table to another, by naming it here - a write into another domain's
+        # data, which the rule that a confined caller reaches only its own
+        # domains forbids. The test is the one every table action already makes
+        # of an existing table (_may_reach), applied to the domain being named.
+        if ( ( $CALLER_CONFINED || @CALLER_SCOPES )
+            && !grep { lc($_) eq lc( $d->{domain} ) } _caller_domains() )
+        {
+            my @mine = _caller_domains();
+            return { ok => 0, kind => 'forbidden', field => 'domain',
+                error => "domain '$d->{domain}' is not one of yours: a caller confined to "
+                    . 'its own domains binds a table only to one of them'
+                    . ( @mine ? ' - ' . join( ', ', sort @mine ) : ', and it reaches none' ) . '.' };
+        }
     }
 
     my $dir = descriptor_dir($DOCROOT);

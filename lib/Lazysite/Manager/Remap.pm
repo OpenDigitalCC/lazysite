@@ -24,7 +24,7 @@ use Exporter 'import';
 use Lazysite::Util             qw(log_event);
 use Lazysite::Paths            ();
 use Lazysite::Manager::Common  qw($auth_user $token_auth %token_caps @REQUEST_SCOPES);
-use Lazysite::Manager::Domains qw(domain_content_root);
+use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Plugins ();
 
 our @EXPORT_OK = qw(_remap_list _remap_save);
@@ -38,13 +38,12 @@ our $DOCROOT;    # set by the script
 # calls this domain configuration, and PER HOST, so a save replaces one domain's
 # rules and can never touch another's.
 #
-# THE SCOPE CHECK IS STRICTER THAN domain-set's, deliberately. domain-set skips
-# a host with no content_root, and for a redirect that is a reach: this instance
-# answers for its primary hostname and for any unregistered host pointed at it,
-# so a scoped caller naming one could send another site's visitors anywhere. A
-# scoped caller may name only a REGISTERED domain whose content lies inside its
-# scope; everything else is refused. A token with no scope names no domain
-# (SM975).
+# THE SCOPE CHECK. This instance answers for its primary hostname and for any
+# unregistered host pointed at it, so a scoped caller naming one could send
+# another site's visitors anywhere. A scoped caller may name only a REGISTERED
+# domain whose content lies inside its scope; everything else is refused. A
+# token with no scope names no domain (SM975). Since SM976 every host-addressed
+# action asks the same question, which this check was the model for.
 
 sub _remap_unit_off {
     return undef if Lazysite::Manager::Plugins::plugin_enabled('plugins/remap.pl');
@@ -61,13 +60,16 @@ sub _remap_scopes {
 # for the cookie session, which is the sysop at their own manager. A token
 # naming no scope is a grant nobody confined, and it reaches no host at all
 # (ruled 2026-10-09; the same rule SM578 gave the site-package verbs).
+#
+# SM976: the reach itself is Lazysite::Manager::Common::caller_may_reach_domain,
+# the one rule every host-addressed action asks. It answers for the primary and
+# for a domain with no root of its own by the content-path rule, which admits a
+# token naming no scope; a redirect is domain configuration, so that token is
+# refused here first, as before.
 sub _remap_host_in_scope {
     my ($host) = @_;
-    my @scopes = _remap_scopes();
-    return ( $token_auth ? 0 : 1 ) unless @scopes;
-    my $root = domain_content_root($host);
-    return 0 unless defined $root && length $root;
-    return Lazysite::Manager::Common::outside_all_scopes( \@scopes, $root ) ? 0 : 1;
+    return 0 if $token_auth && !_remap_scopes();
+    return Lazysite::Manager::Common::caller_may_reach_domain( host => $host );
 }
 
 sub _remap_list {

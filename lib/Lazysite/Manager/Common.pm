@@ -22,6 +22,7 @@ use Lazysite::Paths ();
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes no_scope_refusal reserved_roots path_is_reserved
+    caller_may_reach_domain request_domain_confined reachable_domains domain_reach_refusal
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
     active_artifact_refusal refusal_detail refusal_status
@@ -426,6 +427,127 @@ sub no_scope_refusal {
             . 'names no dav_scope, so it reaches no domain. An operator gives it one '
             . "by naming the token account's group in that domain's allowed_groups "
             . '(Domains page).' };
+}
+
+# SM976: ONE RULE FOR DOMAIN REACH. A domain-confined caller reaches only its own
+# domains, on every surface; the unconfined operator reaches all of them (ruled
+# 2026-10-09). Every action addressed by a host or a content root asks this, and
+# t/lint/218 holds that.
+#
+#   caller_may_reach_domain( host => $h )    a configured domain, '' or
+#                                            '(default)' the primary
+#   caller_may_reach_domain( root => $r )    a content root, e.g. a new domain's
+#
+# WHO. By default the manager request: the cookie operator is unconfined, and so
+# is a cookie manager whose groups bind no domain (an empty scope on the cookie
+# channel is no confinement, as it is for its content paths); a token is always
+# confined, and so is a cookie manager with a scope. MCP and WebDAV pass
+# `scopes => [...]`: every caller there is a grant, so it is confined.
+#
+# THE ANSWER for a confined caller:
+#   - a host the instance does not serve: no;
+#   - a domain with a content root of its own: yes when that root lies inside
+#     one of its scopes, no otherwise, and no when it names none (SM975);
+#   - the PRIMARY, and a domain with no root of its own (it serves the primary's
+#     content): the content-path rule, which SM975 left as documented - an
+#     unbound account reaches the primary site, a scoped one does not.
+# Actions that refuse a token naming no scope outright (the domain writes and
+# the site packages, SM975/SM578) keep that refusal ahead of this one.
+sub caller_may_reach_domain {
+    my (%a) = @_;
+    my $confined = exists $a{scopes} ? 1 : request_domain_confined();
+    return 1 unless $confined;
+    my @scopes = exists $a{scopes}
+        ? grep { defined && length } @{ $a{scopes} || [] }
+        : @REQUEST_SCOPES;
+    my $root = exists $a{root} ? _clean_root( $a{root} ) : _domain_root_of( $a{host} );
+    return 0                   unless defined $root;   # not a domain this instance serves
+    return ( @scopes ? 0 : 1 ) unless length $root;    # the primary's content
+    return 0                   unless @scopes;         # SM975: no scope, no domain
+    return outside_all_scopes( \@scopes, $root ) ? 0 : 1;
+}
+
+# Is the manager request a domain-confined caller? The token channel always is;
+# the cookie channel is when the request resolved a scope for a non-operator.
+sub request_domain_confined {
+    return 1 if $token_auth;
+    return ( $REQUEST_CONFINED && @REQUEST_SCOPES ) ? 1 : 0;
+}
+
+sub _clean_root {
+    my ($r) = @_;
+    $r //= '';
+    $r =~ s{/+}{/}g;
+    $r =~ s{(?:^|/)\.(?=/|$)}{/}g;
+    $r =~ s{/+}{/}g;
+    $r =~ s{^/+|/+$}{}g;
+    return $r;
+}
+
+# The content root a host serves from: '' for the primary (by '', '(default)'
+# or its site_url host) and for a domain with no root of its own, undef for a
+# host the instance does not serve.
+sub _domain_root_of {
+    my ($host) = @_;
+    $host = lc( $host // '' );
+    $host =~ s/^\s+|\s+$//g;
+    return '' if $host eq '' || $host eq '(default)';
+    require Lazysite::Manager::Domains;
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT
+        = $Lazysite::Manager::Domains::DOCROOT // $DOCROOT // $ENV{DOCUMENT_ROOT};
+    my $list = eval { Lazysite::Manager::Domains::domains_list() };
+    return undef unless ref $list eq 'HASH' && $list->{ok};
+    my $prim_url_host;
+    for my $d ( @{ $list->{domains} || [] } ) {
+        if ( $d->{is_primary} ) {
+            ($prim_url_host) = ( $d->{site_url} // '' ) =~ m{^https?://([^/:?#]+)}i;
+            next;
+        }
+        return _clean_root( $d->{content_root} ) if lc( $d->{host} // '' ) eq $host;
+    }
+    return '' if defined $prim_url_host && lc($prim_url_host) eq $host;
+    return undef;
+}
+
+# The configured hosts this caller reaches, in list order: '(default)' for the
+# primary. Takes the same `scopes` override as the predicate.
+sub reachable_domains {
+    my (%who) = @_;
+    require Lazysite::Manager::Domains;
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT
+        = $Lazysite::Manager::Domains::DOCROOT // $DOCROOT // $ENV{DOCUMENT_ROOT};
+    my $list = eval { Lazysite::Manager::Domains::domains_list() };
+    return () unless ref $list eq 'HASH' && $list->{ok};
+    return map { $_->{host} }
+        grep { caller_may_reach_domain( %who, host => $_->{host} ) } @{ $list->{domains} || [] };
+}
+
+# The refusal for a domain this caller may not reach, or undef when it may. It
+# names the caller's scope and the domains it does reach, so the next call can
+# be the right one; `domains` carries the same list for a client to pick from.
+sub domain_reach_refusal {
+    my (%a) = @_;
+    my %who = exists $a{scopes} ? ( scopes => $a{scopes} ) : ();
+    return undef if caller_may_reach_domain(%a);
+    my @scopes = exists $a{scopes} ? @{ $a{scopes} || [] } : @REQUEST_SCOPES;
+    my $what   = exists $a{root}
+        ? ( length _clean_root( $a{root} )
+        ? "the content root '" . _clean_root( $a{root} ) . "'"
+        : "the primary site's content (no content root of its own)" )
+        : do {
+        my $h = lc( $a{host} // '' );
+        ( $h eq '' || $h eq '(default)' ) ? 'the primary site' : "the domain '$h'";
+        };
+    my @mine  = reachable_domains(%who);
+    my $scope = @scopes
+        ? 'its scope (' . join( ', ', map { ( my $x = $_ ) =~ s{^/+|/+$}{}g; "$x/" } @scopes ) . ')'
+        : 'no scope';
+    return { ok => 0, kind => 'forbidden', domains => \@mine,
+        error => "You cannot reach $what. A domain-confined caller reaches only the "
+            . "domains whose content lies inside $scope"
+            . ( @mine ? ': ' . join( ', ', @mine ) . '.' : ', and that is none.' ) };
 }
 
 # The carve-outs from the whole-lazysite/ denial, named ONCE. is_blocked_path

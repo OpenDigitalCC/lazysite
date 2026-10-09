@@ -191,8 +191,12 @@ ok( !$nn->{ok} && $nn->{error} =~ /capability/i,
     like( $dom->{nav_file}, qr{sites/shop/nav\.conf}, 'domain nav-read resolves the override file' );
 
     # A domain with NO nav_file override reads the base and is flagged inherited.
+    # SM976: plain.example is registered, and serves the primary's content, so
+    # this token - bound to no domain - reaches it as it reaches the primary. It
+    # was an unregistered host with a content root, which a confined caller no
+    # longer reaches at all.
     open my $cf2, '>>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$cf2} "alias.plain.example.content_root: sites/plain\n";
+    print {$cf2} "alias_hosts: shop.example, plain.example\nalias.plain.example.site_name: Plain\n";
     close $cf2;
     my $inh = mapi( $d, QUERY_STRING => 'action=nav-read&host=plain.example',
         HTTP_AUTHORIZATION => basic( 'partner', $tok ) );

@@ -35,10 +35,14 @@ like( $mapi, qr/_confine_scope\([^)]*'ui'\s*\)/, 'the cookie (ui) path is scope-
 like( $mapi, qr/_confine_scope\([^)]*'api'\s*\)/, 'the token (api) path is scope-confined' );
 
 # --- MCP: read AND write file tools confine ------------------------------------
-my $mcp       = slurp("$root/lazysite-mcp.pl");
-my @mcp_scope = $mcp =~ /outside_all_scopes\(/g;
-cmp_ok( scalar @mcp_scope, '>=', 2,
-    'the MCP server confines multiple file operations (read + write) via outside_all_scopes' );
+# SM976: this counted outside_all_scopes call sites and wanted two; the second
+# was _croot_outside_scope, a DOMAIN check rather than a file operation, which
+# now asks caller_may_reach_domain. The file confinement is one pass in the
+# dispatcher over every path argument of every tool, read and write alike, so
+# that pass is what is asserted.
+my $mcp = slurp("$root/lazysite-mcp.pl");
+like( $mcp, qr/for my \$pk \(\@Lazysite::Manager::Common::PATH_ARGS\) \{(?:(?!^\s*\}\s*$).)*?outside_all_scopes\(/ms,
+    'the MCP server confines every path argument of every file tool (read + write) via outside_all_scopes' );
 
 # --- WebDAV: the request resolves a scope and authorises the path against it ----
 my $dav = slurp("$root/lazysite-dav.pl");

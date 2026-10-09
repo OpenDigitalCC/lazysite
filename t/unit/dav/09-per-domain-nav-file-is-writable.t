@@ -46,6 +46,16 @@ sub wrote { my $c = shift; $c == 201 || $c == 204 }
 ok( wrote( req( 'PUT', '/lazysite/nav.conf', body => "Home | /\n" )->{code} ),
     'the default nav file is writable, as it always was' );
 
+# SM976: a domain's nav file is that domain's. An account bound to no domain
+# reaches the primary's content and no domain's, so it is refused here; scoped
+# to xisl.example, it writes xisl's navigation.
+is( req( 'PUT', '/lazysite/nav-xisl.conf', body => "Home | /\n" )->{code}, 403,
+    'a domain\'s nav file is refused to an account whose scope does not reach that domain' );
+{
+    open my $cf, '>>', "$doc/lazysite/lazysite.conf" or die $!;
+    print {$cf} "alias.xisl.example.allowed_groups: role-deploy\n";
+    close $cf;
+}
 ok( wrote( req( 'PUT', '/lazysite/nav-xisl.conf', body => "Home | /\n" )->{code} ),
     'a CONFIGURED per-domain nav file is writable with manage_nav' )
     or diag( 'This is the defect: domain-set accepts a nav_file that no '

@@ -54,7 +54,12 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
   sites between them (the `site_backup` / `site_apply` tools; the `domain-*`
   control-API actions). A token reaches only the domains its scope names, and
   a token with no scope reaches none: the operator gives it one by naming its
-  group in a domain's `allowed_groups`.
+  group in a domain's `allowed_groups`. The same holds for every tool that
+  names a `host` - `domain_set`, `preview_domain`, `read_nav`, `set_nav`, the
+  `host` form of `activate_theme` and `activate_layout` - and `list_domains`
+  shows only the domains the grant reaches. A domain added or repointed must
+  have its content inside the scope; a grant with a scope does not reach the
+  primary site.
 - `webdav` - the WebDAV transport / file-API mechanism flag.
 - `manage_config` - site configuration (control API, not exposed as MCP tools).
 - `manage_connectors` - where site data may be sent: define connectors, set their

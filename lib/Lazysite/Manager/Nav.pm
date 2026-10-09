@@ -37,13 +37,14 @@ use strict;
 use warnings;
 use File::Basename            qw(dirname);
 use File::Path                qw(make_path);
-use Lazysite::Manager::Common qw(write_file_checked refusal_detail);
+use Lazysite::Manager::Common qw(write_file_checked refusal_detail caller_may_reach_domain
+    domain_reach_refusal);
 use Lazysite::Manager::Themes qw(action_cache_invalidate);
 use Lazysite::Paths           ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(action_nav_read action_nav_save _nav_conf_info _nav_conf_path
-    resolved_nav_files nav_write_refusal);
+    resolved_nav_files nav_write_refusal nav_file_reach_refusal);
 
 our $DOCROOT;
 our $LAZYSITE_DIR;
@@ -188,9 +189,36 @@ sub nav_write_refusal {
         : $err;
 }
 
+# SM976: A NAVIGATION BELONGS TO THE DOMAINS THAT RENDER IT. A caller confined to
+# one domain read and replaced another's through nav-read/nav-save, read_nav/
+# set_nav and a WebDAV PUT of its file, because none of them asked about the
+# host. Reading needs the caller to reach one domain the file serves; writing
+# needs every one of them, because a nav file shared by inheritance changes
+# every site that inherits it. %who is the caller as
+# Lazysite::Manager::Common::caller_may_reach_domain takes it.
+#
+# Returns the refusal, or undef.
+sub nav_file_reach_refusal {
+    my ( $rel, $mode, %who ) = @_;
+    $rel //= '';
+    $rel =~ s{^/+}{};
+    my @hosts = @{ resolved_nav_files()->{$rel} || [] };
+    return undef unless @hosts;    # not a navigation: the path rules apply
+    my @mine = grep { caller_may_reach_domain( %who, host => $_ ) } @hosts;
+    return undef if ( $mode // 'read' ) eq 'write' ? @mine == @hosts : @mine;
+    my ($theirs) = grep { !caller_may_reach_domain( %who, host => $_ ) } @hosts;
+    my $r = domain_reach_refusal( %who, host => $theirs );
+    $r->{error} = "$rel is the navigation of "
+        . join( ', ', map { length $_ ? $_ : 'the primary site' } @hosts )
+        . '. ' . $r->{error}
+        if $r;
+    return $r;
+}
+
 sub action_nav_read {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
-    my ($host) = @_;
+    my ( $host, %who ) = @_;
+    if ( my $r = domain_reach_refusal( %who, host => ( $host // '' ) ) ) { return $r } # SM976
     my ( $path, $rel, $inherited ) = _nav_conf_info($host);
     my @items;
 
@@ -253,7 +281,7 @@ sub action_nav_read {
 #   host not registered - REFUSED. Nothing to write, and falling back to the
 #                         base file is how the incident happened.
 sub action_nav_save {
-    my ( $items, $host ) = @_;
+    my ( $items, $host, %who ) = @_;
     $host = '' unless defined $host;
     $host =~ s/^\s+|\s+$//g;
     $host = '' if lc($host) eq '(default)';
@@ -280,7 +308,10 @@ sub action_nav_save {
         }
     }
 
-    my $path = _nav_conf_path($host);
+    # SM976: the domain named, then every domain this file is the navigation of.
+    if ( my $r = domain_reach_refusal( %who, host => $host ) ) { return $r }
+    my ( $path, $nav_file ) = _nav_conf_info($host);
+    if ( my $r = nav_file_reach_refusal( $nav_file, 'write', %who ) ) { return $r }
 
     my $content = "# lazysite navigation\n";
     $content .= "# Format: Label | /url\n";

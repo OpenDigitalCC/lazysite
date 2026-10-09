@@ -163,11 +163,16 @@ my $GIF = pack 'H*',
 # SM238: the domain trio
 # =========================================================================
 {
-    my $r = sc( call( 'list_domains', {}, $ok ) );
+    # SM976: a grant is shown the domains it reaches - the scoped one sees its
+    # domain, the one naming no scope does not.
+    my $r = sc( call( 'list_domains', {}, $mine ) );
     ok( $r && $r->{ok}, 'list_domains answers' ) or diag encode_json( $r // {} );
     my @hosts = map { $_->{host} // '' } @{ $r->{domains} // [] };
     ok( ( grep { $_ eq 'shop.clienta.com' } @hosts ),
         'and includes the configured domain' );
+    my $u = sc( call( 'list_domains', {}, $ok ) );
+    ok( !( grep { ( $_->{host} // '' ) eq 'shop.clienta.com' } @{ $u->{domains} // [] } ),
+        'and an unscoped grant is not shown it' );
 
     # A capability refusal comes back as a JSON-RPC error with NO
     # structuredContent, so it must be judged on the raw response - reading it
@@ -199,7 +204,7 @@ my $GIF = pack 'H*',
 }
 
 {
-    my $r = sc( call( 'preview_domain', { host => 'shop.clienta.com' }, $ok ) );
+    my $r = sc( call( 'preview_domain', { host => 'shop.clienta.com' }, $mine ) ); # SM976: its own domain
     ok( $r && $r->{ok}, 'preview_domain renders' ) or diag encode_json( $r // {} );
     is( $r->{host}, 'shop.clienta.com', 'the result names the host it rendered' );
     # SM257: THIS is the assertion the tool exists to support, and before SM257
@@ -208,15 +213,20 @@ my $GIF = pack 'H*',
     like( $r->{html} // '', qr/Client A/,
         "and renders THAT domain's content root, not the primary's" );
 
-    my $unknown = sc( call( 'preview_domain', { host => 'nope.example' }, $ok ) );
+    my $no = sc( call( 'preview_domain', { host => 'shop.clienta.com' }, $ok ) );
+    ok( $no && !$no->{ok}, 'preview_domain refuses a grant whose scope does not reach the domain' );
+    my $unknown = sc( call( 'preview_domain', { host => 'nope.example' }, $mine ) );
     ok( $unknown && !$unknown->{ok}, 'preview_domain refuses an unregistered host' );
 }
 
 # The host parameter is the SM238 safety mechanism: without it these are
 # instance-wide. Both branches must work and must not bleed into each other.
 {
+    # SM976: binding a layout to a domain is a write of that domain.
+    my $no = sc( call( 'activate_layout', { layout => 'alt', host => 'shop.clienta.com' }, $ok ) );
+    ok( $no && !$no->{ok}, 'activate_layout with host is refused to a grant naming no scope' );
     my $scoped = sc( call( 'activate_layout',
-            { layout => 'alt', host => 'shop.clienta.com' }, $ok ) );
+            { layout => 'alt', host => 'shop.clienta.com' }, $mine ) );
     ok( $scoped && $scoped->{ok}, 'activate_layout with host binds one domain' )
         or diag encode_json( $scoped // {} );
     my $conf = slurp("$d/lazysite/lazysite.conf");

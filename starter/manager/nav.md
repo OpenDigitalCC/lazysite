@@ -121,6 +121,17 @@ function loadNav() {
   fetch(API + '?' + navQuery('action=nav-read'))
     .then(function(r) { return r.json(); })
     .then(function(data) {
+      // SM976: a manager confined to its own domains does not reach the
+      // default site. The refusal lists the domains it does reach; open the
+      // first of them rather than leaving the page on an error.
+      if (!data.ok && !navHost && data.domains && data.domains.length
+          && data.domains[0] !== '(default)') {
+        navHost = data.domains[0];
+        var pick = document.getElementById('nav-domain');
+        if (pick) pick.value = navHost;
+        loadNav();
+        return;
+      }
       if (!data.ok) { showStatus(data.error, true); return; }
       // SM169: always show WHICH file is being edited, and whether it is this
       // domain's own nav or the shared default - so a domain whose nav_file

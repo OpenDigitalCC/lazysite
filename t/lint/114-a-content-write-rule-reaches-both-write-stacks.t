@@ -58,6 +58,7 @@ subtest 'every *_refusal rule in Common is in the table - a new rule is a decisi
     my %EXEMPT = (
         carveout_refusal => 'a capability gate over governed paths, applied by the API and MCP dispatchers (SM268), not a content rule',
         no_scope_refusal => 'the words of a domain-write refusal for a token naming no scope (SM975), not a content rule',
+        domain_reach_refusal => 'the refusal of the domain-reach rule (SM976), asked by every host-addressed action and held by t/lint/218, not a content rule',
     );
     my @unaccounted = grep { !$RULES{$_} && !$EXEMPT{$_} } @defined;
     is_deeply( \@unaccounted, [],

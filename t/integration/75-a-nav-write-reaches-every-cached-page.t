@@ -24,12 +24,16 @@ use TestHelper qw(setup_dav_site run_dav run_processor);
 my $HOST = 'xisl.example';
 
 sub nav_site {
+    my (%o) = @_;
     my $s = setup_dav_site(
         conf => "webdav_enabled: true\nsite_name: T\nsite_url: http://localhost\n"
             . "layout: test\nnav_file: lazysite/nav.conf\n"
             . "alias_hosts: $HOST\n"
             . "alias.$HOST.content_root: sites/xisl\n"
-            . "alias.$HOST.nav_file: lazysite/nav-xisl.conf\n" );
+            . "alias.$HOST.nav_file: lazysite/nav-xisl.conf\n"
+            # SM976: a domain's nav file is written by an account whose scope
+            # reaches that domain, and the primary's by one bound to none.
+            . ( $o{scoped} ? "alias.$HOST.allowed_groups: role-deploy\n" : '' ) );
     my $d = $s->{docroot};
     make_path("$d/lazysite/layouts/test");
     open my $lf, '>', "$d/lazysite/layouts/test/layout.tt" or die $!;
@@ -80,7 +84,7 @@ subtest 'a DAV PUT of lazysite/nav.conf reaches the cached page' => sub {
 
 subtest 'a DAV PUT of a per-domain nav-<site>.conf reaches that domain\'s cached page'
     => sub {
-    my $s = nav_site();
+    my $s = nav_site( scoped => 1 );
     my $d = $s->{docroot};
     like( nav_of( $d, HTTP_HOST => $HOST ), qr/XOld;/, 'the alias host renders its own nav' );
     like( nav_of($d), qr/Old;/, 'the primary renders the shared one' );

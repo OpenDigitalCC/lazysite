@@ -53,6 +53,23 @@ Archive
 
 ## Unreleased
 
+- SM976 (PENDING) **security: a confined caller reached other domains on every
+  surface.** A token, MCP grant, WebDAV account or cookie manager confined to
+  one domain could add a domain at any content root, alias or remove any
+  domain, repoint its own domain at another's content, write another domain's
+  access groups over MCP (without `manage_users`), build, download and delete
+  another domain's site package (cookie), bind a data table to another domain,
+  and read and replace any domain's navigation, including over WebDAV. Ruled
+  2026-10-09, "One rule, fix all": every action addressed by a host or a
+  content root asks one predicate, `caller_may_reach_domain`, on the control
+  API, MCP and WebDAV (lint 218). **Behaviour change:** a confined caller is
+  refused on any domain whose content is not inside its scope, on the primary
+  if it is scoped, and on hosts the instance does not serve; domain listings
+  show it its own domains only; an unbound token, MCP grant or WebDAV account
+  reaches no domain's navigation, and writes the primary's only when no domain
+  with its own content root inherits it. The operator, an unbound cookie
+  manager and single-site instances are unchanged. t/integration/112.
+
 - SM975 (PENDING) **security: a token with no scope wrote every domain.** A
   `manage_domains` token whose group no domain names could set, add, alias,
   remove and overwrite (site-backup-apply) any domain on the instance, and

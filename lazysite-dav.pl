@@ -1545,6 +1545,24 @@ sub acl_allows {
 # code; the dispatcher reads $DENY_REASON into the body + X-Lazysite-Deny-Reason.
 sub _deny { ( $DENY_REASON, $DENY_DETAIL ) = ( $_[1], $_[2] ); return $_[0]; }
 
+# SM976: a nav file is a domain's, and dav_scope - a content-path rule - never
+# reached it: these paths return before the scope check. So an account confined
+# to one domain read and replaced another domain's navigation, and the
+# primary's. The rule is the control API's and MCP's (Manager::Nav): reading
+# needs one domain the file is the navigation of, writing needs every one. A
+# WebDAV account is a grant, so it is confined to its scope, as MCP's are.
+sub _nav_reach_deny {
+    my ( $rel, $scope, $is_write ) = @_;
+    require Lazysite::Manager::Nav;
+    no warnings 'once';
+    local $Lazysite::Manager::Nav::DOCROOT      = $DOCROOT;
+    local $Lazysite::Manager::Nav::LAZYSITE_DIR = $LAZYSITE_DIR;
+    my $r = Lazysite::Manager::Nav::nav_file_reach_refusal( $rel, ( $is_write ? 'write' : 'read' ),
+        scopes => ( ref $scope eq 'ARRAY' ? $scope : [] ) )
+        or return undef;
+    return _deny( 403, $r->{error} );
+}
+
 # Returns an HTTP error code if denied, or undef if allowed.
 sub authorise {
     my ( $rel, $scope, $is_write, $conf, $user ) = @_;
@@ -1576,13 +1594,13 @@ sub authorise {
     # capability descriptor, so folding this into the dynamic branch below would
     # take lazysite/nav.conf out of that check without anything failing.
     if ( $rel eq 'lazysite/nav.conf' ) {
-        return undef if manage_nav_for($user);
+        return _nav_reach_deny( $rel, $scope, $is_write ) if manage_nav_for($user);
         return _deny( 403, 'editing lazysite/nav.conf requires the manage_nav capability' );
     }
 
     # Any OTHER path the operator has declared as a nav file.
     if ( ( $conf->{nav_files} || {} )->{$rel} ) {
-        return undef if manage_nav_for($user);
+        return _nav_reach_deny( $rel, $scope, $is_write ) if manage_nav_for($user);
         return _deny( 403, "editing $rel requires the manage_nav capability" );
     }
 

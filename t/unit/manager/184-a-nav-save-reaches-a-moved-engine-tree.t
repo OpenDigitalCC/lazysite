@@ -41,6 +41,13 @@ spit( "$lz/nav-sub.conf", "Old sub | /\n" );
     $Lazysite::Manager::Domains::DOCROOT     = $d;
     $Lazysite::Manager::Themes::DOCROOT      = $d;
     $Lazysite::Manager::Themes::LAZYSITE_DIR = $lz;
+
+    # SM976: the nav actions ask whether the caller reaches the domain, and a
+    # process no request set up reaches none. This file is about where the
+    # write lands, so it runs as the unconfined operator.
+    $Lazysite::Manager::Common::token_auth       = 0;
+    $Lazysite::Manager::Common::REQUEST_CONFINED = 0;
+    @Lazysite::Manager::Common::REQUEST_SCOPES   = ();
 }
 is( Lazysite::Paths::lazysite_dir($d), $lz, 'the canary: the fixture is a migrated site' );
 

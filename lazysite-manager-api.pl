@@ -1235,6 +1235,14 @@ elsif ( $action eq 'move' )  { $result = action_move( $path, $params{to}, $auth_
 elsif ( $action eq 'copy' )  { $result = action_copy( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $path, $auth_user ) }
 elsif ( $action eq 'aliases-list' ) {
+    # SM976: the map listed is one domain's - the host named, else the domain
+    # whose folder `path` is in, else the primary - and a confined caller reads
+    # its own domains' maps only.
+    my $ah = $params{host} // '';
+    my ($aroot) = length $ah ? () : Lazysite::Manager::Domains::content_root_for_path(
+        ( $params{path} // '' ) =~ s{^/+}{}r );
+    _refuse_unreachable_domain( undef,
+        ( length $ah ? ( host => $ah ) : ( root => ( $aroot // '' ) ) ) );
     $result = action_aliases_list( $params{host}, $params{path} );
 }
 elsif ( $action eq 'git-status' ) { $result = action_git_status() }
@@ -1253,7 +1261,12 @@ elsif ( $action eq 'unlock' )     { $result = release_lock( $path, $auth_user ) 
 elsif ( $action eq 'renew-lock' ) { $result = renew_lock( $path, $auth_user ) }
 elsif ( $action eq 'preview' )    { $result = action_preview($path) }
 elsif ( $action eq 'cache-list' ) { $result = action_cache_list() }
-elsif ( $action eq 'cache-invalidate' ) { $result = action_cache_invalidate( $path, $params{host} ) }
+elsif ( $action eq 'cache-invalidate' ) {
+    # SM976: a host's own cached copy is that domain's.
+    _refuse_unreachable_domain( undef, host => $params{host} )
+        if defined $params{host} && length $params{host};
+    $result = action_cache_invalidate( $path, $params{host} );
+}
 
 # SM301: the same operation MCP has had since SM264, on the channel a WebDAV +
 # control-API partner actually holds. t/lint/23 recorded the MCP-only exposure
@@ -1271,6 +1284,8 @@ elsif ( $action eq 'domains-list' ) { $result = action_domains_list() }
 elsif ( $action eq 'domain-add' ) {
     my $req = _json_body();
     _refuse_unscoped_token();    # SM975
+        # SM976: a new domain's content must lie inside the caller's scope.
+    _refuse_unreachable_domain( undef, root => ( $req->{content_root} // '' ) );
     $result = domain_add(
         $req->{host},
         content_root   => $req->{content_root},
@@ -1291,6 +1306,9 @@ elsif ( $action eq 'domain-alias-add' ) {
     # scanning this branch, so a map over a qw() list would hide them from the
     # table a caller finds the action in.
     _refuse_unscoped_token();    # SM975
+        # SM976: an alias serves the canonical domain's content, so it is a
+        # reach of that domain.
+    _refuse_unreachable_domain( undef, host => $req->{alias_of} );
     $result = domain_add_alias(
         $req->{host},
         $req->{alias_of},
@@ -1345,25 +1363,21 @@ elsif ( $action eq 'domain-set' ) {
         # paths) never saw it. An empty scope skips the check below for the
         # cookie session only; a token naming no scope is refused (SM975).
         _refuse_unscoped_token();
-        my @scopes = $token_auth
-            ? @{ $token_caps{dav_scopes} || [] }
-            : @REQUEST_SCOPES;
-        if (@scopes) {
-            my $root = domain_content_root( $req->{host} );
-            if ( defined $root
-                && length $root
-                && Lazysite::Manager::Common::outside_all_scopes( \@scopes, $root ) )
-            {
-                my $names = join ', ',
-                    map { ( my $x = $_ ) =~ s{^/+|/+$}{}g; "$x/" } @scopes;
-                _refuse(
-                    { ok => 0, kind => 'forbidden',
-                        error => "Domain '" . ( $req->{host} // '' )
-                            . "' serves content from '$root', which is outside "
-                            . "your assigned scope ($names)." },
-                    ( $token_auth ? 'api' : 'ui' ), 'denied: outside dav_scope' );
-            }
-        }
+        # SM976: the reach is caller_may_reach_domain's. This skipped a domain
+        # with no content root of its own, so a scoped caller set keys on a
+        # domain serving the primary's content, and it never asked about the
+        # NEW content_root, so a caller confined to one domain repointed it at
+        # another's content and its own scope moved there with it.
+        my $root = domain_content_root( $req->{host} );
+        my $names = join ', ', map { ( my $x = $_ ) =~ s{^/+|/+$}{}g; "$x/" } @REQUEST_SCOPES;
+        _refuse_unreachable_domain(
+            ( defined $root && length $root
+                ? "Domain '" . ( $req->{host} // '' ) . "' serves content from '$root', "
+                    . "which is outside your assigned scope ($names)."
+                : undef ),
+            host => $req->{host} );
+        _refuse_unreachable_domain( undef, root => ( $req->{value} // '' ) )
+            if ( $req->{key} // '' ) eq 'content_root';
     }
 
     $result = domain_set( $req->{host}, $req->{key}, $req->{value} );
@@ -1371,6 +1385,9 @@ elsif ( $action eq 'domain-set' ) {
 elsif ( $action eq 'domain-remove' ) {
     my $req = _json_body();
     _refuse_unscoped_token();    # SM975
+
+    # SM976: and the domain removed must be one the caller reaches.
+    _refuse_unreachable_domain( undef, host => $req->{host} );
     $result = domain_remove( $req->{host}, purge => ( $req->{purge} ? 1 : 0 ) );
 }
 elsif ( $action eq 'remap-list' ) { $result = _remap_list() }    # SM802
@@ -1383,9 +1400,11 @@ elsif ( $action eq 'audit-trail-set' ) {
     $result = _audit_trail_set( { state => $req->{state}, reason => $req->{reason} } );
 }
 elsif ( $action eq 'domain-preview' ) {
+    _refuse_unreachable_domain( undef, host => $params{host} );    # SM976
     $result = domain_preview( $params{host} );
 }
 elsif ( $action eq 'domain-check' ) {
+    _refuse_unreachable_domain( undef, host => $params{host} );    # SM976
     $result = action_domain_check( $params{host} );
 }
 elsif ( $action eq 'brief-read' ) {
@@ -2541,14 +2560,17 @@ sub _conf_text {
 # not the two missing checks.
 #
 # Returns true when the caller may NOT reach content rooted at $croot.
+#
+# SM976: the reach is caller_may_reach_domain's. This exempted every cookie
+# session, so a manager confined to one domain built, downloaded and deleted
+# another domain's package; the operator and an unbound cookie manager are still
+# unconfined there, and a scoped one is held to its scope. A package of the
+# primary (no content root) is reached by no token: a token naming no scope is
+# refused here first, and a scoped one does not reach the primary.
 sub _root_outside_grant {
     my ($croot) = @_;
-    return 0 unless $token_auth;        # a cookie session is the operator
-    return 1 unless @REQUEST_SCOPES;    # a token naming no scope reaches nothing
-    return 1 unless length $croot;
-    return Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot )
-        ? 1
-        : 0;
+    return 1 if _no_scope_refusal();    # a token naming no scope reaches nothing
+    return Lazysite::Manager::Common::caller_may_reach_domain( root => $croot ) ? 0 : 1;
 }
 
 # SM975: NO SCOPE = NO DOMAIN, for every domain write a token can make.
@@ -2573,6 +2595,17 @@ sub _refuse_unscoped_token {
     return;
 }
 
+# SM976: the same form for the domain an action addresses - host => or root =>,
+# asked of Lazysite::Manager::Common::caller_may_reach_domain. $why replaces the
+# shared refusal's sentence where an action already had its own words.
+sub _refuse_unreachable_domain {
+    my ( $why, %a ) = @_;
+    my $r = Lazysite::Manager::Common::domain_reach_refusal(%a) or return;
+    $r->{error} = $why if defined $why;
+    _refuse( $r, ( $token_auth ? 'api' : 'ui' ), 'denied: outside domain scope' );
+    return;
+}
+
 sub _package_scope_refusal {
     my ($pkg) = @_;
 
@@ -2590,7 +2623,8 @@ sub _package_scope_refusal {
     # package's content root falls inside, and one that names none reaches no
     # package at all rather than all of them. The operator ACCEPTED that
     # behaviour change knowing existing partners must be re-scoped.
-    return undef unless $token_auth;
+    # SM976: and a cookie manager confined to a domain is held too.
+    return undef unless Lazysite::Manager::Common::request_domain_confined();
     my $info  = package_inspect($pkg);
     my $croot = $info->{ok} ? ( $info->{manifest}{keys}{content_root} // '' ) : '';
     return _package_grant_refusal($croot) if _root_outside_grant($croot);
@@ -3109,7 +3143,7 @@ sub action_site_export_primary {
     my ($data_tables) = @_;
     return { ok => 0, kind => 'forbidden',
         error => 'Exporting the default site needs full content access (you are confined to an area).' }
-        if @REQUEST_SCOPES;
+        unless Lazysite::Manager::Common::caller_may_reach_domain( host => '' );   # SM976
     local $Lazysite::Manager::SitePackage::auth_user = $auth_user;
     return package_create( '(default)', data_tables => $data_tables );
 }
@@ -3170,20 +3204,13 @@ sub action_site_backup_inspect {
             unless length $target;
         return { ok => 0, kind => 'forbidden',
             error => 'You do not have access to that target.' }
-            if @REQUEST_SCOPES
-            && Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $target );
+            unless Lazysite::Manager::Common::caller_may_reach_domain( host => $host ); # SM976
     }
 
-    my $info = package_inspect( $pkg, $target );
-    return $info unless $info->{ok};
-
-    if (@REQUEST_SCOPES) {
-        my $croot = $info->{manifest}{keys}{content_root} // '';
-        return _package_grant_refusal($croot)
-            if !length $croot
-            || Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot );
-    }
-    return $info;
+    # SM976: the package's own content root was asked a second time here, of
+    # @REQUEST_SCOPES directly; _package_scope_refusal above asks it of every
+    # domain-confined caller now, so the copy is gone.
+    return package_inspect( $pkg, $target );
 }
 
 # SM183: remove a site package from the backups area. manage_domains-gated;
@@ -3414,10 +3441,12 @@ sub action_site_backup_apply {
     }
     $croot =~ s{^/+|/+$}{}g;
 
-    # Scope: the caller must have access to the target content root.
-    if ( @REQUEST_SCOPES
-        && length $croot
-        && Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot ) )
+    # Scope: the caller must reach the target DOMAIN, and its content root.
+    # SM976: an apply with no host is an apply to the primary - its presentation
+    # is set from the package - so a caller confined to a domain is refused it
+    # even where the content root it named lies inside its scope.
+    unless ( Lazysite::Manager::Common::caller_may_reach_domain( host => $host )
+        && Lazysite::Manager::Common::caller_may_reach_domain( root => $croot ) )
     {
         return { ok => 0, kind => 'forbidden',
             error => 'You do not have access to the target content root.' };
@@ -3853,6 +3882,10 @@ sub action_domains_list {
         }
         push @domains, \%row;
     }
+    # SM976: a domain-confined caller is shown its own domains only. A row
+    # carries another domain's content root, access groups and address.
+    @domains = grep { Lazysite::Manager::Common::caller_may_reach_domain( host => $_->{host} ) }
+        @domains;
     return { ok => 1, domains => \@domains, keys => \@keys };
 }
 
