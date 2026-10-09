@@ -2045,7 +2045,7 @@ elsif ( $action eq 'notices' ) {
     # Operator notifications require the 'notifications' capability (granted via
     # a group; seeded on user-managers). Same cookie-side gate pattern as audit;
     # the bell UI hides itself when this returns forbidden.
-    $result = _notices_gate() // action_notices();
+    $result = _notices_gate() // Lazysite::Manager::Notices::action_notices($auth_user);
 }
 elsif ( $action eq 'notices-seen' ) {
     # SM938 D3: its own branch now, because it reads parameters `notices` does
@@ -2053,7 +2053,8 @@ elsif ( $action eq 'notices-seen' ) {
     # neither means mark-all. Sharing a branch made the action reference
     # (t/lint/58) attribute both to both.
     $result = _notices_gate()
-        // action_notices_seen( id => $params{id}, dismiss => $params{dismiss} );
+        // Lazysite::Manager::Notices::action_notices_seen( $auth_user,
+        id => $params{id}, dismiss => $params{dismiss} );
 }
 elsif ( $action eq 'nav-save' ) {
     my $req = _json_body();
@@ -3649,11 +3650,9 @@ sub action_site_backup_apply {
 # that is the decision recorded in t/lint/23.
 #
 # $auth_user is passed rather than read, because a module that reaches into one
-# CGI's globals only works inside that CGI.
-sub action_notices      { return Lazysite::Manager::Notices::action_notices($auth_user) }
-sub action_notices_seen {
-    return Lazysite::Manager::Notices::action_notices_seen( $auth_user, @_ );
-}
+# CGI's globals only works inside that CGI. SM944 S23 (d), ruled 2026-10-09: the
+# dispatcher calls the two readers directly; the script's wrappers of the same
+# names are gone.
 
 # The one gate both notice actions share: undef to proceed, a refusal otherwise.
 sub _notices_gate {

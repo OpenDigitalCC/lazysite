@@ -256,8 +256,10 @@ my %EXEMPT = (
     'API::action_preview_grant' => 'preview grant state, not site content',
     'API::action_preview_clear' => 'preview grant state, not site content',
     'API::action_preview'       => 'read-only',
-    'API::action_notices'       => 'read-only',
-    'API::action_notices_seen'  =>
+    # SM944 S23 (d): the dispatcher calls Notices' readers directly; the
+    # script's same-named wrappers went, and the classification follows them.
+    'Notices::action_notices'      => 'read-only',
+    'Notices::action_notices_seen' =>
         'notice-seen marker under lazysite/manager, not page content',
     'API::action_pages'        => 'read-only',
     'API::action_config_read'  => 'read-only',
@@ -310,6 +312,8 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         # config-set unnoticed. Its verbs are named domain_*, hence the
         # per-module pattern.
         Domains => [ "$root/lib/Lazysite/Manager/Domains.pm", qr/^domain_/ ],
+        # SM944 S23: the notice readers are called from the dispatcher directly.
+        Notices => [ "$root/lib/Lazysite/Manager/Notices.pm", qr/^action_/ ],
         API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
         DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );
