@@ -70,6 +70,29 @@ Not in the queue, and why:
 
 Open questions raised while working the queue:
 
+- **Q14 (SM944 S23): stopped on a design question, 2026-10-09.** None of the
+  six S23 handlers can be moved verbatim and still pass test 205's proof that
+  a handler outside a request is refused (tmp/sm944-s23-refusal-probe.pl):
+  - `_notices_gate`, `_start_page_subject` and `action_start_page_set` call
+    the script's `_user_caps` (memo `%USER_CAPS`) and `users_api`, and those
+    two need `_users_tool_run`, `_users_tool_path` and `_tool_path`. None of
+    these subs is on any row.
+  - `_notices_gate` passes every token client (`return undef if
+    $token_auth`), because the dispatcher has already required
+    `notifications`. The fail-closed context is a token client, so a verbatim
+    copy lets the call through when no request has been set up.
+  - `_start_page_subject(undef)` with the reset's empty `$auth_user` answers
+    for account '' instead of refusing.
+  - The script's `action_notices` and `action_notices_seen` are wrappers with
+    the same names as Notices.pm's readers.
+  Recommended: (a) a row before S23 that moves the users-tool client and the
+  caps memo into Manager::Common, with `%USER_CAPS` added to the context
+  (reset to empty, lint 217); (b) `_notices_gate` reads
+  `$token_caps{notifications}` for a token, which gives the same answer inside
+  a request and refuses outside one; (c) `_start_page_subject` refuses an
+  empty subject; (d) the dispatcher calls Notices' readers directly and the
+  two wrappers are dropped. Skipped until ruled.
+
 - ~~**Q10 (SM906 T3): what should a token caller be told when the USERS file is
   unreadable?**~~ **RULED 2026-10-07: (b) cannot-tell, unnamed; built n273.** Today it is "Invalid credentials" (MCP: reissue the token) - the
   secret cannot be checked, so naming the store to a caller who is not yet
