@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the notices gate and the start-page actions are
+  their modules'** (S23 of the plan in the filing, with the three changes the
+  release manager ruled on 2026-10-09). The manager API's notices gate moves to
+  `Lazysite::Manager::Notices` and its start-page actions to
+  `Lazysite::Manager::StartPage`. Loaded outside a request they refuse (test
+  205). Before the move the gate answers a token from its own `notifications`
+  grant, which the dispatcher already required. The start page refuses an
+  empty account, and the dispatcher calls the notice readers directly. One
+  answer narrows: an account name that sanitises to nothing (`!!!`) no longer
+  reads the start page of account '' for a caller holding `manage_users`.
+
 - SM977 (PENDING) **MCP `create_form` adds the form to the page it names, and
   replaces no page.** Called the way its schema describes (`/about`), it read
   `/about`, found nothing, and wrote a fresh scaffold over `/about.md`, so the
