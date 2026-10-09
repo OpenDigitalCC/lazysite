@@ -741,4 +741,20 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
     ok( !exists $w->{implied}{manage_data}, 'the stronger right is not implied by anything' );
 }
 
+# SM944 S23 (b): the notices gate answers a token from the token's own grant
+# (`notifications`), which the dispatcher has already required - so a token
+# holding it reads the bell, and one without it is refused, as before the gate
+# stopped passing every token client.
+{
+    uapi( $d, { action => 'add', username => 'belltok', password => 'x' } );
+    grant_caps( $d, 'belltok', 'api', 'notifications' );
+    my $bt = uapi( $d, { action => 'token', username => 'belltok' } )->{token};
+    my $n  = mapi( $d, QUERY_STRING => 'action=notices', HTTP_AUTHORIZATION => basic( 'belltok', $bt ) );
+    ok( $n->{ok}, 'a token holding notifications reads notices' ) or diag explain $n;
+    ok( ref $n->{notices} eq 'ARRAY', '...and is given the list' );
+    my $x = mapi( $d, QUERY_STRING => 'action=notices', HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+    ok( !$x->{ok}, 'a token without notifications is refused notices' );
+    like( $x->{error} // '', qr/notifications/i, '...naming the capability' );
+}
+
 done_testing();

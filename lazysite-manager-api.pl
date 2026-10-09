@@ -3657,7 +3657,12 @@ sub action_notices_seen {
 
 # The one gate both notice actions share: undef to proceed, a refusal otherwise.
 sub _notices_gate {
-    return undef if $token_auth || _user_caps($auth_user)->{notifications};
+    # SM944 S23 (b), ruled 2026-10-09: a token answers from its own grant. The
+    # dispatcher has already required `notifications` of a token for `notices`
+    # (and serves `notices-seen` to no token), so inside a request this is the
+    # answer it gave. Outside one - the context reset: a token client holding
+    # nothing - it refuses; "every token passes" let that call through.
+    return undef if $token_auth ? $token_caps{notifications} : _user_caps($auth_user)->{notifications};
     return { ok => 0, kind => 'forbidden',
         error => "Notifications require the 'Notifications' permission. An "
             . "administrator can grant it on the Groups page." };
