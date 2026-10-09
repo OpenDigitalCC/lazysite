@@ -74,6 +74,7 @@ use Lazysite::Manager::Data        ();
 use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
 use Lazysite::Manager::Remap qw(_remap_list _remap_save); # SM944 S22: SM802's two actions
+use Lazysite::Manager::Preview qw(action_preview action_preview_grant action_preview_clear); # SM944 S24: SM071's preview verbs
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 # SM556: resolved once, here, so every module confines against one spelling
@@ -124,6 +125,8 @@ $Lazysite::Manager::Nav::LAZYSITE_DIR      = $LAZYSITE_DIR;
 $Lazysite::Manager::Layouts::LAZYSITE_DIR  = $LAZYSITE_DIR;
 $Lazysite::Manager::Sessions::LAZYSITE_DIR = $LAZYSITE_DIR;    # SM141
 $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Manager::Preview::DOCROOT       = $DOCROOT;         # SM944 S24
+$Lazysite::Manager::Preview::LAZYSITE_DIR  = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
 $Lazysite::Manager::Files::LOCK_DIR     = $LOCK_DIR;

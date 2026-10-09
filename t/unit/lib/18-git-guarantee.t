@@ -253,9 +253,10 @@ my %EXEMPT = (
         'auth store write - lazysite/auth/ is excluded from the versioned set',
     'Sessions::action_user_revoke' => 'as action_session_revoke',
     # --- manager-api inline ---
-    'API::action_preview_grant' => 'preview grant state, not site content',
-    'API::action_preview_clear' => 'preview grant state, not site content',
-    'API::action_preview'       => 'read-only',
+    # SM944 S24: the preview verbs moved to Manager::Preview.
+    'Preview::action_preview_grant' => 'preview grant state, not site content',
+    'Preview::action_preview_clear' => 'preview grant state, not site content',
+    'Preview::action_preview'       => 'read-only',
     # SM944 S23 (d): the dispatcher calls Notices' readers directly; the
     # script's same-named wrappers went, and the classification follows them.
     'Notices::action_notices'      => 'read-only',
@@ -315,6 +316,7 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         # SM944 S23: the notice readers are called from the dispatcher directly.
         Notices   => [ "$root/lib/Lazysite/Manager/Notices.pm",   qr/^action_/ ],
         StartPage => [ "$root/lib/Lazysite/Manager/StartPage.pm", qr/^action_/ ],
+        Preview => [ "$root/lib/Lazysite/Manager/Preview.pm", qr/^action_/ ],  # SM944 S24
         API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
         DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );

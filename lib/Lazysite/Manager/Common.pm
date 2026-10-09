@@ -1443,6 +1443,7 @@ sub write_file_checked {
 # and the domain preview shell it, and the domain preview moved into
 # Manager::Domains - so this is defined ONCE here rather than copied, which is
 # the class of duplication t/lint/17 exists to catch.
+#
 # Resolve the real content processor to shell for a server-side render.
 #
 # We must NOT shell $ENV{LAZYSITE_PROCESSOR} directly: in the wrapped
