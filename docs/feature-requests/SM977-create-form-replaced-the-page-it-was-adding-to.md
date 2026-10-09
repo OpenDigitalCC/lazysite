@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, found during SM976 Q15f (n317)
 area: data-loss
-status-note: "SHIPPED (PENDING): create_form reads the file it writes (/about and /about.md are both /about.md), appends to it, adds front matter to a page that has none, refuses a page it cannot read, and saves with the read's mtime. t/integration/119."
+status-note: "SHIPPED (PENDING): create_form reads the file it writes, appends, adds front matter to a page with none, refuses a page it cannot read, saves with the read's mtime (t/integration/119). Ruled 2026-10-09 \"Refuse existing target\": copy_file refuses an existing destination (n321, t/unit/mcp/30)."
 ---
 
 # What was wrong
@@ -88,6 +88,44 @@ with the extensionless path and the `.md` path:
 
 The control API and WebDAV take paths literally and do not add `.md`, so this
 class cannot occur there.
+
+# Ruled
+
+The release manager ruled the `copy_file` finding on 2026-10-09:
+
+MCP copy_file, "Refuse existing target"
+: copy_file refuses an existing destination like the manager's action_copy and
+  its own description ("copy to a new path"); route it through action_copy (or
+  the same check) so nothing is lost; write_file remains the way to replace.
+  Test + sabotage. Update the tool description if needed.
+
+# The ruling, built (n321)
+
+The same check, not the route
+: `Manager::Files::copy_target_refusal(to)` is `action_copy`'s check: the
+  destination as `validate_path` resolves it (either tree), refused with kind
+  `exists` when it is there, naming the target and `write_file` as the way to
+  replace a file. `copy_file` asks it after reading the source (a missing source
+  is refused first, as in `action_copy`) and before `action_save`. Routing it
+  through `action_copy` would also have changed what it does: `action_copy`
+  copies any file byte for byte, so `copy_file` would copy binary files, which it
+  refuses ("Copy a text file"), and a byte copy skips the save rules that
+  `action_save` applies to the written text (the raw-HTML, template-parse and
+  brief rules, the destination's write ACL). So the check, and nothing else.
+
+The description
+: "Copy a text file to a new path - templating a new page from an existing one.
+  Refuses a destination that already exists (use write_file to replace a file).
+  The destination starts with a fresh ACL." The tool reference
+  (starter/docs/ai-connector-tools.md) says the same.
+
+Evidence (n321)
+: t/unit/mcp/30: a copy onto an existing page, and onto one in a folder, is
+  refused (`exists`, naming the target and write_file) and leaves it unchanged;
+  a copy to a new path is written; a missing source is refused before the
+  target is looked at; write_file still replaces; the description says so.
+  Sabotage (tmp/q15h-sabotage.pl, .log): the check removed fails 30; restored
+  by cp and cmp, it passes.
 
 # Related
 

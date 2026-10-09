@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, from the gaps SM975 found and did not change
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), \"Refuse new binding\" (n316). n317: one form reading, the processor's (lint 219); per-tool MCP path args, replace_text old/new are text (lint 91). t/integration/112, 114-118."
+status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), \"Refuse new binding\" (n316), one form reading (n317, lint 219). Q15h (n321): a page written as raw bytes is UTF-8 or refused; a page that cannot be read binds nothing, logged; .url pinned. t/integration/112, 114-120."
 ---
 
 # What was wrong
@@ -676,6 +676,106 @@ Q15g results (n318)
   - Have the walker treat a page whose reading dies as binding nothing,
     logged, as the processor renders nothing for it. Pages that reach the disk
     by other means (git, SSH) then cannot stop the rule.
+
+# Found in Q15g, ruled
+
+The release manager ruled the two Q15g findings above on 2026-10-09:
+
+Malformed UTF-8 (security), "Refuse + walker skips"
+: Refuse any raw-bytes .md write that is not valid UTF-8 on all three doors
+  (action_save_binary → MCP upload_file; the multipart upload; WebDAV PUT - and
+  any other raw-bytes path into a .md page you find; inventory with file:line),
+  with a message saying so (and how to fix: save as UTF-8). A page whose
+  reading dies is treated as binding nothing, and logged, so one bad page
+  cannot stop the form walker (form_bindings and any other walker that parses
+  every page's front matter - check the scan/registries walkers too: does one
+  bad page kill a scan? if so, same rule, report it).
+
+`.url` forms, "Pin with a test"
+: A test asserting a .url page renders no form and writes no form rules; its
+  failure message names form_bindings/the walker as what must account for .url
+  pages first.
+
+# The rulings, built (n321)
+
+The rule
+: `Manager::Common::page_bytes_refusal(rel, bytes)`: a `.md` page whose bytes
+  are not valid UTF-8 (RFC 3629, strict: no overlong form, no surrogate, nothing
+  past U+10FFFF; `invalid_utf8_offset`, through `Encode`) is refused for every
+  caller, the operator included, kind `page-encoding-refused`, 415. The error
+  names the page and the first invalid byte's offset, and says to save the file
+  as UTF-8 and write it again. A file that is not a page is not asked.
+
+Every raw-bytes path into a `.md` page, and how it asks
+: - `Manager::Files::action_save_binary` (Files.pm:676, through
+    `page_bytes_guard`, before the form rule reads the bytes): MCP `upload_file`
+    (lazysite-mcp.pl:3123).
+  - `Manager::Upload::action_file_upload`, per file (Upload.pm:317): the
+    multipart upload (control API and cookie `file-upload`,
+    lazysite-manager-api.pl:2312).
+  - WebDAV `do_put` (lazysite-dav.pl:590), on the streamed body before the
+    rename into place.
+  - `Manager::SitePackage::package_apply` (SitePackage.pm:671, through
+    `Files::page_bytes_tree_guard` over the extracted content):
+    `site-backup-apply` and MCP `site_apply`. A package is bytes from outside,
+    like an upload.
+  Considered and not asked, with the reason: the text writes (`action_save` and
+  everything through it - write_file, create_page, replace_text, copy_file,
+  create_form, git-restore, restore_version, migrate-to-local) encode
+  characters on the way out, so they cannot produce such a page; a move, a
+  copy (control API, MCP `move_file`, WebDAV COPY/MOVE) carries bytes already on
+  the disk and writes no caller's bytes, and the walker now judges such a page
+  as the processor does; `backup-restore` puts back the instance's own snapshot
+  and is refused to every confined caller (R1); `site-backup-upload` only stores
+  a package, which reaches the content through the apply above.
+
+The walkers
+: `page_form_or_none(text, rel)` is `page_form` where a reading that dies is no
+  form, logged (WARN, `form-rule`, the page's path and why). Asked by
+  `form_bindings` and by the write rule for both the new text and the page as it
+  stands (`page_form_names`), so a confined caller can still write over such a
+  page. Measured over the Q15g probe's 3,091 malformed texts
+  (tmp/q15h-malformed-recheck.out): the rule refuses all of them, and refuses
+  none of five valid ones; the processor renders a form the walker does not file
+  on none.
+
+One bad page killed a scan, so the same rule (tmp/q15h-walkers-probe.before.out, .after.out)
+: On n320, one such page under `/blog/` made the processor's `resolve_scan` and
+  `scan_pages` die. A site whose `lazysite.conf` names a `scan:` source over
+  `/blog/` answered 500 on every page, its home page included, and the sitemap
+  answered 500. MCP `list_pages`, `audit_site` and `form_list` answered "Tool
+  error" for the whole site. Now each walk leaves the page out and logs it
+  (`_scan_page_unreadable` in the processor; `_each_page` with the tool's name
+  in MCP); the page itself still answers 500, as the processor renders nothing
+  for it. `rename_page`'s link rewrite did not die and is unchanged.
+
+Found, not changed
+: MCP `search_files` with such a page in its base answers with no JSON-RPC body
+  at all: the matched line is not valid UTF-8 and the encoder dies. It is a
+  walk over page text, not front matter, so it is outside the ruling; one page
+  makes search unusable over its base. Recommended: the same rule (leave the
+  page out, logged). `tools/lazysite-check.pl` walks pages too; not probed.
+
+`.url` pages
+: t/unit/processor/94 renders a `.url` page whose fetched text names `form:
+  leads` and carries a `:::form` block: no form, no `leads.rules`; the same text
+  as a `.md` page renders both (the control). Its failure message says that
+  `form_bindings` must account for `.url` pages before they render forms.
+
+Evidence (n321)
+: t/integration/120 (the hijack probe as assertions - refused, nothing written,
+  the grant still refused `orphan`'s submissions - then every door and the
+  operator, a valid page written byte for byte, a `.txt` not asked);
+  t/unit/manager/212 (the walk survives the page and finds every other binding,
+  the reach and write rules answer, the log line); t/unit/processor/93 (the
+  site, the scan page and the sitemap render; both walks log); t/unit/mcp/29
+  (list_pages, audit_site, form_list); t/unit/processor/94; lint 114 (the rule
+  on both write stacks and every raw-bytes door) and 115 (its refusal's shape).
+  Sabotage (tmp/q15h-sabotage.pl, .log), each failing and passing restored by
+  cp and cmp: the rule passing everything; each door not asking; the walker,
+  its log line, and the write rule's current-page read back to `page_form`;
+  each processor walk and each MCP walk without the guard; `process_url`
+  converting `:::form` (94).
 
 # Related
 
