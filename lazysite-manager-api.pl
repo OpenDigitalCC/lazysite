@@ -3019,6 +3019,17 @@ sub action_preview_grant {
     my $layout = $p->{layout} // '';
     my $theme  = $p->{theme}  // '';
 
+    # SM944 S24 (b), ruled 2026-10-09: A PREVIEW IS MINTED FOR AN ACCOUNT. Inside
+    # a request the dispatcher has authenticated a manager before this runs, so
+    # $auth_user is never empty here; reached outside one (the request context's
+    # reset leaves nobody) it minted a signed cookie for account '' and, on a
+    # site with none, created the auth secret (tmp/sm944-s24-refusal-probe.out).
+    unless ( length $auth_user ) {
+        respond( { ok => 0, kind => 'forbidden',
+                error => 'A preview is minted for a signed-in manager, and no account is asking.' } );
+        return;
+    }
+
     unless ( $layout =~ /^[A-Za-z0-9_-]+$/ ) {
         respond( { ok => 0, error => 'Invalid or missing layout' } );
         return;
