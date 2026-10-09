@@ -207,7 +207,10 @@ File::Find::find(
     { no_chdir => 1,
         wanted => sub {
             return unless /\.(?:pm|pl)\z/;
-            return if $File::Find::name =~ m{/(?:t|tmp|dist|man|node_modules)/};
+            # Matched on the path below $root: the checkout itself may sit under
+            # a tmp/ (a git worktree, the release staging clone in /tmp).
+            ( my $rel = $File::Find::name ) =~ s{\A\Q$root\E}{};
+            return if $rel =~ m{/(?:t|tmp|dist|man|node_modules)/};
             push @sources, $File::Find::name;
         },
     },
