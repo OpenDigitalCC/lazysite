@@ -2372,7 +2372,7 @@ sub _read_page {
 my %ENGINE_DIRS = map { $_ => 1 } qw(lazysite-assets manager);
 
 sub _each_page {
-    my ($cb)  = @_;
+    my ( $cb, $tool ) = @_;
     my @stack = ($DOCROOT);
     my $n     = 0;
     while (@stack) {
@@ -2391,10 +2391,25 @@ sub _each_page {
             next unless -f $full && $e =~ /\.md$/;
             ( my $rel = $full ) =~ s{^\Q$DOCROOT\E/+}{};
             return if ++$n > 1000;
-            $cb->( $rel, $full );
+            _each_page_call( $cb, $tool, $rel, $full );
         }
         closedir $dh;
     }
+    return;
+}
+
+# SM976 Q15h (ruled 2026-10-09, "Refuse + walker skips"): a walk over every
+# page's front matter (list_pages, audit_site) names itself, and then a page
+# whose reading dies - bytes that are not UTF-8, put there by git or SSH, on
+# which the regexes die as the processor's parse does - is left out and logged,
+# so one such page cannot fail the tool for the whole site. A walk that names
+# no tool (rename_page's link rewrite) is unchanged.
+sub _each_page_call {
+    my ( $cb, $tool, $rel, $full ) = @_;
+    return $cb->( $rel, $full ) unless defined $tool;
+    return if eval { $cb->( $rel, $full ); 1 };
+    ( my $why = $@ ) =~ s/\s+at \S+ line \d+.*//s;
+    log_event( 'WARN', $tool, 'a page that cannot be read is left out', page => $rel, error => $why );
     return;
 }
 
@@ -2409,7 +2424,7 @@ sub _list_pages {
             push @pages, { path => "/$rel", title => ( $h->{title} // '' ),
                 registers => ( ref $h->{register} eq 'ARRAY' ? $h->{register} : ( $h->{register} ? [ $h->{register} ] : [] ) ),
                 public_url => _public_url($rel) };
-    } );
+    }, 'list_pages' );
     @pages = sort { $a->{path} cmp $b->{path} } @pages;
     return { ok => 1, count => scalar @pages, pages => \@pages };
 }
@@ -2603,7 +2618,7 @@ sub _audit_collect {
                 $p =~ s/\s+/ /g; $p =~ s/^\s+|\s+$//g;
                 push @{ $para{$p} }, $slug if length $p >= 60;
             }
-    } );
+    }, 'audit_site' );
     return { exists => \%exists, para => \%para, info => \@info,
         links      => \@links,      forms          => \@forms,
         rawpages   => \@rawpages,   starter        => \@starter,

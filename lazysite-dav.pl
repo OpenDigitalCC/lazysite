@@ -578,6 +578,21 @@ sub do_put {
     return _write_failure( 'write the file', $stream->{errno}, $r->{abs} )
         if $failed eq 'write';
     my $written = $stream->{written};
+    # SM976 Q15h ("Refuse + walker skips"): a page's bytes are valid UTF-8, or it
+    # does not land - the rule the choke point asks of a binary save
+    # (Manager::Common::page_bytes_refusal), for every account. 415: the
+    # request was well formed, its content is what cannot be served.
+    if ( $a{rel} =~ /\.md\z/ ) {
+        require Lazysite::Manager::Common;
+        my $bytes;
+        if ( open my $uf, '<:raw', $tmp ) { $bytes = do { local $/; <$uf> }; close $uf }
+        else { unlink $tmp; return _write_failure( 'read the file back', $!, $r->{abs} ) }
+        if ( my ( $err, $why ) = Lazysite::Manager::Common::page_bytes_refusal( $a{rel}, $bytes ) ) {
+            unlink $tmp;
+            $REFUSAL_DETAIL = $why;
+            return send_status( 415, body => "$err\n" );
+        }
+    }
     # SM189: refuse a content page that ships raw HTML/SVG (api:/raw: front matter
     # + a script-capable content_type) - the same guard the manager/MCP save path
     # applies (Lazysite::Manager::Common::raw_html_page_refusal). The front matter

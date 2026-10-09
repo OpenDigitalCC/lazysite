@@ -19,7 +19,7 @@ use Cwd             qw(realpath);
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal page_bytes_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -37,7 +37,7 @@ our @EXPORT_OK = qw(
     action_git_status action_git_history action_git_history_summary
     action_git_show action_git_restore action_git_init
     artifact_write_guard
-    form_bind_guard form_bind_tree_guard
+    form_bind_guard form_bind_tree_guard page_bytes_guard page_bytes_tree_guard
 );
 
 our $DOCROOT;
@@ -594,6 +594,50 @@ sub form_bind_tree_guard {
     return undef;
 }
 
+# SM976 Q15h (ruled 2026-10-09, "Refuse + walker skips"): a .md page arriving as
+# raw bytes is written only when they are valid UTF-8
+# (Manager::Common::page_bytes_refusal), for every caller. Asked by
+# action_save_binary (MCP upload_file) and the multipart upload; WebDAV PUT asks
+# the rule itself, and a site package's content through page_bytes_tree_guard.
+sub page_bytes_guard {
+    my ( $rel, $bytes ) = @_;
+    if ( my ( $err, $why ) = page_bytes_refusal( $rel, $bytes ) ) {
+        return { ok => 0, error => $err, kind => 'page-encoding-refused', audit_detail => $why };
+    }
+    return undef;
+}
+
+# The same, for every .md file under $src_abs (a package's extracted content),
+# judged at the path it will have under $dst_rel. Returns the first refusal.
+sub page_bytes_tree_guard {
+    my ( $dst_rel, $src_abs ) = @_;
+    return undef unless defined $src_abs && -d $src_abs;
+    ( my $dst = $dst_rel // '' ) =~ s{^/+|/+$}{}g;
+    ( my $src = $src_abs )       =~ s{/+$}{};
+    my @pages;
+    File::Find::find(
+        { no_chdir => 1,
+            wanted => sub {
+                my $p = $File::Find::name;
+                push @pages, $p if $p =~ /\.md\z/ && -f $p && !-l $p;
+            },
+        },
+        $src
+    );
+    for my $p ( sort @pages ) {
+        my $sub = substr( $p, length($src) + 1 );
+        my $rel = length $dst ? "$dst/$sub" : $sub;
+        open my $fh, '<:raw', $p
+            or return { ok => 0, kind => 'page-encoding-refused', error => "The page '$rel' could not be "
+                . 'read to check that it is UTF-8, so nothing was written. Fix its permissions in the '
+                . 'package and apply it again.' };
+        my $bytes = do { local $/; <$fh> };
+        close $fh;
+        if ( my $g = page_bytes_guard( $rel, $bytes ) ) { return $g }
+    }
+    return undef;
+}
+
 # Every tree a docroot-relative path lives in, for form_bind_tree_guard.
 sub _both_trees {
     my ($rel) = @_;
@@ -612,6 +656,8 @@ sub action_save_binary {
     # an upload, exactly as it does to the multipart upload path.
     if ( my $why = is_blocked_config( $result->{rel}, 1 ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
+    # SM976 Q15h: a page's raw bytes are valid UTF-8, or it is not written.
+    if ( my $d = page_bytes_guard( $result->{rel}, $bytes ) ) { return $d }
     # SM976 Q15e; Q15f: the bytes land raw, so they are read as the processor will.
     if ( my $d = form_bind_guard( $result->{rel}, text_as_processor_reads($bytes) ) ) { return $d }
 

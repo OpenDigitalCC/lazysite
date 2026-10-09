@@ -26,7 +26,8 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     caller_may_reach_domain request_domain_confined reachable_domains domain_reach_refusal
     caller_is_confined instance_wide_refusal
     served_artifact_refusal caller_may_reach_path form_pages form_bindings caller_may_reach_form form_reach_refusal
-    page_form page_form_names text_as_processor_reads form_bind_refusal form_bind_tree_refusal
+    page_form page_form_names page_form_or_none text_as_processor_reads form_bind_refusal form_bind_tree_refusal
+    page_bytes_refusal invalid_utf8_offset
     caller_may_reach_table caller_may_reach_brief brief_reach_refusal
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
@@ -800,7 +801,9 @@ sub form_bindings {
                     return unless $rel =~ /\.md\z/;
                     # SM976 Q15f: the whole page, read as the processor reads it
                     # (read_file), and its form as the processor renders it.
-                    my $name = page_form( _read_as_processor($f) );
+                    # Q15h: a page whose reading dies binds nothing, logged, so
+                    # one such page cannot stop the walk.
+                    my $name = page_form_or_none( _read_as_processor($f), $rel );
                     return unless defined $name;
                     $pages{ lc $name }{$rel} = 1;
                 },
@@ -832,6 +835,67 @@ sub text_as_processor_reads {
     my $t = $bytes;
     utf8::decode($t);
     return $t;
+}
+
+# SM976 Q15h (ruled 2026-10-09, "Refuse + walker skips"): A PAGE WRITTEN AS RAW
+# BYTES IS VALID UTF-8. The processor reads a page through a lax :utf8 layer:
+# on bytes that are not UTF-8 its parse dies (the page renders nothing) or
+# reads a different front matter than text_as_processor_reads gives the write
+# rule - a grant saved such bytes, the rule read no form, and the processor
+# rendered the primary's form on the page (tmp/q15g-malformed-hijack-probe.out).
+# So a .md page arriving as raw bytes - action_save_binary (MCP upload_file),
+# the multipart upload, WebDAV PUT, a site package's content - is refused,
+# for every caller, unless its bytes are valid UTF-8 (RFC 3629: no overlong
+# forms, no surrogates, nothing past U+10FFFF). A text write cannot produce
+# such a page: it is encoded on the way out.
+sub page_bytes_refusal {
+    my ( $rel, $bytes ) = @_;
+    return unless defined $rel && defined $bytes;
+    ( my $r = $rel ) =~ s{^/+}{};
+    return unless $r =~ /\.md\z/;
+    my $at = invalid_utf8_offset($bytes);
+    return unless defined $at;
+    return _refusal(
+        "The page '$r' is not valid UTF-8 (the first invalid byte is at offset $at), so it was "
+            . 'not written. lazysite reads every page as UTF-8, and a page that is not renders '
+            . 'nothing or is read with front matter other than what its checks saw. To fix it, '
+            . 'save the file as UTF-8 (your editor\'s encoding setting, or iconv -t UTF-8) and '
+            . 'write it again.',
+        'page-encoding-refused',
+        "the page '$r' is not valid UTF-8 (first invalid byte at offset $at)",
+        'save it as UTF-8 and write it again'
+    );
+}
+
+# The offset of the first byte that is not part of valid UTF-8, or undef when
+# all of it is. A character string is judged as the bytes it will be written
+# as: one that holds only characters below 256 is written byte for byte.
+sub invalid_utf8_offset {
+    my ($bytes) = @_;
+    return undef unless defined $bytes;
+    my $b = $bytes;
+    return undef if utf8::is_utf8($b) && !utf8::downgrade( $b, 1 ); # wide: written as UTF-8
+    require Encode;
+    my $rest = $b;
+    Encode::decode( 'UTF-8', $rest, Encode::FB_QUIET() ); # leaves what it could not decode
+    return length $rest ? length($b) - length($rest) : undef;
+}
+
+# SM976 Q15h (ruled 2026-10-09, "Refuse + walker skips"): the form a page binds,
+# where A PAGE WHOSE READING DIES BINDS NOTHING, and the death is logged. A page
+# that is not valid UTF-8 can reach the disk by a door that writes no bytes of
+# a caller's (git, SSH, a backup restore); page_form, the processor's reading,
+# dies on many such pages, as the processor does (and renders nothing for
+# them). One such page made form_bindings die, and with it every form verb and
+# every write of a page binding a form (tmp/q15g-walker-die-probe.out).
+sub page_form_or_none {
+    my ( $text, $rel ) = @_;
+    my $form = eval { page_form($text) };
+    return $form unless $@;
+    ( my $why = $@ ) =~ s/\s+at \S+ line \d+.*//s;
+    log_event( 'WARN', 'form-rule', 'a page whose front matter cannot be read binds no form',
+        page => ( $rel // '(unnamed)' ), error => $why );
+    return undef;
 }
 
 # SM976 Q15f (ruled 2026-10-09, "One reading, processor's"): THE FORM A PAGE
@@ -913,8 +977,8 @@ sub form_reach_refusal {
 # the reading form_bindings walks, so the write rule and the reach rule agree
 # on what a page binds.
 sub page_form_names {
-    my ($text) = @_;
-    my $f = page_form($text);
+    my ( $text, $rel ) = @_;
+    my $f = page_form_or_none( $text, $rel );    # Q15h: a reading that dies binds nothing
     return defined $f ? ( lc $f ) : ();
 }
 
@@ -976,9 +1040,9 @@ sub form_bind_refusal {
     return unless $r =~ /\.md\z/;
     my %by = _who(%who);
     return unless _confined_who(%by);
-    my @names = page_form_names($text);
+    my @names = page_form_names( $text, $r );
     return unless @names;
-    my %had = map { $_ => 1 } page_form_names( _current_page_text($r) );
+    my %had = map { $_ => 1 } page_form_names( _current_page_text($r), $r );
     my @new = grep { !$had{$_} && form_exists_anywhere($_) && !caller_may_reach_form( $_, %by ) } @names;
     return unless @new;
     my $f = $new[0];
@@ -1412,6 +1476,7 @@ our %REFUSAL_STATUS = (
     ( map { $_ => '409 Conflict' }
             qw(exists in-use confirm needs_confirmation has_submissions conflict) ), # SM858
     'too-large' => '413 Payload Too Large',
+    'page-encoding-refused' => '415 Unsupported Media Type', # SM976 Q15h: the content, not the request
     'rate'      => '429 Too Many Requests',
     'partial'   => '207 Multi-Status',
     # SM873: `store-uninspectable` joins them. The data store failing to open

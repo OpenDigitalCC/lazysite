@@ -48,6 +48,10 @@ my %CASES = (
         [ 'p.md', "---\ntitle: X\n---\nunmatched [% END %]\n" ],
         [ 'p.md', "---\ntitle: X\n---\nHello [% auth_user %]\n" ],
     ],
+    page_bytes_refusal => [
+        [ 'p.md', "---\ntitle: caf\xE9\n---\n" ],
+        [ 'p.md', "---\ntitle: caf\xC3\xA9\n---\n" ],
+    ],
     active_artifact_refusal => [
         [ 'lazysite/layouts/studio/themes/live/main.css',  'studio', 'live' ],
         [ 'lazysite/layouts/studio/themes/draft/main.css', 'studio', 'live' ],

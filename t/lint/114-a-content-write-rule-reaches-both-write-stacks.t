@@ -41,6 +41,7 @@ my %RULES = (
     served_artifact_refusal => 'SM976 F1',
     form_bind_refusal       => 'SM976 Q15e',
     form_bind_tree_refusal  => 'SM976 Q15e: a move, a copy, a package',
+    page_bytes_refusal      => 'SM976 Q15h: a page written as raw bytes is valid UTF-8',
 );
 
 for my $rule ( sort keys %RULES ) {
@@ -74,6 +75,22 @@ subtest 'every *_refusal rule in Common is in the table - a new rule is a decisi
     for my $r (@known) {
         ok( ( grep { $_ eq $r } @defined ), "$r in the table exists in Common" );
     }
+};
+
+# SM976 Q15h: the raw-bytes rule is asked by every door that writes a caller's
+# bytes - not only the two stacks above: the binary save, the multipart upload
+# and a site package's content, each before anything is written.
+subtest 'page_bytes_refusal: every door that writes a caller\'s bytes asks it' => sub {
+    my $upload = slurp("$root/lib/Lazysite/Manager/Upload.pm");
+    my $pkg    = slurp("$root/lib/Lazysite/Manager/SitePackage.pm");
+    my ($bin)  = $files =~ /sub action_save_binary \{(.*?)\n\}/s;
+    like( $bin, qr/page_bytes_guard\(/, 'action_save_binary (MCP upload_file)' );
+    cmp_ok( index( $bin, 'page_bytes_guard' ), '<', index( $bin, 'form_bind_guard' ), '...before the form rule reads the bytes' );
+    like( $upload, qr/Files::page_bytes_guard\(/, 'the multipart upload' );
+    like( $pkg, qr/Files::page_bytes_tree_guard\(/, 'a site package\'s content (site-backup-apply, site_apply)' );
+    my ($put) = $dav =~ /(sub do_put \{.*?\n\})/s;
+    cmp_ok( index( $put, 'page_bytes_refusal' ), '<', index( $put, 'rename $tmp' ), 'WebDAV PUT, before the rename into place' );
+    cmp_ok( index( $put, 'page_bytes_refusal' ), '>', -1, '...and it asks at all' );
 };
 
 subtest 'the active-artifact rule runs BEFORE the write on both stacks' => sub {

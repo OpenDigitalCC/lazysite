@@ -3,10 +3,11 @@ package main;
 # lazysite-processor/registries.pm - the page scan and the generated registries.
 #
 # HOLDS   resolve_scan(): the `scan:` source a page names, with
-#         _scan_parse_modifiers, _scan_collect_files, _page_date, _page_url
-#         and _front_matter_reserved (the engine's front-matter keys, shared
-#         with the page's own stash); scan_pages(), the walk the registries
-#         are built from; update_registries() and its P-3 memo of whether any
+#         _scan_parse_modifiers, _scan_collect_files, _page_date, _page_url,
+#         _front_matter_reserved (the engine's front-matter keys, shared
+#         with the page's own stash) and _scan_page_unreadable (the log line
+#         for a page a walk leaves out, SM976 Q15h); scan_pages(), the walk
+#         the registries are built from; update_registries() and its P-3 memo of whether any
 #         registry template exists; _feed_dates; the registry serving path -
 #         _serve_registry, _registry_cache_path, _registry_ct, _registry_stale
 #         and _regenerate_registries_once (the one regenerator, SM389, under a
@@ -218,6 +219,17 @@ sub _page_url {
     return $url;
 }
 
+# SM976 Q15h ("Refuse + walker skips"): the log line for a page a walk leaves
+# out because its front matter cannot be read. Docroot-relative, as a page is
+# named everywhere else in the log.
+sub _scan_page_unreadable {
+    my ( $path, $why ) = @_;
+    ( my $rel = $path ) =~ s{^\Q$DOCROOT\E/*}{};
+    $why =~ s/\s+at \S+ line \d+.*//s;
+    log_event( 'WARN', 'scan', 'a page whose front matter cannot be read is left out', page => $rel, error => $why );
+    return;
+}
+
 sub resolve_scan {
     my ($pattern) = @_;
 
@@ -281,9 +293,16 @@ sub resolve_scan {
         # SM268 H13: never list what this requester may not read.
         next if _scan_hidden($real);
 
-        # Read front matter
+        # Read front matter. SM976 Q15h ("Refuse + walker skips"): a page whose
+        # reading dies (bytes that are not UTF-8, put there by git or SSH) is
+        # left out and logged - it renders nothing itself - so one such page
+        # cannot fail every page whose scan reaches it.
         my $raw = read_file($path);
-        my ( $meta, undef ) = parse_yaml_front_matter($raw);
+        my ($meta) = eval { parse_yaml_front_matter($raw) };
+        if ( my $why = $@ ) {
+            _scan_page_unreadable( $path, $why );
+            next;
+        }
 
         # Derive URL relative to the scan root, so a boxed domain's results
         # carry that domain's own '/'-relative paths (SM151).
@@ -932,7 +951,12 @@ sub scan_pages {
                     next;
                 }
 
-                my ( $meta, undef ) = parse_yaml_front_matter($raw);
+                # SM976 Q15h: a page whose reading dies registers nothing, logged.
+                my ($meta) = eval { parse_yaml_front_matter($raw) };
+                if ( my $why = $@ ) {
+                    _scan_page_unreadable( $path, $why );
+                    next;
+                }
                 next unless $meta->{register};
 
                 # SM181 + SM268 H13: a registry (sitemap.xml, llms.txt, the

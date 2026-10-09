@@ -53,6 +53,24 @@ Archive
 
 ## Unreleased
 
+- SM976 (PENDING) **security: a page written as raw bytes must be valid UTF-8,
+  and a page that cannot be read binds no form** (ruled 2026-10-09, "Refuse +
+  walker skips"). The processor reads a page through a lax UTF-8 layer, so a
+  page that is not UTF-8 renders nothing or reads front matter other than what
+  the form-binding check saw. A grant scoped to one domain uploaded such a page
+  and so bound, and reached, the primary's form. **Behaviour change:** a `.md`
+  page arriving as raw bytes - MCP `upload_file`, the multipart upload, WebDAV
+  PUT, a site package applied with `site-backup-apply` or `site_apply` - is
+  refused unless it is valid UTF-8, for every caller (415, kind
+  `page-encoding-refused`); the refusal names the first invalid byte and says
+  to save the file as UTF-8. A page that is not UTF-8 and reaches the disk
+  another way (git, SSH) no longer stops anything: the form rule, the
+  processor's `scan:` sources and registries, and MCP `list_pages`,
+  `audit_site` and `form_list` leave it out and log it. Before, one such page
+  made every form verb fail for confined callers, and on a site with a `scan:`
+  source every page answered 500. t/integration/120, t/unit/manager/212,
+  t/unit/processor/93, t/unit/mcp/29.
+
 - SM944 (PENDING) **internal: the notices gate and the start-page actions are
   their modules'** (S23 of the plan in the filing, with the three changes the
   release manager ruled on 2026-10-09). The manager API's notices gate moves to

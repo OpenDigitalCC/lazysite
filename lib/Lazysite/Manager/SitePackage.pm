@@ -667,6 +667,11 @@ sub package_apply {
     # request, or the grant MCP hands Manager::Files.
     if ( -d "$stage/content" ) {
         require Lazysite::Manager::Files;
+        # SM976 Q15h: and every page it carries is valid UTF-8, for every caller.
+        if ( my $g = Lazysite::Manager::Files::page_bytes_tree_guard( $croot, "$stage/content" ) ) {
+            $cleanup->();
+            return $g;
+        }
         if ( my $g = Lazysite::Manager::Files::form_bind_tree_guard( $croot, "$stage/content" ) ) {
             $cleanup->();
             return $g;
