@@ -24,6 +24,7 @@ use strict;
 use warnings;
 use JSON::PP qw(encode_json);
 use POSIX    ();
+use Time::Local ();    # Q14g (SM974): a server-log stamp read with its own offset
 
 # SM907 AT6: A LOG THAT WILL NOT OPEN IS NOT A LOG WITH NOTHING IN IT.
 #
@@ -1340,15 +1341,25 @@ sub _parse_line {
     # here so the path that gets counted is a path - see _split_query for what
     # that was doing to top_pages.
     my ( $path, $query ) = _split_query($target);
-    return undef
-        unless $date =~ m{^(\d+)/(\w+)/(\d+):(\d+):(\d+):(\d+)} && exists $MON_X{$2};
-    my ( $d, $mo, $y, $H, $Mi, $S ) = ( $1, $2, $3, $4, $5, $6 );
-    my $epoch = eval { POSIX::mktime( $S, $Mi, $H, $d, $MON_X{$mo}, $y - 1900 ) };
+    # Q14g (SM974): the stamp's own offset decides the instant, and the instant's
+    # UTC day is the bucket - the calendar _day_str and the first-party ingester
+    # use. This read the wall-clock digits as LOCAL time and dropped the offset,
+    # so the day was the log's local date while "today" is now a UTC date. A
+    # stamp with no offset is still read as local time, as it always was.
+    my ( $d, $mo, $y, $H, $Mi, $S, $zs, $zh, $zm ) =
+        $date =~ m{^(\d+)/(\w+)/(\d+):(\d+):(\d+):(\d+)(?:\s+([+-])(\d\d)(\d\d))?};
+    return undef unless defined $S && exists $MON_X{$mo};
+    my $epoch = eval {
+        defined $zs
+            ? Time::Local::timegm( $S, $Mi, $H, $d, $MON_X{$mo}, $y )
+            - ( $zs eq '-' ? -1 : 1 ) * ( $zh * 3600 + $zm * 60 )
+            : POSIX::mktime( $S, $Mi, $H, $d, $MON_X{$mo}, $y - 1900 );
+    };
     return undef unless defined $epoch;
     return {
         ip     => $ip,
         epoch  => $epoch,
-        day    => sprintf( '%04d-%02d-%02d', $y, $MON_X{$mo} + 1, $d ),
+        day    => _day_str($epoch),
         path   => $path,
         query  => $query,                                                 # SM336
         status => $st + 0,
@@ -1438,7 +1449,17 @@ sub _visitor_token {
     return substr( Digest::SHA::sha256_hex( $_[0] ), 0, 12 );
 }
 
-sub _day_str { return POSIX::strftime( '%Y-%m-%d', localtime( $_[0] ) ) }
+# Q14g (SM974): A STATS DAY IS A UTC DAY, everywhere in this file.
+#
+# This was localtime, while every day bucket the first-party ingester fills is
+# keyed by gmtime - the day the processor files the line under and salts the
+# visitor key with. So "today" and "closed" were judged on one calendar and the
+# buckets kept on another. East of UTC, a UTC day was judged closed at LOCAL
+# midnight, finalised, and never rewritten: under BST its last hour never
+# reached its day file, under UTC+14 its last fourteen. SM343's frozen day,
+# returned by a time zone. The server-log parser now keys by UTC day too, so
+# both sources share one calendar.
+sub _day_str { return POSIX::strftime( '%Y-%m-%d', gmtime( $_[0] ) ) }
 
 sub _cache_path { return _lz($DOCROOT) . "/cache/stats-export.json" }
 

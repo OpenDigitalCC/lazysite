@@ -54,7 +54,8 @@ sub site {
 
 sub log_event {
     my ( $d, $when, $path ) = @_;
-    my $day = strftime( '%Y%m%d', localtime($when) );
+    # The UTC day, the name the processor's writer files a line under.
+    my $day = strftime( '%Y%m%d', gmtime($when) );
     open my $fh, '>>', "$d/lazysite/logs/access-$day.jsonl" or die $!;
     print $fh encode_json( {
             t => $when, p => $path, s => 200, b => 100,
@@ -95,8 +96,19 @@ sub day_file {
     return decode_json( do { open my $fh, '<', $p or die $!; local $/; <$fh> } );
 }
 
-my $YEST    = time() - 86400;
-my $YESTDAY = strftime( '%Y-%m-%d', localtime($YEST) );
+# Q14g (SM974): A STATS DAY IS A UTC DAY, and these are anchored to it. This was
+# `time() - 86400` named with localtime: in the hour after local midnight under
+# BST the plugin's UTC day and this file's local one were different dates, so
+# every subtest below looked for a file the plugin had correctly never written.
+# 01:00 UTC yesterday keeps a fixture of a few minutes inside one UTC day
+# whatever the hour and the time zone the suite runs in.
+my $YEST    = int( time() / 86400 ) * 86400 - 86400 + 3600;
+my $YESTDAY = strftime( '%Y-%m-%d', gmtime($YEST) );
+
+# The day an event a minute ago belongs to - the day of the EVENT, not of the
+# clock read a moment later, which a run straddling UTC midnight would split.
+my $AGO     = time() - 60;
+my $AGO_DAY = strftime( '%Y-%m-%d', gmtime($AGO) );
 
 subtest 'a short day file is rewritten from the bucket that has the whole day'
     => sub {
@@ -162,10 +174,10 @@ subtest 'and is not rewritten on every call thereafter' => sub {
 
 subtest 'a day and a month say when they were produced' => sub {
     my $d = site();
-    log_event( $d, time() - 60, '/article' );
+    log_event( $d, $AGO, '/article' );
     run( $d, '--export', '--window', 30 );
 
-    my $today = strftime( '%Y-%m-%d', localtime );
+    my $today = $AGO_DAY;
     my $day   = day_file( $d, $today );
     like( $day->{generated}, qr/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/,
         'the day payload carries a generated timestamp' )
@@ -187,10 +199,9 @@ subtest 'the durable files are byte-comparable' => sub {
     # diff, and Perl's hash order is randomised per process, so the same content
     # written twice produced different bytes.
     my $d = site();
-    log_event( $d, time() - 60, '/article' );
+    log_event( $d, $AGO, '/article' );
     run( $d, '--export', '--window', 30 );
-    my $today = strftime( '%Y-%m-%d', localtime );
-    my $path  = "$d/lazysite/stats/daily/$today.json";
+    my $path  = "$d/lazysite/stats/daily/$AGO_DAY.json";
     my $first = do { open my $fh, '<', $path or die $!; local $/; <$fh> };
     run( $d, '--export', '--window', 30 );
     my $second = do { open my $fh, '<', $path or die $!; local $/; <$fh> };

@@ -50,7 +50,7 @@ sub fixture {
 
 sub log_event {
     my ( $d, $when, $path, $status, $visitor, $ref ) = @_;
-    my $day = strftime( '%Y%m%d', localtime($when) );
+    my $day = strftime( '%Y%m%d', gmtime($when) );    # Q14g: the writer's name, a UTC day
     open my $fh, '>>', "$d/lazysite/logs/access-$day.jsonl" or die $!;
     print $fh encode_json( {
             t => $when,

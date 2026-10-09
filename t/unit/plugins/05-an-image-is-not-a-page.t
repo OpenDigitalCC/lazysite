@@ -132,7 +132,10 @@ subtest 'the durable record measures it, not just the window' => sub {
     close $cf;
 
     my $log = "$d/access.log";
-    my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', localtime );
+    # Q14g (SM974): one instant, stamped as what it says it is - the plugin
+    # reads the +0000 - and its UTC day, which is the day it is filed under.
+    my $t   = time;
+    my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime $t );
     my $ua  = 'Mozilla/5.0 Chrome/120';
     open my $lf, '>', $log or die $!;
     # One reader, one article, three images and a stylesheet on it. This is the
@@ -151,7 +154,7 @@ subtest 'the durable record measures it, not just the window' => sub {
     is( $r->{totals}{pageviews}, 1,
         'one page view, not five - the window view' );
 
-    my $today = strftime( '%Y-%m-%d', localtime );
+    my $today = strftime( '%Y-%m-%d', gmtime $t );
     my $df    = "$d/lazysite/stats/daily/$today.json";
     ok( -f $df, 'the durable day file was written' ) or return;
     my $day = decode_json( do { open my $fh, '<', $df or die $!; local $/; <$fh> } );

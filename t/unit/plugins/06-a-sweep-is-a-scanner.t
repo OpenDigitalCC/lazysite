@@ -45,6 +45,14 @@ use TestHelper qw(repo_root);
 my $plugin = repo_root() . '/plugins/stats.pl';
 ok( -f $plugin, 'the stats plugin is present' );
 
+# Q14g (SM974): WHEN the requests happened. This was `time() - 3600` with the
+# rollup read as `localtime`'s today, so in the hour after midnight the requests
+# fell on yesterday and the read found no file. A stats day is a UTC day; 01:00
+# UTC yesterday keeps every fixture below (the widest spans 70 minutes) inside
+# one, in the window and in the past, at any hour and in any zone.
+my $BASE     = int( time() / 86400 ) * 86400 - 86400 + 3600;
+my $BASE_DAY = strftime( '%Y-%m-%d', gmtime $BASE );
+
 # One export run against a hand-built access log. Each request is given an
 # explicit offset in seconds so the WINDOW is what is being tested and not the
 # speed of the test host.
@@ -57,12 +65,14 @@ sub export_log {
     close $cf;
 
     my $log  = "$d/access.log";
-    my $base = time() - 3600;
+    my $base = $BASE;
     open my $lf, '>', $log or die $!;
     for my $r ( @{ $o{requests} } ) {
         my ( $ip, $path, $status, $offset ) = @$r;
+        # gmtime, because the stamp SAYS +0000: localtime labelled +0000 is a
+        # stamp an hour wrong under BST, and the plugin reads the offset.
         my $when = strftime( '%d/%b/%Y:%H:%M:%S +0000',
-            localtime( $base + ( $offset // 0 ) ) );
+            gmtime( $base + ( $offset // 0 ) ) );
         print $lf qq{$ip - - [$when] "GET $path HTTP/1.1" $status 100 "-" }
             . qq{"Mozilla/5.0 Chrome/120"\n};
     }
@@ -111,9 +121,8 @@ subtest 'the field sweep, replayed' => sub {
     is( $r->{traffic_classes}{unattributed}{visits}, 0,
         'nothing in this log is a human visit' );
 
-    my $today = strftime( '%Y-%m-%d', localtime );
-    my $day   = decode_json( do {
-            open my $fh, '<', "$r->{_docroot}/lazysite/stats/daily/$today.json"
+    my $day = decode_json( do {
+            open my $fh, '<', "$r->{_docroot}/lazysite/stats/daily/$BASE_DAY.json"
                 or die $!;
             local $/;
             <$fh>;

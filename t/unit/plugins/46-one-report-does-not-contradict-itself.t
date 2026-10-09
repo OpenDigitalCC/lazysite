@@ -54,7 +54,7 @@ close $cf;
 # fall-through hid. Writing the records through one helper keyed the right way
 # is the cheapest way not to repeat that.
 my $now = time() - 3600;
-my $day = strftime( '%Y%m%d', localtime($now) );
+my $day = strftime( '%Y%m%d', gmtime($now) );    # Q14g: the writer's name, a UTC day
 open my $lf, '>', "$d/lazysite/logs/access-$day.jsonl" or die $!;
 my $t = 0;
 

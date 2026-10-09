@@ -805,7 +805,10 @@ sub _record_form_event {
     my $dir = "$LAZYSITE_DIR/stats/form-events";
     eval {
         make_path($dir) unless -d $dir;
-        my $day = strftime( '%Y-%m-%d', localtime );
+        # Q14g (SM974): the UTC day, the calendar the stats plugin keys every
+        # day bucket by. The local date put an outcome in the wrong day's
+        # bucket for as many hours as the host is from UTC.
+        my $day = strftime( '%Y-%m-%d', gmtime );
         my %ev  = ( t => time(), day => $day, form => $f, outcome => "$outcome" );
         $ev{reason} = "$reason" if defined $reason && length $reason;
         if ( open my $fh, '>>', "$dir/$day.jsonl" ) {

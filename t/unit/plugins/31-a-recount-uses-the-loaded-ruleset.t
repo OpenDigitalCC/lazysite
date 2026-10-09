@@ -31,8 +31,11 @@ print {$rf} '{"version":"test-1","rules":{"bot":"bot|crawl|spider|zephyrus"}}';
 close $rf;
 
 my $now = time;
-my $ymd = strftime( '%Y%m%d',   localtime $now );
-my $day = strftime( '%Y-%m-%d', localtime $now );
+# Q14g (SM974): the UTC day, which is the processor's file name and the
+# plugin's day bucket. The local date put this file's reader on a different day
+# from the plugin's writer for as many hours as the suite's zone is from UTC.
+my $ymd = strftime( '%Y%m%d',   gmtime $now );
+my $day = strftime( '%Y-%m-%d', gmtime $now );
 open my $lf, '>', "$d/lazysite/logs/access-$ymd.jsonl" or die $!;
 print {$lf}
     qq({"t":$now,"p":"/","s":200,"ch":"page","v":"abcdef123456","ua":"Zephyrus/1.0"}\n);

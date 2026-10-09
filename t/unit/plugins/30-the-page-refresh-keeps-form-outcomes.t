@@ -10,7 +10,7 @@ use Test::More;
 use JSON::PP   qw(decode_json);
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
-use POSIX      qw(strftime mktime);
+use POSIX      qw(strftime);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root run_cmd);
@@ -24,12 +24,13 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_url: https://demo.example.io\n";
 close $cf;
 
-# Yesterday at local noon, so the date is the same in every timezone the
-# plugin or this test might read it in.
-my @y   = localtime( time - 86400 );
-my $ts  = mktime( 0, 0, 12, $y[3], $y[4], $y[5] );
-my $ymd = strftime( '%Y%m%d',   localtime $ts );
-my $day = strftime( '%Y-%m-%d', localtime $ts );
+# Yesterday at noon UTC. Q14g (SM974): this was local noon, "so the date is the
+# same in every timezone" - which is true only within twelve hours of UTC, and
+# Pacific/Kiritimati is fourteen. A stats day is a UTC day, so the UTC date is
+# the one both sides read.
+my $ts  = int( time / 86400 ) * 86400 - 86400 + 12 * 3600;
+my $ymd = strftime( '%Y%m%d',   gmtime $ts );
+my $day = strftime( '%Y-%m-%d', gmtime $ts );
 
 open my $lf, '>', "$d/lazysite/logs/access-$ymd.jsonl" or die $!;
 print {$lf}

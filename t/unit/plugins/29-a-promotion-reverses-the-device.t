@@ -21,8 +21,11 @@ use TestHelper qw(repo_root);
 my $PLUGIN = repo_root() . '/plugins/stats.pl';
 ok( -f $PLUGIN, 'stats plugin present' );
 
-my $NOW = strftime( '%d/%b/%Y:%H:%M:%S +0000', localtime );
-my $DAY = strftime( '%Y-%m-%d',                localtime );
+# Q14g (SM974): one instant, stamped as what it says it is - this was localtime
+# labelled +0000, and the plugin reads the offset. A stats day is a UTC day.
+my $T   = time;
+my $NOW = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime $T );
+my $DAY = strftime( '%Y-%m-%d',                gmtime $T );
 my $UA  = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120';
 
 sub line {

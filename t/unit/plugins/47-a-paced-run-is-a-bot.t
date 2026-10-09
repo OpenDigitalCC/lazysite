@@ -25,9 +25,15 @@ plan skip_all => "no $plugin" unless -f $plugin;
 # [ ip, path, status, offset-seconds, user-agent? ].
 sub export_log { return export_into( undef, @_ ) }
 
+# Q14g (SM974): 01:00 UTC yesterday, not `time() - 3600`. A stats day is a UTC
+# day, and an hour back from the hour after midnight is yesterday, so the
+# rollup read as "today" was absent. A fixed point inside one UTC day holds at
+# any hour and in any zone; every run below spans seconds.
+my $BASE     = int( time() / 86400 ) * 86400 - 86400 + 3600;
+my $BASE_DAY = strftime( '%Y-%m-%d', gmtime $BASE );
+
 # The same, into an existing docroot by appending to its log - a second batch,
 # read with the cache from the first honoured.
-my $BASE = time() - 3600;
 sub export_into {
     my ( $d, @req ) = @_;
     if ( !defined $d ) {
@@ -42,7 +48,8 @@ sub export_into {
     open my $lf, '>>', $log or die $!;
     for my $r (@req) {
         my ( $ip, $path, $status, $offset, $ua ) = @$r;
-        my $when = strftime( '%d/%b/%Y:%H:%M:%S +0000', localtime( $base + $offset ) );
+        # gmtime: the stamp says +0000, and the plugin reads the offset.
+        my $when = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime( $base + $offset ) );
         print $lf qq{$ip - - [$when] "GET $path HTTP/1.1" $status 100 "-" "}
             . ( $ua // 'Mozilla/5.0 Chrome/120' ) . qq{"\n};
     }
@@ -63,9 +70,8 @@ sub classes {
 }
 
 sub day_rollup {
-    my ($r)   = @_;
-    my $today = strftime( '%Y-%m-%d', localtime );
-    open my $fh, '<', "$r->{_docroot}/lazysite/stats/daily/$today.json" or return {};
+    my ($r) = @_;
+    open my $fh, '<', "$r->{_docroot}/lazysite/stats/daily/$BASE_DAY.json" or return {};
     local $/;
     return decode_json(<$fh>);
 }

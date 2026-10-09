@@ -21,7 +21,10 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_url: https://demo.example.io\n";
 close $cf;
 my $LOG = "$d/access.log";
-my $NOW = strftime( '%d/%b/%Y:%H:%M:%S +0000', localtime );
+# Q14g (SM974): ONE instant, stamped as what it says it is. This was localtime
+# labelled +0000; the plugin now reads the offset, and a stats day is a UTC day.
+my $T   = time;
+my $NOW = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime $T );
 
 sub line {
     my ( $ip, $path, $status, $ref, $ua ) = @_;
@@ -110,7 +113,7 @@ ok( ( grep { $_->{key} eq '/moved-page' } @{ $r3->{not_found}{plausible} } ),
 cmp_ok( $r3->{traffic_classes}{scanner}{visits}, '>=', 3, 'scanner class now covers the spoofer + probes' );
 
 # --- SM213: self-describing horizons + durable per-day store ----------------
-my $today = strftime( '%Y-%m-%d', localtime );
+my $today = strftime( '%Y-%m-%d', gmtime $T );         # the day the lines are on
 my ($this_mon) = $today =~ /^(\d{4}-\d{2})/;
 
 # Self-describing fields distinguish the complete aggregates from the raw sample.

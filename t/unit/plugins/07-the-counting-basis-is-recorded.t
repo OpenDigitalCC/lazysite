@@ -86,7 +86,10 @@ subtest 'the durable day and the index both carry it' => sub {
     close $cf;
 
     my $log = "$d/access.log";
-    my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', localtime );
+    # Q14g (SM974): one instant, stamped as what it says it is - the plugin
+    # reads the +0000 - and its UTC day, which is the day it is filed under.
+    my $t   = time;
+    my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime $t );
     open my $lf, '>', $log or die $!;
     print $lf qq{1.2.3.4 - - [$now] "GET $_ HTTP/1.1" 200 100 "-" }
         . qq{"Mozilla/5.0 Chrome/120"\n}
@@ -98,7 +101,7 @@ subtest 'the durable day and the index both carry it' => sub {
     my $r = decode_json(qx($^X \Q$plugin\E --export --window 30 2>/dev/null));
     ok( $r->{ok}, 'the export ran' ) or return;
 
-    my $today = strftime( '%Y-%m-%d', localtime );
+    my $today = strftime( '%Y-%m-%d', gmtime $t );
     my $day   = decode_json( do {
             open my $fh, '<', "$d/lazysite/stats/daily/$today.json" or die $!;
             local $/;
@@ -141,8 +144,10 @@ subtest 'a month spanning the change says it is mixed' => sub {
     close $cf;
 
     my $log   = "$d/access.log";
-    my $prior = time() - 86400;
-    my $when  = strftime( '%d/%b/%Y:%H:%M:%S +0000', localtime($prior) );
+    # Q14g (SM974): stamps that say +0000 are UTC, and a stats day is a UTC day.
+    my $t2    = time;
+    my $prior = $t2 - 86400;
+    my $when  = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime($prior) );
     open my $lf, '>', $log or die $!;
     print $lf qq{1.2.3.4 - - [$when] "GET /article HTTP/1.1" 200 100 "-" }
         . qq{"Mozilla/5.0 Chrome/120"\n};
@@ -159,8 +164,8 @@ subtest 'a month spanning the change says it is mixed' => sub {
             local $/;
             <$fh>;
     } );
-    my $prior_day = strftime( '%Y-%m-%d', localtime($prior) );
-    my $today     = strftime( '%Y-%m-%d', localtime );
+    my $prior_day = strftime( '%Y-%m-%d', gmtime($prior) );
+    my $today     = strftime( '%Y-%m-%d', gmtime($t2) );
     my ($mon)     = $today     =~ /^(\d{4}-\d{2})/;
     my ($pm)      = $prior_day =~ /^(\d{4}-\d{2})/;
 
@@ -178,7 +183,7 @@ SKIP: {
         close $ch;
 
         # A second day's traffic, counted under the new basis.
-        my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', localtime );
+        my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime $t2 );
         open my $ap, '>>', $log or die $!;
         print $ap qq{1.2.3.5 - - [$now] "GET /article HTTP/1.1" 200 100 "-" }
             . qq{"Mozilla/5.0 Chrome/120"\n};

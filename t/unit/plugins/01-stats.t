@@ -16,7 +16,8 @@ ok( @{ $desc->{actions} } >= 1,       '--describe: has an action' );
 
 my $d = tempdir( CLEANUP => 1 );
 mkdir "$d/lazysite";
-my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', localtime );
+# Q14g (SM974): gmtime, because the stamp says +0000 and the plugin reads it.
+my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime );
 open my $lg, '>', "$d/access.log" or die $!;
 print $lg qq{1.2.3.4 - - [$now] "GET /a HTTP/1.1" 200 100 "https://ext.example/" "Mozilla/5.0"\n};
 print $lg qq{1.2.3.5 - - [$now] "GET /a HTTP/1.1" 200 100 "-" "Mozilla/5.0"\n};

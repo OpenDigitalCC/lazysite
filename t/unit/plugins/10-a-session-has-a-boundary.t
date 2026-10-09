@@ -29,7 +29,7 @@ use strict;
 use warnings;
 use Test::More;
 use JSON::PP   qw(decode_json encode_json);
-use POSIX      qw(strftime mktime);
+use POSIX      qw(strftime);
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
@@ -51,7 +51,7 @@ sub site {
 
 sub ev {
     my ( $d, $when, $path, %o ) = @_;
-    my $day = strftime( '%Y%m%d', localtime($when) );
+    my $day = strftime( '%Y%m%d', gmtime($when) );    # the writer names it by UTC day
     open my $fh, '>>', "$d/lazysite/logs/access-$day.jsonl" or die $!;
     print $fh encode_json( {
             t => $when,
@@ -75,7 +75,7 @@ sub ev {
 
 sub day_of {
     my ( $d, $when ) = @_;
-    my $p = "$d/lazysite/stats/daily/" . strftime( '%Y-%m-%d', localtime($when) ) . ".json";
+    my $p = "$d/lazysite/stats/daily/" . strftime( '%Y-%m-%d', gmtime($when) ) . ".json";
     return undef unless -f $p;
     return decode_json( do { open my $fh, '<', $p or die $!; local $/; <$fh> } );
 }
@@ -90,15 +90,18 @@ sub run {
     return eval { decode_json($out) };
 }
 
-# Yesterday at 01:00 local, so the day closes and its rollup is final - AND so
+# Yesterday at 01:00 UTC, so the day closes and its rollup is final - AND so
 # a thirteen-hour gap still lands inside the same day. Anchoring to a time of
 # day rather than to `time() - 86400` matters: the first version of this used
 # the latter, the 47,458-second gap crossed midnight, and the two events went
 # into different day files. The test then read one of them and reported a
 # missing session, which is the day-boundary logic working correctly and looked
 # exactly like the boundary being broken.
-my @Y    = localtime( time() - 86400 );
-my $BASE = POSIX::mktime( 0, 0, 1, $Y[3], $Y[4], $Y[5] );
+#
+# Q14g (SM974): 01:00 UTC, not 01:00 local. A stats day is a UTC day, so a
+# local anchor put the thirteen-hour gap across a UTC midnight in any zone
+# more than eleven hours east of UTC - the same split, by time zone.
+my $BASE = int( time() / 86400 ) * 86400 - 86400 + 3600;
 
 subtest 'a thirteen-hour gap is two visits, not a two-page journey' => sub {
     # The measured case: same token, same day, 47,458 seconds apart.
@@ -252,7 +255,7 @@ subtest 'the durable file holds no path belonging to anybody' => sub {
 
     my $raw = do {
         my $p = "$d/lazysite/stats/daily/"
-            . strftime( '%Y-%m-%d', localtime($BASE) ) . '.json';
+            . strftime( '%Y-%m-%d', gmtime($BASE) ) . '.json';
         open my $fh, '<', $p or die $!;
         local $/;
         <$fh>;
