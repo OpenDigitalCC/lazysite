@@ -14,7 +14,9 @@ BASE=${1:-main}
 RC=0
 CHANGED=$(git diff --name-only "$BASE"...HEAD; git diff --name-only HEAD)
 CHANGED=$(printf '%s\n' $CHANGED | sort -u)
-PERL=$(printf '%s\n' $CHANGED | grep -E '\.(pl|pm|t)$' || true)
+# Files the branch deleted or renamed away are in the diff too; there is nothing
+# of them to compile or run, and prove dies on a test that is not there.
+PERL=$(printf '%s\n' $CHANGED | grep -E '\.(pl|pm|t)$' | while read -r f; do [ -f "$f" ] && echo "$f"; done || true)
 
 for f in $PERL; do
   [ -f "$f" ] || continue
