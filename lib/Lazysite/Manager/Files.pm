@@ -37,7 +37,7 @@ our @EXPORT_OK = qw(
     action_git_status action_git_history action_git_history_summary
     action_git_show action_git_restore action_git_init
     artifact_write_guard
-    form_bind_guard form_bind_tree_guard page_bytes_guard page_bytes_tree_guard
+    form_bind_guard form_bind_tree_guard page_bytes_guard page_bytes_tree_guard copy_target_refusal
 );
 
 our $DOCROOT;
@@ -635,6 +635,22 @@ sub page_bytes_tree_guard {
         close $fh;
         if ( my $g = page_bytes_guard( $rel, $bytes ) ) { return $g }
     }
+    return undef;
+}
+
+# SM977 (ruled 2026-10-09, "Refuse existing target"): a copy writes a NEW
+# file. action_copy refuses an existing destination; MCP copy_file, which reads
+# the source and writes it through action_save so every save rule applies,
+# overwrote one (tmp/q15g-other-tools-probe.out). This is action_copy's check,
+# for that copy: the destination as validate_path resolves it (either tree),
+# refused when it exists. write_file is the way to replace a file.
+sub copy_target_refusal {
+    my ($dst_rel) = @_;
+    my $d = validate_path($dst_rel);
+    return $d unless $d->{ok};
+    return _refused( 'exists', "target '$d->{rel}' already exists",
+        'choose another target, or replace it with write_file' )
+        if -e $d->{full};
     return undef;
 }
 

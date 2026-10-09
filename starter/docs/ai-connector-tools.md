@@ -265,7 +265,7 @@ replace_text `{ path, old, new }`
   Errors if `old` is absent (no silent clobber); reports the replacement count.
 
 copy_file `{ from, to }`
-: Copy a text file to a new path (templating). Destination starts with a fresh ACL.
+: Copy a text file to a new path (templating). Refuses a destination that already exists; use write_file to replace a file. Destination starts with a fresh ACL.
 
 move_file `{ from, to }`
 : Rename / move a file; carries its brief store entry and re-keys its ACL.

@@ -71,6 +71,12 @@ Archive
   source every page answered 500. t/integration/120, t/unit/manager/212,
   t/unit/processor/93, t/unit/mcp/29.
 
+- SM977 (PENDING) **MCP `copy_file` refuses an existing destination** (ruled
+  2026-10-09, "Refuse existing target"). Its description says "to a new path"
+  and the manager's copy refuses an existing target, but `copy_file` overwrote
+  one. **Behaviour change:** a copy onto an existing file is refused (`exists`);
+  `write_file` replaces a file. t/unit/mcp/30.
+
 - SM944 (PENDING) **internal: the notices gate and the start-page actions are
   their modules'** (S23 of the plan in the filing, with the three changes the
   release manager ruled on 2026-10-09). The manager API's notices gate moves to

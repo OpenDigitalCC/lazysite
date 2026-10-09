@@ -35,7 +35,7 @@ use Lazysite::Capabilities   qw(describe);
 use Lazysite::Auth::OAuth    ();
 use Lazysite::Auth::Verify   ();              # SM685: verify in-process, no subprocess
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
-    action_save_binary
+    action_save_binary copy_target_refusal
     action_move action_acl_get action_acl_set action_acl_remove
     action_git_history action_git_history_summary action_git_show action_git_restore);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
@@ -1293,7 +1293,7 @@ my %TOOLS = (
     },
     copy_file => {
         path_args => [qw(to from)],
-        description => 'Copy a text file to a new path - templating a new page from an existing one. The destination starts with a fresh ACL.',
+        description => 'Copy a text file to a new path - templating a new page from an existing one. Refuses a destination that already exists (use write_file to replace a file). The destination starts with a fresh ACL.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { from => { type => 'string' }, to => { type => 'string' } },
@@ -1302,6 +1302,9 @@ my %TOOLS = (
             my ( $a, $user ) = @_;
             my $r = action_read( $a->{from}, $user );
             return $r unless ref $r eq 'HASH' && $r->{ok};
+            # SM977 (ruled 2026-10-09, "Refuse existing target"): a new path, as
+            # the manager's copy and this description say - it overwrote one.
+            if ( my $no = copy_target_refusal( $a->{to} ) ) { return $no }
             return action_save( $a->{to}, $user, $r->{content}, undef );
         },
     },
