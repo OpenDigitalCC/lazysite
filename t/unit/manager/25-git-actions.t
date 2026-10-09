@@ -181,7 +181,11 @@ my ( $sha_adopt, $sha_edit );
     my $audit = slurp("$d/lazysite/logs/audit.log") // '';
     like( $audit, qr/\| git-restore \| page\.md \|/, 'git-restore audited with its target' );
     like( $audit, qr/\| git-init \|/,                'git-init audited' );
-    unlike( $audit, qr/git-history|git-show|git-status/, 'reads are not audited' );
+    unlike( $audit, qr/\| (?:git-history|git-show|git-status) \|.*\| ok \|/,
+        'a read that succeeds is not audited' );
+    # SM943 ruling 1: a read's refusal is an error, and errors are audited.
+    like( $audit, qr/\| git-show \| page\.md \|.*\| fail \| ui \| Invalid version id/,
+        'a read that is refused is' );
 }
 
 # --- token-channel gating --------------------------------------------------------

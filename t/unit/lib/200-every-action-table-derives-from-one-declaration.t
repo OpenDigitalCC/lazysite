@@ -143,8 +143,8 @@ subtest 'SM943 stage 2: the MCP tables are built from the declaration' => sub {
         '%ANNOTATE starts from mcp_annotations() - no literal copy of a twin' );
     my @read = $mcp =~ /\bmy %READ\s*=\s*([^;]*);/g;
     is_deeply( \@read,
-        [q{map { $_ => 1 } grep { $ANNOTATE{$_}[0] && !$AUDITED_READ{$_} } keys %ANNOTATE}],
-        '%READ is the read-only tools less the named audited reads' );
+        [q{map { $_ => 1 } grep { $ANNOTATE{$_}[0] } keys %ANNOTATE}],
+        '%READ is the read-only tools, with no named exceptions (SM943 ruling 1)' );
     my @pair = $l23 =~ /\bmy %PAIR\s*=\s*([^;]*);/g;
     is_deeply( \@pair, ['Lazysite::ControlApi::Actions::mcp_twins()'],
         'lint 23 pairs the twins the declaration names - no %PAIR of its own' );
@@ -156,18 +156,16 @@ subtest 'SM943 stage 2: the MCP tables are built from the declaration' => sub {
         my ( $t, @v ) = ( $1, map { s/\s//gr } split /,/, $2 );
         $ANN{$t} = \@v;
     }
-    my ($ar)         = $mcp =~ /^my %AUDITED_READ = map \{ \$_ => 1 \} qw\((.*?)\);/ms;
-    my %AUDITED_READ = map { $_ => 1 } split ' ', $ar // '';
-    is( scalar keys %AUDITED_READ, 17, 'the seventeen audited reads were found' );
-    my @not_read = grep { !( $ANN{$_} && $ANN{$_}[0] ) } sort keys %AUDITED_READ;
-    is( "@not_read", '', 'each one names a read-only tool - otherwise it means nothing' );
-    my %READ = map { $_ => 1 } grep { $ANN{$_}[0] && !$AUDITED_READ{$_} } keys %ANN;
+    # SM943 ruling 1 (2026-10-09) dropped the seventeen reads this trail recorded
+    # while the API skipped their twins: "Drop all 17."
+    unlike( $mcp, qr/%AUDITED_READ/, 'no list of audited reads is kept' );
+    my %READ = map { $_ => 1 } grep { $ANN{$_}[0] } keys %ANN;
 
-    # The audit decisions, unchanged by the derivation.
+    # The audit decisions.
     ok( $READ{list_files} && $READ{whoami} && $READ{list_versions},
         'plain reads are not audited' );
-    ok( !$READ{read_form_submissions} && !$READ{read_data_rows},
-        'the submission and row reads the MCP trail has always recorded still are' );
+    ok( $READ{read_form_submissions} && $READ{read_data_rows} && $READ{describe_capabilities},
+        'nor are the submission, row and capability reads, which once were (ruling 1)' );
     ok( !$READ{save_data_row} && !$READ{delete_file},
         'a write is audited' );
     ok( !$READ{regenerate_registries},

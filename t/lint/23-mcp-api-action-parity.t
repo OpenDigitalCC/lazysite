@@ -402,4 +402,60 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
     # same reason as the destructive one above, and is removed with it.
 }
 
+# --- 6. the two trails decide from one declaration ---------------------------
+# SM943 RULING 1 (2026-10-09): "Audit is useful to see when a person or agent has
+# made material behaviour changes, authentication events and errors. General
+# site activity is of less interest and creates noise. Surfaces should be
+# consistent. Drop all 17." The seventeen were MCP reads this trail recorded
+# while the API trail skipped their twins - one act, recorded on one door and
+# not the other, kept in step by nobody.
+#
+# So each trail's decision is read from what its CGI does, and for every twin
+# the two must agree: audited on both trails or on neither. The API's %skip is
+# unaudited() (t/unit/lib/200 holds the CGI to that); MCP's is the rule written
+# in lazysite-mcp.pl, which must be the read-only rule with no names in it -
+# a named exception there is exactly how the seventeen were kept.
+{
+    my %ann  = Lazysite::ControlApi::Actions::mcp_annotations();
+    my %skip = Lazysite::ControlApi::Actions::unaudited();
+
+    my @rule = $mcp_src =~ /^my %READ\s*=\s*([^;]*);/mg;
+    is_deeply( \@rule, ['map { $_ => 1 } grep { $ANNOTATE{$_}[0] } keys %ANNOTATE'],
+        'MCP skips exactly the read-only tools - no tool is named' );
+    my @writes = $mcp_src =~ /(\$READ\{[^}]*\}\s*(?:=(?!=)|\|\|=|\/\/=)|delete\s+\$READ\{)/g;
+    is( "@writes", '', 'and nothing else writes to the skip set' );
+
+    # A twin recorded here is audited on one trail and not the other ON PURPOSE,
+    # with the reason - the %TWIN_DIFFERS discipline. Reads may not be recorded:
+    # the ruling is that a read is not audited on any surface.
+    my %AUDIT_DIFFERS = (
+        'regenerate-registries' => 'a write, outside ruling 1: declared unaudited '
+            . 'on the API (`audited => 0`, with cache-invalidate) while MCP audits '
+            . 'every write tool',
+    );
+    for my $a ( sort keys %PAIR ) {
+        my $t   = $PAIR{$a};
+        my $api = $skip{$a}   ? 'skips' : 'audits';
+        my $mcp = $ann{$t}[0] ? 'skips' : 'audits';
+        if ( $AUDIT_DIFFERS{$a} ) {
+            ok( $ann{$t}[0] ? 0 : 1, "'$a' recorded as differing is a write" );
+            isnt( $mcp, $api, "'$a' still differs - remove it from %AUDIT_DIFFERS when decided" );
+            next;
+        }
+        is( $mcp, $api, "twins '$a' / '$t': both trails " . ( $api eq 'skips' ? 'skip' : 'audit' ) . ' it' )
+            or diag( "The API trail ${api} '$a' and the MCP trail ${mcp} '$t'. One act "
+                . 'is audited on both doors or on neither (SM943 ruling 1).' );
+    }
+
+    # A read's REFUSAL or ERROR is recorded on both, by the same test of the
+    # result. Behaviour is proved in t/unit/mcp/28 and t/unit/manager/206; this
+    # pins that each CGI still states the rule they prove.
+    like( $mcp_src, qr/if \( !\$READ\{\$name\} \|\| !\$aok \) \{/,
+        'MCP records a read whose answer is a refusal or an error' );
+    like( $api_src, qr/!\$skip\{\$aud_action\} \|\| \( \$AUDIT_FAILED && !\$MUTATING\{\$aud_action\} \)/,
+        'the control API records a read whose answer is a refusal or an error' );
+    like( $api_src, qr/eq 'POST' \|\| \$AUDIT_FAILED \)/,
+        '...over GET as well, which is how a token client reads' );
+}
+
 done_testing();

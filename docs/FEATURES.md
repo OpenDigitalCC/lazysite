@@ -1424,7 +1424,7 @@ or OAuth access token), challenges unauthenticated calls with a `401` +
 `WWW-Authenticate` pointing at the OAuth metadata, and **disambiguates** "sign-in
 incomplete" vs "credential expired/revoked". A token client is never an operator, so
 per-file ACLs bind it as over WebDAV; each tool declares a required capability;
-reads are not audited, writes are recorded as material events.
+reads are not audited unless refused or failed, writes are recorded as material events.
 
 The tools, by group (unauthenticated `tools/list` is filtered to the invocable
 subset - see connector reliability below):

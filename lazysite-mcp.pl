@@ -3294,23 +3294,18 @@ for my $t ( sort keys %OWN_ANNOTATE ) {
 
 # MCO-1 / SM943 stage 2: WHICH TOOLS THE AUDIT SKIPS. This was a hand-kept list
 # of 22 reads beside the annotations. It is now the rule that list was written to
-# state - a read-only tool is not audited - with its exceptions named.
+# state - a read-only tool is not audited - and the rule has no exceptions.
 #
-# %AUDITED_READ is the seventeen read-only tools the MCP trail has always
-# recorded, kept so that deriving the list changed no audit row. Sixteen are
-# twins of control-API reads that the API trail SKIPS (data-rows,
-# form-submissions, briefs-list, notices, ...), and describe_capabilities is
-# audited while whoami is not. Whether those reads belong in either trail is an
-# open question on SM943, recorded here rather than decided by a refactor. A new
-# read-only tool is not audited unless it is named here.
-my %AUDITED_READ = map { $_ => 1 } qw(
-    describe_capabilities describe_data_table list_briefs list_data_safety_exports
-    list_data_tables list_domains list_layout_catalogue plan_data_migration
-    preview_domain preview_public_page read_brief read_data_rows
-    read_data_safety_export read_data_table_source read_form_submission
-    read_form_submissions read_notices
-);
-my %READ = map { $_ => 1 } grep { $ANNOTATE{$_}[0] && !$AUDITED_READ{$_} } keys %ANNOTATE;
+# SM943 RULING 1 (2026-10-09): "Audit is useful to see when a person or agent has
+# made material behaviour changes, authentication events and errors. General site
+# activity is of less interest and creates noise. Surfaces should be consistent.
+# Drop all 17." The seventeen reads this trail recorded while the control API
+# skipped their twins (read_form_submissions, read_data_rows, describe_capabilities
+# and the rest) are skipped like every other read. A read's REFUSAL or ERROR is
+# still recorded - see the audit below - as the control API records it. A twin's
+# readOnly comes from its action's `mutates`, the field the API's skip list reads,
+# so the two trails decide from one declaration; t/lint/23 holds them to it.
+my %READ = map { $_ => 1 } grep { $ANNOTATE{$_}[0] } keys %ANNOTATE;
 
 # SM525: whoami's tool list is tools/list's answer for the same session - one
 # filtered source, so the two cannot disagree about what a grant may call.
@@ -3810,8 +3805,11 @@ elsif ( $method eq 'tools/call' ) {
     log_event( 'INFO', 'mcp', 'tool call',
         tool => $name, user => $user, ok => ( $out->{ok} ? 1 : 0 ) );
 
-    # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
-    unless ( $READ{$name} ) {
+    # Audit state-changing tools (origin = mcp) alongside the manager UI / API,
+    # and a read whose answer is a refusal or an error (SM943 ruling 1): a read
+    # that succeeds is site activity, and one that is refused is an event.
+    my $aok = ref $out eq 'HASH' && $out->{ok};
+    if ( !$READ{$name} || !$aok ) {
         my $target = $args->{path} // $args->{from} // $args->{theme}
             // $args->{name} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the
@@ -3828,7 +3826,6 @@ elsif ( $method eq 'tools/call' ) {
             : $name eq 'move_file'       ? 'move'
             : $name eq 'submit_feedback' ? 'feedback'
             :                              $name;
-        my $aok = ref $out eq 'HASH' && $out->{ok};
         # SM750 / SM711 half 2: audit_detail FIRST - the `kind: cause - remedy`
         # line a refusal composes - then the class, then the sentence. The same
         # order the control API uses, so the two token channels leave the same

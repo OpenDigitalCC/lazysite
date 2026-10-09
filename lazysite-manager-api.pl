@@ -2259,7 +2259,14 @@ else {
 # (who did what, TO WHAT, when, from where, outcome). Reads/browsing are NOT
 # audited; the access log and the stats plugin cover those, and the audit must
 # not overlap with them. Read-ish POSTs (the UI POSTs everything) are skipped.
-if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
+#
+# SM943 RULING 1 (2026-10-09): "Audit is useful to see when a person or agent
+# has made material behaviour changes, authentication events and errors." So a
+# read's REFUSAL or ERROR is recorded, on GET as well as POST - a token client
+# reads over GET, and its refused read was the one row this block never wrote.
+# MCP applies the same rule to the same declaration (t/lint/23).
+my $AUDIT_FAILED = ref $result eq 'HASH' && !$result->{ok};
+if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
@@ -2393,7 +2400,11 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         $aud_action = $result->{created} ? 'create' : 'edit';
     }
 
-    if ( defined $aud_action && !$skip{$aud_action} ) {
+    # A read is skipped when it succeeds and recorded when it fails; a write the
+    # declaration leaves unaudited (lock, cache-invalidate, ...) stays skipped.
+    if ( defined $aud_action
+        && ( !$skip{$aud_action} || ( $AUDIT_FAILED && !$MUTATING{$aud_action} ) ) )
+    {
         my $ok = ref $result eq 'HASH' && $result->{ok};
         # On failure, record a short reason (kind, else the error text) as the
         # detail field so the audit can show WHY it failed.

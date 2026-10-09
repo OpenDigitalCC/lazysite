@@ -12,8 +12,8 @@ it in Claude.ai / ChatGPT / Claude Code) see [Connect an AI assistant](/docs/ai-
 The connector is **supervised, not autonomous**: an AI drafts and edits through
 these tools, but it is bound by the partner's capabilities and per-file ACLs, the
 deny-list (it can never read or write delivery secrets), and - for write actions -
-the AI client's own per-call approval. Reads are not audited; writes are recorded
-as material events.
+the AI client's own per-call approval. A read is not audited unless it is refused
+or fails; writes are recorded as material events.
 :::
 
 ## Endpoint and protocol
@@ -86,8 +86,8 @@ machine-readable `kind`:
 
 ## Tools
 
-37 tools. **Reads** are not audited; **writes** are recorded in the audit log as
-material events and may trigger the AI client's per-call approval. All file tools
+37 tools. **Reads** are not audited (a refused or failed read is); **writes** are
+recorded in the audit log as material events and may trigger the AI client's per-call approval. All file tools
 need `manage_content` unless noted.
 
 ### Identity
