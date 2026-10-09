@@ -13,8 +13,10 @@
 #
 # The instance is 209's: alpha.test at sites/alpha, beta.test at sites/beta, the
 # primary. Forms: fa on a page in sites/alpha, fb in sites/beta, fp on a primary
-# page, fab on a page in each of alpha and beta, fx on none; and fp is also bound
-# on sites/alpha/shared.md, a page the operator made.
+# page, fab on a page in each of alpha and beta; and fp is also bound on
+# sites/alpha/shared.md, a page the operator made. On no page: fr registered
+# (lazysite/forms/fr.conf), fs with a submissions store only, fm registered as
+# Fm.conf, and fnew, which exists nowhere.
 use strict;
 use warnings;
 use Test::More;
@@ -82,13 +84,16 @@ subtest 'page_form_names reads the form as the processor renders it' => sub {
 };
 
 subtest 'form_bind_refusal: a new page naming each form' => sub {
-    #                                         fa fb fp fab fx
+    spit( "$d/lazysite/forms/fr.conf",              "targets:\n" );
+    spit( "$d/lazysite/forms/Fm.conf",              "targets:\n" );
+    spit( "$d/lazysite/forms/submissions/fs.jsonl", "{}\n" );
+    #                                         fa fb fp fab fr fs fm fnew
     my %want = (
-        'a grant scoped to alpha'          => 'YNNNN',
-        'a grant naming no scope'          => 'YYYYY',
-        'a grant scoped to alpha and beta' => 'YYNYN',
+        'a grant scoped to alpha'          => 'YNNNNNNY',
+        'a grant naming no scope'          => 'YYYYYYYY',
+        'a grant scoped to alpha and beta' => 'YYNYNNNY',
     );
-    my @f = qw(fa fb fp fab fx);
+    my @f = qw(fa fb fp fab fr fs fm fnew);
     for my $who ( sort keys %want ) {
         my @w = split //, $want{$who};
         for my $i ( 0 .. $#f ) {

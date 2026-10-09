@@ -429,6 +429,18 @@ The rule
   cannot read is refused. The operator and an unbound cookie manager are not
   asked; an unbound token, grant or account reaches every form (R3).
 
+A form that exists nowhere (decided in the build, for review)
+: Read to the letter, the ruling refuses a scoped caller every form no page
+  binds yet, since such a form counts as the primary's - including a new form
+  of its own, so `create_form` with a new name, and a page naming one, would
+  fail for every scoped caller. F2 already reads a new name as the page's own
+  (create_form asks only of a form that exists). So a form that exists nowhere
+  - no `lazysite/forms/NAME.conf`, no submissions in the default store, no page
+  binding it; compared without case, as `form_bindings` compares - is not
+  refused: it has no settings or submissions for a binding to take, and naming
+  it creates it (`form_exists_anywhere`). Every form that exists is judged by
+  the rule.
+
 Which form a page names
 : `page_form_names`: both readings - the processor's (the last column-0
   `form:` key, its value read past a line break, TT markers and quotes removed,
@@ -478,7 +490,7 @@ Evidence (n316)
   copy_file, replace_text, move_file, rename_page, WebDAV PUT, COPY and MOVE,
   site-backup-apply and site_apply, each with the unbound callers served);
   lint 218 section 8 and lint 114. Every new assertion sabotage-verified
-  (tmp/q15e-sabotage.pl, 22 cases).
+  (tmp/q15e-sabotage.pl, 26 cases).
 
 # Found in Q15e
 

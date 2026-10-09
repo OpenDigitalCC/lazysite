@@ -212,6 +212,8 @@ subtest 'the control API: the cookie file save' => sub {
             sub { api( $_[0], 'save', { content => page('other_form') }, "action=save&path=sites/mine/oth-$_[0].md" ) } ],
         [ 'a new page in mine binding mine_form', 'YYY',
             sub { api( $_[0], 'save', { content => page('mine_form') }, "action=save&path=sites/mine/own-$_[0].md" ) } ],
+        [ 'a new page in mine binding a form that exists nowhere (it creates it)', 'YYY',
+            sub { api( $_[0], 'save', { content => page("fresh_$_[0]") }, "action=save&path=sites/mine/fresh-$_[0].md" ) } ],
         [ 'the page already binding prim_form, edited', 'YYY',
             sub { api( $_[0], 'save', { content => page( 'prim_form', "$_[0]\n" ) }, 'action=save&path=sites/mine/shared.md' ) } ],
     );
@@ -274,6 +276,10 @@ subtest 'MCP' => sub {
         [ 'rename_page of the page binding prim_form', 'N',
             sub { mcp( $_[0], 'rename_page', { old => 'sites/mine/shared', new => 'sites/mine/renamed' } ) } ],
     );
+    run_cells( 'mcs',
+        [ 'create_form with a new name on a page of its own', 'Y',
+            sub { mcp( $_[0], 'create_form', { name => 'join_us', path => 'sites/mine/join' } ) } ] );
+    like( slurp("$d/sites/mine/join.md"), qr/form: join_us/, '...and the page binds it' );
     unlike( slurp("$d/sites/mine/plain.md"), qr/form:/, 'plain.md binds nothing' );
     ok( -e "$d/sites/mine/shared.md", 'shared.md stayed where it was' );
 };

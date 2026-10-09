@@ -68,6 +68,8 @@ Archive
   COPY and MOVE. A move, a rename or a copy of a binding page is a new binding
   where it lands. The form is read as the processor renders it and as the form
   rule finds it, so a second `form:` line or a value on the next line is caught.
+  A form that exists nowhere (no registration, no submissions, no page) is a
+  new form and the page's own, so `create_form` with a new name still works.
   Editing a page that already binds the form, and removing a binding, are
   unchanged; so are the operator, an unbound cookie manager and an unbound
   token, grant or account (they reach every form). 403, kind

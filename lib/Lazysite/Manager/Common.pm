@@ -821,6 +821,31 @@ sub page_form_names {
     return @names;
 }
 
+# Does a form of this name exist anywhere: a registration (lazysite/forms/
+# NAME.conf), a submissions store in the default place, or a page binding it?
+# Case-insensitive, as form_bindings is. A form that exists nowhere has no
+# settings and no submissions for a binding to take: naming it creates it, and
+# it is the page's own - F2's reading for create_form ("a new name is the page's
+# own"), which would otherwise be refused to every scoped caller, since a form
+# no page binds counts as the primary's. Unknown (no docroot): it exists.
+sub form_exists_anywhere {
+    my ($name) = @_;
+    return 1 unless defined $name && length $name;
+    return 1 if form_pages($name);
+    my $doc = ( defined $DOCROOT && length $DOCROOT ) ? $DOCROOT : ( $ENV{DOCUMENT_ROOT} // '' );
+    return 1 unless length $doc;
+    my $lz = Lazysite::Paths::lazysite_dir($doc);
+    return 1 unless defined $lz && length $lz;
+    for my $where ( [ "$lz/forms", '.conf' ], [ "$lz/forms/submissions", '.jsonl' ] ) {
+        my ( $dir, $ext ) = @$where;
+        opendir my $dh, $dir or next;
+        my @hit = grep { /\A(.+)\Q$ext\E\z/ && lc($1) eq lc($name) } readdir $dh;
+        closedir $dh;
+        return 1 if @hit;
+    }
+    return 0;
+}
+
 # The text of the page at a docroot-relative path as it stands, from whichever
 # tree holds it (the private store wins, as it does for every read), or undef.
 sub _current_page_text {
@@ -860,8 +885,8 @@ sub form_bind_refusal {
     return unless _confined_who(%by);
     my @names = page_form_names($text);
     return unless @names;
-    my %had = map  { $_ => 1 } page_form_names( _current_page_text($r) );
-    my @new = grep { !$had{$_} && !caller_may_reach_form( $_, %by ) } @names;
+    my %had = map { $_ => 1 } page_form_names( _current_page_text($r) );
+    my @new = grep { !$had{$_} && form_exists_anywhere($_) && !caller_may_reach_form( $_, %by ) } @names;
     return unless @new;
     my $f = $new[0];
     return _refusal(
