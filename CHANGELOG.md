@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the URL remapper's two manager actions are a
+  module** (S22 of the plan in the filing). remap-list and remap-save, with
+  the scope check they share, move unchanged to `Lazysite::Manager::Remap`,
+  which reads the request context from `Lazysite::Manager::Common`; loaded
+  outside a request they refuse every host. No behaviour change.
+
 - SM944 (PENDING) **internal: the manager API's request context is shared,
   and refuses until a request sets it** (S21 of the plan in the filing, as
   the release manager ruled on 2026-10-09). Who is asking, through which
