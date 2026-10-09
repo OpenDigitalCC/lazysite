@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, from the gaps SM975 found and did not change
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\". Every host- or root-addressed action on the control API, MCP and WebDAV asks Manager::Common::caller_may_reach_domain; a confined caller reaches only its own domains, the operator all. t/integration/112, t/unit/manager/207, t/unit/data/66, t/lint/218. Rulings R1-R4 (2026-10-09) built (n314): a confined caller changes no instance-wide setting (closed list, lint 218 section 5); an unbound cookie manager is unconfined; unbound grants keep the primary; the data surface asks the shared rule. t/integration/114, 115, t/unit/data/67. Three further findings for a ruling (below)."
+status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). Rulings R1-R4 built (n314): no instance-wide writes for a confined caller, unbound cookie manager unconfined, unbound grants keep the primary, the data surface asks the shared rule. t/integration/112, 114, 115. Three findings open for a ruling."
 ---
 
 # What was wrong
