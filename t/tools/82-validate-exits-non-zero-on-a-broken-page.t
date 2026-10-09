@@ -100,6 +100,30 @@ subtest 'bad usage is 2, not 1' => sub {
     is( $none, 2, 'and so does naming no file' );
 };
 
+# SM976 Q15i (ruled 2026-10-09, "Same rule" for every page walk): a run over
+# every page of a site, one of them not UTF-8 (put there by git or SSH). Before,
+# the checks died on it: exit 255 and nothing printed for any page, --json
+# included (tmp/q15i-more-probe.before.out). Now that file is reported as one it
+# could not read, as an unopenable one always was, and every other is checked.
+subtest 'a file that is not UTF-8 is reported, and the rest are checked' => sub {
+    my $bad = "$d/latin1.md";
+    open my $fh, '>:raw', $bad or die $!;
+    print {$fh} "---\ntitle: B\nform:\xFF leads\n---\nB\n";
+    close $fh;
+    my ( $rc, $out ) = run( '--json', $clean, $bad, $broke );
+    is( $rc, 1, 'exit 1, not a die' );
+    my $j = eval { decode_json($out) };
+    ok( $j, 'parses as JSON' ) or diag($out);
+    is( scalar @{ $j->{files} || [] }, 3, 'with a result for every file' );
+    is( $j->{issues},                  2, 'its own issue and the broken page\'s' );
+    my ($r) = grep { $_->{file} eq $bad } @{ $j->{files} || [] };
+    is( $r->{issues}[0]{kind}, 'unreadable', 'the file is one it could not read' );
+    like( $r->{issues}[0]{message}, qr/not valid UTF-8 \(the first invalid byte is at offset 18\)/,
+        '...saying why and where' );
+    ( $rc, $out ) = run($clean);
+    is( $rc, 0, 'and a clean page alone still exits 0' );
+};
+
 subtest 'the verb reaches it through the lazysite CLI' => sub {
     my $out = qx($^X \Q$cli\E validate \Q$broke\E 2>&1);
     my $rc  = $? >> 8;

@@ -626,14 +626,30 @@ sub validate_content {
 
 # The same, for a file on disk. Unreadable is an ISSUE rather than a die: a run
 # over twenty pages should report the one it could not open and carry on.
+#
+# SM976 Q15i (ruled 2026-10-09, "Same rule" for every page walk): a file whose
+# bytes are not valid UTF-8 is unreadable in the same sense - it is not
+# validated, it is reported, and the run carries on. Read through a lax :utf8
+# layer, such a file made the checks die ("Malformed UTF-8 character
+# (fatal)"), and a run over every page of a site printed nothing for any of
+# them (tmp/q15i-more-probe.before.out). Judged by the rule a page write is
+# judged by (Manager::Common::invalid_utf8_offset); a valid file is decoded as
+# the :utf8 layer read it.
 sub validate_file {
     my ( $file, %o ) = @_;
-    open my $fh, '<:utf8', $file
+    open my $fh, '<:raw', $file
         or return { valid => 0, warnings => [],
         issues => [ { kind => 'unreadable', severity => 'issue', file => $file,
                 message => "cannot read $file: $!" } ] };
     my $content = do { local $/; <$fh> };
     close $fh;
+    my $at = Lazysite::Manager::Common::invalid_utf8_offset($content);
+    return { valid => 0, warnings => [],
+        issues => [ { kind => 'unreadable', severity => 'issue', file => $file,
+                message => "cannot read $file: it is not valid UTF-8 (the first invalid byte is at "
+                    . "offset $at), so it was not checked - save it as UTF-8 and check it again" } ] }
+        if defined $at;
+    utf8::decode($content) if defined $content;
     return validate_content( %o, content => $content, file => $file );
 }
 
