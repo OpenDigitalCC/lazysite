@@ -461,7 +461,7 @@ effective set.
 | Capability | Gates |
 |---|---|
 | `manage_content` | Content read/write (pages, assets) |
-| `manage_nav` | Navigation read/save |
+| `manage_nav` | Navigation save, and the raw `nav.conf` over WebDAV (the structured read, `nav-read`/`read_nav`, needs no capability - SM943) |
 | `manage_forms` | Form configs and bindings |
 | `manage_themes` | Theme activation and authoring under `lazysite/layouts/**` |
 | `manage_layouts` | Layout activation and structure authoring |

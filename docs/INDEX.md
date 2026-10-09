@@ -117,7 +117,7 @@ The manager, page by page, as an operator meets it.
 | [`00-how-to-use-this-guide.md`](00-how-to-use-this-guide.md) - Lazysite manager - the walkthrough guide | Every menu item, what to do with it, what to expect, and what a user without the capability should see. |
 | [`05-submissions.md`](05-submissions.md) - Submissions | Governing capability: read_submissions; the menu count also needs notifications. |
 | [`10-files.md`](10-files.md) - Files | Governing capability: manage_content. |
-| [`20-navigation.md`](20-navigation.md) - Navigation | Governing capability: manage_nav. |
+| [`20-navigation.md`](20-navigation.md) - Navigation | Governing capability: manage_nav, to save. |
 | [`30-appearance.md`](30-appearance.md) - Appearance | Governing capabilities: manage_themes or manage_layouts - either opens the page, and the controls inside are gated separately. |
 | [`40-plugin-manager.md`](40-plugin-manager.md) - Extensions | One menu entry, two pages with a deliberate split (SM957 made them one entry): the Extensions page decides what runs, and its Configure page (/manager... |
 | [`45-data-tables.md`](45-data-tables.md) - Data tables | A table holds site data -- a product list, an events calendar, a directory. |

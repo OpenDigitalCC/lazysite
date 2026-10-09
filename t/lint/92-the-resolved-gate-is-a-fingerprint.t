@@ -97,8 +97,11 @@ is_deeply( \@broken, [], 'every predicate evaluated without dying' );
 # discloses nothing a caller does not already hold - it resolves the logins it
 # is GIVEN and is not a listing, so a caller without a login learns nothing by
 # asking about it. Named here so that is on the record as a decision.
+# SM943 ruling 2: nav-read - the nav is public, so the structured read takes no
+# capability; what it reaches is the caller's own domains (SM976), decided by
+# the action, not the gate.
 my %DELIBERATELY_CONSTANT
-    = map { $_ => 1 } qw(whoami describe-capabilities actions-list connector-call display-names);
+    = map { $_ => 1 } qw(whoami describe-capabilities actions-list connector-call display-names nav-read);
 my @unexpected = grep { !$DELIBERATELY_CONSTANT{$_} } @constant;
 is_deeply( \@unexpected, [], 'no gate silently ignores the capabilities it is given' )
     or diag( "constant-answer gates: @unexpected\n"

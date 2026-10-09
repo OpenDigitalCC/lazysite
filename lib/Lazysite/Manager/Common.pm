@@ -705,7 +705,9 @@ sub _is_submission_store_path {
 
 # SM268 H4: the carve-outs above are reachable by PATH on the generic file
 # surface, and each of them is governed by a CAPABILITY on every other plane.
-# nav.conf needs manage_nav for nav-read/nav-save and over WebDAV; the
+# The raw nav.conf needs manage_nav, to read or write, here and over WebDAV, as
+# nav-save does (the STRUCTURED read, nav-read/read_nav, needs no capability:
+# SM943 ruling 2); the
 # submission store needs read_submissions (or manage_forms) for
 # form-submissions and read_form_submissions, and WebDAV refuses it outright.
 # read_file/write_file asked only "is this path blocked", so a partner holding

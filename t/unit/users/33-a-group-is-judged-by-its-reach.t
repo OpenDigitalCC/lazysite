@@ -90,7 +90,8 @@ like( $out, qr/^\s+mcp\s+open\s+0 callable$/m,
 ( $rc, $out ) = users( 'group-reach', 'inner' );
 like( $out, qr/manage_nav \(via nav-only\)/,
     'a nested group inherits its parent\'s capability and says where it came from' );
-like( $out, qr/^\s+api\s+open\s+\d+ callable: .*\bnav-read\b/m,
+# SM943 ruling 2: nav-read needs no capability now; nav-save is the parent's.
+like( $out, qr/^\s+api\s+open\s+\d+ callable: .*\bnav-save\b/m,
     'and reaches the parent\'s actions - the closure caps_for enforces' );
 
 ( $rc, $out ) = users('group-reach');

@@ -1754,15 +1754,12 @@ my %TOOLS = (
     },
     read_nav => {
         description => 'Read a site navigation as a structured list (top-level items with optional children), plus which nav_file it came from and whether that is INHERITED from the primary site. WITHOUT `host` this reads the primary site. WITH `host` it reads that one configured domain. Call list_domains first if the instance may serve more than one site. Read this before set_nav to modify it.',
-        # SM421 (parity map F1): manage_nav, not manage_content. This was
-        # path_aware, but its run passes only `host` and no path - so the
-        # dispatcher's carve-out pass had nothing to inspect and never demanded
-        # the capability that owns nav.conf. WebDAV GET of nav.conf and the
-        # API's token nav-read both require manage_nav, and set_nav (the write)
-        # already did; only the MCP READ undershot. Low sensitivity - nav is
-        # public - but the engine's own rule about who owns nav.conf was not
-        # upheld on one surface out of three.
-        cap         => 'manage_nav',
+        # SM943 ruling 2 (2026-10-09): the STRUCTURED nav read needs no
+        # capability beyond MCP access - the nav is public - as its twin
+        # nav-read needs none beyond the control API's. Its reach is the grant's
+        # own domains (SM976, Manager::Nav). set_nav stays manage_nav, as does
+        # a WebDAV GET of the raw nav.conf.
+        cap         => undef,
         inputSchema => { type => 'object',
             properties => {
                 host => { type => 'string', description => 'configured domain to read; omit for the primary site' },

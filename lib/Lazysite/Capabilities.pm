@@ -73,7 +73,7 @@ my %ACTION_INFO = (
                     acl-get acl-set acl-remove
                     data-table-acl-get data-table-acl-set data-table-acl-remove
                     brief-read briefs-list
-                    nav-read page-pdf pages) ],
+                    page-pdf pages) ],
             mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
@@ -89,19 +89,15 @@ my %ACTION_INFO = (
         section => 'Content',
         title   => 'Edit site navigation.',
         grants => 'Edit the site\'s navigation - what appears in the menu, and in what order.',
-        # SM568: nav-read and pages are reads a content author needs as much
-        # as a nav editor, so manage_content admits them too. Listed under
-        # both, as form-submissions is under manage_forms and read_submissions.
-        # SM943: list_pages sits under manage_content over MCP; read_nav does
-        # NOT - SM421 moved it to manage_nav five days before SM568, whose
-        # record took it to be under manage_content still - so the map lists
-        # it here only, which is what the gate does.
+        # SM568: `pages` is a read a content author needs as much as a nav
+        # editor, so manage_content admits it too and it is listed under both.
+        # SM943 ruling 2 (2026-10-09): the structured nav read (nav-read,
+        # read_nav) needs no capability at all - the nav is public - so it is
+        # listed under none; this capability is the WRITE, and the WebDAV GET
+        # of the raw file.
         unlocks => {
-            api => [qw(nav-read nav-save pages)],
-            # SM654 (U-3): read_nav declares cap => 'manage_nav' in %TOOLS, the
-            # gate admits it, and it returns the nav - and this said set_nav
-            # only. Measured by the site agent; t/lint/90 now refuses the shape.
-            mcp    => [qw(set_nav read_nav)],
+            api    => [qw(nav-save pages)],
+            mcp    => [qw(set_nav)],
             webdav => ['lazysite/nav.conf'],
         },
     },
@@ -358,7 +354,7 @@ my %ACTION_INFO = (
     # here AND under manage_content, because the gate admits either: the
     # migration keeps brief reads with a long-standing manage_content grant and
     # moves only the writes. A capability's unlocks list states what holding it
-    # gives you, not what it exclusively gives you (manage_nav's nav-read and
+    # gives you, not what it exclusively gives you (manage_nav's pages and
     # manage_forms' form-submissions are listed twice for the same reason).
     manage_briefs => {
         section => 'Content',

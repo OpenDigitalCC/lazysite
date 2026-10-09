@@ -152,7 +152,7 @@ tone: medium
 `migrate-to-local` | cookie only | path (query)
 `mkdir` | cookie only | path (query)
 `move` | cookie only | path (query), to (query)
-`nav-read` | manage_content / manage_nav | host (query)
+`nav-read` | any authenticated | host (query)
 `nav-save` | manage_nav | items (body), host (query_or_body)
 `notices` | notifications |  
 `notices-seen` | cookie only | id (query), dismiss (query)

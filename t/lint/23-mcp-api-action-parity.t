@@ -66,7 +66,10 @@ my %CONNECTOR_GATED = map { $_ => 1 } qw(connector-call connector_call);
 # sensibly own them, and describe_capabilities does not under-report by
 # leaving them out. If either ever grows a way to enumerate accounts, it needs
 # a capability and this exemption goes.
-my %NO_CAPABILITY_HOME = map { $_ => 1 } qw(display-names display_names);
+# SM943 ruling 2 (2026-10-09): the structured nav read, nav-read / read_nav,
+# needs no capability beyond the surface's base access - the nav is public -
+# and reaches only the caller's own domains (SM976). No capability owns it.
+my %NO_CAPABILITY_HOME = map { $_ => 1 } qw(display-names display_names nav-read read_nav);
 
 # SM431 removed the CHANNEL_GATED exemption that lived here: the ACL actions
 # now have an action-capability home (manage_content, matching their MCP

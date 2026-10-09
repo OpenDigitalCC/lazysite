@@ -5,7 +5,10 @@ brand: plain
 
 # Navigation
 
-Governing capability: `manage_nav`.
+Governing capability: `manage_nav`, to save. Reading the menu needs no
+capability beyond manager access - `nav-read` on the control API and `read_nav`
+over MCP alike - and shows only the domains the reader reaches (SM943 ruling 2,
+SM976). `manage_content` grants nothing nav-specific.
 
 ## Edit the menu
 

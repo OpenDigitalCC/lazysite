@@ -148,9 +148,13 @@ subtest 'and it is subset by grant, not a menu of refusals' => sub {
     # whole justification, so it is also the thing that would have to be
     # re-argued if the action ever grew a "list them all" mode. This list is
     # short deliberately; adding to it is a decision, not a detail.
+    #
+    # SM943 ruling 2 (2026-10-09): and nav-read - the nav is public, so its
+    # structured read needs no capability, and it reads only the caller's own
+    # domains (SM976).
     is_deeply( [ sort @names ],
-        [ 'actions-list', 'connector-call', 'describe-capabilities', 'display-names', 'whoami' ],
-        'a capless token sees the introspection actions, connector-call and display-names' )
+        [ 'actions-list', 'connector-call', 'describe-capabilities', 'display-names', 'nav-read', 'whoami' ],
+        'a capless token sees the introspection actions, connector-call, display-names and nav-read' )
         or diag( 'Listing everything would be a list of things to try and be '
             . 'refused - and the refusals then read as defects.' );
 

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: control-api
-status-note: "SHIPPED (PENDING) 2026-10-07: stages 1-3 (n259, n274). RULED 2026-10-09. Ruling 1 built (n309): a read is audited on neither door unless refused or failed; t/lint/23 holds both trails to one declaration. Ruling 2 (the structured nav read needs no capability) HELD: ungated, a domain-confined grant reads every domain's nav, ruled: confine host first, then build it. Downloads stay audited."
+status-note: "SHIPPED (PENDING) 2026-10-07: stages 1-3 (n259, n274). RULED 2026-10-09. Ruling 1 built (n309): a read is audited on neither door unless refused or failed. Ruling 2 built (n313) on SM976: the structured nav read (nav-read, read_nav) needs no capability, scope still applied; writes and the raw nav.conf stay manage_nav. Downloads stay audited."
 ---
 
 # Measured
@@ -51,7 +51,11 @@ Ruled 2026-10-09, on the hold below
 
 Ruling 1. MCP's `%AUDITED_READ` is gone and its skip set is the read-only tools with none named, so the seventeen reads stop writing a row on success, as their API twins never did. A read that is refused or errors is recorded on both doors: MCP wrote no row for a read its handler refused (only for a gate refusal), and the control API's audit block ran for POST only, so a refused read over GET - how a token client reads - wrote none. Writes are unchanged. `t/lint/23` section 6 holds the trails to one declaration: MCP's rule must name no tool and nothing else may write its skip set, and every twin is audited on both trails or on neither. `regenerate-registries` is recorded there as the one twin that differs, a write outside this ruling (unaudited on the API by `audited => 0`, audited over MCP as every write tool is). `t/unit/mcp/28` and `t/unit/manager/206` drive both doors.
 
+# Built (n313)
+
+Ruling 2, on top of [[SM976]], which confined `host` on every nav action first. The control API's `nav-read` is `ALWAYS` in `%GATE` and MCP's `read_nav` declares `cap => undef`: the structured read needs only the surface's base access, the same on both. What it reads is still the caller's own domains (`Manager::Nav::action_nav_read` asks `caller_may_reach_domain`). `nav-save` and `set_nav` stay `manage_nav`, and so does the raw `nav.conf` - a WebDAV GET, `read_file` - through `carveout_requirement`. `manage_content` no longer lists or opens `nav-read`: the SM568 unlock is gone from `Capabilities.pm` and the gate, and `manage_nav` lists only what it writes. Lints 23, 58 and 92 name the read as capability-less, with the reason. t/integration/113 drives both surfaces and WebDAV; t/unit/mcp/16 holds the declarations. Each change was reverted in turn and the tests failed (tmp/q15b-sabotage-n313.out).
+
 # Open
 
-- Ruling 2 is HELD, not built. Ungating the structured read lets every grant on the surface read EVERY domain's navigation through `host`, including a grant confined to one domain, where today only `manage_nav` holders can. Host-addressed actions elsewhere (`domain-set`, `remap-save`, the site packages, the data surface; SM578, SM648, SM802) refuse a domain outside the caller's scope, and the nav actions do not check it at all - measured 2026-10-09: a grant scoped to one domain with `manage_nav` read and REPLACED another domain's navigation through `nav-save` and `set_nav`. Ruled the same day: confine first, then build ruling 2 (above).
+- Ruling 2 was HELD here until SM976; built above (n313). Ungating the structured read lets every grant on the surface read EVERY domain's navigation through `host`, including a grant confined to one domain, where today only `manage_nav` holders can. Host-addressed actions elsewhere (`domain-set`, `remap-save`, the site packages, the data surface; SM578, SM648, SM802) refuse a domain outside the caller's scope, and the nav actions do not check it at all - measured 2026-10-09: a grant scoped to one domain with `manage_nav` read and REPLACED another domain's navigation through `nav-save` and `set_nav`. Ruled the same day: confine first, then build ruling 2 (above).
 - A `write_data` door on MCP's row tools needs `Manager::Data::row_write_refusal` in them first.

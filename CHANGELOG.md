@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM943 ruling 2 (PENDING) **the structured nav read needs no capability**
+  (ruled 2026-10-09: "As nav is public, do we need a cap to be able to read
+  it? ... Surfaces should be consistent"). `nav-read` on the control API and
+  `read_nav` over MCP need only the surface's base access, and read only the
+  caller's own domains (SM976). **Behaviour change:** a token or MCP grant
+  without `manage_nav` or `manage_content` now reads the navigation of its own
+  domains; `manage_content` no longer opens anything nav-specific. Writing
+  (`nav-save`, `set_nav`) and the raw `nav.conf` (WebDAV GET) stay
+  `manage_nav`. t/integration/113.
+
 - SM976 (PENDING) **security: a confined caller reached other domains on every
   surface.** A token, MCP grant, WebDAV account or cookie manager confined to
   one domain could add a domain at any content root, alias or remove any

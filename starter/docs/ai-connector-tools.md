@@ -186,7 +186,9 @@ list_schedule / save_schedule `{ id, handler, every, payload }` / delete_schedul
 
 read_nav
 : The site navigation as a structured list (items + children) plus the raw
-  nav.conf. Read before set_nav.
+  nav.conf. Read before set_nav. Needs no capability beyond MCP access - the
+  nav is public - and reads only the domains your grant reaches; omit `host`
+  for the primary site.
 
 list_themes
 : The themes installed across all layouts, with which is active. Needs
@@ -272,7 +274,7 @@ bind_form `{ form, handler }` or `{ form, handlers: [...] }`
 set_nav `{ items }`
 : Replace the site navigation - `items` is an ordered list of `{ label, url }`
   (a `children` list becomes a sub-menu; an item with no url is a section header).
-  Writes nav.conf and rebuilds the cache.
+  Writes nav.conf and rebuilds the cache. Needs `manage_nav`.
 
 ### Site operations
 

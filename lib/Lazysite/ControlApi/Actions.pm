@@ -248,10 +248,12 @@ our %GATE = (
     # SM105: navigation is a token-client action gated by manage_nav (which
     # inherits manage_content / webdav), so a WebDAV/API partner can read and
     # write the site nav without the MCP connector or raw WebDAV to lazysite/.
-    # SM568: reading the navigation is a content read as much as a nav
-    # editor's; manage_content admits it. (The MCP twin read_nav does not: it
-    # is gated on manage_nav alone since SM421 - see Capabilities.pm.)
-    'nav-read' => [qw(manage_content manage_nav)],
+    # SM943 ruling 2 (2026-10-09): the STRUCTURED nav read needs no capability
+    # beyond the surface's base access - the nav is public - and is the same on
+    # both surfaces (read_nav). Its reach is still the caller's own domains
+    # (SM976, Manager::Nav). Writing stays manage_nav, as does a WebDAV GET of
+    # the raw nav.conf; manage_content grants nothing nav-specific.
+    'nav-read' => 'ALWAYS',
     'nav-save' => [qw(manage_nav)],
     # SM134 follow-ups: the alias-redirect map is content-derived - a content
     # partner may list it (read-only; aliases are front-matter-authored).
