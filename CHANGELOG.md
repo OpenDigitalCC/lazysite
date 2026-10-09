@@ -139,7 +139,7 @@ Archive
   now UTC days. The server-log reader now reads each stamp's own offset, and
   the form handler records outcomes under the UTC day. **A server-log site on
   a host not set to UTC now gets UTC days instead of the log's local dates;**
-  the day of the upgrade can be split across two buckets. Fourteen stats tests
+  the day of the upgrade can be split across two buckets. Nineteen stats tests
   assumed the local calendar and are fixed (WORK-PLAN-0153 Q14g: three failed
   on main between midnight and 01:00 BST); t/unit/plugins/48.
 

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, Q14g - three stats tests failed on main between local midnight and 01:00 BST (found by the SM944 S20 agent)
 area: correctness
-status-note: "SHIPPED (PENDING) n305: every stats day is a UTC day - _day_str uses gmtime, the server-log parser reads a stamp's offset and keys by the UTC day of the instant, the form handler records an outcome under the UTC day. Fourteen stats tests fixed to the same calendar; t/unit/plugins/48 pins all three product changes."
+status-note: "SHIPPED (PENDING) n305: every stats day is a UTC day - _day_str uses gmtime, the server-log parser reads a stamp's offset and keys by the UTC day of the instant, the form handler records an outcome under the UTC day. Nineteen stats tests fixed to the same calendar; t/unit/plugins/48 pins all three product changes."
 ---
 
 # What was wrong
@@ -65,7 +65,7 @@ that their last hours east of UTC now reach the file.
 
 # The tests
 
-Fourteen stats tests had the same split. Each one stamped `localtime` labelled
+Nineteen stats tests had the same split. Each one stamped `localtime` labelled
 `+0000`, named a day by the local date, or placed events "an hour ago" and
 read "today":
 
@@ -79,9 +79,14 @@ read "today":
 - **30**: local noon yesterday (wrong more than twelve hours from UTC) is now
   noon UTC.
 - **31, 08, 46**: file names and days use `gmtime`.
+- **14, 15, 16, 19, 27** (SM600): records are stamped 90 minutes back and
+  spread over a few minutes. From 01:28 to 01:30 UTC that spread crossed a
+  midnight, and the day asked for held only half the fixture. 19 and 27 failed
+  on main at 01:29 UTC, in the stack handoff. $now now moves back to just
+  before the midnight when the span would cross it.
 
-t/unit/plugins/19 (SM600) already used UTC days, and failed on main under
-America/Los_Angeles because the product did not. It passes now with no change.
+t/unit/plugins/19 already used UTC days. It also failed on main under
+America/Los_Angeles, because the product did not.
 
 # Evidence
 
@@ -99,7 +104,9 @@ PERL5OPT, it gives every perl process in a test the same skewed clock.
   nine fake-clock instants including 00:30 and 00:59 BST, 23:59:50 UTC, both
   sides of Kiritimati's midnight, Los Angeles evening and the end of a month):
   on main 7 test files fail across 11 of the 13 scenarios; after the fix all pass in
-  all 13.
+  all 13. Three instants added later (01:28:20 and 01:29:30 UTC, 02:31 BST)
+  catch the 90-minute fixtures: on main 19 and 27 fail at the first, and 15,
+  16, 19 and 27 at the second. After the fix they all pass.
 - **t/unit/plugins/48** uses a POSIX zone 23:59 east of UTC, so the local date
   is a day ahead for all but one minute of every UTC day and the suite needs no
   fake clock. Run against main's code, all three of its subtests fail.
