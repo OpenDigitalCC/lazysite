@@ -61,6 +61,14 @@ Archive
   `/about.md` are both `/about.md`). It appends the block, and adds a front
   matter block when the page has none. A page it cannot read is refused, and
   an edit made after the read is not overwritten. t/integration/119.
+
+- SM944 (PENDING) **internal: the users-tool client and the account caps memo
+  are `Lazysite::Manager::Common`'s** (S22b, a row the release manager added
+  before S23 on 2026-10-09). `users_api` and the subs behind it, and
+  `_user_caps` with its memo, move unchanged so S23's handlers can call them.
+  The memo joins the request context: the manager API empties it before each
+  request's auth check, and outside a request it holds nothing (lint 217,
+  test 205). No behaviour change.
 - SM976 (PENDING) **MCP: each tool declares which arguments are content paths**
   (ruled 2026-10-09, "Fix: per-tool path args"). One list of path argument names
   for every tool (SM661) made `replace_text`'s `old` and `new` paths, so a grant
