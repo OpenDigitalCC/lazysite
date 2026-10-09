@@ -13,7 +13,8 @@ use Cwd            qw(realpath);
 use Errno          ();                  # %! (errno names) for the permission-failure hint
 use File::Basename qw(dirname basename);
 use Fcntl          qw(:flock);
-use JSON::PP       qw(encode_json);
+use IPC::Open2     qw(open2);           # SM944 S22b: the users-tool client
+use JSON::PP          qw(encode_json decode_json);
 use Lazysite::Util qw(log_event);
 use Lazysite::Private ();
 use Exporter 'import';
@@ -30,8 +31,9 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
     active_artifact_refusal refusal_detail refusal_status
-    reset_request_context NO_REQUEST_CONTEXT
-    $action $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $path $body);
+    reset_request_context NO_REQUEST_CONTEXT users_api _users_tool_run _users_tool_path _tool_path _user_caps
+    $action $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $path $body
+    %USER_CAPS);
 
 our $DOCROOT;    # set by the script
 
@@ -58,7 +60,8 @@ sub render_source_exists {
 # %token_caps), how far it reaches (@REQUEST_SCOPES, and $REQUEST_CONFINED,
 # whether those scopes were resolved at all), whether it is the operator
 # ($IS_OPERATOR, the memo behind the script's _operator()), and what it asked
-# for ($action, $path, $body).
+# for ($action, $path, $body). S22b added %USER_CAPS, the per-account caps memo
+# behind _user_caps below, which only the reset and _user_caps write.
 #
 # OWNED HERE, WRITTEN BY ONE FILE. lazysite-manager-api.pl imports them in place
 # of the file-scope `my` variables it used to declare, sets them as the request
@@ -84,7 +87,7 @@ sub render_source_exists {
 # Their default is the empty string they always had.
 sub NO_REQUEST_CONTEXT { return "\0no request context" } # a sub: lint 02 refuses `use constant`
 our ( $action, $auth_user, $token_auth, %token_caps, @REQUEST_SCOPES, $REQUEST_CONFINED,
-    $IS_OPERATOR, $path, $body );
+    $IS_OPERATOR, $path, $body, %USER_CAPS );
 
 sub reset_request_context {
     $action     = '';                                          # no action
@@ -96,15 +99,23 @@ sub reset_request_context {
     $IS_OPERATOR      = 0;
     $path             = undef;
     $body             = '';
+    %USER_CAPS        = ();                          # no account's caps remembered
     return;
 }
 reset_request_context();
 
 # --- SM944 S22b: the users-tool client and the caps memo --------------------
 #
-# Moved unchanged out of lazysite-manager-api.pl (ruled 2026-10-09).
-
-my %USER_CAPS;      # SM516 MO-1: the memo behind _user_caps()
+# Moved unchanged out of lazysite-manager-api.pl (ruled 2026-10-09). The script
+# imports them; S23's handlers call them from their own modules.
+#
+# %USER_CAPS, the memo behind _user_caps (SM516 MO-1), is declared with the
+# request context above and emptied by reset_request_context(), which the script
+# runs before its auth check. It was a file-scope `my` of the script, new with
+# every run of it; here it lives as long as the process that loaded Common, so
+# without the reset a pooled worker would answer one request's caps question
+# from an earlier request's account store. Filled only by _user_caps
+# (t/lint/217).
 
 # Resolve a shipped tool across install layouts: the cgi-bin sibling in
 # production, the repo root in tests, the docroot's parent for a packaged

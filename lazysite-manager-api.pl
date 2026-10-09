@@ -36,6 +36,7 @@ use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checke
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key processor_path
     reset_request_context
+    users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body);
 use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download collect_zip_paths
     check_upload_rate is_editable_text parse_multipart_body);
