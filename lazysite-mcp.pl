@@ -2155,6 +2155,7 @@ sub _mcp_search {
                 $reason    = 'file_budget';
                 last;
             }
+            next if _search_unreadable( $full, $key );
             open my $fh, '<:utf8', $full or next;
             my $ln = 0;
             while ( my $line = <$fh> ) {
@@ -2199,6 +2200,33 @@ sub _mcp_search {
         # opposite responses and used to be indistinguishable.
         ( $truncated ? ( truncated_reason => $reason ) : () ),
     };
+}
+
+# SM976 Q15i (ruled 2026-10-09, "Same rule" for search_files and the other page
+# walks): A FILE THE SEARCH CANNOT DECODE IS LEFT OUT, LOGGED, AND THE REST IS
+# ANSWERED. Bytes that are not valid UTF-8 (put there by git, SSH or a restore)
+# read through the lax :utf8 layer into a matched line the JSON encoder dies on,
+# so one such file in the base left the whole call with no JSON-RPC body
+# (tmp/q15h-walkers-probe.after.out). Judged before the search reads the file,
+# so a file is answered whole or not at all; a line ends at "\n", which no
+# multi-byte character contains, so judging line by line is judging the file.
+# True when the file is left out.
+sub _search_unreadable {
+    my ( $full, $rel ) = @_;
+    open my $fh, '<:raw', $full or return 0;  # unopenable: the search's own open skips it
+    my $at = 0;
+    while ( my $line = <$fh> ) {
+        my $bad = Lazysite::Manager::Common::invalid_utf8_offset($line);
+        if ( defined $bad ) {
+            close $fh;
+            log_event( 'WARN', 'search_files', 'a page that cannot be read is left out',
+                page => $rel, error => 'not valid UTF-8 (first invalid byte at offset ' . ( $at + $bad ) . ')' );
+            return 1;
+        }
+        $at += length $line;
+    }
+    close $fh;
+    return 0;
 }
 
 # Publish status for a page: is the source there, has the rendered HTML cache

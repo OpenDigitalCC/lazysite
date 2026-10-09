@@ -84,4 +84,22 @@ subtest 'form_list, through the form rule\'s walk' => sub {
     like( $log, qr/\[form-rule\] a page whose front matter cannot be read binds no form/, 'the page is logged' );
 };
 
+# Q15i (ruled 2026-10-09, "Same rule"): search_files reads page text, not front
+# matter; with the page in its base it answered with no JSON-RPC body at all.
+subtest 'search_files' => sub {
+    my ( $r, $log ) = mcp( 'search_files', { query => 'title' } );
+    ok( $r->{ok}, 'answers' ) or diag explain $r;
+    is_deeply( [ sort map { $_->{path} } @{ $r->{matches} || [] } ], [ '/blog/a.md', '/index.md' ],
+        'with every readable page that matches, and not the one it cannot read' );
+    like( $log, qr/\[WARN\].*\[search_files\] a page that cannot be read is left out/, 'the page left out is logged' );
+    like( $log, qr{page=blog/bad\.md},               '...by its path' );
+    like( $log, qr/first invalid byte at offset 18/, '...and where its bytes stop being UTF-8' );
+
+    # A match on a line before the bad byte is not answered either: the file is
+    # judged whole before it is searched.
+    ( $r, $log ) = mcp( 'search_files', { query => 'B', path => '/blog' } );
+    ok( $r->{ok}, 'a base holding only the matching bad page answers' ) or diag explain $r;
+    is_deeply( $r->{matches}, [], '...with no match from it' );
+};
+
 done_testing();
