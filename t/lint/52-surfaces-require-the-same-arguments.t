@@ -53,9 +53,10 @@ my $api = slurp("$root/lazysite-manager-api.pl");
 # --- the dispatcher's silent defaults ----------------------------------------
 # Whatever the control API supplies without the caller asking. If a second one is
 # ever added, every pairing below has to be reconsidered - so this is derived,
-# not hard-coded.
+# not hard-coded. SM944 S21: `$path` and `$action` are imported from
+# Manager::Common now, so the default is an assignment, no longer a `my`.
 my %api_default;
-while ( $api =~ /^my \$([a-z_]+)\s*=\s*\$params\{([a-z_]+)\}\s*\/\/\s*(.+?);/gm ) {
+while ( $api =~ /^(?:my )?\$([a-z_]+)\s*=\s*\$params\{([a-z_]+)\}\s*\/\/\s*(.+?);/gm ) {
     $api_default{$2} = $3;
 }
 delete $api_default{action};    # the dispatch key itself, not an argument
