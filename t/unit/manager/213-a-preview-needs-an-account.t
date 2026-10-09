@@ -73,4 +73,39 @@ subtest 'preview-grant, outside a request, mints nothing' => sub {
     unlike( $out, qr/Set-Cookie/, 'reset: refused again' );
 };
 
+subtest 'preview, outside a request, runs nothing' => sub {
+    unlink "$d/ran";
+    my $r = main::action_preview('/index.md');
+    is( $r->{kind}    // '', 'forbidden', 'refused' ) or diag explain $r;
+    like( $r->{error} // '', qr/no account is asking/, '...saying why' );
+    ok( !-e "$d/ran", 'and the processor is not run' );
+
+    no warnings 'once';
+    $Lazysite::Manager::Common::auth_user = 'boss';
+    $r                                    = main::action_preview('/index.md');
+    is( $r->{html} // '', 'RENDERED', 'for an account it renders' ) or diag explain $r;
+    ok( -e "$d/ran", '...through the processor' );
+    Lazysite::Manager::Common::reset_request_context();
+    unlink "$d/ran";
+    is( main::action_preview('/index.md')->{kind} // '', 'forbidden', 'reset: refused again' );
+    ok( !-e "$d/ran", '...running nothing' );
+};
+
+# Inside a request the dispatcher has authenticated a manager before either verb
+# runs, so the answer is the one it always was. preview-grant is held to that by
+# t/unit/manager/09; nothing else drove `preview` through a request, so this
+# does (it passes on the manager API before (b) and (c) as after).
+subtest 'inside a request, preview answers as before' => sub {
+    delete local $ENV{LAZYSITE_API_LOAD_ONLY};    # a request, not a load
+    require ManagerSession;
+    my $s = ManagerSession::new_site( root => repo_root() );
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', [qw(ui manage_content)], [qw(ui manage_content)] );
+    unlink "$d/ran";
+    my $r = $s->call( 'boss', 'preview', query => 'action=preview&path=/index.md' );
+    ok( $r->{ok}, 'a manager\'s preview answers' ) or diag explain $r;
+    is( $r->{html} // '', 'RENDERED', '...with the processor\'s render' );
+    ok( -e "$d/ran", '...which it ran' );
+};
+
 done_testing();

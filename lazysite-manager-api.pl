@@ -3130,6 +3130,13 @@ sub _rate_ok {
 sub action_preview {
     my ($rel_path) = @_;
 
+    # SM944 S24 (c), ruled 2026-10-09: A PREVIEW IS RENDERED FOR AN ACCOUNT. As
+    # for preview-grant: inside a request $auth_user is never empty here;
+    # outside one this shelled the processor for any path it was given.
+    return { ok => 0, kind => 'forbidden',
+        error => 'A preview is rendered for a signed-in manager, and no account is asking.' }
+        unless length $auth_user;
+
     my $uri = $rel_path;
     $uri =~ s{^/*}{/};
     $uri =~ s/\.md$//;
