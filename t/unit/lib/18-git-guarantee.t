@@ -269,8 +269,8 @@ my %EXEMPT = (
     'API::action_actions_list' => 'read-only',   # SM350
     'API::action_describe_capabilities' => 'read-only',
     'API::action_whoami'                => 'read-only',
-    'API::action_start_page'            => 'read-only',    # SM724
-    'API::action_start_page_set' => 'auth store - excluded from the versioned set', # SM724: user-settings.json
+    'StartPage::action_start_page'      => 'read-only',    # SM724; SM944 S23 moved it
+    'StartPage::action_start_page_set' => 'auth store - excluded from the versioned set', # SM724: user-settings.json
     'API::action_recent_changes' => 'read-only',
     'API::action_channel_services' => 'read-only', # SM180: reports killswitch state, no write
     'API::action_audit'            => 'read-only',
@@ -313,7 +313,8 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         # per-module pattern.
         Domains => [ "$root/lib/Lazysite/Manager/Domains.pm", qr/^domain_/ ],
         # SM944 S23: the notice readers are called from the dispatcher directly.
-        Notices => [ "$root/lib/Lazysite/Manager/Notices.pm", qr/^action_/ ],
+        Notices   => [ "$root/lib/Lazysite/Manager/Notices.pm",   qr/^action_/ ],
+        StartPage => [ "$root/lib/Lazysite/Manager/StartPage.pm", qr/^action_/ ],
         API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
         DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );

@@ -23,8 +23,10 @@ use Digest::SHA qw(sha1_hex);
 use Exporter 'import';
 use Lazysite::Util  qw(cannot_read);
 use Lazysite::Paths ();
+# SM944 S23: the gate reads the request context; Common sets none of it here.
+use Lazysite::Manager::Common qw($auth_user $token_auth %token_caps _user_caps);
 
-our @EXPORT_OK = qw(action_notices action_notices_seen);
+our @EXPORT_OK = qw(action_notices action_notices_seen _notices_gate);
 
 our $DOCROOT;
 
@@ -240,22 +242,23 @@ sub action_notices_seen {
     return { ok => 1, unread => $unread + 0 };
 }
 
-
+# --- SM944 S23: the manager API's gate, moved here from lazysite-manager-api.pl
+#
 # SM113: sysop notifications. A small append-only store (logs/notices.jsonl)
 # that producers (the first is form submissions) append to, plus a per-sysop
 # last-seen marker (logs/notices-seen.json) so the manager can show an unread
 # count. Poll-based for v1.
 #
-# THE READER MOVED to Lazysite::Manager::Notices so that MCP calls the same one
-# rather than a second copy - see that module for why, and for the four-state
-# repair the move carried. `notices` is token-reachable with the `notifications`
+# THE READERS ABOVE are the one reader both doors call (MCP's read_notices too),
+# and the four-state repair is theirs. `notices` is token-reachable with the `notifications`
 # capability (it always was, in ControlApi::Actions); `notices-seen` is not, and
 # that is the decision recorded in t/lint/23.
 #
-# $auth_user is passed rather than read, because a module that reaches into one
-# CGI's globals only works inside that CGI. SM944 S23 (d), ruled 2026-10-09: the
-# dispatcher calls the two readers directly; the script's wrappers of the same
-# names are gone.
+# The readers take the principal as an argument, so MCP passes its own; the
+# manager API's dispatcher calls them with $auth_user directly (SM944 S23 (d),
+# ruled 2026-10-09 - the script's same-named wrappers are gone). The gate below
+# is the manager API's alone and reads the request context from Common, which
+# only the manager API sets: loaded anywhere else it refuses (t/unit/manager/205).
 
 # The one gate both notice actions share: undef to proceed, a refusal otherwise.
 sub _notices_gate {

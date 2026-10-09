@@ -46,7 +46,8 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
     action_form_submission_confirm action_form_submissions_delete_bulk
     action_form_submission_approve
     action_form_delete);
-use Lazysite::Manager::Notices ();    # SM918: one notice reader, shared with MCP
+use Lazysite::Manager::Notices qw(_notices_gate); # SM918: one notice reader, shared with MCP
+use Lazysite::Manager::StartPage qw(action_start_page action_start_page_set);  # SM944 S23
 use Lazysite::Handlers         ();    # SM842: handlers, bindings, the schedule
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
@@ -83,6 +84,7 @@ $Lazysite::Manager::Common::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Upload::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Plugins::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::Notices::DOCROOT     = $DOCROOT;
+$Lazysite::Manager::StartPage::DOCROOT   = $DOCROOT;           # SM944 S23
 $Lazysite::Handlers::DOCROOT             = $DOCROOT;           # SM842
 $Lazysite::Manager::Files::DOCROOT       = $DOCROOT;
 $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;

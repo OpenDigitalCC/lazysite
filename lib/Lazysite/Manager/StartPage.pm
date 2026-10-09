@@ -37,8 +37,12 @@ use strict;
 use warnings;
 use Lazysite::Paths ();
 use Exporter qw(import);
+# SM944 S23: the manager API's two actions read the request's account and its
+# caps, and set through the users tool - Common's, set only by the manager API.
+use Lazysite::Manager::Common qw($auth_user _user_caps users_api);
 our @EXPORT_OK = qw(parse_start_page validate_start_page start_page_choices
-    resolve_start_page fallback_landing manager_pages current_start_page apply_start_page);
+    resolve_start_page fallback_landing manager_pages current_start_page apply_start_page
+    action_start_page action_start_page_set);
 
 our $DOCROOT = '';
 
@@ -305,6 +309,10 @@ sub resolve_start_page {
 }
 
 
+# --- SM944 S23: the manager API's start-page actions, moved here from
+# lazysite-manager-api.pl. Loaded anywhere the manager API has not set the
+# request context, they refuse: the subject is nobody (t/unit/manager/205).
+#
 # SM724: the start page - read (the current value and the choices THIS account
 # can reach) and set. Self-service for one's own account; another account's
 # needs manage_users. The choices are computed from the TARGET's grants, never
@@ -331,9 +339,7 @@ sub action_start_page {
     my ($username) = @_;
     my ( $u, $refused ) = _start_page_subject($username);
     return $refused if $refused;
-    require Lazysite::Manager::StartPage;
-    no warnings 'once';
-    local $Lazysite::Manager::StartPage::DOCROOT = $DOCROOT;
+    # In its own module: $DOCROOT is this package's, set by the dispatcher.
     my $current = Lazysite::Manager::StartPage::current_start_page($u);
     my $r       = Lazysite::Manager::StartPage::resolve_start_page($u);
     return {
