@@ -183,4 +183,67 @@ subtest 'the notices gate and the start-page actions, loaded outside a request, 
     is( Lazysite::Manager::StartPage::action_start_page(undef)->{kind} // '', 'forbidden', '...and start-page' );
 };
 
+# SM944 S24: the preview verbs, moved into Manager::Preview after the ruled (b)
+# and (c). Outside a request preview-grant minted a signed cookie for account ''
+# and, on a site with no auth secret, created one; preview shelled the processor
+# for any path. Now both refuse, minting, creating and running nothing; (d)
+# preview-clear is unchanged - it only expires the caller's own cookies. With a
+# request's context set they answer, and after the reset they refuse again.
+subtest 'the preview verbs, loaded outside a request, act for nobody' => sub {
+    require Lazysite::Manager::Preview;
+    require TestHelper;
+    my $d = TestHelper::site_tempdir();
+    require File::Path;
+    File::Path::make_path( "$d/lazysite/layouts/plain", "$d/cgi" );
+    my $spit = sub { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close $fh };
+    $spit->( "$d/lazysite/layouts/plain/layout.tt", "x\n" );
+    # A stand-in processor that leaves a mark when it is run.
+    $spit->( "$d/cgi/lazysite-processor.pl", "open my \$m, '>', '$d/ran' or die; close \$m;\n"
+            . "print qq(Status: 200 OK\\r\\nContent-Type: text/html\\r\\n\\r\\nRENDERED);\n" );
+    local $ENV{LAZYSITE_PROCESSOR}           = "$d/cgi/lazysite-processor.pl";
+    local $ENV{LAZYSITE_LOG_LEVEL}           = 'ERROR';
+    local $ENV{LAZYSITE_FORWARD_DIAGNOSTICS} = 'off';
+    no warnings 'once';
+    local $Lazysite::Manager::Preview::DOCROOT      = $d;    # what the dispatcher sets
+    local $Lazysite::Manager::Preview::LAZYSITE_DIR = "$d/lazysite";
+
+    # What a call prints, as the CGI would send it.
+    my $printed = sub {
+        my ($code) = @_;
+        my $buf = '';
+        open my $save, '>&', \*STDOUT or die $!;
+        close STDOUT;
+        open STDOUT, '>', \$buf or die $!;
+        $code->();
+        close STDOUT;
+        open STDOUT, '>&', $save or die $!;
+        return $buf;
+    };
+    my $grant = sub { Lazysite::Manager::Preview::action_preview_grant( { layout => 'plain', theme => '' } ) };
+    my $preview = sub { Lazysite::Manager::Preview::action_preview('/index.md') };
+
+    my $out = $printed->($grant);
+    like( $out, qr/^Status: 403 Forbidden/, 'preview-grant refuses' );
+    like( $out, qr/no account is asking/,   '...saying why' );
+    unlike( $out, qr/Set-Cookie/, '...and mints no cookie' );
+    ok( !-e "$d/lazysite/auth/.secret", '...and creates no auth secret on a site that has none' );
+    my $r = $preview->();
+    is( $r->{kind} // '', 'forbidden', 'preview refuses' ) or diag explain $r;
+    ok( !-e "$d/ran", '...and runs no processor' );
+    $out = $printed->( \&Lazysite::Manager::Preview::action_preview_clear );
+    like( $out, qr/^Status: 200 OK.*Set-Cookie: lzs_preview=;[^\r\n]*Max-Age=0/s,
+        'preview-clear, unchanged (d), only expires the cookies' );
+
+    # boss's own request, as the script sets it for a cookie session.
+    $auth_user = 'boss';
+    $out       = $printed->($grant);
+    like( $out, qr/Set-Cookie: lzs_preview=v1:\d+:plain::boss:/, 'with boss\'s context the grant mints for boss' );
+    is( $preview->()->{html} // '', 'RENDERED', '...and preview renders' );
+    reset_request_context();
+    unlink "$d/ran";
+    unlike( $printed->($grant), qr/Set-Cookie/, 'reset: the grant refuses again' );
+    is( $preview->()->{kind} // '', 'forbidden', '...and preview' );
+    ok( !-e "$d/ran", '...running nothing' );
+};
+
 done_testing();
