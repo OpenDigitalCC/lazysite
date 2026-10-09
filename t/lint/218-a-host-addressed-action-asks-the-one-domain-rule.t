@@ -39,6 +39,11 @@
 #   7. SM976 F1: every write path into lazysite/layouts asks the served-artifact
 #      rule (Manager::Common::served_artifact_refusal): the file choke point's
 #      guard, which every write verb consults, the multipart upload, and WebDAV.
+#   8. SM976 Q15e: every content-write path asks the form-binding rule
+#      (Manager::Common::form_bind_refusal) before it writes: the library
+#      verbs that write a page, every path-confined mutating control-API action
+#      and MCP tool, the site-package apply, and WebDAV's PUT, COPY and MOVE -
+#      or is on a closed list with the reason no page newly binds a form.
 #
 # Files are named relative to the repository root, so the lint judges the same
 # set from any checkout - including one under tmp/.
@@ -342,5 +347,150 @@ like( $auth, qr/authorise_layout\(\s*\$rel,\s*\$is_write,\s*\$conf,\s*\$user,\s*
     '...and authorise() hands it those scopes' );
 like( $mcp, qr/\$Lazysite::Manager::Files::CALLER_SCOPES\s*=/,
     'MCP hands the choke point the grant\'s scopes before a tool runs' );
+
+# --- 8: a page newly binding a form (SM976 Q15e) -----------------------------------
+#
+# Ruled 2026-10-09, "Refuse new binding": every content-write surface checks the
+# written page's front matter `form:` against the caller's reach BEFORE writing;
+# a page that newly names a form the caller does not reach is refused. One rule,
+# Manager::Common::form_bind_refusal (form_bind_tree_refusal for a write that
+# carries existing pages: a move, a copy, a package), asked by closure as the
+# sections above ask theirs.
+my %BIND_ASKS = map { $_ => 1 } qw(form_bind_refusal form_bind_tree_refusal);
+ok( $BODY{$_}, "$_ is defined where it is looked for" ) for sort keys %BIND_ASKS;
+like( $BODY{form_bind_tree_refusal} // '', qr/\bform_bind_refusal\(/, 'the tree rule is the page rule, per page' );
+for ( my $grew = 1; $grew; ) {
+    $grew = 0;
+    for my $s ( keys %BODY ) {
+        next if $BIND_ASKS{$s};
+        my $b = $BODY{$s};
+        next unless grep { $b =~ /\b\Q$_\E\b/ } keys %BIND_ASKS;
+        $BIND_ASKS{$s} = $grew = 1;
+    }
+}
+sub bind_asks_in {
+    my ($text) = @_;
+    return ( grep { $text =~ /\b\Q$_\E\b/ } keys %BIND_ASKS ) ? 1 : 0;
+}
+
+# 8a. The verbs that write a page, each asking before the statement that writes.
+# verb => the write it must come before.
+my %WRITER = (
+    action_save             => qr/write_file_checked\(\s*\$full/,
+    action_save_binary      => qr/open my \$fh, '>', \$tmp/,
+    action_move             => qr/\brename\(\s*\$/,
+    action_copy             => qr/copy\(\s*\$src_full, \$dst_full\s*\)/,
+    action_migrate_to_local => qr/write_file_checked\(\s*\$md_full/,
+    action_file_upload      => qr/open my \$fh, '>', \$tmp/,
+    package_apply           => qr/_copy_tree\(\s*"\$stage\/content"/,
+    do_put                  => qr/rename \$tmp, \$r->\{abs\}/,
+    do_copy_move => qr/_remove_entry\(\s*\$dst->\{abs\}\s*\)\s*if \$dst_exists/,
+);
+for my $v ( sort keys %WRITER ) {
+    my $body = $BODY{$v} // '';
+    my $w    = $body =~ $WRITER{$v} ? $-[0] : -1;
+    my ($ask) = sort { $a <=> $b } grep { defined } map { $body =~ /\b\Q$_\E\s*\(/ ? $-[0] : undef }
+        grep { $_ ne $v } sort keys %BIND_ASKS;
+    cmp_ok( $w, '>', -1, "$v: its write was found" );
+    ok( defined $ask && $ask < $w, "$v asks the form-binding rule before it writes" );
+}
+ok( $BIND_ASKS{action_git_restore}, 'action_git_restore writes through action_save, which asks' );
+
+# 8b. The control API: every path-confined mutating action, and the actions in
+# %MUST_BIND, ask in their branch (or a sub it calls) - or are on the closed list
+# with the reason no page newly binds a form. Instance-wide actions are refused
+# to every confined caller with a scope (section 5), and a grant naming none
+# reaches every form, so the rule has nothing to refuse there.
+my %MUST_BIND = (
+    'site-backup-apply' => "writes a package's pages under the target root",
+);
+my %NO_NEW_BINDING = (
+    delete       => 'removes a page; removing a binding is unchanged (ruled)',
+    mkdir        => 'makes a folder; no page',
+    lock         => 'a lock record; no page text',
+    'renew-lock' => 'a lock record; no page text',
+    unlock       => 'a lock record; no page text',
+    'acl-set' => 'an access rule; it moves a page between the docroot and the private store, '
+        . 'both of which form_bindings reads, so no page newly names a form',
+    'acl-remove'       => 'as acl-set',
+    'cache-invalidate' => 'drops rendered output; no page text',
+);
+my ( @bind_missing, @bind_stale, @bind_seen );
+for my $a ( sort grep { ( $SCOPED{$_} && $MUT{$_} && !$IW{$_} ) || $MUST_BIND{$_} } keys %ACTION ) {
+    my $asks = $BRANCH{$a} ? bind_asks_in( with_callees( $BRANCH{$a} ) ) : 0;
+    push @bind_stale,   $a if $NO_NEW_BINDING{$a} && $asks;
+    push @bind_missing, $a if !$asks              && !$NO_NEW_BINDING{$a};
+    push @bind_seen,    $a;
+}
+is_deeply( \@bind_missing, [], 'every content-writing control-API action asks the form-binding rule' )
+    or diag( 'Ask Lazysite::Manager::Common::form_bind_refusal before the write (Manager::Files::'
+        . 'form_bind_guard / form_bind_tree_guard), or add the action to %NO_NEW_BINDING with the reason '
+        . 'no page newly binds a form.' );
+is_deeply( \@bind_stale, [], 'no %NO_NEW_BINDING entry asks it anyway' );
+cmp_ok( scalar @bind_seen, q(>=), 15, q(and the set it judged is the size it should be) )
+    or diag( join q(, ), @bind_seen );
+ok( $NO_NEW_BINDING{$_} && $SCOPED{$_} && $MUT{$_}, "$_ on the closed list is a path-confined mutating action" )
+    for sort keys %NO_NEW_BINDING;
+for my $a (qw(save copy move migrate-to-local git-restore file-upload site-backup-apply)) {
+    ok( $BRANCH{$a} && bind_asks_in( with_callees( $BRANCH{$a} ) ), "$a asks the form-binding rule" );
+}
+
+# 8c. MCP: every path-aware tool that changes something, and site_apply.
+my %MCP_MUST_BIND = ( site_apply => "applies a package's pages through package_apply" );
+my %MCP_NO_NEW_BINDING = (
+    delete_file      => 'removes a file; removing a binding is unchanged',
+    delete_page      => 'removes a page; removing a binding is unchanged',
+    invalidate_cache => 'drops rendered output; no page text',
+    set_permissions  => 'as acl-set: moves a page between the trees form_bindings reads',
+);
+my %twin_of = map { $twin{$_} => $_ } grep { defined $twin{$_} } keys %twin;
+my ( @mcp_bind_missing, @mcp_bind_stale, @mcp_bind_seen );
+for my $t ( sort keys %TOOL ) {
+    my $path_aware = $TOOL{$t} =~ /path_aware\s*=>\s*1/;
+    my $ro         = $own =~ /^\s*\Q$t\E\s*=>\s*\[\s*(\d)/m ? $1 : undef;
+    my $mutates = defined $ro ? !$ro : ( $twin_of{$t} && $MUT{ $twin_of{$t} } ) ? 1 : 0;
+    next unless ( $path_aware && $mutates ) || $MCP_MUST_BIND{$t};
+    my $asks = bind_asks_in( with_callees( $TOOL{$t} =~ s/\\&(\w+)/$1(/gr ) );
+    push @mcp_bind_stale,   $t if $MCP_NO_NEW_BINDING{$t} && $asks;
+    push @mcp_bind_missing, $t if !$asks                  && !$MCP_NO_NEW_BINDING{$t};
+    push @mcp_bind_seen,    $t;
+}
+is_deeply( \@mcp_bind_missing, [], 'every content-writing MCP tool asks the form-binding rule' );
+is_deeply( \@mcp_bind_stale, [], 'no MCP closed-list entry asks it anyway' );
+cmp_ok( scalar @mcp_bind_seen, q(>=), 14, q(and the set it judged is the size it should be) )
+    or diag( join q(, ), @mcp_bind_seen );
+for my $t ( qw(write_file create_page replace_text upload_file move_file copy_file restore_version
+    rename_page create_form site_apply) )
+{
+    ok( $TOOL{$t} && bind_asks_in( with_callees( $TOOL{$t} =~ s/\\&(\w+)/$1(/gr ) ),
+        "MCP $t asks the form-binding rule" );
+}
+like( $mcp, qr/\$Lazysite::Manager::Files::CALLER_SCOPES\s*=/,
+    'MCP hands the choke point the grant\'s scopes, which the binding guards ask with' );
+like( $BODY{form_bind_guard} // q(), qr/form_bind_refusal\(.*?scopes\s*=>\s*\$CALLER_SCOPES/s, 'the page guard asks with them' );
+like( $BODY{form_bind_tree_guard} // q(), qr/form_bind_tree_refusal\(.*?scopes\s*=>\s*\$CALLER_SCOPES/s, 'and the tree guard' );
+
+# 8d. WebDAV: the write methods that put page text somewhere ask with the
+# account's scopes; the rest are closed.
+my ($dispatch) = $CODE{'lazysite-dav.pl'} =~ /(my \$code;\s*if\s*\(\s*\$method eq 'PROPPATCH'.*?Method not allowed)/s;
+ok( $dispatch, 'the WebDAV write dispatch was found' );
+my %DAV_NO_NEW_BINDING = (
+    do_proppatch => 'dead properties; no page text',
+    do_mkcol     => 'makes a collection; no page',
+    do_delete    => 'removes a resource; removing a binding is unchanged',
+);
+my %dav_seen;
+my @dav_verbs = grep { !$dav_seen{$_}++ } ( $dispatch // q() ) =~ /\b(do_\w+)\(/g;
+cmp_ok( scalar @dav_verbs, q(>=), 5, 'the WebDAV write verbs were read' );
+for my $v (@dav_verbs) {
+    if ( $DAV_NO_NEW_BINDING{$v} ) {
+        ok( !bind_asks_in( $BODY{$v} // '' ), "WebDAV $v is closed: $DAV_NO_NEW_BINDING{$v}" );
+    }
+    else { ok( $BIND_ASKS{$v}, "WebDAV $v asks the form-binding rule" ) }
+}
+like( $BODY{do_put} // '', qr/form_bind_refusal\(\s*\$a\{rel\},\s*\$text,\s*scopes\s*=>/,
+    'WebDAV PUT asks with the account\'s scopes' );
+like( $BODY{do_copy_move} // '', qr/form_bind_tree_refusal\(\s*\$src->\{abs\},\s*\$drel,\s*scopes\s*=>/,
+    'WebDAV COPY and MOVE ask with them, of the destination' );
 
 done_testing();

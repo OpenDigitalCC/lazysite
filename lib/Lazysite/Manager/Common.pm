@@ -25,6 +25,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     caller_may_reach_domain request_domain_confined reachable_domains domain_reach_refusal
     caller_is_confined instance_wide_refusal
     served_artifact_refusal caller_may_reach_path form_pages form_bindings caller_may_reach_form form_reach_refusal
+    page_form_names form_bind_refusal form_bind_tree_refusal
     caller_may_reach_table caller_may_reach_brief brief_reach_refusal
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
@@ -724,16 +725,25 @@ sub form_bindings {
                     my $head = '';
                     read $fh, $head, 16384;
                     close $fh;
-                    return unless $head =~ /\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\z)/s;
-                    my $fm = $1;
-                    return unless $fm =~ /^form[ \t]*:[ \t]*["']?([A-Za-z0-9_-]+)["']?[ \t]*\r?$/m;
-                    $pages{ lc $1 }{$rel} = 1;
+                    my $name = _bound_form_of($head);
+                    return unless defined $name;
+                    $pages{ lc $name }{$rel} = 1;
                 },
             },
             $base
         );
     }
     return { map { $_ => [ sort keys %{ $pages{$_} } ] } keys %pages };
+}
+
+# The form a page's front matter binds, as form_bindings reads it: one
+# `form: NAME` line, the first, in a front matter block at the top of the text.
+sub _bound_form_of {
+    my ($text) = @_;
+    return undef unless defined $text && $text =~ /\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\z)/s;
+    my $fm = $1;
+    return undef unless $fm =~ /^form[ \t]*:[ \t]*["']?([A-Za-z0-9_-]+)["']?[ \t]*\r?$/m;
+    return $1;
 }
 
 # SM976 F2 (ruled 2026-10-09, "Confine both"): A FORM IS REACHED THROUGH THE
@@ -770,6 +780,144 @@ sub form_reach_refusal {
             . 'caller reaches only the forms bound (front matter "form: NAME") on pages inside '
             . 'its scope; a form no page binds is the primary site\'s'
             . ( @mine ? '. Your domains: ' . join( ', ', @mine ) . '.' : '.' ) };
+}
+
+# SM976 Q15e: EVERY FORM A PAGE'S TEXT NAMES, lower-cased. Two readings, and the
+# page names a form when either finds one:
+#   - the processor's (lazysite-processor/front-matter.pm, parse_yaml_front_matter
+#     and its form sanitising): the last column-0 `form:` key in the front
+#     matter, its value read past a line break, TT markers and one pair of quotes
+#     removed, then everything outside [A-Za-z0-9_-] - which is the form the page
+#     renders and its visitors post to;
+#   - form_bindings' (_bound_form_of): the first `form: NAME` line - which is the
+#     binding the form rule reaches the form through.
+# They differ on unusual front matter (a second form: line, a value on the next
+# line, a dot in the name), and a check that read one could be passed by a page
+# the other reads differently. t/unit/manager/210 holds the first to the
+# processor's own parse.
+sub page_form_names {
+    my ($text) = @_;
+    return () unless defined $text && length $text;
+    my %n;
+    if ( $text =~ /\A---\s*\n(.*?)\n---\s*\n/s ) {
+        my ( $yaml, $form ) = ($1);
+        while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
+            next unless $1 eq 'form';
+            my $v = $2;
+            $v =~ s/\[%//g;
+            $v =~ s/%\]//g;
+            $v =~ s/\s+\z//;
+            $v =~ s/\A"(.*)"\z/$1/s or $v =~ s/\A'(.*)'\z/$1/s;
+            $form = $v;
+        }
+        if ( defined $form ) {
+            $form =~ s/[^a-zA-Z0-9_-]//g;
+            $n{ lc $form } = 1 if length $form;
+        }
+    }
+    my $bound = _bound_form_of($text);
+    $n{ lc $bound } = 1 if defined $bound;
+    my @names = sort keys %n;
+    return @names;
+}
+
+# The text of the page at a docroot-relative path as it stands, from whichever
+# tree holds it (the private store wins, as it does for every read), or undef.
+sub _current_page_text {
+    my ($rel) = @_;
+    my $doc = ( defined $DOCROOT && length $DOCROOT ) ? $DOCROOT : ( $ENV{DOCUMENT_ROOT} // '' );
+    return undef unless length $doc;
+    my ($abs) = Lazysite::Private::resolve( $doc, $rel );
+    return undef unless defined $abs && -f $abs && !-l $abs;
+    open my $fh, '<:raw', $abs or return undef;
+    local $/;
+    my $t = <$fh>;
+    close $fh;
+    return $t;
+}
+
+# SM976 Q15e (ruled 2026-10-09, "Refuse new binding"): A CONFINED CALLER BINDS NO
+# FORM IT DOES NOT REACH. A form is reached through the pages that bind it (F2),
+# so a page that newly names a form makes it the page's site's: a cookie manager
+# scoped to one domain saved a page of its own naming the primary's form, then
+# read that form's submissions (tmp/q15d-hijack-probe.out). Every content-write
+# path asks this before it writes a page, with the text the page will hold.
+#
+# Refused when the page at $rel (a .md, the pages the processor renders forms
+# on) would name a form it does not name now and that the caller does not reach
+# - judged by caller_may_reach_form on the form's current bindings, as if the
+# page were not yet written. Editing a page that already binds the form, and
+# removing a binding, are unchanged. The operator and an unbound cookie manager
+# are not asked, and a grant naming no scope reaches every form (R3). Shaped as
+# the other content-write rules (error, or error and audit detail), so the
+# choke point and the WebDAV stack share it (t/lint/114, t/lint/218).
+sub form_bind_refusal {
+    my ( $rel, $text, %who ) = @_;
+    return unless defined $rel;
+    ( my $r = $rel ) =~ s{^/+}{};
+    return unless $r =~ /\.md\z/;
+    my %by = _who(%who);
+    return unless _confined_who(%by);
+    my @names = page_form_names($text);
+    return unless @names;
+    my %had = map  { $_ => 1 } page_form_names( _current_page_text($r) );
+    my @new = grep { !$had{$_} && !caller_may_reach_form( $_, %by ) } @names;
+    return unless @new;
+    my $f = $new[0];
+    return _refusal(
+        "The page '$r' would bind the form '$f' (front matter \"form: $f\"), which you do not "
+            . 'reach. A domain-confined caller binds no form it does not reach: a form is reached '
+            . 'through the pages that bind it, so a new binding would hand it a form of another '
+            . 'site, or the primary\'s, with its submissions. Editing a page that already binds a '
+            . 'form, and removing a binding, are unchanged. Bind a form of your own (create_form '
+            . 'with a new name).',
+        'form-bind-refused',
+        "the page '$r' would newly bind the form '$f', which the caller does not reach",
+        'bind a form of its own, or edit only a page that already binds this one'
+    );
+}
+
+# The same rule for a write that carries existing files to a new place - a
+# move, a rename, a copy, a package's content: every file under $src_abs (one
+# file, or a folder), judged at the path it will have under $dst_rel. A move or
+# a copy of a binding page is a new binding where it lands. Returns the first
+# refusal.
+sub form_bind_tree_refusal {
+    my ( $src_abs, $dst_rel, %who ) = @_;
+    return unless defined $src_abs && defined $dst_rel && -e $src_abs;
+    my %by = _who(%who);
+    return unless _confined_who(%by);
+    ( my $dst = $dst_rel ) =~ s{^/+|/+$}{}g;
+    my @pairs;
+    if ( -d $src_abs ) {
+        ( my $src = $src_abs ) =~ s{/+$}{};
+        require File::Find;
+        File::Find::find(
+            { no_chdir => 1,
+                wanted => sub {
+                    my $p = $File::Find::name;
+                    return if -l $p || !-f $p;
+                    my $sub = substr( $p, length($src) + 1 );
+                    push @pairs, [ $p, length $dst ? "$dst/$sub" : $sub ];
+                },
+            },
+            $src
+        );
+    }
+    elsif ( -f $src_abs && !-l $src_abs ) { @pairs = ( [ $src_abs, $dst ] ) }
+    for my $pr ( sort { $a->[1] cmp $b->[1] } @pairs ) {
+        next unless $pr->[1] =~ /\.md\z/;
+        # A page that cannot be read cannot be judged: refused, not passed.
+        open my $fh, '<:raw', $pr->[0]
+            or return _refusal( "The page '$pr->[1]' could not be read to check the form it binds.",
+            'form-bind-refused', "the page '$pr->[1]' could not be read to check its form binding",
+            'make it readable, or move the folder without it' );
+        my $t = do { local $/; <$fh> };
+        close $fh;
+        my @no = form_bind_refusal( $pr->[1], $t, %by );
+        return wantarray ? @no : $no[0] if @no;
+    }
+    return;
 }
 
 # SM976 F2: a table's reach, by the data surface's rule (R4): a table naming a
@@ -1140,7 +1288,7 @@ sub processor_path {
 # t/lint/139 holds this closed: every `kind => '...'` the tree emits is either
 # a key here or named in that test's "400 is the right answer" list.
 our %REFUSAL_STATUS = (
-    ( map { $_ => '403 Forbidden' } qw(forbidden not-yours permission blocked disabled served-artifact-refused) ),
+    ( map { $_ => '403 Forbidden' } qw(forbidden not-yours permission blocked disabled served-artifact-refused form-bind-refused) ),
     ( map { $_ => '404 Not Found' }
             qw(not-found unknown-domain
             no_such_table no_such_row no_such_form db-table-missing) ),

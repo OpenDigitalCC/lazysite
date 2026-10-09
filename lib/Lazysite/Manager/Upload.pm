@@ -313,6 +313,12 @@ sub action_file_upload {
             push @errors, { name => $fname, error => $g->{error}, kind => $g->{kind} };
             next;
         }
+        # SM976 Q15e: an uploaded page newly binding a form the caller does not
+        # reach (Manager::Common::form_bind_refusal, through the choke point's guard).
+        if ( my $g = Lazysite::Manager::Files::form_bind_guard( $rel_target, $file->{data} ) ) {
+            push @errors, { name => $fname, error => $g->{error}, kind => $g->{kind} };
+            next;
+        }
 
         if ( -e $full_target && !$overwrite ) {
             push @skipped, $fname;

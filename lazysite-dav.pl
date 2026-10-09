@@ -624,6 +624,23 @@ sub do_put {
             }
         }
     }
+    # SM976 Q15e ("Refuse new binding"): a page that newly binds a form this
+    # account does not reach is refused, as at the choke point - the same rule
+    # (Manager::Common::form_bind_refusal), asked with the account's scopes. A
+    # page that cannot be read back cannot be judged, so it does not land.
+    {
+        require Lazysite::Manager::Common;
+        my $text;
+        if ( open my $ff, '<:raw', $tmp ) { $text = do { local $/; <$ff> }; close $ff }
+        else { unlink $tmp; return _write_failure( 'read the file back', $!, $r->{abs} ) }
+        if ( my ( $err, $why ) = Lazysite::Manager::Common::form_bind_refusal(
+                $a{rel}, $text, scopes => ( ref $a{scope} eq 'ARRAY' ? $a{scope} : [] ) ) )
+        {
+            unlink $tmp;
+            $REFUSAL_DETAIL = $why;
+            return send_status( 403, body => "$err\n" );
+        }
+    }
     # SM842: A FORM'S CONFIG MEETS THE BINDING RULES HERE TOO. Its targets name
     # handlers that exist and nothing else - the same rule form-targets-save
     # and bind_form apply - so an inline target cannot come back through the
@@ -1083,6 +1100,19 @@ sub do_copy_move {
     }
     if ( $move && ( my $code = lock_blocks( $a{rel}, $a{user} ) ) ) {
         return send_status( $code, body => "Source locked\n" );
+    }
+
+    # SM976 Q15e: a page moved or copied is a new binding where it lands - every
+    # page the source carries, judged at its destination path, before anything
+    # is removed or written.
+    {
+        require Lazysite::Manager::Common;
+        if ( my ( $err, $why ) = Lazysite::Manager::Common::form_bind_tree_refusal(
+                $src->{abs}, $drel, scopes => ( ref $a{scope} eq 'ARRAY' ? $a{scope} : [] ) ) )
+        {
+            $REFUSAL_DETAIL = $why;
+            return send_status( 403, body => "$err\n" );
+        }
     }
 
     _remove_entry( $dst->{abs} ) if $dst_exists;

@@ -39,6 +39,8 @@ my %RULES = (
     brief_write_refusal     => 'SM504',
     active_artifact_refusal => 'SM749',
     served_artifact_refusal => 'SM976 F1',
+    form_bind_refusal       => 'SM976 Q15e',
+    form_bind_tree_refusal  => 'SM976 Q15e: a move, a copy, a package',
 );
 
 for my $rule ( sort keys %RULES ) {

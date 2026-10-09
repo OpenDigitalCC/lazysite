@@ -72,7 +72,10 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
   and a form no page binds is the primary's; a brief is its page's, or its
   row's table's; `form_list` and `list_briefs` show only those the grant
   reaches. A safety export is its table's domain's, and one written before
-  exports recorded a domain is the primary's.
+  exports recorded a domain is the primary's. A page a confined grant writes,
+  moves, copies, uploads, restores or applies may not newly bind a form it does
+  not reach; editing a page that already binds one, and removing a binding,
+  still work.
 - `webdav` - the WebDAV transport / file-API mechanism flag.
 - `manage_config` - site configuration (control API, not exposed as MCP tools).
 - `manage_connectors` - where site data may be sent: define connectors, set their

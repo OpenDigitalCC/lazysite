@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, from the gaps SM975 found and did not change
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 built (n314). F1-F4 built (n315): served themes and layouts are their sites', forms and briefs are confined, exports record their domain, Appearance activates on the manager's domain. t/integration/112, 114-116."
+status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 built (n314), F1-F4 (n315). \"Refuse new binding\" built (n316): no content write by a confined caller newly binds a form it does not reach. F3 old exports ruled: no code. t/integration/112, 114-117."
 ---
 
 # What was wrong
@@ -390,6 +390,116 @@ Found in Q15d, not changed
   ruling: refusing, at the content-write rules, a page that newly binds a form
   the caller does not reach is one way; it is a new content-write rule, so it
   waits for the ruling.
+
+# Found in Q15d, ruled
+
+The release manager ruled the finding above, and F3's old exports, on
+2026-10-09:
+
+Form hijack (security), "Refuse new binding"
+: Every content-write surface (cookie file save and the control API's file
+  verbs, MCP write_file / create_page / replace_text / upload_file / move_file /
+  copy_file / restore_version, WebDAV PUT/MOVE/COPY, page rename,
+  site-backup-apply of content, and any other path that writes or moves a page)
+  checks the written page's front matter `form:` against the caller's reach
+  BEFORE writing; if the page NEWLY names a form the caller cannot reach (via
+  caller_may_reach_form, judged as if the page were not yet written - i.e. the
+  form's current bindings), the write is refused with a message naming the
+  rule. Editing a page that already binds that form is unchanged; removing a
+  binding is unchanged. A MOVE/rename that brings a binding page into scope, or
+  a copy of a binding page into the caller's scope, is a new binding there.
+
+F3 old exports
+: "Leaving the risk for old sites is acceptable, and implementing correctly for
+  new. No need to build logic to detect old sites." n315's behaviour stands: an
+  export written before F3, with no recorded domain, counts as the primary's.
+  No code.
+
+# The ruling, built (n316)
+
+The rule
+: `Manager::Common::form_bind_refusal(rel, text, scopes?)`. For a `.md` page
+  (the pages the processor renders a form on) and a confined caller - the
+  caller `caller_may_reach_form` asks about - every form the new text names
+  that the page at that path does not name now is asked of
+  `caller_may_reach_form` on its current bindings; one it does not reach
+  refuses the write, 403, kind `form-bind-refused`, naming the page, the form
+  and the rule. `form_bind_tree_refusal(src, dst, scopes?)` asks it of every
+  page a move, copy or package carries, at the path it will have; a page it
+  cannot read is refused. The operator and an unbound cookie manager are not
+  asked; an unbound token, grant or account reaches every form (R3).
+
+Which form a page names
+: `page_form_names`: both readings - the processor's (the last column-0
+  `form:` key, its value read past a line break, TT markers and quotes removed,
+  then sanitised to `[A-Za-z0-9_-]`, which is what its visitors post to) and
+  `form_bindings`' (the first `form: NAME` line, which is what the form rule
+  reaches it through). A check reading one could be passed by a page the other
+  reads differently; t/unit/manager/210 holds the first to the processor's own
+  `parse_yaml_front_matter`.
+
+Every content-write path, and how it asks
+: - `Manager::Files::action_save` (Files.pm, before `write_file_checked`): the
+    cookie file save and control-API `save`, `git-restore`
+    (`action_git_restore` saves through it); MCP `write_file`, `create_page`,
+    `replace_text`, `copy_file` (read, then save), `create_form`,
+    `restore_version`, and `rename_page`'s link and alias edits - through
+    `form_bind_guard`, with MCP's grant scopes (`$Files::CALLER_SCOPES`).
+  - `action_save_binary`: MCP `upload_file` - `form_bind_guard` on the bytes.
+  - `action_move`: control-API `move`, MCP `move_file` and `rename_page` -
+    `form_bind_tree_guard` over the source in both trees (a folder spanning
+    the docroot and the private store moves in both, SM518).
+  - `action_copy`: control-API `copy` - `form_bind_tree_guard`.
+  - `action_migrate_to_local`: the fetched body - `form_bind_guard`.
+  - `Manager::Upload::action_file_upload`: per file, `form_bind_guard`.
+  - `Manager::SitePackage::package_apply`: control-API `site-backup-apply` and
+    MCP `site_apply` (through `apply_and_configure`) - `form_bind_tree_guard`
+    over the extracted content before it is copied.
+  - WebDAV `do_put` (before the rename into place) and `do_copy_move` (before
+    the destination is touched): `form_bind_refusal` /
+    `form_bind_tree_refusal` with the account's scopes.
+  Closed, with the reason (lint 218 section 8): delete, `delete_file`,
+  `delete_page`, WebDAV DELETE (removing a binding is unchanged); mkdir and
+  MKCOL (no page); lock, renew-lock, unlock, PROPPATCH (no page text);
+  `acl-set`, `acl-remove`, `set_permissions` (a page moves between the docroot
+  and the private store, both of which `form_bindings` reads);
+  `cache-invalidate`/`invalidate_cache` (rendered output). Instance-wide
+  actions (`backup-restore`, `plugin-*`, `schedule-*`) are refused to every
+  confined caller with a scope (R1). Bind_form and create_form naming an
+  existing form already ask the form rule (F2).
+
+Evidence (n316)
+: t/unit/manager/210 (the rule's truth table, the readings against the
+  processor's parse, the tree rule, the choke point with a grant's scopes,
+  migrate-to-local with a stubbed fetch); t/integration/117 (the Q15d probe as
+  assertions - refused now, an already-bound page still edited, the binding
+  still removable, the operator unaffected - then the cookie save, move, copy
+  and upload, git-restore and restore_version, MCP write_file, upload_file,
+  copy_file, replace_text, move_file, rename_page, WebDAV PUT, COPY and MOVE,
+  site-backup-apply and site_apply, each with the unbound callers served);
+  lint 218 section 8 and lint 114. Every new assertion sabotage-verified
+  (tmp/q15e-sabotage.pl, 22 cases).
+
+# Found in Q15e
+
+- The form rule's walker and the processor read a page's form differently.
+  `form_bindings` takes the first `form: NAME` line, of a plain name, within
+  the first 16 KB; the processor renders the last `form:` key, a value on the
+  next line, a name with other characters removed. Measured
+  (tmp/q15e-walker-probe.out): a page in another domain whose front matter
+  says `form:` with the name on the next line renders and receives the form
+  `contact`, and `form_bindings` does not see it, so a caller scoped to a domain
+  that also binds `contact` reaches the form, and the other site's submissions
+  with it. The reverse also holds: a page in the caller's scope rendering a
+  form under such a line does not make the form its own. Not changed: one
+  reading for both (`page_form_names` in the walker) narrows the first and
+  widens the second, so it waits for a ruling. n316's write rule reads both,
+  so no new page of this shape is written by a confined caller.
+- MCP `replace_text` cannot be used by a scoped grant on ordinary text: its
+  `old` and `new` arguments are scope-checked as content paths, because
+  `@PATH_ARGS` lists `old` and `new` for `rename_page` (SM661), so "Path 'title:
+  Plain' is outside your assigned scope". Fails closed; not changed (a fix
+  widens what a grant can call).
 
 # Related
 

@@ -660,6 +660,19 @@ sub package_apply {
     }
     my $cleanup = sub { remove_tree($stage) if -d $stage };
 
+    # SM976 Q15e ("Refuse new binding"): the package's pages land under the
+    # target root, and a page there that newly binds a form the caller does not
+    # reach is refused before anything is written - the same rule, through the
+    # same guard, as every other content write. Whose reach: the manager
+    # request, or the grant MCP hands Manager::Files.
+    if ( -d "$stage/content" ) {
+        require Lazysite::Manager::Files;
+        if ( my $g = Lazysite::Manager::Files::form_bind_tree_guard( $croot, "$stage/content" ) ) {
+            $cleanup->();
+            return $g;
+        }
+    }
+
     # 1. content -> target content_root (confined). Optionally clear first.
     my $target = "$DOCROOT/$croot";
     if ( $opt{clean} && -d $target ) {

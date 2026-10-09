@@ -53,6 +53,27 @@ Archive
 
 ## Unreleased
 
+- SM976 (PENDING) **security: a confined caller binds no form it does not
+  reach** (ruled 2026-10-09, "Refuse new binding"). A form is reached through
+  the pages that bind it, so a cookie manager scoped to one domain could save a
+  page of its own naming the primary's form and then read that form's
+  submissions. **Behaviour change:** a confined caller (a scoped token, MCP
+  grant, WebDAV account or cookie manager) is refused, before anything is
+  written, a page that newly names in its front matter (`form: NAME`) a form it
+  does not reach - judged on the form's bindings as they stand - on every
+  content write: the file editor's save, move and copy, `migrate-to-local`,
+  `git-restore`, the multipart upload, `site-backup-apply`; MCP `write_file`,
+  `create_page`, `replace_text`, `upload_file`, `move_file`, `copy_file`,
+  `rename_page`, `restore_version`, `create_form` and `site_apply`; WebDAV PUT,
+  COPY and MOVE. A move, a rename or a copy of a binding page is a new binding
+  where it lands. The form is read as the processor renders it and as the form
+  rule finds it, so a second `form:` line or a value on the next line is caught.
+  Editing a page that already binds the form, and removing a binding, are
+  unchanged; so are the operator, an unbound cookie manager and an unbound
+  token, grant or account (they reach every form). 403, kind
+  `form-bind-refused`. Lint 218 section 8, lint 114. t/integration/117,
+  t/unit/manager/210.
+
 - SM976 (PENDING) **security: the three Q15c findings, ruled** (2026-10-09). F1
   "Yes, any served artifact": a theme or layout a site serves is that site's.
   **Behaviour change:** a confined caller (a scoped token, MCP grant, WebDAV

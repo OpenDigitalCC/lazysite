@@ -19,7 +19,7 @@ use Cwd             qw(realpath);
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal refusal_detail load_upload_limits outside_all_scopes);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal refusal_detail load_upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -37,6 +37,7 @@ our @EXPORT_OK = qw(
     action_git_status action_git_history action_git_history_summary
     action_git_show action_git_restore action_git_init
     artifact_write_guard
+    form_bind_guard form_bind_tree_guard
 );
 
 our $DOCROOT;
@@ -560,6 +561,46 @@ sub _active_artifact_guard {
 # multipart upload, which writes files into a folder it was given).
 sub artifact_write_guard { return _active_artifact_guard(@_) }
 
+# SM976 Q15e ("Refuse new binding"): a page written here may not newly bind a
+# form the caller does not reach (Manager::Common::form_bind_refusal). Asked by
+# every verb that writes a page's text - action_save (and through it MCP's
+# write_file, create_page, replace_text, copy_file, create_form, rename_page's
+# link and alias edits, and git-restore / restore_version), action_save_binary
+# (upload_file) and action_migrate_to_local - and by the multipart upload.
+# Whose reach: $CALLER_SCOPES, as for the served-artifact rule.
+sub form_bind_guard {
+    my ( $rel, $text ) = @_;
+    if ( my ( $err, $why ) = form_bind_refusal( $rel, $text,
+            ( ref $CALLER_SCOPES eq 'ARRAY' ? ( scopes => $CALLER_SCOPES ) : () ) ) )
+    {
+        return { ok => 0, error => $err, kind => 'form-bind-refused', audit_detail => $why };
+    }
+    return undef;
+}
+
+# The same, for a write that carries existing files to $dst_rel - a move, a
+# copy, a package's content. Every tree a source path lives in is walked: a
+# folder spanning the docroot and the private store moves in both (SM518).
+sub form_bind_tree_guard {
+    my ( $dst_rel, @src_abs ) = @_;
+    my %seen;
+    for my $abs ( grep { defined && -e && !$seen{$_}++ } @src_abs ) {
+        if ( my ( $err, $why ) = form_bind_tree_refusal( $abs, $dst_rel,
+                ( ref $CALLER_SCOPES eq 'ARRAY' ? ( scopes => $CALLER_SCOPES ) : () ) ) )
+        {
+            return { ok => 0, error => $err, kind => 'form-bind-refused', audit_detail => $why };
+        }
+    }
+    return undef;
+}
+
+# Every tree a docroot-relative path lives in, for form_bind_tree_guard.
+sub _both_trees {
+    my ($rel) = @_;
+    ( my $r = $rel // '' ) =~ s{^/+}{};
+    return ( Lazysite::Private::private_path( $DOCROOT, $r ), "$DOCROOT/$r" );
+}
+
 sub action_save_binary {
     my ( $rel_path, $username, $bytes ) = @_;
 
@@ -571,6 +612,7 @@ sub action_save_binary {
     # an upload, exactly as it does to the multipart upload path.
     if ( my $why = is_blocked_config( $result->{rel}, 1 ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
+    if ( my $d = form_bind_guard( $result->{rel}, $bytes ) ) { return $d }    # SM976 Q15e
 
     my $limits = load_upload_limits();
     my $max    = $limits->{max_bytes} // ( 10 * 1024 * 1024 );
@@ -691,6 +733,9 @@ sub action_save {
     {
         return { ok => 0, error => $err, kind => 'nav-not-here', audit_detail => $why };
     }
+
+    # SM976 Q15e: a page newly binding a form the caller does not reach.
+    if ( my $d = form_bind_guard( $result->{rel}, $content ) ) { return $d }
 
     my $full = $result->{full};
 
@@ -972,6 +1017,9 @@ sub action_move {
         'choose another target, or delete it first' )
         if -e $dst_full;
 
+    # SM976 Q15e: a page moved is a new binding where it lands.
+    if ( my $g = form_bind_tree_guard( $d->{rel}, $src_full, _both_trees( $s->{rel} ) ) ) { return $g }
+
     # Refuse a live foreign lock on the source (mirror action_save).
     my $lock_file = _lock_file( $s->{rel} );         # SM527: canonical key
     my $lrec      = _read_lock_record($lock_file);
@@ -1142,6 +1190,9 @@ sub action_copy {
     # Per-file ACL: READ access on the source (operators bypass).
     if ( my $deny = _acl_denied( $s->{rel}, 'read', $username ) ) { return $deny }
 
+    # SM976 Q15e: a copy of a binding page is a new binding where it lands.
+    if ( my $g = form_bind_tree_guard( $d->{rel}, $src_full ) ) { return $g }
+
     my $dst_dir = dirname($dst_full);
     my ( $mok, $merr ) = _mkpath_checked($dst_dir);
     return { ok => 0, error => "$merr (target folder)" } unless $mok;
@@ -1206,6 +1257,10 @@ sub action_migrate_to_local {
     return { ok => 0, error => "Could not fetch $url (unreachable, blocked by the "
             . "SSRF guard, or a non-success response)" }
         unless defined $body;
+
+    # SM976 Q15e: the fetched body becomes a local page, and its front matter
+    # binds whatever form it names.
+    if ( my $g = form_bind_guard( $md_rel, $body ) ) { return $g }
 
     my ( $wok, $werr ) = write_file_checked( $md_full, $body );
     return { ok => 0, error => "Could not write the local page: $werr" } unless $wok;
