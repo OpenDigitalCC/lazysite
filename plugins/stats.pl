@@ -1347,7 +1347,11 @@ sub _parse_line {
     # so the day was the log's local date while "today" is now a UTC date. A
     # stamp with no offset is still read as local time, as it always was.
     my ( $d, $mo, $y, $H, $Mi, $S, $zs, $zh, $zm ) =
-        $date =~ m{^(\d+)/(\w+)/(\d+):(\d+):(\d+):(\d+)(?:\s+([+-])(\d\d)(\d\d))?};
+        $date =~ m{
+            ^(\d+)/(\w+)/(\d+)               # day, month name, year
+            :(\d+):(\d+):(\d+)                # hour, minute, second
+            (?:\s+([+-])(\d\d)(\d\d))?        # the offset, when the stamp has one
+        }x;
     return undef unless defined $S && exists $MON_X{$mo};
     my $epoch = eval {
         defined $zs
