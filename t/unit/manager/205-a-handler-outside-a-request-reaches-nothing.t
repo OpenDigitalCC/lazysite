@@ -41,7 +41,7 @@ sub fail_closed {
 }
 
 fail_closed('loaded, never set');
-is( index( NO_REQUEST_CONTEXT, "\0" ) >= 0, 1, 'the no-context scope holds a NUL, which no path or root can' );
+is( index( NO_REQUEST_CONTEXT(), "\0" ) >= 0, 1, 'the no-context scope holds a NUL, which no path or root can' );
 
 # What the manager API sets for an operator request; then the reset it runs
 # before its auth check, as a process that served one request would.

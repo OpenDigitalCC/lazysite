@@ -76,16 +76,16 @@ sub render_source_exists {
 # other entry points set them (lazysite-mcp.pl's action, the users CLI's
 # acting user, three modules' write bridges - the exceptions lint 217 names).
 # Their default is the empty string they always had.
-use constant NO_REQUEST_CONTEXT => "\0no request context";
+sub NO_REQUEST_CONTEXT { return "\0no request context" } # a sub: lint 02 refuses `use constant`
 our ( $action, $auth_user, $token_auth, %token_caps, @REQUEST_SCOPES, $REQUEST_CONFINED,
     $IS_OPERATOR, $path, $body );
 
 sub reset_request_context {
-    $action         = '';                                      # no action
-    $auth_user      = '';                                      # nobody
-    $token_auth     = 1;                                       # never the cookie operator
-    %token_caps     = ( dav_scopes => [NO_REQUEST_CONTEXT] );  # no capability, no reach
-    @REQUEST_SCOPES = (NO_REQUEST_CONTEXT);                    # confined to nothing
+    $action     = '';                                          # no action
+    $auth_user  = '';                                          # nobody
+    $token_auth = 1;                                           # never the cookie operator
+    %token_caps = ( dav_scopes => [ NO_REQUEST_CONTEXT() ] );  # no capability, no reach
+    @REQUEST_SCOPES   = ( NO_REQUEST_CONTEXT() );              # confined to nothing
     $REQUEST_CONFINED = 1;
     $IS_OPERATOR      = 0;
     $path             = undef;
