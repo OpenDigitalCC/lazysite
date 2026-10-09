@@ -23,6 +23,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes no_scope_refusal reserved_roots path_is_reserved
     caller_may_reach_domain request_domain_confined reachable_domains domain_reach_refusal
+    caller_is_confined instance_wide_refusal
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
     active_artifact_refusal refusal_detail refusal_status
@@ -450,7 +451,8 @@ sub no_scope_refusal {
 #     one of its scopes, no otherwise, and no when it names none (SM975);
 #   - the PRIMARY, and a domain with no root of its own (it serves the primary's
 #     content): the content-path rule, which SM975 left as documented - an
-#     unbound account reaches the primary site, a scoped one does not.
+#     unbound account reaches the primary site, a scoped one does not (ruled
+#     2026-10-09, R3 "Keep for primary"; any other domain needs a scope).
 # Actions that refuse a token naming no scope outright (the domain writes and
 # the site packages, SM975/SM578) keep that refusal ahead of this one.
 sub caller_may_reach_domain {
@@ -548,6 +550,47 @@ sub domain_reach_refusal {
         error => "You cannot reach $what. A domain-confined caller reaches only the "
             . "domains whose content lies inside $scope"
             . ( @mine ? ': ' . join( ', ', @mine ) . '.' : ', and that is none.' ) };
+}
+
+# SM976 R1: CONFINED MEANS NO INSTANCE-WIDE WRITE. A caller whose grant names a
+# scope acts on its own domains only, through the actions addressed to a host;
+# it changes no setting, registry or shared library the whole instance reads
+# (ruled 2026-10-09, "Confined = no instance-wide"). The closed list of those
+# actions is `instance_wide => 1` in Lazysite::ControlApi::Actions, and
+# t/lint/218 holds every mutating action to it.
+#
+# WHO IS CONFINED HERE. The caller_may_reach_domain notion, read one way: a
+# caller on a confined channel (a token, an MCP grant, a WebDAV account, a
+# cookie manager whose scope was resolved) whose scope list is NOT EMPTY. Scopes
+# are the content roots of the domains its groups are named on, or SM165's
+# deny-all for a locked account, so a non-empty scope binds it to some domains
+# and never to the primary - the predicate already refuses such a caller the
+# primary site. An UNBOUND token, grant or account reaches the primary by the
+# content-path rule (R3, "keep for primary"); the instance's settings are the
+# primary's, so it keeps them, as do the operator and an unbound cookie manager
+# (R2). Takes the predicate's `scopes => [...]` override for MCP and WebDAV.
+sub caller_is_confined {
+    my (%a) = @_;
+    my $confined = exists $a{scopes} ? 1 : request_domain_confined();
+    return 0 unless $confined;
+    my @scopes = grep { defined && length } ( exists $a{scopes} ? @{ $a{scopes} || [] } : @REQUEST_SCOPES );
+    return @scopes ? 1 : 0;
+}
+
+# The refusal for an instance-wide write by a confined caller, or undef. It
+# names what was asked, why, and the domains the caller does act on.
+sub instance_wide_refusal {
+    my (%a) = @_;
+    my %who = exists $a{scopes} ? ( scopes => $a{scopes} ) : ();
+    return undef unless caller_is_confined(%who);
+    my $what = $a{action} // 'this action';
+    my @mine = reachable_domains(%who);
+    return { ok => 0, kind => 'forbidden', instance_wide => 1, domains => \@mine,
+        error => "'$what' changes the whole instance, and a domain-confined caller "
+            . 'changes no instance-wide setting: it acts on its own domains only'
+            . ( @mine ? ' (' . join( ', ', @mine ) . ')' : '' )
+            . ', through the actions addressed to a host. An operator makes '
+            . 'instance-wide changes.' };
 }
 
 # The carve-outs from the whole-lazysite/ denial, named ONCE. is_blocked_path

@@ -74,6 +74,58 @@ subtest 'a grant passed as scopes => [...]' => sub {
     ok( caller_may_reach_domain( scopes => [], host => '' ), 'no scope: the primary, as content' );
 };
 
+# SM976 R3 (ruled 2026-10-09, "Keep for primary"): an UNBOUND token, MCP grant
+# or WebDAV account reaches the primary - and a domain serving the primary's
+# content - by the content-path rule; every other domain needs a scope (SM975).
+# The table above holds it for the token; this names the ruling and holds it for
+# the grant form MCP and WebDAV pass, and for the listing a client is shown.
+subtest 'R3: an unbound token or grant reaches the primary and no other domain' => sub {
+    as( token => 1, confined => 1 );
+    is_deeply( [ reachable_domains() ], [ '(default)', 'mirror.test' ], 'a token: the primary and the mirror' );
+    as( operator => 1 );
+    is_deeply( [ reachable_domains( scopes => [] ) ], [ '(default)', 'mirror.test' ], 'a grant: the same' );
+    for my $h ( 'alpha.test', 'beta.test', 'sub.alpha.test' ) {
+        ok( !caller_may_reach_domain( scopes => [], host => $h ), "a grant: not $h" );
+    }
+};
+
+# SM976 R1 (ruled 2026-10-09, "Confined = no instance-wide"): who is refused an
+# instance-wide write. Confined means a confined channel AND a scope naming some
+# domain(s) - the callers the predicate refuses the primary to. The unbound
+# token keeps them (it reaches the primary, whose settings they are), and so do
+# the operator and an unbound cookie manager.
+subtest 'R1: caller_is_confined and instance_wide_refusal' => sub {
+    my %WHO = (
+        'the cookie operator'                 => [ { operator => 1 }, 0 ],
+        'a cookie manager bound to no domain' => [ { confined => 1 }, 0 ],
+        'a cookie manager scoped to alpha' => [ { confined => 1, scopes => ['sites/alpha'] }, 1 ],
+        'a token naming no scope'          => [ { token => 1, confined => 1 }, 0 ],
+        'a token scoped to alpha' => [ { token => 1, confined => 1, scopes => ['sites/alpha'] }, 1 ],
+        'a locked account confined to nothing' => [ { confined => 1, scopes => ["\0sm165-locked-nowhere"] }, 1 ],
+    );
+    for my $who ( sort keys %WHO ) {
+        my ( $ctx, $want ) = @{ $WHO{$who} };
+        as(%$ctx);
+        is( Lazysite::Manager::Common::caller_is_confined(), $want, "$who: " . ( $want ? 'confined' : 'not confined' ) );
+        my $r = Lazysite::Manager::Common::instance_wide_refusal( action => 'config-set' );
+        if ($want) {
+            is( $r->{kind}, 'forbidden', "$who: config-set refused" );
+            ok( $r->{instance_wide}, '...as an instance-wide write' );
+            like( $r->{error}, qr/'config-set' changes the whole instance.*own domains only/s, '...saying why' );
+        }
+        else {
+            is( $r, undef, "$who: config-set allowed" );
+        }
+    }
+    as( operator => 1 );    # the explicit form must not read the request context
+    ok( Lazysite::Manager::Common::caller_is_confined( scopes => ['sites/alpha'] ), 'a grant with a scope: confined' );
+    ok( !Lazysite::Manager::Common::caller_is_confined( scopes => [] ), 'an unbound grant: not confined' );
+    is_deeply( Lazysite::Manager::Common::instance_wide_refusal( action => 'x', scopes => ['sites/alpha'] )->{domains},
+        [qw(alpha.test sub.alpha.test)], 'the refusal lists the domains it does act on' );
+    reset_request_context();
+    ok( Lazysite::Manager::Common::caller_is_confined(), 'and with no request context, everyone is confined' );
+};
+
 subtest 'loaded where no request set the context, it reaches nothing' => sub {
     reset_request_context();
     is_deeply( [ grep { caller_may_reach_domain( @{$_} ) } @TARGETS ], [], 'every target is refused' );

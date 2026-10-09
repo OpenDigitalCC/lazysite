@@ -59,7 +59,13 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
   `host` form of `activate_theme` and `activate_layout` - and `list_domains`
   shows only the domains the grant reaches. A domain added or repointed must
   have its content inside the scope; a grant with a scope does not reach the
-  primary site.
+  primary site. Nor does it change anything the whole instance reads:
+  `activate_theme` and `activate_layout` without a `host`, `install_layout`,
+  `delete_layout`, the handler and schedule tools, `create_theme` with
+  `activate`, and on the control API the site configuration, extensions,
+  connectors and instance backups are refused to it; it changes its own
+  domains through the `host` forms. A grant with no scope keeps them: it
+  reaches the primary, whose settings they are.
 - `webdav` - the WebDAV transport / file-API mechanism flag.
 - `manage_config` - site configuration (control API, not exposed as MCP tools).
 - `manage_connectors` - where site data may be sent: define connectors, set their

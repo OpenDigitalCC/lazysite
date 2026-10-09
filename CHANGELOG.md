@@ -53,6 +53,31 @@ Archive
 
 ## Unreleased
 
+- SM976 (PENDING) **security: the four rulings on domain confinement**
+  (2026-10-09). R1 "Confined = no instance-wide": a token, MCP grant or cookie
+  manager whose scope binds some domains no longer changes what the whole
+  instance reads. **Behaviour change:** it is refused `config-set`,
+  `theme-activate`, `layout-activate`, the layouts library and repo
+  (`layout-install`, `layouts-install`, `layout-delete`, `layouts-repo-set`),
+  the extensions (`plugin-enable`/`-disable`/`-save`/`-action`),
+  `audit-trail-set`, `git-init`, the IP blocklist, `rotate-auth-secret`, the
+  instance backups (`backup-create`/`-restore`/`-delete`, and it is shown and
+  sent none), `artifact-backups-delete`, the connector, handler and schedule
+  registries and `briefs-migrate`; over MCP `activate_theme`/`activate_layout`
+  without a `host`, `install_layout`, `delete_layout`, the handler and schedule
+  tools and `create_theme` with `activate`; and a confined cookie manager
+  deletes only themes it created. It changes its own domains through the
+  `host` forms. The operator, a cookie manager bound to no domain, and a token
+  or grant naming no scope (which reaches the primary, R3) are unchanged.
+  R2/R4: the data surface asks the shared domain rule. **Behaviour change:** a
+  cookie manager bound to no domain now reaches every data table, as it does
+  every other domain object; an unbound token or grant reaches the tables of a
+  domain that serves the primary's content; a scoped caller no longer reaches
+  the tables of a domain enclosing its own, nor any other domain's table
+  access rule or safety exports (those verbs asked nothing). Lint 218 holds
+  every mutating action to the instance-wide list. t/integration/114, 115,
+  t/unit/data/67.
+
 - SM943 ruling 2 (PENDING) **the structured nav read needs no capability**
   (ruled 2026-10-09: "As nav is public, do we need a cap to be able to read
   it? ... Surfaces should be consistent"). `nav-read` on the control API and

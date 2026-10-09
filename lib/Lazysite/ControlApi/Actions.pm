@@ -326,6 +326,12 @@ our %GATE = (
 #   audited => 0 | 1           DEFAULT: audited exactly when it mutates. Written
 #                              only for the exceptions (the audit %skip list)
 #   scoped => 1                the path a dav_scope confines (%SCOPED_ACTION)
+#   instance_wide => 1         SM976 R1: it changes a setting, registry or shared
+#                              library the whole instance reads, so a
+#                              domain-confined caller is refused it before
+#                              dispatch, on both doors (MCP's twin too, unless it
+#                              was given a host). The closed list t/lint/218
+#                              holds every mutating action to
 #   file_surface => 'read'|'write'
 #                              the carve-out gate's mode (%file_surface)
 #   cookie_cap => 'a|b' | 'a+b'
@@ -374,7 +380,7 @@ our %ACTION = (
     'brief-read' => { mcp => 'read_brief', cookie_cap => 'manage_content|manage_briefs', params => [ { name => 'path', in => 'query', required => 1 } ] },
     # [mcp] append_brief: writes the engine store, changes nothing live
     'brief-append' => { mcp => 'append_brief', mutates => 1, cookie_cap => 'manage_briefs', params => [ { name => 'path', in => 'query', required => 1 }, { name => 'entry', in => 'body', required => 1 } ] },
-    'briefs-migrate' => { mutates => 1, cookie_cap => 'manage_briefs', params => [] },
+    'briefs-migrate' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_briefs', params => [] },
     # [mcp] SM508: the lifecycle's discovery and cleanup halves.
     'briefs-list' => { mcp => 'list_briefs', cookie_cap => 'manage_content|manage_briefs', params => [] },
     # [cookie_cap] SM591: no copy survives
@@ -383,11 +389,11 @@ our %ACTION = (
     'aliases-list' => { params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },
     'analyse_visitors' => { mcp => 'analyse_visitors', cookie_cap => 'analytics', params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' } ] },
     # [cookie_cap] SM591: no copy survives
-    'artifact-backups-delete' => { mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'path', in => 'query' } ] },
+    'artifact-backups-delete' => { instance_wide => 1, mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'path', in => 'query' } ] },
     'artifact-manifest'       => { params => [] },
     'artifact-validate'       => { params => [] },
     'audit' => { cookie_gates_itself => 'create_sub_users without audit gets a scoped view (SM173), not a refusal', params => [ { name => 'user', in => 'query' }, { name => 'target', in => 'query' }, { name => 'start', in => 'query' }, { name => 'end', in => 'query' }, { name => 'page', in => 'query' }, { name => 'per_page', in => 'query' } ] },
-    'backup-create' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'scope', in => 'query' } ] },
+    'backup-create' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'scope', in => 'query' } ] },
     # [cookie_cap] SM268 03-F11: removing a snapshot is the same authority as taking or
     # restoring one.
     # SM591 + SM577: the backups store is INSTANCE-wide (package_create
@@ -395,22 +401,22 @@ our %ACTION = (
     # so this reaches archives of other sites on the same instance. Still
     # cookie-only - SM591 changes WHICH grant reaches it, not whether a
     # token can.
-    'backup-delete' => { mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'name', in => 'query_or_body' } ] },
+    'backup-delete' => { instance_wide => 1, mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'name', in => 'query_or_body' } ] },
     'backup-download' => { audited => 1, cookie_cap => 'manage_config', params => [ { name => 'name', in => 'query' } ] },
     'backup-list' => { cookie_cap => 'manage_config', params => [] },
     # SM874: `replace` is the undo-of-apply mode - the target folder is cleared
     # before the snapshot is written back, so files a package ADDED are removed
     # too. Absent or false keeps the historic overlay behaviour.
-    'backup-restore' => { mutates => 1, cookie_cap => 'manage_config', params =>
+    'backup-restore' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params =>
             [ { name => 'name', in => 'query' }, { name => 'replace', in => 'query' } ] },
     'bad-url-blocks' => { cookie_cap => 'manage_config', params => [] },
-    'bad-url-block' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'ip', in => 'query' } ] },
-    'bad-url-unblock' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'ip', in => 'query' } ] },
+    'bad-url-block' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'ip', in => 'query' } ] },
+    'bad-url-unblock' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'ip', in => 'query' } ] },
     'cache-invalidate' => { mutates => 1, audited => 0, scoped => 1, params => [ { name => 'path', in => 'query' }, { name => 'host', in => 'query' } ] },
     'cache-list'       => { params => [] },
     'channel-services' => { params => [] },
     'config-read'      => { cookie_cap => 'manage_config', params => [] },
-    'config-set' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'key', in => 'query_or_body', required => 1 }, { name => 'value', in => 'query_or_body' } ] },
+    'config-set' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'key', in => 'query_or_body', required => 1 }, { name => 'value', in => 'query_or_body' } ] },
     'copy' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
     'csrf-token' => { params => [] },
 
@@ -518,7 +524,7 @@ our %ACTION = (
     'remap-save' => { mutates => 1, cookie_cap => 'manage_domains', params => [ { name => 'host', in => 'body', required => 1 }, { name => 'rules', in => 'body', required => 1 } ] },
 # N13-04: the audit trail's switch - audit_switch AND manage_config (the second checked in the dispatch).
 # [cookie_cap] N13-04: AND manage_config, in the dispatch
-    'audit-trail-set' => { mutates => 1, audited => 0, cookie_cap => 'audit_switch', params => [ { name => 'state', in => 'body', required => 1 }, { name => 'reason', in => 'body' } ] },
+    'audit-trail-set' => { instance_wide => 1, mutates => 1, audited => 0, cookie_cap => 'audit_switch', params => [ { name => 'state', in => 'body', required => 1 }, { name => 'reason', in => 'body' } ] },
     'domains-list' => { mcp => 'list_domains', cookie_cap => 'manage_domains', params => [] },
     # [file_surface] SM517: the two download verbs reached the same files through a
     # different door. Neither was here, so a manage_content-only account
@@ -617,7 +623,7 @@ our %ACTION = (
     # that writes the content or the page that configures the plugin.
     # [cookie_cap] SM199, SM664
     'git-history-summary' => { mcp => 'list_content_history', cookie_cap => 'manage_content|manage_config', params => [] },
-    'git-init' => { mutates => 1, cookie_cap => 'manage_config', params => [] },
+    'git-init' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [] },
     'git-restore' => { mcp => 'restore_version', mcp_open_world => 1, mutates => 1, scoped => 1, file_surface => 'write', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
     'git-show' => { mcp => 'view_version', scoped => 1, file_surface => 'read', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
     'git-status' => { scoped => 1, cookie_cap => 'manage_content', params => [] },
@@ -642,7 +648,7 @@ our %ACTION = (
     # cookie-only rule. Any of the three destination capabilities opens the
     # door; the handler's type then decides (Lazysite::Handlers::cap_for_type).
     # [mcp] delete_handler: refused while in use, so nothing live changes
-    'handler-delete' => { mcp => 'delete_handler', mutates => 1, destructive => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
+    'handler-delete' => { instance_wide => 1, mcp => 'delete_handler', mutates => 1, destructive => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
     # [cookie_cap] SM842: the door to the handler actions opens for any of the three
     # destination capabilities; Lazysite::Handlers then decides by the
     # handler's type (a table handler needs manage_data, a connector
@@ -650,29 +656,29 @@ our %ACTION = (
     # form to a handler that exists is manage_forms alone.
     'handler-list' => { mcp => 'list_handlers', cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [] },
     # [mcp] save_handler: a bound handler's destination is live delivery
-    'handler-save' => { mcp => 'save_handler', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'type', in => 'body', required => 1, note => 'smtp, file, table or connector; handler-list returns each type\'s fields' }, { name => 'name', in => 'body', required => 1 }, { name => 'enabled', in => 'body' } ] },
+    'handler-save' => { instance_wide => 1, mcp => 'save_handler', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'type', in => 'body', required => 1, note => 'smtp, file, table or connector; handler-list returns each type\'s fields' }, { name => 'name', in => 'body', required => 1 }, { name => 'enabled', in => 'body' } ] },
     'schedule-list' => { mcp => 'list_schedule', cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [] },
     # [mcp] save_schedule: what the timer calls
-    'schedule-save' => { mcp => 'save_schedule', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'handler', in => 'body', required => 1 }, { name => 'every', in => 'body', required => 1, note => 'seconds, at least 300' }, { name => 'payload', in => 'body', note => 'a flat object of fixed fields' }, { name => 'enabled', in => 'body' } ] },
-    'schedule-delete' => { mcp => 'delete_schedule', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
+    'schedule-save' => { instance_wide => 1, mcp => 'save_schedule', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'handler', in => 'body', required => 1 }, { name => 'every', in => 'body', required => 1, note => 'seconds, at least 300' }, { name => 'payload', in => 'body', note => 'a flat object of fixed fields' }, { name => 'enabled', in => 'body' } ] },
+    'schedule-delete' => { instance_wide => 1, mcp => 'delete_schedule', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
     'key-revoke' => { mutates => 1, params => [] },
     'keys-list'       => { params => [] },
     # [cookie_cap] SM179 P6: read-only set coverage (a translation agent's cap)
     'lang-status' => { cookie_cap => 'manage_content', params => [ { name => 'group', in => 'query' } ] },
     # SM920: `layout` ALONE. `path` was the generic spelling and took precedence
     # over it, so a caller sending both had the specific one dropped in silence.
-    'layout-activate' => { mcp => 'activate_layout', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query', required => 1 } ] },
+    'layout-activate' => { instance_wide => 1, mcp => 'activate_layout', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query', required => 1 } ] },
     # SM911 LD2: `layout` is the spelling its siblings take and the one a partner
     # tries; `path` is what the dispatcher had always passed, and stays.
-    'layout-delete' => { mcp => 'delete_layout', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query' }, { name => 'path', in => 'query' } ] },
-    'layout-install' => { mcp => 'install_layout', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [] },
-    'layouts-available'        => { params => [] },
-    'layouts-install'   => { mutates => 1, cookie_cap => 'manage_layouts', params => [] },
-    'layouts-manifest'  => { mcp     => 'list_layout_catalogue', params => [] },
+    'layout-delete' => { instance_wide => 1, mcp => 'delete_layout', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_layouts', params => [ { name => 'layout', in => 'query' }, { name => 'path', in => 'query' } ] },
+    'layout-install' => { instance_wide => 1, mcp => 'install_layout', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [] },
+    'layouts-available' => { params => [] },
+    'layouts-install' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [] },
+    'layouts-manifest'         => { mcp    => 'list_layout_catalogue', params => [] },
     'layouts-release-contents' => { params => [ { name => 'tag', in => 'query' } ] },
     'layouts-releases'         => { params => [] },
     'layouts-repo-get'         => { params => [] },
-    'layouts-repo-set' => { mutates => 1, cookie_cap => 'manage_layouts', params => [ { name => 'value', in => 'body' } ] },
+    'layouts-repo-set' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [ { name => 'value', in => 'body' } ] },
     'list' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' } ] },
     'lock' => { mutates => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'migrate-to-local' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
@@ -694,12 +700,12 @@ our %ACTION = (
     # the plugin's own reasoning, and the reason it declares no capability.
     'page-pdf' => { mutates => 1, cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' } ] },
     'pages' => { mcp => 'list_pages', params => [] },    # SM568
-    'plugin-action' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'action_id', in => 'body' }, { name => 'params', in => 'body' } ] },
-    'plugin-disable' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
-    'plugin-enable' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
+    'plugin-action' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'action_id', in => 'body' }, { name => 'params', in => 'body' } ] },
+    'plugin-disable' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
+    'plugin-enable' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
     'plugin-list'    => { params => [] },
     'plugin-read' => { cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' } ] },
-    'plugin-save' => { mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'values', in => 'body' } ] },
+    'plugin-save' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'values', in => 'body' } ] },
     'preview' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' } ] },
     'preview-clear' => { mutates => 1, audited => 0, cookie_cap => 'manage_themes|manage_layouts', params => [] },
 # [changes_access deliberately unset] SM649: preview-grant and preview-clear are NOT here, and were. The comment
@@ -730,7 +736,7 @@ our %ACTION = (
     # sitemap.xml down by deleting the generated file for want of this.
     'regenerate-registries' => { mcp => 'regenerate_registries', mcp_open_world => 1, mutates => 1, audited => 0, params => [] },
     'renew-lock' => { mutates => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
-    'rotate-auth-secret' => { mutates => 1, cookie_cap => 'manage_config', cookie_only_reason => 'rotating the signing secret invalidates every live session, including the caller\'s own, so it is done by a human who can see what breaks', params => [] },
+    'rotate-auth-secret' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', cookie_only_reason => 'rotating the signing secret invalidates every live session, including the caller\'s own, so it is done by a human who can see what breaks', params => [] },
     'save' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'content', in => 'body' }, { name => 'mtime', in => 'body' } ] },
     'session-revoke' => { mutates => 1, params => [] },
     'sessions-list'     => { params => [] },
@@ -751,7 +757,7 @@ our %ACTION = (
     # [cookie_cap] SM185: package the DEFAULT site (no domains feature needed)
     'site-export-primary' => { mutates => 1, cookie_cap => 'manage_content', params => [ { name => 'data_tables', in => 'body' } ] },
     # SM920: `theme` ALONE, for the same reason layout-activate takes `layout`.
-    'theme-activate' => { mcp => 'activate_theme', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'theme', in => 'query', required => 1 } ] },
+    'theme-activate' => { instance_wide => 1, mcp => 'activate_theme', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'theme', in => 'query', required => 1 } ] },
     # [mcp] copy_theme: SM749: a copy changes nothing live
     'theme-copy' => { mcp => 'copy_theme', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'path', in => 'query', required => 1 }, { name => 'new_name', in => 'body', required => 1 }, { name => 'layout', in => 'body' } ] },
     # [mcp] SM262: paired, but NOT identical - the MCP tool is always restricted to
@@ -779,9 +785,9 @@ our %ACTION = (
     # gates it (callers groups or manage_connectors) - see Connectors::may_call.
     # [cookie_cap] SM579: see the cookie table; connector-call is gated by the connector.
     'connector-list' => { cookie_cap => 'manage_connectors', params => [] },
-    'connector-save' => { mutates => 1, cookie_cap => 'manage_connectors', params => [ { name => 'id', in => 'body' }, { name => 'connector', in => 'body' } ] },
-    'connector-secret-set' => { mutates => 1, cookie_cap => 'manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'secret', in => 'body', required => 1 } ] },
-    'connector-delete' => { mutates => 1, destructive => 1, cookie_cap => 'manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
+    'connector-save' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_connectors', params => [ { name => 'id', in => 'body' }, { name => 'connector', in => 'body' } ] },
+    'connector-secret-set' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'secret', in => 'body', required => 1 } ] },
+    'connector-delete' => { instance_wide => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
     # SM781: caps => [] - NO capability, not "cookie-only". undef here means
     # the cookie channel alone serves the action, and connector-call is
     # served on every channel (gate 'ALWAYS'); the field found it working and
@@ -889,6 +895,7 @@ sub need_caps {
 my %FIELD = map { $_ => 1 } qw(
     params caps mutates destructive changes_access audited scoped file_surface
     cookie_cap cookie_gates_itself cookie_only_reason mcp mcp_open_world
+    instance_wide
 );
 for my $name ( sort keys %ACTION ) {
     my $spec = $ACTION{$name};
@@ -935,6 +942,7 @@ sub mutating            { return _flagged('mutates') }
 sub destructive         { return _flagged('destructive') }
 sub changes_access      { return _flagged('changes_access') }
 sub scoped_actions      { return _flagged('scoped') }
+sub instance_wide       { return _flagged('instance_wide') }
 sub file_surface        { return _valued('file_surface') }
 sub cookie_caps         { return _valued('cookie_cap') }
 sub cookie_gates_itself { return _valued('cookie_gates_itself') }

@@ -1326,7 +1326,7 @@ my %TOOLS = (
         },
     },
     activate_theme => {
-        description => 'Activate a theme. WITHOUT `host` this is INSTANCE-WIDE: it changes the theme of the whole site, every domain that inherits it included - on a multi-domain instance that is almost never what you want. WITH `host` it binds the theme to that one configured domain and publishes its assets, leaving every other domain untouched. Call list_domains first if you are not certain the instance serves only one site. Clears the HTML cache.',
+        description => 'Activate a theme. WITHOUT `host` this is INSTANCE-WIDE: it changes the theme of the whole site, every domain that inherits it included - on a multi-domain instance that is almost never what you want. WITH `host` it binds the theme to that one configured domain and publishes its assets, leaving every other domain untouched. Call list_domains first if you are not certain the instance serves only one site. Clears the HTML cache. A grant confined to some domains is refused the instance-wide form: it binds its own domains with host.',
         cap         => 'manage_themes',
         inputSchema => { type => 'object',
             properties => {
@@ -1369,6 +1369,15 @@ my %TOOLS = (
         },
         run => sub {
             my $a = $_[0];
+            # SM976 R1: activate:true makes it the INSTANCE's theme, as
+            # activate_theme without a host does, which a domain-confined grant
+            # does not do. Creating it is a new theme nothing serves, and stays.
+            if ( $a->{activate} ) {
+                my $no = Lazysite::Manager::Common::instance_wide_refusal(
+                    action => 'create_theme with activate',
+                    scopes => ( ( $_[2] || {} )->{dav_scopes} || [] ) );
+                return $no if $no;
+            }
             my %p = ( layout => $a->{layout}, name => $a->{name} );
             $p{config}      = $a->{config}      if defined $a->{config};
             $p{css}         = $a->{css}         if defined $a->{css};
@@ -1398,7 +1407,7 @@ my %TOOLS = (
         },
     },
     activate_layout => {
-        description => 'Activate a layout (optionally naming a compatible theme). WITHOUT `host` this is INSTANCE-WIDE and changes the whole site. WITH `host` it binds the layout to that one configured domain and leaves the others alone. Call list_domains first if the instance may serve more than one site.',
+        description => 'Activate a layout (optionally naming a compatible theme). WITHOUT `host` this is INSTANCE-WIDE and changes the whole site. WITH `host` it binds the layout to that one configured domain and leaves the others alone. Call list_domains first if the instance may serve more than one site. A grant confined to some domains is refused the instance-wide form: it binds its own domains with host.',
         cap         => 'manage_layouts',
         inputSchema => { type => 'object',
             properties => {
@@ -3818,6 +3827,30 @@ elsif ( $method eq 'tools/call' ) {
             rpc_error( $id, -32002,
                 "Path '$p' is outside your assigned scope ($names). Do not retry; "
                     . "ask the operator to widen your group's dav_scope." );
+        }
+    }
+
+    # SM976 R1 (ruled 2026-10-09, "Confined = no instance-wide"): a grant
+    # confined to some domains changes no instance-wide setting. The tools are
+    # the MCP twins of the actions Lazysite::ControlApi::Actions declares
+    # `instance_wide`, so the two doors refuse the same acts; a twin that takes a
+    # `host` and was given one is addressed to that domain instead, and answers
+    # to the domain rule in its own block (activate_theme, activate_layout).
+    # create_theme's activate:true asks in its block. t/lint/218 holds this.
+    {
+        my %iw        = Lazysite::ControlApi::Actions::instance_wide();
+        my %twin      = Lazysite::ControlApi::Actions::mcp_twins();
+        my %iw_tool   = map { $twin{$_} => $_ } grep { defined $twin{$_} } keys %iw;
+        my $a         = $params->{arguments} || {};
+        my $addressed = ( $tool->{inputSchema}{properties} || {} )->{host}
+            && defined $a->{host} && length $a->{host};
+        if ( $iw_tool{$name} && !$addressed ) {
+            if ( my $r = Lazysite::Manager::Common::instance_wide_refusal(
+                    action => $name, scopes => ( ref $scopes eq 'ARRAY' ? $scopes : [] ) ) )
+            {
+                audit_log( $user, $name, '', _request_ip(), 'fail', 'mcp', 'denied: instance-wide' );
+                rpc_error( $id, -32002, "$r->{error} Do not retry with this grant." );
+            }
         }
     }
 

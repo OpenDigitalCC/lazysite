@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, from the gaps SM975 found and did not change
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\". Every host- or root-addressed action on the control API, MCP and WebDAV asks Manager::Common::caller_may_reach_domain; a confined caller reaches only its own domains, the operator all. t/integration/112, t/unit/manager/207, t/unit/data/66, t/lint/218."
+status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\". Every host- or root-addressed action on the control API, MCP and WebDAV asks Manager::Common::caller_may_reach_domain; a confined caller reaches only its own domains, the operator all. t/integration/112, t/unit/manager/207, t/unit/data/66, t/lint/218. Rulings R1-R4 (2026-10-09) built (n314): a confined caller changes no instance-wide setting (closed list, lint 218 section 5); an unbound cookie manager is unconfined; unbound grants keep the primary; the data surface asks the shared rule. t/integration/114, 115, t/unit/data/67. Three further findings for a ruling (below)."
 ---
 
 # What was wrong
@@ -130,19 +130,127 @@ domain.
 - Sabotage: the predicate answering yes for everyone fails 112 and 207; the data
   check removed fails 66; one action's call removed fails lint 218.
 
-# Found, not changed
+# Found, then ruled
 
-- The data surface keeps its own reach rule (SM593/SM648): a grant reaches a
-  domain's tables when its scope and the domain's root overlap in either
-  direction, and a cookie manager bound to no domain is confined to none. This
-  rule is containment and leaves that manager unconfined. Aligning them is a
-  narrowing on one side and a widening on the other, so it is for a ruling.
-- Instance-wide verbs (`config-set`, `theme-activate`, `layout-activate`, MCP
-  `activate_theme`/`activate_layout` without a host) change every domain and
-  are gated by capability alone. Measured: a token scoped to one domain, with
-  `manage_config`, rewrote the instance's `site_name` through `config-set`
-  (tmp/q15b-instance-wide-probe.out); the others by reading. Whether a
-  domain-confined caller may hold an instance-wide capability is for a ruling.
+The build above recorded two questions it did not change, and the release
+manager's review asked two more. Ruled 2026-10-09:
+
+R1 (security), "Confined = no instance-wide"
+: A domain-confined caller (token with a scope, scoped cookie manager, MCP
+  grant or WebDAV account confined to some domains) cannot change
+  instance-wide settings. They act on their own domains only, through
+  host-addressed actions. Operator and unconfined callers unchanged.
+
+R2, "Unbound cookie manager = unconfined"
+: A cookie manager whose groups bind no domain is a whole-instance manager.
+
+R3, "Keep for primary"
+: Unbound tokens, MCP grants and WebDAV accounts reach the primary via the
+  content-path rule (whoami allow: /); other domains need an explicit scope
+  (SM975).
+
+R4, "Use the shared rule"
+: The data surface calls `caller_may_reach_domain` like every other action;
+  lint 218's single exception (`data-table-save`) goes.
+
+What was measured before the rulings: a token scoped to one domain, with
+`manage_config`, rewrote the instance's `site_name` through `config-set`
+(tmp/q15b-instance-wide-probe.out); and the data surface's own rule (SM593/
+SM648) reached a domain's tables when scope and root overlapped in either
+direction, gave a domain serving the primary's content to nobody, and confined
+a cookie manager bound to no domain to no table.
+
+# The rulings, built (n314)
+
+Who is confined (R1)
+: The predicate's own notion, read one way: a caller on a confined channel
+  whose scope list is not empty - `Manager::Common::caller_is_confined`.
+  Scopes are the content roots of the domains its groups are named on (or
+  SM165's deny-all for a locked account), so a non-empty scope binds it to
+  some domains, and `caller_may_reach_domain` already refuses it the primary.
+  A token, grant or account naming no scope reaches the primary (R3), whose
+  settings the instance's are, and keeps them; so do the operator and an
+  unbound cookie manager (R2). A cookie manager holding `manage_users` is the
+  operator (Acl `_is_operator`) and was never confined.
+
+The instance-wide writes (R1)
+: A closed list, `instance_wide => 1` in `Lazysite::ControlApi::Actions`,
+  refused by `instance_wide_refusal` before the control API's dispatch and for
+  each MCP twin unless the twin takes a `host` and was given one:
+  `config-set`, `theme-activate`, `layout-activate`, `layouts-repo-set`,
+  `layout-install`, `layouts-install`, `layout-delete`, `plugin-enable`,
+  `plugin-disable`, `plugin-save`, `plugin-action`, `audit-trail-set`,
+  `git-init`, `bad-url-block`, `bad-url-unblock`, `rotate-auth-secret`,
+  `backup-create`, `backup-restore`, `backup-delete`,
+  `artifact-backups-delete`, `connector-save`, `connector-secret-set`,
+  `connector-delete`, `handler-save`, `handler-delete`, `schedule-save`,
+  `schedule-delete`, `briefs-migrate`; over MCP `activate_theme` and
+  `activate_layout` without a host, `install_layout`, `delete_layout`,
+  `save_handler`, `delete_handler`, `save_schedule`, `delete_schedule`, and
+  `create_theme` with `activate`. Decided in their branch: `theme-delete`
+  removes only a theme the confined caller created (SM262's rule); `backup-list`
+  shows it no instance backup and `backup-download` refuses one (a full backup
+  carries every domain's content and the account store).
+
+Not instance-wide, and why (lint 218's closed list)
+: `theme-copy`, `theme-upload` and `create_theme` add a theme nothing serves;
+  `regenerate-registries` rebuilds derived output; `site-backup-upload` stores
+  a package that changes a site only through the host-checked apply;
+  `preview-grant`/`-clear`, `notices-seen` and `start-page-set` are the
+  caller's own; `connector-call` is decided by the connector; the session, key
+  and account-approval verbs need `manage_users`, which makes a cookie caller
+  the operator; the briefs and forms verbs address one object (see below).
+  The users and groups store is not reachable by a confined caller: the
+  `users` action is cookie-only and its instance-level operations need
+  `manage_users`; a delegate keeps to its own sub-tree (SEC-2026-07 C1).
+
+The data surface (R2, R4)
+: `Manager::Data::_may_reach` and the `domain:` check of `data-table-save` ask
+  `caller_may_reach_domain( scopes => ... )`; the control API hands the data
+  module `request_domain_confined` as its confinement flag. Narrows: a scope
+  inside a domain's root no longer reaches the domain around it; the table
+  access-rule verbs and the safety exports (listing, read, restore, delete) ask
+  the table's reach - they asked nothing. Widens: an unbound cookie manager
+  reaches every table (R2); an unbound token or grant reaches the tables of a
+  domain serving the primary's content (R3). Unchanged: a scope reaches the
+  domains whose root lies inside it; tables naming no domain are everyone's.
+
+R3
+: Built in n312; pinned by name in t/unit/manager/207 (an unbound token and an
+  unbound grant reach the primary and the domain serving its content, no
+  other).
+
+Evidence (n314)
+: t/integration/114 (every instance-wide action, every caller, both doors),
+  t/integration/115 (R2 and R4 through the doors), t/unit/data/67 (each data
+  case that changed), t/unit/manager/207 (R1's who and R3), t/lint/218
+  section 5. The probe tmp/q15c-probe.pl on n313 and n314 (368 cells,
+  tmp/q15c-probe.before.out and .after.out): 262 unchanged; 106 changed, every
+  one an intended narrowing (instance-wide refusals, the data verbs that asked
+  nothing) or one of the R2/R3 widenings above.
+
+# Found in Q15c, for a ruling
+
+- A theme a domain serves is writable by a confined caller. The active-theme
+  rule (SM749) protects only the instance's active theme, so a grant scoped to
+  one domain wrote into the theme another domain is bound to (MCP
+  `write_file` under `lazysite/layouts/.../themes/<theme>/`, measured in
+  tmp/q15c-probe.after.out; WebDAV and the cookie file surface consult the same
+  rule, read and not run). Recommendation: extend
+  `active_artifact_refusal` to every theme and layout the primary or any
+  configured domain serves, which is SM749's own reasoning.
+- Forms carry no domain, and the form verbs ask no reach. Measured
+  (tmp/q15c-forms-briefs-probe.out): a token scoped to one domain listed
+  another domain's form (`form-list`) and rewrote its upload settings
+  (`form-uploads-save`). The other form verbs address a form by the same bare
+  name and were read, not run: `form-targets-save`, `form-notify-save`,
+  `form-delete` and the submission verbs. Briefs ask no reach either: the same
+  token appended to and read the brief of a page in another domain
+  (`brief-append`, `brief-read`). Recommendation: confine a form by the page
+  that binds it, and a brief by its path or table, through the same rule.
+- A dropped table's safety export carries no domain, so it is reached as an
+  untagged table is. Recommendation: record the table's `domain:` in the
+  export when it is written.
 
 # Related
 

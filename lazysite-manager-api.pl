@@ -1053,8 +1053,29 @@ my %uskip = map { $_ => 1 } qw(
 # dispatch, where @REQUEST_SCOPES is final for this request. Empty stays empty:
 # an unconfined grant is the sysop and the data surface behaves as it always
 # did.
+#
+# SM976 R2 (ruled 2026-10-09, "Unbound cookie manager = unconfined"): the flag is
+# the shared rule's own notion of confinement, request_domain_confined - always
+# for a token, and for a cookie manager only when its scope binds a domain. A
+# cookie manager whose groups bind no domain was confined to no table here while
+# every other surface treated it as the whole-instance manager it is.
 @Lazysite::Manager::Data::CALLER_SCOPES   = @REQUEST_SCOPES;
-$Lazysite::Manager::Data::CALLER_CONFINED = $REQUEST_CONFINED;
+$Lazysite::Manager::Data::CALLER_CONFINED = Lazysite::Manager::Common::request_domain_confined();
+
+# SM976 R1 (ruled 2026-10-09, "Confined = no instance-wide"): a domain-confined
+# caller changes no instance-wide setting. The closed list is `instance_wide`
+# in Lazysite::ControlApi::Actions; the refusal comes before dispatch, so no
+# branch below has to remember it, and t/lint/218 holds every mutating action to
+# the list. The operator, an unbound cookie manager and an unbound token (which
+# reaches the primary, whose settings these are) are unaffected.
+{
+    my %instance_wide = Lazysite::ControlApi::Actions::instance_wide();
+    if ( $instance_wide{$action} ) {
+        if ( my $r = Lazysite::Manager::Common::instance_wide_refusal( action => $action ) ) {
+            _refuse( $r, ( $token_auth ? 'api' : 'ui' ), 'denied: instance-wide' );
+        }
+    }
+}
 
 # --- SM773: A MISSING PARAMETER IS NAMED AS MISSING, BEFORE THE BRANCH RUNS.
 #
@@ -1850,9 +1871,14 @@ elsif ( $action eq 'layout-activate' ) {
 }
 elsif ( $action eq 'theme-delete' ) {
     # SM262: a token client may remove a theme it created; a cookie session (a
-    # human in the manager) keeps the unrestricted delete.
+    # human in the manager) keeps the unrestricted delete. SM976 R1: unless that
+    # human is domain-confined - the theme library is the instance's, so a
+    # confined manager removes only what it created, as a token does. (Any
+    # theme the primary or a domain serves is refused to everyone, SM177.)
+    my $restrict = ( $RESTRICT_THEME_DELETE
+            || Lazysite::Manager::Common::caller_is_confined() ) ? 1 : 0;
     $result = action_theme_delete( $path,
-        { restrict_to_creator => $RESTRICT_THEME_DELETE, user => $auth_user } );
+        { restrict_to_creator => $restrict, user => $auth_user } );
 }
 elsif ( $action eq 'layout-delete' ) {
     # SM911 LD2: `layout=` TOO, because that is what the family takes.
@@ -2222,12 +2248,19 @@ elsif ( $action eq 'backup-list' ) {
     # refusal the download and delete verbs use, so the three cannot disagree
     # about who reaches what. Only `site` entries are per-domain; a full or
     # content backup is instance-wide and is governed by manage_config.
+    #
+    # SM976 R1: a full or content backup is the whole instance - every domain's
+    # content, and a full one the configuration and the account store - so a
+    # domain-confined caller is shown none of them, and backup-download refuses
+    # them the same way.
     if ( ref $result eq 'HASH' && ref $result->{backups} eq 'ARRAY' ) {
-        my $dir = Lazysite::Paths::lazysite_dir($DOCROOT) . '/backups';
+        my $dir      = Lazysite::Paths::lazysite_dir($DOCROOT) . '/backups';
+        my $confined = Lazysite::Manager::Common::caller_is_confined();
         $result->{backups} = [
             grep {
-                ( $_->{scope} // '' ) ne 'site'
-                    || !_package_scope_refusal("$dir/$_->{name}")
+                ( $_->{scope} // '' ) eq 'site'
+                    ? !_package_scope_refusal("$dir/$_->{name}")
+                    : !$confined
             } @{ $result->{backups} }
         ];
     }
@@ -2252,6 +2285,19 @@ elsif ( $action eq 'backup-delete' ) {
     $result = action_backup_delete( $req->{name} // $params{name} );
 }
 elsif ( $action eq 'backup-download' ) {
+    # SM976: the same reach the listing applies. A site package is one domain's
+    # (the site-backup-download rule); any other backup is the whole instance,
+    # which a domain-confined caller does not read (R1).
+    my $name = $params{name} // '';
+    if ( $name =~ /\A(?:lazysite-)?site-[A-Za-z0-9._-]*\z/ ) {
+        my $pkg = Lazysite::Paths::lazysite_dir($DOCROOT) . "/backups/$name";
+        if ( my $no = _package_scope_refusal($pkg) ) {
+            _refuse( $no, 'ui', 'denied: outside domain scope', $name );
+        }
+    }
+    elsif ( my $no = Lazysite::Manager::Common::instance_wide_refusal( action => 'backup-download' ) ) {
+        _refuse( $no, 'ui', 'denied: instance-wide', $name );
+    }
     action_backup_download( $params{name} );
     exit 0;
 }

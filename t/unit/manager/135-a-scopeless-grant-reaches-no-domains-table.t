@@ -38,12 +38,14 @@ use Lazysite::Manager::Data ();
 
 # The predicate under test, with its two lookups stubbed so this measures the
 # CONFINEMENT decision rather than the table store or the domain registry.
+# SM976 R4: the domain question is the shared rule now (_reaches_domain asks
+# Manager::Common::caller_may_reach_domain; t/unit/data/67 drives it for real).
 {
     no warnings 'redefine';
     *Lazysite::Manager::Data::_table_domain =
         sub { $_[0] eq 'bound' ? 'alpha.test' : '' };
-    *Lazysite::Manager::Data::_caller_domains =
-        sub { @Lazysite::Manager::Data::CALLER_SCOPES ? ('alpha.test') : () };
+    *Lazysite::Manager::Data::_reaches_domain =
+        sub { @Lazysite::Manager::Data::CALLER_SCOPES && $_[0] eq 'alpha.test' ? 1 : 0 };
 }
 my $reach = \&Lazysite::Manager::Data::_may_reach;
 

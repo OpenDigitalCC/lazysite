@@ -146,6 +146,8 @@ sub action_table_acl_get {
     if ( my $off = _gate() ) { return $off }
     my ( $key, $err ) = _acl_table_key($table);
     return $err if $err;
+    # SM976 R4: a table's rule is that table's, reached as the table is.
+    if ( my $no = _outside_scope($table) ) { return $no }
 
     my $a = load_acls()->{ _acl_norm($key) };
 
@@ -164,6 +166,8 @@ sub action_table_acl_set {
     if ( my $off = _gate() ) { return $off }
     my ( $key, $err ) = _acl_table_key($table);
     return $err if $err;
+    # SM976 R4: a table's rule is that table's, reached as the table is.
+    if ( my $no = _outside_scope($table) ) { return $no }
 
     my $acls     = load_acls();
     my $norm     = _acl_norm($key);
@@ -204,6 +208,8 @@ sub action_table_acl_remove {
     if ( my $off = _gate() ) { return $off }
     my ( $key, $err ) = _acl_table_key($table);
     return $err if $err;
+    # SM976 R4: a table's rule is that table's, reached as the table is.
+    if ( my $no = _outside_scope($table) ) { return $no }
 
     my $acls     = load_acls();
     my $norm     = _acl_norm($key);
@@ -246,18 +252,33 @@ sub _table_action {
 # which is why an unpublished table is invisible to a visitor in the first
 # place.
 #
-# Memoised per request because every action asks, and the answer cannot change
-# inside one.
-my @_CALLER_DOMAINS;
-my $_CALLER_DOMAINS_FOR = "\0";
+# SM976 R4 (ruled 2026-10-09, "Use the shared rule"): the answer is
+# Lazysite::Manager::Common::caller_may_reach_domain, as it is for every other
+# action addressed by a host. This surface kept a rule of its own (SM593/SM648):
+# a grant reached a domain's tables when its scope and the domain's content root
+# overlapped IN EITHER DIRECTION, a domain serving the primary's content was
+# nobody's, and a cookie manager bound to no domain was confined to none. Under
+# the shared rule a scope reaches a domain whose root lies INSIDE it; a domain
+# with no root of its own, and the primary, are reached by an unbound grant (R3);
+# and an unbound cookie manager is unconfined (R2, decided where the surface sets
+# $CALLER_CONFINED). Every confined caller here is a resolved grant, so it is
+# asked as one - `scopes => [...]`, as MCP and WebDAV ask.
+sub _reaches_domain {
+    my ($host) = @_;
+    require Lazysite::Manager::Common;
+    no warnings 'once';    ## no critic (ProhibitNoWarnings)
+    local $Lazysite::Manager::Common::DOCROOT = $Lazysite::Manager::Common::DOCROOT // $DOCROOT;
+    return Lazysite::Manager::Common::caller_may_reach_domain(
+        scopes => [@CALLER_SCOPES], host => $host ) ? 1 : 0;
+}
 
+# The configured hosts this caller binds a table to, for the refusal's list.
 sub _caller_domains {
-    my $key = join( "\0", @CALLER_SCOPES );
-    return @_CALLER_DOMAINS if $key eq $_CALLER_DOMAINS_FOR;
-    require Lazysite::Manager::Domains;
-    @_CALLER_DOMAINS     = Lazysite::Manager::Domains::domains_for_scopes(@CALLER_SCOPES);
-    $_CALLER_DOMAINS_FOR = $key;
-    return @_CALLER_DOMAINS;
+    require Lazysite::Manager::Common;
+    no warnings 'once';    ## no critic (ProhibitNoWarnings)
+    local $Lazysite::Manager::Common::DOCROOT = $Lazysite::Manager::Common::DOCROOT // $DOCROOT;
+    return grep { $_ ne '(default)' }
+        Lazysite::Manager::Common::reachable_domains( scopes => [@CALLER_SCOPES] );
 }
 
 # May this caller act on this table at all?
@@ -285,7 +306,7 @@ sub _may_reach {
     return 1 unless $CALLER_CONFINED || @CALLER_SCOPES;
     my $dom = _table_domain($table);
     return 1 unless length $dom;    # unscoped - as it always was
-    return ( grep { $_ eq $dom } _caller_domains() ) ? 1 : 0;
+    return _reaches_domain($dom);    # SM976 R4: the shared rule
 }
 
 # THE REFUSAL IS THE ONE A MISSING TABLE GETS, word for word and kind for kind.
@@ -726,9 +747,9 @@ sub action_data_table_save {
         # data, which the rule that a confined caller reaches only its own
         # domains forbids. The test is the one every table action already makes
         # of an existing table (_may_reach), applied to the domain being named.
-        if ( ( $CALLER_CONFINED || @CALLER_SCOPES )
-            && !grep { lc($_) eq lc( $d->{domain} ) } _caller_domains() )
-        {
+        # SM976 R4: the shared rule, so a table is bound only where the caller
+        # reaches by every other action too.
+        if ( ( $CALLER_CONFINED || @CALLER_SCOPES ) && !_reaches_domain( $d->{domain} ) ) {
             my @mine = _caller_domains();
             return { ok => 0, kind => 'forbidden', field => 'domain',
                 error => "domain '$d->{domain}' is not one of yours: a caller confined to "
@@ -1066,6 +1087,18 @@ sub _export_path {
         undef );
 }
 
+# SM976 R4: AN EXPORT IS ITS TABLE'S. A confined caller listed, read, deleted and
+# restored the safety exports of every domain's tables - the export verbs never
+# asked whose table it was. The answer is the table's (_may_reach), and the
+# refusal is the one a missing export gets, so an export outside the caller's
+# domains cannot be told from one that does not exist. A dropped table has no
+# descriptor and so no domain: its export is reached as an untagged table is.
+sub _export_outside_scope {
+    my ($e) = @_;
+    return undef if _may_reach( $e->{table} );
+    return { ok => 0, error => 'no such safety export', kind => 'not-found' };
+}
+
 sub action_data_safety_exports {
     if ( my $off = _gate() ) { return $off }
     my $dir = Lazysite::Paths::lazysite_dir($DOCROOT) . "/db/rebuilds";
@@ -1074,6 +1107,7 @@ sub action_data_safety_exports {
         for my $f ( readdir $dh ) {
             next unless $f =~ $EXPORT_NAME;
             my ( $table, $dropped, $stamp ) = ( $1, $2, $3 );
+            next unless _may_reach($table);    # SM976 R4
             my @st = stat "$dir/$f";
 
             # SM514: a summary, so an export can be judged without opening
@@ -1108,6 +1142,7 @@ sub action_data_safety_export_delete {
     if ( my $off = _gate() ) { return $off }
     my ( $e, $bad ) = _export_path($file);
     return $bad if $bad;
+    if ( my $no = _export_outside_scope($e) ) { return $no }
     unlink $e->{abs}
         or return { ok => 0, error => "could not remove the export: $!" };
     log_event( 'INFO', $e->{table}, 'safety export removed', file => $file,
@@ -1133,6 +1168,7 @@ sub action_data_safety_export_read {
     if ( my $off = _gate() ) { return $off }
     my ( $e, $bad ) = _export_path($file);
     return $bad if $bad;
+    if ( my $no = _export_outside_scope($e) ) { return $no }
     my $data = _read_export_file( $e->{abs} )
         or return { ok => 0, error => 'the export is not a readable lazysite data export' };
     return { ok => 1, file => $file, table => $e->{table},
@@ -1158,6 +1194,7 @@ sub action_data_safety_export_restore {
     if ( my $off = _gate() ) { return $off }
     my ( $e, $bad ) = _export_path($file);
     return $bad if $bad;
+    if ( my $no = _export_outside_scope($e) ) { return $no }
     my $data = _read_export_file( $e->{abs} )
         or return { ok => 0, error => 'the export is not a readable lazysite data export' };
     my $d = load_table( $DOCROOT, $e->{table} );

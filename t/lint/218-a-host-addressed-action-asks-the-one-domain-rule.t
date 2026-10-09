@@ -27,6 +27,11 @@
 #   3. MCP: every tool whose inputSchema has a `host` or `content_root`
 #      property asks in its block or in a sub the block calls; list_domains too.
 #   4. WebDAV: each navigation branch of authorise() asks.
+#   5. SM976 R1: every mutating control-API action is declared instance-wide
+#      (refused to a domain-confined caller before dispatch, and for its MCP
+#      twin), confined by a content path, addressed to a domain as above, or on
+#      a closed list with the reason it is not an instance-wide write; and
+#      MCP's own mutating tools likewise.
 #
 # Files are named relative to the repository root, so the lint judges the same
 # set from any checkout - including one under tmp/.
@@ -43,11 +48,11 @@ my $root = repo_root();
 
 # Closed: action => why it does not ask. An entry must take a host and must
 # not ask, or the lint fails.
-my %EXCEPT = (
-    'data-table-save' => 'the `domain:` it reads is a table\'s, checked by the data '
-        . 'surface\'s own rule (Manager::Data _caller_domains, SM593/SM648), which every '
-        . 'table action applies; SM976 records where that rule differs from this one',
-);
+#
+# SM976 R4 (ruled 2026-10-09, "Use the shared rule"): EMPTY. data-table-save
+# stood here while the data surface kept a reach rule of its own; it asks this
+# one now, like every other action.
+my %EXCEPT = ();
 
 # No host named, and must ask all the same.
 my %MUST_ASK = (
@@ -178,5 +183,109 @@ my $nav_asks  = () = $auth =~ /return\s+_nav_reach_deny\(/g;
 ok( $nav_gates >= 2, 'WebDAV authorise() gates the navigation files' );
 is( $nav_asks, $nav_gates, 'and each navigation branch asks the domain rule' );
 ok( $ASKS{_nav_reach_deny}, '...through a sub that asks it' );
+
+# --- 5: instance-wide writes (SM976 R1) -----------------------------------------
+#
+# Ruled 2026-10-09, "Confined = no instance-wide": a domain-confined caller
+# changes no instance-wide setting; it acts on its own domains only, through the
+# actions addressed to a host. The closed list is `instance_wide => 1` in
+# Lazysite::ControlApi::Actions, refused before dispatch on the control API and
+# for the MCP twins (Manager::Common::instance_wide_refusal).
+#
+# EVERY MUTATING ACTION IS ACCOUNTED FOR, so a new one is a decision: it is
+# declared instance-wide, or it is confined by a content path (`scoped`), or it
+# asks the domain rule (sections 1-2's closure, which reaches the data surface's
+# table actions too), or it is on %NOT_INSTANCE_WIDE below with the reason it is
+# not an instance-wide write. An entry there that is held any other way fails:
+# the list stays closed and true.
+my %IW     = Lazysite::ControlApi::Actions::instance_wide();
+my %SCOPED = Lazysite::ControlApi::Actions::scoped_actions();
+my %MUT    = Lazysite::ControlApi::Actions::mutating();
+
+my $FOUND = 'its reach is not domain-checked either: found in Q15c and reported for a ruling';
+my $OPERATOR_ONLY = 'needs manage_users on the cookie channel, which makes the caller the '
+    . 'operator (Acl::_is_operator), and no token reaches it';
+my %NOT_INSTANCE_WIDE = (
+    'brief-append'   => "a brief about one page or row, not the instance; $FOUND",
+    'brief-delete'   => "a brief about one page or row, not the instance; $FOUND",
+    'connector-call' => 'calls a connector an operator configured, which decides who may '
+        . '(Connectors::may_call); it changes no setting',
+    'form-delete' => "one form's definition, not the instance; forms carry no domain, so $FOUND",
+    'form-notify-save' => "one form's definition, not the instance; forms carry no domain, so $FOUND",
+    'form-targets-save' => "one form's definition, not the instance; forms carry no domain, so $FOUND",
+    'form-uploads-save' => "one form's definition, not the instance; forms carry no domain, so $FOUND",
+    'form-submission-confirm' => "one form's submissions; forms carry no domain, so $FOUND",
+    'form-submission-delete' => "one form's submissions; forms carry no domain, so $FOUND",
+    'form-submissions-delete-bulk' => "one form's submissions; forms carry no domain, so $FOUND",
+    'form-submission-approve' => $OPERATOR_ONLY,
+    'key-revoke'              => $OPERATOR_ONLY,
+    'session-revoke'          => $OPERATOR_ONLY,
+    'user-revoke'             => $OPERATOR_ONLY,
+    'notices-seen'            => "the caller's own read cursor (SM281)",
+    'preview-grant' => "the caller's own preview cookie; nothing a visitor sees changes (SM649)",
+    'preview-clear' => "the caller's own preview cookie; nothing a visitor sees changes (SM649)",
+    'start-page-set' => "one account's own setting, through the users tool's actor rule",
+    'regenerate-registries' => 'derived output, rebuilt from the content on the next request: '
+        . 'the result is the same whoever asks, and no setting changes',
+    'site-backup-upload' => 'stores a package; it changes a site only through site-backup-apply, '
+        . 'which asks the domain rule',
+    'theme-copy' => 'a new theme under a new name, served by nothing until a host-addressed '
+        . 'activation (SM749)',
+    'theme-upload' => 'installs a theme under a name not already installed (one that exists is '
+        . 'refused), served by nothing until activated',
+    'theme-delete' => 'a confined caller deletes only a theme it created (SM262 '
+        . 'restrict_to_creator, asked below); a theme the primary or any domain serves is '
+        . 'refused to everyone (SM177)',
+);
+my ( @iw_missing, @iw_stale );
+for my $a ( sort keys %MUT ) {
+    my $asks = $BRANCH{$a} ? asks_in( with_callees( $BRANCH{$a} ) ) : 0;
+    my $held = $IW{$a} || $SCOPED{$a} || $asks;
+    push @iw_stale,   $a if $NOT_INSTANCE_WIDE{$a} && $held;
+    push @iw_missing, $a if !$held                 && !$NOT_INSTANCE_WIDE{$a};
+}
+is_deeply( \@iw_missing, [], 'every mutating action is instance-wide, path-confined, domain-addressed or excepted' )
+    or diag( 'Declare it `instance_wide => 1` in Lazysite::ControlApi::Actions if it changes what '
+        . 'the whole instance reads, or add it to %NOT_INSTANCE_WIDE with the reason it does not.' );
+is_deeply( \@iw_stale, [], 'no %NOT_INSTANCE_WIDE entry is also held another way' );
+ok( !grep( { !$MUT{$_} || $NOT_INSTANCE_WIDE{$_} } keys %IW ),
+    'every instance-wide action mutates and is not also excepted' );
+cmp_ok( scalar( keys %IW ), '>=', 28, 'and the closed list is the size it should be' );
+
+# The gates. The control API refuses before its dispatch chain, reading the
+# declaration; MCP refuses the twins, unless a twin taking a host was given one.
+my ($gate) = $api =~ /(my %instance_wide = Lazysite::ControlApi::Actions::instance_wide\(\);.*?instance_wide_refusal\(\s*action => \$action\s*\).*?_refuse\()/s;
+ok( $gate, 'the control API refuses an instance-wide action through instance_wide_refusal' );
+my $first_branch = index( $api, "elsif ( \$action eq 'config-set' )" );
+ok( $gate && $first_branch > 0 && index( $api, $gate ) < $first_branch, '...before the dispatch chain' );
+ok( $mcp =~ /Lazysite::ControlApi::Actions::instance_wide\(\).*?Lazysite::ControlApi::Actions::mcp_twins\(\).*?instance_wide_refusal\(/s,
+    'MCP refuses the twins of the instance-wide actions through instance_wide_refusal' );
+my %twin = Lazysite::ControlApi::Actions::mcp_twins();
+for my $a ( sort grep { $twin{$_} } keys %IW ) {
+    ok( $TOOL{ $twin{$a} }, "$a: its MCP twin $twin{$a} is a tool the gate reaches" );
+}
+
+# The three that decide by the caller inside their branch: a confined manager
+# deletes only its own themes, and sees and downloads no instance backup.
+like( $BRANCH{'theme-delete'} // '', qr/caller_is_confined\(\)/, 'theme-delete restricts a confined caller' );
+like( $BRANCH{'backup-list'} // '', qr/caller_is_confined\(\)/, 'backup-list hides instance backups from a confined caller' );
+like( $BRANCH{'backup-download'} // '', qr/instance_wide_refusal\(/, 'backup-download refuses them' );
+
+# MCP's own mutating tools (no control-API twin): content-path tools are held by
+# the scope pass; the rest are here, closed.
+my ($own) = $mcp =~ /^my %OWN_ANNOTATE = \((.*?)^\);/ms;
+my %OWN_MUT = map { $_->[0] => 1 } grep { defined $_->[1] && !$_->[1] }
+    map { [/^\s*([a-z_]+)\s*=>\s*\[\s*(\d)/] } grep { /=>\s*\[/ } split /\n/, ( $own // '' );
+ok( scalar( keys %OWN_MUT ) >= 8, "MCP's own mutating tools were read" );
+my %MCP_NOT_INSTANCE_WIDE = (
+    create_theme => 'a new theme nothing serves; activate:true makes it the instance\'s, and '
+        . 'that asks instance_wide_refusal in its block (below)',
+    submit_feedback => 'a report to the operator; nothing on the live site changes',
+);
+my @mcp_iw_missing = grep {
+    !( $TOOL{$_} && $TOOL{$_} =~ /path_aware\s*=>\s*1/ ) && !$MCP_NOT_INSTANCE_WIDE{$_}
+} sort keys %OWN_MUT;
+is_deeply( \@mcp_iw_missing, [], 'every MCP-only mutating tool is path-confined or accounted for' );
+like( $TOOL{create_theme} // '', qr/activate\b.*?instance_wide_refusal\(/s, 'create_theme asks before activating' );
 
 done_testing();
