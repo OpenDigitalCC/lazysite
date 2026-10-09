@@ -1443,6 +1443,15 @@ sub write_file_checked {
 # and the domain preview shell it, and the domain preview moved into
 # Manager::Domains - so this is defined ONCE here rather than copied, which is
 # the class of duplication t/lint/17 exists to catch.
+# Resolve the real content processor to shell for a server-side render.
+#
+# We must NOT shell $ENV{LAZYSITE_PROCESSOR} directly: in the wrapped
+# deployment (Apache/Hestia and the dev server) the auth wrapper sets
+# LAZYSITE_PROCESSOR to the ORIGINALLY requested CGI - which is THIS
+# manager-api when a preview action runs - so trusting it re-enters
+# manager-api (auth stripped -> "Authentication required") instead of the
+# processor. Take only the cgi-bin DIRECTORY it names and resolve the
+# processor by its own name there, falling back to the docroot-relative path.
 sub processor_path {
     my $lp  = $ENV{LAZYSITE_PROCESSOR};
     my $dir = ( defined $lp && length $lp )
