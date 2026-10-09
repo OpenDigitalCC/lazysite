@@ -240,4 +240,34 @@ sub action_notices_seen {
     return { ok => 1, unread => $unread + 0 };
 }
 
+
+# SM113: sysop notifications. A small append-only store (logs/notices.jsonl)
+# that producers (the first is form submissions) append to, plus a per-sysop
+# last-seen marker (logs/notices-seen.json) so the manager can show an unread
+# count. Poll-based for v1.
+#
+# THE READER MOVED to Lazysite::Manager::Notices so that MCP calls the same one
+# rather than a second copy - see that module for why, and for the four-state
+# repair the move carried. `notices` is token-reachable with the `notifications`
+# capability (it always was, in ControlApi::Actions); `notices-seen` is not, and
+# that is the decision recorded in t/lint/23.
+#
+# $auth_user is passed rather than read, because a module that reaches into one
+# CGI's globals only works inside that CGI. SM944 S23 (d), ruled 2026-10-09: the
+# dispatcher calls the two readers directly; the script's wrappers of the same
+# names are gone.
+
+# The one gate both notice actions share: undef to proceed, a refusal otherwise.
+sub _notices_gate {
+    # SM944 S23 (b), ruled 2026-10-09: a token answers from its own grant. The
+    # dispatcher has already required `notifications` of a token for `notices`
+    # (and serves `notices-seen` to no token), so inside a request this is the
+    # answer it gave. Outside one - the context reset: a token client holding
+    # nothing - it refuses; "every token passes" let that call through.
+    return undef if $token_auth ? $token_caps{notifications} : _user_caps($auth_user)->{notifications};
+    return { ok => 0, kind => 'forbidden',
+        error => "Notifications require the 'Notifications' permission. An "
+            . "administrator can grant it on the Groups page." };
+}
+
 1;

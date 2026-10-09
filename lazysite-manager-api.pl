@@ -3638,35 +3638,6 @@ sub action_site_backup_apply {
     };
 }
 
-# SM113: sysop notifications. A small append-only store (logs/notices.jsonl)
-# that producers (the first is form submissions) append to, plus a per-sysop
-# last-seen marker (logs/notices-seen.json) so the manager can show an unread
-# count. Poll-based for v1.
-#
-# THE READER MOVED to Lazysite::Manager::Notices so that MCP calls the same one
-# rather than a second copy - see that module for why, and for the four-state
-# repair the move carried. `notices` is token-reachable with the `notifications`
-# capability (it always was, in ControlApi::Actions); `notices-seen` is not, and
-# that is the decision recorded in t/lint/23.
-#
-# $auth_user is passed rather than read, because a module that reaches into one
-# CGI's globals only works inside that CGI. SM944 S23 (d), ruled 2026-10-09: the
-# dispatcher calls the two readers directly; the script's wrappers of the same
-# names are gone.
-
-# The one gate both notice actions share: undef to proceed, a refusal otherwise.
-sub _notices_gate {
-    # SM944 S23 (b), ruled 2026-10-09: a token answers from its own grant. The
-    # dispatcher has already required `notifications` of a token for `notices`
-    # (and serves `notices-seen` to no token), so inside a request this is the
-    # answer it gave. Outside one - the context reset: a token client holding
-    # nothing - it refuses; "every token passes" let that call through.
-    return undef if $token_auth ? $token_caps{notifications} : _user_caps($auth_user)->{notifications};
-    return { ok => 0, kind => 'forbidden',
-        error => "Notifications require the 'Notifications' permission. An "
-            . "administrator can grant it on the Groups page." };
-}
-
 # SM180: the per-channel service state for the Groups/Users capability grids.
 # A CHANNEL capability is DORMANT - granted but inert - when its site service is
 # switched off. Returns { channel => 0|1 } for ui/webdav/api/mcp, read from the
@@ -4285,63 +4256,6 @@ sub _action_effects {
         ( $DESTRUCTIVE{$name}    ? ( destructive => JSON::PP::true() )    : () ),
         ( $CHANGES_ACCESS{$name} ? ( changes_access => JSON::PP::true() ) : () ),
     };
-}
-
-# SM724: the start page - read (the current value and the choices THIS account
-# can reach) and set. Self-service for one's own account; another account's
-# needs manage_users. The choices are computed from the TARGET's grants, never
-# the caller's: an operator building the list from what they can see would
-# offer pages the subject cannot open, which is a sign-in that lands on a 403.
-sub _start_page_subject {
-    my ($username) = @_;
-    my $u = defined $username && length $username ? $username : $auth_user;
-    $u =~ s/[^a-zA-Z0-9_.-]//g;
-    # SM944 S23 (c), ruled 2026-10-09: no account, no subject. Outside a request
-    # $auth_user is '' and this answered for account ''; so did a name that
-    # sanitises to nothing, for a caller holding manage_users.
-    return ( undef, { ok => 0, kind => 'forbidden',
-            error => 'No account is named or signed in, so there is no start page to read or set.' } )
-        unless length $u;
-    return ( undef, { ok => 0, kind => 'forbidden',
-            error => "Setting another account's start page needs the 'Users & groups' "
-                . 'permission; you may set your own.' } )
-        if $u ne $auth_user && !_user_caps($auth_user)->{manage_users};
-    return ( $u, undef );
-}
-
-sub action_start_page {
-    my ($username) = @_;
-    my ( $u, $refused ) = _start_page_subject($username);
-    return $refused if $refused;
-    require Lazysite::Manager::StartPage;
-    no warnings 'once';
-    local $Lazysite::Manager::StartPage::DOCROOT = $DOCROOT;
-    my $current = Lazysite::Manager::StartPage::current_start_page($u);
-    my $r       = Lazysite::Manager::StartPage::resolve_start_page($u);
-    return {
-        ok       => 1,
-        username => $u,
-        current  => $current,
-        landing  => $r->{url},
-        ( $r->{unreachable} ? ( unreachable => $r->{unreachable} ) : () ),
-        choices  => Lazysite::Manager::StartPage::start_page_choices($u),
-        fallback => Lazysite::Manager::StartPage::fallback_landing(),
-    };
-}
-
-sub action_start_page_set {
-    my ( $username, $value )   = @_;
-    my ( $u,        $refused ) = _start_page_subject($username);
-    return $refused if $refused;
-    my $r = users_api( {
-            action   => 'settings-set',
-            username => $u,
-            key      => 'start_page',
-            value    => ( $value // '' ),
-            actor    => $auth_user,
-    } );
-    return $r unless ref $r eq 'HASH' && $r->{ok};
-    return { ok => 1, username => $u, start_page => ( $value // '' ) };
 }
 
 sub action_whoami {
