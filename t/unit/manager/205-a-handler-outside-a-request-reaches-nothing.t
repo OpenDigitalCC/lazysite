@@ -137,4 +137,50 @@ subtest 'the caps memo, loaded outside a request, answers nothing and is emptied
     is_deeply( \%USER_CAPS, {}, 'the reset forgets them' );
 };
 
+# SM944 S23: the notices gate and the start-page actions, moved into Notices and
+# StartPage. Outside a request the gate refuses (a token client holding nothing
+# - it used to pass every token) and the start page has no subject (nobody - it
+# used to answer for account ''), so neither reads nor writes; with a request's
+# context set they answer, and after the reset they refuse again.
+subtest 'the notices gate and the start-page actions, loaded outside a request, refuse' => sub {
+    require ManagerSession;
+    require Lazysite::Manager::Notices;
+    require Lazysite::Manager::StartPage;
+    my $s = ManagerSession::new_site( root => repo_root() );
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', [qw(ui manage_users notifications)], [qw(ui manage_users notifications)] );
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT    = $s->docroot;
+    local $Lazysite::Manager::StartPage::DOCROOT = $s->docroot;
+    local $Lazysite::Manager::Notices::DOCROOT   = $s->docroot;
+    local $ENV{LAZYSITE_USERS_TOOL} = repo_root() . '/tools/lazysite-users.pl';
+
+    my $g = Lazysite::Manager::Notices::_notices_gate();
+    is( $g->{kind} // '', 'forbidden', 'the notices gate refuses' ) or diag explain $g;
+    my $r = Lazysite::Manager::StartPage::action_start_page(undef);
+    is( $r->{kind} // '', 'forbidden', 'start-page refuses: no account is asking' ) or diag explain $r;
+    $r = Lazysite::Manager::StartPage::action_start_page('boss');
+    is( $r->{kind} // '', 'forbidden', '...and for a named account, which needs manage_users' );
+    $r = Lazysite::Manager::StartPage::action_start_page_set( undef, 'manager:files' );
+    is( $r->{kind} // '', 'forbidden', 'start-page-set refuses' );
+    $r = Lazysite::Manager::StartPage::action_start_page_set( 'boss', 'manager:files' );
+    is( $r->{kind} // '', 'forbidden', '...for a named account too' );
+    is( ( ManagerSession::call( $s, 'boss', 'start-page' ) || {} )->{current}, '', 'and nothing was set' );
+
+    # boss's own request, as the script sets it for a cookie session.
+    $auth_user  = 'boss';
+    $token_auth = 0;
+    %token_caps = ();
+    ok( !defined Lazysite::Manager::Notices::_notices_gate(), 'with boss\'s context the gate passes' );
+    $r = Lazysite::Manager::StartPage::action_start_page(undef);
+    ok( $r->{ok} && $r->{username} eq 'boss', '...and start-page answers for boss' ) or diag explain $r;
+    # A token holding notifications, as the dispatcher lets through.
+    $token_auth = 1;
+    %token_caps = ( notifications => 1 );
+    ok( !defined Lazysite::Manager::Notices::_notices_gate(), 'a token holding notifications passes' );
+    reset_request_context();
+    is( ( Lazysite::Manager::Notices::_notices_gate() || {} )->{kind} // '', 'forbidden', 'reset: the gate refuses again' );
+    is( Lazysite::Manager::StartPage::action_start_page(undef)->{kind} // '', 'forbidden', '...and start-page' );
+};
+
 done_testing();
