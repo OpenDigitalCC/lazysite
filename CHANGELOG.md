@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the preview verbs are Manager::Preview's, and act
+  only for an account** (S23b and S24 of the plan in the filing, as the release
+  manager ruled on 2026-10-09). The manager API's JSON printer for the
+  responses that need their own headers moves to `Lazysite::Manager::Common`,
+  and preview-grant, preview-clear and preview move to the new
+  `Lazysite::Manager::Preview`. Before the move preview-grant and preview
+  refuse when no account is asking, which inside a request never happens (the
+  dispatcher has authenticated a manager); outside one - a handler loaded
+  where no request was set up - the grant minted a signed preview cookie for
+  account '' and created a missing auth secret, and preview shelled the
+  processor. Test 205, t/unit/manager/213.
+
 - SM976 (PENDING) **a page that is not UTF-8 no longer stops search, a scan or
   the validator** (ruled 2026-10-09, "Same rule"). MCP `search_files` answered
   with no body when a file in its base was not valid UTF-8; it now leaves the
