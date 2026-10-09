@@ -1542,6 +1542,25 @@ sub respond {
     print encode_json($data);
 }
 
+# --- SM944 S23b: the script's own JSON responses ---------------------------
+#
+# Moved unchanged out of lazysite-manager-api.pl (ruled 2026-10-09).
+
+# The four responses this file prints itself rather than handing to respond():
+# the OPTIONS refusal and the rate-limit 429 (both need their own status), and
+# the two preview verbs (both need Set-Cookie). Content-Type is always last
+# before the blank line, and STDOUT is always put in binmode first - encode_json
+# emits UTF-8 bytes and must not be re-encoded.
+sub _emit_json {
+    my ( $status, $headers, $body ) = @_;
+    binmode(STDOUT);
+    print "Status: $status\r\n";
+    print "$_\r\n" for @{ $headers || [] };
+    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
+    print encode_json($body);
+    return;
+}
+
 our $_upload_limits_cache;
 
 # PC-10/SM516: the comma list a conf key carries, as both blocked-path keys

@@ -2811,21 +2811,6 @@ sub _package_grant_refusal {
             . 'dav_scope covering the package, or the sysop removes it.' };
 }
 
-# The four responses this file prints itself rather than handing to respond():
-# the OPTIONS refusal and the rate-limit 429 (both need their own status), and
-# the two preview verbs (both need Set-Cookie). Content-Type is always last
-# before the blank line, and STDOUT is always put in binmode first - encode_json
-# emits UTF-8 bytes and must not be re-encoded.
-sub _emit_json {
-    my ( $status, $headers, $body ) = @_;
-    binmode(STDOUT);
-    print "Status: $status\r\n";
-    print "$_\r\n" for @{ $headers || [] };
-    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-    print encode_json($body);
-    return;
-}
-
 # --- Request-pipeline helpers ------------------------------------------------
 
 # SM516 MA-2 / MO-2: ONE decode of the request body per request.
