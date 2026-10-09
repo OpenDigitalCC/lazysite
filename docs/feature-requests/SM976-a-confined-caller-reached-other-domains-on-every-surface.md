@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, from the gaps SM975 found and did not change
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 built (n314), F1-F4 (n315). \"Refuse new binding\" built (n316): no content write by a confined caller newly binds a form it does not reach. F3 old exports ruled: no code. t/integration/112, 114-117."
+status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), \"Refuse new binding\" (n316). n317: one form reading, the processor's (lint 219); per-tool MCP path args, replace_text old/new are text (lint 91). t/integration/112, 114-118."
 ---
 
 # What was wrong
@@ -578,6 +578,55 @@ Every case where the answer changed
   The write rule (t/unit/manager/210) now asks only the rendered form: a first
   `form:` line the processor does not render is no binding. The validator reads
   a form on the next line (V1).
+
+Per-tool path arguments
+: Each MCP tool that takes a content path declares it on its own definition,
+  `path_args => [qw(...)]` in `lazysite-mcp.pl`'s `%TOOLS`, beside `path_aware`;
+  `_path_args($tool)` is read by the three passes in `tools/call` (the
+  themes/layouts capability override, the SM268 H4 carve-out pass, the SM155
+  scope pass). `Manager::Common::@PATH_ARGS` is gone. `replace_text` declares
+  `path`; its `old` and `new` are text. `t/lint/91` holds every argument of
+  every tool (84) to a declaration or a reasoned exception (`%NOT_A_PATH`, and
+  `%NOT_A_PATH_HERE` for a path-shaped name that is not a path on one tool:
+  replace_text's old/new, the store `file` of the submission and export tools),
+  fails a declared path argument missing from its schema and a path_aware tool
+  declaring none, and asserts the three passes read the declaration.
+
+No tool lost a check
+: Before, every argument named path, to, from, slug, old or new was checked,
+  on every tool; after, each tool's declaration. Per tool, before and after
+  (tmp/q15f-path-args-before.out, -after.out): list_files, read_file,
+  upload_file, write_file, read_brief, append_brief, delete_brief,
+  preview_public_page, get_permissions, delete_file, set_permissions,
+  create_form, validate_page, read_page, preview_page, page_status,
+  search_files, invalidate_cache, list_versions, view_version,
+  restore_version: path / path. copy_file, move_file: to, from / to, from.
+  create_page: slug / slug. delete_page: path, slug / path, slug. rename_page:
+  old, new / old, new. replace_text: path, old, new / path - the ruling. No
+  other tool declares any of the six. An argument a tool does not declare is
+  refused as unknown before its handler runs (SM278), so an undeclared name
+  reaches no handler; it is now refused by that check rather than the scope
+  pass.
+
+Evidence (n317)
+: t/integration/118: a grant scoped to sites/alpha replaces text inside its
+  scope (including text shaped like a path outside it and like
+  `lazysite/nav.conf`), is refused on a file outside it, and rename_page still
+  checks old and new; then one call per declared (tool, argument) - 31 - each
+  refused outside the scope, and replace_text's old/new not. t/lint/91, t/lint/16.
+  Sabotage (tmp/q15f-sabotage-b.out): replace_text declaring old/new again, or
+  nothing; rename_page or copy_file dropping one; the declaration read as empty;
+  a declared argument the schema lacks; the scope pass back to one list - each
+  fails 118, 91, 54 or 16.
+
+Found in Q15f
+: MCP `create_form` with an extensionless path (`/about`, as its schema
+  describes) on an existing page replaces the page: it reads `/about`, finds
+  nothing, and writes a fresh scaffold to `/about.md` (tmp/q15f-create-form-
+  probe.out, on main's script). Not confinement; not changed. A `.url` page
+  whose remote content names a form renders that form (process_url parses the
+  fetched front matter; read, not run), and no walker sees it without
+  fetching; not changed.
 
 # Related
 

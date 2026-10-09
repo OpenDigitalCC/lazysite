@@ -758,6 +758,7 @@ my %TOOLS = (
         },
     },
     list_files => {
+        path_args => [qw(path)],
         description => 'List files and folders under a site-relative directory path (default "/").',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -766,6 +767,7 @@ my %TOOLS = (
         run => sub { action_list( $_[0]->{path} // '/' ) },
     },
     read_file => {
+        path_args   => [qw(path)],
         description => 'Read the contents of a text file by site-relative path.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -786,6 +788,7 @@ my %TOOLS = (
         },
     },
     upload_file => {
+        path_args => [qw(path)],
         description => 'Upload a BINARY file (base64-encoded): a webfont, an image, a favicon.ico, a PDF, a JavaScript library. Use this whenever the bytes are not text - write_file is text-only and will corrupt them. This is how you SELF-HOST assets instead of linking a CDN or hotlinking a remote image, which the site briefings require: upload the woff2 and reference it from the theme CSS, upload the photograph and reference it from the page. Same permissions as write_file (manage_content, or manage_themes/manage_layouts for a path under a layout or theme) and the same refusals - engine-owned paths, executable extensions and your scope confinement all apply unchanged. Give `content_base64` as standard base64; the size cap is the site\'s upload limit and is named in the refusal if you exceed it.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -800,6 +803,7 @@ my %TOOLS = (
         run => sub { _upload_file( $_[0], $_[1] ) },
     },
     write_file => {
+        path_args => [qw(path)],
         description => 'Create or overwrite a text file with the given content. FOR A FORM: never hand-write <form>/<input> HTML or point at a third-party form service (Formspree, Google Forms) - that has no sysop-vetted handler and routes visitor data off-instance. Use create_form, or a native :::form block + bind_form.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -960,6 +964,7 @@ my %TOOLS = (
         },
     },
     read_brief => {
+        path_args => [qw(path)],
         description => 'Read the authoring brief for a content path - the "why" record SM073 invented, held out of band in the engine-owned brief store since SM245 (no .brief sidecar exists any more; migrated sites moved theirs into the store). Answers exists:false with an empty brief for a path nobody has briefed.',
         cap         => 'manage_briefs',
         cap_also    => 'manage_content',
@@ -974,6 +979,7 @@ my %TOOLS = (
         },
     },
     append_brief => {
+        path_args => [qw(path)],
         description => 'Append one entry to a content path\'s authoring brief (append-only, like the sidecar it replaced): what changed and why, in your words. The store stamps the date and your identity. Use this when you make a substantive change to a page you maintain.',
         cap         => 'manage_briefs',
         inputSchema => { type => 'object',
@@ -1008,6 +1014,7 @@ my %TOOLS = (
         },
     },
     delete_brief => {
+        path_args => [qw(path)],
         description => 'Delete one brief store entry by its content path (as list_briefs reports it). The cleanup half of the lifecycle: an orphan surfaced by list_briefs is removed with this. Deleting a live page\'s brief discards its record of intent - prefer appending a correction with append_brief. Audited as brief-delete.',
         cap         => 'purge',    # SM591: the lateral grant
         inputSchema => {
@@ -1185,6 +1192,7 @@ my %TOOLS = (
     # anonymous visitor under the owning domain's Host - given an MCP door and
     # taught to report the layout and theme the visitor actually got.
     preview_public_page => {
+        path_args => [qw(path)],
         description => 'Render ONE page exactly as an anonymous visitor would receive it - no session, no token, under the Host that owns the path - and report whether it is publicly visible, which layout and theme were actually used, and an excerpt. Use this to CONFIRM a change rather than assuming it: what a page should look like is a question about configuration, and what a visitor got is a question about the response, and they come apart. A page that renders through the built-in fallback reports no layout, which is itself the answer to "why does this look wrong". Read-only: nothing is published and no cache is written.',
         cap         => 'manage_content',
         inputSchema => { type => 'object',
@@ -1258,6 +1266,7 @@ my %TOOLS = (
         run => sub { _site_apply( $_[0], $_[1], $_[2] ) },
     },
     replace_text => {
+        path_args => [qw(path)],
         description => 'Edit a file by replacing exact text - safer than rewriting the whole file for a small change to a page with HTML / front matter / scripts. Replaces every occurrence of "old" with "new"; errors if "old" is not present. read_file first to copy the exact text (including whitespace).',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1283,6 +1292,7 @@ my %TOOLS = (
         },
     },
     copy_file => {
+        path_args => [qw(to from)],
         description => 'Copy a text file to a new path - templating a new page from an existing one. The destination starts with a fresh ACL.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1296,6 +1306,7 @@ my %TOOLS = (
         },
     },
     get_permissions => {
+        path_args => [qw(path)],
         description => 'Read the access-control list for a path (owner + per-user / @group read & write grants). Call this before set_permissions to see the current state.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1304,6 +1315,7 @@ my %TOOLS = (
         run => sub { action_acl_get( $_[0]->{path}, $_[1] ) },
     },
     move_file => {
+        path_args => [qw(to from)],
         description => 'Rename or move a file: re-keys its ACL and PRESERVES its content history across the move. Always use this (or rename_page for a page) to relocate a file - never write a new file at the destination and delete the old one, which starts a fresh history and loses the past.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1312,6 +1324,7 @@ my %TOOLS = (
         run => sub { action_move( $_[0]->{from}, $_[0]->{to}, $_[1] ) },
     },
     delete_file => {
+        path_args => [qw(path)],
         description => 'Delete a file by site-relative path. A delete ends the file\'s content history thread (a later file at the same path starts clean). To RELOCATE a file, use move_file, not delete-then-recreate, so its history follows.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1320,6 +1333,7 @@ my %TOOLS = (
         run => sub { action_delete( $_[0]->{path}, $_[1] ) },
     },
     set_permissions => {
+        path_args => [qw(path)],
         description => 'Set the ACL for a file OR a folder prefix: owner, read/write lists (users or @groups), and the draft flag. A folder prefix (a path ending in /) gates or hides every page and asset beneath it. PARTIAL UPDATE: fields you omit keep their current value - so setting a read list on a DRAFT section leaves it draft (still a 404). The API equivalent of the Publish button is {"draft": false} alongside your grants.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1671,6 +1685,7 @@ my %TOOLS = (
         },
     },
     create_form => {
+        path_args => [qw(path)],
         description => 'THE way to add a form to a page - never hand-write <form>/<input> HTML (it has no delivery handler and ships dead). Inserts a native :::form block into the page and sets its "form: NAME" front matter. Give fields as "name | Label | rules" strings (rules: required, email, textarea, select:A,B,C, max:N); omit to scaffold a name/email/message contact form. The form RENDERS after this but does NOT deliver until you bind it: next call list_handlers, then bind_form(form: NAME, handler: ID).',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => {
@@ -1806,6 +1821,7 @@ my %TOOLS = (
         run => sub { _stats_export( $_[0] ) },
     },
     validate_page => {
+        path_args => [qw(path)],
         description => 'Check page content before saving: malformed/unterminated front matter, missing title, invalid form-field rules, and a PUBLIC-DATA warning (Wi-Fi passwords, postcodes/addresses, phone numbers) so private operational details are not published by accident. Pass content to check a draft, or path to check a saved file.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1864,6 +1880,7 @@ my %TOOLS = (
         run => sub { _submit_feedback( $_[0], $_[1], $_[2] ) },
     },
     create_page => {
+        path_args => [qw(slug)],
         description => 'Create a new page from front-matter fields (title, subtitle, register list) + Markdown body. Errors if the page already exists (use write_file to overwrite). Higher-level than assembling front matter by hand. FOR A FORM: never hand-write <form>/<input> HTML (it ships with no delivery handler - a dead form). Use the create_form tool, or put a native :::form block in the body (fields as "name | Label | rules" lines) plus "form: NAME" front matter, then wire delivery with bind_form.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1878,6 +1895,7 @@ my %TOOLS = (
         run => sub { _create_page( $_[0], $_[1] ) },
     },
     delete_page => {
+        path_args => [qw(path slug)],
         description => 'Delete a page by slug or by path (either works) - its brief store entry goes with it - and report where its slug is still referenced (nav, other pages) so you can clean up. Generated indexes (sitemap/llms/feeds) refresh automatically. A delete ends the page content history thread; to RELOCATE a page use rename_page (not delete-then-recreate) so its history follows.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1889,6 +1907,7 @@ my %TOOLS = (
         run => sub { _delete_page( $_[0], $_[1] ) },
     },
     rename_page => {
+        path_args => [qw(old new)],
         description => 'Rename / move a page: carries its brief store entry + ACL and PRESERVES its content history across the rename. Always use this to relocate a page - never write a new page at the new path and delete the old one, which loses the history. With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten). The result always reports alias_suggested - the old URL, which should be added to the new page so the retired URL keeps working; pass add_alias:true to have it written for you. A published URL that starts 404ing is the most common avoidable cost of a rename.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1908,6 +1927,7 @@ my %TOOLS = (
         run => sub { _list_pages() },
     },
     read_page => {
+        path_args => [qw(path)],
         description => 'Read a page as structured data: parsed front matter, the Markdown body, whether it has an authoring brief, and its public URL. Higher-level than read_file for editing a page.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1916,6 +1936,7 @@ my %TOOLS = (
         run => sub { _read_page( $_[0]->{path}, $_[1] ) },
     },
     preview_page => {
+        path_args => [qw(path)],
         description => 'Render a page server-side (fresh, bypassing the cache) and return its HTML, so you can verify layout / nav / form output in-channel - no web fetch needed. Renders the public view; a protected page shows the auth gate.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1924,6 +1945,7 @@ my %TOOLS = (
         run => sub { _preview_page( $_[0]->{path} ) },
     },
     page_status => {
+        path_args => [qw(path)],
         description => 'Publish status for a page: whether the source exists, when it was last modified, whether the public HTML render is pending (cache dropped after an edit - it re-renders on the next visit), and the public URL. Use after an edit to confirm it will reach visitors.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1932,6 +1954,7 @@ my %TOOLS = (
         run => sub { _page_status( $_[0]->{path} ) },
     },
     search_files => {
+        path_args => [qw(path)],
         description => 'Search the site text files for a string (case-insensitive). Returns matching files with line numbers and snippets - use to find pages mentioning a term, links to a path, or duplicated text. Excludes the lazysite/ infrastructure and binary/asset files. "count" is how many matches this response CARRIES, never how many exist; no total is available, because the search stops early by design and counting them all would mean reading every file. When "truncated" is true, "truncated_reason" says what stopped it: "match_limit" - there are more matches, so page on with "offset" or narrow the query; "file_budget" - the tree was too large to finish, so narrow "path" instead. Paging re-walks the tree each call, so a result set that changes underneath you can skip or repeat an entry.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1974,6 +1997,7 @@ my %TOOLS = (
         },
     },
     invalidate_cache => {
+        path_args => [qw(path)],
         description => 'Drop the cached HTML for a page so it re-renders on the next request. A normal write already clears the saved page; use this to force a refresh or to rebuild pages that embed another (pass "*" to clear every page).',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -1986,6 +2010,7 @@ my %TOOLS = (
     # and undo content changes. Available when the site's Content history
     # plugin is enabled; list_versions says so honestly when it is not.
     list_versions => {
+        path_args => [qw(path)],
         description => 'List a file\'s recorded versions (content history): newest first, each with a version id, author, date and message. Works when the site\'s Content history plugin is enabled - if the result says enabled:false, versions are not being recorded and there is nothing to restore (ask the sysop to enable the plugin).',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -2018,6 +2043,7 @@ my %TOOLS = (
         run => sub { action_git_history_summary( $_[2] ? $_[2]->{dav_scopes} : undef ) },
     },
     view_version => {
+        path_args => [qw(path)],
         description => 'View one recorded version of a file: its full content at that version plus a unified diff against the current file. Get the version id from list_versions first.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -2029,6 +2055,7 @@ my %TOOLS = (
         run => sub { action_git_show( $_[0]->{path}, $_[1], $_[0]->{version} ) },
     },
     restore_version => {
+        path_args => [qw(path)],
         description => 'Restore a file to one of its recorded versions. The historic content is written back through the normal save path (page cache refreshed), and the restore itself becomes the newest recorded version - nothing is ever lost by restoring. Use list_versions / view_version first to pick the version.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
@@ -3516,6 +3543,20 @@ sub _cap_also {
     return ref $c eq 'ARRAY' ? @$c : ($c);
 }
 
+# SM976 Q15f (ruled 2026-10-09, "Fix: per-tool path args"): WHICH ARGUMENTS OF A
+# TOOL ARE CONTENT PATHS, declared on the tool (`path_args`). One name list for
+# every tool (SM661's @PATH_ARGS: path, to, from, slug, old, new) made
+# replace_text's `old` and `new` - the text it finds and the text it puts in -
+# paths, so a scoped grant was refused ordinary text as "outside your assigned
+# scope", while rename_page's `old`/`new` are paths. The three passes in
+# tools/call read this: the themes/layouts capability override, the carve-out
+# pass and the scope pass. t/lint/91 holds every tool's arguments to it.
+sub _path_args {
+    my ($tool) = @_;
+    my $p = $tool->{path_args};
+    return ref $p eq 'ARRAY' ? @$p : ();
+}
+
 sub _tool_callable {
     my ( $name, $tool, $caps ) = @_;
     return 1 if $INTROSPECTION_TOOLS{$name};
@@ -3827,10 +3868,10 @@ elsif ( $method eq 'tools/call' ) {
         $need .= " or $_" for _cap_also($tool);
         if ( $tool->{path_aware} ) {
             my $a = $params->{arguments} || {};
-            # SM661: the same list again, so the override and the confinement
-            # cannot disagree about which argument carries the path.
+            # SM661, SM976 Q15f: the tool's own path_args, so the override and the
+            # confinement cannot disagree about which argument carries the path.
             my $p = '';
-            for my $pk (@Lazysite::Manager::Common::PATH_ARGS) {
+            for my $pk ( _path_args($tool) ) {
                 next unless defined $a->{$pk} && length $a->{$pk};
                 $p = $a->{$pk};
                 last;
@@ -3870,10 +3911,11 @@ elsif ( $method eq 'tools/call' ) {
     if ( $tool->{path_aware} ) {
         my $a = $params->{arguments} || {};
         my $w = ( $name =~ /^(?:read|list|search|preview|view)/ ) ? 'read' : 'write';
-        # SM661: every argument that carries a path, from the one list in
-        # Manager::Common - not a hardcoded three. create_page's `slug` and
-        # rename_page's `old`/`new` were not inspected here either.
-        for my $pk (@Lazysite::Manager::Common::PATH_ARGS) {
+        # SM661, SM976 Q15f: every argument this tool declares a content path
+        # (path_args) - not a hardcoded three, and not one name list for every
+        # tool. create_page's `slug` and rename_page's `old`/`new` are inspected;
+        # replace_text's `old`/`new` are text.
+        for my $pk ( _path_args($tool) ) {
             my $p = $a->{$pk};
             next unless defined $p && length $p;
             my $refusal
@@ -3894,11 +3936,11 @@ elsif ( $method eq 'tools/call' ) {
     my $scopes = $caps->{dav_scopes};
     if ( ref $scopes eq 'ARRAY' && @$scopes ) {
         my $a = $params->{arguments} || {};
-        # SM661: the same list. A grant scoped to one domain created a page in
-        # another through create_page, because `slug` was not among the three
-        # names this loop knew about - a well-formed call the confinement never
-        # looked at.
-        for my $pk (@Lazysite::Manager::Common::PATH_ARGS) {
+        # SM661, SM976 Q15f: the same declaration. A grant scoped to one domain
+        # created a page in another through create_page, because `slug` was not
+        # among the three names this loop knew about - a well-formed call the
+        # confinement never looked at.
+        for my $pk ( _path_args($tool) ) {
             my $p = $a->{$pk};
             next unless defined $p && length $p;
             next if $p =~ m{^/?lazysite/};

@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM976 (PENDING) **MCP: each tool declares which arguments are content paths**
+  (ruled 2026-10-09, "Fix: per-tool path args"). One list of path argument names
+  for every tool (SM661) made `replace_text`'s `old` and `new` paths, so a grant
+  confined to some content was refused ordinary text as "outside your assigned
+  scope". **Behaviour change:** a scoped grant can use `replace_text` inside its
+  scope; `old` and `new` are text, and are no longer asked the scope or the
+  carve-out (`nav.conf`, the submission stores) - its `path` still is. Every
+  other tool checks exactly what it checked: `rename_page`'s `old`/`new`,
+  `create_page`'s `slug`, `copy_file`/`move_file`'s `to`/`from` and every
+  `path`. Each tool declares `path_args` in the tool table; lint 91 holds every
+  argument of every tool to a declaration. t/integration/118.
+
 - SM976 (PENDING) **security: a page binds the form the processor renders, on
   every rule** (ruled 2026-10-09, "One reading, processor's"). The form rule
   found a page's form with its own reading - the first plain `form: NAME` line

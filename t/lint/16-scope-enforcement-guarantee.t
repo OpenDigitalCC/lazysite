@@ -41,7 +41,7 @@ like( $mapi, qr/_confine_scope\([^)]*'api'\s*\)/, 'the token (api) path is scope
 # dispatcher over every path argument of every tool, read and write alike, so
 # that pass is what is asserted.
 my $mcp = slurp("$root/lazysite-mcp.pl");
-like( $mcp, qr/for my \$pk \(\@Lazysite::Manager::Common::PATH_ARGS\) \{(?:(?!^\s*\}\s*$).)*?outside_all_scopes\(/ms,
+like( $mcp, qr/for my \$pk \( _path_args\(\$tool\) \) \{(?:(?!^\s*\}\s*$).)*?outside_all_scopes\(/ms,
     'the MCP server confines every path argument of every file tool (read + write) via outside_all_scopes' );
 
 # --- WebDAV: the request resolves a scope and authorises the path against it ----
