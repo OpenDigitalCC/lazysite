@@ -71,6 +71,16 @@ Archive
   the scope check they share, move unchanged to `Lazysite::Manager::Remap`,
   which reads the request context from `Lazysite::Manager::Common`; loaded
   outside a request they refuse every host. No behaviour change.
+- SM943 ruling 1 (PENDING) **a read is not audited on either door unless it is
+  refused or fails** (ruled 2026-10-09: "Surfaces should be consistent. Drop all
+  17."). MCP stops recording the seventeen reads whose control-API twins were
+  never recorded (`read_form_submissions`, `read_data_rows`, `read_notices`,
+  `describe_capabilities` and the rest); its skip set is the read-only tools
+  with none named. A read that is refused or errors is now recorded on both:
+  MCP wrote no row for a read its handler refused, and the control API wrote
+  none for any refused read over GET, which is how a token client reads. Writes
+  are unchanged. t/lint/23 holds the two trails to one declaration;
+  t/unit/mcp/28 and t/unit/manager/206 drive both doors.
 
 - SM944 (PENDING) **internal: the manager API's request context is shared,
   and refuses until a request sets it** (S21 of the plan in the filing, as

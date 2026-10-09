@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: control-api
-status-note: "SHIPPED (PENDING) 2026-10-07: stage 1 on n259, stages 2-3 on n274. Every per-action fact, the MCP twin and its hints are declared on %ACTION and derived for both CGIs, each proved equal before its copy went; the consistency lints keep their rules and one completeness check replaces their copies. Open: the 17 MCP reads audited unlike their API twins; read_nav's gate (SM568)."
+status-note: "SHIPPED (PENDING) 2026-10-07: stages 1-3 (n259, n274). RULED 2026-10-09. Ruling 1 built (n309): a read is audited on neither door unless refused or failed; t/lint/23 holds both trails to one declaration. Ruling 2 (the structured nav read needs no capability) HELD: ungated, a domain-confined grant reads every domain's nav, and host-scope rules disagree. See Open."
 ---
 
 # Measured
@@ -31,8 +31,21 @@ Stage 2 (n274): `mcp => 'tool'` on an action names its MCP twin - on the action 
 
 Stage 3 (n274): lints 14, 22, 23, 58 and `t/unit/lib/16` lost the assertions that compared a value with itself or repeated another file's; every rule they held stays. One completeness check of every declaration is in `t/unit/lib/200`.
 
+# Ruled 2026-10-09
+
+The release manager ruled both questions this filing left open.
+
+Ruling 1 - audit
+: "Audit is useful to see when a person or agent has made material behaviour changes, authentication events and errors. General site activity is of less interest and creates noise. Surfaces should be consistent. Drop all 17."
+
+Ruling 2 - the navigation read
+: "As nav is public, do we need a cap to be able to read it? manage_content and manage_nav stay separate. Surfaces should be consistent." Confirmed in detail: the STRUCTURED nav read - API `nav-read` and MCP `read_nav` - needs no capability beyond the surface's base access, identical on both; writing (`nav-save`, `set_nav`) stays `manage_nav`; WebDAV GET of the raw `nav.conf` stays `manage_nav`; `manage_content` no longer grants anything nav-specific.
+
+# Built (n309)
+
+Ruling 1. MCP's `%AUDITED_READ` is gone and its skip set is the read-only tools with none named, so the seventeen reads stop writing a row on success, as their API twins never did. A read that is refused or errors is recorded on both doors: MCP wrote no row for a read its handler refused (only for a gate refusal), and the control API's audit block ran for POST only, so a refused read over GET - how a token client reads - wrote none. Writes are unchanged. `t/lint/23` section 6 holds the trails to one declaration: MCP's rule must name no tool and nothing else may write its skip set, and every twin is audited on both trails or on neither. `regenerate-registries` is recorded there as the one twin that differs, a write outside this ruling (unaudited on the API by `audited => 0`, audited over MCP as every write tool is). `t/unit/mcp/28` and `t/unit/manager/206` drive both doors.
+
 # Open
 
-- The 17 MCP reads the MCP trail records while the API trail skips their twins (`read_form_submissions`, `read_data_rows`, `list_briefs`, `read_notices` and the rest; `describe_capabilities` while `whoami` is skipped). Kept as they were; which trail is right is a ruling.
-- `read_nav` is gated on `manage_nav` alone (SM421), while SM568 ruled reading the navigation a content read and `nav-read` admits `manage_content`. Admitting it on MCP would widen a gate, so it is a ruling too.
+- Ruling 2 is HELD, not built. Ungating the structured read lets every grant on the surface read EVERY domain's navigation through `host`, including a grant confined to one domain, where today only `manage_nav` holders can. Host-addressed actions elsewhere (`domain-set`, `remap-save`, the site packages, the data surface; SM578, SM648, SM802) refuse a domain outside the caller's scope, and the nav actions do not check it at all - measured 2026-10-09: a grant scoped to one domain with `manage_nav` read and REPLACED another domain's navigation through `nav-save` and `set_nav`. Whether the nav read and write confine `host` to the caller's scope is a ruling to take before ruling 2 is built.
 - A `write_data` door on MCP's row tools needs `Manager::Data::row_write_refusal` in them first.
