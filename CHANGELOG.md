@@ -78,6 +78,11 @@ Archive
   every mutating action to the instance-wide list. t/integration/114, 115,
   t/unit/data/67.
 
+- bad-url-block (PENDING) **blocking an address by hand never ran.** SM704's
+  `bad-url-block` called `block()`, which the manager API never imported, so
+  every call died and answered nothing; the automatic blocker was unaffected.
+  It blocks now. t/integration/114.
+
 - SM943 ruling 2 (PENDING) **the structured nav read needs no capability**
   (ruled 2026-10-09: "As nav is public, do we need a cap to be able to read
   it? ... Surfaces should be consistent"). `nav-read` on the control API and

@@ -244,6 +244,14 @@ for my $t ( sort keys %MCP ) {
 }
 ok( !refused_iw( api( 'cku', 'backup-download', undef, "action=backup-download&name=$full" ) ),
     'cku: backup-download is not refused' );
+
+# SM704's manual block never ran: the branch called block() and the script did
+# not import it, so every call died ("Undefined subroutine &main::block") and
+# answered nothing. Found by this file's probe.
+my $blk = api( 'op', 'bad-url-block', { ip => '192.0.2.9' } );
+ok( $blk->{ok}, 'op: bad-url-block blocks an address by hand' ) or diag explain $blk;
+ok( exists( ( api( q(op), q(bad-url-blocks) )->{blocks} || {} )->{q(192.0.2.9)} ),
+    '...and the address is listed' );
 ok( api( 'op', 'rotate-auth-secret', {} )->{ok}, 'op: rotate-auth-secret' );
 
 done_testing();

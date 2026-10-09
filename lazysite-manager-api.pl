@@ -28,7 +28,7 @@ use Lazysite::Paths        ();
 use Lazysite::Audit        qw(audit_log);
 use Lazysite::Capabilities qw(describe capability_keys channel_service reachability);
 use Lazysite::ControlApi::Actions ();                        # SM350
-use Lazysite::BadUrl              qw(list_blocks unblock);
+use Lazysite::BadUrl              qw(list_blocks block unblock);
 use Lazysite::Auth::Settings      qw(site_grants_manager);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
