@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM976 (PENDING) **a page that is not UTF-8 no longer stops search, a scan or
+  the validator** (ruled 2026-10-09, "Same rule"). MCP `search_files` answered
+  with no body when a file in its base was not valid UTF-8; it now leaves the
+  file out, logs it, and answers for the rest (`delete_page`'s
+  `still_referenced_in` with it). A page whose front matter is UTF-8 and whose
+  body is not made every page listing a `scan:` source over it answer 500; it
+  is now left out and logged, as for its front matter. `lazysite-validate` over
+  many pages died on one such file and printed nothing; the file is now
+  reported as one it could not read, with the first invalid byte, and every
+  other file is checked. Every other page walk was probed and answers
+  (SM976). t/unit/mcp/29, t/unit/processor/93, t/tools/82.
+
 - SM976 (PENDING) **security: a page written as raw bytes must be valid UTF-8,
   and a page that cannot be read binds no form** (ruled 2026-10-09, "Refuse +
   walker skips"). The processor reads a page through a lax UTF-8 layer, so a

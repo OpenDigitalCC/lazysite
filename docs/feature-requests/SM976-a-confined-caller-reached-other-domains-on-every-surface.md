@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, from the gaps SM975 found and did not change
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), \"Refuse new binding\" (n316), one form reading (n317, lint 219). Q15h (n321): a page written as raw bytes is UTF-8 or refused; a page that cannot be read binds nothing, logged; .url pinned. t/integration/112, 114-120."
+status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), \"Refuse new binding\" (n316), one form reading (n317, lint 219). Q15h (n321): a raw-bytes page is UTF-8 or refused. Q15i (n322): search_files, scan excerpts, the validator skip a non-UTF-8 page, logged. t/integration/112, 114-120."
 ---
 
 # What was wrong
@@ -776,6 +776,106 @@ Evidence (n321)
   its log line, and the write rule's current-page read back to `page_form`;
   each processor walk and each MCP walk without the guard; `process_url`
   converting `:::form` (94).
+
+# Found in Q15h, ruled (Q15i)
+
+The release manager ruled on 2026-10-09, in these words:
+
+"Same rule" for search_files and other page walks
+: MCP search_files skips a page that cannot be decoded, logs it, and answers
+  for the rest (today it returns no JSON body at all). Then probe every page
+  walk in tools/lazysite-check.pl (and any other walker over all pages you find
+  in lib/, tools/, plugins/ - inventory with file:line) with one non-UTF-8 page
+  present; wherever one bad page breaks the walk (dies, 500, no output, wrong
+  totals), apply the same rule (skip + log, the rest answered).
+
+# The ruling, built (n322)
+
+search_files
+: `_mcp_search` judges each file before it searches it (`_search_unreadable`,
+  lazysite-mcp.pl, strictly through `Manager::Common::invalid_utf8_offset`, the
+  rule `page_bytes_refusal` uses): a file that is not valid UTF-8 is left out
+  whole, logged (WARN, `search_files`, its path and the first invalid byte's
+  offset), and the rest of the base is answered. Every file the search reads is
+  judged, not only `.md`: a `.txt` or `.html` that is not UTF-8 left the call
+  without a body the same way. `delete_page`'s `still_referenced_in` is this
+  search and is answered again.
+
+Every page walk, probed with one page that is not UTF-8 (tmp/q15i-check-probe.out, tmp/q15i-more-probe.before.out, .after.out, tmp/q15i-audit-variants.before.out, tmp/q15i-mcp-probe.after-search.out)
+: Broke, and now skip and log:
+  - MCP `search_files` (`_mcp_search`, lazysite-mcp.pl:2108; read 2159): no
+    JSON-RPC body. Fixed as above (t/unit/mcp/29).
+  - The processor's `resolve_scan` excerpt (lazysite-processor/registries.pm:346):
+    Q15h guarded the front matter; the excerpt reads the BODY. A page whose
+    front matter is UTF-8 and whose body is not made every page listing the
+    scan answer 500. Now inside the same skip, logged as "a page whose body
+    cannot be read" (t/unit/processor/93).
+  - `tools/lazysite-validate.pl` over a list of pages (its loop, :89;
+    `Lazysite::Validate::validate_file`, Validate.pm:638): one such file died
+    in the checks - exit 255, nothing printed for any file, `--json` included.
+    `validate_file` already reports a file it cannot open as an `unreadable`
+    issue and carries on; a file that is not UTF-8 is now the same, with the
+    offset and how to fix it, and every other file is checked (t/tools/82).
+    The one judgement call: in a validator the "log" is the file's own result
+    line, counted as an issue, so the run does not exit 0 over a file it did
+    not check.
+
+  Already under the rule (Q15h, n321), re-probed: `form_bindings` and
+  `form_bind_tree_refusal` (Manager/Common.pm:782, 1067), MCP `list_pages`,
+  `audit_site` and `form_list` (`_each_page`, lazysite-mcp.pl:2405), the
+  processor's `resolve_scan` front matter and `scan_pages` (registries.pm:302,
+  967).
+
+  Survive, unchanged (the walk answers, totals true):
+  - `tools/lazysite-check.pl`: its three page-reading walks - content
+    provenance (:1250), uncompilable form patterns (:2081), double-escaped db
+    templates (:2139) - read bytes with no decoding layer, so no regex dies; the
+    page is counted as any other, holding the shapes checked for. Same exit and
+    report with and without it, but for the page's own entries (the probe makes
+    it hit all three).
+  - `plugins/audit.pl` (`collect_audit_results`, :133; `extract_links` :539):
+    eight placements of the bad bytes (front matter, body, beside a link, in a
+    fence, in a code span, Latin-1 text, a truncated sequence, lone
+    continuation bytes) - exit 0 and its JSON each time; the read warns and
+    continues.
+  - MCP `rename_page` with `update_links` (`_rewrite_links`, lazysite-mcp.pl:3385),
+    the link beside the bad bytes included: answers, and rewrites the link in
+    that page too.
+  - Read as raw bytes, so nothing to die: `Capabilities::_scan_docs`
+    (Capabilities.pm:762), `Aliases::reindex_move`/`reindex_copy`
+    (Aliases.pm:321, 336), git-sync's alias reindex after a pull
+    (plugins/git-sync.pl:538), `Lang::lang_status` (Lang.pm:143),
+    `Files::page_bytes_tree_guard` (Files.pm:612, the refusal itself).
+
+  Walks that read names or stat only, and walks over stores that are not
+  pages (themes, layouts, forms, briefs, data, logs) were inventoried and are
+  outside the question; the repository's own build tools likewise.
+
+Found, not changed
+: - MCP `read_page` (and so any single-page read that returns the text) on
+    such a page answers with no JSON-RPC body: the encoder dies on the page's
+    own text. One page, not a walk - as the processor answers 500 for the page
+    itself. Recommended: the same answer as a page it cannot read.
+  - Q15h's "a text write cannot produce such a page" holds for a caller's
+    text, not for a read-modify-write of a page already not UTF-8:
+    `_rewrite_links` and `replace_text` read it through the lax layer and save
+    it back with its invalid bytes kept (tmp/q15i-mcp-probe2.after-search.out).
+    No new page becomes invalid; recorded so the claim is not read wider.
+  - The scan's `read_file` (registries.pm:302, 957) dies on a page it cannot
+    open (permissions), outside the guard. Not bytes; outside this ruling.
+  - `_each_page` stops after 1,000 pages without saying so, so `list_pages`'
+    count and `audit_site`'s pages stop there. Not this ruling.
+  - n321's work-plan edit had replaced the Q15g row with a literal `$1`;
+    restored (n322).
+
+Evidence (n322)
+: t/unit/mcp/29 (search_files answers, without the page, which is logged with
+  its offset; a match before the bad byte is not answered), t/unit/processor/93
+  (the body case, through the processor and in process), t/tools/82 (a run of
+  three files, one not UTF-8: exit 1, JSON, a result per file). Sabotage
+  (tmp/q15i-sabotage.sh, .log), each failing and passing restored by cp and
+  cmp: the search not judging, judging nothing, logging nothing; the excerpt's
+  guard a plain block (the page answers 500 again); the validator not judging.
 
 # Related
 
