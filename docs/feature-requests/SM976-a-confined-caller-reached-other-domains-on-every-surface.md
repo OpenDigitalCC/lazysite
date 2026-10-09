@@ -628,6 +628,55 @@ Found in Q15f
   fetched front matter; read, not run), and no walker sees it without
   fetching; not changed.
 
+Q15g results (n318)
+: The `create_form` replacement is fixed and filed as [[SM977]].
+
+  **`.url` pages: not confirmed, no gap today.** tmp/q15g-url-form-probe.out
+  stubs `Lazysite::Fetch::fetch_url` in-process and renders a `.url` page whose
+  fetched text has `form: leads` and a `:::form` block. `process_url` parses
+  the fetched front matter (its `form` is `leads`) but never calls
+  `convert_fenced_form`. So no form is rendered, `:::form` stays literal text,
+  `::: form` becomes `<div class="form">`, and no `leads.rules` is written. The
+  same text as a local `.md` page renders the form and writes the rules
+  (control). Includes render no forms either. The Q15f note above, "renders
+  that form", was wrong. Recommended: pin it. An assertion that a `.url` page
+  renders no form would make the rule "a `.url` page binds no form" explicit,
+  so that adding `convert_fenced_form` to `process_url` for parity with
+  `process_md` fails a test, and that change would then need the walker to
+  judge fetched content.
+
+  **Malformed UTF-8: they differ, and the write rule can be bypassed.**
+  tmp/q15g-malformed-utf8-probe.out compares 3,078 texts that are not valid
+  UTF-8, both hand-picked and from a seeded generator. On these texts:
+  - `text_as_processor_reads` plus `page_form` disagrees with the processor's
+    lax `:utf8` read on 1,827 of them. On 51 of those, the processor binds a
+    form the raw-bytes rule does not read. For example, in
+    `titre\xFF:\nform: leads`, the upgraded `\xFF` is `\w`, so the empty key
+    swallows the next line.
+  - The processor's own parse dies ("Malformed UTF-8 character (fatal)") on
+    1,747 of them, and those pages render nothing.
+
+  End to end (tmp/q15g-malformed-hijack-probe.out), a grant scoped to
+  sites/alpha saves those bytes through `action_save_binary`, which
+  `upload_file`, the multipart upload and WebDAV PUT also use. The rule reads
+  no form, so the bytes are written. The processor renders the primary's
+  registered, unbound form `orphan` on the page, the walker files it under
+  alpha, and alpha now reaches `orphan` and its submissions. The same page as
+  valid UTF-8 is refused. This is Q15e's hijack through a raw-bytes door.
+
+  The walker misses no binding the processor makes (0 of 3,078), but it dies
+  on 1,707 of these texts. One such page anywhere makes `form_bindings` die
+  (tmp/q15g-walker-die-probe.out). Every form verb, and every write of a page
+  binding a form, then errors for every confined caller: fail-closed, and a
+  denial of service.
+
+  Not changed. Recommended for a ruling:
+  - Refuse a raw-bytes write of a `.md` page whose bytes are not valid UTF-8,
+    at the three doors. The processor dies on, or misreads, every such page.
+  - Have the walker treat a page whose reading dies as binding nothing,
+    logged, as the processor renders nothing for it. Pages that reach the disk
+    by other means (git, SSH) then cannot stop the rule.
+
 # Related
 
 [[SM975]], [[SM943]], [[SM578]], [[SM647]], [[SM648]], [[SM802]].

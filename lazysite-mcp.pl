@@ -3172,11 +3172,44 @@ sub _create_form {
     my $submit = $a->{submit} // 'Send';
     my $block  = ":::form\n" . join( "\n", @fields ) . "\nsubmit | $submit\n:::\n";
 
-    # Read the page if it exists; ensure front matter carries form: NAME,
-    # then append the block. A page with a different form already bound is
-    # left alone (do not silently rebind).
-    my $rd      = action_read( $a->{path}, $user );
-    my $content = ( ref $rd eq 'HASH' && $rd->{ok} ) ? ( $rd->{content} // '' ) : '';
+    # SM655: RESOLVE THE PATH, as _create_page does three subs below.
+    #
+    # This saved $a->{path} verbatim, so the idiomatic call - an extensionless
+    # page path, which is what every other tool on this surface takes and what
+    # this tool's own schema describes ("Page to add the form to") - wrote a
+    # file with NO extension. The site then 404s it, and nothing else says so:
+    # ok:true, page_status exists:true and read_file returning valid page source
+    # all report success. Only fetching the URL reveals it.
+    #
+    # The irony is exact: this tool exists so agents stop hand-writing <form>
+    # HTML, because that "has no delivery handler and ships dead". Called the
+    # way the surface teaches, the sanctioned tool shipped dead too.
+    my $slug = _norm_slug( $a->{path}, dots => 1, md => 1, trail => 1 );
+    return { ok => 0, error => 'a page path is required' } unless length $slug;
+    my $page = "/$slug.md";
+
+    # SM977: THE FILE READ IS THE FILE WRITTEN. The tool adds the form to the
+    # page it names (its contract: "Inserts a native :::form block into the
+    # page", the path "created if absent"), so it reads $page - the file the
+    # save below writes - and nothing else. It read the caller's spelling
+    # instead, found no '/about', and replaced /about.md with a fresh scaffold.
+    # A page that exists and cannot be read as text is refused, never
+    # replaced; only "not found" means "create", and the save carries the
+    # read's mtime, so an edit made since the read is not overwritten either.
+    my $rd = action_read( $page, $user );
+    my ( $content, $mtime ) = ( '', undef );
+    if ( ref $rd eq 'HASH' && $rd->{ok} ) {
+        ( $content, $mtime ) = ( $rd->{content} // '', $rd->{mtime} );
+    }
+    elsif ( !( ref $rd eq 'HASH' && ( $rd->{kind} // '' ) eq 'not-found' && !-e "$DOCROOT/$slug.md" ) ) {
+        return $rd if ref $rd eq 'HASH' && $rd->{kind};
+        return { ok => 0, kind => 'unreadable',
+            error => "$page could not be read, so no form was added to it; read_page shows why." };
+    }
+
+    # Ensure front matter carries form: NAME, then append the block. A page
+    # with a different form already bound is left alone (do not silently
+    # rebind).
     if ( length $content && $content =~ /\A---\s*\n(.*?)\n---\s*\n/s ) {
         my $fm = $1;
         # SM976 Q15f ("One reading, processor's"): the form the page binds is
@@ -3196,27 +3229,23 @@ sub _create_form {
                 . "as the page renders; edit it directly." }
             unless lc( Lazysite::Manager::Common::page_form($content) // '' ) eq $name;
     }
+    elsif ( $content =~ /\S/ ) {
+        # SM977: a page with text and no front matter (front matter is
+        # optional) keeps its text: the block goes after it and a front-matter
+        # block naming the form goes before it. It was replaced by a scaffold.
+        $content =~ s/\s*\z/\n/;
+        $content = "---\nform: $name\n---\n\n$content\n$block";
+        return { ok => 0, error => "The page does not read as binding '$name' once front matter is "
+                . "added; edit it directly." }
+            unless lc( Lazysite::Manager::Common::page_form($content) // '' ) eq $name;
+    }
     else {
-        # No usable front matter - create a fresh page.
+        # No page, or an empty one - create a fresh page.
         my $title = ucfirst($name) =~ s/[-_]+/ /gr;
         $content = "---\ntitle: $title\nform: $name\n---\n\n$block";
     }
 
-    # SM655: RESOLVE THE PATH, as _create_page does three subs below.
-    #
-    # This saved $a->{path} verbatim, so the idiomatic call - an extensionless
-    # page path, which is what every other tool on this surface takes and what
-    # this tool's own schema describes ("Page to add the form to") - wrote a
-    # file with NO extension. The site then 404s it, and nothing else says so:
-    # ok:true, page_status exists:true and read_file returning valid page source
-    # all report success. Only fetching the URL reveals it.
-    #
-    # The irony is exact: this tool exists so agents stop hand-writing <form>
-    # HTML, because that "has no delivery handler and ships dead". Called the
-    # way the surface teaches, the sanctioned tool shipped dead too.
-    my $slug = _norm_slug( $a->{path}, dots => 1, md => 1, trail => 1 );
-    return { ok => 0, error => 'a page path is required' } unless length $slug;
-    my $save = action_save( "/$slug.md", $user, $content, undef );
+    my $save = action_save( $page, $user, $content, $mtime );
     return $save unless ref $save eq 'HASH' && $save->{ok};
     return {
         ok => 1,

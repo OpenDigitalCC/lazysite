@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM977 (PENDING) **MCP `create_form` adds the form to the page it names, and
+  replaces no page.** Called the way its schema describes (`/about`), it read
+  `/about`, found nothing, and wrote a fresh scaffold over `/about.md`, so the
+  page's text was lost. A page with text and no front matter was replaced
+  whatever the spelling. It now reads the file it writes (`/about` and
+  `/about.md` are both `/about.md`). It appends the block, and adds a front
+  matter block when the page has none. A page it cannot read is refused, and
+  an edit made after the read is not overwritten. t/integration/119.
 - SM976 (PENDING) **MCP: each tool declares which arguments are content paths**
   (ruled 2026-10-09, "Fix: per-tool path args"). One list of path argument names
   for every tool (SM661) made `replace_text`'s `old` and `new` paths, so a grant
