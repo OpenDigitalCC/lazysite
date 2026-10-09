@@ -78,4 +78,32 @@ for my $walk (
     };
 }
 
+# SM976 Q15i (ruled 2026-10-09, "Same rule"): resolve_scan's excerpt reads the
+# body, which the front-matter guard never parsed. Measured before
+# (tmp/q15i-more-probe.before.out): a page whose front matter is UTF-8 and whose
+# body is not made a page listing the scan answer 500.
+subtest 'a page whose body cannot be read is left out of a scan, and logged' => sub {
+    my $e = site_tempdir();
+    setup_minimal_site($e);
+    make_path("$e/blog");
+    open my $ef, '>>', "$e/lazysite/lazysite.conf" or die $!;
+    print {$ef} "blog_pages: scan:/blog/*.md\n";
+    close $ef;
+    spit( "$e/blog/a.md", "---\ntitle: A\n---\nA body\n" );
+    spit( "$e/blog/bodybad.md", "---\ntitle: Bodybad\n---\nSee [home](/) caf\xFF leads <!-- c -->\n" );
+    spit( "$e/list.md", "---\ntitle: L\n---\n[% FOREACH p IN blog_pages %]<i>[% p.title %]:[% p.excerpt %]</i>[% END %]\n" );
+    my $list = run_processor( $e, '/list' );
+    is( status($list), 200, 'a page listing the scan renders' );
+    like( $list, qr{<i>A:A body</i>}, 'and lists the readable page with its excerpt' );
+    unlike( $list, qr{Bodybad}, 'and not the one whose body it cannot read' );
+
+    load_processor($e);
+    my ( $err, $log, @got ) = with_log( sub { map { $_->{title} } @{ main::resolve_scan('/blog/*.md') } } );
+    is( $err, '', 'resolve_scan does not die' );
+    is_deeply( \@got, ['A'], 'and returns every readable page' );
+    like( $log, qr/\[WARN\] \[processor\] \[scan\] a page whose body cannot be read is left out/,
+        'the page is logged at WARN, naming the body' );
+    like( $log, qr{page=blog/bodybad\.md}, '...by its docroot-relative path' );
+};
+
 done_testing();

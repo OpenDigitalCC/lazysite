@@ -220,13 +220,15 @@ sub _page_url {
 }
 
 # SM976 Q15h ("Refuse + walker skips"): the log line for a page a walk leaves
-# out because its front matter cannot be read. Docroot-relative, as a page is
-# named everywhere else in the log.
+# out because its front matter - or, Q15i, the body resolve_scan's excerpt
+# reads - cannot be read. Docroot-relative, as a page is named everywhere else
+# in the log.
 sub _scan_page_unreadable {
-    my ( $path, $why ) = @_;
+    my ( $path, $why, $part ) = @_;
+    $part //= 'front matter';
     ( my $rel = $path ) =~ s{^\Q$DOCROOT\E/*}{};
     $why =~ s/\s+at \S+ line \d+.*//s;
-    log_event( 'WARN', 'scan', 'a page whose front matter cannot be read is left out', page => $rel, error => $why );
+    log_event( 'WARN', 'scan', "a page whose $part cannot be read is left out", page => $rel, error => $why );
     return;
 }
 
@@ -341,19 +343,29 @@ sub resolve_scan {
             @tags = map { s/^\s+|\s+$//gr } split /,/, $tags_raw;
         }
 
-        # Extract raw body for search excerpt
+        # Extract raw body for search excerpt. SM976 Q15i (ruled 2026-10-09,
+        # "Same rule"): the excerpt reads the BODY, which the front-matter guard
+        # above never parsed - a page whose front matter is UTF-8 and whose body
+        # is not died here, and every page whose scan reached it answered 500.
+        # Left out and logged, as for its front matter.
         my $excerpt = '';
-        if ( $raw =~ /^---\n.*?\n---\n(.+)/s ) {
-            $excerpt = $1;
-            # Drop <style>/<script> blocks and HTML comments so their CSS/JS/markup
-            # never leaks into the public search excerpt (a page often opens with an
-            # inline <style> block).
-            $excerpt =~ s{<style\b[^>]*>.*?</style>}{ }gis;
-            $excerpt =~ s{<script\b[^>]*>.*?</script>}{ }gis;
-            $excerpt =~ s{<!--.*?-->}{ }gs;
-            $excerpt =~ s/^\s+|\s+$//g;
-            $excerpt = substr( $excerpt, 0, 500 ) if length($excerpt) > 500;
-        }
+        eval {
+            if ( $raw =~ /^---\n.*?\n---\n(.+)/s ) {
+                $excerpt = $1;
+                # Drop <style>/<script> blocks and HTML comments so their CSS/JS/markup
+                # never leaks into the public search excerpt (a page often opens with an
+                # inline <style> block).
+                $excerpt =~ s{<style\b[^>]*>.*?</style>}{ }gis;
+                $excerpt =~ s{<script\b[^>]*>.*?</script>}{ }gis;
+                $excerpt =~ s{<!--.*?-->}{ }gs;
+                $excerpt =~ s/^\s+|\s+$//g;
+                $excerpt = substr( $excerpt, 0, 500 ) if length($excerpt) > 500;
+            }
+            1;
+        } or do {
+            _scan_page_unreadable( $path, $@, 'body' );
+            next;
+        };
 
         # Determine searchable status
         my $search_val = $meta->{search} // '';
