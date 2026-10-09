@@ -3,7 +3,9 @@ package Lazysite::Manager::Common;
 # Shared path / deny / write / respond helpers for the manager (SM079). The
 # per-request ambient context ($DOCROOT, $action, $auth_user) is set by the
 # dispatcher as package variables, so the handler bodies that use these helpers
-# move verbatim. The deny list @BLOCKED_PATHS is owned here.
+# move verbatim. The deny list @BLOCKED_PATHS is owned here. SM944 S21: the
+# whole request context is owned here too, fail-closed until the dispatcher
+# sets it (see "the manager request context" below).
 
 use strict;
 use warnings;
@@ -22,7 +24,9 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
-    active_artifact_refusal refusal_detail refusal_status);
+    active_artifact_refusal refusal_detail refusal_status
+    reset_request_context NO_REQUEST_CONTEXT
+    $action $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $path $body);
 
 our $DOCROOT;    # set by the script
 
@@ -41,8 +45,54 @@ sub render_source_exists {
     my ($base) = @_;
     return ( -f "$base.md" || -f "$base.url" ) ? 1 : 0;
 }
-our $action    = '';    # current request action (for log attribution)
-our $auth_user = '';    # current request user (for log attribution)
+
+# --- SM944 S21: the manager request context ----------------------------------
+#
+# The facts one manager-API request establishes about itself: who is asking
+# ($auth_user), through which door ($token_auth, and the token's own grant in
+# %token_caps), how far it reaches (@REQUEST_SCOPES, and $REQUEST_CONFINED,
+# whether those scopes were resolved at all), whether it is the operator
+# ($IS_OPERATOR, the memo behind the script's _operator()), and what it asked
+# for ($action, $path, $body).
+#
+# OWNED HERE, WRITTEN BY ONE FILE. lazysite-manager-api.pl imports them in place
+# of the file-scope `my` variables it used to declare, sets them as the request
+# is authenticated and parsed, and an area module imports the ones it reads, so
+# a handler moved out of the script reads the same facts unchanged. Nothing
+# else assigns them; t/lint/217 holds that (ruled 2026-10-09).
+#
+# FAIL-CLOSED UNTIL SET. reset_request_context() is run when this module loads
+# and by the script before its auth check, and it leaves a request that is
+# nobody, holds no capability, is a token client (so never the cookie operator)
+# and is confined to a scope that contains no path. An empty @REQUEST_SCOPES
+# means UNCONFINED to every reader (outside_all_scopes, the script's scope
+# checks), so empty would be the wrong default: an entry point that loads a
+# handler and never establishes a request - the daemon, the MCP server, WebDAV,
+# a test - would hand it the sysop's reach. The scope is NO_REQUEST_CONTEXT, a
+# string with a NUL in it: no path, host or content root can contain one, so
+# every boundary-safe scope check finds every path outside it.
+#
+# $action and $auth_user were here before S21, as the log attribution, and
+# other entry points set them (lazysite-mcp.pl's action, the users CLI's
+# acting user, three modules' write bridges - the exceptions lint 217 names).
+# Their default is the empty string they always had.
+use constant NO_REQUEST_CONTEXT => "\0no request context";
+our ( $action, $auth_user, $token_auth, %token_caps, @REQUEST_SCOPES, $REQUEST_CONFINED,
+    $IS_OPERATOR, $path, $body );
+
+sub reset_request_context {
+    $action         = '';                                      # no action
+    $auth_user      = '';                                      # nobody
+    $token_auth     = 1;                                       # never the cookie operator
+    %token_caps     = ( dav_scopes => [NO_REQUEST_CONTEXT] );  # no capability, no reach
+    @REQUEST_SCOPES = (NO_REQUEST_CONTEXT);                    # confined to nothing
+    $REQUEST_CONFINED = 1;
+    $IS_OPERATOR      = 0;
+    $path             = undef;
+    $body             = '';
+    return;
+}
+reset_request_context();
 
 our @BLOCKED_PATHS = (
     'lazysite/auth/.secret',
