@@ -130,6 +130,19 @@ Archive
   its initialisers would run earlier in a part, which is a change, not a move.
   No behaviour change.
 
+- SM974 (PENDING) **a stats day is a UTC day, so a day's last hours east of
+  UTC reach its durable file.** Every first-party day bucket is a UTC day, but
+  the stats plugin judged "today" and "closed" on the local calendar. East of
+  UTC it closed and finalised the current day at local midnight, and views
+  after that never reached the day file: the last hour of every day under BST,
+  the last fourteen under UTC+14. Today, closed, the window and retention are
+  now UTC days. The server-log reader now reads each stamp's own offset, and
+  the form handler records outcomes under the UTC day. **A server-log site on
+  a host not set to UTC now gets UTC days instead of the log's local dates;**
+  the day of the upgrade can be split across two buckets. Fourteen stats tests
+  assumed the local calendar and are fixed (WORK-PLAN-0153 Q14g: three failed
+  on main between midnight and 01:00 BST); t/unit/plugins/48.
+
 - SM944 (PENDING) **internal: the request address and host are the processor's
   twelfth part** (S13 of the plan in the filing). `_request_host`,
   `_request_address` and the trusted-proxy readers move unchanged to
