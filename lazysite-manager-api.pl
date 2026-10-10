@@ -2696,21 +2696,6 @@ sub _root_outside_grant {
     return Lazysite::Manager::Common::caller_may_reach_domain( root => $croot ) ? 0 : 1;
 }
 
-# SM975: NO SCOPE = NO DOMAIN, for every domain write a token can make.
-#
-# A token reaches only the domains its scope names, and a token naming no scope
-# reaches none (ruled 2026-10-09). domain-set, remap-save and site-backup-apply
-# read an empty scope as unconfined, and domain-add, domain-alias-add and
-# domain-remove did not ask, so a manage_domains token that nobody had scoped
-# wrote every domain on the instance, and remap-save also accepted hosts the
-# instance does not serve. The cookie session is the sysop and stays exempt,
-# as in _root_outside_grant. The answer for a token with a scope is unchanged
-# here; each action checks that scope itself.
-sub _no_scope_refusal {
-    return undef unless $token_auth && !@REQUEST_SCOPES;
-    return Lazysite::Manager::Common::no_scope_refusal();
-}
-
 # SM976 F4: bind a theme or layout to one domain - Domains::domain_set, which
 # validates the name and mirrors the theme's assets for that host (SM241), with
 # the scope the answer is about, as MCP's _domain_presentation_set says it.
