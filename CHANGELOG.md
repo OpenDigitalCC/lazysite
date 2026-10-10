@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: describe-capabilities and actions-list are
+  Manager::Describe's, and answer only for an account** (S25 of the plan in the
+  filing, as the release manager ruled on 2026-10-10). The two introspection
+  actions, `site_capabilities`, `_json_bool` and `_action_effects` move to the
+  new `Lazysite::Manager::Describe`. Before the move both actions refuse when no
+  account is asking, which inside a request never happens (the dispatcher has
+  refused an empty account first); outside one - a handler loaded where no
+  request was set up - they answered for account '' with the capability map,
+  the site's documentation index and the actions a grant of nothing may call.
+  Test 205, t/unit/manager/214.
+
 - SM976 (PENDING) **A restore and the nav read refuse bytes that are not UTF-8**
   (ruled 2026-10-10, "Fix both", Q15k). MCP `restore_version` and the control
   API's `git-restore` wrote a recorded version that is not valid UTF-8 back as
