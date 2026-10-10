@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, from the gaps SM975 found and did not change
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), n316, n317 (lint 219). Q15h (n321): raw-bytes pages UTF-8. Q15i (n322): walks skip a non-UTF-8 page. Q15j (n325): MCP single-page reads refuse it with the offset; page walks say truncated at 1,000. t/integration/112, 114-120."
+status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), n316, n317 (lint 219). Q15h (n321): raw-bytes pages UTF-8. Q15i (n322): walks skip a non-UTF-8 page. Q15j (n325): MCP page reads refuse it; walks say truncated. Q15k (n327): restore and nav read refuse it. t/integration/112, 114-121."
 ---
 
 # What was wrong
@@ -960,6 +960,52 @@ Found in Q15j, not changed
     write; outside this ruling.
   - `read_nav` on a `nav.conf` that is not UTF-8 answers "Tool error: read_nav"
     (a body; the navigation file, not a page). Not changed.
+
+# Found in Q15j, ruled (Q15k)
+
+The release manager ruled on 2026-10-10, in these words:
+
+"Fix both"
+: (1) MCP restore_version (and the control API's equivalent git-restore/restore
+  path, if it can write a recorded non-UTF-8 version back) refuses a recorded
+  version that is not valid UTF-8 with the same encoding error
+  (page_read_refusal / page_bytes_refusal shape) and leaves the page as it is;
+  (2) read_nav (MCP) and nav-read (API) on a non-UTF-8 nav.conf answer the
+  encoding error naming nav.conf, not "Tool error". Tests + sabotage.
+
+# The rulings, built (n327)
+
+(1) The restore
+: The control API's `git-restore` could: it and MCP `restore_version` call the
+  one `Manager::Files::action_git_restore`, which wrote the version through
+  `action_save` as history read it - through the lax `:utf8` layer, so the
+  version's own bytes (t/integration/121 before the change: both surfaces
+  answered ok and the file held the bad bytes). It now asks `page_read_refusal`
+  of the version before anything is written: kind `page-encoding-refused`,
+  "Version 1a2b3c4 of the page ...", the offset, and how to fix it (restore
+  another version, or save it as UTF-8 and write it whole), saying nothing was
+  restored. The file is left as it is and no restore is recorded; an invalid or
+  missing version still answers first. The rule is asked of every text file a
+  restore reaches, as view_version's of the same version is, not only of `.md`
+  pages: the version cannot be viewed, so it is not restored blind.
+
+(2) The nav read
+: `Manager::Nav::action_nav_read`, the one implementation of both reads, reads
+  `nav.conf`'s bytes after the reach rule and answers a file that is not UTF-8
+  with `page_read_refusal`: "The file 'lazysite/nav.conf' is not valid UTF-8",
+  the offset, and how to fix it (`set_nav`, or save it as UTF-8 and write it
+  whole over WebDAV). Before, MCP answered "Tool error: read_nav" and the
+  control API's `nav-read` no body at all. A UTF-8 file is decoded and read as
+  before.
+
+Evidence (n327)
+: t/integration/121 (both surfaces for each; the file unchanged and no commit
+  after a refused restore; a UTF-8 version restores byte for byte; a missing
+  version answers for its own reason; a UTF-8 nav reads with its labels
+  decoded). starter/docs/ai-connector-tools.md and lint 114's exemption name
+  the two new askers. Sabotage (tmp/q15k-sabotage.pl, .log), 5 cases, each
+  failing and passing restored by cp and cmp: each guard removed, each remedy
+  silent, the nav read not decoding.
 
 # Related
 

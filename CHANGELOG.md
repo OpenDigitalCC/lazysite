@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM976 (PENDING) **A restore and the nav read refuse bytes that are not UTF-8**
+  (ruled 2026-10-10, "Fix both", Q15k). MCP `restore_version` and the control
+  API's `git-restore` wrote a recorded version that is not valid UTF-8 back as
+  it was; they now refuse it with the encoding error (kind
+  `page-encoding-refused`, the first invalid byte's offset, how to fix it) and
+  leave the file as it is. MCP `read_nav` answered "Tool error" and the control
+  API's `nav-read` no body on a `nav.conf` that is not UTF-8; both now answer the
+  encoding error naming the file. t/integration/121.
+
 - SM976 (PENDING) **MCP answers a page that is not UTF-8, and says when a page
   walk stops at 1,000 pages** (ruled 2026-10-10, "Fix both"). A page whose
   bytes are not valid UTF-8 (put there by git, SSH or a restore) left MCP
