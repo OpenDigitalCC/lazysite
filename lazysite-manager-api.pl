@@ -2913,6 +2913,16 @@ sub _rate_ok {
 # of SM706 and was until now unreachable.
 sub action_page_pdf {
     my ($rel) = @_;
+    # SM944 S29, the established fail-closed pattern (ruled 2026-10-10, "(a)
+    # load in main"): A PAGE IS RENDERED FOR AN ACCOUNT. Inside a request the
+    # dispatcher has refused an empty $auth_user (and required
+    # `manage_content`) before this runs, so it is never empty here; reached
+    # outside one (the request context's reset leaves nobody) it loaded the
+    # plugin and converted a public page for account ''
+    # (tmp/sm944-s29-s30-refusal-probe.out). Refused before the plugin loads.
+    return { ok => 0, kind => 'forbidden',
+        error => 'A page is rendered to PDF for a signed-in account, and no account is asking.' }
+        unless length $auth_user;
     return { ok => 0, error => 'a page path is required' }
         unless defined $rel && length $rel;
 
