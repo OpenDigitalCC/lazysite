@@ -4070,6 +4070,14 @@ sub action_describe_capabilities {
 # has no business reading the request.
 sub action_actions_list {
     my ($user) = @_;
+    # SM944 S25 (b), ruled 2026-10-10: THE LIST IS AN ACCOUNT'S. Inside a request
+    # the dispatcher has refused an empty $auth_user before any action runs, so
+    # $user is never empty here; reached outside one (the request context's
+    # reset leaves nobody) it answered ok:1 for account '' on the token channel
+    # with the actions a grant of nothing may call (tmp/sm944-s25-refusal-probe.out).
+    return { ok => 0, kind => 'forbidden',
+        error => 'The actions list is for a signed-in account, and no account is asking.' }
+        unless length( $user // '' );
     my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
     return {
         ok      => 1,

@@ -62,4 +62,19 @@ subtest 'describe-capabilities, outside a request, describes nothing' => sub {
     ok( ref $r->{actions} eq 'HASH' && %{ $r->{actions} }, '...with the actions block' );
 };
 
+subtest 'actions-list, outside a request, lists nothing' => sub {
+    my $r = main::action_actions_list($nobody);
+    is( $r->{kind} // '', 'forbidden', 'refused' ) or diag explain [ sort keys %$r ];
+    ok( !$r->{ok}, '...not ok' );
+    like( $r->{error} // '', qr/no account is asking/, '...saying why' );
+    ok( !exists $r->{actions} && !exists $r->{account}, '...with no actions and no account' );
+    $r = main::action_actions_list(undef);
+    is( $r->{kind} // '', 'forbidden', 'an undefined account is refused too' );
+
+    $r = main::action_actions_list('boss');
+    ok( $r->{ok}, 'for an account it answers' ) or diag explain $r;
+    is( $r->{account} // '', 'boss', '...listing that account\'s actions' );
+    ok( ref $r->{actions} eq 'ARRAY' && @{ $r->{actions} }, '...which are some' );
+};
+
 done_testing();
