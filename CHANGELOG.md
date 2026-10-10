@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **security: the auth secret is rotated only for an account**
+  (ruled 2026-10-10, "SECURITY first", found by the probe ahead of S31 and
+  S32). `action_rotate_auth_secret` - the "sign everyone out" lever - rotated
+  the site's auth secret when it was handed no account, so anything that
+  reached it outside a request (a module, a daemon, a test harness; the
+  request context's reset leaves nobody) signed every session out with nobody
+  asking. It now refuses an empty account before it opens /dev/urandom, and
+  the secret and the CSRF secret stay as they are. Inside a request nothing
+  changes: the dispatcher has refused an empty account before the action
+  runs. Its argument is named `$user` rather than shadowing the request's
+  `$auth_user`. t/unit/manager/220.
+
 - SM944 (PENDING) **internal: page-pdf is Manager::PagePdf's, and a page is
   rendered to PDF only for an account** (S29 of the plan in the filing, as the
   release manager ruled on 2026-10-10, "(a) load in main"). Before the move
