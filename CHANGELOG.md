@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- WORK-PLAN-0153 Q16a (PENDING) **a handoff run in a git worktree says READY
+  when it is**. `tools/handoff.sh` ended by checking the base branch out; in a
+  linked worktree, with the base checked out in the main one, git refused, and a
+  run whose every gate passed said NOT READY (n308, n332). In a linked worktree
+  it now detaches at the base, which frees the branch as well; in the main
+  checkout it returns to the base branch as before. A stack branch landed or
+  deleted while the suite ran is named as such instead of a READY line with no
+  SHA after git's "fatal: Needed a single revision", and is not offered.
+  t/tools/106.
+
 - SM944 (PENDING) **internal: domain-check and domains-list are
   Manager::Domains', and a domain check runs only for an account** (S27 of the
   plan in the filing, as the release manager ruled on 2026-10-10, "Read Common's
