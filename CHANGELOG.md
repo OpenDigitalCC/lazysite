@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: channel-services, version and analyse_visitors are
+  Manager::Services', and the visitor analysis runs only for an account** (S26 of
+  the plan in the filing, as the release manager ruled on 2026-10-10). The three
+  actions, the transports' state whoami reads and the stats tool's path move to
+  the new `Lazysite::Manager::Services`. Before the move analyse_visitors refuses
+  when no account is asking, which inside a request never happens (the
+  dispatcher has refused an empty account and required `analytics` first);
+  outside one it ran the stats plugin and returned its export. The site facts -
+  version, the transports' state, channel-services - are unchanged. Test 205,
+  t/unit/manager/215.
+
 - SM944 (PENDING) **internal: describe-capabilities and actions-list are
   Manager::Describe's, and answer only for an account** (S25 of the plan in the
   filing, as the release manager ruled on 2026-10-10). The two introspection
