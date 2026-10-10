@@ -19,7 +19,7 @@ use TestHelper qw(repo_root);
 use lib repo_root() . '/lib';
 use Lazysite::Manager::Common qw(outside_all_scopes reset_request_context NO_REQUEST_CONTEXT _user_caps
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body
-    %USER_CAPS);
+    %USER_CAPS $REQUEST_IP);
 
 my @PATHS = ( '', '/', 'index.md', 'sites/clienta/index.md', 'lazysite/auth/users', 'no request context',
     'sites', '/sites/clienta/' );
@@ -41,6 +41,7 @@ sub fail_closed {
     is( $body,   '',    "$when: no body" );
     is_deeply( \%USER_CAPS,            {}, "$when: no account's caps remembered (S22b)" );
     is_deeply( _user_caps($auth_user), {}, "$when: the request's user holds no capability" );
+    is( $REQUEST_IP, undef, "$when: no visitor's address remembered (S31)" );
 }
 
 fail_closed('loaded, never set');
@@ -58,6 +59,7 @@ $action           = 'acl-set';
 $path             = 'secret/page.md';
 $body             = '{"read":["@everyone"]}';
 %USER_CAPS        = ( boss => { manage_users => 1, ui => 1 } );
+$REQUEST_IP       = '203.0.113.7';
 reset_request_context();
 fail_closed('after a request, reset');
 

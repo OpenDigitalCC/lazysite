@@ -5,7 +5,8 @@
 # asking ($auth_user), through which door ($token_auth, %token_caps), how far it
 # reaches (@REQUEST_SCOPES, $REQUEST_CONFINED), whether it is the operator
 # ($IS_OPERATOR), what it asked for ($action, $path, $body), and since S22b the
-# account caps memo behind _user_caps (%USER_CAPS) - lives in
+# account caps memo behind _user_caps (%USER_CAPS) and since S31 the request
+# address's cache behind _request_ip ($REQUEST_IP) - lives in
 # Lazysite::Manager::Common as package variables, imported by the script and by
 # the area modules that read them. Before SM944 it was file-scope `my` variables
 # of lazysite-manager-api.pl, which nothing else could touch; moving it to
@@ -20,16 +21,18 @@
 # would carry what it set into whatever runs next.
 #
 # WHAT IT CHECKS.
-#   1. Common declares the ten with no initialiser, assigns them only inside
+#   1. Common declares the eleven with no initialiser, assigns them only inside
 #      reset_request_context() (a sub that declares its own lexical of the same
 #      name is reading that, not the fact), resets every one of them, exports
 #      every one, and calls the reset at load. The one other writer in Common is
-#      the memo's own reader: _user_caps fills %USER_CAPS one account at a time
-#      (S22b, ruled 2026-10-09); a reset that left the memo full would carry one
-#      request's account caps into the next in a pooled worker.
-#   2. The script imports every one but the memo, which it neither reads nor
+#      each memo's own reader: _user_caps fills %USER_CAPS one account at a time
+#      (S22b, ruled 2026-10-09), and _request_ip fills $REQUEST_IP once per
+#      request (S31, ruled 2026-10-10); a reset that left either full would
+#      carry one request's account caps or visitor into the next in a pooled
+#      worker.
+#   2. The script imports every one but the two memos, which it neither reads nor
 #      writes now that _user_caps lives in Common, declares none of them at file
-#      scope, writes the memo by no name, and calls reset_request_context()
+#      scope, writes neither memo by any name, and calls reset_request_context()
 #      before it reads a credential.
 #   3. Every other source file: no write to a fact by its full name
 #      ($Lazysite::Manager::Common::auth_user = ...), outside the closed list
@@ -59,13 +62,18 @@ my %SIGIL = (
     auth_user   => '$', token_auth     => '$', REQUEST_CONFINED => '$',
     IS_OPERATOR => '$', action         => '$', path             => '$',
     body        => '$', REQUEST_SCOPES => '@', token_caps       => '%',
-    USER_CAPS   => '%',
+    USER_CAPS   => '%', REQUEST_IP     => '$',
 );
 
-# Common's own writers beyond the reset: the memo and the one sub that fills it.
-my %FILLED_BY = ( USER_CAPS => '_user_caps' );
-# The facts the script reads and so imports: all but the memo (S22b).
-my @SCRIPT_FACTS = grep { $_ ne 'USER_CAPS' } sort keys %SIGIL;
+# Common's own writers beyond the reset: each memo, the one sub that fills it,
+# and the one write that sub makes.
+my %FILLED_BY = ( USER_CAPS => '_user_caps', REQUEST_IP => '_request_ip' );
+my %FILL      = (
+    USER_CAPS => [ '$USER_CAPS{$user} (operator on the next line)', 'one element at a time ($USER_CAPS{$user} //= ...)' ],
+    REQUEST_IP => [ '$REQUEST_IP = Lazysite::Util::request_address(', 'once, from the one definition of the request address' ],
+);
+# The facts the script reads and so imports: all but the memos (S22b, S31).
+my @SCRIPT_FACTS = grep { !$FILLED_BY{$_} } sort keys %SIGIL;
 my @FACTS = sort keys %SIGIL;
 
 my %KNOWN = (
@@ -213,8 +221,8 @@ sub imported_facts {
     for my $f ( sort keys %FILLED_BY ) {
         my $by = $subs{ $FILLED_BY{$f} } // '';
         is_deeply( [ map { s/^line \d+: //r } writes( $by, $f, '' ) ],
-            ["\$$f\{\$user\} (operator on the next line)"],
-            "$FILLED_BY{$f} fills $SIGIL{$f}$f one element at a time (\$$f\{\$user\} //= ...), and only that" );
+            [ $FILL{$f}[0] ],
+            "$FILLED_BY{$f} fills $SIGIL{$f}$f $FILL{$f}[1], and only that" );
     }
 }
 
@@ -224,7 +232,7 @@ sub imported_facts {
     my %imp  = map { $_ => 1 } imported_facts($code);
     is_deeply( [ grep { !$imp{$_} } @SCRIPT_FACTS ], [], 'the script imports every fact it reads from Common' );
     is_deeply( [ map { writes( $code, $_, '' ), writes( $code, $_, $Q ) } grep { !$imp{$_} } @FACTS ],
-        [], '...and writes the memo by no name' );
+        [], '...and writes neither memo by any name' );
     my @mine = grep { $code =~ /^(?:my|our|state)\b\s*(?:\([^)]*?)?\Q$SIGIL{$_}$_\E\b/m } @FACTS;
     is_deeply( \@mine, [], 'the script declares none of them at file scope (no private copy beside the shared one)' );
 

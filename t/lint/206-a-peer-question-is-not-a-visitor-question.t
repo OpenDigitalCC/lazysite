@@ -62,22 +62,28 @@ my %LEDGER = (
 
 # And these files must now hold NONE: every read in them was a record of who the
 # visitor was, which is the question the one definition answers.
-my @NO_BARE_READS = qw(
-    lazysite-mcp.pl
-    lazysite-oauth.pl
-    lazysite-manager-api.pl
-    plugins/form-handler.pl
-    plugins/form-smtp.pl
-    plugins/payment-demo.pl
+my @NO_BARE_READS = (
+    'lazysite-mcp.pl',
+    'lazysite-oauth.pl',
+    'the manager API',
+    'plugins/form-handler.pl',
+    'plugins/form-smtp.pl',
+    'plugins/payment-demo.pl',
 );
 
 my @PROCESSOR = ( 'lazysite-processor.pl',
     map { s{\A\Q$root/\E}{}r } sort glob("$root/lazysite-processor/*.pm") );
 
+# SM944 S31: the manager API's request address, _request_ip, lives in
+# Lazysite::Manager::Common (ruled 2026-10-10), which the script imports it from;
+# the script and that module are read as one.
+my @MANAGER_API = ( 'lazysite-manager-api.pl', 'lib/Lazysite/Manager/Common.pm' );
+my %SET         = ( 'the processor' => \@PROCESSOR, 'the manager API' => \@MANAGER_API );
+
 sub code_lines {
     my ($file) = @_;
     my @out;
-    for my $f ( $file eq 'the processor' ? @PROCESSOR : ($file) ) {
+    for my $f ( $SET{$file} ? @{ $SET{$file} } : ($file) ) {
         open my $fh, '<', "$root/$f" or die "$f: $!";
         while ( my $l = <$fh> ) {
             next if $l =~ /^\s*#/;    # a comment may name the variable freely
@@ -140,9 +146,12 @@ for my $file (@NO_BARE_READS) {
 # The other half of the claim: those files DO read the address, through the one
 # helper. A file that read neither would have quietly stopped recording anything.
 for my $file (@NO_BARE_READS) {
-    open my $fh, '<', "$root/$file" or die "$file: $!";
-    my $src = do { local $/; <$fh> };
-    close $fh;
+    my $src = '';
+    for my $f ( $SET{$file} ? @{ $SET{$file} } : ($file) ) {
+        open my $fh, '<', "$root/$f" or die "$f: $!";
+        $src .= do { local $/; <$fh> };
+        close $fh;
+    }
     like( $src, qr/_request_ip\(\)/, "$file: and it does read the request address" );
     like( $src, qr/Lazysite::Util::request_address/,
         "$file: through the one definition, not a local copy of the walk" );
