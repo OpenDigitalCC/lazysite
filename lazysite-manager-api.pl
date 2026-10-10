@@ -35,6 +35,7 @@ use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key processor_path
+    _no_scope_refusal
     reset_request_context
     users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body);

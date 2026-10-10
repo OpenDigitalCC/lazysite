@@ -22,7 +22,7 @@ use Lazysite::Paths ();
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
-    _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes no_scope_refusal reserved_roots path_is_reserved
+    _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes no_scope_refusal _no_scope_refusal reserved_roots path_is_reserved
     caller_may_reach_domain request_domain_confined reachable_domains domain_reach_refusal
     caller_is_confined instance_wide_refusal
     served_artifact_refusal caller_may_reach_path form_pages form_bindings caller_may_reach_form form_reach_refusal
