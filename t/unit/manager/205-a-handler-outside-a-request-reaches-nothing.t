@@ -246,4 +246,47 @@ subtest 'the preview verbs, loaded outside a request, act for nobody' => sub {
     ok( !-e "$d/ran", '...running nothing' );
 };
 
+# SM944 S25: the describe area, moved into Manager::Describe after the ruled (a)
+# and (b). Outside a request describe-capabilities answered ok:1 for account ''
+# (the capability map, the site's docs index, every action's effects) and
+# actions-list answered ok:1 with the actions a grant of nothing may call. Now
+# both refuse; (d) site_capabilities is unchanged - a site fact any signed-in
+# caller reads through whoami, no account, no write - and still answers. With
+# an account they answer, and after the reset they refuse again.
+subtest 'the describe actions, loaded outside a request, describe nothing' => sub {
+    require ManagerSession;
+    require Lazysite::Manager::Describe;
+    my $s = ManagerSession::new_site( root => repo_root(),
+        conf => "control_api_enabled: true\nplugins:\n  - plugins/form-smtp.pl\n" );
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', [qw(ui api manage_content)], [qw(ui api manage_content)] );
+    no warnings 'once';
+    local $Lazysite::Manager::Describe::DOCROOT = $s->docroot;  # what the dispatcher sets
+    local $Lazysite::Manager::Plugins::DOCROOT  = $s->docroot;
+    local $Lazysite::Manager::Common::DOCROOT   = $s->docroot;
+    local $ENV{LAZYSITE_USERS_TOOL} = repo_root() . '/tools/lazysite-users.pl';
+    local $ENV{LAZYSITE_LOG_LEVEL}  = 'ERROR';
+
+    my $r = Lazysite::Manager::Describe::action_describe_capabilities($auth_user);
+    is( $r->{kind} // '', 'forbidden', 'describe-capabilities refuses: no account is asking' ) or diag explain $r;
+    ok( !exists $r->{docs} && !exists $r->{actions}, '...handing over no docs index and no actions' );
+    $r = Lazysite::Manager::Describe::action_actions_list($auth_user);
+    is( $r->{kind} // '', 'forbidden', 'actions-list refuses' ) or diag explain $r;
+    ok( !exists $r->{actions}, '...listing nothing' );
+    is_deeply( Lazysite::Manager::Describe::site_capabilities(), ['email-send'],
+        'site_capabilities, unchanged (d), still answers the site\'s enabled plugins\' provides' );
+
+    # boss's own request, as the dispatcher passes the account.
+    $auth_user = 'boss';
+    $r         = Lazysite::Manager::Describe::action_describe_capabilities($auth_user);
+    ok( $r->{ok} && ( $r->{holds}{account} // '' ) eq 'boss', 'with boss\'s context the map describes boss' )
+        or diag explain $r;
+    $r = Lazysite::Manager::Describe::action_actions_list($auth_user);
+    ok( $r->{ok} && ( $r->{account} // '' ) eq 'boss', '...and actions-list lists boss\'s actions' );
+    reset_request_context();
+    is( Lazysite::Manager::Describe::action_describe_capabilities($auth_user)->{kind} // '', 'forbidden',
+        'reset: describe-capabilities refuses again' );
+    is( Lazysite::Manager::Describe::action_actions_list($auth_user)->{kind} // '', 'forbidden', '...and actions-list' );
+};
+
 done_testing();
