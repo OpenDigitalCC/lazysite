@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM976 Q15k (ruled 2026-10-10, "Fix both"): the findings Q15j did not
+# SM976 Q15k (ruled 2026-10-10, "Fix both"): the two findings Q15j did not
 # change, on both surfaces.
 #
 # (1) Restoring a recorded version whose bytes are not valid UTF-8 - MCP
@@ -8,6 +8,10 @@
 #     offset, how to fix it) and leaves the page as it is. Before, the version's
 #     bytes were written back as they were (tmp/q15j-single-page-probe.after.out,
 #     hist.md): a text write producing a page that is not UTF-8.
+# (2) The structured nav read - MCP read_nav, the control API's nav-read - of a
+#     nav.conf that is not UTF-8 answers the encoding error naming nav.conf.
+#     Before, MCP answered "Tool error: read_nav" (the encoder died on the
+#     labels) and the control API no JSON body.
 use strict;
 use warnings;
 use Test::More;
@@ -128,5 +132,23 @@ SKIP: {
         isnt( $r->{kind} // '', 'page-encoding-refused', 'for its own reason' );
     };
 }
+
+subtest 'the structured nav read of a nav.conf that is not UTF-8' => sub {
+    spit( "$d/lazysite/nav.conf", "Home | /\nCaf\xE9 | /cafe\n" );    # offset 12
+    my $r = mcp( read_nav => {} );
+    encoding_error( $r, 'MCP read_nav', 12, qr/The file 'lazysite\/nav\.conf'/ );
+    like( $r->{error} // '', qr/set_nav/, 'MCP: the remedy names set_nav' );
+    $r = $s->call( 'op', 'nav-read' );
+    encoding_error( $r, 'API nav-read', 12, qr/The file 'lazysite\/nav\.conf'/ );
+};
+
+subtest 'a UTF-8 nav.conf reads as before (the control)' => sub {
+    spit( "$d/lazysite/nav.conf", "Home | /\nCaf\xC3\xA9 | /cafe\n" );
+    for my $c ( [ 'MCP read_nav', mcp( read_nav => {} ) ], [ 'API nav-read', $s->call( 'op', 'nav-read' ) ] ) {
+        my ( $label, $r ) = @$c;
+        ok( $r->{ok}, "$label reads it" ) or diag explain $r;
+        is( join( ',', map { $_->{label} } @{ $r->{items} || [] } ), "Home,Caf\x{e9}", '...its labels decoded' );
+    }
+};
 
 done_testing();

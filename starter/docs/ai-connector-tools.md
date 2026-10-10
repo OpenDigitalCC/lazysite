@@ -209,7 +209,9 @@ read_nav
 : The site navigation as a structured list (items + children) plus the raw
   nav.conf. Read before set_nav. Needs no capability beyond MCP access - the
   nav is public - and reads only the domains your grant reaches; omit `host`
-  for the primary site.
+  for the primary site. A nav.conf that is not valid UTF-8 is refused (`kind:
+  page-encoding-refused`), naming the file, the first invalid byte's offset and
+  how to fix it.
 
 list_themes
 : The themes installed across all layouts, with which is active. Needs

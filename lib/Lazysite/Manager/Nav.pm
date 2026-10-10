@@ -223,7 +223,24 @@ sub action_nav_read {
     my @items;
 
     if ( -f $path ) {
-        open my $fh, '<:utf8', $path or return { ok => 0, error => "Cannot read nav" };
+        # SM976 Q15k (ruled 2026-10-10, "Fix both" (2)): A NAV FILE THAT IS NOT
+        # UTF-8 ANSWERS THE ENCODING ERROR, NAMING IT. Read through the lax
+        # :utf8 layer, its malformed bytes reached the labels and the JSON
+        # encoder died: MCP read_nav answered "Tool error: read_nav" and the
+        # control API's nav-read no body at all. The bytes are judged as read,
+        # after the reach rule above, and decoded only once they are UTF-8.
+        open my $raw, '<:raw', $path or return { ok => 0, error => "Cannot read nav" };
+        my $bytes = do { local $/; <$raw> } // '';
+        close $raw;
+        if ( my ( $err, $why ) = Lazysite::Manager::Common::page_read_refusal( $rel, $bytes,
+                remedy => 'replace it with set_nav, which writes it as UTF-8, or save the file '
+                    . 'as UTF-8 (iconv -t UTF-8) and write it whole over WebDAV',
+                remedy_short => 'replace it with set_nav, or save it as UTF-8' ) )
+        {
+            return { ok => 0, kind => 'page-encoding-refused', path => $rel, error => $err,
+                audit_detail => $why };
+        }
+        open my $fh, '<:utf8', \$bytes or return { ok => 0, error => "Cannot read nav" };
         my $current_parent = -1;
         while (<$fh>) {
             chomp;
