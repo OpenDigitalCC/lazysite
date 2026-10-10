@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: config-read, config-set and lang-status are
+  Manager::Config's, and the site configuration is set only for an account**
+  (S30 of the plan in the filing; the established fail-closed pattern the
+  release manager ruled for S23-S28). The three actions, the conf reader the
+  language verbs share and the language context whoami reports move to the new
+  `Lazysite::Manager::Config`. Before the move config-set refuses when no
+  account is asking, which inside a request never happens (the dispatcher has
+  refused an empty account and required `manage_config` first); outside one it
+  wrote the key into lazysite.conf. config-read, lang-status and the language
+  context are unchanged. Test 205, t/unit/manager/218.
+
 - WORK-PLAN-0153 Q16a (PENDING) **a handoff run in a git worktree says READY
   when it is**. `tools/handoff.sh` ended by checking the base branch out; in a
   linked worktree, with the base checked out in the main one, git refused, and a
