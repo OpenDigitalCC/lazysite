@@ -134,7 +134,8 @@ $Lazysite::Manager::Preview::LAZYSITE_DIR  = $LAZYSITE_DIR;
 $Lazysite::Manager::Describe::DOCROOT      = $DOCROOT;         # SM944 S25
 $Lazysite::Manager::Services::DOCROOT      = $DOCROOT;         # SM944 S26
 $Lazysite::Manager::Services::LAZYSITE_DIR = $LAZYSITE_DIR;
-$Lazysite::Manager::SiteBackup::DOCROOT      = $DOCROOT;         # SM944 S28
+# SM944 S28: Manager::SiteBackup, the site backup and export verbs.
+$Lazysite::Manager::SiteBackup::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::SiteBackup::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
