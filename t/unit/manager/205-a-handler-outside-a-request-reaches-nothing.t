@@ -598,4 +598,73 @@ subtest 'the page PDF render, loaded outside a request, converts nothing' => sub
     ok( !-e "$t/ran", '...converting nothing' );
 };
 
+# SM944 S31: the audit trail's views and switch, moved into Manager::AuditTrail
+# after audit and recent-changes took the established fail-closed pattern.
+# Outside a request they answered with the whole trail and who last changed
+# each target for account ''; now both refuse, and the N13-04 switch refuses
+# as it did (a token holding nothing). The trail's state, the line parser, the
+# cache and the two target derivers read no account and still answer. With
+# boss's context the views read the trail and a token holding both grants
+# switches it; after the reset all three refuse again.
+subtest 'the audit trail views and switch, loaded outside a request, read and switch nothing' => sub {
+    require Lazysite::Manager::AuditTrail;
+    require TestHelper;
+    my $d = TestHelper::site_tempdir();
+    mkdir "$d/lazysite";
+    mkdir "$d/lazysite/logs";
+    my $spit = sub { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close $fh };
+    my $conf = sub { open my $fh, '<', "$d/lazysite/lazysite.conf" or return ''; local $/; scalar <$fh> };
+    $spit->( "$d/lazysite/lazysite.conf", "site_name: T\n" );
+    $spit->( "$d/lazysite/logs/audit.log",
+        "2026-10-10T10:00:00Z | boss | save | secret/plan.md | 10.0.0.1 | ok | ui | \n"
+            . "2026-10-10T10:00:01Z | alice | delete | hr/salaries.md | 10.0.0.2 | ok | api | \n" );
+    no warnings 'once';
+    local $Lazysite::Manager::AuditTrail::DOCROOT      = $d;    # what the dispatcher sets
+    local $Lazysite::Manager::AuditTrail::LAZYSITE_DIR = "$d/lazysite";
+    local $Lazysite::Manager::Common::DOCROOT          = $d;
+    local $Lazysite::Manager::Common::LAZYSITE_DIR     = "$d/lazysite";
+    local $Lazysite::Audit::LAZYSITE_DIR               = "$d/lazysite";
+    local $Lazysite::Auth::Settings::AUTH_DIR          = "$d/lazysite/auth";
+    local $ENV{LAZYSITE_LOG_LEVEL}                     = 'ERROR';
+    my $AT = 'Lazysite::Manager::AuditTrail';
+
+    my $r = $AT->can('action_audit')->();
+    is( $r->{kind} // '', 'forbidden', 'audit refuses: no account is asking' ) or diag explain $r;
+    ok( !exists $r->{entries}, '...handing over no entry' );
+    $r = $AT->can('action_recent_changes')->();
+    is( $r->{kind} // '', 'forbidden', 'recent-changes refuses' ) or diag explain $r;
+    ok( !exists $r->{changes}, '...naming nobody' );
+    $r = $AT->can('_audit_trail_set')->( { state => 'off', reason => 'probe' } );
+    is( $r->{kind} // '', 'forbidden', 'the switch refuses (a token holding nothing)' ) or diag explain $r;
+    unlike( $conf->(), qr/audit_trail/, '...writing nothing' );
+
+    # Unchanged: what reads no account still answers.
+    is( $AT->can('_audit_trail_state')->()->{state}, 'appendable', 'the trail\'s state still answers' );
+    is( scalar @{ $AT->can('_audit_cached_entries')->() }, 2, 'the cache still reads the trail' );
+    is( $AT->can('_audit_parse_line')->("2026-10-10T10:00:00Z | a | save | p.md | 1.2.3.4 | ok | ui | d\n")->{target},
+        'p.md', 'the line parser still parses' );
+    is( $AT->can('_audit_implicit_target')->( 'config-set', { key => 'site_name' } ), 'site_name',
+        'the implicit-target deriver still derives' );
+    is( $AT->can('_audit_plugin_target')->( { plugin => 'stats' }, undef ), 'stats',
+        'the plugin-target deriver still derives' );
+
+    # boss's own request: the views read; a token holding both grants switches.
+    $auth_user  = 'boss';
+    $token_auth = 1;
+    %token_caps = ( manage_config => 1, audit_switch => 1 );
+    $r          = $AT->can('action_audit')->();
+    ok( $r->{ok}, 'with boss\'s context audit reads the trail' ) or diag explain $r;
+    is( scalar @{ $r->{entries} || [] }, 2, '...both entries' );
+    ok( $AT->can('action_recent_changes')->()->{ok}, '...and recent-changes answers' );
+    $r = $AT->can('_audit_trail_set')->( { state => 'off', reason => 'probe' } );
+    ok( $r->{ok}, '...and the switch turns recording off' ) or diag explain $r;
+    like( $conf->(), qr/^audit_trail: off$/m, '...in the conf' );
+    reset_request_context();
+    is( $AT->can('action_audit')->()->{kind} // '', 'forbidden', 'reset: audit refuses again' );
+    is( $AT->can('action_recent_changes')->()->{kind} // '', 'forbidden', '...and recent-changes' );
+    is( $AT->can('_audit_trail_set')->( { state => 'on', reason => 'probe' } )->{kind} // '', 'forbidden',
+        '...and the switch' );
+    like( $conf->(), qr/^audit_trail: off$/m, '...which wrote nothing' );
+};
+
 done_testing();

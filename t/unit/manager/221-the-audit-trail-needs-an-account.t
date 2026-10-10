@@ -89,4 +89,25 @@ subtest 'for an account recent changes are read; after a reset, refused again' =
     ok( !exists $r->{changes}, '...with no changes' );
 };
 
+# SM944 S31: the switch, moved with the views, reads the site's own state - a
+# second switch-off is no change - and refuses after the reset. (Its $DOCROOT,
+# which the dispatcher sets, names the directory Lazysite::Audit's own
+# $LAZYSITE_DIR names, which the state read falls back to, so an unset one
+# cannot be told apart here.)
+subtest 'the switch reads the site\'s own state' => sub {
+    no warnings 'once';
+    local $ENV{REMOTE_ADDR} = '192.0.2.9';
+    $Lazysite::Manager::Common::auth_user  = 'boss';
+    $Lazysite::Manager::Common::token_auth = 1;
+    %Lazysite::Manager::Common::token_caps = ( manage_config => 1, audit_switch => 1 );
+    my $r = main::_audit_trail_set( { state => 'off', reason => 'test' } );
+    ok( $r->{ok} && $r->{changed}, 'a token holding both grants switches recording off' ) or diag explain $r;
+    $r = main::_audit_trail_set( { state => 'off', reason => 'test' } );
+    ok( $r->{ok} && !$r->{changed}, '...and switching it off again is no change' ) or diag explain $r;
+    is( $r->{state}, 'off', '...the state it reads is the site\'s' );
+    Lazysite::Manager::Common::reset_request_context();
+    is( main::_audit_trail_set( { state => 'on', reason => 'test' } )->{kind} // '', 'forbidden',
+        'reset: the switch refuses' );
+};
+
 done_testing();
