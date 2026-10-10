@@ -3728,7 +3728,7 @@ sub action_users {
 # lever - the server-side mitigation for the known "no session
 # revocation" constraint.
 sub action_rotate_auth_secret {
-    my ($auth_user) = @_;
+    my ($user) = @_;
     my $path = "$LAZYSITE_DIR/auth/.secret";
 
     # Fail closed if CSPRNG unavailable (M-6 convention)
@@ -3769,7 +3769,7 @@ sub action_rotate_auth_secret {
     my $csrf_secret = "$LAZYSITE_DIR/manager/.csrf-secret";
     unlink $csrf_secret if -f $csrf_secret;
 
-    log_event( 'WARN', $auth_user,
+    log_event( 'WARN', $user,
         'auth secret rotated - all sessions invalidated' );
 
     return {
