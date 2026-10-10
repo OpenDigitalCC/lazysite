@@ -114,7 +114,7 @@ my %HOOKED = map { $_ => 1 } qw(
     Plugins::action_plugin_save
     API::action_config_set
     Nav::action_nav_save
-    API::action_site_backup_apply
+    SiteBackup::action_site_backup_apply
     DAV::do_put
     DAV::do_delete
     DAV::do_copy_move
@@ -154,6 +154,7 @@ my %EXEMPT = (
     'Upload::action_file_download'     => 'read-only',
     'Upload::action_file_zip_download' => 'read-only',
     # --- Backups ---
+    # SM944 S28: the site-package verbs moved to Manager::SiteBackup.
     'Backups::action_backup_list'     => 'read-only',
     'Backups::action_backup_download' => 'read-only',
     'Backups::action_backup_create'   =>
@@ -161,20 +162,20 @@ my %EXEMPT = (
     'Backups::action_backup_delete' =>
         'removes an artefact under lazysite/backups/ - the artefact directory is '
         . 'excluded from the versioned set, so there is no content history to keep',
-    'API::action_site_backup_create' =>
+    'SiteBackup::action_site_backup_create' =>
         'writes only a package under lazysite/backups/ - excluded from the versioned set',
-    'API::action_site_backup_upload' =>
+    'SiteBackup::action_site_backup_upload' =>
         'stores an uploaded package under lazysite/backups/ - not versioned content',
-    'API::action_site_backup_inspect' => 'read-only',
-    'API::action_site_backup_download' => 'read-only (streams a package; no content write)',
+    'SiteBackup::action_site_backup_inspect' => 'read-only',
+    'SiteBackup::action_site_backup_download' => 'read-only (streams a package; no content write)',
     # SM732: a PDF is a RENDER of content, not a change to it. It writes only
     # into lazysite/cache/pdf/, which is a cache the plugin's own Clear action
     # empties - nothing in the content tree moves, so there is nothing for the
     # content history to record.
     'API::action_page_pdf' => 'read-only (renders a page; writes only the PDF cache)',
-    'API::action_site_backup_delete' =>
+    'SiteBackup::action_site_backup_delete' =>
         'removes a package under lazysite/backups/ - not versioned content',
-    'API::action_site_export_primary' =>
+    'SiteBackup::action_site_export_primary' =>
         'writes only a package under lazysite/backups/ - not versioned content',
     # --- Plugins ---
     'Plugins::action_plugin_list'   => 'read-only',
@@ -321,6 +322,7 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         Preview => [ "$root/lib/Lazysite/Manager/Preview.pm", qr/^action_/ ],  # SM944 S24
         Describe => [ "$root/lib/Lazysite/Manager/Describe.pm", qr/^action_/ ], # SM944 S25
         Services => [ "$root/lib/Lazysite/Manager/Services.pm", qr/^action_/ ], # SM944 S26
+        SiteBackup => [ "$root/lib/Lazysite/Manager/SiteBackup.pm", qr/^action_/ ], # SM944 S28
         API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
         DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );

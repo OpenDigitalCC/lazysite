@@ -69,7 +69,8 @@ subtest 'the byte budget applies to a package upload' => sub {
 };
 
 subtest 'the budget is keyed on the user, as the file upload is' => sub {
-    open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!;
+    # SM944 S28: the action moved to Lazysite::Manager::SiteBackup.
+    open my $fh, '<', "$root/lib/Lazysite/Manager/SiteBackup.pm" or die $!;
     my $src = do { local $/; <$fh> };
     close $fh;
     my ($body) = $src =~ /\nsub action_site_backup_upload\b(.*?)(?=\nsub \w)/s;
