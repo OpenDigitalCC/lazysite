@@ -34,7 +34,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _em
     active_artifact_refusal refusal_detail refusal_status
     reset_request_context NO_REQUEST_CONTEXT users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $action $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $path $body
-    %USER_CAPS);
+    %USER_CAPS $REQUEST_IP _request_ip);
 
 our $DOCROOT;    # set by the script
 
@@ -62,7 +62,9 @@ sub render_source_exists {
 # whether those scopes were resolved at all), whether it is the operator
 # ($IS_OPERATOR, the memo behind the script's _operator()), and what it asked
 # for ($action, $path, $body). S22b added %USER_CAPS, the per-account caps memo
-# behind _user_caps below, which only the reset and _user_caps write.
+# behind _user_caps below, which only the reset and _user_caps write; S31 added
+# $REQUEST_IP, the request address's cache behind _request_ip, which only the
+# reset and _request_ip write.
 #
 # OWNED HERE, WRITTEN BY ONE FILE. lazysite-manager-api.pl imports them in place
 # of the file-scope `my` variables it used to declare, sets them as the request
@@ -88,7 +90,7 @@ sub render_source_exists {
 # Their default is the empty string they always had.
 sub NO_REQUEST_CONTEXT { return "\0no request context" } # a sub: lint 02 refuses `use constant`
 our ( $action, $auth_user, $token_auth, %token_caps, @REQUEST_SCOPES, $REQUEST_CONFINED,
-    $IS_OPERATOR, $path, $body, %USER_CAPS );
+    $IS_OPERATOR, $path, $body, %USER_CAPS, $REQUEST_IP );
 
 sub reset_request_context {
     $action     = '';                                          # no action
@@ -101,9 +103,35 @@ sub reset_request_context {
     $path             = undef;
     $body             = '';
     %USER_CAPS        = ();                          # no account's caps remembered
+    $REQUEST_IP       = undef;                       # no visitor's address remembered
     return;
 }
 reset_request_context();
+
+# --- SM944 S31: the request address -------------------------------------------
+#
+# Moved out of lazysite-manager-api.pl (ruled 2026-10-10, "(c) request IP into
+# Common"); the script and the audit trail's switch call it. Its cache was a `my`
+# in a bare block of the script, new with every run of it; here it lives as long
+# as the process that loaded Common, so it joined the request context above as
+# $REQUEST_IP: emptied by reset_request_context(), which the script runs before
+# its auth check, and filled only by _request_ip (t/lint/217). Without the reset
+# a pooled worker would record one request's visitor against the next. It reads
+# the conf under $LAZYSITE_DIR, which the script sets to its own.
+our $LAZYSITE_DIR;    # set by the script
+
+# SM929: THE request address for this request - the visitor, not the front proxy.
+# One reader, cached, because everything below asks the same question about one
+# request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
+# a site will ever have, so an address column held the infrastructure's identity
+# and anything keyed on it shared one bucket with the world.
+sub _request_ip {
+    return $REQUEST_IP if defined $REQUEST_IP;
+    require Lazysite::Util;
+    $REQUEST_IP = Lazysite::Util::request_address(
+        Lazysite::Util::trusted_proxy_spec($LAZYSITE_DIR) );
+    return $REQUEST_IP;
+}
 
 # --- SM944 S22b: the users-tool client and the caps memo --------------------
 #

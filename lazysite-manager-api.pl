@@ -36,6 +36,7 @@ use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checke
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     processor_path
     _no_scope_refusal
+    _request_ip
     reset_request_context
     users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body);
@@ -102,22 +103,8 @@ $Lazysite::Manager::Data::DOCROOT        = $DOCROOT;
 $Lazysite::Manager::SitePackage::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Remap::DOCROOT       = $DOCROOT;           # SM944 S22
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
-# SM929: THE request address for this request - the visitor, not the front proxy.
-# One reader, cached, because everything below asks the same question about one
-# request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
-# a site will ever have, so an address column held the infrastructure's identity
-# and anything keyed on it shared one bucket with the world.
-{
-    my $request_ip;
-
-    sub _request_ip {
-        return $request_ip if defined $request_ip;
-        require Lazysite::Util;
-        $request_ip = Lazysite::Util::request_address(
-            Lazysite::Util::trusted_proxy_spec($LAZYSITE_DIR) );
-        return $request_ip;
-    }
-}
+# SM944 S31: Manager::Common's _request_ip reads the request address's conf here.
+$Lazysite::Manager::Common::LAZYSITE_DIR = $LAZYSITE_DIR;
 
 $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR            = $LAZYSITE_DIR;
