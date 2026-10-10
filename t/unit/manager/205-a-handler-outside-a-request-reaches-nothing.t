@@ -668,4 +668,85 @@ subtest 'the audit trail views and switch, loaded outside a request, read and sw
     like( $conf->(), qr/^audit_trail: off$/m, '...which wrote nothing' );
 };
 
+# SM944 S32: the users and identity area, moved into Manager::Users after
+# whoami, users, principals and display-names took their refusals (and
+# rotate-auth-secret its own, ITEM 1). Outside a request whoami answered for
+# account '' and for any account it was handed, users and principals listed
+# every account, display-names resolved names and rotate-auth-secret rotated
+# the site's auth secret; now each refuses, whoami even for a named account.
+# _handler_who answers a token holding nothing and the manager groups are a
+# site fact, both unchanged. With boss's context each answers for boss and
+# rotate rotates; after the reset all refuse again.
+subtest 'the users area, loaded outside a request, answers for nobody' => sub {
+    require Lazysite::Manager::Users;
+    require ManagerSession;
+    my $s   = ManagerSession::new_site( root => repo_root() );
+    my @ALL = qw(ui manage_users manage_config manage_content);
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', \@ALL, \@ALL );
+    $s->add_user('alice');
+    my $d  = $s->docroot;
+    my $lz = "$d/lazysite";
+    my $secret = sub { open my $fh, '<', "$lz/auth/.secret" or return ''; local $/; scalar <$fh> };
+    my $before = $secret->();
+    no warnings 'once';
+    local $ENV{LAZYSITE_USERS_TOOL} = repo_root() . '/tools/lazysite-users.pl';
+    local $ENV{LAZYSITE_LOG_LEVEL}  = 'ERROR';
+    local $ENV{REQUEST_METHOD}      = 'GET';
+    # What the dispatcher sets: where the site is, never who is asking.
+    local $Lazysite::Manager::Users::DOCROOT         = $d;
+    local $Lazysite::Manager::Users::LAZYSITE_DIR    = $lz;
+    local $Lazysite::Manager::Common::DOCROOT        = $d;
+    local $Lazysite::Manager::Themes::DOCROOT        = $d;
+    local $Lazysite::Manager::Themes::LAZYSITE_DIR   = $lz;
+    local $Lazysite::Manager::Layouts::DOCROOT       = $d;
+    local $Lazysite::Manager::Layouts::LAZYSITE_DIR  = $lz;
+    local $Lazysite::Manager::Plugins::DOCROOT       = $d;
+    local $Lazysite::Manager::Services::DOCROOT      = $d;
+    local $Lazysite::Manager::Services::LAZYSITE_DIR = $lz;
+    local $Lazysite::Manager::Describe::DOCROOT      = $d;
+    local $Lazysite::Manager::Config::DOCROOT        = $d;
+    local $Lazysite::Manager::Config::LAZYSITE_DIR   = $lz;
+    local $Lazysite::Auth::Settings::AUTH_DIR        = "$lz/auth";
+    my $U       = 'Lazysite::Manager::Users';
+    my $refuses = sub {
+        my ( $r, $what ) = @_;
+        is( $r->{kind} // '', 'forbidden', $what ) or diag explain $r;
+    };
+
+    $refuses->( $U->can('action_whoami')->( '', 0 ), 'whoami refuses account \'\'' );
+    $refuses->( $U->can('action_whoami')->( 'boss', 0 ), '...and a named account nobody signed in as' );
+    $refuses->( $U->can('action_users')->( '', { sub => 'list' } ), 'users refuses' );
+    $refuses->( $U->can('action_principals')->(),              'principals refuses' );
+    $refuses->( $U->can('action_display_names')->( ['boss'] ), 'display-names refuses' );
+    $refuses->( $U->can('action_rotate_auth_secret')->($auth_user), 'rotate-auth-secret refuses' );
+    is( $secret->(), $before, '...rotating nothing' );
+    my %who = $U->can('_handler_who')->();
+    is_deeply( [ sort keys %{ $who{caps} || {} } ], ['dav_scopes'],
+        '_handler_who answers a token holding nothing (unchanged)' );
+    ok( ( grep { $_ eq 'bosses' } $U->can('_manager_groups_from_settings')->() ),
+        'the manager groups are a site fact, still answered' );
+
+    # boss's own request, as the script sets it (an unbound cookie manager).
+    $auth_user  = 'boss';
+    $token_auth = 0;
+    my $w = $U->can('action_whoami')->( 'boss', 0 );
+    ok( $w->{ok} && ( $w->{user} // '' ) eq 'boss', 'with boss\'s context whoami answers for boss' )
+        or diag explain $w;
+    $refuses->( $U->can('action_whoami')->( 'alice', 0 ), '...and for no one else' );
+    ok( $U->can('action_users')->( '', { sub => 'list' } )->{ok}, '...users lists' );
+    ok( $U->can('action_principals')->()->{ok},                   '...principals lists' );
+    ok( $U->can('action_display_names')->( ['boss'] )->{ok}, '...display-names resolves' );
+    ok( $U->can('action_rotate_auth_secret')->($auth_user)->{ok}, '...rotate-auth-secret rotates' );
+    my $rotated = $secret->();
+    isnt( $rotated, $before, '...the secret' );
+    reset_request_context();
+    $refuses->( $U->can('action_whoami')->( 'boss', 0 ), 'reset: whoami refuses again' );
+    $refuses->( $U->can('action_users')->( '', { sub => 'list' } ), '...users' );
+    $refuses->( $U->can('action_principals')->(),                   '...principals' );
+    $refuses->( $U->can('action_display_names')->( ['boss'] ),      '...display-names' );
+    $refuses->( $U->can('action_rotate_auth_secret')->($auth_user), '...rotate-auth-secret' );
+    is( $secret->(), $rotated, '...which rotated nothing more' );
+};
+
 done_testing();
