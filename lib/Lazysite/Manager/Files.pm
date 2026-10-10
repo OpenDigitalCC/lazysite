@@ -2998,6 +2998,24 @@ sub action_git_restore {
     return { ok => 0, error => 'No such version of this file' }
         unless defined $content;
     my $sha7 = substr $sha, 0, 7;
+    # SM976 Q15k (ruled 2026-10-10, "Fix both" (1)): A RECORDED VERSION THAT IS
+    # NOT UTF-8 IS NOT WRITTEN BACK. history reads it through the lax :utf8
+    # layer, so its malformed bytes reached action_save as text and were saved
+    # as they were (tmp/q15j-single-page-probe.after.out, hist.md) - a text write
+    # producing a page no MCP read answers and the processor renders nothing
+    # for. Refused with the encoding error view_version gives the same version,
+    # before anything is written, for MCP restore_version and the control API's
+    # git-restore alike: the file is left as it is.
+    if ( my ( $err, $why ) = Lazysite::Manager::Common::page_read_refusal( $r->{rel}, $content,
+            what   => "Version $sha7 of",
+            remedy => 'restore another version (list_versions), or save the file as UTF-8 '
+                . '(iconv -t UTF-8) and write it whole with upload_file or WebDAV. Nothing was '
+                . 'restored: the file is left as it is',
+            remedy_short => 'restore another version, or save it as UTF-8 and write it whole' ) )
+    {
+        return { ok => 0, kind => 'page-encoding-refused', path => "/$r->{rel}", error => $err,
+            audit_detail => $why };
+    }
     local $GIT_COMMIT_MESSAGE = "restore $r->{rel} to $sha7";
     my $saved = action_save( $rel_path, $username, $content, undef );
     return $saved unless ref $saved eq 'HASH' && $saved->{ok};

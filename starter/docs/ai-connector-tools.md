@@ -241,6 +241,8 @@ restore_version `{ path, version }`
 : Restore the file to that version. The historic content is written back
   through the normal save path (page cache refreshed) and the restore itself
   becomes the newest recorded version - nothing is lost by restoring. Audited.
+  A version that is not valid UTF-8 is refused (`kind: page-encoding-refused`,
+  with the offset) and the file is left as it is.
 
 Remote sync of the history (push/pull to a git host) is **operator-only** by
 design - it is configured and driven from the manager UI (Remote sync plugin)
