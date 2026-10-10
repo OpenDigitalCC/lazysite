@@ -2918,69 +2918,6 @@ sub _rate_ok {
     return $allow ? { ok => 1 } : { ok => 0, retry_after => $retry };
 }
 
-# SM155: render a configured domain's HOME page as an anonymous public visitor
-# would see it under its own Host - so an operator can prepare/debug a new domain
-# BEFORE DNS/TLS is pointing at it. Shells the processor exactly like the dev
-# server / action_preview, but with HTTP_HOST set (SM151 per-Host routing picks
-# the domain's content_root + theme/layout/nav overrides) and the auth headers
-# cleared (so the render is the public site, no manager admin bar).
-# A host is "known" iff it is a registered alias host OR it is the primary
-# site's own host (derived from its site_url). This BOUNDS the preview render
-# and, more importantly, the domain-check outbound probe to operator-declared
-# hosts - grepping `|| is_primary` matched the ever-present (default) row and so
-# accepted ANY host, which for the SSRF-sensitive check must not happen.
-# SM156: a stable, non-sensitive per-install id - identical to the processor's
-# (same one-way function over the same docroot), so a domain-check can tell
-# whether an HTTPS request to the candidate host lands back on THIS install.
-sub _instance_id {
-    my $base = realpath($DOCROOT) // $DOCROOT;
-    return substr( hmac_sha256_hex( $base, 'lazysite-instance' ), 0, 32 );
-}
-
-# SM156: check whether a configured domain is configured to serve THIS install
-# live (DNS resolves -> points here -> valid HTTPS cert -> terminates on this
-# instance). The authoritative half of the hybrid check - it does the DNS / IP /
-# TLS / marker work a browser cannot. self_ip is the address Apache accepted the
-# manager request on (SERVER_ADDR); instance_id is our own marker value.
-sub action_domain_check {
-    my ($host) = @_;
-    # SM944 S27, the established fail-closed pattern (ruled 2026-10-10, "Read
-    # Common's value"): A DOMAIN CHECK PROBES FOR AN ACCOUNT. Inside a request
-    # the dispatcher has refused an empty $auth_user (and asked the domain rule)
-    # before this runs, so it is never empty here; reached outside one (the
-    # request context's reset leaves nobody) it ran its outbound DNS/TLS probe
-    # with nobody asking (tmp/sm944-s27-s28-refusal-probe.out). The account is
-    # Manager::Common's - the one the reset empties - never a module's own
-    # log-attribution copy, which nothing resets.
-    return { ok => 0, kind => 'forbidden',
-        error => 'A domain check is run by a signed-in account, and no account is asking.' }
-        unless length $auth_user;
-    $host = lc( $host // '' );
-    # A THIRD copy of the host rule lived here and could answer differently
-    # from Domains.pm for the same host. It defers to the one rule now, and to
-    # the refusal that says which of "absent" and "malformed" happened.
-    return host_refusal($host) unless valid_host($host);
-
-    # Bound the outbound probe to sysop-declared hosts (no SSRF to arbitrary
-    # targets): only a configured domain or the primary site's own host.
-    return { ok => 0, error => "Not a configured domain: $host" }
-        unless known_domain_host($host);
-
-    # Self-discover this install's PUBLIC address(es): SERVER_ADDR is the private
-    # inbound IP behind a proxy/NAT, so instance_public_ips prefers the sysop's
-    # canonical_ip config, then the install's own domain, then a public
-    # SERVER_ADDR. An empty list makes the "points here" check indeterminate
-    # rather than a false failure.
-    my @self = Lazysite::Manager::Domains::instance_public_ips(
-        fallback_ip => ( $ENV{SERVER_ADDR} // '' ) );
-
-    return domain_check(
-        $host,
-        self_ips    => \@self,
-        instance_id => _instance_id(),
-    );
-}
-
 # SM732: render a page to a branded PDF and stream it back.
 #
 # Returns { streamed => 1 } after the body, like action_site_backup_download
@@ -3286,56 +3223,6 @@ sub action_config_read {
     # manager would show the DEFAULTS as though they were the site's settings.
     else { Lazysite::Util::cannot_read( 'the site conf', "$LAZYSITE_DIR/lazysite.conf" ) }
     return { ok => 1, config => \%out };
-}
-
-# SM151: read-only view of the domains this instance serves - the primary host
-# plus each declared alias, with the presentation/routing keys that vary per
-# host (an alias inherits the base value where it has no override). Parsed
-# straight from lazysite.conf; aliases are sysop conf-file territory, so the
-# manager only displays them, never edits them.
-sub action_domains_list {
-    my @keys = qw(site_name site_url content_root theme layout nav_file search_default
-        allowed_groups locked_users lang lang_group);
-    my %base;
-    my %ov;    # host => { key => value }
-    if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
-        while ( my $line = <$fh> ) {
-            if ( $line =~ /^alias\.(\S+)\.(\w+)\s*:\s*(.*?)\s*$/ ) {
-                $ov{ lc $1 }{$2} = $3;
-            }
-            elsif ( $line =~ /^(\w+)\s*:\s*(.*?)\s*$/ ) {
-                $base{$1} = $2;
-            }
-        }
-        close $fh;
-    }
-    # SM917: no alias overrides read means every domain appears to inherit the
-    # base settings, which is what a site with no overrides looks like.
-    else { Lazysite::Util::cannot_read( 'the site conf', "$LAZYSITE_DIR/lazysite.conf" ) }
-
-    my @domains;
-    push @domains,
-        {
-        host       => '(default)',
-        is_primary => 1,
-        map { $_ => ( $base{$_} // '' ) } @keys,
-        };
-    for my $h ( split /,/, ( $base{alias_hosts} // '' ) ) {
-        $h =~ s/^\s+|\s+$//g;
-        next unless length $h;
-        my %row = ( host => lc $h, is_primary => 0 );
-        for my $k (@keys) {
-            # An alias override wins; otherwise the host inherits the base value.
-            $row{$k} = defined $ov{ lc $h }{$k} ? $ov{ lc $h }{$k} : ( $base{$k} // '' );
-            $row{ $k . '_inherited' } = ( defined $ov{ lc $h }{$k} ) ? 0 : 1;
-        }
-        push @domains, \%row;
-    }
-    # SM976: a domain-confined caller is shown its own domains only. A row
-    # carries another domain's content root, access groups and address.
-    @domains = grep { Lazysite::Manager::Common::caller_may_reach_domain( host => $_->{host} ) }
-        @domains;
-    return { ok => 1, domains => \@domains, keys => \@keys };
 }
 
 # SM179 P6: translation-coverage status for a language set. Read-only. `group`
