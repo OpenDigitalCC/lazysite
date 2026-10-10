@@ -545,4 +545,55 @@ subtest 'the configuration verbs, loaded outside a request, write no setting' =>
     like( $read->(), qr/^site_name: Boss$/m, '...writing nothing' );
 };
 
+# SM944 S29: the page PDF area, moved into Manager::PagePdf after page-pdf took
+# the established fail-closed pattern. Outside a request it loaded the pandoc
+# plugin and converted a public page for account ''; now it refuses before the
+# plugin loads. With boss's context the page is streamed - the plugin loaded in
+# package main, where its converter is looked for - and after the reset it
+# refuses again. md-to-pdf is a stand-in on PATH (no network).
+subtest 'the page PDF render, loaded outside a request, converts nothing' => sub {
+    require Lazysite::Manager::PagePdf;
+    require TestHelper;
+    my $d = TestHelper::site_tempdir( plugins => 1 );
+    ( my $t = $d ) =~ s{/site/public_html\z}{};
+    mkdir "$d/lazysite";
+    mkdir "$d/docs";
+    mkdir "$t/bin";
+    my $spit = sub { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close $fh };
+    $spit->( "$d/docs/page.md", "---\ntitle: Page\n---\n\nBody\n" );
+    $spit->( "$t/bin/md-to-pdf", "#!/bin/sh\necho ran >> '$t/ran'\nprintf '%%PDF-1.4 stand-in' > out.pdf\nexit 0\n" );
+    chmod 0755, "$t/bin/md-to-pdf";
+    no warnings 'once';
+    local $Lazysite::Manager::PagePdf::DOCROOT = $d;    # what the dispatcher sets
+    local $Lazysite::Manager::Common::DOCROOT  = $d;
+    local $ENV{PATH}                           = "$t/bin:$ENV{PATH}";
+    local $ENV{LAZYSITE_LOG_LEVEL}             = 'ERROR';
+    my $pdf = sub {
+        open my $save, '>&', \*STDOUT    or die;
+        open STDOUT,   '>',  "$t/stdout" or die;
+        my $r = Lazysite::Manager::PagePdf::action_page_pdf('docs/page.md');
+        open STDOUT, '>&', $save       or die;
+        open my $fh, '<',  "$t/stdout" or die;
+        local $/;
+        return ( $r, scalar <$fh> // '' );
+    };
+
+    my ( $r, $printed ) = $pdf->();
+    is( $r->{kind} // '', 'forbidden', 'page-pdf refuses: no account is asking' ) or diag explain $r;
+    is( $printed, '',                  '...printing nothing' );
+    ok( !-e "$t/ran", '...md-to-pdf did not run' );
+
+    # boss's own request, as the script sets it (an unbound cookie manager).
+    $auth_user      = 'boss';
+    @REQUEST_SCOPES = ();
+    ( $r, $printed ) = $pdf->();
+    ok( $r->{ok} && $r->{streamed}, 'with boss\'s context the page is streamed' ) or diag explain $r;
+    like( $printed, qr/\r\n\r\n%PDF-1\.4 stand-in\z/, '...the PDF, and nothing after it' );
+    ok( main->can('convert'), '...its converter loaded in package main' );
+    reset_request_context();
+    unlink "$t/ran";
+    is( ( $pdf->() )[0]{kind} // '', 'forbidden', 'reset: page-pdf refuses again' );
+    ok( !-e "$t/ran", '...converting nothing' );
+};
+
 done_testing();
