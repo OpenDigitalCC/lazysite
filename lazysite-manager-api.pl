@@ -2881,6 +2881,15 @@ sub action_pages {
 
 sub action_whoami {
     my ( $user, $want_plugins ) = @_;
+    # SM944 S32 (3), ruled 2026-10-10 ("Yes, all four"): WHOAMI ANSWERS FOR THE
+    # ACCOUNT THAT IS ASKING, AND FOR NO OTHER. Inside a request the dispatcher
+    # passes $auth_user, which it has refused empty, so the answer there is the
+    # same; reached outside one it answered for account '' and for any account
+    # it was handed, with nobody signed in as it
+    # (tmp/sm944-s31-s32-refusal-probe.out).
+    return { ok => 0, kind => 'forbidden',
+        error => 'whoami answers for the signed-in account that is asking, and only for it.' }
+        unless defined $user && length $user && $user eq $auth_user;
 
     # SM671: THE PLUGIN INVENTORY IS OPT-OUT, NOT OPT-IN.
     #
