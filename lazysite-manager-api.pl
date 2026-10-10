@@ -8,7 +8,6 @@ use File::Find;
 use File::Path     qw(make_path);
 use File::Basename qw(dirname basename);
 use Cwd            qw(realpath);
-use IPC::Open2;
 use Fcntl qw(:flock O_RDWR O_CREAT);
 use POSIX qw(strftime);
 
@@ -26,7 +25,7 @@ BEGIN {
 use Lazysite::Util         qw(log_event const_eq);
 use Lazysite::Paths        ();
 use Lazysite::Audit        qw(audit_log);
-use Lazysite::Capabilities qw(describe capability_keys channel_service reachability);
+use Lazysite::Capabilities        qw(describe capability_keys channel_service);
 use Lazysite::ControlApi::Actions ();                        # SM350
 use Lazysite::BadUrl              qw(list_blocks block unblock);
 use Lazysite::Auth::Settings      qw(site_grants_manager);
@@ -36,9 +35,9 @@ use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checke
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     processor_path
     _no_scope_refusal
-    _request_ip _display_names _operator
+    _request_ip _operator
     reset_request_context
-    users_api _users_tool_run _users_tool_path _tool_path _user_caps
+    users_api _users_tool_run _tool_path _user_caps
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body);
 use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download stream_bytes collect_zip_paths
     check_upload_rate is_editable_text parse_multipart_body);
@@ -60,7 +59,7 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_regenerate_registries);
 use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
     action_layout_activate action_theme_delete action_theme_copy action_theme_upload
-    action_cache_list action_cache_invalidate _read_active_layout_and_theme
+    action_cache_list action_cache_invalidate
     action_artifact_manifest action_artifact_validate);
 use Lazysite::Manager::Nav     qw(action_nav_read action_nav_save);
 use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
@@ -76,12 +75,13 @@ use Lazysite::Manager::Data        ();
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
 use Lazysite::Manager::Remap qw(_remap_list _remap_save); # SM944 S22: SM802's two actions
 use Lazysite::Manager::Preview qw(action_preview action_preview_grant action_preview_clear); # SM944 S24: SM071's preview verbs
-use Lazysite::Manager::Describe qw(site_capabilities action_describe_capabilities action_actions_list _json_bool); # SM944 S25
-use Lazysite::Manager::Services qw(action_channel_services action_analyse_visitors _service_state action_version); # SM944 S26
+use Lazysite::Manager::Describe qw(action_describe_capabilities action_actions_list _json_bool); # SM944 S25
+use Lazysite::Manager::Services qw(action_channel_services action_analyse_visitors action_version); # SM944 S26
 use Lazysite::Manager::SiteBackup qw(action_site_backup_create action_site_backup_upload action_site_backup_apply action_site_export_primary action_site_backup_inspect action_site_backup_delete action_site_backup_download _package_scope_refusal); # SM944 S28
-use Lazysite::Manager::Config qw(action_config_read action_config_set action_lang_status _language_context); # SM944 S30
+use Lazysite::Manager::Config qw(action_config_read action_config_set action_lang_status); # SM944 S30
 use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
 use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes action_audit); # SM944 S31
+use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret); # SM944 S32
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 # SM556: resolved once, here, so every module confines against one spelling
@@ -136,6 +136,9 @@ $Lazysite::Manager::PagePdf::DOCROOT = $DOCROOT;
 # SM944 S31: Manager::AuditTrail, the audit trail's views and switch.
 $Lazysite::Manager::AuditTrail::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::AuditTrail::LAZYSITE_DIR = $LAZYSITE_DIR;
+# SM944 S32: Manager::Users, the users and identity actions.
+$Lazysite::Manager::Users::DOCROOT      = $DOCROOT;
+$Lazysite::Manager::Users::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
 $Lazysite::Manager::Files::LOCK_DIR     = $LOCK_DIR;
