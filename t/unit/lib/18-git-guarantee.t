@@ -172,7 +172,8 @@ my %EXEMPT = (
     # into lazysite/cache/pdf/, which is a cache the plugin's own Clear action
     # empties - nothing in the content tree moves, so there is nothing for the
     # content history to record.
-    'API::action_page_pdf' => 'read-only (renders a page; writes only the PDF cache)',
+    # SM944 S29: moved to Manager::PagePdf.
+    'PagePdf::action_page_pdf' => 'read-only (renders a page; writes only the PDF cache)',
     'SiteBackup::action_site_backup_delete' =>
         'removes a package under lazysite/backups/ - not versioned content',
     'SiteBackup::action_site_export_primary' =>
@@ -326,6 +327,7 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         Services => [ "$root/lib/Lazysite/Manager/Services.pm", qr/^action_/ ], # SM944 S26
         SiteBackup => [ "$root/lib/Lazysite/Manager/SiteBackup.pm", qr/^action_/ ], # SM944 S28
         Config => [ "$root/lib/Lazysite/Manager/Config.pm", qr/^action_/ ],    # SM944 S30
+        PagePdf => [ "$root/lib/Lazysite/Manager/PagePdf.pm", qr/^action_/ ],  # SM944 S29
         API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
         DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );

@@ -24,10 +24,15 @@ my $api  = do {
     open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!;
     local $/; <$fh>;
 };
+# SM944 S29: the action lives in Manager::PagePdf; the branch stays in the script.
+my $mod = do {
+    open my $fh, '<', "$root/lib/Lazysite/Manager/PagePdf.pm" or die $!;
+    local $/; <$fh>;
+};
 
 subtest 'the action exists and is dispatched' => sub {
     like( $api, qr/\$action eq 'page-pdf'/, 'the dispatcher has a page-pdf branch' );
-    like( $api, qr/sub action_page_pdf/,    'and the action it calls' );
+    like( $mod, qr/sub action_page_pdf/,    'and the action it calls' );
     like( $api, qr/action_page_pdf\(\s*\$params\{path\}/,
         'the page path is passed from the request' );
 };
@@ -54,7 +59,7 @@ subtest 'it is gated, on both sides' => sub {
 };
 
 subtest 'the path never reaches a shell' => sub {
-    my ($body) = $api =~ /(sub action_page_pdf \{.*?\n\})/s;
+    my ($body) = $mod =~ /(sub action_page_pdf \{.*?\n\})/s;
     ok( $body, 'the action body is extractable' ) or return;
 
     # plugin-action refuses arbitrary arguments on purpose - "nothing

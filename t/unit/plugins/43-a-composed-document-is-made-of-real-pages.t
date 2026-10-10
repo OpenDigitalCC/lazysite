@@ -82,7 +82,8 @@ subtest 'the converter failure says nothing about the host at all' => sub {
 
 subtest 'the caller supplies the resolver' => sub {
     my $api = do {
-        open my $fh, '<', "$FindBin::Bin/../../../lazysite-manager-api.pl" or die $!;
+        # SM944 S29: page-pdf lives in Manager::PagePdf.
+        open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/PagePdf.pm" or die $!;
         local $/; <$fh>;
     };
     like( $api, qr/resolve => sub \{/, 'page-pdf passes a resolver' );
