@@ -97,7 +97,7 @@ subtest 'no caller discards the cause any more' => sub {
     for my $rel (
         'lib/Lazysite/Manager/SitePackage.pm',
         'lib/Lazysite/Manager/Backups.pm',
-        'lazysite-manager-api.pl',
+        'lib/Lazysite/Manager/SiteBackup.pm',    # SM944 S28: the control API's apply
         )
     {
         my $p = "$root/$rel";

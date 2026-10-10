@@ -83,6 +83,13 @@ my %EXEMPT = (
     action_briefs_migrate => 'engine-walked sidecars into the engine-named store',
     action_data_safety_export_delete => 'SM512: unlinks only under lazysite/db/rebuilds, the name validated to the exact minted shape (no separators can reach it); t/unit/data/25 pins the refusals',
     action_backup_delete   => 'backups dir, name validated by _valid_name',
+    # SM944 S28: the site-package verbs moved out of lazysite-manager-api.pl into
+    # lib/Lazysite/Manager/SiteBackup.pm, which brought them into this lint's
+    # scope for the first time - the writes are not new, their classification is.
+    action_site_backup_delete => 'unlinks only under lazysite/backups/; _site_package_path '
+        . 'admits only lazysite-site-[A-Za-z0-9._-]+.tar.gz with no .., so no separator reaches it',
+    action_site_backup_upload => 'stores only under lazysite/backups/, at a name it mints '
+        . '(lazysite-site-uploaded-<stamp>.tar.gz); the uploaded filename never reaches the path',
     # SM632: unlinks only lazysite/forms/<name>.conf. The name is validated to
     # [A-Za-z0-9_-]+ before it is used, so no separator and no .. can reach the
     # path, and handlers/smtp are refused by name - there is no caller-supplied

@@ -112,7 +112,8 @@ subtest 'the snapshot contains the content the apply overwrote' => sub {
 subtest 'every surface reaches the snapshotting path' => sub {
     my $root = "$FindBin::Bin/../../..";
     my %src;
-    for my $f (qw(lazysite-mcp.pl tools/lazysite-site.pl lazysite-manager-api.pl)) {
+    # SM944 S28: the control API's site-backup-apply lives in Manager::SiteBackup.
+    for my $f (qw(lazysite-mcp.pl tools/lazysite-site.pl lib/Lazysite/Manager/SiteBackup.pm)) {
         open my $fh, '<', "$root/$f" or die "$f: $!";
         local $/;
         $src{$f} = <$fh>;
@@ -127,7 +128,7 @@ subtest 'every surface reaches the snapshotting path' => sub {
         'the CLI does not opt out either' );
 
     # The control API may, because it takes its own first.
-    like( $src{'lazysite-manager-api.pl'}, qr/snapshot\s*=>\s*0/,
+    like( $src{'lib/Lazysite/Manager/SiteBackup.pm'}, qr/snapshot\s*=>\s*0/,
         'the control API opts out, having already snapshotted' );
 
     # SM874: THIS ASSERTION USED TO READ
@@ -145,7 +146,7 @@ subtest 'every surface reaches the snapshotting path' => sub {
     # driven in t/unit/manager/62 against a real two-domain fixture. Keeping a
     # source check at all is deliberate - it is what pins the three surfaces
     # together - but it must pin the thing that was wrong.
-    like( $src{'lazysite-manager-api.pl'},
+    like( $src{'lib/Lazysite/Manager/SiteBackup.pm'},
         qr/action_backup_create\(\s*'prerestore',\s*\n?\s*\(\s*length \$croot \? \( root => \$croot \)/,
         'and it scopes that snapshot to the target content root' )
         or diag( 'The control API must pass root => $croot. Without it the '

@@ -35,7 +35,8 @@ sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
 
 # --- every channel can ask for the other behaviour --------------------------
 {
-    my $api = slurp("$root/lazysite-manager-api.pl");
+    # SM944 S28: the control API's site-backup-apply lives in Manager::SiteBackup.
+    my $api = slurp("$root/lib/Lazysite/Manager/SiteBackup.pm");
     like( $api, qr/adopt_identity => \( \$req->\{adopt_identity\} \? 1 : 0 \)/,
         'the control API passes adopt_identity (SM193)' );
 

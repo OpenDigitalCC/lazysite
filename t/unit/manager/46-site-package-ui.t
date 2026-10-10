@@ -165,10 +165,18 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
             { host => 'client.example', content_root => 'sites/dest' } )->{ok},
         'target domain configured' );
 
+    # SM944 S28: a render cached before the apply, which the apply drops - read
+    # through the docroot the dispatcher gives Manager::SiteBackup, which nothing
+    # else held.
+    make_path("$d/lazysite/cache/hosts/client.example");
+    spit( "$d/lazysite/cache/hosts/client.example/index.html", "STALE\n" );
+
     my $ap = post( $d, 'op', 'role-op', 'action=site-backup-apply',
         { name => $pkg, host => 'client.example', clean => 1 } );
     ok( $ap->{ok}, 'site-backup-apply applies the package to the target' ) or diag encode_json($ap);
     ok( -f "$d/sites/dest/index.md", 'content landed in the target content root' );
+    ok( !-e "$d/lazysite/cache/hosts/client.example/index.html",
+        'and the render cached before it is dropped, so the applied site renders fresh' );
 }
 
 # --- SM578/SM577: confinement is a property of the ACTION ------------------
