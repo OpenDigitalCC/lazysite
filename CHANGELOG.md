@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the site backup and export verbs are
+  Manager::SiteBackup's, and a package is uploaded only for an account** (S28 of
+  the plan in the filing; the established fail-closed pattern the release
+  manager ruled for S23-S26). The seven site-package verbs and the grant checks
+  they share move to the new `Lazysite::Manager::SiteBackup`, and the no-scope
+  token rule they and the domain verbs ask to `Lazysite::Manager::Common`.
+  Before the move site-backup-upload refuses when no account is asking, which
+  inside a request never happens (the dispatcher has refused an empty account
+  and required `manage_domains` first); outside one it stored a package. The
+  other verbs already refused there. Test 205, t/unit/manager/216.
+
 - SM944 (PENDING) **internal: channel-services, version and analyse_visitors are
   Manager::Services', and the visitor analysis runs only for an account** (S26 of
   the plan in the filing, as the release manager ruled on 2026-10-10). The three
