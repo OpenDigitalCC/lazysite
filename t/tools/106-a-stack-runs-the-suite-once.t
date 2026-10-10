@@ -63,6 +63,7 @@ SH
 use Test::More;
 my $b = `git branch --show-current`; chomp $b;
 open my $f, '>>', 'calls' or die; print {$f} "SUITE $b\n"; close $f;
+system( 'git', 'branch', '-q', '-D', $ENV{STUB_LAND} ) if $ENV{STUB_LAND};
 pass('the suite'); done_testing;
 T
     spit( "$d/.gitignore", "tmp/\ncalls\n" );
@@ -118,6 +119,44 @@ subtest 'without --stack the stack is the checked-out branch' => sub {
     is( $rc,               0,                              'READY' ) or diag($out);
     is( slurp("$d/calls"), "PRECHECK s1 main\nSUITE s1\n", 'one precheck against main, one suite' );
     like( $out, qr/^READY FOR REVIEW: s1 [0-9a-f]+ \(tier-review passed\)$/m, 'the one line review reads' );
+};
+
+# Q16a: run in a linked worktree while the base is checked out in the main one,
+# the return to the base failed - git checks a branch out in one worktree only -
+# and a run whose every gate passed said NOT READY (n308, n332). It detaches at
+# the base there, which frees the branch as well.
+subtest 'in a linked worktree the run ends detached at the base, and is READY' => sub {
+    my $d = stack();
+    git( $d, 'checkout', '-q', 'main' );
+    my $wt = tempdir( CLEANUP => 1 ) . '/wt';
+    git( $d, 'worktree', 'add', '-q', $wt, 's3' );
+    make_path("$wt/tmp");
+    my ( $rc, $out ) = handoff( $wt, '--stack', 'main' );
+    is( $rc, 0, 'READY' ) or diag($out);
+    like( $out, qr/^READY FOR REVIEW: $_ [0-9a-f]+ \(precheck passed; tier-review passed on s3\)$/m, "$_ is READY" )
+        for qw(s1 s2 s3);
+    like( $out, qr/the worktree is detached at main, so s1 s2 s3 is free to review/, '...saying where it left the worktree' );
+    unlike( $out, qr/NOT READY|still held/, 'and nothing says it is held' );
+    is( git( $wt, 'branch', '--show-current' ), '', 'the linked worktree holds no branch' );
+    is( git( $wt, 'rev-parse', 'HEAD' ), git( $d, 'rev-parse', 'main' ), '...and sits at the base' );
+    is( git( $d, 'branch', '--show-current' ), 'main', 'the main checkout is left on the base' );
+    git( $d, 'checkout', '-q', 's3' );    # dies if s3 were still held
+    is( git( $d, 'branch', '--show-current' ), 's3', 'and s3 is free: the main checkout can take it' );
+};
+
+# Q16a: a stack branch landed - and so deleted - by review while the suite ran
+# printed "READY FOR REVIEW: <branch>  (...)" with no SHA, after git's "fatal:
+# Needed a single revision".
+subtest 'a stack branch landed during the run is named, not called ready' => sub {
+    my $d = stack();
+    local $ENV{STUB_LAND} = 's1';
+    my ( $rc, $out ) = handoff( $d, '--stack', 'main' );
+    is( $rc, 0, 'READY' ) or diag($out);
+    like( $out, qr/^s1 \(landed or deleted during the run\)$/m, 'the landed branch is named as such' );
+    unlike( $out, qr/READY FOR REVIEW: s1\b/,         '...and not called ready' );
+    unlike( $out, qr/fatal|Needed a single revision/, '...with no error from git' );
+    like( $out, qr/^READY FOR REVIEW: $_ [0-9a-f]+ \(/m, "$_ is READY" ) for qw(s2 s3);
+    like( $out, qr/so s2 s3 is free to review/, 'and only the branches still there are offered' );
 };
 
 done_testing();

@@ -192,11 +192,36 @@ if [ "$RC" -eq 0 ]; then
   # saying READY about it would be the same class of false report the gate exists
   # to prevent. Nothing is left to remember.
   if [ "$BRANCH" != "$BASE" ] && [ -n "$BRANCH" ]; then
-    if git checkout "$BASE" >/dev/null 2>&1; then
+    # Q16a: IN A LINKED WORKTREE THE BASE IS USUALLY CHECKED OUT ELSEWHERE - in
+    # the main checkout - and git refuses to check one branch out twice, so the
+    # return failed and every gate-passing run said NOT READY (n308, n332). What
+    # releasing needs is only that this worktree holds no branch: detaching at
+    # the base frees the branch just as well. The main checkout returns to the
+    # base branch as before.
+    if [ "$(git rev-parse --path-format=absolute --git-dir)" != \
+         "$(git rev-parse --path-format=absolute --git-common-dir)" ]; then
+      git checkout --detach "$BASE" >/dev/null 2>&1
+      released=$?
+      where="detached at $BASE"
+    else
+      git checkout "$BASE" >/dev/null 2>&1
+      released=$?
+      where="back on $BASE"
+    fi
+    if [ "$released" = 0 ]; then
+      FREE=()
       for b in "${STACK[@]}"; do
-        say "READY FOR REVIEW: $b $(git rev-parse --short "$b") ($WHAT)"
+        # Q16a: a stack branch can be landed (and deleted) by review while the
+        # suite runs; it has no SHA to report, and is no longer this run's to
+        # call ready.
+        if bsha=$(git rev-parse --verify --quiet --short "refs/heads/$b"); then
+          say "READY FOR REVIEW: $b $bsha ($WHAT)"
+          FREE+=("$b")
+        else
+          say "$b (landed or deleted during the run)"
+        fi
       done
-      say "    the worktree is back on $BASE, so ${STACK[*]} is free to review"
+      say "    the worktree is $where, so ${FREE[*]} is free to review"
     else
       say "NOT READY: $BRANCH $SHA - gates passed, but the worktree could not"
       say "    return to $BASE, so the branch is still held and cannot be offered"
