@@ -3254,6 +3254,15 @@ sub action_lang_status {
 # so a file-level `my` initialised here would still be empty at call time.)
 sub action_config_set {
     my ( $key, $value ) = @_;
+    # SM944 S30, the established fail-closed pattern (ruled 2026-10-09/10): THE
+    # SITE CONF IS WRITTEN FOR AN ACCOUNT. Inside a request the dispatcher has
+    # refused an empty $auth_user (and required `manage_config`) before this
+    # runs, so it is never empty here; reached outside one (the request
+    # context's reset leaves nobody) it wrote site_name into lazysite.conf with
+    # nobody asking (tmp/sm944-s29-s30-refusal-probe.out).
+    return { ok => 0, kind => 'forbidden',
+        error => 'The site configuration is set by a signed-in account, and no account is asking.' }
+        unless length $auth_user;
     # SM122: a small, injection-safe subset settable via the API (with manage_config).
     #
     # SM612: `manager` and `manager_path` are settable HERE but not by a TOKEN
