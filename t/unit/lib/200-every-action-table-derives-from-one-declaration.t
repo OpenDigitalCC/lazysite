@@ -53,6 +53,24 @@ subtest 'the CGI builds every per-action table from the declaration' => sub {
     }
 };
 
+# SM944 S25: the effects actions-list and describe-capabilities publish moved to
+# Manager::Describe, which derives the three tables _action_effects reads from
+# the same declaration. Held the same way, so the published effects cannot
+# drift from the gates through a literal copy there either.
+subtest 'Manager::Describe builds the effects tables from the declaration' => sub {
+    my $mod = do {
+        open my $fh, '<', repo_root() . '/lib/Lazysite/Manager/Describe.pm' or die $!;
+        local $/;
+        <$fh>;
+    };
+    for my $t (qw(MUTATING DESTRUCTIVE CHANGES_ACCESS)) {
+        my @decl = $mod =~ /\bmy \%\Q$t\E\s*=\s*([^;]*);/g;
+        is( scalar @decl, 1, "Describe: %$t is declared once" );
+        is( $decl[0] // '', "Lazysite::ControlApi::Actions::$FROM{$t}()",
+            "Describe: %$t = $FROM{$t}() - no literal copy" );
+    }
+};
+
 my %known  = $A->can('known_actions')->();
 my %mut    = $A->can('mutating')->();
 my %destr  = $A->can('destructive')->();

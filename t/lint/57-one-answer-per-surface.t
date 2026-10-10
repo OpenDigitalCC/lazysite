@@ -77,7 +77,9 @@ subtest 'the capability map holds the same keys on both surfaces' => sub {
         'MCP passes groups to describe()' )
         or diag( 'SM288 already settled this one layer down: a token carrying '
             . 'no groups was not a safe default, it was a third answer.' );
-    like( slurp('lazysite-manager-api.pl'),
+    # SM944 S25: the control API's describe-capabilities moved, with its call,
+    # to Manager::Describe.
+    like( slurp('lib/Lazysite/Manager/Describe.pm'),
         qr/describe\(\s*caps\s*=>.*?groups\s*=>/s,
         'and so does the control API' );
 };
