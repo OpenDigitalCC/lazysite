@@ -491,4 +491,58 @@ subtest 'the domain actions, loaded outside a request, probe no host' => sub {
     $Lazysite::Manager::Domains::auth_user = '';
 };
 
+# SM944 S30: the configuration and language area, moved into Manager::Config
+# after config-set took the established fail-closed pattern. Outside a request
+# config-set wrote site_name into lazysite.conf with nobody asking; now it
+# refuses and the conf is unchanged. config-read, lang-status, the language
+# context and the conf reader are site facts and still answer. With boss's
+# context the key is set, and after the reset config-set refuses again.
+subtest 'the configuration verbs, loaded outside a request, write no setting' => sub {
+    require Lazysite::Manager::Config;
+    require TestHelper;
+    my $d = TestHelper::site_tempdir();
+    mkdir "$d/lazysite";
+    mkdir "$d/sites";
+    mkdir "$d/sites/fr";
+    my $conf = "site_name: T\nsite_url: https://primary.example\nlang: en\nlang_group: g\n"
+        . "alias_hosts: fr.example\nalias.fr.example.content_root: sites/fr\n"
+        . "alias.fr.example.lang: fr\nalias.fr.example.lang_group: g\n";
+    my $read = sub { open my $fh, '<', "$d/lazysite/lazysite.conf" or return ''; local $/; return scalar <$fh> };
+    {
+        open my $fh, '>', "$d/lazysite/lazysite.conf" or die $!;
+        print {$fh} $conf;
+        close $fh;
+    }
+    no warnings 'once';
+    local $Lazysite::Manager::Config::DOCROOT      = $d;    # what the dispatcher sets
+    local $Lazysite::Manager::Config::LAZYSITE_DIR = "$d/lazysite";
+    local $Lazysite::Manager::Common::DOCROOT      = $d;
+    local $ENV{LAZYSITE_LOG_LEVEL}                 = 'ERROR';
+
+    my $r = Lazysite::Manager::Config::action_config_set( 'site_name', 'Nobody' );
+    is( $r->{kind} // '', 'forbidden', 'config-set refuses: no account is asking' ) or diag explain $r;
+    is( $read->(), $conf,              '...and the conf is unchanged' );
+
+    # Unchanged: the site facts answer.
+    $r = Lazysite::Manager::Config::action_config_read();
+    is( $r->{config}{site_name} // '', 'T', 'config-read, unchanged, still answers the site\'s settings' )
+        or diag explain $r;
+    $r = Lazysite::Manager::Config::action_lang_status();
+    ok( $r->{ok} && ( $r->{group} // '' ) eq 'g', 'lang-status, unchanged, still answers the language set' )
+        or diag explain $r;
+    is( ( Lazysite::Manager::Config::_language_context( {} ) || {} )->{language}{lang_group} // '', 'g',
+        '_language_context, unchanged, still answers the set' );
+    is( Lazysite::Manager::Config::_conf_text(), $conf, '_conf_text, unchanged, still reads the conf' );
+
+    # boss's own request, as the script sets it.
+    $auth_user = 'boss';
+    $r         = Lazysite::Manager::Config::action_config_set( 'site_name', 'Boss' );
+    ok( $r->{ok}, 'with boss\'s context the key is set' ) or diag explain $r;
+    like( $read->(), qr/^site_name: Boss$/m, '...in the conf' );
+    reset_request_context();
+    is( Lazysite::Manager::Config::action_config_set( 'site_name', 'Nobody' )->{kind} // '', 'forbidden',
+        'reset: config-set refuses again' );
+    like( $read->(), qr/^site_name: Boss$/m, '...writing nothing' );
+};
+
 done_testing();
