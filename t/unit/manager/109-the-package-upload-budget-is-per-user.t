@@ -50,6 +50,12 @@ subtest 'the byte budget applies to a package upload' => sub {
     my $b = 'BoUnDaRy1234';
     local $ENV{CONTENT_TYPE} = "multipart/form-data; boundary=$b";
     my $body = multipart( $b, 'site.tar.gz', 'x' x ( 1024 * 1024 + 512 ) );
+    # SM944 S28: an upload is stored for an account, and refused when no
+    # account is asking (t/unit/manager/216) - so an account asks, as the
+    # dispatcher's authenticated manager does (assigned, not localised: the
+    # script holds the same variable through its import).
+    no warnings 'once';
+    $Lazysite::Manager::Common::auth_user = 'alice';
     my @warn;
     local $SIG{__WARN__} = sub { push @warn, $_[0] };
     my $r = main::action_site_backup_upload($body);

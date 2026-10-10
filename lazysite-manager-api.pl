@@ -3310,6 +3310,15 @@ sub action_page_pdf {
 # a gzip blob, never executed). manage_content-gated (above) + upload rate limit.
 sub action_site_backup_upload {
     my ($raw) = @_;
+    # SM944 S28, the established fail-closed pattern (ruled 2026-10-09/10): A
+    # PACKAGE IS STORED FOR AN ACCOUNT. Inside a request the dispatcher has
+    # refused an empty $auth_user (and required `manage_domains`) before this
+    # runs, so it is never empty here; reached outside one (the request
+    # context's reset leaves nobody) it wrote a package into backups/ with
+    # nobody asking (tmp/sm944-s27-s28-refusal-probe.out).
+    return { ok => 0, kind => 'forbidden',
+        error => 'A site package is uploaded by a signed-in account, and no account is asking.' }
+        unless length $auth_user;
     my $ct = $ENV{CONTENT_TYPE} // '';
     return { ok => 0, error => 'Expected a multipart file upload' }
         unless $ct =~ m{multipart/form-data}i;
