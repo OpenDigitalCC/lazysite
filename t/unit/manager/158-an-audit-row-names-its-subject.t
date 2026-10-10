@@ -45,7 +45,13 @@ close $fh;
 ( my $code = $src ) =~ s/^\s*#.*$//mg;
 
 # --- connectors name the connector -------------------------------------------
-my ($implicit) = $code =~ /sub _audit_implicit_target\b(.*?)\n\}/s;
+# SM944 S31: the resolver is Manager::AuditTrail's; the audit block that calls it
+# stays in the script.
+my $at = repo_root() . '/lib/Lazysite/Manager/AuditTrail.pm';
+open my $afh, '<', $at or BAIL_OUT("no audit trail module: $!");
+( my $at_code = do { local $/; <$afh> } ) =~ s/^\s*#.*$//mg;
+close $afh;
+my ($implicit) = $at_code =~ /sub _audit_implicit_target\b(.*?)\n\}/s;
 ok( $implicit, 'the implicit-target resolver was found' )
     or do { done_testing(); exit };
 
