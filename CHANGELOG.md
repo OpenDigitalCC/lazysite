@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: page-pdf is Manager::PagePdf's, and a page is
+  rendered to PDF only for an account** (S29 of the plan in the filing, as the
+  release manager ruled on 2026-10-10, "(a) load in main"). Before the move
+  page-pdf refuses when no account is asking, which inside a request never
+  happens (the dispatcher has refused an empty account and required
+  `manage_content` first); outside one it loaded the pandoc plugin and
+  converted a public page. The action moves to the new
+  `Lazysite::Manager::PagePdf` with one line changed: the plugin is loaded in
+  package main, where its converter is looked for. Test 205,
+  t/unit/manager/219.
+
 - SM978 (PENDING) **security: a PDF is made only of pages the caller may read**
   (ruled 2026-10-10, "Scope it + composed parts", WORK-PLAN-0153 Q16b).
   `page-pdf` took no account of the caller's scope, so a manager confined to one
