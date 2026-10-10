@@ -137,6 +137,16 @@ S27 stopped on a design question (WORK-PLAN-0153, open questions): outside a req
 
 The release manager ruled, in these words: "Read Common's value": the moved domain-check refuses an empty user reading `$Lazysite::Manager::Common::auth_user` by full name (one line differs from the script; Domains' own log copy and its bridge stay on lint 217's closed list). And "Queue it": retiring the per-module `$auth_user`/`$action` log copies in Layouts, Domains and Themes - each entry point (API, MCP, WebDAV, CLI) setting the shared context once, the modules importing it, the copies and bridges gone, lint 217's exception list shrunk to the entry points - is WORK-PLAN-0153 Q16, queued, not built.
 
+# Ruled: S29's question and its two findings (2026-10-10)
+
+S29 stopped on a design question (WORK-PLAN-0153, open questions): outside a request `action_page_pdf` loaded the pandoc plugin and converted a page for account '' (tmp/sm944-s29-s30-refusal-probe.pl, .out), so the established fail-closed pattern applies; and `do FILE` compiles the plugin into the CALLER's package (tmp/sm944-s29-pkgprobe.pl), so the sub moved verbatim would find no converter through `main->can('convert')`. The options were (a) load the plugin in package main, (b) ask `__PACKAGE__->can('convert')` with the plugin's subs moving into Manager::PagePdf, (c) leave the sub in the script; (a) was recommended. Found with it: page-pdf was not confined to the caller's scope, and its dispatch branch printed JSON after the streamed PDF.
+
+The release manager ruled, in these words:
+
+- "Scope it + composed parts": declare page-pdf path-scoped (`scoped => 1`, as preview is) so `_confine_scope` checks the requested path; every page a composed PDF pulls in is checked against the caller's scope as well as the content ACL (`may_read`); fix lint 218 so page-pdf is checked for real. Built as [[SM978]] (n336), with the page's own read ACL, which nothing asked.
+- "Keep audit, print nothing": a streamed response is recorded in the audit trail as now, but nothing is printed after the body; one shared "streamed" path every streaming download can use. Built as WORK-PLAN-0153 Q16b (n336): file-download, file-zip-download, backup-download, site-backup-download, data-export and page-pdf return to the dispatcher through `Manager::Upload::stream_attachment` / `stream_bytes`. Five of them exited before the audit block, so none was ever recorded, and backup-download dropped its refusal and answered nothing; all six are now audited by the trail's rule (a POST always, a GET when refused or failed). t/integration/123.
+- "(a) load in main": first the established refusal (`action_page_pdf` refuses an empty `$auth_user` before loading the plugin), then the pure move into the new `Manager/PagePdf.pm` with exactly one line differing: the plugin is loaded in package main, so `main->can('convert')` still finds it.
+
 # Built
 
 S1 (n278)

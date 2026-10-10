@@ -67,6 +67,19 @@ Archive
   any word that names one: page-pdf had passed it on the `main` in
   `main->can('convert')`. t/integration/122.
 
+- WORK-PLAN-0153 Q16b (PENDING) **a download ends where its Content-Length
+  says, and is on the audit trail** (ruled 2026-10-10, "Keep audit, print
+  nothing"). After streaming a PDF, page-pdf printed a second header block and
+  `{"ok":true,"streamed":1}` past the PDF's Content-Length, so a client reading
+  to the end got a PDF with JSON after it. The other streaming downloads -
+  file-download, file-zip-download, backup-download, site-backup-download and
+  data-export - exited before the audit block, so none was ever recorded, even
+  POSTed or refused, though each is declared audited; a refused backup-download
+  answered nothing at all. All six now share one streamed path: the body is the
+  whole response, and the download is audited by the trail's rule (every POST;
+  a GET when it is refused or fails). A file that cannot be opened is refused
+  before any header goes out. t/integration/123.
+
 - SM944 (PENDING) **internal: config-read, config-set and lang-status are
   Manager::Config's, and the site configuration is set only for an account**
   (S30 of the plan in the filing; the established fail-closed pattern the

@@ -73,6 +73,7 @@ starts.
 | Q15 | **[[SM943]] rulings - ruling 1 built (n309)**: a read is audited on neither door unless refused or failed, both trails held to one declaration (t/lint/23). Ruling 2 **built (n313)** on Q15b's host confinement ([[SM976]]): the structured nav read (`nav-read`, `read_nav`) needs no capability beyond the surface's base access, scope still applied; `nav-save`/`set_nav` and the raw `nav.conf` stay `manage_nav`; `manage_content` grants nothing nav-specific | ruled 2026-10-09 | S |
 | Q16 | **[[SM944]] queued, not built (ruled 2026-10-10, "Queue it")**: retire the per-module `$auth_user`/`$action` log copies in Layouts, Domains and Themes - each entry point (API, MCP, WebDAV, CLI) sets the shared context once, the modules import it, the copies and their bridges go, and lint 217's exception list shrinks to the entry points | raised by S27's question; recorded only | not sized |
 | Q16a | **built (n333)**: `tools/handoff.sh` run in a linked git worktree, with the base checked out in another, ends detached at the base instead of failing to check it out - it said NOT READY after every gate passed (n308, n332); the main checkout returns to the base branch as before. A stack branch landed or deleted during the run is named "(landed or deleted during the run)" instead of a READY line with an empty SHA and git's "fatal: Needed a single revision" (t/tools/106) | found handing off n308 and n332 | XS |
+| Q16b | **[[SM978]] security and the stray JSON tail, ruled 2026-10-10 - built (n336)**: "Scope it + composed parts" - page-pdf is path-scoped as preview is, the page's own read ACL is asked, and every part of a composed document is asked the caller's scope as well as the content ACL; a part outside the scope refuses the document, naming it (fail closed, as the page's refusal is); lint 218 counts calls, not words (page-pdf had passed on the `main` in `main->can`), t/integration/122. "Keep audit, print nothing" - file-download, file-zip-download, backup-download, site-backup-download, data-export and page-pdf share one streamed path (`Manager::Upload::stream_attachment`/`stream_bytes`): nothing after the body, audited by the trail's rule; five of them exited before the audit block and were never recorded, and a refused backup-download answered nothing (t/integration/123) | found by the S29 agent, ruled 2026-10-10 | S |
 
 Applied throughout: E8 (comments state the invariant) on every file touched.
 
@@ -83,7 +84,7 @@ Not in the queue, and why:
 
 Open questions raised while working the queue:
 
-- **Q14 (SM944 S29): stopped on a design question, 2026-10-10.** S30 was
+- ~~**Q14 (SM944 S29): stopped on a design question, 2026-10-10.**~~ **RULED 2026-10-10: "(a) load in main", with the findings "Scope it + composed parts" (1, [[SM978]]) and "Keep audit, print nothing" (2); 1 and 2 built as Q16b (n336).** S30 was
   built (n335, from n333); S29 was not started. Outside a request
   (tmp/sm944-s29-s30-refusal-probe.pl, .out) `action_page_pdf` loads the
   pandoc plugin and converts a page for account '' - the content ACL lets

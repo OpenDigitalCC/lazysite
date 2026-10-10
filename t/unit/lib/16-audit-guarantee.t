@@ -208,8 +208,11 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
     # audited) still fails, which is what the long list was for.
     #
     # The streaming downloads (file-download, backup-download...) are audited
-    # reads deliberately: they exit before the audit block on GET, and if ever
-    # POSTed they audit, which errs loud rather than silent. SM554 moved
+    # reads deliberately: on GET a success writes no row (the trail's rule for
+    # every GET), a refusal does, and a POSTed one audits. Q16b (2026-10-10):
+    # this said so before it was true - every one but page-pdf exited before the
+    # audit block, so none was ever recorded; all now return to the dispatcher
+    # through the one streamed path (t/integration/123). SM554 moved
     # notices and layouts-manifest OUT of the audited set: the manager UI POSTs
     # everything, so those two reads audited on every call and buried the rows
     # recording who changed something.

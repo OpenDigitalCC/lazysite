@@ -268,19 +268,11 @@ sub action_site_backup_download {
     log_event( 'INFO', 'site-backup-download', 'site package downloaded',
         file => $name, user => $auth_user );
 
-    binmode STDOUT;
-    local $| = 1;
-    print "Status: 200 OK\r\n";
-    print "Content-Type: application/gzip\r\n";
-    print "Content-Length: $size\r\n";
-    print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
-    print "Cache-Control: no-store, private\r\n";
-    print "\r\n";
-    open my $fh, '<', $pkg or return { ok => 0, error => 'Cannot read the package' }; # not a store: a backup archive
-    binmode $fh;
-    my $buf;
-    while ( my $n = sysread $fh, $buf, 65536 ) { syswrite STDOUT, $buf, $n }
-    close $fh;
+    # Q16b: the one streamed path (Manager::Upload), which opens the package
+    # before any header goes out.
+    require Lazysite::Manager::Upload;
+    return { ok => 0, error => 'Cannot read the package' }
+        unless Lazysite::Manager::Upload::stream_attachment( $pkg, 'application/gzip', $safe, $size );
     return { ok => 1, streamed => 1 };
 }
 

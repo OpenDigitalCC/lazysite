@@ -85,18 +85,21 @@ sub capture_download {
     my $out = "$d/.dl";
     open my $save, '>&', \*STDOUT or die;
     open STDOUT, '>', $out or die;
-    action_file_download($rel);
+    my $r = action_file_download($rel);
     open STDOUT, '>&', $save or die;
-    return slurp($out);
+    return wantarray ? ( scalar slurp($out), $r ) : slurp($out);
 }
-my $dl = capture_download('content/hi.txt');
+my ( $dl, $dr ) = capture_download('content/hi.txt');
+ok( $dr->{ok} && $dr->{streamed}, 'download returns streamed to the dispatcher (Q16b)' );
 like( $dl, qr/Content-Length: 3/,         'download sizes the (overwritten) 3-byte file' );
 like( $dl, qr/filename="hi\.txt"/,        'download sets the attachment filename' );
 like( $dl, qr/\r\n\r\nNEW\z/,             'download sends the real body bytes' );
 
-# missing file -> JSON {ok:0}, not an HTTP 404
-my $miss = capture_download('content/nope.txt');
-like( $miss, qr/"ok":false/, 'missing file returns ok:false JSON' );    # SM353
-like( $miss, qr/File not found/, 'with a not-found error' );
+# missing file -> the refusal, returned for the dispatcher to answer and audit
+# (Q16b); nothing printed here.
+my ( $miss, $mr ) = capture_download('content/nope.txt');
+is( $miss, '', 'missing file: nothing is printed by the action' );
+ok( !$mr->{ok}, 'missing file returns ok false' );    # SM353
+like( $mr->{error} // q(), qr/File not found/, q(with a not-found error) );
 
 done_testing();

@@ -14,13 +14,13 @@ use File::Path     qw(make_path);
 use Cwd            qw(realpath);
 use Lazysite::Util qw(log_event);
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config respond upload_limits outside_all_scopes);
+    qw(validate_path is_blocked_path is_blocked_config upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl qw(_acl_denied);
 use Lazysite::Private   ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
-    action_file_upload action_file_download action_file_zip_download collect_zip_paths
+    action_file_upload action_file_download action_file_zip_download stream_bytes collect_zip_paths
     check_upload_rate parse_multipart_body sanitise_upload_filename
     detect_content_type is_editable_text
 );
@@ -421,32 +421,33 @@ sub is_editable_text {
 
 # The attachment response: the header stack and the sysread/syswrite loop
 # that were written out three times in this engine - twice here and once in
-# Backups' backup-download - byte for byte the same. (A fourth copy lives in
-# lazysite-manager-api.pl and folds in with that file.)
+# Backups' backup-download - byte for byte the same. Q16b folded in the
+# rest: site-backup-download, page-pdf and data-export (stream_bytes).
+#
+# Q16b (ruled 2026-10-10, "Keep audit, print nothing"): THE ONE STREAMED PATH.
+# Every streaming download sends its body through here and returns
+# { ok => 1, streamed => 1 } to the dispatcher, which audits it like any other
+# action and prints nothing after the body. page-pdf's branch used to fall
+# through to respond(), which printed a second header block and
+# {"ok":true,"streamed":1} past the PDF's Content-Length; the others exited
+# before the audit block, so a download was never on the trail, refused or not.
 #
 # binmode STDOUT BEFORE local $|, and both before anything is printed:
 # syswrite bypasses Perl's stdio buffer, so without autoflush the print-ed
 # headers land in stdout AFTER the body bytes. The filename loses the bytes
 # that would break out of the header field, as each copy did for itself.
 #
-# Returns 1 once the body is written, 0 if the file could not be opened -
-# which is after the headers have gone, so what a caller says about that is
-# its own business and stays with the caller.
+# The file is opened BEFORE the headers, so a file that cannot be read returns 0
+# with nothing printed and the caller's refusal is the whole response. It was
+# opened after them, and that refusal followed a 200 header block.
 sub stream_attachment {
     my ( $path, $ctype, $filename, $size ) = @_;
-    ( my $safe = $filename ) =~ s/[\r\n"\\]//g;
+    open my $fh, '<', $path or return 0;
+    binmode $fh;
 
     binmode STDOUT;
     local $| = 1;
-    print "Status: 200 OK\r\n";
-    print "Content-Type: $ctype\r\n";
-    print "Content-Length: $size\r\n";
-    print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
-    print "Cache-Control: no-store, private\r\n";
-    print "\r\n";
-
-    open my $fh, '<', $path or return 0;
-    binmode $fh;
+    _attachment_headers( $ctype, $filename, $size );
     my $buf;
     while ( my $n = sysread( $fh, $buf, 65536 ) ) {
         syswrite STDOUT, $buf, $n;
@@ -455,13 +456,35 @@ sub stream_attachment {
     return 1;
 }
 
+# The same response for a body already in memory (data-export, DM-2): its
+# Content-Length is the byte length of what is printed, and nothing follows it.
+sub stream_bytes {
+    my ( $bytes, $ctype, $filename ) = @_;
+    binmode STDOUT;
+    local $| = 1;
+    _attachment_headers( $ctype, $filename, length $bytes );
+    print $bytes;
+    return 1;
+}
+
+sub _attachment_headers {
+    my ( $ctype, $filename, $size ) = @_;
+    ( my $safe = $filename ) =~ s/[\r\n"\\]//g;
+    print "Status: 200 OK\r\n";
+    print "Content-Type: $ctype\r\n";
+    print "Content-Length: $size\r\n";
+    print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
+    print "Cache-Control: no-store, private\r\n";
+    print "\r\n";
+    return;
+}
+
 sub action_file_download {
     my ($rel_path) = @_;
 
     my $result = validate_path($rel_path);
     unless ( $result->{ok} ) {
-        respond( { ok => 0, error => $result->{error} } );
-        return;
+        return { ok => 0, error => $result->{error} };
     }
 
     # SM019 decision point: consult is_blocked_path on download so a
@@ -469,34 +492,29 @@ sub action_file_download {
     # this action just because action_read blocks them. The briefing
     # did not specify this; added for parity with read/save/delete.
     if ( is_blocked_path( $result->{rel} ) ) {
-        respond( { ok => 0, error => "Path is blocked" } );
-        return;
+        return { ok => 0, error => "Path is blocked" };
     }
     # SM019c: config block list applies to downloads too, so a
     # caller cannot siphon the manager UI or any other configured
     # sensitive directory via this surface.
     if ( is_blocked_config( $result->{rel} ) ) {
-        respond( { ok => 0, error => "Path is blocked by config" } );
-        return;
+        return { ok => 0, error => "Path is blocked by config" };
     }
     # SEC-2026-07 (F2 audit): download bypassed the read ACL that action_read
     # enforces, so a non-operator could grab a file another owner restricted to
     # someone else. Enforce the same read gate here. (dav_scope confinement for
     # this single-path action is applied at dispatch via %SCOPED_ACTION.)
     if ( my $d = _acl_denied( $result->{rel}, 'read', $auth_user ) ) {
-        respond($d);
-        return;
+        return $d;
     }
 
     my $full = $result->{full};
 
     unless ( -f $full ) {
-        respond( { ok => 0, error => "File not found" } );
-        return;
+        return { ok => 0, error => "File not found" };
     }
     if ( -d $full ) {
-        respond( { ok => 0, error => "Not a file" } );
-        return;
+        return { ok => 0, error => "Not a file" };
     }
 
     my $basename = basename($full);
@@ -507,8 +525,9 @@ sub action_file_download {
         path => $result->{rel}, size => $size,
         user => $auth_user );
 
-    stream_attachment( $full, $ctype, $basename, $size );
-    return;
+    return { ok => 0, error => 'Cannot read the file' }
+        unless stream_attachment( $full, $ctype, $basename, $size );
+    return { ok => 1, streamed => 1 };
 }
 
 sub collect_zip_paths {
@@ -528,8 +547,7 @@ sub action_file_zip_download {
     my ($scopes)  = @_;    # SEC-2026-07 (F2): the request's resolved dav_scopes
     my @requested = collect_zip_paths();
     unless (@requested) {
-        respond( { ok => 0, error => "No files selected" } );
-        return;
+        return { ok => 0, error => "No files selected" };
     }
 
     my $max_total = upload_limits()->{max_bytes} * 10;
@@ -592,8 +610,7 @@ sub action_file_zip_download {
         my $size = ( stat $full )[7] // 0;
         $total += $size;
         if ( $total > $max_total ) {
-            respond( { ok => 0, error => "Total size exceeds limit" } );
-            return;
+            return { ok => 0, error => "Total size exceeds limit" };
         }
 
         $zip->addFile( $full, $vr->{rel} );
@@ -601,8 +618,7 @@ sub action_file_zip_download {
     }
 
     unless ($added) {
-        respond( { ok => 0, error => "No valid files" } );
-        return;
+        return { ok => 0, error => "No valid files" };
     }
 
     require File::Temp;
@@ -614,8 +630,7 @@ sub action_file_zip_download {
     my $tmp_path = $tmp->filename;
 
     unless ( $zip->writeToFileNamed($tmp_path) == 0 ) {    # AZ_OK
-        respond( { ok => 0, error => "Zip write failed" } );
-        return;
+        return { ok => 0, error => "Zip write failed" };
     }
 
     my $zip_size = ( stat $tmp_path )[7] // 0;
@@ -626,8 +641,9 @@ sub action_file_zip_download {
         count => $added, size => $zip_size,
         user  => $auth_user );
 
-    stream_attachment( $tmp_path, 'application/zip', $fname, $zip_size );
-    return;
+    return { ok => 0, error => 'Cannot read the file' }
+        unless stream_attachment( $tmp_path, 'application/zip', $fname, $zip_size );
+    return { ok => 1, streamed => 1 };
 }
 
 1;

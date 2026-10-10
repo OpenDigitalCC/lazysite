@@ -39,7 +39,7 @@ use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checke
     reset_request_context
     users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body);
-use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download collect_zip_paths
+use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download stream_bytes collect_zip_paths
     check_upload_rate is_editable_text parse_multipart_body);
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action
@@ -1642,18 +1642,12 @@ elsif ( $action eq 'data-export' ) {
     # extract their own download from a response body.
     $result = Lazysite::Manager::Data::action_data_export( $params{table},
         $params{format} );
+    # Q16b: on the one streamed path - audited below, nothing after the body.
     if ( $result->{ok} && defined $result->{streamed_body} ) {
-        my $bytes = $result->{streamed_body};
         ( my $safe = $result->{filename} // 'table.json' ) =~ s/[\r\n";\\]//g;
-        binmode STDOUT, ':raw';
-        print "Status: 200 OK\r\n";
-        print "Content-Type: $result->{content_type}\r\n";
-        print 'Content-Length: ' . length($bytes) . "\r\n";
-        print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
-        print "Cache-Control: no-store, private\r\n";
-        print "\r\n";
-        print $bytes;
-        exit 0;
+        stream_bytes( $result->{streamed_body},
+            $result->{content_type}, $safe );
+        $result = { ok => 1, streamed => 1 };
     }
 }
 elsif ( $action eq 'data-table' ) {
@@ -1836,9 +1830,7 @@ elsif ( $action eq 'site-backup-delete' ) {
 }
 elsif ( $action eq 'site-backup-download' ) {
     my $req = _json_body();
-    my $r   = action_site_backup_download( $req->{name} // $params{name} );
-    exit 0 if $r->{streamed}; # the tarball was streamed; a pre-stream error falls through
-    $result = $r;
+    $result = action_site_backup_download( $req->{name} // $params{name} ); # Q16b: streamed
 }
 elsif ( $action eq 'config-set' ) {
     my $req = _json_body();
@@ -2324,8 +2316,7 @@ elsif ( $action eq 'file-upload' ) {
     $result = action_file_upload( $path, $body );
 }
 elsif ( $action eq 'file-download' ) {
-    action_file_download($path);
-    exit 0;
+    $result = action_file_download($path);    # Q16b: streamed, or the refusal
 }
 elsif ( $action eq 'backup-list' ) {
     $result = action_backup_list();
@@ -2385,12 +2376,10 @@ elsif ( $action eq 'backup-download' ) {
     elsif ( my $no = Lazysite::Manager::Common::instance_wide_refusal( action => 'backup-download' ) ) {
         _refuse( $no, 'ui', 'denied: instance-wide', $name );
     }
-    action_backup_download( $params{name} );
-    exit 0;
+    $result = action_backup_download( $params{name} );    # Q16b: streamed, or the refusal
 }
 elsif ( $action eq 'file-zip-download' ) {
-    action_file_zip_download( \@REQUEST_SCOPES );    # F2: confine each path to scope
-    exit 0;
+    $result = action_file_zip_download( \@REQUEST_SCOPES ); # F2: confine each path to scope
 }
 elsif ( $action eq 'preview-grant' ) {
     action_preview_grant( \%params );
@@ -2649,7 +2638,15 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
     }
 }
 
-respond($result);
+# Q16b (ruled 2026-10-10, "Keep audit, print nothing"): A STREAMED RESPONSE HAS
+# BEEN SENT. Every streaming download - file-download, file-zip-download,
+# backup-download, site-backup-download, data-export, page-pdf - writes its body
+# through Manager::Upload::stream_attachment/stream_bytes and returns
+# { ok => 1, streamed => 1 }; it is audited above like any other action, and
+# nothing is printed after it. page-pdf used to reach respond() here, which put
+# a second header block and {"ok":true,"streamed":1} past the PDF's
+# Content-Length; the others exited before the audit block, refused or not.
+respond($result) unless ref $result eq 'HASH' && $result->{ok} && $result->{streamed};
 
 # SM245: the brief store, wired to this request. Five branches asked for it
 # with the same three lines; the module name stays in each branch through the
@@ -3006,21 +3003,10 @@ sub action_page_pdf {
         path => $rel, bytes => $size, cached => ( $out->{cached} ? 1 : 0 ),
         user => $auth_user );
 
-    binmode STDOUT;
-    local $| = 1;
-    print "Status: 200 OK\r\n";
-    print "Content-Type: application/pdf\r\n";
-    print "Content-Length: $size\r\n";
-    print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
-    print "Cache-Control: no-store, private\r\n";
-    print "\r\n";
-    open my $fh, '<', $out->{pdf}
-        or return { ok => 0, error => 'Cannot read the rendered PDF' };
-    binmode $fh;
-    my $buf;
-    while ( my $n = sysread $fh, $buf, 65536 ) { syswrite STDOUT, $buf, $n }
-    close $fh;
-    return { ok => 1, streamed => 1 };
+    return { ok => 0, error => 'Cannot read the rendered PDF' }
+        unless Lazysite::Manager::Upload::stream_attachment( $out->{pdf}, 'application/pdf',
+        $safe, $size );
+    return { ok => 1, streamed => 1 }; # Q16b: audited by the dispatcher, nothing after it
 }
 
 # SM677: does this table audit its row writes? Default YES - only an explicit
