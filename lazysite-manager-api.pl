@@ -3392,6 +3392,15 @@ sub action_recent_changes {
 
 sub action_audit {
     my (%opt) = @_;
+    # SM944 S31, the established fail-closed pattern (ruled 2026-10-10): THE
+    # TRAIL IS READ FOR AN ACCOUNT. Inside a request the dispatcher has refused
+    # an empty $auth_user (and asked for `audit`, or narrowed a sub-user manager
+    # to its team) before this runs, so it is never empty here; reached outside
+    # one (the request context's reset leaves nobody) it answered with the whole
+    # trail, every actor and target (tmp/sm944-s31-s32-refusal-probe.out).
+    return { ok => 0, kind => 'forbidden',
+        error => 'The audit trail is read by a signed-in account, and no account is asking.' }
+        unless length $auth_user;
 
     # SM907: a trail that exists and will not open is this host unable to read
     # its own record, which is SM873's kind and a 500 - never an empty list. The

@@ -38,6 +38,9 @@ my $root = repo_root();
     package main;
     do "$root/lazysite-manager-api.pl" or die "load failed: $@";
 }
+# SM944 S31: the trail is read for an account (t/unit/manager/221); a request
+# sets one before it reaches action_audit, so this test does.
+{ no warnings 'once'; $Lazysite::Manager::Common::auth_user = 'op'; }
 
 # --- target + origin recorded ---
 main::audit_log( 'alice', 'save', 'content/about.md', '1.2.3.4', 'ok', 'ui' );
