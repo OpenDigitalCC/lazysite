@@ -3074,6 +3074,15 @@ sub _users_tool_call {
 
 sub action_users {
     my ( $request_body, $params_ref ) = @_;
+    # SM944 S32 (4), ruled 2026-10-10 ("Yes, all four"): THE ACCOUNT STORE IS
+    # READ AND CHANGED FOR AN ACCOUNT. Inside a request the dispatcher has refused
+    # an empty $auth_user (and asked for a user-management capability) before
+    # this runs, so it is never empty here; reached outside one (the request
+    # context's reset leaves nobody) it listed every account
+    # (tmp/sm944-s31-s32-refusal-probe.out).
+    return { ok => 0, kind => 'forbidden',
+        error => 'Accounts are managed by a signed-in account, and no account is asking.' }
+        unless length $auth_user;
 
     my $users_script = _users_tool_path();
     return { ok => 0, error => "User management not available" }
