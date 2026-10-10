@@ -53,6 +53,19 @@ Archive
 
 ## Unreleased
 
+- SM976 (PENDING) **MCP answers a page that is not UTF-8, and says when a page
+  walk stops at 1,000 pages** (ruled 2026-10-10, "Fix both"). A page whose
+  bytes are not valid UTF-8 (put there by git, SSH or a restore) left MCP
+  `read_page`, `read_file`, `view_version`, `read_brief` and `preview_page`
+  with no JSON-RPC body, and `validate_page` and `create_form` with a bare
+  "Tool error". Each, and `preview_public_page`, now answers as for a page it
+  cannot read: kind `page-encoding-refused`, the first invalid byte's offset
+  and how to fix it. `list_pages`, `audit_site` and `rename_page` (with
+  `update_links`) walk at most 1,000 pages and now answer `truncated`, with
+  `page_cap` when they stopped there; before, a site of more pages was
+  counted, audited and link-rewritten as if it had 1,000. Their descriptions
+  say so. t/unit/mcp/31, t/unit/mcp/32.
+
 - SM944 (PENDING) **internal: the preview verbs are Manager::Preview's, and act
   only for an account** (S23b and S24 of the plan in the filing, as the release
   manager ruled on 2026-10-09). The manager API's JSON printer for the

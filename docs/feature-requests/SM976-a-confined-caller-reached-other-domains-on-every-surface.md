@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, from the gaps SM975 found and did not change
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), \"Refuse new binding\" (n316), one form reading (n317, lint 219). Q15h (n321): a raw-bytes page is UTF-8 or refused. Q15i (n322): search_files, scan excerpts, the validator skip a non-UTF-8 page, logged. t/integration/112, 114-120."
+status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), n316, n317 (lint 219). Q15h (n321): raw-bytes pages UTF-8. Q15i (n322): walks skip a non-UTF-8 page. Q15j (n325): MCP single-page reads refuse it with the offset; page walks say truncated at 1,000. t/integration/112, 114-120."
 ---
 
 # What was wrong
@@ -876,6 +876,90 @@ Evidence (n322)
   (tmp/q15i-sabotage.sh, .log), each failing and passing restored by cp and
   cmp: the search not judging, judging nothing, logging nothing; the excerpt's
   guard a plain block (the page answers 500 again); the validator not judging.
+
+# Found in Q15i, ruled (Q15j)
+
+The release manager ruled on 2026-10-10, in these words:
+
+Validator exit, "Exit 1"
+: n322's behaviour stands (an unreadable file is an issue; the run exits 1).
+  Record only.
+
+"Fix both"
+: (a) MCP read_page on a non-UTF-8 page returns a proper error naming the
+  encoding problem (with the offset and how to fix), like any page it cannot
+  read, instead of an empty body; check sibling single-page MCP reads
+  (read_file, preview_page, page_status, validate_page, view_version...) for
+  the same empty-body failure and give each the same answer (list them).
+  (b) MCP's page walk (_each_page: list_pages, audit_site, form_list, and any
+  other caller) reports `truncated: true` and the cap in its answer when it
+  stops at 1,000 pages, so a count is never silently capped; tool
+  descriptions say so.
+
+# The rulings, built (n325)
+
+(a) The answer
+: `Manager::Common::page_read_refusal(rel, text, what?, remedy?)`: text read
+  through the lax `:utf8` layer holds the file's own bytes, which
+  `utf8::encode` hands back, and `invalid_utf8_offset` (the write rule's
+  test) finds the first invalid one. The error names the page (or file),
+  that it is not valid UTF-8, the offset, that the processor renders nothing
+  for it, and how to fix it; kind `page-encoding-refused`, audited as `kind:
+  cause - remedy` (lint 115). MCP's `_unreadable_text` asks it of the text a
+  handler has already read, so scope, the ACL, a blocked path and not-found
+  still answer first and a page the caller may not read is not described.
+
+(a) Every single-page MCP read, probed with a page whose body and one whose
+front matter is not UTF-8 (tmp/q15j-single-page-probe.before.out, .after.out)
+: Broke, and now give the answer:
+  - `read_page`, `read_file` (a `.txt` too): no JSON-RPC body.
+  - `view_version`: no body when the recorded version is not UTF-8 ("Version
+    1a2b3c4 of the page ..., pick another version") or the current file is,
+    which the diff carries ("The current version of the page ..., or restore
+    a recorded version").
+  - `read_brief`: no body for a store entry that is not UTF-8 ("The brief of
+    the page ...", the store entry's path in the remedy).
+  - `preview_page`: no body, or the processor's bare 500 (with content history
+    on). The page's source is judged when the render is not UTF-8 or answered
+    500. HTML that is still not UTF-8 when the page is is named as the
+    render's: no file the processor reads was found that does it (an include
+    and `nav.conf` answer 500, a layout gets U+FFFD from TT), so it is a net,
+    tested with a stub processor.
+  - `validate_page`: "Tool error" on a bad body, and `valid: true` on a bad
+    front matter.
+  - `create_form`: "Tool error".
+  - `preview_public_page` answered, "The processor failed to render"; a
+    failed render on such a page now names the cause too.
+  Answer, unchanged: `page_status`, `get_permissions`, `list_versions`,
+  `invalidate_cache` (read no text); `search_files` (Q15i).
+
+(b) The cap
+: `_each_page` returns whether a page past `$PAGE_CAP` (1,000) was left
+  unwalked. Its callers: `list_pages` and `audit_site` answer `truncated`
+  (false, or true with `page_cap`); `rename_page` with `update_links` does
+  too, since its link rewrite is the same walk and left the links in pages
+  past the cap unrewritten. `form_list` is not a caller: its binding walk
+  (`form_bindings`) has no cap. The three descriptions and
+  starter/docs/ai-connector-tools.md say so.
+
+Evidence (n325)
+: t/unit/mcp/31 (each tool and case above, the offset, the remedy, the audit
+  detail; not-found and a blocked path answer first; a UTF-8 page reads as
+  before), t/unit/mcp/32 (1,000 pages: truncated false; 1,001: truncated true,
+  the cap, 1,000 walked, a link left unrewritten; the descriptions), lint 115,
+  lint 114 (the read rule exempt as a read). Sabotage (tmp/q15j-sabotage.pl,
+  .log), 19 cases, each failing and passing restored by cp and cmp: the rule
+  passing everything or judging decoded text; each tool's guard removed; the
+  walk silent at the cap or off by one; each caller's keys dropped; a
+  description silent.
+
+Found in Q15j, not changed
+: - `restore_version` of a recorded version that is not UTF-8 writes its bytes
+    back as they were (tmp/q15j-single-page-probe.after.out, hist.md): a text
+    write producing such a page, as Q15i found for a read-modify-write. A
+    write; outside this ruling.
+  - `read_nav` on a `nav.conf` that is not UTF-8 answers "Tool error: read_nav"
+    (a body; the navigation file, not a page). Not changed.
 
 # Related
 
