@@ -1832,7 +1832,7 @@ my %TOOLS = (
         },
     },
     audit_site => {
-        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL.',
+        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL. The page checks walk at most 1,000 pages: "truncated" says whether they stopped there, and when they did "page_cap" is that limit and "pages" and every per-page list cover only the pages walked.',
         cap => 'manage_content',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _audit_site() },
@@ -1939,7 +1939,7 @@ my %TOOLS = (
     },
     rename_page => {
         path_args => [qw(old new)],
-        description => 'Rename / move a page: carries its brief store entry + ACL and PRESERVES its content history across the rename. Always use this to relocate a page - never write a new page at the new path and delete the old one, which loses the history. With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten). The result always reports alias_suggested - the old URL, which should be added to the new page so the retired URL keeps working; pass add_alias:true to have it written for you. A published URL that starts 404ing is the most common avoidable cost of a rename.',
+        description => 'Rename / move a page: carries its brief store entry + ACL and PRESERVES its content history across the rename. Always use this to relocate a page - never write a new page at the new path and delete the old one, which loses the history. With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten). The link rewrite walks at most 1,000 pages: with update_links the result says "truncated", and when it is true "page_cap" is that limit and pages past it were not rewritten. The result always reports alias_suggested - the old URL, which should be added to the new page so the retired URL keeps working; pass add_alias:true to have it written for you. A published URL that starts 404ing is the most common avoidable cost of a rename.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
@@ -1952,7 +1952,7 @@ my %TOOLS = (
         run => sub { _rename_page( $_[0], $_[1] ) },
     },
     list_pages => {
-        description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list.',
+        description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list. Walks at most 1,000 pages: "truncated" says whether it stopped there, and when it did "page_cap" is that limit and "count" covers only the pages walked, never the site\'s total.',
         cap => 'manage_content',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _list_pages() },
@@ -2500,6 +2500,14 @@ sub _view_version {
 # page under docs/ was invisible to list_pages, audit_site and rename_page.
 my %ENGINE_DIRS = map { $_ => 1 } qw(lazysite-assets manager);
 
+# SM976 Q15j (ruled 2026-10-10, "Fix both" (b)): THE WALK STOPS AT $PAGE_CAP
+# PAGES AND SAYS SO. It returns true when a page past the cap was left unwalked,
+# and every caller puts `truncated: true` and `page_cap` in its answer (and its
+# tool description says so), so a count is never silently capped: list_pages'
+# count and audit_site's pages stopped at 1,000 and looked like the whole site,
+# and rename_page left the links in every page past it unrewritten.
+our $PAGE_CAP = 1000;
+
 sub _each_page {
     my ( $cb, $tool ) = @_;
     my @stack = ($DOCROOT);
@@ -2519,12 +2527,20 @@ sub _each_page {
             }
             next unless -f $full && $e =~ /\.md$/;
             ( my $rel = $full ) =~ s{^\Q$DOCROOT\E/+}{};
-            return if ++$n > 1000;
+            return 1 if ++$n > $PAGE_CAP;
             _each_page_call( $cb, $tool, $rel, $full );
         }
         closedir $dh;
     }
-    return;
+    return 0;
+}
+
+# The two keys a capped walk's answer carries: `truncated` always, `page_cap`
+# when the walk stopped there.
+sub _page_cap_keys {
+    my ($truncated) = @_;
+    return ( truncated => JSON::PP::false ) unless $truncated;
+    return ( truncated => JSON::PP::true, page_cap => $PAGE_CAP );
 }
 
 # SM976 Q15h (ruled 2026-10-09, "Refuse + walker skips"): a walk over every
@@ -2544,7 +2560,7 @@ sub _each_page_call {
 
 sub _list_pages {
     my @pages;
-    _each_page( sub {
+    my $truncated = _each_page( sub {
             my ( $rel, $full ) = @_;
             open my $fh, '<:utf8', $full or return;
             local $/; my $c = <$fh>; close $fh;
@@ -2555,7 +2571,7 @@ sub _list_pages {
                 public_url => _public_url($rel) };
     }, 'list_pages' );
     @pages = sort { $a->{path} cmp $b->{path} } @pages;
-    return { ok => 1, count => scalar @pages, pages => \@pages };
+    return { ok => 1, count => scalar @pages, pages => \@pages, _page_cap_keys($truncated) };
 }
 
 # --- SM087 Tier 2: validate a page (incl. public-data warnings) ------------
@@ -2655,7 +2671,7 @@ sub _audit_collect {
     my ( %exists, %para, @info, @links, @forms, @rawpages, @starter );
     my %class_used;        # SM358: class name -> the first page that uses it
     my %component_used;    # SM358 follow-up: component name -> a page invoking it
-    _each_page( sub {
+    my $truncated = _each_page( sub {
             my ( $rel, $full ) = @_;
             ( my $slug = "/$rel" ) =~ s/\.md$//;
             $exists{$slug} = 1;
@@ -2754,7 +2770,7 @@ sub _audit_collect {
     return { exists => \%exists, para => \%para, info => \@info,
         links      => \@links,      forms          => \@forms,
         rawpages   => \@rawpages,   starter        => \@starter,
-        class_used => \%class_used, component_used => \%component_used };
+        class_used => \%class_used, component_used => \%component_used, truncated => $truncated };
 }
 
 sub _audit_links {
@@ -3094,7 +3110,7 @@ sub _audit_site {
     my ( $acl_unmatched, $acl_unreadable ) = _audit_acl_keys();
     my $dups = _audit_duplicates( $c->{para} );
 
-    return { ok => 1, pages => scalar @{ $c->{info} },
+    return { ok => 1, pages => scalar @{ $c->{info} }, _page_cap_keys( $c->{truncated} ),
         broken_links  => $broken,     orphan_pages   => $orphans,
         missing_title => $no_title,   stale_html     => $stale, duplicate_blocks => $dups,
         broken_forms  => $c->{forms}, raw_html_pages => $c->{rawpages},
@@ -3488,7 +3504,7 @@ sub _delete_page {
 sub _rewrite_links {
     my ( $old, $new, $user ) = @_;
     my $changed = 0;
-    _each_page( sub {
+    my $truncated = _each_page( sub {
             my ( $rel, $full ) = @_;
             open my $fh, '<:utf8', $full or return;
             local $/; my $c = <$fh>; close $fh;
@@ -3500,7 +3516,7 @@ sub _rewrite_links {
                 $changed++ if ref $sr eq 'HASH' && $sr->{ok};
             }
     } );
-    return $changed;
+    return wantarray ? ( $changed, $truncated ) : $changed;
 }
 
 sub _rename_page {
@@ -3510,7 +3526,10 @@ sub _rename_page {
     return { ok => 0, error => 'old and new required' } unless length $old && length $new;
     my $r = action_move( "/$old.md", "/$new.md", $user );
     return $r unless ref $r eq 'HASH' && $r->{ok};
-    $r->{links_updated} = _rewrite_links( $old, $new, $user ) if $a->{update_links};
+    if ( $a->{update_links} ) {
+        ( $r->{links_updated}, my $truncated ) = _rewrite_links( $old, $new, $user );
+        %$r = ( %$r, _page_cap_keys($truncated) );
+    }
 
     # SM243: a rename retires a URL. Every old URL is supposed to get an
     # `aliases:` entry on its successor, and today that rule is enforced by a

@@ -149,7 +149,8 @@ read_page `{ path }`
   read_brief and create_form answer the same.
 
 list_pages
-: Every page with title, registries (sitemap/llms/feed) and public URL.
+: Every page with title, registries (sitemap/llms/feed) and public URL. Walks at
+  most 1,000 pages: `truncated` says whether it stopped there, with `page_cap`.
 
 page_status `{ path }`
 : Whether the source exists + last-modified, whether the render is pending (cache
@@ -172,7 +173,8 @@ validate_page `{ path | content }`
 
 audit_site
 : Whole-site audit: broken internal links, orphan pages, missing titles, stale
-  generated HTML, duplicate content blocks.
+  generated HTML, duplicate content blocks. Walks at most 1,000 pages: `truncated`
+  says whether it stopped there, with `page_cap`.
 
 analyse_visitors `{ window }`
 : Sanitised visitor-log analysis for trend reporting (needs the `analytics`
@@ -261,7 +263,8 @@ delete_page `{ slug }`
 
 rename_page `{ old, new, update_links }`
 : Rename / move a page (carries its brief store entry + ACL); with `update_links`, rewrites
-  internal links to the old path across pages (nav.conf is not rewritten).
+  internal links to the old path across pages (nav.conf is not rewritten) - at most
+  1,000 pages, and `truncated` with `page_cap` says when it stopped there.
 
 replace_text `{ path, old, new }`
 : Replace exact text without rewriting the whole file - safer for a small change.
