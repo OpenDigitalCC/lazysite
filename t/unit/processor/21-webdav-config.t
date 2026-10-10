@@ -14,7 +14,8 @@ use TestHelper qw(repo_root);
 
 my $root = repo_root();
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
-my $api = slurp("$root/lazysite-manager-api.pl");
+# SM944 S30: config-read and config-set live in Manager::Config.
+my $api = slurp("$root/lib/Lazysite/Manager/Config.pm");
 my $cfg = slurp("$root/starter/manager/config.md");
 
 # --- new source of truth: config-set (write) + config-read (surface) -----------

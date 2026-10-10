@@ -112,7 +112,7 @@ my %HOOKED = map { $_ => 1 } qw(
     Upload::action_file_upload
     Backups::action_backup_restore
     Plugins::action_plugin_save
-    API::action_config_set
+    Config::action_config_set
     Nav::action_nav_save
     SiteBackup::action_site_backup_apply
     DAV::do_put
@@ -264,11 +264,12 @@ my %EXEMPT = (
     'Notices::action_notices_seen' =>
         'notice-seen marker under lazysite/manager, not page content',
     'API::action_pages'        => 'read-only',
-    'API::action_config_read'  => 'read-only',
+    # SM944 S30: the configuration verbs moved to Manager::Config.
+    'Config::action_config_read' => 'read-only',
     # SM944 S27: the two domain actions moved to Manager::Domains.
     'Domains::action_domains_list' => 'read-only',
     'Domains::action_domain_check' => 'read-only', # SM156: probes DNS/TLS, no content write
-    'API::action_lang_status'  => 'read-only',   # SM179 P6: reports coverage, no write
+    'Config::action_lang_status'   => 'read-only',  # SM179 P6: reports coverage, no write
     # SM944 S25: the two introspection actions moved to Manager::Describe.
     'Describe::action_actions_list'          => 'read-only',   # SM350
     'Describe::action_describe_capabilities' => 'read-only',
@@ -324,6 +325,7 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         Describe => [ "$root/lib/Lazysite/Manager/Describe.pm", qr/^action_/ ], # SM944 S25
         Services => [ "$root/lib/Lazysite/Manager/Services.pm", qr/^action_/ ], # SM944 S26
         SiteBackup => [ "$root/lib/Lazysite/Manager/SiteBackup.pm", qr/^action_/ ], # SM944 S28
+        Config => [ "$root/lib/Lazysite/Manager/Config.pm", qr/^action_/ ],    # SM944 S30
         API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
         DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );

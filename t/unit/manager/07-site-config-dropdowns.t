@@ -62,7 +62,8 @@ subtest 'site-config schema retired from the processor (SM042)' => sub {
         'processor --describe no longer carries the retired config schema/keys' );
     is( $desc->{id}, 'lazysite', 'processor is still a valid core plugin (id present)' );
 
-    my $api = do { open my $f, '<', "$root/lazysite-manager-api.pl" or die $!; local $/; <$f> };
+    # SM944 S30: config-read lives in Manager::Config.
+    my $api = do { open my $f, '<', "$root/lib/Lazysite/Manager/Config.pm" or die $!; local $/; <$f> };
     my ($read_blk) = $api =~ /sub action_config_read \{.*?qw\((.*?)\)/s;
     like( $read_blk // '', qr/\blayout\b/, 'config-read surfaces layout (page theme dropdown)' );
     like( $read_blk // '', qr/\btheme\b/,  'config-read surfaces theme' );

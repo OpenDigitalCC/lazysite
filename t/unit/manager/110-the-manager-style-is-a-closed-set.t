@@ -95,8 +95,9 @@ subtest 'the dev server carries every sheet, not just one' => sub {
 };
 
 subtest 'the setting is settable, readable and validated' => sub {
+    # SM944 S30: config-read and config-set live in Manager::Config.
     my $api = do {
-        open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!;
+        open my $fh, '<', "$root/lib/Lazysite/Manager/Config.pm" or die $!;
         local $/;
         <$fh>;
     };

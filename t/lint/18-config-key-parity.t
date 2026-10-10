@@ -20,7 +20,8 @@ my $root = repo_root();
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
 
 my $cfg = slurp("$root/starter/manager/config.md");
-my $api = slurp("$root/lazysite-manager-api.pl");
+# SM944 S30: config-read and config-set live in Manager::Config.
+my $api = slurp("$root/lib/Lazysite/Manager/Config.pm");
 
 # --- parse SITE_SCHEMA: each key + whether it is readonly (not settable) --------
 my ($schema) = $cfg =~ /var SITE_SCHEMA = \[(.*?)\n\];/s;

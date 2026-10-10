@@ -115,7 +115,8 @@ sub conf {
 # allowlist without being named a service key would quietly fall back to
 # manage_config - which is the defect this closes, re-made.
 {
-    my $api = do { open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!; local $/; <$fh> };
+    # SM944 S30: config-set lives in Manager::Config.
+    my $api = do { open my $fh, '<', "$root/lib/Lazysite/Manager/Config.pm" or die $!; local $/; <$fh> };
     my ($svc) = $api =~ /my %SERVICE_KEY = map \{ \$_ => 1 \}\s*\n\s*qw\((.*?)\)/s;
     ok( $svc, 'the service keys are named in one place' );
     my @svc = sort split ' ', ( $svc // '' );
