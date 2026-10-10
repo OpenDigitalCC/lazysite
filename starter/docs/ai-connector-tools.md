@@ -143,7 +143,10 @@ read_file `{ path }`
 
 read_page `{ path }`
 : A page as structured data - parsed front matter, Markdown body, has_brief,
-  public_url.
+  public_url. A page that is not valid UTF-8 is refused (`kind:
+  page-encoding-refused`) with the first invalid byte's offset and how to fix it;
+  read_file, preview_page, preview_public_page, validate_page, view_version,
+  read_brief and create_form answer the same.
 
 list_pages
 : Every page with title, registries (sitemap/llms/feed) and public URL.

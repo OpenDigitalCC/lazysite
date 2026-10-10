@@ -66,6 +66,7 @@ subtest 'every *_refusal rule in Common is in the table - a new rule is a decisi
         instance_wide_refusal => 'the refusal of an instance-wide write by a domain-confined caller (SM976 R1), applied by the API and MCP dispatchers and held by t/lint/218, not a content rule',
         form_reach_refusal => 'the refusal of the form-reach rule (SM976 F2), asked by every form verb on the control API and MCP and by the WebDAV form-conf branch, held by t/lint/218, not a content rule',
         brief_reach_refusal => 'the refusal of the brief-reach rule (SM976 F2), asked by every brief verb on the control API and MCP, held by t/lint/218, not a content rule',
+        page_read_refusal => 'the answer of an MCP single-page READ for a page that is not UTF-8 (SM976 Q15j), held by t/unit/mcp/31, not a write rule',
     );
     my @unaccounted = grep { !$RULES{$_} && !$EXEMPT{$_} } @defined;
     is_deeply( \@unaccounted, [],

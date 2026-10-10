@@ -775,6 +775,11 @@ my %TOOLS = (
             required   => ['path'], additionalProperties => JSON::PP::false },
         run => sub {
             my $out = action_read( $_[0]->{path}, $_[1] );
+            # SM976 Q15j: a file that is not UTF-8 is a file it cannot read.
+            if ( ref $out eq 'HASH' && $out->{ok} ) {
+                my $bad = _unreadable_text( $out->{path} // $_[0]->{path}, $out->{content} );
+                return $bad if $bad;
+            }
             # Guard against an oversized response (slow transfer / client
             # timeout). Refuse rather than truncate - a truncated read that gets
             # written back would destroy content.
@@ -975,7 +980,18 @@ my %TOOLS = (
             my $a = $_[0];
             if ( my $no = _brief_refusal( $_[2], $a->{path} ) ) { return $no }  # SM976 F2
             _briefs( $_[1] );
-            return Lazysite::Manager::Briefs::action_brief_read( $a->{path} );
+            my $r = Lazysite::Manager::Briefs::action_brief_read( $a->{path} );
+            # SM976 Q15j: a store entry that is not UTF-8 left the call with no
+            # body, as a page did; it answers as one the tool cannot read.
+            if ( ref $r eq 'HASH' && $r->{ok} && defined $r->{path} ) {
+                ( my $rel = $r->{path} ) =~ s{^/+}{};
+                my $bad = _unreadable_text( $rel, $r->{brief}, what => 'The brief of',
+                    remedy => 'an operator saves the store entry lazysite/briefs/' . $rel
+                        . ' as UTF-8 (iconv -t UTF-8); append_brief adds to it and cannot repair it',
+                    remedy_short => 'an operator saves the store entry as UTF-8' );
+                return $bad if $bad;
+            }
+            return $r;
         },
     },
     append_brief => {
@@ -1201,7 +1217,19 @@ my %TOOLS = (
             },
             additionalProperties => JSON::PP::false },
         run => sub {
-            return Lazysite::Manager::Domains::preview_public( $_[0]->{path} );
+            my $r = Lazysite::Manager::Domains::preview_public( $_[0]->{path} );
+            # SM976 Q15j: a render that failed on a page that is not UTF-8 says
+            # so, as the other single-page reads do; judged through action_read,
+            # so a page the caller may not read is not described.
+            if ( ref $r eq 'HASH' && !$r->{ok} && ( $r->{kind} // '' ) eq 'render-failed' ) {
+                my $src = _resolve_page_path( $_[0]->{path} // '/' );
+                my $rd  = action_read( $src, $_[1] );
+                if ( ref $rd eq 'HASH' && $rd->{ok} ) {
+                    my $bad = _unreadable_text( $src, $rd->{content} );
+                    return $bad if $bad;
+                }
+            }
+            return $r;
         },
     },
     preview_domain => {
@@ -1945,7 +1973,7 @@ my %TOOLS = (
         inputSchema => { type => 'object',
             properties => { path => { type => 'string', description => 'page path, e.g. /enquire' } },
             required => ['path'], additionalProperties => JSON::PP::false },
-        run => sub { _preview_page( $_[0]->{path} ) },
+        run => sub { _preview_page( $_[0]->{path}, $_[1] ) },
     },
     page_status => {
         path_args => [qw(path)],
@@ -2055,7 +2083,7 @@ my %TOOLS = (
                 version => { type => 'string', description => 'version id from list_versions' },
             },
             required => [ 'path', 'version' ], additionalProperties => JSON::PP::false },
-        run => sub { action_git_show( $_[0]->{path}, $_[1], $_[0]->{version} ) },
+        run => sub { _view_version( $_[0]->{path}, $_[1], $_[0]->{version} ) },
     },
     restore_version => {
         path_args => [qw(path)],
@@ -2229,6 +2257,24 @@ sub _search_unreadable {
     return 0;
 }
 
+# SM976 Q15j (ruled 2026-10-10, "Fix both" (a)): A SINGLE-PAGE READ OF A PAGE
+# THAT IS NOT UTF-8 ANSWERS AS A PAGE IT CANNOT READ - an error naming the
+# encoding problem, the first invalid byte's offset and how to fix it
+# (Manager::Common::page_read_refusal) - where read_page, read_file,
+# view_version, read_brief and preview_page answered with no JSON-RPC body and
+# validate_page and create_form with a bare "Tool error". Asked of text a
+# handler has already read, so every refusal the read makes first (scope, ACL,
+# blocked paths, not found) still answers first. undef when the text is UTF-8.
+sub _unreadable_text {
+    my ( $rel, $text, %o ) = @_;
+    my ( $err, $why ) = Lazysite::Manager::Common::page_read_refusal( $rel, $text, %o )
+        or return undef;
+    ( my $r = $rel ) =~ s{^/+}{};
+    return { ok => 0, kind => 'page-encoding-refused', path => "/$r", error => $err,
+        audit_detail => $why,
+        hint => 'Do not retry until the file is saved as UTF-8 - the error says where and how.' };
+}
+
 # Publish status for a page: is the source there, has the rendered HTML cache
 # been dropped (so a visitor re-renders it fresh), and where is it public.
 # SM347: ONE PATH VOCABULARY.
@@ -2330,7 +2376,7 @@ sub _processor_tool {
 }
 
 sub _preview_page {
-    my ($path) = @_;
+    my ( $path, $user ) = @_;
     return { ok => 0, error => 'path required' } unless defined $path && length $path;
     ( my $slug = $path ) =~ s{^/+}{}; $slug =~ s{\.\.}{}g; $slug =~ s{\.md$}{}; $slug =~ s{/+$}{};
     my $proc = _processor_tool()
@@ -2358,6 +2404,28 @@ sub _preview_page {
     $body = '' unless defined $body;
     my ($status) = ( ( $head // '' ) =~ /Status:\s*(\d+)/i );
     $status ||= 200;
+
+    # SM976 Q15j: a page that is not UTF-8 renders nothing (a 500) or renders
+    # its bytes into HTML the JSON encoder dies on, which left the call with no
+    # body. Either way the answer is the page's own: one it cannot read, named
+    # with the offset, judged through action_read so a page the caller may not
+    # read is not described. HTML that is still not UTF-8 (a file the page
+    # renders with: none was found that does, so this is the net) is named as
+    # the render's.
+    my $html_bad = defined scalar Lazysite::Manager::Common::page_read_refusal( "$slug.md", $body );
+    if ( $html_bad || $status >= 500 ) {
+        my $src = _resolve_page_path("/$slug");
+        my $rd  = action_read( $src, $user );
+        if ( ref $rd eq 'HASH' && $rd->{ok} ) {
+            my $bad = _unreadable_text( $src, $rd->{content} );
+            return $bad if $bad;
+        }
+        return _unreadable_text( "$slug.md", $body, what => 'The rendered HTML of',
+            remedy => 'find the file the page renders with that is not UTF-8 (an include, the layout, the '
+                . 'navigation), save it as UTF-8 and write it again',
+            remedy_short => 'save the file it renders with as UTF-8' )
+            if $html_bad;
+    }
     my $truncated = 0;
     if ( length $body > $MAX_READ_BYTES ) { $body = substr( $body, 0, $MAX_READ_BYTES ); $truncated = 1 }
     return { ok => 1, path => "/$slug", status => $status, bytes => length $body, html => $body,
@@ -2385,6 +2453,7 @@ sub _read_page {
     $path = _resolve_page_path($path);    # SM347
     my $r = action_read( $path, $user );
     return $r unless ref $r eq 'HASH' && $r->{ok};
+    if ( my $bad = _unreadable_text( $path, $r->{content} ) ) { return $bad } # SM976 Q15j
     my ( $fm, $body ) = _split_front_matter( $r->{content} );
     ( my $rel = $path ) =~ s{^/+}{};
     return { ok => 1, path => "/$rel",
@@ -2393,6 +2462,35 @@ sub _read_page {
         # only place a brief lives, as read_brief's own description says.
         has_brief => ( -f "$LAZYSITE_DIR/briefs/$rel" ? JSON::PP::true : JSON::PP::false ),
         public_url => _public_url($rel), modified => $r->{mtime} };
+}
+
+# SM976 Q15j: view_version answers two texts, the recorded version and a diff
+# against the current file, and either not being UTF-8 left the call with no
+# body. Each is named for what it is: a recorded version that is not UTF-8 (git
+# keeps the bytes it was given), or a current file that is not, which the diff
+# carries. The diff alone is judged last, for bytes neither read shows.
+sub _view_version {
+    my ( $path, $user, $sha ) = @_;
+    my $r = action_git_show( $path, $user, $sha );
+    return $r unless ref $r eq 'HASH' && $r->{ok};
+    my $short = substr( $r->{sha}                 // '', 0, 7 );
+    my $bad   = _unreadable_text( $r->{from_path} // $r->{path}, $r->{content},
+        what => "Version $short of",
+        remedy => 'pick another version with list_versions (a recorded version is never rewritten), '
+            . 'or save the current file as UTF-8 and write it again',
+        remedy_short => 'pick another version' );
+    return $bad if $bad;
+    return $r unless defined scalar Lazysite::Manager::Common::page_read_refusal( $r->{path}, $r->{diff} );
+    my $cur = action_read( "/$r->{path}", $user );
+    if ( ref $cur eq 'HASH' && $cur->{ok} ) {
+        $bad = _unreadable_text( $r->{path}, $cur->{content},
+            what => 'The current version of',
+            remedy => 'save the file as UTF-8 and write it again, or put a recorded version back with '
+                . 'restore_version',
+            remedy_short => 'save it as UTF-8, or restore a recorded version' );
+        return $bad if $bad;
+    }
+    return _unreadable_text( $r->{path}, $r->{diff}, what => "The diff against version $short of" );
 }
 
 # Walk every .md page under the docroot, skipping only ENGINE territory: the
@@ -2512,6 +2610,9 @@ sub _validate_page {
         $path = _resolve_page_path($path);    # SM347
         my $r = action_read( $path, $user );
         return $r unless ref $r eq 'HASH' && $r->{ok};
+        # SM976 Q15j: not "valid: true" over a page it could not read, nor a
+        # tool error - the page cannot be read, and the answer says why.
+        if ( my $bad = _unreadable_text( $path, $r->{content} ) ) { return $bad }
         $content = $r->{content};
     }
     my $r = Lazysite::Validate::validate_content(
@@ -3245,6 +3346,8 @@ sub _create_form {
     my $rd = action_read( $page, $user );
     my ( $content, $mtime ) = ( '', undef );
     if ( ref $rd eq 'HASH' && $rd->{ok} ) {
+        # SM976 Q15j: a page that is not UTF-8 is refused, as one it cannot read.
+        if ( my $bad = _unreadable_text( $page, $rd->{content} ) ) { return $bad }
         ( $content, $mtime ) = ( $rd->{content} // '', $rd->{mtime} );
     }
     elsif ( !( ref $rd eq 'HASH' && ( $rd->{kind} // '' ) eq 'not-found' && !-e "$DOCROOT/$slug.md" ) ) {

@@ -867,6 +867,40 @@ sub page_bytes_refusal {
     );
 }
 
+# SM976 Q15j (ruled 2026-10-10, "Fix both" (a)): A PAGE THAT IS NOT UTF-8 IS
+# ANSWERED AS A PAGE THAT CANNOT BE READ. Such a page reaches the disk by a door
+# that writes no caller's bytes (git, SSH, a restore). Read through the lax
+# :utf8 layer, its malformed bytes made the JSON encoder die, so MCP read_page,
+# read_file, view_version, read_brief and preview_page answered with no body
+# at all, and validate_page and create_form with a bare "Tool error"
+# (tmp/q15j-single-page-probe.before.out). The text is judged as it was read:
+# a string the :utf8 layer read holds the file's own bytes, which utf8::encode
+# hands back unchanged, so the offset is the file's. $what names what was read
+# ("version 1a2b3c4 of"), $remedy replaces the default way to fix it, and
+# $remedy_short its line in the audit detail.
+sub page_read_refusal {
+    my ( $rel, $text, %o ) = @_;
+    return unless defined $rel && defined $text;
+    my $b = $text;
+    utf8::encode($b) if utf8::is_utf8($b);
+    my $at = invalid_utf8_offset($b);
+    return unless defined $at;
+    ( my $r = $rel ) =~ s{^/+}{};
+    my $noun   = $r =~ /\.md\z/ ? 'page' : 'file';
+    my $what   = defined $o{what} ? "$o{what} the $noun '$r'" : "The $noun '$r'";
+    my $remedy = $o{remedy}
+        // 'save the file as UTF-8 (your editor\'s encoding setting, or iconv -t UTF-8) and write it '
+        . 'again - upload_file or WebDAV replaces it whole';
+    return _refusal(
+        "$what is not valid UTF-8 (the first invalid byte is at offset $at), so it cannot be read "
+            . 'as text. lazysite reads every page as UTF-8, and the processor renders nothing for '
+            . "a page that is not. To fix it, $remedy.",
+        'page-encoding-refused',
+        lcfirst("$what is not valid UTF-8 (first invalid byte at offset $at)"),
+        $o{remedy_short} // 'save it as UTF-8 and write it again'
+    );
+}
+
 # The offset of the first byte that is not part of valid UTF-8, or undef when
 # all of it is. A character string is judged as the bytes it will be written
 # as: one that holds only characters below 256 is written byte for byte.

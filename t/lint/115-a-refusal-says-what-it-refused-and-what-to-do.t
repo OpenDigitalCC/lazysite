@@ -52,6 +52,11 @@ my %CASES = (
         [ 'p.md', "---\ntitle: caf\xE9\n---\n" ],
         [ 'p.md', "---\ntitle: caf\xC3\xA9\n---\n" ],
     ],
+    # SM976 Q15j: the read's answer for a page that is not UTF-8 has the shape.
+    page_read_refusal => [
+        [ 'p.md', "---\ntitle: caf\xE9\n---\n" ],
+        [ 'p.md', "---\ntitle: caf\xC3\xA9\n---\n" ],
+    ],
     active_artifact_refusal => [
         [ 'lazysite/layouts/studio/themes/live/main.css',  'studio', 'live' ],
         [ 'lazysite/layouts/studio/themes/draft/main.css', 'studio', 'live' ],
