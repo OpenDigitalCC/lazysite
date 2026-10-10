@@ -34,7 +34,7 @@ use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _i
 use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
-    _write_conf_key processor_path
+    processor_path
     _no_scope_refusal
     reset_request_context
     users_api _users_tool_run _users_tool_path _tool_path _user_caps
@@ -72,13 +72,13 @@ use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root action_domain_check action_domains_list); # SM944 S27
 use Lazysite::Manager::Data        ();
-use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
 use Lazysite::Manager::Remap qw(_remap_list _remap_save); # SM944 S22: SM802's two actions
 use Lazysite::Manager::Preview qw(action_preview action_preview_grant action_preview_clear); # SM944 S24: SM071's preview verbs
 use Lazysite::Manager::Describe qw(site_capabilities action_describe_capabilities action_actions_list _json_bool); # SM944 S25
 use Lazysite::Manager::Services qw(action_channel_services action_analyse_visitors _service_state action_version); # SM944 S26
 use Lazysite::Manager::SiteBackup qw(action_site_backup_create action_site_backup_upload action_site_backup_apply action_site_export_primary action_site_backup_inspect action_site_backup_delete action_site_backup_download _package_scope_refusal); # SM944 S28
+use Lazysite::Manager::Config qw(action_config_read action_config_set action_lang_status _language_context); # SM944 S30
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 # SM556: resolved once, here, so every module confines against one spelling
@@ -139,6 +139,9 @@ $Lazysite::Manager::SiteBackup::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::SiteBackup::LAZYSITE_DIR = $LAZYSITE_DIR;
 # SM944 S27: Manager::Domains reads the conf for domains-list (its DOCROOT is set above).
 $Lazysite::Manager::Domains::LAZYSITE_DIR = $LAZYSITE_DIR;
+# SM944 S30: Manager::Config, the configuration and language verbs.
+$Lazysite::Manager::Config::DOCROOT      = $DOCROOT;
+$Lazysite::Manager::Config::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
 $Lazysite::Manager::Files::LOCK_DIR     = $LOCK_DIR;
