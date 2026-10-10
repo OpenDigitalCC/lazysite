@@ -53,6 +53,21 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the audit trail's views and switch are
+  Manager::AuditTrail's, and the trail is read only for an account** (S31 of
+  the plan in the filing, as the release manager ruled on 2026-10-10, "(c)
+  request IP into Common"). The request address and its per-request cache move
+  into `Lazysite::Manager::Common` as part of the request context, emptied by
+  its reset, so a long-lived process cannot record one request's visitor
+  against the next. Before the move `audit` and `recent-changes` refuse when no
+  account is asking, which inside a request never happens (the dispatcher has
+  refused an empty account first); outside one they answered with the whole
+  trail and who last changed each target. They, the trail's state and cache,
+  the two audit-target derivers and the N13-04 switch move to the new
+  `Lazysite::Manager::AuditTrail` unchanged; the store catalogue lists it as
+  the reader of the `logs` store, so t/lint/121 still checks the trail's
+  reader. Test 205, t/unit/manager/221.
+
 - SM944 (PENDING) **security: the auth secret is rotated only for an account**
   (ruled 2026-10-10, "SECURITY first", found by the probe ahead of S31 and
   S32). `action_rotate_auth_secret` - the "sign everyone out" lever - rotated
