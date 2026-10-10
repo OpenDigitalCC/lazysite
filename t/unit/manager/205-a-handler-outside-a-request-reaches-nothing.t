@@ -289,4 +289,58 @@ subtest 'the describe actions, loaded outside a request, describe nothing' => su
     is( Lazysite::Manager::Describe::action_actions_list($auth_user)->{kind} // '', 'forbidden', '...and actions-list' );
 };
 
+# SM944 S26: the services, version and stats area, moved into Manager::Services
+# after the ruled (c). Outside a request analyse_visitors ran the stats plugin
+# and returned its export with nobody asking; now it refuses and runs nothing.
+# (d) version, the transports' state and channel-services are unchanged - site
+# facts any signed-in caller reads, no account, no write, no tool run - and
+# still answer. With an account the analysis runs, and after the reset it
+# refuses again.
+subtest 'the services area, loaded outside a request, runs no stats tool' => sub {
+    require Lazysite::Manager::Services;
+    require TestHelper;
+    my $d = TestHelper::site_tempdir();
+    mkdir "$d/lazysite";
+    my $spit = sub { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close $fh };
+    $spit->( "$d/lazysite/lazysite.conf", "site_name: T\ncontrol_api_enabled: true\n" );
+    $spit->( "$d/lazysite/.install-state.json", '{"version":"9.8.7","installed_at":"2026-10-10"}' );
+    # A stand-in stats tool that leaves a mark when it is run.
+    $spit->( "$d/stats-stub.pl", "open my \$m, '>', '$d/ran' or die; close \$m;\n"
+            . "print '{\"ok\":1,\"top_pages\":[{\"path\":\"/secret-campaign\",\"hits\":42}]}';\n" );
+    local $ENV{LAZYSITE_STATS_TOOL} = "$d/stats-stub.pl";
+    local $ENV{LAZYSITE_LOG_LEVEL}  = 'ERROR';
+    no warnings 'once';
+    local $Lazysite::Manager::Services::DOCROOT      = $d;    # what the dispatcher sets
+    local $Lazysite::Manager::Services::LAZYSITE_DIR = "$d/lazysite";
+    local $Lazysite::Manager::Plugins::DOCROOT       = $d;
+
+    my $r = Lazysite::Manager::Services::action_analyse_visitors( window => 7 );
+    is( $r->{kind} // '', 'forbidden', 'analyse_visitors refuses: no account is asking' ) or diag explain $r;
+    ok( !exists $r->{top_pages}, '...handing over no stats' );
+    ok( !-e "$d/ran",            '...and runs no stats tool' );
+
+    # (d), unchanged: the site facts answer.
+    is( Lazysite::Manager::Services::action_version()->{version} // '', '9.8.7',
+        'version, unchanged (d), still answers the install\'s version' );
+    my $on = Lazysite::Manager::Services::_service_state();
+    ok( $on->{api} && !$on->{mcp}, '_service_state, unchanged (d), still answers which transports are on' )
+        or diag explain $on;
+    $r = Lazysite::Manager::Services::action_channel_services();
+    ok( $r->{ok} && ref $r->{services} eq 'HASH' && ref $r->{grants} eq 'HASH',
+        'channel-services, unchanged (d), still answers the switches and the capability sentences' )
+        or diag explain [ sort keys %$r ];
+
+    # boss's own request, as the script sets it.
+    $auth_user = 'boss';
+    $r         = Lazysite::Manager::Services::action_analyse_visitors( window => 7 );
+    is( $r->{top_pages}[0]{path} // '', '/secret-campaign', 'with boss\'s context the analysis runs' )
+        or diag explain $r;
+    ok( -e "$d/ran", '...through the stats tool' );
+    unlink "$d/ran";
+    reset_request_context();
+    is( Lazysite::Manager::Services::action_analyse_visitors( window => 7 )->{kind} // '', 'forbidden',
+        'reset: analyse_visitors refuses again' );
+    ok( !-e "$d/ran", '...running nothing' );
+};
+
 done_testing();
