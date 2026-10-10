@@ -262,8 +262,8 @@ sub _audit_plugin_target {
 # SM072 audit trail: append one line per state-changing request to a
 # manager-readable log. Fields are pipe-delimited: ts | user | action | ip | status.
 # audit_log now lives in Lazysite::Audit (shared with WebDAV + MCP); imported
-# at the top. action_audit (the reader, below) stays here - it is a manager
-# action.
+# at the top. action_audit (the reader, below) is a manager action, so it is
+# here, with the manager's modules (SM944 S31).
 
 sub _audit_parse_line {
     my ($line) = @_;

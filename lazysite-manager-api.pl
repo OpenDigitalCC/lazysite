@@ -81,6 +81,7 @@ use Lazysite::Manager::Services qw(action_channel_services action_analyse_visito
 use Lazysite::Manager::SiteBackup qw(action_site_backup_create action_site_backup_upload action_site_backup_apply action_site_export_primary action_site_backup_inspect action_site_backup_delete action_site_backup_download _package_scope_refusal); # SM944 S28
 use Lazysite::Manager::Config qw(action_config_read action_config_set action_lang_status _language_context); # SM944 S30
 use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
+use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes action_audit); # SM944 S31
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 # SM556: resolved once, here, so every module confines against one spelling
@@ -132,6 +133,9 @@ $Lazysite::Manager::Config::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Config::LAZYSITE_DIR = $LAZYSITE_DIR;
 # SM944 S29: Manager::PagePdf, the page PDF render.
 $Lazysite::Manager::PagePdf::DOCROOT = $DOCROOT;
+# SM944 S31: Manager::AuditTrail, the audit trail's views and switch.
+$Lazysite::Manager::AuditTrail::DOCROOT      = $DOCROOT;
+$Lazysite::Manager::AuditTrail::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
 $Lazysite::Manager::Files::LOCK_DIR     = $LOCK_DIR;
