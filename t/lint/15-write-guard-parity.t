@@ -83,6 +83,13 @@ my %EXEMPT = (
     action_briefs_migrate => 'engine-walked sidecars into the engine-named store',
     action_data_safety_export_delete => 'SM512: unlinks only under lazysite/db/rebuilds, the name validated to the exact minted shape (no separators can reach it); t/unit/data/25 pins the refusals',
     action_backup_delete   => 'backups dir, name validated by _valid_name',
+    # SM944 S32: the users area moved out of lazysite-manager-api.pl into
+    # lib/Lazysite/Manager/Users.pm, which brought it into this lint's scope for
+    # the first time - the writes are not new, their classification is.
+    action_users => 'hands the request to the users tool over a pipe; the tool owns the '
+        . 'account store, and no caller-supplied path reaches a file here',
+    action_rotate_auth_secret => 'writes only lazysite/auth/.secret (through a temp file '
+        . 'and a rename) and unlinks lazysite/manager/.csrf-secret, both engine-named paths',
     # SM944 S28: the site-package verbs moved out of lazysite-manager-api.pl into
     # lib/Lazysite/Manager/SiteBackup.pm, which brought them into this lint's
     # scope for the first time - the writes are not new, their classification is.

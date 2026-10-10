@@ -159,7 +159,7 @@ subtest 'approval is not delegable' => sub {
     # keep away from a sub-manager. Asserted here rather than assumed, because
     # the protection is by OMISSION and an omission is easy to undo by accident.
     my $api_src = do {
-        open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!;
+        open my $fh, '<', "$root/lib/Lazysite/Manager/Users.pm" or die $!; # SM944 S32: action_users is Users'
         local $/;
         <$fh>;
     };

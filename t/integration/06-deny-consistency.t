@@ -103,9 +103,10 @@ ok( $bp{'manager'}, 'dav blocked_paths includes the docroot manager' );
 # whoami reports scope.deny to agents; it must be the same canonical set, or
 # an agent trusting whoami sees a different denied set than the dav enforces
 # (e.g. believing all of lazysite/forms/ is writable bar the smtp password).
-my $mapi_src = slurp("$root/lazysite-manager-api.pl");
+# SM944 S32: whoami is Manager::Users'.
+my $mapi_src = slurp("$root/lib/Lazysite/Manager/Users.pm");
 $mapi_src =~ /deny\s*=>\s*\[(.*?)\]/s
-    or die "no whoami scope.deny in lazysite-manager-api.pl";
+    or die "no whoami scope.deny in lib/Lazysite/Manager/Users.pm";
 is_deeply( [ sort ( $1 =~ /'([^']+)'/g ) ], \@CANONICAL,
     'whoami scope.deny matches the canonical set' );
 

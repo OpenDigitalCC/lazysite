@@ -71,7 +71,7 @@ subtest 'and it says what path_only MEANS' => sub {
 subtest 'both whoamis carry the SM740 implied block from one derivation' => sub {
     like( $src, qr/implied\s*=>\s*Lazysite::Capabilities::implications\(\$caps\)/,
         'MCP whoami: implied from Capabilities::implications' );
-    my $api = do { open my $fh, '<', "$FindBin::Bin/../../../lazysite-manager-api.pl" or die $!; local $/; <$fh> };
+    my $api = do { open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Users.pm" or die $!; local $/; <$fh> }; # SM944 S32: whoami is Users'
     like( $api, qr/implied\s*=>\s*Lazysite::Capabilities::implications\(\$s\)/,
         'control-API whoami: the same function' );
 };
