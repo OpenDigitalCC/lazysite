@@ -83,4 +83,18 @@ subtest 'for an account principals lists them; after a reset, refused again' => 
     refused( main::action_principals(), 'reset: refused again', qw(users groups) );
 };
 
+subtest 'display-names, outside a request, resolves nothing' => sub {
+    Lazysite::Manager::Common::reset_request_context();
+    refused( main::action_display_names( [qw(boss alice)] ), 'refused', qw(display_names) );
+};
+
+subtest 'for an account display-names resolves them; after a reset, refused again' => sub {
+    as_boss();
+    my $r = main::action_display_names( [qw(boss alice)] );
+    ok( $r->{ok},                   'resolved' ) or diag explain $r;
+    ok( exists $r->{display_names}, '...with the names block' );
+    Lazysite::Manager::Common::reset_request_context();
+    refused( main::action_display_names( [qw(boss alice)] ), 'reset: refused again', qw(display_names) );
+};
+
 done_testing();

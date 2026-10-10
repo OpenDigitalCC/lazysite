@@ -3035,6 +3035,15 @@ sub _handler_who {
 # a comma-separated list in the query, so a plain GET works on both channels.
 sub action_display_names {
     my ($raw) = @_;
+    # SM944 S32 (4), ruled 2026-10-10 ("Yes, all four"): NAMES ARE RESOLVED FOR
+    # AN ACCOUNT - "being signed in" is this action's whole grant, above. Inside a
+    # request the dispatcher has refused an empty $auth_user before this runs,
+    # so it is never empty here; reached outside one (the request context's
+    # reset leaves nobody) it resolved the names asked
+    # (tmp/sm944-s31-s32-refusal-probe.out).
+    return { ok => 0, kind => 'forbidden',
+        error => 'Display names are resolved for a signed-in account, and no account is asking.' }
+        unless length $auth_user;
     my @logins
         = ref $raw eq 'ARRAY'             ? @{$raw}
         : ( defined $raw && length $raw ) ? ( split /\s*,\s*/, $raw )
