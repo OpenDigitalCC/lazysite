@@ -2944,6 +2944,17 @@ sub _instance_id {
 # manager request on (SERVER_ADDR); instance_id is our own marker value.
 sub action_domain_check {
     my ($host) = @_;
+    # SM944 S27, the established fail-closed pattern (ruled 2026-10-10, "Read
+    # Common's value"): A DOMAIN CHECK PROBES FOR AN ACCOUNT. Inside a request
+    # the dispatcher has refused an empty $auth_user (and asked the domain rule)
+    # before this runs, so it is never empty here; reached outside one (the
+    # request context's reset leaves nobody) it ran its outbound DNS/TLS probe
+    # with nobody asking (tmp/sm944-s27-s28-refusal-probe.out). The account is
+    # Manager::Common's - the one the reset empties - never a module's own
+    # log-attribution copy, which nothing resets.
+    return { ok => 0, kind => 'forbidden',
+        error => 'A domain check is run by a signed-in account, and no account is asking.' }
+        unless length $auth_user;
     $host = lc( $host // '' );
     # A THIRD copy of the host rule lived here and could answer differently
     # from Domains.pm for the same host. It defers to the one rule now, and to
