@@ -68,7 +68,7 @@ starts.
 | Q15i | **[[SM976]] Q15h finding, ruled 2026-10-09 "Same rule" - built (n322)**: MCP `search_files` leaves out a file that is not valid UTF-8, logged, and answers for the rest (t/unit/mcp/29). Every page walk probed with one such page (inventory with file:line in SM976): two more broke and take the same rule - the processor's `resolve_scan` excerpt, which reads the body (every page listing the scan answered 500; t/unit/processor/93), and `lazysite-validate` over many pages (died, printing nothing; now reports the file as unreadable, t/tools/82). `lazysite-check`, the link-audit plugin, `rename_page`'s link rewrite and the raw-byte readers survive, unchanged. Found: `read_page` on such a page answers no body (one page, not a walk); the Q15g row restored | after Q15h; ruled 2026-10-09 | S |
 | Q15j | **[[SM976]] Q15i findings, ruled 2026-10-10 - built (n325)**: "Exit 1": n322's validator stands (recorded). "Fix both": (a) an MCP single-page read of a page that is not UTF-8 answers as one it cannot read - `page-encoding-refused`, the offset, how to fix it (`page_read_refusal`) - on `read_page`, `read_file`, `view_version`, `read_brief`, `preview_page` (each answered no body), `validate_page`, `create_form` ("Tool error") and `preview_public_page`; `page_status`, `get_permissions`, `list_versions`, `invalidate_cache` already answered (t/unit/mcp/31). (b) `_each_page` says when it stops at 1,000 pages: `list_pages`, `audit_site` and `rename_page`'s link rewrite answer `truncated` and `page_cap`, descriptions say so; `form_list` walks uncapped (t/unit/mcp/32). Found: `restore_version` writes a non-UTF-8 version back as is; `read_nav` "Tool error" on a non-UTF-8 nav.conf | after Q15i; ruled 2026-10-10 | S |
 | Q14h | **built (n308)**: lints 25 and 217 judge their exclusions on the path below the checkout - under a tmp/ path (the gate's worktree, the release staging clone) 217 scanned nothing and failed the gate of main 892951a3, and 25 passed having read 6 of 132 files | found by the gate of main, 2026-10-09 | XS |
-| Q14 | E9 [[SM944]] - split the processor and the manager API, one area per branch. **Planned** (SM944 § Plan, rows S1-S34: S1-S20 the processor's parts, S21-S34 the manager API's modules); **S1 (n278), S2 (n280), S3 (n281), S4 (n282), S5 (n283), S6 (n286), S7 (n287), S8 (n288), S9 (n289), S10 (n291), S11 (n292), S12 (n293), S13 (n295), S14 (n296), S15 (n297), S16 (n298), S17 (n299), S18 (n301), S19 (n302), S20 (n304), S21 (n306), S22 (n307), S22b (n319), S23 (n320), S23b (n323), S24 (n324) built** - the front-matter parser; the shared state as `our`; oEmbed; the URL remapper; content components; the content-type cache; the payment and preview gates; the access log; the front door; include and Markdown; forms; output and headers; the request address and host; sources and site vars (the memo stays in the script); scan and registries; the template render; layout, theme and injection; the page pipeline (`_lazy_lib` and the content-roots memo stay in the script); the ACL, group and domain copies; the auth gate (the trust gate stays in the script) - the processor's rows are complete; the manager request context in Manager::Common, fail-closed until a request sets it (ruled 2026-10-09); the remap actions (Manager::Remap); S22b, ruled 2026-10-09 ("Yes, (a)-(d)"): the users-tool client and the caps memo in Manager::Common, the memo in the fail-closed context; notices and start page (Manager::Notices, Manager::StartPage), after the ruled (b)-(d): the notices gate reads a token's own grant, the start page refuses an empty account, the dispatcher calls the notice readers directly; S23b and S24, ruled 2026-10-09 ("Yes, (a)-(d)"): `_emit_json` in Manager::Common, then the preview verbs in Manager::Preview after preview-grant and preview refuse an empty account (preview-clear unchanged); next S25 | after E5; largest, so last | L |
+| Q14 | E9 [[SM944]] - split the processor and the manager API, one area per branch. **Planned** (SM944 § Plan, rows S1-S34: S1-S20 the processor's parts, S21-S34 the manager API's modules); **S1 (n278), S2 (n280), S3 (n281), S4 (n282), S5 (n283), S6 (n286), S7 (n287), S8 (n288), S9 (n289), S10 (n291), S11 (n292), S12 (n293), S13 (n295), S14 (n296), S15 (n297), S16 (n298), S17 (n299), S18 (n301), S19 (n302), S20 (n304), S21 (n306), S22 (n307), S22b (n319), S23 (n320), S23b (n323), S24 (n324) built** - the front-matter parser; the shared state as `our`; oEmbed; the URL remapper; content components; the content-type cache; the payment and preview gates; the access log; the front door; include and Markdown; forms; output and headers; the request address and host; sources and site vars (the memo stays in the script); scan and registries; the template render; layout, theme and injection; the page pipeline (`_lazy_lib` and the content-roots memo stay in the script); the ACL, group and domain copies; the auth gate (the trust gate stays in the script) - the processor's rows are complete; the manager request context in Manager::Common, fail-closed until a request sets it (ruled 2026-10-09); the remap actions (Manager::Remap); S22b, ruled 2026-10-09 ("Yes, (a)-(d)"): the users-tool client and the caps memo in Manager::Common, the memo in the fail-closed context; notices and start page (Manager::Notices, Manager::StartPage), after the ruled (b)-(d): the notices gate reads a token's own grant, the start page refuses an empty account, the dispatcher calls the notice readers directly; S23b and S24, ruled 2026-10-09 ("Yes, (a)-(d)"): `_emit_json` in Manager::Common, then the preview verbs in Manager::Preview after preview-grant and preview refuse an empty account (preview-clear unchanged); next S25 - stopped on a design question with S26's (open questions, 2026-10-10) | after E5; largest, so last | L |
 | Q15 | **[[SM943]] rulings - ruling 1 built (n309)**: a read is audited on neither door unless refused or failed, both trails held to one declaration (t/lint/23). Ruling 2 **built (n313)** on Q15b's host confinement ([[SM976]]): the structured nav read (`nav-read`, `read_nav`) needs no capability beyond the surface's base access, scope still applied; `nav-save`/`set_nav` and the raw `nav.conf` stay `manage_nav`; `manage_content` grants nothing nav-specific | ruled 2026-10-09 | S |
 
 Applied throughout: E8 (comments state the invariant) on every file touched.
@@ -79,6 +79,43 @@ Not in the queue, and why:
 - E4 [[SM947]] - the toolchain's; brief filed.
 
 Open questions raised while working the queue:
+
+- **Q14 (SM944 S25 and S26): stopped on a design question, 2026-10-10.**
+  Neither row's handlers can move verbatim to their new module and pass test
+  205's proof that a handler outside a request reaches nothing. Their source
+  compiled in a package importing the request context, the context as
+  `reset_request_context` leaves it (tmp/sm944-s25-refusal-probe.pl,
+  tmp/sm944-s26-refusal-probe.pl, .out):
+  - S25: `action_describe_capabilities('')` answers ok:1 for account '' - the
+    capability map, the site's documentation index (3 pages on the probe's
+    site) and every action's effects; `action_actions_list('')` answers ok:1
+    for account '' on the token channel with the six actions a grant of
+    nothing may call. Both take the account from the dispatcher, which has
+    refused an empty `$auth_user` before any action runs (the auth check's
+    `unless ( length $auth_user )`).
+  - S26: `action_analyse_visitors` runs the stats plugin and returns its
+    export (the stand-in's top page, `/secret-campaign`) with nobody asking;
+    the control API gates it on `analytics`.
+  - Answer without an account, site facts and no write: `site_capabilities`
+    (enabled plugins' `provides`, read by whoami), `action_version` (the
+    install's version), `_service_state` and `action_channel_services` (the
+    killswitches, the capability sentences, which plugin owns a capability).
+  Not choices: `_action_effects` reads `%MUTATING`, `%DESTRUCTIVE` and
+  `%CHANGES_ACCESS`, which the script derives from
+  `Lazysite::ControlApi::Actions` for its own gates and keeps; the module
+  derives the same three from the same functions (its compile needs them; the
+  answer is the same). The script imports `_json_bool`, `site_capabilities`
+  and `_service_state` back for whoami (S32's row), and the dispatcher sets
+  each module's `$DOCROOT` (and Services' `$LAZYSITE_DIR`). Recommended, as
+  S24's (b)-(d): (a) `action_describe_capabilities` and (b)
+  `action_actions_list` refuse an empty account, and (c)
+  `action_analyse_visitors` refuses an empty `$auth_user` before it runs the
+  stats tool - each the same answer inside a request (the dispatcher has
+  authenticated a caller first), a refusal outside, its own commit with
+  sabotage; (d) `site_capabilities`, `action_version`, `_service_state` and
+  `action_channel_services` unchanged - site facts any signed-in caller
+  reads, no account, no write, no tool run - with test 205 pinning that they
+  answer. Skipped until ruled; nothing of S25 or S26 is built.
 
 - ~~**Q14 (SM944 S24): stopped on a design question, 2026-10-09.**~~ **RULED 2026-10-09: "Yes, (a)-(d)"; (a) built as S23b (n323), (b)-(d) with S24 (n324).** The preview
   subs (`_preview_secret`, `action_preview_grant`, `action_preview_clear`,
