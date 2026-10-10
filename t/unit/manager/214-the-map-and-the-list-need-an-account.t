@@ -60,6 +60,10 @@ subtest 'describe-capabilities, outside a request, describes nothing' => sub {
     ok( $r->{ok}, 'for an account it answers' ) or diag explain $r;
     is( $r->{holds}{account} // '', 'boss', '...describing that account' );
     ok( ref $r->{actions} eq 'HASH' && %{ $r->{actions} }, '...with the actions block' );
+    # The site's docs index, read from the docroot the dispatcher sets (SM944
+    # S25: Manager::Describe's, since the move).
+    ok( ( grep { ( $_->{path} // '' ) eq '/docs/guide' } @{ ( $r->{docs} || {} )->{reference} || [] } ),
+        '...and the site\'s documentation index' ) or diag explain $r->{docs};
 };
 
 subtest 'actions-list, outside a request, lists nothing' => sub {
