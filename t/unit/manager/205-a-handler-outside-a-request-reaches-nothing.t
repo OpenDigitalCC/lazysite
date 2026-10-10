@@ -343,4 +343,94 @@ subtest 'the services area, loaded outside a request, runs no stats tool' => sub
     ok( !-e "$d/ran", '...running nothing' );
 };
 
+# SM944 S28: the site backup and export area, moved into Manager::SiteBackup
+# after site-backup-upload took the established fail-closed pattern. Outside a
+# request the upload stored a package with nobody asking; now it refuses. The
+# other verbs refused already - the context's reset leaves a token confined to
+# a scope no root lies in, so the domain rule (SM976) reaches nothing - and
+# still do: nothing is built, read, streamed, deleted, snapshotted or applied.
+# With the operator's context they answer, and after the reset they refuse
+# again.
+subtest 'the site backup verbs, loaded outside a request, touch no package' => sub {
+    require ManagerSession;
+    require Lazysite::Manager::SiteBackup;
+    my $s   = ManagerSession::new_site( root => repo_root() );
+    my $d   = $s->docroot;
+    my @ALL = qw(ui manage_domains manage_content);
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', \@ALL, \@ALL );
+    my $r = $s->call( 'boss', 'domain-add',
+        body => { host => 'mine.example.org', content_root => 'sites/mine', site_name => 'mine' } );
+    ok( $r->{ok}, 'set up a domain' ) or diag( $r->{error} // '' );
+    $r = $s->call( 'boss', 'site-backup-create', body => { host => 'mine.example.org' } );
+    my $pkg = $r->{name} // '';
+    ok( $r->{ok} && -f "$d/lazysite/backups/$pkg", '...and a package of it' ) or diag explain $r;
+    my $packages = sub { my @p = glob "$d/lazysite/backups/lazysite-site-*.tar.gz"; scalar @p };
+    my $snapshots = sub { my @p = glob "$d/lazysite/backups/*prerestore*"; scalar @p };
+    my $had       = $packages->();
+
+    no warnings 'once';
+    # What the dispatcher sets: where the site is - never who is asking.
+    local $Lazysite::Manager::SiteBackup::DOCROOT      = $d;
+    local $Lazysite::Manager::SiteBackup::LAZYSITE_DIR = "$d/lazysite";
+    local $Lazysite::Manager::Domains::DOCROOT         = $d;
+    local $Lazysite::Manager::SitePackage::DOCROOT     = $d;
+    local $Lazysite::Manager::Upload::DOCROOT          = $d;
+    local $Lazysite::Manager::Upload::LAZYSITE_DIR     = "$d/lazysite";
+    local $Lazysite::Manager::Backups::DOCROOT         = $d;
+    local $Lazysite::Manager::Backups::LAZYSITE_DIR    = "$d/lazysite";
+    $Lazysite::Manager::Common::DOCROOT = $d;
+    local $ENV{LAZYSITE_LOG_LEVEL} = 'ERROR';
+    my $B = 'xYzBoundary205';
+    my $mp = "--$B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"p.tar.gz\"\r\n"
+        . "Content-Type: application/gzip\r\n\r\nGZBYTES\r\n--$B--\r\n";
+    local $ENV{CONTENT_TYPE} = "multipart/form-data; boundary=$B";
+
+    my $outside = sub {
+        my ($when) = @_;
+        my %r = (
+            'site-backup-create' => Lazysite::Manager::SiteBackup::action_site_backup_create('mine.example.org'),
+            'site-export-primary' => Lazysite::Manager::SiteBackup::action_site_export_primary(),
+            'site-backup-inspect' => Lazysite::Manager::SiteBackup::action_site_backup_inspect($pkg),
+            'site-backup-delete' => Lazysite::Manager::SiteBackup::action_site_backup_delete($pkg),
+            'site-backup-upload' => Lazysite::Manager::SiteBackup::action_site_backup_upload($mp),
+            'site-backup-apply' => Lazysite::Manager::SiteBackup::action_site_backup_apply(
+                { name => $pkg, host => 'mine.example.org' } ),
+        );
+        my $out = '';
+        {
+            open my $h, '>', \$out or die;
+            my $old = select $h;
+            $r{'site-backup-download'} = Lazysite::Manager::SiteBackup::action_site_backup_download($pkg);
+            select $old;
+        }
+        for my $v ( sort keys %r ) {
+            is( $r{$v}{kind} // '', 'forbidden', "$when: $v refuses" ) or diag explain $r{$v};
+        }
+        ok( !exists $r{'site-backup-inspect'}{manifest}, "$when: ...inspect handing over no manifest" );
+        is( $out,           '',   "$when: ...download streaming nothing" );
+        is( $packages->(),  $had, "$when: ...no package built, stored or deleted" );
+        is( $snapshots->(), 0,    "$when: ...and no safety snapshot taken" );
+        ok( Lazysite::Manager::SiteBackup::_package_scope_refusal("$d/lazysite/backups/$pkg"),
+            "$when: the backup-list filter hides the package" );
+    };
+    $outside->('outside a request');
+
+    # boss's own request, as the script sets it for a cookie session.
+    $auth_user        = 'boss';
+    $token_auth       = 0;
+    %token_caps       = ();
+    @REQUEST_SCOPES   = ();
+    $REQUEST_CONFINED = 0;
+    $IS_OPERATOR      = 1;
+    $r                = Lazysite::Manager::SiteBackup::action_site_backup_inspect($pkg);
+    ok( $r->{ok} && ref $r->{manifest} eq 'HASH', 'with boss\'s context inspect reads the manifest' )
+        or diag explain $r;
+    $r = Lazysite::Manager::SiteBackup::action_site_backup_upload($mp);
+    ok( $r->{ok}, '...and an upload is stored' ) or diag explain $r;
+    unlink "$d/lazysite/backups/$r->{name}" if $r->{ok};
+    reset_request_context();
+    $outside->('reset');
+};
+
 done_testing();
