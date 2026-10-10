@@ -777,7 +777,7 @@ subtest 'layouts-install auto-sets layout:/theme: on fresh conf' => sub {
     is( $r->{theme_auto_set_name},  'alpha',   'theme name echoed' );
 
     # Conf on disk has the new values.
-    my ( $layout, $theme ) = main::_read_active_layout_and_theme();
+    my ( $layout, $theme ) = Lazysite::Manager::Themes::_read_active_layout_and_theme();
     is( $layout, 'default', 'layout: written to conf' );
     is( $theme,  'alpha',   'theme: written to conf' );
 
@@ -813,7 +813,7 @@ subtest 'layouts-install does NOT overwrite existing layout:/theme:' => sub {
         'theme_auto_set = false (already set)' );
 
     # Values unchanged.
-    my ( $layout, $theme ) = main::_read_active_layout_and_theme();
+    my ( $layout, $theme ) = Lazysite::Manager::Themes::_read_active_layout_and_theme();
     is( $layout, 'studio', 'layout: preserved' );
     is( $theme,  'slate',  'theme: preserved' );
 };

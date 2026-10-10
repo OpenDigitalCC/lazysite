@@ -59,7 +59,8 @@ subtest 'the payload carries the caller identity' => sub {
 
 subtest 'the API supplies it, and only for this read' => sub {
     my $src = do {
-        open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!;
+        # SM944 S32: action_users is Manager::Users'.
+        open my $fh, '<', "$root/lib/Lazysite/Manager/Users.pm" or die $!;
         local $/;
         <$fh>;
     };

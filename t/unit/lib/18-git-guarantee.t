@@ -274,7 +274,7 @@ my %EXEMPT = (
     # SM944 S25: the two introspection actions moved to Manager::Describe.
     'Describe::action_actions_list'          => 'read-only',   # SM350
     'Describe::action_describe_capabilities' => 'read-only',
-    'API::action_whoami'                => 'read-only',
+    'Users::action_whoami'                   => 'read-only',   # SM944 S32 moved it
     'StartPage::action_start_page'      => 'read-only',    # SM724; SM944 S23 moved it
     'StartPage::action_start_page_set' => 'auth store - excluded from the versioned set', # SM724: user-settings.json
     'AuditTrail::action_recent_changes' => 'read-only',    # SM944 S31 moved it
@@ -283,10 +283,10 @@ my %EXEMPT = (
     'AuditTrail::action_audit'          => 'read-only',    # SM944 S31 moved it
     'Services::action_analyse_visitors' => 'read-only',
     'Services::action_version'          => 'read-only',
-    'API::action_principals'         => 'read-only',
-    'API::action_display_names'      => 'read-only',    # SM778: a name lookup
-    'API::action_users'              => 'auth store - excluded from the versioned set',
-    'API::action_rotate_auth_secret' => 'auth store - excluded from the versioned set',
+    'Users::action_principals'          => 'read-only',    # SM944 S32 moved it
+    'Users::action_display_names' => 'read-only', # SM778: a name lookup; SM944 S32 moved it
+    'Users::action_users' => 'auth store - excluded from the versioned set',   # SM944 S32
+    'Users::action_rotate_auth_secret' => 'auth store - excluded from the versioned set', # SM944 S32
     'Nav::action_nav_read'           => 'read-only',
     # --- DAV verbs ---
     'DAV::do_options'   => 'read-only',
@@ -329,6 +329,7 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         Config => [ "$root/lib/Lazysite/Manager/Config.pm", qr/^action_/ ],    # SM944 S30
         PagePdf => [ "$root/lib/Lazysite/Manager/PagePdf.pm", qr/^action_/ ],  # SM944 S29
         AuditTrail => [ "$root/lib/Lazysite/Manager/AuditTrail.pm", qr/^action_/ ], # SM944 S31
+        Users      => [ "$root/lib/Lazysite/Manager/Users.pm", qr/^action_/ ], # SM944 S32
         API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
         DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );

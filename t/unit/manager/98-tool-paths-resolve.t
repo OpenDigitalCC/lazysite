@@ -44,7 +44,7 @@ close $fh;
 # --- the environment override wins ------------------------------------------
 {
     local $ENV{LAZYSITE_USERS_TOOL} = "$root/tools/lazysite-users.pl";
-    is( main::_users_tool_path(), "$root/tools/lazysite-users.pl",
+    is( Lazysite::Manager::Common::_users_tool_path(), "$root/tools/lazysite-users.pl",
         'LAZYSITE_USERS_TOOL is taken when it names a file' );
 }
 {
@@ -58,7 +58,7 @@ close $fh;
 {
     delete local $ENV{LAZYSITE_USERS_TOOL};
     local $0 = "$inst/cgi-bin/lazysite-manager-api.pl";
-    is( main::_users_tool_path(), "$inst/cgi-bin/../tools/lazysite-users.pl",
+    is( Lazysite::Manager::Common::_users_tool_path(), "$inst/cgi-bin/../tools/lazysite-users.pl",
         'a cgi-bin install finds the tool in its sibling tools/' );
 }
 
@@ -66,7 +66,7 @@ close $fh;
 {
     delete local $ENV{LAZYSITE_USERS_TOOL};
     local $0 = "$inst/lazysite-manager-api.pl";
-    is( main::_users_tool_path(), "$inst/tools/lazysite-users.pl",
+    is( Lazysite::Manager::Common::_users_tool_path(), "$inst/tools/lazysite-users.pl",
         'a run-in-place checkout finds tools/ beneath itself' );
 }
 
@@ -74,7 +74,7 @@ close $fh;
 {
     local $ENV{LAZYSITE_USERS_TOOL} = "$d/there-is-no-such-tool.pl";
     local $0 = "$inst/lazysite-manager-api.pl";
-    is( main::_users_tool_path(), "$inst/tools/lazysite-users.pl",
+    is( Lazysite::Manager::Common::_users_tool_path(), "$inst/tools/lazysite-users.pl",
         'an override naming nothing falls through rather than failing closed' );
 }
 

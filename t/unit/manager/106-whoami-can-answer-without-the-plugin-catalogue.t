@@ -20,17 +20,23 @@ use FindBin;
 my $api = "$FindBin::Bin/../../../lazysite-manager-api.pl";
 plan skip_all => "no $api" unless -f $api;
 my $src = do { open my $fh, '<', $api or die $!; local $/; <$fh> };
+# SM944 S32: the action is Manager::Users'; the dispatch stays in the script.
+my $users = do {
+    open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Users.pm" or die $!;
+    local $/;
+    <$fh>;
+};
 
 subtest 'the flag reaches the action' => sub {
     like( $src, qr/action_whoami\(\s*\$auth_user,\s*\$params\{plugins\}\s*\)/,
         'the dispatch passes the parameter' )
         or diag( 'A flag the action never receives is a flag that lies.' );
-    like( $src, qr/my \( \$user, \$want_plugins \) = \@_;/,
+    like( $users, qr/my \( \$user, \$want_plugins \) = \@_;/,
         'and the action takes it' );
 };
 
 subtest 'only an explicit falsey value omits the catalogue' => sub {
-    my ($fn) = $src =~ /(sub action_whoami \{.*?\n\})/s;
+    my ($fn) = $users =~ /(sub action_whoami \{.*?\n\})/s;
     ok( $fn, 'action_whoami was found' ) or return;
 
     like( $fn, qr/\\A\(\?:0\|no\|false\|off\)\\z/,
@@ -48,7 +54,7 @@ subtest 'only an explicit falsey value omits the catalogue' => sub {
 };
 
 subtest 'nothing else in the answer moved' => sub {
-    my ($fn) = $src =~ /(sub action_whoami \{.*?\n\})/s;
+    my ($fn) = $users =~ /(sub action_whoami \{.*?\n\})/s;
     # The parts a preflight actually reads must be unconditional: an agent
     # checking its grant before a run needs these whatever it asked about
     # plugins.

@@ -68,7 +68,7 @@ subtest 'analyse_visitors, outside a request, runs nothing' => sub {
 # (d) unchanged, read through the dirs the dispatcher sets on Services.
 subtest 'the site facts answer from the dispatcher\'s dirs' => sub {
     is( main::action_version()->{version} // '', '9.8.7', 'version: the install state under the lazysite dir' );
-    my $on = main::_service_state();
+    my $on = Lazysite::Manager::Services::_service_state();
     ok( $on->{api} && !$on->{mcp}, 'the transports\' state: read from the docroot\'s conf' ) or diag explain $on;
     ok( main::action_channel_services()->{services}{api}, 'channel-services: the same switch' );
 };
