@@ -3729,6 +3729,16 @@ sub action_users {
 # revocation" constraint.
 sub action_rotate_auth_secret {
     my ($user) = @_;
+    # SM944 ITEM 1, a security fix (ruled 2026-10-10, "SECURITY first"): THE
+    # SECRET IS ROTATED FOR AN ACCOUNT. Inside a request the dispatcher has
+    # refused an empty $auth_user before it passes it here, so $user is never
+    # empty; reached outside one (the request context's reset leaves nobody)
+    # this rotated the site's auth secret - signing every session out - with
+    # nobody asking (tmp/sm944-s31-s32-refusal-probe.out). Refused before
+    # /dev/urandom is opened.
+    return { ok => 0, kind => 'forbidden',
+        error => 'The auth secret is rotated for a signed-in account, and no account is asking.' }
+        unless defined $user && length $user;
     my $path = "$LAZYSITE_DIR/auth/.secret";
 
     # Fail closed if CSPRNG unavailable (M-6 convention)
