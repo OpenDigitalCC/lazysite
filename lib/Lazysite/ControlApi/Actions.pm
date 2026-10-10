@@ -698,7 +698,10 @@ our %ACTION = (
     # SM732: the PDF render, which SM706 shipped with no caller at all.
     # manage_content because converting a page is reading it in another format -
     # the plugin's own reasoning, and the reason it declares no capability.
-    'page-pdf' => { mutates => 1, cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' } ] },
+    # [scoped] SM978 (ruled 2026-10-10, "Scope it + composed parts"): path-scoped
+    # as preview is, so a caller confined to one domain is refused another's page
+    # before the plugin loads; read on the file surface for the same reason.
+    'page-pdf' => { mutates => 1, scoped => 1, file_surface => 'read', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' } ] },
     'pages' => { mcp => 'list_pages', params => [] },    # SM568
     'plugin-action' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'action_id', in => 'body' }, { name => 'params', in => 'body' } ] },
     'plugin-disable' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },

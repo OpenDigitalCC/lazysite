@@ -136,8 +136,14 @@ subtest 'every derived table names declared actions, and the old pairings hold' 
     is( "@c", '', 'every access-changing action mutates' );
     my @w = grep { $fs{$_} eq 'write' && !$mut{$_} } sort keys %fs;
     is( "@w", '', 'every file-surface write mutates' );
-    my @r = grep { $fs{$_} eq 'read' && $mut{$_} } sort keys %fs;
-    is( "@r", '', 'no file-surface read mutates' );
+    # SM978: page-pdf is the one exception, named. It READS pages (scoped, and
+    # so on the file surface - lint 14), and is POST-only because it runs a
+    # converter and writes a cached PDF (SM732).
+    my %READ_THAT_MUTATES = ( 'page-pdf' => 'reads pages; runs a converter and caches the PDF' );
+    my @r = grep { $fs{$_} eq 'read' && $mut{$_} && !$READ_THAT_MUTATES{$_} } sort keys %fs;
+    is( "@r", '', 'no file-surface read mutates, but the named exception' );
+    ok( $fs{$_} eq 'read' && $mut{$_}, "$_ is still a mutating file-surface read" )
+        for sort keys %READ_THAT_MUTATES;
     my @mixed = grep { $cc{$_} =~ /\|/ && $cc{$_} =~ /\+/ } sort keys %cc;
     is( "@mixed", '', 'no cookie_cap mixes any-of and all-of' );
     my @both = grep { $cc{$_} } sort keys %selfg;

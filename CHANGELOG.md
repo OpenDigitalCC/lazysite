@@ -53,6 +53,20 @@ Archive
 
 ## Unreleased
 
+- SM978 (PENDING) **security: a PDF is made only of pages the caller may read**
+  (ruled 2026-10-10, "Scope it + composed parts", WORK-PLAN-0153 Q16b).
+  `page-pdf` took no account of the caller's scope, so a manager confined to one
+  domain got another domain's page as a PDF; a composed document's parts were
+  asked the content ACL and not the scope; and the page itself was asked
+  neither, so any manage_content account got a page whose read rule named
+  somebody else. page-pdf is now path-scoped, as preview is: a page outside the
+  scope is refused before the plugin loads, the page's read rule is asked as
+  `read` asks it, and a part outside the scope refuses the whole document,
+  naming the part (fail closed, as the plugin already refuses a part the ACL
+  denies). Lint 218 counts a call to a sub that asks the domain rule, no longer
+  any word that names one: page-pdf had passed it on the `main` in
+  `main->can('convert')`. t/integration/122.
+
 - SM944 (PENDING) **internal: config-read, config-set and lang-status are
   Manager::Config's, and the site configuration is set only for an account**
   (S30 of the plan in the filing; the established fail-closed pattern the

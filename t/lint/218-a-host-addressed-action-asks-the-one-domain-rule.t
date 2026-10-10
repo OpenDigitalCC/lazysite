@@ -9,11 +9,15 @@
 # navigation on three surfaces. Each was found by probing, one at a time. This
 # makes the next one a decision rather than a discovery.
 #
-# WHAT COUNTS AS ASKING. A sub "asks" when its body names the predicate, its
+# WHAT COUNTS AS ASKING. A sub "asks" when its body CALLS the predicate, its
 # refusal (domain_reach_refusal), or another sub that asks - found by closure
 # over every sub in the files below, so a wrapper such as
 # _refuse_unreachable_domain or Manager::Nav's action_nav_save counts only
-# because its own body asks.
+# because its own body asks. A call is the name followed by `(`, or `&name`
+# (calls() below). SM978: it was any bare word, so the package name in
+# action_page_pdf's `main->can('convert')` - and 'main' and "main.css" in four
+# theme and layout subs - matched lazysite-dav.pl's `sub main`, which asks, and
+# page-pdf passed section 5 by that word alone.
 #
 # WHAT IS CHECKED.
 #   1. Control API: every action that declares a `host`, `content_root` or
@@ -104,6 +108,15 @@ for my $f (@FILES) {
 }
 ok( scalar( keys %BODY ) > 200, 'the subs of the manager surfaces were read' );
 
+# Does this code call that sub? `name(`, `name (`, `&name` or `\&name` - not the
+# name as a word, a package, a string or part of a variable.
+sub calls {
+    my ( $text, $name ) = @_;
+    return $text =~ /(?<![\$\@%\w])\b\Q$name\E\s*\(|\\?&\Q$name\E\b/ ? 1 : 0;
+}
+ok( !calls( q{my $conv = main->can('convert')}, 'main' ), 'calls(): a package name is not a call' );
+ok( calls( q{return main( @ARGV )},             'main' ), 'calls(): a call is' );
+
 # The closure: which subs ask.
 my %ASKS = map { $_ => 1 } qw(caller_may_reach_domain domain_reach_refusal);
 ok( $BODY{caller_may_reach_domain}, 'the predicate is defined where it is looked for' );
@@ -112,7 +125,7 @@ for ( my $grew = 1; $grew; ) {
     for my $s ( keys %BODY ) {
         next if $ASKS{$s};
         my $b = $BODY{$s};
-        next unless grep { $b =~ /\b\Q$_\E\b/ } keys %ASKS;
+        next unless grep { calls( $b, $_ ) } keys %ASKS;
         $ASKS{$s} = $grew = 1;
     }
 }
@@ -125,18 +138,18 @@ for ( my $grew = 1; $grew; ) {
     for my $s ( keys %BODY ) {
         next if $FB_ASKS{$s};
         my $b = $BODY{$s};
-        next unless grep { $b =~ /\b\Q$_\E\b/ } keys %FB_ASKS;
+        next unless grep { calls( $b, $_ ) } keys %FB_ASKS;
         $FB_ASKS{$s} = $grew = 1;
     }
 }
 sub fb_asks_in {
     my ($text) = @_;
-    return 1 if grep { $text =~ /\b\Q$_\E\b/ } keys %FB_ASKS;
+    return 1 if grep { calls( $text, $_ ) } keys %FB_ASKS;
     return 0;
 }
 sub asks_in {
     my ($text) = @_;
-    return 1 if grep { $text =~ /\b\Q$_\E\b/ } keys %ASKS;
+    return 1 if grep { calls( $text, $_ ) } keys %ASKS;
     return 0;
 }
 # The subs a piece of code calls by name, with their bodies.
@@ -268,6 +281,12 @@ is_deeply( \@iw_missing, [], 'every mutating action is instance-wide, path-confi
     or diag( 'Declare it `instance_wide => 1` in Lazysite::ControlApi::Actions if it changes what '
         . 'the whole instance reads, or add it to %NOT_INSTANCE_WIDE with the reason it does not.' );
 is_deeply( \@iw_stale, [], 'no %NOT_INSTANCE_WIDE entry is also held another way' );
+# SM978: page-pdf is held because it is path-confined, and by nothing else - it
+# passed this section by the word `main` in `main->can('convert')` until the
+# closure read calls rather than words.
+ok( $SCOPED{'page-pdf'}, 'page-pdf is path-confined (scoped), as preview is' );
+ok( !asks_in( with_callees( $BRANCH{'page-pdf'} // '' ) ),
+    'and is not counted as asking the domain rule by a word that is not a call' );
 ok( !grep( { !$MUT{$_} || $NOT_INSTANCE_WIDE{$_} } keys %IW ),
     'every instance-wide action mutates and is not also excepted' );
 cmp_ok( scalar( keys %IW ), '>=', 28, 'and the closed list is the size it should be' );
@@ -364,13 +383,13 @@ for ( my $grew = 1; $grew; ) {
     for my $s ( keys %BODY ) {
         next if $BIND_ASKS{$s};
         my $b = $BODY{$s};
-        next unless grep { $b =~ /\b\Q$_\E\b/ } keys %BIND_ASKS;
+        next unless grep { calls( $b, $_ ) } keys %BIND_ASKS;
         $BIND_ASKS{$s} = $grew = 1;
     }
 }
 sub bind_asks_in {
     my ($text) = @_;
-    return ( grep { $text =~ /\b\Q$_\E\b/ } keys %BIND_ASKS ) ? 1 : 0;
+    return ( grep { calls( $text, $_ ) } keys %BIND_ASKS ) ? 1 : 0;
 }
 
 # 8a. The verbs that write a page, each asking before the statement that writes.
@@ -414,6 +433,7 @@ my %NO_NEW_BINDING = (
         . 'both of which form_bindings reads, so no page newly names a form',
     'acl-remove'       => 'as acl-set',
     'cache-invalidate' => 'drops rendered output; no page text',
+    'page-pdf'         => 'reads pages and writes a cached PDF; no page text',
 );
 my ( @bind_missing, @bind_stale, @bind_seen );
 for my $a ( sort grep { ( $SCOPED{$_} && $MUT{$_} && !$IW{$_} ) || $MUST_BIND{$_} } keys %ACTION ) {

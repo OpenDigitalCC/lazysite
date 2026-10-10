@@ -2919,6 +2919,28 @@ sub action_page_pdf {
     return { ok => 0, error => 'a page path is required' }
         unless defined $rel && length $rel;
 
+    # SM978 (ruled 2026-10-10, "Scope it + composed parts"): EVERY PAGE THE PDF
+    # READS IS ASKED WHAT `read` WOULD ASK OF IT - the caller's scope and the
+    # content ACL. The page itself is refused outside the scope by the
+    # dispatcher (page-pdf is declared `scoped`, so _confine_scope sees its
+    # path); its own read ACL was asked by nothing, and a composed document's
+    # parts were asked the ACL alone, so a confined manager got another domain's
+    # page as a part and any manage_content account got a page its rule denied
+    # it (tmp/q16b-acl-probe.out). A part outside the scope REFUSES THE
+    # DOCUMENT, naming the part - fail closed, as the page's own refusal does
+    # and as the plugin already refuses a part the ACL denies.
+    my @scopes  = grep { defined } @REQUEST_SCOPES;
+    my $outside = sub {
+        ( my $p = $_[0] // '' ) =~ s{\A/+}{};
+        return 0 if $p =~ m{\Alazysite/};             # _confine_scope's own exemption
+        return Lazysite::Manager::Common::outside_all_scopes( \@scopes, $p ) ? 1 : 0;
+    };
+    my $names = join ', ', map { ( my $s = $_ ) =~ s{^/+|/+$}{}g; "$s/" } @scopes;
+    if ( my $denied = _acl_denied( $rel =~ s{\A/+}{}r, 'read', $auth_user ) ) {
+        return $denied;
+    }
+    my $part_outside;    # the first part refused for scope, to say so below
+
     my $plugin = "$DOCROOT/../plugins/pandoc.pl";
     $plugin = "$DOCROOT/plugins/pandoc.pl" unless -f $plugin;
     return { ok => 0, error => 'The Branded PDF plugin is not installed' }
@@ -2946,7 +2968,10 @@ sub action_page_pdf {
         $conv->(
             docroot  => $DOCROOT,
             path     => $rel,
-            may_read => sub { !_acl_denied( $_[0], 'read', $auth_user ) },
+            may_read => sub {
+                if ( $outside->( $_[0] ) ) { $part_outside //= $_[0]; return 0 }
+                return !_acl_denied( $_[0], 'read', $auth_user );
+            },
 
             # SM738: WHERE a file lives is the engine's business, not the
             # plugin's. A read ACL moves content into the private store, and the
@@ -2965,6 +2990,11 @@ sub action_page_pdf {
     return { ok => 0, error => "PDF render failed: $@" } if $@;
     return { ok => 0, error => 'The PDF plugin returned nothing' }
         unless ref $out eq 'HASH';
+    return { ok => 0, kind => 'forbidden',
+        error => "This document includes '$part_outside', which is outside your assigned "
+            . "scope ($names). It is refused rather than built without that part, so what "
+            . 'you get is never quietly incomplete.' }
+        if defined $part_outside && !$out->{ok};
     return $out unless $out->{ok} && $out->{pdf} && -f $out->{pdf}; # not a store: rendered output
 
     my $size = ( stat $out->{pdf} )[7] // 0;
