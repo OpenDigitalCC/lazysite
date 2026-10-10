@@ -68,4 +68,19 @@ subtest 'for an account users lists them; after a reset, refused again' => sub {
     refused( main::action_users( '', { sub => 'list' } ), 'reset: refused again', 'users' );
 };
 
+subtest 'principals, outside a request, lists no account or group' => sub {
+    Lazysite::Manager::Common::reset_request_context();
+    refused( main::action_principals(), 'refused', qw(users groups) );
+};
+
+subtest 'for an account principals lists them; after a reset, refused again' => sub {
+    as_boss();
+    my $r = main::action_principals();
+    ok( $r->{ok}, 'listed' ) or diag explain $r;
+    is_deeply( [ sort @{ $r->{users} || [] } ], [qw(alice boss)], '...both accounts' );
+    ok( scalar( grep { $_ eq 'bosses' } @{ $r->{groups} || [] } ), '...and the group' );
+    Lazysite::Manager::Common::reset_request_context();
+    refused( main::action_principals(), 'reset: refused again', qw(users groups) );
+};
+
 done_testing();

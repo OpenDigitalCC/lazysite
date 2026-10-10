@@ -3053,6 +3053,15 @@ sub action_display_names {
 # SM077: assignable principals for the permissions pickers - usernames + group
 # names only (no settings/records). Cookie-manager action, like 'users'.
 sub action_principals {
+    # SM944 S32 (4), ruled 2026-10-10 ("Yes, all four"): THE PRINCIPALS ARE
+    # LISTED FOR AN ACCOUNT. Inside a request the dispatcher has refused an empty
+    # $auth_user (and asked for `manage_content` or `manage_domains`) before this
+    # runs, so it is never empty here; reached outside one (the request
+    # context's reset leaves nobody) it listed every account and group
+    # (tmp/sm944-s31-s32-refusal-probe.out).
+    return { ok => 0, kind => 'forbidden',
+        error => 'The principals are listed for a signed-in account, and no account is asking.' }
+        unless length $auth_user;
     my $u      = users_api( { action => 'list' } )   || {};
     my $g      = users_api( { action => 'groups' } ) || {};
     my @users  = ref $u->{users} eq 'ARRAY' ? @{ $u->{users} }                : ();
