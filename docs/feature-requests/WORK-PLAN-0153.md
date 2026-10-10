@@ -84,7 +84,10 @@ Not in the queue, and why:
 
 Open questions raised while working the queue:
 
-- **Q14 (SM944 S31 and S32): stopped on design questions, 2026-10-10.**
+- ~~**Q14 (SM944 S31 and S32): stopped on design questions, 2026-10-10.**~~
+  **RULED 2026-10-10 (SM944 § Ruled: S31's and S32's questions): ITEM 1
+  "SECURITY first" - rotate-auth-secret refuses an empty account, first;
+  S31 "(c) request IP into Common"; S32 "Yes, all four".**
   Nothing of either row is built. Test 205's question, asked of both rows'
   subs with the script loaded as the unit tests load it and the context as
   `reset_request_context` leaves it - nobody - then boss's cookie context,
