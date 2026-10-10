@@ -19,6 +19,7 @@ use Lazysite::Util qw(log_event);
 use Lazysite::Private ();
 use Exporter 'import';
 use Lazysite::Paths ();
+use Lazysite::Auth::Settings ();        # SM944 S31: _display_names
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
@@ -34,7 +35,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _em
     active_artifact_refusal refusal_detail refusal_status
     reset_request_context NO_REQUEST_CONTEXT users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $action $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $path $body
-    %USER_CAPS $REQUEST_IP _request_ip);
+    %USER_CAPS $REQUEST_IP _request_ip _display_names);
 
 our $DOCROOT;    # set by the script
 
@@ -218,6 +219,18 @@ sub _user_caps {
         //= ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings}
         || {};
 }
+
+# SM778: THE NAMES THAT GO WITH THE LOGINS THIS RESPONSE ALREADY CARRIES.
+#
+# Reported from familyhq.explore: the engine hands back logins and holds the
+# display names, and gives a site no way to join the two - so the site mirrored
+# the names into its own table and the mirror drifted until every byline read
+# as a bare login.
+#
+# The shape itself lives with the resolver, in Lazysite::Auth::Settings, so
+# that the manager API, the ACL reader and the MCP twin add the same two keys
+# rather than three hand-kept copies of them (SM662 is the general form).
+sub _display_names { return Lazysite::Auth::Settings::display_names_block(@_) }
 
 our @BLOCKED_PATHS = (
     'lazysite/auth/.secret',

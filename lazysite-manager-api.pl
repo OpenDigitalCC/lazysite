@@ -36,7 +36,7 @@ use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checke
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     processor_path
     _no_scope_refusal
-    _request_ip
+    _request_ip _display_names
     reset_request_context
     users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body);
@@ -3501,18 +3501,6 @@ sub action_audit {
         targets  => [ sort keys %ftargets ],
         _display_names(@real) };
 }
-
-# SM778: THE NAMES THAT GO WITH THE LOGINS THIS RESPONSE ALREADY CARRIES.
-#
-# Reported from familyhq.explore: the engine hands back logins and holds the
-# display names, and gives a site no way to join the two - so the site mirrored
-# the names into its own table and the mirror drifted until every byline read
-# as a bare login.
-#
-# The shape itself lives with the resolver, in Lazysite::Auth::Settings, so
-# that the manager API, the ACL reader and the MCP twin add the same two keys
-# rather than three hand-kept copies of them (SM662 is the general form).
-sub _display_names { return Lazysite::Auth::Settings::display_names_block(@_) }
 
 # SM778: the read action a page calls with an ordinary session - resolve the
 # logins I already hold, and nothing else. No capability beyond being signed
