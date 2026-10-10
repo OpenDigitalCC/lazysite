@@ -433,4 +433,62 @@ subtest 'the site backup verbs, loaded outside a request, touch no package' => s
     $outside->('reset');
 };
 
+# SM944 S27: the domain actions, moved into Manager::Domains after domain-check
+# took the established fail-closed pattern (ruled 2026-10-10, "Read Common's
+# value"). Outside a request domain-check ran its outbound DNS/TLS probe with
+# nobody asking; now it refuses and probes nothing. domains-list and
+# _instance_id are unchanged: the list already showed no row there (the domain
+# rule's filter) and the instance id is a site fact. With the operator's context
+# they answer; after the reset - with Domains' own log copy of the account still
+# naming the last request's, as the dispatcher leaves it - the check refuses
+# again.
+subtest 'the domain actions, loaded outside a request, probe no host' => sub {
+    require Lazysite::Manager::Domains;
+    require TestHelper;
+    my $d = TestHelper::site_tempdir();
+    mkdir "$d/lazysite";
+    mkdir "$d/sites";
+    mkdir "$d/sites/a";
+    open my $fh, '>', "$d/lazysite/lazysite.conf" or die $!;
+    print {$fh} "site_name: T\nsite_url: https://primary.example\n"
+        . "alias_hosts: a.example\nalias.a.example.content_root: sites/a\n";
+    close $fh;
+    my $probed = 0;
+    no warnings qw(once redefine);
+    local *Lazysite::Manager::Domains::domain_check = sub { $probed++; return { ok => 1, host => $_[0] } };
+    local *Lazysite::Manager::Domains::instance_public_ips = sub { return () };
+    local $Lazysite::Manager::Domains::DOCROOT      = $d;    # what the dispatcher sets
+    local $Lazysite::Manager::Domains::LAZYSITE_DIR = "$d/lazysite";
+    local $Lazysite::Manager::Common::DOCROOT       = $d;
+    local $ENV{LAZYSITE_LOG_LEVEL}                  = 'ERROR';
+
+    my $r = Lazysite::Manager::Domains::action_domain_check('a.example');
+    is( $r->{kind} // '', 'forbidden', 'domain-check refuses: no account is asking' ) or diag explain $r;
+    is( $probed, 0,                    '...and probes nothing' );
+    $r = Lazysite::Manager::Domains::action_domains_list();
+    ok( $r->{ok}, 'domains-list, unchanged, answers' ) or diag explain $r;
+    is_deeply( $r->{domains}, [], '...listing no domain (the domain rule\'s filter)' );
+    like( Lazysite::Manager::Domains::_instance_id(), qr/\A[0-9a-f]{32}\z/,
+        '_instance_id, unchanged, still answers the install\'s marker' );
+
+    # boss's own request, as the script sets it for a cookie session.
+    $auth_user                             = 'boss';
+    $token_auth                            = 0;
+    %token_caps                            = ();
+    @REQUEST_SCOPES                        = ();
+    $REQUEST_CONFINED                      = 0;
+    $IS_OPERATOR                           = 1;
+    $Lazysite::Manager::Domains::auth_user = 'boss';
+    $r = Lazysite::Manager::Domains::action_domain_check('a.example');
+    ok( $r->{ok} && $probed == 1, 'with boss\'s context the check probes' ) or diag explain $r;
+    is_deeply( [ map { $_->{host} } @{ Lazysite::Manager::Domains::action_domains_list()->{domains} } ],
+        [ '(default)', 'a.example' ], '...and domains-list lists the domains' );
+    reset_request_context();
+    is( $Lazysite::Manager::Domains::auth_user, 'boss', 'reset: Domains\' log copy still names boss' );
+    is( Lazysite::Manager::Domains::action_domain_check('a.example')->{kind} // '', 'forbidden',
+        '...and the check refuses all the same' );
+    is( $probed, 1, '...probing nothing' );
+    $Lazysite::Manager::Domains::auth_user = '';
+};
+
 done_testing();
