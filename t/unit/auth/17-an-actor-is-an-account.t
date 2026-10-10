@@ -211,6 +211,12 @@ my $api = do {
     local $/;
     <$fh>;
 };
+# SM944 S31: the Audit page's reader, action_audit, is Manager::AuditTrail's.
+$api .= do {
+    open my $fh, '<', "$root/lib/Lazysite/Manager/AuditTrail.pm" or die $!;
+    local $/;
+    <$fh>;
+};
 like( $api, qr/Lazysite::Auth::Settings::account_names/,
     'and so does the manager API' );
 
