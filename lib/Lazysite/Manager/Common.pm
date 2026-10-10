@@ -19,7 +19,8 @@ use Lazysite::Util qw(log_event);
 use Lazysite::Private ();
 use Exporter 'import';
 use Lazysite::Paths ();
-use Lazysite::Auth::Settings ();        # SM944 S31: _display_names
+use Lazysite::Auth::Settings ();                  # SM944 S31: _display_names
+use Lazysite::Auth::Acl      qw(_is_operator);    # SM944 S32: _operator
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
@@ -35,7 +36,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _em
     active_artifact_refusal refusal_detail refusal_status
     reset_request_context NO_REQUEST_CONTEXT users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $action $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $path $body
-    %USER_CAPS $REQUEST_IP _request_ip _display_names);
+    %USER_CAPS $REQUEST_IP _request_ip _display_names _operator);
 
 our $DOCROOT;    # set by the script
 
@@ -61,11 +62,13 @@ sub render_source_exists {
 # ($auth_user), through which door ($token_auth, and the token's own grant in
 # %token_caps), how far it reaches (@REQUEST_SCOPES, and $REQUEST_CONFINED,
 # whether those scopes were resolved at all), whether it is the operator
-# ($IS_OPERATOR, the memo behind the script's _operator()), and what it asked
+# ($IS_OPERATOR, the memo behind _operator() below), and what it asked
 # for ($action, $path, $body). S22b added %USER_CAPS, the per-account caps memo
 # behind _user_caps below, which only the reset and _user_caps write; S31 added
 # $REQUEST_IP, the request address's cache behind _request_ip, which only the
-# reset and _request_ip write.
+# reset and _request_ip write. S32 moved _operator here beside _user_caps: it is
+# the one sub that fills $IS_OPERATOR, which the reset leaves 0 (not the
+# operator) and the script clears to undef once it has authenticated a request.
 #
 # OWNED HERE, WRITTEN BY ONE FILE. lazysite-manager-api.pl imports them in place
 # of the file-scope `my` variables it used to declare, sets them as the request
@@ -218,6 +221,14 @@ sub _user_caps {
     return $USER_CAPS{$user}
         //= ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings}
         || {};
+}
+
+# SM516 MO-3: _is_operator() re-reads the group settings store on every call,
+# and three gates ask it. Its inputs cannot change between them within one
+# request: the cookie gate runs ahead of dispatch, and action_users' two calls
+# both run before it writes anything through the users tool.
+sub _operator {
+    return $IS_OPERATOR //= ( _is_operator() ? 1 : 0 );
 }
 
 # SM778: THE NAMES THAT GO WITH THE LOGINS THIS RESPONSE ALREADY CARRIES.

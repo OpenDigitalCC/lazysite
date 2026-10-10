@@ -30,13 +30,13 @@ use Lazysite::Capabilities qw(describe capability_keys channel_service reachabil
 use Lazysite::ControlApi::Actions ();                        # SM350
 use Lazysite::BadUrl              qw(list_blocks block unblock);
 use Lazysite::Auth::Settings      qw(site_grants_manager);
-use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator);
+use Lazysite::Auth::Acl           qw(load_acls save_acls _acl_norm _to_list _acl_allows);
 use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     processor_path
     _no_scope_refusal
-    _request_ip _display_names
+    _request_ip _display_names _operator
     reset_request_context
     users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body);
@@ -3009,10 +3009,6 @@ sub _manager_groups_from_settings {
     return @mgr;
 }
 
-# SM516 MO-3: _is_operator() re-reads the group settings store on every call,
-# and three gates ask it. Its inputs cannot change between them within one
-# request: the cookie gate runs ahead of dispatch, and action_users' two calls
-# both run before it writes anything through the users tool.
 # SM842: who is asking, for Lazysite::Handlers' destination check. The token
 # channel carries its grant; a cookie session carries its account's, and an
 # operator passes every capability gate on this channel already, so it passes
@@ -3021,10 +3017,6 @@ sub _handler_who {
     return ( caps          => \%token_caps ) if $token_auth;
     return ( unconstrained => 1 )            if _operator();
     return ( caps          => _user_caps($auth_user) );
-}
-
-sub _operator {
-    return $IS_OPERATOR //= ( _is_operator() ? 1 : 0 );
 }
 
 # SM778: the read action a page calls with an ordinary session - resolve the
