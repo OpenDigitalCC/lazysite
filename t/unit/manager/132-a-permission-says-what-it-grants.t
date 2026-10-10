@@ -87,7 +87,8 @@ my $caps = Lazysite::Capabilities::describe()->{capabilities} || {};
 
 # --- 4. served, not restated ------------------------------------------------
 {
-    my $api = do { open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!; local $/; <$fh> };
+    # SM944 S26: channel-services, which serves them, moved to Manager::Services.
+    my $api = do { open my $fh, '<', "$root/lib/Lazysite/Manager/Services.pm" or die $!; local $/; <$fh> };
     like( $api, qr/grants\s*=>\s*\\%grants/,
         'the API serves the sentences' );
     like( $api, qr/Lazysite::Capabilities::describe\(\)->\{capabilities\}/,
