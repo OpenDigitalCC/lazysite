@@ -53,6 +53,20 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the users and identity actions are
+  Manager::Users', and whoami answers only for the account asking** (S32 of the
+  plan in the filing, as the release manager ruled on 2026-10-10, "Yes, all
+  four"). `_operator` moves into `Lazysite::Manager::Common` beside the caps
+  memo, the one sub that fills the operator memo. Before the move whoami
+  answers only when its account is the request's own, and users, principals
+  and display-names refuse when no account is asking; inside a request none of
+  this changes an answer (the dispatcher passes the authenticated account and
+  has refused an empty one first), while outside one whoami answered for
+  account '' or any account it was handed and the other three listed every
+  account or resolved names. They, rotate-auth-secret and the handlers'
+  who-is-asking move to the new `Lazysite::Manager::Users` unchanged. Test 205,
+  t/unit/manager/222, 223.
+
 - SM944 (PENDING) **internal: the audit trail's views and switch are
   Manager::AuditTrail's, and the trail is read only for an account** (S31 of
   the plan in the filing, as the release manager ruled on 2026-10-10, "(c)
