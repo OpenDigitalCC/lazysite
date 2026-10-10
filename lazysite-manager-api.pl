@@ -30,7 +30,7 @@ use Lazysite::Capabilities qw(describe capability_keys channel_service reachabil
 use Lazysite::ControlApi::Actions ();                        # SM350
 use Lazysite::BadUrl              qw(list_blocks block unblock);
 use Lazysite::Auth::Settings      qw(site_grants_manager);
-use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
+use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator);
 use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
@@ -79,6 +79,7 @@ use Lazysite::Manager::Describe qw(site_capabilities action_describe_capabilitie
 use Lazysite::Manager::Services qw(action_channel_services action_analyse_visitors _service_state action_version); # SM944 S26
 use Lazysite::Manager::SiteBackup qw(action_site_backup_create action_site_backup_upload action_site_backup_apply action_site_export_primary action_site_backup_inspect action_site_backup_delete action_site_backup_download _package_scope_refusal); # SM944 S28
 use Lazysite::Manager::Config qw(action_config_read action_config_set action_lang_status _language_context); # SM944 S30
+use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 # SM556: resolved once, here, so every module confines against one spelling
@@ -142,6 +143,8 @@ $Lazysite::Manager::Domains::LAZYSITE_DIR = $LAZYSITE_DIR;
 # SM944 S30: Manager::Config, the configuration and language verbs.
 $Lazysite::Manager::Config::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Config::LAZYSITE_DIR = $LAZYSITE_DIR;
+# SM944 S29: Manager::PagePdf, the page PDF render.
+$Lazysite::Manager::PagePdf::DOCROOT = $DOCROOT;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
 $Lazysite::Manager::Files::LOCK_DIR     = $LOCK_DIR;
