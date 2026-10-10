@@ -26,7 +26,7 @@ use Lazysite::Private ();    # N141D: purge reaches the private store too
 our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value action_domain_check action_domains_list);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
-our $LAZYSITE_DIR;    # set by the script (SM944 S27)
+our $LAZYSITE_DIR;           # set by the script (SM944 S27)
 
 # SM293: this site's engine tree - beside the docroot once migrated,
 # inside it before. Asked, never computed, so both layouts work on one

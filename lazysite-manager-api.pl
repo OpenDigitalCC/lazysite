@@ -70,7 +70,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore action_backup_delete);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
-use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root action_domain_check action_domains_list); # SM944 S27
 use Lazysite::Manager::Data        ();
 use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
@@ -137,6 +137,8 @@ $Lazysite::Manager::Services::LAZYSITE_DIR = $LAZYSITE_DIR;
 # SM944 S28: Manager::SiteBackup, the site backup and export verbs.
 $Lazysite::Manager::SiteBackup::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::SiteBackup::LAZYSITE_DIR = $LAZYSITE_DIR;
+# SM944 S27: Manager::Domains reads the conf for domains-list (its DOCROOT is set above).
+$Lazysite::Manager::Domains::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
 $Lazysite::Manager::Files::LOCK_DIR     = $LOCK_DIR;

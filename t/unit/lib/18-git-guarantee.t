@@ -265,8 +265,9 @@ my %EXEMPT = (
         'notice-seen marker under lazysite/manager, not page content',
     'API::action_pages'        => 'read-only',
     'API::action_config_read'  => 'read-only',
-    'API::action_domains_list' => 'read-only',
-    'API::action_domain_check' => 'read-only',   # SM156: probes DNS/TLS, no content write
+    # SM944 S27: the two domain actions moved to Manager::Domains.
+    'Domains::action_domains_list' => 'read-only',
+    'Domains::action_domain_check' => 'read-only', # SM156: probes DNS/TLS, no content write
     'API::action_lang_status'  => 'read-only',   # SM179 P6: reports coverage, no write
     # SM944 S25: the two introspection actions moved to Manager::Describe.
     'Describe::action_actions_list'          => 'read-only',   # SM350
@@ -315,7 +316,7 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         # the guarantee entirely - the gap that let domain-set diverge from
         # config-set unnoticed. Its verbs are named domain_*, hence the
         # per-module pattern.
-        Domains => [ "$root/lib/Lazysite/Manager/Domains.pm", qr/^domain_/ ],
+        Domains => [ "$root/lib/Lazysite/Manager/Domains.pm", qr/^(?:domain_|action_)/ ], # SM944 S27: and the actions
         # SM944 S23: the notice readers are called from the dispatcher directly.
         Notices   => [ "$root/lib/Lazysite/Manager/Notices.pm",   qr/^action_/ ],
         StartPage => [ "$root/lib/Lazysite/Manager/StartPage.pm", qr/^action_/ ],
