@@ -29,7 +29,8 @@
 #      (S22b, ruled 2026-10-09), and _request_ip fills $REQUEST_IP once per
 #      request (S31, ruled 2026-10-10); a reset that left either full would
 #      carry one request's account caps or visitor into the next in a pooled
-#      worker.
+#      worker. And _operator fills $IS_OPERATOR (S32, ruled 2026-10-10): the
+#      reset leaves it 0 and the script clears it to undef per request.
 #   2. The script imports every one but the two memos, which it neither reads nor
 #      writes now that _user_caps lives in Common, declares none of them at file
 #      scope, writes neither memo by any name, and calls reset_request_context()
@@ -67,13 +68,16 @@ my %SIGIL = (
 
 # Common's own writers beyond the reset: each memo, the one sub that fills it,
 # and the one write that sub makes.
-my %FILLED_BY = ( USER_CAPS => '_user_caps', REQUEST_IP => '_request_ip' );
+my %FILLED_BY = ( USER_CAPS => '_user_caps', REQUEST_IP => '_request_ip', IS_OPERATOR => '_operator' );
 my %FILL      = (
     USER_CAPS => [ '$USER_CAPS{$user} (operator on the next line)', 'one element at a time ($USER_CAPS{$user} //= ...)' ],
     REQUEST_IP => [ '$REQUEST_IP = Lazysite::Util::request_address(', 'once, from the one definition of the request address' ],
+    IS_OPERATOR => [ 'return $IS_OPERATOR //= ( _is_operator() ? 1 : 0 );', 'once per request, from the one operator check' ],
 );
-# The facts the script reads and so imports: all but the memos (S22b, S31).
-my @SCRIPT_FACTS = grep { !$FILLED_BY{$_} } sort keys %SIGIL;
+# The facts the script reads and so imports: all but the two memos it never
+# touches (S22b, S31). It imports $IS_OPERATOR, which it clears per request.
+my %UNTOUCHED    = ( USER_CAPS => 1, REQUEST_IP => 1 );
+my @SCRIPT_FACTS = grep { !$UNTOUCHED{$_} } sort keys %SIGIL;
 my @FACTS = sort keys %SIGIL;
 
 my %KNOWN = (

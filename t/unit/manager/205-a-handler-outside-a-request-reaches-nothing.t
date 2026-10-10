@@ -17,7 +17,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 use lib repo_root() . '/lib';
-use Lazysite::Manager::Common qw(outside_all_scopes reset_request_context NO_REQUEST_CONTEXT _user_caps
+use Lazysite::Manager::Common qw(outside_all_scopes reset_request_context NO_REQUEST_CONTEXT _user_caps _operator
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body
     %USER_CAPS $REQUEST_IP);
 
@@ -36,6 +36,7 @@ sub fail_closed {
         "$when: and outside the token's own" );
     ok( $REQUEST_CONFINED, "$when: confined" );
     ok( defined $IS_OPERATOR && !$IS_OPERATOR, "$when: not the operator, and the memo is filled so nothing asks again" );
+    is( _operator(), 0,     "$when: _operator answers no, asking nothing (S32)" );
     is( $action, '',    "$when: no action" );
     is( $path,   undef, "$when: no path" );
     is( $body,   '',    "$when: no body" );
