@@ -22,8 +22,10 @@ use lib repo_root() . '/lib';
 my $d = site_tempdir();
 mkdir "$d/lazysite";
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
-spit( "$d/lazysite/lazysite.conf", "site_name: T\n" );
-spit( "$d/stats-stub.pl", "open my \$m, '>', '$d/ran' or die; close \$m;\n"
+spit( "$d/lazysite/lazysite.conf",       "site_name: T\ncontrol_api_enabled: true\n" );
+spit( "$d/lazysite/.install-state.json", '{"version":"9.8.7"}' );
+# It writes the arguments it was given, so the docroot it is handed is seen.
+spit( "$d/stats-stub.pl", "open my \$m, '>', '$d/ran' or die; print {\$m} join(' ', \@ARGV); close \$m;\n"
         . "print '{\"ok\":1,\"top_pages\":[{\"path\":\"/secret-campaign\",\"hits\":42}]}';\n" );
 local $ENV{LAZYSITE_STATS_TOOL}          = "$d/stats-stub.pl";
 local $ENV{LAZYSITE_LOG_LEVEL}           = 'ERROR';
@@ -55,10 +57,20 @@ subtest 'analyse_visitors, outside a request, runs nothing' => sub {
     ok( $r->{ok}, 'for an account it answers' ) or diag explain $r;
     is( $r->{top_pages}[0]{path} // '', '/secret-campaign', '...with the export' );
     ok( -e "$d/ran", '...from the stats tool' );
+    like( do { open my $r, '<', "$d/ran" or die $!; local $/; <$r> }, qr/--docroot \Q$d\E /,
+        '...handed the docroot the dispatcher set (SM944 S26: Services\' own)' );
     unlink "$d/ran";
     Lazysite::Manager::Common::reset_request_context();
     is( main::action_analyse_visitors( window => 7 )->{kind} // '', 'forbidden', 'reset: refused again' );
     ok( !-e "$d/ran", '...running nothing' );
+};
+
+# (d) unchanged, read through the dirs the dispatcher sets on Services.
+subtest 'the site facts answer from the dispatcher\'s dirs' => sub {
+    is( main::action_version()->{version} // '', '9.8.7', 'version: the install state under the lazysite dir' );
+    my $on = main::_service_state();
+    ok( $on->{api} && !$on->{mcp}, 'the transports\' state: read from the docroot\'s conf' ) or diag explain $on;
+    ok( main::action_channel_services()->{services}{api}, 'channel-services: the same switch' );
 };
 
 done_testing();
