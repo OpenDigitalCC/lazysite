@@ -274,10 +274,11 @@ my %EXEMPT = (
     'StartPage::action_start_page'      => 'read-only',    # SM724; SM944 S23 moved it
     'StartPage::action_start_page_set' => 'auth store - excluded from the versioned set', # SM724: user-settings.json
     'API::action_recent_changes' => 'read-only',
-    'API::action_channel_services' => 'read-only', # SM180: reports killswitch state, no write
+    # SM944 S26: channel-services, analyse_visitors and version moved to Manager::Services.
+    'Services::action_channel_services' => 'read-only', # SM180: reports killswitch state, no write
     'API::action_audit'            => 'read-only',
-    'API::action_analyse_visitors'   => 'read-only',
-    'API::action_version'            => 'read-only',
+    'Services::action_analyse_visitors' => 'read-only',
+    'Services::action_version'          => 'read-only',
     'API::action_principals'         => 'read-only',
     'API::action_display_names'      => 'read-only',    # SM778: a name lookup
     'API::action_users'              => 'auth store - excluded from the versioned set',
@@ -319,6 +320,7 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         StartPage => [ "$root/lib/Lazysite/Manager/StartPage.pm", qr/^action_/ ],
         Preview => [ "$root/lib/Lazysite/Manager/Preview.pm", qr/^action_/ ],  # SM944 S24
         Describe => [ "$root/lib/Lazysite/Manager/Describe.pm", qr/^action_/ ], # SM944 S25
+        Services => [ "$root/lib/Lazysite/Manager/Services.pm", qr/^action_/ ], # SM944 S26
         API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
         DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );

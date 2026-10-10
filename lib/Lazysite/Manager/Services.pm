@@ -23,11 +23,11 @@ use strict;
 use warnings;
 use Exporter 'import';
 use IPC::Open2;
-use JSON::PP qw(decode_json);
-use Lazysite::Util ();
-use Lazysite::Capabilities qw(channel_service);
+use JSON::PP                   qw(decode_json);
+use Lazysite::Util             ();
+use Lazysite::Capabilities     qw(channel_service);
 use Lazysite::Manager::Plugins qw(action_plugin_list);
-use Lazysite::Manager::Common qw($auth_user _tool_path);
+use Lazysite::Manager::Common  qw($auth_user _tool_path);
 
 our @EXPORT_OK = qw(action_channel_services action_analyse_visitors _service_state action_version);
 
