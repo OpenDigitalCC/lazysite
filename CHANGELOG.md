@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: domain-check and domains-list are
+  Manager::Domains', and a domain check runs only for an account** (S27 of the
+  plan in the filing, as the release manager ruled on 2026-10-10, "Read Common's
+  value"). The two actions and the install's marker move to the existing
+  `Lazysite::Manager::Domains`. Before the move domain-check refuses when no
+  account is asking, which inside a request never happens (the dispatcher has
+  refused an empty account and asked the domain rule first); outside one it ran
+  its outbound DNS/TLS probe of a configured host. The account it reads is
+  Manager::Common's, which the request context's reset empties - never Domains'
+  own log copy of the acting user, which nothing resets. domains-list is
+  unchanged. Test 205, t/unit/manager/217.
+
 - SM944 (PENDING) **internal: the site backup and export verbs are
   Manager::SiteBackup's, and a package is uploaded only for an account** (S28 of
   the plan in the filing; the established fail-closed pattern the release
