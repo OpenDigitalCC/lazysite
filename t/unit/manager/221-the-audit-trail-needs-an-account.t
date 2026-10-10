@@ -7,7 +7,8 @@
 # outside one - the request context as its reset leaves it, nobody - it
 # answered with the whole trail, every actor and target
 # (tmp/sm944-s31-s32-refusal-probe.out). Now it refuses before it reads the
-# trail.
+# trail. action_recent_changes is the same: who last changed each target, for
+# account '' (test 23 reads it through requests); refused the same way.
 #
 # Loaded the way the unit tests load the script (LAZYSITE_API_LOAD_ONLY:
 # compiled, no request run).
@@ -63,6 +64,29 @@ subtest 'for an account the trail is read; after a reset, refused again' => sub 
     $r = main::action_audit();
     is( $r->{kind} // '', 'forbidden', 'reset: refused again' );
     ok( !exists $r->{entries}, '...with no entries' );
+};
+
+subtest 'recent-changes, outside a request, names nobody who changed anything' => sub {
+    Lazysite::Manager::Common::reset_request_context();
+    my $r = main::action_recent_changes();
+    is( $r->{kind} // '', 'forbidden', 'refused' ) or diag explain $r;
+    ok( !$r->{ok}, '...not ok' );
+    like( $r->{error} // '', qr/no account is asking/, '...saying why' );
+    ok( !exists $r->{changes}, '...with no changes' );
+};
+
+subtest 'for an account recent changes are read; after a reset, refused again' => sub {
+    no warnings 'once';
+    $Lazysite::Manager::Common::auth_user = 'boss';
+    my $r = main::action_recent_changes();
+    ok( $r->{ok}, 'read' ) or diag explain $r;
+    is_deeply( [ sort keys %{ $r->{changes} || {} } ], [ 'hr/salaries.md', 'secret/plan.md' ],
+        '...who last changed each target' );
+
+    Lazysite::Manager::Common::reset_request_context();
+    $r = main::action_recent_changes();
+    is( $r->{kind} // '', 'forbidden', 'reset: refused again' );
+    ok( !exists $r->{changes}, '...with no changes' );
 };
 
 done_testing();
