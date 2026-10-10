@@ -4022,6 +4022,15 @@ sub site_capabilities {
 # "holds". Introspection: allowed for any authenticated caller (token or cookie).
 sub action_describe_capabilities {
     my ($user) = @_;
+    # SM944 S25 (a), ruled 2026-10-10: THE MAP IS AN ACCOUNT'S. Inside a request
+    # the dispatcher has refused an empty $auth_user before any action runs, so
+    # $user is never empty here; reached outside one (the request context's
+    # reset leaves nobody) it answered ok:1 for account '' - the capability map,
+    # the site's documentation index and every action's effects
+    # (tmp/sm944-s25-refusal-probe.out).
+    return { ok => 0, kind => 'forbidden',
+        error => 'The capability map is described for a signed-in account, and no account is asking.' }
+        unless length( $user // '' );
     my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
     my $allg   = ( users_api( { action => 'groups' } ) || {} )->{groups} || {};
     my @groups = sort grep {
