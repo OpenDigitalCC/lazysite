@@ -4438,6 +4438,14 @@ sub _stats_tool_path { return _tool_path( 'LAZYSITE_STATS_TOOL', 'plugins/stats.
 # aggregates + a capped event stream; never the raw log, a path, or a visitor IP.
 sub action_analyse_visitors {
     my (%opt) = @_;
+    # SM944 S26 (c), ruled 2026-10-10: THE STATS ARE READ FOR AN ACCOUNT. Inside
+    # a request the dispatcher has refused an empty $auth_user (and required
+    # `analytics`) before this runs, so it is never empty here; reached outside
+    # one (the request context's reset leaves nobody) it ran the stats plugin and
+    # returned its export with nobody asking (tmp/sm944-s26-refusal-probe.out).
+    return { ok => 0, kind => 'forbidden',
+        error => 'Visitor analysis is read for a signed-in account, and no account is asking.' }
+        unless length $auth_user;
     my $tool = _stats_tool_path()
         or return { ok => 0, error => 'Visitor stats plugin not found' };
     my $window = ( defined $opt{window} && $opt{window} =~ /^\d+$/ ) ? $opt{window} : 30;
