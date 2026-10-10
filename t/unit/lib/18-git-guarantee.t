@@ -267,8 +267,9 @@ my %EXEMPT = (
     'API::action_domains_list' => 'read-only',
     'API::action_domain_check' => 'read-only',   # SM156: probes DNS/TLS, no content write
     'API::action_lang_status'  => 'read-only',   # SM179 P6: reports coverage, no write
-    'API::action_actions_list' => 'read-only',   # SM350
-    'API::action_describe_capabilities' => 'read-only',
+    # SM944 S25: the two introspection actions moved to Manager::Describe.
+    'Describe::action_actions_list'          => 'read-only',   # SM350
+    'Describe::action_describe_capabilities' => 'read-only',
     'API::action_whoami'                => 'read-only',
     'StartPage::action_start_page'      => 'read-only',    # SM724; SM944 S23 moved it
     'StartPage::action_start_page_set' => 'auth store - excluded from the versioned set', # SM724: user-settings.json
@@ -317,6 +318,7 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         Notices   => [ "$root/lib/Lazysite/Manager/Notices.pm",   qr/^action_/ ],
         StartPage => [ "$root/lib/Lazysite/Manager/StartPage.pm", qr/^action_/ ],
         Preview => [ "$root/lib/Lazysite/Manager/Preview.pm", qr/^action_/ ],  # SM944 S24
+        Describe => [ "$root/lib/Lazysite/Manager/Describe.pm", qr/^action_/ ], # SM944 S25
         API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
         DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );
