@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: acl-set's dispatch branch is Manager::Files'
+  handler** (S33 of the plan in the filing, a held branch approved on
+  2026-10-11). `dispatch_acl_set` holds the branch's refusals and the change,
+  and hands back the rule before and after for the audit entry; it reads the
+  request's path and account from Manager::Common's context, never Files' own
+  log copy, and refuses when no account is asking. No answer in a request
+  changes. Test 205.
+
 - SM944 (PENDING) **internal: start-page-set's and audit's dispatch branches
   are handlers in their area modules** (S33 of the plan in the filing, the
   first group after S33a). Each branch's statements move unchanged into
