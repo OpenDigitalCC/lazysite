@@ -27,8 +27,8 @@ sub route { my @r = main::cgi_target_for( $_[0], "$root/tools", $proc ); return 
 
 subtest 'a form post reaches the form handler, as on an installed site' => sub {
     my ( $t, $rel, $direct ) = @{ route('/cgi-bin/form-handler.pl') };
-    is( $t,   "$root/plugins/form-handler.pl", 'the plugin is the target' );
-    is( $rel, 'form-handler.pl',               'named as the installed link is' );
+    is( $t, "$root/plugins/form-handler.pl", 'the plugin is the target' );
+    is( $rel, 'form-handler.pl', 'named as the installed link is' ); # bare-name-on-purpose: the cgi-bin name
     ok( $direct, 'and it runs directly, not behind the auth wrapper (SM402)' );
 };
 
