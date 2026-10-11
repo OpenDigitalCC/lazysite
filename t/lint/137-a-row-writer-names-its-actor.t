@@ -80,4 +80,63 @@ cmp_ok( $checked, '>=', 3,
         . "which case this lint is now testing nothing and needs its "
         . "@WRITERS list updated, not removing." );
 
+# P21 (WORK-PLAN-0154): THE WRITERS MOVED INTO MODULES, SO THE CHECK FOLLOWS.
+#
+# The check above reads only the top-level scripts, by design: they are where a
+# verified identity lives. But since SM944 split the scripts, rows are also
+# written from lib/ - a connector's answer table, a form's table target, a site
+# package's restored data - each calling the store's writers directly, where no
+# surface's `$auth_user` reaches. Found when this was widened:
+# Manager::SitePackage restored every row with no author (created_by empty,
+# which means "written anonymously"); it now names the account restoring, as
+# Manager::Data's import does.
+#
+# The rule here is the call's: every call to a stamping writer of
+# Lazysite::Data::Tables - insert_row, update_row, import_rows - passes
+# `actor =>`, even when the value may be empty (a form submitted by nobody
+# signed in). delete_row stamps nothing and is not asked. The writers' own
+# module is not read; every other .pl and .pm the engine ships is. Paths are
+# judged BELOW the root, so a checkout under tmp/ reads the same files as the
+# main one.
+my @STAMPING = qw(insert_row update_row import_rows);
+my $calls_re = join '|', @STAMPING;
+my @FILES    = grep { -f } (
+    glob("$root/*.pl"), glob("$root/tools/*.pl"), glob("$root/plugins/*.pl"),
+);
+{
+    my @dirs = ("$root/lib");
+    while ( my $dir = shift @dirs ) {
+        opendir my $dh, $dir or next;
+        for my $e ( sort grep { !/^\./ } readdir $dh ) {
+            my $p = "$dir/$e";
+            if    ( -d $p )          { push @dirs,  $p }
+            elsif ( $p =~ /\.pm\z/ ) { push @FILES, $p }
+        }
+        closedir $dh;
+    }
+}
+
+my ( $sites, @nameless ) = (0);
+for my $path (@FILES) {
+    ( my $rel = $path ) =~ s{^\Q$root\E/}{};
+    next if $rel eq 'lib/Lazysite/Data/Tables.pm';    # the writers themselves
+    my $src = slurp($path);
+    next unless defined $src;
+    $src = join "\n", map { /^\s*#/ ? '' : $_ } split /\n/, $src;    # not in a comment
+    while ( $src =~ /(?<![\w:>\$])(?:Lazysite::Data::Tables::)?($calls_re)\s*(\((?:[^()]++|(?2))*\))/g ) {
+        my ( $name, $args ) = ( $1, $2 );
+        next if substr( $src, 0, $-[0] ) =~ /\bsub\s+\z/;            # a definition
+        $sites++;
+        my $line = 1 + ( () = substr( $src, 0, $-[0] ) =~ /\n/g );
+        push @nameless, "$rel:$line $name" unless $args =~ /\bactor\s*=>/;
+    }
+}
+is_deeply( \@nameless, [], 'every call to a stamping row writer names its actor' )
+    or diag( "These calls write rows with no `actor =>`, so created_by/updated_by "
+        . "are stamped empty - 'written anonymously' - whoever wrote them. Pass the "
+        . "identity the caller verified (it may be empty for an anonymous visitor):\n  "
+        . join( "\n  ", @nameless ) );
+cmp_ok( $sites, '>=', 6, 'the widened check found the module writers it exists to check (6 today)' )
+    or diag("Only $sites call(s) to @STAMPING were found - renamed, or the scan lost its files.");
+
 done_testing();

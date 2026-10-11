@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM989 (PENDING) **rows restored from a site package record who restored
+  them.** Applying a package that carried table data inserted every row with
+  no actor, so `created_by` read as written anonymously. They now record the
+  account that applied the package, as an import does. Found by lint 137,
+  which now holds every row-writing call in the modules, not only the
+  top-level scripts, to naming its actor.
+
 - install-plan (PENDING) **a dry run prints no uninitialised-value warnings.**
   `lazysite provision` and `install.pl --dry-run` printed "Use of uninitialized
   value" three times (install.pl ~1223): the plan prints each runtime path's

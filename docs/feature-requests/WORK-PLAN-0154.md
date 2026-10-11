@@ -66,7 +66,7 @@ questions below, and the next item starts.
 | --- | --- | --- | --- |
 | P19 | The coverage floor (`dist/config/coverage-floor`) names only the CGIs; the processor's 19 parts and the manager modules that left them are held to no floor | ruling: floors per moved file, or one floor over each former CGI's parts | S |
 | P20 | `_render_form` (forms.pm), `main` (the processor) and `render_content` (render.pm) are each hundreds of lines; they need a split that is not a pure move | plan first | L |
-| P21 | Lint 137 (a row writer names its actor) reads only the top-level `*.pl` files, by design; the writers now live in modules | widen it, with sabotage | XS |
+| P21 | Lint 137 (a row writer names its actor) reads only the top-level `*.pl` files, by design; the writers now live in modules | built (n398), SM989: lint 137 holds every insert_row/update_row/import_rows call in lib/, tools/, plugins/ and the root to `actor =>`; it found package_apply restoring rows as nobody, fixed | XS |
 | P22 | 31 filings still say "SHIPPED (PENDING)" after their release shipped | the release step stamps the version into the status-note, or a sweep does | S |
 | P23 | The nav parser stores a `javascript:` URL as written | ruling: refuse or neutralise unsafe schemes in `nav.conf` | XS |
 | P24 | The control API's `users` read sub-actions (including `verify-credential`) write no audit row when they fail; a crashing handler writes none on any surface | under SM943's rule (refusals and errors are audited) | S |

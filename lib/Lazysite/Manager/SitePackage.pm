@@ -772,7 +772,10 @@ sub package_apply {
             }
             my $n = 0;
             for my $row ( @{ $imp->{rows} } ) {
-                my $r = Lazysite::Data::Tables::insert_row( $DOCROOT, $table, $row );
+                # P21: as the account restoring, as Manager::Data's import
+                # stamps the importer - not as nobody (lint 137).
+                my $r = Lazysite::Data::Tables::insert_row( $DOCROOT, $table, $row,
+                    actor => $auth_user );
                 unless ( $r->{ok} ) {
                     push @data_skipped,
                         { table => $table, why => "row $n: $r->{error}" };
