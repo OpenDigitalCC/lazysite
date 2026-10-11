@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1-S20 (n278-n304) the processor; S21-S32 (n306-n341) the manager API's context and areas; ITEM 1 (n339, n342) rotating the auth secret only for the account asking (security). Next: S33."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1-S20 (n278-n304) the processor; S21-S32 (n306-n341) the manager API's context and areas; ITEM 1 (n339, n342) rotating the auth secret only for the account asking. S33 inventoried; its four mechanical branches built (n343), the rest held. Next: S33a once ruled."
 ---
 
 # Measured
@@ -163,6 +163,120 @@ ITEM 1 (n339) refused an empty account and recorded, found and not changed, that
 
 Built that way, the operator check narrowed one answer inside a request: the dispatcher's cookie gate for rotate-auth-secret asks `manage_config`, so a signed-in manager holding `manage_config` without `manage_users` rotated, and was refused. The release manager ruled the scope again (2026-10-11), in these words: Rotate scope - "manage_config may rotate": DROP the operator check (commit 5ad5a57d). Rebuild n342 as f0be925f + d45af2ef (+ whatever test-220 edits belong to the account check; remove the carol-refused-in-a-request and operator-only assertions; keep: named account outside a request refused, different account refused, the signed-in account itself rotates - carol with manage_config rotates through a real request). Then restack n343 on the rebuilt n342 by cherry-pick; confirm n343's own diff unchanged. Leave the Actions.pm cookie capability (manage_config) as is - it is now correct. CHANGELOG entry corrected (account check only).
 
+# S33: the inline dispatch branches, inventoried (2026-10-11)
+
+Measured on n341, the chain from `if ( $action eq 'list' )` to its `else` (tmp/sm944-s33-classify.pl, -owners.pl, -table.pl; tmp/sm944-s33-inventory.out, -table.out): 157 branches. 79 are one statement assigning `$result` from one call and are not listed. The 78 below hold 1,006 lines, comments included; Module is where the subs the branch calls are defined, the module its handler would join. Blocks names what keeps the body from moving verbatim into a module sub that reads only Manager::Common's request context: `params` reads `%params` and `body` the `_json_body()` memo (both script `my`, neither a context fact); `refuse` ends the request through the script's `_refuse` family (audit, respond, `exit`); `state` reads or writes a script `my` the audit block or the auth branch shares; `helper` calls a script-only helper (`_briefs`, `_connectors`, `_form_of_store`, `_domain_presentation_set`, `_users_tool_call`); `exit` and `audit` end the request or write the trail itself. Checks names the security decisions inside the branch: `caps` a capability, `confine` the domain, form, brief or scope rule or the instance-wide refusal, `token` a token/cookie split.
+
+Classes: **M** mechanical, reads only the context - built (n343). **A** the call and the reads of its arguments, nothing else: stays, since what would move is the parameter reads lint 58 publishes. **P** logic over the request's parameters: needs (1) below. **R** ends the request through `_refuse`: needs (2). **S** script state. **H** held by instruction - acl-set, and the auth flow (sessions and keys, the preview cookies). **T** one expression, no call.
+
+```datatable
+columns: Branch | Lines | Total | Code | Module | Blocks | Checks | Class
+widths: 3.2cm | 1.6cm | 0.9cm | 0.9cm | 2.2cm | 2.4cm | 2cm | 0.9cm
+tone: medium
+---
+save | 1156-1159 | 4 | 2 | Files | body | - | A
+acl-set | 1162-1265 | 104 | 45 | Files | body, params, state | - | H
+aliases-list | 1277-1287 | 11 | 6 | Domains, Files | params, refuse | confine | R
+cache-invalidate | 1304-1309 | 6 | 3 | Themes | params, refuse | confine | R
+domain-add | 1324-1342 | 19 | 16 | Domains | body, refuse | confine | R
+domain-alias-add | 1343-1364 | 22 | 15 | Domains | body, refuse | confine | R
+domain-set | 1365-1424 | 60 | 27 | Domains | body, refuse | caps, confine, token | R
+domain-remove | 1425-1432 | 8 | 4 | Domains | body, refuse | confine | R
+remap-save | 1434-1437 | 4 | 2 | Remap | body | - | A
+audit-trail-set | 1438-1441 | 4 | 2 | AuditTrail | body | - | A
+domain-preview | 1442-1445 | 4 | 2 | Domains | params, refuse | confine | R
+domain-check | 1446-1449 | 4 | 2 | Domains | params, refuse | confine | R
+brief-read | 1450-1472 | 23 | 13 | Briefs | helper, params, refuse | confine | R
+brief-append | 1473-1491 | 19 | 15 | Briefs | body, helper, params, refuse | confine | R
+briefs-migrate | 1492-1495 | 4 | 2 | Briefs | helper | - | A
+briefs-list | 1496-1505 | 10 | 7 | Briefs | helper | confine | M
+brief-delete | 1506-1534 | 29 | 17 | Briefs | body, helper, params, refuse | confine | R
+data-safety-export-read | 1541-1550 | 10 | 8 | Data | params | - | P
+data-safety-export-restore | 1551-1563 | 13 | 11 | Data | body, params | - | P
+data-safety-export-delete | 1564-1578 | 15 | 10 | Data | body, params | - | P
+data-table-drop | 1579-1620 | 42 | 13 | Data | body, params | - | P
+data-export | 1636-1649 | 14 | 8 | Data, Upload | params | - | P
+data-table-acl-set | 1671-1676 | 6 | 4 | Data | body, params | - | A
+data-table-save | 1680-1721 | 42 | 21 | Data | body, params, refuse | caps, token | R
+data-rebuild | 1722-1727 | 6 | 4 | Data | body, params | - | A
+data-row-save | 1731-1777 | 47 | 16 | Data | body, params | caps, token | P
+data-row-delete | 1778-1797 | 20 | 14 | Data | body, params | caps, token | P
+site-backup-create | 1801-1809 | 9 | 3 | SiteBackup | body, params | - | A
+site-backup-apply | 1813-1816 | 4 | 2 | SiteBackup | body | - | A
+site-export-primary | 1817-1820 | 4 | 2 | SiteBackup | body | - | A
+site-backup-delete | 1824-1827 | 4 | 2 | SiteBackup | body, params | - | A
+site-backup-download | 1828-1831 | 4 | 2 | SiteBackup | body, params | - | A
+config-set | 1832-1837 | 6 | 4 | Config | body, params | - | A
+bad-url-blocks | 1838-1838 | 1 | 0 | BadUrl | - | - | T
+bad-url-block | 1839-1860 | 22 | 16 | BadUrl, Util | body, params | - | P
+bad-url-unblock | 1861-1866 | 6 | 4 | BadUrl, Util | body, params | - | P
+themes-list-all | 1868-1878 | 11 | 4 | Themes | - | confine | M
+theme-activate | 1899-1913 | 15 | 6 | Themes | helper, params, refuse | confine | R
+layout-activate | 1914-1925 | 12 | 8 | Themes | helper, params, refuse | confine | R
+theme-delete | 1926-1936 | 11 | 4 | Themes | state | confine | S
+theme-copy | 1951-1954 | 4 | 2 | Themes | body | - | A
+layouts-repo-set | 1966-1969 | 4 | 2 | Layouts | body | - | A
+display-names | 1972-1975 | 4 | 2 | Users | body, params | - | A
+sessions-list, session-revoke, user-revoke, keys-list, key-revoke | 1977-2006 | 30 | 19 | Sessions | body, helper | caps, token | H
+plugin-enable | 2008-2011 | 4 | 2 | Plugins | body | - | A
+plugin-disable | 2012-2015 | 4 | 2 | Plugins | body | - | A
+plugin-read | 2016-2019 | 4 | 2 | Plugins | body, params | - | A
+plugin-save | 2020-2023 | 4 | 2 | Plugins | body, params | - | A
+plugin-action | 2040-2044 | 5 | 3 | Plugins | body, params | - | A
+nav-save | 2062-2075 | 14 | 3 | Nav | body, params | - | A
+start-page-set | 2087-2095 | 9 | 4 | StartPage | body | - | P
+connector-save | 2101-2104 | 4 | 2 | Connectors | body, helper | - | A
+connector-secret-set | 2105-2108 | 4 | 2 | Connectors | body, helper | - | A
+connector-delete | 2109-2112 | 4 | 2 | Connectors | body, helper | - | A
+connector-call | 2113-2145 | 33 | 15 | Auth::Settings, Connectors | body, helper | caps | P
+audit | 2151-2180 | 30 | 23 | Audit, AuditTrail | audit, params | caps, token | P
+handler-save | 2183-2192 | 10 | 5 | Handlers, Users | body | - | P
+handler-delete | 2193-2196 | 4 | 2 | Handlers, Users | body | - | A
+schedule-save | 2197-2203 | 7 | 5 | Handlers, Users | body | - | A
+schedule-delete | 2204-2207 | 4 | 2 | Handlers, Users | body | - | A
+form-targets-read | 2208-2211 | 4 | 2 | Handlers | params, refuse | confine | R
+form-submissions | 2212-2218 | 7 | 2 | Plugins | helper, params, refuse | confine | R
+form-submission | 2219-2223 | 5 | 2 | Plugins | helper, params, refuse | confine | R
+form-list | 2224-2236 | 13 | 9 | Plugins | - | confine | M
+form-delete | 2237-2257 | 21 | 13 | Plugins | body, params, refuse | confine | R
+form-submission-delete | 2258-2262 | 5 | 3 | Plugins | body, helper, params, refuse | confine | R
+form-submission-confirm | 2263-2267 | 5 | 3 | Plugins | body, helper, params, refuse | confine | R
+form-submissions-delete-bulk | 2268-2272 | 5 | 3 | Plugins | body, helper, params, refuse | confine | R
+form-submission-approve | 2273-2278 | 6 | 4 | Plugins | body, helper, params, refuse | confine | R
+form-targets-save | 2279-2286 | 8 | 4 | Handlers | body, params, refuse | confine | R
+form-uploads-save | 2287-2304 | 18 | 10 | Handlers | body, params, refuse | confine | R
+form-notify-save | 2305-2311 | 7 | 4 | Handlers | body, params, refuse | confine | R
+backup-list | 2318-2342 | 25 | 12 | Backups, Paths, SiteBackup | - | confine | M
+backup-delete | 2358-2361 | 4 | 2 | Backups | body, params | - | A
+backup-download | 2362-2377 | 16 | 11 | Backups, Paths, SiteBackup | params, refuse | confine | R
+preview-grant | 2381-2384 | 4 | 2 | Preview | exit, params | - | H
+preview-clear | 2385-2388 | 4 | 2 | Preview | exit | - | H
+(else) | 2391-2394 | 4 | 1 | - | - | - | T
+```
+
+Totals: M 4, A 28, P 13, R 26, S 1, H 4, T 2.
+
+## What blocks the rest
+
+1. **The parameters are not request facts.** `%params` (the query string) and the body memo behind `_json_body()` are script `my`, read by 69 of the 78 branches, by `_missing_required` before the chain and by the audit block after it. A handler that reads them verbatim needs them in Manager::Common's context.
+2. **A refusal ends the request.** 26 branches refuse through `_refuse_unreachable_domain`, `_refuse_unreachable_form`, `_refuse_unreachable_brief`, `_refuse_unscoped_token` or `_refuse`, which write an audit line naming the script's `$action`, `$path` and `_audit_detail` (over `$action_as_sent` and `$deprecated_spelling`), print, and `exit`. A module sub that called them would end any process that loads it.
+3. **Lints read the chain's text.** Lint 58 publishes each action's parameters by grepping its branch (acl-set's comments explain the grep's limits), lint 52 reads acl-set's `elsif ( exists $req->{path} )`, lint 77 the module a plugin-owned action dispatches into, lint 218 the caller checks. n343 widened 218's caller checks to read a branch with the subs it calls, and unit/lib/18's write-path registry to scan `dispatch_` handlers beside `action_`; 58 and 52 read branch text only and must follow before any parameter-reading branch moves.
+4. **Script state.** acl-set writes `$ACL_AUDIT_BEFORE`/`$ACL_AUDIT_AFTER`, which the audit block reads after the chain; theme-delete reads `$RESTRICT_THEME_DELETE`, set in the token branch of the auth check (a request fact in all but name).
+
+## Built: the mechanical branches (n343)
+
+The four M branches, each a listing filtered by the caller's reach, moved with their statements unchanged into a `dispatch_<action>` handler beside the call they wrap: themes-list-all (Manager::Themes), form-list (Manager::Plugins), briefs-list (Manager::Briefs, after the `_briefs()` that stays in the branch), backup-list (Manager::SiteBackup, which holds the package refusal it filters by and already loads Backups). Each handler's only new statements are `my $result;` and `return $result;`. Details under Built, S33 (n343).
+
+## Held, with recommendations (need a ruling)
+
+- **S33a, the parameters into the context** (recommended before any P or R branch): `%params` and the body memo join Manager::Common's request context under their script names, the memo's filler `_json_body` moving with it (the S22b shape: the reset empties both, lint 217 holds them as the twelfth and thirteenth facts, the script fills `%params` where it parses the query string and nothing else writes either); lint 58 and lint 52 read a branch with the subs it calls (lint 218's `with_callees`), sabotaged. The alternative - each handler takes `\%params` and the decoded body as arguments - makes the first line of every handler differ from its branch.
+- **The refusal path** (R): recommended that a branch's refusal calls stay inline at the head of the branch and only what follows moves. For 16 of the 26 that leaves one call and nothing to extract, so they stay whole. The ten where the refusals interleave with logic (aliases-list's choice of domain, domain-set's access-key block, data-table-save's `writable_by` check, brief-read, brief-append and brief-delete, theme-activate and layout-activate's host form, form-delete's confirmation check, backup-download) stay inline too unless `_refuse` itself moves into Common - which would need its audit inputs (`$action_as_sent`, `$deprecated_spelling`) as context facts and, outside a request, a refusal that dies rather than exits. Not recommended now: the gain is small and the mechanism new.
+- **acl-set** (104 lines, 59 of them comments): after S33a, its three argument refusals (SM306 path required, SM479 path in the body, lists in the query) and its four field reads move to Manager::Files as `dispatch_acl_set`, which returns the result with the before and after rules; the branch becomes `( $result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER ) = dispatch_acl_set();` (one line differs from the moved text), and lints 58 and 52 read it there. The audit pair stays the script's, read by the audit block. Outside a request `action_acl_set` already refuses through the ACL layer (a caller owning nothing); test 205 would pin it. Alternative: acl-set stays inline as the documented exception.
+- **sessions and keys** (auth flow, one branch for five actions): its gate refuses a cookie session without `manage_users` and passes a token client, which the dispatcher's token gate has already refused. The reset leaves a token client, so moved verbatim the handler would pass its gate outside a request and list sessions or keys, or revoke one, for nobody. Recommended: after S33a, `_users_tool_call` into Manager::Users beside the users-tool client, the branch into Manager::Sessions as `dispatch_sessions_keys` with the established refusal of an empty account first (own commit, same answer inside a request, refusal outside and after a reset, sabotage).
+- **preview-grant and preview-clear**: each one call then `exit 0`, which is the script's; nothing to extract.
+- **theme-delete** (S): `$RESTRICT_THEME_DELETE` is set exactly where the token branch authenticates; recommended that the handler reads `$token_auth` (or the flag joins the context), a ruling since the two could diverge if the token branch changes.
+- **audit** (P): after S33a it moves to Manager::AuditTrail; outside a request its cookie gate is skipped (the reset leaves a token client) and `action_audit` refuses an empty account (S31), so it is fail-closed.
+
 # Built
 
 S1 (n278)
@@ -272,3 +386,6 @@ S32 (n341)
 
 ITEM 1, the account asking (n342)
 : as ruled 2026-10-11 ("Yes, same as whoami"), with its scope ruled again the same day ("manage_config may rotate"), built from n341. `action_rotate_auth_secret` refuses unless its account is the request's own `$auth_user` (Users holds no per-module copy, so the bare name is Common's fact), before /dev/urandom opens: inside a request the dispatcher passes `$auth_user`, so the answer is the same (t/journey/02 and t/integration/114 pass unchanged). The operator check first built beside it (5ad5a57d) is dropped as ruled: it refused a signed-in manager holding `manage_config` without `manage_users`, whom the dispatcher's cookie gate lets through (tmp/sm944-n342-inrequest-probe.pl, -n341.out, -n342.out); `Lazysite::ControlApi::Actions` declares that capability, which the ruling finds correct, and is unchanged. Test 220: a named account outside a request and another account than the one asking are refused, the secrets untouched; the account asking rotates, and a reset refuses again; carol (`manage_config`, not `manage_users`) rotates through a real request. Sabotage (tmp/sm944-n342-sab.sh asking, tmp/sm944-n342r-sab-asking.out): the refusal removed fails 220 while journey/02 and 114 pass.
+
+S33, the mechanical branches (n343)
+: built from n342 after the inventory above. First the readers that would lose sight of moved logic: lint 218's caller checks (theme-delete, backup-list, backup-download) read a branch with the bodies of the subs it calls, and a fourth holds themes-list-all's acts_on, which no check held; unit/lib/18's write-path registry scans `dispatch_` handlers beside `action_`, so a writer cannot leave it by moving out of the chain. Then four extractions, one commit each: themes-list-all into Manager::Themes, form-list into Manager::Plugins, briefs-list into Manager::Briefs (its `_briefs();` stays in the branch, which calls the handler by full name after it, so lint 77 still reads the module from the branch), backup-list into Manager::SiteBackup (where the package refusal it filters by lives; Backups cannot load SiteBackup back). Each body moved unchanged (tmp/sm944-moved-check.pl: 9, 11, 7 and 23 lines; tmp/sm944-s33-*-moved-check.out), wrapped as `sub dispatch_<action> { my $result; ... return $result; }` by tmp/sm944-s33-move.pl, and deparses the same as its branch body on n342 compiled in the same package (tmp/sm944-s33-deparse-handler.pl; -*-deparse.out). The modules export the handlers; the script imports them and drops its imports of `action_themes_list_all`, `action_form_list` and `action_backup_list`, which nothing left in it calls. Probed outside a request (tmp/sm944-s33-refusal-probe.pl, .out): form-list, briefs-list and backup-list list nothing, the reset leaving a caller confined to no scope (the S22 and S27 precedent: unchanged); themes-list-all answers the theme library, a site fact theme-list and MCP's list_themes also answer, and names no domain to activate on - unchanged. Test 205 pins all four outside a request, with boss's context and after the reset. Sabotage (tmp/sm944-s33-sab.sh, -sab.out, -sab-2.out), each restored by cp and checked with cmp: each filter dropped fails 205, lint 218 and the request test driving it (114, 112, 116); a handler not imported fails 116; a `dispatch_` handler unclassified fails unit/lib/18; a changed statement makes the deparse comparer report DIFFERENT. Not one of the 78 listed branches touched CSRF or the auth flow in this group.

@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: four listing branches of the manager API's
+  dispatch are handlers in their area modules** (S33 of the plan in the
+  filing, which inventories the 78 branches holding logic). themes-list-all,
+  form-list, briefs-list and backup-list - each a listing filtered by the
+  caller's reach - move with their statements unchanged into
+  `dispatch_<action>` handlers in Manager::Themes, Manager::Plugins,
+  Manager::Briefs and Manager::SiteBackup; no answer changes. Lint 218 reads
+  the caller checks with the subs a branch calls, and now holds
+  themes-list-all's acts_on; the content-history write-path registry scans
+  the handlers. Test 205.
+
 - SM944 (PENDING) **security hardening: the auth secret is rotated only for the
   account that is asking** (WORK-PLAN-0153 Q14, ruled 2026-10-11, "Yes, same as
   whoami", scope ruled "manage_config may rotate"). The earlier fix refused an
