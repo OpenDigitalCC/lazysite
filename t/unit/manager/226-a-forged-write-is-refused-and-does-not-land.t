@@ -97,6 +97,10 @@ sub api {
     $ENV{HTTP_X_REMOTE_GROUPS}  = 'managers';
     $ENV{LAZYSITE_AUTH_TRUSTED} = 1;
     $ENV{LAZYSITE_USERS_TOOL}   = "$root/tools/lazysite-users.pl";
+    # The site's own copy of a plugin finds the module tree only beside an
+    # install; prove -l passes it on as PERL5LIB and a plain `perl t/...` run
+    # does not, so plugin-save's control found no tree and did not land there.
+    $ENV{PERL5LIB} = join ':', "$root/lib", grep { defined && length } $ENV{PERL5LIB};
     $ENV{LAZYSITE_LOG_LEVEL}    = $o{log_level} if defined $o{log_level};
     $ENV{HTTP_X_CSRF_TOKEN} = hmac_sha256_hex( 'csrf:admin:' . int( time() / 3600 ), $secret ) if $o{token};
     open my $err, '>', "$ERRDIR/stderr" or die $!;
