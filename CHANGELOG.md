@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: the request's parameters and its body join the
+  manager request context** (S33a of the plan in the filing, as the release
+  manager ruled on 2026-10-11, "Yes, S33a then groups"). `%params` and the
+  body memo behind `_json_body` move from the manager API's file scope into
+  `Lazysite::Manager::Common`, emptied by its reset so a long-lived process
+  cannot hand one request's parameters or body to the next; `_json_body` moves
+  with them unchanged. Lint 217 holds them as context facts; lints 58 and 52
+  read a dispatch branch with the handlers it calls, so a branch body can move
+  into its area module. No answer changes. Test 205.
+
 - SM944 (PENDING) **internal: four listing branches of the manager API's
   dispatch are handlers in their area modules** (S33 of the plan in the
   filing, which inventories the 78 branches holding logic). themes-list-all,
