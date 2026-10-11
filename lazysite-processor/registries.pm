@@ -242,11 +242,14 @@ sub _page_url {
 # reads - cannot be read. Docroot-relative, as a page is named everywhere else
 # in the log.
 sub _scan_page_unreadable {
-    my ( $path, $why, $part ) = @_;
+    my ( $path, $why, $part, $verb ) = @_;
     $part //= 'front matter';
+    $verb //= 'read';              # P25: 'opened', for a page the walk could not open
     ( my $rel = $path ) =~ s{^\Q$DOCROOT\E/*}{};
     $why =~ s/\s+at \S+ line \d+.*//s;
-    log_event( 'WARN', 'scan', "a page whose $part cannot be read is left out", page => $rel, error => $why );
+    $why =~ s/\Q$path\E/$rel/g;    # P25: read_file's message names the server path
+    $why =~ s/\s+\z//;
+    log_event( 'WARN', 'scan', "a page whose $part cannot be $verb is left out", page => $rel, error => $why );
     return;
 }
 
@@ -323,7 +326,14 @@ sub resolve_scan {
         # reading dies (bytes that are not UTF-8, put there by git or SSH) is
         # left out and logged - it renders nothing itself - so one such page
         # cannot fail every page whose scan reaches it.
-        my $raw = read_file($path);
+        #
+        # P25 (WORK-PLAN-0154): and a page it cannot OPEN (permissions), whose
+        # read_file died outside this guard.
+        my $raw = eval { read_file($path) };
+        unless ( defined $raw ) {
+            _scan_page_unreadable( $path, $@ || 'unknown', 'file', 'opened' );
+            next;
+        }
         my ($meta) = eval { parse_yaml_front_matter($raw) };
         if ( my $why = $@ ) {
             _scan_page_unreadable( $path, $why );
@@ -996,7 +1006,12 @@ sub scan_pages {
             elsif ( $entry =~ /\.(md|url)$/ ) {
                 my $raw;
                 if ( $entry =~ /\.md$/ ) {
-                    $raw = read_file($path);
+                    # P25: a page it cannot open is left out and named.
+                    $raw = eval { read_file($path) };
+                    unless ( defined $raw ) {
+                        _scan_page_unreadable( $path, $@ || 'unknown', 'file', 'opened' );
+                        next;
+                    }
                 }
                 else {
                     # For .url files read the cached .html front matter isn't

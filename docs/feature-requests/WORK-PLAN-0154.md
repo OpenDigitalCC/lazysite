@@ -70,7 +70,7 @@ questions below, and the next item starts.
 | P22 | 31 filings still say "SHIPPED (PENDING)" after their release shipped | the release step stamps the version into the status-note, or a sweep does | S |
 | P23 | The nav parser stores a `javascript:` URL as written | ruling: refuse or neutralise unsafe schemes in `nav.conf` | XS |
 | P24 | The control API's `users` read sub-actions (including `verify-credential`) write no audit row when they fail; a crashing handler writes none on any surface | under SM943's rule (refusals and errors are audited) | S |
-| P25 | The scan's page read still dies on a page it cannot open (permissions), outside the encoding rule | name it and skip, as Q15i did for encoding | XS |
+| P25 | The scan's page read still dies on a page it cannot open (permissions), outside the encoding rule | built (n399), SM990: both walks open the page inside the Q15h guard; left out, logged by relative path with the reason | XS |
 
 # Not in the queue, and why
 

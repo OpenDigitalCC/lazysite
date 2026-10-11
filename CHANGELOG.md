@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM990 (PENDING) **a page a scan cannot open is left out, not fatal.** A page
+  the serving user may not read (a file copied in by root with mode 0600) made
+  every page whose `scan:` reached it, and the sitemap, answer 500. The scan
+  and the registries now leave it out and log it by its path with the reason,
+  as they do for a page that is not UTF-8. t/unit/processor/98.
+
 - SM989 (PENDING) **rows restored from a site package record who restored
   them.** Applying a package that carried table data inserted every row with
   no actor, so `created_by` read as written anonymously. They now record the
