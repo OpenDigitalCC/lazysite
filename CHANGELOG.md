@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- pdf-tests (PENDING) **internal: the PDF tests no longer fail on a loaded host.**
+  t/unit/plugins/40 and 41 assert that a render succeeds, and under a host
+  load of about 17-23 a render outlasted the plugin's 20 s ceiling and was
+  killed. They widen the ceiling for themselves (the plugin's
+  `$TIMEOUT_SECONDS` is now a package variable; production keeps 20 s), and
+  40 asserts the ceiling itself with a converter that never finishes.
+
 - bad-url-blocker (PENDING) **the "Block this address" field is there when no address is
   blocked** (ruled 2026-10-11: "Always show the field"). On the bad-URL
   blocker's card, Blocked addresses, the field to block an address by hand was

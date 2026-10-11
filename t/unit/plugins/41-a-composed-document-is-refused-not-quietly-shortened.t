@@ -31,6 +31,15 @@ my $plug = "$FindBin::Bin/../../../plugins/pandoc.pl";
 plan skip_all => "no $plug" unless -f $plug;
 require $plug;
 
+# THE RENDER IS ASSERTED HERE, NOT THE PRODUCTION CEILING (n355). Under a host
+# load of about 17 or more a composed render outlasted the plugin's 20 s, was
+# killed, and "the document converts" failed while this file passed alone.
+# t/unit/plugins/40 asserts the ceiling itself.
+{
+    no warnings 'once';
+    $main::TIMEOUT_SECONDS = 300;
+}
+
 sub site {
     my $d = tempdir( CLEANUP => 1 );
     make_path( "$d/lazysite/cache", "$d/lazysite/brands/house", "$d/docs" );

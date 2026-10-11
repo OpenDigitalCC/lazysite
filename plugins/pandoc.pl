@@ -74,7 +74,14 @@ BEGIN {
 # Manager::Plugins applies to its --describe budget: measurement must not
 # alter behaviour, so the instrumented process gets a proportionate ceiling
 # and production keeps 20 s.
-my $TIMEOUT_SECONDS = 20;
+# n355: `our`, so a test that asserts a render SUCCEEDS can widen it. Under a
+# host load of about 17-23 on eight cores (the release gate beside other work)
+# a render that takes 9 s alone took over 20 s, the alarm killed it (exit 15),
+# and t/unit/plugins/40 and 41 failed on "a page converts" while passing alone.
+# What those subtests assert is the render, not this ceiling; 40 asserts the
+# ceiling separately, with a stand-in converter that never finishes. Nothing
+# from a request reaches this value.
+our $TIMEOUT_SECONDS = 20;
 $TIMEOUT_SECONDS = 90
     if $INC{'Devel/Cover.pm'} || ( $ENV{PERL5OPT} // '' ) =~ /Devel::Cover/;
 my $MAX_INPUT_BYTES = 512 * 1024;

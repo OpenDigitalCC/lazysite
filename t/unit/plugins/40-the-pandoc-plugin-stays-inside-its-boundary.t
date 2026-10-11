@@ -20,10 +20,23 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(site_tempdir);
 
 my $plug = "$FindBin::Bin/../../../plugins/pandoc.pl";
 plan skip_all => "no $plug" unless -f $plug;
 require $plug;
+
+# THE RENDER IS ASSERTED HERE, NOT THE PRODUCTION CEILING. The plugin kills a
+# conversion after 20 s; under a host load of about 17 or more on this machine
+# a render that takes 9 s alone took longer, was killed (exit 15), and "a page
+# converts" failed while the file passed alone. The ceiling is asserted on its
+# own below, with a stand-in converter that never finishes.
+my $PRODUCTION_CEILING = $main::TIMEOUT_SECONDS;
+{
+    no warnings 'once';
+    $main::TIMEOUT_SECONDS = 300;
+}
 
 my $src = do { open my $fh, '<', $plug or die $!; local $/; <$fh> };
 
@@ -148,6 +161,38 @@ subtest 'the work is bounded, because there is no queue to put it in' => sub {
     like( $code, qr/\$MAX_INPUT_BYTES/,  'and the input is size-capped' )
         or diag( 'This runs inside the request. Without a cap a large page is a '
             . 'denial of service against the manager.' );
+};
+
+# n355: the ceiling the tests above widen is the one the alarm arms. A
+# converter that never finishes is stopped at it and the conversion refused -
+# proven with a stand-in, so it holds on a host without md-to-pdf and at any
+# load. Were the plugin's variable a lexical again, the widening above would
+# silently do nothing, and this would wait out the stand-in instead.
+subtest 'the ceiling stops a converter that never finishes' => sub {
+    is( $PRODUCTION_CEILING,
+        ( $INC{'Devel/Cover.pm'} || ( $ENV{PERL5OPT} // '' ) =~ /Devel::Cover/ ) ? 90 : 20,
+        'production keeps its ceiling (20 s; 90 s under instrumentation)' );
+
+    my $d = site_tempdir();
+    ( my $t = $d ) =~ s{/site/public_html\z}{};
+    make_path( "$d/lazysite/cache", "$d/docs", "$t/bin" );
+    open my $sb, '>', "$t/bin/md-to-pdf" or die $!;
+    print {$sb} "#!/bin/sh\nexec sleep 60\n";
+    close $sb;
+    chmod 0755, "$t/bin/md-to-pdf";
+    open my $f, '>', "$d/docs/page.md" or die $!;
+    print {$f} "---\ntitle: Slow\n---\n\n# Slow\n";
+    close $f;
+
+    local $ENV{PATH} = "$t/bin:$ENV{PATH}";
+    local $main::TIMEOUT_SECONDS = 2;
+    my $t0   = time;
+    my $r    = main::convert( docroot => $d, path => 'docs/page.md' );
+    my $took = time - $t0;
+    ok( !$r->{ok}, 'the conversion is refused' );
+    cmp_ok( $took, q{<}, 15, "and it ended at the ceiling ($took s), not with the converter" )
+        or diag( 'The alarm is not armed with the variable this test sets, '
+            . 'or it does not kill the converter.' );
 };
 
 done_testing();
