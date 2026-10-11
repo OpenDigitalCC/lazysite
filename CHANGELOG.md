@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM986 (PENDING) **a setup link refused over plain HTTP says so.** The claim
+  page answered a password set over http from another machine with "That
+  setup link is invalid or has expired", the answer for a bad or used link, so
+  the person asked for another link, which failed the same way. The refusal
+  now has its own answer: a password can only be set over HTTPS, and the link
+  has not been used. It says nothing about whether the account or link exists.
+  t/unit/auth/26.
+
 - SM985 (PENDING) **a code block can show `:::` syntax.** The `:::` passes
   (components, boxes, include, forms, oembed) ran before code blocks were
   converted, so a ``` block showing how a component is written rendered the

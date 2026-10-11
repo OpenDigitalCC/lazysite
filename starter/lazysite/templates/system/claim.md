@@ -52,7 +52,13 @@ query_params:
   }
 </style>
 
-[% IF query.error %]
+[% IF query.error == 'https' %]
+
+<p class="auth-error">A password can only be set over a secure (HTTPS)
+connection. This link has not been used: open it again with an address that
+begins <code>https://</code>, or ask your site operator for one that does.</p>
+
+[% ELSIF query.error %]
 
 <p class="auth-error">That setup link is invalid or has expired. Setup links
 work once and are short-lived &mdash; ask your site operator for a new one.</p>

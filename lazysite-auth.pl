@@ -610,9 +610,14 @@ sub handle_claim {
     my $ip   = _request_ip();
 
     # HTTPS-only (setting a secret); localhost allowed for dev/CLI.
+    #
+    # P7 (WORK-PLAN-0154): ITS OWN ANSWER. This shared error=1 with a bad or
+    # used link, so the page said the link had expired and the person asked for
+    # another, which failed the same way. Refused before the link or the
+    # account is looked at, so error=https says nothing about either.
     unless ( _secure_transport($peer) ) {
         log_event( 'WARN', $username, 'claim over plaintext refused', ip => $ip );
-        redirect("/claim?u=$username&error=1");
+        redirect("/claim?u=$username&error=https");
         return;
     }
 
