@@ -709,7 +709,7 @@ subtest 'themes-list-all returns themes grouped by layout' => sub {
         layouts => ['studio'], config => {} });
     close $sj;
 
-    my $r = main::action_themes_list_all();
+    my $r = Lazysite::Manager::Themes::action_themes_list_all();
     ok( $r->{ok}, 'ok' );
     is( $r->{active},        'alpha',   'active theme echoed' );
     is( $r->{active_layout}, 'default', 'active layout echoed' );
@@ -728,7 +728,7 @@ subtest 'themes-list-all: empty when no themes installed' => sub {
     write_conf("site_name: Test\nlayout: default\n");
     clean_installed_themes();
 
-    my $r = main::action_themes_list_all();
+    my $r = Lazysite::Manager::Themes::action_themes_list_all();
     ok( $r->{ok}, 'ok' );
     is_deeply( $r->{themes}, [], 'empty themes array' );
     is( $r->{active_layout}, 'default', 'active layout still reported' );
@@ -745,7 +745,7 @@ subtest 'themes-list-all: no active layout' => sub {
         layouts => ['default'], config => {} });
     close $aj;
 
-    my $r = main::action_themes_list_all();
+    my $r = Lazysite::Manager::Themes::action_themes_list_all();
     ok( $r->{ok}, 'ok' );
     is( scalar @{ $r->{themes} }, 1, 'theme still listed' );
     is( $r->{active_layout}, '', 'active_layout empty' );
