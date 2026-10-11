@@ -144,9 +144,13 @@ sub writes {
             qr/\@$n\s*\{[^}]*\}\s*=(?![=~>])/, qr/\bundef\s*\(?\s*$v/;
     }
     # local of the whole variable or of one element; and (bare names only) a
-    # my/our/state of the same name, which would shadow the fact.
-    push @re, qr/\blocal\b\s*(?:\([^)]*?)?[\$\@%]$n\b/, qr/\blocal\s+\$$n\s*[\[\{]/;
-    push @re, qr/$dec[\$\@%]$n\b(?!\s*(?:\[|\{|::))/ if $prefix eq '';
+    # my/our/state of the same name, which would shadow the fact. By the fact's
+    # own sigil (SM944 S33): a sub's `my $params` argument is a scalar beside
+    # the %params fact, not a copy of it - Manager::AuditTrail's target derivers
+    # take one, and import %params for the audit branch's handler.
+    my $sq = quotemeta $s;
+    push @re, qr/\blocal\b\s*(?:\([^)]*?)?$sq$n\b/, qr/\blocal\s+\$$n\s*[\[\{]/;
+    push @re, qr/$dec$sq$n\b(?!\s*(?:\[|\{|::))/ if $prefix eq '';
     my @hits;
     my $ln = 0;
     for my $line ( split /\n/, $code, -1 ) {
