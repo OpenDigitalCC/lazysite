@@ -17,8 +17,10 @@
 # HOW. Each action gets a fresh copy of one prepared site. The forged POST (no
 # token) is sent first and must answer 403 `forbidden` with the CSRF error, set
 # no cookie, leave every file of the site as it was (the whole site directory -
-# the docroot and its siblings - by content, size and mode; the logs directory
-# is compared on its own) and add no row to the audit trail. Then the SAME
+# the docroot and its siblings - by content, size and mode; the audit log is
+# compared on its own) and add exactly one row to the audit trail: the refusal,
+# denied by the CSRF gate (csrf-audit, ruled 2026-10-11; t/unit/manager/227
+# holds its content). Then the SAME
 # request carrying a valid token is sent - the control - and must do what the
 # refusal is asserted to have prevented, or "did not land" would be measuring
 # nothing:
@@ -29,8 +31,8 @@
 #   ran      - the control changed no file but its handler ran and wrote an
 #              audit row: its effect is not observable here (it calls out to the
 #              network or a program, or needs state the test does not build).
-#              The forged POST is held to "no audit row" - the handler never
-#              ran - the weaker check. Those actions are %RAN_ONLY, each with
+#              The forged POST is held to "no audit row but the refusal's" -
+#              the handler never ran - the weaker check. Those actions are %RAN_ONLY, each with
 #              why, so the weaker check is a decision written down; an action
 #              listed there that lands fails, so the list cannot go stale.
 #
@@ -398,9 +400,14 @@ for my $action (@actions) {
     is_deeply( \@diff, $PRE_GATE_WRITE{$action} || [],
         "$action: ... and changes no file of the site" . ( $PRE_GATE_WRITE{$action} ? ' but the one F-1 names' : '' ) )
         or diag "changed: @diff";
-    my @a1 = audit_rows($doc);
-    is( scalar(@a1), scalar(@a0), "$action: ... and the handler never ran (no audit row)" )
-        or diag join "\n", @a1[ scalar(@a0) .. $#a1 ];
+    my @a1   = audit_rows($doc);
+    my @rows = @a1[ scalar(@a0) .. $#a1 ];
+    # (The plugin-* names are the deprecated spellings of extension-*, which
+    # every audit row of theirs says.)
+    is( scalar( grep { !/\| \Q$action\E \|.*\| fail \| ui \| denied: csrf(?:; spelling=deprecated)?$/ } @rows ), 0,
+        "$action: ... and the handler never ran (no audit row but the refusal's)" )
+        or diag join "\n", @rows;
+    is( scalar(@rows), 1, "$action: ... and the refusal is audited once" ) or diag join "\n", @rows;
 
     # The control: the same request with a valid token.
     my $mid = snapshot($doc);

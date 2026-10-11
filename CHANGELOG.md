@@ -115,6 +115,16 @@ Archive
   `fields: ["email"]`, answered from the settings store in one read (0.27 s for
   700 generated accounts, from 26.7 s), and refuses on an unreadable store.
   t/unit/users/50, t/unit/manager/240.
+- csrf-audit (PENDING) **a write refused for its CSRF token is recorded in the
+  audit trail** (ruled 2026-10-11: "Audit refusals"). A POST from a signed-in
+  manager session without a valid CSRF token - what a cross-site page sends - was
+  refused and left no audit line, and at the default log level no log line
+  either, so an operator could not see it had been tried. Each refusal now writes
+  one audit row, as the other gates' refusals do: the account, the action, the
+  path, `fail`, `ui` and `denied: csrf`. The token is never recorded, nor any
+  part of it. The answer is unchanged (403, "Invalid or missing CSRF token").
+  t/unit/manager/227.
+
 - SM944 (PENDING) **internal: the CSRF gate is Manager::Csrf's** (S34 of the
   plan in the filing, ruled 2026-10-11). `csrf_refusal($method)` returns the
   refusal and the manager API ends the request on it, at the gate's old place;

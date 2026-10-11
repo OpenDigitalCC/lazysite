@@ -566,7 +566,13 @@ $IS_OPERATOR = undef;    # SM516 MO-3: the memo behind _operator(), empty until 
 # Going by method rather than an action allowlist means we cannot
 # accidentally leave a new read action out of the list.
 my $method = $ENV{REQUEST_METHOD} // 'GET';
-if ( my $refusal = csrf_refusal($method) ) { _bail($refusal) }  # SM944 S34: Manager::Csrf
+# csrf-audit (ruled 2026-10-11, "Audit refusals"): A CSRF REFUSAL IS AUDITED, as
+# a denied request, the way every later gate's refusal is - one row naming the
+# account and the action. It ended through _bail, which records nothing, so a
+# cross-site write tried against a signed-in manager left no trace at the
+# default log level. The token is never recorded: _refuse writes the account,
+# the action, the path, the address and the reason, nothing the request carried.
+if ( my $refusal = csrf_refusal($method) ) { _refuse( $refusal, 'ui', 'denied: csrf' ) } # SM944 S34: Manager::Csrf
 
 # Per-action csrf-token read
 if ( $action eq 'csrf-token' ) {

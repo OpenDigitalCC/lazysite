@@ -121,7 +121,7 @@ my $gate = do { open my $fh, '<', "$root/lib/Lazysite/Manager/Csrf.pm" or die $!
 like( $gate, qr/if \(\s*\$method eq 'POST' && !\$token_auth\s*\)/,
     'the CSRF gate keys on the HTTP method, so no write action can be omitted' );
 like( $gate, qr/verify_csrf_token\(/, 'the gate verifies the CSRF token' );
-like( $src, qr/^if \( my \$refusal = csrf_refusal\(\$method\) \) \{ _bail\(\$refusal\) \}/m,
-    'the script asks the gate with the request method and ends the request on its refusal' );
+like( $src, qr/^if \( my \$refusal = csrf_refusal\(\$method\) \) \{ _refuse\( \$refusal, 'ui', 'denied: csrf' \) \}/m,
+    'the script asks the gate with the request method and ends the request on its refusal, audited (t/unit/manager/227)' );
 
 done_testing();
