@@ -20,7 +20,7 @@ use Lazysite::Auth::Settings ();
 
 our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
     _is_operator _acl_denied groups_for_user may_read_any_rule file_rule_bypass
-    gating_for root_gating);
+    gating_for root_gating placement_for relocating_key);
 
 our $DOCROOT;    # set by the script
 
@@ -539,6 +539,60 @@ sub rule_keys_touching {
             || index( "$r/", "$n/" ) == 0;
     }
     return \@keys;
+}
+
+# SM981 (ruled 2026-10-11, "Land where save would"): WHICH TREE DO THIS PATH'S
+# BYTES BELONG IN, by the rules - 'private', 'public', or 'unknown' (the store
+# exists and cannot be read; a mover must not move on that, as gating_for says).
+#
+# A rule RELOCATES content when it carries a read list or `draft` (SM286: setting
+# either moves the section out of the document root; the site-wide rule never
+# does - the docroot cannot be moved into its own sibling). The bytes of a path
+# belong in the private store when ANY rule that governs it relocates: its own,
+# its page stem's (a folder's rule covers its landing page, SM268 H14), or an
+# ancestor folder's.
+#
+# Why not gating_for: that answers READ gating only, and a draft section with no
+# read list relocates too. Why not the path's own record: that is the defect.
+# The movers judged placement by the moved path's OWN rule, so a file carrying an
+# owner-only rule (every copy gets one) moved INTO a draft or read-gated folder
+# was moved OUT of the store again - "this rule does not gate" - and landed in the
+# document root, where a front end serves it; a draft folder with no read list
+# then served it to anyone, because the owner-only entry also hid the folder's
+# draft flag from the processor. Owner and write lists say who edits; they say
+# nothing about where the bytes live.
+sub placement_for {
+    my ( $docroot, $rel ) = @_;
+    return 'unknown' unless defined $rel;
+    local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
+    my ( $map, $state ) = _acl_map_or_state();
+    return ( $state eq 'open' ? 'public' : 'unknown' ) unless ref $map eq 'HASH';
+    return relocating_key( $map, $rel ) ? 'private' : 'public';
+}
+
+# The key of a rule that relocates $rel's content (see placement_for), or undef.
+# The nearest is returned, for a caller that names it; any one decides.
+sub relocating_key {
+    my ( $map, $rel ) = @_;
+    $rel = _acl_norm($rel) // '';
+    $rel =~ s{/+\z}{};
+    return undef unless length $rel;
+    my $stem = $rel =~ m{\A(.+)\.(?:md|url|html)\z} ? $1 : undef;
+    my ( $best, $best_len );
+    for my $k ( keys %$map ) {
+        my $e = $map->{$k};
+        next unless ref $e eq 'HASH';
+        next unless $e->{draft} || ( ref $e->{read} eq 'ARRAY' && @{ $e->{read} } );
+        ( my $p = $k ) =~ s{\A/+}{};
+        $p =~ s{/+\z}{};
+        next unless length $p;    # the site-wide rule relocates nothing
+        next unless $p eq $rel
+            || ( defined $stem && $p eq $stem )
+            || index( $rel, "$p/" ) == 0;
+        next if defined $best_len && length($p) <= $best_len;
+        ( $best, $best_len ) = ( $k, length $p );
+    }
+    return $best;
 }
 
 # SM882: is EVERY page under this root gated? The invariant the release manager

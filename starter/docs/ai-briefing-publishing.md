@@ -247,6 +247,14 @@ found nothing - so check the key before concluding a feature is broken.
   (owner-only; since SM979 a holder of `manage_users` is no exception - only
   the CLI as `local` is). Needs `webdav`.
 
+A file that arrives in a folder whose rule holds content back (a read list, or
+`draft`) lands in the private store however it arrives - `save`, `move`, `copy`,
+`file-upload`, MCP `move_file` / `copy_file` / `upload_file`, WebDAV `PUT` /
+`MOVE` / `COPY` - and stays there if its own rule changes (SM981). Taking a post
+down by moving it into a draft folder is safe. A folder found in both trees is
+repaired by `lazysite acl reapply --apply`, which keeps the private copy of
+anything both hold and moves the public one aside to `lazysite/displaced/`.
+
 `config-set` (POST)
 : `key=<name>` and `value=<…>` (query string or JSON body). Sets one
   allowlisted site-config key in `lazysite.conf` - currently `site_name`,

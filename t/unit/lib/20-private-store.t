@@ -18,6 +18,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Private
     qw(private_root private_path resolve is_private move_in move_out stray_public);
+use Lazysite::Paths ();
 
 my $base = tempdir( CLEANUP => 1 );
 my $doc  = "$base/public_html";
@@ -112,12 +113,19 @@ subtest 'a path is never in both trees' => sub {
         'resolution prefers the governed copy, so the stray stays visible as a '
             . 'fault instead of quietly becoming the answer' );
 
-    # And a second move-in refuses rather than overwriting the governed copy.
-    my ( $ok2, $err2 ) = move_in( $doc, 'upcoming/stray.txt' );
-    ok( !$ok2, 'moving in again is refused' );
-    like( $err2, qr/already holds/i, 'and says why' );
+    # SM981 (ruled 2026-10-11, "Land where save would"): a second move-in no
+    # longer refuses - that refusal left the stray public and made `acl reapply`
+    # unable to repair it. The governed copy is kept, the stray leaves the
+    # document root for a recoverable backup outside both trees, and it says so.
+    my ( $ok2, $err2, $notes ) = move_in( $doc, 'upcoming/stray.txt' );
+    ok( $ok2, 'moving in again repairs it' ) or diag $err2;
+    like( join( ' ', @{ $notes || [] } ), qr/private store's copy is kept/, 'and says which copy won' );
     is( do { open my $f, '<', private_path( $doc, 'upcoming/stray.txt' ); local $/; <$f> },
         'PUBLIC', 'the governed copy was not overwritten by the stray' );
+    ok( !-e "$doc/upcoming/stray.txt", 'the stray is no longer in the document root' );
+    my ($kept) = glob( Lazysite::Paths::lazysite_dir($doc) . '/displaced/*/upcoming/stray.txt' );
+    is( ( $kept ? do { open my $f, '<', $kept; local $/; <$f> } : undef ), 'PUBLIC AGAIN',
+        'and is kept, not deleted, outside both trees' );
 };
 
 # --- failure leaves the content on ONE side ---------------------------------
@@ -129,10 +137,31 @@ subtest 'a move that cannot complete leaves the content where it was' => sub {
     make_path( private_path( $doc, 'upcoming' ) );
     spit( private_path( $doc, 'upcoming/keep.txt' ), 'OTHER' );
 
+    # SM981: occupied is no longer a failure - the store's copy is kept and the
+    # docroot's is moved aside, so nothing is destroyed and nothing stays public.
     my ( $ok, $err ) = move_in( $doc, 'upcoming/keep.txt' );
-    ok( !$ok, 'refused' ) or diag $err;
-    ok( -e "$doc/upcoming/keep.txt",
-        'the original is still there - a failed move never destroys content' );
+    ok( $ok, 'merged' ) or diag $err;
+    my ($kept) = glob( Lazysite::Paths::lazysite_dir($doc) . '/displaced/*/upcoming/keep.txt' );
+    ok( $kept && -e $kept && !-e "$doc/upcoming/keep.txt",
+        'the original is kept as a backup outside both trees - a move never destroys content' );
+
+    # A file in one tree and a folder in the other cannot be merged: refused,
+    # nothing moved.
+    make_path("$doc/upcoming/mixed");
+    spit( "$doc/upcoming/mixed/x.txt",            'X' );
+    spit( private_path( $doc, 'upcoming/mixed' ), 'A FILE' );
+    my ( $ok3, $err3 ) = move_in( $doc, 'upcoming/mixed' );
+    ok( !$ok3,                          'a file against a folder is refused' );
+    ok( -e "$doc/upcoming/mixed/x.txt", 'and the original is still there' );
+    unlink private_path( $doc, 'upcoming/mixed' );
+
+    # ...in either direction: a public FILE against a private FOLDER.
+    spit( "$doc/upcoming/other", 'A PUBLIC FILE' );
+    make_path( private_path( $doc, 'upcoming/other' ) );
+    my ( $ok4, $err4 ) = move_in( $doc, 'upcoming/other' );
+    ok( !$ok4, 'a file against a folder is refused the other way round too' );
+    like( $err4 // '', qr/cannot be merged/, 'saying why' );
+    ok( -f "$doc/upcoming/other", 'and the file is where it was' );
 };
 
 subtest 'moving out refuses when the docroot already has the path' => sub {

@@ -593,6 +593,11 @@ Sub-commands:
                          of the document root. Repairs sections protected
                          before 0.10.9 (SM286) and any left half-moved by the
                          SM296 crash. Changes no rule - only where files live.
+                         A path found in BOTH trees (a stray public copy of a
+                         protected folder) is merged into the private store:
+                         the store's copy of a file both hold is kept, and the
+                         public one is moved to lazysite/displaced/<time>/,
+                         outside both trees, and named (SM981).
                          Dry-run unless --apply.
 
 Options:

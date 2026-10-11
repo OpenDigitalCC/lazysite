@@ -1005,11 +1005,20 @@ sub _sync_acl_store {
         $gates = 1 if ref $rec->{read} eq 'ARRAY' && @{ $rec->{read} };
     }
 
-    my ( $ok, $err )
+    # SM981 (ruled 2026-10-11, "Land where save would"): and any rule that governs
+    # the path and relocates content - an ancestor folder's read list or draft.
+    # Judged by the moved path's own record, a MOVE of a file carrying an
+    # owner-only rule into a held-back folder put it straight back into the
+    # document root. An unreadable store moves nothing out.
+    my $placed = eval { Lazysite::Auth::Acl::placement_for( $DOCROOT, $path ) } // 'unknown';
+    $gates = 1 if $placed ne 'public';
+
+    my ( $ok, $err, $notes )
         = $gates
         ? Lazysite::Private::move_in( $DOCROOT, $path )
         : Lazysite::Private::move_out( $DOCROOT, $path );
     push @warnings, "content could not be re-homed: $err" if !$ok && $err;
+    push @warnings, @$notes if ref $notes eq 'ARRAY';    # SM981: a merge says what it did
 
     if ($ok) {
         my ( $bok, $berr )

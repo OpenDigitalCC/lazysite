@@ -558,6 +558,22 @@ Archive
   refused 403 and change no file of the site and write no audit row, while the
   same request with a token does what it was refused. Test 43 sampled 19, and
   a gate moved after the dispatch let a forged write land behind its 403.
+- SM981 (PENDING) **security: a file that arrives in a held-back folder lands in
+  the private store, however it arrives** (ruled 2026-10-11, "Land where save
+  would"). A post carrying a rule of its own (an owner-only rule, which every copy
+  gets) moved into a draft or read-gated folder was moved back OUT of the store
+  into the document root, because the move judged placement by the file's own
+  rule; in a draft folder with no read list it was then served to anonymous
+  visitors, the owner-only rule also hiding the folder's draft flag; and the
+  stray folder made every later save into it public too. Placement is now decided
+  by every rule that governs a path - the manager's move, copy, upload, acl-set
+  and acl-remove, MCP `move_file`/`copy_file`/`upload_file`, WebDAV
+  `MOVE`/`COPY`/`PUT` - and the draft check asks only rules carrying `draft`.
+  **Behaviour change:** `acl reapply --apply` repairs a folder found in both trees
+  instead of refusing: the store's copy of a file both hold is kept and the public
+  one is moved to `lazysite/displaced/<time>/`, named in the output, never deleted.
+  t/integration/126.
+
 - SM980 (PENDING) **security: an inline `auth_groups: [a, b]` restricts the page,
   and an access key the engine cannot read refuses it** (ruled 2026-10-11, "Parse
   it + fail closed"). The gate read `auth_groups` only as a block list, so the flow

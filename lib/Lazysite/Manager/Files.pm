@@ -2061,7 +2061,14 @@ sub _sync_private_store {
         return @warnings;
     }
 
-    my $gates = _acl_gates_public($rec);
+    # SM981 (ruled 2026-10-11, "Land where save would"): the path's OWN rule, OR
+    # any rule that governs it and relocates content - an ancestor folder's read
+    # list or draft. Judged by its own record alone, a file carrying an
+    # owner-only rule moved INTO a held-back folder was moved straight back OUT
+    # of the store into the document root; removing a file's own rule inside a
+    # held-back folder did the same. An unreadable store moves nothing out.
+    my $placed = eval { Lazysite::Auth::Acl::placement_for( $DOCROOT, $path ) } // 'unknown';
+    my $gates = ( _acl_gates_public($rec) || $placed ne 'public' ) ? 1 : 0;
 
     # SM529: content_moved MEANS the bytes changed tree. The movers treat
     # "nothing on the source side" as success - a write-only rule on a public
@@ -2077,10 +2084,14 @@ sub _sync_private_store {
         $gates ? ( -e "$DOCROOT/$path" ) : ( defined $priv_src && -e $priv_src );
     $CONTENT_MOVED = 0 unless $source_present;
 
-    my ( $ok, $err ) =
+    my ( $ok, $err, $notes ) =
         $gates
         ? Lazysite::Private::move_in( $DOCROOT, $path )
         : Lazysite::Private::move_out( $DOCROOT, $path );
+
+    # SM981: a path held in BOTH trees is merged, and what that did - which copy
+    # was kept, where the other went - is said, never silent.
+    push @warnings, @$notes if ref $notes eq 'ARRAY';
 
     # SM286: the companion a page drags along. (The .brief sidecar used to be
     # carried here too; SM245 moved briefs out of band, so the engine no

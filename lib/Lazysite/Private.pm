@@ -135,6 +135,24 @@ sub resolve_for_write {
     my ( $abs, $where ) = resolve( $docroot, $rel );
     return ( $abs, $where ) if $where;
 
+    # SM981 (ruled 2026-10-11, "Land where save would"): A NEW PATH A RELOCATING
+    # RULE GOVERNS IS WRITTEN PRIVATELY, whatever the tree says. The walk below
+    # reads the trees, and a tree can be wrong: one stray public copy of a held-
+    # back folder (a move that landed in the docroot, a front-end upload, a git
+    # merge) recreates the folder in the docroot, after which "a public ancestor
+    # settles it" sent EVERY later save, upload and PUT into that folder public
+    # too. The rule is the statement of intent, so it decides; the tree decides
+    # only what the rules leave open. An unreadable store ('unknown') changes
+    # nothing here - the tree evidence stands, as before.
+    {
+        require Lazysite::Auth::Acl;
+        my $placed = eval { Lazysite::Auth::Acl::placement_for( $docroot, $rel ) } // 'unknown';
+        if ( $placed eq 'private' ) {
+            my $p = private_path( $docroot, $rel );
+            return ( $p, 'private' ) if defined $p;
+        }
+    }
+
     # An ancestor that exists in the DOCROOT settles it as public, and is checked
     # FIRST - a directory existing in the store is not on its own evidence that
     # the folder is gated.
@@ -434,7 +452,17 @@ sub move_in {
     # An existing destination means a previous move left something behind. Do
     # not overwrite it silently - that would destroy the governed copy in
     # favour of one the front end has been serving.
-    return ( 0, 'the private store already holds this path' ) if -e $dst;
+    #
+    # SM981 (ruled 2026-10-11, "Land where save would"): AND DO NOT REFUSE
+    # EITHER - this was the repair's dead end. A held-back folder whose stray
+    # public copy appeared after it was protected (a move that landed in the
+    # docroot, a front-end upload) exists in BOTH trees, and every re-issue of
+    # its rule - `acl reapply`, which exists to repair exactly this - stopped
+    # here with the stray still public. So the stray is MERGED IN: what the
+    # store lacks moves in; what both hold is decided by _merge_in (the store's
+    # copy wins, the public one is kept as a recoverable backup outside both
+    # trees). Never exposed, never deleted.
+    return _merge_in( $docroot, $rel, $src, $dst ) if -e $dst;
 
     return ( 1, undef ) if rename $src, $dst;
 
@@ -447,6 +475,103 @@ sub move_in {
     unlink $src or return ( 0, 'the copy landed but the original could not be '
             . 'removed - the content is still public' );
     return ( 1, undef );
+}
+
+# SM981: move one FILE, atomically where the filesystem allows, else copy,
+# verify the size, and only then remove the original. 1 on success.
+sub _move_one {
+    my ( $from, $to ) = @_;
+    return 1 if rename $from, $to;
+    return 0 if -d $from;
+    return 0 unless copy( $from, $to );
+    unless ( -s $to == -s $from ) { unlink $to; return 0 }
+    return unlink($from) ? 1 : 0;
+}
+
+# SM981 (ruled 2026-10-11, "Land where save would"): A PATH HELD IN BOTH TREES,
+# put right without exposing or deleting anything. Returns ( $ok, $error, \@notes ).
+#
+# WHICH COPY WINS, AND WHY: THE PRIVATE STORE'S. It is the copy the rule governs
+# and the one the engine has been serving under that rule (Private::resolve
+# prefers it when both exist), so it is what the rule's readers have seen; the
+# public one is the copy a front end has been handing to anyone, and it must
+# leave the document root either way. Neither is deleted: the public copy of a
+# path both trees hold is moved to <engine tree>/displaced/<UTC stamp>/<path> -
+# outside the document root and outside the private store, in the engine tree
+# the front door refuses and the shipped front-end configs deny - where a sysop
+# can recover it. Every such move is named in the notes.
+#
+# A FOLDER IN BOTH TREES MERGES: each file under the public copy that the store
+# lacks moves into the store at the same place; each one the store already holds
+# is displaced as above. A symlink is never moved into the store (it could point
+# a governed path anywhere); it is displaced. The emptied public folders are then
+# removed. If anything could not be moved, the answer is a failure naming how
+# many paths are still public, so the caller reports it rather than "done".
+#
+# A file in one tree and a folder in the other cannot be merged and is refused,
+# moving nothing.
+sub _merge_in {
+    my ( $docroot, $rel, $src, $dst ) = @_;
+    my ( $sdir, $ddir ) = ( ( -d $src && !-l $src ) ? 1 : 0, -d $dst ? 1 : 0 );
+    if ( $sdir != $ddir ) {
+        return ( 0, "'$rel' is a " . ( $sdir ? 'folder' : 'file' ) . ' in the document root and a '
+                . ( $ddir ? 'folder' : 'file' ) . ' in the private store, so the two cannot be merged; '
+                . 'nothing was moved - move one of them aside by hand and apply the rule again' );
+    }
+    my $stamp;
+    my $displace = sub {
+        my ( $from, $sub ) = @_;
+        require POSIX;
+        require Lazysite::Paths;
+        $stamp //= POSIX::strftime( '%Y%m%dT%H%M%SZ', gmtime ) . "-$$";
+        my $to = Lazysite::Paths::lazysite_dir($docroot) . "/displaced/$stamp/$sub";
+        _mkpath( dirname($to) );
+        return undef unless -d dirname($to);
+        return _move_one( $from, $to ) ? $to : undef;
+    };
+    my ( @notes, @failed );
+    my $why = 'the private store\'s copy is kept - it is the one the rule governs and the '
+        . 'engine serves - and the document root\'s copy was moved';
+
+    if ( !$sdir ) {
+        my $to = $displace->( $src, $rel );
+        return ( 0, "both trees hold '$rel' and the document root's copy could not be moved "
+                . 'aside - it is still public' )
+            unless defined $to;
+        return ( 1, undef, ["both trees held '$rel': $why to $to, outside both trees, where it can be recovered"] );
+    }
+
+    require File::Find;
+    my ( @files, @dirs );
+    File::Find::find( { no_chdir => 1, wanted => sub {
+                return if $File::Find::name eq $src;
+                if ( -d $File::Find::name && !-l $File::Find::name ) { push @dirs, $File::Find::name }
+                else { push @files, $File::Find::name }
+    } }, $src );
+    my $moved = 0;
+    for my $f ( sort @files ) {
+        ( my $sub = substr( $f, length $src ) ) =~ s{\A/+}{};
+        my $target = "$dst/$sub";
+        if ( -l $f || -e $target || -l $target ) {
+            my $to = $displace->( $f, "$rel/$sub" );
+            if ( defined $to ) { push @notes, "both trees held '$rel/$sub': $why to $to, where it can be recovered" }
+            else               { push @failed, "$rel/$sub" }
+            next;
+        }
+        _mkpath( dirname($target), $docroot );
+        if ( -d dirname($target) && _within( private_root($docroot), $target ) && _move_one( $f, $target ) ) {
+            $moved++;
+        }
+        else { push @failed, "$rel/$sub" }
+    }
+    rmdir $_ for sort { length $b <=> length $a } @dirs;
+    rmdir $src;
+    unshift @notes, "'$rel' was in both trees: $moved file(s) the store lacked were moved into it"
+        if $moved;
+    return ( 0, scalar(@failed) . " path(s) under '$rel' could not be moved out of the document "
+            . 'root and are still public: ' . join( ', ', @failed ), \@notes )
+        if @failed;
+    return ( 1, undef, \@notes );
 }
 
 # Move private -> public, for un-protecting. Same contract in reverse.

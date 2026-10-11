@@ -157,11 +157,19 @@ sub _acl_entry_for {
     #
     # So for a mode decision, only entries carrying a non-empty list for that
     # mode are candidates. With no mode ("does anything govern this path?") every
-    # entry counts, which is what the cache and draft checks want.
+    # entry counts, which is what the cache check wants.
+    #
+    # SM981: the DRAFT check is a mode of its own - only an entry carrying
+    # `draft` decides it. It asked with no mode, so the nearest entry of ANY kind
+    # won, and a file's owner-only rule (every copy, and a moved file's re-keyed
+    # rule) hid its folder's draft flag: a page moved into a draft folder with no
+    # read list was served to anonymous visitors. The H10 reasoning above, for
+    # the flag it had not yet been applied to.
     my $governs = sub {
         my ($e) = @_;
         return 0 unless ref $e eq 'HASH';
         return 1 unless length $mode;
+        return ( $e->{draft} ? 1 : 0 ) if $mode eq 'draft';
         return ( ref $e->{$mode} eq 'ARRAY' && @{ $e->{$mode} } ) ? 1 : 0;
     };
 
@@ -466,7 +474,7 @@ sub _acl_is_draft {
     } || {};
     close $fh;
     return 0 unless ref $map eq 'HASH';
-    my $a = _acl_entry_for( $map, $rel );
+    my $a = _acl_entry_for( $map, $rel, 'draft' ); # SM981: an entry carrying draft decides
     return ( ref $a eq 'HASH' && $a->{draft} ) ? 1 : 0;
 }
 
