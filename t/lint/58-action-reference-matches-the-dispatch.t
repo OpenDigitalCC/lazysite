@@ -21,6 +21,19 @@
 # reference is accurate about what it lists and does not claim to be exhaustive
 # per action. Replacing the chain with a real table is what would close that, and
 # it remains its own piece of work.
+#
+# SM944 S33a (ruled 2026-10-11): A BRANCH IS READ WITH ITS CALLEES. The
+# request's parameters are Manager::Common's context now (%params, and the body
+# memo behind _json_body), so a branch's body can move into a `dispatch_`
+# handler in an area module and read them unchanged - and would leave this
+# extraction behind. So each branch is read together with the `dispatch_`
+# handlers it calls, and every sub they call, in the script or a Manager
+# module, that itself reads %params or calls _json_body (and theirs in turn).
+# A sub that is handed its arguments (`action_*( $req->{x} )`) is not one: the
+# branch already shows what it reads, and its own `$req` is its argument, not
+# the request. Nor is a pipeline gate a branch happens to call
+# (`_confine_scope` reads `to` and `from` for the scope check of the actions
+# declared `scoped`, which are not the branch's parameters).
 use strict;
 use warnings;
 use Test::More;
@@ -70,6 +83,43 @@ for my $i ( 0 .. $#lines ) {
     @cur = () if $depth <= 0;
 }
 
+# SM944 S33a: the subs that read the request's parameters from the context.
+sub code_of {
+    my ($s) = @_;
+    $s =~ s/^__(?:END|DATA)__\b.*//ms;
+    $s =~ s/^=[a-zA-Z].*?^=cut\b[^\n]*//gms;
+    $s =~ s/^\s*#.*$//gm;
+    $s =~ s/(?<=[;{}),])\s*#.*$//gm;
+    return $s;
+}
+my %SUB;
+for my $file ( "$root/lazysite-manager-api.pl", sort glob "$root/lib/Lazysite/Manager/*.pm" ) {
+    open my $fh, '<', $file or die "$file: $!";
+    my $code = code_of( do { local $/; <$fh> } );
+    while ( $code =~ /^sub\s+(\w+)\s*\{(?:([^\n]*)\}[ \t]*$|(.*?)^\})/msg ) {
+        $SUB{$1} .= $2 // $3;
+    }
+}
+my %READS_REQUEST = map { $_ => 1 }
+    grep { $_ ne '_json_body' && $SUB{$_} =~ /\$params\{|\b_json_body\s*\(/ } keys %SUB;
+ok( $READS_REQUEST{_missing_required}, 'the subs that read the request\'s parameters were found' );
+
+# A branch, then the dispatch_ handlers it calls, and each sub they call
+# (transitively) that reads them.
+sub with_callees {
+    my ($text) = @_;
+    my ( %seen, @todo );
+    my $out = $text;
+    @todo = grep { /\Adispatch_\w+\z/ } $text =~ /\b(\w+)\s*\(/g;
+    while ( defined( my $n = shift @todo ) ) {
+        next if $seen{$n}++             || !defined $SUB{$n};
+        next unless $n =~ /\Adispatch_/ || $READS_REQUEST{$n};
+        $out .= "\n$SUB{$n}";
+        push @todo, $SUB{$n} =~ /\b(\w+)\s*\(/g;
+    }
+    return $out;
+}
+
 # --- 1 and 2, removed in SM943 stage 3 ----------------------------------------
 # Two subtests stood here, and neither could still fail on its own:
 #
@@ -86,8 +136,8 @@ for my $i ( 0 .. $#lines ) {
 # --- 3. the same parameters --------------------------------------------------
 subtest 'and names the parameters each branch reads' => sub {
     for my $a (@known) {
-        my $b = $branch{$a};
-        next unless defined $b;
+        next unless defined $branch{$a};
+        my $b    = with_callees( $branch{$a} );
         my $spec = $Lazysite::ControlApi::Actions::ACTION{$a} or next;
 
         # SM605: COLLECTED AS SETS, because a name may be read more than once
