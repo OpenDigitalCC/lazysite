@@ -187,6 +187,7 @@ my %EXEMPT = (
     'Plugins::action_form_submissions'  => 'read-only',
     'Plugins::action_form_submission'   => 'read-only',    # SM938 D5: one row
     'Plugins::action_form_list'         => 'read-only',
+    'Plugins::dispatch_form_list'      => 'read-only',    # SM944 S33: form-list's branch
     'Plugins::action_plugin_enable'     => 'rewrites the plugins: list in lazysite.conf '
         . 'without a commit (pre-existing; folded into the next capture sweep)',
     'Plugins::action_plugin_disable' => 'as action_plugin_enable',

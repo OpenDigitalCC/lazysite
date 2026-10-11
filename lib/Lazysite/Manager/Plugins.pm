@@ -19,7 +19,7 @@ use Lazysite::Paths ();
 our @EXPORT_OK = qw(
     action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action
-    action_form_list
+    action_form_list dispatch_form_list
     action_form_delete
     action_form_submissions action_form_submission
     action_form_submission_delete action_form_submission_confirm
@@ -969,6 +969,25 @@ sub action_form_list {
             . '(control API), which need the read_submissions capability. '
             . '"row_count" is the count.',
     };
+}
+
+# SM944 S33: form-list's dispatch branch, moved here from lazysite-manager-api.pl
+# with its statements unchanged: the listing, filtered for a domain-confined
+# caller to the forms it reaches (Manager::Common's form rule, read by full name).
+sub dispatch_form_list {
+    my $result;
+    $result = action_form_list();
+    # SM976 F2: a confined caller is shown the forms it reaches, and no other -
+    # one walk of the site for every form's binding pages.
+    if ( ref $result eq 'HASH' && ref $result->{forms} eq 'ARRAY'
+        && Lazysite::Manager::Common::request_domain_confined() )
+    {
+        my $bound = Lazysite::Manager::Common::form_bindings();
+        $result->{forms} = [ grep {
+                Lazysite::Manager::Common::caller_may_reach_form( $_->{name}, bindings => $bound )
+        } @{ $result->{forms} } ];
+    }
+    return $result;
 }
 
 # SM182: read a form-submissions store (<dir>/<form>.jsonl, one JSON record per

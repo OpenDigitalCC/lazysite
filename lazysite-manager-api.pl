@@ -43,7 +43,7 @@ use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_
     check_upload_rate is_editable_text parse_multipart_body);
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action
-    action_form_submissions action_form_submission action_form_submission_delete action_form_list
+    action_form_submissions action_form_submission action_form_submission_delete dispatch_form_list
     action_form_submission_confirm action_form_submissions_delete_bulk
     action_form_submission_approve
     action_form_delete);
@@ -2214,17 +2214,7 @@ elsif ( $action eq 'form-submission' ) {
     $result = action_form_submission( $params{file}, $params{id} );
 }
 elsif ( $action eq 'form-list' ) { # SM214: PII-free form discovery (names + types + row counts)
-    $result = action_form_list();
-    # SM976 F2: a confined caller is shown the forms it reaches, and no other -
-    # one walk of the site for every form's binding pages.
-    if ( ref $result eq 'HASH' && ref $result->{forms} eq 'ARRAY'
-        && Lazysite::Manager::Common::request_domain_confined() )
-    {
-        my $bound = Lazysite::Manager::Common::form_bindings();
-        $result->{forms} = [ grep {
-                Lazysite::Manager::Common::caller_may_reach_form( $_->{name}, bindings => $bound )
-        } @{ $result->{forms} } ];
-    }
+    $result = dispatch_form_list();
 }
 elsif ( $action eq 'form-delete' ) {    # SM632: the inverse of bind_form
     my $req = _json_body();
