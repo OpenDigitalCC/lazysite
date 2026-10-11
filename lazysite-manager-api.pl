@@ -1866,7 +1866,20 @@ elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 
     # token clients cannot reach these at all (not in the %need set above).
     # (A denied revoke is still audited: the generic POST audit block below
     # records the fail with kind 'forbidden'; the -list actions are GET reads.)
-    if ( !$token_auth && !_user_caps($auth_user)->{manage_users} ) {
+    #
+    # SM944 S33, held branch (2) (approved 2026-10-11): THE EMPTY-ACCOUNT
+    # REFUSAL FIRST, the established fail-closed pattern. The gate below passes
+    # a token client, which the dispatcher's token gate has already refused -
+    # and the request context's reset leaves a token client, so moved as it is
+    # to Manager::Sessions this branch listed the access keys and revoked an
+    # account's sessions for nobody outside a request
+    # (tmp/sm944-n347-probe.out). Inside a request the dispatcher has refused an
+    # empty $auth_user before this runs, so the answer there is unchanged.
+    if ( !length $auth_user ) {
+        $result = { ok => 0, kind => 'forbidden',
+            error => 'Sessions and access keys are managed by a signed-in account, and no account is asking.' };
+    }
+    elsif ( !$token_auth && !_user_caps($auth_user)->{manage_users} ) {
         $result = { ok => 0, kind => 'forbidden',
             error => "Managing sessions and keys requires the 'Users & groups' permission. "
                 . "An administrator can grant it on the Groups page." };
