@@ -34,9 +34,10 @@ use Lazysite::Util           qw(log_event);
 use Lazysite::Paths          ();
 use Lazysite::Audit          qw(audit_log);
 use Lazysite::Auth::Settings ();
+# SM944 S33: the audit branch's handler reads the query and the scope.
 use Lazysite::Manager::Common
     qw($auth_user $token_auth %token_caps _user_caps _request_ip _display_names
-    %params users_api);    # S33: the audit branch's handler reads the query and the scope
+    %params users_api);
 
 our @EXPORT_OK = qw(_audit_trail_set _audit_implicit_target _audit_plugin_target
     _audit_parse_line _audit_cached_entries _audit_trail_state

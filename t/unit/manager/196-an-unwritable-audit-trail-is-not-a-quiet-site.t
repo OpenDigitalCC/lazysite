@@ -45,7 +45,7 @@ my $log = "$dir/audit.log";
 # never carries one state's answer into the next.
 sub audit_now {
     unlink "$d/lazysite/cache/audit-cache.json";
-    return main::action_audit();
+    return Lazysite::Manager::AuditTrail::action_audit();
 }
 
 main::audit_log( 'ada', 'login', 'site.invalid', '1.2.3.4', 'ok', 'ui' );

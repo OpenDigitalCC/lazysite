@@ -45,7 +45,7 @@ my $root = repo_root();
 # --- target + origin recorded ---
 main::audit_log( 'alice', 'save', 'content/about.md', '1.2.3.4', 'ok', 'ui' );
 main::audit_log( 'claude-dhcf', 'theme-activate', 'sky', '5.6.7.8', 'ok', 'api' );
-my $entries = main::action_audit()->{entries};
+my $entries = Lazysite::Manager::AuditTrail::action_audit()->{entries};
 my ($ui)  = grep { $_->{action} eq 'save' } @$entries;
 my ($api) = grep { $_->{action} eq 'theme-activate' } @$entries;
 is( $ui->{target}, 'content/about.md', 'SM078: target recorded' );
@@ -92,10 +92,10 @@ is( main::_audit_implicit_target( 'nav-save', { host => 'shop.example' } ),
     print $lh "2026-06-15T10:00:00Z | dave | save | content/jun.md | 1.1.1.1 | ok | ui\n";
     print $lh "2026-12-20T10:00:00Z | dave | save | content/dec.md | 1.1.1.1 | ok | ui\n";
     close $lh;
-    my $jun = main::action_audit( start => '2026-06-01', end => '2026-06-30' )->{entries};
+    my $jun = Lazysite::Manager::AuditTrail::action_audit( start => '2026-06-01', end => '2026-06-30' )->{entries};
     my @t = sort map { $_->{target} } grep { $_->{user} eq 'dave' } @$jun;
     is_deeply( \@t, ['content/jun.md'], 'date range returns only entries within [start,end]' );
-    my $from = main::action_audit( start => '2026-06-01' )->{entries};
+    my $from = Lazysite::Manager::AuditTrail::action_audit( start => '2026-06-01' )->{entries};
     ok( ( grep { $_->{target} eq 'content/dec.md' } @$from ),
         'open-ended start includes later entries' );
     ok( !( grep { ( $_->{target} // '' ) eq 'content/jan.md' } @$from ),
@@ -106,7 +106,7 @@ is( $api->{origin}, 'api', 'SM077: token action recorded as origin=api' );
 
 # --- target filter ---
 main::audit_log( 'alice', 'delete', 'content/about.md', '1.2.3.4', 'ok', 'ui' );
-my $bytarget = main::action_audit( target => 'content/about.md' )->{entries};
+my $bytarget = Lazysite::Manager::AuditTrail::action_audit( target => 'content/about.md' )->{entries};
 ok( scalar(@$bytarget) >= 2, 'target filter returns that file history' );
 ok( ( !grep { ( $_->{target} // '' ) ne 'content/about.md' } @$bytarget ),
     'target filter excludes other targets' );
@@ -116,7 +116,7 @@ open my $fh, '>>', "$d/lazysite/logs/audit.log" or die $!;
 print {$fh} "2026-01-01T00:00:00Z | bob | delete | 9.9.9.9 | fail\n";                # 5-field (pre-SM078)
 print {$fh} "2026-01-02T00:00:00Z | carol | save | content/x.md | 9.9.9.9 | ok\n";  # 6-field (SM078)
 close $fh;
-my %by_user = map { ( $_->{user} // '' ) => $_ } @{ main::action_audit()->{entries} };
+my %by_user = map { ( $_->{user} // '' ) => $_ } @{ Lazysite::Manager::AuditTrail::action_audit()->{entries} };
 is( $by_user{bob}{target},   '',             'old 5-field line: empty target' );
 is( $by_user{bob}{origin},   '',             'old 5-field line: empty origin' );
 is( $by_user{carol}{target}, 'content/x.md', '6-field line: target parsed' );
@@ -130,20 +130,20 @@ is_deeply( $p->{groups}, [ 'admins', 'editors' ], 'principals: group names liste
 
 # --- pagination: 50 rows per page ---
 main::audit_log( 'pager', 'create', "content/p$_.md", '1.1.1.1', 'ok', 'ui' ) for ( 1 .. 60 );
-my $pg1 = main::action_audit( user => 'pager', per_page => 50, page => 1 );
+my $pg1 = Lazysite::Manager::AuditTrail::action_audit( user => 'pager', per_page => 50, page => 1 );
 is( scalar @{ $pg1->{entries} }, 50, 'page 1 returns 50 rows' );
 is( $pg1->{total}, 60, 'total counts all matching entries' );
 is( $pg1->{pages}, 2,  'two pages at 50/page' );
 is( $pg1->{page},  1,  'page echoed' );
-my $pg2 = main::action_audit( user => 'pager', per_page => 50, page => 2 );
+my $pg2 = Lazysite::Manager::AuditTrail::action_audit( user => 'pager', per_page => 50, page => 2 );
 is( scalar @{ $pg2->{entries} }, 10, 'page 2 returns the remaining 10 rows' );
-my $pgX = main::action_audit( user => 'pager', per_page => 50, page => 99 );
+my $pgX = Lazysite::Manager::AuditTrail::action_audit( user => 'pager', per_page => 50, page => 99 );
 is( $pgX->{page}, 2, 'an out-of-range page clamps to the last' );
 
 # --- failure detail (8th field) round-trips ---
 main::audit_log( 'dave', 'edit', 'lazysite/forms/x.conf', '2.2.2.2', 'fail', 'mcp', 'blocked-config' );
 my ($f) = grep { ( $_->{status} // '' ) eq 'fail' && ( $_->{target} // '' ) eq 'lazysite/forms/x.conf' }
-    @{ main::action_audit()->{entries} };
+    @{ Lazysite::Manager::AuditTrail::action_audit()->{entries} };
 is( $f->{detail}, 'blocked-config', 'audit records + returns a failure detail' );
 
 done_testing();

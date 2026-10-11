@@ -44,7 +44,7 @@ Lazysite::Manager::Common::reset_request_context();
 
 subtest 'audit, outside a request, hands over no trail' => sub {
     is( do { no warnings 'once'; $Lazysite::Manager::Common::auth_user }, '', 'nobody is asking' );
-    my $r = main::action_audit();
+    my $r = Lazysite::Manager::AuditTrail::action_audit();
     is( $r->{kind} // '', 'forbidden', 'refused' ) or diag explain $r;
     ok( !$r->{ok}, '...not ok' );
     like( $r->{error} // '', qr/no account is asking/, '...saying why' );
@@ -55,13 +55,13 @@ subtest 'audit, outside a request, hands over no trail' => sub {
 subtest 'for an account the trail is read; after a reset, refused again' => sub {
     no warnings 'once';
     $Lazysite::Manager::Common::auth_user = 'boss';
-    my $r = main::action_audit();
+    my $r = Lazysite::Manager::AuditTrail::action_audit();
     ok( $r->{ok}, 'read' ) or diag explain $r;
     is( scalar @{ $r->{entries} || [] }, 2, '...both entries' );
     is_deeply( $r->{targets}, [ 'hr/salaries.md', 'secret/plan.md' ], '...and their targets' );
 
     Lazysite::Manager::Common::reset_request_context();
-    $r = main::action_audit();
+    $r = Lazysite::Manager::AuditTrail::action_audit();
     is( $r->{kind} // '', 'forbidden', 'reset: refused again' );
     ok( !exists $r->{entries}, '...with no entries' );
 };
