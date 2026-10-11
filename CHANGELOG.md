@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- install-plan (PENDING) **a dry run prints no uninitialised-value warnings.**
+  `lazysite provision` and `install.pl --dry-run` printed "Use of uninitialized
+  value" three times (install.pl ~1223): the plan prints each runtime path's
+  `purpose`, and three entries in classification.json carry `why` instead. The
+  plan prints `why` when there is no `purpose`. t/tools/109.
+
 - SM988 (PENDING) **a scan says how many pages it matched, and its cap is the
   site's.** `scan:` read at most 200 pages, the first by file name, and nothing
   said so: a 1,745-post listing rendered 200 and looked complete. `scan_limit:`

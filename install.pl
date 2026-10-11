@@ -1220,7 +1220,11 @@ sub print_plan {
     print "\nRuntime paths:\n";
     for my $rp ( @{ $manifest->{runtime_paths} || [] } ) {
         my $resolved = resolve_placeholders( $rp->{path}, $subs );
-        print "  $rp->{mode} $resolved  ($rp->{purpose})\n";
+        # P10 (WORK-PLAN-0154): three entries in classification.json carry
+        # `why` and no `purpose`, and each printed an uninitialised-value
+        # warning into every dry run (`lazysite provision` among them).
+        my $why = $rp->{purpose} // $rp->{why} // '';
+        print "  " . ( $rp->{mode} // '-' ) . " $resolved  ($why)\n";
     }
     print "\n";
 }
