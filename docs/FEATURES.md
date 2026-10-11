@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.3"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.4"
 brand: plain
 ---
 
@@ -1960,6 +1960,13 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.4** (2026-10-11, edge) - **A confined caller writes only what its own
+  domains serve.** Themes, layouts, forms, briefs and safety exports follow
+  domain confinement (SM976); a page binds the form the processor renders, and
+  a confined caller binds no form it does not reach; a page must be valid UTF-8
+  and one bad page no longer stops the site; PDFs are made only of pages the
+  caller may read (SM978); downloads end at their Content-Length and are
+  audited; create_form and copy_file never replace a page (SM977)
 - **0.15.3** (2026-10-09, edge) - **A confined caller reaches only its own
   domains.** Domain confinement on every surface (SM975, SM976); pooled workers
   re-read the ACL store (SM973); stats days are UTC days (SM974); reflected and

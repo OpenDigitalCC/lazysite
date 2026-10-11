@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM944 (PENDING) **internal: acl-set's dispatch branch is Manager::Files'
+## 0.15.4 - EDGE: a confined caller writes only what its own domains serve (2026-10-11)
+
+- SM944 (92b283ca) **internal: acl-set's dispatch branch is Manager::Files'
   handler** (S33 of the plan in the filing, a held branch approved on
   2026-10-11). `dispatch_acl_set` holds the branch's refusals and the change,
   and hands back the rule before and after for the audit entry; it reads the
@@ -61,7 +63,7 @@ Archive
   log copy, and refuses when no account is asking. No answer in a request
   changes. Test 205.
 
-- SM944 (PENDING) **internal: start-page-set's and audit's dispatch branches
+- SM944 (060b39ef) **internal: start-page-set's and audit's dispatch branches
   are handlers in their area modules** (S33 of the plan in the filing, the
   first group after S33a). Each branch's statements move unchanged into
   `dispatch_start_page_set` in Manager::StartPage and `dispatch_audit` in
@@ -69,7 +71,7 @@ Archive
   Manager::Common's context; no answer changes. Lint 217 reads a declaration
   by the fact's own sigil. Test 205.
 
-- SM944 (PENDING) **internal: the request's parameters and its body join the
+- SM944 (176a322d) **internal: the request's parameters and its body join the
   manager request context** (S33a of the plan in the filing, as the release
   manager ruled on 2026-10-11, "Yes, S33a then groups"). `%params` and the
   body memo behind `_json_body` move from the manager API's file scope into
@@ -79,7 +81,7 @@ Archive
   read a dispatch branch with the handlers it calls, so a branch body can move
   into its area module. No answer changes. Test 205.
 
-- SM944 (PENDING) **internal: four listing branches of the manager API's
+- SM944 (f0c91de8) **internal: four listing branches of the manager API's
   dispatch are handlers in their area modules** (S33 of the plan in the
   filing, which inventories the 78 branches holding logic). themes-list-all,
   form-list, briefs-list and backup-list - each a listing filtered by the
@@ -90,7 +92,7 @@ Archive
   themes-list-all's acts_on; the content-history write-path registry scans
   the handlers. Test 205.
 
-- SM944 (PENDING) **security hardening: the auth secret is rotated only for the
+- SM944 (a1d6ea61) **security hardening: the auth secret is rotated only for the
   account that is asking** (WORK-PLAN-0153 Q14, ruled 2026-10-11, "Yes, same as
   whoami", scope ruled "manage_config may rotate"). The earlier fix refused an
   empty account and trusted any other `action_rotate_auth_secret` was handed,
@@ -101,7 +103,7 @@ Archive
   passes the signed-in account, and a manager its gate lets through
   (`manage_config`) rotates as before. t/unit/manager/220.
 
-- SM944 (PENDING) **internal: the users and identity actions are
+- SM944 (de41aac4) **internal: the users and identity actions are
   Manager::Users', and whoami answers only for the account asking** (S32 of the
   plan in the filing, as the release manager ruled on 2026-10-10, "Yes, all
   four"). `_operator` moves into `Lazysite::Manager::Common` beside the caps
@@ -115,7 +117,7 @@ Archive
   who-is-asking move to the new `Lazysite::Manager::Users` unchanged. Test 205,
   t/unit/manager/222, 223.
 
-- SM944 (PENDING) **internal: the audit trail's views and switch are
+- SM944 (f3ebd7c4) **internal: the audit trail's views and switch are
   Manager::AuditTrail's, and the trail is read only for an account** (S31 of
   the plan in the filing, as the release manager ruled on 2026-10-10, "(c)
   request IP into Common"). The request address and its per-request cache move
@@ -130,7 +132,7 @@ Archive
   the reader of the `logs` store, so t/lint/121 still checks the trail's
   reader. Test 205, t/unit/manager/221.
 
-- SM944 (PENDING) **security: the auth secret is rotated only for an account**
+- SM944 (5bc2736e) **security: the auth secret is rotated only for an account**
   (ruled 2026-10-10, "SECURITY first", found by the probe ahead of S31 and
   S32). `action_rotate_auth_secret` - the "sign everyone out" lever - rotated
   the site's auth secret when it was handed no account, so anything that
@@ -142,7 +144,7 @@ Archive
   runs. Its argument is named `$user` rather than shadowing the request's
   `$auth_user`. t/unit/manager/220.
 
-- SM944 (PENDING) **internal: page-pdf is Manager::PagePdf's, and a page is
+- SM944 (21d5fa85) **internal: page-pdf is Manager::PagePdf's, and a page is
   rendered to PDF only for an account** (S29 of the plan in the filing, as the
   release manager ruled on 2026-10-10, "(a) load in main"). Before the move
   page-pdf refuses when no account is asking, which inside a request never
@@ -153,7 +155,7 @@ Archive
   package main, where its converter is looked for. Test 205,
   t/unit/manager/219.
 
-- SM978 (PENDING) **security: a PDF is made only of pages the caller may read**
+- SM978 (d901e623) **security: a PDF is made only of pages the caller may read**
   (ruled 2026-10-10, "Scope it + composed parts", WORK-PLAN-0153 Q16b).
   `page-pdf` took no account of the caller's scope, so a manager confined to one
   domain got another domain's page as a PDF; a composed document's parts were
@@ -167,7 +169,7 @@ Archive
   any word that names one: page-pdf had passed it on the `main` in
   `main->can('convert')`. t/integration/122.
 
-- WORK-PLAN-0153 Q16b (PENDING) **a download ends where its Content-Length
+- WORK-PLAN-0153 Q16b (efdafc03) **a download ends where its Content-Length
   says, and is on the audit trail** (ruled 2026-10-10, "Keep audit, print
   nothing"). After streaming a PDF, page-pdf printed a second header block and
   `{"ok":true,"streamed":1}` past the PDF's Content-Length, so a client reading
@@ -180,7 +182,7 @@ Archive
   a GET when it is refused or fails). A file that cannot be opened is refused
   before any header goes out. t/integration/123.
 
-- SM944 (PENDING) **internal: config-read, config-set and lang-status are
+- SM944 (3f4154fb) **internal: config-read, config-set and lang-status are
   Manager::Config's, and the site configuration is set only for an account**
   (S30 of the plan in the filing; the established fail-closed pattern the
   release manager ruled for S23-S28). The three actions, the conf reader the
@@ -191,7 +193,7 @@ Archive
   wrote the key into lazysite.conf. config-read, lang-status and the language
   context are unchanged. Test 205, t/unit/manager/218.
 
-- WORK-PLAN-0153 Q16a (PENDING) **a handoff run in a git worktree says READY
+- WORK-PLAN-0153 Q16a (098bbc4d) **a handoff run in a git worktree says READY
   when it is**. `tools/handoff.sh` ended by checking the base branch out; in a
   linked worktree, with the base checked out in the main one, git refused, and a
   run whose every gate passed said NOT READY (n308, n332). In a linked worktree
@@ -201,7 +203,7 @@ Archive
   SHA after git's "fatal: Needed a single revision", and is not offered.
   t/tools/106.
 
-- SM944 (PENDING) **internal: domain-check and domains-list are
+- SM944 (ba41fcd3) **internal: domain-check and domains-list are
   Manager::Domains', and a domain check runs only for an account** (S27 of the
   plan in the filing, as the release manager ruled on 2026-10-10, "Read Common's
   value"). The two actions and the install's marker move to the existing
@@ -213,7 +215,7 @@ Archive
   own log copy of the acting user, which nothing resets. domains-list is
   unchanged. Test 205, t/unit/manager/217.
 
-- SM944 (PENDING) **internal: the site backup and export verbs are
+- SM944 (1eae8342) **internal: the site backup and export verbs are
   Manager::SiteBackup's, and a package is uploaded only for an account** (S28 of
   the plan in the filing; the established fail-closed pattern the release
   manager ruled for S23-S26). The seven site-package verbs and the grant checks
@@ -224,7 +226,7 @@ Archive
   and required `manage_domains` first); outside one it stored a package. The
   other verbs already refused there. Test 205, t/unit/manager/216.
 
-- SM944 (PENDING) **internal: channel-services, version and analyse_visitors are
+- SM944 (e53aef1f) **internal: channel-services, version and analyse_visitors are
   Manager::Services', and the visitor analysis runs only for an account** (S26 of
   the plan in the filing, as the release manager ruled on 2026-10-10). The three
   actions, the transports' state whoami reads and the stats tool's path move to
@@ -235,7 +237,7 @@ Archive
   version, the transports' state, channel-services - are unchanged. Test 205,
   t/unit/manager/215.
 
-- SM944 (PENDING) **internal: describe-capabilities and actions-list are
+- SM944 (5b5a3857) **internal: describe-capabilities and actions-list are
   Manager::Describe's, and answer only for an account** (S25 of the plan in the
   filing, as the release manager ruled on 2026-10-10). The two introspection
   actions, `site_capabilities`, `_json_bool` and `_action_effects` move to the
@@ -246,7 +248,7 @@ Archive
   the site's documentation index and the actions a grant of nothing may call.
   Test 205, t/unit/manager/214.
 
-- SM976 (PENDING) **A restore and the nav read refuse bytes that are not UTF-8**
+- SM976 (8fdb20dd) **A restore and the nav read refuse bytes that are not UTF-8**
   (ruled 2026-10-10, "Fix both", Q15k). MCP `restore_version` and the control
   API's `git-restore` wrote a recorded version that is not valid UTF-8 back as
   it was; they now refuse it with the encoding error (kind
@@ -255,7 +257,7 @@ Archive
   API's `nav-read` no body on a `nav.conf` that is not UTF-8; both now answer the
   encoding error naming the file. t/integration/121.
 
-- SM976 (PENDING) **MCP answers a page that is not UTF-8, and says when a page
+- SM976 (4c15f8cc) **MCP answers a page that is not UTF-8, and says when a page
   walk stops at 1,000 pages** (ruled 2026-10-10, "Fix both"). A page whose
   bytes are not valid UTF-8 (put there by git, SSH or a restore) left MCP
   `read_page`, `read_file`, `view_version`, `read_brief` and `preview_page`
@@ -268,7 +270,7 @@ Archive
   counted, audited and link-rewritten as if it had 1,000. Their descriptions
   say so. t/unit/mcp/31, t/unit/mcp/32.
 
-- SM944 (PENDING) **internal: the preview verbs are Manager::Preview's, and act
+- SM944 (b224f9fb) **internal: the preview verbs are Manager::Preview's, and act
   only for an account** (S23b and S24 of the plan in the filing, as the release
   manager ruled on 2026-10-09). The manager API's JSON printer for the
   responses that need their own headers moves to `Lazysite::Manager::Common`,
@@ -280,7 +282,7 @@ Archive
   account '' and created a missing auth secret, and preview shelled the
   processor. Test 205, t/unit/manager/213.
 
-- SM976 (PENDING) **a page that is not UTF-8 no longer stops search, a scan or
+- SM976 (e6ecbaa5) **a page that is not UTF-8 no longer stops search, a scan or
   the validator** (ruled 2026-10-09, "Same rule"). MCP `search_files` answered
   with no body when a file in its base was not valid UTF-8; it now leaves the
   file out, logs it, and answers for the rest (`delete_page`'s
@@ -292,7 +294,7 @@ Archive
   other file is checked. Every other page walk was probed and answers
   (SM976). t/unit/mcp/29, t/unit/processor/93, t/tools/82.
 
-- SM976 (PENDING) **security: a page written as raw bytes must be valid UTF-8,
+- SM976 (995a921b) **security: a page written as raw bytes must be valid UTF-8,
   and a page that cannot be read binds no form** (ruled 2026-10-09, "Refuse +
   walker skips"). The processor reads a page through a lax UTF-8 layer, so a
   page that is not UTF-8 renders nothing or reads front matter other than what
@@ -310,13 +312,13 @@ Archive
   source every page answered 500. t/integration/120, t/unit/manager/212,
   t/unit/processor/93, t/unit/mcp/29.
 
-- SM977 (PENDING) **MCP `copy_file` refuses an existing destination** (ruled
+- SM977 (a0b7d0bb) **MCP `copy_file` refuses an existing destination** (ruled
   2026-10-09, "Refuse existing target"). Its description says "to a new path"
   and the manager's copy refuses an existing target, but `copy_file` overwrote
   one. **Behaviour change:** a copy onto an existing file is refused (`exists`);
   `write_file` replaces a file. t/unit/mcp/30.
 
-- SM944 (PENDING) **internal: the notices gate and the start-page actions are
+- SM944 (73a98907) **internal: the notices gate and the start-page actions are
   their modules'** (S23 of the plan in the filing, with the three changes the
   release manager ruled on 2026-10-09). The manager API's notices gate moves to
   `Lazysite::Manager::Notices` and its start-page actions to
@@ -327,7 +329,7 @@ Archive
   answer narrows: an account name that sanitises to nothing (`!!!`) no longer
   reads the start page of account '' for a caller holding `manage_users`.
 
-- SM977 (PENDING) **MCP `create_form` adds the form to the page it names, and
+- SM977 (efe3e366) **MCP `create_form` adds the form to the page it names, and
   replaces no page.** Called the way its schema describes (`/about`), it read
   `/about`, found nothing, and wrote a fresh scaffold over `/about.md`, so the
   page's text was lost. A page with text and no front matter was replaced
@@ -336,14 +338,14 @@ Archive
   matter block when the page has none. A page it cannot read is refused, and
   an edit made after the read is not overwritten. t/integration/119.
 
-- SM944 (PENDING) **internal: the users-tool client and the account caps memo
+- SM944 (699e2d1f) **internal: the users-tool client and the account caps memo
   are `Lazysite::Manager::Common`'s** (S22b, a row the release manager added
   before S23 on 2026-10-09). `users_api` and the subs behind it, and
   `_user_caps` with its memo, move unchanged so S23's handlers can call them.
   The memo joins the request context: the manager API empties it before each
   request's auth check, and outside a request it holds nothing (lint 217,
   test 205). No behaviour change.
-- SM976 (PENDING) **MCP: each tool declares which arguments are content paths**
+- SM976 (3d13ff91) **MCP: each tool declares which arguments are content paths**
   (ruled 2026-10-09, "Fix: per-tool path args"). One list of path argument names
   for every tool (SM661) made `replace_text`'s `old` and `new` paths, so a grant
   confined to some content was refused ordinary text as "outside your assigned
@@ -355,7 +357,7 @@ Archive
   `path`. Each tool declares `path_args` in the tool table; lint 91 holds every
   argument of every tool to a declaration. t/integration/118.
 
-- SM976 (PENDING) **security: a page binds the form the processor renders, on
+- SM976 (515701d3) **security: a page binds the form the processor renders, on
   every rule** (ruled 2026-10-09, "One reading, processor's"). The form rule
   found a page's form with its own reading - the first plain `form: NAME` line
   in the first 16 KB - so another domain's page with the name on the next line
@@ -372,7 +374,7 @@ Archive
   manager's reading is a marked copy of the processor's, pinned by lint 219.
   t/unit/manager/211.
 
-- SM976 (PENDING) **security: a confined caller binds no form it does not
+- SM976 (72cd4242) **security: a confined caller binds no form it does not
   reach** (ruled 2026-10-09, "Refuse new binding"). A form is reached through
   the pages that bind it, so a cookie manager scoped to one domain could save a
   page of its own naming the primary's form and then read that form's
@@ -395,7 +397,7 @@ Archive
   `form-bind-refused`. Lint 218 section 8, lint 114. t/integration/117,
   t/unit/manager/210.
 
-- SM976 (PENDING) **security: the three Q15c findings, ruled** (2026-10-09). F1
+- SM976 (9afb657b) **security: the three Q15c findings, ruled** (2026-10-09). F1
   "Yes, any served artifact": a theme or layout a site serves is that site's.
   **Behaviour change:** a confined caller (a scoped token, MCP grant, WebDAV
   account or cookie manager, and an unbound token, grant or account for every
