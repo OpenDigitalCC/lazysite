@@ -62,6 +62,17 @@ subtest 'a tag with && || < or * runs' => sub {
     like( $main, qr/IN-HTML-RAN/,        'inside an HTML block too' );
 };
 
+subtest 'a line that opens with a tag keeps its shape' => sub {
+    # A loop line shaped `[..]A:[..]:b=[..]` is a reference-link definition to
+    # the converter unless its tags read as tags - with spaces, as written. An
+    # earlier placeholder without them made this line vanish (t/integration/39).
+    spit( "$docroot/lead.md",
+        "---\ntitle: Lead\n---\n[% FOREACH x IN [1, 2] %]ROW:[% x %]:n=[% x * 10 %]\n[% END %]\n" );
+    my $o = run_processor( $docroot, '/lead' ) // '';
+    like( $o, qr/ROW:1:n=10/, 'the first row' );
+    like( $o, qr/ROW:2:n=20/, 'and the second' );
+};
+
 subtest 'text outside the tags is escaped as before' => sub {
     like( $main, qr/Tom &amp; Jerry, a &amp;&amp; b, x &lt; y\./, 'prose & and < are escaped' );
 };

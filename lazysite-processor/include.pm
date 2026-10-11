@@ -341,11 +341,16 @@ sub convert_md {
     # written into the body before this pass has `[` and `%` encoded
     # (_tt_inert). The `markdown` filter, whose input is a value rather than
     # the author's body, passes tt => 0 and is converted as it always was.
+    #
+    # The placeholder is itself a tag with spaces, `[% KEY %]`, so the converter
+    # meets the same shape it met before: a bare word glued to the text around
+    # it made `[a]B:[c]:d=[e]` a reference-link definition, and the line - a
+    # scan loop in t/integration/39 - vanished from the page.
     my @tt;
     my $tk = "LZSTT${k}N";
     if ( $o{tt} // 1 ) {
         $body =~ s{(<pre\b.*?</pre>)|(\[%.*?%\])}{
-            defined $1 ? $1 : do { push @tt, $2; $tk . $#tt . 'E' }
+            defined $1 ? $1 : do { push @tt, $2; '[% ' . $tk . $#tt . 'E %]' }
         }gsei;
     }
 
@@ -363,10 +368,10 @@ sub convert_md {
             return $s;
         };
         $html =~ s{(<code\b[^>]*>.*?</code>)}{
-            ( my $c = $1 ) =~ s/(\Q$tk\E(\d+)E)/defined $tt[$2] ? $esc->( $tt[$2] ) : $1/ge;
+            ( my $c = $1 ) =~ s/(\[% \Q$tk\E(\d+)E %\])/defined $tt[$2] ? $esc->( $tt[$2] ) : $1/ge;
             $c
         }gse;
-        $html =~ s/(\Q$tk\E(\d+)E)/defined $tt[$2] ? $tt[$2] : $1/ge;
+        $html =~ s/(\[% \Q$tk\E(\d+)E %\])/defined $tt[$2] ? $tt[$2] : $1/ge;
     }
 
     # Restore the protected blocks
