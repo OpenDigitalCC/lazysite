@@ -57,7 +57,7 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_git_status action_git_history action_git_history_summary
     action_git_show action_git_restore action_git_init
     action_regenerate_registries);
-use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
+use Lazysite::Manager::Themes qw(action_theme_list dispatch_themes_list_all action_theme_activate
     action_layout_activate action_theme_delete action_theme_copy action_theme_upload
     action_cache_list action_cache_invalidate
     action_artifact_manifest action_artifact_validate);
@@ -1866,15 +1866,7 @@ elsif ( $action eq 'bad-url-unblock' ) {
 }
 elsif ( $action eq 'theme-list' )      { $result = action_theme_list() }
 elsif ( $action eq 'themes-list-all' ) {
-    $result = action_themes_list_all();
-    # SM976 F4 (ruled 2026-10-09, "Activate on its domain"): a domain-confined
-    # caller activates on its own domains, never on the instance (R1). The
-    # Appearance page reads which from here - the listing it already loads -
-    # and binds there through theme-activate/layout-activate with host. Absent
-    # for the operator and every unconfined caller, whose page is unchanged.
-    if ( ref $result eq 'HASH' && Lazysite::Manager::Common::caller_is_confined() ) {
-        $result->{acts_on} = [ grep { $_ ne '(default)' } Lazysite::Manager::Common::reachable_domains() ];
-    }
+    $result = dispatch_themes_list_all();
 }
 
 # SM920: ONE NAME FOR THE THING BEING ACTIVATED - `theme=` and `layout=`.

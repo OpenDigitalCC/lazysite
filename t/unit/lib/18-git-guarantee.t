@@ -236,6 +236,7 @@ my %EXEMPT = (
     'Layouts::action_artifact_backups_delete' => 'layout/theme artifact write (capture-swept)',
     'Themes::action_theme_list'      => 'read-only',
     'Themes::action_themes_list_all' => 'read-only',
+    'Themes::dispatch_themes_list_all' => 'read-only', # SM944 S33: themes-list-all's branch
     'Themes::action_theme_tokens'    => 'read-only',   # SM204: token-vocabulary discovery
     'Themes::action_create_theme' => 'layout/theme artifact write (capture-swept)', # SM205
     'Themes::action_cache_list'   => 'read-only',

@@ -27,7 +27,7 @@ use Lazysite::Paths             ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
-    action_theme_list action_themes_list_all action_theme_activate
+    action_theme_list action_themes_list_all dispatch_themes_list_all action_theme_activate
     action_theme_tokens action_create_theme theme_config_issues
     _layout_declared_tokens _theme_config_tokens _token_mismatch
     _token_warning_list
@@ -191,6 +191,24 @@ sub action_themes_list_all {
         active        => $active_theme,
         active_layout => $active_layout,
     };
+}
+
+# SM944 S33: themes-list-all's dispatch branch, moved here from
+# lazysite-manager-api.pl with its statements unchanged: the listing, and for a
+# domain-confined caller the domains it activates on (Manager::Common's request
+# context, read by full name; this module's own $auth_user is a log copy).
+sub dispatch_themes_list_all {
+    my $result;
+    $result = action_themes_list_all();
+    # SM976 F4 (ruled 2026-10-09, "Activate on its domain"): a domain-confined
+    # caller activates on its own domains, never on the instance (R1). The
+    # Appearance page reads which from here - the listing it already loads -
+    # and binds there through theme-activate/layout-activate with host. Absent
+    # for the operator and every unconfined caller, whose page is unchanged.
+    if ( ref $result eq 'HASH' && Lazysite::Manager::Common::caller_is_confined() ) {
+        $result->{acts_on} = [ grep { $_ ne '(default)' } Lazysite::Manager::Common::reachable_domains() ];
+    }
+    return $result;
 }
 
 # TL-2: the one open-slurp-decode this module and Manager::Layouts share.
