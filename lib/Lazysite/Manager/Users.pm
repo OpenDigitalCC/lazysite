@@ -446,6 +446,15 @@ sub action_rotate_auth_secret {
     return { ok => 0, kind => 'forbidden',
         error => 'The auth secret is rotated for a signed-in account, and no account is asking.' }
         unless defined $user && length $user;
+    # SM944 Q14 n342, ruled 2026-10-11 ("Yes, same as whoami"): AND FOR THE
+    # ACCOUNT THAT IS ASKING. The refusal above trusted the account it was
+    # handed, so a caller outside a request that named one still rotated. Inside
+    # a request the dispatcher passes $auth_user itself, so the answer there is
+    # the same. Users holds no per-module copy of the account: $auth_user here
+    # is Manager::Common's request fact.
+    return { ok => 0, kind => 'forbidden',
+        error => 'The auth secret is rotated for the signed-in account that is asking, and only for it.' }
+        unless $user eq $auth_user;
     my $path = "$LAZYSITE_DIR/auth/.secret";
 
     # Fail closed if CSPRNG unavailable (M-6 convention)

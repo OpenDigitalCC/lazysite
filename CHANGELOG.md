@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **security hardening: the auth secret is rotated only for the
+  account that is asking** (WORK-PLAN-0153 Q14, ruled 2026-10-11, "Yes, same as
+  whoami", scope ruled "manage_config may rotate"). The earlier fix refused an
+  empty account and trusted any other `action_rotate_auth_secret` was handed,
+  so a caller outside a request that named an account still signed every
+  session out. It now acts only when the account is non-empty and is the
+  request's own signed-in account; anything else is refused before
+  /dev/urandom is opened. Inside a request nothing changes: the dispatcher
+  passes the signed-in account, and a manager its gate lets through
+  (`manage_config`) rotates as before. t/unit/manager/220.
+
 - SM944 (PENDING) **internal: the users and identity actions are
   Manager::Users', and whoami answers only for the account asking** (S32 of the
   plan in the filing, as the release manager ruled on 2026-10-10, "Yes, all

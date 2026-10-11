@@ -7,7 +7,11 @@
 # request context as its reset leaves it, nobody - action_rotate_auth_secret('')
 # rotated the secret with nobody asking (tmp/sm944-s31-s32-refusal-probe.out).
 # Now it refuses before /dev/urandom is opened, and leaves the secret and the
-# CSRF secret as they are.
+# CSRF secret as they are. SM944 Q14 n342 (ruled 2026-10-11, "Yes, same as
+# whoami"; scope ruled "manage_config may rotate"): and it refuses unless the
+# account is the one asking - a named account outside a request and another
+# account than the one asking are refused; the signed-in account itself
+# rotates, a manager holding manage_config without manage_users included.
 #
 # Loaded the way the unit tests load the script (LAZYSITE_API_LOAD_ONLY:
 # compiled, no request run).
@@ -61,6 +65,26 @@ subtest 'outside a request nothing is rotated' => sub {
     is( slurp($SECRET),   ( 'a' x 64 ) . "\n", '...the auth secret is unchanged' );
 };
 
+# SM944 Q14 n342, ruled 2026-10-11 ("Yes, same as whoami"): the account must be
+# the one asking. The refusal above trusted the account it was handed, so a
+# caller outside a request that named one still rotated.
+subtest 'outside a request a named account is refused too' => sub {
+    no warnings 'once';
+    is( $Lazysite::Manager::Common::auth_user, '', 'nobody is asking' );
+    my $r = main::action_rotate_auth_secret('boss');
+    is( $r->{kind} // '', 'forbidden', 'an account nobody signed in as is refused' ) or diag explain $r;
+    like( $r->{error} // '', qr/the signed-in account that is asking/, '...saying why' );
+    is( slurp($SECRET), ( 'a' x 64 ) . "\n", '...the auth secret is unchanged' );
+    ok( -e $CSRF, '...and the CSRF secret is still there' );
+
+    $Lazysite::Manager::Common::auth_user = 'alice';
+
+    $r = main::action_rotate_auth_secret('boss');
+    is( $r->{kind} // '', 'forbidden',         'with alice asking, boss is refused' );
+    is( slurp($SECRET),   ( 'a' x 64 ) . "\n", '...the auth secret is unchanged' );
+    Lazysite::Manager::Common::reset_request_context();
+};
+
 subtest 'for an account the secret is rotated; after a reset, refused again' => sub {
     no warnings 'once';
     $Lazysite::Manager::Common::auth_user = 'boss';
@@ -77,6 +101,29 @@ subtest 'for an account the secret is rotated; after a reset, refused again' => 
     is( $r->{kind} // '', 'forbidden', 'reset: refused again' );
     is( slurp($SECRET),   $new,        '...the secret is as the account left it' );
     ok( -e $CSRF, '...and the CSRF secret is still there' );
+};
+
+# SM944 Q14 n342, scope ruled 2026-10-11 ("manage_config may rotate"): the
+# dispatcher's cookie gate for rotate-auth-secret asks manage_config, and the
+# action asks only that the account is the one asking - so a signed-in manager
+# holding manage_config without manage_users rotates through a real request.
+subtest 'through a request, the signed-in account with manage_config rotates' => sub {
+    require ManagerSession;
+    my $s   = ManagerSession::new_site( root => repo_root() );
+    my @ALL = qw(ui manage_users manage_config);
+    $s->add_user('carol');
+    $s->grant( 'carol', 'configurers', [qw(ui manage_config)], \@ALL );
+    my $lz     = $s->docroot . '/lazysite';
+    my $secret = sub { slurp("$lz/auth/.secret") };
+    my $before = $secret->();
+
+    # A real request: the script runs, so it must not be told to load only.
+    delete local $ENV{LAZYSITE_API_LOAD_ONLY};
+    my $r = $s->call( 'carol', 'rotate-auth-secret', body => {} );
+    ok( $r->{ok}, 'carol (manage_config, not manage_users) rotates' ) or diag explain $r;
+    my $after = $secret->();
+    like( $after, qr/\A[0-9a-f]{64}\n\z/, '...a new 32-byte secret' );
+    isnt( $after, $before, '...not the old one' );
 };
 
 done_testing();
