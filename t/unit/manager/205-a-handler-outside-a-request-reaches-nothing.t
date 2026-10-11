@@ -977,4 +977,59 @@ subtest 'the acl-set handler sets no rule outside a request' => sub {
     is( $set->()->[0]{kind} // '', 'forbidden', 'reset: refused again' );
 };
 
+# SM944 S33 (n347), SECURITY: the sessions-and-keys branch, moved into
+# Manager::Sessions as dispatch_sessions_keys after it took the empty-account
+# refusal first. Its gate passes a token client and the reset leaves one, so
+# moved as it was it listed the access keys and revoked an account's sessions
+# for nobody (tmp/sm944-n347-probe.out). Now each of the five refuses with
+# nobody asking - Sessions' own log copy naming boss, as the auth CGI and the
+# daemon set it - and revokes nothing; boss's cookie context lists sessions and
+# keys; the reset refuses again.
+subtest 'the sessions and keys handler lists and revokes nothing outside a request' => sub {
+    require Lazysite::Manager::Sessions;
+    require Lazysite::Manager::Users;
+    require ManagerSession;
+    my $s = ManagerSession::new_site( root => repo_root() );
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', [qw(ui manage_users)], [qw(ui manage_users)] );
+    my $d       = $s->docroot;
+    my $lz      = "$d/lazysite";
+    my $revoked = sub { -e "$lz/auth/revoked.json" ? 1 : 0 };
+    no warnings 'once';
+    local $Lazysite::Manager::Sessions::LAZYSITE_DIR = $lz;
+    local $Lazysite::Manager::Sessions::auth_user = 'boss'; # its log copy, as the auth CGI sets it
+    local $Lazysite::Manager::Common::DOCROOT     = $d;
+    local $Lazysite::Manager::Common::LAZYSITE_DIR = $lz;
+    local $Lazysite::Auth::Settings::AUTH_DIR      = "$lz/auth";
+    local $ENV{LAZYSITE_USERS_TOOL} = repo_root() . '/tools/lazysite-users.pl';
+    local $ENV{DOCUMENT_ROOT}       = $d;
+    local $ENV{LAZYSITE_LOG_LEVEL}  = 'ERROR';
+    my $call = sub {
+        my ( $act, $json ) = @_;
+        reset_request_context();
+        $action = $act;
+        $body   = $json // '';
+        return Lazysite::Manager::Sessions::dispatch_sessions_keys();
+    };
+    my %bodies = ( 'session-revoke' => '{"sid":"0123456789abcdef"}', 'user-revoke' => '{"username":"boss"}',
+        'key-revoke' => '{"username":"boss"}' );
+    for my $act (qw(sessions-list keys-list session-revoke user-revoke key-revoke)) {
+        my $r = $call->( $act, $bodies{$act} );
+        is( $r->{kind} // '', 'forbidden', "$act: nobody asking, refused" ) or diag explain $r;
+        ok( !exists $r->{sessions} && !exists $r->{keys}, "$act: ...listing nothing" );
+    }
+    is( $revoked->(), 0, '...and nothing was revoked' );
+
+    # boss's own cookie request, as the script sets it.
+    for my $act (qw(sessions-list keys-list)) {
+        reset_request_context();
+        $auth_user  = 'boss';
+        $token_auth = 0;
+        $action     = $act;
+        my $r = Lazysite::Manager::Sessions::dispatch_sessions_keys();
+        ok( $r->{ok}, "with boss's context $act answers" ) or diag explain $r;
+    }
+    is( $call->('keys-list')->{kind} // '', 'forbidden', 'reset: refused again' );
+};
+
 done_testing();
