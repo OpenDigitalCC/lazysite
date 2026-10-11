@@ -853,4 +853,67 @@ subtest 'the listings extracted from the dispatch chain list nothing outside a r
     $none->('reset');
 };
 
+# SM944 S33 (n345): start-page-set's and audit's branches, moved into
+# Manager::StartPage and Manager::AuditTrail as dispatch_ handlers reading the
+# request's body and parameters from the context (S33a). Outside a request
+# start-page-set has no body (a missing value is refused) and, handed one,
+# still no subject (action_start_page_set refuses nobody, S23); audit skips the
+# cookie gate (the reset leaves a token client) and action_audit refuses an
+# empty account (S31). With boss's context both answer; after the reset both
+# refuse again.
+subtest 'the start-page-set and audit handlers act for nobody outside a request' => sub {
+    require Lazysite::Manager::StartPage;
+    require Lazysite::Manager::AuditTrail;
+    require ManagerSession;
+    my $s = ManagerSession::new_site( root => repo_root() );
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', [qw(ui manage_users manage_content audit)], [qw(ui manage_users manage_content audit)] );
+    my $d = $s->docroot;
+    mkdir "$d/lazysite/logs";
+    open my $fh, '>', "$d/lazysite/logs/audit.log" or die $!;
+    print {$fh} "2026-10-10T10:00:00Z | boss | save | secret/plan.md | 10.0.0.1 | ok | ui | \n";
+    close $fh;
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT          = $d;
+    local $Lazysite::Manager::Common::LAZYSITE_DIR     = "$d/lazysite";
+    local $Lazysite::Manager::StartPage::DOCROOT       = $d;
+    local $Lazysite::Manager::AuditTrail::DOCROOT      = $d;
+    local $Lazysite::Manager::AuditTrail::LAZYSITE_DIR = "$d/lazysite";
+    local $Lazysite::Audit::LAZYSITE_DIR               = "$d/lazysite";
+    local $Lazysite::Auth::Settings::AUTH_DIR          = "$d/lazysite/auth";
+    local $ENV{LAZYSITE_USERS_TOOL} = repo_root() . '/tools/lazysite-users.pl';
+    local $ENV{LAZYSITE_LOG_LEVEL}  = 'ERROR';
+    my $SP = 'Lazysite::Manager::StartPage';
+    my $AT = 'Lazysite::Manager::AuditTrail';
+
+    reset_request_context();
+    my $r = $SP->can('dispatch_start_page_set')->();
+    like( $r->{error} // '', qr/value is required/, 'start-page-set: no body, so no value' ) or diag explain $r;
+    reset_request_context();
+    $body = '{"value":"manager:files"}';
+    $r    = $SP->can('dispatch_start_page_set')->();
+    is( $r->{kind} // '', 'forbidden', '...and handed one, no account is asking' ) or diag explain $r;
+    reset_request_context();
+    $r = $AT->can('dispatch_audit')->();
+    is( $r->{kind} // '', 'forbidden', 'audit refuses: no account is asking' ) or diag explain $r;
+    ok( !exists $r->{entries}, '...handing over no entry' );
+
+    # boss's own request: a cookie session holding audit, with a body.
+    $auth_user  = 'boss';
+    $token_auth = 0;
+    %token_caps = ();
+    $body       = '{"value":"manager:files"}';
+    $r          = $SP->can('dispatch_start_page_set')->();
+    ok( $r->{ok}, 'with boss\'s context start-page-set sets boss\'s start page' ) or diag explain $r;
+    is( $SP->can('action_start_page')->(undef)->{current}, 'manager:files', '...which start-page reads back' );
+    $r = $AT->can('dispatch_audit')->();
+    ok( $r->{ok}, '...and audit reads the trail' ) or diag explain $r;
+    is( scalar @{ $r->{entries} || [] }, 1, '...its entry' );
+
+    reset_request_context();
+    is( $SP->can('dispatch_start_page_set')->()->{error} // '', 'value is required (send it in the JSON body; '
+            . 'an empty string clears the start page)', 'reset: start-page-set has no value again' );
+    is( $AT->can('dispatch_audit')->()->{kind} // '', 'forbidden', '...and audit refuses again' );
+};
+
 done_testing();
