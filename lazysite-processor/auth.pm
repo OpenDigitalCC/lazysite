@@ -16,7 +16,7 @@ package main;
 #         the unsecured-site rule - no group grants manager access, so every
 #         signed-in user is one - and its fail-closed store read (SM906 T3);
 #         the 403's content root and header set (SM381).
-# CALLS   uri_encode, _groups_grant_cap, _esc_html, output_page,
+# CALLS   uri_encode, _groups_grant_cap, _esc_html, output_page, _access_keys_read,
 #         _request_croot, _system_page_md, process_md, _sanitise_not_found,
 #         _rewrite_if_changed, _chrome_lang, _chrome, log_event (the script and
 #         its parts); JSON::PP::decode_json by its full name (loaded by the
@@ -59,9 +59,11 @@ our ( $DOCROOT, $LAZYSITE_DIR, %ACCESS_REC );
         return $_peek_cache{$key} if exists $_peek_cache{$key};
 
         my %m;
-        my @groups;
         my @qp;
-        my ( $in_groups, $in_qp );
+        my $in_qp;
+        # SM980: the FRONT MATTER, for _access_keys_read - only when the file
+        # opens with one; a page without front matter declares no access keys.
+        my ( $fm_text, $has_fm ) = ( '', 0 );
 
         open my $fh, '<:utf8', $path or do {
             $_peek_cache{$key} = \%m;
@@ -69,10 +71,12 @@ our ( $DOCROOT, $LAZYSITE_DIR, %ACCESS_REC );
         };
         while ( my $line = <$fh> ) {
             last if $. > 1 && $line =~ /^---/;
+            if    ( $. == 1 && $line =~ /^\x{FEFF}?---/ ) { $has_fm = 1 }
+            elsif ($has_fm)                               { $fm_text .= $line }
 
-            # scalar keys
-            if    ( $line =~ /^auth\s*:\s*(\w+)/i )   { $m{auth}    = lc $1 }
-            elsif ( $line =~ /^ttl\s*:\s*(\d+)/ )     { $m{ttl}     = $1 }
+            # scalar keys (SM980: `auth` is read with the other access keys,
+            # below the loop, by _access_keys_read)
+            if    ( $line =~ /^ttl\s*:\s*(\d+)/ )     { $m{ttl}     = $1 }
             elsif ( $line =~ /^api\s*:\s*true/i )     { $m{api}     = 1 }
             elsif ( $line =~ /^nocache\s*:\s*true/i ) { $m{nocache} = 1 }
             elsif ( $line =~ /^raw\s*:\s*true/i )     { $m{raw}     = 1 }
@@ -92,27 +96,15 @@ our ( $DOCROOT, $LAZYSITE_DIR, %ACCESS_REC );
                 $m{content_type} = $v;
             }
 
-            # payment.* scalar keys
-            for my $pk ( qw(payment payment_amount payment_currency
+            # payment.* scalar keys (SM980: `payment` itself is an access key,
+            # read below the loop)
+            for my $pk ( qw(payment_amount payment_currency
                 payment_network payment_address
                 payment_asset payment_description) ) {
                 if ( $line =~ /^\Q$pk\E\s*:\s*(.+)$/ ) {
                     ( my $v = $1 ) =~ s/\s+$//;
                     $m{$pk} = $v;
                 }
-            }
-
-            # auth_groups: block
-            if ( $line =~ /^auth_groups\s*:\s*$/ ) {
-                $in_groups = 1; $in_qp = 0; next;
-            }
-            if ($in_groups) {
-                if ( $line =~ /^\s+-\s+(.+)$/ ) {
-                    ( my $g = $1 ) =~ s/^\s+|\s+$//g;
-                    push @groups, $g;
-                    next;
-                }
-                $in_groups = 0 if $line !~ /^\s/;
             }
 
             # SM311: does this page read anything OTHER than itself?
@@ -140,7 +132,7 @@ our ( $DOCROOT, $LAZYSITE_DIR, %ACCESS_REC );
 
             # query_params: block
             if ( $line =~ /^query_params\s*:\s*$/ ) {
-                $in_qp = 1; $in_groups = 0; next;
+                $in_qp = 1; next;
             }
             if ($in_qp) {
                 if ( $line =~ /^[ \t]+-[ \t]*(\S+)/ ) {
@@ -152,8 +144,16 @@ our ( $DOCROOT, $LAZYSITE_DIR, %ACCESS_REC );
         }
         close $fh;
 
-        $m{groups}       = \@groups if @groups;
-        $m{query_params} = \@qp     if @qp;
+        # SM980: auth, auth_groups and payment, read by the one reader.
+        # `groups` keeps its contract (present only when the page names
+        # some); a key that cannot be read is recorded with its reason,
+        # and check_auth refuses the page to everyone.
+        my $ak = _access_keys_read($fm_text);
+        $m{auth}    = $ak->{auth}    if defined $ak->{auth};
+        $m{payment} = $ak->{payment} if defined $ak->{payment};
+        $m{groups} = $ak->{auth_groups} if ref $ak->{auth_groups} eq 'ARRAY' && @{ $ak->{auth_groups} };
+        $m{access_unreadable} = $ak->{unreadable} if %{ $ak->{unreadable} };
+        $m{query_params}      = \@qp              if @qp;
 
         $_peek_cache{$key} = \%m;
         return \%m;
@@ -171,6 +171,8 @@ sub peek_auth {
     return {
         auth   => $m->{auth},
         groups => $m->{groups} // [],
+        # SM980: { key => why } for an access key that cannot be read.
+        ( $m->{access_unreadable} ? ( unreadable => $m->{access_unreadable} ) : () ),
     };
 }
 
@@ -206,6 +208,28 @@ sub check_auth {
     my $auth_groups = $ENV{ $make_env->( $site_vars->{auth_header_groups} || 'X-Remote-Groups' ) } // '';
 
     my $authenticated = $auth_user ne '' ? 1 : 0;
+
+    # SM980 (ruled 2026-10-11, "Parse it + fail closed"): AN ACCESS KEY THE
+    # ENGINE CANNOT READ REFUSES THE PAGE TO EVERYONE. `auth_groups: [a, b]`
+    # was not read at all, so the page applied no group restriction and every
+    # signed-in user got it, rows and all; `auth: "required"` and
+    # `payment: "required"` did the same for anonymous visitors. The flow
+    # list is read now; what is still unreadable is a restriction the author
+    # meant and the engine cannot apply, and the safe answer to that is no.
+    # 403 for everyone, signed in or not, and a line naming the key.
+    if ( ref $auth_meta->{unreadable} eq 'HASH' && %{ $auth_meta->{unreadable} } ) {
+        my $u = $auth_meta->{unreadable};
+        for my $k ( sort keys %$u ) {
+            log_event( 'WARN', $uri, 'access key unreadable - page refused to everyone',
+                key => $k, why => $u->{$k} );
+        }
+        return {
+            forbidden          => 1,
+            auth_user          => $auth_user,
+            auth_name          => $auth_name,
+            auth_denied_reason => 'unreadable_access_key',
+        };
+    }
 
     # For 'none' pages, return auth context without enforcement
     if ( $auth_level eq 'none' ) {

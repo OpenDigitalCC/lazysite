@@ -140,7 +140,9 @@ Template::Plugin::JSON module, which is not bundled; prefer `json:`.)
   (default).
 
 `auth_groups`
-: List of group names. User must be in one of them.
+: List of group names, as a block list or inline (`[a, b]`). User must be
+  in one of them. A value that is not a list of group names (a bare name,
+  `[]`) refuses the page to everyone - run `lazysite validate`.
 
 `payment`
 : Payment requirement for the x402 payment flow. See

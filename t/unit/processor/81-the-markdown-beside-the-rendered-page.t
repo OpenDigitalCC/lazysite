@@ -43,13 +43,15 @@ sub put {
 # A page carrying one of EVERY key the audit found a verbatim `.md` would
 # publish for the first time, so the withholding assertions below are about a
 # real shape rather than a convenient one.
+# SM980: auth_groups as a LIST - a single bare name is unreadable now and
+# refuses the page to everyone, which is not what this page is for.
 put( 'open.md', <<'MD' );
 ---
 title: "Open: a page"
 subtitle: A live [% client_ip %] subtitle
 description: What this page is
 auth: none
-auth_groups: SECRET-GROUP-NAME
+auth_groups: [SECRET-GROUP-NAME]
 query_params:
   - SECRET-PARAM
 tt_page_var:

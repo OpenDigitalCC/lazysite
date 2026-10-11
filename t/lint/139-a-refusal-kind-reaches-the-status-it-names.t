@@ -68,7 +68,13 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     form-binding-unchecked no-content unreadable
 
     mine_needs_timestamps db-mine-no-owner
+
+    access-key-unreadable
 );
+
+# SM980: `access-key-unreadable` is GROUP 2 - a Lazysite::Validate issue about a
+# page's auth / auth_groups / payment value, reported to whoever asked. The gate's
+# own refusal of such a page is the processor's 403, which carries no kind.
 
 # SM857: `mine_needs_timestamps` is the binding grammar refusing (mine) on a
 # table with no created_by - an author's binding that cannot work as written,

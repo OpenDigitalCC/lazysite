@@ -558,6 +558,24 @@ Archive
   refused 403 and change no file of the site and write no audit row, while the
   same request with a token does what it was refused. Test 43 sampled 19, and
   a gate moved after the dispatch let a forged write land behind its 403.
+- SM980 (PENDING) **security: an inline `auth_groups: [a, b]` restricts the page,
+  and an access key the engine cannot read refuses it** (ruled 2026-10-11, "Parse
+  it + fail closed"). The gate read `auth_groups` only as a block list, so the flow
+  list - ordinary YAML - was not read at all and the page was served, data rows
+  included, to every signed-in user; `auth: "required"` and `payment: "required"`
+  (quoted or capitalised) were not read either and served the page to anyone, or
+  free. `auth`, `auth_groups` and `payment` now have one reading (the gate, the
+  render parse, the scan and registry gates) that takes a flow or block list, one
+  level of quotes, any case and a trailing comment. **Behaviour change:** a value
+  that still cannot be read - a single bare name (`auth_groups: admins`), an empty
+  list, an unclosed `[`, an `auth:` other than required/optional/none, a
+  `payment:` other than required/none - answers 403 to everyone, signed in or not,
+  is in no listing, and logs a line naming the key; `lazysite validate` reports it.
+  Found and reported for a ruling: `auth_groups` binds only a signed-in request
+  unless `auth: required` (an anonymous visitor gets what a non-member is
+  refused), and `auth: manager` enforces nothing outside the manager path.
+  t/integration/125, t/lint/220.
+
 - SM979 (PENDING) **security: manage_users no longer passes a file's rule, and
   approving an account request is a grant of its own** (ruled 2026-10-11, "New
   approve capability"). A group holding only `manage_users` - made to approve

@@ -127,7 +127,7 @@ when you write it, and downgraded to `text/plain` if one already exists.
 : Authentication requirement: `required`, `optional`, or `none` (default). See [Authentication](/docs/auth).
 
 `auth_groups`
-: Group names; the user must be signed in and in at least one to view the page.
+: Group names; the user must be signed in and in at least one to view the page. A block list or an inline `[a, b]`; a value that is not a list of group names refuses the page to everyone (403), and `lazysite validate` reports it.
 
 `admin_bar`
 : Set to `none` to stop the engine injecting the manager's admin bar on this

@@ -35,7 +35,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(
     validate_content validate_file
     split_front_matter parse_front_matter
-    html_pattern_problem
+    html_pattern_problem read_access_keys
 );
 
 use Lazysite::Manager::Common ();
@@ -188,6 +188,104 @@ sub parse_front_matter {
         else                      { $v =~ s/^["']|["']$//g; $h{$k} = $v; }
     }
     return \%h;
+}
+
+# SM980 (ruled 2026-10-11, "Parse it + fail closed"): THE ACCESS KEYS - auth,
+# auth_groups, payment - as the engine's gate reads them.
+#
+# MARKED COPY (ADR 0001) of the processor's _access_keys_read
+# (lazysite-processor/front-matter.pm), which the gate and the render parse
+# share; this one serves `lazysite validate` and validate_page, which cannot
+# load the processor. t/lint/220 runs both over the same texts. Change one,
+# change both. Returns { auth, auth_groups, payment, unreadable => { key => why } }.
+sub read_access_keys {
+    my ($fm)  = @_;
+    my %out   = ( unreadable => {} );
+    my @lines = split /\r?\n/, ( $fm // '' );
+    my $NAME  = qr/\A[A-Za-z0-9_.-]+\z/;
+    my $clean = sub {
+        my ($v) = @_;
+        $v //= '';
+        $v =~ s/\s+#.*\z//;
+        $v =~ s/\A\s+|\s+\z//g;
+        $v =~ s/\A"(.*)"\z/$1/ or $v =~ s/\A'(.*)'\z/$1/;
+        return $v;
+    };
+    my %seen;
+    for ( my $i = 0; $i < @lines; $i++ ) {
+        my $line = $lines[$i];
+        next unless $line =~ /\A(auth|auth_groups|payment)[ \t]*:(.*)\z/i;
+        my ( $key, $rest ) = ( lc $1, $2 );
+        if ( $seen{$key}++ ) {
+            $out{unreadable}{$key} = "'$key' is given more than once";
+            next;
+        }
+        if ( $key eq 'auth' || $key eq 'payment' ) {
+            my $v = lc $clean->($rest);
+            my @ok = $key eq 'auth' ? qw(required optional none manager) : qw(required none);
+            if ( grep { $_ eq $v } @ok ) { $out{$key} = $v }
+            else {
+                $out{unreadable}{$key} = length $v
+                    ? "'$key: $v' is not one of " . join( ', ', @ok )
+                    : "'$key' has no value - write one of " . join( ', ', @ok );
+            }
+            next;
+        }
+
+        # auth_groups: an inline value, or the indented `- name` lines below it.
+        my $inline = $rest;
+        $inline =~ s/\s+#.*\z//;
+        $inline =~ s/\A\s+|\s+\z//g;
+        my ( @items, $stray );
+        # Indented lines, and `- name` lines at the key's own column (valid YAML).
+        while ( $i + 1 < @lines && $lines[ $i + 1 ] =~ /\A(?:[ \t]|-(?:[ \t]|\z))/ ) {
+            my $next = $lines[ ++$i ];
+            next if $next =~ /\A\s*(?:#.*)?\z/;
+            if ( $next =~ /\A[ \t]*-[ \t]*(.*)\z/ ) { push @items, $1 }
+            else                                    { $stray = 1 }
+        }
+        my ( @names, $why );
+        if ( length $inline ) {
+            if ( @items || $stray ) { $why = 'has a value on its line and an indented list below it' }
+            elsif ( $inline =~ /\A\[(.*)\]\z/ ) {
+                my $inner = $1;
+                if ( $inner =~ /\A\s*\z/ ) { $why = 'is an empty list - it names no group' }
+                else { @names = map { $clean->($_) } split /,/, $inner, -1 }
+            }
+            else {
+                $why = "is one value, not a list - write [$inline] or a '- $inline' line below it";
+            }
+        }
+        elsif ($stray) { $why = 'has an indented line below it that is not a list item' }
+        elsif (@items) { @names = map { $clean->($_) } @items }
+        else           { $why   = 'has no value - it names no group' }
+        if ( !defined $why ) {
+            my ($bad) = grep { $_ !~ $NAME } @names;
+            $why = length( $bad // '' )
+                ? "'$bad' is not a group name (letters, digits, '.', '_' or '-')"
+                : 'has an empty entry'
+                if defined $bad;
+        }
+        if   ( defined $why ) { $out{unreadable}{auth_groups} = "'auth_groups' $why" }
+        else                  { $out{auth_groups}             = \@names }
+    }
+    return \%out;
+}
+
+# SM980: an access key the gate cannot read refuses the page to EVERYONE (403,
+# and a log line naming the key) - so the validator says so before a visitor
+# finds out. An issue, not a warning: the page will not serve.
+sub _check_access_keys {
+    my ( $issues, $fm ) = @_;
+    my $u = read_access_keys($fm)->{unreadable};
+    for my $k ( sort keys %$u ) {
+        push @$issues, { kind => 'access-key-unreadable', key => $k,
+            message => "$u->{$k}, so the page is refused to everyone (403) until it is "
+                . ( $k eq 'auth_groups'
+                ? 'a list of group names - [a, b], or one "- name" line each'
+                : 'one of the values listed' ) };
+    }
+    return;
 }
 
 # SM488: a warning's line number counts from the top of the FILE, so a scan
@@ -602,6 +700,7 @@ sub validate_content {
     my $h = parse_front_matter($fm);
 
     _check_front_matter( \@issues, \@warnings, $content, $h );
+    _check_access_keys( \@issues, $fm );    # SM980
     _check_fences( \@warnings, $fm, $body );
     # SM900: with the front-matter offset, as _check_fences has always done, so
     # the two checks on one page count from the same place - the top of the file.

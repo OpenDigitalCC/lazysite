@@ -5,7 +5,9 @@ package main;
 # HOLDS   parse_yaml_front_matter($text) -> ( \%meta, $body ): a page's front
 #         matter as the render path reads it; and the minimal nested-YAML
 #         parser behind `sections:` - _parse_sections, _yaml_block, _yaml_value,
-#         _yaml_scalar, _yaml_split_flow, _yaml_quoted_scalar_line.
+#         _yaml_scalar, _yaml_split_flow, _yaml_quoted_scalar_line; and
+#         _access_keys_read($fm), the one reading of auth, auth_groups and
+#         payment that the gate (auth.pm, _peek_md) and this parse share (SM980).
 # OWNS    what a page's front matter means to the engine: process_md, the
 #         include path and the registry scan all read it through this one parse.
 #         And (P12/P13, at the end of this part) _front_matter_lists with
@@ -179,6 +181,101 @@ sub _parse_sections {
     return ref $data eq 'ARRAY' ? $data : [];
 }
 
+# SM980 (ruled 2026-10-11, "Parse it + fail closed"): THE ACCESS KEYS, READ ONE
+# WAY. `auth`, `auth_groups` and `payment` decide who gets a page; each was read
+# by a regex that took one spelling, and a value spelt any other way was not
+# read at all - which for a restriction means it did not apply:
+#
+#   auth_groups: [a, b]    the YAML flow list - no groups, any signed-in user in
+#   auth: "required"       quoted - (\w+) saw no word, the page went public
+#   payment: "required"    quoted or capitalised - not 'required', served free
+#
+# This reads what the author meant where YAML is unambiguous (a flow or block
+# list, one level of quotes, any case, a trailing comment) and answers
+# `unreadable => { key => why }` for anything else, which check_auth turns into a
+# 403 for everyone. Never a guess: a single bare name is a string to YAML, not a
+# list, and an empty list names nobody - both refused, saying what to write.
+#
+# $fm is the front-matter text. Returns { auth, auth_groups, payment,
+# unreadable }; a key that is absent is undef and unreadable says nothing of it.
+#
+# MARKED COPY (ADR 0001): Lazysite::Validate::read_access_keys is this reading
+# for `lazysite validate` and validate_page, which cannot load the processor.
+# t/lint/220 runs both over the same texts. Change one, change both.
+sub _access_keys_read {
+    my ($fm)  = @_;
+    my %out   = ( unreadable => {} );
+    my @lines = split /\r?\n/, ( $fm // '' );
+    my $NAME  = qr/\A[A-Za-z0-9_.-]+\z/;
+    my $clean = sub {
+        my ($v) = @_;
+        $v //= '';
+        $v =~ s/\s+#.*\z//;
+        $v =~ s/\A\s+|\s+\z//g;
+        $v =~ s/\A"(.*)"\z/$1/ or $v =~ s/\A'(.*)'\z/$1/;
+        return $v;
+    };
+    my %seen;
+    for ( my $i = 0; $i < @lines; $i++ ) {
+        my $line = $lines[$i];
+        next unless $line =~ /\A(auth|auth_groups|payment)[ \t]*:(.*)\z/i;
+        my ( $key, $rest ) = ( lc $1, $2 );
+        if ( $seen{$key}++ ) {
+            $out{unreadable}{$key} = "'$key' is given more than once";
+            next;
+        }
+        if ( $key eq 'auth' || $key eq 'payment' ) {
+            my $v = lc $clean->($rest);
+            my @ok = $key eq 'auth' ? qw(required optional none manager) : qw(required none);
+            if ( grep { $_ eq $v } @ok ) { $out{$key} = $v }
+            else {
+                $out{unreadable}{$key} = length $v
+                    ? "'$key: $v' is not one of " . join( ', ', @ok )
+                    : "'$key' has no value - write one of " . join( ', ', @ok );
+            }
+            next;
+        }
+
+        # auth_groups: an inline value, or the indented `- name` lines below it.
+        my $inline = $rest;
+        $inline =~ s/\s+#.*\z//;
+        $inline =~ s/\A\s+|\s+\z//g;
+        my ( @items, $stray );
+        # Indented lines, and `- name` lines at the key's own column (valid YAML).
+        while ( $i + 1 < @lines && $lines[ $i + 1 ] =~ /\A(?:[ \t]|-(?:[ \t]|\z))/ ) {
+            my $next = $lines[ ++$i ];
+            next if $next =~ /\A\s*(?:#.*)?\z/;
+            if ( $next =~ /\A[ \t]*-[ \t]*(.*)\z/ ) { push @items, $1 }
+            else                                    { $stray = 1 }
+        }
+        my ( @names, $why );
+        if ( length $inline ) {
+            if ( @items || $stray ) { $why = 'has a value on its line and an indented list below it' }
+            elsif ( $inline =~ /\A\[(.*)\]\z/ ) {
+                my $inner = $1;
+                if ( $inner =~ /\A\s*\z/ ) { $why = 'is an empty list - it names no group' }
+                else { @names = map { $clean->($_) } split /,/, $inner, -1 }
+            }
+            else {
+                $why = "is one value, not a list - write [$inline] or a '- $inline' line below it";
+            }
+        }
+        elsif ($stray) { $why = 'has an indented line below it that is not a list item' }
+        elsif (@items) { @names = map { $clean->($_) } @items }
+        else           { $why   = 'has no value - it names no group' }
+        if ( !defined $why ) {
+            my ($bad) = grep { $_ !~ $NAME } @names;
+            $why = length( $bad // '' )
+                ? "'$bad' is not a group name (letters, digits, '.', '_' or '-')"
+                : 'has an empty entry'
+                if defined $bad;
+        }
+        if   ( defined $why ) { $out{unreadable}{auth_groups} = "'auth_groups' $why" }
+        else                  { $out{auth_groups}             = \@names }
+    }
+    return \%out;
+}
+
 sub parse_yaml_front_matter {
     my ($text) = @_;
     my %meta;
@@ -231,14 +328,12 @@ sub parse_yaml_front_matter {
             $meta{tags} = \@tags;
         }
 
-        # Parse auth_groups list (- item lines)
-        if ( $yaml =~ /^auth_groups\s*:\s*\n((?:[ \t]*-[^\n]*(?:\n|$))*)/m ) {
-            my $block = $1;
-            my @groups;
-            while ( $block =~ /^[ \t]*-[ \t]*(\S+)/mg ) {
-                push @groups, $1;
-            }
-            $meta{auth_groups} = \@groups;
+        # SM980: auth_groups is read by the gate's own reader (auth.pm,
+        # _access_keys_read) - the block list and the flow list `[a, b]` alike.
+        # One that cannot be read is no list here; the gate refuses the page.
+        {
+            my $ak = _access_keys_read($yaml);
+            $meta{auth_groups} = $ak->{auth_groups} if ref $ak->{auth_groups} eq 'ARRAY';
         }
 
         # Parse query_params list (- item lines)
@@ -266,7 +361,7 @@ sub parse_yaml_front_matter {
             next if $1 eq 'query_params';
             next if $1 eq 'sections'; # nested block; parsed above (and \s* here would eat its first line)
             next if $1 eq 'tags'        && ref $meta{tags} eq 'ARRAY';
-            next if $1 eq 'auth_groups' && ref $meta{auth_groups} eq 'ARRAY';
+            next if $1 eq 'auth_groups';    # SM980: a list, read above, or none
             # Strip TT directives from all scalar values including title and subtitle
             my ( $k, $v ) = ( $1, strip_tt_directives($2) );
             # YAML quoting: a matched pair of surrounding quotes is syntax, not

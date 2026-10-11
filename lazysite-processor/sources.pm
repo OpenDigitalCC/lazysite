@@ -890,6 +890,7 @@ sub _scan_hidden {
 
     # The publication gate: auth: front matter, or the site's auth_default.
     my $meta  = peek_auth($abs);
+    return 1 if $meta->{unreadable};    # SM980: an access key it cannot read hides it
     my $level = $meta->{auth} || peek_conf_key('auth_default') || 'none';
     return 0 if $level eq 'none';
     return 1 unless length $user;
@@ -908,6 +909,7 @@ sub _registry_hidden {
     return 1 if _acl_is_draft($abs);
     return 1 if _acl_governed($abs);
     my $meta  = peek_auth($abs);
+    return 1 if $meta->{unreadable};    # SM980: refused to everyone, listed nowhere
     my $level = $meta->{auth} || peek_conf_key('auth_default') || 'none';
     return $level eq 'none' ? 0 : 1;
 }

@@ -334,6 +334,16 @@ auth_groups:
 The user must be authenticated AND in at least one listed group.
 Users in the wrong group see the 403 page.
 
+The list may also be written inline, `auth_groups: [admins, editors]`;
+the two forms mean the same. A value the engine cannot read as a list of
+group names - a single bare name (`auth_groups: admins`), an empty list,
+an unclosed `[`, a name with a space in it - is refused rather than
+ignored: the page answers 403 to everyone, signed in or not, and the log
+names the key. The same holds for an `auth:` value other than
+`required`, `optional` or `none`, and a `payment:` value other than
+`required` or `none` (one level of quotes and any case are fine).
+`lazysite validate` reports each of these.
+
 ### Site-wide default
 
 Set `auth_default:` in `lazysite/lazysite.conf`:
