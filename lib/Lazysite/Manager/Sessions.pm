@@ -132,11 +132,11 @@ sub dispatch_sessions_keys {
     elsif ( $action eq 'keys-list' ) {
         # SM145: the access-key inventory lives in the users tool (it reads the
         # credential store); forward the read.
-        $result = Lazysite::Manager::Users::_users_tool_call( { action => 'keys-list' } );
+        $result = Lazysite::Manager::Users::_users_tool_call( { action => 'keys-list' } ); ## no critic (Subroutines::ProtectPrivateSubs)
     }
     elsif ( $action eq 'key-revoke' ) {
         my $req = _json_body();
-        $result = Lazysite::Manager::Users::_users_tool_call( { action => 'key-revoke', username => $req->{username} } );
+        $result = Lazysite::Manager::Users::_users_tool_call( { action => 'key-revoke', username => $req->{username} } ); ## no critic (Subroutines::ProtectPrivateSubs)
     }
     else {
         my $req = _json_body();
