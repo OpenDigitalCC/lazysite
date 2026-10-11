@@ -6,7 +6,9 @@
 # reaches (@REQUEST_SCOPES, $REQUEST_CONFINED), whether it is the operator
 # ($IS_OPERATOR), what it asked for ($action, $path, $body), and since S22b the
 # account caps memo behind _user_caps (%USER_CAPS) and since S31 the request
-# address's cache behind _request_ip ($REQUEST_IP) - lives in
+# address's cache behind _request_ip ($REQUEST_IP), and since S33a the
+# request's parameters (%params) and the body memo behind _json_body
+# ($JSON_BODY) - lives in
 # Lazysite::Manager::Common as package variables, imported by the script and by
 # the area modules that read them. Before SM944 it was file-scope `my` variables
 # of lazysite-manager-api.pl, which nothing else could touch; moving it to
@@ -21,7 +23,7 @@
 # would carry what it set into whatever runs next.
 #
 # WHAT IT CHECKS.
-#   1. Common declares the eleven with no initialiser, assigns them only inside
+#   1. Common declares the thirteen with no initialiser, assigns them only inside
 #      reset_request_context() (a sub that declares its own lexical of the same
 #      name is reading that, not the fact), resets every one of them, exports
 #      every one, and calls the reset at load. The one other writer in Common is
@@ -31,10 +33,13 @@
 #      carry one request's account caps or visitor into the next in a pooled
 #      worker. And _operator fills $IS_OPERATOR (S32, ruled 2026-10-10): the
 #      reset leaves it 0 and the script clears it to undef per request.
-#   2. The script imports every one but the two memos, which it neither reads nor
-#      writes now that _user_caps lives in Common, declares none of them at file
-#      scope, writes neither memo by any name, and calls reset_request_context()
-#      before it reads a credential.
+#      And _json_body fills $JSON_BODY once per request from the body
+#      (S33a, ruled 2026-10-11).
+#   2. The script imports every one but the three memos, which it neither reads
+#      nor writes now that _user_caps, _request_ip and _json_body live in Common,
+#      declares none of them at file scope, writes no memo by any name, writes
+#      %params only where it parses the query string (S33a), and calls
+#      reset_request_context() before it reads a credential.
 #   3. Every other source file: no write to a fact by its full name
 #      ($Lazysite::Manager::Common::auth_user = ...), outside the closed list
 #      below of sites that pre-date the rule; and a file that imports a fact
@@ -63,20 +68,24 @@ my %SIGIL = (
     auth_user   => '$', token_auth     => '$', REQUEST_CONFINED => '$',
     IS_OPERATOR => '$', action         => '$', path             => '$',
     body        => '$', REQUEST_SCOPES => '@', token_caps       => '%',
-    USER_CAPS   => '%', REQUEST_IP     => '$',
+    USER_CAPS   => '%', REQUEST_IP     => '$', params           => '%',
+    JSON_BODY   => '$',
 );
 
 # Common's own writers beyond the reset: each memo, the one sub that fills it,
 # and the one write that sub makes.
-my %FILLED_BY = ( USER_CAPS => '_user_caps', REQUEST_IP => '_request_ip', IS_OPERATOR => '_operator' );
+my %FILLED_BY = ( USER_CAPS => '_user_caps', REQUEST_IP => '_request_ip', IS_OPERATOR => '_operator',
+    JSON_BODY => '_json_body' );
 my %FILL      = (
     USER_CAPS => [ '$USER_CAPS{$user} (operator on the next line)', 'one element at a time ($USER_CAPS{$user} //= ...)' ],
     REQUEST_IP => [ '$REQUEST_IP = Lazysite::Util::request_address(', 'once, from the one definition of the request address' ],
     IS_OPERATOR => [ 'return $IS_OPERATOR //= ( _is_operator() ? 1 : 0 );', 'once per request, from the one operator check' ],
+    JSON_BODY => [ 'return $JSON_BODY //= ( eval { decode_json($body) } // {} );', 'once per request, from the request body' ],
 );
-# The facts the script reads and so imports: all but the two memos it never
-# touches (S22b, S31). It imports $IS_OPERATOR, which it clears per request.
-my %UNTOUCHED    = ( USER_CAPS => 1, REQUEST_IP => 1 );
+# The facts the script reads and so imports: all but the three memos it never
+# touches (S22b, S31, S33a). It imports $IS_OPERATOR, which it clears per
+# request, and %params, which it fills where it parses the query string.
+my %UNTOUCHED    = ( USER_CAPS => 1, REQUEST_IP => 1, JSON_BODY => 1 );
 my @SCRIPT_FACTS = grep { !$UNTOUCHED{$_} } sort keys %SIGIL;
 my @FACTS = sort keys %SIGIL;
 
@@ -236,7 +245,10 @@ sub imported_facts {
     my %imp  = map { $_ => 1 } imported_facts($code);
     is_deeply( [ grep { !$imp{$_} } @SCRIPT_FACTS ], [], 'the script imports every fact it reads from Common' );
     is_deeply( [ map { writes( $code, $_, '' ), writes( $code, $_, $Q ) } grep { !$imp{$_} } @FACTS ],
-        [], '...and writes neither memo by any name' );
+        [], '...and writes no memo by any name' );
+    # S33a: %params has one writer in the script, the query-string parse.
+    is_deeply( [ map { s/^line \d+: //r } writes( $code, 'params', '' ), writes( $code, 'params', $Q ) ],
+        ['$params{$k} = $v;'], 'the script writes %params only where it parses the query string' );
     my @mine = grep { $code =~ /^(?:my|our|state)\b\s*(?:\([^)]*?)?\Q$SIGIL{$_}$_\E\b/m } @FACTS;
     is_deeply( \@mine, [], 'the script declares none of them at file scope (no private copy beside the shared one)' );
 
