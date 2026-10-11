@@ -117,10 +117,14 @@ subtest 'each need is the capability the manager charges for the same work' => s
     is( $JOBS{'stats-rollup'}{needs}, $gate,
         "stats-rollup needs what analyse_visitors is gated on ($gate)" );
 
-    like( $api,
-        qr/'sessions-list'.*?\n(?:.*\n){0,12}?.*?_user_caps\(\$auth_user\)->\{(\w+)\}/,
-        'found the sessions gate' );
-    my ($sgate) = $api =~ /'sessions-list'.*?\n(?:.*\n){0,12}?.*?_user_caps\(\$auth_user\)->\{(\w+)\}/;
+    # SM944 S33: the sessions-and-keys branch is Manager::Sessions' handler,
+    # which reads the request's account from Manager::Common by full name.
+    like( $api, qr/'sessions-list'.*?\n.*?\n\s*\$result = dispatch_sessions_keys\(\);/,
+        'the sessions branch is the Sessions handler' );
+    my $ses = slurp("$ROOT/lib/Lazysite/Manager/Sessions.pm");
+    my $re = qr/^sub dispatch_sessions_keys \{.*?_user_caps\(\$Lazysite::Manager::Common::auth_user\)->\{(\w+)\}/ms;
+    like( $ses, $re, 'found the sessions gate' );
+    my ($sgate) = $ses =~ $re;
     is( $JOBS{'sessions-sweep'}{needs}, $sgate,
         "sessions-sweep needs what sessions-list is gated on ($sgate)" );
 };

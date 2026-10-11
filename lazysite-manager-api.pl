@@ -69,7 +69,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
     action_layouts_repo_get action_layouts_repo_set);
 use Lazysite::Manager::Backups qw(action_backup_create action_backup_download
     action_backup_restore action_backup_delete);
-use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
+use Lazysite::Manager::Sessions qw(dispatch_sessions_keys);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root action_domain_check action_domains_list); # SM944 S27
 use Lazysite::Manager::Data        ();
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
@@ -81,7 +81,7 @@ use Lazysite::Manager::SiteBackup qw(action_site_backup_create action_site_backu
 use Lazysite::Manager::Config qw(action_config_read action_config_set action_lang_status); # SM944 S30
 use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
 use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes dispatch_audit); # SM944 S31
-use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret _users_tool_call); # SM944 S32
+use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret); # SM944 S32
 use Lazysite::Manager::SiteBackup qw(dispatch_backup_list); # SM944 S33: backup-list's branch
 $Lazysite::Util::COMPONENT = 'manager-api';
 
@@ -1860,46 +1860,7 @@ elsif ( $action eq 'display-names' ) {
 elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret($auth_user) }
 elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 'user-revoke'
     || $action eq 'keys-list' || $action eq 'key-revoke' ) {
-    # SM141/SM145: session AND access-key visibility + revocation are all
-    # user-management powers. Cookie (manager) callers need the manage_users
-    # capability - same strict cookie-side gate pattern as the audit trail;
-    # token clients cannot reach these at all (not in the %need set above).
-    # (A denied revoke is still audited: the generic POST audit block below
-    # records the fail with kind 'forbidden'; the -list actions are GET reads.)
-    #
-    # SM944 S33, held branch (2) (approved 2026-10-11): THE EMPTY-ACCOUNT
-    # REFUSAL FIRST, the established fail-closed pattern. The gate below passes
-    # a token client, which the dispatcher's token gate has already refused -
-    # and the request context's reset leaves a token client, so moved as it is
-    # to Manager::Sessions this branch listed the access keys and revoked an
-    # account's sessions for nobody outside a request
-    # (tmp/sm944-n347-probe.out). Inside a request the dispatcher has refused an
-    # empty $auth_user before this runs, so the answer there is unchanged.
-    if ( !length $auth_user ) {
-        $result = { ok => 0, kind => 'forbidden',
-            error => 'Sessions and access keys are managed by a signed-in account, and no account is asking.' };
-    }
-    elsif ( !$token_auth && !_user_caps($auth_user)->{manage_users} ) {
-        $result = { ok => 0, kind => 'forbidden',
-            error => "Managing sessions and keys requires the 'Users & groups' permission. "
-                . "An administrator can grant it on the Groups page." };
-    }
-    elsif ( $action eq 'sessions-list' ) { $result = action_sessions_list() }
-    elsif ( $action eq 'keys-list' ) {
-        # SM145: the access-key inventory lives in the users tool (it reads the
-        # credential store); forward the read.
-        $result = _users_tool_call( { action => 'keys-list' } );
-    }
-    elsif ( $action eq 'key-revoke' ) {
-        my $req = _json_body();
-        $result = _users_tool_call( { action => 'key-revoke', username => $req->{username} } );
-    }
-    else {
-        my $req = _json_body();
-        $result = $action eq 'session-revoke'
-            ? action_session_revoke( $req->{sid} )
-            : action_user_revoke( $req->{username} );
-    }
+    $result = dispatch_sessions_keys();
 }
 elsif ( $action eq 'plugin-list' ) { $result = action_plugin_list() }
 elsif ( $action eq 'plugin-enable' ) {

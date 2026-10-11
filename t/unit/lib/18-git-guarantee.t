@@ -258,6 +258,7 @@ my %EXEMPT = (
     'Sessions::action_session_revoke' =>
         'auth store write - lazysite/auth/ is excluded from the versioned set',
     'Sessions::action_user_revoke' => 'as action_session_revoke',
+    'Sessions::dispatch_sessions_keys' => 'as the session and key actions it calls', # SM944 S33
     # --- manager-api inline ---
     # SM944 S24: the preview verbs moved to Manager::Preview.
     'Preview::action_preview_grant' => 'preview grant state, not site content',

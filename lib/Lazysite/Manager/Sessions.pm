@@ -21,7 +21,11 @@ use warnings;
 use JSON::PP       qw(encode_json decode_json);
 use Lazysite::Util qw(log_event);
 use Exporter       qw(import);
-our @EXPORT_OK = qw(action_sessions_list action_session_revoke action_user_revoke sweep_expired);
+our @EXPORT_OK = qw(action_sessions_list action_session_revoke action_user_revoke sweep_expired
+    dispatch_sessions_keys);
+
+# SM944 S33: dispatch_sessions_keys reads the request's door, action and body.
+use Lazysite::Manager::Common qw($token_auth $action _user_caps _json_body);
 
 our $LAZYSITE_DIR = '';
 our $auth_user    = '';
@@ -84,6 +88,63 @@ sub _write_revoked {
         return ( 0, "Cannot replace $path: $e" );
     }
     return ( 1, '' );
+}
+
+# SM944 S33, held branch (2) (approved 2026-10-11, "Approve all three"): the
+# sessions-and-keys dispatch branch (sessions-list, session-revoke,
+# user-revoke, keys-list, key-revoke), moved here from lazysite-manager-api.pl.
+# Its statements are the branch's but four: this module keeps its own
+# $auth_user (a log copy the dispatcher, the auth CGI and the daemon set), so
+# the empty-account refusal and the cookie gate read Manager::Common's by full
+# name (the S27 ruling, "Read Common's value"); and it does not load
+# Manager::Users, which loads six other area modules, into the auth CGI and the
+# daemon, so the keys arms call Users' _users_tool_call by full name (the
+# manager API, the one caller, has loaded it). It reads the request's action,
+# door and body from Common's context; outside a request nobody is asking and
+# the refusal answers first.
+sub dispatch_sessions_keys {
+    my $result;
+    # SM141/SM145: session AND access-key visibility + revocation are all
+    # user-management powers. Cookie (manager) callers need the manage_users
+    # capability - same strict cookie-side gate pattern as the audit trail;
+    # token clients cannot reach these at all (not in the %need set above).
+    # (A denied revoke is still audited: the generic POST audit block below
+    # records the fail with kind 'forbidden'; the -list actions are GET reads.)
+    #
+    # SM944 S33, held branch (2) (approved 2026-10-11): THE EMPTY-ACCOUNT
+    # REFUSAL FIRST, the established fail-closed pattern. The gate below passes
+    # a token client, which the dispatcher's token gate has already refused -
+    # and the request context's reset leaves a token client, so moved as it is
+    # to Manager::Sessions this branch listed the access keys and revoked an
+    # account's sessions for nobody outside a request
+    # (tmp/sm944-n347-probe.out). Inside a request the dispatcher has refused an
+    # empty $auth_user before this runs, so the answer there is unchanged.
+    if ( !length $Lazysite::Manager::Common::auth_user ) {
+        $result = { ok => 0, kind => 'forbidden',
+            error => 'Sessions and access keys are managed by a signed-in account, and no account is asking.' };
+    }
+    elsif ( !$token_auth && !_user_caps($Lazysite::Manager::Common::auth_user)->{manage_users} ) {
+        $result = { ok => 0, kind => 'forbidden',
+            error => "Managing sessions and keys requires the 'Users & groups' permission. "
+                . "An administrator can grant it on the Groups page." };
+    }
+    elsif ( $action eq 'sessions-list' ) { $result = action_sessions_list() }
+    elsif ( $action eq 'keys-list' ) {
+        # SM145: the access-key inventory lives in the users tool (it reads the
+        # credential store); forward the read.
+        $result = Lazysite::Manager::Users::_users_tool_call( { action => 'keys-list' } );
+    }
+    elsif ( $action eq 'key-revoke' ) {
+        my $req = _json_body();
+        $result = Lazysite::Manager::Users::_users_tool_call( { action => 'key-revoke', username => $req->{username} } );
+    }
+    else {
+        my $req = _json_body();
+        $result = $action eq 'session-revoke'
+            ? action_session_revoke( $req->{sid} )
+            : action_user_revoke( $req->{username} );
+    }
+    return $result;
 }
 
 # Live sessions only - issued within COOKIE_MAX, sid not revoked, and not
