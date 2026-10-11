@@ -39,7 +39,7 @@ questions below, and the next item starts.
 
 | P | Item | Needs | Size |
 | --- | --- | --- | --- |
-| P4 | `users-detail` reads every account (43 s for 695), so approving an account request times out in the browser | read the one name and address the check needs, or index the address on write | S |
+| P4 | `users-detail` reads every account (43 s for 695), so approving an account request times out in the browser | built (n390), SM983: the approval asks `users-detail` for `fields: ["email"]` only, 0.27 s for 700 accounts from 26.7 s | S |
 | P5 | `&&` in a page body is a template parse error (it appears to reach TT as `&amp;&amp;`) | find where it is escaped; `and`/`or` work | S |
 | P6 | A fenced code block that shows `:::` component syntax is expanded | leave fenced and indented code alone in the `:::` pass | S |
 | P7 | A setup link refused over plain HTTP says "invalid or expired" | the transport refusal gets its own answer on the claim page | XS |

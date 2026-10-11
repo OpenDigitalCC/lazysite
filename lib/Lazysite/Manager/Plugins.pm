@@ -1506,9 +1506,13 @@ sub action_form_submission_approve {
 
     # Taken, in ANY case: `John` and `john` are two names to the store and one
     # person to everybody reading a list of them.
-    my $d = $users->( { action => 'users-detail' } );
+    # P4: the one field this reads, not every account's derived settings - which
+    # took 43 s for 695 accounts and outlasted the browser's request. An answer
+    # that could not read the store is not a list of free names.
+    my $d = $users->( { action => 'users-detail', fields => ['email'] } );
     return { ok => 0, error => 'the account store could not be read - nothing was created' }
-        unless ref $d eq 'HASH' && $d->{ok} && ref $d->{users} eq 'ARRAY';
+        unless ref $d eq 'HASH' && $d->{ok} && ref $d->{users} eq 'ARRAY'
+        && !( exists $d->{store_readable} && !$d->{store_readable} );
     for my $u ( @{ $d->{users} } ) {
         my $n = ref $u eq 'HASH' ? $u->{user} : $u;
         next unless defined $n && length $n;

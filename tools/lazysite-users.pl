@@ -465,6 +465,28 @@ if ($API_MODE) {
             my %users = read_users();
             $result = { ok => 1, users => [ sort keys %users ] };
         }
+        elsif ( $action eq 'users-detail' && defined $req->{fields} ) {
+            # P4: THE STORED FIELDS A CALLER NAMES, AND NOTHING DERIVED. The
+            # full answer below derives every account's settings afresh -
+            # groups, capabilities, domain scopes - at tens of milliseconds an
+            # account, and the approval's "is this address taken" check asked
+            # for all of it to read one field: 42.8 s for 695 accounts. Only
+            # `email` can be named; it is all that check reads, and a list
+            # offered here is a list someone has to keep safe.
+            my $f = $req->{fields};
+            die "fields: only 'email' can be asked for, as a list\n"
+                unless ref $f eq 'ARRAY' && @$f == 1 && defined $f->[0] && $f->[0] eq 'email';
+            my %users = read_users();
+            my $all   = Lazysite::Auth::Settings::read_settings();
+            die "the account settings could not be read\n"
+                unless Lazysite::Auth::Settings::settings_readable();
+            $result = { ok => 1, users => [
+                    map {
+                        my $s = $all->{$_};
+                        +{ user => $_,
+                            settings => { email => ( ref $s eq 'HASH' ? $s->{email} : undef ) } }
+                    } grep { defined && length } sort keys %users ] };
+        }
         elsif ( $action eq 'users-detail' ) {
             # All accounts + their effective settings in ONE process - avoids the
             # per-user settings-get subprocess (N Perl startups) the manager UI did.

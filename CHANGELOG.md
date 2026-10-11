@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM983 (PENDING) **approving an account request reads one field, not every
+  account.** The approval's "is this name or address taken" check asked for
+  every account's full settings, each derived afresh: 43 s for 695 accounts,
+  so the browser gave up first. It now asks `users-detail` for
+  `fields: ["email"]`, answered from the settings store in one read (0.27 s for
+  700 generated accounts, from 26.7 s), and refuses on an unreadable store.
+  t/unit/users/50, t/unit/manager/240.
+
 - lazysite-check (PENDING) **a check that cannot read part of the site says
   so.** Run as a user that cannot read a directory - the private store, on the
   0.15.4 rollout - three of `lazysite check`'s walks printed Perl's raw
