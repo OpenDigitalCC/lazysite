@@ -333,13 +333,13 @@ my %RAN_ONLY = (
     'plugin-action' => 'runs an extension\'s own declared script; no extension here declares one that writes',
 );
 
-# SM944 S34 finding F-1 (found by this test, not changed - held for a ruling):
-# file-upload's rate check runs in the body read, BEFORE the CSRF gate, and
-# reserves a slot in the account's hourly budget, so a forged POST is refused
-# and still spends one - 60 of them lock the signed-in account out of uploads
-# for the hour (tmp/sm944-s34-f1-upload-rate-probe.out). Pinned exactly: when
-# the check moves after the gate this fails, and the entry goes.
-my %PRE_GATE_WRITE = ( 'file-upload' => ['/public_html/lazysite/manager/.upload-rate.db'] );
+# SM944 S34 finding F-1 (found by this test): file-upload's rate check ran in
+# the body read, BEFORE the CSRF gate, and reserved a slot in the account's
+# hourly budget, so a forged POST wrote lazysite/manager/.upload-rate.db and
+# spent one. This test pinned that one file as the only write a refused POST
+# made. upload-budget moved the check to the dispatch branch; a forged
+# file-upload now writes nothing, like every other action here
+# (t/unit/manager/228 proves the budget).
 
 # ---------------------------------------------------------- the comparison
 sub fresh_site {
@@ -401,8 +401,7 @@ for my $action (@actions) {
     like( ( $f->{res}{error} // '' ), qr/\AInvalid or missing CSRF token\z/, "$action: ... the CSRF refusal" );
     ok( !$f->{cookie}, "$action: ... and sets no cookie" );
     my @diff = changed( $before, snapshot($doc) );
-    is_deeply( \@diff, $PRE_GATE_WRITE{$action} || [],
-        "$action: ... and changes no file of the site" . ( $PRE_GATE_WRITE{$action} ? ' but the one F-1 names' : '' ) )
+    is_deeply( \@diff, [], "$action: ... and changes no file of the site" )
         or diag "changed: @diff";
     my @a1   = audit_rows($doc);
     my @rows = @a1[ scalar(@a0) .. $#a1 ];

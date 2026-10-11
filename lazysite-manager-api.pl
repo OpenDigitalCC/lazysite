@@ -535,10 +535,11 @@ $body = '';
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my $len = $ENV{CONTENT_LENGTH} // 0;
 
-    # SM019: size + rate-limit gate for file-upload. Runs before the
-    # body read so oversize or rate-exceeding requests are rejected
-    # without allocating the body. Other POST actions carry small JSON
-    # bodies and fall through to the normal read.
+    # SM019: size gate for file-upload. Runs before the body read so an
+    # oversize request is rejected without allocating the body. It writes
+    # nothing. Other POST actions carry small JSON bodies and fall through to
+    # the normal read. The rate check is NOT here: see upload-budget at the
+    # file-upload dispatch branch.
     if ( ( $params{action} // '' ) eq 'file-upload' ) {
         my $max = upload_limits()->{max_bytes};
         if ( $len > $max ) {
@@ -547,10 +548,6 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
             _bail( { ok => 0, kind => 'too-large',
                     error => "Upload exceeds limit of "
                         . int( $max / 1024 / 1024 ) . " MB" } );
-        }
-        my $rate = check_upload_rate( $auth_user, $len );
-        unless ( $rate->{ok} ) {
-            _bail( { ok => 0, kind => 'rate', error => $rate->{error} } );
         }
     }
 
@@ -2091,6 +2088,17 @@ elsif ( $action eq 'form-notify-save' ) {
         $req->{notify} );
 }
 elsif ( $action eq 'file-upload' ) {
+    # upload-budget (SM944 S34 finding F-1, built for review 2026-10-11): THE
+    # HOURLY UPLOAD BUDGET IS SPENT HERE, after every gate. check_upload_rate
+    # reserves a slot as it checks, and it ran in the body read, before the CSRF
+    # gate, so a forged cross-site POST was refused 403 and still spent one: 60
+    # of them locked the account out of uploads for the hour. A request reaching
+    # this line has passed the CSRF, capability, scope and carve-out gates. The
+    # check, its size argument and its refusal are unchanged (the 61st genuine
+    # upload of an hour still answers 429 and is not audited); the body is now
+    # read before it, at most the size gate's max_bytes.
+    my $rate = check_upload_rate( $auth_user, $ENV{CONTENT_LENGTH} // 0 );
+    _bail( { ok => 0, kind => 'rate', error => $rate->{error} } ) unless $rate->{ok};
     $result = action_file_upload( $path, $body );
 }
 elsif ( $action eq 'file-download' ) {

@@ -115,6 +115,18 @@ Archive
   `fields: ["email"]`, answered from the settings store in one read (0.27 s for
   700 generated accounts, from 26.7 s), and refuses on an unreadable store.
   t/unit/users/50, t/unit/manager/240.
+- upload-budget (PENDING) **security: a forged upload no longer spends the
+  account's hourly upload budget** (SM944 S34 finding F-1, built for review
+  2026-10-11). The file-upload rate check reserves a slot as it checks, and it
+  ran before the CSRF gate, so a cross-site POST from a signed-in manager's
+  browser was refused 403 and still spent one: 60 such POSTs locked the account
+  out of uploads for the rest of the hour. The check now runs after every gate,
+  so a refused request spends nothing. The limit for genuine uploads is
+  unchanged: the 61st in an hour is refused 429 with the same message. The size
+  check still refuses an oversize upload before the body is read; an upload over
+  the hourly budget is now read (at most that size) before it is refused.
+  t/unit/manager/228; test 226 now finds no write from a forged upload.
+
 - csrf-audit (PENDING) **a write refused for its CSRF token is recorded in the
   audit trail** (ruled 2026-10-11: "Audit refusals"). A POST from a signed-in
   manager session without a valid CSRF token - what a cross-site page sends - was
