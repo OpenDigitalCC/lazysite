@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM987 (PENDING) **the development server receives a form post.** Native
+  forms post to `/cgi-bin/form-handler.pl`, and `tools/lazysite-server.pl`
+  routed only the `lazysite-*` scripts, so every form on a staged site answered
+  404. The server now runs the form handler for it, as an installed site does.
+  t/unit/tools/80.
+
 - SM986 (PENDING) **a setup link refused over plain HTTP says so.** The claim
   page answered a password set over http from another machine with "That
   setup link is invalid or has expired", the answer for a bad or used link, so

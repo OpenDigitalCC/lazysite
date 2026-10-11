@@ -43,7 +43,7 @@ questions below, and the next item starts.
 | P5 | `&&` in a page body is a template parse error (it appears to reach TT as `&amp;&amp;`) | built (n391), SM984: convert_md lifts each `[% %]` tag past the Markdown converter; a tag in code is shown, escaped | S |
 | P6 | A fenced code block that shows `:::` component syntax is expanded | built (n392), SM985: fenced code is converted first and held out of the `:::` passes; indented code was never affected | S |
 | P7 | A setup link refused over plain HTTP says "invalid or expired" | built (n393), SM986: the refusal redirects with `error=https` and the claim page says a password can only be set over HTTPS | XS |
-| P8 | The development server cannot receive a form post (404 for `form-handler.pl`) | route it as the `lazysite-*` scripts are | XS |
+| P8 | The development server cannot receive a form post (404 for `form-handler.pl`) | built (n394), SM987: `/cgi-bin/form-handler.pl` runs `plugins/form-handler.pl`, directly, as installed | XS |
 | P9 | A `scan:` stops at 200 pages with no warning, in file order | a documented, configurable cap or `limit=`/`offset=`, and a `<var>_total` | S |
 | P10 | `lazysite provision` prints uninitialised-value warnings (install.pl ~1223) with no registry | guard the value | XS |
 | P11 | `acl set --draft` over a folder already held: a rewrite leaves the private copy and `reapply` refuses | covered by P1c's `reapply` fix; confirm | XS |

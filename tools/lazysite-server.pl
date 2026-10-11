@@ -435,6 +435,29 @@ sub parse_cgi_headers {
     return ( $status, $content_type, \@extra );
 }
 
+# The CGI a /cgi-bin/ request runs: ($path, $name, $direct). The default is the
+# processor, with no name. /cgi-bin/lazysite-*.pl names a script beside the
+# tools/ directory, run behind the auth wrapper when the site has accounts.
+#
+# P8 (WORK-PLAN-0154): /cgi-bin/form-handler.pl is the plugin an installed site
+# links into cgi-bin (install.pl post_install_steps), so every native form posts
+# there - and this server answered 404. It runs DIRECT ($direct = 1), as it does
+# installed: a plain CGI outside the auth wrapper, reading no identity (SM402).
+sub cgi_target_for {
+    my ( $uri, $script_dir, $processor ) = @_;
+    if ( $uri =~ m{^/cgi-bin/(lazysite-[\w-]+\.pl)} ) {
+        my $rel = $1;
+        my $cgi = abs_path("$script_dir/../$rel");
+        return ( ( $cgi && -f $cgi ) ? $cgi : $processor, $rel, 0 );
+    }
+    if ( $uri =~ m{\A/cgi-bin/(form-handler\.pl)\z} ) {
+        my $rel = $1;
+        my $cgi = abs_path("$script_dir/../plugins/$rel");
+        return ( $cgi, $rel, 1 ) if $cgi && -f $cgi;
+    }
+    return ( $processor, undef, 0 );
+}
+
 sub handle_request {
     my ($client) = @_;
 
@@ -542,13 +565,7 @@ sub handle_request {
 
     # Pick the ultimate target CGI. Default is the processor; /cgi-bin/*.pl
     # overrides with the explicit script.
-    my $target = $PROCESSOR;
-    my $target_rel;
-    if ( $uri =~ m{^/cgi-bin/(lazysite-[\w-]+\.pl)} ) {
-        $target_rel = $1;
-        my $cgi_script = abs_path("$SCRIPT_DIR/../$target_rel");
-        $target = $cgi_script if $cgi_script && -f $cgi_script;
-    }
+    my ( $target, $target_rel, $direct ) = cgi_target_for( $uri, $SCRIPT_DIR, $PROCESSOR );
 
     # SM070: /dav routes straight to lazysite-dav.pl, bypassing the auth
     # wrapper - the WebDAV endpoint performs its own HTTP Basic auth and
@@ -577,7 +594,7 @@ sub handle_request {
     # Exception: requests *to* lazysite-auth.pl itself (login/logout
     # endpoints) must go direct, or we'd exec ourselves recursively.
     my $script = $target;
-    if ( $use_auth && !$is_dav ) {
+    if ( $use_auth && !$is_dav && !$direct ) {
         my $target_is_auth = defined $target_rel && $target_rel eq 'lazysite-auth.pl';
         $script = $auth_script unless $target_is_auth;
     }
