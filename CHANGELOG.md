@@ -115,6 +115,11 @@ Archive
   `fields: ["email"]`, answered from the settings store in one read (0.27 s for
   700 generated accounts, from 26.7 s), and refuses on an unreadable store.
   t/unit/users/50, t/unit/manager/240.
+- SM944 (PENDING) **internal: the CSRF gate is Manager::Csrf's** (S34 of the
+  plan in the filing, ruled 2026-10-11). `csrf_refusal($method)` returns the
+  refusal and the manager API ends the request on it, at the gate's old place;
+  the module never exits. No answer changes. Tests 43, 205 and 226.
+
 - SM944 (PENDING) **security hardening: the CSRF gate refuses when no account
   is asking** (S34 of the plan in the filing, ruled 2026-10-11). The gate
   exempts a token client, and the request context's reset leaves one with

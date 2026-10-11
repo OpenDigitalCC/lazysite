@@ -113,9 +113,15 @@ for my $a (qw(session-revoke user-revoke key-revoke config-set domain-add theme-
 }
 
 # --- 4. the gate is method-keyed in source (not an action allowlist) ------------
+# SM944 S34: the gate is Lazysite::Manager::Csrf's csrf_refusal, called by the
+# script with the request's method at the gate's old place. Every mutating
+# action is driven against it in t/unit/manager/226.
 my $src = do { open my $fh, '<', $mapi or die $!; local $/; <$fh> };
-like( $src, qr/if \(\s*\$method eq 'POST' && !\$token_auth\s*\)/,
+my $gate = do { open my $fh, '<', "$root/lib/Lazysite/Manager/Csrf.pm" or die $!; local $/; <$fh> };
+like( $gate, qr/if \(\s*\$method eq 'POST' && !\$token_auth\s*\)/,
     'the CSRF gate keys on the HTTP method, so no write action can be omitted' );
-like( $src, qr/verify_csrf_token\(/, 'the gate verifies the CSRF token' );
+like( $gate, qr/verify_csrf_token\(/, 'the gate verifies the CSRF token' );
+like( $src, qr/^if \( my \$refusal = csrf_refusal\(\$method\) \) \{ _bail\(\$refusal\) \}/m,
+    'the script asks the gate with the request method and ends the request on its refusal' );
 
 done_testing();

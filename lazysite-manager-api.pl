@@ -30,7 +30,7 @@ use Lazysite::ControlApi::Actions ();                        # SM350
 use Lazysite::BadUrl              qw(list_blocks block unblock);
 use Lazysite::Auth::Settings      qw(site_grants_manager);
 use Lazysite::Auth::Acl           qw(load_acls save_acls _acl_norm _to_list _acl_allows);
-use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
+use Lazysite::Auth::Session       qw(generate_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     processor_path
@@ -83,6 +83,7 @@ use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
 use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes dispatch_audit); # SM944 S31
 use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret); # SM944 S32
 use Lazysite::Manager::SiteBackup qw(dispatch_backup_list); # SM944 S33: backup-list's branch
+use Lazysite::Manager::Csrf       qw(csrf_refusal);         # SM944 S34: the M-1 CSRF gate
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 # SM556: resolved once, here, so every module confines against one spelling
@@ -565,55 +566,7 @@ $IS_OPERATOR = undef;    # SM516 MO-3: the memo behind _operator(), empty until 
 # Going by method rather than an action allowlist means we cannot
 # accidentally leave a new read action out of the list.
 my $method = $ENV{REQUEST_METHOD} // 'GET';
-# SM944 S34 (b), ruled 2026-10-11 ("Yes, as planned"): THE GATE ASKS FOR AN
-# ACCOUNT FIRST. It exempts a token client, and the request context's reset
-# leaves one with nobody asking, so the gate run anywhere but after the auth
-# check passed a POST for nobody (tmp/sm944-s34-outside-probe.out). Inside a
-# request the auth check has refused an empty account on both channels before
-# this line, so no answer there changes.
-unless ( length $auth_user ) {
-    _bail( { ok => 0, kind => 'forbidden',
-            error => 'A request is answered for a signed-in account, and no account is asking.' } );
-}
-if ( $method eq 'POST' && !$token_auth ) {
-    # Token can arrive via (in order of preference):
-    #   - X-CSRF-Token header (HTTP_X_CSRF_TOKEN env var) - works for any
-    #     body type including raw binary uploads (theme-upload).
-    #   - csrf_token field in a JSON body - convenient for existing
-    #     apiCall() patterns that send JSON.
-    #   - csrf_token query-string parameter - last-resort fallback for
-    #     sendBeacon() calls that cannot set headers.
-    my $token  = $ENV{HTTP_X_CSRF_TOKEN} // '';
-    my $source = $token ? 'header' : '';
-    if ( !$token && $body ) {
-        my $parsed = _json_body();
-        if ( ref $parsed eq 'HASH' ) {
-            $token  = $parsed->{csrf_token} // '';
-            $source = 'body' if $token;
-        }
-    }
-    if ( !$token ) {
-        $token  = $params{csrf_token} // '';
-        $source = 'query' if $token;
-    }
-
-    log_event( 'DEBUG', $action, 'CSRF check',
-        method    => $method,
-        user      => $auth_user,
-        token_len => length($token),
-        source    => $source || 'none',
-        result    => $token ? 'has-token' : 'no-token' );
-
-    my $valid = verify_csrf_token( $token, $auth_user );
-
-    log_event( 'DEBUG', $action, 'CSRF verify',
-        user   => $auth_user,
-        result => $valid ? 'ok' : 'fail' );
-
-    unless ($valid) {
-        _bail( { ok => 0, kind => 'forbidden', error => 'Invalid or missing CSRF token' } );
-    }
-}
+if ( my $refusal = csrf_refusal($method) ) { _bail($refusal) }  # SM944 S34: Manager::Csrf
 
 # Per-action csrf-token read
 if ( $action eq 'csrf-token' ) {

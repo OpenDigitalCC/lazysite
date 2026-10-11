@@ -1032,4 +1032,48 @@ subtest 'the sessions and keys handler lists and revokes nothing outside a reque
     is( $call->('keys-list')->{kind} // '', 'forbidden', 'reset: refused again' );
 };
 
+# SM944 S34 (b) and (c), ruled 2026-10-11 ("Yes, as planned"): the M-1 CSRF
+# gate, moved into Manager::Csrf after it took the established fail-closed
+# pattern. It exempts a token client, and the reset leaves one with nobody
+# asking, so moved as it was it answered "pass" to a POST for nobody, with or
+# without a token (tmp/sm944-s34-outside-probe.out). It refuses an empty account
+# first; boss's cookie request is asked for its token as before; and after the
+# reset it refuses again, even carrying boss's valid token.
+subtest 'the CSRF gate, asked outside a request, passes nothing' => sub {
+    require Lazysite::Manager::Csrf;
+    require Lazysite::Auth::Session;
+    require Digest::SHA;
+    require TestHelper;
+    my $d = TestHelper::site_tempdir();
+    mkdir "$d/lazysite";
+    mkdir "$d/lazysite/auth";
+    open my $fh, '>', "$d/lazysite/auth/.secret" or die $!;
+    print {$fh} 's' x 64;
+    close $fh;
+    no warnings 'once';
+    local $Lazysite::Auth::Session::LAZYSITE_DIR = "$d/lazysite";
+    local $ENV{HTTP_X_CSRF_TOKEN};
+    my $good = Digest::SHA::hmac_sha256_hex( 'csrf:boss:' . int( time() / 3600 ), 's' x 64 );
+    my $gate = sub { Lazysite::Manager::Csrf::csrf_refusal( $_[0] ) };
+
+    reset_request_context();
+    for my $m (qw(POST GET)) {
+        my $r = $gate->($m);
+        is( $r->{kind} // '', 'forbidden', "$m, nobody asking (a token client after the reset): refused" )
+            or diag explain $r;
+        like( $r->{error} // '', qr/no account is asking/, '...because no account is asking' );
+    }
+
+    # boss's own cookie request, as the script sets it.
+    $auth_user  = 'boss';
+    $token_auth = 0;
+    is( ( $gate->('POST') || {} )->{error} // '', 'Invalid or missing CSRF token', "boss's POST without a token: refused" );
+    $ENV{HTTP_X_CSRF_TOKEN} = $good;
+    is( $gate->('POST'), undef, "boss's POST with boss's token: passes" );
+    is( $gate->('GET'),  undef, "boss's GET: passes (the gate is keyed on POST)" );
+
+    reset_request_context();
+    is( ( $gate->('POST') || {} )->{kind} // '', 'forbidden', 'reset: refused again, though the token is valid for boss' );
+};
+
 done_testing();
