@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **security hardening: the session and access-key actions
+  refuse when no account is asking, and are Manager::Sessions' handler** (S33
+  of the plan in the filing, a held branch approved on 2026-10-11). The
+  dispatch branch for sessions-list, session-revoke, user-revoke, keys-list
+  and key-revoke passes a token client through its cookie gate, and the
+  request context's reset leaves one: moved as it was, it listed the access
+  keys and revoked an account's sessions with nobody asking. It refuses an
+  empty account first, then moves to `dispatch_sessions_keys` in
+  Manager::Sessions; the users-tool runner it calls moves to Manager::Users.
+  Inside a request nothing changes. Test 205.
+
 ## 0.15.4 - EDGE: a confined caller writes only what its own domains serve (2026-10-11)
 
 - SM944 (92b283ca) **internal: acl-set's dispatch branch is Manager::Files'
