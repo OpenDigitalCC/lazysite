@@ -565,6 +565,16 @@ $IS_OPERATOR = undef;    # SM516 MO-3: the memo behind _operator(), empty until 
 # Going by method rather than an action allowlist means we cannot
 # accidentally leave a new read action out of the list.
 my $method = $ENV{REQUEST_METHOD} // 'GET';
+# SM944 S34 (b), ruled 2026-10-11 ("Yes, as planned"): THE GATE ASKS FOR AN
+# ACCOUNT FIRST. It exempts a token client, and the request context's reset
+# leaves one with nobody asking, so the gate run anywhere but after the auth
+# check passed a POST for nobody (tmp/sm944-s34-outside-probe.out). Inside a
+# request the auth check has refused an empty account on both channels before
+# this line, so no answer there changes.
+unless ( length $auth_user ) {
+    _bail( { ok => 0, kind => 'forbidden',
+            error => 'A request is answered for a signed-in account, and no account is asking.' } );
+}
 if ( $method eq 'POST' && !$token_auth ) {
     # Token can arrive via (in order of preference):
     #   - X-CSRF-Token header (HTTP_X_CSRF_TOKEN env var) - works for any

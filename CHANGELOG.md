@@ -115,6 +115,13 @@ Archive
   `fields: ["email"]`, answered from the settings store in one read (0.27 s for
   700 generated accounts, from 26.7 s), and refuses on an unreadable store.
   t/unit/users/50, t/unit/manager/240.
+- SM944 (PENDING) **security hardening: the CSRF gate refuses when no account
+  is asking** (S34 of the plan in the filing, ruled 2026-10-11). The gate
+  exempts a token client, and the request context's reset leaves one with
+  nobody asking, so the gate run outside a request passed a POST for nobody.
+  It now refuses an empty account first. Inside a request the auth check has
+  already refused one on both channels, so no answer changes.
+
 - SM944 (PENDING) **internal: every mutating action is proven refused, and not
   landed, without a CSRF token** (S34 of the plan in the filing, ruled
   2026-10-11). t/unit/manager/226 POSTs every action the declaration marks
