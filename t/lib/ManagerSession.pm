@@ -98,6 +98,16 @@ sub grant {
     return $self;
 }
 
+# SM979: the account's groups, resolved by the module the auth wrapper uses
+# (Lazysite::Auth::Acl::groups_for_user, nesting included), for `groups => 1`.
+sub groups_of {
+    my ( $self, $user ) = @_;
+    require Lazysite::Auth::Acl;
+    no warnings 'once';
+    local $Lazysite::Auth::Acl::DOCROOT = $self->{docroot};
+    return Lazysite::Auth::Acl::groups_for_user($user);
+}
+
 # THE MODULE'S OWN READER, never a hand-rolled one. Reading the file here means
 # reproducing exactly how it is chomped and trimmed, and getting that subtly
 # wrong yields a signature mismatch that presents as "Authentication required" -
@@ -139,7 +149,12 @@ sub call {
     my $body = $o{body};
     my $json = defined $body ? encode_json($body) : undef;
 
+    # SM979: a body sent as it is (`raw`, with its `content_type`) - the
+    # multipart upload reads no JSON. Still a POST, so CSRF still applies.
+    $json = $o{raw} if defined $o{raw};
+
     local %ENV = %ENV;
+    $ENV{CONTENT_TYPE} = $o{content_type} if defined $o{content_type};
     delete @ENV{qw(HTTP_AUTHORIZATION LAZYSITE_AUTH_TOKEN)};
 
     # STANDING IN FOR THE AUTH WRAPPER, which is what lazysite-auth.pl does in
@@ -152,6 +167,19 @@ sub call {
     # notice until it mattered.
     $ENV{HTTP_X_REMOTE_USER}     = $user;
     $ENV{LAZYSITE_AUTH_TRUSTED}  = '1';
+
+    # SM979: the wrapper also sets X-Remote-Groups, the account's groups fresh
+    # from the store, and @group entries in a file's rule match only through
+    # it. Opt in with `groups => 1` (the account's groups, resolved as the
+    # wrapper resolves them) or an explicit list. Without it the header is
+    # whatever the caller's environment holds, as every test written before
+    # this expects.
+    if ( defined $o{groups} ) {
+        my @g = ref $o{groups} eq 'ARRAY' ? @{ $o{groups} }
+            : $o{groups} eq '1' ? $self->groups_of($user)
+            :                     split /,/, $o{groups};
+        $ENV{HTTP_X_REMOTE_GROUPS} = join ',', @g;
+    }
     $ENV{DOCUMENT_ROOT}       = $self->{docroot};
     $ENV{LAZYSITE_USERS_TOOL} = $self->{users};
     $ENV{QUERY_STRING}        = $o{query} // "action=$action";

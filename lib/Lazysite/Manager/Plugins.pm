@@ -24,7 +24,7 @@ our @EXPORT_OK = qw(
     action_form_submissions action_form_submission
     action_form_submission_delete action_form_submission_confirm
     action_form_submissions_delete_bulk
-    action_form_submission_approve
+    action_form_submission_approve account_request_store
     resolve_plugin_script plugin_enabled
 );
 
@@ -1397,6 +1397,28 @@ sub _approval_form {
     close $fh;
     my $field = $h->can('form_account_email')->($text);
     return ( $form, $field, length $field ? '' : "the form '$form' does not declare account_email:" );
+}
+
+# SM979: IS THIS THE STORE OF A FORM THAT REQUESTS ACCOUNTS? 1 or 0.
+#
+# What an approve_accounts holder may read: the rows approving reads, which are
+# the rows of a form whose conf declares `account_email:` - and only from the
+# store that form writes. Named by `file`, or by `form` resolved as
+# action_form_submissions resolves it, so the two cannot reach different files.
+# The same test the approval itself applies (_approval_form), so a store this
+# answers 1 for is exactly a store whose rows can be approved.
+sub account_request_store {
+    my ( $file, $form ) = @_;
+    if ( !( defined $file && length $file ) && defined $form && length $form ) {
+        return 0 unless $form =~ /\A[A-Za-z0-9_-]+\z/;
+        my $dir = _handlers_module()->can('form_store_dir')->($form);
+        $file = "$dir/$form.jsonl" if defined $dir && length $dir;
+    }
+    return 0 unless defined $file && length $file;
+    my ( $abs, $rel, $err ) = _submissions_path($file);
+    return 0 if $err;
+    my ( undef, $field ) = _approval_form( $abs, $rel );
+    return ( defined $field && length $field ) ? 1 : 0;
 }
 
 # One store, however it was spelt: the same leaf in the same real directory.

@@ -326,6 +326,15 @@ sub action_file_upload {
             next;
         }
 
+        # SM979: the file's write rule, as every other file write asks it. The
+        # multipart upload asked none, so any manager account could put a file
+        # into - or, with overwrite, replace one in - a folder whose rule
+        # named somebody else.
+        if ( my $d = _acl_denied( $rel_target, 'write', $auth_user ) ) {
+            push @errors, { name => $fname, error => $d->{error}, kind => $d->{kind} };
+            next;
+        }
+
         if ( -e $full_target && !$overwrite ) {
             push @skipped, $fname;
             next;

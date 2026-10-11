@@ -156,11 +156,12 @@ sub _render_manager_facts {
         # exactly that question, and asked it of this.
         # SM957: read_submissions gates the Submissions entry, and notifications
         # decides whether that entry carries the bell's unread count.
+        # SM979: approve_accounts reaches it too, showing the account requests.
         for my $cap (
             qw(manage_config manage_domains manage_users
             manage_content manage_nav manage_themes manage_layouts audit
             manage_data manage_connectors manage_forms read_submissions
-            notifications)
+            notifications approve_accounts)
             )
         {
             $manager_caps{$cap}

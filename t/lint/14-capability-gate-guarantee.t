@@ -139,6 +139,12 @@ is( "@ungated", '',
 my %ALLOW_DIVERGENCE = (
     'form-submission-delete'       => 'manager: manage_forms+read_submissions (SM660); token: delete_submissions',
     'form-submissions-delete-bulk' => 'the same split as form-submission-delete',
+    # SM979: approve_accounts is a manager-UI grant with no remote surface, and the
+    # dispatcher confines a holder of it alone to the stores of forms that declare
+    # account_email (lazysite-manager-api.pl, _refuse_beyond_account_requests).
+    'form-submissions' => 'manager: read_submissions | approve_accounts (account requests only, SM979); token: read_submissions',
+    'form-submission' => 'the same split as form-submissions',
+    'form-list' => 'the same split: approve_accounts is shown only the forms that declare account_email',
 );
 my @divergent;
 for my $act ( sort keys %all ) {

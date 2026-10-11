@@ -54,8 +54,10 @@ Expect
   password. **Download CSV** and **Delete selected** act on the loaded form.
 
 Negative
-: Confirm, Approve and Delete need `manage_forms` as well as `read_submissions`;
-  without them the server refuses and the page says so.
+: Confirm and Delete need `manage_forms` as well as `read_submissions`; Approve
+  needs `approve_accounts` (or `manage_users`). Without them the server refuses
+  and the page says so. An account holding `approve_accounts` alone sees only the
+  forms that declare `account_email:` here, and is refused any other form's rows.
 
 ## The old address
 

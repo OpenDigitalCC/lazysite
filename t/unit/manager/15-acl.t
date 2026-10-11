@@ -1,9 +1,13 @@
 #!/usr/bin/perl
 # SM074: per-file ACLs in the manager API, central store + actions. An
 # author claims a file with acl-set (becoming its owner); thereafter a
-# non-operator, non-owner is denied write, the owner is allowed, and an
-# operator (manager group) bypasses. The acl-set action itself is gated
-# the same way.
+# non-owner the rule does not name is denied write and the owner is
+# allowed. The acl-set action itself is gated the same way.
+#
+# SM979 (ruled 2026-10-11): an operator (a manager group, manage_users) is
+# held to the file's rule like anyone else - it neither writes, reads nor
+# re-rules a file the rule does not give it. This walk asserted the
+# opposite; the rule's owner now makes the changes the operator made.
 use strict;
 use warnings;
 use Test::More;
@@ -127,31 +131,36 @@ ok( !save_as( $d, 'bob',   'authors',  '/content/x.md', 'bob' )->{ok},
     'non-operator non-owner write denied' );
 ok(  save_as( $d, 'alice', 'authors',  '/content/x.md', 'alice-edit' )->{ok},
     'owner may write her own file' );
-ok(  save_as( $d, 'admin', 'managers', '/content/x.md', 'op-edit' )->{ok},
-    'operator (manager group) bypasses the ACL' );
+ok( !save_as( $d, 'admin', 'managers', '/content/x.md', 'op-edit' )->{ok},
+    'SM979: an operator (manager group) is held to the rule like anyone else' );
 
-# --- only the owner / an operator may change the ACL ---------------------
+# --- only the owner may change the ACL (SM979: an operator is no exception) ---
 ok( !aclset( $d, 'bob',   'authors',  '/content/x.md', { write => ['bob'] } )->{ok},
     'non-owner cannot change the ACL' );
-ok(  aclset( $d, 'admin', 'managers', '/content/x.md', { write => ['alice','bob'] } )->{ok},
-    'operator may change the ACL' );
+ok( !aclset( $d, 'admin', 'managers', '/content/x.md', { write => ['admin'] } )->{ok},
+    'SM979: an operator may not change somebody else\'s rule' );
+ok( aclset( $d, 'alice', 'authors', '/content/x.md', { write => [ 'alice', 'bob' ] } )->{ok},
+    'the owner may change the ACL' );
 
-# after the operator added bob to the write list, bob may now save
+# after the owner added bob to the write list, bob may now save
 ok( save_as( $d, 'bob', 'authors', '/content/x.md', 'bob-now' )->{ok},
     'a newly listed user may write' );
 
 # --- SM077: @group ACL entry - a group member may write ------------------
-ok( aclset( $d, 'admin', 'managers', '/content/x.md', { write => ['@editors'] } )->{ok},
-    'operator sets a @group write entry' );
+ok( aclset( $d, 'alice', 'authors', '/content/x.md', { write => ['@editors'] } )->{ok},
+    'the owner sets a @group write entry' );
 ok( save_as( $d, 'carol', 'editors', '/content/x.md', 'carol-grp' )->{ok},
     '@group: a member of @editors may write (X-Remote-Groups)' );
 ok( !save_as( $d, 'dave', 'authors', '/content/x.md', 'dave-no' )->{ok},
     '@group: a non-member is denied' );
 
 # --- SM077: move re-keys the ACL, and the listing surfaces it ------------
-my $mv = post( $d, 'admin', 'managers',
+ok( !post( $d, 'admin', 'managers',
+        'action=move&path=/content/x.md&to=/content/moved.md', {} )->{ok},
+    'SM979: an operator the rule does not name cannot move the file' );
+my $mv = post( $d, 'alice', 'authors',
     'action=move&path=/content/x.md&to=/content/moved.md', {} );
-ok( $mv->{ok}, 'operator moves the file' );
+ok( $mv->{ok},                                         'the owner moves the file' );
 ok( -f "$d/content/moved.md" && !-e "$d/content/x.md", 'file moved on disk' );
 
 my $list = mapi( $d,
@@ -172,9 +181,9 @@ is_deeply( $entry->{write}, ['@editors'], 'listing surfaces the @group write lis
 open my $secf, '>', "$d/content/secret.md" or die $!;
 print $secf "TOP-SECRET-CONTENT\n";
 close $secf;
-ok( aclset( $d, 'admin', 'managers', '/content/secret.md',
-        { read => ['alice'], write => ['alice'], owner => 'alice' } )->{ok},
-    'operator restricts READ of secret.md to alice' );
+ok( aclset( $d, 'alice', 'authors', '/content/secret.md',
+        { read => ['alice'], write => ['alice'] } )->{ok},
+    'alice claims secret.md and restricts READ to herself' );
 
 ok( !get_as( $d, 'bob', 'authors', 'action=read&path=/content/secret.md' )->{ok},
     'bob is denied by read (baseline)' );
@@ -191,7 +200,7 @@ ok( ( grep {m{secret\.md}} @alice_zip ),
 
 like( get_raw( $d, 'alice', 'authors', 'action=file-download&path=/content/secret.md' ),
     qr/TOP-SECRET-CONTENT/, 'alice (read-allowed) can still download it' );
-like( get_raw( $d, 'admin', 'managers', 'action=file-download&path=/content/secret.md' ),
-    qr/TOP-SECRET-CONTENT/, 'operator can still download it' );
+unlike( get_raw( $d, 'admin', 'managers', 'action=file-download&path=/content/secret.md' ),
+    qr/TOP-SECRET-CONTENT/, 'SM979: an operator the read rule does not name cannot download it' );
 
 done_testing();

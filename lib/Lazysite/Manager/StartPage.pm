@@ -56,7 +56,8 @@ our $DOCROOT = '';
 # (style-guide) are not start pages.
 our %PAGES = (
     # SM957: the menu's first entry - every form's submissions in one place.
-    'submissions' => { label => 'Submissions',   caps => ['read_submissions'] },
+    # SM979: approve_accounts reaches it as well, showing the account requests.
+    'submissions' => { label => 'Submissions', caps => [ 'read_submissions', 'approve_accounts' ] },
     'index'      => { label => 'Site settings', caps => [] },
     'files'      => { label => 'Files',         caps => ['manage_content'] },
     'nav'        => { label => 'Navigation',    caps => ['manage_nav'] },

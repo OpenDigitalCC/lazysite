@@ -1698,6 +1698,8 @@ sub cmd_group_reach {
                     : '' );
             }
         }
+        # SM979: what the table does not say - the operator, and files by rule.
+        print Lazysite::Capabilities::group_reach_notes( $DOCROOT, $g, \%caps );
     }
     return;
 }

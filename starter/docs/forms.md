@@ -627,9 +627,12 @@ the Forgot password page.
 - A form without `account_email:` offers no Approve, and its submissions stay
   ordinary submissions.
 
-Approving needs both `read_submissions` and full user management
-(`manage_users`), and it is offered only on the manager's Submissions page: no
-token or MCP client can approve an account. Each approval is in the audit trail -
+Approving needs `approve_accounts` (SM979), a grant made for this job: its holder
+sees the submissions of the forms that declare `account_email:` - the account
+requests - and no other form's, approves them, and manages no account, group or
+file. Full user management (`manage_users`) approves as well, as it always has.
+It is offered only on the manager's Submissions page: no token or MCP client can
+approve an account. Each approval is in the audit trail -
 who approved, which submission, and the account it became.
 
 ## Forms as an intake mechanism

@@ -543,7 +543,9 @@ our %ACTION = (
     # SM652: read_submissions ONLY, on both channels - form-list returns
     # row_count, which is a read of submission EXISTENCE.
     # [cookie_cap] SM214: names + submission COUNTS
-    'form-list' => { mcp => 'form_list', cookie_cap => 'read_submissions', params => [] },
+    # SM979: OR approve_accounts, which the dispatcher shows only the forms that
+    # declare account_email (Manager::Plugins::account_request_store).
+    'form-list' => { mcp => 'form_list', cookie_cap => 'read_submissions|approve_accounts', params => [] },
     # [cookie_cap] SM216, SM660
     'form-submission-confirm' => { mutates => 1, cookie_cap => 'manage_forms+read_submissions', params => [ { name => 'file', in => 'query_or_body' }, { name => 'id', in => 'body' } ] },
     # [cookie_cap] SM660: BOTH capabilities. SM652 narrowed the submission READS to
@@ -567,7 +569,8 @@ our %ACTION = (
     # malformed value.
     # [cookie_cap] SM938 D5: one of them, by id
     # [mcp] read_form_submission: SM938 D5
-    'form-submission' => { mcp => 'read_form_submission', cookie_cap => 'read_submissions', params => [ { name => 'file', in => 'query', required => 1, note => 'the store the row is in, as a submission notice\'s link and the table give it' }, { name => 'id', in => 'query', required => 1, note => '16 hex characters: the row\'s id' } ] },
+    # SM979: OR approve_accounts, for a row of an account-request form only.
+    'form-submission' => { mcp => 'read_form_submission', cookie_cap => 'read_submissions|approve_accounts', params => [ { name => 'file', in => 'query', required => 1, note => 'the store the row is in, as a submission notice\'s link and the table give it' }, { name => 'id', in => 'query', required => 1, note => '16 hex characters: the row\'s id' } ] },
     # [cookie_cap] SM652: read_submissions ONLY, so the two channels agree about who may
     # read a submission. MCP has required it for both since it was written;
     # the control API also accepted manage_forms, and the divergence was
@@ -580,7 +583,10 @@ our %ACTION = (
     # EXISTENCE even though it carries no content. MCP treats it that way
     # and always has.
     # [cookie_cap] SM182/SM187: PII submissions (GET)
-    'form-submissions' => { mcp => 'read_form_submissions', cookie_cap => 'read_submissions',
+    # SM979: OR approve_accounts - an account request is what approving reads,
+    # so a holder reads the store of a form that declares account_email and
+    # no other. The dispatcher confines it (account_request_store).
+    'form-submissions' => { mcp => 'read_form_submissions', cookie_cap => 'read_submissions|approve_accounts',
         params => [
             { name => 'form', in => 'query',
                 note => 'the form\'s name; its store is resolved from the handler it binds to' },
@@ -588,13 +594,17 @@ our %ACTION = (
                 note => 'the path to a .jsonl store, when naming one directly; `form` is preferred' },
         ],
     },
-    # SM858: approve an account from a stored submission. BOTH capabilities: it
-    # reads the row (read_submissions) and creates an account (manage_users -
-    # the full user-management grant account-approve has always needed; a
-    # delegate holding create_sub_users may not, as on the Users API).
-    # No %GATE line: cookie-only, see the reason.
+    # SM858: approve an account from a stored submission. It reads the row and
+    # creates an account. A delegate holding create_sub_users may not, as on
+    # the Users API. No %GATE line: cookie-only, see the reason.
+    #
+    # SM979 (ruled 2026-10-11, "New approve capability"): approve_accounts is
+    # enough. It was manage_users AND read_submissions, and manage_users is the
+    # operator - it passes every gate on this channel - so the group made to
+    # approve requests held the whole manager. manage_users stays accepted, so
+    # a group that approved before still does.
     'form-submission-approve' => { mutates => 1, changes_access => 1,
-        cookie_cap => 'manage_users+read_submissions',
+        cookie_cap => 'approve_accounts|manage_users',
         cookie_only_reason => 'it creates an account for a person nobody has met, and SM268 ruled minting credentials a human-at-a-browser act - an operator looks at the submission and decides',
         params => [ { name => 'file', in => 'query_or_body' }, { name => 'id', in => 'body' } ] },
     # [cookie_cap] SM187, SM660

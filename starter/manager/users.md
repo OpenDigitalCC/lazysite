@@ -241,6 +241,7 @@ var PERM_LABELS = {
   notifications: 'Notifications', feedback: 'Agent feedback',
   read_submissions: 'Read submissions',
   delete_submissions: 'Delete any submission',
+  approve_accounts: 'Approve account requests',
   create_sub_users: 'Create sub-users', delegate_sub_user_creation: 'Delegate sub-users'
 };
 

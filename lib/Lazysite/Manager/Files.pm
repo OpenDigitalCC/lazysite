@@ -22,7 +22,7 @@ use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal page_bytes_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes
     %params _json_body); # SM944 S33: acl-set's handler reads the request's parameters and body
 use Lazysite::Auth::Acl
-    qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
+    qw(load_acls save_acls _acl_norm _to_list _acl_allows file_rule_bypass _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
 use Lazysite::Private         ();                    # SM286: where content actually lives
 use Lazysite::Auth::Settings  ();                    # SM778: logins -> display names
@@ -1042,7 +1042,8 @@ sub _mkpath_checked {
 }
 
 sub action_mkdir {
-    my ($rel_path) = @_;
+    my ( $rel_path, $username ) = @_;
+    $username //= $auth_user;
 
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
@@ -1050,6 +1051,10 @@ sub action_mkdir {
     if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
     if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
+
+    # SM979: a folder made is a write at its path, so the path's write rule
+    # applies - mkdir asked no rule at all.
+    if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) ) { return $d }
 
     my $full = $result->{full};
     return _refused( 'exists', "'$result->{rel}' already exists",
@@ -1104,6 +1109,12 @@ sub action_move {
 
     # Per-file ACL: write access on the source (operators bypass).
     if ( my $deny = _acl_denied( $s->{rel}, 'write', $username ) ) { return $deny }
+
+    # SM979: AND ON THE TARGET. A move writes a file at the destination, and
+    # every file write applies that path's write rule - a move asked the
+    # source's rule only, so an author could land a file in a folder whose
+    # rule names somebody else.
+    if ( my $deny = _acl_denied( $d->{rel}, 'write', $username ) ) { return $deny }
 
     my $dst_dir = dirname($dst_full);
     my ( $mok, $merr ) = _mkpath_checked($dst_dir);
@@ -1263,6 +1274,9 @@ sub action_copy {
 
     # Per-file ACL: READ access on the source (operators bypass).
     if ( my $deny = _acl_denied( $s->{rel}, 'read', $username ) ) { return $deny }
+
+    # SM979: and WRITE access on the target - the copy is a file written there.
+    if ( my $deny = _acl_denied( $d->{rel}, 'write', $username ) ) { return $deny }
 
     # SM976 Q15e: a copy of a binding page is a new binding where it lands.
     if ( my $g = form_bind_tree_guard( $d->{rel}, $src_full ) ) { return $g }
@@ -2270,7 +2284,11 @@ sub action_acl_set {
     my $acls     = load_acls();
     my $existing = $acls->{$rel};
 
-    unless ( _is_operator() ) {
+    # SM979: the bypass is file_rule_bypass ('local', or an unsecured site), not
+    # _is_operator. A manage_users holder changing somebody else's rule was the
+    # second route to writing their file - rewrite the rule, then save - so the
+    # rule's owner decides here as the file's rule decides a write.
+    unless ( file_rule_bypass() ) {
         if ($existing) {
             return { ok => 0, error => "Only the owner may change permissions" }
                 unless ( $existing->{owner} // '' ) eq ( $user // '' );
@@ -2286,7 +2304,7 @@ sub action_acl_set {
     # normal user always becomes the owner of what they claim.
     my $owner =
         $existing ? $existing->{owner}
-        : ( _is_operator() && defined $owner_req && length $owner_req ) ? $owner_req
+        : ( file_rule_bypass() && defined $owner_req && length $owner_req ) ? $owner_req
         :                                                                 $user;
     my %rec = ( owner => $owner );
     my $rl  = _to_list($read);  $rec{read}  = $rl if defined $rl;
@@ -2858,7 +2876,7 @@ sub action_acl_remove {
         my $present = _present_root_key($acls);
         return { ok => 1, path => '/', removed => 0 } unless defined $present;
         my $existing = $acls->{$present};
-        unless ( _is_operator()
+        unless ( file_rule_bypass()
             || ( $existing->{owner} // '' ) eq ( $user // '' ) )
         {
             return { ok => 0, error => "Only the owner may remove permissions" };
@@ -2879,7 +2897,7 @@ sub action_acl_remove {
     my $acls     = load_acls();
     my $existing = $acls->{$rel};
     return { ok => 1, path => $r->{rel}, removed => 0 } unless $existing;
-    unless ( _is_operator() || ( $existing->{owner} // '' ) eq ( $user // '' ) ) {
+    unless ( file_rule_bypass() || ( $existing->{owner} // '' ) eq ( $user // '' ) ) {
         return { ok => 0, error => "Only the owner may remove permissions" };
     }
     delete $acls->{$rel};

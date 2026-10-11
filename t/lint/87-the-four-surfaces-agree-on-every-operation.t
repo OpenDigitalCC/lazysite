@@ -110,6 +110,9 @@ my %EXEMPT = (
     'write content/token' => 'token clients write content over WebDAV; absent from the default-deny %need is the decision',
     'write a theme file/token' => 'token clients install theme files over WebDAV (the SM071 layouts carve-out); '
         . 'theme-upload is the manager UI\'s cookie-only spelling',
+    'read submissions/cookie' => 'SM979: the manager also accepts approve_accounts, a manager-UI grant with no '
+        . 'remote surface, which the dispatcher confines to the stores of forms declaring account_email; '
+        . 'lint 14 records the split',
     'read submissions/mcp' => 'SM567/lint 23: read_form_submissions deliberately narrows to read_submissions '
         . '(least privilege); the API accepts manage_forms OR read_submissions and lint 23 records the subset',
 );

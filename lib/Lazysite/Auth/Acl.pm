@@ -19,7 +19,7 @@ use Lazysite::Paths ();
 use Lazysite::Auth::Settings ();
 
 our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
-    _is_operator _acl_denied groups_for_user may_read_any_rule
+    _is_operator _acl_denied groups_for_user may_read_any_rule file_rule_bypass
     gating_for root_gating);
 
 our $DOCROOT;    # set by the script
@@ -675,11 +675,38 @@ sub may_read_any_rule {
     return 0;
 }
 
-# Combine operator bypass + the per-file allow check; returns a refusal hashref
-# or undef if access is allowed.
+# SM979: WHO PASSES A FILE'S RULE WITHOUT BEING NAMED IN IT - the sysadmin
+# ('local', the CLI's break-glass identity) and, on an unsecured site where no
+# group grants manager access, every signed-in account (the dev/first-run mode
+# _is_operator also honours). Nobody else, and in particular NOT a holder of
+# manage_users.
+#
+# _is_operator() answers "may this account manage accounts and pass the
+# manager's capability gates", and its clause for manage_users is right for
+# that. It was ALSO the per-file bypass, so a group holding manage_users and
+# nothing else - made to approve account requests - saved a page at the site
+# root and overwrote another author's post through `save`, past rules that
+# named neither it nor its group, while `group-reach` said it could call
+# nothing. A file's rule is the file owner's statement of who writes it;
+# account management is a different authority and does not include it. A
+# sysop group reaches a file the way any group does: by being named in its
+# rule (the starter's rules name @sysops), or by the CLI as `local`.
+#
+# A token is never bypassed, as before: per-file rules bind every partner.
+sub file_rule_bypass {
+    return 0 if $token_auth;
+    return 1 if ( $auth_user // '' ) eq 'local';
+    local $Lazysite::Auth::Settings::AUTH_DIR = _settings_dir();
+    return 1 unless Lazysite::Auth::Settings::site_grants_manager();
+    return 0;
+}
+
+# The per-file allow check with the bypass above; returns a refusal hashref or
+# undef if access is allowed. SM979: the bypass is file_rule_bypass, never
+# _is_operator - see there.
 sub _acl_denied {
     my ( $rel, $mode, $user ) = @_;
-    return undef if _is_operator();
+    return undef if file_rule_bypass();
     return undef if _acl_allows( $rel, $mode, $user );
     # SM1024: refused because the store is broken, not because of a rule - the
     # cannot-tell answer, naming the store and the repair (503).

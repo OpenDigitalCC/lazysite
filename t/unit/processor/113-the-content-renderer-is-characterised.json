@@ -133,6 +133,7 @@
                ],
                "lazysite_version" : "",
                "manager_caps" : {
+                  "approve_accounts" : 0,
                   "audit" : 0,
                   "manage_config" : 0,
                   "manage_connectors" : 0,
@@ -227,6 +228,7 @@
                ],
                "lazysite_version" : "",
                "manager_caps" : {
+                  "approve_accounts" : 0,
                   "audit" : 0,
                   "manage_config" : 0,
                   "manage_connectors" : 0,
@@ -323,6 +325,7 @@
                ],
                "lazysite_version" : "",
                "manager_caps" : {
+                  "approve_accounts" : 0,
                   "audit" : 0,
                   "manage_config" : 1,
                   "manage_connectors" : 0,
@@ -420,6 +423,7 @@
                "layout" : "plain",
                "lazysite_version" : "",
                "manager_caps" : {
+                  "approve_accounts" : 0,
                   "audit" : 0,
                   "manage_config" : 1,
                   "manage_connectors" : 0,
@@ -604,6 +608,7 @@
                ],
                "lazysite_version" : "",
                "manager_caps" : {
+                  "approve_accounts" : 0,
                   "audit" : 0,
                   "manage_config" : 0,
                   "manage_connectors" : 0,
@@ -698,6 +703,7 @@
                ],
                "lazysite_version" : "",
                "manager_caps" : {
+                  "approve_accounts" : 0,
                   "audit" : 0,
                   "manage_config" : 1,
                   "manage_connectors" : 0,
@@ -752,7 +758,7 @@
          "body" : "[% FOREACH k IN manager_caps.keys.sort %][% k %]=[% manager_caps.$k %] [% END %]",
          "context" : "manager",
          "got" : {
-            "body" : "audit=0 manage_config=1 manage_connectors=0 manage_content=0 manage_data=0 manage_domains=1 manage_forms=0 manage_layouts=0 manage_nav=0 manage_themes=0 manage_users=1 notifications=0 read_submissions=0 ",
+            "body" : "approve_accounts=0 audit=0 manage_config=1 manage_connectors=0 manage_content=0 manage_data=0 manage_domains=1 manage_forms=0 manage_layouts=0 manage_nav=0 manage_themes=0 manage_users=1 notifications=0 read_submissions=0 ",
             "died" : null,
             "lang" : "en",
             "log" : [],
@@ -792,6 +798,7 @@
                ],
                "lazysite_version" : "",
                "manager_caps" : {
+                  "approve_accounts" : 0,
                   "audit" : 0,
                   "manage_config" : 1,
                   "manage_connectors" : 0,

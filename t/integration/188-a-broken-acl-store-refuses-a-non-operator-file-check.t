@@ -59,9 +59,13 @@ for my $case ( [ 'truncated', '{"secret.md":{"read":["ada"]}' ], [ 'an array', '
         unlike( $r->{content} // '', qr/SECRET-BODY/, 'and gets no content' );
         ( $s, $r ) = read_as( 'bob', '/open.md' );
         is( $s, 503, 'every per-file check is refused, a rule cannot be told from none' );
+        # SM979: no manager account passes a file rule - only `local` does - so
+        # the broken store refuses the site owner as well. SM991 makes the
+        # operator group the operator, with the bypass, and this asks 200 again.
         ( $s, $r ) = read_as( 'ada', '/secret.md' );
-        is( $s, 200, 'the operator still reads it' ) or diag explain $r;
-        like( $r->{content} // '', qr/SECRET-BODY/, 'and so can reach the repair' );
+        is( $s, 503, 'the site owner is refused too: SM979 binds every account to the rules' )
+            or diag explain $r;
+        unlike( $r->{content} // '', qr/SECRET-BODY/, 'and gets no content' );
         my $check = TestHelper::run_cmd( $^X, "$root/tools/lazysite-check.pl", '--docroot', $d );
         like( $check, qr/acls\.json does not decode as a JSON object/, 'lazysite check names the file' );
     };

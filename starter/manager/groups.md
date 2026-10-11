@@ -83,6 +83,9 @@ var ACTIONS = [
   // this cannot be narrowed to the rows a caller created. An operator granting it
   // on the softer reading would be granting the harder thing.
   ['delete_submissions', 'Delete ANY form submission (agent, API/MCP)'],
+  // SM979: approving an account request without managing accounts: it reads
+  // only the forms that declare account_email.
+  ['approve_accounts', 'Approve account requests (Submissions)'],
   ['create_sub_users', 'Create sub-users'],
   ['delegate_sub_user_creation', 'Delegate sub-users']
 ];

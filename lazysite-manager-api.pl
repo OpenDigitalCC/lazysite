@@ -1136,7 +1136,7 @@ elsif ( $action eq 'protected-sections' ) {
     # that content exists elsewhere.
     $result = action_protected_sections( $auth_user, \@REQUEST_SCOPES, $params{path} );
 }
-elsif ( $action eq 'mkdir' ) { $result = action_mkdir($path) }
+elsif ( $action eq 'mkdir' ) { $result = action_mkdir( $path, $auth_user ) }
 elsif ( $action eq 'move' )  { $result = action_move( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'copy' )  { $result = action_copy( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $path, $auth_user ) }
@@ -2048,15 +2048,24 @@ elsif ( $action eq 'form-submissions' ) {
     # not, so the reasonable call answered "Invalid submissions file" about a
     # parameter that had never been sent.
     _refuse_unreachable_form( length( $params{form} // '' ) ? $params{form} : _form_of_store( $params{file} ) ); # SM976 F2
+    _refuse_beyond_account_requests( $params{file}, $params{form} );                                             # SM979
     $result = action_form_submissions( $params{file}, $params{form} );
 }
 elsif ( $action eq 'form-submission' ) {
     # SM938 D5: one submission, by store and id - what a submission notice links to.
     _refuse_unreachable_form( _form_of_store( $params{file} ) );    # SM976 F2
+    _refuse_beyond_account_requests( $params{file} );               # SM979
     $result = action_form_submission( $params{file}, $params{id} );
 }
 elsif ( $action eq 'form-list' ) { # SM214: PII-free form discovery (names + types + row counts)
     $result = dispatch_form_list();
+    # SM979: an approve_accounts holder is shown the forms that request
+    # accounts - the ones whose rows it may read - and no other.
+    if ( ref $result eq 'HASH' && ref $result->{forms} eq 'ARRAY' && _approval_only() ) {
+        $result->{forms} = [ grep { ref $_ eq 'HASH'
+                    && Lazysite::Manager::Plugins::account_request_store( undef, $_->{name} ) }
+                @{ $result->{forms} } ];
+    }
 }
 elsif ( $action eq 'form-delete' ) {    # SM632: the inverse of bind_form
     my $req = _json_body();
@@ -2097,6 +2106,7 @@ elsif ( $action eq 'form-submissions-delete-bulk' ) {    # SM187: delete several
 elsif ( $action eq 'form-submission-approve' ) {    # SM858: an account from a submission
     my $req = _json_body();
     _refuse_unreachable_form( _form_of_store( $req->{file} // $params{file} ) ); # SM976 F2
+    _refuse_beyond_account_requests( $req->{file} // $params{file} );            # SM979
     $result = action_form_submission_approve( $req->{file} // $params{file}, $req->{id},
         users => \&users_api, by => $auth_user );
 }
@@ -2509,6 +2519,32 @@ sub _refuse_unreachable_form {
     my ($name) = @_;
     my $r = Lazysite::Manager::Common::form_reach_refusal($name) or return;
     _refuse( $r, ( $token_auth ? 'api' : 'ui' ), 'denied: outside domain scope', $name // '' );
+    return;
+}
+
+# SM979: a cookie caller who reaches the submission views through
+# approve_accounts alone - without read_submissions, and not the operator
+# (manage_users passes every capability gate on this channel).
+sub _approval_only {
+    return 0 if $token_auth || _operator();
+    my $caps = _user_caps($auth_user);
+    return ( $caps->{approve_accounts} && !$caps->{read_submissions} ) ? 1 : 0;
+}
+
+# SM979: such a caller reads, and approves from, the store of a form that
+# declares account_email - the account requests - and no other. Refused as
+# the capability gate refuses, naming the grant that reads every form.
+sub _refuse_beyond_account_requests {
+    my ( $file, $form ) = @_;
+    return unless _approval_only();
+    return if Lazysite::Manager::Plugins::account_request_store( $file, $form );
+    _refuse(
+        { ok => 0, kind => 'forbidden',
+            error => 'This account approves account requests: it reads the submissions of a '
+                . 'form that declares account_email, and this is not one. Reading other '
+                . "forms' submissions requires the 'read_submissions' permission. An "
+                . 'administrator can grant it on the Groups page.' },
+        'ui', 'denied: capability', ( $file // $form // '' ) );
     return;
 }
 

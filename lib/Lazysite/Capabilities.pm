@@ -630,6 +630,26 @@ my %ACTION_INFO = (
             mcp => [],
         },
     },
+    # SM979 (ruled 2026-10-11, "New approve capability"): APPROVING AN ACCOUNT
+    # REQUEST IS A GRANT OF ITS OWN. It needed manage_users with read_submissions,
+    # and manage_users is the operator: a group made to approve registrations
+    # held the whole manager. This reaches exactly what approving reads - the
+    # rows of a form that declares `account_email:`, which are the requests -
+    # and the one verb that turns such a row into an account. Not the Users
+    # API's account-approve, which takes a name of the caller's choosing rather
+    # than a request somebody sent. Manager UI only, off by default.
+    approve_accounts => {
+        section => 'Accounts',
+        title => 'Approve account requests: read the submissions of a form that declares '
+            . 'account_email, and approve one into an account.',
+        grants => 'See the rows of the forms that request accounts (a form whose conf declares '
+            . 'account_email) and press Approve on one, which creates the account from the '
+            . 'address on that row, in the registration groups the site flags, with a setup '
+            . 'link. It reads no other form\'s submissions, creates no account it was not asked '
+            . 'for, and manages no account or group. Manager UI only: no remote surface offers it.',
+        unlocks => { ui => [ 'Approve (an account) on a submission whose form declares account_email',
+                'the Submissions page, showing only the forms that declare account_email' ] },
+    },
     create_sub_users => {
         section => 'Accounts',
         title   => 'Create sub-accounts under your own account.',
@@ -995,6 +1015,65 @@ sub reach_for {
         };
     }
     return \%out;
+}
+
+# SM979: WHAT THE CAPABILITY TABLE DOES NOT SAY, said beside it.
+#
+# The report above reads the `unlocks` tables, and two reaches are not in them:
+#
+#   * manage_users is the OPERATOR on the manager's cookie channel - it passes
+#     every capability gate there (lazysite-manager-api.pl, the `!_operator()`
+#     block), so its reach on `ui` is every manager action, not the two pages
+#     its own table entry lists. A report that said "2 callable" for it
+#     understated it by the whole manager.
+#   * FILES are decided by each path's access rule, never by a capability: the
+#     manager's file actions (save, move, copy, mkdir, delete, upload) take no
+#     capability, and the rule of the path decides. The report said "0 callable"
+#     for a group that, before SM979, could write every file on the site.
+#
+# So for a group with a door to the files (ui or webdav) this lists the rules
+# that name it - directly or through a group it is nested in - and says what
+# happens where no rule governs. It reads the store; it decides nothing. The
+# users tool prints what this returns (it is compiled on every credential
+# check, so the work lives here, loaded only when group-reach asks).
+sub group_reach_notes {
+    my ( $docroot, $g, $caps ) = @_;
+    my @out;
+    if ( $caps->{manage_users} && $caps->{ui} ) {
+        push @out, "   operator: manage_users passes EVERY capability gate on the manager (ui) channel -\n"
+            . "             every manager action, not only those listed. File rules still apply to it.\n";
+    }
+    return @out unless $caps->{ui} || $caps->{webdav};
+
+    require Lazysite::Auth::Acl;
+    my $acls = eval {
+        no warnings 'once';
+        local $Lazysite::Auth::Acl::DOCROOT = $docroot;
+        Lazysite::Auth::Acl::load_acls();
+    } || {};
+    my %as = map { lc $_ => 1 } Lazysite::Auth::Settings::group_closure($g);
+    my ( %by_mode, $root_write );
+    for my $k ( sort keys %$acls ) {
+        my $e = $acls->{$k};
+        next unless ref $e eq 'HASH';
+        my $label = ( $k eq '/' || $k eq '' || $k eq '.' ) ? '/ (site-wide)' : $k;
+        for my $mode (qw(write read)) {
+            my $list = $e->{$mode};
+            next unless ref $list eq 'ARRAY' && @$list;
+            $root_write = 1 if $mode eq 'write' && $label eq '/ (site-wide)';
+            next unless grep { defined && /\A\@(.+)\z/ && $as{ lc $1 } } @$list;
+            push @{ $by_mode{$mode} }, $label;
+        }
+    }
+    push @out, "   files   by rule - a path's access rule decides, never a capability:\n";
+    for my $mode (qw(write read)) {
+        my @p = @{ $by_mode{$mode} || [] };
+        push @out, sprintf "           %-5s named in %d rule%s%s\n", $mode, scalar @p, ( @p == 1 ? '' : 's' ),
+            ( @p ? ': ' . join( ', ', @p ) : '' );
+    }
+    push @out, "           a path no write rule governs is writable by any account that reaches the\n"
+        . "           file actions" . ( $root_write ? ' (a site-wide write rule governs every path here)' : '' ) . "\n";
+    return @out;
 }
 
 sub describe {

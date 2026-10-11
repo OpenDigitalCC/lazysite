@@ -558,6 +558,26 @@ Archive
   refused 403 and change no file of the site and write no audit row, while the
   same request with a token does what it was refused. Test 43 sampled 19, and
   a gate moved after the dispatch let a forged write land behind its 403.
+- SM979 (PENDING) **security: manage_users no longer passes a file's rule, and
+  approving an account request is a grant of its own** (ruled 2026-10-11, "New
+  approve capability"). A group holding only `manage_users` - made to approve
+  account requests - saved a page at the site root and overwrote another
+  author's post past rules naming neither (200 both), read a members-only file,
+  and rewrote another owner's rule: the per-file bypass was the operator test,
+  which is true for any `manage_users` holder. **Behaviour change:** a file's
+  rule now binds a `manage_users` holder, a sysop group included, like anyone -
+  read, write, move, delete, and changing or removing somebody else's rule; a
+  sysop reaches a file by being named in its rule (the starter's rules name
+  `@sysops`) or by the CLI as `local`, which alone may name a rule's owner. A
+  move or copy now asks the TARGET's write rule, and `mkdir` and the multipart
+  upload ask the path's rule (all three asked none, or only the source's). New
+  capability `approve_accounts` (off by default, manager UI only): approve an
+  account request and read the submissions of the forms that declare
+  `account_email:`, and no other form's; `manage_users` still approves.
+  `lazysite-users.pl group-reach` now says that `manage_users` passes every
+  capability gate on the manager, and which file rules name each group.
+  Reported, not changed: `manage_users` passing the manager's capability gates
+  (e.g. `config-set`), and `lock` asking no file rule. t/integration/124.
 
 - lazysite-check (PENDING) **a check that cannot read part of the site says
   so.** Run as a user that cannot read a directory - the private store, on the

@@ -84,7 +84,20 @@ that file rather than this one is authoritative for the list.
 
 `manage_users`
 : The delegation capability. A holder can create accounts and edit groups. It is
-  NOT the operator: since SM195 a holder is bounded by the ceiling below.
+  NOT the operator for granting: since SM195 a holder is bounded by the ceiling
+  below. On the manager's cookie channel it passes every capability gate.
+  **Files are not among them (SM979):** a file's access rule binds a holder like
+  anyone else - read, write, and changing somebody else's rule - so a sysop
+  group reaches a file by being named in its rule (the starter's rules name
+  `@sysops`). Only `local` (the CLI) and an unsecured site pass a file's rule
+  unnamed.
+
+`approve_accounts`
+: Approve account requests (SM979): read the submissions of a form that declares
+  `account_email:` and press Approve on one. It reads no other form's
+  submissions, manages no account or group, and writes no file. Manager UI only.
+  It replaces holding `manage_users` with `read_submissions` for this job;
+  a group holding that pair still approves.
 
 ## The grant ceiling (SM195)
 

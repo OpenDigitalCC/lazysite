@@ -239,12 +239,13 @@ found nothing - so check the key before concluding a feature is broken.
 
 `acl-set` (POST)
 : `path=<file>` in the query, plus a JSON body `{ "read": [...], "write": [...] }`
-  (an operator may also pass `"owner"`). The first `acl-set` on a file you can
-  write records you as owner. Needs `webdav`. See *Own your pages*.
+  (only the CLI, as `local`, may also pass `"owner"`). The first `acl-set` on a
+  file you can write records you as owner. Needs `webdav`. See *Own your pages*.
 
 `acl-get` (GET) / `acl-remove` (POST)
-: `path=<file>`. `acl-get` returns the entry; `acl-remove` clears it (both
-  owner-only, operators aside). Needs `webdav`.
+: `path=<file>`. `acl-get` returns the entry; `acl-remove` clears it
+  (owner-only; since SM979 a holder of `manage_users` is no exception - only
+  the CLI as `local` is). Needs `webdav`.
 
 `config-set` (POST)
 : `key=<name>` and `value=<…>` (query string or JSON body). Sets one
