@@ -288,7 +288,7 @@ sub _placeholder_key {
 }
 
 sub convert_md {
-    my ($body) = @_;
+    my ( $body, %o ) = @_;
     my $k = _placeholder_key($body);         # SM967
 
     # Protect <script> AND <style> blocks from Markdown processing. CSS/JS is not
@@ -325,10 +325,49 @@ sub convert_md {
         $placeholder
     }gse;
 
+    # P5 (WORK-PLAN-0154): A TEMPLATE TAG IS NOT MARKDOWN.
+    #
+    # The body is converted BEFORE the template pass, so every `[% ... %]` the
+    # author wrote went through the converter as prose: `[% IF a && b %]`
+    # reached TT as `[% IF a &amp;&amp; b %]`, a parse error, and the page
+    # showed its own source. `<` met the same escape and `*`/`_` could pair
+    # into emphasis. Each tag is lifted out here and put back as written.
+    #
+    # Not inside code. A <pre> block already converted (convert_fenced_code,
+    # which has escaped it) is passed over; a tag the converter then places in
+    # a code span or an indented block goes back ESCAPED, as the converter
+    # would have left it, because there it is text to show, not a directive.
+    # A visitor's value cannot spell a tag here: the prefill and banner text
+    # written into the body before this pass has `[` and `%` encoded
+    # (_tt_inert). The `markdown` filter, whose input is a value rather than
+    # the author's body, passes tt => 0 and is converted as it always was.
+    my @tt;
+    my $tk = "LZSTT${k}N";
+    if ( $o{tt} // 1 ) {
+        $body =~ s{(<pre\b.*?</pre>)|(\[%.*?%\])}{
+            defined $1 ? $1 : do { push @tt, $2; $tk . $#tt . 'E' }
+        }gsei;
+    }
+
     my $md = Text::MultiMarkdown->new(
         use_fenced_code_blocks => 1,
     );
     my $html = $md->markdown($body);
+
+    if (@tt) {
+        my $esc = sub {
+            my $s = shift;
+            $s =~ s/&/&amp;/g;
+            $s =~ s/</&lt;/g;
+            $s =~ s/>/&gt;/g;
+            return $s;
+        };
+        $html =~ s{(<code\b[^>]*>.*?</code>)}{
+            ( my $c = $1 ) =~ s/(\Q$tk\E(\d+)E)/defined $tt[$2] ? $esc->( $tt[$2] ) : $1/ge;
+            $c
+        }gse;
+        $html =~ s/(\Q$tk\E(\d+)E)/defined $tt[$2] ? $tt[$2] : $1/ge;
+    }
 
     # Restore the protected blocks
     for my $i ( 0 .. $#rawblocks ) {
@@ -345,7 +384,7 @@ sub convert_md {
 sub _markdown_filter {
     my ($text) = @_;
     return '' unless defined $text && length $text;
-    my $html = convert_md("$text");
+    my $html = convert_md( "$text", tt => 0 );    # P5: a value, not the body
     $html =~ s/\A\s+//;
     $html =~ s/\s+\z//;
     if ( $html =~ m{\A<p>(.*)</p>\z}s && index( $1, '<p>' ) < 0 ) {

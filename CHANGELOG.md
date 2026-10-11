@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM984 (PENDING) **`&&`, `||` and `<` work in a template tag in a page body.**
+  The body is converted from Markdown before the template pass, and the
+  converter escaped the tags as prose: `[% IF a && b %]` reached the template
+  as `[% IF a &amp;&amp; b %]`, failed to parse, and the page showed its own
+  source. Each tag now passes the converter as written; prose is escaped as
+  before, and a tag shown in code is still shown, not run.
+  t/unit/processor/95.
+
 - SM983 (PENDING) **approving an account request reads one field, not every
   account.** The approval's "is this name or address taken" check asked for
   every account's full settings, each derived afresh: 43 s for 695 accounts,
