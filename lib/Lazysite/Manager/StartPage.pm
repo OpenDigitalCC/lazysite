@@ -39,10 +39,11 @@ use Lazysite::Paths ();
 use Exporter qw(import);
 # SM944 S23: the manager API's two actions read the request's account and its
 # caps, and set through the users tool - Common's, set only by the manager API.
-use Lazysite::Manager::Common qw($auth_user _user_caps users_api);
+# S33: start-page-set's handler reads the request's body (_json_body).
+use Lazysite::Manager::Common qw($auth_user _user_caps users_api _json_body);
 our @EXPORT_OK = qw(parse_start_page validate_start_page start_page_choices
     resolve_start_page fallback_landing manager_pages current_start_page apply_start_page
-    action_start_page action_start_page_set);
+    action_start_page action_start_page_set dispatch_start_page_set);
 
 our $DOCROOT = '';
 
@@ -351,6 +352,22 @@ sub action_start_page {
         choices  => Lazysite::Manager::StartPage::start_page_choices($u),
         fallback => Lazysite::Manager::StartPage::fallback_landing(),
     };
+}
+
+# SM944 S33 (ruled 2026-10-11, "Yes, S33a then groups"): start-page-set's
+# dispatch branch, moved here from lazysite-manager-api.pl with its statements
+# unchanged. It reads the request's body from Manager::Common's context
+# (_json_body, S33a); action_start_page_set below refuses an empty subject.
+sub dispatch_start_page_set {
+    my $result;
+    my $req = _json_body();
+    # SM781: A MISSING VALUE IS NOT A CLEAR. The field sent the setting under
+    # another key, got ok:1, and found the start page silently cleared - an
+    # absent `value` read as an empty one. Clearing is `"value": ""`, said.
+    $result = exists $req->{value}
+        ? action_start_page_set( $req->{username}, $req->{value} )
+        : { ok => 0, error => 'value is required (send it in the JSON body; an empty string clears the start page)' };
+    return $result;
 }
 
 sub action_start_page_set {

@@ -280,6 +280,7 @@ my %EXEMPT = (
     'Users::action_whoami'                   => 'read-only',   # SM944 S32 moved it
     'StartPage::action_start_page'      => 'read-only',    # SM724; SM944 S23 moved it
     'StartPage::action_start_page_set' => 'auth store - excluded from the versioned set', # SM724: user-settings.json
+    'StartPage::dispatch_start_page_set' => 'as action_start_page_set, which it calls', # SM944 S33: start-page-set's branch
     'AuditTrail::action_recent_changes' => 'read-only',    # SM944 S31 moved it
     # SM944 S26: channel-services, analyse_visitors and version moved to Manager::Services.
     'Services::action_channel_services' => 'read-only', # SM180: reports killswitch state, no write

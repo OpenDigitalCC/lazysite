@@ -48,7 +48,7 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
     action_form_submission_approve
     action_form_delete);
 use Lazysite::Manager::Notices qw(_notices_gate); # SM918: one notice reader, shared with MCP
-use Lazysite::Manager::StartPage qw(action_start_page action_start_page_set);  # SM944 S23
+use Lazysite::Manager::StartPage qw(action_start_page dispatch_start_page_set); # SM944 S23
 use Lazysite::Handlers         ();    # SM842: handlers, bindings, the schedule
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
@@ -2070,13 +2070,7 @@ elsif ( $action eq 'analyse_visitors' ) {
 elsif ( $action eq 'whoami' ) { $result = action_whoami( $auth_user, $params{plugins} ) }
 elsif ( $action eq 'start-page' ) { $result = action_start_page( $params{username} ) }
 elsif ( $action eq 'start-page-set' ) {
-    my $req = _json_body();
-    # SM781: A MISSING VALUE IS NOT A CLEAR. The field sent the setting under
-    # another key, got ok:1, and found the start page silently cleared - an
-    # absent `value` read as an empty one. Clearing is `"value": ""`, said.
-    $result = exists $req->{value}
-        ? action_start_page_set( $req->{username}, $req->{value} )
-        : { ok => 0, error => 'value is required (send it in the JSON body; an empty string clears the start page)' };
+    $result = dispatch_start_page_set();
 }
 elsif ( $action eq 'connector-list' ) { $result = _connectors()->can('action_connector_list')->() } # SM579
 elsif ( $action eq 'connector-calls' ) {
