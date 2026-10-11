@@ -19,7 +19,7 @@ use TestHelper qw(repo_root);
 use lib repo_root() . '/lib';
 use Lazysite::Manager::Common qw(outside_all_scopes reset_request_context NO_REQUEST_CONTEXT _user_caps _operator
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body
-    %USER_CAPS $REQUEST_IP);
+    %USER_CAPS $REQUEST_IP %params $JSON_BODY _json_body);
 
 my @PATHS = ( '', '/', 'index.md', 'sites/clienta/index.md', 'lazysite/auth/users', 'no request context',
     'sites', '/sites/clienta/' );
@@ -43,6 +43,8 @@ sub fail_closed {
     is_deeply( \%USER_CAPS,            {}, "$when: no account's caps remembered (S22b)" );
     is_deeply( _user_caps($auth_user), {}, "$when: the request's user holds no capability" );
     is( $REQUEST_IP, undef, "$when: no visitor's address remembered (S31)" );
+    is_deeply( \%params, {}, "$when: no request's parameters (S33a)" );
+    is( $JSON_BODY, undef, "$when: no request's body remembered (S33a)" );
 }
 
 fail_closed('loaded, never set');
@@ -61,6 +63,8 @@ $path             = 'secret/page.md';
 $body             = '{"read":["@everyone"]}';
 %USER_CAPS        = ( boss => { manage_users => 1, ui => 1 } );
 $REQUEST_IP       = '203.0.113.7';
+%params           = ( action => 'acl-set', path => 'secret/page.md' );
+$JSON_BODY        = { read => ['@everyone'] };
 reset_request_context();
 fail_closed('after a request, reset');
 
@@ -69,6 +73,20 @@ require Lazysite::Handlers;
 require Lazysite::Manager::Files;
 require Lazysite::Manager::Domains;
 fail_closed('after loading the daemon\'s handlers and two manager modules');
+
+# SM944 S33a: the body memo, moved into Common with _json_body. Outside a
+# request there is no body, so it answers {} - what an empty body always
+# yielded - and a body one request decoded is gone after the reset.
+subtest 'the body memo answers no body outside a request, and the reset empties it' => sub {
+    is_deeply( _json_body(), {}, 'no body: {}' );
+    $body = '{"read":["@everyone"]}';
+    is_deeply( _json_body(), {}, '...remembered for the request it was asked in' );
+    reset_request_context();
+    is( $JSON_BODY, undef, 'the reset forgets it' );
+    $body = '{"read":["@everyone"]}';
+    is_deeply( _json_body(), { read => ['@everyone'] }, 'the next request\'s body is decoded afresh' );
+    reset_request_context();
+};
 
 # SM944 S22: a real handler. The remap actions read the context from Common;
 # loaded here, with a site that has a domain and a rule for it (made through
