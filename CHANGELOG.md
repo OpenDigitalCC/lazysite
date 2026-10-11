@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: start-page-set's and audit's dispatch branches
+  are handlers in their area modules** (S33 of the plan in the filing, the
+  first group after S33a). Each branch's statements move unchanged into
+  `dispatch_start_page_set` in Manager::StartPage and `dispatch_audit` in
+  Manager::AuditTrail, reading the request's body and parameters from
+  Manager::Common's context; no answer changes. Lint 217 reads a declaration
+  by the fact's own sigil. Test 205.
+
 - SM944 (PENDING) **internal: the request's parameters and its body join the
   manager request context** (S33a of the plan in the filing, as the release
   manager ruled on 2026-10-11, "Yes, S33a then groups"). `%params` and the
