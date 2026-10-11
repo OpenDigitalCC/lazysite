@@ -304,11 +304,17 @@ for my $a ( sort grep { $twin{$_} } keys %IW ) {
     ok( $TOOL{ $twin{$a} }, "$a: its MCP twin $twin{$a} is a tool the gate reaches" );
 }
 
-# The three that decide by the caller inside their branch: a confined manager
-# deletes only its own themes, and sees and downloads no instance backup.
-like( $BRANCH{'theme-delete'} // '', qr/caller_is_confined\(\)/, 'theme-delete restricts a confined caller' );
-like( $BRANCH{'backup-list'} // '', qr/caller_is_confined\(\)/, 'backup-list hides instance backups from a confined caller' );
-like( $BRANCH{'backup-download'} // '', qr/instance_wide_refusal\(/, 'backup-download refuses them' );
+# The ones that decide by the caller inside their branch: a confined manager
+# deletes only its own themes, sees and downloads no instance backup, and is
+# told it activates on its own domains. SM944 S33: read with the subs the branch
+# calls, since a branch's logic may be its handler's in an area module now.
+like( with_callees( $BRANCH{'theme-delete'} // '' ), qr/caller_is_confined\(\)/,
+    'theme-delete restricts a confined caller' );
+like( with_callees( $BRANCH{'backup-list'} // '' ), qr/caller_is_confined\(\)/,
+    'backup-list hides instance backups from a confined caller' );
+like( with_callees( $BRANCH{'backup-download'} // '' ), qr/instance_wide_refusal\(/, 'backup-download refuses them' );
+like( with_callees( $BRANCH{'themes-list-all'} // '' ), qr/caller_is_confined\(\).*?reachable_domains\(\)/s,
+    'themes-list-all names a confined caller\'s own domains (acts_on)' );
 
 # MCP's own mutating tools (no control-API twin): content-path tools are held by
 # the scope pass; the rest are here, closed.
