@@ -299,38 +299,41 @@ my %EXEMPT = (
 );
 
 subtest 'write-path registry: every action/verb classified, hooks verified' => sub {
+    # SM944 S33: a dispatch branch whose logic moved into an area module is that
+    # module's `dispatch_` handler, scanned beside the actions: a write path does
+    # not leave the registry by moving out of the chain.
     my %surface = (
-        Files   => [ "$root/lib/Lazysite/Manager/Files.pm",   qr/^action_/ ],
-        Upload  => [ "$root/lib/Lazysite/Manager/Upload.pm",  qr/^action_/ ],
-        Backups => [ "$root/lib/Lazysite/Manager/Backups.pm", qr/^action_/ ],
-        Plugins => [ "$root/lib/Lazysite/Manager/Plugins.pm", qr/^action_/ ],
-        Handlers => [ "$root/lib/Lazysite/Handlers.pm",       qr/^action_/ ],    # SM842
-        Layouts => [ "$root/lib/Lazysite/Manager/Layouts.pm", qr/^action_/ ],
-        Themes  => [ "$root/lib/Lazysite/Manager/Themes.pm",  qr/^action_/ ],
+        Files   => [ "$root/lib/Lazysite/Manager/Files.pm",   qr/^(?:action|dispatch)_/ ],
+        Upload  => [ "$root/lib/Lazysite/Manager/Upload.pm",  qr/^(?:action|dispatch)_/ ],
+        Backups => [ "$root/lib/Lazysite/Manager/Backups.pm", qr/^(?:action|dispatch)_/ ],
+        Plugins => [ "$root/lib/Lazysite/Manager/Plugins.pm", qr/^(?:action|dispatch)_/ ],
+        Handlers => [ "$root/lib/Lazysite/Handlers.pm", qr/^(?:action|dispatch)_/ ], # SM842
+        Layouts => [ "$root/lib/Lazysite/Manager/Layouts.pm", qr/^(?:action|dispatch)_/ ],
+        Themes  => [ "$root/lib/Lazysite/Manager/Themes.pm",  qr/^(?:action|dispatch)_/ ],
         # SM318: navigation moved out of the API script into its own module so
         # MCP and the control API could stop having separate implementations.
         # action_nav_save is a WRITE path with an SM085 content-history commit,
         # so the registry has to follow it - this test failing on the move is
         # the guarantee working, not collateral.
-        Nav      => [ "$root/lib/Lazysite/Manager/Nav.pm",      qr/^action_/ ],
-        Sessions => [ "$root/lib/Lazysite/Manager/Sessions.pm", qr/^action_/ ],
+        Nav      => [ "$root/lib/Lazysite/Manager/Nav.pm", qr/^(?:action|dispatch)_/ ],
+        Sessions => [ "$root/lib/Lazysite/Manager/Sessions.pm", qr/^(?:action|dispatch)_/ ],
         # SM255: Manager::Domains was never scanned, so its conf writes escaped
         # the guarantee entirely - the gap that let domain-set diverge from
         # config-set unnoticed. Its verbs are named domain_*, hence the
         # per-module pattern.
-        Domains => [ "$root/lib/Lazysite/Manager/Domains.pm", qr/^(?:domain_|action_)/ ], # SM944 S27: and the actions
+        Domains => [ "$root/lib/Lazysite/Manager/Domains.pm", qr/^(?:domain_|action_|dispatch_)/ ], # SM944 S27: and the actions
         # SM944 S23: the notice readers are called from the dispatcher directly.
-        Notices   => [ "$root/lib/Lazysite/Manager/Notices.pm",   qr/^action_/ ],
-        StartPage => [ "$root/lib/Lazysite/Manager/StartPage.pm", qr/^action_/ ],
-        Preview => [ "$root/lib/Lazysite/Manager/Preview.pm", qr/^action_/ ],  # SM944 S24
-        Describe => [ "$root/lib/Lazysite/Manager/Describe.pm", qr/^action_/ ], # SM944 S25
-        Services => [ "$root/lib/Lazysite/Manager/Services.pm", qr/^action_/ ], # SM944 S26
-        SiteBackup => [ "$root/lib/Lazysite/Manager/SiteBackup.pm", qr/^action_/ ], # SM944 S28
-        Config => [ "$root/lib/Lazysite/Manager/Config.pm", qr/^action_/ ],    # SM944 S30
-        PagePdf => [ "$root/lib/Lazysite/Manager/PagePdf.pm", qr/^action_/ ],  # SM944 S29
-        AuditTrail => [ "$root/lib/Lazysite/Manager/AuditTrail.pm", qr/^action_/ ], # SM944 S31
-        Users      => [ "$root/lib/Lazysite/Manager/Users.pm", qr/^action_/ ], # SM944 S32
-        API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
+        Notices => [ "$root/lib/Lazysite/Manager/Notices.pm", qr/^(?:action|dispatch)_/ ],
+        StartPage => [ "$root/lib/Lazysite/Manager/StartPage.pm", qr/^(?:action|dispatch)_/ ],
+        Preview => [ "$root/lib/Lazysite/Manager/Preview.pm", qr/^(?:action|dispatch)_/ ], # SM944 S24
+        Describe => [ "$root/lib/Lazysite/Manager/Describe.pm", qr/^(?:action|dispatch)_/ ], # SM944 S25
+        Services => [ "$root/lib/Lazysite/Manager/Services.pm", qr/^(?:action|dispatch)_/ ], # SM944 S26
+        SiteBackup => [ "$root/lib/Lazysite/Manager/SiteBackup.pm", qr/^(?:action|dispatch)_/ ], # SM944 S28
+        Config => [ "$root/lib/Lazysite/Manager/Config.pm", qr/^(?:action|dispatch)_/ ], # SM944 S30
+        PagePdf => [ "$root/lib/Lazysite/Manager/PagePdf.pm", qr/^(?:action|dispatch)_/ ], # SM944 S29
+        AuditTrail => [ "$root/lib/Lazysite/Manager/AuditTrail.pm", qr/^(?:action|dispatch)_/ ], # SM944 S31
+        Users => [ "$root/lib/Lazysite/Manager/Users.pm", qr/^(?:action|dispatch)_/ ], # SM944 S32
+        API   => [ "$root/lazysite-manager-api.pl",       qr/^(?:action|dispatch)_/ ],
         DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );
 
