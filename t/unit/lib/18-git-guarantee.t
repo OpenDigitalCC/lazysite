@@ -147,6 +147,7 @@ my %EXEMPT = (
     'Files::action_acl_set' => 'ACL sidecar store (permissions metadata, not page '
         . 'content; swept by the next commit_all capture)',
     'Files::action_acl_remove'  => 'ACL sidecar store (as action_acl_set)',
+    'Files::dispatch_acl_set' => 'ACL sidecar store (as action_acl_set, which it calls)', # SM944 S33
     'Files::action_git_restore' =>
         'commits via its pass through action_save (asserted behaviourally '
         . 'in t/unit/manager/25-git-actions.t)',

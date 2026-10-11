@@ -19,7 +19,8 @@ use Cwd             qw(realpath);
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal page_bytes_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal page_bytes_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes
+    %params _json_body); # SM944 S33: acl-set's handler reads the request's parameters and body
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -28,6 +29,7 @@ use Lazysite::Auth::Settings  ();                    # SM778: logins -> display 
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
+    dispatch_acl_set
     action_list action_read action_save action_save_binary
     action_delete action_mkdir action_move action_copy
     action_migrate_to_local action_aliases_list
@@ -2105,6 +2107,124 @@ sub _sync_private_store {
             error => ( $err // '' ) );
     }
     return @warnings;
+}
+
+# SM944 S33, held branch (1) (approved 2026-10-11, "Approve all three"):
+# acl-set's dispatch branch, moved here from lazysite-manager-api.pl. It hands
+# back the rule before and after the change with the result, for the audit
+# entry the script writes once the chain has finished (SM465): the dispatcher's
+# one line is ( $result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER ) = dispatch_acl_set().
+# Its statements are the branch's, with one difference: this module keeps its
+# own $auth_user (a log copy, which MCP sets to its own user) and no $path, so
+# the two calls that pass the request's path and account read Manager::Common's
+# by full name (the S27 ruling, "Read Common's value"). Outside a request the
+# path is absent (%params is empty) and the first refusal answers.
+sub dispatch_acl_set {
+    my ( $result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
+    my $req = _json_body();
+
+    # SM306: acl-set will not take the whole site private because an argument
+    # was left out.
+    #
+    # $path above defaults to '/' for EVERY action. That is right for `list`,
+    # which should list the site root when asked for nothing in particular, and
+    # harmless for acl-get and acl-remove. acl-set inherited it, where the same
+    # omission applies a site-wide read restriction and returns ok:1. Before
+    # SM287 a root entry sat inert, so this was a no-op; SM287 made a root rule
+    # take effect, and the default has been hazardous since.
+    #
+    # SM287 was careful about every OTHER spelling of the root - '/' canonical,
+    # '', '.' and './' normalised to it, glob spellings refused with a message
+    # naming '/'. That care covered every way of saying "the whole site" except
+    # saying nothing at all, so the most destructive available target was the one
+    # you got by omitting an argument.
+    #
+    # An empty path= counts as absent. It is a spelling SM287 accepts elsewhere
+    # and still holds there; here it is overwhelmingly a form or client sending
+    # a blank field rather than a sysop asking for the site.
+    unless ( defined $params{path} && length $params{path} ) {
+        $result = { ok => 0,
+            error => 'acl-set needs an explicit path. To govern the whole '
+                . 'site, including every folder beneath it, pass path=/ - it '
+                . 'is deliberately spelled out, because a rule that broad '
+                . 'should not be what you get by leaving the argument out.' };
+    }
+    # The body/query split is what invited the original mistake. `save` takes
+    # its content from the body, `domain-add` takes host, content_root and the
+    # rest from the body, and acl-set takes its lists from the body and its path
+    # from the query string - so a caller who has just used the first two has
+    # been taught where arguments go. It was discarded in silence, which cost a
+    # live site a minute of 302s. Refusing an argument the action does not read
+    # is what SM278 already does on all 51 MCP tools.
+    elsif ( exists $req->{path} ) {
+        $result = { ok => 0,
+            error => 'acl-set reads its path from the query string, not the '
+                . 'request body, so the "path" key here would have been '
+                . 'ignored and the rule applied somewhere else. Pass it as '
+                . 'action=acl-set&path=... instead.' };
+    }
+
+    # SM479: AND THE SAME MISTAKE IN THE OTHER DIRECTION, which was not
+    # refused and cost far more.
+    #
+    # The branch above catches a path sent in the body. A LIST sent in the
+    # QUERY was silently discarded, and the call still returned ok:1 with
+    # `content_moved` - so a caller who asked for a folder to be restricted was
+    # told it had succeeded, watched the content move out of the document root,
+    # and served the page to the public. The field agent tried seven spellings
+    # and every one reported success; the rule stayed owner-only, which
+    # restricts no reads at all.
+    #
+    # Every signal available to them said protected. That is worse than an
+    # unimplemented parameter, and it is why this refuses rather than warns.
+    elsif ( my @misrouted = grep { exists $params{$_} }
+        qw(read write owner draft) )
+    {
+        $result = { ok => 0,
+            kind  => 'misrouted-argument',
+            error => 'acl-set reads its lists from the JSON request body, not '
+                . 'the query string, so '
+                . join( ' and ', map { "\"$_\"" } @misrouted )
+                . ' would have been ignored and the rule written without it. Send the path in the '
+                . 'query and the lists in the body: '
+                . 'action=acl-set&path=/section with '
+                . '{"read":["' . '@' . 'team"]}.' };
+    }
+    else {
+        # SM465: capture the rule BEFORE the change, so the audit entry can say
+        # what it became AND what it stopped being. The interval between two
+        # changes is the thing an audit of a permission is usually asked about,
+        # and once the second write lands the first value exists nowhere: a
+        # rule is not versioned the way content is.
+        my $before = action_acl_get( $Lazysite::Manager::Common::path, $Lazysite::Manager::Common::auth_user );
+        $ACL_AUDIT_BEFORE
+            = ( ref $before eq 'HASH' && $before->{ok} ) ? $before->{acl} : undef;
+
+        # Each field read ONCE, and individually rather than as a hash slice.
+        #
+        # t/lint/58 extracts this table from the chain by GREPPING the branch
+        # text, so three things matter and each cost a round: reading a field
+        # twice makes it look like it arrives from both the query and the body;
+        # a hash slice is not a form the grep recognises, so the fields vanish
+        # entirely; and the grep does not skip COMMENTS, so an explanatory
+        # comment naming a field in the recognised spelling counts as a read.
+        # This comment is therefore written without any.
+        my $r_read  = $req->{read};
+        my $r_write = $req->{write};
+        my $r_owner = $req->{owner};
+        my $r_draft = $req->{draft};
+
+        $result = action_acl_set( $Lazysite::Manager::Common::path, $Lazysite::Manager::Common::auth_user,
+            $r_read,  $r_write,
+            $r_owner, $r_draft );
+        $ACL_AUDIT_AFTER = {
+            read  => $r_read,
+            write => $r_write,
+            owner => $r_owner,
+            draft => $r_draft,
+        };
+    }
+    return ( $result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
 }
 
 sub action_acl_set {
