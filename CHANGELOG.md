@@ -115,6 +115,13 @@ Archive
   `fields: ["email"]`, answered from the settings store in one read (0.27 s for
   700 generated accounts, from 26.7 s), and refuses on an unreadable store.
   t/unit/users/50, t/unit/manager/240.
+- SM944 (PENDING) **internal: every mutating action is proven refused, and not
+  landed, without a CSRF token** (S34 of the plan in the filing, ruled
+  2026-10-11). t/unit/manager/226 POSTs every action the declaration marks
+  mutating, and `users`, from a signed-in session with no token: each must be
+  refused 403 and change no file of the site and write no audit row, while the
+  same request with a token does what it was refused. Test 43 sampled 19, and
+  a gate moved after the dispatch let a forged write land behind its 403.
 
 - lazysite-check (PENDING) **a check that cannot read part of the site says
   so.** Run as a user that cannot read a directory - the private store, on the
