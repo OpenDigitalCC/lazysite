@@ -26,7 +26,12 @@ and navigation from page metadata.
 - Standard shell glob patterns work (`*.md`, `post-*.md`)
 - Use `**` for recursive scanning across all subdirectories:
   `scan:/**/*.md` scans the entire docroot
-- Maximum 200 files returned per scan
+- At most 200 files are read per scan, the first 200 in file-name order
+  (then sorted), so the same pages are listed on every render. Set
+  `scan_limit:` in `lazysite.conf` to change it. A capped scan logs a warning.
+- `NAME_total` beside the list counts the pages the pattern matched that the
+  reader may see, before `filter=` and before the cap, so a page can say
+  `showing [% posts.size %] of [% posts_total %]`
 - Files outside the docroot are excluded (realpath check)
 
 ### Page object fields

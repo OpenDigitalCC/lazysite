@@ -4,8 +4,9 @@ package main;
 #
 # HOLDS   resolve_scan(): the `scan:` source a page names, with
 #         _scan_parse_modifiers, _scan_collect_files, _page_date, _page_url,
-#         _front_matter_reserved (the engine's front-matter keys, shared
-#         with the page's own stash) and _scan_page_unreadable (the log line
+#         _scan_limit (the site's cap, P9), _front_matter_reserved (the
+#         engine's front-matter keys, shared with the page's own stash) and
+#         _scan_page_unreadable (the log line
 #         for a page a walk leaves out, SM976 Q15h); scan_pages(), the walk
 #         the registries are built from; update_registries() and its P-3 memo of whether any
 #         registry template exists; _feed_dates; the registry serving path -
@@ -15,7 +16,7 @@ package main;
 # OWNS    what a scan lists and in what order; where a registry is cached and
 #         when it is regenerated; the content type it is served as.
 # CALLS   parse_yaml_front_matter, _scan_hidden, _registry_hidden, _scan_scalar,
-#         peek_search_default, _language_set, resolve_site_vars,
+#         peek_search_default, peek_conf_key, _language_set, resolve_site_vars,
 #         confine_content_root, _content_rel, _private_twin, _path_under_content,
 #         _declared_content_roots, _conf_value, _security_headers (its own
 #         status line), _tt_dep, _cache_umask, read_file, log_event (the script
@@ -91,10 +92,10 @@ sub _scan_parse_modifiers {
 
 # The files a scan pattern reaches, capped and deduplicated (PR-6). Lifted out
 # of resolve_scan verbatim: same roots, same walk, same private-wins dedupe,
-# same 200-file cap in the same order, and the same _tt_dep calls on the way -
-# so the caller receives the identical list it used to build inline.
+# the cap the caller passes (P9: the site's scan_limit, 200 by default) in the
+# same order, and the same _tt_dep calls on the way.
 sub _scan_collect_files {
-    my ( $pattern, $scan_root, $excl ) = @_;
+    my ( $pattern, $scan_root, $excl, $limit ) = @_;
 
     # SM460: SEARCH THE PRIVATE STORE TOO.
     #
@@ -186,10 +187,27 @@ sub _scan_collect_files {
         @files = sort values %by_key;
     }
 
-    # Limit to 200 files
-    @files = @files[ 0 .. 199 ] if @files > 200;
+    # P9: the cap is the caller's - resolve_scan applies the site's scan_limit
+    # and counts what lies past it. Without one (no caller passes none today)
+    # the list is whole.
+    @files = @files[ 0 .. $limit - 1 ] if defined $limit && @files > $limit;
 
     return @files;
+}
+
+# P9 (WORK-PLAN-0154): HOW MANY PAGES A SCAN READS, the site's to set.
+#
+# A scan reads every page it lists, so it is capped; the cap was a literal 200
+# that nothing documented, and a 1,745-post site rendered 200 with no sign of
+# the rest. `scan_limit:` in lazysite.conf sets it; anything but a positive
+# whole number is the default, said in the log.
+sub _scan_limit {
+    my $v = peek_conf_key('scan_limit');
+    return 200 unless defined $v && length $v;
+    return 0 + $v if $v =~ /\A[1-9]\d{0,6}\z/;
+    log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+        'scan_limit is not a positive whole number - using 200', value => $v );
+    return 200;
 }
 
 # A page's date: the front matter's, else the file's mtime as YYYY-MM-DD
@@ -253,7 +271,12 @@ sub resolve_scan {
     # Limit to .md files only
     return [] unless $fs_pattern =~ /\.md$/;
 
-    my @files = _scan_collect_files( $pattern, $scan_root, $excl );
+    # P9: every file the pattern matches, then the site's cap - a prefix in
+    # file order, as before, so the same pages are listed on every render.
+    my @all   = _scan_collect_files( $pattern, $scan_root, $excl );
+    my $limit = _scan_limit();
+    my @files = @all > $limit ? @all[ 0 .. $limit - 1 ] : @all;
+    my $total = 0;    # P9: pages matched that this reader may see
 
     # Read site search default once if any filter references searchable
     my $search_default;
@@ -294,6 +317,7 @@ sub resolve_scan {
 
         # SM268 H13: never list what this requester may not read.
         next if _scan_hidden($real);
+        $total++;
 
         # Read front matter. SM976 Q15h ("Refuse + walker skips"): a page whose
         # reading dies (bytes that are not UTF-8, put there by git or SSH) is
@@ -472,7 +496,25 @@ sub resolve_scan {
         $sort_dir eq 'desc' ? -$cmp : $cmp;
     } @pages;
 
-    return \@sorted;
+    # P9: A CAPPED SCAN SAYS SO, and counts what it did not read. Past the cap
+    # each file is held to the same two questions as a listed one - inside this
+    # domain's content, and readable by this requester - so the total counts no
+    # page the reader may not see and says nothing about one. `filter=` cannot
+    # be asked of a page that was not read, so the total is taken before it.
+    if ( @all > $limit ) {
+        for my $path ( @all[ $limit .. $#all ] ) {
+            my $real = realpath($path);
+            next unless defined $real && _path_under_content( $real, $scan_root ) && -f $real;
+            next if _scan_hidden($real);
+            $total++;
+        }
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            "scan: is capped - reading the first $limit of $total pages in file order; "
+                . 'raise scan_limit in lazysite.conf, or render <var>_total so the page can say so',
+            pattern => $pattern );
+    }
+
+    return wantarray ? ( \@sorted, $total ) : \@sorted;
 }
 
 # A registry output is stale when it is missing, or older than $REGISTRY_TTL

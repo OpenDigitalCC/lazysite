@@ -44,7 +44,7 @@ questions below, and the next item starts.
 | P6 | A fenced code block that shows `:::` component syntax is expanded | built (n392), SM985: fenced code is converted first and held out of the `:::` passes; indented code was never affected | S |
 | P7 | A setup link refused over plain HTTP says "invalid or expired" | built (n393), SM986: the refusal redirects with `error=https` and the claim page says a password can only be set over HTTPS | XS |
 | P8 | The development server cannot receive a form post (404 for `form-handler.pl`) | built (n394), SM987: `/cgi-bin/form-handler.pl` runs `plugins/form-handler.pl`, directly, as installed | XS |
-| P9 | A `scan:` stops at 200 pages with no warning, in file order | a documented, configurable cap or `limit=`/`offset=`, and a `<var>_total` | S |
+| P9 | A `scan:` stops at 200 pages with no warning, in file order | built (n395), SM988: `scan_limit:` in lazysite.conf (default 200, stable prefix), `<var>_total` of the pages the reader may see, a warning when capped; site-wide key and total-before-filter are open for review | S |
 | P10 | `lazysite provision` prints uninitialised-value warnings (install.pl ~1223) with no registry | guard the value | XS |
 | P11 | `acl set --draft` over a folder already held: a rewrite leaves the private copy and `reapply` refuses | covered by P1c's `reapply` fix; confirm | XS |
 
@@ -83,4 +83,8 @@ questions below, and the next item starts.
 
 # Open questions raised while working the queue
 
-(none yet)
+- **P9 (SM988), built, two choices to confirm.** (1) The cap is a site-wide
+  `scan_limit:` rather than `limit=`/`offset=` on the directive. (2)
+  `<var>_total` is counted before `filter=`, because a page past the cap is
+  not read and cannot be filtered; with a filter it can exceed what the filter
+  would list. Keep both, or add per-directive paging?

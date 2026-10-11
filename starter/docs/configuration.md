@@ -513,7 +513,12 @@ In a page body:
 - Pattern must start with `/` (docroot-relative path)
 - Only `*.md` files are matched
 - Recursive scanning with `**`: `scan:/gallery/**/*.md` walks subdirectories
-- Maximum 200 files per scan
+- At most 200 files are read per scan, the first 200 in file-name order
+  (then sorted), so the same pages are listed on every render. Set
+  `scan_limit:` in `lazysite.conf` to change it. A capped scan logs a warning.
+- `NAME_total` beside the list counts the pages the pattern matched that the
+  reader may see, before `filter=` and before the cap, so a page can say
+  `showing [% posts.size %] of [% posts_total %]`
 - Each result is realpath-checked - rejected if outside docroot
 
 ### Page object fields

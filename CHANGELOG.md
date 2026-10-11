@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM988 (PENDING) **a scan says how many pages it matched, and its cap is the
+  site's.** `scan:` read at most 200 pages, the first by file name, and nothing
+  said so: a 1,745-post listing rendered 200 and looked complete. `scan_limit:`
+  in lazysite.conf now sets the cap (default 200, still the same pages on every
+  render), `NAME_total` beside the list counts the pages matched that the
+  reader may see, and a capped scan logs a warning. t/unit/processor/97.
+
 - SM987 (PENDING) **the development server receives a form post.** Native
   forms post to `/cgi-bin/form-handler.pl`, and `tools/lazysite-server.pl`
   routed only the `lazysite-*` scripts, so every form on a staged site answered

@@ -28,7 +28,9 @@ Remote URL
 : `key: url:https://...` - fetched, trimmed, and cached with the page.
 
 Directory scan
-: `key: scan:/path/*.md sort=field dir` - returns array of page objects.
+: `key: scan:/path/*.md sort=field dir` - returns array of page objects,
+  at most `scan_limit` of them, and `key_total`, the number the pattern
+  matched that the reader may see.
 
 ### Recognised keys
 
@@ -55,6 +57,10 @@ Directory scan
 
 `nav_file`
 : Navigation file path, docroot-relative. Default: `lazysite/nav.conf`.
+
+`scan_limit`
+: How many pages a `scan:` reads, the first in file-name order. Default
+  200. A scan that reaches more logs a warning; its `_total` says how many.
 
 `search_default`
 : Site-wide default for the `search:` front matter key. Set to `true`

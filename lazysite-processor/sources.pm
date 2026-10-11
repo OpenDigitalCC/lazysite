@@ -626,7 +626,11 @@ sub resolve_tt_vars {
 
         if ( $val =~ s/^scan:// ) {
             $val =~ s/^\s+|\s+$//g;
-            $vars{$key} = resolve_scan($val);
+            # P9: and how many it matched, as db: does (SM511), so a page
+            # can say "showing 200 of 1,745" when the scan was capped.
+            my ( $list, $total ) = resolve_scan($val);
+            $vars{$key} = $list;
+            $vars{ $key . '_total' } = 0 + ( $total // 0 );
         }
         elsif ( $val =~ s/^db://i ) {
             $val =~ s/^\s+|\s+$//g;
