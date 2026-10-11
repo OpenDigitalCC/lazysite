@@ -46,7 +46,7 @@ questions below, and the next item starts.
 | P8 | The development server cannot receive a form post (404 for `form-handler.pl`) | built (n394), SM987: `/cgi-bin/form-handler.pl` runs `plugins/form-handler.pl`, directly, as installed | XS |
 | P9 | A `scan:` stops at 200 pages with no warning, in file order | built (n395), SM988: `scan_limit:` in lazysite.conf (default 200, stable prefix), `<var>_total` of the pages the reader may see, a warning when capped; site-wide key and total-before-filter are open for review | S |
 | P10 | `lazysite provision` prints uninitialised-value warnings (install.pl ~1223) with no registry | built (n396), label install-plan: not the registry - three runtime paths carry `why` and no `purpose`; the plan prints `why` | XS |
-| P11 | `acl set --draft` over a folder already held: a rewrite leaves the private copy and `reapply` refuses | covered by P1c's `reapply` fix; confirm | XS |
+| P11 | `acl set --draft` over a folder already held: a rewrite leaves the private copy and `reapply` refuses | depends on P1c (security agent, not landed on 2026-10-11): skipped, to confirm once P1c lands | XS |
 
 ## Requests from the dev inbox (each needs a ruling before it is built)
 
