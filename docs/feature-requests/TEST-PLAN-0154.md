@@ -1,6 +1,6 @@
 ---
 title: "Test plan - 0.15.3 and 0.15.4 on edge, complete"
-subtitle: "Every user- and operator-visible change in both releases, in the order that finds the most first: two upgrade checks, forty-three release-specific rows that only a deployed host can run, what was deliberately left unwalked, and the standing tiers. Supersedes the partial plan of 2026-10-10."
+subtitle: "Every user- and operator-visible change in both releases, in the order that finds the most first: two upgrade checks, forty-four release-specific rows that only a deployed host can run, what was deliberately left unwalked, and the standing tiers. Supersedes the partial plan of 2026-10-10."
 brand: plain
 standard-margins: true
 ---
@@ -8,13 +8,13 @@ standard-margins: true
 # What this plan is for
 
 0.15.3 was published on 2026-10-09 and went to edge with no plan of its own.
-0.15.4 is about to be cut from main 5598d70a. Between them they carry 95
+0.15.4 was cut from main 4201d227 on 2026-10-11. Between them they carry 98
 CHANGELOG entries. About half are SM944's moves of code into modules, which
 change no answer a request gets; the rest are security fixes, fixes from the
 0.15.2 edge walk, and new behaviour.
 
 - 0.15.3 gate: 1,074 files, 16,889 tests.
-- 0.15.4 gate on 5598d70a: (filled in when the gate passes).
+- 0.15.4 gate on 4201d227: 1,106 files, 17,354 tests; released as v0.15.4 (25ae5b6e).
 
 The suite cannot see four things these releases depend on.
 
@@ -141,6 +141,7 @@ needs a change:
 4. 0.15.4 security: R27 to R35, on the same two-domain site.
 5. The field-visible fixes from the 0.15.2 edge walk: R15 to R20.
 6. The rest, in any order: R21 to R26, then R36 to R43.
+7. R44, the smoke tour of the moved manager areas, last.
 
 # Release-specific checks - 0.15.3
 
@@ -695,7 +696,44 @@ with `username=!!!`.
 start page to read or set." Before this build it answered the start page of
 account ''.
 
+## R44 - every manager area answers after the move into modules (SM944, smoke)
+
+SM944 moved most of the manager API into modules across 0.15.3 and 0.15.4
+(S21 to S33, S33a). The suite proves each move kept its answers. This row
+checks the moved areas on a real host, through a real request. As the operator,
+on a test site, open each page below and do the one action named. Each should
+behave as it did on 0.15.2:
+
+- **Pages / Files:** give a test page a read rule and remove it (acl-set). The
+  Audit log shows the rule before and after.
+- **Audit log:** opens and lists recent changes. **Recent changes** names who
+  changed each item.
+- **Start page:** set your own start page and reload: it opens there.
+- **Sessions & keys:** lists sessions and keys. Revoke a test session.
+- **Notices / the bell:** opens and lists. Mark one read.
+- **Domains:** lists domains. **Check** on a test domain answers.
+- **Remap:** lists the rules.
+- **Backups:** lists. Create and delete a test site package.
+- **Configuration:** reads. Set `site_name` to its current value.
+- **Appearance:** the theme list loads.
+- **Users:** lists accounts. `whoami` (from the browser console) names you.
+- **Preview:** a preview link for a draft page opens it.
+- **Visitor statistics:** the report loads.
+- **Capabilities:** `describe-capabilities` answers.
+- **page-pdf:** if the Branded PDF extension is enabled, a PDF of a test page
+  downloads.
+
+*You should see:* every page and action answer as before, and no 500 or
+"Internal error" anywhere. It is a FAIL if any manager page fails to load or
+any listed action errors. Report the page and the action.
+
 # Not walked, and why
+
+**SM944's moved handlers released in 0.15.4 after this plan was first
+drafted** (acl-set, start-page-set and audit dispatch, request parameters and
+body joining the shared context, the sessions and keys handler): these are
+moves too. Their one new refusal, for acl-set with no account, only applies
+outside a request. R44 exercises each of them through a real request.
 
 **SM944's fail-closed refusals.** The 0.15.4 entries that make page-pdf,
 config-set, domain-check, site-backup-upload, analyse_visitors,
