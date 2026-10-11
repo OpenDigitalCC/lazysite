@@ -50,6 +50,53 @@ sub slurp {
 my $mcp = slurp("$root/lazysite-mcp.pl");
 my $api = slurp("$root/lazysite-manager-api.pl");
 
+# --- SM944 S33a: a branch is read with its callees ---------------------------
+# Ruled 2026-10-11. The request's parameters are Manager::Common's context now
+# (%params, and the body memo behind _json_body), so a branch's body can move
+# into a `dispatch_` handler in an area module unchanged - and a guard read
+# from the branch text alone would be left behind. A branch is read together
+# with the `dispatch_` handlers it calls, and every sub they call (in the script
+# or a Manager module) that reads %params or calls _json_body, in turn.
+sub code_of {
+    my ($s) = @_;
+    $s =~ s/^__(?:END|DATA)__\b.*//ms;
+    $s =~ s/^=[a-zA-Z].*?^=cut\b[^\n]*//gms;
+    $s =~ s/^\s*#.*$//gm;
+    $s =~ s/(?<=[;{}),])\s*#.*$//gm;
+    return $s;
+}
+my %SUB;
+for my $file ( "$root/lazysite-manager-api.pl", sort glob "$root/lib/Lazysite/Manager/*.pm" ) {
+    my $code = code_of( slurp($file) );
+    while ( $code =~ /^sub\s+(\w+)\s*\{(?:([^\n]*)\}[ \t]*$|(.*?)^\})/msg ) {
+        $SUB{$1} .= $2 // $3;
+    }
+}
+my %READS_REQUEST = map { $_ => 1 }
+    grep { $_ ne '_json_body' && $SUB{$_} =~ /\$params\{|\b_json_body\s*\(/ } keys %SUB;
+
+sub with_callees {
+    my ($text) = @_;
+    my ( %seen, @todo );
+    my $out = $text;
+    @todo = grep { /\Adispatch_\w+\z/ } $text =~ /\b(\w+)\s*\(/g;
+    while ( defined( my $n = shift @todo ) ) {
+        next if $seen{$n}++             || !defined $SUB{$n};
+        next unless $n =~ /\Adispatch_/ || $READS_REQUEST{$n};
+        $out .= "\n$SUB{$n}";
+        push @todo, $SUB{$n} =~ /\b(\w+)\s*\(/g;
+    }
+    return $out;
+}
+
+# One branch of the chain, to the next `elsif`/`else` in column 0 (lint 218's
+# reading), with its callees.
+sub branch_of {
+    my ($action) = @_;
+    my ($b) = $api =~ /^(?:if|elsif)\s*\(\s*\$action\s+eq\s+'\Q$action\E'\s*\)\s*\{(.*?)(?=^(?:elsif|else)\b|^\}\s*$)/ms;
+    return defined $b ? with_callees($b) : undef;
+}
+
 # --- the dispatcher's silent defaults ----------------------------------------
 # Whatever the control API supplies without the caller asking. If a second one is
 # ever added, every pairing below has to be reconsidered - so this is derived,
@@ -128,6 +175,7 @@ subtest 'every argument MCP requires is not silently supplied by the API' => sub
             # acl-set subtest's comment already distrusted this extraction; it
             # was righter than it knew.
             my ($branch) = $api =~ /(\$action eq '\Q$action\E'.*?)(?=\nelsif|\nelse\b)/s;
+            $branch = with_callees($branch) if defined $branch;    # SM944 S33a
             my $guards = defined $branch
                 && $branch =~ /defined \$params\{\Q$arg\E\}|exists \$params\{\Q$arg\E\}/;
 
@@ -176,9 +224,14 @@ subtest 'acl-set, the case this came from, is guarded rather than exempted' => s
     my $want_query = 'unless ( defined $params{path} && length $params{path} )';
     my $want_body  = 'elsif ( exists $req->{path} )';
 
-    like( $api, qr/\Q$want_query\E/,
+    # SM944 S33a: the branch with its callees, read by lint 218's extraction -
+    # acl-set's body moves to Manager::Files' dispatch_acl_set.
+    my $acl = branch_of('acl-set');
+    ok( defined $acl, 'the acl-set branch was found' );
+    $acl //= '';
+    like( $acl, qr/\Q$want_query\E/,
         'acl-set requires an explicit, non-empty path' );
-    like( $api, qr/\Q$want_body\E/,
+    like( $acl, qr/\Q$want_body\E/,
         'and refuses a path in the BODY, which is how it was actually hit' );
 };
 
