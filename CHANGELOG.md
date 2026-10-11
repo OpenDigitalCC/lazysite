@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- lazysite-check (PENDING) **a check that cannot read part of the site says
+  so.** Run as a user that cannot read a directory - the private store, on the
+  0.15.4 rollout - three of `lazysite check`'s walks printed Perl's raw
+  "Can't opendir(...): Permission denied" and reported as if they had looked
+  everywhere. Every walk in the tool now reports each check's unread
+  directories as one warning: which directories, which check could not cover
+  them, and to run the check as root or as the site's own user.
+  t/tools/108.
+
 - rollout (PENDING) **a site that upgraded and is not serviceable is reported
   as one, not as a channel skip.** install.pl exits 4 for "installed, and the
   site is not serviceable"; the Hestia deploy script exits 4 for "skipped by

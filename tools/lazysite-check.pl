@@ -245,6 +245,61 @@ sub report {    # (level, message, [hint])
         unless $level =~ /\A(?:OK|WARN|FAIL)\z/;
     push @results, { level => $level, msg => $msg, hint => $hint };
 }
+
+# Q16g: A WALK THAT CANNOT READ A DIRECTORY SAYS SO, AS A FINDING.
+#
+# File::Find warns "Can't opendir(DIR): Permission denied" and carries on, so a
+# check run as a user that cannot read part of the site - the private store at
+# <docroot>-lazysite-private/sites, on the 0.15.4 rollout - printed that raw
+# Perl warning and then reported its result as if the walk were complete. Every
+# walk in this tool goes through here: the warnings are collected, not printed,
+# and the directories each check left unread become one WARN naming them, the
+# check that could not cover them, and how to run the check so it can. Kept per
+# check across its roots (a check walks the docroot and the private store in
+# turn) and reported with the results, after any --fix pass: run_checks empties
+# the checks' entries with the results, and the --fix pass's own walks are kept
+# across its passes.
+my %unread_by;    # check => { directory => error }
+
+sub find_noting {    # ( $what, \%find_options, @roots )
+    my ( $what, $opts, @roots ) = @_;
+    local $SIG{__WARN__} = sub {
+        my ($m) = @_;
+        if ( $m =~ /\ACan't opendir\((.*?)\): ([^\n]*)/
+            || $m =~ /\ACan't stat (.*?): ([^\n]*)/
+            || $m =~ /\ACan't cd to (.*?): ([^\n]*)/ )
+        {
+            $unread_by{$what}{$1} //= $2;
+            return;
+        }
+        print STDERR $m;
+    };
+    File::Find::find( $opts, @roots );
+    return;
+}
+
+sub report_unread_walks {
+    report_unread( $_, $unread_by{$_} ) for sort keys %unread_by;
+    return;
+}
+
+sub report_unread {    # ( $what, \%dir_to_error )
+    my ( $what, $u ) = @_;
+    my @dirs = sort keys %$u;
+    my $who  = getpwuid($>) // "uid $>";
+    my @show = map { "$_ ($u->{$_})" } @dirs;
+    my $more = @show > 8 ? ' (and ' . ( @show - 8 ) . ' more)' : '';
+    splice @show, 8 if @show > 8;
+    report( 'WARN',
+        "$what could not read " . scalar(@dirs) . " director" . ( @dirs == 1 ? 'y' : 'ies' )
+            . " as $who: " . join( ', ', @show ) . $more
+            . ' - nothing below '
+            . ( @dirs == 1 ? 'it' : 'them' )
+            . ' was looked at, so this result covers the rest of the site only',
+        'run the check as root (sudo lazysite check ...) or as the user that owns the '
+            . 'site, who can read its engine tree and private store' );
+    return;
+}
 sub owner_name { ( getpwuid( ( stat $_[0] )[4] ) )[0] // ( stat $_[0] )[4] }
 sub group_name { ( getgrgid( ( stat $_[0] )[5] ) )[0] // ( stat $_[0] )[5] }
 sub mode_of    { ( stat $_[0] )[2] & 07777 }
@@ -318,6 +373,7 @@ my $conf = "$LZ/lazysite.conf";
 # snapshot (SM139 increment 5).
 sub run_checks {
     @results          = ();
+    delete $unread_by{$_} for grep { $_ ne '--fix' } keys %unread_by;    # Q16g
     @chmod_fixes      = ();
     @stale_registries = ();
     $chown_needed     = 0;
@@ -328,7 +384,7 @@ sub run_checks {
     # --- 1. ownership: nothing under lazysite/ should be foreign-owned -----------
     {
         my ( @bad, $total );
-        File::Find::find(
+        find_noting( 'the ownership check under lazysite/',
             { no_chdir => 1, wanted => sub {
                     my @s = lstat $File::Find::name or return;
                     return if -l _;
@@ -594,7 +650,7 @@ sub run_checks {
     # classic cause (0755 without group-write). The tree is a pure cache: the safe
     # fix is to remove it wholesale and let the CGI regrow it.
     if ( -d "$LZ/cache/tt" ) {
-        File::Find::find(
+        find_noting( 'the template-cache check (lazysite/cache/tt)',
             { no_chdir => 1, wanted => sub {
                     return unless -d $File::Find::name;
                     my @s = stat _;
@@ -1086,7 +1142,7 @@ sub run_checks {
             # arithmetic (cgi_can) as everywhere: root's -w would pass what
             # the CGI cannot use.
             my ( $git_bad, @git_sample ) = (0);
-            File::Find::find(
+            find_noting( 'the lazysite/git access check',
                 { no_chdir => 1, wanted => sub {
                         my $p = $File::Find::name;
                         my @s = lstat $p or return;
@@ -1247,7 +1303,7 @@ sub run_checks {
 
         my ( @sysop, @customised );
         my $unmodified = 0;
-        File::Find::find(
+        find_noting( 'the content-provenance count',
             { no_chdir => 1,
                 wanted => sub {
                     my $p = $File::Find::name;
@@ -1450,7 +1506,7 @@ sub apply_fixes {
         # dirs; per-path "fixed:" lines would drown the report.
         my $gd = $git_fix_root;
         my $n  = 0;
-        File::Find::find(
+        find_noting( '--fix',
             { no_chdir => 1, wanted => sub {
                     my $p = $File::Find::name;
                     my @s = lstat $p or return;
@@ -1535,7 +1591,7 @@ sub apply_fixes {
             # user holds files the CGI cannot rewrite either, and un-protecting
             # has to move them back OUT.
             my $n = 0;
-            File::Find::find(
+            find_noting( '--fix',
                 { no_chdir => 1, wanted => sub {
                         my $p  = $File::Find::name;
                         my @st = lstat $p or return;
@@ -1560,7 +1616,7 @@ sub apply_fixes {
             # CGI currently OWNS to the site user must not strip the CGI's
             # access - replicate the owner bits onto the group first (see
             # handover_mode above).
-            File::Find::find( { no_chdir => 1, wanted => sub {
+            find_noting( '--fix', { no_chdir => 1, wanted => sub {
                         my $p = $File::Find::name;
                         my @s = lstat $p or return;
                         return if -l _;
@@ -1600,6 +1656,7 @@ if ( $opt{fix} ) {
     }
 }
 
+report_unread_walks();    # Q16g: after any --fix pass, with the results it describes
 report_diagnostic_sinks() if $opt{sinks};    # SM932 (2), after any --fix re-run
 
 # --- report ------------------------------------------------------------------
@@ -2078,7 +2135,7 @@ sub report_uncompilable_form_patterns {
 
     my @hits;
     for my $root (@roots) {
-        File::Find::find(
+        find_noting( 'the form-pattern check',
             { no_chdir => 1, wanted => sub {
                     my $p = $File::Find::name;
                     if ( -d $p ) {
@@ -2136,7 +2193,7 @@ sub report_double_escaped_db_templates {
     }
     my @hits;
     for my $root (@roots) {
-        File::Find::find(
+        find_noting( 'the db: template check',
             { no_chdir => 1, wanted => sub {
                     my $p = $File::Find::name;
                     if ( -d $p ) {
@@ -2670,7 +2727,7 @@ sub report_theme_assets_mirrored {
 
     my $mirror = "$DOC/lazysite-assets/$layout/$theme";
     my $n      = 0;
-    File::Find::find(
+    find_noting( 'the theme-asset mirror check',
         { no_chdir => 1, wanted => sub { $n++ if -f $File::Find::name } },
         $mirror ) if -d $mirror;
 
@@ -2896,7 +2953,7 @@ sub report_stray_public {
     return unless defined $root && -d $root;
 
     my @stray;
-    File::Find::find(
+    find_noting( 'the protected-content check',
         { no_chdir => 1,
             wanted => sub {
                 my $p = $File::Find::name;
