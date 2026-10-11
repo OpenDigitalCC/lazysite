@@ -916,4 +916,65 @@ subtest 'the start-page-set and audit handlers act for nobody outside a request'
     is( $AT->can('dispatch_audit')->()->{kind} // '', 'forbidden', '...and audit refuses again' );
 };
 
+# SM944 S33 (n346): acl-set's branch, moved into Manager::Files as
+# dispatch_acl_set, which hands back the rule before and after with the result.
+# Outside a request the path is absent and the first refusal answers; handed a
+# path and lists with nobody asking - and Files' own log copy naming boss, as
+# MCP sets it - it wrote a rule owned by account '' (tmp/sm944-n346-probe.out),
+# and now refuses before reading the body. With boss's context it sets the rule
+# and hands back both sides; after the reset it refuses again.
+subtest 'the acl-set handler sets no rule outside a request' => sub {
+    require Lazysite::Manager::Files;
+    require Lazysite::Auth::Acl;
+    require ManagerSession;
+    my $s = ManagerSession::new_site( root => repo_root() );
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', [qw(ui manage_users manage_content)], [qw(ui manage_users manage_content)] );
+    my $d = $s->docroot;
+    open my $fh, '>', "$d/secret.md" or die $!;
+    print {$fh} "x\n";
+    close $fh;
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT  = $d;
+    local $Lazysite::Manager::Files::DOCROOT   = $d;
+    local $Lazysite::Auth::Acl::DOCROOT        = $d;
+    local $Lazysite::Auth::Settings::AUTH_DIR  = "$d/lazysite/auth";
+    local $Lazysite::Manager::Files::auth_user = 'boss';    # its log copy, as MCP sets it
+    local $ENV{LAZYSITE_USERS_TOOL}            = repo_root() . '/tools/lazysite-users.pl';
+    local $ENV{LAZYSITE_LOG_LEVEL}             = 'ERROR';
+    my $set   = sub { [ Lazysite::Manager::Files::dispatch_acl_set() ] };
+    my $rules = sub { scalar keys %{ Lazysite::Auth::Acl::load_acls() } };
+
+    reset_request_context();
+    my $r = $set->();
+    is( $r->[0]{kind} // '', 'forbidden', 'nobody asking: refused' ) or diag explain $r;
+    is_deeply( [ @$r[ 1, 2 ] ], [ undef, undef ], '...no rule before or after to record' );
+
+    $params{path} = '/secret.md';
+    $path         = '/secret.md';
+    $body         = '{"read":["@everyone"]}';
+    $r            = $set->();
+    is( $r->[0]{kind} // '', 'forbidden', 'handed a path and lists, nobody asking: refused' ) or diag explain $r;
+    is( $rules->(), 0, '...and no rule was written' );
+
+    # boss's own request, as the script sets it (an unbound cookie manager).
+    reset_request_context();
+    $auth_user        = 'boss';
+    $token_auth       = 0;
+    $REQUEST_CONFINED = 0;
+    @REQUEST_SCOPES   = ();
+    $params{path}     = '/secret.md';
+    $path             = '/secret.md';
+    $body             = '{"read":["boss"]}';
+    local $Lazysite::Auth::Acl::auth_user  = 'boss';
+    local $Lazysite::Auth::Acl::token_auth = 0;
+    $r = $set->();
+    ok( $r->[0]{ok}, 'with boss\'s context the rule is set' ) or diag explain $r;
+    is_deeply( $r->[2]{read}, ['boss'], '...and the rule after is handed back for the audit entry' );
+    is( $rules->(), 1, '...one rule' );
+
+    reset_request_context();
+    is( $set->()->[0]{kind} // '', 'forbidden', 'reset: refused again' );
+};
+
 done_testing();

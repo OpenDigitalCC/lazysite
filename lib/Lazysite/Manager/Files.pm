@@ -2121,6 +2121,15 @@ sub _sync_private_store {
 # path is absent (%params is empty) and the first refusal answers.
 sub dispatch_acl_set {
     my ( $result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
+    # SM944 S33, the established fail-closed pattern: AN ACCESS RULE IS SET FOR
+    # AN ACCOUNT. Inside a request the dispatcher has refused an empty
+    # $auth_user before this runs, so it is never empty here. Handed a path and
+    # lists with nobody asking, action_acl_set wrote a rule owned by account ''
+    # (tmp/sm944-n346-probe.out). Common's, by full name: this module's own
+    # $auth_user is a log copy MCP sets to its own user.
+    return ( { ok => 0, kind => 'forbidden',
+            error => 'An access rule is set by a signed-in account, and no account is asking.' }, undef, undef )
+        unless length $Lazysite::Manager::Common::auth_user;
     my $req = _json_body();
 
     # SM306: acl-set will not take the whole site private because an argument
