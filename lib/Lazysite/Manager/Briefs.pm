@@ -15,7 +15,7 @@ use Lazysite::Manager::Common qw(validate_path is_blocked_path);
 use Lazysite::Paths           ();
 use Exporter 'import';
 our @EXPORT_OK = qw(action_brief_read action_brief_append
-    action_briefs_list action_brief_delete
+    action_briefs_list dispatch_briefs_list action_brief_delete
     action_briefs_migrate plugin_status store_entry_move store_entry_remove);
 
 our $DOCROOT;
@@ -228,6 +228,23 @@ sub action_briefs_list {
     }
     @briefs = sort { $a->{path} cmp $b->{path} } @briefs;
     return { ok => 1, briefs => \@briefs, count => scalar @briefs };
+}
+
+# SM944 S33: briefs-list's dispatch branch, moved here from
+# lazysite-manager-api.pl with its statements unchanged: the listing, filtered
+# to the briefs the caller reaches (Manager::Common's brief rule, read by full
+# name). The branch still calls the script's _briefs() first, which loads this
+# module and sets its $DOCROOT and log copy of the account.
+sub dispatch_briefs_list {
+    my $result;
+    $result = Lazysite::Manager::Briefs::action_briefs_list();
+    # SM976 F2: a confined caller is shown the briefs it reaches, and no other.
+    if ( ref $result eq 'HASH' && ref $result->{briefs} eq 'ARRAY' ) {
+        $result->{briefs} = [ grep { Lazysite::Manager::Common::caller_may_reach_brief( $_->{path} ) }
+                @{ $result->{briefs} } ];
+        $result->{count} = scalar @{ $result->{briefs} };
+    }
+    return $result;
 }
 
 sub action_brief_delete {

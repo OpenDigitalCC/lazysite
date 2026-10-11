@@ -1495,13 +1495,7 @@ elsif ( $action eq 'briefs-migrate' ) {
 }
 elsif ( $action eq 'briefs-list' ) {
     _briefs();
-    $result = Lazysite::Manager::Briefs::action_briefs_list();
-    # SM976 F2: a confined caller is shown the briefs it reaches, and no other.
-    if ( ref $result eq 'HASH' && ref $result->{briefs} eq 'ARRAY' ) {
-        $result->{briefs} = [ grep { Lazysite::Manager::Common::caller_may_reach_brief( $_->{path} ) }
-                @{ $result->{briefs} } ];
-        $result->{count} = scalar @{ $result->{briefs} };
-    }
+    $result = Lazysite::Manager::Briefs::dispatch_briefs_list();
 }
 elsif ( $action eq 'brief-delete' ) {
 
