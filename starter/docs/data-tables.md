@@ -527,6 +527,35 @@ guessing at them.
 `public` is about **anonymous visitors**. Any signed-in account may read an
 unpublished table unless an ACL says otherwise, which is the next section.
 
+### Showing only some of the rows
+
+Publishing a table publishes every row in it. To keep some back - rows a
+moderator has marked hidden or spam - give the table a **row condition**:
+
+```yaml
+public: true
+where: status = ok
+```
+
+or, to show everything but the rows marked one way,
+
+```yaml
+where: status != spam
+```
+
+The condition is applied wherever a visitor can see rows: **page bindings**
+(`db:<table>`, `.count`, `.field`) and **the data endpoint**. It is added to any
+filter the binding asks for, so a binding cannot reach the rows it hides, and a
+count counts only what is shown. The manager, the API and MCP -- the surfaces
+behind `manage_data` -- still see every row, which is how a moderator finds the
+ones that are held back.
+
+It is one comparison and nothing more: a declared field, `=` or `!=`, and a
+value, read as that field's type would read it (an `enum` value must be one of
+its values). Anything else -- another operator, `AND`/`OR`, a field the table
+does not declare -- is refused when the descriptor loads. With `!=`, a row whose
+field is empty is shown: it has not been marked.
+
 ### Narrowing to accounts and groups
 
 Tables use the **same read/write lists as files**, in the same store, with the
@@ -545,11 +574,16 @@ A read list and `public: true` **compose rather than compete**: a published
 table that also carries a read list still refuses an anonymous visitor, because
 an anonymous visitor matches no entry in a list.
 
-**An operator is not asked.** The manager, MCP and the API have already
-answered the capability question with `manage_data`, so they read regardless. A
-**page** is never treated as an operator -- it renders the same rows for
-whoever is looking at it, so what you see while signed in is what your visitors
-see. The one exception is a binding that says `(mine)`, which asks for the
+**The lists bind a `manage_data` holder too** (SM982). `manage_data` says an
+account may work with tables; a table's own rule says who may read its rows and
+who may change them, and the manager, the API, MCP and the data endpoint all
+ask it: a read list the account is not in refuses its row reads and downloads,
+and a write list it is not in refuses its row saves, deletes, imports, restores,
+rebuilds and drops, with a reply naming the table's rule. Only the **operator**
+-- the command line as `local`, an unsecured site, or a signed-in holder of
+`manage_users` -- is not asked. A **page** is never treated as an operator -- it
+renders the same rows for whoever is looking at it, so what you see while signed
+in is what your visitors see. The one exception is a binding that says `(mine)`, which asks for the
 viewer's own rows -- see *A page that shows each viewer their own rows*, below.
 
 ### Collecting data from visitors
@@ -720,7 +754,9 @@ three:
   for -- forms have rate limits, spam controls and a handler that vets what it
   accepts, and a table write has none of that);
 - the **`manage_data`** capability;
-- membership of a group in the table's **`writable_by`**, if it names any.
+- membership of a group in the table's **`writable_by`**, if it names any;
+- and, since SM982, a place in the table's own **write list** (its ACL), if it
+  has one - for a `manage_data` holder as for anyone but the operator.
 
 ### Quietening a table's row audit
 

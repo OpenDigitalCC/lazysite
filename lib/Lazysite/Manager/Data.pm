@@ -442,6 +442,48 @@ sub _table_has_acl {
     return 0;
 }
 
+# SM982 (ruled 2026-10-11, "Table ACLs bind it + row filter"): A TABLE'S OWN
+# RULE BINDS WHOEVER IS NOT THE OPERATOR, a manage_data holder included.
+#
+# Reported from a members' area: a member holding manage_data changed rows in
+# tables whose write rule did not list them, and read a table its read rule
+# excluded, through the control API. Every action here answered `as =>
+# 'operator'` for any manage_data holder - "the capability gate already ran" -
+# and the table's write list was asked by nobody at all. manage_data says a
+# caller may work with tables; the table's rule says WHICH rows-holder may read
+# or change them, as a file's rule does for a file (SM979). The two compose.
+#
+# The OPERATOR is unaffected (the ruling's words): _is_operator - `local`, an
+# unsecured site, a cookie session holding manage_users. A token never is.
+# Groups are the account's own, resolved from the store (groups_for), as
+# row_write_refusal resolves them. A table with no rule, and no site-wide rule
+# that reaches it, refuses nobody - the ACL store's meaning everywhere.
+#
+# $mode is 'read' (the rows leave) or 'write' (rows are added, changed or
+# removed). Returns a refusal, or undef.
+sub table_rule_refusal {
+    my ( $table, $mode, %o ) = @_;
+    no warnings 'once';
+    local $Lazysite::Auth::Acl::DOCROOT = $DOCROOT;    # the data endpoint sets no other
+    return undef if _is_operator();
+    my $user = exists $o{user} ? $o{user} : $auth_user;
+    $user = '' unless defined $user;
+    my $groups = ref $o{groups} eq 'ARRAY' ? $o{groups} : groups_for($user);
+    local @Lazysite::Auth::Acl::user_groups = @{$groups};
+    return undef
+        if _acl_allows( Lazysite::Data::Access::acl_key($table), $mode,
+        ( length $user ? $user : undef ) );
+    return {
+        ok    => 0,
+        kind  => 'forbidden',
+        table => $table,
+        error => "table '$table': its access rule does not let this account "
+            . ( $mode eq 'read' ? 'read its rows' : 'change its rows' )
+            . ' - manage_data does not override a table\'s own rule. The rule\'s '
+            . 'owner can add this account or its group with data-table-acl-set.',
+    };
+}
+
 sub row_write_refusal {
     my ( $table, $caps, $groups ) = @_;
     $caps   = {} unless ref $caps eq 'HASH';
@@ -819,8 +861,10 @@ sub action_data_table_save {
 sub action_data_rows {
     my ( $table, %opt ) = @_;
     if ( my $bad = _table_action($table) ) { return $bad }
-    # `as => 'operator'`: every action in this module has already passed the
-    # manage_data gate in _gate, so the SM476 read check would be asking a
+    # SM982: the table's read rule first - manage_data does not override it.
+    if ( my $no = table_rule_refusal( $table, 'read' ) ) { return $no }
+    # `as => 'operator'`: the manage_data gate (_gate) and the table's own
+    # rule have both answered, so the SM476 read check would be asking a
     # question that is already answered.
     return read_rows( $DOCROOT, $table, as => 'operator', %opt );
 }
@@ -889,6 +933,7 @@ sub action_data_migrate {
 sub action_data_rebuild {
     my ( $table, $confirm_lost ) = @_;
     if ( my $bad = _table_action($table) ) { return $bad }
+    if ( my $no = table_rule_refusal( $table, 'write' ) ) { return $no } # SM982: rewrites every row
     my $r = rebuild_table( $DOCROOT, $table, actor => $auth_user,
         confirm_lost => ( ref $confirm_lost eq 'ARRAY' ? $confirm_lost : [] ) );
     log_event( 'INFO', $table, 'data table rebuilt',
@@ -921,6 +966,7 @@ sub row_authority {
 sub action_data_row_save {
     my ( $table, $key, $values, %opt ) = @_;
     if ( my $bad = _table_action($table) ) { return $bad }
+    if ( my $no  = table_rule_refusal( $table, 'write' ) ) { return $no }    # SM982
     return { ok => 0, error => 'row values required' }
         unless ref $values eq 'HASH';
 
@@ -944,6 +990,7 @@ sub action_data_row_save {
 sub action_data_row_delete {
     my ( $table, $key, %opt ) = @_;
     if ( my $bad = _table_action($table) ) { return $bad }
+    if ( my $no  = table_rule_refusal( $table, 'write' ) ) { return $no }    # SM982
     return { ok => 0, error => 'row key required' }
         unless defined $key && length $key;
     my $as = exists $opt{as} ? $opt{as} : 'operator';           # as action_data_row_save
@@ -968,6 +1015,7 @@ sub action_data_row_delete {
 sub action_data_export {
     my ( $table, $format ) = @_;
     if ( my $bad = _table_action($table) ) { return $bad }
+    if ( my $no  = table_rule_refusal( $table, 'read' ) ) { return $no }    # SM982
 
     my $d = load_table( $DOCROOT, $table );
     return $d unless $d->{ok};
@@ -1016,6 +1064,7 @@ sub action_data_export {
 sub action_data_import {
     my ( $table, $body, $content_type, $apply ) = @_;
     if ( my $bad = _table_action($table) ) { return $bad }
+    if ( my $no  = table_rule_refusal( $table, 'write' ) ) { return $no }    # SM982
 
     # The CSV is the multipart part named `file`, as site-backup-upload takes
     # its tarball. Parsed HERE, after the gate: a disabled plugin must not
@@ -1052,6 +1101,7 @@ sub action_data_import {
 sub action_data_table_drop {
     my ( $table, $confirm ) = @_;
     if ( my $bad = _table_action($table) ) { return $bad }
+    if ( my $no = table_rule_refusal( $table, 'write' ) ) { return $no } # SM982: every row goes
 
     my $r = drop_table( $DOCROOT, $table, actor => $auth_user, confirm => $confirm );
     log_event( 'INFO', $table, 'data table dropped',
@@ -1186,6 +1236,7 @@ sub action_data_safety_export_read {
     my ( $e, $bad ) = _export_path($file);
     return $bad if $bad;
     if ( my $no = _export_outside_scope($e) ) { return $no }
+    if ( my $no = table_rule_refusal( $e->{table}, 'read' ) ) { return $no } # SM982: its rows
     my $data = _read_export_file( $e->{abs} )
         or return { ok => 0, error => 'the export is not a readable lazysite data export' };
     return { ok => 1, file => $file, table => $e->{table},
@@ -1215,6 +1266,7 @@ sub action_data_safety_export_restore {
     # SM976 F3: and the rows go into the table as it is declared NOW, which is
     # the caller's to write only if it reaches that table.
     if ( my $no = _outside_scope( $e->{table} ) ) { return $no }
+    if ( my $no = table_rule_refusal( $e->{table}, 'write' ) ) { return $no }    # SM982
     my $data = _read_export_file( $e->{abs} )
         or return { ok => 0, error => 'the export is not a readable lazysite data export' };
     my $d = load_table( $DOCROOT, $e->{table} );

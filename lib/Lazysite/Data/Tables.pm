@@ -322,7 +322,7 @@ sub _read_rows_loaded {
     return { ok => 1, table => $name, rows => $rows || [] }
         unless $want_total;
 
-    my ( $csql, $cbinds ) = count_sql( $d, where => $opt{where} );
+    my ( $csql, $cbinds ) = count_sql( $d, where => $opt{where}, condition => $opt{condition} );
     my ($total) = eval { $dbh->selectrow_array( $csql, undef, @{$cbinds} ) };
     $total = scalar @{ $rows || [] } unless defined $total;
 
@@ -1008,6 +1008,12 @@ sub resolve_binding {
     # so the second gate decided nothing. The rows now come from
     # _read_rows_loaded, beneath the gate that ran nine lines above.
     my %opt;
+    # SM982: THE TABLE'S ROW CONDITION, on every binding - a page's and the
+    # data endpoint's, which both arrive here. A binding cannot widen it: it
+    # is ANDed with whatever the binding filters on, the count included, so
+    # a hidden row is neither shown nor counted, and `.field` by its key
+    # answers nothing.
+    $opt{condition} = $d->{where}    if ref $d->{where} eq 'HASH';
     $opt{where}    = $q->{filters}  if %{ $q->{filters} };
     $opt{order_by} = $q->{order_by} if defined $q->{order_by};
     $opt{order}    = $q->{order}    if defined $q->{order};

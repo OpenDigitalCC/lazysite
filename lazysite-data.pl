@@ -286,6 +286,13 @@ sub main {
             {
                 return reply( 403, $refusal );
             }
+
+            # SM982: and the table's own write rule, which binds a manage_data
+            # holder as it binds anyone. Asked here so the refusal is a 403, as
+            # the one above is; the row action asks it again for every surface.
+            if ( my $refusal = Lazysite::Manager::Data::table_rule_refusal( $table, 'write' ) ) {
+                return reply( 403, $refusal );
+            }
         }
 
         my $len = $ENV{CONTENT_LENGTH} || 0;

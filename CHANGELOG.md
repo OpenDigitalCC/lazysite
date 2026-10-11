@@ -558,6 +558,21 @@ Archive
   refused 403 and change no file of the site and write no audit row, while the
   same request with a token does what it was refused. Test 43 sampled 19, and
   a gate moved after the dispatch let a forged write land behind its 403.
+- SM982 (PENDING) **security: a table's own rule binds a `manage_data` holder,
+  and a published table can hold rows back** (ruled 2026-10-11, "Table ACLs bind
+  it + row filter"). A member holding `manage_data` wrote rows in tables whose
+  write rule did not list them and read, through the control API, a table whose
+  read rule excluded them: every row action treated a `manage_data` holder as
+  the operator, and nothing read a table's write list at all. **Behaviour
+  change:** a table's read rule now decides who reads its rows (data-rows,
+  downloads, safety-export reads) and its write rule who changes them (row save
+  and delete, import, restore, rebuild, drop) for a `manage_data` or `write_data`
+  holder on the manager, the API, MCP and the data endpoint; the operator
+  (`local`, a `manage_users` session) is unaffected. New descriptor key
+  `where: field = value` or `where: field != value`: the rows a published table
+  shows through page bindings and the data endpoint, counts included; the
+  manager, API and MCP still see every row. Docs: data-tables. t/integration/127.
+
 - SM981 (PENDING) **security: a file that arrives in a held-back folder lands in
   the private store, however it arrives** (ruled 2026-10-11, "Land where save
   would"). A post carrying a rule of its own (an owner-only rule, which every copy

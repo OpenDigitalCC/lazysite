@@ -361,6 +361,52 @@ sub _check_writable_by {
     return ( $wb, undef );
 }
 
+# SM982 (ruled 2026-10-11, "Table ACLs bind it + row filter"): THE ROWS A
+# VISITOR SURFACE MAY SHOW. `public: true` published a table to the last row, so
+# rows a moderator had marked hidden or spam were served to an anonymous request
+# at the data endpoint, and a site's only alternative was a second, private
+# table. `where:` names the rows the page bindings and the data endpoint show:
+#
+#   where: status = ok        only rows whose status is ok
+#   where: status != spam     every row but those marked spam (a row with no
+#                             status is shown - it has not been marked)
+#
+# ONE condition, `field = value` or `field != value`, on a DECLARED field, the
+# value read as that field's type would read it in a row (so an enum's value must
+# be one of its values, a boolean is yes/no). No expressions, no AND/OR, no other
+# operators: this is a filter an author can read at a glance and the engine can
+# bind as a parameter, never a query language. The manager, the control API and
+# MCP - the surfaces behind manage_data - see every row, which is how a moderator
+# finds the hidden ones.
+#
+# Returns ( { field, op, value } or undef, undef ) or ( undef, $err ).
+sub _check_where {
+    my ( $name, $raw, $fields ) = @_;
+    my $w = $raw->{where};
+    return ( undef, undef ) unless defined $w;
+    my $shape = "table '$name': where must be one condition, 'field = value' or 'field != value'";
+    return ( undef, _err( 'descriptor', $shape, rule => 'where' ) ) if ref $w;
+    $w =~ s/\A\s+|\s+\z//g;
+    return ( undef, _err( 'descriptor', "$shape - it is empty", rule => 'where' ) ) unless length $w;
+    my ( $f, $op, $v ) = $w =~ /\A([A-Za-z_][A-Za-z0-9_]*)\s*(!=|=)\s*(.*?)\z/s
+        or return ( undef, _err( 'descriptor', "$shape - '$w' is not", rule => 'where' ) );
+    return ( undef,
+        _err( 'descriptor', "table '$name': where names '$f', which is not a declared field",
+            field => $f, rule => 'where' ) )
+        unless exists $fields->{$f};
+    $v =~ s/\A"(.*)"\z/$1/s or $v =~ s/\A'(.*)'\z/$1/s;
+    return ( undef,
+        _err( 'descriptor', "table '$name': where '$w' compares '$f' with nothing - give a value",
+            field => $f, rule => 'where' ) )
+        unless length $v;
+    require Lazysite::Data::Value;
+    my ( $why, $cv ) = Lazysite::Data::Value::coerce_field( $f, $fields->{$f}, $v );
+    return ( undef,
+        _err( 'descriptor', "table '$name': where: $why", field => $f, rule => 'where' ) )
+        if defined $why;
+    return ( { field => $f, op => $op, value => $cv }, undef );
+}
+
 # --- whole-descriptor load --------------------------------------------------
 #
 # The orchestrator. The ORDER the checks run in is part of the contract - a
@@ -448,6 +494,9 @@ sub load_descriptor {
     my ( $wb, $wb_err ) = _check_writable_by( $name, $raw );
     return $wb_err if $wb_err;
 
+    my ( $where, $where_err ) = _check_where( $name, $raw, $fields );    # SM982
+    return $where_err if $where_err;
+
     # SM593: which DOMAIN declared this table, on an instance carrying several.
     #
     # Optional, and its absence is not a default that means "everyone" - it
@@ -494,6 +543,7 @@ sub load_descriptor {
         timestamps => $timestamps,
         row_policy => $row_policy,
         ( length $domain ? ( domain => $domain ) : () ),
+        ( $where ? ( where => $where ) : () ),   # SM982: the rows a visitor surface shows
     };
 }
 

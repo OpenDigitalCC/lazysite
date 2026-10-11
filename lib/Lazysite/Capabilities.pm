@@ -336,7 +336,7 @@ my %ACTION_INFO = (
     manage_data => {
         section => 'Data',
         title   => 'Read and write the site\'s data tables.',
-        grants => 'Read and write every data table on this instance, and declare new ones. A table that names no domain is reachable by any holder, on any site here.',
+        grants => 'Read and write the data tables on this instance, and declare new ones. A table that names no domain is reachable by any holder, on any site here. A table\'s own access rule still binds the holder (SM982): its read list decides who reads its rows, its write list who changes them.',
         unlocks => {
             api => [
                 qw(handler-list handler-save handler-delete form-targets-read

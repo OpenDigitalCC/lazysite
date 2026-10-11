@@ -436,7 +436,7 @@ sub MAX_ROWS { return 500 }
 #
 # Returns ( '' or ' WHERE ...', \@binds ).
 sub _where {
-    my ( $d, $filter, $caller ) = @_;
+    my ( $d, $filter, $caller, $cond ) = @_;
     my $fields = $d->{fields};
     my ( @where, @binds );
     # SM857: AND THE COLUMNS THE TABLE'S FLAGS GIVE IT, as select_sql's ORDER
@@ -457,13 +457,26 @@ sub _where {
             push @where, _ident($f) . ' IS NULL';
         }
     }
+    # SM982: a table's row condition (`where:` in its descriptor), when the
+    # caller passes it - the visitor surfaces do. The field was checked at
+    # load; the value is BOUND, never interpolated. `!=` shows a row whose
+    # field is empty (unmarked), which `<>` alone would hide: in SQL a NULL
+    # is neither equal nor unequal to anything.
+    if ( ref $cond eq 'HASH' ) {
+        die "$caller: the row condition names '$cond->{field}', not a field of '$d->{table}'"
+            unless exists $fields->{ $cond->{field} };
+        my $col = _ident( $cond->{field} );
+        if ( ( $cond->{op} // '' ) eq '!=' ) { push @where, "($col IS NULL OR $col <> ?)" }
+        else                                 { push @where, "$col = ?" }
+        push @binds, $cond->{value};
+    }
     return ( @where ? ' WHERE ' . join( ' AND ', @where ) : '', \@binds );
 }
 
 sub count_sql {
     my ( $d, %opt ) = @_;
     _loaded( $d, 'count_sql' );
-    my ( $where, $binds ) = _where( $d, $opt{where}, 'count_sql' );
+    my ( $where, $binds ) = _where( $d, $opt{where}, 'count_sql', $opt{condition} );
     return ( 'SELECT COUNT(*) FROM ' . _ident( $d->{table} ) . $where, $binds );
 }
 
@@ -473,7 +486,7 @@ sub select_sql {
     my $table  = _ident( $d->{table} );
     my $fields = $d->{fields};
 
-    my ( $where, $bref ) = _where( $d, $opt{where}, 'select_sql' );
+    my ( $where, $bref ) = _where( $d, $opt{where}, 'select_sql', $opt{condition} );
     my @binds = @{$bref};
     my $sql   = "SELECT * FROM $table" . $where;
 
