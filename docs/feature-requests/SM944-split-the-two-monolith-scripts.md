@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1-S20 (n278-n304) the processor; S21-S32 (n306-n341) the manager API's context and areas; ITEM 1 (n339, n342); S33 (n343-n348, n353, n356) the dispatch branches - complete but for Manager::Data's four (open question, WORK-PLAN-0153). Next: S34."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1-S20 (n278-n304) the processor; S21-S32 (n306-n341) the manager API's context and areas; ITEM 1 (n339, n342); S33 (n343-n348, n353, n356) the dispatch branches - complete, Manager::Data's four inline (ruled 2026-10-11, '(b) stay inline for now'). Next: S34 (ruled 'S34 first', then Q16), inventoried; its move awaits a ruling."
 ---
 
 # Measured
@@ -283,6 +283,98 @@ The release manager ruled, in these words:
 
 - S33a - "Yes, S33a then groups": %params and the JSON-body memo (with _json_body) join Lazysite::Manager::Common's request context (S22b shape: shared vars, emptied by reset_request_context, lint 217 facts 12 and 13; only the script's parse and the reset write them). Lifetime probe (two requests, different params/bodies, second never sees the first's; reset line removed -> it does). Lints 58 and 52 read a branch together with its callees (widen + sabotage). Branch n344 from n343. Then extract the P- and R-class branches by area in small stacked groups (n345, n346, ...), refusal calls staying inline at the head of a branch and only what follows moving into `dispatch_<action>` handlers in the area module (n343's pattern: deparse of handler equals the moved body; outside-a-request probe; established empty-account refusal where a handler answers/writes for nobody - ruled eight times; lint 217/218 still find facts/checks; widened tests with sabotage; sweep tmp/sm944-tapcmp.pl; bench). 16 R branches that are a single refusal-plus-call stay whole; the 10 mixed ones stay inline unless clean.
 - Held branches - "Approve all three", each its own branch after S33a: (1) acl-set -> `dispatch_acl_set` in Manager::Files returning ($result, before, after); dispatch line `($result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER) = dispatch_acl_set();` (one line differs); (2) sessions/keys (SECURITY) -> Manager::Sessions with the empty-account refusal FIRST (own commit, proven: moved as is it would list/revoke sessions and keys for nobody outside a request - test that it refuses), and `_users_tool_call` moves to Manager::Users; (3) theme-delete reads `$token_auth` (Common) in place of `$RESTRICT_THEME_DELETE` - prove equivalence inside a request (they must be equal at that point; show where each is set) before switching, sabotage.
+
+# Ruled: Manager::Data's four, and the order (2026-10-11)
+
+The release manager ruled, in these words:
+
+- S33's Manager::Data question: "(b) stay inline for now" - the four (data-safety-export read/restore/delete, data-table-drop) stay inline; revisit with Q16. S33 is complete.
+- Order: "S34 first", then Q16.
+
+# S34: the CSRF gate, inventoried (2026-10-11)
+
+Phase A, no code moved. Measured on main 41967751 (n359 landed), with tmp/sm944-s34-before-probe.pl, -outside-probe.pl, -sab.sh, -sab-s1.sh and -s3-probe.sh (each with its .out).
+
+## What the row measured
+
+The row's 464 lines are the map's section from `# --- M-1: CSRF gate on write actions` to `# --- Audit tables` (560-1018 today, 459 lines). That section holds nine pipeline steps, of which the M-1 gate is the first:
+
+```datatable
+columns: Step | Lines | Ends the request through
+widths: 6cm | 1.6cm | X
+tone: medium
+---
+the M-1 CSRF gate | 567-606 | `_bail` (respond, exit; no audit)
+the csrf-token mint | 608-612 | respond, `exit 0`
+SM475/SM587 tables (%MUTATING, %DESTRUCTIVE, %CHANGES_ACCESS) and the POST-only refusal | 614-687 | `_bail`
+the cookie capability gate and its scope confinement | 689-779 | `_refuse` (audited)
+the token gates: SM127, SM126, %need, withheld or unknown action, capability, scope, rate limit | 783-985 | `_refuse`, respond and `exit`, `_emit_json` and `exit`
+the file-surface carve-out | 999-1017 | `_refuse`
+```
+
+The row names only the M-1 gate, and keeps "the trust gate and auth check" in the CGI; the steps after the gate are the auth check's gates, five of them refusing through `_refuse`, which S33's ruling kept in the script. So the S34 move is the 40-line gate (choice 1 below).
+
+## The gate, exactly
+
+Where
+: top-level code, lines 567-606 of lazysite-manager-api.pl. Before it: the trust gate (155-200), the OPTIONS refusal (241-259), `reset_request_context` (281), the token front-path (289-330), the cookie auth check (333-372), the query-string parse (374), the action's spelling and `$path`, the log-copy mirroring (464-480), the cookie channel's cannot-tell refusal (497-502), the body read (531-556) and `$IS_OPERATOR = undef` (557). After it: the csrf-token mint, the POST-only refusal (685), the cookie capability gate (689), the token gates (783), the carve-out (999), `_missing_required` (1088) and the dispatch (1140). It needs `$auth_user` set and the body read, so it cannot run earlier than it does.
+
+Reads
+: `$ENV{REQUEST_METHOD}` (into `my $method`, default GET); `$token_auth`; the token from `HTTP_X_CSRF_TOKEN`, else `csrf_token` in a JSON body (through `_json_body()`, only when the header is empty and `$body` non-empty), else `csrf_token` in `%params`; `$auth_user` (the HMAC's subject) and `$action` (log context). `verify_csrf_token` (Lazysite::Auth::Session) reads the site's auth secret, else lazysite/manager/.csrf-secret, and accepts this hour's or last hour's HMAC of `csrf:USER:HOUR`, compared in constant time. It reads no Origin, Referer, Sec-Fetch-* or cookie: the request's identity arrives as `$auth_user`, set by the auth check from the wrapper's X-Remote-User.
+
+Exempts
+: every method but `POST` exactly (a GET, HEAD, PUT or lower-case `post` skips it; the body is read only for POST, and %MUTATING refuses every mutating action not sent as POST - probes 14-17); and every token client (`$token_auth`: a Basic `user:lzs_` credential verified by the front-path, which refuses one sent with a cookie identity - probe 22). No action is exempt by name. The gate is keyed on the method, so every POST from a cookie session needs the token, the reads included.
+
+Writes
+: two DEBUG `log_event` lines (check, verify), silent at the default INFO level; the `$JSON_BODY` memo when it parses the body; through `_csrf_secret`, on a site with no auth secret and no manager secret, a newly minted lazysite/manager/.csrf-secret. A refusal answers `403 Forbidden`, `{ ok: false, kind: forbidden, error: "Invalid or missing CSRF token" }`, and exits 0 through `_bail`. It writes no audit line.
+
+The other entry points
+: MCP (lazysite-mcp.pl) takes its credential only from Authorization (Bearer, or Basic `user:token`), holds no cookie session and has no CSRF gate; its challenge is Bearer, so no browser caches a credential for it. WebDAV (lazysite-dav.pl) takes Basic credentials only and challenges `Basic realm="lazysite-dav"`, so a browser may cache one for the DAV path; its writes are PUT, DELETE, MKCOL, COPY, MOVE and PROPPATCH, which no cross-site form can send and a cross-site script cannot send without a CORS preflight; it serves no POST. The data endpoint (lazysite-data.pl) has its own CSRF gate for cookie writes (its `?csrf=1` mint and `kind: csrf` refusal, lines 187-212, the same Session functions), pinned by t/integration/60; it is no part of S34. The session cookie is `SameSite=Lax` (lazysite-auth.pl), and the API refuses every CORS preflight (SM230), so the token is the gate and the browser's rules a second line.
+
+## Before-answers (inside a request, n359's code)
+
+Through the real CGI, a cookie session (admin) POSTing `save` (tmp/sm944-s34-before-probe.out): no token, a wrong token, another user's token, a token two hours old, a cross-origin request without a token, a wrong token in the body with an empty header, and a wrong header with a valid body token (the header wins) are each refused 403 `forbidden`, the page not written, no audit line, nothing on stderr at INFO and the two DEBUG lines at DEBUG. Last hour's token, a valid token in the header, the JSON body or the query string, and a cross-origin request carrying a valid token are each answered 200 and the page is written and audited. GET, PUT and lower-case `post` of `save` are refused 400 "must be sent as POST"; PUT of `list` answers. The csrf-token mint answers a cookie GET and a token client's GET (a token for the client's own account name), and a cookie POST of it without a token meets the gate first. A token client's POST of nav-save needs no CSRF token; a token with a cookie identity, a token with an empty user name ("Invalid credentials") and a non-`lzs_` Basic secret ("Authentication required") are refused before the gate - so inside a request `$auth_user` is never empty when the gate runs.
+
+## Outside a request
+
+The gate is top-level code: nothing outside a request can call it, and `LAZYSITE_API_LOAD_ONLY` returns before the trust gate. Compiled verbatim as a sub importing the context from Manager::Common - what a pure move would be (tmp/sm944-s34-outside-probe.out) - and asked with the context `reset_request_context` leaves, a POST with no token PASSES: the reset leaves a token client (`$token_auth = 1`, "never the cookie operator"), and the gate exempts token clients. With `$token_auth = 0` and an empty account it refuses (`verify_csrf_token` refuses an empty user); after a reset, a POST carrying a valid token for admin passes too. Moved verbatim, the gate would answer "pass" for nobody.
+
+## What pins it
+
+Sabotaged in the main checkout, each restored by cp from tmp/sab-bak/s34/ and checked with cmp; the 66 tests that mention CSRF run each time (baseline PASS; tmp/sm944-s34-sab.out):
+
+```datatable
+columns: Sabotage | Fails
+widths: 7cm | X
+tone: medium
+---
+the gate never refuses (its refusal made unreachable, its text kept) | unit/manager/09, 43
+`save` exempted | 43
+`acl-set` exempted (changes who may read) | nothing
+`users` exempted (account create, disable, promote) | nothing
+the gate's condition false | 09, 43
+the gate moved after the dispatch, before the response | 09, 43, 220, integration/114, journey/02 - but the forged POST WRITES: answered 403 "Invalid or missing CSRF token", the page written and audited ok (tmp/sm944-s34-s3-probe.out), and test 43 passes on that answer for most of its actions
+```
+
+The first attempt at "never refuses" broke the script's compile and is void; it was redone (tmp/sm944-s34-sab-s1.sh). Test 43 POSTs 19 of the 87 %MUTATING actions and 09 one more; exempting any of the other 67, or `users` (not in %MUTATING: dual-mode, its writes POST-only inside `action_users`), fails no test. No test asserts that a refused write did not land. Text readers: test 43 §4 matches `if ( $method eq 'POST' && !$token_auth )` and `verify_csrf_token(` in the script's source; lint 14 lists csrf-token as pre-auth; unit/lib/200 holds csrf-token known and unaudited. Lint 217 sees the gate only as a reader of the context.
+
+## Found, not changed
+
+- A CSRF refusal leaves no trace at the default log level: no audit line and no log line (the two DEBUG lines only). A cross-site write attempt against a signed-in manager is invisible to the operator.
+- A forged POST is refused because of the token alone; the gate does not read Origin or Sec-Fetch-Site (probe 10). Not proposed: the token and SameSite=Lax hold, and an Origin rule would be a behaviour change of its own.
+- Coverage: 67 mutating actions and `users` are pinned by no test (above).
+
+## The move, and its choices
+
+What would change if the gate ran from a module: it ends the request through the script's `_bail` (a module sub that exits ends any process that loads it); its `my $method` is read again by the POST-only refusal at 685; and outside a request it passes for nobody. Its call must stay where the gate is: after the body read and the auth check, before the csrf-token mint and every later gate. The plan, each for a ruling:
+
+1. Scope: the 40-line gate only (recommended); the csrf-token mint stays in the script (an action that answers and exits, read by lint 14); the rest of the section is the auth check's gates and stays with it.
+2. The ending: (a) `Lazysite::Manager::Csrf::csrf_refusal($method)` returns the refusal or nothing and the script ends the request: `if ( my $refusal = csrf_refusal($method) ) { _bail($refusal) }` - the module never exits, the one moved line that differs is `_bail( {...} )` becoming `return {...}`, plus the final `return;` (recommended); (b) `_bail` moves into Common and the module calls it (a module sub that exits; the shape S33 declined for `_refuse`); (c) the gate stays inline, S34 closed without a move.
+3. `$method`: the `my $method = ...` line stays in the script at its place, read by the gate (as the argument) and by the POST-only refusal (recommended); the alternative, the module reading `$ENV{REQUEST_METHOD}` itself, is a second reader of one fact.
+4. Fail closed: before the move is proven, its own commit - the module refuses an empty `$auth_user` first (the established pattern, ruled eight times); inside a request the account is never empty at the gate (probes 22-25), so every answer there is the same; outside a request and after a reset it refuses instead of passing; test 205 pins it.
+5. Proofs and readers, as for every row: moved-check; the gate's deparse before equal to `csrf_refusal`'s apart from the ending (the outside probe's extraction is the comparer's input); lints 217/218 unchanged; test 43 §4 reads Csrf.pm and the call in the script; the manifest gains the module (installed per file), unit/lib/18 and lint 15 classify it (it writes nothing); the probes re-run with identical answers; tmp/sm944-tapcmp.pl sweep; bench (`perl -c`, a POST save).
+6. Tests before the move (recommended, a commit of its own, so the sabotages bite): test 43 POSTs EVERY %MUTATING action, and `users`, from a cookie session without a token and asserts the CSRF refusal; and for a sample of writes asserts the write did not land and no ok audit line was written - then removing the call, moving it after the dispatch and exempting a POST (acl-set, users) each fail a test.
+7. Separate from the move, a behaviour change for its own ruling: the refusal goes through `_refuse( ..., 'ui', 'denied: csrf' )`, so it is audited as the other gates' refusals are (recommended).
 
 # Built
 
