@@ -37,8 +37,8 @@ use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checke
     _no_scope_refusal
     _request_ip _operator
     reset_request_context
-    users_api _users_tool_run _tool_path _user_caps
-    $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body);
+    users_api _users_tool_run _tool_path _user_caps _json_body
+    $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body %params);
 use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download stream_bytes collect_zip_paths
     check_upload_rate is_editable_text parse_multipart_body);
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
@@ -378,7 +378,6 @@ unless ($token_auth) {
 
 # --- Parse request ---
 
-my %params;
 for my $pair ( split /&/, $ENV{QUERY_STRING} // '' ) {
     my ( $k, $v ) = split /=/, $pair, 2;
     next unless defined $k;
@@ -561,7 +560,6 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 
     read( STDIN, $body, $len ) if $len > 0;
 }
-my $JSON_BODY;      # SM516 MA-2: the memo behind _json_body()
 $IS_OPERATOR = undef;    # SM516 MO-3: the memo behind _operator(), empty until asked
 
 # --- M-1: CSRF gate on write actions --------------------------------
@@ -2669,16 +2667,6 @@ sub _refuse_unreachable_domain {
 
 # --- Request-pipeline helpers ------------------------------------------------
 
-# SM516 MA-2 / MO-2: ONE decode of the request body per request.
-#
-# Forty-odd dispatch branches and the audit block each wrote
-# `eval { decode_json($body) } // {}`, so an ordinary POST decoded its own body
-# up to five times before it was answered. $body is read once, above, and never
-# reassigned, so the answer cannot change between calls.
-#
-# The shape is preserved rather than improved: a body that is empty, or is not
-# JSON, still yields {} - which is exactly what `// {}` handed every caller -
-# and a body that decodes to a non-hash is still handed on as it was.
 # SM579: the connectors module, loaded on first use and pointed at this
 # request's docroot. Configuring is manage_connectors (the cap tables);
 # connector-call is gated by the CONNECTOR inside Connectors::may_call.
@@ -2687,10 +2675,6 @@ sub _connectors {
     no warnings 'once';
     $Lazysite::Manager::Connectors::DOCROOT = $DOCROOT;
     return 'Lazysite::Manager::Connectors';
-}
-
-sub _json_body {
-    return $JSON_BODY //= ( eval { decode_json($body) } // {} );
 }
 
 # SM516 MA-3: a gate refusal is three statements in one order - record it,

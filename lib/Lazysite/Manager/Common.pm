@@ -36,7 +36,8 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _em
     active_artifact_refusal refusal_detail refusal_status
     reset_request_context NO_REQUEST_CONTEXT users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $action $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $path $body
-    %USER_CAPS $REQUEST_IP _request_ip _display_names _operator);
+    %USER_CAPS $REQUEST_IP _request_ip _display_names _operator
+    %params $JSON_BODY _json_body);
 
 our $DOCROOT;    # set by the script
 
@@ -69,6 +70,8 @@ sub render_source_exists {
 # reset and _request_ip write. S32 moved _operator here beside _user_caps: it is
 # the one sub that fills $IS_OPERATOR, which the reset leaves 0 (not the
 # operator) and the script clears to undef once it has authenticated a request.
+# S33a added %params, the query string the script parses, and $JSON_BODY, the
+# body memo that only _json_body (below) fills.
 #
 # OWNED HERE, WRITTEN BY ONE FILE. lazysite-manager-api.pl imports them in place
 # of the file-scope `my` variables it used to declare, sets them as the request
@@ -94,7 +97,7 @@ sub render_source_exists {
 # Their default is the empty string they always had.
 sub NO_REQUEST_CONTEXT { return "\0no request context" } # a sub: lint 02 refuses `use constant`
 our ( $action, $auth_user, $token_auth, %token_caps, @REQUEST_SCOPES, $REQUEST_CONFINED,
-    $IS_OPERATOR, $path, $body, %USER_CAPS, $REQUEST_IP );
+    $IS_OPERATOR, $path, $body, %USER_CAPS, $REQUEST_IP, %params, $JSON_BODY );
 
 sub reset_request_context {
     $action     = '';                                          # no action
@@ -108,6 +111,8 @@ sub reset_request_context {
     $body             = '';
     %USER_CAPS        = ();                          # no account's caps remembered
     $REQUEST_IP       = undef;                       # no visitor's address remembered
+    %params           = ();                          # no request's parameters
+    $JSON_BODY        = undef;                       # no request's body remembered
     return;
 }
 reset_request_context();
@@ -135,6 +140,33 @@ sub _request_ip {
     $REQUEST_IP = Lazysite::Util::request_address(
         Lazysite::Util::trusted_proxy_spec($LAZYSITE_DIR) );
     return $REQUEST_IP;
+}
+
+# --- SM944 S33a: the request's parameters and its body ------------------------
+#
+# Ruled 2026-10-11 ("Yes, S33a then groups"). %params, the request's query
+# string decoded, and $JSON_BODY, the memo behind _json_body, were file-scope
+# `my` variables of lazysite-manager-api.pl, new with every run of it, and
+# read by the dispatch branches S33 moves into the area modules. They joined the
+# request context above under their script names: emptied by
+# reset_request_context(), which the script runs before its auth check; %params
+# written only by the script, where it parses the query string, and $JSON_BODY
+# filled only by _json_body, which moved here unchanged with its comment
+# (t/lint/217). Without the reset a pooled worker would hand one request's
+# parameters or body to the next.
+
+# SM516 MA-2 / MO-2: ONE decode of the request body per request.
+#
+# Forty-odd dispatch branches and the audit block each wrote
+# `eval { decode_json($body) } // {}`, so an ordinary POST decoded its own body
+# up to five times before it was answered. $body is read once, above, and never
+# reassigned, so the answer cannot change between calls.
+#
+# The shape is preserved rather than improved: a body that is empty, or is not
+# JSON, still yields {} - which is exactly what `// {}` handed every caller -
+# and a body that decodes to a non-hash is still handed on as it was.
+sub _json_body {
+    return $JSON_BODY //= ( eval { decode_json($body) } // {} );
 }
 
 # --- SM944 S22b: the users-tool client and the caps memo --------------------
