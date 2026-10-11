@@ -15,6 +15,15 @@
 #      it can't write the locked domain root or chgrp to www-data);
 #   4. drop the Hestia placeholder index.html so index.md renders.
 #
+# Exit status (read by lazysite-hestia-update-all.sh; Q16f):
+#   0  installed, and the site passed the health check after the repair
+#   1  the install or its verification failed (or install.pl's own non-zero)
+#   2  a mistake in the invocation, or no install.pl in STAGE_DIR
+#   4  SKIPPED by the site's update channel (stable site, edge build) - nothing
+#      touched
+#   5  installed, and the site is NOT serviceable: the health check still names
+#      a failure after the permission pass and the repair - a human is needed
+#
 # STAGE_DIR is the unpacked release (defaults to this script's dir, so it
 # works straight from inside an extracted tarball: installers/hestia/..).
 set -e
@@ -113,6 +122,20 @@ if [ "$IRC" = 3 ]; then
   echo "==> upgrade SKIPPED: this site is on the 'stable' update channel and this"
   echo "    release is an 'edge' build. Nothing changed (logged in the site audit)."
   exit 4          # distinct code so the batch updater can report skips separately
+elif [ "$IRC" = 4 ]; then
+  # Q16f: install.pl's 4 is "installed, and the site is NOT serviceable" (SM933)
+  # - not this script's 4, which is the channel skip. This passed it straight
+  # through (`exit "$IRC"` below), so the batch updater read a site that had
+  # upgraded and failed its health check as "skipped (channel)": on the 0.15.4
+  # edge rollout, 0 failed, and the watcher printed "deployed" with no findings.
+  #
+  # The files ARE installed, so the rest of this script still runs: the
+  # permission pass and the check's --fix below are what make a Hestia site
+  # serviceable, and stopping here left it half-configured. The verdict is the
+  # final check's, on the tree as it then is: exit 5 if it still fails.
+  INSTALL_UNSERVICEABLE=1
+  echo "WARN: install.pl installed the release and its health check named a failure (exit 4);"
+  echo "      continuing, so the permission pass and the repair below still run."
 elif [ "$IRC" != 0 ]; then
   echo "ERROR: install failed (exit $IRC)" >&2
   exit "$IRC"
@@ -321,5 +344,22 @@ echo "==> verifying install (permissions + health, auto-repair)"
 # Run as root with --fix so it can repair both modes and ownership if anything is
 # still off (the user asked: when run as root, the deploy should work the ownership
 # out itself).
-perl "$DOM/tools/lazysite-check.pl" --docroot "$DOC" --cgibin "$CGI" --fix || \
-  echo "  (some checks could not be auto-repaired - see above)"
+#
+# Q16f: ITS VERDICT IS THIS SCRIPT'S. A failure left after the repair was an
+# echo and exit 0, so the batch updater counted the site "updated". The check
+# exits non-zero only on a FAIL left in the post-fix tree - SM933's "not
+# serviceable" - and that is exit 5 here, distinct from the channel skip (4) and
+# a failed install (anything else), so the updater reports it as a site that
+# needs a human.
+set +e
+perl "$DOM/tools/lazysite-check.pl" --docroot "$DOC" --cgibin "$CGI" --fix
+CHK=$?
+set -e
+if [ "$CHK" != 0 ]; then
+  echo "NOT SERVICEABLE: $DOMAIN installed, and its health check still names a failure" >&2
+  echo "  after the repair (see above). Run: lazysite check --domain $DOMAIN" >&2
+  exit 5
+fi
+if [ "${INSTALL_UNSERVICEABLE:-0}" = 1 ]; then
+  echo "  the install's health check failure was cleared by the permission pass and the repair"
+fi

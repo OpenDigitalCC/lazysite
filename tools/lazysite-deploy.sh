@@ -115,7 +115,9 @@ updater_flags() {
 #
 # RETURNS the updater's own exit status, which SM344 made meaningful:
 #   0  rollout succeeded, in-scope fleet clean
-#   2  rollout SUCCEEDED and the fleet has findings a human must look at
+#   2  rollout SUCCEEDED and the fleet has findings a human must look at -
+#      including a site that installed and is NOT serviceable (Q16f: the
+#      updater reported that as a channel skip, and this printed "deployed")
 #   *  the rollout failed
 deploy() {
     local ver=$1 src="$DIST/lazysite-$1.tar.gz" flags rc=0

@@ -652,8 +652,17 @@ fi
 
 # --- deploy each -------------------------------------------------------------
 # Per-site exit: 0 = updated, 4 = skipped by the site's update channel (stable
-# site, edge release), anything else = failed.
-ok=0; SKIPPED=(); FAILED=(); RESULTS=()
+# site, edge release), 5 = installed and NOT serviceable (the health check still
+# fails after the deploy's repair), anything else = failed.
+#
+# Q16f: 4 USED TO MEAN TWO THINGS. install.pl exits 4 for "installed, not
+# serviceable" (SM933) and the deploy script passed that through, so on the
+# 0.15.4 edge rollout a site that upgraded and failed its health check was
+# listed here as "skipped (channel)" - 0 failed, no findings, and the watcher
+# printed "deployed". The deploy script now maps it to 5 at its boundary, and 5
+# is its own column: the site took the release and needs a human, so it is not
+# a skip and not a retryable install failure (exit 2 below, not 1).
+ok=0; SKIPPED=(); FAILED=(); UNSERVICEABLE=(); RESULTS=()
 for i in "${!DOMAINS[@]}"; do
     d="${DOMAINS[$i]}"; u="${USERS[$i]}"
     # ERREXIT IS ON HERE, and was before this line existed. The scope loop above
@@ -673,6 +682,7 @@ for i in "${!DOMAINS[@]}"; do
     set -e
     if   [ "$rc" = 0 ]; then ok=$(( ok + 1 )); RESULTS+=( "updated" )
     elif [ "$rc" = 4 ]; then SKIPPED+=( "$d" ); RESULTS+=( "skipped (channel)" )
+    elif [ "$rc" = 5 ]; then UNSERVICEABLE+=( "$d" ); RESULTS+=( "NOT SERVICEABLE" )
     else                     FAILED+=( "$d" ); RESULTS+=( "FAILED (status $rc)" )
     fi
 done
@@ -728,6 +738,8 @@ else
 fi
 [ "${#SKIPPED[@]}" -gt 0 ] && printf 'SKIPPED (stable site, edge release not installed): %s\n' "${SKIPPED[*]}"
 [ "${#FAILED[@]}" -gt 0 ]  && printf 'FAILED to upgrade: %s\n' "${FAILED[*]}"
+[ "${#UNSERVICEABLE[@]}" -gt 0 ] && \
+    printf 'NOT SERVICEABLE (installed; the health check still fails - needs a human): %s\n' "${UNSERVICEABLE[*]}"
 
 # --- health repair and the outside-in probe, via the CLI ---------------------
 #
@@ -808,7 +820,11 @@ sum_head
 _chk_clean=0; _chk_warn=0; _vh_rebuild=0
 for i in "${!DOMAINS[@]}"; do
     _chk='-'
-    if [ -f "$LZS" ] && [ "${RESULTS[$i]:-}" = updated ]; then
+    # Q16f: a site that installed and is not serviceable is checked too - it
+    # runs this release, and its check is the finding. It was reported as a
+    # channel skip, so the summary said "0 with warnings or failures" while the
+    # check had both.
+    if [ -f "$LZS" ] && { [ "${RESULTS[$i]:-}" = updated ] || [ "${RESULTS[$i]:-}" = "NOT SERVICEABLE" ]; }; then
         _chk=$(check_verdict "${DOMAINS[$i]}")
         if [ "$_chk" = clean ]; then _chk_clean=$(( _chk_clean + 1 )); else _chk_warn=$(( _chk_warn + 1 )); fi
     fi
@@ -823,8 +839,8 @@ for i in "${!EXC_D[@]}"; do
     sum_row "${EXC_D[$i]}" "${EXC_V[$i]}" '-' '-' '-' 'excluded (untouched)'
 done
 echo
-printf '  %d updated, %d failed, %d skipped, %d out of scope, %d excluded\n' \
-    "$ok" "${#FAILED[@]}" "${#SKIPPED[@]}" "${#OUT_OF_SCOPE[@]}" "${#EXC_D[@]}"
+printf '  %d updated, %d failed, %d not serviceable, %d skipped, %d out of scope, %d excluded\n' \
+    "$ok" "${#FAILED[@]}" "${#UNSERVICEABLE[@]}" "${#SKIPPED[@]}" "${#OUT_OF_SCOPE[@]}" "${#EXC_D[@]}"
 [ -n "${_rep_clean:-}" ] && \
     printf '  repair: %d clean, %d need a human\n' "${_rep_clean:-0}" "${_rep_human:-0}"
 [ -n "${_probe_ok:-}" ] && \
@@ -866,6 +882,20 @@ if [ "${#FAILED[@]}" -gt 0 ] || [ "${#PROXY_FAILED[@]}" -gt 0 ]; then
     echo "ROLLOUT FAILED: ${#FAILED[@]} site(s) failed to install, ${#PROXY_FAILED[@]} proxy move(s) failed."
     echo "  A retry is meaningful - the operation that failed is the one being retried."
     exit 1
+fi
+
+# Q16f: a site that installed and is not serviceable is a finding of THIS
+# rollout that needs a human - 2, not 1: re-running the install does not make
+# the health check pass.
+if [ "${#UNSERVICEABLE[@]}" -gt 0 ]; then
+    echo
+    echo "ROLLOUT INSTALLED, ${#UNSERVICEABLE[@]} SITE(S) NOT SERVICEABLE: the release is in"
+    echo "  place on them and their health check still fails after the repair:"
+    printf '    %s\n' "${UNSERVICEABLE[@]}"
+    echo "  They need a human (lazysite check --domain D names each failure);"
+    echo "  re-running this deploy will not change them, and neither will cutting"
+    echo "  another version."
+    exit 2
 fi
 
 if [ "${REPAIR_RC:-0}" != 0 ] || [ "${ACL_PROBE_RC:-0}" != 0 ]; then

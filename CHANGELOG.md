@@ -53,6 +53,20 @@ Archive
 
 ## Unreleased
 
+- rollout (PENDING) **a site that upgraded and is not serviceable is reported
+  as one, not as a channel skip.** install.pl exits 4 for "installed, and the
+  site is not serviceable"; the Hestia deploy script exits 4 for "skipped by
+  the update channel" and passed install.pl's 4 straight through, so the fleet
+  updater listed such a site as "SKIPPED (stable site, edge release not
+  installed)", counted 0 failed, left it out of the check summary, exited 0,
+  and the deploy watcher printed "deployed" (the 0.15.4 edge rollout). The
+  deploy script now finishes a not-serviceable install - the permission pass
+  and the repair still run - and exits 5 if the health check still fails after
+  them (a failure left by its repair used to be an echo and exit 0); the
+  updater gives 5 its own column, NOT SERVICEABLE, checks those sites, and
+  exits 2, which the watcher reports as findings that need a human.
+  t/tools/107.
+
 - release-dist (PENDING) **a release built from a git worktree leaves its packages
   in the main checkout's dist/** (ruled 2026-10-11: "queue the dist fix").
   `tools/release.sh build` copied the tarball, debs and skill zip into the
