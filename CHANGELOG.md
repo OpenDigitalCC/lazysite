@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM944 (PENDING) **internal: theme-delete tells a token client by the request
+  context** (S33 of the plan in the filing, a held branch approved on
+  2026-10-11). It reads `$token_auth`, Manager::Common's request fact, in place
+  of a flag set at the end of the token branch - the two proven equal in every
+  request. No answer changes: a token client deletes only the themes it
+  created (SM262), now pinned by t/unit/manager/224.
+
 - SM944 (PENDING) **security hardening: the session and access-key actions
   refuse when no account is asking, and are Manager::Sessions' handler** (S33
   of the plan in the filing, a held branch approved on 2026-10-11). The
