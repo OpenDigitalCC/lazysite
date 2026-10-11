@@ -9,6 +9,7 @@ package Lazysite::Manager::SiteBackup;
 #   _root_outside_grant          may the caller NOT reach content at a root (SM578/SM976)
 #   _package_scope_refusal       the refusal for a package outside the caller's reach
 #   _package_grant_refusal       ...whose words name the rule (SM782)
+#   dispatch_backup_list         backup-list: the backups the caller reaches (S33)
 #   action_site_backup_create    site-backup-create: package one domain
 #   action_site_export_primary   site-export-primary: package the primary site
 #   _site_package_path           a package name to its path in backups/
@@ -35,13 +36,13 @@ use POSIX                          qw(strftime);
 use Lazysite::Util                 qw(log_event);
 use Lazysite::Manager::Common      qw($auth_user @REQUEST_SCOPES _no_scope_refusal);
 use Lazysite::Manager::Upload      qw(check_upload_rate parse_multipart_body);
-use Lazysite::Manager::Backups     qw(action_backup_create);
+use Lazysite::Manager::Backups     qw(action_backup_create action_backup_list);
 use Lazysite::Manager::Domains     qw(domains_list);
 use Lazysite::Manager::SitePackage qw(package_create package_inspect);
 
 our @EXPORT_OK = qw(action_site_backup_create action_site_backup_upload action_site_backup_apply
     action_site_export_primary action_site_backup_inspect action_site_backup_delete
-    action_site_backup_download _package_scope_refusal);
+    action_site_backup_download _package_scope_refusal dispatch_backup_list);
 
 our $DOCROOT;         # set by the script
 our $LAZYSITE_DIR;    # set by the script
@@ -119,6 +120,41 @@ sub _package_grant_refusal {
             . "that contains the package's content root; this package has $root and "
             . "this grant's dav_scope names $scopes. The sysop's own session is exempt; a token needs a "
             . 'dav_scope covering the package, or the sysop removes it.' };
+}
+
+# SM944 S33: backup-list's dispatch branch, moved here from
+# lazysite-manager-api.pl with its statements unchanged: Manager::Backups'
+# listing, filtered by the same refusal the download and delete verbs use (a
+# site package outside the caller's reach is not listed) and, for a
+# domain-confined caller, without the instance's full and content backups.
+# Here rather than in Manager::Backups because the package refusal above is
+# this module's, and this module already loads Backups.
+sub dispatch_backup_list {
+    my $result;
+    $result = action_backup_list();
+    # SM578: the listing carried no scope filter at all, so a caller who may not
+    # DOWNLOAD another domain's package could still read its name and size - and
+    # a package name carries the host it was made for. Filtered through the same
+    # refusal the download and delete verbs use, so the three cannot disagree
+    # about who reaches what. Only `site` entries are per-domain; a full or
+    # content backup is instance-wide and is governed by manage_config.
+    #
+    # SM976 R1: a full or content backup is the whole instance - every domain's
+    # content, and a full one the configuration and the account store - so a
+    # domain-confined caller is shown none of them, and backup-download refuses
+    # them the same way.
+    if ( ref $result eq 'HASH' && ref $result->{backups} eq 'ARRAY' ) {
+        my $dir      = Lazysite::Paths::lazysite_dir($DOCROOT) . '/backups';
+        my $confined = Lazysite::Manager::Common::caller_is_confined();
+        $result->{backups} = [
+            grep {
+                ( $_->{scope} // '' ) eq 'site'
+                    ? !_package_scope_refusal("$dir/$_->{name}")
+                    : !$confined
+            } @{ $result->{backups} }
+        ];
+    }
+    return $result;
 }
 
 # SM158: package one domain's SITE (content root + nav + bundled theme/layout +

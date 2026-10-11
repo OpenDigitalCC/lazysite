@@ -67,7 +67,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
     action_layout_delete action_layouts_manifest action_layout_install
     action_artifact_backups_delete
     action_layouts_repo_get action_layouts_repo_set);
-use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
+use Lazysite::Manager::Backups qw(action_backup_create action_backup_download
     action_backup_restore action_backup_delete);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root action_domain_check action_domains_list); # SM944 S27
@@ -77,7 +77,7 @@ use Lazysite::Manager::Remap qw(_remap_list _remap_save); # SM944 S22: SM802's t
 use Lazysite::Manager::Preview qw(action_preview action_preview_grant action_preview_clear); # SM944 S24: SM071's preview verbs
 use Lazysite::Manager::Describe qw(action_describe_capabilities action_actions_list _json_bool); # SM944 S25
 use Lazysite::Manager::Services qw(action_channel_services action_analyse_visitors action_version); # SM944 S26
-use Lazysite::Manager::SiteBackup qw(action_site_backup_create action_site_backup_upload action_site_backup_apply action_site_export_primary action_site_backup_inspect action_site_backup_delete action_site_backup_download _package_scope_refusal); # SM944 S28
+use Lazysite::Manager::SiteBackup qw(action_site_backup_create action_site_backup_upload action_site_backup_apply action_site_export_primary action_site_backup_inspect action_site_backup_delete action_site_backup_download _package_scope_refusal dispatch_backup_list); # SM944 S28, S33
 use Lazysite::Manager::Config qw(action_config_read action_config_set action_lang_status); # SM944 S30
 use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
 use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes action_audit); # SM944 S31
@@ -2292,29 +2292,7 @@ elsif ( $action eq 'file-download' ) {
     $result = action_file_download($path);    # Q16b: streamed, or the refusal
 }
 elsif ( $action eq 'backup-list' ) {
-    $result = action_backup_list();
-    # SM578: the listing carried no scope filter at all, so a caller who may not
-    # DOWNLOAD another domain's package could still read its name and size - and
-    # a package name carries the host it was made for. Filtered through the same
-    # refusal the download and delete verbs use, so the three cannot disagree
-    # about who reaches what. Only `site` entries are per-domain; a full or
-    # content backup is instance-wide and is governed by manage_config.
-    #
-    # SM976 R1: a full or content backup is the whole instance - every domain's
-    # content, and a full one the configuration and the account store - so a
-    # domain-confined caller is shown none of them, and backup-download refuses
-    # them the same way.
-    if ( ref $result eq 'HASH' && ref $result->{backups} eq 'ARRAY' ) {
-        my $dir      = Lazysite::Paths::lazysite_dir($DOCROOT) . '/backups';
-        my $confined = Lazysite::Manager::Common::caller_is_confined();
-        $result->{backups} = [
-            grep {
-                ( $_->{scope} // '' ) eq 'site'
-                    ? !_package_scope_refusal("$dir/$_->{name}")
-                    : !$confined
-            } @{ $result->{backups} }
-        ];
-    }
+    $result = dispatch_backup_list();
 }
 elsif ( $action eq 'backup-create' ) {
     # scope=full = a full-system snapshot (config + auth + content) for DR and

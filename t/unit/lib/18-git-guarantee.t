@@ -156,6 +156,7 @@ my %EXEMPT = (
     # --- Backups ---
     # SM944 S28: the site-package verbs moved to Manager::SiteBackup.
     'Backups::action_backup_list'     => 'read-only',
+    'SiteBackup::dispatch_backup_list' => 'read-only',   # SM944 S33: backup-list's branch
     'Backups::action_backup_download' => 'read-only',
     'Backups::action_backup_create'   =>
         'writes only under lazysite/backups/ - excluded from the versioned set',
