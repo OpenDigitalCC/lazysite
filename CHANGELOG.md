@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- bad-url-blocker (PENDING) **the "Block this address" field is there when no address is
+  blocked** (ruled 2026-10-11: "Always show the field"). On the bad-URL
+  blocker's card, Blocked addresses, the field to block an address by hand was
+  drawn only when the list already held one, so a site with none had no way to
+  block the first from the manager (found running TEST-PLAN-0154 R14). It is
+  drawn either way; an empty list still says "No addresses are currently
+  blocked." t/unit/manager/225.
+
 - SM944 (PENDING) **internal: theme-delete tells a token client by the request
   context** (S33 of the plan in the filing, a held branch approved on
   2026-10-11). It reads `$token_auth`, Manager::Common's request fact, in place

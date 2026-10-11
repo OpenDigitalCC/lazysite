@@ -703,17 +703,21 @@ function loadBlocked() {
   fetch(API + '?action=bad-url-blocks').then(function (r) { return r.json(); }).then(function (d) {
     if (!d || !d.ok) { el.innerHTML = '<p class="mg-muted">' + esc((d && d.error) || 'Unavailable.') + '</p>'; return; }
     var ips = Object.keys(d.blocks || {});
-    if (!ips.length) { el.innerHTML = '<p class="mg-muted">No addresses are currently blocked.</p>'; return; }
-    ips.sort(function (a, b) { return (d.blocks[b].since || 0) - (d.blocks[a].since || 0); });
+    // RULED 2026-10-11 "Always show the field": the operator blocks an address
+    // by hand whether or not the list holds one already. It was drawn only
+    // with a non-empty list, so a site with none offered no way to add the
+    // first (TEST-PLAN-0154 R14); the empty list keeps its sentence.
     var h = '<div class="mg-line" style="margin:0 0 10px;">'
           + '<input class="mg-inp" id="block-add-ip" placeholder="203.0.113.4" '
           +   'style="max-width:14rem" onkeydown="if(event.key===\'Enter\')addBlock()">'
           + '<button class="mg-btn" onclick="addBlock()">Block this address</button>'
           + '</div>'
           + '<p class="mg-muted">A blocked address is refused the site &mdash; it receives 403 and is served nothing. '
-          + 'Unblocking takes effect on its next request.</p>'
-          + '<div class="mg-table-wrap"><table class="mg-table"><thead><tr>'
-          + '<th>Address</th><th>Probes</th><th>Blocked since</th><th></th></tr></thead><tbody>';
+          + 'Unblocking takes effect on its next request.</p>';
+    if (!ips.length) { el.innerHTML = h + '<p class="mg-muted">No addresses are currently blocked.</p>'; return; }
+    ips.sort(function (a, b) { return (d.blocks[b].since || 0) - (d.blocks[a].since || 0); });
+    h += '<div class="mg-table-wrap"><table class="mg-table"><thead><tr>'
+       + '<th>Address</th><th>Probes</th><th>Blocked since</th><th></th></tr></thead><tbody>';
     ips.forEach(function (ip) {
       var b = d.blocks[ip];
       var since = b.since ? new Date(b.since * 1000).toLocaleString() : '';
