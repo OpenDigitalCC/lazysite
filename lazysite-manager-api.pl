@@ -81,7 +81,7 @@ use Lazysite::Manager::SiteBackup qw(action_site_backup_create action_site_backu
 use Lazysite::Manager::Config qw(action_config_read action_config_set action_lang_status); # SM944 S30
 use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
 use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes dispatch_audit); # SM944 S31
-use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret); # SM944 S32
+use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret _users_tool_call); # SM944 S32
 use Lazysite::Manager::SiteBackup qw(dispatch_backup_list); # SM944 S33: backup-list's branch
 $Lazysite::Util::COMPONENT = 'manager-api';
 
@@ -2685,13 +2685,4 @@ sub action_pages {
     my %seen;
     @urls = grep { !$seen{$_}++ } @urls;
     return { ok => 1, urls => [ sort @urls ] };
-}
-
-# SM145: a thin one-shot call into the users tool (--api) for reads/writes that
-# this file gates itself (keys-list / key-revoke), bypassing action_users'
-# GET-guard and actor-injection which are specific to the account CRUD path.
-sub _users_tool_call {
-    my ($payload) = @_;
-    return _users_tool_run( $payload, "User management not available",
-        "Cannot run user management: %s", "Invalid response" );
 }

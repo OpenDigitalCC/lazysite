@@ -35,7 +35,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Capabilities    qw(reachability);
 use Lazysite::Auth::Settings  ();
 use Lazysite::Manager::Common qw($auth_user $token_auth %token_caps
-    users_api _users_tool_path _user_caps _operator _display_names);
+    users_api _users_tool_path _user_caps _operator _display_names _users_tool_run);
 use Lazysite::Manager::Themes   qw(_read_active_layout_and_theme action_theme_list);
 use Lazysite::Manager::Layouts  qw(action_layouts_available);
 use Lazysite::Manager::Plugins  qw(action_plugin_list);
@@ -44,7 +44,7 @@ use Lazysite::Manager::Describe qw(site_capabilities);
 use Lazysite::Manager::Config   qw(_language_context);
 
 our @EXPORT_OK = qw(action_whoami _manager_groups_from_settings _handler_who
-    action_display_names action_principals action_users action_rotate_auth_secret);
+    action_display_names action_principals action_users action_rotate_auth_secret _users_tool_call);
 
 our $DOCROOT;         # set by the script
 our $LAZYSITE_DIR;    # set by the script
@@ -502,6 +502,18 @@ sub action_rotate_auth_secret {
         ok      => 1,
         message => 'All sessions invalidated. You will need to sign in again.',
     };
+}
+
+
+# SM944 S33 (held branch (2), approved 2026-10-11): moved here unchanged from
+# lazysite-manager-api.pl, the runner of the keys-list and key-revoke actions.
+# SM145: a thin one-shot call into the users tool (--api) for reads/writes that
+# this file gates itself (keys-list / key-revoke), bypassing action_users'
+# GET-guard and actor-injection which are specific to the account CRUD path.
+sub _users_tool_call {
+    my ($payload) = @_;
+    return _users_tool_run( $payload, "User management not available",
+        "Cannot run user management: %s", "Invalid response" );
 }
 
 1;
