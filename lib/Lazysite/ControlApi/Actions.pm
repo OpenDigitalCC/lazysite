@@ -237,8 +237,8 @@ our %GATE = (
     'layout-install' => [qw(manage_layouts)],
     'layout-delete'  => [qw(manage_layouts)],
     # SM262: a caller that can create a theme may remove one IT created, and
-    # nothing else - enforced in action_theme_delete, which this branch asks
-    # for by setting $RESTRICT_THEME_DELETE below. Without this an agent
+    # nothing else - enforced in action_theme_delete, which the dispatcher asks
+    # for when the caller is a token client ($token_auth). Without this an agent
     # accumulated an experiment per attempt and only the operator could clear
     # them. The manager UI over a cookie session does not take this path and
     # keeps the unrestricted delete: a human at the console is the case the

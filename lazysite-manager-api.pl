@@ -207,11 +207,6 @@ return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 # Replaces the retired lazysite.conf manager_groups signal.
 my $site_secured = site_grants_manager();
 
-# SM262: set when the request authenticated with a TOKEN rather than a manager
-# cookie, so theme-delete can be restricted to themes the caller created. Declared
-# here because it is set in the auth branch and read at dispatch.
-my $RESTRICT_THEME_DELETE = 0;
-
 # SM465: the rule before and after an acl-set, for the audit entry at the end
 # of the dispatch. File scope rather than threaded through, because the audit
 # block runs after the chain has finished and every action shares that one exit.
@@ -837,11 +832,6 @@ if ($token_auth) {
                     . "account's group." },
             'api', 'denied: api channel capability' );
     }
-
-    # SM262: this whole branch runs ONLY for token auth, so reaching it is what
-    # marks the caller as automated rather than a human at the manager console.
-    # The flag is read at dispatch, where the acting user is also known.
-    $RESTRICT_THEME_DELETE = 1;
 
     # SM662: A GATE DECLARES THE CAPABILITIES IT NEEDS, rather than testing
     # them in code that nothing can read.
@@ -1813,7 +1803,14 @@ elsif ( $action eq 'theme-delete' ) {
     # human is domain-confined - the theme library is the instance's, so a
     # confined manager removes only what it created, as a token does. (Any
     # theme the primary or a domain serves is refused to everyone, SM177.)
-    my $restrict = ( $RESTRICT_THEME_DELETE
+    #
+    # SM944 S33, held branch (3) (approved 2026-10-11): a token client is
+    # $token_auth, Manager::Common's request fact. It replaces
+    # $RESTRICT_THEME_DELETE, a flag set to 1 at the end of the token branch's
+    # gates, which runs only when $token_auth is set and exits on each refusal
+    # before it: the two were equal at this point in every request
+    # (tmp/sm944-n348-equiv.sh, .out).
+    my $restrict = ( $token_auth
             || Lazysite::Manager::Common::caller_is_confined() ) ? 1 : 0;
     $result = action_theme_delete( $path,
         { restrict_to_creator => $restrict, user => $auth_user } );
