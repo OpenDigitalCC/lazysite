@@ -80,7 +80,7 @@ use Lazysite::Manager::Services qw(action_channel_services action_analyse_visito
 use Lazysite::Manager::SiteBackup qw(action_site_backup_create action_site_backup_upload action_site_backup_apply action_site_export_primary action_site_backup_inspect action_site_backup_delete action_site_backup_download _package_scope_refusal); # SM944 S28
 use Lazysite::Manager::Config qw(action_config_read action_config_set action_lang_status); # SM944 S30
 use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
-use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes action_audit); # SM944 S31
+use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes dispatch_audit); # SM944 S31
 use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret); # SM944 S32
 use Lazysite::Manager::SiteBackup qw(dispatch_backup_list); # SM944 S33: backup-list's branch
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -2128,34 +2128,7 @@ elsif ( $action eq 'preview-public' ) {                                         
     $result = preview_public( $params{path} );
 }
 elsif ( $action eq 'audit' ) {
-    # Strict gate: the FULL audit trail requires the 'audit' capability (separate
-    # from visitor analytics). Token clients are already gated by %need above (a
-    # token still needs 'audit' for the full log). SM173: a cookie (manager) user
-    # who holds create_sub_users but NOT 'audit' gets a SCOPED view - their own
-    # activity plus that of the accounts beneath them in the managed_by tree.
-    my $scope;    # undef = full log; hashref of usernames = restrict to these
-    my $denied = 0;
-    if ( !$token_auth ) {
-        my $caps = _user_caps($auth_user);
-        if ( !$caps->{audit} ) {
-            if ( $caps->{create_sub_users} ) {
-                my $sc = users_api( { action => 'audit-scope', username => $auth_user } ) || {};
-                $scope = { map { $_ => 1 } @{ $sc->{users} || [] }, $auth_user };
-            }
-            else {
-                audit_log( $auth_user, 'audit', '', _request_ip(), 'fail', 'ui', 'denied: needs audit' );
-                $result = { ok => 0, kind => 'forbidden',
-                    error => "The audit trail requires the 'Audit trail' permission. An "
-                        . "administrator can grant it on the Groups page: give a group the "
-                        . "'Audit trail' action, and add the user to it." };
-                $denied = 1;
-            }
-        }
-    }
-    $result = action_audit( user => $params{user}, target => $params{target},
-        start    => $params{start},    end   => $params{end}, page => $params{page},
-        per_page => $params{per_page}, scope => $scope )
-        unless $denied;
+    $result = dispatch_audit();
 }
 elsif ( $action eq 'recent-changes' ) { $result = action_recent_changes( $params{window} ) }
 elsif ( $action eq 'channel-services' ) { $result = action_channel_services() }

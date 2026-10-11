@@ -35,11 +35,12 @@ use Lazysite::Paths          ();
 use Lazysite::Audit          qw(audit_log);
 use Lazysite::Auth::Settings ();
 use Lazysite::Manager::Common
-    qw($auth_user $token_auth %token_caps _user_caps _request_ip _display_names);
+    qw($auth_user $token_auth %token_caps _user_caps _request_ip _display_names
+    %params users_api);    # S33: the audit branch's handler reads the query and the scope
 
 our @EXPORT_OK = qw(_audit_trail_set _audit_implicit_target _audit_plugin_target
     _audit_parse_line _audit_cached_entries _audit_trail_state
-    action_recent_changes action_audit);
+    action_recent_changes action_audit dispatch_audit);
 
 our $DOCROOT;         # set by the script
 our $LAZYSITE_DIR;    # set by the script
@@ -418,6 +419,46 @@ sub action_recent_changes {
             { ts => $e->{ts}, user => $e->{user}, action => $e->{action} };
     }
     return { ok => 1, window => $window, changes => \%recent };
+}
+
+# SM944 S33 (ruled 2026-10-11, "Yes, S33a then groups"): the audit action's
+# dispatch branch, moved here from lazysite-manager-api.pl with its statements
+# unchanged: the cookie gate (the full trail needs 'audit'; create_sub_users
+# alone gets the managed_by scope), then action_audit below with the request's
+# filters from %params (Manager::Common's context, S33a). Outside a request the
+# reset leaves a token client, so the cookie gate is skipped, and action_audit
+# refuses an empty account (S31): it reads nothing.
+sub dispatch_audit {
+    my $result;
+    # Strict gate: the FULL audit trail requires the 'audit' capability (separate
+    # from visitor analytics). Token clients are already gated by %need above (a
+    # token still needs 'audit' for the full log). SM173: a cookie (manager) user
+    # who holds create_sub_users but NOT 'audit' gets a SCOPED view - their own
+    # activity plus that of the accounts beneath them in the managed_by tree.
+    my $scope;    # undef = full log; hashref of usernames = restrict to these
+    my $denied = 0;
+    if ( !$token_auth ) {
+        my $caps = _user_caps($auth_user);
+        if ( !$caps->{audit} ) {
+            if ( $caps->{create_sub_users} ) {
+                my $sc = users_api( { action => 'audit-scope', username => $auth_user } ) || {};
+                $scope = { map { $_ => 1 } @{ $sc->{users} || [] }, $auth_user };
+            }
+            else {
+                audit_log( $auth_user, 'audit', '', _request_ip(), 'fail', 'ui', 'denied: needs audit' );
+                $result = { ok => 0, kind => 'forbidden',
+                    error => "The audit trail requires the 'Audit trail' permission. An "
+                        . "administrator can grant it on the Groups page: give a group the "
+                        . "'Audit trail' action, and add the user to it." };
+                $denied = 1;
+            }
+        }
+    }
+    $result = action_audit( user => $params{user}, target => $params{target},
+        start    => $params{start},    end   => $params{end}, page => $params{page},
+        per_page => $params{per_page}, scope => $scope )
+        unless $denied;
+    return $result;
 }
 
 sub action_audit {

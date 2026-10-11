@@ -285,6 +285,7 @@ my %EXEMPT = (
     # SM944 S26: channel-services, analyse_visitors and version moved to Manager::Services.
     'Services::action_channel_services' => 'read-only', # SM180: reports killswitch state, no write
     'AuditTrail::action_audit'          => 'read-only',    # SM944 S31 moved it
+    'AuditTrail::dispatch_audit'        => 'read-only',    # SM944 S33: audit's branch
     'Services::action_analyse_visitors' => 'read-only',
     'Services::action_version'          => 'read-only',
     'Users::action_principals'          => 'read-only',    # SM944 S32 moved it
