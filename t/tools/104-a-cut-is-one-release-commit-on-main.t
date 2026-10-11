@@ -188,6 +188,28 @@ subtest 'build: one release commit on main, tagged, from the receipt' => sub {
     like( $out, qr/tools\/release\.sh publish 0\.1\.1/, 'and it names the release manager\'s step' );
 };
 
+# Q16e (ruled 2026-10-11, "queue the dist fix"): a build run from a git
+# worktree wrote its tarball, debs and skill zip to THAT worktree's dist/. The
+# deploy monitor watches the main checkout's dist/, so 0.15.3 and 0.15.4 never
+# reached it. The packages go where the receipts are: STATE_ROOT, the main
+# checkout (Q14b), wherever release.sh runs from.
+subtest 'build from a worktree leaves its packages in the main checkout\'s dist/' => sub {
+    my $d = repo();
+    receipt($d);
+    my $wt = tempdir( CLEANUP => 1 ) . '/wt';
+    git( $d, 'worktree', 'add', '-q', '--detach', $wt, 'main' );
+    my $stage = tempdir( CLEANUP => 1 );
+    local $ENV{PATH}              = "$BIN:$ENV{PATH}";
+    local $ENV{LAZYSITE_SKIP_DEB} = 1;
+    local $ENV{STUB_WANT_VERSION} = '0.1.1';
+    my $out = run_cmd( 'bash', "$wt/tools/release.sh", 'build', '0.1.1', '--notes', $NOTES, '--stage-dir', $stage );
+    is( $? >> 8, 0, 'the build passes' ) or return diag($out);
+    ok( -f "$d/dist/lazysite-0.1.1.tar.gz", 'the tarball is in the main checkout\'s dist/' );
+    ok( -f "$d/dist/lazysite-0.1.1.tar.gz.sha256", 'and its checksum' );
+    ok( !-e "$wt/dist/lazysite-0.1.1.tar.gz",      'and not in the worktree\'s' );
+    like( $out, qr/tarball:\s+\Q$d\E\/dist\/lazysite-0\.1\.1\.tar\.gz/, 'and the summary names where it is' );
+};
+
 subtest 'build moves the main ref when main is checked out nowhere' => sub {
     my $d = repo();
     receipt($d);

@@ -1358,7 +1358,14 @@ echo "==> main is now $NEW_MAIN (was $MAIN_SHA)"
 
 # Copy the tarball + sha out of staging so the operator has it
 # locally after the staging dir is cleaned up.
-FINAL_DIST="$ORIGIN/dist"
+#
+# Q16e (ruled 2026-10-11, "queue the dist fix"): INTO THE MAIN CHECKOUT'S dist/,
+# wherever this script runs from - STATE_ROOT, where the receipts are (Q14b).
+# It was $ORIGIN/dist: a build run from a git worktree left the tarball, debs
+# and skill zip in that worktree, the deploy monitor (which watches the main
+# checkout's dist/) never saw them, and 0.15.3 and 0.15.4 were copied across by
+# hand. t/tools/104.
+FINAL_DIST="$STATE_ROOT/dist"
 mkdir -p "$FINAL_DIST"
 cp "$TARBALL" "$FINAL_DIST/"
 cp "$TARBALL.sha256" "$FINAL_DIST/"

@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- release-dist (PENDING) **a release built from a git worktree leaves its packages
+  in the main checkout's dist/** (ruled 2026-10-11: "queue the dist fix").
+  `tools/release.sh build` copied the tarball, debs and skill zip into the
+  dist/ of the tree it ran from, so a build run from a worktree left them where
+  the deploy monitor, which watches the main checkout's dist/, never looked
+  (0.15.3 and 0.15.4 were copied across by hand). They go to the main
+  checkout, where the gate's receipts already are. t/tools/104.
+
 - pdf-tests (PENDING) **internal: the PDF tests no longer fail on a loaded host.**
   t/unit/plugins/40 and 41 assert that a render succeeds, and under a host
   load of about 17-23 a render outlasted the plugin's 20 s ceiling and was
