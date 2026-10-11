@@ -41,7 +41,7 @@ questions below, and the next item starts.
 | --- | --- | --- | --- |
 | P4 | `users-detail` reads every account (43 s for 695), so approving an account request times out in the browser | built (n390), SM983: the approval asks `users-detail` for `fields: ["email"]` only, 0.27 s for 700 accounts from 26.7 s | S |
 | P5 | `&&` in a page body is a template parse error (it appears to reach TT as `&amp;&amp;`) | built (n391), SM984: convert_md lifts each `[% %]` tag past the Markdown converter; a tag in code is shown, escaped | S |
-| P6 | A fenced code block that shows `:::` component syntax is expanded | leave fenced and indented code alone in the `:::` pass | S |
+| P6 | A fenced code block that shows `:::` component syntax is expanded | built (n392), SM985: fenced code is converted first and held out of the `:::` passes; indented code was never affected | S |
 | P7 | A setup link refused over plain HTTP says "invalid or expired" | the transport refusal gets its own answer on the claim page | XS |
 | P8 | The development server cannot receive a form post (404 for `form-handler.pl`) | route it as the `lazysite-*` scripts are | XS |
 | P9 | A `scan:` stops at 200 pages with no warning, in file order | a documented, configurable cap or `limit=`/`offset=`, and a `<var>_total` | S |

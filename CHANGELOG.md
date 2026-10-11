@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM985 (PENDING) **a code block can show `:::` syntax.** The `:::` passes
+  (components, boxes, include, forms, oembed) ran before code blocks were
+  converted, so a ``` block showing how a component is written rendered the
+  component inside the code block. Fenced code is now held out of those
+  passes; a code block inside a box is still a code block.
+  t/unit/processor/96.
+
 - SM984 (PENDING) **`&&`, `||` and `<` work in a template tag in a page body.**
   The body is converted from Markdown before the template pass, and the
   converter escaped the tags as prose: `[% IF a && b %]` reached the template

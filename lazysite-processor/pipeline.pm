@@ -662,24 +662,26 @@ sub process_md {
     }
     # raw: true - Markdown pipeline runs, no layout
     elsif ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
-        my $converted_form = convert_fenced_form( $body, $meta );
+        my ( $lifted, $restore ) = lift_fenced_code($body);    # P6
+        my $converted_form = convert_fenced_form( $lifted, $meta );
         my $converted_comp = convert_fenced_components( $converted_form, $layout_dir, $md_path, $meta );
         my $converted        = convert_fenced_divs($converted_comp);
         my $converted_inc    = convert_fenced_include( $converted, $md_path, $meta );
         my $converted2       = convert_fenced_code($converted_inc);
-        my $converted3       = convert_oembed($converted2);
+        my $converted3       = $restore->( convert_oembed($converted2) );
         my $html_body        = convert_md($converted3);
         my ($processed_body) = render_content( $meta, $html_body, $query );
         $page = $processed_body;
     }
     # Normal mode - full pipeline with layout
     else {
-        my $converted_form = convert_fenced_form( $body, $meta );
+        my ( $lifted, $restore ) = lift_fenced_code($body);    # P6
+        my $converted_form = convert_fenced_form( $lifted, $meta );
         my $converted_comp = convert_fenced_components( $converted_form, $layout_dir, $md_path, $meta );
         my $converted     = convert_fenced_divs($converted_comp);
         my $converted_inc = convert_fenced_include( $converted, $md_path, $meta );
         my $converted2    = convert_fenced_code($converted_inc);
-        my $converted3    = convert_oembed($converted2);
+        my $converted3    = $restore->( convert_oembed($converted2) );
         my $html_body     = convert_md($converted3);
         $meta->{_md_path} = $md_path;
         $page             = render_template( $meta, $html_body, $query );
@@ -777,10 +779,11 @@ sub process_url {
             $t[5] + 1900, $t[4] + 1, $t[3] );
     }
 
-    my $converted     = convert_fenced_divs($body);
+    my ( $lifted, $restore ) = lift_fenced_code($body);    # P6
+    my $converted     = convert_fenced_divs($lifted);
     my $converted_inc = convert_fenced_include( $converted, $url_path, $meta );
     my $converted2    = convert_fenced_code($converted_inc);
-    my $converted3    = convert_oembed($converted2);
+    my $converted3    = $restore->( convert_oembed($converted2) );
     my $html_body     = convert_md($converted3);
 
     my $page;

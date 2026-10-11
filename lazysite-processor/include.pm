@@ -212,9 +212,10 @@ sub _resolve_include {
     if ( $lang eq 'markdown' ) {
         # Strip YAML front matter, run sub-pipeline (no recursion)
         my ( undef, $body ) = parse_yaml_front_matter($content);
-        my $sub = convert_fenced_divs($body);
+        my ( $lifted, $restore ) = lift_fenced_code($body);             # P6
+        my $sub = convert_fenced_divs($lifted);
         $sub = convert_fenced_code($sub);
-        $sub = convert_oembed($sub);
+        $sub = $restore->( convert_oembed($sub) );
         $sub = convert_md($sub);
         return $sub;
     }
@@ -243,16 +244,51 @@ sub convert_fenced_code {
         (.*?)                     # content
         ^```[ \t]*\n              # closing ```
     }{
-        my $lang = $1;
-        my $code = $2;
-        $code =~ s/&/&amp;/g;
-        $code =~ s/</&lt;/g;
-        $code =~ s/>/&gt;/g;
-        my $class = $lang ? qq( class="language-$lang") : '';
-        "<pre><code$class>$code</code></pre>\n"
+        _fenced_code_html( $1, $2 ) . "\n"
     }gsmxe;
 
     return $text;
+}
+
+sub _fenced_code_html {
+    my ( $lang, $code ) = @_;
+    $code =~ s/&/&amp;/g;
+    $code =~ s/</&lt;/g;
+    $code =~ s/>/&gt;/g;
+    my $class = $lang ? qq( class="language-$lang") : '';
+    return "<pre><code$class>$code</code></pre>";
+}
+
+# P6 (WORK-PLAN-0154): A CODE FENCE IS NOT A COMPONENT FENCE.
+#
+# The `:::` passes (form, components, divs, include, oembed) run BEFORE
+# convert_fenced_code, and each matches `:::` at the start of a line - which is
+# where a ``` block that SHOWS the syntax puts it. So a style guide's example
+# rendered as the component, escaped, inside its own <pre>. The fenced blocks
+# are converted here, first, and held out by a placeholder the content cannot
+# spell (SM967's key) until the `:::` passes are done; the returned closure puts
+# each back, dropping the paragraph a `:::` box's Markdown pass may have wrapped
+# its placeholder in. An indented block needs nothing: its lines do not start
+# with `:::`.
+sub lift_fenced_code {
+    my ($text) = @_;
+    my $k = 'LZSCODE' . _placeholder_key($text) . 'N';
+    my @blocks;
+    $text =~ s{
+        ^```[ \t]*(\S*)[ \t]*\n
+        (.*?)
+        ^```[ \t]*\n
+    }{
+        push @blocks, _fenced_code_html( $1, $2 );
+        $k . $#blocks . "E\n"
+    }gsmxe;
+    my $restore = sub {
+        my ($t) = @_;
+        return $t unless @blocks;
+        $t =~ s{(?:<p>)?(\Q$k\E(\d+)E)(?:</p>)?}{ defined $blocks[$2] ? $blocks[$2] : $1 }ge;
+        return $t;
+    };
+    return ( $text, $restore );
 }
 
 # Text::MultiMarkdown paragraph-wraps top-level block HTML that is not isolated
