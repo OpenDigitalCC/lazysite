@@ -749,4 +749,90 @@ subtest 'the users area, loaded outside a request, answers for nobody' => sub {
     is( $secret->(), $rotated, '...which rotated nothing more' );
 };
 
+# SM944 S33: the four listing branches extracted into their area modules -
+# themes-list-all (Themes), form-list (Plugins), briefs-list (Briefs),
+# backup-list (SiteBackup). Each filters by the caller's reach, and outside a
+# request the reset leaves a caller confined to no scope, so the three filtered
+# listings list nothing (as domains-list and remap-list do) and themes-list-all
+# names no domain to activate on; the theme library itself is a site fact, as
+# theme-list answers it. Unchanged by the move; pinned here. With boss's context
+# each lists what boss reaches, and after the reset nothing again
+# (tmp/sm944-s33-refusal-probe.out).
+subtest 'the listings extracted from the dispatch chain list nothing outside a request' => sub {
+    require Lazysite::Manager::Themes;
+    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Briefs;
+    require Lazysite::Manager::SiteBackup;
+    require ManagerSession;
+    my $s = ManagerSession::new_site( root => repo_root(),
+        conf => "control_api_enabled: true\nplugins:\n  - plugins/briefs.pl\n" );
+    my @ALL = qw(ui manage_users manage_config manage_content manage_forms briefs);
+    $s->add_user('boss');
+    $s->grant( 'boss', 'bosses', \@ALL, \@ALL );
+    my $d    = $s->docroot;
+    my $lz   = "$d/lazysite";
+    my $spit = sub {
+        my ( $p, $c ) = @_;
+        ( my $dir = $p ) =~ s{/[^/]*\z}{};
+        File::Path::make_path($dir);
+        open my $o, '>', $p or die "$p: $!";
+        print {$o} $c;
+        close $o;
+    };
+    require File::Path;
+    $spit->( "$lz/layouts/plain/layout.tt",              "<html>[% content %]</html>\n" );
+    $spit->( "$lz/layouts/plain/themes/blue/theme.json", '{"name":"blue"}' );
+    $spit->( "$lz/briefs/about.md",                      "brief\n" );
+    $spit->( "$d/about.md",                              "---\ntitle: About\n---\nhi\n" );
+    $spit->( "$lz/forms/contact.conf",                   "targets:\n" );
+    $spit->( "$d/contact.md", "---\ntitle: C\nform: contact\n---\n\n:::form\nn | N\n:::\n" );
+    $spit->( "$lz/backups/full-20260101-000000.tar.gz", 'x' );
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT          = $d;
+    local $Lazysite::Manager::Themes::DOCROOT          = $d;
+    local $Lazysite::Manager::Themes::LAZYSITE_DIR     = $lz;
+    local $Lazysite::Manager::Plugins::DOCROOT         = $d;
+    local $Lazysite::Manager::Briefs::DOCROOT          = $d;
+    local $Lazysite::Manager::SiteBackup::DOCROOT      = $d;
+    local $Lazysite::Manager::SiteBackup::LAZYSITE_DIR = $lz;
+    local $Lazysite::Manager::Backups::DOCROOT         = $d;
+    local $Lazysite::Manager::Backups::LAZYSITE_DIR    = $lz;
+    local $Lazysite::Auth::Settings::AUTH_DIR          = "$lz/auth";
+    local $ENV{LAZYSITE_USERS_TOOL} = repo_root() . '/tools/lazysite-users.pl';
+    local $ENV{LAZYSITE_LOG_LEVEL}  = 'ERROR';
+    my %list = (
+        themes  => sub { Lazysite::Manager::Themes::dispatch_themes_list_all() },
+        forms   => sub { Lazysite::Manager::Plugins::dispatch_form_list() },
+        briefs  => sub { Lazysite::Manager::Briefs::dispatch_briefs_list() },
+        backups => sub { Lazysite::Manager::SiteBackup::dispatch_backup_list() },
+    );
+    my $none = sub {
+        my ($when) = @_;
+        my $t = $list{themes}->();
+        ok( $t->{ok} && @{ $t->{themes} || [] }, "$when: themes-list-all answers the theme library (a site fact)" );
+        is_deeply( $t->{acts_on}, [], "$when: ...and names no domain to activate on" );
+        for my $k (qw(forms briefs backups)) {
+            my $r = $list{$k}->();
+            is_deeply( $r->{$k}, [], "$when: the $k listing lists nothing" ) or diag explain $r;
+        }
+    };
+    reset_request_context();
+    $none->('nobody');
+
+    # boss's own request, as the script sets it (an unbound cookie manager).
+    $auth_user        = 'boss';
+    $token_auth       = 0;
+    $IS_OPERATOR      = undef;
+    $REQUEST_CONFINED = 0;
+    @REQUEST_SCOPES   = ();
+    ok( !exists $list{themes}->()->{acts_on}, 'boss: themes-list-all names no acts_on (unconfined)' );
+    is( scalar @{ $list{forms}->()->{forms} || [] }, 1, 'boss: form-list lists the bound form' );
+    is_deeply( [ map { $_->{path} } @{ $list{briefs}->()->{briefs} || [] } ], ['/about.md'],
+        'boss: briefs-list lists the brief' );
+    is( scalar @{ $list{backups}->()->{backups} || [] }, 1, 'boss: backup-list lists the full backup' );
+
+    reset_request_context();
+    $none->('reset');
+};
+
 done_testing();
