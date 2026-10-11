@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1-S20 (n278-n304) the processor, done; S21-S30 (n306-n337) the context, Remap, users client, notices, start page, _emit_json, Preview, Describe, Services, Domains, SiteBackup, PagePdf, Config; ITEM 1 (n339) rotating the auth secret needs an account (security); S31 (n340) AuditTrail, request IP in Common; S32 (n341) Users; ITEM 1 ruled again 2026-10-11 (n342): rotation only for the account asking. Next: S33."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1-S20 (n278-n304) the processor; S21-S32 (n306-n341) the manager API's context and areas; ITEM 1 (n339, n342) rotating the auth secret only for the account asking (security). Next: S33."
 ---
 
 # Measured
