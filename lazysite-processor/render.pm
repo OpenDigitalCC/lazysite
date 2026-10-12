@@ -7,9 +7,11 @@ package main;
 #         page's tt vars, the auth/payment/preview contexts, the escaped stash
 #         families and their `_raw` twins, the manager caps, the languages),
 #         protects code blocks, neutralises a body's TAGS directive and renders
-#         the body; _tt_render() and _tt_render_impl(), the render with one
-#         retry without the compile cache; _cache_umask(), the group-writable
-#         umask every compile-cache surface runs under.
+#         the body - as a sequence of calls to its parts (SM1012): _tt_engine,
+#         _render_manager_facts, _render_lang, _render_stash and
+#         _tt_process_protected; _tt_render() and _tt_render_impl(), the render
+#         with one retry without the compile cache; _cache_umask(), the
+#         group-writable umask every compile-cache surface runs under.
 # OWNS    the single point the stash's escaped families enter (SM709, H5,
 #         SM869) and the documented `_raw` exception (SM824); the code-block
 #         placeholder pass (SM931, SM967); the TAGS refusal (SM968); a
@@ -430,66 +432,15 @@ sub _render_stash {
     return $vars;
 }
 
-sub render_content {
-    my ( $meta, $html_body, $query, $before_render ) = @_;
-    $query //= {};
-
-    my $tt = _tt_engine();    # SM1012 S7
-
-    my %site_vars = resolve_site_vars();
-    my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
-
-    my $groups_ref = $AUTH_CONTEXT{auth_groups};
-    my $groups_str = ref $groups_ref eq 'ARRAY' ? join( ',', @$groups_ref ) : ( $groups_ref // '' );
-    my $editor_flag = _is_manager( \%site_vars, $AUTH_CONTEXT{auth_user} // '', $groups_str ) ? 1 : 0;
-
-    my ( $manager_caps, $scope_root, $home_domain, $my_scopes )
-        = _render_manager_facts($groups_str);    # SM1012 S8
-
-    my ( $site_lang, $page_lang ) = _render_lang( $meta, %site_vars );    # SM1012 S9
-    $RESPONSE_LANG = $page_lang;
-    # SM179 P2: the language-set switcher data ({ lang, url, current, exists }),
-    # empty unless this host is in a lang_group with siblings. Layouts render a
-    # switcher and hreflang from it.
-    my @languages = _language_set(
-        ( $site_vars{alias_host} // '' ),
-        ( $site_vars{lang_group} // '' ),
-        ( $ENV{REDIRECT_URL}     // $ENV{REQUEST_URI} // '/' ),
-    );
-
-    my $vars = _render_stash(    # SM1012 S10
-        meta         => $meta,
-        query        => $query,
-        editor_flag  => $editor_flag,
-        manager_caps => $manager_caps,
-        scope_root   => $scope_root,
-        home_domain  => $home_domain,
-        my_scopes    => $my_scopes,
-        site_lang    => $site_lang,
-        page_lang    => $page_lang,
-        site_vars    => \%site_vars,
-        page_vars    => \%page_vars,
-        languages    => \@languages,
-    );
-
-    # SM249: the variables are now complete, and the body has not been rendered
-    # yet - so this is the one point at which a caller can add to them and have
-    # the page body see them.
-    #
-    # render_template uses it to resolve the layout and the active theme here
-    # rather than after the body render, which is why [% theme_assets %] now
-    # works in a page body. It used to resolve in the step BETWEEN this function
-    # returning and the layout render, so a page body referencing it got an
-    # empty string with no error - the variable existed by the time the layout
-    # was rendered and never during the body.
-    #
-    # Callers that render a body with NO layout (raw pages, api pages) pass
-    # nothing and are unaffected: no layout means no theme, and theme_assets
-    # stays absent for them, which is the correct answer rather than a
-    # misleading one.
-    $before_render->($vars) if $before_render;
-
-    # Protect <pre><code> blocks and inline <code> elements from TT processing
+# SM1012 S11: THE BODY THROUGH THE TEMPLATE, ITS CODE PROTECTED - cut from
+# render_content. Code blocks become placeholders, a TAGS directive is made a
+# comment, the body is processed (the raw body on a template error), the
+# blocks come back in one pass, and a block the render multiplied is said out
+# loud. The `last` is its own loop's.
+#
+# Protect <pre><code> blocks and inline <code> elements from TT processing
+sub _tt_process_protected {
+    my ( $tt, $html_body, $vars ) = @_;
     my $protected_body = $html_body;
     my @code_blocks;
     my $cbk = _placeholder_key($protected_body);    # SM967: a value cannot spell it
@@ -579,6 +530,69 @@ sub render_content {
             last;
         }
     }
+    return $processed_body;
+}
+
+sub render_content {
+    my ( $meta, $html_body, $query, $before_render ) = @_;
+    $query //= {};
+
+    my $tt = _tt_engine();    # SM1012 S7
+
+    my %site_vars = resolve_site_vars();
+    my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
+
+    my $groups_ref = $AUTH_CONTEXT{auth_groups};
+    my $groups_str = ref $groups_ref eq 'ARRAY' ? join( ',', @$groups_ref ) : ( $groups_ref // '' );
+    my $editor_flag = _is_manager( \%site_vars, $AUTH_CONTEXT{auth_user} // '', $groups_str ) ? 1 : 0;
+
+    my ( $manager_caps, $scope_root, $home_domain, $my_scopes )
+        = _render_manager_facts($groups_str);    # SM1012 S8
+
+    my ( $site_lang, $page_lang ) = _render_lang( $meta, %site_vars );    # SM1012 S9
+    $RESPONSE_LANG = $page_lang;
+    # SM179 P2: the language-set switcher data ({ lang, url, current, exists }),
+    # empty unless this host is in a lang_group with siblings. Layouts render a
+    # switcher and hreflang from it.
+    my @languages = _language_set(
+        ( $site_vars{alias_host} // '' ),
+        ( $site_vars{lang_group} // '' ),
+        ( $ENV{REDIRECT_URL}     // $ENV{REQUEST_URI} // '/' ),
+    );
+
+    my $vars = _render_stash(    # SM1012 S10
+        meta         => $meta,
+        query        => $query,
+        editor_flag  => $editor_flag,
+        manager_caps => $manager_caps,
+        scope_root   => $scope_root,
+        home_domain  => $home_domain,
+        my_scopes    => $my_scopes,
+        site_lang    => $site_lang,
+        page_lang    => $page_lang,
+        site_vars    => \%site_vars,
+        page_vars    => \%page_vars,
+        languages    => \@languages,
+    );
+
+    # SM249: the variables are now complete, and the body has not been rendered
+    # yet - so this is the one point at which a caller can add to them and have
+    # the page body see them.
+    #
+    # render_template uses it to resolve the layout and the active theme here
+    # rather than after the body render, which is why [% theme_assets %] now
+    # works in a page body. It used to resolve in the step BETWEEN this function
+    # returning and the layout render, so a page body referencing it got an
+    # empty string with no error - the variable existed by the time the layout
+    # was rendered and never during the body.
+    #
+    # Callers that render a body with NO layout (raw pages, api pages) pass
+    # nothing and are unaffected: no layout means no theme, and theme_assets
+    # stays absent for them, which is the correct answer rather than a
+    # misleading one.
+    $before_render->($vars) if $before_render;
+
+    my $processed_body = _tt_process_protected( $tt, $html_body, $vars );    # SM1012 S11
 
     return ( $processed_body, $vars );
 }

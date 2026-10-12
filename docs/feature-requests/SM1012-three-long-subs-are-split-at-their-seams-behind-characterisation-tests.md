@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-12
 raised-by: developer, WORK-PLAN-0154 P20 ("plan first"), 2026-10-12
 area: processor
-status-note: "Plan filed 2026-10-12 (WORK-PLAN-0154 P20); ruled 2026-10-12, _render_form now, hold main. Built: the deparse tools in tools/ (n450); the _render_form characterisation, t/unit/processor/112 (n451); S1-S6 (n452-n457), _render_form split; the render_content characterisation, t/unit/processor/113 (n458). Next: S7-S11; main held."
+status-note: "Plan filed 2026-10-12 (WORK-PLAN-0154 P20); ruled 2026-10-12, _render_form now, hold main. Built: the deparse tools in tools/ (n450); the _render_form characterisation, t/unit/processor/112 (n451); S1-S6 (n452-n457), _render_form split; the render_content characterisation, t/unit/processor/113 (n458); S7-S11 (n459), render_content split. Next: main (S12-S15), held by the ruling; the umask finding (107) is its own item."
 ---
 
 # Why a plan and not a move
@@ -390,10 +390,10 @@ and lose the block comparison; recorded here for a ruling if it matters.
 `_render_form` is now 210 lines (was 562): the guard, the line loop calling
 the parts, the step assembly, the page path and the heredoc.
 
-Not done: `render_content` (S7-S11), next by the ruling, behind the
-characterisation below; `main` is held. P19's per-part floors are not in
-place, so the forms.pm coverage after each step is not gated: once P19 lands,
-its floor holds this file.
+Not done: `main` (S12-S15), held by the ruling; `render_content` (S7-S11) is
+below. P19's per-part floors are not in place, so the coverage of forms.pm
+and render.pm after each step is not gated: once P19 lands, its floors hold
+these files.
 
 # Built: the `render_content` characterisation (2026-10-12)
 
@@ -424,6 +424,45 @@ changed (1), `smtp_configured` always 1 (32), the before_render call removed
 (1), the TAGS guard disarmed (2), an unanswered placeholder blanked (1), the
 multiplied-block threshold raised (1). Writing the guard's comment as `[% #`
 instead of `[%#` passes, as it must: both are template comments.
+
+# Built: `render_content` (2026-10-12)
+
+n459, one commit per step on the characterisation (n458), each proved as the
+`_render_form` steps were, with t/unit/processor/113 and the render readers and
+behaviour tests (processor 27, 28, 47, 60, 62, 71, 85, 87, 88, 90, 91; manager
+160, 161, 165, 202, 204; integration 03, 11, 16, 17, 19, 21, 26; lints 48, 83,
+215) in place of 112, and the bench against n458. (A, run.)
+
+```datatable
+columns: Step | New sub | Other subs the same | Block deparse | Sabotage, what failed
+widths: 1.2cm | 4.4cm | 2.4cm | 3.2cm | X
+bold: 1
+tone: light
+---
+S7 | `_tt_engine` | 241 | SAME | ABSOLUTE on: 113 (1 case)
+S8 | `_render_manager_facts` | 242 | SAME | a capability dropped: 113 (7); one-scope root removed: 113 (2); manage_connectors dropped: lint 83
+S9 | `_render_lang` | 243 | SAME | fallback language changed: 113 (1); `<>` let through: 113 (2)
+S10 | `_render_stash` | 244 | SAME (named arguments, `--prologue`) | 113 (32, 33); lint 48 twice; processor 60, 62, 71, 87 - every by-path reader, in the new place
+S11 | `_tt_process_protected` | 245 | SAME | TAGS guard disarmed: 113 (2); unanswered placeholder blanked: 113 (1); multiplied-block threshold: 113 (1)
+```
+
+S9 KEEPS ONE ORDER, deliberately: `$RESPONSE_LANG` is set in render_content,
+as the plan asked, and before the language-set call as it was, so
+`_render_lang` returns the two languages only and `_language_set` - already a
+call - stays where it was. S10 was expected to rest on the characterisation
+alone; giving the sub named arguments unpacked into the block's own lexicals
+(tools/deparse-block.pl `--prologue`) let it have the block comparison too.
+
+READERS THAT CANNOT SEE A BREAK. t/unit/manager/161 asks whether render.pm
+says `manage_connectors` anywhere, and a comment does, so removing it from the
+derivation list does not fail it - before the split as after. Lint 83, which
+reads the list itself, does fail. Not changed here.
+
+THE BENCH. Against n458, CPU per op, 4 rounds in each order: cache hit, miss
+and the form page's miss stayed within 2.2% at S7-S10, inside their spread.
+At S11 the two misses read 1.03x forward and 0.99x reversed: no consistent
+direction. `render_content` is now 63 lines (was 435): the resolution of what
+it needs, the calls, the hook and the return.
 
 # Done when
 
