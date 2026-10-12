@@ -351,9 +351,13 @@ subtest 'the services area, loaded outside a request, runs no stats tool' => sub
         'channel-services, unchanged (d), still answers the switches and the capability sentences' )
         or diag explain [ sort keys %$r ];
 
-    # boss's own request, as the script sets it.
+    # boss's own request, as the script sets it - the unconfined cookie
+    # manager, since P15 asks the domain rule of the analysis.
     $auth_user = 'boss';
-    $r         = Lazysite::Manager::Services::action_analyse_visitors( window => 7 );
+    $Lazysite::Manager::Common::token_auth       = 0;
+    $Lazysite::Manager::Common::REQUEST_CONFINED = 0;
+    @Lazysite::Manager::Common::REQUEST_SCOPES   = ();
+    $r = Lazysite::Manager::Services::action_analyse_visitors( window => 7 );
     is( $r->{top_pages}[0]{path} // '', '/secret-campaign', 'with boss\'s context the analysis runs' )
         or diag explain $r;
     ok( -e "$d/ran", '...through the stats tool' );

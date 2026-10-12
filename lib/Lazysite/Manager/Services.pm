@@ -10,6 +10,7 @@ package Lazysite::Manager::Services;
 #   action_channel_services  channel-services: killswitches, sentences, owners
 #   _stats_tool_path         the stats plugin (LAZYSITE_STATS_TOOL wins)
 #   action_analyse_visitors  analyse_visitors: the stats export, for an account
+#   visitor_scope_args       P15: which domains' traffic a caller asks for, and may
 #   _service_state           which transports are on (whoami reads it)
 #   action_version           version: the install state's version
 #
@@ -29,7 +30,8 @@ use Lazysite::Capabilities     qw(channel_service);
 use Lazysite::Manager::Plugins qw(action_plugin_list);
 use Lazysite::Manager::Common  qw($auth_user _tool_path);
 
-our @EXPORT_OK = qw(action_channel_services action_analyse_visitors _service_state action_version);
+our @EXPORT_OK = qw(action_channel_services action_analyse_visitors _service_state action_version
+    visitor_scope_args);
 
 our $DOCROOT;         # set by the script
 our $LAZYSITE_DIR;    # set by the script
@@ -98,6 +100,73 @@ sub action_channel_services {
 # The visitor-stats plugin. LAZYSITE_STATS_TOOL wins.
 sub _stats_tool_path { return _tool_path( 'LAZYSITE_STATS_TOOL', 'plugins/stats.pl' ) }
 
+# P15 (WORK-PLAN-0154, ruled 2026-10-12 "Record host"): WHOSE TRAFFIC. Every
+# first-party event carries the host that served it; analyse_visitors filters
+# to one domain (`host`) and groups by domain (`by_host`), and a confined
+# caller sees only its own domains' traffic - the SM976 rule, asked through
+# Lazysite::Manager::Common::caller_may_reach_domain like every other domain
+# question. One reading for both surfaces: the control API's analyse_visitors
+# and MCP's.
+#
+# %opt: host, by_host, and the selectors (index, day, month, trails); %who is
+# the caller as caller_may_reach_domain takes it (MCP passes its grant's
+# scopes; the manager request passes nothing and is asked from its own state).
+# Returns ( \@stats_args ) - the --host/--by-host arguments for the stats
+# plugin - or ( undef, $refusal ).
+#
+# CONFINED: no `host` means every domain the caller reaches, and nothing else;
+# a `host` it does not reach is refused as domain_reach_refusal refuses; a
+# selector (index, day, month, trails) is refused, because the durable rollups
+# and trails are the instance's, not split by domain. NOT CONFINED: as before,
+# unless a host or by_host is asked for.
+sub visitor_scope_args {
+    my ( $opt, %who ) = @_;
+    require Lazysite::Manager::Domains;
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT if defined $DOCROOT;
+    my $list = Lazysite::Manager::Domains::domains_list();
+    my @known
+        = map { $_->{is_primary} ? '' : lc( $_->{host} // '' ) } @{ ( ref $list eq 'HASH' && $list->{domains} ) || [] };
+    @known = ('') unless @known;
+    # Confined as caller_may_reach_domain reads it: a grant passed as `scopes`
+    # always is; the manager request when its own state says so.
+    my $confined = exists $who{scopes} ? 1 : Lazysite::Manager::Common::request_domain_confined();
+    my $selector = $opt->{index} || grep { defined $opt->{$_} && length $opt->{$_} } qw(day month trails);
+
+    my @hosts;
+    my $host = $opt->{host};
+    if ( defined $host && length $host ) {
+        $host = lc $host;
+        $host = '' if $host eq '(default)';
+        return ( undef, { ok => 0, kind => 'not-found',
+                error => "'$opt->{host}' is not a domain this instance serves - list_domains names them" } )
+            unless grep { $_ eq $host } @known;
+        if ( my $r = Lazysite::Manager::Common::domain_reach_refusal( %who, host => $host ) ) {
+            return ( undef, $r );
+        }
+        @hosts = ($host);
+    }
+    elsif ($confined) {
+        @hosts = grep { Lazysite::Manager::Common::caller_may_reach_domain( %who, host => $_ ) } @known;
+        return ( undef, { ok => 0, kind => 'forbidden',
+                error => 'This account reaches no domain on this instance, so it has no visitor traffic to read.' } )
+            unless @hosts;
+        # One domain reached on a one-domain instance is the whole instance: the
+        # view and every selector are as they were.
+        @hosts = () if @hosts == @known;
+    }
+    if ( @hosts && $selector ) {
+        return ( undef, { ok => 0, kind => 'invalid',
+                error => 'The index, the day and month rollups and the trails count every domain on this '
+                    . 'instance together and are not split by domain'
+                    . ( $confined ? ', and this account reaches only some of them' : '' )
+                    . ' - ask for a window (window=N), which is counted per domain.' } );
+    }
+    my @args = map { ( '--host', ( length $_ ? $_ : '(default)' ) ) } @hosts;
+    push @args, '--by-host' if $opt->{by_host};
+    return ( \@args );
+}
+
 # SM095: visitor-log analysis over the control API (gated on `analytics`, like the
 # MCP analyse_visitors tool). Returns the stats plugin's sanitised, cached export -
 # aggregates + a capped event stream; never the raw log, a path, or a visitor IP.
@@ -132,10 +201,14 @@ sub action_analyse_visitors {
         @sel = ( '--trails', $opt{trails} );
     }
 
+    # P15: whose traffic - one domain, grouped, and a confined caller's own.
+    my ( $scope, $no ) = visitor_scope_args( \%opt );
+    return $no unless $scope;
+
     my ( $out, $in );
     local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval {
-        open2( $out, $in, $^X, $tool, '--export', '--docroot', $DOCROOT, '--window', $window, @sel );
+        open2( $out, $in, $^X, $tool, '--export', '--docroot', $DOCROOT, '--window', $window, @sel, @$scope );
     } or return { ok => 0, error => 'Cannot run the stats plugin' };
     close $in;
     my $resp = do { local $/; <$out> };

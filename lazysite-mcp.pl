@@ -324,7 +324,7 @@ sub _stats_tool {
 # JSON the agent reasons over - aggregates + a capped event stream, never the raw
 # log, log path, filesystem path, or visitor IP.
 sub _stats_export {
-    my ($opt) = @_;
+    my ( $opt, $caps ) = @_;
     my $tool = _stats_tool()
         or return { ok => 0, error => 'stats plugin not found' };
     my $window = ( defined $opt->{window} && $opt->{window} =~ /^\d+$/ ) ? $opt->{window} : 30;
@@ -345,8 +345,14 @@ sub _stats_export {
         @sel = ( '--trails', $opt->{trails} );
     }
 
+    # P15 (ruled 2026-10-12, "Record host"): whose traffic - the control API's
+    # rule, Manager::Services::visitor_scope_args, asked with this grant's reach.
+    require Lazysite::Manager::Services;
+    my ( $scope, $no ) = Lazysite::Manager::Services::visitor_scope_args( $opt, _grant_reach($caps) );
+    return $no unless $scope;
+
     my ( $ran, $resp ) = _run_json_tool(
-        [ $tool, '--export', '--docroot', $DOCROOT, '--window', $window, @sel ] );
+        [ $tool, '--export', '--docroot', $DOCROOT, '--window', $window, @sel, @$scope ] );
     return { ok => 0, error => 'could not run the stats plugin' } unless $ran;
     return eval { decode_json( $resp // '{}' ) }
         || { ok => 0, error => 'stats export produced no JSON' };
@@ -1851,10 +1857,13 @@ my %TOOLS = (
                 index => { type => 'boolean', description => 'Return the days + months index instead of a window.' },
                 day => { type => 'string', description => 'A specific day (YYYY-MM-DD) - returns that day\'s durable rollup.' },
                 month => { type => 'string', description => 'A specific month (YYYY-MM) - returns that month\'s durable rollup.' },
+                host => { type => 'string', description => 'One domain\'s traffic only - a configured domain, or (default) for the primary. Counted from the raw visitor log by the domain that served each request; not with index, day, month or trails. A grant confined to some domains sees only theirs, with or without this.' },
+                by_host => { type => 'boolean', description => 'Add by_host: page requests and visitor-days per serving domain over the window (only the domains this grant reaches).' },
                 trails => { type => 'string', description => 'A specific day (YYYY-MM-DD) - returns that day\'s recorded VISIT TRAILS: the ordered page sequence per visit, with entry, exit, distinct-page depth, the gap after each step and the visitor class at the time. Use index to see which days have trails; they expire (30 days by default) where the rollups do not.' },
             },
             additionalProperties => JSON::PP::false },
-        run => sub { _stats_export( $_[0] ) },
+        # P15: and the grant, for its reach
+        run => sub { _stats_export( $_[0], $_[2] ) },
     },
     validate_page => {
         path_args => [qw(path)],

@@ -53,6 +53,12 @@ subtest 'analyse_visitors, outside a request, runs nothing' => sub {
     # refused, not the fixture.
     no warnings 'once';
     $Lazysite::Manager::Common::auth_user = 'boss';
+    # P15: and boss's request is the unconfined cookie manager's - since P15
+    # the analysis asks the domain rule too, and outside a request that is
+    # confined to nothing (reset_request_context).
+    $Lazysite::Manager::Common::token_auth       = 0;
+    $Lazysite::Manager::Common::REQUEST_CONFINED = 0;
+    @Lazysite::Manager::Common::REQUEST_SCOPES   = ();
     $r                                    = main::action_analyse_visitors( window => 7 );
     ok( $r->{ok}, 'for an account it answers' ) or diag explain $r;
     is( $r->{top_pages}[0]{path} // '', '/secret-campaign', '...with the export' );

@@ -22,6 +22,26 @@ see the raw log, any filesystem path, or a visitor's IP address: the tool
 aggregates and anonymises before anything reaches you. Repeated calls are cheap -
 the data is cached and only new log lines are processed each time.
 
+### On an instance serving several domains
+
+Every request in the log records the host that served it. A host listed in
+`alias_hosts` is its own domain; any other host (the primary's own name, a `www`
+form nobody registered) was served the default site and counts as the primary,
+`(default)`.
+
+- `host` - one domain's traffic only (`host: "(default)"` for the primary). It is
+  counted from the raw log, as the whole instance's is, over as many days as the
+  raw log keeps (`retention_days`); the reply names the domains in `hosts` and
+  explains its basis in `host_basis`. Form outcomes carry no domain and are left
+  out. `index`, `day`, `month` and `trails` are the instance's durable records,
+  not split by domain, so they cannot be combined with `host`.
+- `by_host: true` - adds `by_host`: page requests and visitor-days (a visitor key
+  is salted daily) per serving domain over the window, every class of visitor
+  included, with its `basis`.
+- A grant confined to some domains sees only their traffic, whether or not it
+  asks for a `host`, and is refused `index`, `day`, `month` and `trails`. One
+  that reaches no domain is refused. On a one-domain instance nothing changes.
+
 ## What the data means
 
 The response has these fields:

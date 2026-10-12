@@ -68,6 +68,20 @@ BEGIN {
     }
 }
 
+# P15: --host NAME (repeatable; "(default)" is the primary) and --by-host are
+# taken out of the arguments first, so the option table below keeps its shape.
+my ( %HOSTS_ARG, $BY_HOST_ARG );
+{
+    my @rest;
+    while (@ARGV) {
+        my $a = shift @ARGV;
+        if    ( $a eq '--host' )    { $HOSTS_ARG{ shift(@ARGV) // '' } = 1 }
+        elsif ( $a eq '--by-host' ) { $BY_HOST_ARG = 1 }
+        else                        { push @rest, $a }
+    }
+    @ARGV = @rest;
+}
+
 my %arg;
 while (@ARGV) {
     my $a = shift @ARGV;
@@ -90,6 +104,8 @@ while (@ARGV) {
     elsif ( $a eq '--path' )        { $arg{path}        = shift @ARGV }    # SM392
     elsif ( $a eq '--status' )      { $arg{status}      = shift @ARGV }    # SM392
 }
+$arg{hosts}   = \%HOSTS_ARG if %HOSTS_ARG;
+$arg{by_host} = 1           if $BY_HOST_ARG;
 my $DOCROOT = $arg{docroot} || $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '.';
 
 # --- classification patterns (log-only heuristics) -----------------------
@@ -829,6 +845,24 @@ if ( $arg{export} ) {
     #   --month YYYY-MM    one month's durable rollup
     #   --trails YYYY-MM-DD  one day's recorded trails (SM394)
     my $view = export_stats( $arg{window} );    # ingest + persist durable files
+
+    # P15 (ruled 2026-10-12, "Record host"): a view of some domains only. The
+    # durable rollups are not split by domain, so a selector with --host is
+    # refused rather than answered for every domain.
+    if ( $arg{hosts} ) {
+        my @want = map { ( $_ // '' ) eq '(default)' ? '' : lc( $_ // '' ) } sort keys %{ $arg{hosts} };
+        my $hv
+            = ( $arg{index} || defined $arg{day} || defined $arg{month} || defined $arg{trails} )
+            ? { ok => JSON::PP::false,
+            error => 'the day and month rollups, the index and the trails are not split by '
+                . 'domain - ask for a window with host instead' }
+            : export_stats_hosts( $arg{window}, \@want );
+        $hv->{by_host} = _by_host_summary( $arg{window}, \@want ) if $arg{by_host} && $hv->{ok};
+        print encode_json($hv);
+        exit 0;
+    }
+    $view->{by_host} = _by_host_summary( $arg{window} )
+        if $arg{by_host} && ref $view eq 'HASH' && $view->{ok};
     my $out =
         $arg{index}            ? _read_stats_index()
         : defined $arg{day}    ? _read_daily( $arg{day} )
@@ -3001,6 +3035,95 @@ sub cmd_recount {
     };
 }
 
+# P15 (WORK-PLAN-0154, ruled 2026-10-12 "Record host"): THE DOMAIN AN EVENT WAS
+# SERVED BY. Every first-party event carries `h`, the request's sanitised Host
+# (SM151). A Host that is one of alias_hosts was served by that domain; any
+# other - the primary's own name, a www form nobody registered, an absent or
+# malformed one - was served the default site, so it is the primary's, named
+# ''. Read from lazysite.conf as text, like _site_domain.
+sub _served_domain_fn {
+    my %declared;
+    if ( open my $fh, '<', _lz($DOCROOT) . "/lazysite.conf" ) {
+        while ( my $l = <$fh> ) {
+            next unless $l =~ /^alias_hosts\s*:\s*(.*?)\s*$/;
+            $declared{ lc $_ } = 1 for grep { length } map { s/^\s+|\s+$//gr } split /,/, $1;
+        }
+        close $fh;
+    }
+    else { _cannot_read( 'the site conf', _lz($DOCROOT) . "/lazysite.conf" ) }
+    return sub { my $h = lc( $_[0] // '' ); return $declared{$h} ? $h : '' };
+}
+
+# P15: the windowed view for some domains only ('' is the primary). Built from
+# the raw first-party log, filtered by the domain each event was served by,
+# into an ephemeral cache - the same ingest, tally and assembly as the
+# instance's view, so a domain's figures are counted exactly as the whole
+# site's are, over what the raw log still holds (retention_days). Form outcomes
+# carry no domain and are left out.
+sub export_stats_hosts {
+    my ( $window, $want ) = @_;
+    $window = ( $window || 30 ) + 0;
+    $window = 30  if $window < 1;
+    $window = 365 if $window > 365;
+    my @fp = first_party_files();
+    return { ok => JSON::PP::false,
+        error => 'a view per domain needs the first-party visitor log, which this site has not recorded' }
+        unless @fp;
+    my %want   = map { ( $_ => 1 ) } @{ $want || [] };
+    my $served = _served_domain_fn();
+    my $cfg    = read_conf();
+    my %cache  = ( v => 2, files => {}, days => {}, events => [] );
+    _export_ingest_first_party( $cfg, \%cache, \@fp, sub { $want{ $served->( $_[0]{h} ) } } );
+    my $view = _export_assemble( $cfg, \%cache, $window, 'first-party', ephemeral => 1 );
+    $view->{hosts} = [ map { length $_ ? $_ : '(default)' } sort keys %want ];
+    $view->{host_basis}
+        = 'Counted from the raw first-party log for these domains only (each event by the domain that '
+        . 'served it: an alias host by its own name, any other Host by the primary, "(default)"). '
+        . 'data_from is as far as the raw log reaches (retention_days); form outcomes carry no domain '
+        . 'and are not included.';
+    return $view;
+}
+
+# P15: requests and visitor-days per serving domain over the window, from the
+# raw first-party log; with $want, those domains only. Every class is counted -
+# people, assistants, bots, scanners - because the class is a visitor-level
+# verdict made over the whole site; a domain's own split is its own view.
+sub _by_host_summary {
+    my ( $window, $want ) = @_;
+    $window = ( $window || 30 ) + 0;
+    $window = 30  if $window < 1;
+    $window = 365 if $window > 365;
+    my $from   = time() - $window * 86400;
+    my $served = _served_domain_fn();
+    my %want   = $want ? ( map { ( $_ => 1 ) } @$want ) : ();
+    my ( %req, %vis );
+    my @fd        = gmtime( $from - 86400 );
+    my $from_file = sprintf 'access-%04d%02d%02d', $fd[5] + 1900, $fd[4] + 1, $fd[3];
+    for my $f ( first_party_files() ) {
+        # a day before the window
+        next if ( $f =~ m{([^/]+)\.jsonl\z} )[0] lt $from_file;
+        open my $fh, '<', $f or do { _cannot_read( 'a visitor log', $f ); next };
+        while ( my $line = <$fh> ) {
+            my $r = eval { JSON::PP::decode_json($line) } or next;
+            next unless ref $r eq 'HASH' && ( $r->{t} // 0 ) >= $from;
+            next if ( $r->{ch} // 'page' ) ne 'page';
+            my $d = $served->( $r->{h} );
+            next if $want && !$want{$d};
+            my $k = length $d ? $d : '(default)';
+            $req{$k}++;
+            my @g = gmtime( $r->{t} );
+            $vis{$k}{ sprintf( '%04d%02d%02d', $g[5] + 1900, $g[4] + 1, $g[3] ) . ( $r->{v} // '' ) } = 1;
+        }
+        close $fh;
+    }
+    return {
+        basis => 'Page requests and visitor-days (a visitor key is salted daily) per serving '
+            . "domain over the last $window days of the raw first-party log, every class of "
+            . 'visitor included; ask with host for one domain\'s own breakdown.',
+        domains => { map { ( $_ => { requests => $req{$_}, visitor_days => scalar keys %{ $vis{$_} } } ) } keys %req },
+    };
+}
+
 sub export_stats {
     my ($window) = @_;
     $window = ( $window || 30 ) + 0;
@@ -3122,7 +3245,7 @@ sub _export_ingest_server_log {
 # server-log path uses. Day files are append-only, so a per-file byte offset
 # is all the incremental state needed; pruned files simply drop out.
 sub _export_ingest_first_party {
-    my ( $cfg, $cache, $files ) = @_;
+    my ( $cfg, $cache, $files, $keep ) = @_;    # P15: $keep, a per-event filter
     if ( ( $cache->{v} // 0 ) != 2 || ref $cache->{files} ne 'HASH' ) {
         %{$cache} = ( v => 2, files => {}, days => {}, events => [] );
     }
@@ -3154,6 +3277,9 @@ sub _export_ingest_first_party {
             $pos += length $line;
             my $r = eval { JSON::PP::decode_json($line) } or next;
             next unless ref $r eq 'HASH' && defined $r->{t};
+            # P15: another domain's event, in a view of some domains
+            next if $keep && !$keep->($r);
+
             # SM389: registries are counted, then dropped from the page path -
             # they are neither operator traffic nor a page view.
             my $ch = $r->{ch} // 'page';
@@ -3292,10 +3418,14 @@ sub _ingest_form_events {
 }
 
 sub _export_assemble {
-    my ( $cfg, $cache, $window, $source ) = @_;
+    my ( $cfg, $cache, $window, $source, %opt ) = @_;
     my $EVENT_CAP = 5000;    # matches both ingesters' event-stream cap
 
-    _ingest_form_events( $cache, $cfg );    # SM216-2: fold form outcomes in
+    # P15: an EPHEMERAL cache (one domain's view, built from the raw log for
+    # this call) folds no form outcomes - they carry no domain - and is never
+    # persisted, flushed or saved: the durable store stays the instance's.
+    # SM216-2: fold form outcomes in
+    _ingest_form_events( $cache, $cfg ) unless $opt{ephemeral};
 
     my $keep_from = _day_str( time() - 400 * 86400 );
     delete $cache->{days}{$_} for grep { $_ lt $keep_from } keys %{ $cache->{days} };
@@ -3304,10 +3434,12 @@ sub _export_assemble {
     # is written or it is lost every time and every closed day is rewritten on
     # every call - which is the write amplification the write-once rule existed
     # to avoid, reintroduced by the fix for it.
-    _persist_durable( $cache, $cfg ); # SM213: mirror the day-buckets to the durable store
-    _trails_flush( $cache, $cfg );    # SM393: this is the path --export takes,
-                                      # so a trail recorded here is written here
-    _save_export_cache($cache);
+    unless ( $opt{ephemeral} ) {
+        _persist_durable( $cache, $cfg ); # SM213: mirror the day-buckets to the durable store
+        _trails_flush( $cache, $cfg );    # SM393: this is the path --export takes,
+                                          # so a trail recorded here is written here
+        _save_export_cache($cache);
+    }
 
     # --- assemble the window view from the day-buckets ---
     my $from_day  = _day_str( time() - ( $window - 1 ) * 86400 );

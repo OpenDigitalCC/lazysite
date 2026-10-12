@@ -292,6 +292,18 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM1001 (PENDING) **visitor traffic is read per domain, and a confined caller
+  reads only its own.** Each visitor-log event already carried the request's
+  host (SM151); nothing read it. `analyse_visitors` (control API and MCP) now
+  takes `host` - one domain's traffic, counted from the raw log by the domain
+  that served each request (an `alias_hosts` host by its own name, any other
+  host by the primary, `(default)`) - and `by_host`, requests and visitor-days
+  per domain with a stated basis. A caller confined to some domains (SM976)
+  sees only their traffic, with or without `host`, and is refused the index,
+  day and month rollups and trails, which are the instance's and are not split
+  by domain. Previously every caller with `analytics` read every domain's
+  traffic. On a one-domain instance nothing changes. t/integration/134.
+
 - SM1000 (PENDING) **an alias renders from its canonical domain.** A host
   registered as an alias (sharing another domain's content folder, as
   `domain-alias-add` registers it) named itself as canonical, so one site
