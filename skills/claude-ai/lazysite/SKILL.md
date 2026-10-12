@@ -31,7 +31,9 @@ works without the other.
    so what you render is what they will get. `reference/site-context.md` is the
    exact set of calls - and says what it CANNOT reach.
 
-4. **Render it.** `bash serve.sh start`, then fetch the page and read the HTML:
+4. **Render it.** `bash serve.sh start` (again after every pull: it also
+   publishes the pulled theme's assets, so the stylesheet links resolve), then
+   fetch the page and read the HTML:
 
    ```
    perl fetch.pl http://127.0.0.1:8080/the-page

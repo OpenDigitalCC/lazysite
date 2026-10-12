@@ -50,9 +50,22 @@ real site. If the page you are checking uses one, say which.
 ## Then render
 
 ```
-bash serve.sh start          # or restart, if it was already running
+bash serve.sh start
 perl fetch.pl http://127.0.0.1:8080/the-page
 ```
+
+`serve.sh start` first runs `perl mirror.pl`, which publishes the theme assets
+to `$SITE/lazysite-assets/<layout>/<theme>/` - run `start` again after every
+pull, even with the server already up. On a real site that directory is written
+when a theme is activated; nothing activates one here, so without it every
+stylesheet link 404s and the page is unstyled. `mirror.pl` calls the engine's
+own mirror step, so the result matches the site's: `assets/` copied,
+`theme-tokens.css` written beside them (the page then links it, as the live
+site does, where an unmirrored tree carried the tokens as an inline `<style>`),
+and the `.fingerprint` that `[% theme_version %]` reads. Each theme it mirrors
+prints one line; `NOT mirrored` gives the engine's reason - usually a theme
+whose CSS sits beside `theme.json` rather than in `assets/`, which the live
+site renders unstyled too.
 
 `/.well-known/lazysite-instance.json` answers here too, and is the cheapest way
 to see the server is up. **Its `version` is empty in this container** and that
@@ -66,7 +79,10 @@ Read the HTML. The things worth checking, in the order they usually go wrong:
    closed leaves `::: name` as literal text);
 2. the layout's chrome is around it (nav, footer) - if not, the layout did not
    load and you are looking at a fallback;
-3. the theme's stylesheet link points where you expect;
+3. the theme's stylesheet link points where you expect -
+   `/lazysite-assets/<layout>/<theme>/...` - and that URL answers 200 here
+   (`perl fetch.pl http://127.0.0.1:8080/lazysite-assets/<layout>/<theme>/main.css`);
+   a 404 means the mirror did not run or reported `NOT mirrored`;
 4. any `[% ... %]` left in the output - a variable the page used and the layout
    does not supply renders as nothing, or as itself.
 

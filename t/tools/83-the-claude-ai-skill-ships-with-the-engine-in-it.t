@@ -36,7 +36,7 @@ sub slurp {
 subtest 'the deliverable is complete' => sub {
     # D1's list. A skill missing its setup script is not a smaller skill; it is
     # one that fails on its first call in the editor's conversation.
-    for my $f ( qw(SKILL.md README.md setup.sh serve.sh fetch.pl
+    for my $f ( qw(SKILL.md README.md setup.sh serve.sh fetch.pl mirror.pl
         reference/site-context.md reference/validating.md) )
     {
         ok( -f "$skill/$f", "$f ships" );
@@ -45,7 +45,7 @@ subtest 'the deliverable is complete' => sub {
 
 subtest 'nothing is fetched from a host this project owns' => sub {
     my @bad;
-    for my $f ( qw(SKILL.md README.md setup.sh serve.sh fetch.pl
+    for my $f ( qw(SKILL.md README.md setup.sh serve.sh fetch.pl mirror.pl
         reference/site-context.md reference/validating.md) )
     {
         my $src = slurp("$skill/$f");

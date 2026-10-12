@@ -1,5 +1,6 @@
 #!/bin/sh
-# serve.sh start|stop|status - the local dev server.
+# serve.sh start|stop|status - the local dev server (start also mirrors the
+# theme assets - see mirror() below).
 #
 # SM887. Separate from setup.sh because a conversation restarts it more often
 # than it installs: the background process lives only as long as the
@@ -25,8 +26,25 @@ running() {
     kill -0 "$pid" 2>/dev/null
 }
 
+CONF="$SITE/lazysite/lazysite.conf"
+
+# Publish the theme assets the pages will link, using the engine's own mirror
+# step (mirror.pl). On a real site /lazysite-assets/<layout>/<theme>/ is written
+# when a theme is activated; nothing activates one here, so without this every
+# stylesheet link in a site-faithful render 404s (measured in a real session,
+# 2026-10-12). Only when the conf names a layout: the starter has none, and
+# needs none. Run on EVERY start, even with the server already up, because
+# start is what site-context.md says to call after pulling a layout - the
+# mirror has to follow the files, not the process.
+mirror() {
+    grep -q '^layout[[:space:]]*:' "$CONF" 2>/dev/null || return 0
+    perl "$SKILL_DIR/mirror.pl" "$SITE" \
+        || echo "lazysite: WARNING - theme assets were not mirrored; stylesheet links will 404 (see above)" >&2
+}
+
 case "${1:-start}" in
 start)
+    [ -d "$SITE" ] && mirror
     if running; then
         echo "lazysite: dev server already on http://127.0.0.1:$PORT/ (pid $(cat "$PIDFILE"))"
         exit 0
