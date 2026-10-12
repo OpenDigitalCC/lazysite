@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: found while working SM1023 (WORK-PLAN-0154 U5)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-12 \"Fail closed everywhere\"; built on n437 (WORK-PLAN-0154 U6). An undecodable groups-settings.json sets the same fourth state as an unreadable one on every reader, and the processor's acls.json readers treat an undecodable store as a failed load. t/integration/185, 186. The three readers raised for a ruling were ruled 'Close all three' (2026-10-12) and built on n439: a broken acls.json refuses a non-operator's per-file check, a broken revoked.json or user-settings.json refuses sign-in and every session as cannot-tell. t/unit/auth/52, t/integration/187, 188."
+status-note: "SHIPPED (PENDING): ruled 'Fail closed everywhere' (n437) and 'Close all three' (n439), 2026-10-12. A broken groups-settings.json, acls.json, revoked.json or user-settings.json fails closed on every reader: cannot-tell, never a manager, operator or open file. t/integration/185-188, t/unit/auth/52."
 ---
 
 # What was found
