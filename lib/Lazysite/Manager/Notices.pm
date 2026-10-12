@@ -78,6 +78,19 @@ sub _read_notices {
     return \@notices;
 }
 
+# SM1020 (SM1010 F3): A NOTICE ADDRESSED TO ONE ACCOUNT IS SHOWN TO THAT ACCOUNT
+# ONLY. The store has carried an optional `to` since SM485, and this reader had
+# no filter on it, so an addressed notice would have shown to every holder of
+# `notifications` - harmless while nothing addressed one, and a leak the day a
+# notification rule did (its per-member bell, Lazysite::Notify::bell_for). A
+# broadcast (no `to`) is unchanged. Both doors call through here.
+sub _for_principal {
+    my ( $notices, $principal ) = @_;
+    return $notices unless $notices;
+    my $me = ( defined $principal && length $principal ) ? $principal : undef;
+    return [ grep { !defined $_->{to} || ( defined $me && $_->{to} eq $me ) } @$notices ];
+}
+
 # The marker is a hash of principal => epoch. Same four states: absent is a
 # principal who has never marked anything seen, which is every principal on a
 # new site; unreadable is undef and says so.
@@ -130,7 +143,7 @@ sub _is_read {
 sub action_notices {
     my ($principal) = @_;
 
-    my $notices  = _read_notices();
+    my $notices  = _for_principal( _read_notices(), $principal );
     my $seen_map = _read_seen_map();
 
     # Either read may have failed, and they fail independently: the store can be
@@ -210,7 +223,7 @@ sub action_notices_seen {
             . 'operator\'s position. The engine log names the file and the error.' }
         unless defined $h;
 
-    my $notices = _read_notices() || [];
+    my $notices = _for_principal( _read_notices(), $principal ) || [];
     my %live    = map { ( $_->{id} // '' ) => 1 } @$notices;
     my $e       = _entry( $h->{$principal} );
 

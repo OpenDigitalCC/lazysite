@@ -112,8 +112,11 @@ Archive
   an unsubscribe link and a `List-Unsubscribe` header unless the rule turns it
   off, and a non-ASCII Subject is encoded (RFC 2047). One audit row per
   recipient names the account or address. The job account needs
-  `manage_notifications`. Compliance with privacy and consent rules is the
-  operator's responsibility (docs/forms). t/unit/notify/03, 04.
+  `manage_notifications`. A rule may also ring the site bell for each account
+  it names, and a notice addressed to one account is now shown to that account
+  only - the bell showed every notice to every holder (SM1010 F3). Compliance
+  with privacy and consent rules is the operator's responsibility (docs/forms).
+  t/unit/notify/03-05.
 
 - SM1019 (PENDING) **a `notify` handler: a notification rule over a form
   event.** A new handler type, bound as a form's second target (or a schedule

@@ -585,8 +585,22 @@ sub _process {
                 next;
             }
             my $out = render( $docroot, $h, $entry, $r, $ch, $base );
-            next if $ch eq 'bell';    # SM1020 part 2 (the per-member bell)
-                                      # email
+            if ( $ch eq 'bell' ) {
+                require Lazysite::Notify;
+                my $ok = Lazysite::Notify::bell_for( $docroot, $r->{account},
+                    { type => 'rule', message => $out->{text}, target => $h->{id} } );
+                if ($ok) {
+                    _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 1, _who($r) );
+                    $used{ $h->{id} . "\0$ch\0$p" }++;
+                    $mark->('sent');
+                }
+                else {
+                    $transient ||= 'the bell store could not be written';
+                    _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r), $transient );
+                }
+                next;
+            }
+            # email
             my $addr = $r->{address};
             if ( defined $r->{account} ) {
                 my $a = $accounts->{ $r->{account} };

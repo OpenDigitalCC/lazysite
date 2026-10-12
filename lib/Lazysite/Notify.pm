@@ -830,6 +830,35 @@ sub _site_url {
     return interpolate_env($raw);
 }
 
+# SM1020 (SM1010 F3): A BELL NOTICE FOR ONE ACCOUNT, from a notification rule.
+#
+# Written straight to the bell store with `to` set, and NOT through notify():
+# notify() routes by type, and a site that routed a type to its XMPP room would
+# have put one member's notice in the operators' chat. A rule's bell notice is
+# for its addressee and goes nowhere else. The reader (Lazysite::Manager::Notices)
+# shows an addressed notice to that account only.
+#
+# Returns 1 when the line was written, 0 when it was not.
+sub bell_for {
+    my ( $docroot, $account, $n ) = @_;
+    return 0 unless defined $docroot && defined $account && ref $n eq 'HASH';
+    ( my $to = $account ) =~ s/[^a-zA-Z0-9_.\@-]//g;
+    return 0 unless length $to && $to eq $account;
+    my $msg = $n->{message} // '';
+    $msg =~ s/[\r\n]+/ /g;
+    return 0 unless length $msg;
+    my $logdir = Lazysite::Paths::lazysite_dir($docroot) . "/logs";
+    eval { require File::Path; File::Path::make_path($logdir) unless -d $logdir; 1 } or return 0;
+    my %rec = ( ts => time(), type => ( $n->{type} // 'rule' ), message => $msg, to => $to,
+        ( defined $n->{target} ? ( target => $n->{target} ) : () ),
+        ( defined $n->{url}    ? ( url    => $n->{url} )    : () ) );
+    open my $fh, '>>', "$logdir/notices.jsonl" or return 0;
+    flock $fh, LOCK_EX;
+    my $ok = print {$fh} JSON::PP::encode_json( \%rec ) . "\n";
+    close $fh or return 0;
+    return $ok ? 1 : 0;
+}
+
 # SM1020: the site's absolute address for a link a message carries - notify.conf's
 # base_url, else site_url expanded - with no trailing slash, or '' when neither
 # resolves (a daemon has no request to borrow a host from; see _site_url).

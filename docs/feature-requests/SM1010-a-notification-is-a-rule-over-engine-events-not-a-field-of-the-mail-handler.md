@@ -4,11 +4,11 @@ title: "SM1010: A notification is a rule over engine events, not a field of the 
 subtitle: "WORK-PLAN-0154 P18. A brief for one mechanism that tells people things when something happens - a comment on a followed post first - over email, the bell, XMPP or a connector, triggered by a form or the scheduler, with a declarative rule to chain actions. Grounded in the engine at main b5ab1ce4."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-10-12
 raised-by: release manager, from the news site's reports (inbox 2026-10-11, archived), 2026-10-12
 area: notifications
-status-note: "Ruled 2026-10-12 (see Ruled): phase 0 fixed as SM1017 (F1 reproduced, F2 refused). Phase 1 next: a notify handler type; recipients from tables, owners, fixed or the submitter, the engine guarding technical safety only; authoring needs manage_notifications; unsubscribe per rule, default on."
+status-note: "Ruled 2026-10-12. Phase 0 built (SM1017). Phase 1 built: verified actor (SM1018), notify handler + manage_notifications (SM1019), notify-outbox job, email, per-member bell with F3 (SM1020). Remains: Q7 folding, a member bell surface, Q5 handler-row state, one-click unsubscribe, the handler door, phases 2-3. See Built."
 ---
 
 # Ruled
@@ -47,6 +47,28 @@ overrides a recommendation below, the ruling stands.
   as set), Q7 (per event, one message per recipient per hour per rule), Q8 (an
   unsubscribe link and `List-Unsubscribe`) and Q9 (phase 0 first) stand as
   recommended.
+
+# Built (2026-10-12)
+
+| Ref | What | Where |
+| --- | --- | --- |
+| B1 | Phase 0: F1 reproduced through form-handler.pl and fixed; F2 one address per header, refused otherwise | SM1017, n440 |
+| B2 | Q1: a form delivery carries the verified session account as its actor | SM1018, n441 |
+| B3 | The `notify` handler type, its recipient grammar (five sources), `manage_notifications`; delivery queues; quarantined queues nothing | SM1019, n442 |
+| B4 | The `notify-outbox` job: resolve, leave out the actor, per-recipient cap, ledger (sent once each), audit per recipient, email with RFC 2047 Subject and List-Unsubscribe, TT templates | SM1020, n443 |
+| B5 | The per-member bell and F3's reader filter | SM1020, n444 |
+
+Not built, in order of need (each a candidate for its own filing):
+
+| Ref | What remains | Needs |
+| --- | --- | --- |
+| R1 | Q7 folding: a recipient over the cap is refused and audited; later comments are not folded into the next message | build |
+| R2 | A member surface for the bell: the reader now filters by addressee, but a member without `notifications` (or `ui`) has no door to it | a ruling on which surface |
+| R3 | Q5: the handler's row shows no "waiting for the scheduler" or last outcome; the outbox and `notify/failed/` are not shown in the manager | build |
+| R4 | One-click unsubscribe (an engine POST endpoint); today the link and header point at the operator's own page | build |
+| R5 | The handler actions' door admits manage_forms, manage_data or manage_connectors; a group holding only manage_notifications cannot reach it | a ruling (widens the door) |
+| R6 | The operator group (tmp/wt-a) should carry manage_notifications when it lands; today the sysop (manager) groups hold it by top-up | B-side of that branch |
+| R7 | Phase 2 (event points, chains.conf) and phase 3 (row events, per-account XMPP, digests, connector channel) | as briefed |
 
 # The ask
 
