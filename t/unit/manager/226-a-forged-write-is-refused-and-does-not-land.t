@@ -230,6 +230,12 @@ setup( 'data-table-save', body => { table => 'wide', descriptor => "title: Wide\
 setup( 'data-table-save', body => { table => 'pending', descriptor => "title: Pending\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
 # SM1053: an import staged for the operator to apply.
 $S{import} = setup( 'accounts-import-stage', body => { accounts => [ { username => 'imp1' } ] } )->{id} // '';
+# SM1043: a live session of admin's in the registry, for me-session-revoke.
+{
+    open my $sf, '>', "$lz/auth/sessions.jsonl" or die $!;
+    print {$sf} encode_json( { sid => 'fedcba9876543210', user => 'admin', t => time(), ip => '', ua => '' } ) . "\n";
+    close $sf;
+}
 users_api( { action => 'add', username => 'bot' } );    # an access-key account: no login
 users_tool( 'set', 'bot', 'ui', 'off' );
 users_api( { action => 'token', username => 'bot' } );
@@ -299,6 +305,9 @@ my %REQ = (
     'layout-delete'    => { query => 'layout=extra' },
     'layouts-repo-set' => { body  => { value => 'owner/repo' } },
     'lock'             => { query => 'path=other.md' },
+    # SM1043: the caller's own password, and one of the caller's own sessions.
+    'me-password' => { body => { current_password => 'pw-admin-0123456789', new_password => 'pw-admin-changed-0123' } },
+    'me-session-revoke' => { body => { sid => 'fedcba9876543210' } },
     'migrate-to-local' => { query => 'path=page.md' },
     'mkdir'            => { query => 'path=newdir' },
     'move'             => { query => 'path=gone.md&to=moved.md' },
