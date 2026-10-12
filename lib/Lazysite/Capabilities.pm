@@ -305,7 +305,9 @@ my %ACTION_INFO = (
             # connector-call is NOT here: the connector gates it (callers
             # groups, or this capability) and the API gate admits any
             # logged-in caller to the action, so the map may not claim it.
+            # SM747 CU: and the Odoo connection user, until manage_odoo (OM3).
             api => [ qw(connector-list connector-save connector-secret-set connector-delete connector-calls
+                    odoo-status odoo-secret-set odoo-secret-clear odoo-calls
                     handler-list handler-save handler-delete form-targets-read
                     schedule-list schedule-save schedule-delete) ],
             # SM842: a connector handler is this capability's to configure.

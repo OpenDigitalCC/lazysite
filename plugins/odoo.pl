@@ -78,6 +78,9 @@ sub describe {
             # user's key and plans carrying Odoo's own records; a site package
             # carries declared storage to another site, and neither belongs
             # there.
+            # The page endpoint (SM411: it verifies its own caller).
+            endpoints => ['lazysite-odoo.pl'],
+
             deps => ['Odoo::Ops (libodoo-oom-perl >= 0.02)'],
         },
 

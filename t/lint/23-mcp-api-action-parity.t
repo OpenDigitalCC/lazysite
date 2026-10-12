@@ -191,6 +191,15 @@ my %API_ONLY = (
     # the purpose - not manage_connectors handed to an agent so it can browse.
     'connector-list' => 'SM579 phase 2: gated on manage_connectors, which a calling agent does not hold',
     'connector-calls' => 'SM579 phase 2: gated on manage_connectors, which a calling agent does not hold',
+    # SM747 CU: the Odoo connection user's key is a credential - set and cleared
+    # by an operator, on SM579's reasoning for a connector's secret. The two
+    # reads are the operator's view of the connection; what an AGENT gets is
+    # slice E's: every operation as a tool (R5), under the default or its own
+    # account (Q2).
+    'odoo-secret-set'   => 'SM747 CU: setting a credential is an operator act at a human surface',
+    'odoo-secret-clear' => 'SM747 CU: removing a credential is an operator act at a human surface',
+    'odoo-status'       => 'SM747 CU: the operator\'s view of the connection; the agent\'s surface is slice E',
+    'odoo-calls'        => 'SM747 CU: the operator\'s call record; the agent\'s surface is slice E',
 
     # SM802: operator-only by ruling. A remap rule sends visitors to another
     # host - the authority SM579 kept off MCP for connector destinations, by the

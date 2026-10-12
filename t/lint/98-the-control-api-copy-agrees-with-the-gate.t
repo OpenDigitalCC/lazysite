@@ -95,8 +95,10 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #        2026-10-12, "Yes, within the delegation limit").
     #   111, SM1053: accounts-import-stage, gated manage_users; its review and
     #        apply (list, plan, apply) are cookie-only, which makes 56 of those.
+    #   115, SM747 CU: odoo-status, odoo-calls, odoo-secret-set, odoo-secret-clear,
+    #        gated manage_connectors as the connector's own four are.
     my %caps = gate_caps($cgi);
-    is( scalar keys %caps, 111, '111 actions are reachable with a token' )
+    is( scalar keys %caps, 115, '115 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 

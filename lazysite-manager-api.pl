@@ -2184,6 +2184,15 @@ elsif ( $action eq 'connector-calls' ) {
     $result = _connectors()->can('action_connector_calls')->(
         connector => $params{connector}, state => $params{state}, limit => $params{limit} );
 }
+elsif ( $action eq 'odoo-status' ) { $result = _odoo()->can('action_odoo_status')->() } # SM747
+elsif ( $action eq 'odoo-calls' ) {
+    $result = _odoo()->can('action_odoo_calls')->( binding => $params{binding}, limit => $params{limit} );
+}
+elsif ( $action eq 'odoo-secret-set' ) {
+    my $req = _json_body();
+    $result = _odoo()->can('action_odoo_secret_set')->( $req->{secret} );
+}
+elsif ( $action eq 'odoo-secret-clear' ) { $result = _odoo()->can('action_odoo_secret_clear')->() }
 elsif ( $action eq 'connector-save' ) {
     my $req = _json_body();
     $result = _connectors()->can('action_connector_save')->( $req->{id}, $req->{connector} );
@@ -2983,6 +2992,14 @@ sub _connectors {
     no warnings 'once';
     $Lazysite::Manager::Connectors::DOCROOT = $DOCROOT;
     return 'Lazysite::Manager::Connectors';
+}
+
+# SM747: the Odoo extension's engine, as the connectors' is reached.
+sub _odoo {
+    require Lazysite::Odoo;
+    no warnings 'once';
+    $Lazysite::Odoo::DOCROOT = $DOCROOT;
+    return 'Lazysite::Odoo';
 }
 
 # SM516 MA-3: a gate refusal is three statements in one order - record it,

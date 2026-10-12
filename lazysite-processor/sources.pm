@@ -5,8 +5,9 @@ package main;
 # HOLDS   resolve_tt_vars(): the conf's and a page's tt_page_var definitions
 #         resolved - literals, ${VAR} env interpolation through the allowlist
 #         (interpolate_env, _env_value: the SM926 copy t/lint/203 pins), and the
-#         url:, json:, db: and scan: sources (resolve_json, resolve_db with
-#         _db_empty and _escape_db_rows, _resolve_content_path, _language_set);
+#         url:, json:, db:, odoo: and scan: sources (resolve_json, resolve_db with
+#         _db_empty and _escape_db_rows, resolve_odoo with _odoo_inert,
+#         _resolve_content_path, _language_set);
 #         _canonical_of, the domain an alias host renders from (P14, the marked
 #         copy t/lint/224 drives);
 #         the dependency record a cached page is checked against (_tt_dep,
@@ -655,6 +656,80 @@ sub _escape_db_rows {
     return $rows;
 }
 
+# SM747 CU: a page reads an Odoo binding's report.
+#
+#   tt_page_var:
+#     products: odoo:shop-list
+#
+# The binding is a handler of type odoo that permits PUBLIC (a render is for
+# whoever asks, and is cached for the next), run as the site's connection user
+# with no request input - what it reads is the operator's binding and nothing a
+# visitor sends. Lazily loaded, as db: is, so a site that never writes `odoo:`
+# loads nothing new.
+#
+# A RENDER NEVER WRITES. A binding whose operation writes - or whose operation
+# cannot be asked - is refused here, before anything runs: a page view that
+# planned or applied a change would turn every crawler into a customer.
+#
+# A VISITOR'S BINDING IS NOT A PAGE'S. One that works on a visitor's key would
+# cache one visitor's basket for the next; it belongs to the Odoo endpoint,
+# which answers each browser for itself.
+#
+# Every scalar in the report is escaped as a db: row is (SM786), because Odoo's
+# records are written by people this site has never met.
+sub resolve_odoo {
+    my ( $id, $key ) = @_;
+    my $page = $ENV{REDIRECT_URL} // '-';
+    if ( !_unit_enabled('plugins/odoo.pl') ) {
+        log_event( 'WARN', $page, 'odoo: page variable needs the Odoo extension, which is switched off',
+            key => $key );
+        return '';
+    }
+    my $ok = eval { _lazy_lib('Lazysite::Odoo'); 1 };
+    unless ($ok) {
+        log_event( 'WARN', $page, 'odoo: page variable needs the Odoo modules', key => $key );
+        return '';
+    }
+    no warnings 'once';
+    local $Lazysite::Odoo::DOCROOT = $DOCROOT;
+    my ( $b, $why ) = Lazysite::Odoo::find_binding($id);
+    unless ($b) {
+        log_event( 'WARN', $page, 'odoo: page variable names no usable binding', key => $key, why => $why );
+        return '';
+    }
+    if ( length $b->{visitor_param} ) {
+        log_event( 'WARN', $page,
+            'odoo: page variable refused - the binding works on a visitor\'s key, and a page '
+                . 'render is shared; read it through the Odoo endpoint instead',
+            key => $key, binding => $id );
+        return '';
+    }
+    my $w = Lazysite::Odoo::writes_of($b);
+    unless ( defined $w && !$w ) {
+        log_event( 'WARN', $page,
+            'odoo: page variable refused - a render never runs an operation that writes'
+                . ( defined $w ? '' : ' (and this one could not be asked whether it does)' ),
+            key => $key, binding => $id );
+        return '';
+    }
+    $TT_DEP_LIVE = 1;
+    my $r = Lazysite::Odoo::call( $b, {}, mode => 'public', ip => ( _request_address( _trusted_proxy_spec() ) // '' ) );
+    unless ( $r->{ok} ) {
+        log_event( 'WARN', $page, 'odoo: page variable read nothing', key => $key, binding => $id,
+            kind => ( $r->{kind} // '' ), why => ( $r->{error} // '' ) );
+        return '';
+    }
+    return _odoo_inert( $r->{report} );
+}
+
+sub _odoo_inert {
+    my ($v) = @_;
+    return [ map { _odoo_inert($_) } @$v ] if ref $v eq 'ARRAY';
+    return { map { ( $_ => _odoo_inert( $v->{$_} ) ) } keys %$v } if ref $v eq 'HASH';
+    return $v if ref $v || !defined $v;
+    return _data_inert( _esc_html($v) );
+}
+
 sub resolve_tt_vars {
     my ($defs) = @_;
     my %vars;
@@ -686,6 +761,10 @@ sub resolve_tt_vars {
             # page can say "showing 200 of 250". Scalar bindings (.count,
             # .field) answer a value and carry no companion.
             $vars{ $key . '_total' } = 0 + $total if defined $total;
+        }
+        elsif ( $val =~ s/^odoo://i ) {
+            $val =~ s/^\s+|\s+$//g;
+            $vars{$key} = resolve_odoo( $val, $key );
         }
         elsif ( $val =~ s/^json://i ) {
             $val = interpolate_env($val);

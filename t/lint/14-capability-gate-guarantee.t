@@ -210,6 +210,10 @@ my %COOKIE_READ = map { $_ => 1 } map { ( my $l = $_ ) =~ s/#.*//; split ' ', $l
     # binding, the schedule. Gated now that the Handlers page opens for any of
     # three capabilities; their writers are in %MUTATING.
     handler-list form-targets-read schedule-list
+
+    # SM747 CU: the Odoo connection's state (has_secret, never the key) and its
+    # call record; the writers, odoo-secret-set and -clear, are in %MUTATING.
+    odoo-status odoo-calls
 COOKIE_READ
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed

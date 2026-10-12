@@ -569,6 +569,22 @@ sub context {
     );
 }
 
+# Whether a binding's operation writes: 1, 0, or undef when OOM or the
+# connection cannot be asked. A caller that must never write - a page render -
+# treats undef as a write.
+sub writes_of {
+    my ($b) = @_;
+    my $w = eval {
+        my ($have) = oom_check();
+        my ($conn) = $have ? connection() : ();
+        return undef unless $conn;
+        my ($class) = operation_class( $conn, $b->{operation} );
+        return undef unless $class;
+        $class->writes ? 1 : 0;
+    };
+    return $w;
+}
+
 # The binding a page, a form or the schedule names - a handler of type odoo.
 sub find_binding {
     my ($id) = @_;
@@ -908,6 +924,70 @@ sub _write_json_file {
 sub _now_hires {
     require Time::HiRes;
     return Time::HiRes::time();
+}
+
+# --- the operator's actions (control API, manage_connectors until E) -----------
+#
+# The connection user's key is SET and CLEARED here and never READ back: the
+# status answers has_secret - 1, 0, or null for "cannot tell" - and nothing
+# else about it. Config read and save stay open while the extension is off, as
+# for every contract extension (SM409): an operator configures before enabling.
+
+sub action_odoo_status {
+    require Lazysite::Odoo::Secret;
+    no warnings 'once';
+    local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
+    my %out = ( ok => 1, enabled => _extension_enabled() );
+    my ( $have, $why ) = oom_check();
+    $out{oom} = $have ? 'present' : $why;
+    my ( $conn, $cwhy ) = connection();
+    $out{connection}
+        = $conn
+        ? { map { ( $_ => $conn->{$_} ) } qw(url db login timeout max_kb allow_writes packs) }
+        : { problem => $cwhy };
+    $out{has_secret} = Lazysite::Odoo::Secret::has_key($ACCOUNT);
+    $out{warning} = 'the key file exists and cannot be read by this process - see the event log'
+        unless defined $out{has_secret};
+    if ( $have && $conn ) {
+        my $reg = eval { registry($conn) };
+        $out{operations} = [
+            map {
+                my $c = $reg->class_for($_);
+                { name => $_, summary => $c->summary, writes => ( $c->writes ? 1 : 0 ),
+                    params => $c->params }
+            } $reg->names
+        ] if $reg;
+    }
+    return \%out;
+}
+
+sub action_odoo_secret_set {
+    my ($secret) = @_;
+    require Lazysite::Odoo::Secret;
+    no warnings 'once';
+    local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
+    my ( $ok, $why ) = Lazysite::Odoo::Secret::set_key( $ACCOUNT, $secret );
+    return { ok => 0, kind => 'invalid', field => 'secret', error => $why } unless $ok;
+    return { ok => 1, has_secret => 1 };
+}
+
+sub action_odoo_secret_clear {
+    require Lazysite::Odoo::Secret;
+    no warnings 'once';
+    local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
+    my ( $ok, $why ) = Lazysite::Odoo::Secret::clear_key($ACCOUNT);
+    return { ok => 0, error      => $why } unless $ok;
+    return { ok => 1, has_secret => 0 };
+}
+
+sub action_odoo_calls {
+    my (%o) = @_;
+    my $rows = read_calls( binding => $o{binding} );
+    return { ok => 0, error => 'the Odoo call record cannot be read - see the event log' }
+        unless defined $rows;
+    my $limit = ( $o{limit} // '' ) =~ /\A[0-9]+\z/ ? $o{limit} : 200;
+    splice @$rows, $limit if @$rows > $limit;
+    return { ok => 1, calls => $rows, retention_days => $CALLS_KEEP_DAYS };
 }
 
 1;

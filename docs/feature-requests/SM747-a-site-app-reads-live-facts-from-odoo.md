@@ -228,10 +228,29 @@ Decisions taken in CU, from the rulings and the filing:
   told (SM842's precedent), and neither carries a visitor or a confirmer.
 - **The preview carries no values.** A plan holds Odoo's records as the operation saw
   them; "present the plan's buckets" (section 5) is what a page is given.
-- **Found while building, not this filing's to fix:** `Connectors::sweep` initialises
+- **Found while building, not this filing's to fix (reported):** `Connectors::sweep` initialises
   `my ( @keep, $expired, $unanswered ) = ( (), 0, 0 )`, so the array swallows both
   zeros and a sweep that expires nothing reports `expired: null`. The same shape was
   written here first and caught by t/unit/odoo/06.
+
+## Slice CU, the surfaces - built 2026-10-12 (n473)
+
+| Row | What | Where |
+| --- | --- | --- |
+| OA5, outcome 9, Q1 | **The page endpoint, `lazysite-odoo.pl`** (declared in `owns.endpoints`, shipped in the deb, classified as a core CGI). `GET ?csrf=1` gives the visitor token - minting the visitor cookie if there is none - and, for a signed-in account, the session token; `GET ?binding=` runs a READ binding (a write sent as a GET is 405); `POST {binding, params}` runs one; `POST {plan, confirm}` applies a plan this caller made. It verifies its own caller (SM411). A POST needs the session token when the call is authenticated and the visitor token - with the SameSite=Strict cookie it is bound to - when it is public. 64 KB body cap; statuses from the shared refusal map (429 for the caps, 409 for a replayed confirm). Switched off, it answers 403 and mints nothing | `lazysite-odoo.pl`; t/integration/170 |
+| OT (CU's "report handed to TT") | **`tt_page_var: x: odoo:ID`** renders a READ binding's report into a page, run as `public` with no request input. A render never runs an operation that writes (or one that cannot be asked whether it does); never renders a binding that works on a visitor's key (the render is shared and cached); and escapes every scalar in the report as a `db:` row is (SM786). Logged by name when it refuses | `lazysite-processor/sources.pm` (`resolve_odoo`, `_odoo_inert`); t/unit/odoo/14 |
+| OB1 (R1) | **The operator's actions**: `odoo-status` (the connection without its key, `has_secret` three-state, OOM's state, the installed operations), `odoo-secret-set`, `odoo-secret-clear` (POST-only), `odoo-calls` (the record). `manage_connectors`, on every lint the connector's four pass; no MCP twin - setting a credential is an operator act, and the agent's surface is slice E's | `Lazysite::Odoo::action_odoo_*`, `lib/Lazysite/ControlApi/Actions.pm`, `lazysite-manager-api.pl`; t/unit/odoo/15 |
+
+Decisions taken here:
+
+- **The endpoint's mode.** A verified session is `authenticated` where the binding
+  admits that mode, and `public` everywhere else - the form handler's precedent
+  ("public because anyone could have posted"). A signed-in account reaching a public
+  binding as the public gains nothing an anonymous visitor lacks.
+- **A page render is `public`, always,** and refuses a write: whatever a page binds is
+  read on behalf of whoever loads it, and cached for the next.
+- **The ledger moved**: t/lint/98 counts 112 token-reachable actions (was 108), with
+  the four named and the reason.
 
 # What this is for, and the work - RESTATED 2026-10-01
 

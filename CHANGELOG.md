@@ -435,6 +435,18 @@ Archive
   `setup.sh` says the skill folder may be read-only or writable. Found in the
   release manager's real-session test of 2026-10-12, recorded in SM887.
   t/tools/83, 130, 131.
+- odoo-extension (PENDING) **a page uses Odoo: the endpoint, the `odoo:` page
+  binding and the connection user's key actions (SM747 slice CU, the
+  surfaces).** `lazysite-odoo.pl` lets a page's own script run a binding: it
+  hands out a visitor token (and the session one for a signed-in account), runs
+  a read on a GET, and runs or confirms a write on a POST that carries the
+  matching token - the visitor's cookie is HttpOnly and SameSite=Strict, so a
+  cross-site post cannot use it. `tt_page_var: x: odoo:ID` renders a read
+  binding's report, escaped, and never runs a write or a visitor's binding.
+  New actions (manage_connectors): `odoo-status`, `odoo-secret-set`,
+  `odoo-secret-clear`, `odoo-calls`; the key is never returned.
+  t/integration/170, t/unit/odoo/14-15.
+
 - odoo-extension (PENDING) **an Odoo operation runs as the site's connection
   user, and a visitor reaches only their own basket (SM747 slice CU, the
   engine).** The connection user's API key is stored alone, 0600, and never
