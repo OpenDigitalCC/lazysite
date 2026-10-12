@@ -34,6 +34,12 @@ update_policy: manual
 # cookie validation, so it does not need this flag.
 # auth_proxy_trusted: false
 
+# SM1041: the shortest password any door accepts - the users tool, a setup or
+# reset link, setup-sysop and a member's own change on /account. Default 12;
+# a value outside 8-128 is ignored and the default stands. A password set
+# before this keeps working until it is changed.
+# password_min_length: 12
+
 # D013: layouts repository for the manager's "Install from Releases"
 # browser (themes page). Format is OWNER/REPO; the manager hits the
 # GitHub REST API anonymously, which is rate-limited to 60 requests

@@ -15,6 +15,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(
     generate_random_hex hash_password verify_password
     hash_token verify_secret generate_token
+    password_min_length password_policy_refusal
 );
 
 # CSPRNG: $bytes of /dev/urandom as a hex string. Dies (fail-closed) if the
@@ -94,6 +95,52 @@ sub verify_secret {
 # Mint a new access token (lzs_ + 32 random bytes).
 sub generate_token {
     return 'lzs_' . generate_random_hex(32);    # 64 hex chars = 32 bytes
+}
+
+# SM1041 (ruled 2026-10-12, "Min 12, configurable"): THE PASSWORD POLICY, ONCE.
+#
+# A password was refused only when empty. `password_min_length` in lazysite.conf
+# sets the shortest password any door accepts - the users tool's add, passwd and
+# account-create, a redeemed setup or reset link, setup-sysop, and the member's
+# own change on /account - and it is read here so that all of them ask the same
+# question of the same file. Existing passwords keep working until changed:
+# this is asked only when a password is SET, never when one is checked.
+#
+# The default is 12. A value outside 8..128 is a typo rather than a policy and
+# falls back to the default, as session_lifetime treats one: 8 is the floor NIST
+# SP 800-63B sets for a chosen password, and above 128 nobody could type it.
+# Length is counted in characters, so a non-ASCII password is not credited
+# with its bytes.
+our $PASSWORD_MIN_DEFAULT = 12;
+
+sub password_min_length {
+    my ($lazysite_dir) = @_;
+    my $v;
+    if ( defined $lazysite_dir && length $lazysite_dir
+        && open my $fh, '<', "$lazysite_dir/lazysite.conf" )
+    {
+        while ( my $l = <$fh> ) {
+            next unless $l =~ /^\s*password_min_length\s*:\s*(\d+)\s*$/;
+            $v = $1 + 0;
+            last;
+        }
+        close $fh;
+    }
+    $v = undef unless defined $v && $v >= 8 && $v <= 128;
+    return $v // $PASSWORD_MIN_DEFAULT;
+}
+
+# The refusal for a password the policy does not accept, or undef. One sentence,
+# naming the length and nothing about any account, so it is safe to show on a
+# page nobody has signed in to.
+sub password_policy_refusal {
+    my ( $password, $lazysite_dir ) = @_;
+    my $min   = password_min_length($lazysite_dir);
+    my $chars = defined $password ? $password : '';
+    utf8::decode($chars) unless utf8::is_utf8($chars);
+    return "A password must be at least $min characters long."
+        if length($chars) < $min;
+    return undef;
 }
 
 1;

@@ -647,6 +647,18 @@ sub handle_claim {
             claim  => $claim,         password => $password,
     } );
 
+    # SM1041: a valid link with a password the policy refuses. The claim is not
+    # spent, so the page offers the form again and says how long a password
+    # must be - the length is the site's policy, not a fact about the account,
+    # and the claim has already proved who is asking.
+    if ( ref $r eq 'HASH' && !$r->{ok} && ( $r->{field} // '' ) eq 'password' ) {
+        my $min = ( $r->{min} // '' ) =~ /\A(\d{1,3})\z/ ? $1 : '';
+        log_event( 'INFO', $username, 'claim refused: password too short', ip => $ip );
+        _audit_auth( $username, 'claim-redeem', 'fail', 'password-policy' );
+        redirect("/claim?u=$username&c=$claim&error=short&min=$min");
+        return;
+    }
+
     unless ( ref $r eq 'HASH' && $r->{ok} ) {
         sleep $LOGIN_DELAY;
         log_event( 'WARN', $username, 'claim redeem failed', ip => $ip );

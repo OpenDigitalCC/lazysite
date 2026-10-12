@@ -158,6 +158,14 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
+- SM1041 (PENDING) **a password has a minimum length, 12 unless the operator
+  says otherwise.** `password_min_length` in lazysite.conf (8 to 128; default
+  12) applies to every way a password is set - the users tool's add, passwd
+  and account-create, setup-sysop, and a setup or reset link. A password set
+  before it keeps working until it is changed. A setup link given a password
+  that is too short is not used up: the page says how long one must be and
+  offers the form again. t/unit/auth/41.
+
 - SM1040 (PENDING) **a changed credential signs the account's other sessions
   out.** SECURITY. A password change wrote the new password and nothing else,
   so a session stolen before it stayed signed in. Now any password change -

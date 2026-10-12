@@ -186,6 +186,17 @@ to hand over by any channel. The user opens it and the `/claim` page presents a
 - Disabled accounts and token-only (`ui` off) accounts cannot redeem a
   set-password claim.
 
+### Password policy
+
+A password must be at least `password_min_length` characters long - 12 unless
+`lazysite.conf` says otherwise (a value from 8 to 128; anything else is ignored
+and 12 stands). The rule applies to every way a password is set: the users
+tool's `add`, `passwd` and `account-create`, `setup-sysop`, a setup or reset
+link, and a member changing their own on `/account`. Characters are counted,
+not bytes. A password set before the rule keeps signing in until it is
+changed. A setup link given a password that is too short is not used up: the
+page says how long a password must be and offers the form again.
+
 ### Letting people ask for an account
 
 Registration is **by invitation**: nothing public creates an account. A site that

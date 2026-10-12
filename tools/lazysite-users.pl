@@ -129,7 +129,8 @@ use Lazysite::Auth::Verify ();    # SM685: the credential path, shared with the 
 use Lazysite::Audit        qw(audit_log);
 use Lazysite::Mail         ();              # SM1017: what one mail address is
 use Lazysite::Auth::Credential
-    qw(generate_random_hex hash_password hash_token verify_secret generate_token);
+    qw(generate_random_hex hash_password hash_token verify_secret generate_token
+    password_min_length password_policy_refusal);
 use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock
     caps_for write_group_settings resolve_user_scopes resolve_home_domain
     resolve_token_ttl @CAP_KEYS group_settings_unreadable);
@@ -892,6 +893,7 @@ sub cmd_add {
 
     my %users = read_users();
     die "User '$user' already exists\n" if exists $users{$user};
+    _password_policy($pass)             if length $pass;    # SM1041; empty = token-only
 
     # Empty password => empty hash: a token-only account (no interactive
     # login; generate a token for WebDAV/API). Same form as the seed.
@@ -949,9 +951,20 @@ sub cmd_rename {
     print "Renamed '$old' to '$new'.\n" unless $API_MODE;
 }
 
+# SM1041 (ruled 2026-10-12, "Min 12, configurable"): every way this tool sets a
+# password asks the one policy, Lazysite::Auth::Credential's, before anything
+# is written. Dies with its sentence.
+sub _password_policy {
+    my ($pass) = @_;
+    my $why = password_policy_refusal( $pass, $LAZYSITE_DIR );
+    die "$why\n" if defined $why;
+    return;
+}
+
 sub cmd_passwd {
     my ( $user, $pass, %opt ) = @_;
     die "Username and password required\n" unless $user && $pass;
+    _password_policy($pass);    # SM1041
 
     my %users = read_users();
     # exists, not truthiness: a seeded account with an empty password hash
@@ -1527,7 +1540,8 @@ sub cmd_setup_sysop {
             # composed primitive - see the CLI audit registry note above.
             local $AUDIT_SUPPRESS = 1;
             my %users = read_users();
-            cmd_add( $user, generate_random_hex(12) ) unless exists $users{$user};
+            # A throwaway, cleared below; long enough for any policy (SM1041).
+            cmd_add( $user, generate_random_hex(64) ) unless exists $users{$user};
             # SM576 part 3: heal the manager group BEFORE joining it. The group
             # has to exist and say it is a role before anyone is put in it.
             # Seed first: _ensure_manager_group_caps WRITES the group-settings
@@ -1567,7 +1581,9 @@ sub cmd_setup_sysop {
 
     my $generated = 0;
     unless ( defined $pass && length $pass ) {
-        $pass      = generate_random_hex(12);    # 24 hex chars
+        # 24 hex chars, or as many as the policy asks for (SM1041).
+        my $min = password_min_length($LAZYSITE_DIR);
+        $pass      = generate_random_hex( $min > 24 ? int( ( $min + 1 ) / 2 ) : 12 );
         $generated = 1;
     }
 
@@ -2011,6 +2027,7 @@ sub cmd_account_create {
     my %users = read_users();
     die "User '$user' already exists\n" if exists $users{$user};
     die "Creator '$creator' not found\n" unless exists $users{$creator};
+    _password_policy($pass) if length $pass;    # SM1041
 
     my $all = read_settings();
     # SM095 (c0): the creator's capabilities come from the ONE resolver (group +,
@@ -2709,6 +2726,13 @@ sub cmd_claim_redeem {
         die $GENERIC unless $ui;
         my $pw = $opt{password};
         die "Password required\n" unless defined $pw && length $pw;
+        # SM1041: a password the policy refuses leaves the link UNUSED - the
+        # claim is still valid, so the person can choose a longer one - and the
+        # answer names only the length, after the claim has proved who asks.
+        if ( defined( my $why = password_policy_refusal( $pw, $LAZYSITE_DIR ) ) ) {
+            return { ok => 0, kind => 'invalid', field => 'password', error => $why,
+                min => password_min_length($LAZYSITE_DIR) };
+        }
         # SM1040: a redeemed link signs every session of the account out. The
         # claim, not a session, authenticates this request, so none is kept.
         _end_other_sessions( $user, undef );
@@ -2765,7 +2789,8 @@ sub cmd_claim_create_cli {
 
 sub cmd_claim_redeem_cli {
     my ( $user, $claim, $pw ) = @_;
-    cmd_claim_redeem( $user, $claim, password => $pw );
+    my $r = cmd_claim_redeem( $user, $claim, password => $pw );
+    die "$r->{error}\n" if ref $r eq 'HASH' && !$r->{ok};   # SM1041: the policy's refusal
 }
 
 # SM858: the CLI half of account-approve, WHICH THE USAGE HAS ADVERTISED SINCE

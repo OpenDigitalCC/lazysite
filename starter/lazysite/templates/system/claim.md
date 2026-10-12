@@ -7,6 +7,7 @@ query_params:
   - u
   - c
   - error
+  - min
 ---
 
 <style>
@@ -58,12 +59,17 @@ query_params:
 connection. This link has not been used: open it again with an address that
 begins <code>https://</code>, or ask your site operator for one that does.</p>
 
-[% ELSIF query.error %]
+[% ELSIF query.error && query.error != 'short' %]
 
 <p class="auth-error">That setup link is invalid or has expired. Setup links
 work once and are short-lived &mdash; ask your site operator for a new one.</p>
 
 [% ELSE %]
+
+[% IF query.error == 'short' %]
+<p class="auth-error">That password is too short. Choose one of at least
+[% query.min %] characters. This link has not been used.</p>
+[% END %]
 
 <p>Set a password for <strong>[% query.u %]</strong>. This link works
 once.</p>
