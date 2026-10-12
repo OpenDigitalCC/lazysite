@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-12
 raised-by: release manager, from the news site's reports (inbox 2026-10-11, archived), 2026-10-12
 area: notifications
-status-note: "Ruled 2026-10-12. Phase 0 built (SM1017). Phase 1 built: verified actor (SM1018), notify handler + manage_notifications (SM1019), notify-outbox job, email, per-member bell with F3 (SM1020). Remains: Q7 folding, a member bell surface, Q5 handler-row state, one-click unsubscribe, the handler door, phases 2-3. See Built."
+status-note: "Ruled 2026-10-12. Phase 0 built (SM1017). Phase 1 built: verified actor (SM1018), notify handler + manage_notifications (SM1019), notify-outbox job, email, per-member bell with F3 (SM1020). Remains: Q7 folding, a member bell surface (SM1034), Q5 handler-row state, one-click unsubscribe, the handler door, phases 2-3. See Built."
 ---
 
 # Ruled
@@ -63,7 +63,7 @@ Not built, in order of need (each a candidate for its own filing):
 | Ref | What remains | Needs |
 | --- | --- | --- |
 | R1 | Q7 folding: a recipient over the cap is refused and audited; later comments are not folded into the next message | build |
-| R2 | A member surface for the bell: the reader now filters by addressee, but a member without `notifications` (or `ui`) has no door to it | a ruling on which surface |
+| R2 | A member surface for the bell: the reader now filters by addressee, but a member without `notifications` (or `ui`) has no door to it | superseded by SM1034's brief (a member home page, `/account`, with the bell on it), raised from the release manager's answer of 2026-10-12 |
 | R3 | Q5: the handler's row shows no "waiting for the scheduler" or last outcome; the outbox and `notify/failed/` are not shown in the manager | build |
 | R4 | One-click unsubscribe (an engine POST endpoint); today the link and header point at the operator's own page | build |
 | R5 | The handler actions' door admits manage_forms, manage_data or manage_connectors; a group holding only manage_notifications cannot reach it | a ruling (widens the door) |
