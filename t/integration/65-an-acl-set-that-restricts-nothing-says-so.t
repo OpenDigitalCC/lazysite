@@ -18,7 +18,9 @@
 #
 # 1. `read` belongs in the JSON BODY; sent in the query it was silently
 #    dropped. The symmetric mistake - a `path` in the body - has been REFUSED
-#    with a helpful message since SM306. One direction was guarded and the
+#    with a helpful message since SM306 (and accepted since SM1047, which
+#    resolves the path once for the scope check and the write - see
+#    t/integration/205). One direction was guarded and the
 #    other was not, so the capability worked and was unreachable by the route
 #    somebody naturally tried.
 #

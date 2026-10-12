@@ -1254,12 +1254,19 @@ sub caller_may_reach_table {
 # about a row (typed, or a store path under .typed/) when its table passes the
 # data rule. A confined caller appended to and read another domain's page brief
 # (Q15c). %o carries the typed reference (type, table) and `scopes`.
+#
+# SM1047 (P-9's class): THE TYPED BRANCH IS TAKEN WHEN THE HANDLER TAKES IT.
+# Briefs::typed_rel addresses a row only for type=row; any other `type` falls
+# through to the path. This asked about the table for ANY non-empty type, so
+# type=table&table=<mine>&path=<another domain's page> was checked against the
+# table and read and appended to the other page's brief
+# (tmp/probe-brief-split.pl).
 sub caller_may_reach_brief {
     my ( $path, %o ) = @_;
     my %by = _who(%o);
     return 1 unless _confined_who(%by);
     my $table;
-    if ( length( $o{type} // '' ) ) { $table = $o{table} }
+    if ( ( $o{type} // '' ) eq 'row' ) { $table = $o{table} }
     else {
         ( my $p = $path // '' )                           =~ s{^/+}{};
         return caller_may_reach_path( $p, %by ) unless $p =~ m{\A\.typed/[^/]+/([^/]+)(?:/|\z)};

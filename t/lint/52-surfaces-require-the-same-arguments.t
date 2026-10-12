@@ -222,7 +222,9 @@ subtest 'acl-set, the case this came from, is guarded rather than exempted' => s
     # $params{path} before \Q ever saw it, which is a compile error under strict
     # - the file would not run at all, and a lint that cannot run asserts nothing.
     my $want_query = 'unless ( defined $params{path} && length $params{path} )';
-    my $want_body  = 'elsif ( exists $req->{path} )';
+    # SM1047 (P-9): a body path is accepted now, resolved once by the
+    # dispatcher; the guard refuses one that is not the path the scope check read.
+    my $want_body  = 'elsif ( exists $req->{path}';
 
     # SM944 S33a: the branch with its callees, read by lint 218's extraction -
     # acl-set's body moves to Manager::Files' dispatch_acl_set.
@@ -232,7 +234,7 @@ subtest 'acl-set, the case this came from, is guarded rather than exempted' => s
     like( $acl, qr/\Q$want_query\E/,
         'acl-set requires an explicit, non-empty path' );
     like( $acl, qr/\Q$want_body\E/,
-        'and refuses a path in the BODY, which is how it was actually hit' );
+        'and refuses a body path that is not the one it was checked against' );
 };
 
 done_testing();

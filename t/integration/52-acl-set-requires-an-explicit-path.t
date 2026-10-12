@@ -124,23 +124,26 @@ subtest 'acl-set with no path is refused' => sub {
         or diag( 'Root ACL after the refused call: ' . encode_json($g) );
 };
 
-subtest 'a path in the JSON body is refused, naming the key' => sub {
+subtest 'a path in the JSON body is the path written, never the root' => sub {
     # The body/query split is what invited the original mistake: `save` takes its
     # content from the body and `domain-add` takes host, content_root and the
     # rest from the body, so a caller who has just used those has been taught
     # where arguments go. acl-set read its lists from the body and its path from
-    # the query string, and discarded the body key without a word.
+    # the query string, and discarded the body key without a word - the rule
+    # went to '/'. SM306 refused the body key; SM1047 (P-9) reads it, once, so
+    # the scope check and the write see the same path.
     my $d = api_post( 'action=acl-set',
         { path => '/section/', read => ['alice'], write => ['alice'] } );
 
-    ok( !$d->{ok}, 'the call is refused rather than silently retargeted' )
+    ok( $d->{ok}, 'the body path is taken' )
         or diag( 'Reply: ' . encode_json($d) );
-    like( $d->{error} // '', qr/\bpath\b/,
-        'and the message names the key that was ignored' );
+    my $s = api_get('action=acl-get&path=/section/');
+    is_deeply( $s->{acl}{read}, ['alice'], 'and the rule is on that path' );
 
     my $g = api_get('action=acl-get&path=/');
     ok( !( $g->{acl} && ( @{ $g->{acl}{read} || [] } || @{ $g->{acl}{write} || [] } ) ),
         'and no root rule was written' );
+    api_post( 'action=acl-remove&path=/section/', {} );
 };
 
 subtest 'an explicit site-wide rule still works' => sub {

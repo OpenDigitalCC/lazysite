@@ -251,8 +251,11 @@ sub imported_facts {
     is_deeply( [ map { writes( $code, $_, '' ), writes( $code, $_, $Q ) } grep { !$imp{$_} } @FACTS ],
         [], '...and writes no memo by any name' );
     # S33a: %params has one writer in the script, the query-string parse.
+    # SM1047 (P-9) adds the one other: the path an action declares
+    # `query_or_body`, resolved once from the body before the scope check.
     is_deeply( [ map { s/^line \d+: //r } writes( $code, 'params', '' ), writes( $code, 'params', $Q ) ],
-        ['$params{$k} = $v;'], 'the script writes %params only where it parses the query string' );
+        [ '$params{$k} = $v;', '$params{path} = $bp;' ],
+        'the script writes %params only where it parses the query string, and the one resolved path' );
     my @mine = grep { $code =~ /^(?:my|our|state)\b\s*(?:\([^)]*?)?\Q$SIGIL{$_}$_\E\b/m } @FACTS;
     is_deeply( \@mine, [], 'the script declares none of them at file scope (no private copy beside the shared one)' );
 

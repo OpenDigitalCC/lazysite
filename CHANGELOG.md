@@ -495,6 +495,17 @@ Archive
   `manage_users` holder still revokes every other account's. A session id the
   session registry does not hold is the operator's alone to revoke.
   t/integration/131.
+- SM1047 (PENDING) **a scope check reads the path the handler writes.**
+  `acl-set` checked a confined caller's scope against the query's path, '/'
+  when absent, and refused a path sent in the body, so a partner following the
+  reference (`path` in query or body) was told "Path '/' is outside your
+  assigned scope". The path is now resolved once, before the check, from either
+  place; two different paths are refused and nothing is written. The sweep of
+  every action found two cross-domain reads of the same shape, both fixed: a
+  confined caller read another domain's form submissions with
+  `form=<its own form>&file=<the other's store>`, and read and appended to
+  another domain's page brief with `type=table&table=<its own table>`.
+  t/integration/205, 206.
 
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the

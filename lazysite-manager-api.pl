@@ -577,6 +577,44 @@ if ( $action eq 'csrf-token' ) {
     exit 0;
 }
 
+# SM1047 (P-9): ONE PATH PER REQUEST, RESOLVED BEFORE ANYTHING ASKS ABOUT IT.
+#
+# An action that declares its path `query_or_body` (acl-set) published that the
+# path may arrive in either place, and the scope check below reads $path - the
+# query's, '/' when absent - while the handler read its own. A confined partner
+# that sent the path in the body was told "Path '/' is outside your assigned
+# scope" about a path it never sent; and two readers of one argument is the
+# shape in which a check passes on one value and a write lands on another.
+#
+# So the body's path is taken HERE, once, into $params{path} and $path, which
+# the scope check, the carve-out check, the handler and the audit all read. A
+# request that sends both and they differ is refused, naming both: there is no
+# reading of it under which one of them was not a mistake. A body path that is
+# not one string is refused rather than stringified.
+{
+    my $spec = $Lazysite::ControlApi::Actions::ACTION{$action} || {};
+    my $either = grep { ( $_->{name} // '' ) eq 'path' && ( $_->{in} // '' ) eq 'query_or_body' }
+        @{ $spec->{params} || [] };
+    my $req = $either ? _json_body() : undef;
+    if ( ref $req eq 'HASH' && exists $req->{path} ) {
+        my $bp     = $req->{path};
+        my $origin = $token_auth ? 'api' : 'ui';
+        if ( ref $bp || !defined $bp ) {
+            _refuse( { ok => 0, kind => 'invalid', field => 'path',
+                    error => "$action takes one path, as a string. Nothing was changed." },
+                $origin, 'refused: path not a string' );
+        }
+        if ( exists $params{path} && $params{path} ne $bp ) {
+            _refuse( { ok => 0, kind => 'conflict', field => 'path',
+                    error => "$action was given two different paths, '$params{path}' in the "
+                        . "query string and '$bp' in the body. Send one of them. Nothing was changed." },
+                $origin, 'refused: two paths', "$params{path} | $bp" );
+        }
+        $params{path} = $bp;
+        $path = $bp;
+    }
+}
+
 # SM475: A MUTATING ACTION IS POST-ONLY ON BOTH CHANNELS.
 #
 # This lived INSIDE the cookie branch below, so it never applied to a token
@@ -2050,7 +2088,15 @@ elsif ( $action eq 'form-submissions' ) {
     # SM862: `form` as well as `file`. MCP's twin takes a form name and this did
     # not, so the reasonable call answered "Invalid submissions file" about a
     # parameter that had never been sent.
-    _refuse_unreachable_form( length( $params{form} // '' ) ? $params{form} : _form_of_store( $params{file} ) ); # SM976 F2
+    #
+    # SM1047 (P-9's class): THE FORM CHECKED IS THE STORE READ. The reach check
+    # read `form` when it was sent and the handler reads `file` when it is sent,
+    # so form=<a form of mine>&file=<another domain's store> passed the check on
+    # the one and returned the other's submissions (tmp/probe-form-split.pl).
+    # The check now asks about what the handler reads: the store when one is
+    # named (action_form_submissions ignores `form` then), the form otherwise.
+    my $sf_file = $params{file} // '';
+    _refuse_unreachable_form( length $sf_file ? _form_of_store($sf_file) : $params{form} ); # SM976 F2
     _refuse_beyond_account_requests( $params{file}, $params{form} );                                             # SM979
     $result = action_form_submissions( $params{file}, $params{form} );
 }

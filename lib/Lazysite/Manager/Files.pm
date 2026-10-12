@@ -2215,13 +2215,22 @@ sub dispatch_acl_set {
     # from the query string - so a caller who has just used the first two has
     # been taught where arguments go. It was discarded in silence, which cost a
     # live site a minute of 302s. Refusing an argument the action does not read
-    # is what SM278 already does on all 51 MCP tools.
-    elsif ( exists $req->{path} ) {
-        $result = { ok => 0,
-            error => 'acl-set reads its path from the query string, not the '
-                . 'request body, so the "path" key here would have been '
-                . 'ignored and the rule applied somewhere else. Pass it as '
-                . 'action=acl-set&path=... instead.' };
+    # is what SM278 already does on all 51 MCP tools. (That refusal was the
+    # branch below until SM1047; it answered after the scope check, which had
+    # already refused the '/' the query defaulted to.)
+    #
+    # SM1047 (P-9): the path may now arrive in either place - the reference
+    # published `query_or_body` all along - and the dispatcher resolves it ONCE,
+    # into %params, before the scope check reads it, refusing a request whose
+    # two paths differ. What reaches here agrees with what was checked; this
+    # refuses anything that does not, so a caller that skipped the dispatcher
+    # cannot write one path having been checked against another.
+    elsif ( exists $req->{path}
+        && ( ref $req->{path} || ( $req->{path} // '' ) ne $params{path} ) )
+    {
+        $result = { ok => 0, kind => 'conflict',
+            error => 'acl-set was given a path in the body that is not the path '
+                . 'it was checked against. Send the path once. Nothing was changed.' };
     }
 
     # SM479: AND THE SAME MISTAKE IN THE OTHER DIRECTION, which was not
