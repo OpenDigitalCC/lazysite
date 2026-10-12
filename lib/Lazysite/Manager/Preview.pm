@@ -174,6 +174,7 @@ sub action_preview {
     local $ENV{LAZYSITE_NOCACHE} = '1';
     local $ENV{REDIRECT_URL}     = $uri;
     local $ENV{DOCUMENT_ROOT}    = $DOCROOT;
+    local $ENV{LAZYSITE_PREVIEW} = '1';        # SM1064: a preview is no visit (SM1031)
 
     # SM441: render under the Host of the domain that OWNS this path. Without
     # it the preview inherited the Host of whatever the sysop was browsing

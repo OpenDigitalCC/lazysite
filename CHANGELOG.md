@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1064 (PENDING) **a preview is no visit, on every door.** MCP
+  `preview_public_page` and `preview_domain`, and the manager's `preview`,
+  `preview-public` and `domain-preview`, each wrote a visit to the first-party
+  access log. They now set `LAZYSITE_PREVIEW`, which the log leaves out, as
+  SM1031 does for `preview_page`. Measured in one rig that names the processor
+  (`LAZYSITE_PROCESSOR`), which SM1031's probe lacked. t/integration/225.
+
 - SM1053 (PENDING) **a partner stages accounts, and the operator applies
   them.** `accounts-import-stage` takes a list of accounts - usernames,
   addresses, groups, never a password - and creates nothing. The operator

@@ -622,6 +622,7 @@ sub preview_public {
     $ENV{REQUEST_METHOD}   = 'GET';
     $ENV{QUERY_STRING}     = '';
     $ENV{LAZYSITE_NOCACHE} = '1';
+    $ENV{LAZYSITE_PREVIEW} = '1';        # SM1064: a preview is no visit (SM1031)
 
     # SM441: render under the OWNING domain's Host, so the per-Host overlay
     # supplies that site's layout, theme and nav. Without this the preview
@@ -740,6 +741,7 @@ sub domain_preview {
     $ENV{REQUEST_METHOD}   = 'GET';
     $ENV{QUERY_STRING}     = '';
     $ENV{LAZYSITE_NOCACHE} = '1';
+    $ENV{LAZYSITE_PREVIEW} = '1';        # SM1064: a preview is no visit (SM1031)
 
     # SM257: this tool exists to VERIFY a domain renders before DNS points at it,
     # so it must not report success without having verified anything. It used to
