@@ -292,6 +292,19 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM1002 (PENDING) **a site can allow its own external hosts in the CSP.** A
+  site embedding one legitimate external script (a banner whose script then
+  fetches from its host) had no setting to permit it under `csp: enforce`.
+  `csp_script_src`, `csp_connect_src`, `csp_img_src` and `csp_frame_src` in
+  lazysite.conf, each a list of https origins (`https://host`,
+  `https://host:port`, `https://*.host`), are appended to the default for
+  their directive; `alias.<host>.csp_script_src` (and the others) gives a
+  domain its own list. An entry that is not an origin - a bare `*`, a path,
+  `'unsafe-inline'` or any other keyword - is left out and logged, and
+  `lazysite check` names it. The manager's pages carry none of them. The
+  default policy is unchanged when no list is set. t/unit/processor/103,
+  lints 55 and 225.
+
 - SM1001 (PENDING) **visitor traffic is read per domain, and a confined caller
   reads only its own.** Each visitor-log event already carried the request's
   host (SM151); nothing read it. `analyse_visitors` (control API and MCP) now

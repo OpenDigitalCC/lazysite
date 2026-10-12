@@ -74,7 +74,8 @@ HTML
 subtest 'the processor carries the copy, and it agrees' => sub {
     my $pkg = 'ProcessorHeadersUnderTest';
     for my $name (
-        qw(_security_headers _inline_script_hashes _content_security_policy _csp_mode _conf_value _is_manager_request)
+        qw(_security_headers _inline_script_hashes _content_security_policy _csp_mode _conf_value _is_manager_request
+        _csp_allow _csp_origin_ok)
         )
     {
         my ($sub) = $src =~ /(\nsub \Q$name\E \{.*?\n\}\n)/s;
@@ -135,6 +136,34 @@ subtest 'the two agree on every CSP mode, including a typo' => sub {
         is( $proc, $want, "processor reads '$written' as $want" );
         is( $mod,  $want, "and the module agrees" );
     }
+};
+
+subtest 'P16: the allow-lists reach the policy alike, and never the manager' => sub {
+    # The processor reads the lists through resolve_site_vars (the site's, or
+    # the serving domain's override); the module takes them as an argument. So
+    # the processor's reader is given a stub site and the module the lists it
+    # should have read, and the header lines must be the same.
+    no warnings 'once';    ## no critic (ProhibitNoWarnings)
+    my %site = ( csp_script_src => 'https://ads.example.com, nonsense',
+        csp_connect_src => 'https://ads.example.com', csp_img_src => "'unsafe-inline' https://*.img.example.com",
+        csp_frame_src => 'https://video.example.com:8443' );
+    local *ProcessorHeadersUnderTest::resolve_site_vars = sub { return %site };
+    local *ProcessorHeadersUnderTest::log_event         = sub { return };
+    my %want = ( script => ['https://ads.example.com'], connect => ['https://ads.example.com'],
+        img => ['https://*.img.example.com'], frame => ['https://video.example.com:8443'] );
+    local $ENV{HTTPS}        = '';
+    local $ENV{REDIRECT_URL} = '/page';
+    my @copy   = ProcessorHeadersUnderTest::_security_headers( html => $FIXTURE );
+    my @module = Lazysite::SecurityHeaders::security_headers( html => 1,
+        script_hashes => [ Lazysite::SecurityHeaders::inline_script_hashes($FIXTURE) ], csp_allow => \%want );
+    is_deeply( \@copy, \@module, 'a site page: the same lines, with the lists' ) or diag("@copy\n@module");
+    my ($csp) = grep {/^Content-Security-Policy/} @copy;
+    like( $csp, qr{script-src 'self' https://ads\.example\.com 'sha256-}, 'the origin sits before the hashes' );
+    unlike( $csp, qr/nonsense|unsafe-inline' https/, 'and what is not an origin is left out' );
+
+    local $ENV{REDIRECT_URL} = '/manager/';
+    my ($mgr) = grep {/^Content-Security-Policy/} ProcessorHeadersUnderTest::_security_headers( html => $FIXTURE );
+    unlike( $mgr, qr/ads\.example\.com/, 'the manager carries none of them' );
 };
 
 subtest 'the manager is never enforced, whatever the site is set to' => sub {

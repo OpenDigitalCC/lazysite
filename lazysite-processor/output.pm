@@ -9,13 +9,15 @@ package main;
 #         output_page, with _sanitise_not_found and _rewrite_if_changed);
 #         _security_headers, _content_security_policy, _inline_script_hashes,
 #         _csp_mode and _is_manager_request (the ADR 0001 copy of
-#         Lazysite::SecurityHeaders, pinned by value by t/lint/55); _conf_value
+#         Lazysite::SecurityHeaders, pinned by value by t/lint/55), with
+#         _csp_origin_ok and _csp_allow (P16, the allow-lists; t/lint/225); _conf_value
 #         and _conf_flag_enabled, the lazysite.conf readers; _ai_partner_doc, the .well-known/ai-partner
 #         document built from the live config; _request_croot.
 # OWNS    the bytes of a response's head; which security headers it carries;
 #         what the site's discovery document says.
 # CALLS   process_md, _system_page_md, _chrome, load_form_secret, is_fresh,
-#         confine_content_root, _cache_umask, read_file, log_event (the script
+#         confine_content_root, _cache_umask, read_file, resolve_site_vars,
+#         log_event (the script
 #         and its parts); hmac_sha256_hex, sha256, encode_base64 (imported by
 #         the script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $REQUEST_CROOT, $RESPONSE_LANG, %ACCESS_REC,
@@ -182,8 +184,17 @@ sub _inline_script_hashes {
     return @hashes;
 }
 
+# P16 (ruled 2026-10-12, "Add allow-lists"): $allow is { script, connect, img,
+# frame } => [ origins ], each appended to its directive's default sources -
+# script-src's before the hashes. A MARKED COPY of
+# Lazysite::SecurityHeaders::content_security_policy (ADR 0001), compared by
+# value in t/lint/55; the origins are filtered here as there.
 sub _content_security_policy {
-    my (@hashes) = @_;
+    my ( $hashes, $allow ) = @_;
+    my %a = map {
+        my $d = $_;
+        ( $d => [ grep { _csp_origin_ok($_) } @{ ( ref $allow eq 'HASH' && $allow->{$d} ) || [] } ] )
+    } qw(script connect img frame);
     return join '; ',
         q{default-src 'self'},
         q{base-uri 'self'},
@@ -191,12 +202,48 @@ sub _content_security_policy {
         q{form-action 'self'},
         q{frame-ancestors 'self'},
         q{style-src 'self' 'unsafe-inline'},
-        q{img-src 'self' data: https:},
+        join( ' ', q{img-src 'self' data: https:}, @{ $a{img} } ),
         q{media-src 'self' https:},
-        q{frame-src 'self' https:},
+        join( ' ', q{frame-src 'self' https:}, @{ $a{frame} } ),
         q{font-src 'self' data:},
-        q{connect-src 'self'},
-        join( ' ', q{script-src 'self'}, @hashes );
+        join( ' ', q{connect-src 'self'}, @{ $a{connect} } ),
+        join( ' ', q{script-src 'self'}, @{ $a{script} }, @{ $hashes || [] } );
+}
+
+# P16: is this an origin a CSP allow-list may name - https://host[:port], the
+# host DNS-shaped with two labels or more, a leading `*.` allowed, and nothing
+# else? A MARKED COPY of Lazysite::SecurityHeaders::csp_origin_ok; t/lint/225
+# runs both over the same texts.
+sub _csp_origin_ok {
+    my ($o) = @_;
+    return 0 unless defined $o && !ref $o;
+    return $o =~ m{\A https:// (?: \*\. )?
+        [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )?
+        (?: \. [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )? )+
+        (?: : [1-9][0-9]{0,4} )? \z}xi ? 1 : 0;
+}
+
+# P16: this response's allow-lists - the site's csp_<d>_src, or the serving
+# domain's alias.<host>.csp_<d>_src (resolve_site_vars overlays it), each entry
+# that is not an origin dropped and logged. None on the manager: its pages load
+# nothing from elsewhere, and an allow-list there would widen the one surface
+# where an injection reaches an operator's session. Outside a render (the
+# lint's extracted copy) there are none.
+sub _csp_allow {
+    return {} if _is_manager_request();
+    my %sv = eval { resolve_site_vars() };
+    my %allow;
+    for my $d (qw(script connect img frame)) {
+        my $raw = $sv{"csp_${d}_src"};
+        next unless defined $raw && !ref $raw && length $raw;
+        my %seen;
+        for my $o ( grep { length } split /[\s,]+/, $raw ) {
+            if ( _csp_origin_ok($o) ) { push @{ $allow{$d} }, lc $o unless $seen{ lc $o }++; next }
+            log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                "csp_${d}_src entry is not an https origin - left out of the policy", entry => $o );
+        }
+    }
+    return \%allow;
 }
 
 sub _security_headers {
@@ -252,7 +299,7 @@ sub _security_headers {
                 ? 'Content-Security-Policy'
                 : 'Content-Security-Policy-Report-Only';
             push @h, "$name: "
-                . _content_security_policy( _inline_script_hashes( $opt{html} ) );
+                . _content_security_policy( [ _inline_script_hashes( $opt{html} ) ], _csp_allow() );
         }
     }
     return @h;

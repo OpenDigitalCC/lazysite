@@ -51,7 +51,8 @@ package Lazysite::SecurityHeaders;
 use strict;
 use warnings;
 
-our @EXPORT_OK = qw(security_headers content_security_policy inline_script_hashes csp_mode);
+our @EXPORT_OK = qw(security_headers content_security_policy inline_script_hashes csp_mode
+    csp_origin_ok csp_allow_lists @CSP_ALLOW_DIRECTIVES);
 
 sub csp_mode { return _csp_mode(@_) }
 use Exporter 'import';
@@ -207,13 +208,69 @@ sub inline_script_hashes {
     return @hashes;
 }
 
+# P16 (WORK-PLAN-0154, ruled 2026-10-12 "Add allow-lists"): A SITE'S OWN
+# EXTERNAL HOSTS. A site that embeds one legitimate external script - a banner
+# whose script then fetches from its own host - had two choices under
+# `csp: enforce`: stay report-only for ever, or switch the policy off. Four
+# lists in lazysite.conf, each appended to the default for its directive:
+#
+#   csp_script_src   csp_connect_src   csp_img_src   csp_frame_src
+#
+# each a list of https origins, comma- or space-separated, per domain on a
+# multi-domain instance (`alias.<host>.csp_script_src:`, which replaces the
+# primary's for that host). The default is unchanged when none is set.
+#
+# AN ORIGIN, AND NOTHING ELSE. `https://host` or `https://host:port`, the host
+# DNS-shaped with at least two labels, and a leading `*.` for its subdomains -
+# never a bare `*`, a scheme alone (`https:`), a path, a keyword (`'self'`,
+# `'unsafe-inline'`, `'unsafe-eval'`, `'strict-dynamic'`), a nonce or a hash.
+# The list exists to name a host; anything that would loosen the policy in
+# another way is not an entry. An entry that is not an origin is dropped and
+# logged, the rest of the list stands; `lazysite check` names it.
+#
+# The processor carries a marked copy (lazysite-processor/output.pm,
+# _csp_origin_ok and _content_security_policy; ADR 0001); t/lint/225 and
+# t/lint/55 compare the two by value.
+our @CSP_ALLOW_DIRECTIVES = qw(script connect img frame);
+
+sub csp_origin_ok {
+    my ($o) = @_;
+    return 0 unless defined $o && !ref $o;
+    return $o =~ m{\A https:// (?: \*\. )?
+        [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )?
+        (?: \. [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )? )+
+        (?: : [1-9][0-9]{0,4} )? \z}xi ? 1 : 0;
+}
+
+# A conf value - the list as written - to ( \@origins, \@refused ), each
+# origin lowercased once, in the order written.
+sub csp_allow_lists {
+    my ($raw) = @_;
+    my ( @ok, @bad, %seen );
+    for my $o ( grep { length } split /[\s,]+/, ( $raw // '' ) ) {
+        if ( csp_origin_ok($o) ) { push @ok, lc $o unless $seen{ lc $o }++ }
+        else                     { push @bad, $o }
+    }
+    return ( \@ok, \@bad );
+}
+
 # The policy for one response. Hashes are appended to script-src; with none,
-# script-src is 'self' alone.
+# script-src is 'self' alone. P16: `allow => { script => [...], connect => [...],
+# img => [...], frame => [...] }` appends each list of origins to its directive,
+# after the default's own sources and before the hashes.
 sub content_security_policy {
     my (%opt)  = @_;
     my @hashes = @{ $opt{script_hashes} || [] };
-    my $script = join ' ', q{script-src 'self'}, @hashes;
-    return join '; ', @CSP_SITE, $script;
+    my $given  = ref $opt{allow} eq 'HASH' ? $opt{allow} : {};
+    my %allow = map { ( $_ => [ grep { csp_origin_ok($_) } @{ $given->{$_} || [] } ] ) } @CSP_ALLOW_DIRECTIVES;
+    my @site = map {
+        my $d      = $_;
+        my ($name) = $d =~ /\A(\w+)-src\b/;
+        my $more = ( defined $name && ref $allow{$name} eq 'ARRAY' ) ? $allow{$name} : [];
+        join ' ', $d, @$more;
+    } @CSP_SITE;
+    my $script = join ' ', q{script-src 'self'}, @{ $allow{script} || [] }, @hashes;
+    return join '; ', @site, $script;
 }
 
 # The header lines for one response.
@@ -279,7 +336,7 @@ sub security_headers {
                 : 'Content-Security-Policy-Report-Only';
             push @h,
                 "$name: "
-                . content_security_policy( script_hashes => $opt{script_hashes} );
+                . content_security_policy( script_hashes => $opt{script_hashes}, allow => $opt{csp_allow} );
         }
     }
     return @h;

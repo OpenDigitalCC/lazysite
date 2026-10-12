@@ -356,7 +356,9 @@ our %ENV_ALLOWLIST = map { $_ => 1 } qw(
 # surface, so they stay safe to select via a declared Host.
 our %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
     qw(site_name theme layout nav_file search_default content_root site_url
-    lang lang_group);    # SM179: per-host language + language-set membership
+    lang lang_group      # SM179: per-host language + language-set membership
+    # P16: per-domain CSP allow-lists
+    csp_script_src csp_connect_src csp_img_src csp_frame_src);
 
 # SM151 P6: content-type by extension for per-domain static files served by the
 # processor (_serve_content_static). Kept small - the SEO artefacts

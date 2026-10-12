@@ -64,6 +64,22 @@ Directory scan
   200. A scan that reaches more logs a warning; its `_total` says how many.
   The ceiling for a directive's `limit=`.
 
+`csp`
+: The Content-Security-Policy mode: `report-only` (the default, and what any
+  unrecognised value reads as), `enforce`, or `off`. The manager is never
+  enforced.
+
+`csp_script_src`, `csp_connect_src`, `csp_img_src`, `csp_frame_src`
+: Hosts a page may load from beyond its own, each list appended to the
+  default for that directive: `csp_script_src: https://ads.example.com,
+  https://*.cdn.example.com`. Each entry is an https origin - `https://host` or
+  `https://host:port`, a leading `*.` for subdomains - and nothing else: no bare
+  `*`, no path, no `'unsafe-...'` or other keyword. An entry that is not an
+  origin is left out of the policy and logged, and `lazysite check` names it.
+  On an instance serving several domains, `alias.<host>.csp_script_src:` (and
+  the others) gives a domain its own list in place of the site's. The manager's
+  pages carry none of them.
+
 `search_default`
 : Site-wide default for the `search:` front matter key. Set to `true`
   (default) or `false`. Pages without an explicit `search:` key inherit

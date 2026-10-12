@@ -1319,6 +1319,7 @@ sub run_checks {
     report_unscoped_data_tables();
     report_rows_without_a_policy();
     report_unsafe_nav_urls();
+    report_csp_allow_lists();
     report_group_acl_reach();
 
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
@@ -1952,6 +1953,39 @@ sub report_unscoped_data_tables {
         sprintf( '%d data table%s scoped to a domain',
             scalar @scoped, ( @scoped == 1 ? ' is' : 's are' ) )
     ) if @scoped;
+    return;
+}
+
+# P16 (WORK-PLAN-0154, ruled 2026-10-12 "Add allow-lists"): an entry in a
+# csp_script_src, csp_connect_src, csp_img_src or csp_frame_src list - the
+# site's or a domain's (alias.<host>.csp_*_src) - that is not an https origin is
+# left out of every page's policy and logged on each render. This names each,
+# with the line it is on, so it can be corrected once. Read as text, like the
+# rest of this tool; the rule is Lazysite::SecurityHeaders::csp_origin_ok.
+sub report_csp_allow_lists {
+    require Lazysite::SecurityHeaders;
+    open my $ch, '<', $conf or return;
+    my ( @bad, $lists );
+    my $n = 0;
+    while ( my $l = <$ch> ) {
+        $n++;
+        next unless $l =~ / ^ ( (?: alias\. \S+? \. )? csp_ (?: script|connect|img|frame ) _src ) \s* : \s* (.*?) \s* $ /x;
+        my ( $key, $raw ) = ( $1, $2 );
+        $lists++;
+        my ( undef, $refused ) = Lazysite::SecurityHeaders::csp_allow_lists($raw);
+        push @bad, map { "lazysite.conf:$n $key '$_'" } @$refused;
+    }
+    close $ch;
+    return unless $lists;
+    if (@bad) {
+        report( 'WARN',
+            sprintf( '%d CSP allow-list entr%s not an https origin, left out of the policy: %s',
+                scalar @bad, ( @bad == 1 ? 'y is' : 'ies are' ), join( ', ', @bad ) ),
+            'An entry is https://host or https://host:port, a leading *. for subdomains - no '
+                . "bare *, no path, no 'unsafe-*' or other keyword. See /docs/configuration." );
+        return;
+    }
+    report( 'OK', 'every CSP allow-list entry is an https origin' );
     return;
 }
 
