@@ -37,40 +37,40 @@ questions below, and the next item starts.
 
 ## Engine bugs from the dev inbox
 
-| P | Item | Needs | Size |
-| --- | --- | --- | --- |
-| P4 | `users-detail` reads every account (43 s for 695), so approving an account request times out in the browser | built (n390), SM983: the approval asks `users-detail` for `fields: ["email"]` only, 0.27 s for 700 accounts from 26.7 s | S |
-| P5 | `&&` in a page body is a template parse error (it appears to reach TT as `&amp;&amp;`) | built (n391), SM984: convert_md lifts each `[% %]` tag past the Markdown converter; a tag in code is shown, escaped | S |
-| P6 | A fenced code block that shows `:::` component syntax is expanded | built (n392), SM985: fenced code is converted first and held out of the `:::` passes; indented code was never affected | S |
-| P7 | A setup link refused over plain HTTP says "invalid or expired" | built (n393), SM986: the refusal redirects with `error=https` and the claim page says a password can only be set over HTTPS | XS |
-| P8 | The development server cannot receive a form post (404 for `form-handler.pl`) | built (n394), SM987: `/cgi-bin/form-handler.pl` runs `plugins/form-handler.pl`, directly, as installed | XS |
-| P9 | A `scan:` stops at 200 pages with no warning, in file order | built (n395), SM988: `scan_limit:` in lazysite.conf (default 200, stable prefix), `<var>_total` of the pages the reader may see, a warning when capped; site-wide key and total-before-filter are open for review | S |
-| P10 | `lazysite provision` prints uninitialised-value warnings (install.pl ~1223) with no registry | built (n396), label install-plan: not the registry - three runtime paths carry `why` and no `purpose`; the plan prints `why` | XS |
-| P11 | `acl set --draft` over a folder already held: a rewrite leaves the private copy and `reapply` refuses | depends on P1c (security agent, not landed on 2026-10-11): skipped, to confirm once P1c lands | XS |
+| P | Item | Ruling | Needs | Size |
+| --- | --- | --- | --- | --- |
+| P4 | `users-detail` reads every account (43 s for 695), so approving an account request times out in the browser | - | built (n390), SM983: the approval asks `users-detail` for `fields: ["email"]` only, 0.27 s for 700 accounts from 26.7 s | S |
+| P5 | `&&` in a page body is a template parse error (it appears to reach TT as `&amp;&amp;`) | - | built (n391), SM984: convert_md lifts each `[% %]` tag past the Markdown converter; a tag in code is shown, escaped | S |
+| P6 | A fenced code block that shows `:::` component syntax is expanded | - | built (n392), SM985: fenced code is converted first and held out of the `:::` passes; indented code was never affected | S |
+| P7 | A setup link refused over plain HTTP says "invalid or expired" | - | built (n393), SM986: the refusal redirects with `error=https` and the claim page says a password can only be set over HTTPS | XS |
+| P8 | The development server cannot receive a form post (404 for `form-handler.pl`) | - | built (n394), SM987: `/cgi-bin/form-handler.pl` runs `plugins/form-handler.pl`, directly, as installed | XS |
+| P9 | A `scan:` stops at 200 pages with no warning, in file order | revise, 2026-10-12: "Keep, add per-scan limit=": keep `scan_limit` as the site ceiling; add `limit=` and `offset=` on a scan directive, capped by it; `_total` as built. Docs. | built (n395), SM988: `scan_limit:` in lazysite.conf (default 200, stable prefix), `<var>_total` of the pages the reader may see, a warning when capped; site-wide key and total-before-filter are open for review | S |
+| P10 | `lazysite provision` prints uninitialised-value warnings (install.pl ~1223) with no registry | - | built (n396), label install-plan: not the registry - three runtime paths carry `why` and no `purpose`; the plan prints `why` | XS |
+| P11 | `acl set --draft` over a folder already held: a rewrite leaves the private copy and `reapply` refuses | - | depends on P1c (security agent, not landed on 2026-10-11): skipped, to confirm once P1c lands | XS |
 
 ## Requests from the dev inbox (each needs a ruling before it is built)
 
-| P | Item | Needs |
-| --- | --- | --- |
-| P12 | Registry objects carry only seven fields; give them the page's other front matter (as a scan object has) | ruling: which keys, and how lists are parsed |
-| P13 | YAML list keys other than `tags` (`categories:`) arrive as raw text | ruling: parse lists generally, or document which keys are lists |
-| P14 | An alias host names itself as canonical; render canonical, sitemap and `llms.txt` from the canonical domain | ruling: render from the canonical, or document a web-server redirect |
-| P15 | The visitor log records no host, so a multi-domain instance cannot answer per-domain questions | ruling: record the served host with each event |
-| P16 | The CSP has no way to allow one external host | ruling: `csp_script_src` / `csp_connect_src` (and img, frame) lists, per domain |
-| P17 | `(mine)` cannot read the viewer's own rows from a table they may not otherwise read (corrected report, 20:00) | ruling: whether `(mine)` may bypass the table's general read rule for own rows |
-| P18 | A handler that mails recipients taken from data (followers of a post), to verified account emails only, with a per-recipient limit and an audit line per delivery | ruling; the report gives a full specification |
+| P | Item | Ruling | Needs |
+| --- | --- | --- | --- |
+| P12 | Registry objects carry only seven fields; give them the page's other front matter (as a scan object has) | 2026-10-12, with P13: "Full front matter + general lists": registry objects carry the same front-matter keys a scan object has (minus engine-private keys - define the private set and say it); any YAML block or flow list is parsed as a list (not only tags), in the scan and registry objects and page vars - check SM980's single access-key reader is not disturbed and the processor/lib marked copies stay equal. | ruling: which keys, and how lists are parsed |
+| P13 | YAML list keys other than `tags` (`categories:`) arrive as raw text | 2026-10-12: with P12, "Full front matter + general lists" (see P12). | ruling: parse lists generally, or document which keys are lists |
+| P14 | An alias host names itself as canonical; render canonical, sitemap and `llms.txt` from the canonical domain | 2026-10-12: "Render from the canonical": for a host registered as an alias (alias_of), canonical link, sitemap and llms.txt addresses use the canonical domain's address; the alias keeps serving under its own name. | ruling: render from the canonical, or document a web-server redirect |
+| P15 | The visitor log records no host, so a multi-domain instance cannot answer per-domain questions | 2026-10-12: "Record host": each visitor-log event carries the served host; analyse_visitors filters/groups by host; a confined caller sees only its own domains' traffic (SM976 rule). Counting basis note if the report shape changes. | ruling: record the served host with each event |
+| P16 | The CSP has no way to allow one external host | 2026-10-12: "Add allow-lists": csp_script_src, csp_connect_src, csp_img_src, csp_frame_src in lazysite.conf, each a list of https origins (validated: no 'unsafe-*', no bare *, only scheme+host[:port], a leading *. subdomain wildcard allowed), appended to the default; per domain on multi-domain instances; check reports bad entries. | ruling: `csp_script_src` / `csp_connect_src` (and img, frame) lists, per domain |
+| P17 | `(mine)` cannot read the viewer's own rows from a table they may not otherwise read (corrected report, 20:00) | 2026-10-12: "Allow own rows": `(mine)` returns only rows whose created_by is the signed-in viewer even when the table's read rule excludes them; anonymous gets nothing; the data endpoint and listings still follow the rule. SECURITY-sensitive: prove no other row leaks (other viewers' rows, totals, counts). | ruling: whether `(mine)` may bypass the table's general read rule for own rows |
+| P18 | A handler that mails recipients taken from data (followers of a post), to verified account emails only, with a per-recipient limit and an audit line per delivery | - | ruling; the report gives a full specification |
 
 ## Follow-ups noted while working WORK-PLAN-0153
 
-| P | Item | Needs | Size |
-| --- | --- | --- | --- |
-| P19 | The coverage floor (`dist/config/coverage-floor`) names only the CGIs; the processor's 19 parts and the manager modules that left them are held to no floor | ruling: floors per moved file, or one floor over each former CGI's parts | S |
-| P20 | `_render_form` (forms.pm), `main` (the processor) and `render_content` (render.pm) are each hundreds of lines; they need a split that is not a pure move | plan first | L |
-| P21 | Lint 137 (a row writer names its actor) reads only the top-level `*.pl` files, by design; the writers now live in modules | built (n398), SM989: lint 137 holds every insert_row/update_row/import_rows call in lib/, tools/, plugins/ and the root to `actor =>`; it found package_apply restoring rows as nobody, fixed | XS |
-| P22 | 31 filings still say "SHIPPED (PENDING)" after their release shipped | the release step stamps the version into the status-note, or a sweep does | S |
-| P23 | The nav parser stores a `javascript:` URL as written | ruling: refuse or neutralise unsafe schemes in `nav.conf` | XS |
-| P24 | The control API's `users` read sub-actions (including `verify-credential`) write no audit row when they fail; a crashing handler writes none on any surface | under SM943's rule (refusals and errors are audited) | S |
-| P25 | The scan's page read still dies on a page it cannot open (permissions), outside the encoding rule | built (n399), SM990: both walks open the page inside the Q15h guard; left out, logged by relative path with the reason | XS |
+| P | Item | Ruling | Needs | Size |
+| --- | --- | --- | --- | --- |
+| P19 | The coverage floor (`dist/config/coverage-floor`) names only the CGIs; the processor's 19 parts and the manager modules that left them are held to no floor | 2026-10-12: coverage floors per moved file: the floor covers the processor's parts and the manager modules that left the CGIs (decide: per-file floors or a floor over each former CGI's parts - choose the one that keeps the gate meaningful and explain); run tools/coverage.sh --check only within the gate's lock rules; if measuring needs the gate, state the floors and leave a note for the coordinating session to verify at the next gate. | ruling: floors per moved file, or one floor over each former CGI's parts | S |
+| P20 | `_render_form` (forms.pm), `main` (the processor) and `render_content` (render.pm) are each hundreds of lines; they need a split that is not a pure move | - | plan first | L |
+| P21 | Lint 137 (a row writer names its actor) reads only the top-level `*.pl` files, by design; the writers now live in modules | revise, 2026-10-12: "Keep original authors": a restored site package's rows keep the created_by/updated_by they were exported with (change n398's behaviour); the audit trail records who applied the package. Lint 137 must still pass (it requires actor =>). | built (n398), SM989: lint 137 holds every insert_row/update_row/import_rows call in lib/, tools/, plugins/ and the root to `actor =>`; it found package_apply restoring rows as nobody, fixed | XS |
+| P22 | 31 filings still say "SHIPPED (PENDING)" after their release shipped | 2026-10-12: the release step stamps "SHIPPED (PENDING)" status-notes with the released version (tools/release-material.pl) and a one-off sweep fixes the 31 already-released filings (verify each against the released CHANGELOG sections). | the release step stamps the version into the status-note, or a sweep does | S |
+| P23 | The nav parser stores a `javascript:` URL as written | 2026-10-12: refuse or neutralise unsafe URL schemes (javascript:, data:, vbscript:, ...) in nav.conf at write (set_nav/nav-save/WebDAV PUT of nav.conf) and at render; existing entries render as '#', logged; validate/check report them. | ruling: refuse or neutralise unsafe schemes in `nav.conf` | XS |
+| P24 | The control API's `users` read sub-actions (including `verify-credential`) write no audit row when they fail; a crashing handler writes none on any surface | 2026-10-12: under SM943's audit rule (refusals and errors are audited): the control API's `users` read sub-actions (incl. verify-credential) write an audit row when they fail; a handler that crashes writes one failure row on every surface (API, MCP) naming the action, never the error's secret content. | under SM943's rule (refusals and errors are audited) | S |
+| P25 | The scan's page read still dies on a page it cannot open (permissions), outside the encoding rule | - | built (n399), SM990: both walks open the page inside the Q15h guard; left out, logged by relative path with the reason | XS |
 
 # Not in the queue, and why
 
@@ -87,4 +87,4 @@ questions below, and the next item starts.
   `scan_limit:` rather than `limit=`/`offset=` on the directive. (2)
   `<var>_total` is counted before `filter=`, because a page past the cap is
   not read and cannot be filtered; with a filter it can exceed what the filter
-  would list. Keep both, or add per-directive paging?
+  would list. Keep both, or add per-directive paging? Answered 2026-10-12 (P9 row): keep `scan_limit` as the ceiling and add `limit=`/`offset=`; `_total` as built.
