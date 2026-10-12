@@ -33,7 +33,7 @@ our @EXPORT_OK = qw(
     action_list action_read action_save action_save_binary
     action_delete action_mkdir action_move action_copy
     action_migrate_to_local action_aliases_list
-    acquire_lock release_lock renew_lock _get_lock_info
+    acquire_lock release_lock renew_lock _get_lock_info lock_refusal
     action_acl_get action_acl_set action_acl_remove action_protected_sections
     invalidate_registries registry_roots action_regenerate_registries
     action_git_status action_git_history action_git_history_summary
@@ -1787,6 +1787,23 @@ sub _lock_file {
     $key               =~ s{\A/+|/+\z}{}g;
     $key               =~ s{/}{:}g;
     return "$LOCK_DIR/$key.lock";
+}
+
+# SM992 (ruled 2026-10-12, Finding 2, "Lock needs write access"): A LOCK IS A
+# WRITER'S. lock, renew-lock and unlock asked no file rule, so any manager
+# account could lock any file - blocking its writers until the lock expired -
+# and release anybody's lock. The manager's lock actions ask this first: the
+# caller must be able to write the path under its rule. The operator (and
+# `local`, and an unsecured site) passes it as it passes every file rule, so
+# its force-unlock is unchanged. A refusal is validate_path's own for a path
+# it rejects, or _acl_denied's. Called by the dispatcher, not inside
+# acquire_lock, which also takes the theme and layout activations' artefact
+# locks on paths no file rule governs.
+sub lock_refusal {
+    my ( $rel_path, $username ) = @_;
+    my $v = validate_path($rel_path);
+    return $v unless $v->{ok};
+    return _acl_denied( $v->{rel}, 'write', $username );
 }
 
 sub acquire_lock {

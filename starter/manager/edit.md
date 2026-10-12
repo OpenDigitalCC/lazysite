@@ -362,7 +362,13 @@ function acquireLock() {
     .then(function(data) {
       var dot = document.getElementById('ed-lock-dot');
       var lbl = document.getElementById('ed-lock-label');
-      if (data.locked && data.locked_by) {
+      if (data.ok === false && !data.locked) {
+        // SM992: a lock is a writer's - this file's rule does not let this
+        // account write it, so it takes no lock and cannot save.
+        dot.className = 'lock-dot locked';
+        lbl.textContent = data.error || 'This file\'s access rule does not let you edit it.';
+        document.getElementById('ed-save-btn').disabled = true;
+      } else if (data.locked && data.locked_by) {
         dot.className = 'lock-dot locked';
         // A stale lock (e.g. an editor left open across a restart) can't be
         // waited out without the 5-min TTL, so offer to take it over. The server

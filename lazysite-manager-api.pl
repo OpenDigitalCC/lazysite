@@ -52,7 +52,7 @@ use Lazysite::Manager::StartPage qw(action_start_page dispatch_start_page_set); 
 use Lazysite::Handlers         ();    # SM842: handlers, bindings, the schedule
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
-    acquire_lock release_lock renew_lock _get_lock_info
+    acquire_lock release_lock renew_lock _get_lock_info lock_refusal
     action_acl_get dispatch_acl_set action_acl_remove action_protected_sections
     action_git_status action_git_history action_git_history_summary
     action_git_show action_git_restore action_git_init
@@ -1163,9 +1163,11 @@ elsif ( $action eq 'git-history-summary' ) {
 elsif ( $action eq 'git-show' ) { $result = action_git_show( $path, $auth_user, $params{sha} ) }
 elsif ( $action eq 'git-restore' ) { $result = action_git_restore( $path, $auth_user, $params{sha} ) }
 elsif ( $action eq 'git-init' )   { $result = action_git_init($auth_user) }
-elsif ( $action eq 'lock' )       { $result = acquire_lock( $path, $auth_user ) }
-elsif ( $action eq 'unlock' )     { $result = release_lock( $path, $auth_user ) }
-elsif ( $action eq 'renew-lock' ) { $result = renew_lock( $path, $auth_user ) }
+# SM992: a lock is taken, renewed and released only by a caller who may write
+# the file under its rule (Files::lock_refusal).
+elsif ( $action eq 'lock' ) { $result = lock_refusal( $path, $auth_user ) // acquire_lock( $path, $auth_user ) }
+elsif ( $action eq 'unlock' ) { $result = lock_refusal( $path, $auth_user ) // release_lock( $path, $auth_user ) }
+elsif ( $action eq 'renew-lock' ) { $result = lock_refusal( $path, $auth_user ) // renew_lock( $path, $auth_user ) }
 elsif ( $action eq 'preview' )    { $result = action_preview($path) }
 elsif ( $action eq 'cache-list' ) { $result = action_cache_list() }
 elsif ( $action eq 'cache-invalidate' ) {

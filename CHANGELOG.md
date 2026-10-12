@@ -437,6 +437,16 @@ Archive
   restored" and the action's audit row, and `data_restored` gains
   `authors_kept`. A package built before this carries none, and its rows are
   the applier's. t/unit/data/70, lint 137.
+- SM992 (PENDING) **security: an edit lock needs write access** (ruled
+  2026-10-12, "Lock needs write access"). `lock` asked no file rule, so any
+  manager account could lock any file and block its writers until the lock
+  expired, and `unlock` released anybody's lock. **Behaviour change:** the
+  manager's `lock`, `renew-lock` and `unlock` refuse (403) a caller the path's
+  rule does not let write, and WebDAV's `UNLOCK` is authorised as a write, as
+  `LOCK` already was. The operator's release of another's lock is unchanged;
+  a file no rule governs locks as before. The editor says why it cannot edit
+  such a file. t/integration/129.
+
 - SM991 (PENDING) **security: the operator is the operator group, and
   `manage_users` is user and group management** (ruled 2026-10-12, "Operators
   bypass, others bound"). A session holding only `manage_users` passed every

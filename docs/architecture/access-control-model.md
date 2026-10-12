@@ -92,6 +92,12 @@ this.
 | Any user, on a site where no group grants manager access | operator - which is why the public path must not consult it |
 | Partner (token / MCP / WebDAV) | never an operator; groups resolve from the account |
 
+**An edit lock is a write (SM992).** The manager's `lock`, `renew-lock` and
+`unlock`, and WebDAV's `LOCK` and `UNLOCK`, ask the path's write rule as a save
+does: a caller the rule does not let write takes, renews and releases no lock,
+so nobody can hold a file against its writers. The operator passes, as it
+passes every file rule, so its release of a stale lock is unchanged.
+
 ## The two policies
 
 An entry carries a policy, and they differ in what an anonymous request gets

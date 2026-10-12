@@ -204,7 +204,11 @@ sub main {
         return send_status( 400, body => "Bad request path\n" );
     }
     my $scope    = scope_for($user);
-    my $is_write = ( $method =~ /^(?:PUT|DELETE|MKCOL|MOVE|COPY|LOCK)$/ );
+    # SM992 (ruled 2026-10-12, "Lock needs write access"): UNLOCK is authorised
+    # as a write too, as LOCK always was: a caller the path's rule does not let
+    # write is refused UNLOCK as it is refused LOCK - the lock's own holder too,
+    # once the rule stops naming it.
+    my $is_write = ( $method =~ /^(?:PUT|DELETE|MKCOL|MOVE|COPY|LOCK|UNLOCK)$/ );
     if ( my $code = authorise( $rel, $scope, $is_write, $conf, $user ) ) {
         my $reason = $DENY_REASON;
         log_event( 'WARN', $user, 'dav path denied',
