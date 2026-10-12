@@ -6,7 +6,9 @@ package main;
 #         _scan_parse_modifiers (filter=, sort=, and limit=/offset=, P9),
 #         _scan_collect_files, _page_date, _page_url,
 #         _scan_limit (the site's cap, P9), _front_matter_reserved (the
-#         engine's front-matter keys, shared with the page's own stash) and
+#         engine's front-matter keys, shared with the page's own stash),
+#         _front_matter_private, _front_matter_custom and _page_tags (what a
+#         scan and a registry object carry of a page's front matter, P12) and
 #         _scan_page_unreadable (the log line
 #         for a page a walk leaves out, SM976 Q15h); scan_pages(), the walk
 #         the registries are built from; update_registries() and its P-3 memo of whether any
@@ -63,6 +65,47 @@ sub _front_matter_reserved {
     return { map { $_ => 1 } qw(
             url title subtitle date tags excerpt searchable path
             layout theme auth register search meta_title meta_desc ) };
+}
+
+# P12 (WORK-PLAN-0154, ruled 2026-10-12 "Full front matter + general lists"):
+# THE ENGINE-PRIVATE KEYS - what a REGISTRY never publishes, beyond the reserved
+# keys above (which are computed fields, or the engine's) and anything named
+# tt_* or _*. A registry is a static file served to anyone (sitemap.xml,
+# llms.txt, a feed, a site's own JSON index), so the keys that say how the
+# engine treats a page - who may read it, what it costs, which form it binds,
+# how it is served - stay out of it, as does a page's own engine stash. The scan
+# object, which is rendered for a reader the scan's gate has already admitted,
+# is unchanged.
+sub _front_matter_private {
+    return { map { $_ => 1 } qw(
+            auth_groups payment form query_params sections tt_page_var
+            api raw content_type ttl redirect ) };
+}
+
+# A page's custom front matter as a scan or registry object carries it: every
+# key not reserved and not tt_*/_*, a list as a list (P13), a scalar with its
+# surrounding quotes and TT markers stripped (_scan_scalar). One definition, so
+# the scan and the registries cannot disagree about what a page says (P12).
+sub _front_matter_custom {
+    my ( $meta, $reserved, $private ) = @_;
+    my %custom;
+    for my $k ( keys %$meta ) {
+        next if $reserved->{$k} || $k =~ /^(?:tt_|_)/;
+        next if $private && $private->{$k};
+        my $v = $meta->{$k};
+        if    ( ref $v eq 'ARRAY' ) { $custom{$k} = [ map { _scan_scalar($_) } @$v ] }
+        elsif ( !ref $v )           { $custom{$k} = _scan_scalar($v) }
+    }
+    return \%custom;
+}
+
+# A page's tags as a list: a YAML list, a comma-separated string, or one value.
+sub _page_tags {
+    my ($meta) = @_;
+    my $tags_raw = $meta->{tags} // '';
+    return [@$tags_raw] if ref $tags_raw eq 'ARRAY';
+    return [] unless length $tags_raw;
+    return [ map { s/^\s+|\s+$//gr } split /,/, $tags_raw ];
 }
 
 # The scan modifiers, parsed off the front of the pattern (PR-6). Lifted out
@@ -382,14 +425,7 @@ sub resolve_scan {
         my $date = _page_date( $meta, $path );
 
         # Parse tags from front matter (YAML list, comma-separated, or single value)
-        my $tags_raw = $meta->{tags} // '';
-        my @tags;
-        if ( ref $tags_raw eq 'ARRAY' ) {
-            @tags = @$tags_raw;
-        }
-        elsif ($tags_raw) {
-            @tags = map { s/^\s+|\s+$//gr } split /,/, $tags_raw;
-        }
+        my @tags = @{ _page_tags($meta) };
 
         # Extract raw body for search excerpt. SM976 Q15i (ruled 2026-10-09,
         # "Same rule"): the excerpt reads the BODY, which the front-matter guard
@@ -434,13 +470,7 @@ sub resolve_scan {
         # [% p.demo %], [% p.order %] - instead of smuggling data through tags.
         # Computed fields below take precedence; control/internal keys are excluded;
         # surrounding quotes and TT markers are stripped from scalar values.
-        my %custom;
-        for my $k ( keys %$meta ) {
-            next if $reserved{$k} || $k =~ /^(?:tt_|_)/;
-            my $v = $meta->{$k};
-            if    ( ref $v eq 'ARRAY' ) { $custom{$k} = [ map { _scan_scalar($_) } @$v ] }
-            elsif ( !ref $v )           { $custom{$k} = _scan_scalar($v) }
-        }
+        my %custom = %{ _front_matter_custom( $meta, \%reserved ) };
 
         push @pages, {
             %custom,
@@ -1003,7 +1033,9 @@ sub scan_pages {
     # own '/'-relative links.
     my ($root) = @_;
     $root //= $DOCROOT;
-    my $excl = _declared_content_roots();    # §7: other domains' roots
+    my $excl     = _declared_content_roots();    # §7: other domains' roots
+    my $reserved = _front_matter_reserved();     # P12, hoisted as in resolve_scan
+    my $private  = _front_matter_private();
 
     my @pages;
 
@@ -1068,11 +1100,15 @@ sub scan_pages {
                 # Derive URL from path, relative to the scanned root (SM151)
                 my $url = _page_url( $path, $root );
 
+                # P12: the page's other front matter, as a scan object carries
+                # it, less the engine-private keys; and its tags, as a list.
                 push @pages, {
+                    %{ _front_matter_custom( $meta, $reserved, $private ) },
                     url      => $url,
                     title    => $meta->{title}    || '',
                     subtitle => $meta->{subtitle} || '',
                     date     => $date,
+                    tags     => _page_tags($meta),
                     register => $meta->{register} || [],
 
                     # SM300: the description a registry publishes - the explicit

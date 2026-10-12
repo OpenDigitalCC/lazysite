@@ -8,6 +8,9 @@ package main;
 #         _yaml_scalar, _yaml_split_flow, _yaml_quoted_scalar_line.
 # OWNS    what a page's front matter means to the engine: process_md, the
 #         include path and the registry scan all read it through this one parse.
+#         And (P12/P13, at the end of this part) _front_matter_lists with
+#         _front_matter_engine_keys and _front_matter_list_item: a YAML list is a
+#         list, whatever its key.
 # CALLS   strip_tt_directives (lazysite-processor/oembed.pm).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S1). It is package main, required
@@ -274,6 +277,9 @@ sub parse_yaml_front_matter {
             $meta{$k} = $v;
         }
 
+        # P12/P13: any other key whose value is a YAML list is a list.
+        _front_matter_lists( $yaml, \%meta );
+
         # Sanitise auth value
         if ( defined $meta{auth} ) {
             $meta{auth} = lc( $meta{auth} );
@@ -296,6 +302,82 @@ sub parse_yaml_front_matter {
     }
 
     return ( \%meta, $text );
+}
+
+# P12/P13 (WORK-PLAN-0154, ruled 2026-10-12 "Full front matter + general
+# lists"): A YAML LIST IS A LIST, whatever its key. Only `tags` (and the
+# engine's own register, auth_groups, query_params) was read as one;
+# `categories:` with `- item` lines reached the scan as the raw text
+# `- "Perl Foundation"`, because the scalar loop's `\s*` runs on to the next
+# line.
+#
+# Two shapes, read where YAML is unambiguous and nowhere else:
+#   key: [a, "b c", d]       a flow list of scalars (quotes stripped, one level)
+#   key:                     a block list: every line below it, until the next
+#     - a                    key, is a `- item` at one indent (the key's own
+#     - "b c"                column is valid YAML too); blank and comment lines
+#                            are allowed between items
+# An item that is itself a mapping (`- name: x`), a nested list, or a block with
+# any other line in it is not a list of scalars: the key is left as the scalar
+# loop read it, as before. An empty flow list `[]` is an empty list.
+#
+# THE ENGINE'S KEYS ARE NOT TOUCHED (_front_matter_engine_keys): each has its
+# own reading, and the access keys (auth, auth_groups, payment) belong to the
+# gate's reader - a list where the engine expects one scalar would change what
+# a page does rather than what it says. A key already read as a list (tags) is
+# left as read.
+sub _front_matter_engine_keys {
+    return { map { $_ => 1 } qw(
+            auth auth_groups payment form register tt_page_var sections query_params
+            layout theme title subtitle meta_title meta_desc date search
+            api raw content_type ttl redirect lang ) };
+}
+
+sub _front_matter_list_item {
+    my ($v) = @_;
+    $v //= '';
+    $v =~ s/\A\s+|\s+\z//g;
+    $v =~ s/\A"(.*)"\z/$1/s or $v =~ s/\A'(.*)'\z/$1/s;
+    return strip_tt_directives($v);
+}
+
+sub _front_matter_lists {
+    my ( $yaml, $meta ) = @_;
+    my $engine = _front_matter_engine_keys();
+    my @lines  = split /\n/, $yaml;
+    for ( my $i = 0; $i < @lines; $i++ ) {
+        next unless $lines[$i] =~ /\A(\w+)[ \t]*:[ \t]*(.*?)[ \t]*\z/;
+        my ( $k, $v ) = ( $1, $2 );
+        next if $engine->{$k} || ref $meta->{$k};
+        if ( length $v ) {
+            next unless $v =~ /\A\[(.*)\]\z/s;
+            my @raw = _yaml_split_flow($1);
+            next if grep { /\A\s*[\[{]/ } @raw;    # nested: not a list of scalars
+            $meta->{$k} = [ map { _front_matter_list_item($_) } @raw ];
+            next;
+        }
+        my ( @items, $indent );
+        my $simple = 1;
+        my $j      = $i + 1;
+        while ( $j < @lines ) {
+            my $l = $lines[$j];
+            if ( $l =~ /\A\s*(?:#.*)?\z/ ) { $j++; next }
+            last if $l =~ /\A\w+[ \t]*:/;          # the next key
+            if ( $l =~ /\A([ \t]*)-(?:[ \t]+(.*?))?[ \t]*\z/ ) {
+                my ( $lead, $item ) = ( $1, $2 // '' );
+                $indent //= $lead;
+                $simple = 0 if $lead ne $indent || $item =~ /\A[\w-]+[ \t]*:(?:[ \t]|\z)/ || $item =~ /\A[\[{-]/;
+                push @items, $item;
+                $j++;
+                next;
+            }
+            $simple = 0;                           # an indented line that is not an item
+            last;
+        }
+        next unless $simple && @items;
+        $meta->{$k} = [ grep { length } map { _front_matter_list_item($_) } @items ];
+    }
+    return;
 }
 
 1;

@@ -18,7 +18,8 @@ package main;
 #         compile-cache fault never breaking a render.
 # CALLS   resolve_site_vars, resolve_tt_vars, _is_manager, _site_grants_manager,
 #         _groups_grant_cap, _domain_scopes, _domain_home, _language_set,
-#         _esc_html, _esc_query_stash, _front_matter_reserved, _content_rel,
+#         _esc_html, _esc_query_stash, _front_matter_reserved,
+#         _front_matter_private, _content_rel,
 #         _request_address, _trusted_proxy_spec, _lazysite_version,
 #         _manager_style, _enabled_plugins, _placeholder_key, _url_safe_filter,
 #         log_event (the script and its parts); Template->new and make_path
@@ -208,6 +209,7 @@ sub _render_stash {
     my @languages = @{ $in{languages} };
     my $query_esc = _esc_query_stash($query);    # SM869: see query => below
 
+    my $private  = _front_matter_private();      # P13: the engine's lists stay out
     my $reserved = _front_matter_reserved();
     my $vars     = {
         %site_vars,
@@ -308,14 +310,19 @@ sub _render_stash {
         # with a site var or a tt_page_var, so nothing an author already
         # depends on changes meaning.
         #
-        # Scalars only. An array or hash has no single escaped form, and the
-        # scan already serves the cases that want structure.
-        ( map { ( "page_$_" => _esc_html( $meta->{$_} ) ) }
+        # Scalars, and (P13, ruled 2026-10-12) a list of scalars as a list, each
+        # item escaped the same way - `categories: [a, b]` is page_categories,
+        # [% FOREACH c IN page_categories %]. A hash has no escaped form.
+        ( map {
+                ( "page_$_" => ref $meta->{$_} eq 'ARRAY'
+                    ? [ map { _esc_html($_) } grep { !ref } @{ $meta->{$_} } ]
+                    : _esc_html( $meta->{$_} ) )
+            }
             grep {
                 !$reserved->{$_}
                     && !/^(?:tt_|_)/
                     && defined $meta->{$_}
-                    && !ref $meta->{$_}
+                    && ( !ref $meta->{$_} || ( ref $meta->{$_} eq 'ARRAY' && !$private->{$_} ) )
             } keys %{$meta} ),
 
         # SM300: `subtitle` was doing three jobs at once - the visible

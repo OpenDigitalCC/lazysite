@@ -34,6 +34,9 @@ Everything below the closing `---` is the page body. All keys are optional unles
 `tags`
 : Tags for page-scan results. A YAML list, comma-separated, or a single value.
 
+Any other key
+: Reaches a `scan:` object and a registry object under its own name, and the page's own template as `page_<key>`. A YAML list - a flow list `[a, b]` or `- item` lines - is a list in all three: `[% FOREACH c IN page_categories %]`. A list of mappings, or a nested list, is not read as a list. The engine's own keys (`auth`, `auth_groups`, `payment`, `form`, `register`, `layout`, `theme` and the rest in this document) keep their own reading.
+
 `layout`
 : A named layout for this page, overriding the site-wide setting. Resolves to `lazysite/layouts/NAME/layout.tt`, or may be a remote URL (see [remote layouts](/docs/features/configuration/remote-layouts)).
 

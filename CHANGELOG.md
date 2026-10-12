@@ -292,6 +292,18 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM999 (PENDING) **a YAML list is a list, and a registry carries the page's
+  front matter.** A list key other than `tags` - `categories:` with `- item`
+  lines, or `keywords: [a, b]` - arrived as raw text. Any flow or block list of
+  scalars is now a list in a `scan:` object, a registry object and the page's
+  own `page_<key>` (each item escaped). Registry objects (sitemap, feeds,
+  `llms.txt`, a site's own JSON index) now carry the page's other front matter
+  and its `tags`, as a scan object does, less the engine-private keys
+  (`auth_groups`, `payment`, `form`, `query_params`, `sections`,
+  `tt_page_var`, `api`, `raw`, `content_type`, `ttl`, `redirect`, and any
+  `tt_*`/`_*`). The engine's own keys keep their own readings.
+  t/unit/processor/101.
+
 - SM998 (PENDING) **a failed account read and a crashed handler are audited.**
   Under SM943's rule (refusals and errors are audited): the control API's
   `users` read sub-actions - `users-detail`, `verify-credential` and the

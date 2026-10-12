@@ -84,8 +84,11 @@ subtest 'custom keys reach the stash, escaped and prefixed' => sub {
         or diag( 'H5 escapes at this single point precisely so a layout we do '
             . 'not ship cannot emit an author string raw. An unescaped custom '
             . 'key would hand every such layout an injection.' );
-    like( $stash, qr/!ref \$meta->\{\$_\}/,
-        'scalars only - an array has no single escaped form' );
+    # P13 (ruled 2026-10-12): scalars, and a list of scalars with each item
+    # escaped; a hash still has no escaped form.
+    like( $stash, qr/!ref \$meta->\{\$_\} \|\| \( ref \$meta->\{\$_\} eq 'ARRAY'/,
+        'scalars, and lists - a hash has no single escaped form' );
+    like( $stash, qr/map \{ _esc_html\(\$_\) \}/, 'a list item is escaped too' );
     like( $stash, qr/!\/\^\(\?:tt_\|_\)\//,
         'control and internal keys stay out' );
 };

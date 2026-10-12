@@ -1221,6 +1221,9 @@
                "page_modified_iso" : "2026-01-02T00:00:00Z",
                "page_page_modified" : "2026-01-02",
                "page_page_modified_iso" : "2026-01-02T00:00:00Z",
+               "page_ref_val" : [
+                  1
+               ],
                "page_source" : "",
                "page_subtitle" : "",
                "page_subtitle_raw" : "",

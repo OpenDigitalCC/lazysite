@@ -41,7 +41,13 @@ docroot. For example, `sitemap.xml.tt` generates `sitemap.xml`.
 Available variables in registry templates:
 
 - `pages` - array of registered pages, each with:
-  `url`, `title`, `subtitle`, `date`, `register`
+  `url`, `title`, `subtitle`, `date`, `register`, `meta_desc`, `meta_title`,
+  `tags` (a list), and the page's other front matter keys, as a scan object
+  carries them - `[% page.author %]`, `[% page.categories.join(', ') %]`.
+  A YAML list is a list. Left out, because a registry is a file anyone can
+  fetch: keys named `tt_*` or `_*`, and the engine's own `auth_groups`,
+  `payment`, `form`, `query_params`, `sections`, `tt_page_var`, `api`, `raw`,
+  `content_type`, `ttl` and `redirect`.
 - All site variables from `lazysite.conf`
 
 ### Adding a new registry
