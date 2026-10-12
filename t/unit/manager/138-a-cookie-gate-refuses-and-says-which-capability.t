@@ -112,10 +112,28 @@ subtest 'SM958: any token-gated action - regenerate-registries needs manage_cont
 subtest 'SM958: the actions that decide for themselves are not capability-refused' => sub {
     # acl-set is owner-checked inside; a manager without manage_content who owns a
     # file may still set its rule. The answer may be a refusal - but not THIS one.
+    # SM1057 (ruled "Require manage_content"): that holds for a path that HAS a
+    # rule, so the operator gives x.md one first, owned by the clerk.
+    $s->users( 'setup-sysop', '--user', 'op', 'pw-op-0123456789' );
+    my $set = $s->call( 'op', 'acl-set', query => 'action=acl-set&path=x.md',
+        body => { owner => 'clerk', write => ['clerk'] } );
+    ok( $set->{ok}, 'the operator gives x.md a rule the clerk owns' ) or diag explain $set;
     hold('manage_forms');
     my $r = $s->call( 'clerk', 'acl-set', body => { path => 'x.md', read => [] } );
     ok( !ManagerSession->refused_for_capability($r), 'acl-set reaches its own ownership check' )
         or diag( 'got: ' . ( $r->{error} // '(no error)' ) );
+};
+
+subtest 'SM1057: a first rule on a page with none needs manage_content' => sub {
+    hold('manage_forms');
+    my $r = $s->call( 'clerk', 'acl-set', body => { path => 'y.md', read => [] } );
+    ok( ManagerSession->refused_for_capability($r), 'a first rule is capability-refused' )
+        or diag explain $r;
+    like( $r->{error} // '', qr/manage_content/, '... naming manage_content' );
+    hold( 'manage_forms', 'manage_content' );
+    ok( !ManagerSession->refused_for_capability(
+            $s->call( 'clerk', 'acl-set', body => { path => 'y.md', read => [] } ) ),
+        'and reached with it' );
 };
 
 done_testing();
