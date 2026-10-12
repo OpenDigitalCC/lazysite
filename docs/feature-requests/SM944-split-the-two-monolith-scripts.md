@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1-S20 (n278-n304) the processor; S21-S32 (n306-n341) the manager API's context and areas; ITEM 1 (n339, n342); S33 (n343-n356) the dispatch branches, Manager::Data's four inline (ruled 2026-10-11). S34 (ruled 2026-10-11): tests (n362), fail-closed (n363), the gate in Manager::Csrf (n364), its refusal audited (n365). Q16 closed with no move (ruled 2026-10-12): the per-module log copies stay, Manager::Data's four stay inline for good; MCP's Domains attribution built (n368)."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1-S20 (n278-n304) the processor; S21-S32 (n306-n341) the manager API; ITEM 1 (n339, n342); S33 (n343-n356) the dispatch branches; S34 (n362-n365) the CSRF gate. Q16 closed with no move (ruled 2026-10-12): the log copies stay, Data's four stay inline for good; MCP's Domains attribution built (n368)."
 ---
 
 # Measured
