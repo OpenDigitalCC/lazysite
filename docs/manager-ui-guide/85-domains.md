@@ -86,6 +86,12 @@ Expect
   `@name` or `name` anywhere it is written (this sheet, the MCP `domain_set`
   tool, the control API's `domain-set`, `lazysite-domains.pl`).
 
+  From a shell, `lazysite-domains.pl --docroot DIR group-add --host H --group G`
+  adds one group and keeps the others (`group-remove` takes one out;
+  `user-add` and `user-remove` do the same for locked users). It refuses a
+  group or account the site does not have, naming it, and says when there was
+  nothing to do.
+
 Negative
 : A locked user with no allowed domain is denied everywhere - never silently
   unconfined. That sentinel is the whole safety of the model: confirm it by

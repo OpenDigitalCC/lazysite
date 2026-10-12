@@ -158,6 +158,18 @@ Archive
   otherwise, by the handler, the header writer (every message), a handler's
   own `to`/`from`, and an account's address. A hand-written `to:` naming two
   addresses now fails at send and says why. t/unit/forms/60, 61.
+- SM1015 (PENDING) **`lazysite-domains.pl group-add` and `group-remove`.**
+  Ruled 2026-10-12 ("lets have cli command to add the domain group").
+  `lazysite-domains.pl --docroot DIR group-add --host H --group G` adds one
+  group to a domain's `allowed_groups` and keeps the others; `group-remove`
+  takes one out; `user-add` and `user-remove` do the same for `locked_users`.
+  `G` may be `@name` or `name`. The list is written through `domain_set`, so
+  validation, the content-history commit and the log line are the ones every
+  surface gets. Adding a name already there, or removing one that is not,
+  says so and exits 0. A group or account the site does not have is refused,
+  naming it, because a misspelt group admits nobody; a store that cannot be
+  read refuses the add. The tool gains `--help`. t/tools/120.
+
 - SM1014 (PENDING) **a group is `@name` wherever one is picked or shown
   beside people.** Ruled 2026-10-12 ("groups should be prefixed with something
   say @ ... consistent anywhere a group is picked"). Files and Data already

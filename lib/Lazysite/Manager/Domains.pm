@@ -23,7 +23,7 @@ use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
 use Lazysite::Paths   ();
 use Lazysite::Private ();    # N141D: purge reaches the private store too
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value action_domain_check action_domains_list);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_add_alias domain_remove domain_set domain_access_edit domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value action_domain_check action_domains_list);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 our $LAZYSITE_DIR;           # set by the script (SM944 S27)
@@ -1225,6 +1225,106 @@ sub domain_set {
             ) unless $mirror->{mirrored};
     }
     return $res;
+}
+
+# SM1015: add or remove ONE name in a domain's allowed_groups (or locked_users),
+# leaving the others as they are. Ruled 2026-10-12: "lets have cli command to
+# add the domain group" (lazysite-domains.pl group-add / group-remove, and
+# user-add / user-remove for locked_users).
+#
+# THE WRITE IS domain_set's. The list is read, one name added or taken out, and
+# the whole list goes back through domain_set, so its validation, the conf
+# writer's lock and content-history commit, and its log line are the ones every
+# other surface gets. Caller rules (manage_users, the SM976 reach) belong to
+# the caller, as they do for domain_set: the CLI is the operator's.
+#
+# THE OWN VALUE, NOT THE EFFECTIVE ONE. DomainAccess reads only the host's own
+# alias.<host>.<key> line - a primary's allowed_groups is not inherited - so
+# that is the list edited here.
+#
+# A NAME THAT IS NOT THERE IS REFUSED ON ADD. A misspelt group in
+# allowed_groups admits nobody, and a misspelt account in locked_users locks
+# nobody, each while reporting success. A group exists if the groups file or
+# groups-settings.json names it (cmd_group_nest's test); an account if the
+# users file does. A store that cannot be read is no answer, so the add is
+# refused, naming it. Remove asks nothing: taking out a name the site no
+# longer has is how such a list is repaired.
+#
+# Idempotent: adding a name already there, or removing one that is not, writes
+# nothing and answers ok with changed => 0 and a sentence saying so.
+sub domain_access_edit {
+    my ( $host, $key, $op, $name ) = @_;
+    $host = lc( $host // '' );
+    return host_refusal($host) unless valid_host($host);
+    my %KIND = ( allowed_groups => 'group', locked_users => 'account' );
+    my $kind = $KIND{ $key // '' }
+        or return { ok => 0, kind => 'invalid',
+        error => 'Not an access key: ' . ( $key // '' ) . ' (allowed_groups or locked_users)' };
+    return { ok => 0, kind => 'invalid', error => "Not an operation: " . ( $op // '' ) }
+        unless defined $op && ( $op eq 'add' || $op eq 'remove' );
+
+    $name = defined $name ? $name =~ s/^\s+|\s+$//gr : '';
+    $name =~ s/\A\@// if $kind eq 'group';    # SM1014: @name or name
+    return { ok => 0, kind => 'invalid', error => "A $kind name is required" }
+        unless length $name;
+    return { ok => 0, kind => 'invalid', error => "Not a $kind name: $name" }
+        unless $name =~ /\A[A-Za-z0-9_-]+\z/;
+    my $shown = $kind eq 'group' ? "\@$name" : $name;
+
+    my ( undef, $ov, $hosts ) = _parse();
+    return { ok => 0, kind => 'not-found', error => "Domain not configured: $host" }
+        unless grep { $_ eq $host } @$hosts;
+    my @have = grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $ov->{$host}{$key} // '' );
+    my $present = grep { $_ eq $name } @have;
+
+    if ( $op eq 'add' && $present ) {
+        return { ok => 1, changed => 0, host => $host, key => $key, value => join( ', ', @have ),
+            message => "$shown is already in ${host}'s $key; nothing changed." };
+    }
+    if ( $op eq 'remove' && !$present ) {
+        return { ok => 1, changed => 0, host => $host, key => $key, value => join( ', ', @have ),
+            message => "$shown is not in ${host}'s $key; nothing changed." };
+    }
+
+    if ( $op eq 'add' ) {
+        require Lazysite::Auth::Settings;
+        no warnings 'once';
+        local $Lazysite::Auth::Settings::AUTH_DIR = $Lazysite::Auth::Settings::AUTH_DIR
+            // ( _lz() . '/auth' );
+        my ( $known, $store );
+        if ( $kind eq 'group' ) {
+            my $members     = Lazysite::Auth::Settings::group_names();
+            my $members_bad = $Lazysite::Auth::Settings::GROUPS_UNREADABLE;
+            my $settings    = Lazysite::Auth::Settings::read_group_settings();
+            $store = $members_bad ? 'lazysite/auth/groups'
+                : Lazysite::Auth::Settings::group_settings_unreadable()
+                ? 'lazysite/auth/groups-settings.json'
+                : '';
+            $known = $members->{$name} || ( ref $settings eq 'HASH' && $settings->{$name} );
+        }
+        else {
+            my $accounts = Lazysite::Auth::Settings::account_names();
+            $store = $Lazysite::Auth::Settings::USERS_UNREADABLE ? 'lazysite/auth/users' : '';
+            $known = $accounts->{$name};
+        }
+        return { ok => 0, kind => 'unreadable',
+            error => "Cannot tell whether $shown exists: $store cannot be read, so it is "
+                . "not added to $key." }
+            if length $store;
+        return { ok => 0, kind => 'not-found',
+            error => "No $kind $shown on this site, so it is not added to ${host}'s $key: "
+                . ( $kind eq 'group'
+                ? 'a group that does not exist admits nobody to the domain.'
+                : 'an account that does not exist is locked to nothing.' ) }
+            unless $known;
+    }
+
+    my @new = $op eq 'add' ? ( @have, $name ) : grep { $_ ne $name } @have;
+    my $r   = domain_set( $host, $key, join( ', ', @new ) );
+    return $r unless ref $r eq 'HASH' && $r->{ok};
+    $r->{changed} = 1;
+    $r->{message} = $op eq 'add' ? "$shown added to ${host}'s $key." : "$shown removed from ${host}'s $key.";
+    return $r;
 }
 
 # SM241: the layout+theme a host actually resolves to - its own override where it

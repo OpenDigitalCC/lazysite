@@ -11,10 +11,14 @@
 #       [--site-url U] [--site-name N] [--theme T] [--layout L] \
 #       [--nav-file F] [--search-default S] [--seed]
 #   lazysite-domains.pl --docroot DIR set    --host H --key K --value V
+#   lazysite-domains.pl --docroot DIR group-add    --host H --group G
+#   lazysite-domains.pl --docroot DIR group-remove --host H --group G
+#   lazysite-domains.pl --docroot DIR user-add     --host H --user U
+#   lazysite-domains.pl --docroot DIR user-remove  --host H --user U
 #   lazysite-domains.pl --docroot DIR remove --host H [--purge]
 #   lazysite-domains.pl --docroot DIR check  --host H [--self-ip PUBLIC_IP]
-#     (--self-ip overrides this server's public IP; otherwise it is discovered
-#      from the canonical_ip config key or the install's own domain)
+#
+# The full text is usage() below, printed by --help or with no command.
 #
 # Exit 0 on success, 1 on error. `check` exits 2 when the domain is not yet
 # fully configured (some check failed), so a caller can gate on it. --json
@@ -31,7 +35,49 @@ BEGIN {
     }
 }
 use Lazysite::Manager::Domains
-    qw(domains_list domain_add domain_remove domain_set domain_check);
+    qw(domains_list domain_add domain_remove domain_set domain_access_edit domain_check);
+
+sub usage {
+    print <<'USAGE';
+lazysite-domains.pl - manage the domains one lazysite instance serves
+
+Usage: lazysite-domains.pl --docroot DIR COMMAND [OPTIONS]
+
+Commands:
+  list [--json]                   the primary site and every domain
+  add --host H --content-root R   register a domain
+      [--site-url U] [--site-name N] [--theme T] [--layout L]
+      [--nav-file F] [--search-default S] [--seed]
+  set --host H --key K --value V  set one key on one domain (the whole value)
+  group-add --host H --group G    add ONE group to the domain's allowed_groups,
+                                  keeping the others; G is @name or name, and
+                                  must be a group on this site
+  group-remove --host H --group G take ONE group out of allowed_groups
+  user-add --host H --user U      add ONE account to the domain's locked_users;
+                                  U must be an account on this site
+  user-remove --host H --user U   take ONE account out of locked_users
+  remove --host H [--purge]       remove a domain (--purge: its content too)
+  check --host H [--self-ip IP]   DNS, TLS and vhost checks; exits 2 until the
+                                  domain is fully configured. --self-ip
+                                  overrides this server's public IP, which is
+                                  otherwise discovered from canonical_ip or the
+                                  install's own domain
+
+group-add, group-remove, user-add and user-remove write through the same
+path as `set` (validation, the content-history commit, the log line). Adding
+a name already there, or removing one that is not, changes nothing, says so
+and exits 0.
+
+Options:
+  --docroot DIR   the site's document root (required)
+  --json          print the raw result object
+  --actor NAME    the name the change is recorded under (default: the login)
+  --help          this text
+
+Exit 0 on success, 1 on error, 2 from `check` when a check fails.
+USAGE
+    return;
+}
 
 my %opt;
 my @pos;
@@ -42,14 +88,15 @@ my @pos;
         if ( $t =~ /^--([\w-]+)$/ ) {
             my $k = $1;
             # boolean flags take no value
-            if   ( $k eq 'seed' || $k eq 'purge' || $k eq 'json' ) { $opt{$k} = 1 }
-            else                                                   { $opt{$k} = shift @a }
+            if ( $k eq 'seed' || $k eq 'purge' || $k eq 'json' || $k eq 'help' ) { $opt{$k} = 1 }
+            else { $opt{$k} = shift @a }
         }
         else { push @pos, $t }
     }
 }
 
-my $cmd     = shift @pos    // '';
+my $cmd = shift @pos // '';
+if ( $opt{help} || $cmd eq '' || $cmd eq 'help' ) { usage(); exit 0 }
 my $docroot = $opt{docroot} // '';
 die "lazysite-domains: --docroot DIR is required\n"   unless length $docroot;
 die "lazysite-domains: docroot not found: $docroot\n" unless -d $docroot;
@@ -84,6 +131,14 @@ elsif ( $cmd eq 'set' ) {
         unless defined $opt{host} && defined $opt{key};
     $result = domain_set( $opt{host}, $opt{key}, $opt{value} );
 }
+elsif ( $cmd =~ /\A(group|user)-(add|remove)\z/ ) {
+    # SM1015: one name in, or out, of a domain's access list.
+    my ( $what, $op ) = ( $1, $2 );
+    my ( $flag, $key ) = $what eq 'group' ? ( 'group', 'allowed_groups' ) : ( 'user', 'locked_users' );
+    die "lazysite-domains: $cmd requires --host and --$flag\n"
+        unless defined $opt{host} && defined $opt{$flag};
+    $result = domain_access_edit( $opt{host}, $key, $op, $opt{$flag} );
+}
 elsif ( $cmd eq 'remove' ) {
     die "lazysite-domains: remove requires --host\n" unless defined $opt{host};
     $result = domain_remove( $opt{host}, purge => ( $opt{purge} ? 1 : 0 ) );
@@ -105,7 +160,8 @@ elsif ( $cmd eq 'check' ) {
 }
 else {
     die "lazysite-domains: unknown command '$cmd' "
-        . "(list|add|set|remove|check); run with no command for usage.\n";
+        . "(list|add|set|group-add|group-remove|user-add|user-remove|remove|check); "
+        . "run with --help for usage.\n";
 }
 
 if ( $opt{json} ) {
@@ -127,6 +183,14 @@ elsif ( $result->{ok} ) {
             my $mark = !defined $c->{pass} ? '?' : $c->{pass} ? 'PASS' : 'FAIL';
             printf "  [%-4s] %-24s %s\n", $mark, $c->{label}, $c->{detail};
         }
+    }
+    elsif ( defined $result->{changed} ) {
+        # group-add & co: the sentence says what happened, including nothing.
+        print( ( $result->{changed} ? 'ok: ' : 'unchanged: ' ), $result->{message}, "\n" );
+        my $now = $result->{value} // '';
+        $now = join ', ', map { "\@$_" } grep { length } split /\s*,\s*/, $now
+            if ( $result->{key} // '' ) eq 'allowed_groups';
+        print "  $result->{key}: ", ( length $now ? $now : '(none)' ), "\n";
     }
     else {
         print "ok: $cmd ", ( $result->{host} // '' ), "\n";
