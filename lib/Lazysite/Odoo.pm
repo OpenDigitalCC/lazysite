@@ -335,7 +335,34 @@ sub record_call {
     close $fh;
     secure_write_perms( $f, 0660 );
     _audit_line( \%rec );
+    _prune_calls();
     return 1;
+}
+
+# SM822's rule for the connector's record, here from the start: bounded by AGE
+# and nothing else, cheap when nothing has expired (the first line is the
+# oldest), and a line that cannot be dated is kept rather than dropped.
+sub _prune_calls {
+    my $f = calls_file();
+    open my $in, '<:raw', $f or return;
+    my $first = <$in>;
+    my $rec   = defined $first ? eval { JSON::PP::decode_json($first) } : undef;
+    our $CALLS_KEEP_DAYS;
+    my $cut = time - $CALLS_KEEP_DAYS * 86400;
+    unless ( ref $rec eq 'HASH' && defined $rec->{at} && $rec->{at} < $cut ) { close $in; return }
+    seek $in, 0, 0;
+    my @keep;
+    while ( my $l = <$in> ) {
+        my $r = eval { JSON::PP::decode_json($l) };
+        push @keep, $l if ref $r ne 'HASH' || !defined $r->{at} || $r->{at} >= $cut;
+    }
+    close $in;
+    open my $out, '>:raw', "$f.pruning.$$" or return;
+    print {$out} @keep;
+    close $out;
+    secure_write_perms( "$f.pruning.$$", 0660 );
+    rename "$f.pruning.$$", $f or unlink "$f.pruning.$$";
+    return;
 }
 
 # The shared audit trail gets one line too, so a site's one place to ask "who
@@ -460,6 +487,427 @@ sub _extension_enabled {
         Lazysite::Manager::Plugins::plugin_enabled('plugins/odoo.pl');
     };
     return $ok ? 1 : 0;
+}
+
+# =============================================================================
+# SLICE CU (2026-10-12): THE CONNECTION USER, AND THE CALL ITSELF.
+#
+# R1: "the connection user is set on odoo with permissions as required by the
+# user, which allows some backend activities, without the user logging in". So
+# every call below runs as ONE Odoo account whose rights Odoo decides, through
+# a named operation whose scope OOM's Guard enforces. Lazysite adds who may
+# cause the call, how often, what a request may set, and the record.
+# =============================================================================
+
+# THE TRANSPORT, FOR TESTS ONLY. OOM's Context takes an injected transport
+# (Odoo::Ops::Context->new(transport => ...)); a test sets this to OOM's fake
+# Odoo, and nothing in the product does. Unset, OOM builds its own hardened one.
+our $TRANSPORT;
+
+# The connection user's account name in the key store (Lazysite::Odoo::Secret).
+# Q2's per-grant MCP accounts are other names beside it.
+our $ACCOUNT = 'connection';
+
+# A plan waits this long for its confirm, and is kept this long for the record.
+our $PLAN_TTL       = 3600;
+our $PLAN_KEEP_DAYS = 7;
+
+# How long a call record is kept, and the rolling window the caps count over.
+our $CALLS_KEEP_DAYS = 90;
+our $CAP_WINDOW      = 3600;
+
+sub plans_dir   { return store_dir() . '/plans' }
+sub recent_file { return store_dir() . '/recent.jsonl' }
+
+# The operations OOM offers: its own packs plus the site's (odoo_packs). The
+# registry is OOM's, and so is every name in it.
+sub registry {
+    my ($conn) = @_;
+    local $ENV{ODOO_OPS_NAMESPACES} = join ',', @{ $conn->{packs} || [] };
+    return Odoo::Ops::Registry->new;
+}
+
+sub operation_class {
+    my ( $conn, $name ) = @_;
+    my $class = eval { registry($conn)->class_for($name) };
+    return ( $class, '' ) if $class;
+    my $err = $@;
+    log_event( 'WARN', 'odoo', 'operation not found', operation => $name,
+        detail => ( ref $err ? $err->message : "$err" ) =~ s/\s+\z//r );
+    return ( undef, "no operation '$name' is installed" );
+}
+
+# One OOM context per call, built in memory (never a config file), carrying the
+# key through OOM's own file strategy so OOM's mode check applies on top of
+# ours, and the ACTOR - who caused this - so OOM's audit names them on every
+# RPC record (Odoo::Ops::Guard).
+#
+# ONE ATTEMPT. OOM's default retry ladder sleeps 2, 5 and 15 seconds before
+# retrying a transport failure, which is right for a batch run and wrong for a
+# page a visitor is waiting on.
+sub context {
+    my ( $conn, %o ) = @_;
+    require Lazysite::Odoo::Secret;
+    no warnings 'once';
+    local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
+    my $cfg = Odoo::Ops::Config->new(
+        url                => $conn->{url},
+        db                 => $conn->{db},
+        login              => $conn->{login},
+        credential         => 'file',
+        api_key_file       => Lazysite::Odoo::Secret::key_path( $o{account} // $ACCOUNT ),
+        timeout            => $conn->{timeout},
+        max_response_bytes => $conn->{max_kb} * 1024,
+        allow_writes       => ( $conn->{allow_writes} ? 1 : 0 ),
+        runs_dir           => plans_dir(),
+    );
+    return Odoo::Ops::Context->new(
+        config  => $cfg,
+        actor   => $o{actor} // 'lazysite',
+        retries => [0],
+        ( $TRANSPORT ? ( transport => $TRANSPORT ) : () ),
+    );
+}
+
+# The binding a page, a form or the schedule names - a handler of type odoo.
+sub find_binding {
+    my ($id) = @_;
+    return ( undef, 'a binding id is required' ) unless defined $id && length $id;
+    return ( undef, "no Odoo binding '$id'" ) unless $id =~ /\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\z/;
+    require Lazysite::Handlers;
+    require Lazysite::Odoo::Binding;
+    no warnings 'once';
+    local $Lazysite::Handlers::DOCROOT = $DOCROOT;
+    my $all = Lazysite::Handlers::read_handlers();
+    return ( undef, 'the handler store cannot be read - see the event log' ) unless defined $all;
+    my $h = Lazysite::Handlers::find_handler( $all, $id );
+    return ( undef, "no Odoo binding '$id'" ) unless $h && ( $h->{type} // '' ) eq 'odoo';
+    return ( undef, "the Odoo binding '$id' is switched off" ) unless Lazysite::Handlers::enabled($h);
+    my ( $b, $why ) = Lazysite::Odoo::Binding::parse($h);
+    return ( undef, "the Odoo binding '$id' cannot be used: $why" ) unless $b;
+    return ( $b,    '' );
+}
+
+# WHO caused it, as OOM's audit and OB8 name them. A visitor is the hash of
+# their key; an account is its name; the timer is the binding's.
+sub _actor_label {
+    my (%c) = @_;
+    return "account:$c{actor}" if ( $c{mode} // '' ) eq 'authenticated' && length( $c{actor} // '' );
+    return "visitor:$c{visitor}" if length( $c{visitor} // '' );
+    return 'scheduled'           if ( $c{mode}          // '' ) eq 'scheduled';
+    return 'public';
+}
+
+# Who may confirm a plan: the account or visitor that made it, and nobody else.
+sub _owner {
+    my (%c) = @_;
+    return "account:$c{actor}" if ( $c{mode} // '' ) eq 'authenticated' && length( $c{actor} // '' );
+    return "visitor:$c{visitor}" if length( $c{visitor} // '' );
+    return ( $c{mode} // '' ) eq 'scheduled' ? 'scheduled' : '';
+}
+
+# call( \%binding, \%input, %ctx ) -> { ok, ... }
+#
+#   mode         what the caller IS (scheduled | authenticated | public)
+#   actor        the verified account, or '' for a visitor or the timer
+#   groups caps  the account's, for the mode gate
+#   visitor_key  the visitor's key (Lazysite::Odoo::Visitor), when there is one
+#   ip           the request address
+#   strict       refuse an input field the binding does not map
+#
+# THE ONE FUNCTION THAT SENDS. Everything a call must pass is asked here, in
+# this order, so no surface can skip a step by calling something lower: the
+# gate (mode, switch, OOM, connection), the key, the operation, the binding
+# against the operation, the parameters, the caps - and only then OOM. Every
+# outcome is one record.
+sub call {
+    my ( $b, $input, %ctx ) = @_;
+    my %c = _with_visitor(%ctx);
+    my ( $ok, $conn ) = gate( $b, %c );
+    return $conn unless $ok;
+    my %rec = ( _rec_base( $b, %c ), login => $conn->{login} );
+
+    my ( $class, $refusal ) = _ready( $b, $conn, \%rec );
+    return $refusal unless $class;
+
+    require Lazysite::Odoo::Binding;
+    my ( $params, $pwhy ) = Lazysite::Odoo::Binding::assemble( $b, $class, $input,
+        visitor => $ctx{visitor_key}, strict => $ctx{strict} );
+    return ( _refusal( \%rec, 'invalid', $pwhy ) )[1] unless $params;
+
+    if ( $class->writes && $b->{apply} ne 'immediate' && !length _owner(%c) ) {
+        return ( _refusal( \%rec, 'no-owner',
+                'this binding plans a change for somebody to confirm, and the caller is '
+                    . 'nobody who could - a signed-in account or a visitor with a key' ) )[1];
+    }
+
+    my ( $capok, $capwhy ) = _take_cap( $b, %c );
+    return ( _refusal( \%rec, 'rate', $capwhy ) )[1] unless $capok;
+
+    my $t0  = _now_hires();
+    my $res = eval { _run( $b, $class, $conn, $params, \%c ) };
+    return _finish( \%rec, $res, $@, $t0, $class->writes ? ( $b->{apply} eq 'immediate' ? 'apply' : 'plan' ) : 'run' );
+}
+
+# confirm( $plan_id, %ctx ) -> { ok, ... }
+#
+# Applies a plan this caller made, through the binding as it stands NOW: the
+# binding is looked up again and gated again, so switching a binding off, or
+# taking public off it, stops every plan waiting on it.
+#
+# A PLAN THAT IS NOT YOURS DOES NOT EXIST. Wrong owner, unknown id and a
+# malformed id get the same answer, so a confirm cannot be used to find out
+# which plans there are.
+sub confirm {
+    my ( $pid, %ctx ) = @_;
+    my %c = _with_visitor(%ctx);
+    my $not_found = { ok => 0, kind => 'not-found', error => 'no such plan, or not yours to confirm' };
+    my %base = ( call_id => new_call_id(), actor => $c{actor} // '',
+        ( length( $c{visitor} // '' ) ? ( visitor => $c{visitor} ) : () ),
+        ip => $c{ip} // '', mode => $c{mode} // '', phase => 'confirm' );
+
+    return ( _refusal( \%base, 'not-found', $not_found->{error} ) )[1]
+        unless defined $pid && $pid =~ /\A[0-9a-f]{32}\z/;
+    my $dir  = plans_dir() . "/$pid";
+    my $meta = _read_json_file("$dir/meta.json");
+    my $who  = _owner(%c);
+    return ( _refusal( \%base, 'not-found', $not_found->{error} ) )[1]
+        unless ref $meta eq 'HASH' && length $who && ( $meta->{owner} // '' ) eq $who;
+    return ( _refusal( { %base, binding => $meta->{binding} // '' }, 'expired',
+            'this plan is more than an hour old - make it again' ) )[1]
+        if time - ( $meta->{created} // 0 ) > $PLAN_TTL;
+
+    my ( $b, $bwhy ) = find_binding( $meta->{binding} );
+    return ( _refusal( { %base, binding => $meta->{binding} // '' }, 'binding', $bwhy ) )[1] unless $b;
+    my ( $ok, $conn ) = gate( $b, %c, phase => 'confirm' );
+    return $conn unless $ok;
+    my %rec = ( _rec_base( $b, %c, phase => 'confirm' ), login => $conn->{login} );
+    return ( _refusal( \%rec, 'binding', 'the binding now names a different operation - make the plan again' ) )[1]
+        if $b->{operation} ne ( $meta->{operation} // '' );
+
+    my ( $class, $refusal ) = _ready( $b, $conn, \%rec );
+    return $refusal unless $class;
+    my ( $capok, $capwhy ) = _take_cap( $b, %c );
+    return ( _refusal( \%rec, 'rate', $capwhy ) )[1] unless $capok;
+
+    my $t0  = _now_hires();
+    my $res = eval {
+        my $plan = Odoo::Ops::Plan->load("$dir/plan.json");
+        my $ctx  = context( $conn, actor => _actor_label(%c) );
+        $ctx->use_run_dir($dir);
+        my $result = Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir );
+        { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $pid, result => _result_summary($result) };
+    };
+    return _finish( \%rec, $res, $@, $t0, 'apply' );
+}
+
+# What every call needs before its parameters are looked at: the key, the
+# operation, and the binding agreeing with the operation's declaration.
+sub _ready {
+    my ( $b, $conn, $rec ) = @_;
+    require Lazysite::Odoo::Secret;
+    require Lazysite::Odoo::Binding;
+    no warnings 'once';
+    local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
+    my $has = Lazysite::Odoo::Secret::has_key($ACCOUNT);
+    return ( undef, ( _refusal( $rec, 'no-key',
+                'the connection user\'s key cannot be read by this process - see the event log' ) )[1] )
+        unless defined $has;
+    return ( undef, ( _refusal( $rec, 'no-key',
+                'the connection user has no API key set - a sysop sets it on the Odoo page' ) )[1] )
+        unless $has;
+    my ( $class, $why ) = operation_class( $conn, $b->{operation} );
+    return ( undef, ( _refusal( $rec, 'no-operation', $why ) )[1] ) unless $class;
+    my $cw = Lazysite::Odoo::Binding::check_against( $b, $class );
+    return ( undef, ( _refusal( $rec, 'binding', "the binding does not fit its operation: $cw" ) )[1] )
+        if length $cw;
+    return ( $class, undef );
+}
+
+# Runs the operation. A read returns its report. A write returns its plan's
+# preview - saved, sealed, owned - or, for `apply: immediate` (Q1), applies it
+# in the same request.
+sub _run {
+    my ( $b, $class, $conn, $params, $c ) = @_;
+    my $ctx = context( $conn, actor => _actor_label(%$c) );
+    my $op  = $class->new( ctx => $ctx, params => $params );
+    return { ok => 1, report => $op->run } unless $class->writes;
+
+    my $plan = $op->run;
+    my ( $pid, $dir ) = _new_plan_dir();
+    $ctx->use_run_dir($dir);
+    $plan->save("$dir/plan.json");
+    _write_json_file( "$dir/meta.json",
+        { binding => $b->{id}, operation => $b->{operation}, owner => _owner(%$c),
+            created => time, fingerprint => $plan->fingerprint } );
+    if ( $b->{apply} eq 'immediate' ) {
+        my $result = Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir );
+        return { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $pid,
+            result => _result_summary($result) };
+    }
+    return { ok => 1, planned => 1, plan => $pid, preview => _preview($plan) };
+}
+
+sub _finish {
+    my ( $rec, $res, $err, $t0, $phase ) = @_;
+    my $ms = int( ( _now_hires() - $t0 ) * 1000 );
+    unless ( ref $res eq 'HASH' ) {
+        my $f = fault( $err, binding => $rec->{binding}, operation => $rec->{operation},
+            mode => $rec->{mode} );
+        record_call( %$rec, phase => $phase, outcome => outcome_of( $f->{kind} ),
+            kind => $f->{kind}, ms => $ms );
+        return $f;
+    }
+    record_call( %$rec, phase => $phase, outcome => 'answered', ms => $ms,
+        ( $res->{ok} ? () : ( kind => 'apply-incomplete' ) ) );
+    $res->{error} = 'the plan did not apply completely - see the counts' unless $res->{ok};
+    $res->{kind}  = 'apply-incomplete' unless $res->{ok};
+    return $res;
+}
+
+# What a page is shown of a plan: the buckets and how many changes sit in each.
+# NOT the values or the before-images: a plan carries Odoo's records as the
+# operation saw them, and that is the operator's to read in the store, not a
+# visitor's to receive.
+sub _preview {
+    my ($plan) = @_;
+    my $h = $plan->to_hash;
+    return {
+        buckets => $h->{buckets} // {},
+        total   => scalar @{ $h->{changes} || [] },
+        changes => [ map { { seq => $_->{seq}, bucket => $_->{bucket}, action => $_->{action} } }
+                @{ $h->{changes} || [] } ],
+    };
+}
+
+# What apply did, without the journal's host path.
+sub _result_summary {
+    my ($r) = @_;
+    my $h = $r->to_hash;
+    return { map { ( $_ => $h->{$_} ) } qw(total counts by_bucket verified stopped_by) };
+}
+
+sub _with_visitor {
+    my (%ctx) = @_;
+    require Lazysite::Odoo::Visitor;
+    my $vid = Lazysite::Odoo::Visitor::visitor_id( $ctx{visitor_key} );
+    my %c   = %ctx;
+    delete $c{visitor_key};    # the key itself goes no further than assemble()
+    $c{visitor} = $vid if length $vid;
+    return %c;
+}
+
+# --- the caps (Q1): per visitor or account, and per binding ------------------
+#
+# Counted from a ROLLING record of the last hour (recent.jsonl), under a lock,
+# and the slot is TAKEN before the call is made - so two requests at once cannot
+# both slip under the cap, and an attempt that reaches Odoo counts whether Odoo
+# then accepts it or not. That is the point: a flood is measured in attempts.
+#
+# The decision and its wording are Lazysite::Egress's within_caps, most specific
+# axis first. A record that cannot be opened refuses: a cap honoured only while
+# its counter is readable is not a cap.
+sub _take_cap {
+    my ( $b, %c ) = @_;
+    require Fcntl;
+    my $who = length( $c{visitor} // '' ) ? "visitor:$c{visitor}" : _actor_label(%c);
+    my $dir = store_dir();
+    eval { make_path($dir) unless -d $dir; 1 } or return _cap_unknown($b);
+    my $f = recent_file();
+    my $fh;
+    unless ( sysopen $fh, $f, Fcntl::O_RDWR() | Fcntl::O_CREAT(), 0660 ) {
+        cannot_read( 'the Odoo rate record', $f );
+        return _cap_unknown($b);
+    }
+    flock $fh, Fcntl::LOCK_EX();
+    my $now = time;
+    my @keep;
+    my ( $n_who, $n_all ) = ( 0, 0 );
+    while ( my $l = <$fh> ) {
+        my $r = eval { JSON::PP::decode_json($l) } or next;
+        next if ( $r->{at} // 0 ) < $now - $CAP_WINDOW;
+        push @keep, $l;
+        next unless ( $r->{binding} // '' ) eq $b->{id};
+        $n_all++;
+        $n_who++ if ( $r->{who} // '' ) eq $who;
+    }
+    my ( $ok, $why ) = Lazysite::Egress::within_caps(
+        what => 'Odoo binding',
+        axes => [
+            { name => ( $who =~ /\Avisitor:/ ? 'per-visitor' : 'per-caller' ),
+                limit   => $b->{rate_per_visitor_hour}, used => $n_who,
+                setting => "rate_per_visitor_hour on the binding '$b->{id}'" },
+            { name => 'per-binding', limit => $b->{rate_per_hour}, used => $n_all,
+                setting => "rate_per_hour on the binding '$b->{id}'" },
+        ],
+    );
+    if ($ok) {
+        push @keep, JSON::PP->new->canonical->encode( { at => $now, binding => $b->{id}, who => $who } ) . "\n";
+    }
+    seek $fh, 0, 0;
+    truncate $fh, 0;
+    print {$fh} @keep;
+    close $fh;
+    return ( $ok, $why );
+}
+
+sub _cap_unknown {
+    my ($b) = @_;
+    return Lazysite::Egress::within_caps( what => 'Odoo binding',
+        axes => [ { name => 'per-binding', limit => $b->{rate_per_hour}, used => undef } ] );
+}
+
+# --- the plan store ---------------------------------------------------------------
+#
+# lazysite/odoo/plans/<id>/ - the plan, its owner, and (once applied) OOM's
+# journal and audit beside it. PRIVATE: under the engine tree, which the front
+# door never serves. The id is 128 random bits, never a timestamp or a counter,
+# so a plan cannot be found by counting. Pruned by age on each new plan.
+sub _new_plan_dir {
+    require Lazysite::Odoo::Visitor;
+    my $pid = Lazysite::Odoo::Visitor::random_hex(16)
+        or die Odoo::Error->new( kind => 'config', message => 'no CSPRNG for a plan id' );
+    my $dir = plans_dir() . "/$pid";
+    make_path( $dir, { mode => 0770 } );
+    _prune_plans();
+    return ( $pid, $dir );
+}
+
+sub _prune_plans {
+    my $root = plans_dir();
+    opendir my $dh, $root or return;
+    my $cut = time - $PLAN_KEEP_DAYS * 86400;
+    for my $e ( grep { /\A[0-9a-f]{32}\z/ } readdir $dh ) {
+        my $m = _read_json_file("$root/$e/meta.json");
+        next unless ref $m eq 'HASH' && ( $m->{created} // $cut ) < $cut;
+        require File::Path;
+        File::Path::remove_tree("$root/$e");
+    }
+    closedir $dh;
+    return;
+}
+
+sub _read_json_file {
+    my ($p) = @_;
+    open my $fh, '<:raw', $p or return undef;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $d = eval { JSON::PP::decode_json( $raw // '' ) };
+    return ref $d eq 'HASH' ? $d : undef;
+}
+
+sub _write_json_file {
+    my ( $p, $d ) = @_;
+    open my $fh, '>:raw', "$p.tmp.$$" or die Odoo::Error->new( kind => 'config', message => "cannot write $p: $!" );
+    print {$fh} JSON::PP->new->canonical->encode($d);
+    close $fh;
+    rename "$p.tmp.$$", $p or die Odoo::Error->new( kind => 'config', message => "cannot write $p: $!" );
+    return;
+}
+
+sub _now_hires {
+    require Time::HiRes;
+    return Time::HiRes::time();
 }
 
 1;

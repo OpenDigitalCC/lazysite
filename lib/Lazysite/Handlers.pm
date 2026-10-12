@@ -71,7 +71,7 @@ our $DOCROOT = '';
 # already knows - `table` (a declared data table) and `connector` (a configured
 # connector). Those are chosen from a list on every surface that draws a form,
 # never typed (SM806).
-our @TYPE_ORDER = qw(smtp file table connector notify);
+our @TYPE_ORDER = qw(smtp file table connector notify odoo);
 our %TYPES      = (
     smtp => {
         label  => 'Send email',
@@ -269,6 +269,50 @@ our %TYPES      = (
         ],
         note => 'Queued, and sent by the scheduler\'s notify-outbox job - the site must run '
             . 'the daemon. Quarantined submissions notify nobody.',
+    },
+
+    # SM747 CU: AN ODOO BINDING - a named OOM operation, run as the site's
+    # connection user (the Odoo extension's config), with what a request may set
+    # and who may cause it. The parsing and the safety rules are
+    # Lazysite::Odoo::Binding's; the call is Lazysite::Odoo::call's. Configuring
+    # one is manage_connectors' until slice E brings manage_odoo (OM3): it is
+    # authority over where site data goes, which is that capability's.
+    odoo => {
+        label  => 'Run an Odoo operation',
+        cap    => 'manage_connectors',
+        schema => [
+            { key => 'operation', label => 'Operation', type => 'text', required => 1,
+                note => 'The name of an installed OOM operation, such as pack.action. What '
+                    . 'it may touch in Odoo is its own declared scope and the connection '
+                    . 'user\'s rights in Odoo.' },
+            { key => 'params', label => 'Parameters from the request', type => 'text',
+                max_len => 4000,
+                note => 'field=parameter, comma separated. Only these come from a visitor, '
+                    . 'and only into plain-value parameters; anything else the request '
+                    . 'sends is refused at the page endpoint and dropped from a form.' },
+            { key => 'fixed', label => 'Fixed parameters', type => 'text', max_len => 4000,
+                note => 'parameter=value, comma separated. Set here and never by a request.' },
+            { key => 'visitor_param', label => 'Visitor parameter', type => 'text',
+                note => 'The parameter that receives the visitor\'s own key (a basket, say). '
+                    . 'The server mints the key; a visitor cannot choose or see another\'s.' },
+            { key => 'modes', label => 'Who may run it', type => 'text',
+                default => 'authenticated',
+                note => 'Comma separated: authenticated (a signed-in account in the caller '
+                    . 'groups), public (any visitor - opt in deliberately), scheduled.' },
+            { key => 'callers', label => 'Caller groups', type => 'text',
+                note => 'Groups whose signed-in members may run it in authenticated mode.' },
+            { key => 'apply', label => 'Applying a change', type => 'text', default => 'confirm',
+                note => 'confirm: a write operation\'s plan is shown and applied when its '
+                    . 'maker confirms it. immediate: applied in the same request, with '
+                    . 'nobody confirming - the ruled basket case (Q1). Odoo\'s rights for '
+                    . 'the connection user still bound what it can do.' },
+            { key => 'rate_per_visitor_hour', label => 'Cap: runs per visitor per hour',
+                type => 'number', default => '20' },
+            { key => 'rate_per_hour', label => 'Cap: runs of this binding per hour',
+                type => 'number', default => '200' },
+        ],
+        note => 'Needs the Odoo extension enabled and configured, with the connection '
+            . 'user\'s API key set.',
     },
 );
 
@@ -879,6 +923,13 @@ sub validate_handler {
         my ( $p, $field, $why ) = _notify_problem( \%out );
         return ( undef, $why, $field ) if length $why;
     }
+    if ( $type eq 'odoo' ) {
+        # The shape, in the one parser the call uses - so what is saved is what
+        # will run. Whether the operation exists is _destination_problem's.
+        require Lazysite::Odoo::Binding;
+        my ( $b, $why, $field ) = Lazysite::Odoo::Binding::parse( \%out );
+        return ( undef, $why, $field ) unless $b;
+    }
     return ( \%out, '' );
 }
 
@@ -1013,6 +1064,26 @@ sub _destination_problem {
         return "connector: no connector '$h->{connector}' - the configured connectors are: "
             . ( join( ', ', sort keys %$all ) || 'none' )
             if defined $all && !exists $all->{ $h->{connector} };
+    }
+    if ( $h->{type} eq 'odoo' ) {
+        # SM747: the binding against the operation's OWN declaration, when the
+        # registry can be read. OOM absent or the connection unconfigured is NOT
+        # a refusal - unvalidated is not invalid - and the call checks again.
+        my $problem = eval {
+            require Lazysite::Odoo;
+            require Lazysite::Odoo::Binding;
+            no warnings 'once';
+            local $Lazysite::Odoo::DOCROOT = $DOCROOT;
+            my ($have) = Lazysite::Odoo::oom_check();
+            my ($conn) = $have ? Lazysite::Odoo::connection() : ();
+            return '' unless $conn;
+            my ($b) = Lazysite::Odoo::Binding::parse($h);
+            my ( $class, $why ) = Lazysite::Odoo::operation_class( $conn, $b->{operation} );
+            return "operation: $why" unless $class;
+            my $w = Lazysite::Odoo::Binding::check_against( $b, $class );
+            return length $w ? "params: $w" : '';
+        };
+        return $problem if defined $problem && length $problem;
     }
     return '';
 }
@@ -1573,7 +1644,51 @@ sub _deliver_one {
     return _to_smtp( $h, $fields, $ctx )      if $t eq 'smtp';
     return _to_connector( $h, $fields, $ctx ) if $t eq 'connector';
     return _to_notify( $h, $fields, $ctx )    if $t eq 'notify';
+    return _to_odoo( $h, $fields, $ctx )      if $t eq 'odoo';
     return { ok => 0, why => _legacy_problem($h) };
+}
+
+# SM747 CU: a form or the timer runs an Odoo binding. A form is PUBLIC - this
+# path has no verified actor (SM402) - and the timer is SCHEDULED, exactly as a
+# connector is told; the binding's modes decide whether either may.
+#
+# NEITHER HAS A VISITOR OR ANYBODY TO CONFIRM. A binding that works on a
+# visitor's key belongs on a page (the Odoo endpoint mints and checks the key),
+# and a write that waits for a confirm would wait for ever - so both are
+# refused here by name rather than planned into a void.
+sub _to_odoo {
+    my ( $h, $fields, $ctx ) = @_;
+    require Lazysite::Odoo;
+    require Lazysite::Odoo::Binding;
+    no warnings 'once';
+    local $Lazysite::Odoo::DOCROOT = $DOCROOT;
+    my ( $b, $why ) = Lazysite::Odoo::Binding::parse($h);
+    return { ok => 0, why => "the Odoo binding cannot be used: $why" } unless $b;
+    return { ok => 0, why => "the Odoo binding '$b->{id}' works on a visitor's key, which only "
+            . 'the Odoo page endpoint carries - bind it on a page, not a form or the schedule' }
+        if length $b->{visitor_param};
+    return { ok => 0, why => "the Odoo binding '$b->{id}' waits for a confirm, and a form or the "
+            . 'schedule has nobody to give one - set apply: immediate on it (Q1)' }
+        if $b->{apply} ne 'immediate' && _odoo_writes($b);
+    my $r = Lazysite::Odoo::call( $b, { _visible($fields) },
+        mode  => ( ( $ctx->{origin} // '' ) eq 'timer' ? 'scheduled' : 'public' ),
+        actor => $ctx->{actor} // '',
+        ip    => $ctx->{ip}    // '' );
+    return { ok => 1 } if $r->{ok};
+    return { ok => 0, why => 'the Odoo operation did not complete: ' . ( $r->{error} // $r->{kind} // 'failed' ) };
+}
+
+# Whether the binding's operation writes - asked of OOM's registry, and treated
+# as a WRITE when it cannot be asked, so the refusal above errs closed.
+sub _odoo_writes {
+    my ($b) = @_;
+    my $w = eval {
+        my ($conn) = Lazysite::Odoo::connection();
+        return 1 unless $conn && ( Lazysite::Odoo::oom_check() )[0];
+        my ($class) = Lazysite::Odoo::operation_class( $conn, $b->{operation} );
+        $class ? ( $class->writes ? 1 : 0 ) : 1;
+    };
+    return defined $w ? $w : 1;
 }
 
 sub _audit_delivery {

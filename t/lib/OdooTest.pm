@@ -23,7 +23,61 @@ use File::Path qw(make_path);
 use FindBin;
 
 our @EXPORT_OK = qw(oom_lib oom_or_skip pretend_released odoo_site enable_odoo write_conf
-    fake_shop shop_namespace);
+    fake_shop shop_namespace bind set_key shop_ready quiet);
+
+# A binding is a handler of type odoo; saved through the handler contract, as
+# an operator's would be, so its validation runs.
+sub bind {
+    my ( $docroot, %h ) = @_;
+    require Lazysite::Handlers;
+    no warnings 'once';
+    local $Lazysite::Handlers::DOCROOT = $docroot;
+    my $r = Lazysite::Handlers::action_handler_save(
+        { type => 'odoo', name => $h{id}, %h }, unconstrained => 1 );
+    die "binding $h{id} not saved: $r->{error}\n" unless $r->{ok};
+    return $r;
+}
+
+sub set_key {
+    my ( $docroot, $key ) = @_;
+    require Lazysite::Odoo::Secret;
+    no warnings 'once';
+    local $Lazysite::Odoo::Secret::DOCROOT = $docroot;
+    my ( $ok, $why ) = Lazysite::Odoo::Secret::set_key( 'connection', $key // 'k3y-for-tests' );
+    die "key not set: $why\n" unless $ok;
+    return;
+}
+
+# The whole arrangement a call needs: OOM on @INC at the released version, a
+# configured site, the key set, the fake shop as the transport. Returns
+# ( $docroot, $fake ).
+sub shop_ready {
+    my (%o) = @_;
+    pretend_released();
+    require TestHelper;
+    my $d = TestHelper::site_tempdir();
+    odoo_site( $d, %{ $o{conf} // {} } );
+    set_key($d) unless $o{no_key};
+    my $fake = fake_shop( %{ $o{shop} // {} } );
+    no warnings 'once';
+    $Lazysite::Odoo::TRANSPORT = $fake;
+    $Lazysite::Odoo::DOCROOT   = $d;
+    return ( $d, $fake );
+}
+
+# STDERR into a scalar for the duration of a block: the engine logs every
+# refusal, and a test reads what it said.
+sub quiet {
+    my ($code) = @_;
+    my $log = '';
+    open my $fh, '>', \$log or die $!;
+    my @r;
+    {
+        local *STDERR = $fh;
+        @r = $code->();
+    }
+    return ( $log, @r );
+}
 
 sub oom_lib { return $ENV{LAZYSITE_OOM_LIB} // '/srv/projects/odoo/oom/lib' }
 

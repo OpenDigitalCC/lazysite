@@ -261,6 +261,18 @@ Archive
   `setup.sh` says the skill folder may be read-only or writable. Found in the
   release manager's real-session test of 2026-10-12, recorded in SM887.
   t/tools/83, 130, 131.
+- odoo-extension (PENDING) **an Odoo operation runs as the site's connection
+  user, and a visitor reaches only their own basket (SM747 slice CU, the
+  engine).** The connection user's API key is stored alone, 0600, and never
+  shown. A handler of type `odoo` binds a named operation: which request
+  fields feed which parameters (plain values only - a domain, a list or a file
+  path can only be fixed by the operator), who may run it, and its caps per
+  visitor and per binding. A read returns its report; a write returns its plan
+  for its maker to confirm, or, with `apply: immediate`, applies it at once - the
+  ruled basket case. A visitor's key is minted and signed by the server and
+  reaches the operation only through the binding. A form or the schedule can
+  run a binding. t/unit/odoo/06-13.
+
 - odoo-extension (PENDING) **the Odoo extension's skeleton: its declaration,
   the connection and every refusal before a call (SM747 slice A).** `plugins/odoo.pl`
   declares `Odoo::Ops (libodoo-oom-perl >= 0.02)`; a dependency may now name its

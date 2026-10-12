@@ -1634,6 +1634,21 @@ our %REFUSAL_STATUS = (
     # about the caller - and not 500: the host is up and says exactly which
     # file to repair. 503 is "cannot serve this now", which is the truth.
     'cannot-tell' => '503 Service Unavailable',
+
+    # SM747: the Odoo extension's kinds (Lazysite::Odoo::fault and its gate).
+    # Odoo answering badly is a BAD GATEWAY - the request was fine and the
+    # upstream was not - except where Odoo refused this caller's operation
+    # (403) or the record is gone (404). A plan that can no longer apply is a
+    # conflict with the state it was made against; an expired one is gone.
+    ( map { $_ => '403 Forbidden' } qw(mode scope-refused odoo-access-refused read-only no-owner) ),
+    ( map { $_ => '404 Not Found' } qw(no-operation odoo-missing) ),
+    ( map { $_ => '409 Conflict' }  qw(stale applied edited binding instance) ),
+    'expired' => '410 Gone',
+    ( map { $_ => '502 Bad Gateway' } qw(transport-failure odoo-fault invalid-credential session-expired) ),
+    'odoo-validation'  => '422 Unprocessable Content',
+    'apply-incomplete' => '207 Multi-Status',
+    'internal'         => '500 Internal Server Error',
+    ( map { $_ => '503 Service Unavailable' } qw(unavailable no-key config) ),
 );
 
 sub refusal_status {

@@ -200,11 +200,38 @@ Decisions taken in A, each from the filing's own text:
 - **The override capability is `manage_connectors`** until slice E brings
   `manage_odoo` (OM3), which the plan places in E: it is the capability that already
   governs where site data is sent and who sets a destination's secret.
-- **The CHANGELOG key is `odoo-extension`, not SM747.** t/lint/75 reads SM747 as
+- **The CHANGELOG key is `odoo-extension`, not SM747.** (Applies to every slice.) t/lint/75 reads SM747 as
   already shipped: c53a7143 ("the mapper specification filed") landed
   `t/lint/207` under an SM747 subject in a tagged release whose section has no
   SM747 bullet, so an Unreleased `- SM747` entry reads as stranded work. The
   entries name SM747 in their titles instead.
+
+## Slice CU, the engine - built 2026-10-12 (n472)
+
+| Row | What | Where |
+| --- | --- | --- |
+| OB1 (R1) | **The connection user's key**: one file per account under `lazysite/odoo/keys/`, written alone through a 077 umask and renamed into place (0600 from the moment it exists), never returned or logged; `has_key` answers 1, 0, or undef when the file exists and cannot be read. OOM reads it through its own `file` strategy, so OOM's mode check applies too. Outcome 4's inspection: after a full call the key is in that file and in no other file under the site | `Lazysite::Odoo::Secret`; t/unit/odoo/06 |
+| R1 | **An OOM context per call**, built in memory, carrying the key, the connection, `allow_writes` and the ACTOR (`account:<name>`, `visitor:<hash>`, `scheduled`), which OOM's Guard writes on every RPC record. One attempt (`retries => [0]`): OOM's default ladder sleeps up to 22 s, right for a batch and wrong for a waiting visitor | `Lazysite::Odoo::context`; t/unit/odoo/09, 10 |
+| OM2 seam | **Operations through OOM's registry**: OOM's packs plus `odoo_packs`, by namespace | `registry`, `operation_class` |
+| OB2, SM579 | **The binding is a handler of type `odoo`**: `operation`, `params` (`field=parameter` - the only names a request may set), `fixed` (the operator's, never overridable), `visitor_param` (the server's key, never input), `modes`, `callers`, `apply` (`confirm` or `immediate`), `rate_per_visitor_hour` (20), `rate_per_hour` (200). Saving it checks it against the operation's own declaration when OOM can be asked (unvalidated is not invalid otherwise). Configured under `manage_connectors` until E | `lib/Lazysite/Handlers.pm`, `Lazysite::Odoo::Binding`; t/unit/odoo/08, 13 |
+| Q1 | **Parameter injection**: a request feeds only `str`, `int` or `bool` parameters, each checked against the declared type, 1,000 characters at most, no control characters; a `json` (domain), `list` or `path` parameter can only be fixed, and a `path` cannot be set at all | `Binding::check_against`, `assemble`; t/unit/odoo/08 |
+| Q1 | **The visitor key**: 256 bits minted server-side, carried `HttpOnly; SameSite=Strict` and signed under the extension's own secret (`lazysite/odoo/visitor.secret`, 0600); a key the server did not mint names nobody; the CSRF token is an HMAC of the key; records carry a hash of it | `Lazysite::Odoo::Visitor`; t/unit/odoo/07, 10 |
+| OB4, Q1 | **The call**: `Lazysite::Odoo::call` - the one function that sends - asks, in order, the gate (slice A), the key, the operation, the binding against the operation, the parameters, the caps; then a read returns its report and a write returns its plan's preview (buckets, and each change's bucket and action - never values or before-images) or, for `apply: immediate`, applies it in the same request | `call`; t/unit/odoo/09, 10 |
+| Q1, OB5 | **The caps**: per visitor (or account) per hour and per binding per hour, decided by `Egress::within_caps` from a rolling one-hour record taken under a lock; the slot is taken before the call, so attempts count whether Odoo accepts them or not, and a record that cannot be read refuses | `_take_cap`; t/unit/odoo/11 |
+| A + CU | **Plans in a private store**: `lazysite/odoo/plans/<128-bit id>/` holds the plan, its owner and, once applied, OOM's journal and audit. `confirm` applies a plan only for the account or visitor that made it (anyone else gets exactly "not found"), within an hour, through the binding as it stands now; OOM's refusals arrive as `applied` (replay), `stale`, `edited`, `read-only`. Pruned after 7 days | `confirm`; t/unit/odoo/10, 12 |
+| SM842 | **A form and the timer run a binding** as `public` and `scheduled`, as they run a connector; a binding needing a visitor key, or a write waiting for a confirm, is refused there by name | `Handlers::_to_odoo`; t/unit/odoo/13 |
+| SM670 | The Odoo kinds have statuses in `%REFUSAL_STATUS` (Odoo answering badly is 502; Odoo refusing the operation 403; a plan that no longer fits 409; expired 410) | `lib/Lazysite/Manager/Common.pm` |
+
+Decisions taken in CU, from the rulings and the filing:
+
+- **A form is public and the timer scheduled**, exactly as a connector handler is
+  told (SM842's precedent), and neither carries a visitor or a confirmer.
+- **The preview carries no values.** A plan holds Odoo's records as the operation saw
+  them; "present the plan's buckets" (section 5) is what a page is given.
+- **Found while building, not this filing's to fix:** `Connectors::sweep` initialises
+  `my ( @keep, $expired, $unanswered ) = ( (), 0, 0 )`, so the array swallows both
+  zeros and a sweep that expires nothing reports `expired: null`. The same shape was
+  written here first and caught by t/unit/odoo/06.
 
 # What this is for, and the work - RESTATED 2026-10-01
 
