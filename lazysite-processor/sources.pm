@@ -18,6 +18,7 @@ package main;
 # OWNS    which sources a page may name and what each resolves to; which files
 #         a cached page depends on; who a scan is asked for.
 # CALLS   fetch_url, read_file, log_event, resolve_scan, _request_host,
+#         _draft_requested,
 #         _path_under, _acl_allows_read, _acl_is_draft, _acl_governed,
 #         _content_rel, peek_auth, _lazy_lib, _url_safe_filter (P23) and the
 #         rest of the script and its parts; realpath, decode_json, make_path
@@ -278,6 +279,7 @@ sub deps_cache_path {
 # question that is a list of strings.
 sub write_deps {
     my ($base) = @_;
+    return if _draft_requested();    # SM1030: a draft render writes nothing
     my $path = deps_cache_path($base);
 
     unless ( @TT_DEPS || $TT_DEP_LIVE ) {

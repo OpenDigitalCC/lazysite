@@ -2044,12 +2044,19 @@ my %TOOLS = (
     },
     preview_page => {
         path_args => [qw(path)],
-        description => 'Render a page server-side (fresh, bypassing the cache) and return its HTML, so you can verify layout / nav / form output in-channel - no web fetch needed. Renders the public view; a protected page shows the auth gate.',
+        description => 'Render a page server-side (fresh, bypassing the cache) and return its HTML, so you can verify layout / nav / form output in-channel - no web fetch needed. Renders the public view; a protected page shows the auth gate. Pass `content` to render a DRAFT before saving it: the draft is rendered at `path`, which decides the domain, layout, theme, navigation and access rules that apply, and NOTHING is written - no file, no cache, no content history; the saved page is untouched. A draft is refused for anything a save of it at that path would be refused for (not UTF-8, a form you do not reach, a template that does not parse, raw HTML, the path\'s own write rules), and is limited to 512 KiB.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
-            properties => { path => { type => 'string', description => 'page path, e.g. /enquire' } },
+            properties => {
+                path => { type => 'string', description => 'page path, e.g. /enquire - with content, where the draft is rendered (domain, layout, theme, nav, access rules)' },
+                content => { type => 'string', description => 'draft page source (front matter + Markdown) to render at path instead of the saved page; nothing is saved' },
+            },
             required => ['path'], additionalProperties => JSON::PP::false },
-        run => sub { _preview_page( $_[0]->{path}, $_[1] ) },
+        run => sub {
+            return _preview_draft( $_[0]->{path}, $_[0]->{content}, $_[1], $_[2] )
+                if defined $_[0]->{content};    # SM1030
+            return _preview_page( $_[0]->{path}, $_[1] );
+        },
     },
     page_status => {
         path_args => [qw(path)],
@@ -2507,6 +2514,139 @@ sub _preview_page {
     return { ok => 1, path => "/$slug", status => $status, bytes => length $body, html => $body,
         truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ),
         note => 'rendered fresh as a public visitor; a protected page shows the auth gate' };
+}
+
+# SM1030 (ruled 2026-10-12 by the release manager, "yes queue the preview_page
+# draft change"): MCP preview_page accepts DRAFT content and renders it
+# server-side against the site's real layout and theme WITHOUT writing
+# anything, so an MCP-connected editor can check a page before saving it - the
+# SM887 skill's job, with nothing to install.
+#
+# THE PATH IS REQUIRED, not defaulted to a neutral page. It decides everything
+# the render is for - the owning domain (so its layout, theme and nav), the
+# access rules, where includes resolve - and it is what the dispatcher's scope
+# and carve-out checks are asked about. A neutral path would render every draft
+# in the primary site's dress, which for a domain-confined caller is a site it
+# does not reach, and would leave the scope check nothing to ask.
+#
+# A PREVIEW RENDERS NOTHING A SAVE WOULD REFUSE. The draft is asked what a save
+# of it at that path is asked (Files::draft_refusal: the path, the content
+# rules, the file ACL's write gate), plus the two a text save cannot meet but a
+# draft is held to: its bytes are valid UTF-8 (page_bytes_refusal on the bytes
+# it would be written as) and the carve-outs in their WRITE sense - the
+# dispatcher asks them in the read sense for every preview. So what a draft can
+# show is what saving it and calling preview_page would show, and no more.
+#
+# THE RENDER IS preview_page's: the public view, as an anonymous visitor (a
+# protected draft shows the auth gate), so a db: binding renders what it renders
+# for a visitor - no (mine) rows, nothing of the caller's own read rights. It
+# runs under the Host of the domain that owns the path, at the URL that domain
+# serves it at, and the processor refuses to render if that does not resolve to
+# the named page (request.pm _draft_bind).
+#
+# NOTHING IS WRITTEN: the draft travels on the processor's STDIN, never through
+# a file, and every writer a render reaches refuses a draft request
+# (lazysite-processor/request.pm). A successful preview is a read, so it is not
+# audited (SM943); a refusal is, as every read's is.
+sub _draft_page_rel {
+    my ($path) = @_;
+    my $slug = defined $path ? $path : '';
+    $slug =~ s{^/+}{};
+    if ( $slug =~ s{/+\z}{} ) { $slug .= '/index' }
+    else                      { 1 while $slug =~ s/\.(?:html|md|url)\z// }
+    $slug = 'index' unless length $slug;
+    return "$slug.md";
+}
+
+sub _preview_draft {
+    my ( $path, $content, $user, $caps ) = @_;
+    return { ok => 0, kind => 'invalid-path', error => 'path required: a draft is rendered at a page path' }
+        unless defined $path && length $path;
+    my $rel = _draft_page_rel($path);
+
+    # The bytes a save would write: UTF-8, and no more than the connector's text
+    # bound (read_file refuses a larger file; neither save nor validate_page has
+    # a cap of its own to match).
+    my $bytes = $content;
+    utf8::encode($bytes);
+    if ( length $bytes > $MAX_READ_BYTES ) {
+        return { ok => 0, kind => 'too-large', too_large => 1, path => "/$rel",
+            error => 'The draft is ' . length($bytes) . " bytes; a draft preview takes at most $MAX_READ_BYTES "
+                . '(the connector\'s text limit, which read_file applies too). Preview a shorter draft.',
+            audit_detail => "too-large: the draft is " . length($bytes) . " bytes, over $MAX_READ_BYTES - send a shorter draft" };
+    }
+    if ( my ( $err, $why ) = Lazysite::Manager::Common::page_bytes_refusal( $rel, $bytes ) ) {
+        return { ok => 0, kind => 'page-encoding-refused', path => "/$rel", error => $err, audit_detail => $why };
+    }
+    if ( my $r = Lazysite::Manager::Common::carveout_refusal( $rel, 'write', $caps ) ) {
+        return { ok => 0, kind => 'forbidden', path => "/$rel",
+            error => "$r A draft is refused wherever a save would be.",
+            audit_detail => 'forbidden: a draft at a path a save could not write - ask for the capability' };
+    }
+    if ( my $d = Lazysite::Manager::Files::draft_refusal( $rel, $user, $content ) ) { return $d }
+
+    my $proc = _processor_tool()
+        or return { ok => 0, kind => 'not-found', error => 'processor not available' };
+
+    # Under the Host of the domain that owns the path, at the URL it serves it at.
+    my ( $root, $owner ) = Lazysite::Manager::Domains::content_root_for_path($rel);
+    $owner //= '';
+    my $url_rel = length $owner ? substr( $rel, length($root) + 1 ) : $rel;
+    ( my $url = "/$url_rel" ) =~ s/\.md\z//;
+    $url =~ s{(\A|/)index\z}{$1};
+
+    local %ENV = %ENV;
+    delete @ENV{
+        grep {
+            m{ \A (?: HTTP_X_REMOTE_ | HTTP_X_PAYMENT_ | LAZYSITE_AUTH_ | HTTP_COOKIE
+                | HTTP_AUTHORIZATION | REDIRECT_HTTP_AUTHORIZATION | LAZYSITE_FRONT_DOOR ) }x
+        } keys %ENV
+    };
+    $ENV{DOCUMENT_ROOT}       = $DOCROOT;
+    $ENV{REDIRECT_URL}        = $url;
+    $ENV{REQUEST_URI}         = $url;
+    $ENV{REQUEST_METHOD}      = 'GET';
+    $ENV{QUERY_STRING}        = '';
+    $ENV{CONTENT_LENGTH}      = '0';
+    $ENV{LAZYSITE_NOCACHE}    = '1';
+    $ENV{LAZYSITE_DRAFT_PATH} = $rel;
+    if ( length $owner ) { $ENV{HTTP_HOST} = $owner }
+    else                 { delete $ENV{HTTP_HOST} }
+
+    my ( $ran, $raw ) = _run_json_tool( [$proc], $bytes );
+    return { ok => 0, error => 'could not run the processor' } unless $ran;
+    $raw //= '';
+    my ( $head, $body ) = split /\r?\n\r?\n/, $raw, 2;
+    $head //= '';
+    $body //= '';
+    my ($status) = $head =~ /Status:\s*(\d+)/i;
+    $status ||= 200;
+
+    if ( $head =~ /^X-Lazysite-Draft:\s*refused/mi ) {
+        ( my $why = $body ) =~ s/\s+\z//;
+        return { ok => 0, kind => 'draft-not-rendered', path => "/$rel",
+            error => "The draft was not rendered: $why.",
+            audit_detail => "draft-not-rendered: $why - check the path names the page to preview" };
+    }
+
+    # The draft is UTF-8, so HTML that is not was put there by a file the page
+    # renders with - named as the render's, as preview_page names it.
+    if ( my $bad = _unreadable_text( $rel, $body, what => 'The rendered HTML of the draft of',
+            remedy => 'find the file the page renders with that is not UTF-8 (an include, the layout, the '
+                . 'navigation), save it as UTF-8 and write it again',
+            remedy_short => 'save the file it renders with as UTF-8' ) )
+    {
+        return $bad;
+    }
+    utf8::decode($body);
+    my $truncated = 0;
+    if ( length $body > $MAX_READ_BYTES ) { $body = substr( $body, 0, $MAX_READ_BYTES ); $truncated = 1 }
+    return { ok => 1, path => "/$rel", draft => JSON::PP::true, status => $status + 0,
+        bytes => length $body, html => $body,
+        truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ),
+        ( length $owner ? ( rendered_as_host => $owner ) : () ),
+        note => 'the draft rendered fresh as a public visitor at this path, against its site\'s layout, theme '
+            . 'and navigation; nothing was written and the saved page is unchanged' };
 }
 
 # --- SM087 Tier 2: page-aware helpers -------------------------------------

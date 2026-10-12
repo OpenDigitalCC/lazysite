@@ -20,8 +20,8 @@ package main;
 #         `::: class` box pass that renders its body's Markdown.
 # OWNS    the form's markup and the rules file derived from it; which class
 #         names a fenced div may carry.
-# CALLS   convert_md, _tt_inert, _esc_html, _lazysite_version, log_event (the
-#         script and its parts); make_path, encode_json (imported by the
+# CALLS   convert_md, _tt_inert, _esc_html, _lazysite_version, _draft_requested,
+#         log_event (the script and its parts); make_path, encode_json (imported by the
 #         script's `use`, before its parts load).
 # READS   $LAZYSITE_DIR, %RENDER_QUERY, $FORM_TS_PLACEHOLDER,
 #         $FORM_TK_PLACEHOLDER (the script's, declared `our` there; the two
@@ -41,7 +41,7 @@ our ( $FORM_TS_PLACEHOLDER, $FORM_TK_PLACEHOLDER, $LAZYSITE_DIR, %RENDER_QUERY )
 sub load_form_secret {
     my $secret_path = "$LAZYSITE_DIR/forms/.secret";
     my $forms_dir   = "$LAZYSITE_DIR/forms";
-    make_path($forms_dir) unless -d $forms_dir;
+    make_path($forms_dir) unless -d $forms_dir || _draft_requested();    # SM1030
 
     if ( -f $secret_path ) {
         open( my $fh, '<', $secret_path ) or do {
@@ -62,6 +62,10 @@ sub load_form_secret {
     die "Short read from /dev/urandom ($got of 32 bytes)\n"
         unless defined $got && $got == 32;
     my $s = unpack( 'H*', $raw );
+
+    # SM1030: a draft's form tokens are never posted, so a site with no secret
+    # yet gets a throwaway one rather than a file.
+    return $s if _draft_requested();
 
     open( my $fh, '>', $secret_path ) or do {
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'cannot write form secret', error => $! );
@@ -187,6 +191,7 @@ sub convert_fenced_form {
 # be saved is a worse failure than the one this closes.
 sub _write_form_rules {
     my ( $form_name, $rules ) = @_;
+    return if _draft_requested();    # SM1030: a draft render writes nothing
     return unless defined $form_name && $form_name =~ /\A[A-Za-z0-9_-]+\z/;
     my $dir = "$LAZYSITE_DIR/forms";
     return unless -d $dir && -w $dir;

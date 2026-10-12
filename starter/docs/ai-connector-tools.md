@@ -168,10 +168,16 @@ search_files `{ query, path }`
 : Case-insensitive content grep across text files, returning path + line snippets.
   Excludes the lazysite/ infra; file- and match-capped.
 
-preview_page `{ path }`
+preview_page `{ path, content }`
 : Render a page server-side, fresh (no cache), and return its HTML + status -
   in-channel verification of layout / nav / form output. Public view; a protected
-  page shows the auth gate.
+  page shows the auth gate. With `content`, renders that DRAFT at `path` instead
+  of the saved page - against the layout, theme, navigation and access rules of
+  the site that owns the path - and writes nothing: no file, no cache, no content
+  history. The answer carries `draft: true`. A draft is refused for anything a
+  save of it at that path would be refused for (`page-encoding-refused`,
+  `form-bind-refused`, `template-parse-refused`, `raw-content-refused`, the
+  path's write rules) and over 512 KiB (`kind: too-large`); `path` is required.
 
 validate_page `{ path | content }`
 : Pre-publish checks: unterminated front matter, missing title, invalid form-field
@@ -407,10 +413,12 @@ credential. Do not reissue the credential; the operator's log names the cause.
 2. `list_files` / `list_pages` / `read_page` - orient; read before you edit.
 3. `validate_page` (with `content`) - catch front-matter / form / public-data
    issues before writing.
-4. `write_file` or `replace_text` - make one change at a time.
-5. `preview_page` - confirm the render in-channel (not a web fetch). `page_status`
+4. `preview_page` with `content` - see the draft rendered in the site's own layout
+   and theme before anything is saved.
+5. `write_file` or `replace_text` - make one change at a time.
+6. `preview_page` - confirm the render in-channel (not a web fetch). `page_status`
    confirms it will reach visitors.
-6. `audit_site` after a set of changes - catch broken links / orphans / duplicates.
+7. `audit_site` after a set of changes - catch broken links / orphans / duplicates.
 
 Pages are Markdown files served at their path (`about.md` → `/about`); a page that
 registers in a feed lists it in front matter (`register: [sitemap, llms]`).

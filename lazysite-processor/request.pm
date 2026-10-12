@@ -11,12 +11,18 @@ package main;
 #         _parse_trusted_proxies, _packed_address, _text_address and
 #         _address_in_set (the copies t/lint/205 pins line for line);
 #         _instance_id(), the SM156 per-install identifier, which sits among
-#         them.
-# OWNS    the request's identity facts: its host and its address.
-# CALLS   realpath, hmac_sha256_hex, inet_pton, inet_ntop and the Socket
+#         them; the SM1030 draft render: _draft_requested, _draft_read (the
+#         draft from STDIN), _draft_bind, _draft_is, _draft_stat, _draft_text,
+#         _draft_real and _draft_refuse.
+# OWNS    the request's identity facts: its host and its address; whether its
+#         page source is a draft, and that draft.
+# CALLS   realpath, hmac_sha256_hex, inet_pton, inet_ntop, decode and the Socket
 #         AF_INET/AF_INET6 constants (imported by the script's `use`, before its
-#         parts load; the constants written as calls, so the part compiles alone).
-# READS   $DOCROOT, $CONF_FILE (the script's, declared `our` there).
+#         parts load; the constants written as calls, so the part compiles alone);
+#         Encode::FB_CROAK by its full name; _runtime, log_event and
+#         _security_headers (the script and its parts).
+# READS   $DOCROOT, $CONF_FILE; SETS $DRAFT_BYTES and %ACCESS_REC (the script's,
+#         declared `our` there).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S13). It is package main, required
 # by absolute path from lazysite-processor.pl's BEGIN and never through @INC, and
@@ -24,7 +30,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $CONF_FILE );
+our ( $DOCROOT, $CONF_FILE, $DRAFT_BYTES, $DRAFT_MD, %ACCESS_REC );
 
 # SM110: the request's Host header, sanitised for alias matching: lowercased,
 # port stripped, trailing dot dropped, validated against the DNS hostname
@@ -175,6 +181,120 @@ sub _request_address {
         return _text_address($packed) unless _address_in_set( $packed, $set );
     }
     return $peer;
+}
+
+# SM1030: A DRAFT RENDER - the page source comes from the request, not the disk.
+#
+# MCP preview_page with `content` renders an editor's draft against the site's
+# real layout, theme and navigation without saving it. The caller (the MCP
+# server, which has already put the draft through every refusal a save would
+# make) runs this script as a single-shot CGI GET with LAZYSITE_DRAFT_PATH
+# naming the docroot-relative page and the draft's bytes on STDIN.
+#
+# WHO CAN ASK. An environment variable is not something a visitor sets: a web
+# server hands a CGI the HTTP_* names for request headers and the variables its
+# operator configured. And a draft is honoured only on the single-shot CGI path
+# for a GET, so a pooled worker (whose STDIN is the FastCGI socket) and a POST
+# (whose STDIN is a visitor's body) never read one.
+#
+# NOTHING IS WRITTEN. main() marks the request protected, which keeps it off
+# every cache; and each writer a render can reach refuses a draft request on its
+# own (_draft_requested): the page cache, the content-type and dependency
+# records, the registries, the cached error pages, a form's derived rules, the
+# form secret, the access log, a remote layout's cache and the TT compile cache.
+
+# Is this request a draft render? True whenever the variable is set, so a writer
+# asked this refuses even when the draft itself was refused.
+sub _draft_requested {
+    my $rel = $ENV{LAZYSITE_DRAFT_PATH};
+    return ( defined $rel && length $rel ) ? 1 : 0;
+}
+
+# The largest draft read: the MCP connector's own text bound (512 KiB), which
+# preview_page applies before it gets here.
+sub _draft_cap { return 512 * 1024 }
+
+# At the top of main(): take the whole draft from STDIN. 1 to carry on; 0 when
+# it answered with a refusal.
+sub _draft_read {
+    return 1 unless _draft_requested();
+    return _draft_refuse('a draft renders only on a single-shot CGI GET')
+        unless _runtime() eq 'cgi' && ( $ENV{REQUEST_METHOD} // '' ) eq 'GET';
+    my $rel = $ENV{LAZYSITE_DRAFT_PATH};
+    return _draft_refuse('the draft path is not a docroot-relative page')
+        if $rel =~ m{\A/|\0|(?:\A|/)\.\.(?:/|\z)} || $rel !~ /\.md\z/;
+    binmode STDIN;
+    my $bytes = '';
+    my $cap   = _draft_cap();
+    while ( length $bytes <= $cap ) {
+        my $n = read( STDIN, $bytes, 65_536, length $bytes );
+        last unless $n;
+    }
+    return _draft_refuse("the draft is larger than $cap bytes") if length $bytes > $cap;
+    my $copy = $bytes;
+    return _draft_refuse('the draft is not valid UTF-8')
+        unless eval { decode( 'UTF-8', $copy, Encode::FB_CROAK() ); 1 };
+    $DRAFT_BYTES = $bytes;
+    return 1;
+}
+
+# Once main() knows the page the request resolves to: it must be the page the
+# caller named. A Host or content root that sends the request elsewhere refuses
+# rather than rendering the draft in another page's place.
+sub _draft_bind {
+    my ($md_path) = @_;
+    return 1 unless defined $DRAFT_BYTES;
+    my $want = _draft_real("$DOCROOT/$ENV{LAZYSITE_DRAFT_PATH}");
+    my $got  = _draft_real($md_path);
+    return 1 if defined $want && defined $got && $want eq $got;
+    return _draft_refuse('the request does not resolve to the page the draft was given for');
+}
+
+sub _draft_is {
+    my ($path) = @_;
+    return ( defined $DRAFT_MD && defined $path && $path eq $DRAFT_MD ) ? 1 : 0;
+}
+
+# The draft's stat: a regular file of its own length, modified now.
+sub _draft_stat {
+    my $now = time();
+    return ( 0, 0, oct('100644'), 1, $>, 0, 0, length $DRAFT_BYTES, $now, $now, $now, 4096, 0 );
+}
+
+# The draft as read_file would hold it: characters, through UTF-8.
+sub _draft_text {
+    my $t = $DRAFT_BYTES;
+    utf8::decode($t);
+    return $t;
+}
+
+# A path's real location when its tail may not exist yet (a new page, a new
+# folder): the nearest existing ancestor resolved, the rest appended. The
+# appended segments do not exist, so none of them is a link.
+sub _draft_real {
+    my ($abs) = @_;
+    my ( $dir, $rest ) = ( $abs, '' );
+    while ( !-e $dir ) {
+        my $cut = rindex( $dir, '/' );
+        return undef if $cut <= 0;
+        $rest = substr( $dir, $cut ) . $rest;
+        $dir  = substr( $dir, 0, $cut );
+    }
+    my $real = realpath($dir);
+    return defined $real ? $real . $rest : undef;
+}
+
+# A draft the engine will not render: 422, plain text, marked for the caller.
+sub _draft_refuse {
+    my ($why) = @_;
+    log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'draft not rendered', reason => $why );
+    $ACCESS_REC{s} = 422;
+    print "Status: 422 Unprocessable Content\n";
+    print "$_\n" for _security_headers();    # SM381
+    print "Content-type: text/plain; charset=utf-8\n";
+    print "X-Lazysite-Draft: refused\n\n";
+    print "$why\n";
+    return 0;
 }
 
 1;

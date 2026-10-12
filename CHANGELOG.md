@@ -577,6 +577,16 @@ Archive
   `form=<its own form>&file=<the other's store>`, and read and appended to
   another domain's page brief with `type=table&table=<its own table>`.
   t/integration/205, 206.
+- SM1030 (PENDING) **MCP `preview_page` renders a draft and writes nothing.**
+  `preview_page { path, content }` renders `content` at `path` in place of the
+  saved page - as a public visitor, under the Host of the domain that owns the
+  path, so with that site's layout, theme, navigation and access rules - and
+  answers with `draft: true`. Nothing is written: no file, no cache, no content
+  history, no access-log row, no form rules, no compile cache. A draft is
+  refused for anything a save of it at that path would be refused for (not
+  UTF-8, a form the caller does not reach, a template that does not parse, raw
+  HTML, the path's write rules) and over 512 KiB; `path` is required. Without
+  `content` the tool is unchanged. Ruled 2026-10-12; recorded in SM887.
 
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the

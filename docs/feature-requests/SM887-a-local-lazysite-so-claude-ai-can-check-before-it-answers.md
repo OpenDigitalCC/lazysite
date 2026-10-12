@@ -309,8 +309,26 @@ sandbox, answering E2 (that sandbox's allowlist reaches `archive.ubuntu.com`)
 and E7 (whether its skill mount is read-only - which no longer matters to the
 scripts, but is the briefing's claim). Closure is the release manager's call.
 
+# The same check over MCP: SM1030
+
+**RULED 2026-10-12 by the release manager: "yes queue the preview_page draft
+change"** - the coordinating session's proposal: MCP `preview_page` accepts
+DRAFT content (a `content` argument, as validate_page does) and renders it
+server-side against the site's real layout and theme WITHOUT writing anything,
+so an MCP-connected editor can check a page before saving it (the SM887 skill's
+job, with nothing to install).
+
+Built as [[SM1030]]. It is the site-faithful mode without the install: the
+render runs on the site itself, so the layout, theme, navigation and access
+rules are the site's by construction rather than pulled down and copied. It
+needs the editor's connector and a grant that reaches the path; the skill
+remains for an editor without one, and for checking against a site that is not
+the one being written to. The two are additional to each other in the way this
+filing describes MCP and the skill: either works without the other.
+
 # Related
 
+[[SM1030]] (the same render over MCP, on the site itself),
 [[SM884]] (the tarball size this install budget depends on), [[SM286]] (the
 front end makes no decisions — the same separation this keeps between validating
 and publishing), the dev server reference, and the MCP briefings the skill's

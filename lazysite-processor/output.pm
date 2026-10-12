@@ -16,6 +16,7 @@ package main;
 # OWNS    the bytes of a response's head; which security headers it carries;
 #         what the site's discovery document says.
 # CALLS   process_md, _system_page_md, _chrome, load_form_secret, is_fresh,
+#         _draft_requested,
 #         confine_content_root, _cache_umask, read_file, resolve_site_vars,
 #         log_event (the script
 #         and its parts); hmac_sha256_hex, sha256, encode_base64 (imported by
@@ -550,6 +551,7 @@ sub _sanitise_not_found {
 # would turn a cache into a write amplifier.
 sub _rewrite_if_changed {
     my ( $path, $content ) = @_;
+    return if _draft_requested();    # SM1030: a draft render writes nothing
     my $current = eval { read_file($path) };
     return if defined $current && $current eq $content;
 

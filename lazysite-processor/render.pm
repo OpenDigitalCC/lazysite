@@ -17,6 +17,7 @@ package main;
 #         placeholder pass (SM931, SM967); the TAGS refusal (SM968); a
 #         compile-cache fault never breaking a render.
 # CALLS   resolve_site_vars, resolve_tt_vars, _is_manager, _site_grants_manager,
+#         _draft_requested,
 #         _groups_grant_cap, _domain_scopes, _domain_home, _language_set,
 #         _esc_html, _esc_query_stash, _front_matter_reserved,
 #         _front_matter_private, _content_rel,
@@ -105,15 +106,16 @@ sub _tt_render_impl {
 # creation whichever identity renders first (_cache_umask).
 sub _tt_engine {
     my $old_umask = _cache_umask();
-    eval { make_path($TT_COMPILE_DIR) } unless -d $TT_COMPILE_DIR;
+    # SM1030: a draft render compiles in memory and leaves the compile cache as it was.
+    my @compile = _draft_requested() ? () : ( COMPILE_DIR => $TT_COMPILE_DIR, COMPILE_EXT => '.ttc' ); # P-4
+    eval { make_path($TT_COMPILE_DIR) } if @compile && !-d $TT_COMPILE_DIR;
     my $tt = eval {
         Template->new(
-            ABSOLUTE    => 0,
-            ENCODING    => 'utf8',
-            EVAL_PERL   => 0,                                     # L-2
-            FILTERS     => { url_safe => \&_url_safe_filter },    # SM970
-            COMPILE_DIR => $TT_COMPILE_DIR,                       # P-4
-            COMPILE_EXT => '.ttc',                                # P-4
+            ABSOLUTE  => 0,
+            ENCODING  => 'utf8',
+            EVAL_PERL => 0,                                     # L-2
+            FILTERS   => { url_safe => \&_url_safe_filter },    # SM970
+            @compile,
         );
     };
     my $tt_died = $@;

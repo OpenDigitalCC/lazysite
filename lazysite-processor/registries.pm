@@ -19,6 +19,7 @@ package main;
 # OWNS    what a scan lists and in what order; where a registry is cached and
 #         when it is regenerated; the content type it is served as.
 # CALLS   parse_yaml_front_matter, _scan_hidden, _registry_hidden, _scan_scalar,
+#         _draft_requested,
 #         peek_search_default, peek_conf_key, _language_set, resolve_site_vars,
 #         confine_content_root, _content_rel, _private_twin, _path_under_content,
 #         _declared_content_roots, _conf_value, _security_headers (its own
@@ -607,6 +608,7 @@ sub _registry_stale {
     my $_has_registries;    # undef = not yet probed
 
     sub update_registries {
+        return if _draft_requested();    # SM1030: a draft render writes nothing
         # SM110/SM151: registries (sitemap, feeds, llms.txt) are generated per
         # content root. A host with its OWN content_root gets first-class
         # registries - scanned from and written INTO its subtree, with its own

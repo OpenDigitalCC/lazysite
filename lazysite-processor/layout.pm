@@ -19,7 +19,7 @@ package main;
 #         properties as CSS; what the engine adds to a finished page (auth
 #         sync, data helper, generator meta, canonical link, admin bar); the
 #         engine version and install time a render is keyed and stamped with.
-# CALLS   render_content, _tt_render, _cgi_can_write, _content_abs,
+# CALLS   render_content, _tt_render, _cgi_can_write, _content_abs, _draft_requested,
 #         _content_rel, _esc_html, _is_manager, _json_filter, _markdown_filter,
 #         _url_safe_filter, fetch_url, log_event (the script and its parts);
 #         decode_json, sha256_hex, dirname and make_path (imported by the
@@ -226,6 +226,12 @@ sub fetch_remote_layout {
         if ( @st && ( time() - $st[9] ) < $REMOTE_TTL ) {
             return ( $cache_path, $cache_key );
         }
+    }
+
+    # SM1030: a draft render fetches and stores nothing; with no cached copy
+    # the page renders through the fallback, as an unreachable layout does.
+    if ( _draft_requested() ) {
+        return -f $cache_path ? ( $cache_path, $cache_key ) : ( undef, undef );
     }
 
     # Fetch remote layout
@@ -569,6 +575,8 @@ sub render_template {
         COMPILE_DIR => $TT_COMPILE_DIR,        # P-4
         COMPILE_EXT => '.ttc',                 # P-4
     );
+    # SM1030: a draft render compiles in memory and leaves the compile cache as it was.
+    delete @tt_opts{qw(COMPILE_DIR COMPILE_EXT)} if _draft_requested();
     $tt_opts{RELATIVE} = 0 if $is_remote;      # sandbox remote layouts
 
     # Try specified layout (with the compile-cache-immune helper - an

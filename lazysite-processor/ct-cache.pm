@@ -8,7 +8,8 @@ package main;
 #         cached page, written atomically (tempfile + rename), refused when
 #         empty or outside the docroot.
 # OWNS    what a cache hit reads back: the cached bytes and their content type.
-# CALLS   _path_under, _cache_umask, log_event (lazysite-processor.pl);
+# CALLS   _path_under, _cache_umask, _draft_requested, log_event
+#         (lazysite-processor.pl and request.pm);
 #         make_path, dirname, realpath (imported by the script's `use`).
 # READS   $CT_CACHE_DIR, $DOCROOT (the script's, declared `our` there).
 #
@@ -31,6 +32,7 @@ sub ct_cache_path {
 
 sub write_ct {
     my ( $base, $content_type ) = @_;
+    return if _draft_requested();    # SM1030: a draft render writes nothing
 
     # Default or undef content type - clean stale .ct if present
     if ( !defined $content_type || $content_type eq 'text/html; charset=utf-8' ) {
@@ -63,6 +65,7 @@ sub read_ct {
 
 sub write_html {
     my ( $html_path, $page ) = @_;
+    return if _draft_requested();    # SM1030: a draft render writes nothing
 
     # Skip cache write if LAZYSITE_NOCACHE is set
     return if $ENV{LAZYSITE_NOCACHE};

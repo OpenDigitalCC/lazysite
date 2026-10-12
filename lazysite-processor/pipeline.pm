@@ -25,7 +25,8 @@ package main;
 #         parse_yaml_front_matter, strip_tt_directives, update_registries,
 #         write_html, resolve_site_vars, _peek_md, _engine_mtime, _lazy_lib,
 #         _acl_governed, _acl_refused, _content_abs, _private_root,
-#         _lazysite_dir_for, _security_headers, read_file, log_event (the
+#         _lazysite_dir_for, _security_headers, read_file, _draft_is,
+#         _draft_text, log_event (the
 #         script and its parts); realpath (imported by the script's `use`,
 #         before its parts load); Lazysite::I18n and Lazysite::Fetch, through
 #         _lazy_lib, on their cold paths only.
@@ -630,7 +631,7 @@ sub process_md {
     @TT_DEPS     = ();
     $TT_DEP_LIVE = 0;
 
-    my $raw_text = read_file($md_path);
+    my $raw_text = _draft_is($md_path) ? _draft_text() : read_file($md_path);    # SM1030
     my ( $meta, $body ) = parse_yaml_front_matter($raw_text);
 
     # Format mtime for TT variables

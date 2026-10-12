@@ -40,6 +40,7 @@ our @EXPORT_OK = qw(
     action_git_show action_git_restore action_git_init
     artifact_write_guard
     form_bind_guard form_bind_tree_guard page_bytes_guard page_bytes_tree_guard copy_target_refusal
+    draft_refusal
 );
 
 our $DOCROOT;
@@ -743,15 +744,11 @@ sub action_save_binary {
     };
 }
 
-sub action_save {
-    my ( $rel_path, $username, $content, $mtime_check ) = @_;
-
-    my $result = validate_path($rel_path);
-    return $result unless $result->{ok};
-
-    if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
-    if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
-    if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
+# SM1030: the refusals a save makes on what the page SAYS, in the order
+# action_save has always asked them, moved here unchanged so action_save and
+# draft_refusal ask one list. undef when the content may be written.
+sub _content_write_refusal {
+    my ( $rel, $content ) = @_;
 
     # SM189: refuse a content page that ships raw HTML/SVG (api:/raw: front matter
     # + a script-capable content_type). It bypasses the layout/theme, is served as
@@ -776,14 +773,14 @@ sub action_save {
     # so one call here covers the manager, the control API and MCP, and only
     # the separate WebDAV stack needs its own. A guard in a caller protects
     # that caller; a guard here protects whoever is added next.
-    if ( my ( $err, $why ) = page_parse_refusal( $result->{rel}, $content ) ) {
+    if ( my ( $err, $why ) = page_parse_refusal( $rel, $content ) ) {
         return { ok => 0, error => $err, kind => 'template-parse-refused', audit_detail => $why };
     }
 
     # SM504: a .brief write refuses once the briefs plugin owns the record on
     # this site. Covers the manager save AND MCP (write_file / create_page
     # route through here), exactly as the SM189 guard above does.
-    if ( my ( $err, $why ) = brief_write_refusal( $result->{rel} ) ) {
+    if ( my ( $err, $why ) = brief_write_refusal($rel) ) {
         return { ok => 0, error => $err, kind => 'brief-sidecar-refused', audit_detail => $why };
     }
 
@@ -794,7 +791,7 @@ sub action_save {
     # write that would have worked, for a file nothing reads. Nav owns the rule;
     # it names set_nav and the host argument that reaches the real file.
     if ( my ( $err, $why ) = _with_nav(
-            sub { Lazysite::Manager::Nav::nav_write_refusal( $result->{rel} ) } ) )
+            sub { Lazysite::Manager::Nav::nav_write_refusal($rel) } ) )
     {
         return { ok => 0, error => $err, kind => 'nav-not-here', audit_detail => $why };
     }
@@ -809,7 +806,42 @@ sub action_save {
     }
 
     # SM976 Q15e: a page newly binding a form the caller does not reach.
-    if ( my $d = form_bind_guard( $result->{rel}, $content ) ) { return $d }
+    if ( my $d = form_bind_guard( $rel, $content ) ) { return $d }
+    return undef;
+}
+
+# SM1030 (ruled 2026-10-12, "yes queue the preview_page draft change"): MCP
+# preview_page renders a DRAFT without writing it, and a preview must not render
+# something a save would refuse. So a draft is asked what a save of it at that
+# path would be asked - the path (validate_path, the blocklists), the content
+# (_content_write_refusal) and the per-file ACL write gate - and answers with
+# the save's own refusal. Not asked, because nothing is written: the active and
+# served artifact rules (a layout's or theme's files, never a page), the edit
+# conflict and the lock. undef when a save would be accepted.
+sub draft_refusal {
+    my ( $rel_path, $username, $content ) = @_;
+    my $result = validate_path($rel_path);
+    return $result unless $result->{ok};
+    if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
+    if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
+    if ( my $d = _content_write_refusal( $result->{rel}, $content ) ) { return $d }
+    if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) )  { return $d }
+    return undef;
+}
+
+sub action_save {
+    my ( $rel_path, $username, $content, $mtime_check ) = @_;
+
+    my $result = validate_path($rel_path);
+    return $result unless $result->{ok};
+
+    if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
+    if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
+    if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
+
+    # SM1030: the refusals the CONTENT decides, shared with a draft preview
+    # (draft_refusal) so a preview refuses what a save would.
+    if ( my $d = _content_write_refusal( $result->{rel}, $content ) ) { return $d }
 
     my $full = $result->{full};
 

@@ -18,11 +18,12 @@ package main;
 #         the 403's content root and header set (SM381).
 # CALLS   uri_encode, _groups_grant_cap, _esc_html, output_page, _access_keys_read,
 #         _request_croot, _system_page_md, process_md, _sanitise_not_found,
-#         _rewrite_if_changed, _chrome_lang, _chrome, log_event (the script and
-#         its parts); JSON::PP::decode_json by its full name (loaded by the
-#         script's `use`, before its parts load).
-# READS   $DOCROOT and $LAZYSITE_DIR; SETS %ACCESS_REC (the script's, declared
-#         `our` there).
+#         _rewrite_if_changed, _chrome_lang, _chrome, _draft_is, _draft_stat,
+#         log_event (the script and its parts); JSON::PP::decode_json by its
+#         full name (loaded by the script's `use`, before its parts load).
+# READS   $DOCROOT, $LAZYSITE_DIR and $DRAFT_BYTES (SM1030: the peek reads a
+#         draft from memory); SETS %ACCESS_REC (the script's, declared `our`
+#         there).
 #
 # The trust gate is NOT here: apply_trust_gate stays in the script's request
 # entry, which runs before any of this for a request (lints 13 and 38).
@@ -33,7 +34,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, %ACCESS_REC );
+our ( $DOCROOT, $LAZYSITE_DIR, $DRAFT_BYTES, %ACCESS_REC );
 
 # --- Auth ---
 
@@ -53,9 +54,12 @@ our ( $DOCROOT, $LAZYSITE_DIR, %ACCESS_REC );
     sub _peek_md {
         my ($path) = @_;
         return {} unless $path;
-        my @st = stat($path);
+        # SM1030: a draft stands in for the file at its path - read from memory,
+        # and memoised under its own key so it never answers for the file.
+        my $draft = _draft_is($path);
+        my @st    = $draft ? _draft_stat() : stat($path);
         return {} unless @st;
-        my $key = "$path:$st[9]";
+        my $key = $draft ? "\0draft:$path" : "$path:$st[9]";
         return $_peek_cache{$key} if exists $_peek_cache{$key};
 
         my %m;
@@ -65,7 +69,8 @@ our ( $DOCROOT, $LAZYSITE_DIR, %ACCESS_REC );
         # opens with one; a page without front matter declares no access keys.
         my ( $fm_text, $has_fm ) = ( '', 0 );
 
-        open my $fh, '<:utf8', $path or do {
+        my $fh;
+        ( $draft ? open( $fh, '<:utf8', \$DRAFT_BYTES ) : open( $fh, '<:utf8', $path ) ) or do {
             $_peek_cache{$key} = \%m;
             return \%m;
         };
@@ -167,7 +172,7 @@ sub peek_auth {
     # (possibly undef) and `groups` (always arrayref, possibly
     # empty). peek_auth was the only peek that returned {} on
     # "no file" rather than undef; preserve that.
-    return {} unless $path && -f $path;
+    return {} unless $path && ( -f $path || _draft_is($path) );    # SM1030
     return {
         auth   => $m->{auth},
         groups => $m->{groups} // [],

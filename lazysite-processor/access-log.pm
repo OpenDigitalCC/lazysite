@@ -11,6 +11,7 @@ package main;
 #         the `plugins:` registry read, memoised per request in a bare block.
 # OWNS    what a request leaves in the access log; whether a unit is listed.
 # CALLS   _request_address, _trusted_proxy_spec, _request_host, _cannot_read,
+#         _draft_requested,
 #         _json_str, log_event (lazysite-processor.pl); make_path,
 #         hmac_sha256_hex and the Fcntl O_* constants (imported by the script's
 #         `use`, before its parts load).
@@ -170,6 +171,7 @@ sub _access_field {
 # CGI appends cannot interleave.
 sub _access_record {
     return unless defined $ACCESS_REC{s};
+    return if _draft_requested();    # SM1030: a draft render is no visit
     my $ok = eval {
         # SM222 L0: DELIBERATELY NOT GATED ON THE REGISTRY YET, and the reason
         # is a ruling rather than an oversight.

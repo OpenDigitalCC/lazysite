@@ -242,6 +242,8 @@ our $REQUEST_CROOT;    # SM151: the request's confined content root (undef => do
                        # set by main(), read by resolve_scan() so per-domain search is
                        # boxed to the requesting domain's subtree without re-entering
     # resolve_site_vars (which calls resolve_scan for conf directives)
+our $DRAFT_BYTES;      # SM1030: a draft's source, read from STDIN (request.pm)
+our $DRAFT_MD;         # SM1030: the page path that draft stands in for
 our $ACL_MAP_CACHE;    # SM268 H13: acls.json parsed at most once per request -
                       # a scan asks the read decision up to 200 times. undef =
                       # not loaded, 0 = load failed (fail closed), hashref = the
@@ -811,6 +813,11 @@ sub main {
     # level, NOCACHE, etc.) cannot leak across requests under FastCGI / D016.
     local %ENV = %ENV;
 
+    # SM1030: a draft render takes the whole of its STDIN before anything is
+    # printed, so the caller writing it can never wait on a reader that waits on
+    # it (request.pm).
+    return unless _draft_read();
+
     # SM268 01-L2: REQUEST_URI is percent-ENCODED; REDIRECT_URL is not.
     #
     # Apache does not set REDIRECT_* for a rewrite in server context, which is
@@ -1021,10 +1028,13 @@ sub main {
     $REQUEST_CROOT = $croot;
 
     my $md_path = "$croot/$base.md";
+    # SM1030: a draft renders at exactly the page its caller was allowed to
+    # name, or not at all - and in place of whatever source is there.
+    return unless _draft_bind($md_path);
     # SM201: a system page (login / claim / error) whose content-root copy is
     # absent falls back to the docroot root, then the protected engine default -
     # so a deleted or never-seeded copy self-heals instead of 404ing.
-    if ( !-f $md_path && ( my $sys = _system_page_md( $base, $croot ) ) ) {
+    if ( !defined $DRAFT_BYTES && !-f $md_path && ( my $sys = _system_page_md( $base, $croot ) ) ) {
         $md_path = $sys;
     }
     my $url_path  = "$croot/$base.url";
@@ -1045,6 +1055,7 @@ sub main {
         $$p        = $resolved;
         $html_path = _private_twin("$croot/$base.html");
     }
+    $DRAFT_MD = $md_path if defined $DRAFT_BYTES;    # SM1030: after the store resolves
 
     # SM110 phase 2: the page cache is host-keyed. An alias host reads and
     # writes its cached render in its own slot - $HOST_CACHE_DIR/<host>/,
@@ -1069,7 +1080,7 @@ sub main {
 
     # Stat both source and cache files once - pass results to avoid redundant syscalls
     my @html_stat = stat($html_path);
-    my @md_stat   = stat($md_path);
+    my @md_stat   = _draft_is($md_path) ? _draft_stat() : stat($md_path);    # SM1030
 
     # Auth check - before cache reads to prevent serving protected cached pages
     my $auth_protected = 0;
@@ -1257,7 +1268,7 @@ sub main {
     # it expired, and a markdown body read out of it would be served as the
     # alternate. One slot cannot hold two representations, so the alternate
     # neither reads nor writes it.
-    if ( @md_stat && _wants_source_alternate($uri) ) {
+    if ( @md_stat && !defined $DRAFT_MD && _wants_source_alternate($uri) ) {
         my $src = _source_alternate($md_path);
         if ( defined $src ) {
             $ACCESS_REC{s} = 200;
@@ -1313,6 +1324,15 @@ sub main {
             layout => $pv->{layout}, theme => $pv->{theme}, user => $pv->{user} );
     }
 
+    # SM1030: a draft is the gated page's case and the preview cookie's: never
+    # read from or written to any cache. The sinks refuse a draft request on
+    # their own as well (request.pm); this keeps the render on the path that
+    # writes nothing to begin with.
+    if ( defined $DRAFT_MD ) {
+        $protected = 1;
+        $ENV{LAZYSITE_NOCACHE} = '1';
+    }
+
     # Check if this page declares query_params and request has matching ones
     my $has_query_request = 0;
     my $declared_params   = undef;
@@ -1360,7 +1380,7 @@ sub main {
         # SM151: confine against the domain's content root (== $DOCROOT when no
         # content_root), so a symlink inside one domain's tree cannot serve a
         # sibling domain's or the docroot's files (spec S1).
-        my $real = realpath($md_path);
+        my $real = _draft_is($md_path) ? _draft_real($md_path) : realpath($md_path); # SM1030
         if ( !_path_under_content( $real, $croot ) ) {
             not_found($uri);
             return;
@@ -1774,6 +1794,8 @@ sub _lazy_lib {
         $_site_vars_sig    = '';
         undef $REQUEST_CROOT;    # SM151: recomputed per request in main()
         undef $ACL_MAP_CACHE;    # SM973: a pooled worker re-reads acls.json
+        undef $DRAFT_BYTES;      # SM1030
+        undef $DRAFT_MD;
         _reset_peek_cache();
     }
 }
