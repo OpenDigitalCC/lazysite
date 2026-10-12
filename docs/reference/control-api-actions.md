@@ -48,7 +48,7 @@ tone: medium
 `acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body)
 `actions-list` | any authenticated |  
 `aliases-list` | manage_content | host (query), path (query)
-`analyse_visitors` | analytics | window (query), day (query), month (query), index (query), trails (query)
+`analyse_visitors` | analytics | window (query), day (query), month (query), index (query), trails (query), host (query), by_host (query)
 `artifact-backups-delete` | purge | path (query)
 `artifact-manifest` | manage_themes / manage_layouts |  
 `artifact-validate` | manage_themes / manage_layouts |  
