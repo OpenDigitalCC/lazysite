@@ -55,7 +55,8 @@ Archive
 
 - SM1012 (PENDING) **internal: `_render_form` is split at its seams.** A field's
   rules are tokenised by `_form_rule_tokens` and read into the field's rules by
-  `_form_rules_from_tokens`. Each step changes no other sub
+  `_form_rules_from_tokens`; its value, the literal or the declared prefill,
+  comes from `_form_field_value`. Each step changes no other sub
   (tools/deparse-subs.pl), each block deparses as the sub it became where it has
   one exit (tools/deparse-block.pl), and t/unit/processor/112 passes unchanged.
   No behaviour change.

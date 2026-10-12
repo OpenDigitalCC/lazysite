@@ -3,7 +3,8 @@ package main;
 # lazysite-processor/forms.pm - the processor's forms and fenced divs.
 #
 # HOLDS   convert_fenced_form() and _render_form() (being split at its seams,
-#         SM1012: _form_rule_tokens, _form_rules_from_tokens): a `:::form`
+#         SM1012: _form_rule_tokens, _form_rules_from_tokens,
+#         _form_field_value): a `:::form`
 #         block becomes
 #         the form's markup - fields, options, prefill from the request's raw
 #         query (escaped here), the outcome banner from a closed sentence map,
@@ -352,6 +353,32 @@ sub _form_rules_from_tokens {
     return %rules;
 }
 
+# SM1012 S3: A FIELD'S VALUE, BEFORE IT IS ESCAPED - cut from _render_form's
+# line loop. The `value:` literal, or the request's value of the `prefill:`
+# parameter when the page declares it in query_params: and this request carries
+# it (SM856); an undeclared parameter is logged and leaves the literal. Raw:
+# the caller escapes it for where it goes (SM869).
+sub _form_field_value {
+    my ( $name, $meta, %rules ) = @_;
+    my $value = $rules{value};
+    if ( defined $rules{prefill} ) {
+        my $p = $rules{prefill};
+        my @declared = @{ ( ref $meta->{query_params} eq 'ARRAY' ) ? $meta->{query_params} : [] };
+        if ( grep { $_ eq $p } @declared ) {
+            if ( defined $RENDER_QUERY{$p} && length $RENDER_QUERY{$p} ) {
+                $value = $RENDER_QUERY{$p};
+            }
+        }
+        else {
+            log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                'form prefill names an undeclared query parameter',
+                field => $name, param => $p,
+                hint  => "add it to the page's query_params: list" );
+        }
+    }
+    return $value;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -429,7 +456,7 @@ sub _render_form {
         # attribute. It is also not a trust elevation - a prefilled value proves
         # nothing that a typed one would not.
         my $val_attr = '';
-        my $value    = $rules{value};
+        my $value    = _form_field_value( $name, $meta, %rules );    # SM1012 S3
 
         # SM869: ONE INPUT STATE, AND THIS SINK ESCAPES IT, UNCONDITIONALLY.
         #
@@ -447,21 +474,6 @@ sub _render_form {
         # A visitor's `[% ... %]` used to run here. It also means a `[%` in a
         # `value:` literal is now shown as typed rather than evaluated: the rule
         # takes TEXT.
-        if ( defined $rules{prefill} ) {
-            my $p = $rules{prefill};
-            my @declared = @{ ( ref $meta->{query_params} eq 'ARRAY' ) ? $meta->{query_params} : [] };
-            if ( grep { $_ eq $p } @declared ) {
-                if ( defined $RENDER_QUERY{$p} && length $RENDER_QUERY{$p} ) {
-                    $value = $RENDER_QUERY{$p};
-                }
-            }
-            else {
-                log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
-                    'form prefill names an undeclared query parameter',
-                    field => $name, param => $p,
-                    hint  => "add it to the page's query_params: list" );
-            }
-        }
         if ( defined $value && length $value ) {
             # _esc_html rather than _esc_attr: the form's HTML passes through the
             # Markdown converter before TT, and a bare `<` inside an attribute is
