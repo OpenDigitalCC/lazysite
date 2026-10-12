@@ -549,6 +549,50 @@ sub _form_field_checklist {
     return $field_html;
 }
 
+# SM1012 S5: AN <input> - text, or the declared type - for a field that is
+# none of the other kinds (arguments as _form_field_file's).
+sub _form_field_input {
+    my ( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules ) = @_;
+    my $field_html;
+    my $type  = $rules{type} || 'text';
+    my $attrs = '';
+    if ( $type eq 'number' ) {
+        # For numbers, min/max are value bounds (not maxlength).
+        $attrs .= qq( min="$rules{min}") if defined $rules{min};
+        $attrs .= qq( max="$rules{max}") if defined $rules{max};
+    }
+    else {
+        $attrs .= qq( maxlength="$max");
+    }
+    # tel gets a default validation pattern unless overridden.
+    #
+    # SM921: ESCAPED, AND THE BOUND WIDENED, because the previous default
+    # did not compile and therefore validated nothing. A browser compiles
+    # `pattern` with the `v` flag, under which `(`, `)` and a hyphen at the
+    # end of a character class are syntax errors - and the specification's
+    # answer to an uncompilable pattern is to ignore the attribute in full.
+    # So `[\d\s()+.-]{6,20}` was not a loose pattern, it was no pattern: an
+    # owner typed the single letter S into their phone field and was
+    # allowed. Re-measured here against node v20.19.2's own `v` flag rather
+    # than trusted from the filing (tmp/measure-v-flag-patterns.js): the
+    # shipped default is uncompilable, this one compiles and rejects "S".
+    #
+    # {6,30} because `+33 (0) 1 89 48 00 40` is 21 characters - a French
+    # number written the way France writes it failed the old bound even
+    # once the pattern compiled, which would have turned a silent fault
+    # into a visible one for every caller in that country.
+    # SM934: $eff_pat, computed by _render_form, so the attribute the browser gets
+    # and the rule the handler enforces are the same expression.
+    my $pat = $eff_pat;
+    if ( defined $pat ) {
+        $pat = _esc_attr($pat);
+        $attrs .= qq( pattern="$pat");
+    }
+    $field_html = qq(    <input type="$type" name="$name" id="$name")
+        . $attrs . $ph_attr . $val_attr . qq($req_attr>\n);
+    return $field_html;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -693,42 +737,7 @@ sub _render_form {
             $field_html = _form_field_checklist( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
         }
         else {
-            my $type  = $rules{type} || 'text';
-            my $attrs = '';
-            if ( $type eq 'number' ) {
-                # For numbers, min/max are value bounds (not maxlength).
-                $attrs .= qq( min="$rules{min}") if defined $rules{min};
-                $attrs .= qq( max="$rules{max}") if defined $rules{max};
-            }
-            else {
-                $attrs .= qq( maxlength="$max");
-            }
-            # tel gets a default validation pattern unless overridden.
-            #
-            # SM921: ESCAPED, AND THE BOUND WIDENED, because the previous default
-            # did not compile and therefore validated nothing. A browser compiles
-            # `pattern` with the `v` flag, under which `(`, `)` and a hyphen at the
-            # end of a character class are syntax errors - and the specification's
-            # answer to an uncompilable pattern is to ignore the attribute in full.
-            # So `[\d\s()+.-]{6,20}` was not a loose pattern, it was no pattern: an
-            # owner typed the single letter S into their phone field and was
-            # allowed. Re-measured here against node v20.19.2's own `v` flag rather
-            # than trusted from the filing (tmp/measure-v-flag-patterns.js): the
-            # shipped default is uncompilable, this one compiles and rejects "S".
-            #
-            # {6,30} because `+33 (0) 1 89 48 00 40` is 21 characters - a French
-            # number written the way France writes it failed the old bound even
-            # once the pattern compiled, which would have turned a silent fault
-            # into a visible one for every caller in that country.
-            # SM934: $eff_pat, computed above, so the attribute the browser gets
-            # and the rule the handler enforces are the same expression.
-            my $pat = $eff_pat;
-            if ( defined $pat ) {
-                $pat = _esc_attr($pat);
-                $attrs .= qq( pattern="$pat");
-            }
-            $field_html = qq(    <input type="$type" name="$name" id="$name")
-                . $attrs . $ph_attr . $val_attr . qq($req_attr>\n);
+            $field_html = _form_field_input( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
         }
 
         push @{ $steps[-1]{fields} }, qq(  <div class="form-field">\n)
