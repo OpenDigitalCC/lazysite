@@ -33,7 +33,7 @@ use Lazysite::Data::Descriptor qw(load_descriptor);
 use Lazysite::Data::Connect
     qw(read_handle write_handle store_path store_diagnosis);
 use Lazysite::Data::Schema qw(plan_migration plan_rebuild);
-use Lazysite::Data::Value  qw(coerce_row);
+use Lazysite::Data::Value  qw(coerce_row coerce_field);
 use Lazysite::Data::Owned  ();
 use Lazysite::Data::SQLite
     qw(select_sql count_sql insert_sql update_sql delete_sql observed_schema last_insert_key
@@ -662,10 +662,14 @@ sub _stamp {
     # by _authors_refusal before this is reached); the actor is the restorer.
     my $kept = ref $opt{authors} eq 'HASH' ? $opt{authors} : undef;
     my $by   = sub { my ($k) = @_; return $kept ? _kept_author( $kept->{$k} ) : $who };
-    $values->{updated_at} = $now;
+    # P21 restore gaps: and the times they were exported with (normalised by
+    # _times_refusal; an absent time was absent in the export, and stays so).
+    my $times = ref $opt{times} eq 'HASH' ? $opt{times} : undef;
+    my $at    = sub { my ($k) = @_; return $times ? $times->{$k} : $now };
+    $values->{updated_at} = $at->('updated_at');
     $values->{updated_by} = $by->('updated_by');
     unless ( $opt{partial} ) {
-        $values->{created_at} = $now;
+        $values->{created_at} = $at->('created_at');
         $values->{created_by} = $by->('created_by');
     }
     return $values;
@@ -713,6 +717,55 @@ sub _authors_refusal {
     return undef;
 }
 
+# P21 restore gaps (WORK-PLAN-0154, ruled 2026-10-12 "(1) restore auto-key
+# tables, (3) keep original timestamps"): the same shape as the authors, for the
+# other things a restore keeps. `times =>` is a mapping of created_at and
+# updated_at, each absent or a date and time the value layer reads (and is
+# written as it normalises it); `auto_key =>` is the row's key on a table whose
+# key the store assigns, a positive integer - the next row the store assigns
+# continues after the highest (an INTEGER PRIMARY KEY's rowid). Both need an
+# actor, as the authors do, and lint 137 holds all three to the one restore.
+#
+# Returns ( $err ) or ( undef, \%normalised ).
+sub _times_refusal {
+    my ( $name, $actor, $times ) = @_;
+    return _err( "table '$name': rows restored with their own times are still "
+            . 'written by someone - pass the restoring account as actor', table => $name,
+        kind => 'validation', rule => 'times_need_actor' )
+        unless defined $actor && length $actor;
+    my %col   = map { $_ => 1 } Lazysite::Data::Owned::time_columns();
+    my $names = join ' and ', sort keys %col;
+    return _err( "table '$name': a row's times are a mapping of $names",
+        table => $name, kind => 'validation', rule => 'times' )
+        unless ref $times eq 'HASH';
+    my %out;
+    for my $k ( sort keys %{$times} ) {
+        return _err( "table '$name': '$k' is not a time column ($names)",
+            table => $name, kind => 'validation', rule => 'times' )
+            unless $col{$k};
+        my $v = $times->{$k};
+        next unless defined $v && length $v;
+        my ( $why, $norm ) = ref $v ? ('not a value') : coerce_field( $k, { type => 'datetime' }, $v );
+        return _err( "table '$name': a row's $k is not a date and time ($why)",
+            table => $name, kind => 'validation', rule => 'times', field => $k )
+            if defined $why;
+        $out{$k} = $norm;
+    }
+    return ( undef, \%out );
+}
+
+sub _auto_key_refusal {
+    my ( $name, $actor, $key ) = @_;
+    return _err( "table '$name': a row restored at its own key is still written by "
+            . 'someone - pass the restoring account as actor', table => $name,
+        kind => 'validation', rule => 'auto_key_needs_actor' )
+        unless defined $actor && length $actor;
+    return _err( "table '$name': a restored row's key is a positive whole number",
+        table => $name, kind => 'validation', rule => 'auto_key' )
+        unless defined $key && !ref $key && $key =~ /\A[1-9][0-9]{0,17}\z/;
+    return undef;
+}
+
 sub _write_prep {
     my ( $docroot, $name, $input, %opt ) = @_;
     my $d = load_table( $docroot, $name );
@@ -732,8 +785,25 @@ sub insert_row {
         return $no if $no;
         $stamp{authors} = $opt{authors};
     }
+    if ( exists $opt{times} ) {      # P21 restore gaps: ...and times
+        my ( $no, $times ) = _times_refusal( $name, $opt{actor}, $opt{times} );
+        return $no if $no;
+        $stamp{times} = $times;
+    }
+    if ( exists $opt{auto_key} ) {    # ...and the key the store gave it
+        my $no = _auto_key_refusal( $name, $opt{actor}, $opt{auto_key} );
+        return $no if $no;
+    }
     my ( $bad, $d, $dbh, $values ) = _write_prep( $docroot, $name, $input, %stamp );
     return $bad if $bad;
+    if ( exists $opt{auto_key} ) {
+        return _err( "table '$name': its key is not assigned by the store, so a row "
+                . "cannot be restored at one - the key travels in the row", table => $name,
+            kind => 'validation', rule => 'auto_key' )
+            unless $d->{auto_key};
+        # After the coercion, which refuses a supplied auto key from any writer.
+        $values->{ $d->{key} } = 0 + $opt{auto_key};
+    }
     my ( $sql, $binds ) = insert_sql( $d, $values );
     eval { $dbh->do( $sql, undef, @{$binds} ); 1 }
         or return _err( "table '$name': the insert failed - " . _clean_db_error($@),

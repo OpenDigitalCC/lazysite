@@ -322,15 +322,34 @@ sub package_create {
             # row travels beside the rows, keyed by the row's key, so a restore
             # can keep it. Beside, not in: an older release's import refuses a
             # stamped column in a row, and ignores this.
+            require Lazysite::Data::Owned;
+            my $k     = $d->{key};
+            my @keyed = grep { defined $_->{$k} } @{ $r->{rows} };
             if ( $d->{timestamps} ) {
-                require Lazysite::Data::Owned;
-                my $k  = $d->{key};
                 my @by = Lazysite::Data::Owned::author_columns();
                 $export->{authors} = {
                     map {
                         my $row = $_;
                         ( "$row->{$k}" => { map { $_ => $row->{$_} } @by } )
-                    } grep { defined $_->{$k} } @{ $r->{rows} } };
+                    } @keyed };
+                # P21 restore gaps (ruled 2026-10-12, "(3) keep original
+                # timestamps"): when each row was written and last changed,
+                # beside the rows for the same reason as the authors.
+                my @at = Lazysite::Data::Owned::time_columns();
+                $export->{times} = {
+                    map {
+                        my $row = $_;
+                        ( "$row->{$k}" => { map { $_ => $row->{$_} } @at } )
+                    } @keyed };
+            }
+            # "(2) keep row_policy": a personal row is restored personal - with
+            # its authors, to the same owner. Only the rows that carry a policy;
+            # an absent one means shared, and stays absent.
+            if ( $d->{row_policy} ) {
+                my $pc = Lazysite::Data::Owned::policy_column();
+                $export->{policies} = {
+                    map { ( "$_->{$k}" => $_->{$pc} ) }
+                    grep { defined $_->{$pc} && length $_->{$pc} } @keyed };
             }
             my $path = "$stage/data/$t.json";
             if ( open my $jf, '>:utf8', $path ) {
@@ -736,6 +755,7 @@ sub package_apply {
         require Lazysite::Data::Tables;
         require Lazysite::Data::Export;
         require JSON::PP;
+        require Lazysite::Data::Owned;
         for my $jf ( sort glob "$stage/data/*.json" ) {
             my ($table) = $jf =~ m{/([a-z][a-z0-9_]*)\.json\z};
             unless ( defined $table ) {
@@ -779,7 +799,11 @@ sub package_apply {
             # put anything into the store that a write could not - and a
             # package whose shape no longer matches this instance's descriptor
             # is refused rather than coerced.
-            my $imp = Lazysite::Data::Export::import_table( $d, $export );
+            # P21 restore gaps (ruled 2026-10-12, "(1) restore auto-key
+            # tables"): the auto key every export carries is kept, so rows that
+            # name each other by it still do, and the store's sequence continues
+            # after the highest.
+            my $imp = Lazysite::Data::Export::import_table( $d, $export, keep_auto_key => 1 );
             unless ( $imp->{ok} ) {
                 push @data_skipped, { table => $table, why => $imp->{error} };
                 next;
@@ -791,23 +815,44 @@ sub package_apply {
             # 137), which the log line below and the surface's audit row name.
             # A package built before the authors travelled has none to keep:
             # its rows are the applier's, as an import's are the importer's.
-            my $authors = ref $export->{authors} eq 'HASH' ? $export->{authors} : undef;
-            my $kept    = 0;
+            #
+            # P21 restore gaps (ruled 2026-10-12): and the row's times, its policy
+            # (a personal row stays personal, to the author kept above) and its
+            # auto key. Each travels beside the rows; a package built before it
+            # did carries none, and its rows are restored as they were before:
+            # stamped now, with no policy.
+            my %side = map { ( $_ => ( ref $export->{$_} eq 'HASH' ? $export->{$_} : {} ) ) }
+                qw(authors times policies);
+            my $pc   = Lazysite::Data::Owned::policy_column();
+            my %kept = map { ( $_ => 0 ) } qw(authors times policies keys);
             for my $row ( @{ $imp->{rows} } ) {
-                my $by = $authors ? $authors->{ $row->{ $d->{key} } // '' } : undef;
-                my $r  = Lazysite::Data::Tables::insert_row( $DOCROOT, $table, $row,
-                    actor => $auth_user, ( $by ? ( authors => $by ) : () ) );
+                my $at   = $row->{ $d->{key} } // '';
+                my $auto = $d->{auto_key} ? delete $row->{ $d->{key} } : undef;
+                my $by   = $side{authors}{$at};
+                my $when = $side{times}{$at};
+                my $pol  = $side{policies}{$at};
+                $row->{$pc} = $pol if defined $pol;
+                my $r = Lazysite::Data::Tables::insert_row(
+                    $DOCROOT, $table, $row,
+                    actor => $auth_user,
+                    ( $by           ? ( authors  => $by )   : () ),
+                    ( $when         ? ( times    => $when ) : () ),
+                    ( defined $auto ? ( auto_key => $auto ) : () ) );
                 unless ( $r->{ok} ) {
                     push @data_skipped,
                         { table => $table, why => "row $n: $r->{error}" };
                     last;
                 }
                 $n++;
-                $kept++ if $by;
+                $kept{authors}++  if $by;
+                $kept{times}++    if $when;
+                $kept{policies}++ if defined $pol;
+                $kept{keys}++     if defined $auto;
             }
-            push @data_restored, { table => $table, rows => $n, authors_kept => $kept } if $n;
+            my %said = map { ( "${_}_kept" => $kept{$_} ) } sort keys %kept;
+            push @data_restored, { table => $table, rows => $n, %said } if $n;
             log_event( 'INFO', 'site-package-apply', 'table rows restored',
-                table => $table, rows => $n, authors_kept => $kept, user => $auth_user )
+                table => $table, rows => $n, %said, user => $auth_user )
                 if $n;
         }
     }

@@ -292,6 +292,20 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM1036 (PENDING) **a restored site package keeps its rows' keys, policies
+  and times.** A package could not restore a table whose key the store assigns
+  (the import refused the key the export carried, and the table was skipped),
+  brought a personal row back shared - so any writer the table admitted could
+  amend it - and dated every row at the restore. A restore now keeps each row's
+  auto key (the next row continues after the highest), its `row_policy` (a
+  personal row is personal again, to the same owner) and its `created_at` and
+  `updated_at` as exported; the log line and `data_restored` count what was
+  kept (`keys_kept`, `times_kept`, `policies_kept`, beside `authors_kept`) and
+  name the applier. A package without the new fields restores as before; an
+  auto-key table in one is now restored at its keys. `insert_row` takes
+  `auto_key =>` and `times =>` beside `authors =>`, each refused without an
+  actor and, by lint 137, from anything but the restore. t/unit/data/73.
+
 - filing-stamps (PENDING) **a release says which release shipped a filing.**
   A filing is written "SHIPPED (PENDING)" because its release is not known on
   its branch, and nothing ever replaced that: 31 filings still said PENDING

@@ -129,7 +129,7 @@ for my $path (@FILES) {
         $sites++;
         my $line = 1 + ( () = substr( $src, 0, $-[0] ) =~ /\n/g );
         push @nameless, "$rel:$line $name" unless $args =~ /\bactor\s*=>/;
-        push @authors, "$rel $name" if $args =~ /\bauthors\s*=>/;
+        push @authors, "$rel $name" if $args =~ /\b(?:authors|times|auto_key)\s*=>/;
     }
 }
 is_deeply( \@nameless, [], 'every call to a stamping row writer names its actor' )
@@ -145,11 +145,17 @@ is_deeply( \@nameless, [], 'every call to a stamping row writer names its actor'
 # everywhere else is that no other caller may name authors: an author named by
 # a caller is one the caller chose, and every other write is stamped from the
 # identity its surface verified.
+#
+# P21 restore gaps (ruled 2026-10-12): the restore also keeps each row's times
+# (`times =>`) and the key the store gave it (`auto_key =>`). The same rule
+# holds them: what a row says about itself is the caller's word, so only the
+# restore may pass it, and only beside an actor.
 is_deeply( \@authors, ['lib/Lazysite/Manager/SitePackage.pm insert_row'],
-    'only the site-package restore names row authors, and it names its actor too' )
-    or diag( "A call passing `authors =>` sets created_by/updated_by to what the "
-        . "caller says rather than to the verified actor. Only a restore, keeping "
-        . "the authors a package was exported with, may:\n  " . join( "\n  ", @authors ) );
+    'only the site-package restore names row authors, times or keys, and it names its actor too' )
+    or diag( "A call passing `authors =>`, `times =>` or `auto_key =>` sets the "
+        . "row's authors, timestamps or key to what the caller says rather than "
+        . "to the verified actor, the clock and the store. Only a restore, keeping "
+        . "what a package was exported with, may:\n  " . join( "\n  ", @authors ) );
 
 cmp_ok( $sites, '>=', 6, 'the widened check found the module writers it exists to check (6 today)' )
     or diag("Only $sites call(s) to @STAMPING were found - renamed, or the scan lost its files.");

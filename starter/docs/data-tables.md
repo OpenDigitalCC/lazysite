@@ -384,13 +384,22 @@ table that already holds rows is **refused, not overwritten** -- restoring over
 a live product list would replace it with a snapshot from whenever the package
 was built.
 
-On a table with `timestamps: true`, a package carries who wrote each row, and
-the restored rows **keep their authors**: `created_by` and `updated_by` are what
-they were when the package was built, and a row written anonymously stays
-anonymous. `created_at` and `updated_at` are the time of the restore. The
-account that applied the package is recorded in the log and the audit trail,
-and `data_restored` says how many rows kept their authors. A package built
-before 0.15.5 carries no authors; its rows are recorded as the applier's.
+A restored row **keeps what the package says about it**:
+
+- **its key**, on a table whose key the store assigns (no `key:`) - rows that
+  name each other by it still do, and the next row added continues after the
+  highest;
+- on a table with `timestamps: true`, **its authors and its times**:
+  `created_by`, `updated_by`, `created_at` and `updated_at` are what they were
+  when the package was built, and a row written anonymously stays anonymous;
+- on a table with `row_policy: true`, **its policy**: a personal row is
+  restored personal, to the same owner, and only that owner may amend it.
+
+The account that applied the package is recorded in the log and the audit
+trail, and `data_restored` says how many rows kept each (`keys_kept`,
+`authors_kept`, `times_kept`, `policies_kept`). A package built before 0.15.5
+carries no authors, times or policies: its rows are recorded as the applier's,
+at the time of the restore, with no policy.
 
 ## Access
 

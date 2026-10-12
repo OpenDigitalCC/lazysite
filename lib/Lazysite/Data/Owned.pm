@@ -45,7 +45,7 @@ use warnings;
 use Exporter 'import';
 
 our @EXPORT_OK = qw(stamp_columns reserved_column owned_columns is_owned
-    stamped_column policy_column POLICIES valid_policy author_columns);
+    stamped_column policy_column POLICIES valid_policy author_columns time_columns);
 
 # The order is the order they are CREATED in, and the order they appear in a CSV
 # export: when it was written out by hand, `created_at, updated_at, created_by,
@@ -82,6 +82,10 @@ sub stamp_columns { return @STAMPS }
 # P21: the two stamps that name an account - the pair a restored site package
 # keeps as it was exported ("Keep original authors", ruled 2026-10-12).
 sub author_columns { return grep { /_by\z/ } @STAMPS }
+
+# P21 restore gaps (ruled 2026-10-12, "keep original timestamps"): the two
+# stamps that name a time - the pair a restored site package keeps as exported.
+sub time_columns { return grep { /_at\z/ } @STAMPS }
 
 # May a descriptor declare a field with this name? Unconditional, per above.
 sub reserved_column { return ( defined $_[0] && $RESERVED{ $_[0] } ) ? 1 : 0 }

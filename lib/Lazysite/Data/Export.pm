@@ -130,8 +130,15 @@ sub to_json {
 # put data into a column that means something different from where it came, and
 # the caller is mid-restore - the moment when a plausible-looking wrong answer
 # does the most damage and is least likely to be noticed.
+#
+# keep_auto_key => 1 (P21 restore gaps, ruled 2026-10-12 "restore auto-key
+# tables"): a row's auto key, which every export carries, is taken out before
+# the coercion - which refuses a supplied auto key from any writer - checked as
+# a positive whole number, and handed back in the row for the caller to restore
+# it at (insert_row's `auto_key =>`). Without it the import is what it always
+# was, and an export of an auto-key table is refused at its first row.
 sub import_table {
-    my ( $d, $data ) = @_;
+    my ( $d, $data, %opt ) = @_;
     return { ok => 0, error => 'a loaded descriptor is required' }
         unless ref $d eq 'HASH' && $d->{ok};
     return { ok => 0, error => 'not a lazysite data export' }
@@ -179,10 +186,19 @@ sub import_table {
         my %in = map { $_ => ( ref $r->{$_} ? ( $r->{$_} ? 1 : 0 ) : $r->{$_} ) }
             grep { defined $r->{$_} } keys %{$r};
 
+        my $auto;
+        if ( $opt{keep_auto_key} && $d->{auto_key} && exists $in{ $d->{key} } ) {
+            $auto = delete $in{ $d->{key} };
+            return { ok => 0, row => $n, field => $d->{key},
+                error => "row $n: its key '$auto' is not a positive whole number" }
+                unless $auto =~ /\A[1-9][0-9]{0,17}\z/;
+        }
+
         my $c = coerce_row( $d, \%in );
         return { ok => 0, row => $n, field => $c->{field},
             error => "row $n: $c->{error}" }
             unless $c->{ok};
+        $c->{values}{ $d->{key} } = 0 + $auto if defined $auto;
         push @rows, $c->{values};
     }
 

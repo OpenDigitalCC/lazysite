@@ -69,6 +69,10 @@ applier's, as SM989 did and as a CSV import stamps the importer.
   no policy, which means shared, and any writer the table admits may amend it.
   Pre-existing; not widened here. Open question in WORK-PLAN-0154.
 
+Ruled 2026-10-12, "(1) restore auto-key tables, (2) keep row_policy, (3) keep
+original timestamps", and built as SM1036: a restore keeps each row's auto key,
+its policy and its `created_at`/`updated_at` as exported.
+
 # Tests
 
 t/unit/data/70: a package built from rows by alice, bob (updated by dora) and
