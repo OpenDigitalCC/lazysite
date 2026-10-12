@@ -74,18 +74,47 @@ so in as many words.
 So the local config is RECONSTRUCTED, and only from things a partner may read:
 
 ```
-site_name: <from describe_capabilities, or the editor>
+site_name: <the editor's, or as the live page shows it - see below>
 layout: <active_layout from C1>
 theme: <active theme from C1>
 ```
 
 Write that to `$SITE/lazysite/lazysite.conf`, keeping any keys already there
-that you have no better value for.
+that you have no better value for. `whoami` reports `active_layout` and
+`active_theme` too, and `engine_version` - compare it with the version
+`setup.sh` printed. Neither `whoami` nor `describe_capabilities` reports
+`site_name` or any other conf value.
+
+These three keys are the ones a real session has confirmed (2026-10-12): with
+them, a page rendered locally carried the site's own nav, title and theme. The
+rest of the conf is unread, and some of it reaches the page:
+
+| Key | What it changes in the rendered page |
+| --- | --- |
+| `site_url` | the canonical `<link>` the engine adds to `<head>` (none when unset), alternate-language links, and any absolute URL the layout builds from it |
+| `lang` | the site language: `<html lang>` and the layout's chrome strings (`[% t %]`), default `en` |
+| `nav_file` | which nav file is read - covered by writing `nav.conf` (C4) |
+| `alias_hosts`, `alias.<host>.<key>`, `content_root` | per-domain overrides on a multi-domain site; locally there is one host, so you render the primary's view |
+| `extensions` (or `plugins`) | which extensions are enabled, which a layout can branch on (`enabled_plugins`) |
+| `meta_generator` | whether the generator `<meta>` tag is emitted |
+| `scan_limit`, `search_default`, `feed_items` | the size of `scan:` lists, search inclusion, feed length |
+| any other `key: value` | **every conf line is a template variable**: a layout or page that uses `[% key %]` gets the site's value there and nothing here. Values that are directives (`url:`, `json:`, `scan:`, `db:`) are resolved at render |
+
+How to learn what the reconstruction left out:
+
+- **Compare against the live render.** `preview_page` (where the grant holds
+  `manage_content`) returns the site's own HTML for a page; render the same page here and compare. Chrome that differs
+  where the page content does not - a `lang` attribute, a canonical URL, a
+  footer string - is a conf value you do not have, and the live HTML shows what
+  it is.
+- **Read the layout.** `grep` the pulled `layout.tt` and `components/*.tt` for
+  `[% ` variables; any name that is not a page or engine variable is a conf key
+  the site sets. Its value is visible in the live render.
+- **Ask the editor** for a key the page under question depends on.
 
 What this means for the answer: **anything driven by a config key you could not
-read is unverified.** Language sets, plugin enablement, `site_url`, custom page
-variables - a page that depends on one of those may render differently on the
-real site. If the page you are checking uses one, say which.
+read is unverified.** If the page you are checking depends on one, say which,
+and say whether you took its value from the live render.
 
 ## Then render
 
