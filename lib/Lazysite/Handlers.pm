@@ -781,7 +781,11 @@ sub validate_handler {
         return ( undef, "$k is longer than $max characters", $k ) if length $v > $max;
         if    ( $f->{type} eq 'boolean' ) { $v = _bool($v) }
         elsif ( $f->{type} eq 'email' ) {
-            return ( undef, "$k must be an email address", $k ) unless $v =~ /\A[^\s@]+@[^\s@]+\z/;
+            # SM1017: the one definition, so a handler's own `to` cannot name two
+            # recipients either.
+            require Lazysite::Mail;
+            my ( $one, $bad ) = Lazysite::Mail::one_address($v);
+            return ( undef, "$k must be an email address - $bad", $k ) unless defined $one;
         }
         elsif ( $f->{type} eq 'table' ) {
             return ( undef, "$k must be a table name", $k ) unless $v =~ /\A[a-z][a-z0-9_]{0,63}\z/;
@@ -1788,10 +1792,15 @@ sub _submitter_address {
     return ( undef, "the form's '$key' field is empty, so there is no address to "
             . 'acknowledge - nothing was sent to the submitter' )
         unless defined $v && length $v;
-    return ( undef, "the form's '$key' field is not an email address, so nothing "
-            . 'was sent to the submitter' )
-        unless $v =~ /\A[^\s@]+@[^\s@]+\z/;
-    return ( $v, '' );
+    # SM1017 (SM1010 F2): EXACTLY ONE ADDRESS, refused otherwise. The shape this
+    # had, "something, an @, something", admitted `root,victim@example.org` - one
+    # @, two recipients once `sendmail -t` reads the To: header.
+    require Lazysite::Mail;
+    my ( $one, $bad ) = Lazysite::Mail::one_address($v);
+    return ( undef, "the form's '$key' field is refused as the submitter's address - $bad - so "
+            . 'nothing was sent to the submitter' )
+        unless defined $one;
+    return ( $one, '' );
 }
 
 sub _submitter_key {
@@ -1873,12 +1882,19 @@ sub _acknowledge_submitter {
     # it is louder than that: it makes the site write to an address the spammer
     # chose, which is the open-relay shape the caps exist to bound - and on the
     # form that produced SM913, four of four genuine-looking submissions were
-    # spam. The flag is already on the fields (the form handler sets it before
-    # dispatch, and _visible strips it from anything sent), so nothing new had to
-    # be plumbed to ask.
+    # spam.
+    #
+    # SM1017 (SM1010 F1): THE FLAG IS ASKED OF THE CONTEXT. This read
+    # `$fields->{_quarantined}`, on the belief that the form handler left the flag
+    # on the fields - and it does not: it strips every `_` key before delivery
+    # and passes the flag as `quarantined` in the context. So on the real path
+    # every quarantined submission WAS acknowledged; the only test called this
+    # sub with the key in the fields, the one arrangement a visitor's post never
+    # produces. t/unit/forms/60 now posts through the CGI. The fields are still
+    # asked, so a caller that does carry the key there is not trusted less.
     return 'the submission is held in quarantine, so no acknowledgement was sent - '
         . 'answering a suspect submission writes to an address somebody else chose'
-        if $fields->{_quarantined};
+        if $ctx->{quarantined} || $fields->{_quarantined};
 
     my ( $addr, $why ) = _submitter_address( $h, $fields );
     return $why unless defined $addr;

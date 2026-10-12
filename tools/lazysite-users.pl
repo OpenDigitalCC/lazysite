@@ -127,6 +127,7 @@ use Lazysite::Paths ();           # SM293: where this site keeps its engine tree
 use Lazysite::Util qw(log_event const_eq secure_write_perms drop_to_tree_owner cannot_read);
 use Lazysite::Auth::Verify ();    # SM685: the credential path, shared with the CGIs
 use Lazysite::Audit        qw(audit_log);
+use Lazysite::Mail         ();              # SM1017: what one mail address is
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
 use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock
@@ -1842,8 +1843,10 @@ sub cmd_set {
         my $e = defined $value ? "$value" : '';
         $e =~ s/^\s+|\s+$//g;
         if ( length $e ) {
+            # SM1017: and EXACTLY ONE address - this one reaches a To: header.
             die "Invalid email address\n"
-                unless $e =~ /^[^@\s]+\@[^@\s]+\.[^@\s]+$/;
+                unless $e =~ /^[^@\s]+\@[^@\s]+\.[^@\s]+$/
+                && defined( ( Lazysite::Mail::one_address($e) )[0] );
             $all->{$user}{email} = $e;
         }
         else { delete $all->{$user}{email} }
@@ -2437,7 +2440,9 @@ sub cmd_account_approve {
     $email =~ s/^\s+|\s+$//g;
     return { ok => 0, kind => 'invalid', field => 'email',
         error => "'$email' is not an email address - approval creates nothing." }
-        if length $email && $email !~ /^[^@\s]+\@[^@\s]+\.[^@\s]+$/;
+        if length $email
+        && ( $email !~ /^[^@\s]+\@[^@\s]+\.[^@\s]+$/
+        || !defined( ( Lazysite::Mail::one_address($email) )[0] ) );
 
     # NO PASSWORD IS EVER SET HERE. The account is created credential-less and
     # the claim link is the only way in, so the operator never sees, chooses or

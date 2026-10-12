@@ -325,8 +325,8 @@ sub send_email {
     }
     $subject =~ s/[\r\n]/ /g;
 
-    my $from = sanitise_email( $conf->{from} );
-    my $to   = sanitise_email( $conf->{to} );
+    my $from = sanitise_email( $conf->{from}, 'From address' );
+    my $to   = sanitise_email( $conf->{to},   'To address' );
 
     my $ctype;
     ( $body, $ctype ) = _wrap_multipart( $body, $files ) if $attach;
@@ -410,10 +410,21 @@ sub send_via_smtp {
     $smtp->quit();
 }
 
+# SM1017 (SM1010 F2): THE HEADER GETS EXACTLY ONE ADDRESS, OR NOTHING IS SENT.
+#
+# This used to STRIP CR, LF, < and > and send whatever was left, which repaired
+# `x<b@example.org>` into a different address and let `root,b@example.org`
+# through whole - two recipients to `sendmail -t`. Every message this script
+# sends passes here (a form's copy, the submitter's acknowledgement, a setup
+# link, a notice), so the one writer of the header is the one place the rule
+# is certain to hold. Refused, never repaired: the die is the pipe's error.
 sub sanitise_email {
-    my ($val) = @_;
-    $val =~ s/[\r\n<>]//g;
-    return $val;
+    my ( $val, $which ) = @_;
+    $which //= 'address';
+    require Lazysite::Mail;
+    my ( $one, $why ) = Lazysite::Mail::one_address($val);
+    die "the $which is refused: $why\n" unless defined $one;
+    return $one;
 }
 
 # --- Logging ---

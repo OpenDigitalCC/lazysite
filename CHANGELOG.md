@@ -103,6 +103,18 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
+- SM1017 (PENDING) **a quarantined submission is not acknowledged, and a mail
+  header names exactly one address.** SECURITY. A form whose email handler
+  acknowledges the submitter (`mail_the_submitter_field`) mailed the address a
+  QUARANTINED submission gave: the check read a flag the form handler strips
+  before delivery (SM1010 F1, reproduced through form-handler.pl). And the
+  address could name two recipients - `root,victim@example.org` passed the
+  shape check and reached `sendmail -t` whole, and `x<b@example.org>` was
+  repaired into a different address (F2). An address the site puts in a mail
+  header is now exactly one address - no `, ; < >`, no line break - refused
+  otherwise, by the handler, the header writer (every message), a handler's
+  own `to`/`from`, and an account's address. A hand-written `to:` naming two
+  addresses now fails at send and says why. t/unit/forms/60, 61.
 
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the
