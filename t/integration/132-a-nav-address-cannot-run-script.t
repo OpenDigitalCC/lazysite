@@ -31,6 +31,10 @@ sub slurp { my ($p) = @_; open my $fh, '<:raw', $p or return undef; local $/; re
 
 $s->add_user('op');
 $s->grant( 'op', 'g-op', \@ALL, \@ALL );
+# SM1057: the manager's door needs `ui`, which a group granting mcp/api may not
+# also grant (SM127) - so the cookie calls below are a manager-UI account's.
+$s->add_user('ed');
+$s->grant( 'ed', 'g-ed', [qw(ui manage_content manage_nav)], [qw(ui manage_content manage_nav)] );
 
 sub uapi {
     my ($p) = @_;
@@ -82,7 +86,7 @@ for my $case (@BAD) {
     my ( $what, $items ) = @$case;
     subtest "API nav-save and MCP set_nav refuse $what" => sub {
         spit( $nav, $GOOD );
-        my $r = $s->call( 'op', 'nav-save', body => { items => $items } );
+        my $r = $s->call( 'ed', 'nav-save', body => { items => $items } );
         ok( !$r->{ok}, 'API: refused' ) or diag explain $r;
         is( $r->{kind}, 'nav-unsafe-url', 'API: as an unsafe nav address' );
         like( $r->{error} // '', qr/scheme can run script/, 'API: saying why' );
@@ -98,7 +102,7 @@ for my $case (@BAD) {
 subtest 'a safe nav saves on both surfaces (the control)' => sub {
     my $items = [ { label => 'Home', url => '/' }, { label => 'Mail', url => 'mailto:a@example.com' },
         { label => 'Away', url => 'https://example.com/' }, { label => 'Heading', url => '' } ];
-    my $r = $s->call( 'op', 'nav-save', body => { items => $items } );
+    my $r = $s->call( 'ed', 'nav-save', body => { items => $items } );
     ok( $r->{ok}, 'API: saved' ) or diag explain $r;
     like( slurp($nav), qr/^Mail \| mailto:a\@example\.com$/m, 'API: written' );
     ok( mcp( set_nav => { items => $items } )->{ok}, 'MCP: saved' );
