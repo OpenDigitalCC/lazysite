@@ -3,7 +3,8 @@ package main;
 # lazysite-processor/forms.pm - the processor's forms and fenced divs.
 #
 # HOLDS   convert_fenced_form() and _render_form() (being split at its seams,
-#         SM1012: _form_rule_tokens): a `:::form` block becomes
+#         SM1012: _form_rule_tokens, _form_rules_from_tokens): a `:::form`
+#         block becomes
 #         the form's markup - fields, options, prefill from the request's raw
 #         query (escaped here), the outcome banner from a closed sentence map,
 #         the step stylesheet link - with the timing-token placeholders that
@@ -307,6 +308,50 @@ sub _form_rule_tokens {
     return @rule_tokens;
 }
 
+# SM1012 S2: A FIELD'S RULES, FROM ITS TOKENS - cut from _render_form's line
+# loop. Each token sets one rule; a token that is none of them is ignored.
+sub _form_rules_from_tokens {
+    my (@rule_tokens) = @_;
+    my %rules;
+    for my $r (@rule_tokens) {
+        if    ( $r eq 'required' ) { $rules{required} = 1; }
+        elsif ( $r eq 'optional' ) { $rules{optional} = 1; }
+        elsif ( $r eq 'email' )    { $rules{type}     = 'email'; }
+        elsif ( $r =~ /^(tel|date|time|number|url|password)$/ ) { $rules{type}     = $1; }
+        elsif ( $r eq 'textarea' )                              { $rules{textarea} = 1; }
+        elsif ( $r eq 'file' )                                  { $rules{file}     = 1; }
+        elsif ( $r eq 'multiple' )                              { $rules{multiple} = 1; }
+        elsif ( $r =~ /^accept:(.+)/ )                          { $rules{accept}   = $1; }
+
+        # SM905 U3: `capture` on a file input, which is how a phone offers
+        # the camera directly instead of the file picker. The grammar rendered
+        # accept, multiple and required and had no way to ask for this, so an
+        # author wanting a photograph had to hand-write the input - which the
+        # forms contract does not allow for content.
+        #
+        # `capture` alone lets the browser choose; `capture:user` asks for the
+        # front camera and `capture:environment` for the rear one. Those are
+        # the only two the HTML specification defines, so anything else is
+        # dropped rather than passed through to an attribute nobody honours.
+        elsif ( $r eq 'capture' )                       { $rules{capture} = '' }
+        elsif ( $r =~ /^capture:(user|environment)\z/ ) { $rules{capture} = $1 }
+        elsif ( $r =~ /^select:(.+)/ ) { $rules{select} = _form_options($1); }
+        elsif ( $r =~ /^radio:(.+)/ )  { $rules{radio}  = _form_options($1); }
+        elsif ( $r =~ /^checklist-qty:(.+)/ ) {
+            $rules{checklist} = _form_options($1);
+            $rules{qty}       = 1;
+        }
+        elsif ( $r =~ /^checklist:(.+)/ )   { $rules{checklist}   = _form_options($1); }
+        elsif ( $r =~ /^max:(\d+)/ )        { $rules{max}         = $1; }
+        elsif ( $r =~ /^min:(\d+)/ )        { $rules{min}         = $1; }
+        elsif ( $r =~ /^pattern:(.+)/ )     { $rules{pattern}     = $1; }
+        elsif ( $r =~ /^placeholder:(.+)/ ) { $rules{placeholder} = $1; }
+        elsif ( $r =~ /^value:(.*)/s )      { $rules{value}       = $1; }
+        elsif ( $r =~ /^prefill:(\S+)/ )    { $rules{prefill}     = $1; }
+    }
+    return %rules;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -360,45 +405,9 @@ sub _render_form {
             next;
         }
 
-        my %rules;
-        # The rules, as tokens (SM1012 S1).
+        # The rules, as tokens and then as the field's rules (SM1012 S1, S2).
         my @rule_tokens = _form_rule_tokens( $rules_str, $name );
-        for my $r (@rule_tokens) {
-            if    ( $r eq 'required' ) { $rules{required} = 1; }
-            elsif ( $r eq 'optional' ) { $rules{optional} = 1; }
-            elsif ( $r eq 'email' )    { $rules{type}     = 'email'; }
-            elsif ( $r =~ /^(tel|date|time|number|url|password)$/ ) { $rules{type} = $1; }
-            elsif ( $r eq 'textarea' )     { $rules{textarea} = 1; }
-            elsif ( $r eq 'file' )         { $rules{file}     = 1; }
-            elsif ( $r eq 'multiple' )     { $rules{multiple} = 1; }
-            elsif ( $r =~ /^accept:(.+)/ ) { $rules{accept}   = $1; }
-
-            # SM905 U3: `capture` on a file input, which is how a phone offers
-            # the camera directly instead of the file picker. The grammar rendered
-            # accept, multiple and required and had no way to ask for this, so an
-            # author wanting a photograph had to hand-write the input - which the
-            # forms contract does not allow for content.
-            #
-            # `capture` alone lets the browser choose; `capture:user` asks for the
-            # front camera and `capture:environment` for the rear one. Those are
-            # the only two the HTML specification defines, so anything else is
-            # dropped rather than passed through to an attribute nobody honours.
-            elsif ( $r eq 'capture' )                       { $rules{capture} = '' }
-            elsif ( $r =~ /^capture:(user|environment)\z/ ) { $rules{capture} = $1 }
-            elsif ( $r =~ /^select:(.+)/ ) { $rules{select} = _form_options($1); }
-            elsif ( $r =~ /^radio:(.+)/ )  { $rules{radio}  = _form_options($1); }
-            elsif ( $r =~ /^checklist-qty:(.+)/ ) {
-                $rules{checklist} = _form_options($1);
-                $rules{qty}       = 1;
-            }
-            elsif ( $r =~ /^checklist:(.+)/ )   { $rules{checklist} = _form_options($1); }
-            elsif ( $r =~ /^max:(\d+)/ )        { $rules{max}       = $1; }
-            elsif ( $r =~ /^min:(\d+)/ )        { $rules{min}       = $1; }
-            elsif ( $r =~ /^pattern:(.+)/ )     { $rules{pattern}   = $1; }
-            elsif ( $r =~ /^placeholder:(.+)/ ) { $rules{placeholder} = $1; }
-            elsif ( $r =~ /^value:(.*)/s )      { $rules{value}       = $1; }
-            elsif ( $r =~ /^prefill:(\S+)/ )    { $rules{prefill}     = $1; }
-        }
+        my %rules       = _form_rules_from_tokens(@rule_tokens);
         my $ph_attr = '';
         if ( defined $rules{placeholder} ) {
             my $ph = _esc_attr( $rules{placeholder} );
