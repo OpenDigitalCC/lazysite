@@ -292,6 +292,16 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM997 (PENDING) **a nav address cannot run script.** The nav parser stored a
+  `javascript:` address as written, and every layout puts a nav address in an
+  href. A nav entry's address must now be a path, an `http`/`https` address,
+  `mailto:` or `tel:` - the rule `| url_safe` applies (SM970). The Navigation
+  editor, `nav-save`, `set_nav`, a WebDAV PUT of a nav file (422) and a nav
+  file saved through the file editor refuse anything else and write nothing.
+  An entry already in a nav file renders as `#` and is logged;
+  `lazysite validate nav.conf` and `lazysite check` name it.
+  t/integration/132, t/unit/processor/100, lint 223.
+
 - SM996 (PENDING) **rows restored from a site package keep their authors.**
   SM989 recorded every restored row as the account that applied the package,
   which replaced who really wrote it. A package now carries each row's

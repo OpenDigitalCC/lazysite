@@ -678,6 +678,20 @@ sub do_put {
             }
         }
     }
+    # P23 (WORK-PLAN-0154, ruled 2026-10-12): a navigation file carries no
+    # address that can run script - the rule nav-save and set_nav apply
+    # (Manager::Nav::nav_url_refusal). 422, as for a form's conf: the request
+    # was well formed and its content is what the engine cannot take.
+    if ( ( $a{conf}{nav_files} || {} )->{ $a{rel} } ) {
+        require Lazysite::Manager::Nav;
+        my $text;
+        if ( open my $nf, '<:encoding(UTF-8)', $tmp ) { $text = do { local $/; <$nf> }; close $nf }
+        if ( my ( $err, $why ) = Lazysite::Manager::Nav::nav_url_refusal( $a{rel}, $text // '' ) ) {
+            unlink $tmp;
+            $REFUSAL_DETAIL = $why;
+            return send_status( 422, body => "$err\n" );
+        }
+    }
     unless ( rename $tmp, $r->{abs} ) {
         my $e = $!;
         unlink $tmp;

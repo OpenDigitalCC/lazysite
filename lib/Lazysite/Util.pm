@@ -15,7 +15,7 @@ use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies unsafe_link_scheme nav_unsafe_entries);
 
 our $COMPONENT = 'lazysite';
 
@@ -45,6 +45,74 @@ our $COMPONENT = 'lazysite';
 # config page. `0` means unlimited; anything that is not a whole number
 # reads as the default and is said in the log, not died on.
 our $BACKUP_RETENTION_DEFAULT = 3;
+# P23 (WORK-PLAN-0154, ruled 2026-10-12): A LINK TARGET'S SCHEME, JUDGED AS THE
+# RENDER JUDGES IT. A MARKED COPY of the decision in the processor's
+# _url_safe_filter (lazysite-processor/include.pm, SM970 `| url_safe`), which
+# loads nothing from this tree (ADR 0001); t/lint/223 runs both over the same
+# texts and requires the same answer. Keep the two equal.
+#
+# Returns undef when the value may be a link - no scheme (a relative path,
+# `/abs`, `?q`, `#frag`, `//host`) or http, https, mailto, tel - and otherwise
+# the scheme that makes it unsafe, lowercased (`javascript`, `data`,
+# `vbscript`, ...), or `undecodable` for a value still decoding after eight
+# layers of character references and percent-encoding.
+my %LINK_SAFE_SCHEME = map { $_ => 1 } qw(http https mailto tel);
+my %LINK_SAFE_NAMED  = (
+    colon  => ':', Tab => "\t", NewLine => "\n", plus   => '+',
+    period => '.', amp => '&',  AMP     => '&',  percnt => '%',
+);
+
+sub _link_chr {
+    my ($n) = @_;
+    return ( $n > 0 && $n <= 0x10FFFF ) ? chr $n : "\x{FFFD}";
+}
+
+sub unsafe_link_scheme {
+    my ($text) = @_;
+    return undef unless defined $text;
+    return 'reference' if ref $text;
+    my $s = "$text";
+    for ( 1 .. 8 ) {
+        ( my $r = $s ) =~ s/\A[\x00-\x20]+//;
+        $r =~ tr/\t\n\r//d;
+        if ( $r =~ /\A([a-zA-Z][a-zA-Z0-9+.\-]*):/ ) {
+            return lc $1 unless $LINK_SAFE_SCHEME{ lc $1 };
+        }
+        my $d = $s;
+        $d =~ s/&#[xX]([0-9a-fA-F]{1,8});?/_link_chr(hex $1)/ge;
+        $d =~ s/&#([0-9]{1,10});?/_link_chr($1)/ge;
+        $d =~ s/&([a-zA-Z]+);/exists $LINK_SAFE_NAMED{$1} ? $LINK_SAFE_NAMED{$1} : "&$1;"/ge;
+        $d =~ s/%([0-9a-fA-F]{2})/chr hex $1/ge;
+        return undef if $d eq $s;
+        $s = $d;
+    }
+    return 'undecodable';
+}
+
+# P23: the entries of a nav file (`Label | url`, a child indented) whose
+# address unsafe_link_scheme refuses, in file order: [ { line, label, scheme } ].
+# Read line by line as the processor's parse_nav reads it; a line with no label
+# is skipped there, and here.
+sub nav_unsafe_entries {
+    my ($text) = @_;
+    my @bad;
+    my $n = 0;
+    for my $line ( split /\n/, ( $text // '' ) ) {
+        $n++;
+        next if $line =~ /^\s*#/ || $line =~ /^\s*$/;
+        ( my $l = $line ) =~ s/^\s+|\s+$//g;
+        my ( $label, $url ) = split /\s*\|\s*/, $l, 2;
+        $label //= '';
+        $url   //= '';
+        $label =~ s/^\s+|\s+$//g;
+        $url   =~ s/^\s+|\s+$//g;
+        next unless length $label;
+        my $scheme = unsafe_link_scheme($url);
+        push @bad, { line => $n, label => $label, scheme => $scheme } if defined $scheme;
+    }
+    return \@bad;
+}
+
 sub backup_retention {
     my ($lazysite_dir) = @_;
     my $conf = "$lazysite_dir/lazysite.conf";

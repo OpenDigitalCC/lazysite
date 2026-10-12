@@ -1318,6 +1318,7 @@ sub run_checks {
     # --- 8c. who an @group ACL entry now admits (SM288) -------------------------
     report_unscoped_data_tables();
     report_rows_without_a_policy();
+    report_unsafe_nav_urls();
     report_group_acl_reach();
 
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
@@ -1951,6 +1952,50 @@ sub report_unscoped_data_tables {
         sprintf( '%d data table%s scoped to a domain',
             scalar @scoped, ( @scoped == 1 ? ' is' : 's are' ) )
     ) if @scoped;
+    return;
+}
+
+# P23 (WORK-PLAN-0154, ruled 2026-10-12): A NAV ADDRESS THAT CAN RUN SCRIPT.
+# A save refuses one now and the render shows it as `#`; a nav file written
+# before that, or by hand, still holds it, so this names each entry. Every
+# navigation file the instance renders: lazysite/nav.conf, a `nav_file:` and
+# each `alias.<host>.nav_file:` in lazysite.conf (read as text, like the rest
+# of this tool). The rule is Lazysite::Util::unsafe_link_scheme, the marked
+# copy of the render's `| url_safe`.
+sub report_unsafe_nav_urls {
+    my $d = $opt{docroot};
+    require Lazysite::Util;
+    my %navs = ( 'lazysite/nav.conf' => 1 );
+    if ( open my $ch, '<', $conf ) {
+        while ( my $l = <$ch> ) {
+            next unless $l =~ /^(?:alias\.\S+\.)?nav_file\s*:\s*(.+?)\s*$/;
+            ( my $v = $1 ) =~ s{^/+}{};
+            $navs{$v} = 1 if length $v;
+        }
+        close $ch;
+    }
+    my ( @bad, $read );
+    for my $rel ( sort keys %navs ) {
+        my $path = Lazysite::Paths::site_path( $d, $rel );
+        next unless -f $path;
+        open my $fh, '<:encoding(UTF-8)', $path or next;
+        my $text = do { local $/; <$fh> };
+        close $fh;
+        $read++;
+        push @bad, map { "$rel:$_->{line} '$_->{label}' ($_->{scheme}:)" }
+            @{ Lazysite::Util::nav_unsafe_entries($text) };
+    }
+    return unless $read;
+    if (@bad) {
+        report( 'WARN',
+            sprintf( '%d nav entr%s link to an unsafe scheme, rendered as #: %s',
+                scalar @bad, ( @bad == 1 ? 'y' : 'ies' ), join( ', ', @bad ) ),
+            'A nav address is a path (/about), an http or https address, mailto: or '
+                . 'tel:. Correct the entry with set_nav (or the Navigation editor), which '
+                . 'refuses an unsafe one. See /docs/configuration.' );
+        return;
+    }
+    report( 'OK', 'every nav entry links to a path or a web address' );
     return;
 }
 

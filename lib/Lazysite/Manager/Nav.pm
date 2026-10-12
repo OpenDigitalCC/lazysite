@@ -41,10 +41,11 @@ use Lazysite::Manager::Common qw(write_file_checked refusal_detail caller_may_re
     domain_reach_refusal);
 use Lazysite::Manager::Themes qw(action_cache_invalidate);
 use Lazysite::Paths           ();
+use Lazysite::Util            ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(action_nav_read action_nav_save _nav_conf_info _nav_conf_path
-    resolved_nav_files nav_write_refusal nav_file_reach_refusal);
+    resolved_nav_files nav_write_refusal nav_file_reach_refusal nav_url_refusal);
 
 our $DOCROOT;
 our $LAZYSITE_DIR;
@@ -215,6 +216,30 @@ sub nav_file_reach_refusal {
     return $r;
 }
 
+# P23 (WORK-PLAN-0154, ruled 2026-10-12): A NAV ADDRESS CANNOT RUN SCRIPT. The
+# nav parser stored `javascript:` as written, and every layout puts a nav
+# entry's url in an href. Refused at write - here for nav-save and set_nav,
+# and by Manager::Files and WebDAV for a write of a nav file - and neutralised
+# at render (the processor's parse_nav renders it as `#`, logged). The rule is
+# the render's `| url_safe` (SM970): no scheme, or http, https, mailto, tel;
+# Lazysite::Util::unsafe_link_scheme is its marked copy.
+#
+# Returns ( message, detail ) for a refusal, or nothing.
+sub nav_url_refusal {
+    my ( $rel, $text ) = @_;
+    my $bad = Lazysite::Util::nav_unsafe_entries($text);
+    return unless @$bad;
+    my $list = join '; ', map { "line $_->{line} '$_->{label}' ($_->{scheme}:)" } @$bad[ 0 .. ( $#$bad < 4 ? $#$bad : 4 ) ];
+    $list .= sprintf( '; and %d more', @$bad - 5 ) if @$bad > 5;
+    my $err = ( $rel // 'the navigation' ) . ': '
+        . ( @$bad == 1 ? 'a nav entry links' : scalar(@$bad) . ' nav entries link' )
+        . " to an address whose scheme can run script or is not a web address - $list. "
+        . 'A nav address is a path (/about), an http or https address, mailto: or tel:.';
+    return ( $err, refusal_detail( 'nav-unsafe-url',
+            ( @$bad == 1 ? 'an entry' : scalar(@$bad) . ' entries' ) . ' with an unsafe scheme',
+            'use a path, http(s), mailto: or tel:' ) );
+}
+
 sub action_nav_read {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ( $host, %who ) = @_;
@@ -355,6 +380,11 @@ sub action_nav_save {
             next unless length $cl;
             $content .= "  $cl | $cu\n";
         }
+    }
+
+    # P23: refused before anything is written.
+    if ( my ( $err, $why ) = nav_url_refusal( $nav_file, $content ) ) {
+        return { ok => 0, kind => 'nav-unsafe-url', error => $err, audit_detail => $why };
     }
 
     my $dir = dirname($path);

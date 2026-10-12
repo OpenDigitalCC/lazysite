@@ -328,6 +328,16 @@ An older pipe-separated format is also accepted:
     Docs | /docs/
       Installation | /docs/install
 
+### Addresses
+
+A nav address is a path (`/about`), an `http` or `https` address, `mailto:`
+or `tel:` - the rule `| url_safe` applies to a link in a template. An address
+whose scheme can run script or is not a web address (`javascript:`, `data:`,
+`vbscript:` and the rest) is refused by the Navigation editor, `set_nav`,
+`nav-save`, a WebDAV PUT of a nav file and a save of a nav file through the
+file editor. One already in a nav file renders as `#` and is logged;
+`lazysite validate nav.conf` and `lazysite check` name it.
+
 ### nav TT variable structure
 
 `nav` is an array of hashrefs. Each item has `label`, `url`, and

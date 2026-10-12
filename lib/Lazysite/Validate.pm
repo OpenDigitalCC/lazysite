@@ -650,7 +650,28 @@ sub validate_file {
                     . "offset $at), so it was not checked - save it as UTF-8 and check it again" } ] }
         if defined $at;
     utf8::decode($content) if defined $content;
+    # P23: a navigation file is checked as one - `lazysite validate nav.conf`.
+    return validate_nav( $content, file => $file ) if $file =~ m{(?:\A|/)nav[^/]*\.conf\z};
     return validate_content( %o, content => $content, file => $file );
+}
+
+# P23 (WORK-PLAN-0154, ruled 2026-10-12): a nav file's entries, each address
+# held to the render's `| url_safe` rule (Lazysite::Util::unsafe_link_scheme).
+# An entry whose scheme can run script is an ISSUE: set_nav, nav-save and a
+# WebDAV PUT refuse it, and the render shows it as `#`.
+sub validate_nav {
+    my ( $text, %o ) = @_;
+    require Lazysite::Util;
+    my @issues = map {
+        { kind => 'nav-unsafe-url',
+            severity => 'issue',
+            line     => $_->{line},
+            ( defined $o{file} ? ( file => $o{file} ) : () ),
+            message => "nav entry '$_->{label}' links to a $_->{scheme}: address, which is "
+                . 'rendered as # - use a path (/about), http(s), mailto: or tel:',
+        }
+    } @{ Lazysite::Util::nav_unsafe_entries($text) };
+    return { valid => ( @issues ? 0 : 1 ), issues => \@issues, warnings => [] };
 }
 
 1;

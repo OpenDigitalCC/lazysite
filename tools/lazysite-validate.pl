@@ -66,7 +66,9 @@ Usage: lazysite-validate.pl [--docroot DIR] [--json] [--strict] [--quiet] FILE..
 
 Check page source against the engine's own rules: front matter, unclosed
 component fences, template parse errors, form field rules and delivery, HTML
-that belongs in a layout, and values that should probably not be public.
+that belongs in a layout, and values that should probably not be public. A
+navigation file (nav*.conf) is checked as one: each address is a path,
+http(s), mailto: or tel:.
 
   --docroot DIR   the site, when there is one. Two checks need it - db: table
                   bindings and whether a named form is bound - and say so when

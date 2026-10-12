@@ -17,9 +17,9 @@ package main;
 #         a cached page depends on; who a scan is asked for.
 # CALLS   fetch_url, read_file, log_event, resolve_scan, _request_host,
 #         _path_under, _acl_allows_read, _acl_is_draft, _acl_governed,
-#         _content_rel, peek_auth, _lazy_lib and the rest of the script and its
-#         parts; realpath, decode_json, make_path (imported by the script's
-#         `use`, before its parts load).
+#         _content_rel, peek_auth, _lazy_lib, _url_safe_filter (P23) and the
+#         rest of the script and its parts; realpath, decode_json, make_path
+#         (imported by the script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $CT_CACHE_DIR, $REQUEST_CROOT,
 #         $TT_DEP_LIVE, @TT_DEPS, %ENV_ALLOWLIST, %RENDER_QUERY (the script's,
 #         declared `our` there).
@@ -725,6 +725,19 @@ sub parse_nav {
         $url =~ s/^\s+|\s+$//g;
 
         next unless length $label;
+
+        # P23 (WORK-PLAN-0154, ruled 2026-10-12): an address whose scheme can
+        # run script renders as `#`, logged - the `| url_safe` rule (SM970),
+        # applied here because every layout puts a nav url in an href. A save
+        # refuses one now; this is the nav file written before that, or by
+        # hand.
+        if ( length $url && _url_safe_filter($url) ne $url ) {
+            ( my $rel = $nav_path ) =~ s{^\Q$DOCROOT\E/*}{};
+            my ($scheme) = $url =~ /\A\W*([a-zA-Z][a-zA-Z0-9+.\-]{0,19})/;
+            log_event( 'WARN', 'nav', 'a nav entry whose address has an unsafe scheme is rendered as #',
+                nav => $rel, label => $label, scheme => ( $scheme // '?' ) );
+            $url = '#';
+        }
 
         if ($is_child) {
             # Add to current parent's children

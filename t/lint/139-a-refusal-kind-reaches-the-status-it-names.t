@@ -56,7 +56,7 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     unnamed unbound domain descriptor data manager service
     plugin refused retired csrf anonymous integrity cert-mismatch
     bad-encoding binary template-parse template-parse-refused not-a-cache
-    nav-not-here inherits-nav raw-content-refused brief-sidecar-refused
+    nav-not-here inherits-nav nav-unsafe-url raw-content-refused brief-sidecar-refused
     active-artifact-refused db-binding-unchecked db-table-not-published
 
     api-page-is-a-document document-in-page chrome-in-page style-block-in-page

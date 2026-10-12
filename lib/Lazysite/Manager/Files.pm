@@ -799,6 +799,15 @@ sub action_save {
         return { ok => 0, error => $err, kind => 'nav-not-here', audit_detail => $why };
     }
 
+    # P23: a file that IS a domain's navigation (a nav_file under a content
+    # root) carries no address that can run script - the rule nav-save applies.
+    if ( _is_resolved_nav( $result->{rel} )
+        and my ( $err, $why )
+        = _with_nav( sub { Lazysite::Manager::Nav::nav_url_refusal( $result->{rel}, $content ) } ) )
+    {
+        return { ok => 0, error => $err, kind => 'nav-unsafe-url', audit_detail => $why };
+    }
+
     # SM976 Q15e: a page newly binding a form the caller does not reach.
     if ( my $d = form_bind_guard( $result->{rel}, $content ) ) { return $d }
 
