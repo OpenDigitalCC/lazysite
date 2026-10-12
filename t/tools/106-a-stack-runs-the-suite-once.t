@@ -1,16 +1,17 @@
 #!/usr/bin/perl
-# SM971: A STACK OF BRANCHES IS HANDED OFF WITH ONE FULL SUITE, NOT ONE EACH.
+# SM971: A STACK OF BRANCHES IS HANDED OFF TOGETHER, NEVER WITH A SUITE EACH.
 #
-# Every stacked branch's handoff ran the six-minute suite on a tree the next
-# branch contains. `tools/handoff.sh --stack BASE` runs the one-minute precheck
-# on each branch from BASE to the checked-out tip - each against the branch
-# below it - and the full suite once, on the tip; each branch is READY only if
-# all of it passed, and the first precheck that fails stops the run naming its
-# branch. Without --stack it is the same path with a stack of one.
+# `tools/handoff.sh --stack BASE` runs the precheck on each branch from BASE to
+# the checked-out tip - each against the branch below it; each branch is READY
+# only if all of it passed, and the first precheck that fails stops the run
+# naming its branch. Without --stack it is the same path with a stack of one.
+# SM1061: by default that is all - no whole suite. With --full the suite runs
+# once, on the tip, through tools/suite.sh.
 #
-# Driven in a scratch repository with the real handoff.sh and stand-ins that
-# record their calls: a precheck, the generators, the tracked-tree check, and a
-# one-test suite that says which branch it ran on.
+# Driven in a scratch repository with the real handoff.sh and suite.sh and
+# stand-ins that record their calls: a precheck, the generators, the
+# tracked-tree check, and a `prove` on PATH that says which branch it ran on.
+# No real suite runs.
 use strict;
 use warnings;
 use Test::More;
@@ -52,6 +53,7 @@ sub stack {
     git( $d, 'config', 'user.name',  't' );
     make_path( "$d/tools", "$d/tmp" );
     copy( "$root/tools/handoff.sh", "$d/tools/handoff.sh" ) or die $!;
+    copy( "$root/tools/suite.sh",   "$d/tools/suite.sh" )   or die $!;
     spit( "$d/tools/precheck.sh", <<'SH' );
 b=$(git branch --show-current)
 echo "PRECHECK $b $1" >> calls
@@ -59,14 +61,14 @@ echo "PRECHECK $b $1" >> calls
 SH
     spit( "$d/tools/regen-generated.sh",    "exit 0\n" );
     spit( "$d/tools/tracked-tree-check.pl", "exit 0;\n" );
-    spit( "$d/t/00-suite.t",                <<'T' );
-use Test::More;
-my $b = `git branch --show-current`; chomp $b;
-open my $f, '>>', 'calls' or die; print {$f} "SUITE $b\n"; close $f;
-system( 'git', 'branch', '-q', '-D', $ENV{STUB_LAND} ) if $ENV{STUB_LAND};
-pass('the suite'); done_testing;
-T
-    spit( "$d/.gitignore", "tmp/\ncalls\n" );
+    spit( "$d/bin/prove", <<'SH' );
+#!/bin/sh
+echo "SUITE $(git branch --show-current)" >> calls
+if [ -n "${STUB_LAND:-}" ]; then git branch -q -D "$STUB_LAND"; fi
+echo "Files=1, Tests=1,  0 wallclock secs"
+SH
+    chmod 0755, "$d/bin/prove";
+    spit( "$d/.gitignore", "tmp/\ncalls\nbin/\n" );
     git( $d, 'add',      '-A' );
     git( $d, 'commit',   '-q', '-m', 'base' );
     git( $d, 'checkout', '-q', '-b', 'unrelated' );
@@ -85,17 +87,29 @@ T
 
 sub handoff {
     my ( $d, @args ) = @_;
+    local $ENV{PATH} = "$d/bin:$ENV{PATH}";
     my $out = run_cmd( 'bash', "$d/tools/handoff.sh", @args );
     return ( $? >> 8, $out );
 }
 
-subtest 'every branch is prechecked against the one below it; the suite runs once' => sub {
+subtest 'every branch is prechecked against the one below it, and no suite runs' => sub {
     my $d = stack();
     my ( $rc, $out ) = handoff( $d, '--stack', 'main' );
     is( $rc, 0, 'READY' ) or diag($out);
+    is( slurp("$d/calls"), "PRECHECK s1 main\nPRECHECK s2 s1\nPRECHECK s3 s2\n",
+        'precheck per branch, in order, and nothing else' );
+    like( $out, qr/^READY FOR REVIEW: $_ [0-9a-f]+ \(precheck passed\)$/m, "$_ is READY" ) for qw(s1 s2 s3);
+    unlike( $out, qr/unrelated/, 'a branch off the stack is not part of it' );
+    is( git( $d, 'branch', '--show-current' ), 'main', 'and the worktree is back on the base' );
+};
+
+subtest 'with --full the suite runs once, on the tip' => sub {
+    my $d = stack();
+    my ( $rc, $out ) = handoff( $d, '--stack', 'main', '--full' );
+    is( $rc, 0, 'READY' ) or diag($out);
     is( slurp("$d/calls"), "PRECHECK s1 main\nPRECHECK s2 s1\nPRECHECK s3 s2\nSUITE s3\n",
         'precheck per branch, in order, and the suite once, on the tip' );
-    like( $out, qr/^READY FOR REVIEW: $_ [0-9a-f]+ \(precheck passed; tier-review passed on s3\)$/m, "$_ is READY" )
+    like( $out, qr/^READY FOR REVIEW: $_ [0-9a-f]+ \(precheck passed; suite passed on s3\)$/m, "$_ is READY" )
         for qw(s1 s2 s3);
     unlike( $out, qr/unrelated/, 'a branch off the stack is not part of it' );
     is( git( $d, 'branch', '--show-current' ), 'main', 'and the worktree is back on the base' );
@@ -117,8 +131,8 @@ subtest 'without --stack the stack is the checked-out branch' => sub {
     git( $d, 'checkout', '-q', 's1' );
     my ( $rc, $out ) = handoff($d);
     is( $rc,               0,                              'READY' ) or diag($out);
-    is( slurp("$d/calls"), "PRECHECK s1 main\nSUITE s1\n", 'one precheck against main, one suite' );
-    like( $out, qr/^READY FOR REVIEW: s1 [0-9a-f]+ \(tier-review passed\)$/m, 'the one line review reads' );
+    is( slurp("$d/calls"), "PRECHECK s1 main\n", 'one precheck against main, and no suite' );
+    like( $out, qr/^READY FOR REVIEW: s1 [0-9a-f]+ \(precheck passed\)$/m, 'the one line review reads' );
 };
 
 # Q16a: run in a linked worktree while the base is checked out in the main one,
@@ -133,8 +147,7 @@ subtest 'in a linked worktree the run ends detached at the base, and is READY' =
     make_path("$wt/tmp");
     my ( $rc, $out ) = handoff( $wt, '--stack', 'main' );
     is( $rc, 0, 'READY' ) or diag($out);
-    like( $out, qr/^READY FOR REVIEW: $_ [0-9a-f]+ \(precheck passed; tier-review passed on s3\)$/m, "$_ is READY" )
-        for qw(s1 s2 s3);
+    like( $out, qr/^READY FOR REVIEW: $_ [0-9a-f]+ \(precheck passed\)$/m, "$_ is READY" ) for qw(s1 s2 s3);
     like( $out, qr/the worktree is detached at main, so s1 s2 s3 is free to review/, '...saying where it left the worktree' );
     unlike( $out, qr/NOT READY|still held/, 'and nothing says it is held' );
     is( git( $wt, 'branch', '--show-current' ), '', 'the linked worktree holds no branch' );
@@ -150,7 +163,7 @@ subtest 'in a linked worktree the run ends detached at the base, and is READY' =
 subtest 'a stack branch landed during the run is named, not called ready' => sub {
     my $d = stack();
     local $ENV{STUB_LAND} = 's1';
-    my ( $rc, $out ) = handoff( $d, '--stack', 'main' );
+    my ( $rc, $out ) = handoff( $d, '--stack', 'main', '--full' );
     is( $rc, 0, 'READY' ) or diag($out);
     like( $out, qr/^s1 \(landed or deleted during the run\)$/m, 'the landed branch is named as such' );
     unlike( $out, qr/READY FOR REVIEW: s1\b/,         '...and not called ready' );

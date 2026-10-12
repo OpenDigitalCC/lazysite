@@ -1,5 +1,5 @@
 #!/bin/bash
-# tools/precheck.sh - the one-minute check before the full suite (SM949).
+# tools/precheck.sh - the targeted check on each commit and handoff (SM949, SM1061).
 #
 # Most handoff re-runs were knowable in seconds - a tidy alignment, a lint, a
 # file that does not compile - and were found after a six-minute suite. This runs
@@ -7,6 +7,9 @@
 #   1. compile every changed .pl/.pm/.t
 #   2. every lint, with the two perlcritic lints narrowed to changed files
 #   3. the tests that name a changed file
+#   4. the tests that cover each area the change touches (SM1061,
+#      tools/precheck-areas.pl) - since SM1061 this is the handoff's test run;
+#      the whole suite is on demand (tools/suite.sh), for a release, and nightly
 # Usage: tools/precheck.sh [BASE]   (default main). Exit non-zero on any failure.
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -36,9 +39,18 @@ $(echo "${f#lib/}" | sed 's#/#::#g; s#\.pm$##')" ;; esac
 done
 RELATED=$( (printf '%s\n' $RELATED; printf '%s\n' $PERL | grep '^t/.*\.t$' | grep -v '^t/lint/') | sort -u | grep . || true)
 
+# SM1061: and the tests that cover each AREA the change touches, from the one
+# declared map (tools/precheck-areas.pl; t/lint/255 keeps it complete). A test
+# can break without naming a changed file - t/unit/processor/101 did, on a
+# change to lazysite-processor/sources.pm - and the suite no longer runs in the
+# handoff to catch it.
+# shellcheck disable=SC2086
+AREA=$(perl tools/precheck-areas.pl $CHANGED) || { echo "precheck: tools/precheck-areas.pl failed"; RC=1; }
+RELATED=$(printf '%s\n' $RELATED $AREA | sort -u | grep . || true)
+
 # Left to the full suite: tests measured over 20 s (2026-10-07, prove --timer
-# at -j4). The handoff still runs every one; the pre-check is for what can be
-# known in about a minute. t/unit/tools/76 is ~80 s whenever
+# at -j4). The whole suite still runs every one (nightly, and for a release);
+# the pre-check is for what can be known in minutes. t/unit/tools/76 is ~80 s whenever
 # tools/coverage-inputs.pl has changed (its PPI cache is keyed on that file).
 SLOW='t/tools/60-coverage-cannot-report-what-it-did-not-measure.t
 t/smoke/01-all-starter-pages.t

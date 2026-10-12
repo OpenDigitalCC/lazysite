@@ -1,8 +1,9 @@
 .PHONY: test test-unit test-integration test-smoke test-journey test-safety test-verbose \
         tier-dev tier-precheck tier-review tier-release tiers handoff
 
+# The whole plain suite: through tools/suite.sh, one run at a time (SM1061).
 test:
-	prove -r t/
+	bash tools/suite.sh
 
 # --- SM269 phase 2: the tier ladder -----------------------------------------
 #
@@ -30,38 +31,40 @@ else
 	prove -lj4 -r t/unit/$(AREA)/
 endif
 
-# REVIEW - ~2 minutes. Branch handoff. The whole plain suite in parallel.
-# Phase 1 made this safe: prove -j4 is green on 321 files.
-# PRECHECK - lints + the tests naming a changed file, ~10 s (SM949)
+# PRECHECK - lints + the tests naming a changed file + the tests of each area it
+# touches (SM949, SM1061): the handoff's test run, minutes
 tier-precheck:
 	bash tools/precheck.sh
 
+# REVIEW - the whole plain suite, through tools/suite.sh: -j<nproc>, and one
+# whole-suite run at a time on the host (SM1061). Run on demand, by `handoff
+# --full`/`--release`, and nightly; not by a default handoff.
 tier-review:
-	prove -lr -j4 t/
+	bash tools/suite.sh
 
-# HANDOFF - tier-review plus the review's tripwires; prints the READY line
-# a branch is offered for review with (SM764). `make handoff RELEASE=1`
-# adds the bench gate for a branch bound for a cut.
+# HANDOFF - the precheck on each branch plus the review's tripwires; prints the
+# READY line a branch is offered for review with (SM764, SM1061). `make handoff
+# FULL=1` adds the whole suite; `RELEASE=1` the suite and the bench gate.
 handoff:
-	bash tools/handoff.sh $(if $(RELEASE),--release,)
+	bash tools/handoff.sh $(if $(RELEASE),--release,$(if $(FULL),--full,))
 
 # RELEASE - ~80 minutes. Once per cut, and NOT a subset of anything:
 # suite, then bench, then coverage against the declared floor.
 tier-release:
-	prove -lr t/
+	bash tools/suite.sh
 	perl tools/bench.pl --check
 	bash tools/coverage.sh --check
 
 tiers:
 	@echo "tier-dev      seconds   every edit      lint + AREA=<area>"
-	@echo "tier-precheck ~10 s    before handoff  lints + tests naming changed files (SM949)"
-	@echo "tier-review   ~2 min    branch handoff  full suite at -j4"
-	@echo "handoff       ~2 min    before review   tier-review + tripwires; prints READY (SM764)"
+	@echo "tier-precheck minutes   each commit     lints + tests naming changed files + their areas"
+	@echo "tier-review   ~18 min   on demand       full suite via tools/suite.sh (host lock)"
+	@echo "handoff       ~1 min    before review   precheck + tripwires; prints READY (SM1061)"
 	@echo "tier-release  ~80 min   once per cut    suite + bench + coverage"
+	@echo "nightly      ~20 min   00:30           tools/suite.sh --nightly on main; inbox on failure"
 	@echo ""
-	@echo "There is no scheduled tier yet: SM269 phase 3 has to justify one"
-	@echo "by emitting a worklist somebody uses. Measurement without a"
-	@echo "consumer is not a tier."
+	@echo "The whole suite is on demand (tools/suite.sh), required for a release, and"
+	@echo "nightly as a safety net; the handoff runs the precheck (SM1061)."
 
 test-unit:
 	prove -r t/unit/

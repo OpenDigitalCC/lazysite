@@ -50,7 +50,8 @@ subtest 'every gate step runs without a terminal' => sub {
 subtest 'no privilege is hidden in the release script or the gate tools' => sub {
     for my $f (
         qw(tools/release.sh tools/coverage.sh tools/bench.pl tools/handoff.sh tools/build-deb.sh
-        tools/gate-main.sh tools/coverage-inputs.pl tools/release-material.pl tools/precheck.sh)
+        tools/gate-main.sh tools/coverage-inputs.pl tools/release-material.pl tools/precheck.sh
+        tools/suite.sh tools/overnight.sh tools/precheck-areas.pl)
         )
     {
         next unless -f "$root/$f";

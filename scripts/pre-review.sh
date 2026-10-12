@@ -60,8 +60,9 @@ case "$TIER" in
     ;;
 
   suite)
-    say "suite: everything ($(find t -name '*.t' | wc -l) files)"
-    prove -l -j"$JOBS" -r t/ || rc=1
+    # SM1061: through tools/suite.sh, so it takes the host-wide suite lock.
+    say "suite: everything ($(find t -name '*.t' | wc -l) files), through tools/suite.sh"
+    bash tools/suite.sh || rc=1
     ;;
 
   *)

@@ -8,7 +8,7 @@
 # a tree nobody had touched, and the next person debugged the lint.
 #
 # This asks the question at the moment it can be answered. Run after the suite
-# (handoff.sh does), it lists every TRACKED file the working tree now differs
+# (handoff.sh does, after its tests), it lists every TRACKED file the working tree now differs
 # on, and every backup TestHelper::preserve_tracked left behind - whose marker
 # names the test that took it, which is the thing a reader wants to know.
 #

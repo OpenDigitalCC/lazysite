@@ -858,7 +858,8 @@ sub setup_multi_domain_site {
 # handler that restores and then re-raises, so the exit status still says what
 # happened). SIGKILL cannot be caught; for that case the backup and its marker
 # OUTLIVE the test, and tools/tracked-tree-check.pl - run by handoff.sh after
-# the suite - names the file and the test that left it.
+# the precheck's tests (and the suite, with --full) - names the file and the
+# test that left it.
 #
 # A forked child never restores its parent's files: the guard remembers the
 # pid that took the backup, and run_cmd's exec-failure `exit 127` would

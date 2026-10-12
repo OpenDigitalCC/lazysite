@@ -1,32 +1,32 @@
 #!/bin/bash
 # tools/handoff.sh - the gate a branch passes BEFORE it is handed for review.
 #
-# SM764. The 0.13.4 cut was launched three times. The first coverage stage
-# failed on a render ceiling met under instrumentation; the fix for that
-# broke a textual pin one test file over, which the second build's plain
-# suite found twelve minutes in. Each failure cost a review round-trip
-# through the release manager, who was not watching - many hours for two
-# faults that `make tier-review` (the whole plain suite, ~2 minutes at -j4)
-# would have found on the branch before anyone was asked to look.
-#
-# The tier ladder in DEVELOPER.md already said "tier-review at branch
-# handoff". It was not run. This script is the handoff: it runs the tier,
-# the checks a review would otherwise trip over, and prints ONE line the
-# handover message carries. A branch is not offered for review without
-# this line.
-#
 #   bash tools/handoff.sh                 # the checked-out branch against main
 #   bash tools/handoff.sh --stack BASE    # every branch from BASE to this one
-#   bash tools/handoff.sh --release       # also bench, for a branch bound for a cut
+#   bash tools/handoff.sh --full          # also the whole plain suite (tools/suite.sh)
+#   bash tools/handoff.sh --release       # --full plus bench, for a branch bound for a cut
 #
-# SM971: ONE FULL SUITE PER STACK. Branches built on one another were each
-# handed off alone, and each paid the six-minute suite on a tree the next one
-# contains. --stack BASE runs the precheck on every branch between BASE and the
-# checked-out tip, in order - each against the branch below it - and the full
-# suite ONCE, on the tip. Every branch is READY only if all of that passed; the
-# first branch whose precheck fails stops the run, by name. Without --stack the
-# stack is the one checked-out branch against main ($HANDOFF_BASE overrides),
-# so there is one way through this script, not two.
+# SM1061: THE HANDOFF IS THE PRECHECK. By default it runs only what is per
+# branch: a clean tree, the generators, the mangled-literal check, the
+# precheck (SM949) on each stack branch, and the tracked-tree check. The whole
+# plain suite runs ONCE, on main, after each landing (tools/gate-main.sh), and
+# one whole-suite run goes at a time on the host (tools/suite.sh's lock).
+# Ruled by the release manager on 2026-10-12: four agents running the suite in
+# their handoffs at once took an 8-core host to a load of 26-30 and every suite
+# from ~1,080 s to ~1,950 s, and the handoff suite caught nothing that day -
+# precheck caught every handoff fault, and the one cross-stack clash was found
+# by the run on main. `--full` keeps the suite here, through tools/suite.sh so it
+# takes the lock; `--release` implies it.
+#
+# History: SM764 made the whole suite the handoff, after two faults reached a
+# cut that the suite on the branch would have found. SM971 ran it once per
+# stack, on the tip, instead of once per branch. SM1061 moves it to main.
+#
+# --stack BASE prechecks every branch between BASE and the checked-out tip, in
+# order, each against the branch below it (SM971); every branch is READY only if
+# all of that passed, and the first that fails stops the run, by name. Without
+# --stack the stack is the one checked-out branch against main ($HANDOFF_BASE
+# overrides), so there is one way through this script, not two.
 #
 # Nothing per-branch is written for review to read: vcs-review offers a branch
 # that is neither author-held (refs/vcs-review/hold/*) nor checked out, so what
@@ -42,9 +42,11 @@ cd "$(dirname "$0")/.." || exit 2
 BASE=${HANDOFF_BASE:-main}
 STACKED=0
 RELEASE=0
+FULL=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --release) RELEASE=1; shift ;;
+    --release) RELEASE=1; FULL=1; shift ;;
+    --full) FULL=1; shift ;;
     --stack)
       [ $# -ge 2 ] || { echo "handoff: --stack needs a BASE branch" >&2; exit 2; }
       BASE=$2; STACKED=1; shift 2 ;;
@@ -123,7 +125,8 @@ fi
 # 4. Each branch, lowest first: the mangled literal in what IT added, then the
 #    one-minute precheck (SM949) against the branch below it. What it catches -
 #    a lint, tidy, a file that does not compile, a test naming a changed file -
-#    is known in seconds, so a failure stops here instead of after the suite.
+#    is known in seconds, and it is what found every handoff fault on the day
+#    SM1061 was ruled. A failure stops the run here.
 if [ "$RC" = 0 ]; then
   for i in "${!STACK[@]}"; do
     b=${STACK[$i]}
@@ -138,7 +141,7 @@ if [ "$RC" = 0 ]; then
     fi
     say "==> precheck $b against $parent (lints + related tests, ~10 s)"
     if [ "$RC" != 0 ] || ! bash tools/precheck.sh "$parent"; then
-      fail "precheck failed on $b - fix it before the full suite (tmp/precheck.log)"
+      fail "precheck failed on $b - fix it and run the handoff again (tmp/precheck.log)"
       [ "$b" = "$BRANCH" ] || git checkout -q "$BRANCH"
       say "NOT READY: $b $(git rev-parse --short "$b") - the stack stops there"
       exit 1
@@ -147,22 +150,22 @@ if [ "$RC" = 0 ]; then
   [ "$(git branch --show-current)" = "$BRANCH" ] || git checkout -q "$BRANCH"
 fi
 
-# 5. The tier: the whole plain suite at -j4, ONCE, on the tip. Not the touched
-#    files, not the area - the suite. A textual pin one file over is what the
-#    area misses.
-say "==> tier-review on $BRANCH (whole plain suite, -j4)"
-if ! prove -lr -j4 t/ > tmp/handoff-suite.log 2>&1; then
-  fail "tier-review: the suite did not pass - tmp/handoff-suite.log"
-  grep -E "^#   Failed test|\(Wstat" tmp/handoff-suite.log | head -10
-else
-  grep -E "^Files=" tmp/handoff-suite.log
+# 5. With --full (or --release) only: the whole plain suite, ONCE, on the tip,
+#    through tools/suite.sh - so it waits its turn behind any other whole-suite
+#    run on the host (SM1061). By default the suite is main's, once per landing.
+if [ "$FULL" = 1 ] && [ "$RC" = 0 ]; then
+  say "==> the whole plain suite on $BRANCH (tools/suite.sh, one run at a time on the host)"
+  if ! bash tools/suite.sh; then
+    fail "the suite did not pass - tmp/suite.log"
+  fi
 fi
 
-# 5b. SM894: the suite put back every tracked file it edited. Three tests
+# 5b. SM894: the tests put back every tracked file they edited. Three tests
 #     edit VERSION, the sign-off switch, the reliability record and the
 #     practice briefing for real, and a run that is killed mid-test leaves
 #     them edited - which then fails a version lint on the NEXT run, on a
-#     tree nobody touched. Asked here, where the answer can name the test.
+#     tree nobody touched. Asked here, after the precheck's related tests (and
+#     the suite, with --full), where the answer can name the test.
 if ! perl tools/tracked-tree-check.pl .; then
   fail "a test left a tracked file edited (named above)"
 fi
@@ -175,8 +178,14 @@ if [ "$RELEASE" = 1 ]; then
   fi
 fi
 
-WHAT="tier-review passed$( [ "$RELEASE" = 1 ] && printf ', bench passed' )"
-[ "${#STACK[@]}" -gt 1 ] && WHAT="precheck passed; $WHAT on $BRANCH"
+# What the READY line says passed: the precheck always; the suite (and bench)
+# only when they ran - on the tip, which a stack names.
+WHAT="precheck passed"
+if [ "$FULL" = 1 ]; then
+  WHAT="$WHAT; suite passed"
+  [ "$RELEASE" = 1 ] && WHAT="$WHAT, bench passed"
+  [ "${#STACK[@]}" -gt 1 ] && WHAT="$WHAT on $BRANCH"
+fi
 
 if [ "$RC" -eq 0 ]; then
   # SM829: RELEASING THE BRANCH IS PART OF SAYING READY, not a step afterwards.
