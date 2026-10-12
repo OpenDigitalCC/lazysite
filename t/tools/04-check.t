@@ -22,7 +22,7 @@ make_path( "$doc/lazysite/auth", "$doc/lazysite/cache", "$doc/lazysite/manager",
 # SM201: a real install ships the protected system-page defaults; the check verifies
 # they exist so the auth/error routes cannot be 404'd by a deleted root copy.
 make_path("$doc/lazysite/templates/system");
-for my $sp (qw(login claim 402 403 404)) {
+for my $sp (qw(login claim forgot logout 402 403 404)) {    # SM1048: the sign-in flow
     open my $sf, '>', "$doc/lazysite/templates/system/$sp.md" or die $!;
     print {$sf} "---\ntitle: $sp\n---\n\n$sp\n";
     close $sf;
@@ -259,7 +259,7 @@ subtest 'one --fix run converges: every fixable FAIL repaired and printed' => su
     make_path( "$d/lazysite/auth", "$d/lazysite/forms", "$d/lazysite/logs",
         "$d/lazysite/cache/tt/deep", "$d/lazysite/templates/system" );
     my $w = sub { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1] // "x\n"; close $fh };
-    $w->("$d/lazysite/templates/system/$_.md") for qw(login claim 402 403 404); # SM201 defaults
+    $w->("$d/lazysite/templates/system/$_.md") for qw(login claim forgot logout 402 403 404); # SM201 defaults
     $w->( "$d/lazysite/lazysite.conf", "site_name: t\n" );
     $w->("$d/lazysite/auth/.secret");
     $w->("$d/lazysite/forms/.secret");
@@ -323,7 +323,7 @@ subtest 'OAuth/remote discovery coherence check (SM190/SM200)' => sub {
     my $c  = "$b/lazysite";
     my $sp = sub { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1]; close $fh };
     make_path("$c/templates/system");
-    $sp->( "$c/templates/system/$_.md", "x\n" ) for qw(login claim 402 403 404);
+    $sp->( "$c/templates/system/$_.md", "x\n" ) for qw(login claim forgot logout 402 403 404);
 
     my $w   = sub { $sp->( "$c/lazysite.conf", $_[0] ) };
     my $run = sub { qx($^X $script --docroot $b 2>&1) };

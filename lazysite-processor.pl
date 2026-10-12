@@ -157,7 +157,14 @@ our $PREVIEW_COOKIE = 'lzs_preview';    # SM071: theme/layout preview cookie
 # then the protected engine default under lazysite/templates/system/ (code-
 # shipped, DAV-blocklisted - an agent cannot delete it). The set is FIXED so an
 # arbitrary missing page can never trigger the fallback.
-my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim 402 403 404);
+#
+# SM1048 (P-8): and the rest of the sign-in flow. A domain whose content root
+# had no forgot.md answered /forgot - the login page's own "forgotten your
+# password" link - with a 404, and /logout, where signing out lands, the same.
+# Both stay seeded at the primary's root (SM939 keeps them on a bare install);
+# their protected defaults are copies of those (t/integration/207 holds them
+# equal).
+my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim forgot logout 402 403 404);
 
 sub _system_page_md {
     my ( $base, $croot ) = @_;

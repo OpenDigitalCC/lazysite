@@ -1423,7 +1423,8 @@ sub run_checks {
     # defaults (which make the fallback self-healing) are present.
     {
         my ( @dead, @root_only );
-        for my $name (qw(login claim 402 403 404)) {
+        # SM1048: forgot and logout, the rest of the sign-in flow.
+        for my $name (qw(login claim forgot logout 402 403 404)) {
             my $has_default = -f "$LZ/templates/system/$name.md";
             my $has_root    = -f "$DOC/$name.md";
             push @dead,      $name if !$has_default && !$has_root;
@@ -1441,7 +1442,7 @@ sub run_checks {
                     . 'missing (an agent-proof fallback): ' . join( ', ', @root_only ),
                 'run an upgrade to install lazysite/templates/system/ (SM201)' );
         }
-        report( 'OK', 'system pages (login/claim/40x) all resolve via the fallback chain (SM201)' )
+        report( 'OK', 'system pages (login/claim/forgot/logout/40x) all resolve via the fallback chain (SM201)' )
             if !@dead && !@root_only;
     }
 

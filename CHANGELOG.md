@@ -495,6 +495,13 @@ Archive
   `manage_users` holder still revokes every other account's. A session id the
   session registry does not hold is the operator's alone to revoke.
   t/integration/131.
+- SM1048 (PENDING) **a domain without sign-in pages uses the engine's.** On a
+  domain whose content root had no copy, `/forgot` - the login page's own
+  link - and `/logout`, where signing out lands, answered 404. Both join
+  SM201's system pages: the domain's copy, then the primary's, then a protected
+  default under `lazysite/templates/system/`. `/login` and `/claim` already fell
+  back on main; `lazysite check` now probes all four. t/integration/207.
+
 - SM1047 (PENDING) **a scope check reads the path the handler writes.**
   `acl-set` checked a confined caller's scope against the query's path, '/'
   when absent, and refused a path sent in the body, so a partner following the
