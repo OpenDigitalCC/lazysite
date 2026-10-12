@@ -81,10 +81,10 @@ review in the manager at all. Not built: the mailing (below).
 
 # Interaction
 
-On main `_operator()` is any `manage_users` session; the unlanded security stack
-(n385, SM991) makes it the operator group. The review actions ask
-`_operator()`, so they follow that change when it lands: a `manage_users`
-partner on a cookie session will then stage and not apply.
+SM991 (landed): the operator is a member of the operator group, and
+`manage_users` alone is user management. The review actions ask `_operator()`,
+so a `manage_users` cookie session that is not the operator stages and does not
+list, plan or apply - t/integration/212 holds it.
 
 # Tests
 

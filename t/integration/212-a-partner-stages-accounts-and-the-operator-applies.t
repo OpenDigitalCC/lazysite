@@ -27,6 +27,7 @@ my %CAPS = (
     op  => [qw(ui manage_users manage_domains manage_content)],
     tks => [qw(api manage_users manage_content)],
     ckc => [qw(ui manage_content)],
+    ckm => [qw(ui manage_users)],    # SM991: user management, not the operator
 );
 my $s = new_site( root => $root, conf => "control_api_enabled: true\n" );
 my $d = $s->docroot;
@@ -51,6 +52,9 @@ for my $g (qw(authors)) {
     ok( uapi( { action => 'group-create', group => $g } )->{ok}, "set up: group $g" );
 }
 $s->users( 'group-set', 'members', 'registration', 'on' );
+# SM991: the operator is a member of the operator group (the `manager` flag);
+# manage_users alone is user management.
+$s->users( 'group-set', 'g-op', 'manager', 'on' );
 
 sub api {
     my ( $who, $action, $body, $query ) = @_;
@@ -120,6 +124,8 @@ subtest 'the review and the apply are the operator\'s' => sub {
     ok( !$r->{ok}, 'the token: apply refused' );
     $r = api( 'ckc', 'accounts-import-plan', undef, "action=accounts-import-plan&id=$id" );
     ok( !$r->{ok}, 'a cookie session without manage_users: refused' );
+    $r = api( 'ckm', 'accounts-import-plan', undef, "action=accounts-import-plan&id=$id" );
+    ok( !$r->{ok}, 'a cookie manage_users holder that is not the operator: refused (SM991)' );
     unlike( users(), qr/^m1:/m, 'and no account was created' );
 };
 
