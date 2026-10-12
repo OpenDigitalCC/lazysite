@@ -317,6 +317,16 @@ Archive
   `fields: ["email"]`, answered from the settings store in one read (0.27 s for
   700 generated accounts, from 26.7 s), and refuses on an unreadable store.
   t/unit/users/50, t/unit/manager/240.
+- mcp-domain-attribution (PENDING) **a domain change made over MCP names the
+  account that made it** (ruled 2026-10-12: "Close Q16 + MCP attribution"). An
+  MCP `domain_set` - and a theme or layout activated for a domain, which writes
+  through it - logged `[domain-set] domain key set ... user=` with nobody named,
+  and its lazysite.conf change was committed to content history as `unknown`. It now logs `user=<account>` and is committed with that account
+  as the author, as the manager API and the domains CLI already did. A log
+  change taken on purpose; nothing else an MCP account can do changes, and the
+  handlers that refuse when no manager request is asking still refuse in the
+  MCP process. t/unit/manager/270.
+
 - upload-budget (PENDING) **security: a forged upload no longer spends the
   account's hourly upload budget** (SM944 S34 finding F-1, built for review
   2026-10-11). The file-upload rate check reserves a slot as it checks, and it

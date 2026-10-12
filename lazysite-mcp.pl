@@ -422,6 +422,10 @@ sub _engine_version {
     return $d->{version};
 }
 
+# Q16 (ruled 2026-10-12): Domains' own log copy names the account, so an MCP
+# domain write logs user=<account> and commits as it (was `user=` and
+# 'unknown'). Never Common's $auth_user: that is the fail-closed context the
+# S2x/S3x handlers refuse on when empty, and this process sets no request.
 sub setup_context {
     my ($user) = @_;
     $Lazysite::Manager::Files::DOCROOT       = $DOCROOT;
@@ -442,6 +446,7 @@ sub setup_context {
     $Lazysite::Manager::Layouts::action       = 'mcp';
     $Lazysite::Manager::Common::DOCROOT       = $DOCROOT;
     $Lazysite::Manager::Domains::DOCROOT      = $DOCROOT;
+    $Lazysite::Manager::Domains::auth_user    = $user;
     $Lazysite::Manager::SitePackage::DOCROOT  = $DOCROOT;
     $Lazysite::Manager::Plugins::DOCROOT      = $DOCROOT;
     # SM918: the shared notice reader
