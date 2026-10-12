@@ -489,13 +489,21 @@ sub _acl_governed {
         $map = $ACL_MAP_CACHE;
     }
     else {
+        # SM1024: a store that opens and does not decode is a FAILED load, as one
+        # that will not open is - governs everything, and cached as a failure.
+        # It decoded `|| {}` and cached the empty map, so the _acl_allows_read
+        # that followed in the same request found "no rules" and allowed every
+        # path, and the registries listed every governed page.
         open my $fh, '<:raw', $f or return 1;
         $map = eval {
             local $/;
             JSON::PP::decode_json(<$fh>);
-        } || {};
+        };
         close $fh;
-        return 0 unless ref $map eq 'HASH';
+        unless ( ref $map eq 'HASH' ) {
+            $ACL_MAP_CACHE = 0;
+            return 1;
+        }
         $ACL_MAP_CACHE = $map;
     }
     return ref( _acl_entry_for( $map, $rel ) ) eq 'HASH' ? 1 : 0;
@@ -528,13 +536,17 @@ sub _acl_governing_key {
         $map = $ACL_MAP_CACHE;
     }
     else {
+        # SM1024: undecodable is a failed load, as in _acl_governed above.
         open my $fh, '<:raw', $f or return '*';
         $map = eval {
             local $/;
             JSON::PP::decode_json(<$fh>);
-        } || {};
+        };
         close $fh;
-        return undef unless ref $map eq 'HASH';
+        unless ( ref $map eq 'HASH' ) {
+            $ACL_MAP_CACHE = 0;
+            return '*';
+        }
         $ACL_MAP_CACHE = $map;
     }
     my $entry = _acl_entry_for( $map, $rel );

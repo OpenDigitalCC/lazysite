@@ -59,6 +59,17 @@ subtest 'an unreadable groups-settings.json is refused BY NAME, not as "does not
     chmod 0644, "$d/lazysite/auth/groups-settings.json";
 };
 
+# SM1024: a store that opens and does not decode is the same unknown - refused
+# by name, never as "does not hold run_jobs".
+subtest 'an undecodable groups-settings.json is refused BY NAME, not as "does not hold"' => sub {
+    put( "$d/lazysite/auth/groups-settings.json", '{"runners":{"run_jobs":1}' );
+    my ( $u, $why ) = Lazysite::Daemon::Service::Scheduler::resolve_job_user( docroot => $d );
+    put( "$d/lazysite/auth/groups-settings.json", '{"runners":{"run_jobs":1}}' );
+    is( $u, undef, 'refused' );
+    like( $why // '', qr/lazysite\/auth\/groups-settings\.json does not decode/, 'names the file and the fault' );
+    unlike( $why // '', qr/does not hold run_jobs/, 'a broken store is not a capability answer' );
+};
+
 subtest 'a process that exists but is not ours is ALIVE' => sub {
     ok( !kill( 0, 1 ) && $!{EPERM}, 'pid 1 answers EPERM to an unprivileged kill 0' )
         or plan skip_all => 'no EPERM case on this host';

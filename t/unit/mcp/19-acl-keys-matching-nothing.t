@@ -121,4 +121,19 @@ SKIP: {
         'and the message names the wrong conclusion it exists to prevent' );
 }
 
+# SM1024: a store that opens and does not decode is the same unknown. It used to
+# leave the list empty with no flag - the clean bill this key exists to stop.
+{
+    my $f = "$d/lazysite/auth/acls.json";
+    open my $in, '<', $f or die "$f: $!";
+    my $keep = do { local $/; <$in> };
+    close $in;
+    spit( $f, '{"open/":{"read":["@x"]}' );
+    my ( $garbled, $gtext ) = audit();
+    spit( $f, $keep );
+    ok( $garbled->{acl_keys_unreadable}, 'an undecodable ACL store is reported as its own state' )
+        or diag $gtext;
+    like( $garbled->{acl_keys_unreadable} // '', qr/does not decode/, 'naming the fault' );
+}
+
 done_testing();

@@ -1967,6 +1967,14 @@ sub cmd_token {
 sub _die_store_unreadable {
     my ($who) = @_;
     return unless group_settings_unreadable();
+    # SM1024: a store that opens and does not decode is the same unknown, with
+    # its own repair.
+    die "Cannot tell what '$who' may do: lazysite/auth/groups-settings.json exists "
+        . "and does not decode as a JSON object.\n"
+        . "This is a fault in the file, not a decision about '$who' - their grants "
+        . "may be entirely correct.\n"
+        . "`lazysite check` names it; repair the JSON or restore it from a backup.\n"
+        if Lazysite::Auth::Settings::group_settings_undecodable();
     die "Cannot tell what '$who' may do: the group settings store exists and "
         . "could not be read.\n"
         . "This is a file permission fault on the server, not a decision about "

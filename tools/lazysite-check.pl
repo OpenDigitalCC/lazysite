@@ -929,9 +929,10 @@ sub run_checks {
         # after an upgrade, while the same check as root said "bootstrapped". The
         # engine does not read an unreadable store as unsecured (SM906), and the
         # check must not invent that answer either. Only an absent store is the
-        # unconfigured manager. An undecodable one is a FAIL: the render path treats
-        # it as secured, while Auth::Settings::site_grants_manager (the manager API,
-        # sign-in) reads it as no groups at all, which IS the unsecured mode (SM1024).
+        # unconfigured manager. An undecodable one is a FAIL: since SM1024 (ruled
+        # 2026-10-12) every reader treats it as an unreadable store - pages render
+        # as a secured site and the manager refuses every signed-in request with
+        # cannot-tell until the file is repaired.
         my $gs     = $GS || {};
         my @groups = sort grep {
             my $c = $gs->{$_};
@@ -951,8 +952,8 @@ sub run_checks {
             report( 'FAIL',
                 "groups-settings.json does not decode as a JSON object ($gs_file) - "
                     . 'no group\'s capabilities can be read from it; pages render as a '
-                    . 'secured site, but the manager API and sign-in read it as no groups, '
-                    . 'in which mode every authenticated user is a manager (SM1024)',
+                    . 'secured site and the manager refuses every signed-in request '
+                    . '(cannot tell) until it is repaired (SM1024)',
                 "repair the JSON in '$gs_file', or restore it from a backup" );
         }
         elsif ( !@groups ) {

@@ -91,8 +91,9 @@ subtest 'an undecodable groups-settings.json FAILs, naming the file' => sub {
     like( $out,
         qr/\Qgroups-settings.json does not decode as a JSON object ($GS)\E - no group.s capabilities can be read from it/,
         'the FAIL names the file and what the engine makes of it' ) or diag($out);
-    like( $out, qr/the manager API and sign-in read it as no groups, in which mode every authenticated user is a manager/,
-        'and says where it is read as unsecured' );
+    # SM1024: every reader now fails closed on it, and the FAIL says so.
+    like( $out, qr/the manager refuses every signed-in request \(cannot tell\) until it is repaired/,
+        'and says the manager refuses until it is repaired' );
     like( $out, qr/^\[[^\]]*FAIL[^\]]*\] groups-settings\.json does not decode/mi, 'at FAIL' );
     unlike( $out, $UNCONFIGURED, 'not reported as an unconfigured manager' );
     put( $GS, qq({ "sysops": { "manager": 1, "ui": 1, "manage_users": 1 } }\n) );

@@ -18,7 +18,7 @@ our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     effective_groups touch_credential
     resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings group_is_assignable @CAP_KEYS
-    group_settings_unreadable auth_cannot_tell cannot_tell_refusal);
+    group_settings_unreadable group_settings_undecodable auth_cannot_tell cannot_tell_refusal);
 
 our $AUTH_DIR; # auth/ in the engine tree (Lazysite::Paths::lazysite_dir), set by the script
 
@@ -352,13 +352,28 @@ sub direct_groups {
 # and that is a fact about the site. Only a store that exists and will not open
 # sets this. Same distinction as SM770's, and the same one SM800 carried into the
 # users payload as `store_readable`.
-our $GROUP_SETTINGS_UNREADABLE = 0;
+#
+# SM1024 (ruled 2026-10-12, "fail closed everywhere"): A STORE THAT OPENS AND DOES
+# NOT DECODE IS THE SAME UNKNOWN. It used to answer {} with the flag clear - "no
+# groups" - and no group granting manager access is the unsecured mode (SM138), so
+# a truncated write or a stray comma made every signed-in account a manager and an
+# ACL operator, while the render path (_site_grants_manager) already read the same
+# file as secured. It now sets the flag exactly as a failed open does, so every
+# reader below - site_grants_manager, group_is_assignable, auth_cannot_tell and
+# the writers' guard - answers it as it answers an unreadable store.
+# $GROUP_SETTINGS_UNDECODABLE says WHICH fault it was, for the sentence only: a
+# permission repair does not mend a file that does not parse.
+our $GROUP_SETTINGS_UNREADABLE  = 0;
+our $GROUP_SETTINGS_UNDECODABLE = 0;
+my $_GS_DECODE_WARNED = 0;
 
-sub group_settings_unreadable { return $GROUP_SETTINGS_UNREADABLE }
+sub group_settings_unreadable  { return $GROUP_SETTINGS_UNREADABLE }
+sub group_settings_undecodable { return $GROUP_SETTINGS_UNDECODABLE }
 
 sub read_group_settings {
     my $f = _group_settings_file();
-    $GROUP_SETTINGS_UNREADABLE = 0;
+    $GROUP_SETTINGS_UNREADABLE  = 0;
+    $GROUP_SETTINGS_UNDECODABLE = 0;
     # SM770: the open decides.
     open my $fh, '<:raw', $f or do {
         # Read errno BEFORE cannot_read, which reads $! itself.
@@ -367,8 +382,17 @@ sub read_group_settings {
     };
     my $raw = do { local $/; <$fh> };
     close $fh;
-    my $d = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    return ( ref $d eq 'HASH' ) ? $d : {};
+    my $d = eval { JSON::PP::decode_json( $raw // '' ) };
+    return $d if ref $d eq 'HASH';
+    $GROUP_SETTINGS_UNREADABLE  = 1;
+    $GROUP_SETTINGS_UNDECODABLE = 1;
+    # Once per process: one request reads this store several times.
+    log_event( 'WARN', 'settings',
+        'groups-settings.json does not decode as a JSON object - treating the site as secured '
+            . 'and refusing until it is repaired',
+        file => 'lazysite/auth/groups-settings.json' )
+        unless $_GS_DECODE_WARNED++;
+    return {};
 }
 
 # THE shared "does any of these groups grant capability $cap?" check - the
@@ -474,8 +498,22 @@ sub _write_json_atomic {
     return rename( $tmp, $file ) ? ( 1, '' ) : ( 0, 'rename' );
 }
 
+# SM1024: YOU MAY NOT OVERWRITE A STORE YOU COULD NOT READ - SM785's rule for
+# user-settings.json, carried to this store. Every caller is a read-modify-write
+# of the whole map, and the read answers {} for a store that would not open or
+# would not decode, so the write would replace every group's capabilities with
+# the one being changed. The flag is the last read's; every writer reads first.
+# An ABSENT store is readable, so a first write still lands.
 sub write_group_settings {
     my ($ref) = @_;
+    if ( group_settings_unreadable() ) {
+        my $why = group_settings_undecodable() ? 'does not decode as a JSON object' : 'could not be read';
+        log_event( 'WARN', 'settings', "refusing to write group settings over a store that $why",
+            file => 'lazysite/auth/groups-settings.json' );
+        die "Refusing to overwrite lazysite/auth/groups-settings.json: it $why, so this "
+            . "write would replace every group's capabilities with the one being changed. "
+            . "Repair the file (`lazysite check` names the fault) and retry.\n";
+    }
     my ($ok)  = _write_json_atomic( _group_settings_file(), $ref );
     return $ok;
 }
@@ -665,6 +703,25 @@ sub cannot_tell_refusal {
                 . 'account store. This is a fault on the host, not a decision about the '
                 . 'credential - do not reissue it; the site operator can see the cause '
                 . 'in the site log.',
+        };
+    }
+    # SM1024: the same refusal for a group store that opens and does not decode,
+    # with the sentence that fits it - `--fix` repairs modes, not JSON.
+    if ( defined $store
+        && $store eq 'lazysite/auth/groups-settings.json'
+        && group_settings_undecodable() )
+    {
+        return {
+            ok     => 0,
+            kind   => 'cannot-tell',
+            store  => $store,
+            repair => 'lazysite check --docroot <docroot>',
+            error  => "Cannot tell what this account may do: $store exists and does not "
+                . 'decode as a JSON object. This is a fault in the file on the host, not a '
+                . 'decision about this account - its grants may be entirely correct, so do '
+                . 'not ask for one. Every signed-in request is refused until the file is '
+                . 'repaired: `lazysite check --docroot <docroot>` names it; repair the JSON '
+                . 'or restore it from a backup.',
         };
     }
     return {

@@ -87,6 +87,7 @@ cli command to add the domain group."
 | U3 | A command to add one group to a domain from the shell | 2026-10-12: "lets have cli command to add the domain group" | built (n432), SM1015: `lazysite-domains.pl group-add/group-remove --host H --group G` (and `user-add/user-remove --user U` for locked_users) through domain_set; idempotent; an unknown group or account refused by name | XS |
 | U4 | A domain's access keys accept a group or account the site does not have | 2026-10-12: "lazysite-domains.pl should reject invalid groups" (every surface, through domain_set) | built (n433), SM1016: domain_set refuses each unknown NEW name in allowed_groups / locked_users, naming them, writing nothing; names already held are not asked about; the Domains page shows a refusal; confirmed 2026-10-12, "keep the design choice": only names being added are checked, so a group deleted after it was allowed never makes the list unwritable | XS |
 | U5 | `lazysite check` run as a user that cannot read groups-settings.json says the manager is unconfigured (as root: "manager bootstrapped") | 2026-10-12: absent is unconfigured; unreadable is a named finding (state unknown, run as root or the site user); undecodable is a FAIL naming the file; sweep the other security-relevant reads | built (n435), SM1023: three-way reads of groups-settings.json, auth/users + auth/groups (manager account), lazysite.conf (`manager: enabled`) and acls.json; `--check-acl` skips on an unreadable or undecodable acls.json. Found: an undecodable groups-settings.json is read as unsecured by Auth::Settings (manager API, sign-in) and as secured by the render path - filed as SM1024 | S |
+| U6 | An undecodable groups-settings.json makes every signed-in account a manager (found by U5) | 2026-10-12: "Fail closed everywhere" | built (n437), SM1024: an undecodable store sets SM906's fourth state on every reader - the manager answers cannot-tell (503, naming the store, "does not decode") on every door until it is repaired; `site_grants_manager` secured, `group_is_assignable` strict, Auth::Acl operator no; `write_group_settings` refuses over a store it could not read or decode; the processor's `_acl_governed` / `_acl_governing_key` treat an undecodable acls.json as a failed load (it was cached as "no rules", so the read check that followed allowed every path) | S |
 
 # Not in the queue, and why
 
@@ -122,7 +123,8 @@ cli command to add the domain group."
   goes to an address a suspect submission chose. Read, not run (B). A fix
   branch, ahead of SM1010 (its F1 and Q9)? Answered 2026-10-12: "Fix now" -
   reproduced through form-handler.pl and fixed with F2, SM1017 (n440).
-- **U5 (SM1023) found SM1024, security, needs a ruling.** An
+- **U5 (SM1023) found SM1024, security - RULED 2026-10-12, "Fail closed
+  everywhere"; built as U6 (n437).** An
   undecodable groups-settings.json is read as no groups by
   Auth::Settings, so `site_grants_manager` says unsecured and the manager API
   and sign-in treat every authenticated user as a manager; the render path

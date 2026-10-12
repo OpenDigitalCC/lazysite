@@ -3081,6 +3081,11 @@ sub _audit_acl_keys {
                 last if @acl_unmatched >= 50;
             }
         }
+        # SM1024: opened and did not decode - nothing was checked, as when the
+        # open fails; the empty list must not read as a clean bill.
+        else {
+            $acl_unreadable = 'it does not decode as a JSON object';
+        }
     }
     # SM917 step 3: BOTH audiences. The returned state is for the agent reading
     # this audit; cannot_read puts the path, errno and unix user in the engine log

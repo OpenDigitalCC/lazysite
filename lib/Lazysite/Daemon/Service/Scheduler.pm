@@ -196,6 +196,13 @@ sub resolve_job_user {
 
     my $caps = Lazysite::Auth::Settings::caps_for($user);
 
+    # SM1024: a store that opened and did not decode is the same unknown as one
+    # that would not open, and is refused by name for the same reason.
+    return ( undef, "lazysite/auth/groups-settings.json does not decode as a JSON object - "
+            . "whether '$user' holds run_jobs is unknown; repair the file "
+            . '(`lazysite check` names it) or restore it from a backup' )
+        if Lazysite::Auth::Settings::group_settings_undecodable();
+
     return ( undef, "the job account '$user' does not hold run_jobs" )
         unless $caps->{run_jobs};
 

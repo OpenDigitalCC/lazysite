@@ -158,6 +158,20 @@ Archive
   otherwise, by the handler, the header writer (every message), a handler's
   own `to`/`from`, and an account's address. A hand-written `to:` naming two
   addresses now fails at send and says why. t/unit/forms/60, 61.
+- SM1024 (PENDING) **an undecodable groups-settings.json makes nobody a
+  manager.** Ruled 2026-10-12 ("Fail closed everywhere"). A store that opened
+  and did not decode read as "no groups" in Auth::Settings - the unsecured
+  mode, in which every signed-in account is a manager and an ACL operator -
+  while pages already treated it as secured. It now sets the same state as a
+  store that will not open: the manager API, MCP and sign-in refuse with
+  `cannot-tell` (503) naming the file and saying it does not decode, until it
+  is repaired; groups are not offered as assignable; the users tool refuses to
+  write over it. On the render path an acls.json that does not decode is a
+  failed load for every reader: it could be cached as "no rules" and let a
+  later check in the same request allow every path, and registry builds list
+  governed pages. The MCP audit flags it and the scheduler names it.
+  t/integration/185, 186; t/unit/mcp/19; t/unit/daemon/10; t/tools/126.
+
 - SM1023 (PENDING) **`lazysite check` tells an auth store it cannot read from
   one that is absent.** Seen on sites.lazysite.io after the 0.15.4 upgrade: run
   as an account outside the site group, the check said "no group grants manager
