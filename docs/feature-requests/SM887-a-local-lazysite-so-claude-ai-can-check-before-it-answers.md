@@ -5,7 +5,7 @@ subtitle: "A skill that installs the current release into the claude.ai containe
 brand: plain
 standard-margins: true
 status: partial
-status-note: "BUILT 2026-09-15 AND AWAITING THE ONLY TEST THAT COUNTS. F2 (validation as an engine capability) and F1 (the skill itself) are both built; D3, the lazysite.io docs pointer, is filed to the sites agent. The cold run happened in a real ubuntu:24.04 container: A2 8 seconds against a 60-second budget, A3 renders, A4 exits 1, A6 is a 1-second no-op - recorded below with the two things the run found that reading would not have (the base image has no curl, and the dev server refused to start over a module nothing loads). A5 and the E2/E5/E7 constraints are CLAUDE.AI'S, not a container's, and the release manager offered to run it there - so this stays PARTIAL until they report, rather than being called done on the half that can be automated. PROPOSED 2026-09-15, briefed by the sites agent (inbox/briefing-claude-ai-lazysite-skill.md) with one container's constraints verified in it the same day; scoped to 0.14.3 by the release manager. THE INSTALL SOURCE IS THE WHOLE PROBLEM AND THE ANSWER IS TO NOT HAVE ONE. The briefing specifies fetching the release from GitHub, which this project has no published repo for. My first answer was to fetch from lazysite.io instead, because it was on the allowlist the briefing recorded - CORRECTED 2026-09-15 by the release manager: that allowlist was THAT editor's container, and no other editor's can be assumed to carry it. So the engine must arrive without any host this project controls being reachable. IT CAN: the briefing already asks for a zip of the skill folder attached to every release, so the zip CARRIES THE DEBS. Nothing is fetched, the version matches the release by construction, and the only network the install needs is archive.ubuntu.com for Perl dependencies - which is on every container's allowlist because the base image needs it. common + nginx is about 2.4 MB. This also removes SM884 as a prerequisite and most of the 60-second budget with it. OPEN DECISIONS are listed below and are mine to make, except the container for acceptance, which needs the operator."
+status-note: "REAL SESSION 2026-10-12 (release manager): A5 and E2 CONFIRMED - edge rendered as edge locally, nothing written; only archive.ubuntu.com needed. E5 partly: the server survived across tool calls; past the conversation unobservable. E7 NOT confirmed: a Claude Code cloud container, skill mounts writable. Closes on one run in the plain claude.ai chat sandbox (E2, E7). The release manager decides."
 ---
 
 # What it is for
@@ -265,6 +265,49 @@ time, is it idempotent, does a broken page exit non-zero — and **claude.ai for
 acceptance**. A1-A6 below are split accordingly when the work is done, and any
 criterion the container cannot reach is marked as claude.ai's rather than
 quietly ticked.
+
+# Real-session test, 2026-10-12
+
+**The release manager's measurement**, run in a real session with the skill and
+reported to the developer agent. Recorded as reported; the grades are theirs.
+The developer did not observe the session.
+
+| Ref | Result, as reported |
+| --- | --- |
+| Install | `setup.sh` installed lazysite-common 0.15.4-1 from the bundled .deb in 14 s, copied the starter and started the dev server. Edge reports engine 0.15.4, matching |
+| A5 | **CONFIRMED.** Pulled edge's `layout.tt`, `layout.json`, six components, `themes/lumen/theme.json`, `main.css`, `fonts.css` and `read_nav` over MCP; reconstructed `lazysite.conf` (`site_name`, `layout`, `theme`); validated and rendered a proposed `/contact.md` edit: 0 issues, HTTP 200, and HTML unmistakably edge's - `lumen-nav`, the title, the theme tokens inline, stylesheet links to `/lazysite-assets/lumen/lumen/{fonts,main}.css`, a native form with five fields, no leaked `:::` or `[% %]`. Nothing was written to edge |
+| E2 | **CONFIRMED.** Only `archive.ubuntu.com` was needed, and it was reachable; lazysite.io was refused from the shell (curl 000). The bundled-.deb design is right |
+| E5 | **PARTLY.** The dev server started fresh, survived across tool calls, and `serve.sh stop`/`start` restarted it cleanly. Its lifetime beyond the conversation cannot be observed from inside one |
+| E7 | **NOT CONFIRMED in this container.** The skill loaded from `/mnt/skills/plugins/lazysite/`; `/mnt/skills/user/lazysite/` is a symlink into `/root/.claude/skills/synced/...`; both were writable (`touch` succeeded). Only `/mnt/skills/public` and `/mnt/skills/examples` are squashfs read-only. Nothing in the scripts depends on it |
+
+**The caveat the release manager attached:** this was a Claude Code cloud
+container - curl present, an HTTPS proxy, writable skill mounts - not the plain
+claude.ai chat sandbox. E2 and E7 are one environment's answer. Config keys
+other than `site_name`, `layout` and `theme` are unverified, because
+`lazysite.conf` is not readable over MCP.
+
+## The three notes, and what was done (branch n490)
+
+| Ref | Note | Done |
+| --- | --- | --- |
+| N1 | `/lazysite-assets/<layout>/<theme>/main.css` 404s locally: the step that writes it on a real site (activation, layout install, package apply) never ran | **Fixed, by running the engine's own step.** The skill carries `mirror.pl`, which loads the installed `Lazysite::Manager::Themes` and calls `_mirror_layout_themes` - the function activation calls - so the local mirror carries the assets, `theme-tokens.css` and the `.fingerprint`. `serve.sh start` runs it whenever the conf names a layout, ahead of its already-running exit. One consequence: the tokens are now LINKED locally, as they are on a real mirrored site, where the session saw them inline (the processor's fallback for a missing mirror). t/tools/130 |
+| N2 | `site-context.md` points at a nav.conf format note that does not exist | The note is written from `parse_nav` (`lazysite-processor/sources.pm`): `Label \| /url` split at the first `\|`, a bare label as a heading, indented lines as children of the nearest top-level item and one level only, `#` comments only as the first non-blank character, label-less lines dropped, UTF-8; and write `lazysite/nav.conf` whatever `nav_file` `read_nav` names. t/tools/131 holds the note to the parser |
+| N3 | `setup.sh` says the folder IS MOUNTED READ-ONLY, which is wrong for at least one container | It now says the folder MAY be read-only (the chat sandbox, as briefed) or writable (the cloud container, as measured), and that the scripts work either way because none writes beside itself. t/tools/83 holds that property instead of the mount |
+
+**The unread config, documented rather than built.** `site-context.md` now says
+which other conf keys reach a rendered page (`site_url`, `lang`, `nav_file`, the
+alias and `content_root` keys, `extensions`/`plugins`, `meta_generator`, the
+scan and feed sizes, and every other key as a template variable) and how to
+learn what the reconstruction left out: compare with the live render from
+`preview_page`, read the layout for `[% %]` variables, or ask the editor. It
+also corrects its own earlier line that `site_name` comes from
+`describe_capabilities`: neither that nor `whoami` reports any conf value. No
+MCP conf reader is proposed.
+
+**What would close this.** One run of the skill in the plain claude.ai chat
+sandbox, answering E2 (that sandbox's allowlist reaches `archive.ubuntu.com`)
+and E7 (whether its skill mount is read-only - which no longer matters to the
+scripts, but is the briefing's claim). Closure is the release manager's call.
 
 # Related
 

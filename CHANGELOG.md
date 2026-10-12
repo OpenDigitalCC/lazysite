@@ -226,6 +226,17 @@ Archive
   could be read dropped them (the connector then refused every signed-in
   caller) and said "Saved". The ticked boxes are now what is saved.
   t/unit/manager/281.
+- SM887 (PENDING) **the claude.ai skill renders a pulled theme styled.** With
+  a site's layout and theme pulled into the skill's local tree, every
+  stylesheet link 404'd: `/lazysite-assets/<layout>/<theme>/` is written when a
+  theme is activated, and nothing activates one there. `serve.sh start` now
+  runs the skill's `mirror.pl`, which calls the engine's own mirror step, so
+  the assets, `theme-tokens.css` and the fingerprint are in place.
+  `site-context.md` gains the nav.conf format note it pointed to and lists the
+  conf keys the reconstructed conf leaves out, with how to learn them;
+  `setup.sh` says the skill folder may be read-only or writable. Found in the
+  release manager's real-session test of 2026-10-12, recorded in SM887.
+  t/tools/83, 130, 131.
 
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the
