@@ -77,6 +77,15 @@ Archive
   handler. A handler with no domain is the instance's and stays out of a
   confined caller's reach; another domain's handlers are neither shown nor
   bindable. t/integration/210.
+- SM1057 (PENDING) **security: the first access rule on a page needs
+  `manage_content`.** Ruled 2026-10-12 ("Require manage_content"). In the
+  manager, an acl-set that creates the first rule on a content path that has
+  none needs `manage_content` from a non-operator, as the control API and MCP
+  already require. Before, an account with `ui` alone could claim any unruled
+  page - or the whole site - with a rule only it could write. The owner of an
+  existing rule still changes it; paths in the engine's tree are exempt.
+  t/integration/223.
+
 - SM1057 (PENDING) **security: a content write in the manager needs
   `manage_content`.** Ruled 2026-10-12 ("Require manage_content"). On the
   manager API's cookie door save, delete, move, copy, file-upload, mkdir,

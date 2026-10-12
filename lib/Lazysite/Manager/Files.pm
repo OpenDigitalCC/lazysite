@@ -1996,6 +1996,19 @@ my @ROOT_SPELLINGS = ( '/', '', '.', './' );
 my %ROOT_SPELLING  = map { $_ => 1 } @ROOT_SPELLINGS;
 my %ROOT_GLOB      = map { $_ => 1 } ( '*', '/*', '**', '/**', './*' );
 
+# SM1057: the key action_acl_set would write for this path - '/' for the
+# site-wide spellings, otherwise validate_path's rel, normalised - or undef when
+# it would refuse the path. For the manager's first-rule gate, which must ask
+# about the same key the action writes.
+sub acl_set_key {
+    my ($raw) = @_;
+    my $rk = _acl_root_key($raw);
+    return '/' if $rk eq 'root';
+    return undef unless $rk eq '';
+    my $v = validate_path($raw);
+    return $v->{ok} ? _acl_norm( $v->{rel} ) : undef;
+}
+
 sub _acl_root_key {
     my ($raw) = @_;
     my $t = defined $raw ? $raw : '';

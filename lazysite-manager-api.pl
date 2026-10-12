@@ -819,21 +819,46 @@ if ( !$token_auth ) {
         # applies on top (the action asks it). The engine's own tree keeps the
         # capabilities that govern it - nav.conf's manage_nav, the layouts' - as
         # WebDAV's content namespace does; a `ui`-only account is read-only.
+        my $holds_content = sub {
+            return $caps->{manage_content}
+                || Lazysite::Auth::Settings::groups_grant_cap( 'manage_content', grep { length } split /[,\s]+/,
+                ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) );
+        };
         if ( $CONTENT_WRITE{$action} ) {
             my @content = grep { defined && !m{\A/*lazysite(?:/|\z)} } ( $path, $params{to} );
-            if (
-                @content
-                && !(
-                    $caps->{manage_content}
-                    || Lazysite::Auth::Settings::groups_grant_cap( 'manage_content', grep { length } split /[,\s]+/,
-                        ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) ) )
-                )
-            {
+            if ( @content && !$holds_content->() ) {
                 _refuse(
                     { ok => 0, kind => 'forbidden',
                         error => "Writing site content requires the 'manage_content' permission. "
                             . 'An administrator can grant it on the Groups page.' },
                     'ui', 'denied: content write capability', $content[0] );
+            }
+        }
+
+        # SM1057, the second ruling of 2026-10-12, "Require manage_content": AN
+        # acl-set THAT CREATES THE FIRST RULE ON A CONTENT PATH NEEDS
+        # manage_content, as the token and MCP doors already require. Creating a
+        # first rule was authorised by write access to the file, which an unruled
+        # path grants every writer - so a `ui`-only account claimed an unruled page,
+        # or the whole site, with a write list naming itself. The ownership rule
+        # for an EXISTING rule is unchanged (Files::action_acl_set asks it), and
+        # the engine's tree is exempt as it is for the writes above. The key is
+        # the one the action writes: the site-wide spellings are '/', otherwise
+        # validate_path's rel, normalised.
+        if ( $action eq 'acl-set'
+            && defined $params{path}
+            && length $params{path}
+            && $params{path} !~ m{\A/*lazysite(?:/|\z)}
+            && !$holds_content->() )
+        {
+            my $key = Lazysite::Manager::Files::acl_set_key( $params{path} );
+            if ( defined $key && !exists load_acls()->{$key} ) {
+                _refuse(
+                    { ok => 0, kind => 'forbidden',
+                        error => "Creating the first access rule on '$params{path}' requires the "
+                            . "'manage_content' permission. An administrator can grant it on the "
+                            . 'Groups page.' },
+                    'ui', 'denied: content write capability', $params{path} );
             }
         }
 

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox report 2026-10-12, sites.lazysite.io (tprf-news domain), engine 0.15.4
 area: security
-status-note: "SHIPPED (PENDING): a non-operator cookie session needs ui at the manager API (n540), and a content write needs manage_content with the file's rule on top (n541, ruled \"Require manage_content\"); unsecured sites unchanged. Affects v0.14.4, v0.15.0-0.15.4. t/integration/220-222. Open: acl-set on an unruled path."
+status-note: "SHIPPED (PENDING): a non-operator cookie session needs ui (n540); a content write needs manage_content with the file's rule on top (n541), and so does an acl-set creating the first rule on a content path (n542) - both ruled \"Require manage_content\". Unsecured sites unchanged. Affects v0.14.4, v0.15.0-0.15.4. t/integration/220-223."
 ---
 
 # The report
@@ -152,18 +152,32 @@ account on an unsecured site, are unaffected. Refused 403 `forbidden`, audited
 A rule that names an account no longer lets it write without the capability:
 the rule says who may write which file among those who may write content.
 
-## Still open: acl-set on an unruled path
+## The second ruling: "Require manage_content"
 
-acl-set and acl-remove keep their ownership rule. On a path no rule governs,
-acl-set by a non-operator is authorised by "write access to the file"
-(Files::action_acl_set, `_acl_allows($rel, 'write', ...)`), which a `ui`-only
-account still passes - so it can claim an unruled page as owner, with a write
-list that locks the editors out. The recommendation is that creating the first
-rule on a content path needs `manage_content` too: the code's own test is
-"write access to the file", which the ruling now defines, and the token and MCP
-doors already gate acl-set on `manage_content`. Not built; asked.
+The question left open here - whether acl-set creating the first rule on an
+unruled content path should also need `manage_content` - was ruled by the
+release manager on 2026-10-12: "Require manage_content". Built on n542.
+
+On the cookie door, an acl-set that creates the FIRST rule on a content path
+that has none needs `manage_content` from a non-operator, as the token and MCP
+doors already require. Before it, the first rule was authorised by write access
+to the file, which an unruled path grants every writer: on n541 a `ui`-only
+account created a site-wide rule (`path=/`) writable only by itself, and every
+other writer on the site was then refused. The ownership rule for an existing
+rule is unchanged - its owner changes it without the capability - and the
+engine's tree (`lazysite/...`) is exempt as it is for content writes. The key
+checked is the one the action writes: '/' for the site-wide spellings,
+otherwise validate_path's rel, normalised. Refused 403 `forbidden`, audited
+`denied: content write capability`.
 
 # Tests
+
+n542: t/integration/223 - a `ui`-only account cannot create the first rule
+on a page or the site (reproduced on n541: its site-wide rule then refused every
+other writer); the owner of an existing rule still changes it; a first rule on
+lazysite/nav.conf needs no `manage_content`; a `manage_content` holder creates
+one and owns it. Sabotage: no gate fails 223 (9); no engine-tree exemption (1);
+an existing rule refused too (1); the site-wide key unresolved (6).
 
 n541: t/integration/222 - a `ui`-only account is refused each of the ten
 content writes (reproduced on n540: it saved, deleted, made a folder, copied and
