@@ -22,7 +22,47 @@ Let `$SITE` be the local site (`/root/lazysite-local/site` by default).
 
 The layout directory is the whole of it: `layout.tt`, `layout.json`,
 `components/*.tt` (the layout `INCLUDE`s these - a layout without them renders
-nothing), and `themes/<theme>/theme.json`.
+nothing), and `themes/<theme>/` - `theme.json` and the theme's `assets/`
+(`main.css`, `fonts.css` and the like, which `serve.sh start` publishes).
+
+## The nav.conf format
+
+`read_nav` answers a structured list (`items`, each with `label`, `url` and
+`children`); the engine reads a text file. Write one line per item - the
+item's `label | url`, or the bare label when `url` is empty - and each child
+under it indented by two spaces. That is the file `set_nav` writes on the
+site:
+
+```
+# lazysite navigation
+Home | /
+About | /about
+Docs | /docs
+  Install | /docs/install
+  Configure | /docs/configure
+Resources
+  Blog | /blog
+```
+
+What the engine's parser (`parse_nav` in `lazysite-processor/sources.pm`)
+accepts:
+
+- **`Label | /url`**, split at the FIRST `|`; spaces around either part are
+  trimmed. A line with no `|` is an item with an empty url - a section heading,
+  like `Resources` above.
+- **A line that starts with whitespace is a child** of the nearest top-level
+  line above it. Any amount of whitespace counts, and there is ONE level only:
+  a line indented further is still a child of that top-level item, never a
+  grandchild.
+- An indented line with no top-level line above it becomes a top-level item.
+- **`#` as the first non-blank character makes a comment.** A `#` later in the
+  line is part of the label or url. Blank lines are skipped.
+- A line with no label (`| /x`) is dropped.
+- The file is read as UTF-8.
+
+Write it to `$SITE/lazysite/nav.conf` even when `read_nav` reports another
+`nav_file`: the reconstructed conf below sets no `nav_file`, so the engine
+reads `lazysite/nav.conf`.
 
 ## What you CANNOT pull, and what to do instead
 
