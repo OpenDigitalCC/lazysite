@@ -2320,7 +2320,8 @@ sub action_acl_set {
     {
         local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
         my $accounts = Lazysite::Auth::Settings::account_names();
-        my $groups   = Lazysite::Auth::Settings::group_names();
+        my $groups   = Lazysite::Auth::Settings::group_names();     # SM1045: either store
+        my $peopled  = Lazysite::Auth::Settings::groups_with_members();
 
         # A site with NO accounts and NO groups - an unsecured dev site, a
         # site being provisioned before its first account - has nothing to
@@ -2331,7 +2332,12 @@ sub action_acl_set {
         #
         # SM912 P4: nothing REPORTED AS UNKNOWN, but the fact that nothing was
         # checked is itself worth saying - see $unchecked above.
-        if ( !( %$accounts || %$groups ) ) {
+        #
+        # SM1045: "no groups" here is no group WITH MEMBERS, as it always was.
+        # A group record in groups-settings.json makes that name known below,
+        # but the store is seeded on every site, so it does not make a site
+        # that keeps no principals of its own into one whose names are checked.
+        if ( !( %$accounts || %$peopled ) ) {
             $unchecked = 1;
             last;
         }

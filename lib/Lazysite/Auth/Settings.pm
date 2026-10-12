@@ -282,8 +282,31 @@ sub _groups_membership {
 # SM901: ONE ANSWER TO "is this name a group", beside account_names for the
 # same reason - a read list naming `@editors` matches nobody when no group is
 # called editors, and the writer that accepts the list is the place to ask.
-# Names only, from the groups file the membership walk reads.
+# Names only.
+#
+# SM1045: A GROUP EXISTS WHEN EITHER STORE NAMES IT. This read the groups file
+# alone, which lists a group only once it has a member, so a group created on
+# the Groups page (a record in groups-settings.json) and not yet given anyone
+# was "no group with that name" to acl-set - and a read list naming only such
+# groups was refused as naming nobody. The union is the definition the rest of
+# this module already uses (_group_closure_in's %is_group) and the users tool's
+# group-create and group-nest ask; one answer, so a domain's allowed_groups
+# check (SM1016) asks this too rather than building its own.
 sub group_names {
+    return {} unless defined $AUTH_DIR;
+    my %g  = _groups_membership();
+    my $gs = read_group_settings();
+    return { map { $_ => 1 } ( keys %g, keys %{ ref $gs eq 'HASH' ? $gs : {} } ) };
+}
+
+# SM1045: the groups that HAVE MEMBERS - the groups file alone. This is NOT
+# "which groups exist" (group_names answers that); it is "has this site put
+# anyone in a group", which acl-set asks beside account_names to tell a site
+# that keeps its own principals from one being provisioned or authenticated by
+# an upstream proxy. groups-settings.json cannot answer that: the users tool
+# seeds it with the shipped groups on any site it has run on, so a record
+# there is no evidence that anyone is in anything.
+sub groups_with_members {
     return {} unless defined $AUTH_DIR;
     my %g = _groups_membership();
     return { map { $_ => 1 } keys %g };

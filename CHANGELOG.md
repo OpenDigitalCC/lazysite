@@ -247,6 +247,11 @@ Archive
   become named kinds with their text kept in the log; every call and refusal is
   one fixed-field record. Nothing calls Odoo yet. t/unit/odoo/01-05, lint 240
   (lazysite holds no Odoo knowledge).
+- SM1045 (PENDING) **a group with no members is a group.** `acl-set` reported a
+  group created on the Groups page as unknown until someone was in it, and
+  refused a list naming only such groups, because the known groups were read
+  from membership alone. They are now the groups in either store; a name in
+  neither is still unknown. t/unit/auth/50, t/unit/manager/300.
 
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the
