@@ -401,9 +401,9 @@ sub _missing_deps {
         # declaration the same way. A name the grammar refuses is skipped here
         # exactly as an unpatterned one always was: never interpolated.
         my ( $m, $pkg, $min ) = Lazysite::Plugins::Owns::parse_dep($dep);
-        next unless defined $m && $m =~ /\A[A-Za-z][\w:]*\z/;    # never interpolate a name
-        ( my $file = "$m.pm" ) =~ s{::}{/}g;
-        ( my $guess = lc $m ) =~ s{::}{-}g;
+        next unless defined $m && $m =~ /\A[A-Za-z][\w:]*\z/;   # never interpolate a name
+        ( my $file  = "$m.pm" ) =~ s{::}{/}g;
+        ( my $guess = lc $m )   =~ s{::}{-}g;
         my $install = defined $pkg ? "$pkg (>= $min)" : "lib$guess-perl";
         if ( eval { require $file; 1 } ) {
             # PRESENT AND TOO OLD is missing too: a module that loads and lacks

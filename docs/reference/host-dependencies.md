@@ -31,6 +31,7 @@ sudo apt-get install \
     libnet-dns-perl \
     libnet-ssleay-perl \
     libnet-xmpp-perl \
+    libodoo-oom-perl \
     libtemplate-perl \
     libtext-multimarkdown-perl \
     liburi-perl \
@@ -56,6 +57,7 @@ libio-socket-ssl-perl | IO::Socket::SSL | SMTP form delivery over STARTTLS; doma
 libnet-dns-perl | Net::DNS | XMPP endpoint from the domain's SRV record (SM925 X2; notify-xmpp plugin, optional; lazy-required only when enabled)
 libnet-ssleay-perl | Net::SSLeay | domain-check certificate expiry read (SM156; also IO::Socket::SSL's own backend)
 libnet-xmpp-perl | Net::XMPP | XMPP notification delivery (notify-xmpp plugin, optional; lazy-required only when enabled)
+libodoo-oom-perl | Odoo::Error, Odoo::Ops, Odoo::Ops::Config, Odoo::Ops::Context, Odoo::Ops::Plan, Odoo::Ops::Registry, Odoo::Ops::Runner | Odoo extension (SM747): OOM's error kinds and fault categories, mapped to lazysite's fault kinds; lazy-required only when the extension runs; Odoo extension (SM747): a write operation's sealed plan, kept in the extension's private store until applied; lazy-required only when the extension runs; Odoo extension (SM747): applies a confirmed plan through OOM's journal; lazy-required only when the extension runs; Odoo extension (SM747): one guarded connection per call, carrying the lazysite actor; lazy-required only when the extension runs; Odoo extension (SM747): the connection built in memory per call; lazy-required only when the extension runs; Odoo extension (SM747): the named operations a binding may name; lazy-required only when the extension runs; Odoo extension (SM747): the operations layer - presence and version check (>= 0.02); lazy-required only when the extension runs
 libtemplate-perl | Template, Template::Parser | SM071 layout.tt compile validation in the control API (ships with Template); Template Toolkit page rendering (processor core)
 libtext-multimarkdown-perl | Text::MultiMarkdown | Markdown to HTML conversion (processor core)
 liburi-perl | URI | URL parsing in SSRF guard and remote-fetch path resolution
