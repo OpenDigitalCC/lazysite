@@ -22,7 +22,7 @@ my $d    = $ms->docroot;
 my $ACLS = "$d/lazysite/auth/acls.json";
 
 $ms->users( 'setup-sysop', '--user',  'ada' );
-$ms->users( 'add',         'bob',     'pw123456789' );
+$ms->users( 'add',         'bob',     'pw123456789-long-enough' );
 $ms->users( 'group-add',   'bob',     'editors' );
 $ms->users( 'group-set',   'editors', $_, 'on' ) for qw(ui manage_content);
 

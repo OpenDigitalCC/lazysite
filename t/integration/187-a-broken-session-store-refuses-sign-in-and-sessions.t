@@ -45,7 +45,7 @@ my $d = site_tempdir();
 mkdir "$d/lazysite";
 mkdir "$d/lazysite/auth";
 put( "$d/lazysite/lazysite.conf", "site_name: T\n" );
-users_api( $d, { action => 'add', username => 'human', password => 'pw' } );
+users_api( $d, { action => 'add', username => 'human', password => 'pw-long-enough' } );
 my $A = "$d/lazysite/auth";
 
 # The processor the wrapper hands a request to: it reports who it was told.
@@ -81,7 +81,7 @@ sub run_auth {
     return $out // '';
 }
 
-sub login { return run_auth( 'POST', 'action=login', 'username=human&password=pw&next=/' ) }
+sub login { return run_auth( 'POST', 'action=login', 'username=human&password=pw-long-enough&next=/' ) }
 
 sub page_as_human {
     open my $sf, '<', "$A/.secret" or die "no secret: $!";

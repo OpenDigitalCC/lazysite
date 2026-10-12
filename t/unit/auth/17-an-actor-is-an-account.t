@@ -132,7 +132,7 @@ unlike( $l[-1], qr/attempted username/,
     'and it gains no note about a claim, because there was none' );
 
 # A successful login is unaffected.
-login( 'human', 'pw' );
+login( 'human', 'pw-long-enough' );
 @l = audit_lines($d);
 @a = actors(@l);
 is( $a[-1], 'human', 'a successful login is unchanged' );

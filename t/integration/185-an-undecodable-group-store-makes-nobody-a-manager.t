@@ -35,13 +35,13 @@ my $auth = "$d/lazysite/auth";
 my $GS   = "$auth/groups-settings.json";
 
 $ms->users( 'setup-sysop', '--user', 'ada' );
-$ms->users( 'add',         'agent',  'pw123456789' );
+$ms->users( 'add',         'agent',  'pw123456789-long-enough' );
 $ms->users( 'group-add',   'agent',  'agents' );
 $ms->users( 'group-set',   'agents', $_,   'on' ) for qw(api mcp manage_content);
 $ms->users( 'set',         'agent',  'ui', 'off' );
 my ($tok) = $ms->users( 'token', 'agent' ) =~ /^(lzs_\S+)/m;
 ok( $tok, 'the agent holds a real credential' ) or BAIL_OUT('no token');
-$ms->users( 'add', 'bob', 'pw123456789' );    # signed in, in no group at all
+$ms->users( 'add', 'bob', 'pw123456789-long-enough' );    # signed in, in no group at all
 
 sub slurp { my ($p) = @_; open my $fh, '<:raw', $p or die "$p: $!"; local $/; return scalar <$fh> }
 sub put { my ( $p, $c ) = @_; open my $fh, '>:raw', $p or die "$p: $!"; print {$fh} $c; close $fh; return }
