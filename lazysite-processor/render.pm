@@ -189,33 +189,21 @@ sub _render_lang {
     return $site_lang, $page_lang;
 }
 
-sub render_content {
-    my ( $meta, $html_body, $query, $before_render ) = @_;
-    $query //= {};
-
-    my $tt = _tt_engine();    # SM1012 S7
-
-    my %site_vars = resolve_site_vars();
-    my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
-
-    my $groups_ref = $AUTH_CONTEXT{auth_groups};
-    my $groups_str = ref $groups_ref eq 'ARRAY' ? join( ',', @$groups_ref ) : ( $groups_ref // '' );
-    my $editor_flag = _is_manager( \%site_vars, $AUTH_CONTEXT{auth_user} // '', $groups_str ) ? 1 : 0;
-
-    my ( $manager_caps, $scope_root, $home_domain, $my_scopes )
-        = _render_manager_facts($groups_str);    # SM1012 S8
-
-    my ( $site_lang, $page_lang ) = _render_lang( $meta, %site_vars );    # SM1012 S9
-    $RESPONSE_LANG = $page_lang;
-    # SM179 P2: the language-set switcher data ({ lang, url, current, exists }),
-    # empty unless this host is in a lang_group with siblings. Layouts render a
-    # switcher and hreflang from it.
-    my @languages = _language_set(
-        ( $site_vars{alias_host} // '' ),
-        ( $site_vars{lang_group} // '' ),
-        ( $ENV{REDIRECT_URL}     // $ENV{REQUEST_URI} // '/' ),
-    );
-
+# SM1012 S10: THE PAGE BODY'S TEMPLATE VARIABLES - cut from render_content,
+# which passes what it has resolved by name: the page's meta and query, the
+# site's and the page's tt vars, the manager facts (S8) and the languages (S9).
+# The stash is built here, and only here: every escaped family enters at this
+# one point (SM709, H5, SM869), beside its `_raw` twin (SM824). The request
+# contexts (%AUTH_CONTEXT, %PAYMENT_CONTEXT, %PREVIEW_CONTEXT) are read as
+# render_content read them.
+sub _render_stash {
+    my (%in) = @_;
+    my ( $meta, $query, $editor_flag, $manager_caps, $scope_root, $home_domain, $my_scopes,
+        $site_lang, $page_lang )
+        = @in{qw(meta query editor_flag manager_caps scope_root home_domain my_scopes site_lang page_lang)};
+    my %site_vars = %{ $in{site_vars} };
+    my %page_vars = %{ $in{page_vars} };
+    my @languages = @{ $in{languages} };
     my $query_esc = _esc_query_stash($query);    # SM869: see query => below
 
     my $reserved = _front_matter_reserved();
@@ -439,6 +427,50 @@ sub render_content {
         year     => sprintf( '%04d', (localtime)[5] + 1900 ),
         search_enabled => ( -f "$DOCROOT/search-results.md" || -f "$DOCROOT/search-results.url" ) ? 1 : 0,
     };
+    return $vars;
+}
+
+sub render_content {
+    my ( $meta, $html_body, $query, $before_render ) = @_;
+    $query //= {};
+
+    my $tt = _tt_engine();    # SM1012 S7
+
+    my %site_vars = resolve_site_vars();
+    my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
+
+    my $groups_ref = $AUTH_CONTEXT{auth_groups};
+    my $groups_str = ref $groups_ref eq 'ARRAY' ? join( ',', @$groups_ref ) : ( $groups_ref // '' );
+    my $editor_flag = _is_manager( \%site_vars, $AUTH_CONTEXT{auth_user} // '', $groups_str ) ? 1 : 0;
+
+    my ( $manager_caps, $scope_root, $home_domain, $my_scopes )
+        = _render_manager_facts($groups_str);    # SM1012 S8
+
+    my ( $site_lang, $page_lang ) = _render_lang( $meta, %site_vars );    # SM1012 S9
+    $RESPONSE_LANG = $page_lang;
+    # SM179 P2: the language-set switcher data ({ lang, url, current, exists }),
+    # empty unless this host is in a lang_group with siblings. Layouts render a
+    # switcher and hreflang from it.
+    my @languages = _language_set(
+        ( $site_vars{alias_host} // '' ),
+        ( $site_vars{lang_group} // '' ),
+        ( $ENV{REDIRECT_URL}     // $ENV{REQUEST_URI} // '/' ),
+    );
+
+    my $vars = _render_stash(    # SM1012 S10
+        meta         => $meta,
+        query        => $query,
+        editor_flag  => $editor_flag,
+        manager_caps => $manager_caps,
+        scope_root   => $scope_root,
+        home_domain  => $home_domain,
+        my_scopes    => $my_scopes,
+        site_lang    => $site_lang,
+        page_lang    => $page_lang,
+        site_vars    => \%site_vars,
+        page_vars    => \%page_vars,
+        languages    => \@languages,
+    );
 
     # SM249: the variables are now complete, and the body has not been rendered
     # yet - so this is the one point at which a caller can add to them and have

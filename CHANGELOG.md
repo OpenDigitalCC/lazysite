@@ -56,11 +56,12 @@ Archive
 - SM1012 (PENDING) **internal: `render_content` is split at its seams.** The
   Template object for a content pass is built by `_tt_engine`; what the manager
   UI needs to know about the user (capabilities, scopes) comes from
-  `_render_manager_facts`; and the site's and the page's language from
-  `_render_lang`. Each step changes no other sub (tools/deparse-subs.pl), each
-  block deparses as the sub it became where it has one exit
-  (tools/deparse-block.pl), and t/unit/processor/113 passes unchanged. No
-  behaviour change.
+  `_render_manager_facts`; the site's and the page's language from
+  `_render_lang`; and the page body's template variables from `_render_stash`,
+  still the one point every escaped family enters. Each step changes no other
+  sub (tools/deparse-subs.pl), each block deparses as the sub it became where it
+  has one exit (tools/deparse-block.pl), and t/unit/processor/113 passes
+  unchanged. No behaviour change.
 
 - SM1012 (PENDING) **internal: what the content renderer produces is
   recorded.** t/unit/processor/113 renders 34 written cases through
