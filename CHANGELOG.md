@@ -103,6 +103,15 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
+- SM1018 (PENDING) **a signed-in member's form post names the member.** The
+  form handler verified the session cookie only to waive the rate limit and
+  delivered every submission with no actor, so a table handler declaring
+  `row_policy: personal` wrote rows that belonged to nobody even for a member.
+  The account a VERIFIED session names is now the delivery's actor (SM1010 Q1):
+  the row is the member's, and the audit trail names them. The stored
+  submission carries no name, a forged cookie or `X-Remote-User` header names
+  nobody, and anonymous posts are unchanged. t/unit/forms/07, 08, 62.
+
 - SM1017 (PENDING) **a quarantined submission is not acknowledged, and a mail
   header names exactly one address.** SECURITY. A form whose email handler
   acknowledges the submitter (`mail_the_submitter_field`) mailed the address a

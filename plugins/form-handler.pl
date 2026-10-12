@@ -199,7 +199,8 @@ eval {
     #
     # A public form submission has no verified actor, so it is recorded as
     # having none. The address is still logged, which is the fact that is
-    # actually known.
+    # actually known. A signed-in member's VERIFIED session is a different
+    # thing, and since SM1018 it is the actor (see below).
 
     unless ($HANDLERS_OK) {
         log_event( 'ERROR', $name,
@@ -224,6 +225,16 @@ eval {
     # submission, not written to the audit actor column, and not passed to
     # any handler. The submission stays actor-less; only the limiter learns
     # that SOME verified member is asking.
+    #
+    # SM1018 (SM1010 Q1, ruled 2026-10-12 as recommended): THE VERIFIED ACCOUNT
+    # IS NOW THE DELIVERY'S ACTOR - in the delivery CONTEXT, never as a field.
+    # SM402's objection was to an UNVERIFIABLE name (the client's own header) in
+    # the actor column; this one is the HMAC-verified session, the same check
+    # the waiver above trusts. A handler then knows who caused the event: a
+    # table row is owned by the member who wrote it (`created_by`, SM857's
+    # personal rows), a notify rule can leave the commenter out, and the audit
+    # row says who. The stored submission still carries no name - nothing here
+    # adds a field - and X-Remote-User is still never read.
     # The module tree was located at start-up (SM473: `prove -l` puts lib/ on
     # @INC and a real install does not). The attempt still degrades to
     # ANONYMOUS on any failure, because a broken exemption must cost a member
@@ -235,8 +246,11 @@ eval {
         require Lazysite::Auth::Session;
         local $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
         my ($session) = Lazysite::Auth::Session::verify_session_cookie();
-        ( ref $session eq 'HASH' ) ? 1 : 0;
+        ( ref $session eq 'HASH' && defined $session->{user} && length $session->{user} )
+            ? $session->{user}
+            : 0;
     } // 0;
+    my $actor = $signed_in ? $signed_in : '';
     if ($signed_in) {
         log_event( 'INFO', 'form', 'rate limit waived: verified session' );
     }
@@ -290,7 +304,7 @@ eval {
             source      => "form:$name",
             store       => $name,
             ip          => _request_ip(),         # SM929: the visitor, not the proxy
-            actor       => '',                    # SM402: no verified actor
+            actor       => $actor,                # SM1018: the verified account, or none
             files       => $form{_files},
             quarantined => $form{_quarantined},
             spam_reason => $form{_spam_reason},
@@ -321,7 +335,7 @@ eval {
     }
 
     log_event( 'INFO', $name, 'form received', ip => ( _request_ip() || 'unknown' ) );
-    _audit_submission( $name, '', _request_ip() );    # SM402: no verified actor
+    _audit_submission( $name, $actor, _request_ip() );    # SM1018: verified, or none
         # SM216: a quarantined (suspect) submission is stored but does NOT ring the
         # bell - the sysop finds it under the Submissions Quarantine filter.
     _notify_submission( $name, $conf->{notify_mode}, \%form, $stored )
@@ -768,7 +782,8 @@ sub _one_value_everywhere {
 }
 
 # SM115: one line per submission in the audit trail - the submitter is the
-# public, so the actor is blank (SM402), and origin is "form". SM842: through
+# public, so the actor is blank (SM402), or since SM1018 the account a VERIFIED
+# session cookie names, and origin is "form". SM842: through
 # Lazysite::Audit, now that this plugin loads the module tree, so the trail
 # has one writer and one reading of its own switch (N13-04's marked copy and
 # the lint that pinned the two together are gone with the copy). Each
@@ -1343,9 +1358,9 @@ sub check_timestamp {
 # SM425 exemption above is different in kind: it verifies the session COOKIE
 # cryptographically (SM411's shared verifier - HMAC, registry, account
 # checks), which no client can mint without the site secret. The identity it
-# yields is used as a boolean for the limiter and recorded nowhere, so the
-# SM402 line holds unchanged: nothing here is recorded as an actor, and the
-# audit entry a submission writes carries none (t/unit/forms/07 asserts it).
+# yields waives the limiter and, since SM1018, is the delivery's actor; the
+# SM402 line holds for what SM402 was about: no header-derived name is ever
+# recorded (t/unit/forms/07 asserts it).
 #
 # An operator setting `rate_limit:` on the one gated form they built is explicit,
 # auditable, and needs no trust decision about a header nobody verified.

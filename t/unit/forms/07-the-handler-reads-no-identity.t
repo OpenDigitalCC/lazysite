@@ -47,8 +47,15 @@ unlike( $code, qr/\$ENV\{HTTP_X_REMOTE_USER\}/,
 unlike( $code, qr/_auth_user/,
     'and no longer tags submissions with an unverified name' );
 
-like( $code, qr/_audit_submission\(\s*\$name,\s*''/,
-    'the audit entry records NO actor, because none was verified' );
+# SM1018 (SM1010 Q1, ruled 2026-10-12): the actor is now the account a VERIFIED
+# session cookie names, or nobody - never a header. So the audit entry records
+# $actor, and $actor has exactly one source: the session verifier's answer.
+like( $code, qr/_audit_submission\(\s*\$name,\s*\$actor/,
+    'the audit entry records the verified actor, or none' );
+my @actor_src = ( $code =~ /\bmy \$actor\s*=\s*([^;]+);/g );
+is_deeply( \@actor_src, ['$signed_in ? $signed_in : \'\''],
+    'and $actor is set once, from the verified session and nothing else' );
+like( $code, qr/verify_session_cookie\(\)/, 'which is the cryptographic verifier' );
 unlike( $code, qr/_audit_submission\([^)]*\$auth_user/,
     'and specifically not the header-derived one' );
 

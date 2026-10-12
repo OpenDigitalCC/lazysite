@@ -4,8 +4,9 @@
 #
 # The gate needs a verified identity, which the handler deliberately does not
 # read from headers (SM402) and now CAN obtain (SM411's shared session
-# verifier). The identity is a BOOLEAN here: the fourth subtest holds the
-# SM402 line - even a signed-in submission records no actor anywhere.
+# verifier). The fourth subtest holds the SM402 line as SM1018 redrew it: the
+# stored submission names nobody, a forged cookie names nobody, and the
+# audit names the account a VERIFIED session carries (SM1010 Q1).
 use strict;
 use warnings;
 use Test::More;
@@ -93,17 +94,17 @@ subtest 'A SIGNED-IN MEMBER IS EXEMPT' => sub {
 };
 
 subtest 'a forged cookie buys nothing' => sub {
-    my $pay = 'zz9member:' . time . ':';
+    my $pay = 'zz9forged:' . time . ':';
     my $out = submit(
         HTTP_COOKIE => "lazysite_auth=$pay:" . ( 'f' x 64 ) );
     like( $out, qr/"ok":0/,
         'a bad signature is anonymous traffic, and the address is over its limit' );
 };
 
-subtest 'THE SM402 LINE HOLDS: no actor recorded, signed in or not' => sub {
-    # The identity is a boolean for the limiter. The stored submission and the
-    # audit trail must carry no username - that is the invariant t/unit/forms/07
-    # pins in the source, held here against the behaviour.
+subtest 'THE SM402 LINE, AS SM1018 REDREW IT' => sub {
+    # SM1018 (SM1010 Q1): the verified account is the delivery's actor, in the
+    # CONTEXT. The stored submission still carries no username - nothing adds a
+    # field - and only a VERIFIED session reaches the audit's actor column.
     my @subs = glob "$docroot/lazysite/forms/submissions/*";
     ok( @subs, 'submissions stored' );
     my $blob = '';
@@ -122,9 +123,14 @@ subtest 'THE SM402 LINE HOLDS: no actor recorded, signed in or not' => sub {
         @form_lines = grep { /form/ } <$ah>;
         close $ah;
     }
-    ok( !( grep { /zz9member/ } @form_lines ),
-        'no form-submission audit entry names the account' )
+    my @named = grep { /\| zz9member \| submit \|/ } @form_lines;
+    is( scalar @named, 3, 'the three VERIFIED posts are audited as the member' )
         or diag( join '', @form_lines );
+    ok( !( grep { /zz9member/ && !/\| zz9member \| (?:submit|deliver) \|/ } @form_lines ),
+        'and the name appears in no other form line' )
+        or diag( join '', @form_lines );
+    ok( !( grep { /\| zz9forged / } @form_lines ),
+        'and the forged cookie\'s name appears nowhere' );
 };
 
 subtest 'A BROKEN EXEMPTION COSTS A MEMBER A RATE LIMIT, NEVER ANYBODY A FORM' => sub {
