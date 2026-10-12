@@ -164,8 +164,13 @@ Archive
   nothing: the dirty check recognised the picker by a class it was never
   drawn with, so it read as empty before and after. Adding or removing a pill
   now marks the field changed, the unsaved count says so, and Save posts
-  `domain-set` with the new list. No other manager page tracks a picker this
-  way. t/unit/manager/280.
+  `domain-set` with the new list. t/unit/manager/280. Checking every page for
+  a picker its save does not read found one more: a connector's **caller
+  groups** were drawn as checkboxes and read back from a text box that is only
+  drawn when the group list cannot be read, so every save on a site whose groups
+  could be read dropped them (the connector then refused every signed-in
+  caller) and said "Saved". The ticked boxes are now what is saved.
+  t/unit/manager/281.
 
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the

@@ -82,7 +82,7 @@ cli command to add the domain group."
 
 | P | Item | Ruling | Needs | Size |
 | --- | --- | --- | --- | --- |
-| U1 | The Domains page's Access pickers never save: Save says "Nothing had changed." | - | built (n430), SM1013: the dirty check read the picker by a class it was never drawn with (`mg-token-box`, drawn `mg-tokens`); a pill added or removed marks the field and Save posts it | XS |
+| U1 | The Domains page's Access pickers never save: Save says "Nothing had changed." | - | built (n430), SM1013: the dirty check read the picker by a class it was never drawn with (`mg-token-box`, drawn `mg-tokens`); a pill added or removed marks the field and Save posts it; the same check found the Connectors page saving `callers: []` whenever its caller groups were drawn as checkboxes, fixed in the same item | XS |
 
 # Not in the queue, and why
 

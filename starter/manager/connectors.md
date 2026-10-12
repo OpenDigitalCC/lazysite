@@ -317,6 +317,26 @@ function callersField(f, current) {
     + 'these, or hold Connectors.</span></div>';
 }
 
+// SM1013: what callersField drew, read back. It draws ONE of two shapes - a text
+// box (id f+'callers') when the group list could not be read, checkboxes (ids
+// f+'cg-<group>') when it could - and saveConnector read only the text box. So
+// with the groups known, which is the ordinary case, every save posted
+// `callers: []` and the connector's caller groups were dropped: no signed-in
+// caller could use it any more, and the page said "Saved".
+function callersValue(f) {
+  var box = document.getElementById(f + 'callers');
+  if (box) {
+    return box.value.split(',').map(function(s) { return s.replace(/^\s+|\s+$/g, ''); })
+      .filter(function(s) { return s.length; });
+  }
+  var out = [];
+  var ticks = document.querySelectorAll('input[id^="' + f + 'cg-"]');
+  for (var i = 0; i < ticks.length; i++) {
+    if (ticks[i].checked) out.push(ticks[i].id.slice((f + 'cg-').length));
+  }
+  return out;
+}
+
 function field(id, label, type, value, help) {
   return '<div class="mg-field"><label for="' + id + '">' + escHtml(label) + '</label>'
     + '<input class="mg-inp" type="' + type + '" id="' + id + '" value="' + escHtml(value) + '">'
@@ -367,7 +387,7 @@ function saveConnector(id) {
       authenticated: checked(f + 'm-authenticated') ? 1 : 0,
       public: checked(f + 'm-public') ? 1 : 0
     },
-    callers: val(f + 'callers').split(',').map(function(s) { return s.replace(/^\s+|\s+$/g, ''); }).filter(function(s) { return s.length; })
+    callers: callersValue(f)
   };
   post('connector-save', { id: id, connector: def })
     .then(function(d) {
