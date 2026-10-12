@@ -507,6 +507,48 @@ sub _form_field_radio {
     return $field_html;
 }
 
+# SM1012 S5: A CHECKBOX GROUP, WITH A QUANTITY PER BOX FOR checklist-qty
+# (arguments as _form_field_file's).
+sub _form_field_checklist {
+    my ( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules ) = @_;
+    my $field_html;
+    # NO `required` ON A CHECKBOX GROUP OF MORE THAN ONE. On radio
+    # inputs the browser treats required as "one of the group"; on
+    # checkboxes it means THIS box, so marking them all required would
+    # demand every option be ticked - the opposite of what a
+    # multi-select means.
+    #
+    # SM888 A5: A GROUP OF ONE IS THE EXCEPTION, and the reasoning above
+    # is what makes it one. With a single box there is no difference
+    # between "this box" and "one of the group" - they are the same box -
+    # so the browser's meaning of `required` is exactly the author's.
+    # Omitting it there was the general rule applied past its reason: a
+    # field marked required submitted empty, and the form accepted it.
+    # The field is most often a single consent tick, which is the case
+    # where an unticked box mattering most is also the case it was least
+    # enforced.
+    my $one_box = @{ $rules{checklist} } == 1;
+    my $box_req = $one_box ? $req_attr : '';
+    $field_html = qq(    <div class="form-options">\n);
+    my $i = 0;
+    for my $opt ( @{ $rules{checklist} } ) {
+        my $e  = _form_attr($opt);
+        my $id = "$name-" . $i++;
+        $field_html
+            .= qq(      <label class="form-option" for="$id">)
+            . qq(<input type="checkbox" name="$name" id="$id" value="$e"$box_req> $e);
+
+        # The quantity travels in the NAME, so the handler can fold it
+        # back without being told the form's field types.
+        $field_html .= qq( <input type="number" class="form-option-qty")
+            . qq( name="$name~qty~$e" min="0" step="1" aria-label="$e quantity">)
+            if $rules{qty};
+        $field_html .= qq(</label>\n);
+    }
+    $field_html .= qq(    </div>\n);
+    return $field_html;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -648,41 +690,7 @@ sub _render_form {
             $field_html = _form_field_radio( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
         }
         elsif ( $rules{checklist} ) {
-
-            # NO `required` ON A CHECKBOX GROUP OF MORE THAN ONE. On radio
-            # inputs the browser treats required as "one of the group"; on
-            # checkboxes it means THIS box, so marking them all required would
-            # demand every option be ticked - the opposite of what a
-            # multi-select means.
-            #
-            # SM888 A5: A GROUP OF ONE IS THE EXCEPTION, and the reasoning above
-            # is what makes it one. With a single box there is no difference
-            # between "this box" and "one of the group" - they are the same box -
-            # so the browser's meaning of `required` is exactly the author's.
-            # Omitting it there was the general rule applied past its reason: a
-            # field marked required submitted empty, and the form accepted it.
-            # The field is most often a single consent tick, which is the case
-            # where an unticked box mattering most is also the case it was least
-            # enforced.
-            my $one_box = @{ $rules{checklist} } == 1;
-            my $box_req = $one_box ? $req_attr : '';
-            $field_html = qq(    <div class="form-options">\n);
-            my $i = 0;
-            for my $opt ( @{ $rules{checklist} } ) {
-                my $e  = _form_attr($opt);
-                my $id = "$name-" . $i++;
-                $field_html
-                    .= qq(      <label class="form-option" for="$id">)
-                    . qq(<input type="checkbox" name="$name" id="$id" value="$e"$box_req> $e);
-
-                # The quantity travels in the NAME, so the handler can fold it
-                # back without being told the form's field types.
-                $field_html .= qq( <input type="number" class="form-option-qty")
-                    . qq( name="$name~qty~$e" min="0" step="1" aria-label="$e quantity">)
-                    if $rules{qty};
-                $field_html .= qq(</label>\n);
-            }
-            $field_html .= qq(    </div>\n);
+            $field_html = _form_field_checklist( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
         }
         else {
             my $type  = $rules{type} || 'text';
