@@ -384,6 +384,14 @@ table that already holds rows is **refused, not overwritten** -- restoring over
 a live product list would replace it with a snapshot from whenever the package
 was built.
 
+On a table with `timestamps: true`, a package carries who wrote each row, and
+the restored rows **keep their authors**: `created_by` and `updated_by` are what
+they were when the package was built, and a row written anonymously stays
+anonymous. `created_at` and `updated_at` are the time of the restore. The
+account that applied the package is recorded in the log and the audit trail,
+and `data_restored` says how many rows kept their authors. A package built
+before 0.15.5 carries no authors; its rows are recorded as the applier's.
+
 ## Access
 
 Reading and writing tables through the manager, the API or MCP needs the

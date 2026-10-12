@@ -116,7 +116,7 @@ my @FILES    = grep { -f } (
     }
 }
 
-my ( $sites, @nameless ) = (0);
+my ( $sites, @nameless, @authors ) = (0);
 for my $path (@FILES) {
     ( my $rel = $path ) =~ s{^\Q$root\E/}{};
     next if $rel eq 'lib/Lazysite/Data/Tables.pm';    # the writers themselves
@@ -129,6 +129,7 @@ for my $path (@FILES) {
         $sites++;
         my $line = 1 + ( () = substr( $src, 0, $-[0] ) =~ /\n/g );
         push @nameless, "$rel:$line $name" unless $args =~ /\bactor\s*=>/;
+        push @authors, "$rel $name" if $args =~ /\bauthors\s*=>/;
     }
 }
 is_deeply( \@nameless, [], 'every call to a stamping row writer names its actor' )
@@ -136,6 +137,20 @@ is_deeply( \@nameless, [], 'every call to a stamping row writer names its actor'
         . "are stamped empty - 'written anonymously' - whoever wrote them. Pass the "
         . "identity the caller verified (it may be empty for an anonymous visitor):\n  "
         . join( "\n  ", @nameless ) );
+# P21 revise (ruled 2026-10-12, "Keep original authors"): a restored site
+# package's rows keep the authors they were exported with, so insert_row takes
+# `authors =>` - who the row says wrote it - beside `actor =>`, who wrote it
+# into this store, and refuses authors without an actor. That makes `actor =>`
+# still mean something on the restore. What keeps the rule meaningful
+# everywhere else is that no other caller may name authors: an author named by
+# a caller is one the caller chose, and every other write is stamped from the
+# identity its surface verified.
+is_deeply( \@authors, ['lib/Lazysite/Manager/SitePackage.pm insert_row'],
+    'only the site-package restore names row authors, and it names its actor too' )
+    or diag( "A call passing `authors =>` sets created_by/updated_by to what the "
+        . "caller says rather than to the verified actor. Only a restore, keeping "
+        . "the authors a package was exported with, may:\n  " . join( "\n  ", @authors ) );
+
 cmp_ok( $sites, '>=', 6, 'the widened check found the module writers it exists to check (6 today)' )
     or diag("Only $sites call(s) to @STAMPING were found - renamed, or the scan lost its files.");
 

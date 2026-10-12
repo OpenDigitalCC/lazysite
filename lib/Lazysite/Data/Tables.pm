@@ -658,13 +658,59 @@ sub _stamp {
     return $values unless $d->{timestamps};
     my $now = _now_stamp();
     my $who = defined $opt{actor} && length $opt{actor} ? "$opt{actor}" : undef;
+    # P21: a restore's rows keep the authors they were exported with (checked
+    # by _authors_refusal before this is reached); the actor is the restorer.
+    my $kept = ref $opt{authors} eq 'HASH' ? $opt{authors} : undef;
+    my $by   = sub { my ($k) = @_; return $kept ? _kept_author( $kept->{$k} ) : $who };
     $values->{updated_at} = $now;
-    $values->{updated_by} = $who;
+    $values->{updated_by} = $by->('updated_by');
     unless ( $opt{partial} ) {
         $values->{created_at} = $now;
-        $values->{created_by} = $who;
+        $values->{created_by} = $by->('created_by');
     }
     return $values;
+}
+
+# P21 (WORK-PLAN-0154, ruled 2026-10-12 "Keep original authors"): a restored
+# site package's rows keep the created_by/updated_by they were exported with,
+# and the restore is still done AS someone. So insert_row takes the authors as
+# their own option, beside `actor =>` and never instead of it: `authors =>`
+# without an actor is refused, which keeps lint 137's rule (every stamping
+# call names its actor) meaningful - the actor is who wrote the row INTO THIS
+# STORE, the authors are who the row says wrote it. Lint 137 also holds the
+# option to the one restore that may pass it.
+#
+# An author is absent (undef or '', "written anonymously", as exported) or a
+# plain string of at most 254 characters with no control characters - the
+# same shape as a login. Anything else refuses the row: a package is a file
+# that travelled, and what it says about a row is not trusted further.
+sub _kept_author {
+    my ($v) = @_;
+    return ( defined $v && length $v ) ? "$v" : undef;
+}
+
+sub _authors_refusal {
+    my ( $name, $actor, $authors ) = @_;
+    return _err( "table '$name': rows restored with their own authors are still "
+            . 'written by someone - pass the restoring account as actor', table => $name,
+        kind => 'validation', rule => 'authors_need_actor' )
+        unless defined $actor && length $actor;
+    my %author = map { $_ => 1 } Lazysite::Data::Owned::author_columns();
+    my $names  = join ' and ', sort keys %author;
+    return _err( "table '$name': a row's authors are a mapping of $names",
+        table => $name, kind => 'validation', rule => 'authors' )
+        unless ref $authors eq 'HASH';
+    for my $k ( sort keys %{$authors} ) {
+        my $v = $authors->{$k};
+        return _err( "table '$name': '$k' is not an author column ($names)",
+            table => $name, kind => 'validation', rule => 'authors' )
+            unless $author{$k};
+        next unless defined $v;
+        return _err( "table '$name': a row's $k is not an account name",
+            table => $name, kind => 'validation', rule => 'authors', field => $k )
+            if ref $v || length $v > 254 || $v =~ /[\x00-\x1f\x7f]/;
+    }
+    return undef;
 }
 
 sub _write_prep {
@@ -680,7 +726,13 @@ sub _write_prep {
 
 sub insert_row {
     my ( $docroot, $name, $input, %opt ) = @_;
-    my ( $bad, $d, $dbh, $values ) = _write_prep( $docroot, $name, $input, actor => $opt{actor} );
+    my %stamp = ( actor => $opt{actor} );
+    if ( exists $opt{authors} ) {    # P21: a restore keeps the exported authors
+        my $no = _authors_refusal( $name, $opt{actor}, $opt{authors} );
+        return $no if $no;
+        $stamp{authors} = $opt{authors};
+    }
+    my ( $bad, $d, $dbh, $values ) = _write_prep( $docroot, $name, $input, %stamp );
     return $bad if $bad;
     my ( $sql, $binds ) = insert_sql( $d, $values );
     eval { $dbh->do( $sql, undef, @{$binds} ); 1 }

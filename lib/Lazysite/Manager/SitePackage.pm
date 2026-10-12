@@ -318,7 +318,21 @@ sub package_create {
                 next;
             }
             my $export = Lazysite::Data::Export::export_table( $d, $r->{rows} );
-            my $path   = "$stage/data/$t.json";
+            # P21 (ruled 2026-10-12, "Keep original authors"): who wrote each
+            # row travels beside the rows, keyed by the row's key, so a restore
+            # can keep it. Beside, not in: an older release's import refuses a
+            # stamped column in a row, and ignores this.
+            if ( $d->{timestamps} ) {
+                require Lazysite::Data::Owned;
+                my $k  = $d->{key};
+                my @by = Lazysite::Data::Owned::author_columns();
+                $export->{authors} = {
+                    map {
+                        my $row = $_;
+                        ( "$row->{$k}" => { map { $_ => $row->{$_} } @by } )
+                    } grep { defined $_->{$k} } @{ $r->{rows} } };
+            }
+            my $path = "$stage/data/$t.json";
             if ( open my $jf, '>:utf8', $path ) {
                 my $ok = print {$jf} Lazysite::Data::Export::to_json($export);
                 $ok = 0 unless close $jf;
@@ -771,19 +785,30 @@ sub package_apply {
                 next;
             }
             my $n = 0;
+            # P21 (ruled 2026-10-12, "Keep original authors"): each row keeps
+            # the created_by/updated_by it was exported with. The restore is
+            # still written AS the account applying the package (`actor`, lint
+            # 137), which the log line below and the surface's audit row name.
+            # A package built before the authors travelled has none to keep:
+            # its rows are the applier's, as an import's are the importer's.
+            my $authors = ref $export->{authors} eq 'HASH' ? $export->{authors} : undef;
+            my $kept    = 0;
             for my $row ( @{ $imp->{rows} } ) {
-                # P21: as the account restoring, as Manager::Data's import
-                # stamps the importer - not as nobody (lint 137).
-                my $r = Lazysite::Data::Tables::insert_row( $DOCROOT, $table, $row,
-                    actor => $auth_user );
+                my $by = $authors ? $authors->{ $row->{ $d->{key} } // '' } : undef;
+                my $r  = Lazysite::Data::Tables::insert_row( $DOCROOT, $table, $row,
+                    actor => $auth_user, ( $by ? ( authors => $by ) : () ) );
                 unless ( $r->{ok} ) {
                     push @data_skipped,
                         { table => $table, why => "row $n: $r->{error}" };
                     last;
                 }
                 $n++;
+                $kept++ if $by;
             }
-            push @data_restored, { table => $table, rows => $n } if $n;
+            push @data_restored, { table => $table, rows => $n, authors_kept => $kept } if $n;
+            log_event( 'INFO', 'site-package-apply', 'table rows restored',
+                table => $table, rows => $n, authors_kept => $kept, user => $auth_user )
+                if $n;
         }
     }
 

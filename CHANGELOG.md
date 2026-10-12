@@ -292,6 +292,14 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM996 (PENDING) **rows restored from a site package keep their authors.**
+  SM989 recorded every restored row as the account that applied the package,
+  which replaced who really wrote it. A package now carries each row's
+  `created_by` and `updated_by` (tables with `timestamps: true`), and the
+  restore keeps them; the applier is named in the log line "table rows
+  restored" and the action's audit row, and `data_restored` gains
+  `authors_kept`. A package built before this carries none, and its rows are
+  the applier's. t/unit/data/70, lint 137.
 
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the

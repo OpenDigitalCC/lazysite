@@ -45,7 +45,7 @@ use warnings;
 use Exporter 'import';
 
 our @EXPORT_OK = qw(stamp_columns reserved_column owned_columns is_owned
-    stamped_column policy_column POLICIES valid_policy);
+    stamped_column policy_column POLICIES valid_policy author_columns);
 
 # The order is the order they are CREATED in, and the order they appear in a CSV
 # export: when it was written out by hand, `created_at, updated_at, created_by,
@@ -78,6 +78,10 @@ sub valid_policy {
 # The stamp columns, in creation order. A copy, never the list itself - a caller
 # that sorts or splices the return value must not be able to reorder the store.
 sub stamp_columns { return @STAMPS }
+
+# P21: the two stamps that name an account - the pair a restored site package
+# keeps as it was exported ("Keep original authors", ruled 2026-10-12).
+sub author_columns { return grep { /_by\z/ } @STAMPS }
 
 # May a descriptor declare a field with this name? Unconditional, per above.
 sub reserved_column { return ( defined $_[0] && $RESERVED{ $_[0] } ) ? 1 : 0 }
