@@ -373,7 +373,8 @@ Archive
   its own `site_url`. A new TT variable, `canonical_url`, carries the address.
   The canonical domain is the one the Domains list names (the first serving
   that folder, the primary first), so a host with no folder of its own is an
-  alias of the primary. t/unit/processor/102, lint 224.
+  alias of the primary and names the primary as canonical (ruled 2026-10-12,
+  "Keep"). t/unit/processor/102, lint 224.
 
 - SM999 (PENDING) **a YAML list is a list, and a registry carries the page's
   front matter.** A list key other than `tags` - `categories:` with `- item`

@@ -55,6 +55,9 @@ rule applied to the case where two hosts share the docroot; it is recorded in
 WORK-PLAN-0154's open questions in case a chrome-only alias (SM110: same
 content, its own theme) is meant to stay its own canonical.
 
+Ruled 2026-10-12, in the release manager's word: "Keep" - a rootless domain
+names the primary as canonical. Recorded; nothing changes.
+
 # Tests
 
 t/unit/processor/102: www.canon.test (sharing canon.test's folder) renders

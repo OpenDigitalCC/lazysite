@@ -23,13 +23,14 @@ sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh}
 spit( "$d/lazysite/lazysite.conf", <<'CONF' );
 site_name: Main
 site_url: https://main.test
-alias_hosts: canon.test, www.canon.test, other.test
+alias_hosts: canon.test, www.canon.test, other.test, chrome.test
 alias.canon.test.content_root: sites/canon
 alias.canon.test.site_url: https://canon.test
 alias.www.canon.test.content_root: sites/canon
 alias.www.canon.test.site_url: https://www.canon.test
 alias.other.test.content_root: sites/other
 alias.other.test.site_url: https://other.test
+alias.chrome.test.site_url: https://chrome.test
 CONF
 make_path( "$d/sites/canon", "$d/sites/other", "$d/lazysite/templates/registries" );
 my $PAGE = "---\ntitle: About\nregister:\n  - sitemap.xml\n  - llms.txt\n---\nSITE=[% site_url %] CANON=[% canonical_url %]\n";
@@ -57,6 +58,15 @@ subtest 'the canonical domain and an unrelated one are their own (the controls)'
     is( canonical( get( 'canon.test', '/about' ) ), 'https://canon.test/about', 'the canonical domain' );
     is( canonical( get( 'other.test', '/about' ) ), 'https://other.test/about', 'a domain with its own root' );
     is( canonical( get( 'main.test', '/about' ) ), 'https://main.test/about', 'the primary' );
+};
+
+# The consequence ruled 2026-10-12, "Keep": a host with no content_root of its
+# own (an SM110 chrome-only alias) serves the primary's content, so it is an
+# alias of the primary and names the primary as canonical.
+subtest 'a rootless domain names the primary as canonical' => sub {
+    my $o = get( 'chrome.test', '/about' );
+    is( canonical($o), 'https://main.test/about', 'the canonical link is the primary\'s' );
+    like( $o, qr{SITE=https://chrome\.test }, 'site_url is still its own' );
 };
 
 subtest 'the registries in the shared root carry the canonical address' => sub {
