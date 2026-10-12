@@ -289,6 +289,7 @@ my %REQ = (
     'git-restore'    => { query => "path=other.md&sha=$S{sha}" },
     'handler-delete' => { body  => { id => 'unused' } },
     'handler-save' => { body => { id => 'h2', type => 'file', name => 'H2', path => 'lazysite/forms/submissions' } },
+    'group-set'    => { body => { group => 'newgroup', caps => {} } },    # SM1050
     'key-revoke'       => { body  => { username => 'bot' } },
     'layout-activate'  => { query => 'layout=extra' },
     'layout-delete'    => { query => 'layout=extra' },
