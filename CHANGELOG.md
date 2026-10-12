@@ -292,6 +292,14 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM1037 (PENDING) **the nav docs describe the format the parser reads.** The
+  configuration doc and the agent briefing on configuration said the nav file
+  is YAML (`- label:`, `url:`, `children:`); the engine reads `Label | /url`
+  lines, so a nav written from the doc rendered as labels with no links. Both
+  now give the line format and its rules - a bare label is a heading, an
+  indented line a child (one level), `#` at the start a comment. Docs only.
+  t/tools/140.
+
 - SM1036 (PENDING) **a restored site package keeps its rows' keys, policies
   and times.** A package could not restore a table whose key the store assigns
   (the import refused the key the export carried, and the table was skipped),

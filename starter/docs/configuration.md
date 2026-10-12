@@ -300,41 +300,34 @@ it into a `nav` TT variable available in every page.
 
 ### Format
 
-Navigation is YAML. Items may be links, group headings, or groups with
-nested children:
+One line per item: the label, a `|`, and the address. A child is indented
+under its parent. It is the format the Navigation editor and `set_nav` write:
 
-```yaml
-- label: Home
-  url: /
-- label: About
-  url: /about
-- label: Docs
-  children:
-    - label: Install
-      url: /docs/install
-    - label: Authoring
-      url: /docs/authoring
-- label: Resources
-  children:
-    - label: GitHub
-      url: https://github.com/example
+```
+# lazysite navigation
+Home | /
+About | /about
+Docs | /docs
+  Install | /docs/install
+  Authoring | /docs/authoring
+Resources
+  GitHub | https://github.com/example
 ```
 
 Rules:
 
-- Items with a `url` render as links
-- Items without `url` render as non-clickable headings
-- `children` provides one level of nesting
-- One level of nesting is supported (parent with children)
-
-### Legacy pipe format
-
-An older pipe-separated format is also accepted:
-
-    Home | /
-    About | /about
-    Docs | /docs/
-      Installation | /docs/install
+- **`Label | /url`**, split at the first `|`; spaces around either part are
+  trimmed. A later `|` is part of the address.
+- **A line with no `|` is a heading**: an item with no address, rendered as a
+  non-clickable group label (`Resources` above).
+- **A line that starts with whitespace is a child** of the nearest top-level
+  line above it. One level only: a line indented further is still a child of
+  that top-level item. An indented line with no top-level line above it is a
+  top-level item.
+- **`#` as the first non-blank character makes the line a comment.** A `#`
+  later in the line is part of the label or address. Blank lines are skipped.
+- A line with no label (`| /x`) is dropped.
+- The file is read as UTF-8.
 
 ### Addresses
 

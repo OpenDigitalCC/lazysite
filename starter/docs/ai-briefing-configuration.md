@@ -89,27 +89,24 @@ content.
 
 ## Navigation (nav.conf)
 
-Define the site navigation as YAML:
+One line per item, `Label | /url`, each child indented under its parent:
 
-```yaml
-- label: Home
-  url: /
-- label: About
-  url: /about
-- label: Docs
-  children:
-    - label: Install
-      url: /docs/install
-    - label: Authoring
-      url: /docs/authoring
-- label: Resources
-  children:
-    - label: GitHub
-      url: https://github.com/example
+```
+# lazysite navigation
+Home | /
+About | /about
+Docs | /docs
+  Install | /docs/install
+  Authoring | /docs/authoring
+Resources
+  GitHub | https://github.com/example
 ```
 
-Items without `url` render as non-clickable group headings.
-One level of nesting is supported.
+A line with no `|` is a non-clickable group heading. One level of nesting is
+supported: any indented line is a child of the top-level line above it. `#` as
+the first non-blank character starts a comment. The format is not YAML - a
+YAML list renders as labels with no links. The `set_nav` tool takes the items
+as a structure and writes this file.
 
 Override the path in `lazysite.conf`:
 
