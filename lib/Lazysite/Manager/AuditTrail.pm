@@ -149,6 +149,11 @@ sub _audit_implicit_target {
         my $n = $params->{$k} // $req->{$k} // '';
         return $n if length $n;
     }
+    # SM1050: group-set acts on a GROUP, named as a rule names one.
+    if ( $action eq 'group-set' ) {
+        my $g = $req->{group} // '';
+        return "\@$g" if length $g && !ref $g;
+    }
     # config-set: name the KEY that changed (e.g. site_name), not a bare '/'.
     if ( $action eq 'config-set' ) {
         my $k = $params->{key} // $req->{key} // '';

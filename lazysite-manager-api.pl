@@ -82,6 +82,7 @@ use Lazysite::Manager::Config qw(action_config_read action_config_set action_lan
 use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
 use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes dispatch_audit); # SM944 S31
 use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret); # SM944 S32
+use Lazysite::Manager::Groups     ();    # SM1050: groups-list, group-set
 use Lazysite::Manager::SiteBackup qw(dispatch_backup_list); # SM944 S33: backup-list's branch
 use Lazysite::Manager::Csrf       qw(csrf_refusal);         # SM944 S34: the M-1 CSRF gate
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -1900,6 +1901,17 @@ elsif ( $action eq 'layouts-repo-set' ) {
 }
 elsif ( $action eq 'users' )      { $result = action_users( $body, \%params ) }
 elsif ( $action eq 'principals' ) { $result = action_principals() }
+elsif ( $action eq 'groups-list' ) {
+    # SM1050 (P-2): the groups, for any manage_users holder; a domain-confined
+    # caller is shown the ones relevant to its domains (Manager::Groups).
+    $result = Lazysite::Manager::Groups::groups_list( _groups_who() );
+}
+elsif ( $action eq 'group-set' ) {
+    # SM1050 (P-1, P-3): create a group and set what it may do, within the
+    # delegation limit; never the operator flag.
+    my $req = _json_body();
+    $result = Lazysite::Manager::Groups::group_set( $req->{group}, $req->{caps}, _groups_who() );
+}
 elsif ( $action eq 'display-names' ) {
     my $req = _json_body() || {};
     $result = action_display_names( $req->{logins} // $params{logins} );
@@ -2485,6 +2497,12 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
             $detail = "allowed_groups=$result->{allowed_groups} (own group, SM1046)";
         }
 
+        # SM1050: a group-set records what it did to the group - created, and
+        # each capability granted (+) or revoked (-) - as acl-set records the rule.
+        if ( $aud_action eq 'group-set' && ref $result eq 'HASH' && defined $result->{change} ) {
+            $detail = $ok ? $result->{change} : "$detail; $result->{change}";
+        }
+
         # SM505: a row action's material object is the ROW - "someone edited
         # that table" is half an answer when the question the trail gets asked
         # is which row. The handler's result carries the authoritative key
@@ -2596,6 +2614,20 @@ sub _refuse_beyond_account_requests {
                 . 'administrator can grant it on the Groups page.' },
         'ui', 'denied: capability', ( $file // $form // '' ) );
     return;
+}
+
+# SM1050: who is asking, as Lazysite::Manager::Groups takes it - the account,
+# what it holds on this door, whether it is domain-confined, and whether it is
+# the operator (never a token). The reach is the request's own, so `reach` is
+# empty and caller_may_reach_domain reads the request.
+sub _groups_who {
+    return (
+        actor    => $auth_user,
+        held     => ( $token_auth ? \%token_caps : _user_caps($auth_user) ),
+        confined => Lazysite::Manager::Common::request_domain_confined(),
+        reach    => [],
+        operator => ( $token_auth ? 0 : _operator() ),
+    );
 }
 
 # The form a submissions store belongs to: its file name, which is the form's

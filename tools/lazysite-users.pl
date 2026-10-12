@@ -580,7 +580,9 @@ if ($API_MODE) {
                 $req->{actor} );
         }
         elsif ( $action eq 'group-create' ) {
-            $result = cmd_group_create( $req->{group} );
+            # SM1050: created_by, when group-set makes it (the groups-list
+            # relevance of a domain-confined caller).
+            $result = cmd_group_create( $req->{group}, created_by => $req->{created_by} );
         }
         elsif ( $action eq 'group-nest' ) {
             $result = cmd_group_nest( $req->{sub}, $req->{parent}, $req->{actor} );
@@ -5394,7 +5396,7 @@ sub cmd_reset_groups {
 }
 
 sub cmd_group_create {
-    my ($group) = @_;
+    my ( $group, %o ) = @_;
     return { ok => 0, error => 'Group required' } unless defined $group && length $group;
     return { ok => 0, error => 'invalid group name (letters, digits, _ or -)' }
         unless $group =~ /^[A-Za-z0-9_-]+$/;
@@ -5403,6 +5405,9 @@ sub cmd_group_create {
     return { ok => 0, error => "group '$group' already exists" }
         if $gs->{$group} || $members{$group};
     $gs->{$group} = _new_group_record($group);
+    # SM1050: who made it, when a manager surface says so - a login, or nothing.
+    $gs->{$group}{created_by} = $o{created_by}
+        if defined $o{created_by} && !ref $o{created_by} && $o{created_by} =~ /\A[A-Za-z0-9._@-]{1,128}\z/;
     write_group_settings($gs);
     log_event( 'INFO', $group, 'group created' );
     cli_audit( 'user-group-create', $group );

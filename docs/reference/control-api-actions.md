@@ -131,6 +131,8 @@ tone: medium
 `git-restore` | manage_content | path (query), sha (query)
 `git-show` | manage_content | path (query), sha (query)
 `git-status` | manage_content |  
+`group-set` | manage_users | group (body), caps (body)
+`groups-list` | manage_users |  
 `handler-delete` | manage_forms / manage_data / manage_connectors | id (body)
 `handler-list` | manage_forms / manage_data / manage_connectors |  
 `handler-save` | manage_forms / manage_data / manage_connectors | id (body), type (body), name (body), enabled (body)

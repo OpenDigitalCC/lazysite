@@ -442,6 +442,14 @@ sub action_users {
             # authorisation signal (the users tool refuses privileged verbs when
             # it names a non-sysop), and this is a read-only call that just
             # needs a name to match against group membership.
+            # SM1050: a group's `created_by` is written by group-set alone, as
+            # the account asking; a caller cannot name another account as the
+            # creator of a group (which would hand that account the group).
+            if ( $act eq 'group-create' && exists $parsed->{created_by} ) {
+                delete $parsed->{created_by};
+                $request_body = encode_json($parsed);
+            }
+
             if ( $auth_user ne 'local' && $act eq 'users-page' ) {
                 $parsed->{me} = $auth_user;
                 $request_body = encode_json($parsed);

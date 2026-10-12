@@ -255,6 +255,11 @@ our %GATE = (
     # the raw nav.conf; manage_content grants nothing nav-specific.
     'nav-read' => 'ALWAYS',
     'nav-save' => [qw(manage_nav)],
+    # SM1050 (inbox 2026-10-12, P-1..P-3), ruled "Yes, within the delegation
+    # limit": a partner provisioning a site's roles lists the groups and
+    # creates one, giving it only capabilities it holds (Manager::Groups).
+    'groups-list' => [qw(manage_users)],
+    'group-set'   => [qw(manage_users)],
     # SM134 follow-ups: the alias-redirect map is content-derived - a content
     # partner may list it (read-only; aliases are front-matter-authored).
     'aliases-list' => [qw(manage_content)],
@@ -637,6 +642,10 @@ our %ACTION = (
     'git-restore' => { mcp => 'restore_version', mcp_open_world => 1, mutates => 1, scoped => 1, file_surface => 'write', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
     'git-show' => { mcp => 'view_version', scoped => 1, file_surface => 'read', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
     'git-status' => { scoped => 1, cookie_cap => 'manage_content', params => [] },
+    # [mcp] SM1050: list_groups / set_group, the twins, built on one module
+    # (Lazysite::Manager::Groups) so the doors cannot disagree.
+    'group-set' => { mcp => 'set_group', mutates => 1, cookie_cap => 'manage_users', params => [ { name => 'group', in => 'body', required => 1 }, { name => 'caps', in => 'body' } ] },
+    'groups-list' => { mcp => 'list_groups', cookie_cap => 'manage_users', params => [] },
     # SM632: the inverse of bind_form. Gated on manage_forms for a token, and
     # confirmation names the form - a destructive verb taking only an id is one
     # an agent fires by having the wrong id.

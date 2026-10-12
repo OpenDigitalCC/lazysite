@@ -203,6 +203,10 @@ sub effective_groups { return _effective_groups(@_) }
 # same expansion as callers that start from a username.
 sub group_closure { return _group_closure(@_) }
 
+# Public: the groups file as group => [ direct members ] (SM1050: groups-list's
+# member counts). Read only; the users tool owns the writes.
+sub group_members { my %g = _groups_membership(); return \%g }
+
 # SM165: THE shared scope resolver for every enforcement channel (manager cookie,
 # control-API token, WebDAV - all route here, directly or via effective_settings).
 # A user's effective content-root scopes come from DOMAIN access (each domain's

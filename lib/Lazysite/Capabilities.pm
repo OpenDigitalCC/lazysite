@@ -503,11 +503,13 @@ my %ACTION_INFO = (
     manage_users => {
         section => 'Accounts',
         title => 'Manage user accounts and group membership - and nothing else: not the operator (SM991).',
-        grants => 'Create and delete accounts, and change who belongs to which group - including what those groups may do. User and group management ONLY (SM991): it passes no other capability gate, a file\'s rule binds it, and it does not change the operator\'s account or the operator group - the operator is a member of the operator group. Manager UI only: no remote surface offers it.',
+        grants => 'Create and delete accounts, and change who belongs to which group - including what those groups may do. User and group management ONLY (SM991): it passes no other capability gate, a file\'s rule binds it, and it does not change the operator\'s account or the operator group - the operator is a member of the operator group. Accounts and membership are managed in the manager UI only. Over the control API and MCP (SM1050) it lists the groups - a domain-confined caller the ones relevant to its domains - and creates a group and sets its capabilities, giving only capabilities the caller holds, never the operator flag.',
         # SM858: with read_submissions, the Approve button on a registration
         # form's submissions.
         unlocks => { ui => [ 'the manager Users and Groups pages',
-                'Approve (an account) on a submission whose form declares account_email' ] },
+                'Approve (an account) on a submission whose form declares account_email' ],
+            api => [qw(groups-list group-set)],     # SM1050
+            mcp => [qw(list_groups set_group)] },
     },
     analytics => {
         section => 'Insight',

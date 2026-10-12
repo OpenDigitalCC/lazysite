@@ -174,6 +174,7 @@ my %COOKIE_READ = map { $_ => 1 } map { ( my $l = $_ ) =~ s/#.*//; split ' ', $l
     analyse_visitors plugin-read form-submissions form-submission form-list site-backup-inspect
     site-backup-download
     principals protected-sections
+    groups-list    # SM1050: the groups, for a manage_users holder; changes nothing
 
     # SM447: the three data READS. Each takes a table name and returns what is
     # declared or stored; none changes anything, so a CSRF-free GET of one

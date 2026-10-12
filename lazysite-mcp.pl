@@ -47,6 +47,7 @@ use Lazysite::Manager::Nav     qw(action_nav_read action_nav_save);
 use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
+use Lazysite::Manager::Groups      ();    # SM1050: list_groups, set_group
 use Lazysite::Manager::Data        ();
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
 use Lazysite::Manager::Plugins qw(action_form_submissions action_form_submission action_form_list);
@@ -525,6 +526,14 @@ sub _grant_reach {
     my ($caps) = @_;
     my $s = ref $caps eq 'HASH' ? $caps->{dav_scopes} : undef;
     return ( scopes => ( ref $s eq 'ARRAY' ? $s : [] ) );
+}
+
+# SM1050: who is asking, as Lazysite::Manager::Groups takes it. Every MCP caller
+# is a token grant: confined (SM648), never the operator, holding its grant.
+sub _groups_who {
+    my ( $user, $caps ) = @_;
+    return ( actor => $user, held => ( ref $caps eq 'HASH' ? $caps : {} ),
+        confined => 1, reach => [ _grant_reach($caps) ], operator => 0 );
 }
 
 # SM976: binding a theme or layout to a domain is the domain_set write by
@@ -1145,6 +1154,29 @@ my %TOOLS = (
             my $a = $_[0];
             return Lazysite::Manager::Data::action_data_row_delete( $a->{table},
                 $a->{key} );
+        },
+    },
+    # SM1050 (P-1..P-3): the twins of groups-list and group-set, on the same
+    # module. An MCP grant is always confined (SM648), so it sees the groups
+    # relevant to its domains, and changes only the groups it created.
+    list_groups => {
+        description => 'List the groups a principal can be granted to: each with its name, the capabilities it turns on, how many accounts are directly in it, and whether it is the operator group. A grant confined to some domains sees the groups those domains name in their allowed_groups, the groups it is in, and the groups it created with set_group - no others. Call this before naming a group in a permission rule or a table\'s writable_by, so a typo is not mistaken for a group that does not exist yet. Read-only.',
+        cap => 'manage_users',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub { Lazysite::Manager::Groups::groups_list( _groups_who( $_[1], $_[2] ) ) },
+    },
+    set_group => {
+        description => 'Create a group, or change one you created, and set what it may do: caps is an object of capability => true|false, e.g. {"webdav": true, "write_data": true}. A capability is turned on only if your grant holds it (the delegation limit); turning one off needs nothing. Never sets the operator flag. The whole request is checked before anything is written. It does not put anyone in the group: membership is managed by a person in the manager.',
+        cap         => 'manage_users',
+        inputSchema => { type => 'object',
+            properties => {
+                group => { type => 'string', description => 'the group name: letters, digits, _ or -' },
+                caps => { type => 'object', description => 'capability => true (grant) or false (revoke)' },
+            },
+            required => ['group'], additionalProperties => JSON::PP::false },
+        run => sub {
+            Lazysite::Manager::Groups::group_set( $_[0]->{group}, $_[0]->{caps},
+                _groups_who( $_[1], $_[2] ) );
         },
     },
     list_domains => {

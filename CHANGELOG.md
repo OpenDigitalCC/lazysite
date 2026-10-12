@@ -495,6 +495,15 @@ Archive
   `manage_users` holder still revokes every other account's. A session id the
   session registry does not hold is the operator's alone to revoke.
   t/integration/131.
+- SM1050 (PENDING) **a partner lists and creates groups within its grant.**
+  `groups-list` and `group-set` on the control API, `list_groups` and
+  `set_group` on MCP, behind `manage_users`. A domain-confined caller sees the
+  groups its domains name, the groups it is in and the groups it created, and
+  changes only the ones it created. A capability is granted only if the caller
+  holds it; the operator flag is never set this way; each change is audited
+  with what it granted and revoked. Membership is still managed in the manager.
+  t/integration/209.
+
 - SM1049 (PENDING) **a write-only rule that moves nothing says ok.** A
   write-only rule on a folder holding a gated subfolder - a domain root, as
   reported - answered `ok:false`, kind `partial`, "content could not be moved",

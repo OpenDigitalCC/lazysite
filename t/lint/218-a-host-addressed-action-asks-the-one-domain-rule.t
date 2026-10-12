@@ -269,6 +269,9 @@ my %NOT_INSTANCE_WIDE = (
     'theme-delete' => 'a confined caller deletes only a theme it created (SM262 '
         . 'restrict_to_creator, asked below); a theme the primary or any domain serves is '
         . 'refused to everyone (SM177)',
+    'group-set' => 'ruled 2026-10-12 (SM1050), "Yes, within the delegation limit": a confined '
+        . 'caller creates a group and changes only the groups it created, granting only '
+        . 'capabilities it holds (Manager::Groups); membership stays the act of a person',
 );
 my ( @iw_missing, @iw_stale );
 for my $a ( sort keys %MUT ) {
