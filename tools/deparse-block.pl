@@ -13,12 +13,15 @@
 # new sub is the old block with its free variables as parameters and its
 # result as the return value: nothing was edited on the way across.
 #
-#   perl tools/deparse-block.pl --old REV:PATH --from N --to M \
+#   perl tools/deparse-block.pl --old REV:PATH (--from N --to M | --lines SPEC) \
 #       --sub NAME [--params '$a, %b'] [--returns '$x'] [--tree DIR]
 #
 #   --old      the file the block came from: REV:PATH (as `git show` takes it)
 #              or a file on disk
 #   --from/--to  the block's first and last line in that file, inclusive
+#   --lines    or the block as lines and ranges, in order: `239,491-514` takes
+#              a declaration from above the block with it (a `my` the block
+#              assigns to but does not declare)
 #   --sub      the extracted sub, as TREE defines it in package main
 #   --params   the sub's parameter list, unpacked as `my (PARAMS) = @_;`
 #              (omit for a sub that takes none)
@@ -43,7 +46,7 @@ use FindBin;
 ( my $ROOT = $FindBin::Bin ) =~ s{/tools\z}{};
 
 sub usage {
-    print STDERR "usage: $0 --old REV:PATH --from N --to M --sub NAME"
+    print STDERR "usage: $0 --old REV:PATH (--from N --to M | --lines SPEC) --sub NAME"
         . " [--params LIST] [--returns EXPR] [--tree DIR]\n";
     exit 2;
 }
@@ -119,16 +122,24 @@ sub compile_in_main {
 my %o = ( tree => $ROOT );
 while (@ARGV) {
     my $k = shift @ARGV;
-    usage() unless $k =~ /\A--(old|from|to|sub|params|returns|tree)\z/ && @ARGV;
+    usage() unless $k =~ /\A--(old|from|to|lines|sub|params|returns|tree)\z/ && @ARGV;
     $o{$1} = shift @ARGV;
 }
-usage() unless defined $o{old} && defined $o{sub} && ( $o{from} // '' ) =~ /\A\d+\z/
-    && ( $o{to} // '' ) =~ /\A\d+\z/ && $o{to} >= $o{from};
+$o{lines} //= "$o{from}-$o{to}" if defined $o{from} && defined $o{to};
+usage() unless defined $o{old} && defined $o{sub} && defined $o{lines};
 
 my @lines = old_lines( $o{old} );
-die "$0: $o{old} has " . scalar(@lines) . " lines, not $o{to}\n" if $o{to} > @lines;
-my @block = @lines[ $o{from} - 1 .. $o{to} - 1 ];
-print "block: $o{old} lines $o{from}-$o{to}\n  first: $block[0]  last:  $block[-1]";
+my @want;
+for my $part ( split /,/, $o{lines} ) {
+    my ( $a, $b ) = $part =~ /\A(\d+)(?:-(\d+))?\z/ or usage();
+    $b //= $a;
+    usage() unless $a >= 1 && $b >= $a;
+    die "$0: $o{old} has " . scalar(@lines) . " lines, not $b\n" if $b > @lines;
+    push @want, $a .. $b;
+}
+my @block = @lines[ map { $_ - 1 } @want ];
+$o{from} = $want[0];
+print "block: $o{old} lines $o{lines}\n  first: $block[0]  last:  $block[-1]";
 
 my $src = "no strict;\nno warnings;\n"
     . file_scope(@lines)

@@ -119,6 +119,13 @@ subtest 'deparse-block: a block wrapped as a sub against the sub' => sub {
     ( $rc, $out ) = run_tool( 'deparse-block.pl', @args[ 0 .. 5 ], '--params', '$v',
         '--sub', '_esc_attr', '--tree', $A );
     is( $rc, 1, 'the wrong return value: DIFFERENT' );
+
+    # --lines: the same block as a range, and with its middle line left out.
+    my @rest = ( '--params', '$v', '--returns', '$v', '--sub', '_esc_attr', '--tree', $A );
+    ( $rc, $out ) = run_tool( 'deparse-block.pl', '--old', $args[1], '--lines', "$from-$to", @rest );
+    is( $rc, 0, '--lines FROM-TO is --from/--to: SAME' ) or diag($out);
+    ( $rc, $out ) = run_tool( 'deparse-block.pl', '--old', $args[1], '--lines', "$from,$to", @rest );
+    is( $rc, 1, '--lines with a gap leaves the gap out: DIFFERENT' );
 };
 
 done_testing();
