@@ -3,7 +3,8 @@ package LazysiteTest::OdooOps::Basket;
 # Test pack (SM747): a visitor's basket, read by the key the server minted.
 use strict;
 use warnings;
-use parent 'Odoo::Ops::Operation';
+use parent -norequire, 'Odoo::Ops::Operation';
+BEGIN { eval { require Odoo::Ops::Operation; 1 } }    # absent: the file still compiles
 
 sub op_name    { 'shop.basket' }
 sub summary    { 'The lines in one basket' }

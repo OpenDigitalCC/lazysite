@@ -4,7 +4,8 @@ package LazysiteTest::OdooOps::Products;
 # parameter. Fake model names: this is fixture, in the shape an OOM pack takes.
 use strict;
 use warnings;
-use parent 'Odoo::Ops::Operation';
+use parent -norequire, 'Odoo::Ops::Operation';
+BEGIN { eval { require Odoo::Ops::Operation; 1 } }    # absent: the file still compiles
 
 sub op_name    { 'shop.products' }
 sub summary    { 'The products on sale' }

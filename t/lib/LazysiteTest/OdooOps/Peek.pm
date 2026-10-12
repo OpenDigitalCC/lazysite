@@ -5,7 +5,8 @@ package LazysiteTest::OdooOps::Peek;
 # before it leaves, and the engine must say so as `scope-refused`.
 use strict;
 use warnings;
-use parent 'Odoo::Ops::Operation';
+use parent -norequire, 'Odoo::Ops::Operation';
+BEGIN { eval { require Odoo::Ops::Operation; 1 } }    # absent: the file still compiles
 
 sub op_name    { 'shop.peek' }
 sub summary    { 'Declares products, reads baskets' }
