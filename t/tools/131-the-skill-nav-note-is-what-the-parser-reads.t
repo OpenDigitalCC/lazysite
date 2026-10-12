@@ -10,10 +10,10 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir tempfile);
+use File::Temp qw(tempfile);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root load_processor setup_minimal_site);
+use TestHelper qw(repo_root load_processor setup_minimal_site site_tempdir);
 
 my $doc = repo_root() . '/skills/claude-ai/lazysite/reference/site-context.md';
 plan skip_all => "no $doc" unless -f $doc;
@@ -24,7 +24,7 @@ my $text = do {
     <$fh>;
 };
 
-my $docroot = tempdir( CLEANUP => 1 );
+my $docroot = site_tempdir();
 setup_minimal_site($docroot);
 load_processor($docroot);
 

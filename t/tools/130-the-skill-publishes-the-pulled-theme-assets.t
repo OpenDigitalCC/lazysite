@@ -11,11 +11,11 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
+use File::Temp ();
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root site_tempdir);
 
 my $root  = repo_root();
 my $skill = "$root/skills/claude-ai/lazysite";
@@ -39,7 +39,7 @@ sub slurp {
 # read_file returned it, and a reconstructed conf naming layout and theme.
 sub pulled_site {
     my (%o) = @_;
-    my $s  = tempdir( CLEANUP => 1 );
+    my $s  = site_tempdir();
     my $ld = "$s/lazysite/layouts/demo";
     make_path("$ld/themes/plain/assets", "$ld/themes/spare/assets", "$ld/components");
     spew( "$s/lazysite/lazysite.conf", "site_name: Demo\nlayout: demo\ntheme: plain\n" );
@@ -96,7 +96,7 @@ subtest 'a theme with nothing to mirror is a failure, with the reason' => sub {
 };
 
 subtest 'no layout named is a usage problem, not a verdict' => sub {
-    my $s = tempdir( CLEANUP => 1 );
+    my $s = site_tempdir();
     make_path("$s/lazysite");
     spew( "$s/lazysite/lazysite.conf", "site_name: Starter\n" );
     my ( $rc, $out ) = run_mirror($s);
