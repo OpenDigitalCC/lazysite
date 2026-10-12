@@ -2,8 +2,11 @@
 # setup.sh - install the bundled lazysite engine and make a local site.
 #
 # SM887. Runs in the claude.ai container: Ubuntu 24.04, root, no inbound
-# network, filesystem reset between conversations, and THIS FOLDER IS MOUNTED
-# READ-ONLY - so nothing here writes beside itself. Everything it creates goes
+# network, filesystem reset between conversations. THIS FOLDER MAY BE READ-ONLY
+# OR WRITABLE, depending on the container: the claude.ai chat sandbox was
+# briefed as mounting skills read-only, and a Claude Code cloud container
+# (measured 2026-10-12) mounted this skill writable. The scripts work either
+# way because none of them writes beside itself: everything they create goes
 # under $LAZYSITE_HOME (default /root/lazysite-local).
 #
 # NOTHING IS FETCHED FROM ANY HOST THIS PROJECT OWNS. The .deb ships inside the
@@ -73,7 +76,8 @@ fi
 # fetched, and the answer is inspected. "Installed successfully" without a
 # render is the claim this whole skill exists to stop making.
 # `sh serve.sh`, never `./serve.sh`: a zip does not reliably carry the execute
-# bit and the skill mount is read-only, so chmod is not available as a repair.
+# bit and the skill mount may be read-only, so chmod cannot be relied on as a
+# repair.
 # The cold run failed here first with "Permission denied", which reads as a
 # sandbox problem rather than a missing file mode.
 if ! sh "$SKILL_DIR/serve.sh" start >"$LAZYSITE_HOME/serve-start.out" 2>&1; then

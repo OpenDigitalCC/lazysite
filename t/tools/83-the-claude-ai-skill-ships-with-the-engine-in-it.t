@@ -73,6 +73,27 @@ subtest 'setup.sh installs the bundled deb, and says what it installed' => sub {
         'the version is printed - an editor on an old skill can see it' );
 };
 
+subtest 'no shipped script writes beside itself' => sub {
+    # The skill folder MAY be read-only (the claude.ai chat sandbox, as
+    # briefed) or writable (a Claude Code cloud container, measured
+    # 2026-10-12). The scripts work in both only because nothing they do
+    # writes into it - so that is the property held, not the mount.
+    my @bad;
+    for my $f (qw(setup.sh serve.sh)) {
+        my $src = slurp("$skill/$f");
+        for my $line ( split /\n/, $src ) {
+            next if $line =~ /^\s*#/;
+            push @bad, "$f: $line"
+                if $line =~ />>?\s*"?\$SKILL_DIR/
+                || $line =~ /\b(?:mkdir|touch|chmod|rm)\b[^#]*\$SKILL_DIR/;
+        }
+    }
+    is_deeply( \@bad, [], 'nothing is written into $SKILL_DIR' )
+        or diag( join( "\n", @bad ) );
+    unlike( slurp("$skill/setup.sh"), qr/IS MOUNTED\s+#?\s*READ-ONLY/,
+        'and setup.sh no longer claims the mount IS read-only' );
+};
+
 subtest 'no shipped script depends on curl' => sub {
     # FOUND BY RUNNING IT: ubuntu:24.04 has no curl. Every probe that reached
     # for it failed in a container the editor cannot inspect, reporting
