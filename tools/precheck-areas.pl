@@ -38,8 +38,11 @@ my @MAP = (
     [ 'lazysite-dav.pl'    => qw(t/unit/dav/ integration:lazysite-dav) ],
     [ 'lazysite-mcp.pl'    => qw(t/unit/mcp/ integration:lazysite-mcp) ],
     [ 'lazysite-front.pl'  => qw(integration:lazysite-front) ],
-    [ 'lib/Lazysite/Daemon/'    => qw(t/unit/daemon/) ],
-    [ 'lib/Lazysite/Odoo/'      => qw(t/unit/odoo/) ],
+    [ 'lib/Lazysite/Daemon/' => qw(t/unit/daemon/) ],
+    [ 'lib/Lazysite/Odoo/'   => qw(t/unit/odoo/) ],
+    # SM747: the engine file beside that directory, and the page endpoint.
+    [ 'lib/Lazysite/Odoo.pm' => qw(t/unit/odoo/ integration:lazysite-odoo integration:OdooTest) ],
+    [ 'lazysite-odoo.pl'        => qw(t/unit/odoo/ integration:lazysite-odoo) ],
     [ 'lib/Lazysite/Plugins/'   => qw(t/unit/plugins/ t/unit/odoo/) ],
     [ 'lib/Lazysite/'           => qw(t/unit/lib/) ],
     [ 'plugins/'                => qw(t/unit/plugins/) ],
