@@ -70,6 +70,7 @@ subtest 'every *_refusal rule in Common is in the table - a new rule is a decisi
         page_read_refusal => 'the answer of an MCP single-page READ for a page that is not UTF-8 (SM976 Q15j), held by t/unit/mcp/31, and of the structured nav read and a restore of a recorded version that is not UTF-8 (Q15k: Nav::action_nav_read, Files::action_git_restore, held by t/integration/121) - the restore is the one text write whose bytes come from history rather than a caller; not a write rule',
         handler_reach_refusal => 'the refusal of a handler write by a domain-confined caller (SM1051): the domain rule applied to the domain: a handler carries, asked by handler-save and handler-delete and their MCP twins, not a content rule',
         handler_bind_refusal => 'the refusal of a form binding to a handler of another domain (SM1051), asked by form-targets-save and bind_form, not a content rule',
+        text_save_refusal => 'the TEXT-save half of the Q15h rule (SM1031): asked at the choke point (Files::_content_write_refusal) of every text door; the WebDAV stack writes only raw bytes, which page_bytes_refusal above judges, held by t/unit/mcp/50',
     );
     my @unaccounted = grep { !$RULES{$_} && !$EXEMPT{$_} } @defined;
     is_deeply( \@unaccounted, [],
