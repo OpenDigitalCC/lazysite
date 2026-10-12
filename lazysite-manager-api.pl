@@ -738,13 +738,12 @@ if ( !$token_auth ) {
     # messaging), so they are not listed here.
     #
     # Content-mutation actions (save/delete/mkdir/move/copy/file-upload/
-    # migrate-to-local) and acl-get/set/remove self-authorize per file via
-    # the ACL layer (action_save -> _acl_can_write; action_acl_* by
-    # ownership): a file owner or @group-listed writer need not hold the
-    # global manage_content cap. They are absent from the token %need map
-    # for the same reason (token clients write over WebDAV). So they are NOT
-    # capability-gated here - only POST-gated below (CSRF). Content-history
-    # reads/restore ARE gated (they mirror the token %need manage_content).
+    # migrate-to-local, and the edit locks) carry no `cookie_cap`: SM1057
+    # (ruled 2026-10-12, "Require manage_content") gates them below on
+    # manage_content for a content path, and the file's rule still decides on
+    # top. acl-get/set/remove authorise by ownership. They are absent from the
+    # token %need map (token clients write over WebDAV). Content-history
+    # reads/restore are gated (they mirror the token %need manage_content).
     #
     # SM943: each entry is `cookie_cap` on the action in
     # Lazysite::ControlApi::Actions, with the reason that stood beside it here.
@@ -764,6 +763,8 @@ if ( !$token_auth ) {
     # SM958: actions that decide for themselves on this channel, and why.
     # SM943: `cookie_gates_itself` on the action in Lazysite::ControlApi::Actions.
     my %COOKIE_GATES_ITSELF = Lazysite::ControlApi::Actions::cookie_gates_itself();
+    # SM1057: the content writes, which need manage_content on this channel.
+    my %CONTENT_WRITE = Lazysite::ControlApi::Actions::content_writes();
     if ( !_operator() ) {
         my $caps = _user_caps($auth_user);
 
@@ -792,6 +793,32 @@ if ( !$token_auth ) {
                         . 'so the manager API does nothing for it. An administrator can grant '
                         . 'it on the Groups page.' },
                 'ui', 'denied: manager channel capability' );
+        }
+
+        # SM1057, ruled 2026-10-12 "Require manage_content": A CONTENT WRITE NEEDS
+        # manage_content HERE, AS IT DOES OVER WebDAV AND MCP. These actions carry
+        # no capability of their own on this channel - they self-authorised against
+        # the file's rule, which admits every writer to a path no rule governs - so
+        # an account holding `ui` alone overwrote any unruled page. The rule still
+        # applies on top (the action asks it). The engine's own tree keeps the
+        # capabilities that govern it - nav.conf's manage_nav, the layouts' - as
+        # WebDAV's content namespace does; a `ui`-only account is read-only.
+        if ( $CONTENT_WRITE{$action} ) {
+            my @content = grep { defined && !m{\A/*lazysite(?:/|\z)} } ( $path, $params{to} );
+            if (
+                @content
+                && !(
+                    $caps->{manage_content}
+                    || Lazysite::Auth::Settings::groups_grant_cap( 'manage_content', grep { length } split /[,\s]+/,
+                        ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) ) )
+                )
+            {
+                _refuse(
+                    { ok => 0, kind => 'forbidden',
+                        error => "Writing site content requires the 'manage_content' permission. "
+                            . 'An administrator can grant it on the Groups page.' },
+                    'ui', 'denied: content write capability', $content[0] );
+            }
         }
 
         # Capability gate (H1): the escalation-sensitive actions need their cap.

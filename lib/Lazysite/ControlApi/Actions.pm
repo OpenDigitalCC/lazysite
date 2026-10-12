@@ -347,6 +347,9 @@ our %GATE = (
 #   cookie_gates_itself => why the action decides for itself on the cookie
 #                              channel (%COOKIE_GATES_ITSELF)
 #   cookie_only_reason => why a token client may not call it (%COOKIE_ONLY_REASON)
+#   content_write => 1         SM1057 (ruled "Require manage_content"): writes site
+#                              content by path, so the cookie channel asks
+#                              manage_content before the file's rule (%CONTENT_WRITE)
 #   mcp => 'tool_name'         SM943 stage 2: the action's MCP twin - the tool that
 #                              does the same thing through the other door. The
 #                              twin's readOnly, destructive and changesAccess hints
@@ -431,7 +434,7 @@ our %ACTION = (
     'channel-services' => { params => [] },
     'config-read'      => { cookie_cap => 'manage_config', params => [] },
     'config-set' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'key', in => 'query_or_body', required => 1 }, { name => 'value', in => 'query_or_body' } ] },
-    'copy' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
+    'copy' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
     'csrf-token' => { params => [] },
 
     # SM447: the data tables. EXTRACTED from the dispatch chain, like every
@@ -501,7 +504,7 @@ our %ACTION = (
     'data-safety-export-read' => { mcp => 'read_data_safety_export', cookie_cap => 'manage_data', params => [ { name => 'file', in => 'query' } ] },
     # [mcp] restore_data_safety_export: writes rows into a live table
     'data-safety-export-restore' => { mcp => 'restore_data_safety_export', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'file', in => 'query_or_body' }, { name => 'apply', in => 'query_or_body' } ] },
-    'delete' => { mutates => 1, destructive => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
+    'delete' => { mutates => 1, content_write => 1, destructive => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'describe-capabilities' => { params => [] },
 
     # SM778: resolve logins the caller ALREADY HOLDS to display names. No
@@ -552,7 +555,7 @@ our %ACTION = (
     # upload onto lazysite/nav.conf without manage_nav, and into the form
     # submission store, which are the exact bypasses SM268 H4 closed on
     # every other verb.
-    'file-upload' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
+    'file-upload' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'file-zip-download' => { audited => 1, scoped => 1, file_surface => 'read', params => [] },
     # SM652: read_submissions ONLY, on both channels - form-list returns
     # row_count, which is a read of submission EXISTENCE.
@@ -713,10 +716,10 @@ our %ACTION = (
     'layouts-repo-get'         => { params => [] },
     'layouts-repo-set' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [ { name => 'value', in => 'body' } ] },
     'list' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' } ] },
-    'lock' => { mutates => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
-    'migrate-to-local' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
-    'mkdir' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
-    'move' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
+    'lock' => { mutates => 1, content_write => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
+    'migrate-to-local' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
+    'mkdir' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
+    'move' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
     'nav-read' => { mcp => 'read_nav', params => [ { name => 'host', in => 'query' } ] }, # SM568
     'nav-save' => { mcp => 'set_nav', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_nav', params => [ { name => 'items', in => 'body' }, { name => 'host', in => 'query_or_body' } ] },
     # [mcp] SM918: the notice bell, read by both doors through one reader
@@ -771,9 +774,9 @@ our %ACTION = (
     # add one when someone asks for it". A live site asked, having taken its own
     # sitemap.xml down by deleting the generated file for want of this.
     'regenerate-registries' => { mcp => 'regenerate_registries', mcp_open_world => 1, mutates => 1, audited => 0, params => [] },
-    'renew-lock' => { mutates => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
+    'renew-lock' => { mutates => 1, content_write => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'rotate-auth-secret' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', cookie_only_reason => 'rotating the signing secret invalidates every live session, including the caller\'s own, so it is done by a human who can see what breaks', params => [] },
-    'save' => { mutates => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'content', in => 'body' }, { name => 'mtime', in => 'body' } ] },
+    'save' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'content', in => 'body' }, { name => 'mtime', in => 'body' } ] },
     'session-revoke' => { mutates => 1, params => [] },
     'sessions-list'     => { params => [] },
 # [destructive] SM572 follow-through: site-backup-apply REPLACES the live content tree with
@@ -805,7 +808,7 @@ our %ACTION = (
     'theme-upload' => { mutates => 1, cookie_cap => 'manage_themes', params => [ { name => 'filename', in => 'query' } ] },
     'themes-for-layout' => { params => [ { name => 'layout', in => 'query' } ] },
     'themes-list-all'   => { mcp    => 'list_themes', params => [] },
-    'unlock' => { mutates => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
+    'unlock' => { mutates => 1, content_write => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'user-revoke' => { mutates => 1, params => [] },
     # [cookie_cap] SEC-2026-07 (C1): the account-management action requires a user-mgmt
     # capability to be reached at all - a content-only account could
@@ -931,7 +934,7 @@ sub need_caps {
 my %FIELD = map { $_ => 1 } qw(
     params caps mutates destructive changes_access audited scoped file_surface
     cookie_cap cookie_gates_itself cookie_only_reason mcp mcp_open_world
-    instance_wide
+    instance_wide content_write
 );
 for my $name ( sort keys %ACTION ) {
     my $spec = $ACTION{$name};
@@ -983,6 +986,7 @@ sub file_surface        { return _valued('file_surface') }
 sub cookie_caps         { return _valued('cookie_cap') }
 sub cookie_gates_itself { return _valued('cookie_gates_itself') }
 sub cookie_only_reasons { return _valued('cookie_only_reason') }
+sub content_writes      { return _flagged('content_write') }
 
 # Audited by default exactly when it mutates; `audited` states the exceptions.
 sub audited {
