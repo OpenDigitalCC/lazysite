@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM979's report, left there for a ruling (manage_users passing the manager's capability gates, config-set measured 200)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-12, Operators bypass, others bound. The operator is a member of the group carrying the manager flag (setup-sysop's sysops); it passes every gate and file rule. manage_users is user and group management only, and cannot change the operator's account or group, nor revoke the operator's sessions or access keys (ruled 2026-10-12, Yes, protect operator sessions too). t/integration/128, 131."
+status-note: "SHIPPED (PENDING): ruled 2026-10-12. The operator is a member of the group carrying the manager flag (setup-sysop's sysops) and passes every gate and file rule. manage_users is user and group management; it cannot change the operator's account or group, or revoke its sessions or access keys. t/integration/128, 131."
 ---
 
 # What was wrong
