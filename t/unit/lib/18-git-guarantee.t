@@ -128,6 +128,10 @@ my %EXEMPT = (
     'Domains::domain_add_alias' =>
         'commits via its pass through domain_add (asserted behaviourally in '
         . 't/unit/manager/191-a-host-can-be-an-alias-of-another.t)',
+    # SM1015: writes the edited list through domain_set, which IS hooked; its
+    # own body writes no conf (asserted in t/tools/120).
+    'Domains::domain_access_edit' =>
+        'commits via its pass through domain_set (t/tools/120-the-domains-cli-adds-one-group.t)',
     'Domains::domain_check'   => 'read-only - probes DNS/TLS and reports; writes nothing',
     'Domains::domain_preview' => 'read-only - renders a host as a visitor would see it',
     'Domains::domain_usage' => 'read-only - inverts the conf into a layout/theme usage map',
