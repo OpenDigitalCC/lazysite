@@ -877,7 +877,7 @@ sub delete_row {
 # `[% total.0.n %]` to show a count has been given the query engine's internal
 # shape instead of an answer.
 sub resolve_binding {
-    my ( $docroot, $spec, $as ) = @_;
+    my ( $docroot, $spec, $as, %opt_in ) = @_;
     require Lazysite::Data::Query;
 
     # The table name has to come out before the descriptor can be loaded, so
@@ -890,13 +890,48 @@ sub resolve_binding {
     my $d = load_table( $docroot, $shape->{table} );
     return $d unless $d->{ok};
 
+    # P17 (WORK-PLAN-0154, ruled 2026-10-12 "Allow own rows"): `(mine)` returns
+    # only the rows whose created_by is the signed-in viewer EVEN WHEN THE
+    # TABLE'S READ RULE EXCLUDES THEM - so a member can be shown their own rows
+    # of a table no member may list. Three conditions, all required, and
+    # anything short of them is the refusal it always was:
+    #
+    #   * the caller opted in (`mine_reads_own => 1`). Only the processor does,
+    #     for a page's own (mine) binding, which it renders per viewer and never
+    #     caches (SM857). The data endpoint and every listing do not, so they
+    #     still follow the rule (the ruling's words).
+    #   * the binding is (mine). The shape parse says so before the descriptor
+    #     is consulted; the descriptor parse below must agree, and refuses a
+    #     table with no created_by (mine_needs_timestamps) and a literal owner
+    #     beside (mine).
+    #   * there is a signed-in viewer. Anonymous gets nothing: the same
+    #     no_such_table it always got for a table it may not read.
+    #
+    # WHAT CANNOT LEAK. The rows are read with `created_by = <viewer>` ANDed
+    # into every query below - the list, `_total`, `.count` and `.field` - and
+    # it is written last, so no filter in the binding can replace it (Query
+    # refuses one beside (mine) in any case). Another viewer's rows, the
+    # table's total, its count and any one of its rows by key are each answered
+    # over the viewer's own rows only.
     require Lazysite::Data::Access;
-    return _err( "no table '$shape->{table}' is declared",
-        table => $shape->{table}, kind => 'no_such_table' )
-        unless Lazysite::Data::Access::may_read( $docroot, $d, $as );
+    my $own_only = 0;
+    unless ( Lazysite::Data::Access::may_read( $docroot, $d, $as ) ) {
+        $own_only = ( $opt_in{mine_reads_own}
+                && $shape->{mine}
+                && ref $as eq 'HASH'
+                && length( $as->{user} // '' ) ) ? 1 : 0;
+        return _err( "no table '$shape->{table}' is declared",
+            table => $shape->{table}, kind => 'no_such_table' )
+            unless $own_only;
+    }
 
     my $q = Lazysite::Data::Query::parse_binding( $spec, $d );
     return $q unless $q->{ok};
+    # P17: the descriptor parse decides the binding too - an own-rows read is
+    # only ever a (mine) read, whatever the shape parse thought.
+    return _err( "no table '$shape->{table}' is declared",
+        table => $shape->{table}, kind => 'no_such_table' )
+        if $own_only && !$q->{mine};
 
     # DAO-1: no `as` here any more. It said 'operator' only to satisfy
     # read_rows' SM476 die, and may_read answers 'sysop' by short-circuit,

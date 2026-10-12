@@ -692,8 +692,15 @@ called `mine`, and a literal `created_by=` beside `mine` is refused.
   -- a site-wide variable, an error page -- is refused and logged, because that
   render could be shared.
 
-The table's own read rules still apply first: a table the viewer may not read
-renders nothing to them, `(mine)` or not.
+- **A viewer's own rows, even of a table they may not read.** A `(mine)`
+  binding in a page shows a signed-in viewer the rows whose `created_by` is
+  theirs even when the table's read rule (`public:`, its access list) excludes
+  them - so a member can see their own entries in a table no member may list.
+  Only their rows: the count, the total and a row by its key are all counted
+  over their own rows. Anything else on such a table still follows the rule:
+  a binding without `(mine)` renders nothing to them, an anonymous viewer gets
+  nothing, and the data endpoint, the manager, the API and MCP answer as
+  before.
 
 ### Who may write
 

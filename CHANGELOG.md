@@ -292,6 +292,15 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM1003 (PENDING) **`(mine)` shows a viewer their own rows of a table they may
+  not otherwise read.** A member could be shown their own follow list only if
+  members could read the table, which let every member read every row. A
+  `(mine)` binding in a page now returns the rows whose `created_by` is the
+  signed-in viewer even when the table's read rule excludes them - only those
+  rows: its count, total and a row by key are counted over them alone. A
+  binding without `(mine)`, an anonymous viewer, the data endpoint, the
+  manager, the API and MCP still follow the table's rule. t/unit/data/71.
+
 - SM1002 (PENDING) **a site can allow its own external hosts in the CSP.** A
   site embedding one legitimate external script (a banner whose script then
   fetches from its host) had no setting to permit it under `csp: enforce`.

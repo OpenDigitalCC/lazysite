@@ -447,7 +447,11 @@ sub resolve_db {
                 grep { length }
                     split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' )
             ],
-        }
+        },
+        # P17 (ruled 2026-10-12, "Allow own rows"): a (mine) binding reads the
+        # viewer's own rows of a table its read rule excludes - only into a
+        # render nobody else is served (SM857's per-viewer mark, below).
+        ( $RENDER_QUERY{_protected} ? ( mine_reads_own => 1 ) : () ),
     );
 
     # SNAPSHOT IS THE DEFAULT, AND THAT IS A CORRECTION.
