@@ -93,7 +93,17 @@ cli command to add the domain group."
 - C1 SM911 - needs live scope state on edge; a request to the sites agent.
 - D1-D4 - each waits on something outside this plan.
 - E4 SM947 - the toolchain's; brief filed.
-- SM747 (Odoo) - specified and sized; waits on a ruling.
+- SM747 (Odoo) - RULED 2026-10-12: "the extension can hold odoo specific data such
+  as a connection user, as well as a site user specifying their own ... wait for OOM
+  to gain the session transport ... Odoo field descriptors can share lazysite's
+  data-table rendering. All operations should also be mcp tools." Re-planned in the
+  filing (n470): A (M), CU - the connection user (L), R - shared rendering (S-M), E -
+  MCP, all operations (M), F1 (S) are unblocked, in that order; A + CU + R is the
+  first page capability. B, C, D wait on OOM's session transport. Building proceeds
+  against the OOM tree; shipping waits on the deb carrying the Ops layer. Both asks
+  filed to OOM's inbox 2026-10-12. Not in this queue: the build starts after review
+  of n470, on n471-n479. Open: Q1 (unattended apply), Q2 (MCP's own account), Q3
+  (where the type mapping lives).
 - The catalogue layouts' `| url_safe` - the layouts repository, not this one.
 - OP-46, OP-47 - host items on the operator list (edge's install user and web template).
 
