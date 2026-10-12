@@ -33,9 +33,11 @@ operator-only (instance_wide unchanged for them).
 - **Who may write it.** `Manager::Common::handler_reach_refusal`: for a
   domain-confined caller, the domain the record carries now and the one it will
   carry must each be one it reaches (`caller_may_reach_domain`); no domain is
-  the instance's and is refused, so a confined caller cannot create an instance
-  handler, take an instance handler or another domain's into its own, or turn
-  its own into an instance handler. Unconfined callers are not asked. The
+  the instance's and is refused exactly as `instance_wide` refused it - to a
+  caller confined to some domains (`caller_is_confined`; an unbound token,
+  which reaches the primary, keeps it) - so a confined caller cannot create an
+  instance handler, take an instance handler or another domain's into its own,
+  or turn its own into an instance handler. Unconfined callers are not asked. The
   destination capability (SM842) is unchanged and still applies.
 - **handler-save and handler-delete** are no longer `instance_wide`: the
   pre-dispatch refusal was the whole rule, and it could not tell a domain's

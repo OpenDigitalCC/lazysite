@@ -1312,6 +1312,10 @@ sub handler_reach_refusal {
         next unless exists $a{$which};
         my $dom = lc( $a{$which} // '' );
         if ( !length $dom ) {
+            # The instance's handler: refused exactly as instance_wide refused
+            # it - to a caller confined to some domains (caller_is_confined), so
+            # an unbound token, which reaches the primary, is unaffected.
+            next unless caller_is_confined(%by);
             return { ok => 0, kind => 'forbidden', domains => \@mine,
                 error => ( $which eq 'old' ? 'This handler has no domain: it is the instance\'s' : 'A handler with no domain is the instance\'s' )
                     . ', and a domain-confined caller creates, changes and deletes only handlers '
