@@ -291,6 +291,13 @@ Changing a handler's type needs both. **Binding** a form to a handler that
 already exists needs `manage_forms` alone - the vetting happened when the
 handler was made. A refusal names the capability that would work.
 
+**A handler may belong to one domain** (SM1051): give it `domain:` with the
+host as `list_domains` names it. A partner whose grant is confined to some
+domains creates, changes and deletes only handlers of its own domains, is shown
+the instance's handlers and its own domains', and binds its forms to either. A
+handler with no `domain:` is the instance's: only an unconfined manager (the
+operator) creates, changes or deletes one.
+
 ### Handler types
 
 `smtp`

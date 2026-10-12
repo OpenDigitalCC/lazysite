@@ -292,7 +292,9 @@ ok( !asks_in( with_callees( $BRANCH{'page-pdf'} // '' ) ),
     'and is not counted as asking the domain rule by a word that is not a call' );
 ok( !grep( { !$MUT{$_} || $NOT_INSTANCE_WIDE{$_} } keys %IW ),
     'every instance-wide action mutates and is not also excepted' );
-cmp_ok( scalar( keys %IW ), '>=', 28, 'and the closed list is the size it should be' );
+# SM1051: handler-save and handler-delete left the list (a handler may carry
+# domain:, and the branch asks the domain rule), so 26 from 28.
+cmp_ok( scalar( keys %IW ), '>=', 26, 'and the closed list is the size it should be' );
 
 # The gates. The control API refuses before its dispatch chain, reading the
 # declaration; MCP refuses the twins, unless a twin taking a host was given one.

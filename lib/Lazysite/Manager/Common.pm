@@ -31,6 +31,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _em
     page_form page_form_names page_form_or_none text_as_processor_reads form_bind_refusal form_bind_tree_refusal
     page_bytes_refusal invalid_utf8_offset
     caller_may_reach_table caller_may_reach_brief brief_reach_refusal
+    handler_reach_refusal caller_may_use_handler handler_bind_refusal
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
     active_artifact_refusal refusal_detail refusal_status
@@ -1289,6 +1290,74 @@ sub brief_reach_refusal {
         error => "You cannot reach $what. A domain-confined caller reaches only the briefs of "
             . 'pages inside its scope, and of rows of the tables its domains hold'
             . ( @mine ? ' (' . join( ', ', @mine ) . ').' : '.' ) };
+}
+
+# SM1051 (inbox 2026-10-12, P-4), ruled 2026-10-12, "Domain-scoped handlers": A
+# HANDLER MAY CARRY `domain:`, AND THEN IT IS THAT DOMAIN'S. A domain-confined
+# caller creates, changes and deletes only handlers bound to domains it reaches
+# (caller_may_reach_domain); a handler with no domain is the instance's, and
+# stays out of a confined caller's reach as it was (SM976 R1). An unconfined
+# caller is not asked.
+#
+# %a: new => the domain the record will carry ('' for none), when saving;
+# old => the domain the record carries now ('' for none), when it exists; and
+# the caller's reach (scopes => [...] for an MCP grant, nothing on the manager
+# request). Returns the refusal, or undef.
+sub handler_reach_refusal {
+    my (%a) = @_;
+    my %by = _who(%a);
+    return undef unless _confined_who(%by);
+    my @mine = reachable_domains(%by);
+    for my $which (qw(old new)) {
+        next unless exists $a{$which};
+        my $dom = lc( $a{$which} // '' );
+        if ( !length $dom ) {
+            return { ok => 0, kind => 'forbidden', domains => \@mine,
+                error => ( $which eq 'old' ? 'This handler has no domain: it is the instance\'s' : 'A handler with no domain is the instance\'s' )
+                    . ', and a domain-confined caller creates, changes and deletes only handlers '
+                    . 'bound to its own domains. Give it domain: one of yours'
+                    . ( @mine ? ' (' . join( ', ', @mine ) . ').' : '.' ) };
+        }
+        next if caller_may_reach_domain( %by, host => $dom );
+        return { ok => 0, kind => 'forbidden', domains => \@mine,
+            error => "You cannot reach the domain '$dom', so not its handlers. A domain-confined "
+                . 'caller works with the handlers of its own domains'
+                . ( @mine ? ' (' . join( ', ', @mine ) . ').' : '.' ) };
+    }
+    return undef;
+}
+
+# SM1051: may this caller see, or bind a form to, this handler? An instance
+# handler (no domain) is readable by every caller that may list handlers; a
+# domain's handler by an unconfined caller and by one that reaches the domain.
+sub caller_may_use_handler {
+    my ( $h, %who ) = @_;
+    my $dom = ref $h eq 'HASH' ? lc( $h->{domain} // '' ) : '';
+    return 1 unless length $dom;
+    my %by = _who(%who);
+    return 1 unless _confined_who(%by);
+    return caller_may_reach_domain( %by, host => $dom ) ? 1 : 0;
+}
+
+# SM1051: a form's targets name only handlers this caller may use. The refusal,
+# or undef. Handlers that do not exist are the binding's own business
+# (action_form_targets_save names them).
+sub handler_bind_refusal {
+    my ( $ids, %who ) = @_;
+    return undef unless ref $ids eq 'ARRAY';
+    require Lazysite::Handlers;
+    my $all = Lazysite::Handlers::read_handlers() || [];
+    for my $t (@$ids) {
+        my $id = ref $t eq 'HASH' ? $t->{handler} : $t;
+        next unless defined $id && !ref $id;
+        my $h = Lazysite::Handlers::find_handler( $all, $id ) or next;
+        next if caller_may_use_handler( $h, %who );
+        return { ok => 0, kind => 'forbidden', field => 'handlers',
+            error => "The handler '$id' belongs to the domain '" . lc( $h->{domain} )
+                . "', which you do not reach. A form uses its own domain's handlers, or the "
+                . "instance's." };
+    }
+    return undef;
 }
 
 # The carve-outs from the whole-lazysite/ denial, named ONCE. is_blocked_path

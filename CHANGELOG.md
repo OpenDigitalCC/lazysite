@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1051 (PENDING) **a handler may belong to a domain.** A handler carries
+  `domain:`, and a partner confined to that domain creates, changes and deletes
+  it, sees it in `handler-list`, and binds its forms to it or to an instance
+  handler. A handler with no domain is the instance's and stays out of a
+  confined caller's reach; another domain's handlers are neither shown nor
+  bindable. t/integration/210.
+
 - SM1012 (PENDING) **internal: `render_content` is split at its seams.** The
   Template object for a content pass is built by `_tt_engine`; what the manager
   UI needs to know about the user (capabilities, scopes) comes from

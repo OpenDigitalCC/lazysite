@@ -159,8 +159,9 @@ my %CALL = (
     'connector-save' => [ { id => 'probe', connector => { type => 'http', url => 'https://example.invalid/' } } ],
     'connector-secret-set' => [ { id => 'probe', secret => 's' } ],
     'connector-delete'     => [ { id => 'probe' } ],
-    'handler-save' => [ { id => 'probe', type => 'file', name => 'Probe', path => 'lazysite/forms/submissions/probe' } ],
-    'handler-delete'  => [ { id => 'probe' } ],
+    # SM1051: handler-save and handler-delete left the list - a handler may carry
+    # domain:, and an instance handler (none) is refused to a confined caller in
+    # the branch: t/integration/210.
     'schedule-save'   => [ { id => 'probe', handler => 'probe', every => 300 } ],
     'schedule-delete' => [ { id => 'probe' } ],
     'briefs-migrate'  => [ {} ],
@@ -189,8 +190,6 @@ my %MCP = (
     activate_layout => { layout => 'spare' },
     install_layout  => { layout => 'x' },
     delete_layout   => { layout => 'gone' },
-    save_handler => { id => 'probe', type => 'file', name => 'Probe', path => 'lazysite/forms/submissions/probe' },
-    delete_handler  => { id => 'probe' },
     save_schedule   => { id => 'probe', handler => 'probe', every => 300 },
     delete_schedule => { id => 'probe' },
 );

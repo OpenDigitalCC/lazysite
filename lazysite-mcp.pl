@@ -1619,10 +1619,17 @@ my %TOOLS = (
         cap      => 'manage_forms',
         cap_also => [ 'manage_data', 'manage_connectors' ],
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { Lazysite::Handlers::action_handler_list() },
+        run => sub {
+            my $r = Lazysite::Handlers::action_handler_list();
+            # SM1051: the instance's handlers and the grant's own domains', no other.
+            $r->{handlers} = [ grep { Lazysite::Manager::Common::caller_may_use_handler( $_, _grant_reach( $_[2] ) ) }
+                    @{ $r->{handlers} } ]
+                if ref $r eq 'HASH' && ref $r->{handlers} eq 'ARRAY';
+            return $r;
+        },
     },
     save_handler => {
-        description => 'Create or replace a delivery handler by id. `type` is one of smtp (send email: from, to, subject_prefix, attach_files), file (save to a store: path), table (a row in a declared data table: table, fields as "form_field=column,...", keep_copy), or connector (send through a configured connector: connector). THE DESTINATION DECIDES: a table handler needs manage_data, a connector handler manage_connectors, smtp and file manage_forms - and changing a handler\'s type needs both. A field the type does not declare is refused by name. There is no webhook type: outbound HTTP goes through a connector.',
+        description => 'Create or replace a delivery handler by id. `type` is one of smtp (send email: from, to, subject_prefix, attach_files), file (save to a store: path), table (a row in a declared data table: table, fields as "form_field=column,...", keep_copy), or connector (send through a configured connector: connector). THE DESTINATION DECIDES: a table handler needs manage_data, a connector handler manage_connectors, smtp and file manage_forms - and changing a handler\'s type needs both. A field the type does not declare is refused by name. There is no webhook type: outbound HTTP goes through a connector. A `domain` (SM1051) binds the handler to one configured domain: a grant confined to some domains creates, changes and deletes only handlers of its own domains, and a handler with no domain is the instance\'s.',
         cap         => 'manage_forms',
         cap_also    => [ 'manage_data', 'manage_connectors' ],
         inputSchema => {
@@ -1631,7 +1638,16 @@ my %TOOLS = (
             required             => [ 'id', 'type', 'name' ],
             additionalProperties => JSON::PP::false,
         },
-        run => sub { Lazysite::Handlers::action_handler_save( $_[0], caps => $_[2] ) },
+        run => sub {
+            # SM1051 (P-4): a grant saves only its own domains' handlers.
+            my $old = Lazysite::Handlers::find_handler( Lazysite::Handlers::read_handlers() || [], $_[0]->{id} // '' );
+            if ( my $no = Lazysite::Manager::Common::handler_reach_refusal( _grant_reach( $_[2] ),
+                    new => ( $_[0]->{domain} // '' ), ( $old ? ( old => ( $old->{domain} // '' ) ) : () ) ) )
+            {
+                return $no;
+            }
+            return Lazysite::Handlers::action_handler_save( $_[0], caps => $_[2] );
+        },
     },
     delete_handler => {
         description => 'Delete a delivery handler. Refused while any form or schedule entry uses it (the answer names them) - unbind those first. Needs the capability of the handler\'s destination.',
@@ -1641,7 +1657,17 @@ my %TOOLS = (
         inputSchema => { type => 'object',
             properties => { id => { type => 'string', description => 'the handler id' } },
             required   => ['id'], additionalProperties => JSON::PP::false },
-        run => sub { Lazysite::Handlers::action_handler_delete( $_[0]->{id}, caps => $_[2] ) },
+        run => sub {
+            # SM1051 (P-4): a grant deletes only its own domains' handlers.
+            my $old = Lazysite::Handlers::find_handler( Lazysite::Handlers::read_handlers() || [], $_[0]->{id} // '' );
+            if ( $old
+                && ( my $no = Lazysite::Manager::Common::handler_reach_refusal( _grant_reach( $_[2] ),
+                        old => ( $old->{domain} // '' ) ) ) )
+            {
+                return $no;
+            }
+            return Lazysite::Handlers::action_handler_delete( $_[0]->{id}, caps => $_[2] );
+        },
     },
     list_schedule => {
         description => 'List the schedule: each entry names a handler, how often the timer calls it (every, in seconds) and the fixed fields it is called with (payload). Entries run as the daemon\'s job account, which must hold the capability of each handler\'s destination.',
@@ -1828,6 +1854,10 @@ my %TOOLS = (
             return { ok => 0, kind => 'invalid', field => 'handler',
                 error => 'handler is required - call list_handlers to see the configured ones' }
                 unless $ids;
+            # SM1051: a form uses its own domains' handlers, or the instance's.
+            if ( my $no = Lazysite::Manager::Common::handler_bind_refusal( $ids, _grant_reach( $_[2] ) ) ) {
+                return $no;
+            }
             return Lazysite::Handlers::action_form_targets_save( $a->{form}, $ids );
         },
     },
@@ -3204,6 +3234,7 @@ sub _handler_properties {
         type    => { type => 'string', enum        => [@Lazysite::Handlers::TYPE_ORDER] },
         name    => { type => 'string', description => 'a label for people' },
         enabled => { type => 'boolean' },
+        domain => { type => 'string', description => 'SM1051: the configured domain this handler belongs to; omit for an instance handler' },
     );
     for my $t (@Lazysite::Handlers::TYPE_ORDER) {
         for my $f ( @{ $Lazysite::Handlers::TYPES{$t}{schema} } ) {

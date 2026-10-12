@@ -135,7 +135,7 @@ tone: medium
 `groups-list` | manage_users |  
 `handler-delete` | manage_forms / manage_data / manage_connectors | id (body)
 `handler-list` | manage_forms / manage_data / manage_connectors |  
-`handler-save` | manage_forms / manage_data / manage_connectors | id (body), type (body), name (body), enabled (body)
+`handler-save` | manage_forms / manage_data / manage_connectors | id (body), type (body), name (body), enabled (body), domain (body)
 `key-revoke` | cookie only |  
 `keys-list` | cookie only |  
 `lang-status` | manage_content | group (query)

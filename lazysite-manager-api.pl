@@ -1990,7 +1990,15 @@ elsif ( $action eq 'nav-save' ) {
     $result = action_nav_save( $req->{items} // [],
         $params{host} // $req->{host} );
 }
-elsif ( $action eq 'handler-list' ) { $result = Lazysite::Handlers::action_handler_list() }
+elsif ( $action eq 'handler-list' ) {
+    $result = Lazysite::Handlers::action_handler_list();
+    # SM1051: a confined caller is shown the instance's handlers and its own
+    # domains' - not another domain's.
+    if ( ref $result eq 'HASH' && ref $result->{handlers} eq 'ARRAY' ) {
+        $result->{handlers}
+            = [ grep { Lazysite::Manager::Common::caller_may_use_handler($_) } @{ $result->{handlers} } ];
+    }
+}
 elsif ( $action eq 'schedule-list' ) { $result = Lazysite::Handlers::action_schedule_list() }
 elsif ( $action eq 'version' )       { $result = action_version() }
 elsif ( $action eq 'analyse_visitors' ) {
@@ -2073,12 +2081,17 @@ elsif ( $action eq 'handler-save' ) {
     # the handler contract checks - one it does not declare is refused by name.
     my $req = _json_body();
     $req    = {} unless ref $req eq 'HASH';
+    # SM1051 (P-4): a domain-confined caller saves only a handler of its own
+    # domains, and changes only one that already is.
+    _refuse_unreachable_handler( $req->{id}, new => $req->{domain} );
     $result = Lazysite::Handlers::action_handler_save(
-        { %$req, id => $req->{id}, type => $req->{type}, name => $req->{name}, enabled => $req->{enabled} },
+        { %$req, id => $req->{id}, type => $req->{type}, name => $req->{name}, enabled => $req->{enabled},
+            domain => $req->{domain} },
         _handler_who() );
 }
 elsif ( $action eq 'handler-delete' ) {
     my $req = _json_body();
+    _refuse_unreachable_handler( $req->{id} );    # SM1051
     $result = Lazysite::Handlers::action_handler_delete( $req->{id}, _handler_who() );
 }
 elsif ( $action eq 'schedule-save' ) {
@@ -2176,6 +2189,9 @@ elsif ( $action eq 'form-targets-save' ) {
     # manager has always sent them ({handler: id} each).
     my $req = _json_body();
     _refuse_unreachable_form( $req->{form} // $params{form} );    # SM976 F2
+    if ( my $no = Lazysite::Manager::Common::handler_bind_refusal( $req->{handlers} // $req->{targets} ) ) {
+        _refuse( $no, ( $token_auth ? 'api' : 'ui' ), 'denied: outside domain scope' ); # SM1051
+    }
     $result = Lazysite::Handlers::action_form_targets_save( $req->{form} // $params{form},
         $req->{handlers} // $req->{targets} );
 }
@@ -2613,6 +2629,22 @@ sub _refuse_beyond_account_requests {
                 . "forms' submissions requires the 'read_submissions' permission. An "
                 . 'administrator can grant it on the Groups page.' },
         'ui', 'denied: capability', ( $file // $form // '' ) );
+    return;
+}
+
+# SM1051 (P-4): refuse a handler write this caller may not make - a domain's
+# handler it does not reach, or an instance handler (no domain) for a confined
+# caller. The record as it stands is read for its domain; a store that cannot be
+# read counts as an instance handler, so a confined caller is refused and the
+# write itself names the unreadable store to everyone else.
+sub _refuse_unreachable_handler {
+    my ( $id, %new ) = @_;
+    my $all = Lazysite::Handlers::read_handlers();
+    my $old = ( defined $id && !ref $id && $all ) ? Lazysite::Handlers::find_handler( $all, $id ) : undef;
+    my %a = ( %new, ( $old ? ( old => $old->{domain} // '' ) : $all ? () : ( old => '' ) ) );
+    $a{new} //= '' if exists $a{new};
+    my $r = Lazysite::Manager::Common::handler_reach_refusal(%a) or return;
+    _refuse( $r, ( $token_auth ? 'api' : 'ui' ), 'denied: outside domain scope', $id // '' );
     return;
 }
 

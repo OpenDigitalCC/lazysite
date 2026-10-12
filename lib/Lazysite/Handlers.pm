@@ -825,7 +825,7 @@ sub validate_handler {
 
     my %declared = map { $_->{key} => $_ } @{ $def->{schema} };
     my @unknown  = sort grep {
-        !$declared{$_} && !/\A(?:id|type|name|enabled|csrf_token)\z/
+        !$declared{$_} && !/\A(?:id|type|name|enabled|domain|csrf_token)\z/
     } keys %$in;
     return ( undef,
         "a $type handler does not take: " . join( ', ', @unknown )
@@ -840,6 +840,20 @@ sub validate_handler {
         if $name =~ /[\r\n]/ || length $name > 80;
     $out{name}    = $name;
     $out{enabled} = _bool( $in->{enabled} // 'true' );
+
+    # SM1051 (P-4): `domain` binds the handler to one configured domain - its
+    # editors may create, change and delete it, and its forms bind it
+    # (Manager::Common::handler_reach_refusal). Absent or empty is an instance
+    # handler, as every handler was. A host, as list_domains names it.
+    my $dom = $in->{domain};
+    return ( undef, 'domain must be a single value', 'domain' ) if ref $dom;
+    if ( defined $dom && length $dom ) {
+        $dom = lc $dom;
+        return ( undef, "domain '$dom' is not a host name - give a domain as list_domains names it",
+            'domain' )
+            unless $dom =~ /\A [a-z0-9] [a-z0-9-]{0,62} (?: \. [a-z0-9] [a-z0-9-]{0,62} )* \z/x;
+        $out{domain} = $dom;
+    }
 
     for my $f ( @{ $def->{schema} } ) {
         my $k = $f->{key};
@@ -981,6 +995,23 @@ sub _bool { return ( defined $_[0] && $_[0] =~ /\A\s*(?:false|no|off|0)\s*\z/i )
 # that cannot be read is NOT a refusal: unvalidated is not invalid.
 sub _destination_problem {
     my ($h) = @_;
+    # SM1051: a handler's domain is one this instance serves, and not the
+    # primary (whose handlers are the instance's). A domain list that cannot be
+    # read is not a refusal, for the reason this sub states above.
+    if ( defined $h->{domain} && length $h->{domain} ) {
+        my $list = eval {
+            require Lazysite::Manager::Domains;
+            no warnings 'once';
+            local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+            Lazysite::Manager::Domains::domains_list();
+        };
+        if ( ref $list eq 'HASH' && $list->{ok} ) {
+            my @hosts = map { lc $_->{host} } grep { !$_->{is_primary} } @{ $list->{domains} || [] };
+            return "domain: '$h->{domain}' is not a configured domain - the configured domains are: "
+                . ( join( ', ', @hosts ) || 'none' )
+                unless grep { $_ eq $h->{domain} } @hosts;
+        }
+    }
     if ( $h->{type} eq 'table' ) {
         my $tables = _declared_tables();
         return "table: no table '$h->{table}' is declared - the declared tables are: "
