@@ -374,9 +374,22 @@ if [ "$1" = "--check" ]; then
     # $report is the one run above - it was run a second time here, another
     # ~12 minutes on this suite, and a second chance to die silently.
     fail=0
+    # P19 (WORK-PLAN-0154, ruled 2026-10-12): AND EVERY FILE THE CGIS WERE SPLIT
+    # INTO, each to its own floor. SM944 moved the processor into its parts
+    # (lazysite-processor/*.pm) and the manager's actions into
+    # lib/Lazysite/Manager/*.pm, and the gate went on naming the CGIs only - so
+    # most of the code it was written to hold had no floor at all. PER FILE,
+    # not one floor over a CGI's parts pooled: a pooled number lets a large
+    # well-tested part carry a small untested one (oembed.pm measured 34.6%
+    # beside render.pm's 97.1%), which is the hiding a floor exists to stop.
+    # The list is read from the tree, so a part added later is gated the day it
+    # lands. Each takes the floors above unless dist/config/coverage-floor
+    # names its own (`floor[FILE]=`, `branch_floor[FILE]=`) - set for the files
+    # measured below the general floors, at what they measured, to ratchet up.
+    PARTS=$(ls lazysite-processor/*.pm lib/Lazysite/Manager/*.pm 2>/dev/null)
     for f in lazysite-dav.pl lazysite-processor.pl lazysite-manager-api.pl \
              lazysite-auth.pl lazysite-mcp.pl lazysite-oauth.pl \
-             tools/lazysite-users.pl tools/lazysite-bundle-apply.pl; do
+             tools/lazysite-users.pl tools/lazysite-bundle-apply.pl $PARTS; do
         # Suffix match as well as exact: a test fixture may run a CGI from a
         # tempdir copy (e.g. the fake-repo fixture copies lazysite-auth.pl),
         # and cover then reports it under that ephemeral (often truncated)
@@ -402,17 +415,21 @@ if [ "$1" = "--check" ]; then
         # file, for a file whose subprocess measurement is documented as noisy.
         bfl=$(grep -F "branch_floor[$f]=" "$FLOOR_FILE" 2>/dev/null | grep -oE '[0-9]+$' | head -1)
         : "${bfl:=$branch_floor}"
+        # P19: and its own statement floor, `floor[FILE]=NN` - matched as the
+        # whole key, so branch_floor[FILE] is never read as it.
+        sfl=$(awk -F= -v k="floor[$f]" '$1 == k { print $2; exit }' "$FLOOR_FILE" 2>/dev/null | grep -oE '^[0-9]+' | head -1)
+        : "${sfl:=$floor}"
         st=ok
-        awk -v t="$pct" -v fl="$floor" 'BEGIN{ exit (t+0 >= fl+0) ? 0 : 1 }' || { st=BELOW; fail=1; }
+        awk -v t="$pct" -v fl="$sfl" 'BEGIN{ exit (t+0 >= fl+0) ? 0 : 1 }' || { st=BELOW; fail=1; }
         awk -v t="$brn" -v fl="$bfl" 'BEGIN{ exit (t+0 >= fl+0) ? 0 : 1 }' || { st=BELOW-BRANCH; fail=1; }
-        printf "  %-34s stmt %5s%%  bran %5s%%  (floors %s%%/%s%%)  %s\n" \
-            "$f" "$pct" "$brn" "$floor" "$bfl" "$st"
+        printf "  %-38s stmt %5s%%  bran %5s%%  (floors %s%%/%s%%)  %s\n" \
+            "$f" "$pct" "$brn" "$sfl" "$bfl" "$st"
     done
     if [ "$fail" = 1 ]; then
         echo "COVERAGE BELOW FLOOR" >&2
         exit 1
     fi
-    echo "coverage: all measured production CGIs at or above ${floor}% statements / ${branch_floor}% branches (target 75%)"
+    echo "coverage: all measured production CGIs and their parts at or above their floors (${floor}% statements / ${branch_floor}% branches unless named; target 75%)"
     # Record the pass against the digest of what produced it. Written only on a
     # PASS - a failed run must never license a skip. And never from REPORT_ONLY
     # (SM896): that path reports on a DB somebody pointed it at, which is not a

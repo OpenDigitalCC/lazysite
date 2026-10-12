@@ -292,6 +292,15 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- coverage-parts (PENDING) **the coverage gate holds every file the CGIs were
+  split into.** `tools/coverage.sh --check` named the eight CGIs only, so the
+  processor's parts and the manager modules SM944 moved out of the CGIs had no
+  floor. Each `lazysite-processor/*.pm` and `lib/Lazysite/Manager/*.pm` is now
+  checked against the floors on its own (read from the tree, so a new part is
+  gated when it lands), and `dist/config/coverage-floor` gains `floor[FILE]=`
+  beside `branch_floor[FILE]=`, used for the four files that measured below
+  75/62 at the last gate. t/tools/110.
+
 - SM1003 (PENDING) **`(mine)` shows a viewer their own rows of a table they may
   not otherwise read.** A member could be shown their own follow list only if
   members could read the table, which let every member read every row. A

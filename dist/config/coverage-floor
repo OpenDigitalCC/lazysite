@@ -80,3 +80,32 @@ branch_floor[lazysite-manager-api.pl]=60
 branch_floor[lazysite-auth.pl]=60
 branch_floor[lazysite-mcp.pl]=60
 target=75
+#
+# P19 (WORK-PLAN-0154, ruled 2026-10-12): EVERY FILE THE CGIS WERE SPLIT INTO.
+# coverage.sh --check now holds each lazysite-processor/*.pm part and each
+# lib/Lazysite/Manager/*.pm module to the floors above, file by file (the list
+# is read from the tree). PER FILE rather than pooled per former CGI, because a
+# pool lets a well-tested part carry an untested one - which is the hiding the
+# floor exists to stop. Measured at the last gate (main 41967751, 2026-10-11,
+# tmp/release-gate/0.15.5/coverage.txt), every part and module clears 75/62
+# except the four named below, held at what they measured (branches two points
+# under, for the documented subprocess-merge variance) so they cannot fall
+# further, and to ratchet up - never down:
+#
+#   lazysite-processor/oembed.pm        34.6 / 0.0   the oEmbed fetch is
+#                                                    reached by no test
+#   lazysite-processor/front-door.pm    80.1 / 52.0
+#   lib/Lazysite/Manager/Connectors.pm  31.3 / 16.9  most of it runs only
+#                                                    against a live connector
+#   lib/Lazysite/Manager/Config.pm      87.6 / 62.5  0.5 over 62: inside the
+#                                                    variance band, held at 60
+#                                                    as auth and mcp are
+#
+# NOT YET VERIFIED BY A GATE RUN: the floors were set from that report; the
+# coordinating session confirms them at the next gate of a tree carrying this.
+floor[lazysite-processor/oembed.pm]=34
+branch_floor[lazysite-processor/oembed.pm]=0
+branch_floor[lazysite-processor/front-door.pm]=50
+floor[lib/Lazysite/Manager/Connectors.pm]=31
+branch_floor[lib/Lazysite/Manager/Connectors.pm]=14
+branch_floor[lib/Lazysite/Manager/Config.pm]=60
