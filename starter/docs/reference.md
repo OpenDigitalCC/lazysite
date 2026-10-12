@@ -178,7 +178,13 @@ See [Configuration](/docs/configuration) for full details.
 `alias_host`
 : The active domain-alias host (e.g. `brand2.example`) when the request's
   Host header matches a declared `alias_hosts` entry; empty string on the
-  primary host. Useful for per-host branching or canonical links.
+  primary host. Useful for per-host branching.
+
+`canonical_url`
+: The `site_url` of the domain this host is an alias of (one serving the same
+  content folder, listed before it), or this host's own `site_url`. The engine's
+  canonical link and the registries use it; a layout that writes its own
+  canonical link should too.
 
 `layout_name`
 : Active layout name, as sanitised by the processor.

@@ -900,7 +900,8 @@ sub _inject_canonical {
     return $html unless $html =~ /<head[^>]*>/i;
     return $html if $html     =~ /rel=["']canonical["']/i;
 
-    my $base = $vars->{site_url};
+    # P14: an alias host's canonical is its canonical domain's address.
+    my $base = length( $vars->{canonical_url} // '' ) ? $vars->{canonical_url} : $vars->{site_url};
     return $html unless defined $base && length $base;
     $base =~ s{/+$}{};
 

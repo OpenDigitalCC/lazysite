@@ -7,6 +7,8 @@ package main;
 #         (interpolate_env, _env_value: the SM926 copy t/lint/203 pins), and the
 #         url:, json:, db: and scan: sources (resolve_json, resolve_db with
 #         _db_empty and _escape_db_rows, _resolve_content_path, _language_set);
+#         _canonical_of, the domain an alias host renders from (P14, the marked
+#         copy t/lint/224 drives);
 #         the dependency record a cached page is checked against (_tt_dep,
 #         deps_cache_path, write_deps, deps_fresh); the nav file and its parse
 #         (_nav_file_for, _site_path: the module-free copy t/lint/37 drives,
@@ -149,6 +151,43 @@ sub _language_set {
             };
     }
     return @langs;
+}
+
+# P14 (WORK-PLAN-0154, ruled 2026-10-12 "Render from the canonical"): THE DOMAIN
+# A HOST IS AN ALIAS OF. A host registered as an alias (domain-alias-add, SM217)
+# shares another domain's content root and named ITSELF as canonical: its pages'
+# <link rel="canonical">, its sitemap and llms.txt carried the alias's own
+# address, so one site answered as two, each canonical to itself.
+#
+# alias_of is DERIVED, never stored (Lazysite::Manager::Domains::domains_list):
+# the canonical domain of a content root is the FIRST row carrying it, the
+# primary first and then alias_hosts in order. This is a MARKED COPY of that
+# derivation for the render path, which loads no modules (ADR 0001); t/lint/224
+# runs both over the same confs. Change one, change both.
+#
+# $text is lazysite.conf; $cur is the request's alias host ('' on the primary).
+# Returns ( canonical host - '' for the primary, the canonical domain's raw
+# site_url ), the current host's own when it is the first with its root.
+sub _canonical_of {
+    my ( $text, $cur ) = @_;
+    $cur = lc( $cur // '' );
+    my ( %base, %ov );
+    for my $line ( split /\n/, ( $text // '' ) ) {
+        if ( $line =~ /^alias\.(\S+?)\.(\w+)\s*:\s*(.*?)\s*$/ ) { $ov{ lc $1 }{$2} = $3 }
+        elsif ( $line =~ /^(\w+)\s*:\s*(.*?)\s*$/ )             { $base{$1} = $2 }
+    }
+    my @hosts = grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $base{alias_hosts} // '' );
+    my $val = sub {
+        my ( $h, $k ) = @_;
+        return $base{$k} // '' if $h eq '';
+        return defined $ov{ lc $h }{$k} ? $ov{ lc $h }{$k} : ( $base{$k} // '' );
+    };
+    my $root = $val->( $cur, 'content_root' );
+    for my $h ( '', @hosts ) {
+        next unless $val->( $h, 'content_root' ) eq $root;
+        return ( lc $h, $val->( $h, 'site_url' ) );
+    }
+    return ( $cur, $val->( $cur, 'site_url' ) );
 }
 
 sub resolve_json {

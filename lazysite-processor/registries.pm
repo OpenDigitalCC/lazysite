@@ -661,6 +661,14 @@ sub _registry_stale {
         my @pages     = scan_pages($root);
         my %site_vars = resolve_site_vars();
 
+        # P14 (ruled 2026-10-12, "Render from the canonical"): a registry lists
+        # the pages of a content root, and an alias shares its canonical domain's
+        # root - so the addresses in it (sitemap, llms.txt, the feeds) are the
+        # canonical domain's, whichever host's request regenerated it. Before,
+        # the file in the shared root named whichever host came last.
+        $site_vars{site_url} = $site_vars{canonical_url}
+            if length( $site_vars{canonical_url} // '' );
+
         # Compile-cache dirs + .ttc files are minted during new()/process():
         # group-writable creation whichever identity renders first (_cache_umask).
         my $old_umask = _cache_umask();

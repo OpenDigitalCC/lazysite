@@ -292,6 +292,17 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM1000 (PENDING) **an alias renders from its canonical domain.** A host
+  registered as an alias (sharing another domain's content folder, as
+  `domain-alias-add` registers it) named itself as canonical, so one site
+  answered as two. Its pages' `<link rel="canonical">`, and the addresses in
+  the sitemap, `llms.txt` and the feeds of the shared folder, are now the
+  canonical domain's `site_url`; the alias still serves under its own name and
+  its own `site_url`. A new TT variable, `canonical_url`, carries the address.
+  The canonical domain is the one the Domains list names (the first serving
+  that folder, the primary first), so a host with no folder of its own is an
+  alias of the primary. t/unit/processor/102, lint 224.
+
 - SM999 (PENDING) **a YAML list is a list, and a registry carries the page's
   front matter.** A list key other than `tags` - `categories:` with `- item`
   lines, or `keywords: [a, b]` - arrived as raw text. Any flow or block list of

@@ -1737,6 +1737,19 @@ sub _lazy_lib {
         # cache slot), so a page served from cache keeps the correct value.
         $vars{domain} = _request_host();
 
+        # P14 (ruled 2026-10-12, "Render from the canonical"): the address of
+        # the domain this host is an alias of - its own site_url when it is the
+        # canonical one. The canonical link and the registries render from it;
+        # the host keeps serving under its own name and its own site_url.
+        # Authoritative, never conf-overridable, like alias_host above.
+        {
+            my ( $canon_host, $canon_url ) = _canonical_of( $text, $alias_host );
+            $vars{canonical_url}
+                = $canon_host eq $alias_host
+                ? ( $vars{site_url} // '' )
+                : ( do { my %r = resolve_tt_vars( { site_url => $canon_url } ); $r{site_url} } // $canon_url );
+        }
+
         $vars{nav} = parse_nav( _nav_file_for( \%vars ) );
 
         %_site_vars_cache  = %vars;

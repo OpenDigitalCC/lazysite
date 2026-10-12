@@ -211,6 +211,14 @@ than trusting the form:
   folder is an ordinary domain - use **Add domain** with a folder. The
   `domain-alias-add` action refuses a `content_root` and says so, rather than
   accepting it and ignoring it.
+- **An alias renders from its canonical domain.** Its pages' `<link
+  rel="canonical">`, and the addresses in the sitemap, `llms.txt` and the feeds
+  of the shared folder, are the canonical domain's `site_url`, so search
+  engines see one site. The alias still serves under its own name, with its own
+  `site_url`; the canonical address is the `canonical_url` TT variable. The
+  canonical domain is the one the Domains list names - the first domain
+  serving that folder, the primary first. A host with no content folder of its
+  own serves the primary's content and so is an alias of the primary.
 
 Only a domain that has a **named** content folder can be shared. A host serving
 the default site has no folder of its own to share; to add a second name for the
