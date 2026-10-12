@@ -58,7 +58,7 @@ questions below, and the next item starts.
 | P15 | The visitor log records no host, so a multi-domain instance cannot answer per-domain questions | 2026-10-12: "Record host": each visitor-log event carries the served host; analyse_visitors filters/groups by host; a confined caller sees only its own domains' traffic (SM976 rule). Counting basis note if the report shape changes. | ruling: record the served host with each event |
 | P16 | The CSP has no way to allow one external host | 2026-10-12: "Add allow-lists": csp_script_src, csp_connect_src, csp_img_src, csp_frame_src in lazysite.conf, each a list of https origins (validated: no 'unsafe-*', no bare *, only scheme+host[:port], a leading *. subdomain wildcard allowed), appended to the default; per domain on multi-domain instances; check reports bad entries. | ruling: `csp_script_src` / `csp_connect_src` (and img, frame) lists, per domain |
 | P17 | `(mine)` cannot read the viewer's own rows from a table they may not otherwise read (corrected report, 20:00) | 2026-10-12: "Allow own rows": `(mine)` returns only rows whose created_by is the signed-in viewer even when the table's read rule excludes them; anonymous gets nothing; the data endpoint and listings still follow the rule. SECURITY-sensitive: prove no other row leaks (other viewers' rows, totals, counts). | ruling: whether `(mine)` may bypass the table's general read rule for own rows |
-| P18 | A handler that mails recipients taken from data (followers of a post), to verified account emails only, with a per-recipient limit and an audit line per delivery | - | ruling; the report gives a full specification |
+| P18 | A handler that mails recipients taken from data (followers of a post), to verified account emails only, with a per-recipient limit and an audit line per delivery | 2026-10-12, the release manager: "write up a brief ... generic, use other notification mechanisms, be triggered by form submit or scheduler ... brief it." | brief filed SM1010: a `notify` handler type (accounts that own matching rows, opted in, address from the user store), queued for the daemon, then event points and a chain rule; phase 1 M, whole L; Q1-Q9 need a ruling |
 
 ## Follow-ups noted while working WORK-PLAN-0153
 
@@ -88,3 +88,9 @@ questions below, and the next item starts.
   `<var>_total` is counted before `filter=`, because a page past the cap is
   not read and cannot be filtered; with a filter it can exceed what the filter
   would list. Keep both, or add per-directive paging? Answered 2026-10-12 (P9 row): keep `scan_limit` as the ceiling and add `limit=`/`offset=`; `_total` as built.
+- **P18 (SM1010), found while reading: a quarantined submission is probably
+  acknowledged.** `_acknowledge_submitter` asks `$fields->{_quarantined}`
+  (Handlers.pm:1881), but the form handler strips `_` keys before delivery and
+  passes the flag as context (form-handler.pl:288, :295), so the SM877 message
+  goes to an address a suspect submission chose. Read, not run (B). A fix
+  branch, ahead of SM1010 (its F1 and Q9)?
