@@ -659,6 +659,11 @@
       "path": "{DOCROOT}/../lib/Lazysite/Plugins",
       "mode": "0755",
       "why": "as ../lib - ADR 0009, reading and validating a plugin's owns declaration"
+    },
+    {
+      "path": "{DOCROOT}/../lib/Lazysite/Odoo",
+      "mode": "0755",
+      "why": "as ../lib - SM747, the Odoo extension's binding, key and visitor modules. Code and read-only; the extension's store is {LAZYSITE}/odoo, created by the extension when first used"
     }
   ]
 }
