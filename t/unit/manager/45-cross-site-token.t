@@ -66,7 +66,7 @@ sub make_site {
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print $cf "site_name: $name\ncontrol_api_enabled: true\n";
     close $cf;
-    uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
+    uapi( $d, { action => 'add', username => 'partner', password => 'x-long-enough' } );
     grant_caps( $d, 'partner', 'api', 'manage_content' );
     my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
     return ( $d, $tok );

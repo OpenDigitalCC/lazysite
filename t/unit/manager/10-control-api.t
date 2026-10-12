@@ -77,13 +77,13 @@ open my $tj, '>', "$d/lazysite/layouts/base/themes/live/theme.json" or die $!;
 print $tj '{"name":"live","layouts":["base"]}'; close $tj;
 
 # partner: token credential + manage_themes
-uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
+uapi( $d, { action => 'add', username => 'partner', password => 'x-long-enough' } );
 grant_caps( $d, 'partner', 'manage_themes', 'api' ); # SM126: token client holds the api channel cap
 my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
 ok( $tok && $tok =~ /^lzs_/, 'minted partner token' );
 
 # nocap: token credential, no capability
-uapi( $d, { action => 'add', username => 'nocap', password => 'x' } );
+uapi( $d, { action => 'add', username => 'nocap', password => 'x-long-enough' } );
 my $tok2 = uapi( $d, { action => 'token', username => 'nocap' } )->{token};
 
 # --- token auth + capability: artifact-manifest --------------------------
@@ -334,7 +334,7 @@ ok( exists $dcap->{holds}{capabilities}{delegate_sub_user_creation},
 
 # --- SM127: an INTERACTIVE manager account (ui capability + login enabled) is
 # refused on the api channel - but introspection stays open (SM126/SM072). -----
-uapi( $d, { action => 'add', username => 'mgr', password => 'x' } );
+uapi( $d, { action => 'add', username => 'mgr', password => 'x-long-enough' } );
 grant_caps( $d, 'mgr', 'ui', 'api', 'manage_content' ); # ui cap + login enabled (default)
 my $mtok = uapi( $d, { action => 'token', username => 'mgr' } )->{token};
 my $mg   = mapi( $d, QUERY_STRING => 'action=theme-list',
@@ -351,7 +351,7 @@ ok( $mgw->{ok}, 'a manager account: whoami still allowed (introspection open)' )
 # interactive login is DISABLED (ui:false) - a deliberate agent, as SM127's own
 # message advises. Its token must honour its own api-channel capabilities and
 # NOT be blocked by the manager-UI gate (the reported 0.8.0 regression). --------
-uapi( $d, { action => 'add', username => 'agent', password => 'x' } );
+uapi( $d, { action => 'add', username => 'agent', password => 'x-long-enough' } );
 grant_caps( $d, 'agent', 'ui', 'api', 'analytics' );    # manager ui cap + api + analytics
 uapi( $d, { action => 'settings-set', username => 'agent', key => 'ui', value => 0 } );
 my $atok = uapi( $d, { action => 'token', username => 'agent' } )->{token};
@@ -385,13 +385,13 @@ my $bad = mapi( $d, QUERY_STRING => 'action=artifact-manifest&layout=base&theme=
 ok( !$bad->{ok} && $bad->{error} =~ /invalid credentials/i, 'invalid token rejected' );
 
 # --- actor injection: a manager may only manage its own sub-tree ---------
-uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
+uapi( $d, { action => 'add', username => 'boss', password => 'x-long-enough' } );
 grant_caps( $d, 'boss', 'create_sub_users', 'api' ); # SM126: token client holds the api channel cap
 # The audit trail requires its own 'audit' capability (strict gate), separate
 # from visitor analytics.
 grant_caps( $d, 'boss', 'audit', 'ui' );    # SM1057: boss uses the manager over a cookie
-uapi( $d, { action => 'account-create', username => 'child', password => 'x', created_by => 'boss' } );
-uapi( $d, { action => 'add', username => 'other', password => 'x' } );
+uapi( $d, { action => 'account-create', username => 'child', password => 'x-long-enough', created_by => 'boss' } );
+uapi( $d, { action => 'add', username => 'other', password => 'x-long-enough' } );
 
 # boss (cookie) disabling its own child: allowed.
 my $ok_disable = mapi( $d, REQUEST_METHOD => 'POST',
@@ -460,7 +460,7 @@ ok( ref $who2->{plugins} eq 'ARRAY'
 }
 
 # A caller who may configure the site has a reason to know what is enabled.
-uapi( $d, { action => 'add', username => 'ucfg', password => 'x' } );
+uapi( $d, { action => 'add', username => 'ucfg', password => 'x-long-enough' } );
 grant_caps( $d, 'ucfg', 'manage_config', 'api' );
 my $ctok = uapi( $d, { action => 'token', username => 'ucfg' } )->{token};
 my $cw   = mapi( $d, QUERY_STRING => 'action=whoami',
@@ -476,7 +476,7 @@ my $cw   = mapi( $d, QUERY_STRING => 'action=whoami',
 # The capability-holder half: manage_briefs governs the briefs plugin, so its
 # holder is told that plugin's state - and only that one. This is the part that
 # distinguishes the decision from "gate everything on manage_config".
-uapi( $d, { action => 'add', username => 'ubrf', password => 'x' } );
+uapi( $d, { action => 'add', username => 'ubrf', password => 'x-long-enough' } );
 grant_caps( $d, 'ubrf', 'manage_briefs', 'api' );
 my $btok = uapi( $d, { action => 'token', username => 'ubrf' } )->{token};
 my $bw   = mapi( $d, QUERY_STRING => 'action=whoami',
@@ -496,7 +496,7 @@ SKIP: {
 ok( ref $who->{themes} eq 'ARRAY', 'SM565: manage_themes holder sees the theme inventory' );
 ok( !exists $who->{manager_groups},
     'SM565: manage_themes alone does not unlock the manager group names' );
-uapi( $d, { action => 'add', username => 'umgr', password => 'x' } );
+uapi( $d, { action => 'add', username => 'umgr', password => 'x-long-enough' } );
 grant_caps( $d, 'umgr', 'manage_users', 'api' );
 my $utok = uapi( $d, { action => 'token', username => 'umgr' } )->{token};
 my $uw   = mapi( $d, QUERY_STRING => 'action=whoami',
@@ -504,7 +504,7 @@ my $uw   = mapi( $d, QUERY_STRING => 'action=whoami',
 ok( $uw->{ok} && ref $uw->{manager_groups} eq 'ARRAY',
     'SM565: manage_users holder is told the manager group names' );
 ok( !exists $uw->{themes}, 'SM565: ...and not the theme inventory' );
-uapi( $d, { action => 'add', username => 'cfg', password => 'x' } );
+uapi( $d, { action => 'add', username => 'cfg', password => 'x-long-enough' } );
 grant_caps( $d, 'cfg', 'manage_config', 'api' );
 my $ctok = uapi( $d, { action => 'token', username => 'cfg' } )->{token};
 my $cw   = mapi( $d, QUERY_STRING => 'action=whoami',
@@ -557,7 +557,7 @@ ok( exists $av->{traffic_classes}, 'returns the sanitised stats export shape' );
 # `webdav || manage_content`. A webdav-only grant cannot PUT content, so it
 # must not govern content either. A FRESH account: partner has accumulated
 # manage_content above, which is exactly the blind spot SM570 is about.
-uapi( $d, { action => 'add', username => 'themer', password => 'x' } );
+uapi( $d, { action => 'add', username => 'themer', password => 'x-long-enough' } );
 grant_caps( $d, 'themer', 'manage_themes', 'api', 'webdav' );
 my $ttok = uapi( $d, { action => 'token', username => 'themer' } )->{token};
 ok( $ttok, 'SM570: minted a themes+webdav token' );
@@ -581,7 +581,7 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
     # A token grant holding manage_config may set ordinary config, and may NOT
     # switch off the manager - which is the only surface on which a capability
     # can be revoked, so a token that could disable it could not be disabled.
-    uapi( $d, { action => 'add', username => 'cfg', password => 'x' } );
+    uapi( $d, { action => 'add', username => 'cfg', password => 'x-long-enough' } );
     grant_caps( $d, 'cfg', 'manage_config', 'api' );
     my $ctok = uapi( $d, { action => 'token', username => 'cfg' } )->{token};
     my $auth = basic( 'cfg', $ctok );
@@ -736,7 +736,7 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
 # booleans, and the field withheld the weaker one expecting writes to stop.
 # whoami now says which false values are satisfied by a stronger grant.
 {
-    uapi( $d, { action => 'add', username => 'tabler', password => 'x' } );
+    uapi( $d, { action => 'add', username => 'tabler', password => 'x-long-enough' } );
     grant_caps( $d, 'tabler', 'ui', 'api', 'manage_data' );    # NOT write_data
     my $w = mapi( $d, QUERY_STRING => 'action=whoami',
         HTTP_X_REMOTE_USER => 'tabler', HTTP_X_REMOTE_GROUPS => 'role-tabler' );
@@ -753,7 +753,7 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
 # holding it reads the bell, and one without it is refused, as before the gate
 # stopped passing every token client.
 {
-    uapi( $d, { action => 'add', username => 'belltok', password => 'x' } );
+    uapi( $d, { action => 'add', username => 'belltok', password => 'x-long-enough' } );
     grant_caps( $d, 'belltok', 'api', 'notifications' );
     my $bt = uapi( $d, { action => 'token', username => 'belltok' } )->{token};
     my $n  = mapi( $d, QUERY_STRING => 'action=notices', HTTP_AUTHORIZATION => basic( 'belltok', $bt ) );

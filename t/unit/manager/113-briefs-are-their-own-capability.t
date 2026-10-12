@@ -87,7 +87,7 @@ open my $pg, '>', "$d/about.md" or die $!;
 print $pg "---\ntitle: About\n---\n\nAbout us.\n";
 close $pg;
 
-uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
+uapi( $d, { action => 'add', username => 'partner', password => 'x-long-enough' } );
 grant_caps( $d, 'partner', 'manage_content', 'api' );
 my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
 ok( $tok, 'partner has a token' );

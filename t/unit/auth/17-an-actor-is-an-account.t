@@ -91,7 +91,7 @@ my $src_auth = do { open my $fh, '<', $auth or die $!; local $/; <$fh> };
 
 my $d = tempdir( CLEANUP => 1 );
 make_path( "$d/lazysite/auth", "$d/lazysite/logs" );
-users_api( $d, { action => 'add', username => 'human', password => 'pw' } );
+users_api( $d, { action => 'add', username => 'human', password => 'pw-long-enough' } );
 
 my %base = ( DOCUMENT_ROOT => $d, REMOTE_ADDR => '10.0.0.9', HTTPS => '' );
 sub login {
@@ -243,7 +243,7 @@ SKIP: {
     print {$fh} "2026-08-01T00:00:00Z | ghost-account | login | h | 1.2.3.4 | fail | ui\n";
     close $fh;
 
-    users_api( $d, { action => 'add', username => 'reader', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'reader', password => 'pw-long-enough' } );
     users_api( $d, { action => 'group-settings-set', group => 'auditors',
             key => $_, value => 'on' } ) for qw(audit api);
     users_api( $d, { action => 'group-add', username => 'reader', group => 'auditors' } );

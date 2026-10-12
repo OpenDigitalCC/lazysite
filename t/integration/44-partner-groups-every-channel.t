@@ -40,7 +40,7 @@ sub spit {
 
 # A REAL user store, not a stub: WebDAV verifies the password against it, so the
 # three channels have to authenticate for real or the matrix compares nothing.
-my $site = setup_dav_site( user => 'partner', password => 'secret' );
+my $site = setup_dav_site( user => 'partner', password => 'secret-long-enough' );
 my $d    = $site->{docroot};
 make_path( "$d/content/gated", "$d/lazysite/manager/locks" );
 
@@ -101,7 +101,7 @@ sub via_dav {
     $ENV{LAZYSITE_DAV_FAIL_DELAY} = 0;
     $ENV{LAZYSITE_USERS_TOOL}     = $stub;
     $ENV{HTTP_AUTHORIZATION}
-        = 'Basic ' . MIME::Base64::encode_base64( 'partner:secret', '' );
+        = 'Basic ' . MIME::Base64::encode_base64( 'partner:secret-long-enough', '' );
     $ENV{REQUEST_METHOD} = 'GET';
     $ENV{PATH_INFO}      = '/content/gated/secret.md';
     $ENV{CONTENT_LENGTH} = 0;

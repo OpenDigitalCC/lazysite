@@ -61,14 +61,14 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: T\n";
 close $cf;
 
-uapi( $d, { action => 'add', username => 'op',   password => 'x' } );
-uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
+uapi( $d, { action => 'add', username => 'op',   password => 'x-long-enough' } );
+uapi( $d, { action => 'add', username => 'boss', password => 'x-long-enough' } );
 grant_caps( $d, 'op',   'audit' );               # full audit
 grant_caps( $d, 'boss', 'create_sub_users' );    # a sub-user manager
 # boss creates a sub-user; managed_by defaults to created_by (= boss)
-uapi( $d, { action => 'account-create', username => 'sub1', password => 'x',
+uapi( $d, { action => 'account-create', username => 'sub1', password => 'x-long-enough',
         created_by => 'boss', actor => 'boss' } );
-uapi( $d, { action => 'add', username => 'other', password => 'x' } );    # unrelated
+uapi( $d, { action => 'add', username => 'other', password => 'x-long-enough' } );    # unrelated
 
 # --- audit-scope resolves the manager's subtree -------------------------------
 my $sc = uapi( $d, { action => 'audit-scope', username => 'boss' } );

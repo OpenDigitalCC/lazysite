@@ -149,8 +149,8 @@ sub conf {
     print {$cf} "site_name: My Site\ncontrol_api_enabled: true\n";
     close $cf;
 
-    uapi( $d, { action => 'add', username => 'weak',   password => 'x' } );
-    uapi( $d, { action => 'add', username => 'strong', password => 'x' } );
+    uapi( $d, { action => 'add', username => 'weak',   password => 'x-long-enough' } );
+    uapi( $d, { action => 'add', username => 'strong', password => 'x-long-enough' } );
     grant_caps( $d, 'weak',   'manage_config', 'api' );
     grant_caps( $d, 'strong', 'manage_config', 'api', 'manage_services' );
     my $wtok = uapi( $d, { action => 'token', username => 'weak' } )->{token};

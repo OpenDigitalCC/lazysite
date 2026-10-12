@@ -52,11 +52,11 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 # Build a tree:  root -> a -> { b, c }
 sub build_tree {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'root', 'pw' );
+    cli( $d, 'add', 'root', 'pw-long-enough' );
     grant_caps( $d, 'root', 'create_sub_users', 'delegate_sub_user_creation' );
-    cli( $d, 'account-create', 'a', 'pw', '--by', 'root', '--create-subs' );
-    cli( $d, 'account-create', 'b', 'pw', '--by', 'a' );
-    cli( $d, 'account-create', 'c', 'pw', '--by', 'a' );
+    cli( $d, 'account-create', 'a', 'pw-long-enough', '--by', 'root', '--create-subs' );
+    cli( $d, 'account-create', 'b', 'pw-long-enough', '--by', 'a' );
+    cli( $d, 'account-create', 'c', 'pw-long-enough', '--by', 'a' );
     return $d;
 }
 

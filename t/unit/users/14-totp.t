@@ -62,7 +62,7 @@ sub settings { api( $_[0], { action => 'settings-get', username => $_[1] } )->{s
 # --- enrol, verify, recovery codes, disable ---------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'alice', 'pw' );
+    cli( $d, 'add', 'alice', 'pw-long-enough' );
 
     my $e = api( $d, { action => 'mfa-enroll', username => 'alice' } );
     ok( $e->{ok} && $e->{secret}, 'enrol returns a secret' );

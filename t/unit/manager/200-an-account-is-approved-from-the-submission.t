@@ -102,8 +102,8 @@ my @ALL = qw(ui manage_users read_submissions create_sub_users manage_forms);
 $s->add_user('boss');
 $s->grant( 'boss', 'ops', [qw(ui manage_users read_submissions)], \@ALL );
 $s->add_user('clerk');
-$s->users( 'add', 'Bob', 'pw123456789' );    # a name that differs only in case
-$s->users( 'add', 'zed', 'pw123456789' );
+$s->users( 'add', 'Bob', 'pw123456789-long-enough' );    # a name that differs only in case
+$s->users( 'add', 'zed', 'pw123456789-long-enough' );
 $s->users( 'set', 'zed', 'email', 'dave@example.org' );
 
 post( 'register', name => 'Ada', email => 'Ada.Lovelace@example.org' );

@@ -90,11 +90,11 @@ open my $di, '>', "$d/sites/de/index.md" or die $!;
 print $di "---\ntitle: index\n---\n\nde index\n";
 close $di;
 
-uapi( $d, { action => 'add', username => 'op', password => 'x' } );
+uapi( $d, { action => 'add', username => 'op', password => 'x-long-enough' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_domains' );
 # SM991: 'op' is the operator by its group's `manager` flag, not by manage_users.
 uapi( $d, { action => 'group-settings-set', group => 'role-op', key => 'manager', value => 'on' } );
-uapi( $d, { action => 'add', username => 'ed', password => 'y' } );
+uapi( $d, { action => 'add', username => 'ed', password => 'y-long-enough' } );
 grant_caps( $d, 'ed', 'manage_content', 'ui' );    # SM1057: both use the manager
 
 # --- operator reads the set coverage (group defaulted from lang_group) --------
@@ -123,7 +123,7 @@ grant_caps( $d, 'ed', 'manage_content', 'ui' );    # SM1057: both use the manage
 
 # --- an account WITHOUT manage_content is forbidden ---------------------------
 {
-    uapi( $d, { action => 'add', username => 'nc', password => 'z' } );
+    uapi( $d, { action => 'add', username => 'nc', password => 'z-long-enough' } );
     grant_caps( $d, 'nc', 'manage_themes', 'ui' );
     my $r = get( $d, 'nc', 'role-nc', 'action=lang-status' );
     ok( !$r->{ok}, 'an account without manage_content cannot read lang-status' );

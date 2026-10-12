@@ -62,7 +62,7 @@ sub _theme {
     print $f qq({"name":"$name","layouts":$layouts}); close $f;
 }
 
-uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
+uapi( $d, { action => 'add', username => 'partner', password => 'x-long-enough' } );
 grant_caps( $d, 'partner', 'manage_themes', 'api' );   # SM126: token client holds the api channel cap
 my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
 my $auth = basic( 'partner', $tok );

@@ -40,23 +40,23 @@ subtest 'the username `local` is reserved at every door' => sub {
         return scalar qx($cmd 2>&1);
     };
 
-    like( $run->( 'add', 'local', 'pw' ), qr/reserved/,
+    like( $run->( 'add', 'local', 'pw-long-enough' ), qr/reserved/,
         'add refuses it' );
     ok( !-e "$d/lazysite/auth/users" || $run->('list') !~ /^local:/m,
         'and no such account exists' );
 
-    $run->( 'add', 'boss', 'pw' );
-    like( $run->( 'account-create', 'local', 'pw', '--by', 'boss' ), qr/reserved/,
+    $run->( 'add', 'boss', 'pw-long-enough' );
+    like( $run->( 'account-create', 'local', 'pw-long-enough', '--by', 'boss' ), qr/reserved/,
         'sub-user creation refuses it - the door the reproduction used' );
 
-    $run->( 'add', 'alice', 'pw' );
+    $run->( 'add', 'alice', 'pw-long-enough' );
     like( $run->( 'rename', 'alice', 'local' ), qr/reserved/,
         'and rename cannot arrive at it either - one unreserved door is the '
             . 'whole vulnerability' );
 
     # Case matters: the sentinel comparisons are exact, so a case variant must
     # not slip through and then be normalised somewhere downstream.
-    like( $run->( 'add', 'LOCAL', 'pw' ), qr/reserved/, 'case variants too' );
+    like( $run->( 'add', 'LOCAL', 'pw-long-enough' ), qr/reserved/, 'case variants too' );
 };
 
 # --- C2: the reserved-root check compared literally --------------------------

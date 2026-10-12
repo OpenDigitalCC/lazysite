@@ -143,8 +143,8 @@ open my $sc, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $sc "site_name: Bench\nfirst_party: true\n";
 close $sc;
 
-uapi( $d, { action => 'add', username => 'pwuser',  password => 'benchpw' } );
-uapi( $d, { action => 'add', username => 'tokuser', password => 'x' } );
+uapi( $d, { action => 'add', username => 'pwuser',  password => 'benchpw-long-enough' } );
+uapi( $d, { action => 'add', username => 'tokuser', password => 'x-long-enough' } );
 my $token = uapi( $d, { action => 'token', username => 'tokuser' } )->{token};
 die "bench setup failed (no token)\n" unless $token;
 
@@ -179,7 +179,7 @@ my %result = $WORK_ONLY ? () : (
     } ),
     verify_password_ms => bench( $ITER, sub {
             local $Lazysite::Auth::Settings::AUTH_DIR = "$d/lazysite/auth";
-            Lazysite::Auth::Verify::verify_credential( $d, 'pwuser', 'benchpw' );
+            Lazysite::Auth::Verify::verify_credential( $d, 'pwuser', 'benchpw-long-enough' );
     } ),
     verify_token_cli_ms => bench( $ITER, sub {
             uapi( $d, { action => 'verify-credential', username => 'tokuser', secret => $token } );

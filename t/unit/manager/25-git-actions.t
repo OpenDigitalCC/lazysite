@@ -190,11 +190,11 @@ my ( $sha_adopt, $sha_edit );
 
 # --- token-channel gating --------------------------------------------------------
 {
-    uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
+    uapi( $d, { action => 'add', username => 'partner', password => 'x-long-enough' } );
     grant_caps( $d, 'partner', 'api', 'manage_content' );
     my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
     ok( $tok && $tok =~ /^lzs_/, 'minted partner token' );
-    uapi( $d, { action => 'add', username => 'nocap', password => 'x' } );
+    uapi( $d, { action => 'add', username => 'nocap', password => 'x-long-enough' } );
     grant_caps( $d, 'nocap', 'api' );
     my $tok2 = uapi( $d, { action => 'token', username => 'nocap' } )->{token};
 

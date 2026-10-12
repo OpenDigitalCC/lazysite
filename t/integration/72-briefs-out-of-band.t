@@ -166,7 +166,7 @@ subtest 'SM504: A SIDECAR WRITE REFUSES ONCE THE STORE OWNS THE RECORD' => sub {
     # TestHelper's proven pair: the account, then a role group WITH the user
     # as a member (the hand-rolled version granted the group and never joined
     # the user - a 403 from the capability layer, not the wire under test).
-    TestHelper::dav_users_tool( $docroot, 'add', 'davpub', 'pw123456789' );
+    TestHelper::dav_users_tool( $docroot, 'add', 'davpub', 'pw123456789-long-enough' );
     TestHelper::grant_caps( $docroot, 'davpub', qw(webdav manage_content) );
     {
         local %ENV = ( %ENV,
@@ -177,7 +177,7 @@ subtest 'SM504: A SIDECAR WRITE REFUSES ONCE THE STORE OWNS THE RECORD' => sub {
             PATH_INFO          => '/content/over-dav.md.brief',
             CONTENT_LENGTH     => length $dav_body,
             HTTP_AUTHORIZATION => 'Basic '
-                . MIME::Base64::encode_base64( 'davpub:pw123456789', '' ),
+                . MIME::Base64::encode_base64( 'davpub:pw123456789-long-enough', '' ),
         );
         my $out = qx(sh -c \Q$^X \Q$root/lazysite-dav.pl\E < \Q$dbf\E 2>/dev/null\E);
         like( $out, qr/Status: 415/, 'the DAV channel refuses too' ) or diag "[$out]";
@@ -266,7 +266,7 @@ subtest 'SM507: THE STORE ENTRY FOLLOWS ITS FILE, on every surface' => sub {
         REMOTE_ADDR        => '127.0.0.1',
         CONTENT_LENGTH     => 0,
         HTTP_AUTHORIZATION => 'Basic '
-            . MIME::Base64::encode_base64( 'davpub:pw123456789', '' ),
+            . MIME::Base64::encode_base64( 'davpub:pw123456789-long-enough', '' ),
     );
     {
         local %ENV = ( %ENV, %dav,

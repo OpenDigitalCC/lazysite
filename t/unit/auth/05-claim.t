@@ -63,7 +63,7 @@ sub build_docroot {
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print $cf "site_name: T\n";
     close $cf;
-    users_api( $d, { action => 'add', username => 'admin', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'admin', password => 'pw-long-enough' } );
     return $d;
 }
 
@@ -74,10 +74,10 @@ sub build_docroot {
     my $c = users_api( $d, { action => 'claim-create', username => 'newbie' } );
     ok( $c->{ok} && $c->{claim}, 'claim minted for newbie' );
 
-    my $r = claim( docroot => $d, username => 'newbie', claim => $c->{claim}, password => 'chosen-pw' );
+    my $r = claim( docroot => $d, username => 'newbie', claim => $c->{claim}, password => 'chosen-pw-long-enough' );
     like( $r->{out}, qr{Location:[^\n]*/login\?claimed=1}, 'set-password claim redirects to login' );
 
-    my $v = users_api( $d, { action => 'verify-credential', username => 'newbie', secret => 'chosen-pw' } );
+    my $v = users_api( $d, { action => 'verify-credential', username => 'newbie', secret => 'chosen-pw-long-enough' } );
     ok( $v->{ok}, 'the password the user set authenticates' );
 }
 
@@ -87,9 +87,9 @@ sub build_docroot {
     users_api( $d, { action => 'add', username => 'newbie', password => '' } );
     users_api( $d, { action => 'claim-create', username => 'newbie' } );
 
-    my $r = claim( docroot => $d, username => 'newbie', claim => 'lzc_bogus', password => 'x' );
+    my $r = claim( docroot => $d, username => 'newbie', claim => 'lzc_bogus', password => 'x-long-enough' );
     like( $r->{out}, qr{Location:[^\n]*/claim\?[^\n]*error=1}, 'bad claim redirects to the error page' );
-    my $v = users_api( $d, { action => 'verify-credential', username => 'newbie', secret => 'x' } );
+    my $v = users_api( $d, { action => 'verify-credential', username => 'newbie', secret => 'x-long-enough' } );
     ok( !$v->{ok}, 'no password set from a bad claim' );
 }
 
@@ -99,13 +99,13 @@ sub build_docroot {
     users_api( $d, { action => 'add', username => 'once', password => '' } );
     my $c = users_api( $d, { action => 'claim-create', username => 'once' } );
 
-    claim( docroot => $d, username => 'once', claim => $c->{claim}, password => 'first' );
-    my $r2 = claim( docroot => $d, username => 'once', claim => $c->{claim}, password => 'second' );
+    claim( docroot => $d, username => 'once', claim => $c->{claim}, password => 'first-long-enough' );
+    my $r2 = claim( docroot => $d, username => 'once', claim => $c->{claim}, password => 'second-long-enough' );
     like( $r2->{out}, qr{error=1}, 'a redeemed claim cannot be reused' );
 
-    ok(  users_api( $d, { action => 'verify-credential', username => 'once', secret => 'first'  } )->{ok},
+    ok(  users_api( $d, { action => 'verify-credential', username => 'once', secret => 'first-long-enough'  } )->{ok},
         'the first password stands' );
-    ok( !users_api( $d, { action => 'verify-credential', username => 'once', secret => 'second' } )->{ok},
+    ok( !users_api( $d, { action => 'verify-credential', username => 'once', secret => 'second-long-enough' } )->{ok},
         'the second attempt set nothing' );
 }
 

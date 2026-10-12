@@ -101,9 +101,9 @@ open my $b, '>', "$d/content/clientB/secret.md" or die $!; print $b "B\n"; close
 # op = operator (manage_users secures the site, so non-operators are gated) whose
 # groups match no domain allow-list => unconfined. client is in role-client,
 # which clienta.com allows => confined to content/clientA.
-uapi( $d, { action => 'add', username => 'op', password => 'x' } );
+uapi( $d, { action => 'add', username => 'op', password => 'x-long-enough' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_content', 'ui' ); # SM1057: uses the manager
-uapi( $d, { action => 'add', username => 'client', password => 'y' } );
+uapi( $d, { action => 'add', username => 'client', password => 'y-long-enough' } );
 grant_caps( $d, 'client', 'manage_content', 'ui' );    # SM1057: a manager-UI client
 
 # --- the bound client works INSIDE its scope --------------------------------

@@ -49,7 +49,7 @@ like( slurp("$auth/groups"), qr/^admins:.*\beditors\b/m,
     'editors is recorded as a member of admins' );
 
 # A user in editors now inherits the admin capability too.
-uapi( $d, { action => 'add',       username => 'alice', password => 'x' } );
+uapi( $d, { action => 'add',       username => 'alice', password => 'x-long-enough' } );
 uapi( $d, { action => 'group-add', username => 'alice', group    => 'editors' } );
 my $c = caps_for('alice');
 ok( $c->{manage_content}, 'alice keeps her own group capability' );

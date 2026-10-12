@@ -53,7 +53,7 @@ ok( !$admin->{api} && !$admin->{mcp},
 
 # The reported failure: the manager creating an account must now succeed.
 # SM659: the bootstrap admin is a NAMED account now, not one called `manager`.
-my $out = run_cli( $d, 'account-create', 'alice', 'pw12345678', '--by', 'sjm' );
+my $out = run_cli( $d, 'account-create', 'alice', 'pw12345678-long-enough', '--by', 'sjm' );
 unlike( $out, qr/lacks create_sub_users/, 'no create_sub_users denial' );
 open my $u, '<', "$d/lazysite/auth/users" or die $!;
 my $users = do { local $/; <$u> };

@@ -81,7 +81,7 @@ sub users {
 
 sub add_user {
     my ( $self, $user, $pw ) = @_;
-    $self->users( 'add', $user, ( $pw // 'pw123456789' ) );
+    $self->users( 'add', $user, ( $pw // 'pw123456789-long-enough' ) );    # SM1041
     return $self;
 }
 

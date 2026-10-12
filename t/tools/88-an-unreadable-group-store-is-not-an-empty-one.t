@@ -94,7 +94,7 @@ subtest 'an ordinary refusal is unchanged' => sub {
     # The point is to tell the two apart, not to stop refusing. A creator who
     # genuinely holds nothing must still be told so, in the old words.
     my $d = fresh_site();
-    my $o = qx{$^X \Q$users\E --docroot \Q$d\E add plain x 2>&1};
+    my $o = qx{$^X \Q$users\E --docroot \Q$d\E add plain x-long-enough 2>&1};
     $o = qx{$^X \Q$users\E --docroot \Q$d\E account-create dave --by plain 2>&1};
     like( $o, qr/lacks create_sub_users/,
         'an account that really holds nothing gets the plain refusal' )

@@ -57,7 +57,7 @@ for my $spec (
     )
 {
     my ( $user, $group, $cap ) = @$spec;
-    uapi( { action => 'add', username => $user, password => 'pw' } );
+    uapi( { action => 'add', username => $user, password => 'pw-long-enough' } );
     uapi( { action => 'group-add', username => $user, group => $group } );
     uapi( { action => 'group-settings-set', group => $group, key => $cap, value => 'on' } )
         if $cap;

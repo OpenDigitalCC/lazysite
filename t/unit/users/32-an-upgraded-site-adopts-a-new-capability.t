@@ -100,7 +100,7 @@ is( $before->{'lazysite-admins'}{audit}, 0, 'and has explicitly DECLINED audit' 
 # called from _ensure_groups_seeded, which the manager's own reads run, so a
 # site adopts the release the next time somebody opens the Users page rather
 # than on a command nobody runs twice.
-uapi( $d, { action => 'add', username => 'someone', password => 'pw' } );
+uapi( $d, { action => 'add', username => 'someone', password => 'pw-long-enough' } );
 # Membership written DIRECTLY, as an upgraded site has it. Using group-add
 # would run the healing pass first - which renames the group - and then add the
 # account to a freshly created, powerless group of the old name.

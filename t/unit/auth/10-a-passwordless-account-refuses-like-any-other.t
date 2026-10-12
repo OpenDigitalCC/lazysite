@@ -76,8 +76,8 @@ mkdir "$d/lazysite/auth";
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: T\n";
 close $cf;
-users_api( $d, { action => 'add', username => 'admin',  password => 'pw' } );
-users_api( $d, { action => 'add', username => 'hasapw', password => 'realpw' } );
+users_api( $d, { action => 'add', username => 'admin',  password => 'pw-long-enough' } );
+users_api( $d, { action => 'add', username => 'hasapw', password => 'realpw-long-enough' } );
 
 # An empty-password account is a users line with no hash. The tool will not mint
 # one, and it should not - this is the state the engine discourages, written
@@ -86,8 +86,8 @@ open my $uf, '>>', "$d/lazysite/auth/users" or die $!;
 print {$uf} "nopw:\n";
 close $uf;
 
-my $absent = login( docroot => $d, username => 'ghost',  password => 'anything' );
-my $wrong  = login( docroot => $d, username => 'hasapw', password => 'notit' );
+my $absent = login( docroot => $d, username => 'ghost',  password => 'anything-long-enough' );
+my $wrong  = login( docroot => $d, username => 'hasapw', password => 'notit-long-enough' );
 my $empty  = login( docroot => $d, username => 'nopw',   password => '' );
 
 # --- the two refusals that were always alike ---------------------------------

@@ -88,7 +88,7 @@ open my $pg, '>', "$d/about.md" or die $!;
 print $pg "---\ntitle: About\n---\n\nAbout us.\n";
 close $pg;
 
-uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
+uapi( $d, { action => 'add', username => 'partner', password => 'x-long-enough' } );
 my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
 ok( $tok, 'partner has a token' );
 
@@ -187,7 +187,7 @@ ok( refused( post('action=data-table-drop&table=t') ),
 # answerable - and answerable through the NESTING, since SM573's
 # seven-vs-seventeen was invisible precisely because the capabilities arrived by
 # membership.
-uapi( $d, { action => 'add', username => 'housekeeper', password => 'x' } );
+uapi( $d, { action => 'add', username => 'housekeeper', password => 'x-long-enough' } );
 uapi( $d, { action => 'group-settings-set', group => 'lateral', key => 'purge', value => 'on' } );
 uapi( $d, { action => 'group-settings-set', group => 'ops', key => 'assignable', value => 'on' } );
 uapi( $d, { action => 'group-nest', sub      => 'ops',         parent => 'lateral' } );

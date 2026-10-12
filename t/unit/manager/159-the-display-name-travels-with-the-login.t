@@ -89,9 +89,9 @@ close $sf;
 
 # Three accounts whose LOGINS are the problem: a roster of these tells nobody
 # who is who, which is the report in one line.
-uapi( $d, { action => 'add', username => 'sjm',     password => 'x' } );
-uapi( $d, { action => 'add', username => 'sm2',     password => 'x' } );
-uapi( $d, { action => 'add', username => 'nonamer', password => 'x' } );
+uapi( $d, { action => 'add', username => 'sjm',     password => 'x-long-enough' } );
+uapi( $d, { action => 'add', username => 'sm2',     password => 'x-long-enough' } );
+uapi( $d, { action => 'add', username => 'nonamer', password => 'x-long-enough' } );
 grant_caps( $d, 'sjm', 'manage_content', 'api' );
 uapi( $d, { action => 'settings-set', username => 'sjm', key => 'display_name', value => 'Steve Morris' } );
 uapi( $d, { action => 'settings-set', username => 'sm2', key => 'display_name', value => 'Sam Morris' } );
@@ -100,7 +100,7 @@ uapi( $d, { action => 'settings-set', username => 'sm2', key => 'display_name', 
 my $tok = uapi( $d, { action => 'token', username => 'sjm' } )->{token};
 # The account roster is the manager UI's screen, served only over a cookie
 # session - so the two listing assertions below ask as an operator.
-uapi( $d, { action => 'add',       username => 'op', password => 'x' } );
+uapi( $d, { action => 'add',       username => 'op', password => 'x-long-enough' } );
 uapi( $d, { action => 'group-add', username => 'op', group    => 'admins' } );
 my $auth = basic( 'sjm', $tok );
 

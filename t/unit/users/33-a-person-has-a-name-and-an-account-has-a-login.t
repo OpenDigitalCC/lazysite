@@ -55,8 +55,8 @@ sub settings {
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
-uapi( $d, { action => 'add', username => 'sjm', password => 'pw' } );
-uapi( $d, { action => 'add', username => 'other', password => 'pw' } );
+uapi( $d, { action => 'add', username => 'sjm', password => 'pw-long-enough' } );
+uapi( $d, { action => 'add', username => 'other', password => 'pw-long-enough' } );
 
 # --- settable, and surfaced ------------------------------------------------
 my $r = uapi( $d, { action => 'settings-set', username => 'sjm',

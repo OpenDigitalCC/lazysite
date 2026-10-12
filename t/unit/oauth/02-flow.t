@@ -57,7 +57,7 @@ sub uapi {
 sub jbody { my ($r) = @_; my ($b) = $r =~ /\r?\n\r?\n(.*)/s; return decode_json( $b // '{}' ) }
 
 # --- set up a partner + an operator connect code ---
-uapi( { action => 'add', username => 'claude.ai', password => 'x' } );
+uapi( { action => 'add', username => 'claude.ai', password => 'x-long-enough' } );
 uapi( { action => 'settings-set', username => 'claude.ai', key => 'webdav', value => 'on' } );
 my $cc = uapi( { action => 'connect-code', username => 'claude.ai' } );
 like( $cc->{code}, qr/^lzo_/, 'operator issues a connect code' );

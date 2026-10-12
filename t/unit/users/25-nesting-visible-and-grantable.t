@@ -64,8 +64,8 @@ sub api {
 # exist before the nest, which is why the capabilities are set first.
 sub nested_fixture {
     my $d = fixture();
-    cli( $d, 'add',        'sub1',   'pw' );
-    cli( $d, 'add',        'target', 'pw' );
+    cli( $d, 'add',        'sub1',   'pw-long-enough' );
+    cli( $d, 'add',        'target', 'pw-long-enough' );
     cli( $d, 'group-add',  'sub1',   'child' );
     cli( $d, 'group-set',  'parent', 'manage_users', 'on' );
     cli( $d, 'group-set',  'parent', 'ui',           'on' );

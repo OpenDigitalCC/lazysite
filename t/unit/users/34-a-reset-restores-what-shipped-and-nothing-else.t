@@ -62,10 +62,10 @@ sub members_of {
     return $l[0] // '';
 }
 
-run('setup-sysop --user sjm pw123456789');    # SM659: named, not a role account
+run('setup-sysop --user sjm pw123456789-long-enough');    # SM659: named, not a role account
 run('group-create family-admins');       # organisational: an ACL may name it
-run('add alice pw');
-run('add bob pw');
+run('add alice pw-long-enough');
+run('add bob pw-long-enough');
 run('group-add alice family-admins');
 run('group-add bob content-editors');    # a seeded group, given a member
 run('group-set family-admins manage_content on');

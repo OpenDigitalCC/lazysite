@@ -63,19 +63,19 @@ sub build_docroot {
     close $cf;
     # An always-UI admin keeps the last-manager guard satisfied so we
     # can disable ui on the test accounts.
-    users_api( $d, { action => 'add', username => 'admin', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'admin', password => 'pw-long-enough' } );
     return $d;
 }
 
 # --- valid password + ui:off => refused, no cookie --------------------
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'bot', password => 'secret' } );
+    users_api( $d, { action => 'add', username => 'bot', password => 'secret-long-enough' } );
     my $set = users_api( $d,
         { action => 'settings-set', username => 'bot', key => 'ui', value => 'off' } );
     is( $set->{ok}, 1, 'ui disabled for bot' );
 
-    my $r = login( docroot => $d, username => 'bot', password => 'secret' );
+    my $r = login( docroot => $d, username => 'bot', password => 'secret-long-enough' );
     like( $r->{out}, qr/403 Forbidden/, 'ui-disabled login is 403' );
     unlike( $r->{out}, qr/Set-Cookie:/, 'no cookie issued to ui-disabled account' );
     like( $r->{err}, qr/interactive login disabled/i, 'WARN logged' );
@@ -84,11 +84,11 @@ sub build_docroot {
 # --- correct password still required (wrong password => generic fail) --
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'bot', password => 'secret' } );
+    users_api( $d, { action => 'add', username => 'bot', password => 'secret-long-enough' } );
     users_api( $d,
         { action => 'settings-set', username => 'bot', key => 'ui', value => 'off' } );
 
-    my $r = login( docroot => $d, username => 'bot', password => 'WRONG' );
+    my $r = login( docroot => $d, username => 'bot', password => 'WRONG-long-enough' );
     # Wrong password fails before the ui check: ordinary login failure,
     # not the ui-disabled 403 (no information leak about the mechanism).
     unlike( $r->{out}, qr/403 Forbidden/, 'wrong password does not reveal ui state' );
@@ -98,17 +98,17 @@ sub build_docroot {
 # --- ui:on (and absent settings) still log in -------------------------
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'human', password => 'secret' } );
+    users_api( $d, { action => 'add', username => 'human', password => 'secret-long-enough' } );
 
     # absent settings row -> defaults ui on
-    my $r = login( docroot => $d, username => 'human', password => 'secret' );
+    my $r = login( docroot => $d, username => 'human', password => 'secret-long-enough' );
     like( $r->{out}, qr/302 Found/, 'default (no settings) login succeeds' );
     like( $r->{out}, qr/Set-Cookie:/, 'cookie issued' );
 
     # explicit ui on
     users_api( $d,
         { action => 'settings-set', username => 'human', key => 'ui', value => 'on' } );
-    my $r2 = login( docroot => $d, username => 'human', password => 'secret' );
+    my $r2 = login( docroot => $d, username => 'human', password => 'secret-long-enough' );
     like( $r2->{out}, qr/Set-Cookie:/, 'explicit ui:on login succeeds' );
 }
 

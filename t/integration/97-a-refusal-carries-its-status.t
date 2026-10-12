@@ -26,7 +26,7 @@ my $root = repo_root();
 # the control API refuses every token client before it reaches the gates this
 # test is about - with a bootstrap message, or "the control API is not enabled",
 # and the test would pass or fail for the wrong reason.
-my $site    = setup_dav_site( user => 'tester', password => 'secret' );
+my $site    = setup_dav_site( user => 'tester', password => 'secret-long-enough' );
 my $docroot = $site->{docroot};
 make_path("$docroot/lazysite/auth");
 grant_caps( $docroot, 'boss', qw(ui manage_users) );

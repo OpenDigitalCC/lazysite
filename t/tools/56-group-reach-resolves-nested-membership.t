@@ -39,9 +39,9 @@ close $p;
 sub users { return run_cmd( $^X, $usr, '--docroot', $d, @_ ) }
 sub acl { return run_cmd( $^X, $acl, @_, '--docroot', $d, '--actor', 'local' ) }
 
-users( 'add',       'partner',  'ppass123456' );
-users( 'add',       'nested',   'npass123456' );
-users( 'add',       'outsider', 'opass123456' );
+users( 'add',       'partner',  'ppass123456-long-enough' );
+users( 'add',       'nested',   'npass123456-long-enough' );
+users( 'add',       'outsider', 'opass123456-long-enough' );
 users( 'group-add', 'partner',  'agents' );
 
 # NESTED: 'inner' is a member of 'agents', and 'nested' is in 'inner'. A report

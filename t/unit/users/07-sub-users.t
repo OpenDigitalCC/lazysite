@@ -51,7 +51,7 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 # --- top-level account has no provenance, no create permission ---------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'boss', 'pw' );
+    cli( $d, 'add', 'boss', 'pw-long-enough' );
     my $s = settings( $d, 'boss' );
     ok( !defined $s->{created_by}, 'top-level account: created_by null' );
     ok( !$s->{create_sub_users},   'create_sub_users defaults off' );
@@ -61,14 +61,14 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 # --- creator needs create_sub_users -----------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'boss', 'pw' );
+    cli( $d, 'add', 'boss', 'pw-long-enough' );
 
-    my $denied = cli( $d, 'account-create', 'worker', 'pw', '--by', 'boss' );
+    my $denied = cli( $d, 'account-create', 'worker', 'pw-long-enough', '--by', 'boss' );
     isnt( $denied->{code}, 0, 'account-create denied without create_sub_users' );
     like( $denied->{err}, qr/create_sub_users/, 'error names the missing permission' );
 
     grant_caps( $d, 'boss', 'create_sub_users' );
-    my $ok = cli( $d, 'account-create', 'worker', 'pw', '--by', 'boss' );
+    my $ok = cli( $d, 'account-create', 'worker', 'pw-long-enough', '--by', 'boss' );
     is( $ok->{code}, 0, 'account-create succeeds once granted' );
 
     my $s = settings( $d, 'worker' );
@@ -81,15 +81,15 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 # --- delegation gates granting create_sub_users to the child ----------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'boss', 'pw' );
+    cli( $d, 'add', 'boss', 'pw-long-enough' );
     grant_caps( $d, 'boss', 'create_sub_users' );
 
-    my $denied = cli( $d, 'account-create', 'w', 'pw', '--by', 'boss', '--create-subs' );
+    my $denied = cli( $d, 'account-create', 'w', 'pw-long-enough', '--by', 'boss', '--create-subs' );
     isnt( $denied->{code}, 0, '--create-subs denied without delegate' );
     like( $denied->{err}, qr/delegate_sub_user_creation/, 'error names delegate permission' );
 
     grant_caps( $d, 'boss', 'delegate_sub_user_creation' );
-    my $ok = cli( $d, 'account-create', 'w', 'pw', '--by', 'boss', '--create-subs' );
+    my $ok = cli( $d, 'account-create', 'w', 'pw-long-enough', '--by', 'boss', '--create-subs' );
     is( $ok->{code}, 0, '--create-subs succeeds once delegated' );
     ok( settings( $d, 'w' )->{create_sub_users}, 'delegated child can create sub-users' );
 }
@@ -97,29 +97,29 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 # --- error paths -------------------------------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'boss', 'pw' );
+    cli( $d, 'add', 'boss', 'pw-long-enough' );
     grant_caps( $d, 'boss', 'create_sub_users' );
-    cli( $d, 'account-create', 'worker', 'pw', '--by', 'boss' );
+    cli( $d, 'account-create', 'worker', 'pw-long-enough', '--by', 'boss' );
 
-    my $nocreator = cli( $d, 'account-create', 'x', 'pw', '--by', 'ghost' );
+    my $nocreator = cli( $d, 'account-create', 'x', 'pw-long-enough', '--by', 'ghost' );
     isnt( $nocreator->{code}, 0, 'unknown creator rejected' );
 
-    my $dup = cli( $d, 'account-create', 'worker', 'pw', '--by', 'boss' );
+    my $dup = cli( $d, 'account-create', 'worker', 'pw-long-enough', '--by', 'boss' );
     isnt( $dup->{code}, 0, 'duplicate username rejected' );
 
-    my $noby = cli( $d, 'account-create', 'y', 'pw' );
+    my $noby = cli( $d, 'account-create', 'y', 'pw-long-enough' );
     isnt( $noby->{code}, 0, 'missing --by rejected' );
 }
 
 # --- API mode ----------------------------------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'boss', 'pw' );
+    cli( $d, 'add', 'boss', 'pw-long-enough' );
     grant_caps( $d, 'boss', 'create_sub_users' );
     grant_caps( $d, 'boss', 'delegate_sub_user_creation' );
 
     my $r = api( $d, { action => 'account-create', username => 'api_worker',
-        password => 'pw', created_by => 'boss', create_sub_users => 1 } );
+        password => 'pw-long-enough', created_by => 'boss', create_sub_users => 1 } );
     is( $r->{ok}, 1, 'API account-create ok' );
     my $s = settings( $d, 'api_worker' );
     is( $s->{created_by}, 'boss', 'API: provenance recorded' );
@@ -129,22 +129,22 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 # --- create a sub-user owned by a managed descendant (not just self) ---
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'mgr', 'pw' );
+    cli( $d, 'add', 'mgr', 'pw-long-enough' );
     grant_caps( $d, 'mgr', 'create_sub_users' );
     grant_caps( $d, 'mgr', 'delegate_sub_user_creation' );
 
-    my $r1 = api( $d, { action => 'account-create', username => 'child', password => 'pw',
+    my $r1 = api( $d, { action => 'account-create', username => 'child', password => 'pw-long-enough',
                         created_by => 'mgr', actor => 'mgr', create_sub_users => 1 } );
     ok( $r1->{ok}, 'mgr creates child under itself' );
 
-    my $r2 = api( $d, { action => 'account-create', username => 'gkid', password => 'pw',
+    my $r2 = api( $d, { action => 'account-create', username => 'gkid', password => 'pw-long-enough',
                         created_by => 'child', actor => 'mgr' } );
     ok( $r2->{ok}, 'mgr creates a sub-user owned by its descendant child' );
     is( settings( $d, 'gkid' )->{created_by}, 'child', 'owned by the chosen parent' );
 
-    cli( $d, 'add', 'other', 'pw' );
+    cli( $d, 'add', 'other', 'pw-long-enough' );
     grant_caps( $d, 'other', 'create_sub_users' );
-    my $r3 = api( $d, { action => 'account-create', username => 'nope', password => 'pw',
+    my $r3 = api( $d, { action => 'account-create', username => 'nope', password => 'pw-long-enough',
                         created_by => 'child', actor => 'other' } );
     ok( !$r3->{ok}, 'an unrelated actor cannot create under child' );
     like( $r3->{error} // $r3->{_raw} // '', qr/[Nn]ot authorised/, 'ancestry enforced' );
@@ -153,7 +153,7 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 # --- comment annotation round-trips ------------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'bot', 'pw' );
+    cli( $d, 'add', 'bot', 'pw-long-enough' );
     api( $d, { action => 'settings-set', username => 'bot', key => 'comment',
                value => "Claude dav publisher" } );
     is( settings( $d, 'bot' )->{comment}, 'Claude dav publisher',
@@ -167,7 +167,7 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
     my $d = fresh_docroot();
     open my $fh, ">", "$d/lazysite/auth/users" or die $!;
     print $fh "manager:\n"; close $fh;
-    my $r = cli( $d, "passwd", "manager", "newpass" );
+    my $r = cli( $d, "passwd", "manager", "newpass-long-enough" );
     is( $r->{code}, 0, "passwd succeeds on an empty-password account" );
 }
 
@@ -183,7 +183,7 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 # --- account-create allows an empty password (token-only sub-user) -----
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'boss', 'pw' );
+    cli( $d, 'add', 'boss', 'pw-long-enough' );
     grant_caps( $d, 'boss', 'create_sub_users' );
     my $r = api( $d, { action => 'account-create', username => 'bot', password => '',
                        created_by => 'boss', actor => 'boss' } );

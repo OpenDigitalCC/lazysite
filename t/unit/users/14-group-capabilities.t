@@ -46,7 +46,7 @@ sub caps {
 # A role group grants exactly its capabilities to members.
 {
     my $d = docroot();
-    cli( $d, 'add', 'ada', 'pw' );
+    cli( $d, 'add', 'ada', 'pw-long-enough' );
     cli( $d, 'group-add', 'ada', 'content-editors' );
     my $s = caps( $d, 'ada' );
     ok( $s->{manage_content}, 'content-editors grants manage_content' );
@@ -60,7 +60,7 @@ sub caps {
 # Multiple groups COMPOUND (union of capabilities).
 {
     my $d = docroot();
-    cli( $d, 'add', 'mix', 'pw' );
+    cli( $d, 'add', 'mix', 'pw-long-enough' );
     cli( $d, 'group-add', 'mix', 'content-editors' );
     cli( $d, 'group-add', 'mix', 'design-team' );
     my $s = caps( $d, 'mix' );
@@ -72,7 +72,7 @@ sub caps {
 # The seeded agent-ai group carries the analytics capability.
 {
     my $d = docroot();
-    cli( $d, 'add', 'bot', 'pw' );
+    cli( $d, 'add', 'bot', 'pw-long-enough' );
     cli( $d, 'group-add', 'bot', 'agent-ai' );
     my $s = caps( $d, 'bot' );
     ok( $s->{analytics}, 'agent-ai grants analytics' );
@@ -83,7 +83,7 @@ sub caps {
 # operator keeps manager + partner access after the clean cut).
 {
     my $d = docroot();
-    cli( $d, 'add', 'boss', 'pw' );
+    cli( $d, 'add', 'boss', 'pw-long-enough' );
     cli( $d, 'group-add', 'boss', 'sysops' );
     my $s = caps( $d, 'boss' );
     ok( $s->{manage_config}, 'admins group grants manage_config' );
@@ -110,7 +110,7 @@ sub api {
 # Phase 2 backend: edit a group's capabilities; create and delete groups.
 {
     my $d = docroot();
-    cli( $d, 'add', 'u', 'pw' );
+    cli( $d, 'add', 'u', 'pw-long-enough' );
     cli( $d, 'group-add', 'u', 'content-editors' );
     is( api( $d, { action => 'group-settings-set', group => 'content-editors', key => 'analytics', value => 'on' } )->{ok},
         1, 'set analytics on content-editors' );
@@ -144,14 +144,14 @@ sub api {
 # Phase (b): new channel caps (ui/api/mcp) + manage_users; the permissions grid.
 {
     my $d = docroot();
-    cli( $d, 'add', 'um', 'pw' );
+    cli( $d, 'add', 'um', 'pw-long-enough' );
     cli( $d, 'group-add', 'um', 'user-managers' );
     my $s = caps( $d, 'um' );
     ok( $s->{manage_users}, 'user-managers grants manage_users' );
     ok( $s->{ui},           'user-managers grants the ui channel' );
     ok( !$s->{webdav},      'user-managers does NOT grant webdav' );
 
-    cli( $d, 'add', 'mc', 'pw' );
+    cli( $d, 'add', 'mc', 'pw-long-enough' );
     cli( $d, 'group-add', 'mc', 'mcp-ai' );
     my $g = api( $d, { action => 'permissions-grid', username => 'mc' } );
     ok( $g->{ok}, 'permissions-grid ok' );
@@ -208,10 +208,10 @@ sub api {
 # whose create_sub_users comes from a GROUP may create a sub-user.
 {
     my $d = docroot();
-    cli( $d, 'add', 'boss', 'pw' );
+    cli( $d, 'add', 'boss', 'pw-long-enough' );
     cli( $d, 'group-add', 'boss', 'user-managers' );    # grants create_sub_users
     my $r = api( $d,
-        { action => 'account-create', username => 'kid', password => 'x', created_by => 'boss' } );
+        { action => 'account-create', username => 'kid', password => 'x-long-enough', created_by => 'boss' } );
     ok( $r->{ok}, 'group-granted create_sub_users allows account-create' ) or diag explain $r;
 }
 
@@ -219,8 +219,8 @@ sub api {
 # $_ must be captured before effective_settings reads files with while(<$fh>)).
 {
     my $d = docroot();
-    cli( $d, 'add', 'alice', 'pw' );
-    cli( $d, 'add', 'bob',   'pw' );
+    cli( $d, 'add', 'alice', 'pw-long-enough' );
+    cli( $d, 'add', 'bob',   'pw-long-enough' );
     cli( $d, 'group-add', 'alice', 'content-editors' );
     my $r = api( $d, { action => 'users-detail' } );
     is( scalar @{ $r->{users} }, 2, 'users-detail returns all accounts' );
@@ -232,7 +232,7 @@ sub api {
 # grant is not honoured.
 {
     my $d = docroot();
-    cli( $d, 'add', 'legacy', 'pw' );
+    cli( $d, 'add', 'legacy', 'pw-long-enough' );
     my $r = cli( $d, 'set', 'legacy', 'analytics', 'on' );    # rejected: caps are group-only
     isnt( $r->{code}, 0, 'setting a capability per-account is refused' );
     like( $r->{err}, qr/GROUPS/i, 'error points the operator to groups' );
@@ -244,7 +244,7 @@ sub api {
 # the verb only existed in --api mode, so the advice named an unknown command.)
 {
     my $d = docroot();
-    cli( $d, 'add', 'bot', 'pw' );
+    cli( $d, 'add', 'bot', 'pw-long-enough' );
     my $r = cli( $d, 'set', 'bot', 'webdav', 'on' );
     isnt( $r->{code}, 0, 'per-account webdav set refuses' );
     like( $r->{err}, qr/group-set/, 'refusal names the group-set route' );
@@ -263,7 +263,7 @@ sub api {
 # groups only, for debugging user access from the shell.
 {
     my $d = docroot();
-    cli( $d, 'add', 'dbg', 'pw' );
+    cli( $d, 'add', 'dbg', 'pw-long-enough' );
     cli( $d, 'group-add', 'dbg', 'agent-ai' );
     my $r = cli( $d, 'permissions', 'dbg' );
     is( $r->{code}, 0, 'permissions command exits 0' );
@@ -283,7 +283,7 @@ sub api {
 # together, so the Users page makes a single request instead of three.
 {
     my $d = docroot();
-    cli( $d, 'add', 'u1', 'pw' );
+    cli( $d, 'add', 'u1', 'pw-long-enough' );
     cli( $d, 'group-add', 'u1', 'content-editors' );
     my $r = api( $d, { action => 'users-page' } );
     ok( $r->{ok}, 'users-page ok' );
@@ -297,7 +297,7 @@ sub api {
 # The audit trail is its own capability, independent of visitor analytics.
 {
     my $d = docroot();
-    cli( $d, 'add', 'seer', 'pw' );
+    cli( $d, 'add', 'seer', 'pw-long-enough' );
     is( api( $d, { action => 'group-settings-set', group => 'content-editors', key => 'audit', value => 'on' } )->{ok},
         1, 'audit is a settable group capability' );
     cli( $d, 'group-add', 'seer', 'content-editors' );
@@ -313,7 +313,7 @@ sub api {
 # group's capabilities on the canonical path.
 {
     my $d = docroot();
-    cli( $d, 'add', 'ami', 'pw' );
+    cli( $d, 'add', 'ami', 'pw-long-enough' );
     cli( $d, 'group-add', 'ami', 'content-editors' );
     my $desc = "\x{c9}quipe web \x{2013} contenu";    # Équipe web – contenu
     is( api( $d, { action => 'group-settings-set', group => 'content-editors',

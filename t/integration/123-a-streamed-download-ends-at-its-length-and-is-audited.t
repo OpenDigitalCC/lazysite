@@ -116,7 +116,7 @@ w( 'content/page.md',        "---\ntitle: Page\n---\n\nBody\n" );
 w( 'content/a.txt',          "alpha bytes\n" );
 w( 'lazysite/backups/lazysite-backup-20261010T000000Z.tar.gz',    "backup bytes" );
 w( 'lazysite/backups/lazysite-site-test-20261010T000000Z.tar.gz', "package bytes" );
-uapi( { action => 'add', username => 'op', password => 'x' } );
+uapi( { action => 'add', username => 'op', password => 'x-long-enough' } );
 grant_caps( $d, 'op', qw(ui manage_users manage_content manage_config manage_domains manage_data) );
 
 my @CASES = (

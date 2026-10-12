@@ -58,11 +58,11 @@ sub api {
 
 sub setup_subadmin {
     my ($d) = @_;
-    cli( $d, 'add',       'subadmin',   'pw' );
+    cli( $d, 'add',       'subadmin',   'pw-long-enough' );
     cli( $d, 'group-add', 'subadmin',   'useradmins' );
     cli( $d, 'group-set', 'useradmins', 'manage_users', 'on' );
     # A second manager group, so the lockout guard never interferes.
-    cli( $d, 'add',       'boss', 'pw' );
+    cli( $d, 'add',       'boss', 'pw-long-enough' );
     cli( $d, 'group-add', 'boss', 'sysops' );
     cli( $d, 'group-set', 'sysops', 'manage_users', 'on' );
     return;

@@ -47,17 +47,17 @@ sub ceiling_of {
 # alice (top level) -> bob -> carol, plus dave under bob. Sub-accounts must be
 # created THROUGH account-create so the created_by provenance is stamped; a plain
 # `add` makes a top-level account with no creator.
-uapi( { action => 'add', username => 'alice', password => 'pw' } );
+uapi( { action => 'add', username => 'alice', password => 'pw-long-enough' } );
 uapi( { action => 'group-settings-set', group => 'creators',
         key    => 'create_sub_users', value => 'on' } );
 uapi( { action => 'group-add', username => 'alice', group => 'creators' } );
-uapi( { action => 'account-create', username => 'bob', password => 'pw',
+uapi( { action => 'account-create', username => 'bob', password => 'pw-long-enough',
         created_by => 'alice' } );
 # bob must itself hold create_sub_users before it can create carol/dave.
 uapi( { action => 'group-add', username => 'bob', group => 'creators' } );
-uapi( { action => 'account-create', username => 'carol', password => 'pw',
+uapi( { action => 'account-create', username => 'carol', password => 'pw-long-enough',
         created_by => 'bob' } );
-uapi( { action => 'account-create', username => 'dave', password => 'pw',
+uapi( { action => 'account-create', username => 'dave', password => 'pw-long-enough',
         created_by => 'bob' } );
 
 is_deeply( ceiling_of('alice'), [],

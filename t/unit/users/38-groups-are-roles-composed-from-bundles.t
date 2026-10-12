@@ -157,9 +157,9 @@ sub role_caps {
         my $cmd = join ' ', map { "\Q$_\E" } ( $^X, $tool, '--docroot', $d, @_ );
         return `$cmd 2>&1` // '';
     };
-    $out->( 'add',       'ceil-delegate', 'pw12345678' );
+    $out->( 'add',       'ceil-delegate', 'pw12345678-long-enough' );
     $out->( 'group-add', 'ceil-delegate', 'user-managers' );
-    $out->( 'add',       'ceil-target',   'pw12345678' );
+    $out->( 'add',       'ceil-target',   'pw12345678-long-enough' );
 
     my $r = $out->( 'group-add', 'ceil-target', 'agent-ai', 'ceil-delegate' );
     like( $r, qr/you may not confer/,

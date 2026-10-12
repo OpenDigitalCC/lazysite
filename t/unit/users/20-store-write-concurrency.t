@@ -27,7 +27,7 @@ my $d = tempdir( CLEANUP => 1 );
 # Seed a handful of accounts (sequential, operator CLI).
 my @seed = map {"seed$_"} 1 .. 4;
 for my $u (@seed) {
-    system( $^X, $utool, '--docroot', $d, 'add', $u, "pw-$u" ) == 0
+    system( $^X, $utool, "--docroot", $d, "add", $u, "pw-$u-long-enough" ) == 0
         or die "seed add $u failed";
 }
 my $store = "$d/lazysite/auth/users";
@@ -45,7 +45,7 @@ for my $id ( 1 .. $K ) {
         %ENV = ( PATH => $ENV{PATH} // '/usr/bin:/bin' );
         open STDOUT, '>', '/dev/null';
         open STDERR, '>', '/dev/null';
-        exec( $^X, $utool, '--docroot', $d, 'add', "extra$id", "pw$id" )
+        exec( $^X, $utool, '--docroot', $d, 'add', "extra$id", "pw$id-long-enough" )
             or die "exec: $!";
     }
     push @kids, $pid;

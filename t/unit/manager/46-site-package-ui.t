@@ -88,7 +88,7 @@ spit( "$d/lazysite/layouts/base/layout.tt",              '[% content %]' );
 spit( "$d/lazysite/layouts/base/themes/blue/theme.json", '{"name":"blue"}' );
 spit( "$d/sites/clienta/index.md",                       "# Client A\n" );
 
-uapi( $d, { action => 'add', username => 'op', password => 'x' } );
+uapi( $d, { action => 'add', username => 'op', password => 'x-long-enough' } );
 grant_caps( $d, 'op', 'manage_domains' );
 
 # Register the source domain (its own content root) and set its presentation.

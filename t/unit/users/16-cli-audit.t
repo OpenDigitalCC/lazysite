@@ -49,7 +49,7 @@ sub audit_lines {
 }
 
 # --- user-add: origin cli, invoking identity, target ---
-run_cli( 'add', 'alice', 'pw-alpha-1' );
+run_cli( 'add', 'alice', 'pw-alpha-1-long-enough' );
 my @l = audit_lines();
 is( scalar @l, 1, 'add writes exactly one audit entry' );
 # SM659: `system:` PREFIXED. This asserted the BARE Unix name, which was the
@@ -65,7 +65,7 @@ unlike( $l[0], qr/\|\s*\Q$me\E\s*\|/,
 unlike( $l[0], qr/pw-alpha-1/, 'password never appears in the trail' );
 
 # --- passwd / group ops / settings ---
-run_cli( 'passwd',       'alice', 'pw-alpha-2' );
+run_cli( 'passwd',       'alice', 'pw-alpha-2-long-enough' );
 run_cli( 'group-add',    'alice', 'content-editors' );
 run_cli( 'group-remove', 'alice', 'content-editors' );
 run_cli( 'set',          'alice', 'comment', 'test account' );
@@ -135,9 +135,9 @@ unlike( join( "\n", @l ), qr/lzc_[0-9a-f]+/, 'claim token not in the trail' );
 
 # --- --api mode: the tool writes NOTHING (caller audits; no double entry) ---
 $before = scalar @l;
-my $r = users_api( { action => 'add', username => 'bob', password => 'pw' } );
+my $r = users_api( { action => 'add', username => 'bob', password => 'pw-long-enough' } );
 ok( $r->{ok}, 'api add succeeded' );
-$r = users_api( { action => 'passwd', username => 'bob', password => 'pw2' } );
+$r = users_api( { action => 'passwd', username => 'bob', password => 'pw2-long-enough' } );
 ok( $r->{ok}, 'api passwd succeeded' );
 $r = users_api( { action => 'group-add', username => 'bob', group => 'content-editors' } );
 ok( $r->{ok}, 'api group-add succeeded' );

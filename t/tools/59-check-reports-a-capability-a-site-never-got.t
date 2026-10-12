@@ -39,7 +39,7 @@ sub site {
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: T\n";
     close $cf;
-    qx($^X \Q$users\E --docroot \Q$d\E setup-sysop --user sjm pw123456789 2>/dev/null);
+    qx($^X \Q$users\E --docroot \Q$d\E setup-sysop --user sjm pw123456789-long-enough 2>/dev/null);
     return $d;
 }
 sub run_check { return qx($^X \Q$check\E --docroot \Q$_[0]\E 2>&1) }

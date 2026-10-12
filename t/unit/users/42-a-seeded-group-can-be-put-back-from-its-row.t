@@ -58,7 +58,7 @@ sub settings_for {
 # Seed the shipped groups by touching the store the way ordinary use does.
 # `groups` alone does NOT seed - it reads. group-set is one of the commands that
 # runs _ensure_groups_seeded, which is how a real site acquires them.
-run( 'add', 'sjm', 'pw123456789' );
+run( 'add', 'sjm', 'pw123456789-long-enough' );
 run( 'group-set', 'mine-own', 'ui', 'on' );
 
 # A CAPABILITY group, not a role. SM631's three layers: a role like
@@ -126,7 +126,7 @@ subtest 'the ceiling: a delegate may not confer what it does not hold' => sub {
     # A delegate with manage_users but NOT manage_content. Resetting a group
     # whose defaults include manage_content would confer it - which is exactly
     # the escalation SM195 exists to stop, wearing the words "restore defaults".
-    run( 'add', 'delegate', 'pw123456789' );
+    run( 'add', 'delegate', 'pw123456789-long-enough' );
     run( 'group-set', 'delegates', 'ui', 'on' );
     run( 'group-set', 'delegates', 'manage_users', 'on' );
     run( 'group-add', 'delegate', 'delegates' );

@@ -83,7 +83,7 @@ open my $sf, '>', "$d/lazysite/auth/.secret" or die $!;
 print $sf "$secret\n";
 close $sf;
 
-uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
+uapi( $d, { action => 'add', username => 'partner', password => 'x-long-enough' } );
 my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
 plan skip_all => 'no partner token' unless $tok;
 grant_caps( $d, 'partner', 'api', 'manage_config' );

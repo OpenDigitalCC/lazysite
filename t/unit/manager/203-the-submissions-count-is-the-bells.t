@@ -75,7 +75,7 @@ print {$sf} $secret;
 close $sf;
 
 for my $u (qw(op other alice)) {
-    uapi( $d, { action => 'add',       username => $u, password => 'x' } );
+    uapi( $d, { action => 'add',       username => $u, password => 'x-long-enough' } );
     uapi( $d, { action => 'group-add', username => $u, group    => 'managers' } );
 }
 grant_caps( $d, 'op',    'ui', 'notifications', 'read_submissions' );

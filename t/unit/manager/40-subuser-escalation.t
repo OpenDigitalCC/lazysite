@@ -75,9 +75,9 @@ open my $sf, '>', "$d/lazysite/auth/.secret" or die $!;
 print $sf $secret;
 close $sf;
 
-uapi( $d, { action => 'add', username => 'op',    password => 'x' } );
-uapi( $d, { action => 'add', username => 'boss',  password => 'x' } );
-uapi( $d, { action => 'add', username => 'alice', password => 'x' } );  # unrelated victim
+uapi( $d, { action => 'add', username => 'op',    password => 'x-long-enough' } );
+uapi( $d, { action => 'add', username => 'boss',  password => 'x-long-enough' } );
+uapi( $d, { action => 'add', username => 'alice', password => 'x-long-enough' } );  # unrelated victim
 grant_caps( $d, 'op',   'manage_users' );        # a real operator
 grant_caps( $d, 'op',   'ui' );                  # SM1057: who uses the manager
 grant_caps( $d, 'boss', 'create_sub_users' );    # a delegated sub-manager
@@ -89,7 +89,7 @@ my $OG = 'role-op';                              # the admin/manager group (mana
 # --- legitimate delegation still works (positive control) ----------------------
 {
     my $r = post( $d, 'boss', $BG,
-        { action => 'account-create', username => 'sub1', password => 'x' } );
+        { action => 'account-create', username => 'sub1', password => 'x-long-enough' } );
     ok( $r->{ok}, 'a delegate CAN create a sub-user in its own sub-tree' )
         or diag encode_json($r);
 }
@@ -103,7 +103,7 @@ my %attack = (
     'grant itself a capability directly' =>
         { action => 'settings-set', username => 'boss', key => 'manage_users', value => 1 },
     'create a top-level (un-parented) account' =>
-        { action => 'add', username => 'newop', password => 'x' },
+        { action => 'add', username => 'newop', password => 'x-long-enough' },
     'delete an account' =>
         { action => 'remove', username => 'alice' },
     'mint an API token for itself' =>
@@ -119,7 +119,7 @@ for my $why ( sort keys %attack ) {
 # still stop the delegate resetting an account it does not own.
 {
     my $r = post( $d, 'boss', $BG,
-        { action => 'passwd', username => 'alice', password => 'pwned' } );
+        { action => 'passwd', username => 'alice', password => 'pwned-long-enough' } );
     ok( !$r->{ok},
         'delegate CANNOT reset the password of an account outside its sub-tree' )
         or diag encode_json($r);

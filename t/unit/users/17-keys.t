@@ -52,9 +52,9 @@ sub keymap {
 # human manager (interactive) with a password is NOT.
 {
     my $d = docroot();
-    cli( $d, 'add',       'boss',  'pw' );                # human, has a password
+    cli( $d, 'add',       'boss',  'pw-long-enough' );                # human, has a password
     cli( $d, 'group-add', 'boss',  'sysops' );
-    cli( $d, 'add',       'agent', 'x' );
+    cli( $d, 'add',       'agent', 'x-long-enough' );
     cli( $d, 'group-add', 'agent', 'agent-ai' );          # grants api/mcp + content
     cli( $d, 'set',       'agent', 'ui', 'off' );         # non-interactive
     cli( $d, 'token',     'agent' );                      # mint its key (credential)
@@ -89,7 +89,7 @@ sub keymap {
 # disappears from the list. An interactive account is refused.
 {
     my $d = docroot();
-    cli( $d, 'add',       'deploy', 'x' );
+    cli( $d, 'add',       'deploy', 'x-long-enough' );
     cli( $d, 'group-add', 'deploy', 'agent-ai' );
     cli( $d, 'set',       'deploy', 'ui', 'off' );
     cli( $d, 'token',     'deploy' );
@@ -104,7 +104,7 @@ sub keymap {
             || api( $d, { action => 'settings-get', username => 'deploy' } )->{ok},
         'the account still exists after its key is revoked' );
 
-    cli( $d, 'add',       'human', 'pw' );
+    cli( $d, 'add',       'human', 'pw-long-enough' );
     cli( $d, 'group-add', 'human', 'sysops' );
     my $bad = api( $d, { action => 'key-revoke', username => 'human' } );
     ok( !$bad->{ok} && $bad->{error} =~ /interactive/i,
@@ -117,7 +117,7 @@ sub keymap {
 # cred_used_at >= cred_issued_at). Throttled so a hot key does not rewrite.
 {
     my $d = docroot();
-    cli( $d, 'add',       'kbot', 'x' );
+    cli( $d, 'add',       'kbot', 'x-long-enough' );
     cli( $d, 'group-add', 'kbot', 'agent-ai' );    # api/mcp machine account
     my $tok = api( $d, { action => 'token', username => 'kbot' } )->{token};
     ok( $tok, 'minted a key for kbot' );
@@ -162,7 +162,7 @@ sub read_kbot_settings {
 # not yet true of the commonest account on any site.
 {
     my $d = docroot();
-    cli( $d, 'add', 'plain', 'pw' );    # a password, and no group at all
+    cli( $d, 'add', 'plain', 'pw-long-enough' );    # a password, and no group at all
 
     my $k = keymap($d);
     ok( $k->{plain}, 'an account with only a password and the manager is listed' )

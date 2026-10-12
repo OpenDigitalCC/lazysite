@@ -60,8 +60,8 @@ sub api {
 # operator account for it to attack.
 sub setup {
     my ($d) = @_;
-    cli( $d, 'add',       'boss',            'pw' );
-    cli( $d, 'add',       'subadmin',        'pw' );
+    cli( $d, 'add',       'boss',            'pw-long-enough' );
+    cli( $d, 'add',       'subadmin',        'pw-long-enough' );
     cli( $d, 'group-add', 'boss',            'sysops' );
     cli( $d, 'group-add', 'subadmin',        'useradmins' );
     cli( $d, 'group-set', 'sysops', 'manage_users', 'on' );
@@ -171,7 +171,7 @@ subtest 'a delegate cannot mint a setup link for a more capable account' => sub 
 # grant whether or not it carries the flag.
 subtest 'the last group granting manager access cannot be stripped' => sub {
     my $d = fixture();
-    cli( $d, 'add',       'solo',       'pw' );
+    cli( $d, 'add',       'solo',       'pw-long-enough' );
     cli( $d, 'group-add', 'solo',       'onlyadmins' );
     cli( $d, 'group-set', 'onlyadmins', 'ui', 'on' );
 

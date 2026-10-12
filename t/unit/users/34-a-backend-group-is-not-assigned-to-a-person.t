@@ -82,7 +82,7 @@ write_groups_settings( $d, {
         'data-read'     => { label => 'Data read',     manage_data    => 1 },
         'site-editor'   => { label => 'Site editor',   assignable => JSON::PP::true() },
 } );
-uapi( $d, { action => 'add', username => 'alice', password => 'x' } );
+uapi( $d, { action => 'add', username => 'alice', password => 'x-long-enough' } );
 
 # --- 1. a person cannot be given a backend group -----------------------------
 my $refused = cli( $d, 'group-add', 'alice', 'content-write' );
@@ -154,7 +154,7 @@ write_groups_settings( $old, {
         'admins'  => { label => 'Admins',  manager => 1, ui => 1, manage_users => 1 },
         'editors' => { label => 'Editors', manage_content => 1 },
 } );
-uapi( $old, { action => 'add', username => 'bob', password => 'x' } );
+uapi( $old, { action => 'add', username => 'bob', password => 'x-long-enough' } );
 unlike( cli( $old, 'group-add', 'bob', 'editors' ), qr/backend group/i,
     'a group that predates the flag is still assignable' );
 

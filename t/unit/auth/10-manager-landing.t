@@ -54,13 +54,13 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: Test\nmanager: enabled\nmanager_groups: admin\n";
 close $cf;
 
-users_api( $d, { action => 'add', username => 'mgr',   password => 'pw' } );
-users_api( $d, { action => 'add', username => 'plain', password => 'pw' } );
+users_api( $d, { action => 'add', username => 'mgr',   password => 'pw-long-enough' } );
+users_api( $d, { action => 'add', username => 'plain', password => 'pw-long-enough' } );
 users_api( $d, { action => 'group-add', username => 'mgr', group => 'admin' } );
 
 # SM095 (c2): a user whose group carries the `ui` channel capability lands in
 # the manager even though that group is NOT a manager_group.
-users_api( $d, { action => 'add', username => 'capui', password => 'pw' } );
+users_api( $d, { action => 'add', username => 'capui', password => 'pw-long-enough' } );
 grant_caps( $d, 'capui', 'ui' );
 
 my %base = ( DOCUMENT_ROOT => $d, REMOTE_ADDR => '127.0.0.1', HTTPS => '' );
@@ -68,7 +68,7 @@ sub login {
     my ( $user, $next ) = @_;
     return run_auth(
         { %base, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=login' },
-        "username=$user&password=pw&next=$next" );
+        "username=$user&password=pw-long-enough&next=$next" );
 }
 
 like( login( 'mgr', '/' ), qr{Location:\s*/manager/},

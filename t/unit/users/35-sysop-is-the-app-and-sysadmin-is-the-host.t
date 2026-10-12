@@ -61,7 +61,7 @@ sub audit {
 # --- the CLI actor ----------------------------------------------------------
 {
     my $d = fresh();
-    run( $d, 'add probe pw' );
+    run( $d, 'add probe pw-long-enough' );
     my $log = audit($d);
     like( $log, qr/\|\s*system:\w+\s*\|/,
         'a CLI action is recorded against system:<unix name>' );
@@ -70,7 +70,7 @@ sub audit {
             . 'account of that name, and would be LINKED as one by SM641' );
 
     # The property that makes it safe rather than merely conventional.
-    my $bad = run( $d, 'add system:root pw' );
+    my $bad = run( $d, 'add system:root pw-long-enough' );
     like( $bad . run( $d, 'list' ), qr/systemroot|Invalid|not found|^(?!.*system:root)/ms,
         'and `:` cannot appear in an account name, so the two namespaces '
             . 'cannot meet' );
@@ -125,7 +125,7 @@ sub audit {
     open my $m, '>', "$d/lazysite/auth/groups" or die $!;
     print {$m} "lazysite-admins: sjm, chris\n";
     close $m;
-    run( $d, 'add sjm pw' );
+    run( $d, 'add sjm pw-long-enough' );
     # THE TRIGGER IS AN ORDINARY MANAGER READ. _ensure_groups_seeded is what
     # runs the migration, and the manager's own reads call it - so a site
     # renames the next time somebody opens the Users page, not on a command

@@ -101,7 +101,7 @@ subtest 'THE CEILING: it cannot confer what the actor may not' => sub {
     # grants manage_content would hand it to every future registrant - which is
     # exactly the escalation SM195 exists to stop, wearing a different hat.
     run( 'group-set', 'writers', 'manage_content', 'on' );
-    run( 'add', 'delegate', 'pw123456789' );
+    run( 'add', 'delegate', 'pw123456789-long-enough' );
     run( 'group-set', 'delegates', 'ui', 'on' );
     run( 'group-set', 'delegates', 'manage_users', 'on' );
     run( 'group-add', 'delegate', 'delegates' );

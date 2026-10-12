@@ -65,7 +65,7 @@ sub build_docroot {
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print $cf "site_name: T\n";
     close $cf;
-    users_api( $d, { action => 'add', username => 'admin', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'admin', password => 'pw-long-enough' } );
     return $d;
 }
 
@@ -90,13 +90,13 @@ sub poison_settings {
 # --- disabled + non-ASCII in the file: the gate must still hold --------
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'bob', password => 'secret' } );
+    users_api( $d, { action => 'add', username => 'bob', password => 'secret-long-enough' } );
     my $set = users_api( $d,
         { action => 'account-disable', username => 'bob' } );
     is( $set->{ok}, 1, 'bob disabled' );
     poison_settings($d);
 
-    my $r = login( docroot => $d, username => 'bob', password => 'secret' );
+    my $r = login( docroot => $d, username => 'bob', password => 'secret-long-enough' );
     unlike( $r->{out}, qr/Set-Cookie: lazysite_auth=bob/,
         'disabled account refused a cookie despite non-ASCII settings' );
 }
@@ -104,10 +104,10 @@ sub poison_settings {
 # --- positive control: same non-ASCII file, enabled account logs in ----
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'ann', password => 'secret' } );
+    users_api( $d, { action => 'add', username => 'ann', password => 'secret-long-enough' } );
     poison_settings($d);
 
-    my $r = login( docroot => $d, username => 'ann', password => 'secret' );
+    my $r = login( docroot => $d, username => 'ann', password => 'secret-long-enough' );
     like( $r->{out}, qr/Set-Cookie: lazysite_auth=ann/,
         'enabled account logs in - the non-ASCII file parses cleanly' );
 }

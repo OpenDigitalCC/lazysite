@@ -106,7 +106,7 @@ subtest 'a disabled account is anonymous, not its former self' => sub {
         close $sf;
     }
     my $users = "$root/tools/lazysite-users.pl";
-    qx($^X \Q$users\E --docroot \Q$docroot\E add lapsed pw123456789 2>/dev/null);
+    qx($^X \Q$users\E --docroot \Q$docroot\E add lapsed pw123456789-long-enough 2>/dev/null);
 
     require Lazysite::Auth::Session;
     local $Lazysite::Auth::Session::LAZYSITE_DIR = "$docroot/lazysite";

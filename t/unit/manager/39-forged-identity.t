@@ -80,9 +80,9 @@ open my $sf, '>', "$d/lazysite/auth/.secret" or die $!;
 print $sf $secret;
 close $sf;
 
-uapi( $d, { action => 'add', username => 'op', password => 'x' } );
+uapi( $d, { action => 'add', username => 'op', password => 'x-long-enough' } );
 grant_caps( $d, 'op', 'manage_users' );    # role-op is now a manager group => secured
-uapi( $d, { action => 'add', username => 'alice', password => 'alicepass' } );
+uapi( $d, { action => 'add', username => 'alice', password => 'alicepass-long-enough' } );
 
 my $HU = 'op';
 my $HG = 'role-op';    # the admin/manager group
@@ -102,7 +102,7 @@ my $HG = 'role-op';    # the admin/manager group
     my $tok = csrf($HU);
     my $pw = mapi( $d, 0, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=users',
         HTTP_X_REMOTE_USER => $HU, HTTP_X_REMOTE_GROUPS => $HG, HTTP_X_CSRF_TOKEN => $tok,
-        body => encode_json( { action => 'passwd', username => 'alice', password => 'pwned' } ) );
+        body => encode_json( { action => 'passwd', username => 'alice', password => 'pwned-long-enough' } ) );
     ok( !$pw->{ok}, 'forged headers cannot reset another account password (no takeover)' );
 
     my $ga = mapi( $d, 0, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=users',

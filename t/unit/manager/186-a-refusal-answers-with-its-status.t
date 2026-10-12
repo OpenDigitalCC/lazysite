@@ -70,7 +70,7 @@ for ( [ "$d/lazysite/lazysite.conf", "site_name: T\n" ], [ "$d/lazysite/auth/.se
 {
     my ( $o, $i );
     my $pid = open2( $o, $i, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$i} encode_json( { action => 'add', username => 'op', password => 'x' } );
+    print {$i} encode_json( { action => 'add', username => 'op', password => 'x-long-enough' } );
     close $i;
     local $/;
     <$o>;

@@ -23,7 +23,7 @@ sub run_cli {
 
 # --- add user ---
 {
-    my $out = run_cli( 'add', 'alice', 'password123' );
+    my $out = run_cli( 'add', 'alice', 'password123-long-enough' );
     like( $out, qr/added/i, 'add produces confirmation' );
     ok( -f "$docroot/lazysite/auth/users", 'users file created' );
 
@@ -42,7 +42,7 @@ sub run_cli {
 
 # --- change password ---
 {
-    my $out = run_cli( 'passwd', 'alice', 'newpass' );
+    my $out = run_cli( 'passwd', 'alice', 'newpass-long-enough' );
     like( $out, qr/updated/i, 'passwd confirms' );
     open my $fh, '<', "$docroot/lazysite/auth/users" or die $!;
     my $content = do { local $/; <$fh> }; close $fh;
@@ -53,7 +53,7 @@ sub run_cli {
     my ( $salt, $iters, $hash ) =
         ( $content =~ m{^alice:sha256iter:([0-9a-f]{32}):(\d+):([0-9a-f]{64})}m );
     ok( $salt && $iters && $hash, 'new hash has sha256iter format' );
-    my $derived = 'newpass';
+    my $derived = 'newpass-long-enough';
     $derived = sha256_hex( $salt . $derived ) for 1 .. $iters;
     is( $hash, $derived, 'stored hash matches sha256iter(newpass) with stored salt' );
 }
@@ -98,14 +98,14 @@ sub run_cli {
 
 # --- add same user twice errors ---
 {
-    run_cli( 'add', 'bob', 'x' );
-    my $out = run_cli( 'add', 'bob', 'y' );
+    run_cli( 'add', 'bob', 'x-long-enough' );
+    my $out = run_cli( 'add', 'bob', 'y-long-enough' );
     like( $out, qr/already exists/i, 'duplicate add reports error' );
 }
 
 # --- passwd on missing user errors ---
 {
-    my $out = run_cli( 'passwd', 'nobody', 'x' );
+    my $out = run_cli( 'passwd', 'nobody', 'x-long-enough' );
     like( $out, qr/not found/i, 'passwd on missing user reports error' );
 }
 
@@ -156,8 +156,8 @@ sub run_cli {
     # idempotent + explicit password
     # A password given positionally opts OUT of the link - a scripted first run
     # on a host nobody will reach interactively.
-    my $out2 = run_cli( 'setup-sysop', '--user', 'sjm', 'chosenpass' );
-    like( $out2, qr/Password:\s*chosenpass/,
+    my $out2 = run_cli( 'setup-sysop', '--user', 'sjm', 'chosenpass-long-enough' );
+    like( $out2, qr/Password:\s*chosenpass-long-enough/,
         'an explicit password still opts out of the link' );
     open my $c2, '<', "$docroot/lazysite/lazysite.conf" or die $!;
     my $conf2 = do { local $/; <$c2> }; close $c2;

@@ -62,7 +62,7 @@ sub build {
     open my $cf, '>', "$d/lazysite/lazysite.conf"; print $cf "site_name: T\n"; close $cf;
     open my $sc, '>', "$d/lazysite/forms/smtp.conf";
     print $sc "method: sendmail\nsendmail_path: /nonexistent/sendmail\n"; close $sc;
-    users_api( $d, { action => 'add', username => 'human', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'human', password => 'pw-long-enough' } );
     users_api( $d, { action => 'settings-set', username => 'human', key => 'email', value => 'human@example.org' } );
     return $d;
 }
@@ -101,7 +101,7 @@ sub build {
 # --- account without an email gets no claim ----------------------------
 {
     my $d = build();
-    users_api( $d, { action => 'add', username => 'noemail', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'noemail', password => 'pw-long-enough' } );
     forgot( docroot => $d, identifier => 'noemail' );
     ok( !pending( $d, 'noemail' ), 'no claim for an account without an email' );
 }

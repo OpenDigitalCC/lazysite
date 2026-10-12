@@ -71,9 +71,9 @@ close $cf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close $sf;
 
 # op = full operator (manage_users etc.); ed = content-editor only.
-uapi( $d, { action => 'add', username => 'op', password => 'x' } );
+uapi( $d, { action => 'add', username => 'op', password => 'x-long-enough' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_config', 'manage_content', 'ui' );  # SM1057
-uapi( $d, { action => 'add', username => 'ed', password => 'y' } );
+uapi( $d, { action => 'add', username => 'ed', password => 'y-long-enough' } );
 grant_caps( $d, 'ed', 'manage_content' );
 
 # --- H2: a state-changing action over GET is rejected -----------------------
@@ -101,7 +101,7 @@ grant_caps( $d, 'ed', 'manage_content' );
 # --- C1: a content-editor cannot reset another account's password -----------
 {
     my $r = post( $d, 'ed', 'ed', 'action=users',
-        { action => 'passwd', username => 'op', password => 'HACKED' } );
+        { action => 'passwd', username => 'op', password => 'HACKED-long-enough' } );
     ok( !$r->{ok}, 'C1: content-editor cannot reach the users action' );
     is( $r->{kind}, 'forbidden', 'C1: forbidden' );
 }
@@ -114,7 +114,7 @@ grant_caps( $d, 'ed', 'manage_content' );
     like( slurp("$d/lazysite/lazysite.conf"), qr/site_name: Renamed/, 'operator change applied' );
 
     my $p = post( $d, 'op', 'role-op', 'action=users',
-        { action => 'passwd', username => 'ed', password => 'NewPass1' } );
+        { action => 'passwd', username => 'ed', password => 'NewPass1-long-enough' } );
     ok( $p->{ok}, 'operator can reset a password' );
 }
 

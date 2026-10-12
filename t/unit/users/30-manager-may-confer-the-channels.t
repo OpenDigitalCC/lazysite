@@ -58,7 +58,7 @@ sub fresh_site {
     # SM659: setup-sysop, and a NAME is required - there is no default account.
     # The password stays positional here so this fixture keeps testing the
     # capability question rather than the registration-link flow.
-    run_cli( $d, 'setup-sysop', '--user', 'sjm', 'secretpw123' );
+    run_cli( $d, 'setup-sysop', '--user', 'sjm', 'secretpw1234' );
     return $d;
 }
 
@@ -66,7 +66,7 @@ my $d = fresh_site();
 
 # --- the reported case ------------------------------------------------------
 subtest 'the manager can add an account to a group granting api' => sub {
-    run_cli( $d, 'add', 'aiagent', 'pw12345678' );
+    run_cli( $d, 'add', 'aiagent', 'pw12345678-long-enough' );
     my $out = run_cli( $d, 'group-add', 'aiagent', 'agent-ai', 'sjm' );
     unlike( $out, qr/which you may not confer/,
         'no confer refusal for the bootstrap admin' )
@@ -117,9 +117,9 @@ subtest 'a delegate outside the manager group still cannot confer' => sub {
     # A user-managers member holds manage_users and no grant authority, which
     # is the population the SM195 ceiling exists to bound. If seeding the
     # MANAGER group had widened this, the ceiling would be decorative.
-    run_cli( $d, 'add', 'delegate', 'pw12345678' );
+    run_cli( $d, 'add', 'delegate', 'pw12345678-long-enough' );
     run_cli( $d, 'group-add', 'delegate', 'user-managers' );
-    run_cli( $d, 'add', 'target', 'pw12345678' );
+    run_cli( $d, 'add', 'target', 'pw12345678-long-enough' );
     my $out = run_cli( $d, 'group-add', 'target', 'agent-ai', 'delegate' );
     like( $out, qr/which you may not confer/,
         'a manage_users delegate is still refused' );

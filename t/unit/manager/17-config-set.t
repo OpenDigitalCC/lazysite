@@ -52,7 +52,7 @@ make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: My Site\ncontrol_api_enabled: true\n"; close $cf;
 
-uapi( $d, { action => 'add', username => 'p', password => 'x' } );
+uapi( $d, { action => 'add', username => 'p', password => 'x-long-enough' } );
 grant_caps( $d, 'p', 'manage_config', 'api' );   # SM126: token client holds the api channel cap
 my $tok = uapi( $d, { action => 'token', username => 'p' } )->{token};
 ok( $tok && $tok =~ /^lzs_/, 'minted a manage_config token' );
@@ -165,7 +165,7 @@ ok( $cipclear->{ok}, 'canonical_ip may be cleared (empty = auto-detect)' ) or di
 like( conf($d), qr/^canonical_ip:\s*$/m, 'cleared canonical_ip is written empty' );
 
 # without manage_config the capability gate refuses it
-uapi( $d, { action => 'add', username => 'q', password => 'x' } );
+uapi( $d, { action => 'add', username => 'q', password => 'x-long-enough' } );
 my $tok2 = uapi( $d, { action => 'token', username => 'q' } )->{token};
 my $nocap = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
     HTTP_AUTHORIZATION => basic( 'q', $tok2 ),

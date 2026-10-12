@@ -80,21 +80,21 @@ subtest 'over plain HTTP from another machine, the refusal names the transport' 
         [ 'no such account', 'nobody', 'lzc_bogus' ] )
     {
         my ( $label, $u, $k ) = @$case;
-        my $loc = claim( docroot => $d, username => $u, claim => $k, password => 'pw-chosen', addr => '192.0.2.7' );
+        my $loc = claim( docroot => $d, username => $u, claim => $k, password => 'pw-chosen-long-enough', addr => '192.0.2.7' );
         like( $loc, qr{\A/claim\?u=\Q$u\E&error=https\z}, "$label: error=https" );
         ( my $shape = $loc ) =~ s/u=[^&]*/u=NAME/;
         $seen{$shape}++;
     }
     is( scalar keys %seen, 1, 'and the same answer for each: it says nothing about the link or the account' );
-    ok( !users_api( $d, { action => 'verify-credential', username => 'newbie', secret => 'pw-chosen' } )->{ok},
+    ok( !users_api( $d, { action => 'verify-credential', username => 'newbie', secret => 'pw-chosen-long-enough' } )->{ok},
         'nothing was set' );
 };
 
 subtest 'over HTTPS a bad link is still the generic answer, and a good one works' => sub {
-    my $loc = claim( docroot => $d, username => 'newbie', claim => 'lzc_bogus', password => 'x',
+    my $loc = claim( docroot => $d, username => 'newbie', claim => 'lzc_bogus', password => 'x-long-enough',
         addr => '192.0.2.7', https => 'on' );
     like( $loc, qr{error=1\z}, 'a bogus link: error=1' );
-    $loc = claim( docroot => $d, username => 'newbie', claim => $c->{claim}, password => 'pw-chosen',
+    $loc = claim( docroot => $d, username => 'newbie', claim => $c->{claim}, password => 'pw-chosen-long-enough',
         addr => '192.0.2.7', https => 'on' );
     like( $loc, qr{/login\?claimed=1}, 'the real link, unused by the refusals, still works' );
 };

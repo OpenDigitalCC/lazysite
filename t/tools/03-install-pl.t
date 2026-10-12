@@ -852,7 +852,7 @@ subtest 'fresh install: audit.log 0664, install event + channel, setup-sysop eve
     # this): exactly two more events, origin cli, attributed to the real user.
     my @before = split /\n/, $audit;
     my $users  = "$FindBin::Bin/../../tools/lazysite-users.pl";
-    my $sout   = qx{$^X "$users" --docroot "$docroot" setup-sysop --user sjm pw-test-1 2>&1};
+    my $sout   = qx{$^X "$users" --docroot "$docroot" setup-sysop --user sjm pw-test-1-long-enough 2>&1};
     my @after  = split /\n/, slurp($log);
     is( scalar @after, scalar(@before) + 2,
         'setup-sysop appended exactly TWO events' ) or diag $sout;
@@ -865,7 +865,7 @@ subtest 'fresh install: audit.log 0664, install event + channel, setup-sysop eve
         'setup-sysop event: cli origin, SYSADMIN attribution, group target' );
     like( $after[-1], qr/\| \Q$me\E \| user-passwd \| sjm \| .* \| ok \| cli/,
         'credential-issue event for the NAMED account' );
-    unlike( slurp($log), qr/pw-test-1/, 'the password itself is not in the trail' );
+    unlike( slurp($log), qr/pw-test-1-long-enough/, 'the password itself is not in the trail' );
 
     # Split-identity invariant: any secret minted so far is exactly 0660
     # (owner+group, never world) - a CLI-context mint must not lock the

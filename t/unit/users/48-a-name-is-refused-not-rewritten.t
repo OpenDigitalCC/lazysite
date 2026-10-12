@@ -117,11 +117,11 @@ subtest 'the Users API: nothing is created, and nothing is joined' => sub {
 
 subtest 'every door through cmd_add refuses the same way' => sub {
     my $d = site();
-    my ( $rc, $out ) = cli( $d, 'add', 'jo+hn', 'pw123456789' );
+    my ( $rc, $out ) = cli( $d, 'add', 'jo+hn', 'pw123456789-long-enough' );
     isnt( $rc, 0, 'add refuses' );
     like( $out, $NAMED, 'by name' );
 
-    my $r = api( $d, { action => 'add', username => 'jo hn', password => 'pw123456789' } );
+    my $r = api( $d, { action => 'add', username => 'jo hn', password => 'pw123456789-long-enough' } );
     ok( !$r->{ok}, 'the API add refuses' );
     like( $r->{error} // '', qr/'jo hn' cannot be a username: ' ' is not allowed/,
         'naming a space as the character' );

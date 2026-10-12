@@ -57,13 +57,13 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
     ok( settings( $d, 'alice' )->{claim_pending}, 'claim shows pending' );
 
     my $r = api( $d, { action => 'claim-redeem', username => 'alice',
-                       claim => $c->{claim}, password => 's3cret' } );
+                       claim => $c->{claim}, password => 's3cret-long-enough' } );
     ok( $r->{ok}, 'claim-redeem ok' );
-    ok( verify( $d, 'alice', 's3cret' )->{ok}, 'the password the user set works' );
+    ok( verify( $d, 'alice', 's3cret-long-enough' )->{ok}, 'the password the user set works' );
     ok( !settings( $d, 'alice' )->{claim_pending}, 'claim cleared after redeem' );
 
     my $again = api( $d, { action => 'claim-redeem', username => 'alice',
-                           claim => $c->{claim}, password => 'other' } );
+                           claim => $c->{claim}, password => 'other-long-enough' } );
     ok( !$again->{ok}, 'claim is single-use' );
     like( $again->{error}, qr/Invalid or expired/, 'generic error on reuse' );
 }
@@ -71,7 +71,7 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
 # --- mint-token claim for a machine (ui off) account ------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'keeper', 'pw' );        # keep a ui account so bot isn't "the last"
+    cli( $d, 'add', 'keeper', 'pw-long-enough' );        # keep a ui account so bot isn't "the last"
     cli( $d, 'add', 'bot', '' );
     cli( $d, 'set', 'bot', 'ui', 'off' );
     my $c = api( $d, { action => 'claim-create', username => 'bot' } );
@@ -89,7 +89,7 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
     my $c = api( $d, { action => 'claim-create', username => 'carol' } );
 
     my $bad = api( $d, { action => 'claim-redeem', username => 'carol',
-                         claim => 'lzc_deadbeef', password => 'x' } );
+                         claim => 'lzc_deadbeef', password => 'x-long-enough' } );
     ok( !$bad->{ok}, 'wrong claim rejected' );
     like( $bad->{error}, qr/Invalid or expired/, 'generic' );
 
@@ -97,7 +97,7 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
     $j->{carol}{claim_expires_at} = time() - 1;            # force expiry
     open my $out, '>', setfile($d); print $out encode_json($j); close $out;
     my $exp = api( $d, { action => 'claim-redeem', username => 'carol',
-                         claim => $c->{claim}, password => 'x' } );
+                         claim => $c->{claim}, password => 'x-long-enough' } );
     ok( !$exp->{ok}, 'expired claim rejected' );
     like( $exp->{error}, qr/Invalid or expired/, 'generic' );
 }
@@ -107,17 +107,17 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
     my $d = fresh_docroot();
     cli( $d, 'add', 'dave', '' );
     my $c1 = api( $d, { action => 'claim-create', username => 'dave' } );
-    api( $d, { action => 'claim-redeem', username => 'dave', claim => $c1->{claim}, password => 'first' } );
-    ok( verify( $d, 'dave', 'first' )->{ok}, 'first password works' );
+    api( $d, { action => 'claim-redeem', username => 'dave', claim => $c1->{claim}, password => 'first-long-enough' } );
+    ok( verify( $d, 'dave', 'first-long-enough' )->{ok}, 'first password works' );
 
     my $reset = api( $d, { action => 'claim-create', username => 'dave', revoke => 1 } );
     ok( $reset->{ok}, 'reset issues a new claim' );
-    ok( !verify( $d, 'dave', 'first' )->{ok}, 'old credential revoked' );
+    ok( !verify( $d, 'dave', 'first-long-enough' )->{ok}, 'old credential revoked' );
     ok( settings( $d, 'dave' )->{claim_pending}, 'fresh claim pending' );
 
-    api( $d, { action => 'claim-redeem', username => 'dave', claim => $reset->{claim}, password => 'second' } );
-    ok( verify( $d, 'dave', 'second' )->{ok}, 'user sets a new password via the reset claim' );
-    ok( !verify( $d, 'dave', 'first' )->{ok}, 'the old password stays dead' );
+    api( $d, { action => 'claim-redeem', username => 'dave', claim => $reset->{claim}, password => 'second-long-enough' } );
+    ok( verify( $d, 'dave', 'second-long-enough' )->{ok}, 'user sets a new password via the reset claim' );
+    ok( !verify( $d, 'dave', 'first-long-enough' )->{ok}, 'the old password stays dead' );
 }
 
 # --- a disabled account cannot be provisioned -------------------------
@@ -132,11 +132,11 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
 # --- claim-create respects ancestry (operator-triggered, scoped) ------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'mgr', 'pw' );
+    cli( $d, 'add', 'mgr', 'pw-long-enough' );
     grant_caps( $d, 'mgr', 'create_sub_users' );
-    api( $d, { action => 'account-create', username => 'kid', password => 'pw',
+    api( $d, { action => 'account-create', username => 'kid', password => 'pw-long-enough',
                created_by => 'mgr', actor => 'mgr' } );
-    cli( $d, 'add', 'stranger', 'pw' );
+    cli( $d, 'add', 'stranger', 'pw-long-enough' );
 
     my $ok = api( $d, { action => 'claim-create', username => 'kid', actor => 'mgr' } );
     ok( $ok->{ok}, 'a manager can mint a claim for its descendant' );
@@ -148,34 +148,34 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
 # --- account expiry: time-boxed access --------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'temp', 'pw' );
-    ok( verify( $d, 'temp', 'pw' )->{ok}, 'valid before any expiry' );
+    cli( $d, 'add', 'temp', 'pw-long-enough' );
+    ok( verify( $d, 'temp', 'pw-long-enough' )->{ok}, 'valid before any expiry' );
 
     cli( $d, 'set', 'temp', 'expires_at', '2000-01-01' );      # past
-    ok( !verify( $d, 'temp', 'pw' )->{ok}, 'expired account fails auth' );
+    ok( !verify( $d, 'temp', 'pw-long-enough' )->{ok}, 'expired account fails auth' );
 
     cli( $d, 'set', 'temp', 'expires_at', '2999-12-31' );      # future
-    ok( verify( $d, 'temp', 'pw' )->{ok}, 'future expiry still authenticates' );
+    ok( verify( $d, 'temp', 'pw-long-enough' )->{ok}, 'future expiry still authenticates' );
     ok( settings( $d, 'temp' )->{expires_at} > time(), 'expires_at stored as a future epoch' );
 
     cli( $d, 'set', 'temp', 'expires_at', '' );                # clear
     ok( !defined settings( $d, 'temp' )->{expires_at}, 'empty value clears the expiry' );
-    ok( verify( $d, 'temp', 'pw' )->{ok}, 'valid again once expiry cleared' );
+    ok( verify( $d, 'temp', 'pw-long-enough' )->{ok}, 'valid again once expiry cleared' );
 }
 
 # --- rename moves credentials, settings, groups, and provenance --------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'alice', 'pw' );
+    cli( $d, 'add', 'alice', 'pw-long-enough' );
     grant_caps( $d, 'alice', 'create_sub_users' );
     cli( $d, 'group-add', 'alice', 'editors' );
-    api( $d, { action => 'account-create', username => 'kid', password => 'pw',
+    api( $d, { action => 'account-create', username => 'kid', password => 'pw-long-enough',
                created_by => 'alice', actor => 'alice' } );
 
     my $r = api( $d, { action => 'rename', username => 'alice', to => 'alice2' } );
     ok( $r->{ok}, 'rename ok' );
-    ok(  verify( $d, 'alice2', 'pw' )->{ok}, 'credential moved to the new name' );
-    ok( !verify( $d, 'alice',  'pw' )->{ok}, 'old name no longer authenticates' );
+    ok(  verify( $d, 'alice2', 'pw-long-enough' )->{ok}, 'credential moved to the new name' );
+    ok( !verify( $d, 'alice',  'pw-long-enough' )->{ok}, 'old name no longer authenticates' );
     ok( settings( $d, 'alice2' )->{create_sub_users}, 'settings moved with the account' );
     is( settings( $d, 'kid' )->{created_by}, 'alice2', 'sub-user provenance follows the rename' );
 
@@ -183,7 +183,7 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
     ok(  ( grep { $_ eq 'alice2' } @ed ), 'group membership renamed' );
     ok( !( grep { $_ eq 'alice'  } @ed ), 'old name gone from the group' );
 
-    cli( $d, 'add', 'bob', 'pw' );
+    cli( $d, 'add', 'bob', 'pw-long-enough' );
     my $clash = api( $d, { action => 'rename', username => 'alice2', to => 'bob' } );
     ok( !$clash->{ok}, 'rename to an existing name is rejected' );
 }

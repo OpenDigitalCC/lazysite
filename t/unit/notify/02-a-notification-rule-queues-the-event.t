@@ -38,7 +38,7 @@ spit( "$d/lazysite/forms/comment.conf",
     "spam_dwell: off\ntargets:\n  - handler: store\n  - handler: followers\n" );
 spit( "$d/lazysite/auth/.secret",  'a' x 64 );
 spit( "$d/lazysite/forms/.secret", 'b' x 64 );
-run_cmd( $^X, "$root/tools/lazysite-users.pl", '--docroot', $d, 'add', 'zz9member', 'pw123456789' );
+run_cmd( $^X, "$root/tools/lazysite-users.pl", '--docroot', $d, 'add', 'zz9member', 'pw123456789-long-enough' );
 
 my $OUTBOX = "$d/lazysite/notify/outbox";
 

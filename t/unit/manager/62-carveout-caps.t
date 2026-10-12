@@ -66,7 +66,7 @@ sub cli {
 # makes site_grants_manager() true, i.e. this is a SECURED site - the gate is
 # deliberately skipped on an unsecured/dev site, where every authenticated user
 # is already the operator.
-cli( 'add',       'editor',       'pw' );
+cli( 'add',       'editor',       'pw-long-enough' );
 cli( 'group-add', 'editor',       'site-editors' );
 cli( 'group-set', 'site-editors', 'manage_content', 'on' );
 cli( 'group-set', 'site-editors', 'ui',             'on' );

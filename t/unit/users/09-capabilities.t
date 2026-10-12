@@ -38,7 +38,7 @@ sub settings {
 }
 
 my $d = fresh_docroot();
-cli( $d, 'add', 'u', 'pw' );
+cli( $d, 'add', 'u', 'pw-long-enough' );
 
 my $s = settings( $d, 'u' );
 ok( !$s->{manage_themes},  'manage_themes defaults off' );

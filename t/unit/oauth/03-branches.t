@@ -164,7 +164,7 @@ like( $r, qr/not valid/, 'garbage users-tool output is treated as a refusal' );
 
 # --- authorize POST: redirect_uri that already carries a query string --------
 
-uapi( { action => 'add', username => 'claude.ai', password => 'x' } );
+uapi( { action => 'add', username => 'claude.ai', password => 'x-long-enough' } );
 uapi( { action => 'settings-set', username => 'claude.ai', key => 'webdav', value => 'on' } );
 
 my $qcb = 'https://client.example/cb?x=1';

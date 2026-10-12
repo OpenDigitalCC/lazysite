@@ -30,7 +30,7 @@ sub api {
 
 # --- add via API ---
 {
-    my $r = api({ action => 'add', username => 'alice', password => 'pass123' });
+    my $r = api({ action => 'add', username => 'alice', password => 'pass123-long-enough' });
     is( $r->{ok}, 1, 'API add ok' );
     like( $r->{message} // '', qr/added/i, 'message reflects add' );
 }
@@ -45,7 +45,7 @@ sub api {
 
 # --- passwd via API ---
 {
-    my $r = api({ action => 'passwd', username => 'alice', password => 'new' });
+    my $r = api({ action => 'passwd', username => 'alice', password => 'new-long-enough' });
     is( $r->{ok}, 1, 'API passwd ok' );
 }
 

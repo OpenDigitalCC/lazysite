@@ -81,7 +81,7 @@ spit( "$d/lazysite/lazysite.conf", "site_name: T\nnav_file: lazysite/nav.conf\n"
 spit( "$d/lazysite/auth/.secret",  $secret );
 spit( "$d/lazysite/nav.conf",      "Base Home | /\n" );    # the shared base menu
 
-uapi( $d, { action => 'add', username => 'op', password => 'x' } );
+uapi( $d, { action => 'add', username => 'op', password => 'x-long-enough' } );
 grant_caps( $d, 'op', 'manage_domains', 'manage_nav' );
 
 # Register a subdomain with its own content root, then give it its own nav file.

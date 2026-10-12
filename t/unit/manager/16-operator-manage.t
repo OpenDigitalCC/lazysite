@@ -79,11 +79,11 @@ close $gsf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close $sf;
 
 # CLI setup (unrestricted): boss owns sw; 'other' is an unrelated sub-manager.
-uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
+uapi( $d, { action => 'add', username => 'boss', password => 'x-long-enough' } );
 # SM1057: a delegate uses the manager, so it holds `ui`.
 grant_caps( $d, "boss", "create_sub_users", "ui" );
 uapi( $d, { action => 'account-create', username => 'sw', password => '', created_by => 'boss' } );
-uapi( $d, { action => 'add', username => 'other', password => 'x' } );
+uapi( $d, { action => 'add', username => 'other', password => 'x-long-enough' } );
 grant_caps( $d, "other", "create_sub_users", "ui" );
 
 # Operator 'admin' (manager group) - did NOT create sw, but must manage it.
@@ -94,7 +94,7 @@ like( $op->{claim} // '', qr/^lzc_/, 'a claim token was minted' );
 # SM095 (c2), SM991: 'umadmin' is in NO operator group but carries manage_users via
 # a group (role-umadmin). It is not the operator (SM991), and manage_users is
 # still FULL user management, so it may manage an account it did not create.
-uapi( $d, { action => 'add', username => 'umadmin', password => 'x' } );
+uapi( $d, { action => 'add', username => 'umadmin', password => 'x-long-enough' } );
 # SM1057: it manages users in the manager, so it holds `ui`.
 grant_caps( $d, 'umadmin', 'manage_users', 'ui' );
 my $cap = manage( $d, 'umadmin', 'role-umadmin', { action => 'claim-create', username => 'sw' } );

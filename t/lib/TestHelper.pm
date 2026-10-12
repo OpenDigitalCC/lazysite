@@ -713,7 +713,7 @@ sub setup_dav_site {
     close $cf;
 
     my $user = defined $o{user}     ? $o{user}     : 'deploy';
-    my $pass = defined $o{password} ? $o{password} : 'secret';
+    my $pass = defined $o{password} ? $o{password} : 'secret-long-enough';    # SM1041
     unless ( $o{no_user} ) {
         dav_users_tool( $d, 'add', $user, $pass );
         # SM095: webdav is a group capability now. Default a content-publishing

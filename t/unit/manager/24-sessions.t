@@ -89,8 +89,8 @@ print $cf "site_name: Test Site\nmanager: enabled\n";
 close $cf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close $sf;
 
-uapi( $d, { action => 'add', username => 'op',    password => 'x' } );
-uapi( $d, { action => 'add', username => 'alice', password => 'y' } );
+uapi( $d, { action => 'add', username => 'op',    password => 'x-long-enough' } );
+uapi( $d, { action => 'add', username => 'alice', password => 'y-long-enough' } );
 grant_caps( $d, 'op', 'ui', 'manage_users' );
 
 # Registry fixture: op's own fresh session (A), two fresh alice sessions

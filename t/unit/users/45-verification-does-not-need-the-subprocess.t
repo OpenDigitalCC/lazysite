@@ -72,9 +72,9 @@ sub cli {
 }
 
 my $d = docroot();
-ok( cli( $d, 'add',       'boss',  'bosspw' ),   'a site with a human account' );
+ok( cli( $d, 'add',       'boss',  'bosspw-long-enough' ),   'a site with a human account' );
 ok( cli( $d, 'group-add', 'boss',  'sysops' ),   'who is a sysop' );
-ok( cli( $d, 'add',       'agent', 'agentpw' ),  'and a second account' );
+ok( cli( $d, 'add',       'agent', 'agentpw-long-enough' ),  'and a second account' );
 ok( cli( $d, 'group-add', 'agent', 'agent-ai' ), 'holding real capabilities' );
 
 my $t     = api( $d, { action => 'token', username => 'agent' } );

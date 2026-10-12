@@ -70,15 +70,15 @@ open my $sf, '>', "$d/lazysite/auth/.secret" or die $!;
 print $sf $secret;
 close $sf;
 
-uapi( $d, { action => 'add', username => 'op',   password => 'x' } );
-uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
+uapi( $d, { action => 'add', username => 'op',   password => 'x-long-enough' } );
+uapi( $d, { action => 'add', username => 'boss', password => 'x-long-enough' } );
 grant_caps( $d, 'op', 'manage_users', 'ui' );    # SM1057: uses the manager
 grant_caps( $d, 'boss', 'create_sub_users' );
 my $BG = 'role-boss';
 my $OG = 'role-op';
 
 # boss creates a child it legitimately manages.
-uapi( $d, { action => 'account-create', username => 'sub1', password => 'x',
+uapi( $d, { action => 'account-create', username => 'sub1', password => 'x-long-enough',
         created_by => 'boss' } );
 
 # --- delegate is REFUSED promotion + emancipation, even of its own child ------

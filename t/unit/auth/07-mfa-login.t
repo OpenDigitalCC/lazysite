@@ -62,14 +62,14 @@ sub build {
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print $cf "site_name: T\n";
     close $cf;
-    users_api( $d, { action => 'add', username => 'human', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'human', password => 'pw-long-enough' } );
     return $d;
 }
 
 # --- no MFA: normal login works (control) -----------------------------
 {
     my $d = build();
-    like( login( docroot => $d, username => 'human', password => 'pw' ),
+    like( login( docroot => $d, username => 'human', password => 'pw-long-enough' ),
         qr/Set-Cookie:/, 'login without MFA issues a cookie' );
 }
 
@@ -80,7 +80,7 @@ sub build {
 
     # SM148: enrolment is PENDING - not enforced - until a code confirms it. So
     # a login before confirming still succeeds with just the password.
-    like( login( docroot => $d, username => 'human', password => 'pw' ),
+    like( login( docroot => $d, username => 'human', password => 'pw-long-enough' ),
         qr/Set-Cookie:/, 'a pending (unconfirmed) enrolment does NOT gate login' );
 
     my $ccode = users_api( $d, { action => 'totp-code', secret => $e->{secret},
@@ -88,7 +88,7 @@ sub build {
     my $cf = users_api( $d, { action => 'mfa-confirm', username => 'human', code => $ccode } );
     ok( $cf->{ok}, 'mfa-confirm with a valid code turns 2FA on' );
 
-    my $nocode = login( docroot => $d, username => 'human', password => 'pw' );
+    my $nocode = login( docroot => $d, username => 'human', password => 'pw-long-enough' );
     unlike( $nocode, qr/Set-Cookie:/, 'after confirming, no cookie without a 2FA code' );
     like(   $nocode, qr/error=mfa/,   'redirect signals 2FA required' );
 
@@ -96,13 +96,13 @@ sub build {
     # reusing a step).
     my $code = users_api( $d, { action => 'totp-code', secret => $e->{secret},
                                 time => time() + 30, step => 30, digits => 6 } )->{code};
-    like( login( docroot => $d, username => 'human', password => 'pw', code => $code ),
+    like( login( docroot => $d, username => 'human', password => 'pw-long-enough', code => $code ),
         qr/Set-Cookie:/, 'password + valid TOTP issues a cookie' );
 
-    unlike( login( docroot => $d, username => 'human', password => 'pw', code => 'nope' ),
+    unlike( login( docroot => $d, username => 'human', password => 'pw-long-enough', code => 'nope' ),
         qr/Set-Cookie:/, 'a wrong 2FA code issues no cookie' );
 
-    like( login( docroot => $d, username => 'human', password => 'pw', code => $e->{recovery_codes}[0] ),
+    like( login( docroot => $d, username => 'human', password => 'pw-long-enough', code => $e->{recovery_codes}[0] ),
         qr/Set-Cookie:/, 'a recovery code also completes login' );
 }
 

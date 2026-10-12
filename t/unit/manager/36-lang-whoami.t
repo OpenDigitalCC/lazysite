@@ -68,7 +68,7 @@ sub setup {
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print $cf $conf;
     close $cf;
-    uapi( $d, { action => 'add', username => 'op', password => 'x' } );
+    uapi( $d, { action => 'add', username => 'op', password => 'x-long-enough' } );
     grant_caps( $d, 'op', 'manage_users', 'manage_domains', 'ui' ); # SM1057: uses the manager
     return $d;
 }

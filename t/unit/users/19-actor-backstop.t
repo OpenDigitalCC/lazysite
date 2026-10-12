@@ -38,9 +38,9 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: T\n";
 close $cf;
 
-uapi( $d, { action => 'add', username => 'op',    password => 'x' } );
-uapi( $d, { action => 'add', username => 'boss',  password => 'x' } );
-uapi( $d, { action => 'add', username => 'alice', password => 'x' } );
+uapi( $d, { action => 'add', username => 'op',    password => 'x-long-enough' } );
+uapi( $d, { action => 'add', username => 'boss',  password => 'x-long-enough' } );
+uapi( $d, { action => 'add', username => 'alice', password => 'x-long-enough' } );
 uapi( $d, { action => 'group-create', group => 'admins' } );
 grant_caps( $d, 'op',   'manage_users' );        # a real operator
 grant_caps( $d, 'boss', 'create_sub_users' );    # a delegated sub-manager, NOT manage_users
@@ -52,7 +52,7 @@ my %verb = (
     'group-settings-set' => { action => 'group-settings-set', group => 'admins', key => 'manage_users', value => 1 },
     'settings-set'       => { action => 'settings-set', username => 'alice', key => 'ui', value => 0 },
     'token'              => { action => 'token', username => 'alice' },
-    'add'                => { action => 'add', username => 'intruder', password => 'x' },
+    'add'                => { action => 'add', username => 'intruder', password => 'x-long-enough' },
     'remove'             => { action => 'remove', username => 'alice' },
     'group-create'       => { action => 'group-create', group => 'evil' },
     'group-delete'       => { action => 'group-delete', group => 'admins' },

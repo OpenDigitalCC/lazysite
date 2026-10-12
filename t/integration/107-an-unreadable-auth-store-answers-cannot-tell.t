@@ -44,7 +44,7 @@ my $auth = "$d/lazysite/auth";
 
 # Built the way an operator builds it, through the tool that owns the stores.
 $ms->users( 'setup-sysop', '--user', 'ada' );
-$ms->users( 'add',         'agent',  'pw123456789' );
+$ms->users( 'add',         'agent',  'pw123456789-long-enough' );
 $ms->users( 'group-add',   'agent',  'agents' );
 $ms->users( 'group-set',   'agents', $_,   'on' ) for qw(api mcp manage_content);
 $ms->users( 'set',         'agent',  'ui', 'off' );    # an agent account (SM127)
@@ -52,7 +52,7 @@ my ($tok) = $ms->users( 'token', 'agent' ) =~ /^(lzs_\S+)/m;
 ok( $tok, 'the agent holds a real credential' ) or BAIL_OUT('no token');
 
 # A second agent, disabled, for the fail-closed case.
-$ms->users( 'add',       'gone', 'pw123456789' );
+$ms->users( 'add',       'gone', 'pw123456789-long-enough' );
 $ms->users( 'group-add', 'gone', 'agents' );
 $ms->users( 'set',       'gone', 'ui', 'off' );
 my ($gone_tok) = $ms->users( 'token', 'gone' ) =~ /^(lzs_\S+)/m;

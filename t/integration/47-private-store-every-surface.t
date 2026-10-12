@@ -34,7 +34,7 @@ sub spit {
     return;
 }
 
-my $site = setup_dav_site( user => 'partner', password => 'secret' );
+my $site = setup_dav_site( user => 'partner', password => 'secret-long-enough' );
 my $d    = $site->{docroot};
 make_path("$d/lazysite/manager/locks");
 grant_caps( $d, 'boss', qw(ui manage_users) );
@@ -69,7 +69,7 @@ sub read_via_dav {
     $ENV{LAZYSITE_DAV_FAIL_DELAY} = 0;
     $ENV{LAZYSITE_USERS_TOOL}     = $stub;
     $ENV{HTTP_AUTHORIZATION}
-        = 'Basic ' . MIME::Base64::encode_base64( 'partner:secret', '' );
+        = 'Basic ' . MIME::Base64::encode_base64( 'partner:secret-long-enough', '' );
     $ENV{REQUEST_METHOD} = 'GET';
     $ENV{PATH_INFO}      = $path;
     $ENV{CONTENT_LENGTH} = 0;
@@ -145,7 +145,7 @@ subtest 'a WebDAV PUT into the same section behaves identically' => sub {
     $ENV{LAZYSITE_DAV_FAIL_DELAY} = 0;
     $ENV{LAZYSITE_USERS_TOOL}     = $stub;
     $ENV{HTTP_AUTHORIZATION}
-        = 'Basic ' . MIME::Base64::encode_base64( 'partner:secret', '' );
+        = 'Basic ' . MIME::Base64::encode_base64( 'partner:secret-long-enough', '' );
     $ENV{REQUEST_METHOD} = 'PUT';
     $ENV{PATH_INFO}      = '/upcoming/dav.md';
     $ENV{CONTENT_LENGTH} = length $body;

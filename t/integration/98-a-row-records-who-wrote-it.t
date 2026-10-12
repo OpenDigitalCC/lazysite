@@ -53,8 +53,8 @@ close $df;
 apply_schema( $docroot, 'notes' );
 
 my $users = "$root/tools/lazysite-users.pl";
-qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
-qx($^X \Q$users\E --docroot \Q$docroot\E add writer pw123456789 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789-long-enough 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E add writer pw123456789-long-enough 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-set data-people manage_data on 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-set data-people ui on 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-add writer data-people 2>/dev/null);

@@ -61,7 +61,7 @@ sub stored_hash {
 # --- API token shape ---------------------------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'deploy', 'pw' );
+    cli( $d, 'add', 'deploy', 'pw-long-enough' );
 
     my $r = api( $d, { action => 'token', username => 'deploy' } );
     is( $r->{ok}, 1, 'token action ok' );
@@ -71,7 +71,7 @@ sub stored_hash {
 # --- stored as single-iteration sha256iter, and it verifies -----------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'deploy', 'pw' );
+    cli( $d, 'add', 'deploy', 'pw-long-enough' );
     my $r = api( $d, { action => 'token', username => 'deploy' } );
     my $token = $r->{token};
 
@@ -88,7 +88,7 @@ sub stored_hash {
 # --- regenerating yields a different credential -----------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'deploy', 'pw' );
+    cli( $d, 'add', 'deploy', 'pw-long-enough' );
     my $t1 = api( $d, { action => 'token', username => 'deploy' } )->{token};
     my $h1 = stored_hash( $d, 'deploy' );
     my $t2 = api( $d, { action => 'token', username => 'deploy' } )->{token};
@@ -101,7 +101,7 @@ sub stored_hash {
 # --- plaintext never lands on disk ------------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'deploy', 'pw' );
+    cli( $d, 'add', 'deploy', 'pw-long-enough' );
     my $token = api( $d, { action => 'token', username => 'deploy' } )->{token};
 
     my $hit = 0;

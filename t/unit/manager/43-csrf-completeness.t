@@ -74,7 +74,7 @@ close $cf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!;
 print $sf $secret;
 close $sf;
-uapi( $d, { action => 'add', username => 'admin', password => 'x' } );
+uapi( $d, { action => 'add', username => 'admin', password => 'x-long-enough' } );
 grant_caps( $d, 'admin', 'manage_users' );
 open my $pg, '>', "$d/page.md" or die $!;
 print $pg "x\n";

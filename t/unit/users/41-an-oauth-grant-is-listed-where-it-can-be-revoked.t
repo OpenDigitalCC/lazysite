@@ -71,12 +71,12 @@ sub row_for {
 # A HUMAN FIRST. `set ui off` honours a last-manager guard, so with only one
 # manager-capable account the account-level flag stays on however the groups are
 # set - and the account remains "interactive", which is what key-revoke keys on.
-run( 'add', 'human', 'pw123456789' );
+run( 'add', 'human', 'pw123456789-long-enough' );
 run( 'group-set', 'humans', 'ui', 'on' );
 run( 'group-set', 'humans', 'manage_users', 'on' );
 run( 'group-add', 'human', 'humans' );
 
-run( 'add', 'oauthonly', 'pw123456789' );
+run( 'add', 'oauthonly', 'pw123456789-long-enough' );
 run( 'group-set', 'agents', 'mcp', 'on' );
 run( 'group-set', 'agents', 'ui',  'off' );
 run( 'group-add', 'oauthonly', 'agents' );

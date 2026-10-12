@@ -103,8 +103,8 @@ sub set_groups {
 # === M4: logout invalidates the session server-side =========================
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'alice', password => 'pw' } );
-    my $cookie = login( $d, 'alice', 'pw' );
+    users_api( $d, { action => 'add', username => 'alice', password => 'pw-long-enough' } );
+    my $cookie = login( $d, 'alice', 'pw-long-enough' );
     ok( length $cookie, 'alice logged in' );
 
     like( get( $d, $cookie )->{out}, qr/^USER=alice$/m,
@@ -124,8 +124,8 @@ sub set_groups {
 # error - the cookie still ages out at its TTL.
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'bob', password => 'pw' } );
-    login( $d, 'bob', 'pw' );    # mint the secret
+    users_api( $d, { action => 'add', username => 'bob', password => 'pw-long-enough' } );
+    login( $d, 'bob', 'pw-long-enough' );    # mint the secret
     require Digest::SHA;
     open my $sf, '<', "$d/lazysite/auth/.secret" or die $!;
     chomp( my $secret = <$sf> );
@@ -141,10 +141,10 @@ sub set_groups {
 # === M5: groups are re-resolved from the live file each request =============
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'carol', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'carol', password => 'pw-long-enough' } );
     set_groups( $d, "admins: carol\n" );
 
-    my $cookie = login( $d, 'carol', 'pw' );
+    my $cookie = login( $d, 'carol', 'pw-long-enough' );
     like( get( $d, $cookie )->{out}, qr/^GROUPS=admins$/m,
         'carol carries the admins group while a member' );
 

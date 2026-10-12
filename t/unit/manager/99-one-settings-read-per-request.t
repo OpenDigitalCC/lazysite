@@ -120,9 +120,9 @@ make_path( "$d/lazysite/auth", "$d/lazysite/logs" );
 
 # An operator, so the site counts as SECURED (which is what puts the carve-out
 # gate in play), and an ordinary editor, who is the caller under test.
-uapi( { action => 'add', username => 'op', password => 'x' } );
+uapi( { action => 'add', username => 'op', password => 'x-long-enough' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_config' );
-uapi( { action => 'add', username => 'ed', password => 'y' } );
+uapi( { action => 'add', username => 'ed', password => 'y-long-enough' } );
 # SM1057: an editor uses the manager, so it holds `ui`.
 grant_caps( $d, 'ed', 'manage_content', 'notifications', 'ui' );
 

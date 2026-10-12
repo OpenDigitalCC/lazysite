@@ -73,7 +73,7 @@ sub build_docroot {
 # --- pairing key -> access token (with expiry) ------------------------
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'agent', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'agent', password => 'pw-long-enough' } );
     my $pk = users_api( $d, { action => 'pairing-key', username => 'agent' } );
     ok( $pk->{ok} && $pk->{pairing_key}, 'pairing key minted' );
 
@@ -91,7 +91,7 @@ sub build_docroot {
 # --- rotate: token -> fresh token, old one dies -----------------------
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'agent', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'agent', password => 'pw-long-enough' } );
     my $pk  = users_api( $d, { action => 'pairing-key', username => 'agent' } );
     my $tok = run_auth( 'exchange', $d, _body => "username=agent&pairing_key=$pk->{pairing_key}" )->{token};
 
@@ -116,7 +116,7 @@ sub build_docroot {
 # "Invalid token" the next agent has to diagnose by hand.
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'agent', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'agent', password => 'pw-long-enough' } );
     my $pk    = users_api( $d, { action => 'pairing-key', username => 'agent' } );
     my $tok   = run_auth( 'exchange', $d, _body => "username=agent&pairing_key=$pk->{pairing_key}" )->{token};
     my $basic = 'Basic ' . encode_base64( "agent:$tok", '' );
@@ -139,7 +139,7 @@ sub build_docroot {
 # --- a bogus pairing key is rejected ----------------------------------
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'agent', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'agent', password => 'pw-long-enough' } );
     my $r = run_auth( 'exchange', $d, _body => 'username=agent&pairing_key=lzp_bogus' );
     ok( !$r->{ok}, 'a bogus pairing key is rejected' );
 }

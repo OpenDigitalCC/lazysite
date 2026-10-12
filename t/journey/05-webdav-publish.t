@@ -40,7 +40,7 @@ sub users_api {
 sub basic { 'Basic ' . encode_base64( "deploy:$_[0]", '' ) }
 
 # --- provision a publishing account -----------------------------------
-dav_users_tool( $docroot, 'add', 'deploy', 'initial-pw' );
+dav_users_tool( $docroot, 'add', 'deploy', 'initial-pw-long-enough' );
 grant_caps( $docroot, 'deploy', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
 # SM165: access is on the DOMAIN now. Register a domain rooted at content/ that
 # role-deploy (grant_caps made it) may manage; deploy is then confined to it.

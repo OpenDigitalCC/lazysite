@@ -42,7 +42,7 @@ sub api {
 sub settings { api( $_[0], { action => 'settings-get', username => $_[1] } )->{settings} }
 
 my $d = fresh_docroot();
-cli( $d, 'add', 'boss', 'pw' );
+cli( $d, 'add', 'boss', 'pw-long-enough' );
 grant_caps( $d, 'boss', 'create_sub_users' );
 grant_caps( $d, 'boss', 'delegate_sub_user_creation' );
 
@@ -84,7 +84,7 @@ my $ex = api( $d, { action => 'token-exchange',
 ok( $ex->{ok} && $ex->{token} =~ /^lzs_/, 'partner pairing key exchanges for a token' );
 
 # --- gating: creator without create_sub_users -------------------------
-cli( $d, 'add', 'plain', 'pw' );
+cli( $d, 'add', 'plain', 'pw-long-enough' );
 my $denied = api( $d, { action => 'partner-create', username => 'x', created_by => 'plain' } );
 ok( !$denied->{ok}, 'partner-create denied when creator lacks create_sub_users' );
 

@@ -61,14 +61,14 @@ sub audit_log_text {
 
 my $d = tempdir( CLEANUP => 1 );
 make_path( "$d/lazysite/auth", "$d/lazysite/logs" );
-users_api( $d, { action => 'add', username => 'human', password => 'pw' } );
+users_api( $d, { action => 'add', username => 'human', password => 'pw-long-enough' } );
 
 my %base = ( DOCUMENT_ROOT => $d, REMOTE_ADDR => '127.0.0.1', HTTPS => '' );
 
 # --- successful login is audited (capture the session cookie) ---
 my $login_out = run_auth(
     { %base, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=login' },
-    "username=human&password=pw&next=/" );
+    "username=human&password=pw-long-enough&next=/" );
 like( audit_log_text($d), qr/\|\s*human\s*\|\s*login\s*\|.*\|\s*ok\s*\|/,
     'successful login writes an audit "login … ok" entry' );
 my ($session) = $login_out =~ /Set-Cookie:\s*lazysite_auth=([^;]+)/i;

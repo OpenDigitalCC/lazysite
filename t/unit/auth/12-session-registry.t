@@ -150,9 +150,9 @@ sub write_revoked {
 my $d1 = build_docroot();
 my ( $sid1, $cookie1 );
 {
-    users_api( $d1, { action => 'add', username => 'alice', password => 'pw' } );
+    users_api( $d1, { action => 'add', username => 'alice', password => 'pw-long-enough' } );
     my $nasty_ua = "Test\x01Agent\x7f/1.0 " . ( 'X' x 200 );
-    my $r = login( docroot => $d1, username => 'alice', password => 'pw', ua => $nasty_ua );
+    my $r = login( docroot => $d1, username => 'alice', password => 'pw-long-enough', ua => $nasty_ua );
     like( $r->{out}, qr/302 Found/, 'login succeeds' );
     $cookie1 = cookie_from( $r->{out} );
     ok( length $cookie1, 'cookie captured' );
@@ -188,7 +188,7 @@ my ( $sid1, $cookie1 );
 
 # --- sid revocation: that cookie dies, another session lives ------------------
 {
-    my $r2 = login( docroot => $d1, username => 'alice', password => 'pw' );
+    my $r2 = login( docroot => $d1, username => 'alice', password => 'pw-long-enough' );
     my $cookie2 = cookie_from( $r2->{out} );
     ok( length $cookie2, 'second session cookie captured' );
 
@@ -206,9 +206,9 @@ my ( $sid1, $cookie1 );
 # --- per-user not_before kills ALL that user's cookies (legacy too) -----------
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'bob', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'bob', password => 'pw-long-enough' } );
     # Mint the secret via a real login, then hand-mint bob's cookies in the past.
-    my $r = login( docroot => $d, username => 'bob', password => 'pw' );
+    my $r = login( docroot => $d, username => 'bob', password => 'pw-long-enough' );
     like( $r->{out}, qr/302 Found/, 'bob logs in (secret minted)' );
 
     my $ts      = time() - 50;
@@ -232,12 +232,12 @@ my ( $sid1, $cookie1 );
 # --- corrupt revoked.json: fail CLOSED, cannot-tell (SM1024) ---------------------
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'carol', password => 'pw' } );
-    my $r      = login( docroot => $d, username => 'carol', password => 'pw' );
+    users_api( $d, { action => 'add', username => 'carol', password => 'pw-long-enough' } );
+    my $r      = login( docroot => $d, username => 'carol', password => 'pw-long-enough' );
     my $cookie = cookie_from( $r->{out} );
     write_revoked( $d, "this is { not json" );
 
-    $r = login( docroot => $d, username => 'carol', password => 'pw' );
+    $r = login( docroot => $d, username => 'carol', password => 'pw-long-enough' );
     like( $r->{out}, qr/error=unavailable/, 'corrupt revoked.json: sign-in refused as unavailable' );
 
     my $a = auth_get( $d, $cookie );
@@ -249,13 +249,13 @@ my ( $sid1, $cookie1 );
 # --- the registry self-prunes stale lines on write -----------------------------
 {
     my $d = build_docroot();
-    users_api( $d, { action => 'add', username => 'dave', password => 'pw' } );
+    users_api( $d, { action => 'add', username => 'dave', password => 'pw-long-enough' } );
     open my $rf, '>', "$d/lazysite/auth/sessions.jsonl" or die $!;
     print $rf encode_json( { sid => 'ffffffffffffffff', user => 'ancient',
         t => time() - 2 * 86400, ip => '9.9.9.9', ua => 'old' } ) . "\n";
     close $rf;
 
-    my $r = login( docroot => $d, username => 'dave', password => 'pw' );
+    my $r = login( docroot => $d, username => 'dave', password => 'pw-long-enough' );
     like( $r->{out}, qr/302 Found/, 'login over a stale registry succeeds' );
 
     open my $in, '<', "$d/lazysite/auth/sessions.jsonl" or die $!;

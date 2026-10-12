@@ -19,9 +19,9 @@ make_path("$docroot/lazysite/auth");
 open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
 print $cf "webdav_enabled: true\n";
 close $cf;
-dav_users_tool( $docroot, 'add', 'deploy', 'secret' );
+dav_users_tool( $docroot, 'add', 'deploy', 'secret-long-enough' );
 grant_caps( $docroot, 'deploy', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
-my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
+my $auth = 'Basic ' . encode_base64( 'deploy:secret-long-enough', '' );
 
 # --- PUT publishes a page ---------------------------------------------
 {
@@ -78,9 +78,9 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
 
 # --- SM077: @group ACLs are enforced over WebDAV (shared Auth::Acl) -----
 {
-    dav_users_tool( $docroot, 'add', 'eve', 'pw' );
+    dav_users_tool( $docroot, 'add', 'eve', 'pw-long-enough' );
     grant_caps( $docroot, 'eve', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
-    dav_users_tool( $docroot, 'add', 'mallory', 'pw' );
+    dav_users_tool( $docroot, 'add', 'mallory', 'pw-long-enough' );
     grant_caps( $docroot, 'mallory', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
 
     # Append (do not clobber the role-* groups grant_caps created for eve/mallory).
@@ -91,8 +91,8 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
     print {$af} '{"grouped.md":{"owner":"deploy","write":["@editors"]}}';
     close $af;
 
-    my $eve = 'Basic ' . encode_base64( 'eve:pw', '' );
-    my $mal = 'Basic ' . encode_base64( 'mallory:pw', '' );
+    my $eve = 'Basic ' . encode_base64( 'eve:pw-long-enough', '' );
+    my $mal = 'Basic ' . encode_base64( 'mallory:pw-long-enough', '' );
     my $a = run_dav( $docroot, 'PUT', '/grouped.md', body => "x\n", HTTP_AUTHORIZATION => $eve );
     is( $a->{code}, 201, '@group member (eve in @editors) may PUT over WebDAV' );
     my $b = run_dav( $docroot, 'PUT', '/grouped.md', body => "y\n", HTTP_AUTHORIZATION => $mal );
@@ -111,10 +111,10 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
 
 # --- SM082: a theme-only partner (manage_content off) is refused content ------
 {
-    dav_users_tool( $docroot, 'add', 'themer', 'pw' );
+    dav_users_tool( $docroot, 'add', 'themer', 'pw-long-enough' );
     grant_caps( $docroot, 'themer', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
     revoke_caps( $docroot, 'themer', 'manage_content' );
-    my $auth_t = 'Basic ' . encode_base64( 'themer:pw', '' );
+    my $auth_t = 'Basic ' . encode_base64( 'themer:pw-long-enough', '' );
     my $put = run_dav( $docroot, 'PUT', '/themer-page.md', body => "x\n", HTTP_AUTHORIZATION => $auth_t );
     is( $put->{code}, 403, 'manage_content=off partner is refused a content PUT' );
     my $get = run_dav( $docroot, 'GET', '/published.md', HTTP_AUTHORIZATION => $auth_t );

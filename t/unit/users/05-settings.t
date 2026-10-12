@@ -54,7 +54,7 @@ sub api {
 # --- defaults when nothing is set --------------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'alice', 'pw' );
+    cli( $d, 'add', 'alice', 'pw-long-enough' );
 
     my $r = api( $d, { action => 'settings-get', username => 'alice' } );
     is( $r->{ok}, 1, 'settings-get ok for user with no settings row' );
@@ -69,7 +69,7 @@ sub api {
 # --- set / get round-trip ---------------------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'deploy', 'pw' );
+    cli( $d, 'add', 'deploy', 'pw-long-enough' );
     grant_caps( $d, 'deploy', 'webdav' );    # creates the role-deploy group
     # SM165: access is on the DOMAIN. Register a domain rooted at content/ that
     # role-deploy may manage; the member's effective scope derives from it.
@@ -96,7 +96,7 @@ sub api {
 # --- SM155: group scope normalise / clear / traversal + per-user refusal ----
 {
     my $d = fresh_docroot();
-    cli( $d, 'add',       'u', 'pw' );
+    cli( $d, 'add',       'u', 'pw-long-enough' );
     cli( $d, 'group-add', 'u', 'g1' );
 
     my $bad = cli( $d, 'set', 'u', 'webdav', 'maybe' );
@@ -120,7 +120,7 @@ sub api {
 # --- corrupt JSON => defaults + warning -------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'alice', 'pw' );
+    cli( $d, 'add', 'alice', 'pw-long-enough' );
     open my $fh, '>', "$d/lazysite/auth/user-settings.json" or die;
     print $fh "{ this is not json";
     close $fh;
@@ -134,9 +134,9 @@ sub api {
 # --- remove clears the settings entry ---------------------------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'gone', 'pw' );
+    cli( $d, 'add', 'gone', 'pw-long-enough' );
     grant_caps( $d, 'gone', 'webdav' );
-    cli( $d, 'add', 'stay', 'pw' );
+    cli( $d, 'add', 'stay', 'pw-long-enough' );
     grant_caps( $d, 'stay', 'webdav' );
 
     cli( $d, 'remove', 'gone' );
@@ -154,8 +154,8 @@ sub api {
 {
     my $d = fresh_docroot();
     # No manager_groups set => any user is manager-capable.
-    cli( $d, 'add', 'alice', 'pw' );
-    cli( $d, 'add', 'bob',   'pw' );
+    cli( $d, 'add', 'alice', 'pw-long-enough' );
+    cli( $d, 'add', 'bob',   'pw-long-enough' );
 
     # Two users with ui on: disabling one is fine.
     my $ok1 = cli( $d, 'set', 'alice', 'ui', 'off' );
@@ -179,8 +179,8 @@ sub api {
     print $cf "manager_groups: admins\n";
     close $cf;
 
-    cli( $d, 'add',       'admin1', 'pw' );
-    cli( $d, 'add',       'editor', 'pw' );
+    cli( $d, 'add',       'admin1', 'pw-long-enough' );
+    cli( $d, 'add',       'editor', 'pw-long-enough' );
     cli( $d, 'group-add', 'admin1', 'admins' );
 
     # editor is not in admins, so admin1 is the only manager-capable UI
@@ -195,7 +195,7 @@ sub api {
 # --- SM165: home_domain is DERIVED - the single domain a user is rooted at ---
 {
     my $d = fresh_docroot();
-    cli( $d, 'add',       'client', 'pw' );
+    cli( $d, 'add',       'client', 'pw-long-enough' );
     cli( $d, 'group-add', 'client', 'clienta-editors' );
     # A single domain that this user's group may manage => home_domain = its host.
     open my $cf, '>>', "$d/lazysite/lazysite.conf" or die $!;

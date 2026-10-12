@@ -56,8 +56,8 @@ apply_schema( $docroot, 'minutes' );
 
 # An account with manage_data, and one without.
 my $users = "$root/tools/lazysite-users.pl";
-qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
-qx($^X \Q$users\E --docroot \Q$docroot\E add writer pw123456789 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789-long-enough 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E add writer pw123456789-long-enough 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-set data-people manage_data on 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-add writer data-people 2>/dev/null);
 
@@ -65,11 +65,11 @@ qx($^X \Q$users\E --docroot \Q$docroot\E group-add writer data-people 2>/dev/nul
 # It holds write_data and NOT manage_data, and it is in `secretaries`, which is
 # the group `minutes` names in its writable_by. So it may write that table and
 # no other.
-qx($^X \Q$users\E --docroot \Q$docroot\E add learner pw123456789 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E add learner pw123456789-long-enough 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-set secretaries write_data on 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-set secretaries ui on 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-add learner secretaries 2>/dev/null);
-qx($^X \Q$users\E --docroot \Q$docroot\E add reader pw123456789 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E add reader pw123456789-long-enough 2>/dev/null);
 
 # A session cookie the endpoint will verify, minted the way lazysite-auth does.
 #
@@ -277,7 +277,7 @@ subtest 'writable_by narrows, and manage_data alone is not enough' => sub {
 
 subtest 'a group listed in writable_by may write it' => sub {
     qx($^X \Q$users\E --docroot \Q$docroot\E group-set secretaries manage_data on 2>/dev/null);
-    qx($^X \Q$users\E --docroot \Q$docroot\E add clerk pw123456789 2>/dev/null);
+    qx($^X \Q$users\E --docroot \Q$docroot\E add clerk pw123456789-long-enough 2>/dev/null);
     qx($^X \Q$users\E --docroot \Q$docroot\E group-add clerk secretaries 2>/dev/null);
 
     my $c = cookie_for('clerk');

@@ -113,9 +113,9 @@ w( 'content/clientA/book.md',
 w( 'content/clientA/own-book.md',
     "---\ntitle: Own book\nparts:\n  - content/clientA/ok.md\n  - content/clientA/two.md\n---\n\nOwn\n" );
 
-uapi( { action => 'add', username => 'op', password => 'x' } );
+uapi( { action => 'add', username => 'op', password => 'x-long-enough' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_content', 'ui' ); # SM1057: uses the manager
-uapi( { action => 'add', username => 'client', password => 'y' } );
+uapi( { action => 'add', username => 'client', password => 'y-long-enough' } );
 grant_caps( $d, 'client', 'manage_content', 'ui' );    # SM1057: a manager-UI client
 
 subtest 'the page itself: inside the scope it renders, outside it is refused' => sub {

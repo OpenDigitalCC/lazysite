@@ -70,7 +70,7 @@ sub users_api {
     waitpid $pid, 0;
     return decode_json($raw);
 }
-users_api( { action => 'add', username => $_, password => 'pw' } ) for qw(admin editor shopper);
+users_api( { action => 'add', username => $_, password => 'pw-long-enough' } ) for qw(admin editor shopper);
 grant_caps( $d, 'admin',  qw(ui manage_users manage_content manage_domains audit) );
 grant_caps( $d, 'editor', qw(ui manage_content) );
 grant_caps( $d, 'shopper', qw(ui manage_content) ); # confined to shop.example by allowed_groups

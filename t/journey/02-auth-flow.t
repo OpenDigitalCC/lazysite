@@ -55,7 +55,7 @@ sub users_api {
 
 # --- 1. Create a user in the "admins" group ---
 {
-    my $r = users_api({ action => 'add', username => 'carol', password => 'secret' });
+    my $r = users_api({ action => 'add', username => 'carol', password => 'secret-long-enough' });
     is( $r->{ok}, 1, 'user created' );
     $r = users_api({ action => 'group-add', username => 'carol', group => 'admins' });
     is( $r->{ok}, 1, 'user added to admins' );
@@ -64,7 +64,7 @@ sub users_api {
 # --- 2. POST /login via auth wrapper, capture the cookie ---
 my $cookie;
 {
-    my $body = 'username=carol&password=secret&next=/protected';
+    my $body = 'username=carol&password=secret-long-enough&next=/protected';
     local %ENV = (
         env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT   => $docroot,

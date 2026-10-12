@@ -31,7 +31,7 @@ sub uapi {
 }
 
 my $d = fresh();
-uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
+uapi( $d, { action => 'add', username => 'partner', password => 'x-long-enough' } );
 grant_caps( $d, 'partner', 'webdav', 'manage_content', 'manage_themes' );
 grant_caps( $d, 'partner', 'manage_themes' );
 

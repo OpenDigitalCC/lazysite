@@ -39,7 +39,7 @@ sub uapi {
 }
 
 # One user in a group carrying every capability.
-uapi( { action => 'add', username => 'all', password => 'pw' } );
+uapi( { action => 'add', username => 'all', password => 'pw-long-enough' } );
 uapi( { action => 'group-add', username => 'all', group => 'everything' } );
 uapi( { action => 'group-settings-set', group => 'everything', key => $_, value => 'on' } )
     for @CAP_KEYS;

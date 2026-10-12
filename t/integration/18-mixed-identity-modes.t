@@ -69,13 +69,13 @@ subtest 'auth secret minted 0660 (owner+group, never world)' => sub {
     # seed a user through the tool (API mode, like the real CGI does)
     my ( $cout, $cin );
     my $pid = IPC::Open2::open2( $cout, $cin, $^X, $utl, '--api', '--docroot', $d );
-    print $cin JSON::PP::encode_json( { action => 'add', username => 'u1', password => 'pw' } );
+    print $cin JSON::PP::encode_json( { action => 'add', username => 'u1', password => 'pw-long-enough' } );
     close $cin;
     do { local $/; <$cout> };
     waitpid $pid, 0;
 
     # a login mints lazysite/auth/.secret if absent
-    my $body = 'username=u1&password=pw&next=/';
+    my $body = 'username=u1&password=pw-long-enough&next=/';
     local %ENV = ( env_passthrough(),
         DOCUMENT_ROOT       => $d,
         REMOTE_ADDR         => '127.0.0.1',

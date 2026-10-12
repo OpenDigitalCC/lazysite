@@ -71,10 +71,10 @@ print $cf "manager_groups: managers\nsite_name: Test Site\nlayout: base\ntheme: 
 close $cf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close $sf;
 
-uapi( $d, { action => 'add', username => 'op', password => 'x' } );
+uapi( $d, { action => 'add', username => 'op', password => 'x-long-enough' } );
 grant_caps( $d, 'op', 'manage_content', 'manage_nav', 'manage_config', 'notifications' );
 uapi( $d, { action => 'group-add', username => 'op', group => 'managers' } ); # a stored group with a member
-uapi( $d, { action => 'add', username => 'alice', password => 'y' } );
+uapi( $d, { action => 'add', username => 'alice', password => 'y-long-enough' } );
 
 # content for action_pages to discover
 open my $p1, '>', "$d/index.md"     or die $!; print $p1 "# Home\n"; close $p1;

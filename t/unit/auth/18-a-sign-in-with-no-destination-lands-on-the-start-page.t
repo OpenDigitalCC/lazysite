@@ -56,7 +56,7 @@ close $pg;
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: Test\nsite_url: https://main.example\nmanager: enabled\nalias_hosts: shop.example\nalias.shop.example.content_root: sites/shop\n";
 close $cf;
-users_api( $d, { action => 'add', username => 'ed', password => 'pw' } );
+users_api( $d, { action => 'add', username => 'ed', password => 'pw-long-enough' } );
 grant_caps( $d, 'ed', qw(ui manage_content) );
 
 my %base = ( DOCUMENT_ROOT => $d, REMOTE_ADDR => '127.0.0.1', HTTPS => '' );
@@ -64,7 +64,7 @@ my $ip = 10; # a fresh source address per sign-in: the per-IP login limiter (H-3
 sub login {
     my ( $user, $next ) = @_;
     $ip++;
-    return run_auth( { %base, REMOTE_ADDR => "10.0.0.$ip", REQUEST_METHOD => 'POST', QUERY_STRING => 'action=login' }, "username=$user&password=pw&next=$next" );
+    return run_auth( { %base, REMOTE_ADDR => "10.0.0.$ip", REQUEST_METHOD => 'POST', QUERY_STRING => 'action=login' }, "username=$user&password=pw-long-enough&next=$next" );
 }
 sub location { my ($out) = @_; my ($l) = $out =~ /Location:\s*(\S+)/; return $l // '(none)' }
 

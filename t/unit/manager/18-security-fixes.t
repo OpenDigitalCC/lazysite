@@ -60,7 +60,7 @@ open my $sm, '>', "$d/lazysite/forms/smtp.conf" or die $!; print $sm "password: 
 open my $af, '>', "$d/lazysite/auth/acls.json" or die $!;
 print $af '{"content/x.md":{"owner":"alice","write":["alice"]}}'; close $af;
 
-uapi( $d, { action => 'add', username => 'bob', password => 'x' } );
+uapi( $d, { action => 'add', username => 'bob', password => 'x-long-enough' } );
 grant_caps( $d, 'bob', 'webdav', 'api' );  # SM126: token client holds the api channel cap
 my $btok = uapi( $d, { action => 'token', username => 'bob' } )->{token};
 ok( $btok && $btok =~ /^lzs_/, 'bob has a webdav token' );
@@ -103,10 +103,10 @@ unlike( encode_json($rd), qr/hunter2/, 'F3: the SMTP password is never returned'
 
 # F4 - cannot clobber an existing passwordless account.
 uapi( $d, { action => 'add', username => 'tokenonly', password => '' } );
-my $c1 = uapi( $d, { action => 'add', username => 'tokenonly', password => 'x' } );
+my $c1 = uapi( $d, { action => 'add', username => 'tokenonly', password => 'x-long-enough' } );
 ok( !$c1->{ok} && ( $c1->{error} // '' ) =~ /exist/i,
     'F4: add cannot clobber a passwordless account' );
-my $c2 = uapi( $d, { action => 'account-create', username => 'tokenonly', password => 'x', created_by => 'bob' } );
+my $c2 = uapi( $d, { action => 'account-create', username => 'tokenonly', password => 'x-long-enough', created_by => 'bob' } );
 ok( !$c2->{ok} && ( $c2->{error} // '' ) =~ /exist/i,
     'F4: account-create cannot clobber a passwordless account' );
 

@@ -13,9 +13,9 @@ use TestHelper qw(setup_dav_site run_dav dav_users_tool grant_caps revoke_caps);
 
 my $s     = setup_dav_site();        # user 'deploy' = our "alice"
 my $alice = $s->{auth};
-dav_users_tool( $s->{docroot}, 'add', 'bob', 'pw' );
+dav_users_tool( $s->{docroot}, 'add', 'bob', 'pw-long-enough' );
 grant_caps( $s->{docroot}, 'bob', 'webdav', 'manage_content' );
-my $bob = 'Basic ' . encode_base64( 'bob:pw', '' );
+my $bob = 'Basic ' . encode_base64( 'bob:pw-long-enough', '' );
 
 sub set_acls {
     open my $f, '>', "$s->{docroot}/lazysite/auth/acls.json" or die $!;

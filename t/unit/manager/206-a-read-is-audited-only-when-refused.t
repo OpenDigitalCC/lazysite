@@ -48,7 +48,7 @@ make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: S\ncontrol_api_enabled: true\n";
 close $cf;
-uapi( $d, { action => 'add', username => 'rd', password => 'x' } );
+uapi( $d, { action => 'add', username => 'rd', password => 'x-long-enough' } );
 grant_caps( $d, 'rd', qw(api manage_content manage_nav manage_forms read_submissions) );
 my $tok = uapi( $d, { action => 'token', username => 'rd' } )->{token};
 ok( $tok, 'minted a token' ) or do { done_testing(); exit };
