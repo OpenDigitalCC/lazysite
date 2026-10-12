@@ -105,5 +105,6 @@ each fails the test.
 
 Lints updated with the change: t/lint/14 (groups-list a reviewed cookie read),
 98 (110 token actions), 91 (`group`, `caps` are not paths), 218 (group-set
-excepted from instance-wide, with the ruling), and the bench baseline's users
-tool statement count (3,395, the created_by option).
+excepted from instance-wide, with the ruling). The bench baseline's users tool
+statement count (the created_by option, +2) is re-measured once at the stack's
+tip, with SM1053's growth (`account-approve`'s groups list, +2): 3,423.

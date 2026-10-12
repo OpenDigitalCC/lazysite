@@ -17,7 +17,7 @@
       "verify_token_ms" : 0.7,
       "work_cold_log_bytes" : 497392,
       "work_cold_log_files" : 30,
-      "work_users_tool_statements" : 3422,
+      "work_users_tool_statements" : 3424,
       "work_warm_days_written" : 1,
       "work_warm_log_bytes" : 0,
       "work_warm_log_files" : 0
