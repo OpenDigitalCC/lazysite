@@ -260,6 +260,8 @@ our %GATE = (
     # creates one, giving it only capabilities it holds (Manager::Groups).
     'groups-list' => [qw(manage_users)],
     'group-set'   => [qw(manage_users)],
+    # SM1053: a partner stages an account import for the operator to apply.
+    'accounts-import-stage' => [qw(manage_users)],
     # SM134 follow-ups: the alias-redirect map is content-derived - a content
     # partner may list it (read-only; aliases are front-matter-authored).
     'aliases-list' => [qw(manage_content)],
@@ -362,6 +364,13 @@ our %ACTION = (
     # [mcp] SM431: the permissions twins, recorded as twins. acl-remove has no
     # named MCP twin (set_permissions with empty lists clears a rule) and
     # passes the completeness check under manage_content like the others.
+    # SM1053 (P-5), ruled 2026-10-12, "Operator-run import": a partner stages an
+    # account import (no passwords); the operator reviews the dry run and applies
+    # it in the manager. Account creation stays a human-at-a-browser act (SM268).
+    'accounts-import-apply' => { mutates => 1, cookie_cap => 'manage_users', cookie_only_reason => 'it creates accounts, and SM268 ruled minting credentials a human-at-a-browser act: the operator reviews the dry run and applies it', params => [ { name => 'id', in => 'body' }, { name => 'confirm', in => 'body' } ] },
+    'accounts-import-list' => { cookie_cap => 'manage_users', cookie_only_reason => 'the review half of an import, the operator\'s in the manager (SM268)', params => [] },
+    'accounts-import-plan' => { cookie_cap => 'manage_users', cookie_only_reason => 'the review half of an import, the operator\'s in the manager (SM268)', params => [ { name => 'id', in => 'query' } ] },
+    'accounts-import-stage' => { mutates => 1, cookie_cap => 'manage_users', params => [ { name => 'accounts', in => 'body' }, { name => 'csv', in => 'body' } ] },
     'acl-get' => { mcp => 'get_permissions', scoped => 1, file_surface => 'read', cookie_gates_itself => 'the owner reads their rule, manage_users reads any (SM464, Files::action_acl_get)', params => [ { name => 'path', in => 'query' } ] },
     # [changes_access] see acl-set: one rule, set or cleared.
     'acl-remove' => { mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may remove its rule (Files::action_acl_remove)', params => [ { name => 'path', in => 'query' } ] },

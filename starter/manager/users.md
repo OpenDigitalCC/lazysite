@@ -17,6 +17,9 @@ login on the published site. The same username or <code>@group</code> is the sam
 identity in both domains; only <em>where</em> it is granted differs.
 </div>
 
+<!-- SM1053: a partner's staged account import is reviewed and applied there. -->
+<div class="mg-toolbar"><a class="mg-btn" href="/manager/accounts-import">Account import</a></div>
+
 <div class="mg-card">
 <div class="mg-card-header">
 <span class="mg-card-title">User accounts</span>

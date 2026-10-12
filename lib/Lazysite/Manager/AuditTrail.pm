@@ -154,6 +154,11 @@ sub _audit_implicit_target {
         my $g = $req->{group} // '';
         return "\@$g" if length $g && !ref $g;
     }
+    # SM1053: an account import is named by the staged file it acts on.
+    if ( $action eq 'accounts-import-apply' || $action eq 'accounts-import-stage' ) {
+        my $i = $req->{id} // '';
+        return length $i && !ref $i ? "accounts import $i" : 'accounts import';
+    }
     # config-set: name the KEY that changed (e.g. site_name), not a bare '/'.
     if ( $action eq 'config-set' ) {
         my $k = $params->{key} // $req->{key} // '';

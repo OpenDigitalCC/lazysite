@@ -681,9 +681,13 @@ if ($API_MODE) {
         elsif ( $action eq 'account-approve' ) {
             # SM673: approve a registration request. Gated like every other
             # account-creating verb; the operator is the one calling it.
+            # SM1053: `groups`, a list, places the account in exactly those
+            # (none for an empty list) - an import names its groups, and must
+            # not fall back to the registration groups.
             $result = cmd_account_approve( $req->{username},
                 group => $req->{group}, actor => $req->{actor},
-                email => $req->{email} );    # SM858
+                email => $req->{email},    # SM858
+                ( ref $req->{groups} eq 'ARRAY' ? ( groups => $req->{groups} ) : () ) );
         }
         elsif ( $action eq 'claim-create' ) {
             my $r = cmd_claim_create( $req->{username},
@@ -2513,6 +2517,8 @@ sub cmd_account_approve {
     my @want = ( defined $opt{group} && length $opt{group} )
         ? ( $opt{group} )
         : _registration_groups();
+    # SM1053: an import names its groups exactly - none for an empty list.
+    @want = grep { defined && !ref && length } @{ $opt{groups} } if ref $opt{groups} eq 'ARRAY';
     # SM963: A PLACEMENT THAT DID NOT TAKE IS REPORTED, not skipped. This was
     # an eval whose failure was dropped, so an approval read as complete for an
     # account missing a group it was meant to have - a flagged backend group, or

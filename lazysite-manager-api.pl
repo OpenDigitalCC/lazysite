@@ -82,7 +82,8 @@ use Lazysite::Manager::Config qw(action_config_read action_config_set action_lan
 use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
 use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes dispatch_audit); # SM944 S31
 use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret); # SM944 S32
-use Lazysite::Manager::Groups     ();    # SM1050: groups-list, group-set
+use Lazysite::Manager::Groups        ();    # SM1050: groups-list, group-set
+use Lazysite::Manager::AccountImport ();    # SM1053: accounts-import-*
 use Lazysite::Manager::SiteBackup qw(dispatch_backup_list); # SM944 S33: backup-list's branch
 use Lazysite::Manager::Csrf       qw(csrf_refusal);         # SM944 S34: the M-1 CSRF gate
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -1937,6 +1938,24 @@ elsif ( $action eq 'layouts-repo-set' ) {
 }
 elsif ( $action eq 'users' )      { $result = action_users( $body, \%params ) }
 elsif ( $action eq 'principals' ) { $result = action_principals() }
+elsif ( $action eq 'accounts-import-stage' ) {
+    # SM1053 (P-5): a partner prepares an import - accounts, emails, groups, no
+    # password - for the operator to review and apply.
+    my $req = _json_body();
+    $result = Lazysite::Manager::AccountImport::stage(
+        { accounts => $req->{accounts}, csv => $req->{csv} }, actor => $auth_user );
+}
+elsif ( $action eq 'accounts-import-list' ) {
+    $result = _import_operator_refusal() // Lazysite::Manager::AccountImport::list_staged();
+}
+elsif ( $action eq 'accounts-import-plan' ) {
+    $result = _import_operator_refusal() // Lazysite::Manager::AccountImport::plan( $params{id} );
+}
+elsif ( $action eq 'accounts-import-apply' ) {
+    my $req = _json_body();
+    $result = _import_operator_refusal() // Lazysite::Manager::AccountImport::apply(
+        $req->{id}, $req->{confirm}, actor => $auth_user, operator => 1 );
+}
 elsif ( $action eq 'groups-list' ) {
     # SM1050 (P-2): the groups, for any manage_users holder; a domain-confined
     # caller is shown the ones relevant to its domains (Manager::Groups).
@@ -2543,6 +2562,15 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
         # rule was and became - the trail is asked about a path, not a request.
         my $per_path = ( $aud_action eq 'acl-set' && ref $result eq 'HASH'
                 && ref $result->{_acl_audit} eq 'ARRAY' ) ? delete $result->{_acl_audit} : undef;
+        # SM1053: an account import's own rows - one per account it made - beside
+        # the row for the import itself.
+        my $acct_rows = ( ref $result eq 'HASH' && ref $result->{_audit_rows} eq 'ARRAY' )
+            ? delete $result->{_audit_rows} : [];
+        for my $row (@$acct_rows) {
+            my ( $a_act, $a_target, $a_ok, $a_detail ) = @$row;
+            audit_log( $auth_user, $a_act, $a_target, _request_ip(), ( $a_ok ? 'ok' : 'fail' ),
+                ( $token_auth ? 'api' : 'ui' ), _audit_detail($a_detail) );
+        }
         if ($per_path) {
             my $door = $token_auth ? 'api' : 'ui';
             for my $row (@$per_path) {
@@ -2565,7 +2593,11 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
 
         # SM1050: a group-set records what it did to the group - created, and
         # each capability granted (+) or revoked (-) - as acl-set records the rule.
-        if ( $aud_action eq 'group-set' && ref $result eq 'HASH' && defined $result->{change} ) {
+        # SM1053: an account import's apply records what it did the same way.
+        if ( $aud_action =~ /\A(?:group-set|accounts-import-apply)\z/
+            && ref $result eq 'HASH'
+            && defined $result->{change} )
+        {
             $detail = $ok ? $result->{change} : "$detail; $result->{change}";
         }
 
@@ -2696,6 +2728,15 @@ sub _refuse_unreachable_handler {
     my $r = Lazysite::Manager::Common::handler_reach_refusal(%a) or return;
     _refuse( $r, ( $token_auth ? 'api' : 'ui' ), 'denied: outside domain scope', $id // '' );
     return;
+}
+
+# SM1053: an import is reviewed and applied by the operator - a cookie session
+# the operator holds - and by no token (the dispatcher's gate keeps these
+# actions cookie-only; this is the operator half). undef when it may proceed.
+sub _import_operator_refusal {
+    return undef if !$token_auth && _operator();
+    return { ok => 0, kind => 'forbidden',
+        error => 'An account import is reviewed and applied by the operator, in the manager.' };
 }
 
 # SM1050: who is asking, as Lazysite::Manager::Groups takes it - the account,

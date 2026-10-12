@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1053 (PENDING) **a partner stages accounts, and the operator applies
+  them.** `accounts-import-stage` takes a list of accounts - usernames,
+  addresses, groups, never a password - and creates nothing. The operator
+  reviews the dry run on the new Account import page (linked from Users) and
+  applies it: each account is created without a password, in the named groups
+  that exist, with a claim link, and each is audited. Mailing the links is not
+  built yet; the recorded address lets a member use "forgot password".
+  t/integration/212.
+
 - SM1052 (PENDING) **one rule for many paths, and an import by the table's
   writers.** `acl-set` takes `"paths": [...]` with one rule: every path is
   scope-checked and validated before any is written, one refusal changes

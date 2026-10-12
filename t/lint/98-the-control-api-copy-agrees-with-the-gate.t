@@ -93,8 +93,10 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #        row of what form-submissions reads.
     #   110, SM1050: groups-list and group-set, gated manage_users (ruled
     #        2026-10-12, "Yes, within the delegation limit").
+    #   111, SM1053: accounts-import-stage, gated manage_users; its review and
+    #        apply (list, plan, apply) are cookie-only, which makes 56 of those.
     my %caps = gate_caps($cgi);
-    is( scalar keys %caps, 110, '110 actions are reachable with a token' )
+    is( scalar keys %caps, 111, '111 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 
@@ -103,7 +105,7 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #   53 cookie-only, SM858 (0.15.3): form-submission-approve - it creates an
     #        account, and SM268 keeps minting credentials a human act. The token
     #        count does not move: no gate was added.
-    is( scalar @cookie_only, 53, '53 are cookie-only' );
+    is( scalar @cookie_only, 56, '56 are cookie-only' );
 
     # Three spot checks, one per capability state, so a wholesale re-derivation
     # cannot pass by producing a table of the right size.

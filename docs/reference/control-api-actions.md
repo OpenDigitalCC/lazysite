@@ -43,6 +43,10 @@ widths: 5.4cm | 4.8cm | X
 bold: 1
 tone: medium
 ---
+`accounts-import-apply` | cookie only | id (body), confirm (body)
+`accounts-import-list` | cookie only |  
+`accounts-import-plan` | cookie only | id (query)
+`accounts-import-stage` | manage_users | accounts (body), csv (body)
 `acl-get` | manage_content | path (query)
 `acl-remove` | manage_content | path (query)
 `acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body), paths (body)
