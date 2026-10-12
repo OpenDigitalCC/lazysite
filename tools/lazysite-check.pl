@@ -810,9 +810,13 @@ sub run_checks {
     # about a permission being wrong. This one is about a permission the sysop
     # thinks exists. There is no repair to apply - the fix is to confine the group
     # through its domain - so it is reported and never touched by --fix.
+    #
+    # SM1023: the store is read ONCE, here, with its state, and section 7 reports
+    # a store this run cannot read or decode; this section says nothing about it.
+    my ( $GS, $GS_STATE, $GS_ERR ) = _read_json_state("$LZ/auth/groups-settings.json");
     {
         my %scoped;
-        my $gs = _read_json("$LZ/auth/groups-settings.json") || {};
+        my $gs = $GS || {};
         for my $g ( sort keys %$gs ) {
             next unless ref $gs->{$g} eq 'HASH';
             my $s = $gs->{$g}{dav_scope};
@@ -917,16 +921,53 @@ sub run_checks {
         # SM138: manager groups are those whose SETTINGS entry grants manager access
         # (ui / manage_users / the manager flag); the conf manager_groups key is
         # retired (a lingering line is inert and migrated away on first use).
-        my $gs     = _read_json("$LZ/auth/groups-settings.json") || {};
+        #
+        # SM1023: ABSENT, UNREADABLE AND UNDECODABLE ARE THREE ANSWERS. This read
+        # was `|| {}`, so a store the check's own user could not open read as "no
+        # group grants manager access" and raised the unconfigured-manager alarm:
+        # seen on sites.lazysite.io, run as an account outside the site group just
+        # after an upgrade, while the same check as root said "bootstrapped". The
+        # engine does not read an unreadable store as unsecured (SM906), and the
+        # check must not invent that answer either. Only an absent store is the
+        # unconfigured manager. An undecodable one is a FAIL: the render path treats
+        # it as secured, while Auth::Settings::site_grants_manager (the manager API,
+        # sign-in) reads it as no groups at all, which IS the unsecured mode (SM1024).
+        my $gs     = $GS || {};
         my @groups = sort grep {
             my $c = $gs->{$_};
             ref $c eq 'HASH' && ( $c->{ui} || $c->{manage_users} || $c->{manager} );
         } keys %{$gs};
-        if ( !@groups ) {
+        my $gs_file = "$LZ/auth/groups-settings.json";
+        my ( $conf_state, $conf_err ) = _open_state($conf);
+        if ( $GS_STATE eq 'unreadable' ) {
+            report( 'WARN',
+                "cannot read groups-settings.json as " . _running_as() . " ($GS_ERR) - "
+                    . 'which groups grant manager access is unknown, so the manager '
+                    . 'state is not reported',
+                'run the check as root (sudo lazysite check ...) or as the site user, '
+                    . "who can read '$gs_file'" );
+        }
+        elsif ( $GS_STATE eq 'undecodable' ) {
+            report( 'FAIL',
+                "groups-settings.json does not decode as a JSON object ($gs_file) - "
+                    . 'no group\'s capabilities can be read from it; pages render as a '
+                    . 'secured site, but the manager API and sign-in read it as no groups, '
+                    . 'in which mode every authenticated user is a manager (SM1024)',
+                "repair the JSON in '$gs_file', or restore it from a backup" );
+        }
+        elsif ( !@groups ) {
             report( 'WARN',
                 "no group grants manager access - the manager is unconfigured "
                     . "(every authenticated user would be a manager)",
                 $SYSOP );
+        }
+        elsif ( !$mgr_enabled && $conf_state eq 'unreadable' ) {
+            # SM1023: the conf key is unknown, not absent.
+            report( 'WARN',
+                'cannot read lazysite.conf as ' . _running_as() . " ($conf_err)"
+                    . " - whether 'manager: enabled' is set is unknown",
+                'run the check as root (sudo lazysite check ...) or as the site user, '
+                    . "who can read '$conf'" );
         }
         elsif ( !$mgr_enabled ) {
             # Not setup-sysop: the group is already there and only the conf key
@@ -938,6 +979,10 @@ sub run_checks {
             # is there a manager user with a password, in a manager group?
             my %is_mgr_group = map { $_ => 1 } @groups;
             my %members;
+            # SM1023: a membership or account file this run cannot open makes
+            # "no user in a manager group" unknown, not true. Absent stays an
+            # answer.
+            my @unread = grep { ( _open_state("$LZ/auth/$_") )[0] eq 'unreadable' } qw(groups users);
             if ( open my $gf, '<', "$LZ/auth/groups" ) {
                 while ( my $l = <$gf> ) {
                     next unless $l =~ /^([^:#]+):\s*(.*)$/;
@@ -957,7 +1002,15 @@ sub run_checks {
                 }
                 close $uf;
             }
-            if ( !$have_mgr ) { report( 'WARN', "no user in a manager group (@groups)",
+            if (@unread) {
+                report( 'WARN',
+                    'cannot read ' . join( ' and ', map { "auth/$_" } @unread ) . ' as ' . _running_as()
+                        . " - whether a manager group (@groups) has a member with a password is "
+                        . 'unknown',
+                    'run the check as root (sudo lazysite check ...) or as the site user, '
+                        . "who can read '$LZ/auth'" );
+            }
+            elsif ( !$have_mgr ) { report( 'WARN', "no user in a manager group (@groups)",
                     $SYSOP ) }
             elsif ( !$have_pw ) { report( 'WARN', "manager user has no password (localhost-only)",
                     "perl tools/lazysite-users.pl --docroot '$DOC' "
@@ -1000,7 +1053,7 @@ sub run_checks {
                 manage_notifications
                 housekeeping purge audit_switch);
 
-            my $gsettings = _read_json("$LZ/auth/groups-settings.json") || {};
+            my $gsettings = $gs;    # SM1023: read once, and readable to reach here
 
             # SM496: ABSENT and DECLINED are different answers now. An
             # explicit 0 is a recorded human decision (the Groups page banner
@@ -1973,10 +2026,29 @@ sub report_group_acl_reach {
     # on a migrated site (SM293) that path does not exist and this section
     # reported nothing while rules were in force.
     my $f = _acls_file($d);
-    return unless -f $f;
 
-    my $map = _read_json($f);
-    return unless ref $map eq 'HASH';
+    # SM1023: the open decides (SM770: no -f guard in front of it), and the
+    # three answers differ. Absent: no rules, nothing to say. Unreadable by this
+    # run: which paths are protected is unknown. Undecodable: the renderer fails
+    # closed on it (SM268 H12) and refuses every page it checks against the ACL.
+    my ( $map, $state, $err ) = _read_json_state($f);
+    return if $state eq 'absent';
+    if ( $state eq 'unreadable' ) {
+        report( 'WARN',
+            'cannot read acls.json as ' . _running_as() . " ($err) - which paths are "
+                . 'protected, and to whom, is unknown',
+            'run the check as root (sudo lazysite check ...) or as the site user, '
+                . "who can read '$f'" );
+        return;
+    }
+    if ( $state eq 'undecodable' ) {
+        report( 'FAIL',
+            "acls.json does not decode as a JSON object ($f) - the renderer refuses "
+                . 'every page it checks against the ACL until it is repaired, and the '
+                . 'manager shows no rules',
+            "repair the JSON in '$f', or restore it from a backup" );
+        return;
+    }
 
     # Every @group named by any entry, in any mode.
     return unless keys %$map;
@@ -3122,6 +3194,32 @@ sub _read_json {
     return ref $d eq 'HASH' ? $d : undef;
 }
 
+# SM1023: the same read, with the three failures told apart, for a store whose
+# absence and unreadability mean different things to a security verdict.
+# Returns ( $hash, 'ok' ), ( undef, 'absent' ), ( undef, 'unreadable', $! ) or
+# ( undef, 'undecodable' ). The open decides - no stat in front of it (SM770).
+sub _read_json_state {
+    my ($path) = @_;
+    my ( $state, $err ) = _open_state($path);
+    return ( undef, $state, $err ) unless $state eq 'ok';
+    open my $fh, '<:raw', $path or return ( undef, 'unreadable', "$!" );
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $d = eval { JSON::PP::decode_json( length( $raw // '' ) ? $raw : '{}' ) };
+    return ref $d eq 'HASH' ? ( $d, 'ok' ) : ( undef, 'undecodable' );
+}
+
+# ( 'ok' ), ( 'absent' ) or ( 'unreadable', $! ) for a file this run opens.
+sub _open_state {
+    my ($path) = @_;
+    open my $fh, '<', $path or return $!{ENOENT} ? ('absent') : ( 'unreadable', "$!" );
+    close $fh;
+    return ('ok');
+}
+
+# The account this run reads as, for a finding about what it could not read.
+sub _running_as { return scalar( getpwuid($>) ) // "uid $>" }
+
 # One anonymous GET. Returns (status, body). Cache directives on purpose: a
 # cached 200 from an intermediary must not be mistaken for the origin serving
 # the file, and neither must it hide a leak.
@@ -3436,6 +3534,20 @@ sub run_acl_probe {
         return;
     }
     my $d = $opt{docroot};
+
+    # SM1023: the probe adds and removes its own rule by rewriting acls.json. A
+    # store this run cannot read or decode would be rewritten from an empty map,
+    # losing every rule in it, so the probe does not start from one.
+    my ( undef, $acl_state ) = _read_json_state( _acls_file($d) );
+    if ( $acl_state eq 'unreadable' || $acl_state eq 'undecodable' ) {
+        report( 'WARN',
+            'ACL PROBE SKIPPED: acls.json '
+                . ( $acl_state eq 'unreadable'
+                ? 'cannot be read as ' . _running_as()
+                : 'does not decode as a JSON object' )
+                . ' - the probe rewrites that store and will not replace rules it could not read' );
+        return;
+    }
 
     _acl_probe_sweep($d);
 

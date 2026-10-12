@@ -158,6 +158,20 @@ Archive
   otherwise, by the handler, the header writer (every message), a handler's
   own `to`/`from`, and an account's address. A hand-written `to:` naming two
   addresses now fails at send and says why. t/unit/forms/60, 61.
+- SM1023 (PENDING) **`lazysite check` tells an auth store it cannot read from
+  one that is absent.** Seen on sites.lazysite.io after the 0.15.4 upgrade: run
+  as an account outside the site group, the check said "no group grants manager
+  access - the manager is unconfigured"; as root it said "manager
+  bootstrapped". groups-settings.json was read with `|| {}`. Now an absent store
+  is the unconfigured manager; one this run cannot open is a WARN naming the
+  file and the user, saying the manager state is unknown and to run as root or
+  the site user; one that does not decode is a FAIL naming the file. The same
+  rule now covers the manager-account verdict (auth/users, auth/groups),
+  `manager: enabled` (lazysite.conf) and acls.json (unreadable: WARN;
+  undecodable: FAIL, the renderer refuses every page it checks against the
+  ACL). `--check-acl` no longer starts from an acls.json it cannot read or
+  decode, which it would have rewritten from an empty map. t/tools/126.
+
 - SM1016 (PENDING) **a domain names only groups and accounts that exist.**
   Ruled 2026-10-12 ("lazysite-domains.pl should reject invalid groups").
   `domain_set` refuses a NEW name in `allowed_groups` that is not a group on
