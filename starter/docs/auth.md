@@ -209,6 +209,12 @@ sign out everywhere.
   cookie-only (an access key is refused), every change needs the session's
   CSRF token and is audited, and a password check counts against the sign-in
   rate limiter for both the address and the account.
+- **Your notices** (`::: account-bell`, actions `me-notices` and
+  `me-notices-seen`): the notices a notification rule addressed to this
+  account, newest first, with read, dismiss and mark-all-read. Never the site's
+  broadcast notices - those are the operators' bell, behind `notifications` -
+  and never another account's. The account keeps its own last 100, however
+  busy the site's store is.
 - `account_page: disabled` in `lazysite.conf` turns it off: `/account` answers
   404 (unless the site wrote its own page) and the `me-*` actions refuse, naming
   the setting.

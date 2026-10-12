@@ -158,7 +158,68 @@
     render();
   }
 
-  var BIND = { summary: summary, password: password, sessions: sessions };
+  // --- bell (SM1034 phase 1b) ----------------------------------------------
+  // A notice's link is followed only if it is a site path or http(s); anything
+  // else (javascript:, data:) is shown as text and not linked.
+  function safeHref(u) {
+    if (typeof u !== 'string') return null;
+    if (/^\/(?!\/)/.test(u)) return u;
+    if (/^https?:\/\//i.test(u)) return u;
+    return null;
+  }
+
+  function bell(region) {
+    var list = q(region, '[data-ls-rows]');
+    var empty = q(region, '[data-ls-empty]');
+    var count = q(region, '[data-ls-field="unread"]');
+    function render() {
+      call('me-notices').then(function (r) {
+        if (!r || !r.ok) { say(region, (r && r.error) || 'Your notices could not be read.', true); return; }
+        while (list && list.firstChild) list.removeChild(list.firstChild);
+        var rows = r.notices || [];
+        if (empty) empty.hidden = rows.length > 0;
+        if (count) count.textContent = r.unread ? (r.unread + ' unread') : '';
+        rows.forEach(function (n) {
+          var li = document.createElement('li');
+          if (!n.read) li.className = 'lz-account-unread';
+          var when = document.createElement('span');
+          when.className = 'lz-account-when';
+          when.textContent = (n.ts ? new Date(n.ts * 1000).toLocaleString() : '') + ' ';
+          li.appendChild(when);
+          var href = safeHref(n.url);
+          var text = document.createElement(href ? 'a' : 'span');
+          if (href) text.setAttribute('href', href);
+          text.textContent = n.message || n.type || '';
+          li.appendChild(text);
+          [['Read', 0], ['Dismiss', 1]].forEach(function (b) {
+            if (b[1] === 0 && n.read) return;
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = b[0];
+            btn.addEventListener('click', function () {
+              post('me-notices-seen', { id: n.id, dismiss: b[1] }).then(function (res) {
+                if (!(res && res.ok)) say(region, (res && res.error) || 'Nothing was marked.', true);
+                render();
+              });
+            });
+            li.appendChild(document.createTextNode(' '));
+            li.appendChild(btn);
+          });
+          if (list) list.appendChild(li);
+        });
+      });
+    }
+    var all = q(region, '[data-ls-mark-all]');
+    if (all) all.addEventListener('click', function () {
+      post('me-notices-seen', {}).then(function (res) {
+        if (!(res && res.ok)) say(region, (res && res.error) || 'Nothing was marked.', true);
+        render();
+      });
+    });
+    render();
+  }
+
+  var BIND = { summary: summary, password: password, sessions: sessions, bell: bell };
   window.lzAccountBind = BIND;    // phase 1b and 1c add their regions here
 
   function start() {

@@ -853,6 +853,10 @@ our %ACTION = (
     'me-sessions' => { self => 1, cookie_only_reason => 'it lists the signed-in person\'s own sessions', params => [] },
     'me-session-revoke' => { self => 1, mutates => 1, cookie_only_reason => 'a person ends one of their own sessions', params => [ { name => 'sid', in => 'body', required => 1, note => 'one of your own session ids, from me-sessions' } ] },
     'me-sign-out-everywhere' => { self => 1, mutates => 1, cookie_only_reason => 'a person ends every session of their own account', params => [] },
+    # SM1034 phase 1b (SM1010 R2): the member's own bell - only the notices
+    # addressed to the caller, never a broadcast; no capability.
+    'me-notices' => { self => 1, cookie_only_reason => 'it is the signed-in person\'s own bell', params => [] },
+    'me-notices-seen' => { self => 1, mutates => 1, cookie_only_reason => 'it is the signed-in person\'s own read state, which SM918 kept off the token door', params => [ { name => 'id', in => 'body', note => 'one of your notices, from me-notices; without it, all are marked read' }, { name => 'dismiss', in => 'body' } ] },
     'start-page' => { params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { mutates => 1, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body', required => 1, note => 'an empty string clears the start page' } ] },
     'whoami' => { params => [ { name => 'plugins', in => 'query' } ] },

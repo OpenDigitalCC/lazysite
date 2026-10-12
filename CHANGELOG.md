@@ -158,6 +158,13 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
+- SM1044 (PENDING) **a member reads the notices addressed to them.** `/account`
+  gains "Your notices": the notices a notification rule addressed to the
+  signed-in account, with read, dismiss and mark-all-read, over new actions
+  `me-notices` and `me-notices-seen`. Never a broadcast and never another
+  account's; the account keeps its own last 100 however busy the site's store
+  is. No capability is needed (SM1010 R2). t/unit/account/03.
+
 - SM1043 (PENDING) **a member has an account page, `/account`, in the site's
   own theme.** A signed-in account with no manager access can see who it is
   signed in as, change its password (with the current one; the others are

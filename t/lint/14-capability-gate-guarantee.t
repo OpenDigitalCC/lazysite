@@ -84,7 +84,7 @@ my %READ = map { $_ => 1 } qw(
 my %BESPOKE = map { $_ => 1 } qw(
     users audit notices keys-list key-revoke sessions-list session-revoke
     user-revoke
-    me me-sessions
+    me me-sessions me-notices
 );
 my %PREAUTH = map { $_ => 1 } qw( csrf-token );
 

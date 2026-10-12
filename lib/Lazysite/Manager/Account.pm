@@ -37,6 +37,8 @@ package Lazysite::Manager::Account;
 #   action_me_sessions         me-sessions: my live sessions, this one marked
 #   dispatch_me_session_revoke   me-session-revoke: one of MY sessions
 #   action_me_sign_out_everywhere  me-sign-out-everywhere: all of mine, this too
+#   action_me_notices          me-notices: the notices addressed to me (1b)
+#   dispatch_me_notices_seen   me-notices-seen: mark mine read or dismissed (1b)
 
 use strict;
 use warnings;
@@ -47,13 +49,15 @@ use Lazysite::Auth::Credential qw(verify_password password_policy_refusal passwo
 use Lazysite::Auth::LoginRate   ();
 use Lazysite::Auth::Verify      ();
 use Lazysite::Manager::Sessions ();
+use Lazysite::Manager::Notices  ();    # SM1034 phase 1b: the one notice reader
 use Lazysite::Manager::Common qw($auth_user $token_auth users_api _request_ip _json_body);
 
 our @EXPORT_OK = qw(account_page_enabled action_me dispatch_me_password action_me_sessions
-    dispatch_me_session_revoke action_me_sign_out_everywhere me_refusal);
+    dispatch_me_session_revoke action_me_sign_out_everywhere me_refusal
+    action_me_notices dispatch_me_notices_seen);
 
-our $DOCROOT;         # set by the script
-our $LAZYSITE_DIR;    # set by the script
+our $DOCROOT;                          # set by the script
+our $LAZYSITE_DIR;                     # set by the script
 
 # The account_page switch (ruled Q2: on by default, it grants nothing). The one
 # reader is Lazysite::Util's, which the processor asks for /account, so the page
@@ -194,6 +198,28 @@ sub dispatch_me_session_revoke {
     return $r unless ref $r eq 'HASH' && $r->{ok};
     return { ok => 1, sid => $sid,
         current => ( ( $ENV{LAZYSITE_AUTH_SID} // '' ) eq $sid ? JSON::PP::true() : JSON::PP::false() ) };
+}
+
+# SM1034 phase 1b (SM1010 R2): the member's own bell - the notices addressed to
+# this account and to no one else, never a broadcast, and their read state. The
+# one notice reader is Lazysite::Manager::Notices; `addressed_only` gives the
+# account its own window, so a busy site's other notices cannot crowd it out.
+# No capability: `notifications` is the operators' bell, and this is not it.
+sub action_me_notices {
+    if ( my $r = me_refusal() ) { return $r }
+    my $r = Lazysite::Manager::Notices::action_notices( $auth_user, addressed_only => 1 );
+    delete $r->{unread_by_type};  # the manager's per-type counts; nothing here reads them
+    return $r;
+}
+
+# Mark one of my notices read, dismiss it, or (no id) mark them all read.
+sub dispatch_me_notices_seen {
+    if ( my $r = me_refusal() ) { return $r }
+    my $req = _json_body() || {};
+    my $id  = $req->{id};
+    $id = undef if ref $id;
+    return Lazysite::Manager::Notices::action_notices_seen( $auth_user,
+        id => $id, dismiss => ( $req->{dismiss} ? 1 : 0 ), addressed_only => 1 );
 }
 
 # Every session of the caller's account, this one included - what "everywhere"

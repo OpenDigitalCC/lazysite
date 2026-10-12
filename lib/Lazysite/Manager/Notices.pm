@@ -78,6 +78,36 @@ sub _read_notices {
     return \@notices;
 }
 
+# SM1034 phase 1b (SM1010 R2): THE NOTICES ADDRESSED TO ONE ACCOUNT, AND ONLY
+# THOSE - the member's own bell on /account. Never a broadcast: a notice with no
+# `to` is the operators', and a member is not an operator.
+#
+# ITS OWN WINDOW. _read_notices keeps the store's last 100 lines, which on a site
+# of hundreds of members is mostly everyone else's notices and the operators' -
+# a member's own could age out of the shared window before they ever looked.
+# This reads the whole store and keeps the account's own last 100. A line is
+# decoded only when it could be addressed to the account (it carries the
+# login), so the cost is one pass of the file, not one decode per line. A
+# per-account store is SM1034 phase 3 if this is ever slow.
+sub _read_notices_addressed {
+    my ($me) = @_;
+    my @mine;
+    return \@mine unless defined $me && length $me;
+    open my $fh, '<', _notices_path()
+        or return $!{ENOENT} ? \@mine : cannot_read( 'the notice store', _notices_path() );
+    while ( my $l = <$fh> ) {
+        next unless index( $l, '"to"' ) >= 0 && index( $l, $me ) >= 0;
+        chomp $l;
+        my $n = eval { decode_json($l) };
+        next unless ref $n eq 'HASH' && defined $n->{to} && !ref $n->{to} && $n->{to} eq $me;
+        $n->{id} = substr( sha1_hex($l), 0, 12 );    # the same id the shared reader gives
+        push @mine, $n;
+        shift @mine if @mine > 100;
+    }
+    close $fh;
+    return [ reverse @mine ];                        # newest first
+}
+
 # SM1020 (SM1010 F3): A NOTICE ADDRESSED TO ONE ACCOUNT IS SHOWN TO THAT ACCOUNT
 # ONLY. The store has carried an optional `to` since SM485, and this reader had
 # no filter on it, so an addressed notice would have shown to every holder of
@@ -141,9 +171,13 @@ sub _is_read {
 # from a global, because the two callers name it differently and a module that
 # reaches for one CGI's variable only works in that CGI.
 sub action_notices {
-    my ($principal) = @_;
+    my ( $principal, %o ) = @_;
 
-    my $notices  = _for_principal( _read_notices(), $principal );
+    # SM1034 phase 1b: `addressed_only` is the member's bell - their own
+    # notices, no broadcasts, in a window of their own.
+    my $notices = $o{addressed_only}
+        ? _read_notices_addressed($principal)
+        : _for_principal( _read_notices(), $principal );
     my $seen_map = _read_seen_map();
 
     # Either read may have failed, and they fail independently: the store can be
@@ -223,8 +257,13 @@ sub action_notices_seen {
             . 'operator\'s position. The engine log names the file and the error.' }
         unless defined $h;
 
-    my $notices = _for_principal( _read_notices(), $principal ) || [];
-    my %live    = map { ( $_->{id} // '' ) => 1 } @$notices;
+    # SM1034 phase 1b: a member marks only what their own bell shows.
+    my $notices = (
+        $o{addressed_only}
+        ? _read_notices_addressed($principal)
+        : _for_principal( _read_notices(), $principal )
+    ) || [];
+    my %live = map { ( $_->{id} // '' ) => 1 } @$notices;
     my $e       = _entry( $h->{$principal} );
 
     my $id = $o{id};

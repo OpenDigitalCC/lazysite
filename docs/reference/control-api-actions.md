@@ -156,6 +156,8 @@ tone: medium
 `list` | cookie only | path (query)
 `lock` | cookie only | path (query)
 `me` | cookie only |  
+`me-notices` | cookie only |  
+`me-notices-seen` | cookie only | id (body), dismiss (body)
 `me-password` | cookie only | current_password (body), new_password (body)
 `me-session-revoke` | cookie only | sid (body)
 `me-sessions` | cookie only |  

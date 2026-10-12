@@ -8,6 +8,11 @@ search: false
 ::: account-summary
 :::
 
+## Your notices
+
+::: account-bell
+:::
+
 ## Password
 
 ::: account-password

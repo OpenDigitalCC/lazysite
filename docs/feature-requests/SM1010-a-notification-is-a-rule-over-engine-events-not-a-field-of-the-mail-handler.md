@@ -57,13 +57,14 @@ overrides a recommendation below, the ruling stands.
 | B3 | The `notify` handler type, its recipient grammar (five sources), `manage_notifications`; delivery queues; quarantined queues nothing | SM1019, n442 |
 | B4 | The `notify-outbox` job: resolve, leave out the actor, per-recipient cap, ledger (sent once each), audit per recipient, email with RFC 2047 Subject and List-Unsubscribe, TT templates | SM1020, n443 |
 | B5 | The per-member bell and F3's reader filter | SM1020, n444 |
+| B6 | R2: a member reads the notices addressed to them on `/account` (`me-notices`), never a broadcast | SM1044, n502 |
 
 Not built, in order of need (each a candidate for its own filing):
 
 | Ref | What remains | Needs |
 | --- | --- | --- |
 | R1 | Q7 folding: a recipient over the cap is refused and audited; later comments are not folded into the next message | build |
-| R2 | A member surface for the bell: the reader now filters by addressee, but a member without `notifications` (or `ui`) has no door to it | superseded by SM1034's brief (a member home page, `/account`, with the bell on it), raised from the release manager's answer of 2026-10-12 |
+| R2 | A member surface for the bell | built as SM1044 (B6), under SM1034 |
 | R3 | Q5: the handler's row shows no "waiting for the scheduler" or last outcome; the outbox and `notify/failed/` are not shown in the manager | build |
 | R4 | One-click unsubscribe (an engine POST endpoint); today the link and header point at the operator's own page | build |
 | R5 | The handler actions' door admits manage_forms, manage_data or manage_connectors; a group holding only manage_notifications cannot reach it | a ruling (widens the door) |

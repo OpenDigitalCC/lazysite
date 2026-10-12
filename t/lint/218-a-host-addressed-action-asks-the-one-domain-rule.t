@@ -262,6 +262,7 @@ my %NOT_INSTANCE_WIDE = (
     'me-password'            => "the caller's own password (a self action, lint 246)",
     'me-session-revoke'      => "one of the caller's own sessions (a self action, lint 246)",
     'me-sign-out-everywhere' => "the caller's own sessions (a self action, lint 246)",
+    'me-notices-seen'        => "the caller's own read cursor (a self action, lint 246)",
     'regenerate-registries' => 'derived output, rebuilt from the content on the next request: '
         . 'the result is the same whoever asks, and no setting changes',
     'site-backup-upload' => 'stores a package; it changes a site only through site-backup-apply, '

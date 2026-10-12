@@ -50,7 +50,8 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
 use Lazysite::Manager::Notices qw(_notices_gate); # SM918: one notice reader, shared with MCP
 use Lazysite::Manager::StartPage qw(action_start_page dispatch_start_page_set); # SM944 S23
 use Lazysite::Manager::Account   qw(action_me dispatch_me_password action_me_sessions
-    dispatch_me_session_revoke action_me_sign_out_everywhere); # SM1043: the member's own account
+    dispatch_me_session_revoke action_me_sign_out_everywhere
+    action_me_notices dispatch_me_notices_seen);    # SM1043: the member's own account
 use Lazysite::Handlers         ();    # SM842: handlers, bindings, the schedule
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
@@ -2142,6 +2143,8 @@ elsif ( $action eq 'me-password' )            { $result = dispatch_me_password()
 elsif ( $action eq 'me-sessions' )            { $result = action_me_sessions() }
 elsif ( $action eq 'me-session-revoke' )      { $result = dispatch_me_session_revoke() }
 elsif ( $action eq 'me-sign-out-everywhere' ) { $result = action_me_sign_out_everywhere() }
+elsif ( $action eq 'me-notices' )      { $result = action_me_notices() }       # SM1034 1b
+elsif ( $action eq 'me-notices-seen' ) { $result = dispatch_me_notices_seen() }
 elsif ( $action eq 'start-page-set' ) {
     $result = dispatch_start_page_set();
 }
