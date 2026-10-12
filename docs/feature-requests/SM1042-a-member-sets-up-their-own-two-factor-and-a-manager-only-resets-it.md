@@ -54,14 +54,18 @@ page carries no enrolment and no secret. Sabotaged (the manager refusal, the
 tool's actor check, enrol-while-on, disable without a code, old codes kept) -
 each fails.
 
-# Not settled by the ruling
+# Design choices, confirmed
 
-- The sysadmin at the shell keeps `lazysite-users.pl mfa-enroll USER`: it is the
-  host, not a manager, and the tool's actor check exempts no-actor calls as it
-  does for every verb. Recommendation: keep it, as the recovery path for a
+Raised as choices the ruling did not settle; the release manager confirmed
+them as built, 2026-10-12, in these words:
+
+- The sysadmin at the shell keeps `lazysite-users.pl mfa-enroll USER`: **"Keep
+  for the shell"**. It is the host, not a manager, and the tool's actor check
+  exempts no-actor calls as it does for every verb - the recovery path for a
   site whose only sysop has lost their authenticator and their codes.
-- The brief's `account_2fa` switch was not ruled and is not built; 2FA follows
-  `account_page`.
-- Five re-authentication checks per five minutes (the sign-in limiter's cap)
-  can stop a member who changes a password, sets up 2FA and mistypes a code in
-  one sitting; they wait five minutes.
+- Re-authentication counts against the sign-in rate limiter: **"Share the
+  sign-in limit"** (recorded in SM1043). Five checks per five minutes can stop
+  a member who changes a password, sets up 2FA and mistypes a code in one
+  sitting; they wait five minutes.
+- The brief's `account_2fa` switch stays unbuilt, because it was not ruled; 2FA
+  follows `account_page`.
