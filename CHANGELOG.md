@@ -435,6 +435,16 @@ Archive
   `setup.sh` says the skill folder may be read-only or writable. Found in the
   release manager's real-session test of 2026-10-12, recorded in SM887.
   t/tools/83, 130, 131.
+- odoo-extension (PENDING) **Odoo's field descriptors in the data extension's
+  terms, by portable type (SM747 slice R, the interface).** A field is drawn as
+  one of the data extension's seven types only from the portable type OOM hands
+  over, and checked by the data extension's own descriptor rules; a field
+  without one, or one those rules refuse, is refused by name rather than
+  guessed. A binding's parameter form lists exactly the fields a request may
+  set, typed from the operation's declaration. Drawing reports with it waits on
+  where a report carries its descriptors (recorded in SM747, filed to OOM).
+  t/unit/odoo/16.
+
 - odoo-extension (PENDING) **a page uses Odoo: the endpoint, the `odoo:` page
   binding and the connection user's key actions (SM747 slice CU, the
   surfaces).** `lazysite-odoo.pl` lets a page's own script run a binding: it

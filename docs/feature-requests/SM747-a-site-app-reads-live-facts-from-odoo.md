@@ -252,6 +252,44 @@ Decisions taken here:
 - **The ledger moved**: t/lint/98 counts 112 token-reachable actions (was 108), with
   the four named and the reason.
 
+## Slice R - the interface built 2026-10-12 (n474); the wiring STOPPED on a question
+
+| Row | What | Where |
+| --- | --- | --- |
+| R4, Q3 | **The portable-type interface Q3 asked R to be built against.** Per field it reads `portable_type` (one of the data extension's seven), `values` (enum), `digits`/`places` (decimal), `string` (label), `required` - and NEVER Odoo's own `type`, so it cannot guess. A field without a portable type, with one the data extension does not know, or that fails the data extension's own descriptor check (`Lazysite::Data::Descriptor::load_descriptor`, so an Odoo column is held to a site's rules) is refused BY NAME with the reason. The key name is one constant (`$TYPE_KEY`) for OOM's answer to move | `Lazysite::Odoo::Fields::descriptor_fields`; t/unit/odoo/16 |
+| R4 | **The parameter form**: one field per name the binding lets a request set, typed from the operation's declaration (OOM's `str`/`int`/`bool` to `text`/`integer`/`boolean`), required where the operation requires it without a default, carrying the default - and no field for the visitor key or a fixed value | `Lazysite::Odoo::Fields::form_fields`; t/unit/odoo/16 |
+
+### Open: R-Q1 - where a report carries its rows' descriptors (STOPPED HERE)
+
+Neither the rulings nor this filing settle it, and it is an interface between OOM's
+operations and lazysite, so per the standing instruction the wiring stopped and the
+question is recorded rather than decided.
+
+The interface above turns descriptors into the data extension's fields. What it
+needs from a REPORT is the rows and the descriptors that describe them, and an OOM
+report is whatever its operation returns: `crm.select`'s, `crm.inspect`'s and a
+future pack's each have their own shape. The descriptors come from OOM's
+`Profile->descriptors($logical_model)` (section 8), which only the operation can
+call - the logical model is the pack's knowledge, and lazysite naming one would break
+*The rule that keeps it general-purpose*.
+
+**Recommended:** a read operation meant for display returns `rows` (a list of
+hashes) and `fields` (descriptors keyed by the row keys, with `portable_type`, as
+`Profile->descriptors` gives them once OOM adds the portable type). Lazysite then:
+
+1. hands TT `x.rows`, `x.fields` (drawn by `descriptor_fields`), `x.refused` and
+   `x.form` (`form_fields`) beside the report for an `odoo:` page binding;
+2. answers the same keys from the endpoint, so the data helper
+   (`starter/assets/lazysite-data.js`) can fill a region from a binding as it fills
+   one from a table (`data-ls-odoo="ID"` beside `data-ls-db`);
+3. leaves a report without `fields` exactly as CU hands it over (unformatted), so
+   nothing that works today changes.
+
+The test pack's `shop.products` already returns that shape. The question is filed to
+OOM with the options paper (its second section), since OOM decides what its
+operations return. Answering it unblocks the wiring (about half of R's S-M), and
+then E.
+
 # What this is for, and the work - RESTATED 2026-10-01
 
 This replaces a section I wrote earlier the same day. **I had it wrong, and the
