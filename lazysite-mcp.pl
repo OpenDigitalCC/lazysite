@@ -4218,6 +4218,12 @@ elsif ( $method eq 'tools/call' ) {
     my $out = eval { $tool->{run}->( $args, $user, $caps ) };
     if ($@) {
         log_event( 'ERROR', 'mcp', 'tool died', tool => $name, err => "$@" );
+        # P24 (WORK-PLAN-0154, under SM943's rule that errors are audited): a
+        # tool that dies writes one failure row, as the control API's crash
+        # guard does - naming the tool and never the error, which can carry
+        # what the call carried and stays in the error log above.
+        audit_log( $user, $name, ( $args->{path} // '' ), _request_ip(),
+            'fail', 'mcp', 'crashed: the handler failed - the error is in the error log' );
         rpc_error( $id, -32603, "Tool error: $name" );
     }
     log_event( 'INFO', 'mcp', 'tool call',

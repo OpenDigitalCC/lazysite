@@ -292,6 +292,15 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM998 (PENDING) **a failed account read and a crashed handler are audited.**
+  Under SM943's rule (refusals and errors are audited): the control API's
+  `users` read sub-actions - `users-detail`, `verify-credential` and the
+  other reads - now write an audit row (`user-<sub>`, `fail`) when they fail,
+  recording the failure's class and never its text. A handler that crashes
+  writes one failure row naming the action, on the control API and on MCP,
+  "crashed: the handler failed - the error is in the error log"; the error
+  itself stays in the error log. t/integration/133.
+
 - SM997 (PENDING) **a nav address cannot run script.** The nav parser stored a
   `javascript:` address as written, and every layout puts a nav address in an
   href. A nav entry's address must now be a path, an `http`/`https` address,

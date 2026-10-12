@@ -113,8 +113,9 @@ machine-readable `kind`:
 
 ## Tools
 
-37 tools. **Reads** are not audited (a refused or failed read is); **writes** are
-recorded in the audit log as material events and may trigger the AI client's per-call approval. All file tools
+37 tools. **Reads** are not audited (a refused or failed read is, and a tool
+that crashes writes one failure row naming the tool - its error stays in the
+error log); **writes** are recorded in the audit log as material events and may trigger the AI client's per-call approval. All file tools
 need `manage_content` unless noted.
 
 ### Identity

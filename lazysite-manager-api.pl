@@ -1105,6 +1105,18 @@ if ( my $missing = _missing_required($action) ) {
 
 # --- Dispatch ---
 
+# P24 (WORK-PLAN-0154, under SM943's rule that refusals and errors are
+# audited): A HANDLER THAT CRASHES WRITES ONE FAILURE ROW. A die in a branch
+# below left the process before the audit block, so the trail had no line for
+# the request at all - an error, the one outcome SM943 says must be there.
+# Armed here and disarmed after the chain; the END block writes the row only
+# when the chain did not finish and the process is exiting on a failure. The
+# row names the action (`user-<sub>` for action=users) and never the error's
+# text, which can carry what the request carried - a secret, a path - and stays
+# in the error log.
+our $DISPATCH_CRASH_GUARD = 1;
+END { _audit_crashed_dispatch() }
+
 my $result;
 if    ( $action eq 'list' ) { $result = action_list($path) }
 elsif ( $action eq 'read' ) { $result = action_read( $path, $auth_user ) }
@@ -2190,6 +2202,7 @@ else {
     # SM670: an action that does not exist is not found - 404, not 400.
     $result = { ok => 0, kind => 'not-found', error => "Unknown action: $action" };
 }
+$DISPATCH_CRASH_GUARD = 0;    # P24: the chain finished
 
 # Audit trail: record MATERIAL actions only - state changes and security grants
 # (who did what, TO WHAT, when, from where, outcome). Reads/browsing are NOT
@@ -2215,7 +2228,8 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
     # exists to answer "what changed". This carries the specifics a success
     # knows; it is folded into $detail only when nothing has gone wrong, so a
     # refusal's reason is never displaced by it.
-    my $aud_extra = '';
+    my $aud_extra   = '';
+    my $aud_no_text = 0;    # P24: a failed account-store read records its class only
     # SM503: a data action's material object is the TABLE, not the dispatcher
     # path - the sysop's trail showed data-import and data-row-save rows
     # all targeting "/", which answers none of the questions a trail exists
@@ -2236,7 +2250,15 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
     if ( $action eq 'users' ) {
         my $b   = _json_body();
         my $sub = ( ref $b eq 'HASH' ) ? ( $b->{action} // '' ) : '';
-        if ( $sub eq '' || $uskip{$sub} ) { $aud_action = undef }
+        # P24 (under SM943's rule): a read sub-action - users-detail,
+        # verify-credential and the rest of %uskip - is skipped when it
+        # succeeds and recorded when it fails, as a read action is - by its
+        # class, never its text: a read's error can echo what it was given (a
+        # credential, a TOTP secret) or a die inside the tool.
+        $sub = $params{sub} // 'list' if $sub eq '' && ( $ENV{REQUEST_METHOD} // '' ) ne 'POST';
+
+        $aud_no_text = 1 if $uskip{$sub};
+        if ( $sub eq '' || ( $uskip{$sub} && !$AUDIT_FAILED ) ) { $aud_action = undef }
         else {
             $aud_action = "user-$sub";
             # Group changes (capabilities, membership) record the group as the
@@ -2354,6 +2376,9 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
             : ( ref $result eq 'HASH'
             ? ( $result->{audit_detail} || $result->{kind} || $result->{error} || '' )
             : '' );
+        # P24: a failed account-store read is recorded by its class only.
+        $detail = ( $result->{audit_detail} || $result->{kind} || 'failed' )
+            if !$ok && $aud_no_text && ref $result eq 'HASH';
 
         # N141B-C: a success says what it did. Only when $ok, so the refusal
         # reason above always wins the field it was written for.
@@ -2566,6 +2591,28 @@ sub _refuse_unreachable_domain {
     my $r = Lazysite::Manager::Common::domain_reach_refusal(%a) or return;
     $r->{error} = $why if defined $why;
     _refuse( $r, ( $token_auth ? 'api' : 'ui' ), 'denied: outside domain scope' );
+    return;
+}
+
+# P24: the END block's half of the crash row (see the guard above the dispatch).
+# $? is kept: the process still exits with the failure it was exiting with.
+sub _audit_crashed_dispatch {
+    return unless $DISPATCH_CRASH_GUARD && $?;
+    my $status = $?;
+    my $act    = $action // '';
+    if ( $act eq 'users' ) {
+        my $b   = eval { _json_body() };
+        my $sub = ( ref $b eq 'HASH' ? $b->{action} : undef ) // $params{sub} // '';
+        $sub =~ s/[^a-z0-9-]//g;
+        $act = "user-$sub" if length $sub;
+    }
+    eval {
+        audit_log( $auth_user // '', $act, ( $path // '' ), _request_ip(), 'fail',
+            ( $token_auth ? 'api' : 'ui' ),
+            _audit_detail('crashed: the handler failed - the error is in the error log') );
+        1;
+    };
+    $? = $status;
     return;
 }
 
