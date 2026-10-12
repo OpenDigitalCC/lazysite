@@ -1,6 +1,6 @@
 ---
 title: "Test plan - 0.15.3 and 0.15.4 on edge, complete"
-subtitle: "Every user- and operator-visible change in both releases, in the order that finds the most first: two upgrade checks, forty-four release-specific rows that only a deployed host can run, what was deliberately left unwalked, and the standing tiers. Supersedes the partial plan of 2026-10-10."
+subtitle: "Every user- and operator-visible change in both releases, in the order that finds the most first: two upgrade checks, forty-five rows that only a deployed host can run (forty-four release-specific and one reproduction), what was deliberately left unwalked, and the standing tiers. Supersedes the partial plan of 2026-10-10."
 brand: plain
 standard-margins: true
 ---
@@ -142,6 +142,9 @@ needs a change:
 5. The field-visible fixes from the 0.15.2 edge walk: R15 to R20.
 6. The rest, in any order: R21 to R26, then R36 to R43.
 7. R44, the smoke tour of the moved manager areas, last.
+8. R45 whenever a WebDAV account with layout capabilities is to hand. It
+   checks no change in these releases: it reproduces a report (SM911 LD4) that
+   needs the account's live scope to explain.
 
 # Release-specific checks - 0.15.3
 
@@ -726,6 +729,58 @@ behave as it did on 0.15.2:
 *You should see:* every page and action answer as before, and no 500 or
 "Internal error" anywhere. It is a FAIL if any manager page fails to load or
 any listed action errors. Report the page and the action.
+
+# A reproduction, not a release check
+
+## R45 - MKCOL on a collection that already exists answers 405, wherever it is (SM911 LD4)
+
+*Test site; a WebDAV account holding `manage_layouts` (and `manage_themes`,
+if it has it) whose scope you can state; a test folder.* This row reproduces a
+report rather than checking a change: on 2026-09-27 the same request answered
+405 under `/assets/` and 403 under `/lazysite/layouts/`, and which rule gave
+the 403 depends on the account's scope and the active layout at the time, which
+the suite cannot supply. Before starting, note the active layout and theme (the
+Appearance page) and, if the site serves more than one domain, which domain
+serves which layout.
+
+Send each request with the account's Basic credentials, under `/dav/`, and keep
+the status, the body and the `X-Lazysite-Deny-Reason` header of every answer.
+
+1. `MKCOL /dav/assets/r45-test/`: it is created (201). Send the same
+   `MKCOL` again. Then `MKCOL /dav/assets/` itself.
+2. `MKCOL /dav/lazysite/layouts/r45-test/` - a new layout folder that no site
+   serves: it is created (201), which shows the account may write there. Send
+   the same `MKCOL` again.
+3. `MKCOL /dav/lazysite/layouts/` (the all-layouts folder itself), then
+   `MKCOL /dav/lazysite/layouts/<the active layout>/`, then, if the account is
+   scoped to some domains and another domain serves a different layout,
+   `MKCOL /dav/lazysite/layouts/<that layout>/`.
+4. Clean up: `DELETE /dav/lazysite/layouts/r45-test/` and
+   `DELETE /dav/assets/r45-test/`.
+
+*You should see:* the second `MKCOL` in 1 and in 2, and `MKCOL /dav/assets/`,
+each answer 405 with the body "Already exists". RFC 4918 (9.3.1) gives 405 for
+an `MKCOL` on a resource that exists, and the handler answers that once the
+request reaches it. In 3 each folder already exists, but the account may not
+create anything at that level, so the refusal comes first: 403, with the reason
+in the header - "lazysite/layouts is a read-only container" for the
+all-layouts folder, the active-layout refusal ("the active layout '<name>' is
+being served and is read-only on every surface") for the active one, and "the
+layout '<name>' is served by a site you do not reach" for a layout another
+domain serves.
+
+It is a FAIL if the second `MKCOL` in 2 answers 403: the account has just
+created that folder, so only "already exists" can be wrong with the request.
+It is also a FAIL if any 403 in this row comes without an
+`X-Lazysite-Deny-Reason` header.
+
+*Report:* the account's scope and both answers. The scope is its groups, its
+`dav_scope`, whether it holds `manage_layouts` and `manage_themes`, and the
+domains it reaches; the answers are the status, body and deny reason of the
+repeated `MKCOL` under `/assets/` and under `/lazysite/layouts/`. Add the three
+answers from 3, the active layout and theme, and the exact path of any request
+that answered 403 where this row expects 405 - that path and the deny reason
+are what the fix needs.
 
 # Not walked, and why
 
