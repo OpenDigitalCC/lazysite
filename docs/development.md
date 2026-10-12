@@ -224,8 +224,9 @@ stage sits there at a time and a live run's stage is never touched.
 ### Handing off a stack of branches
 
 `bash tools/handoff.sh --stack BASE` hands off every branch from BASE to the
-checked-out tip at once: the one-minute precheck on each, against the branch
-below it, and the full suite once, on the tip. Each branch is READY only if all
+checked-out tip at once: the precheck on each, against the branch below it
+(and, with `--full` or `--release`, the whole suite once, on the tip, through
+`tools/suite.sh` - SM1061). Each branch is READY only if all
 of it passed; the first precheck that fails stops the run, naming the branch.
 When only part of a stack lands, rebase what is left onto the new main and run
 `--stack main` again on it.

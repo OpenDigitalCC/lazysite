@@ -127,18 +127,46 @@ get wrong. `make tiers` prints this.
 | Tier | Cost | When | What |
 |---|---|---|---|
 | `make tier-dev AREA=x` | seconds | every edit | compile + tidy lint, plus `t/unit/<AREA>/` |
-| `make tier-review` | ~2 min | branch handoff | the whole plain suite at `-j4` |
-| `bash tools/handoff.sh [--release]` | ~2 min | **before a branch is offered for review** | tier-review plus the review's own tripwires (clean tree, compile, the mangled-literal check, bench with `--release`); prints the one line the handover carries (SM764) |
-| `make tier-release` | ~80 min | once per cut | suite, then bench, then coverage |
+| `bash tools/precheck.sh` | minutes | each commit, and **the handoff's test run** | every lint, the tests naming a changed file, and the tests of each AREA the change touches (`tools/precheck-areas.pl`, SM1061) |
+| `bash tools/handoff.sh [--stack BASE]` | minutes | **before a branch is offered for review** | the precheck on each stack branch plus the review's own tripwires (clean tree, the generators, the mangled-literal check, the tracked-tree check); prints the one line the handover carries (SM764, SM1061) |
+| `bash tools/suite.sh` (`make tier-review`) | ~18 min | **on demand** | the whole plain suite at `-j<nproc>`, one run at a time on the host (a lock in the common git dir; a second run waits) |
+| `bash tools/handoff.sh --full` / `--release` | + the suite | a branch that wants the suite / a branch bound for a cut | the handoff plus `tools/suite.sh`; `--release` adds the bench |
+| `tools/gate-main.sh` | the release gate | **required for a release**: after a landing, before a cut | `tools/release.sh gate`: suite, bench, coverage on main's tip |
+| `make tier-release` | ~80 min | by hand, once per cut | suite (through `tools/suite.sh`), then bench, then coverage |
+| `bash tools/overnight.sh` | the night | 00:30, from claude's crontab | the queued handoffs, then `tools/suite.sh --nightly` on main |
 
-There is deliberately **no scheduled tier**. SM269 phase 3 has to justify one by
-emitting a worklist somebody uses; measurement without a consumer is not a tier.
+**The whole suite is not the handoff (SM1061).** The release manager ruled on
+2026-10-12: *a targeted subset on each commit and handoff (precheck); the whole
+suite on demand; the whole suite required for a release; and, as safety nets,
+"Area subset + nightly".* That day four agents each ran the whole plain suite
+in their handoff at once on an 8-core host; the load reached 26-30 and every
+suite slowed from ~1,080 s to ~1,950 s - and the handoff suite caught nothing:
+every handoff fault was found by the precheck, and the one cross-stack clash
+(t/unit/processor/101, broken by a change to `lazysite-processor/sources.pm`)
+by a whole-suite run on main. The precheck now runs the tests of every area a
+change touches, which selects that test.
+
+**The overnight queue.** A handoff too heavy for the working day is queued
+rather than run: `bash tools/overnight.sh --queue WORKTREE TIP [--full|--release]`
+appends `WORKTREE TIP [FLAG]` to `tmp/overnight/queue.txt` in the main
+checkout. At 00:30 `tools/overnight.sh` takes the whole queue (lines added
+while it runs wait for the next night), checks each TIP out in its WORKTREE and
+runs `tools/handoff.sh --stack main [FLAG]` there, one at a time at nice 19 and
+idle I/O. The READY / NOT READY lines are in
+`tmp/overnight/results-DATE.txt`, each run's output in
+`tmp/overnight/handoff-DATE-TIP.log`. Then it runs `tools/suite.sh --nightly`:
+the whole suite on main's tip in `tmp/wt-nightly`, through the suite lock,
+logged to `tmp/nightly/DATE.log` (the newest 14 kept); a failure files
+`DATE-nightly-suite-failed-on-SHA.md` in `inbox/`, a pass files nothing. A run
+that finds its lock held logs a skip rather than queueing, so one night cannot
+overlap the next.
 
 Two measured facts that explain the shape (SM269 phase 0/1, 6 cores): the plain
 suite is ~330s sequential and ~122s at `-j4`, and the release gate is ~80
 minutes of which **coverage is 92%**. So the ladder does not speed up the gate -
 nothing short of phase 3 does. It exists so a problem surfaces while the code is
-being written rather than at the cut.
+being written rather than at the cut. (The suite has since grown to ~1,200
+files; on 2026-10-12 it took ~1,080 s on a quiet host.)
 
 **A branch is not offered for review without `tools/handoff.sh` saying READY.**
 The 0.13.4 cut was launched three times because two faults - one a textual
@@ -146,6 +174,8 @@ pin one test file over from the change - reached review and the build without
 the whole suite having been run on the branch; each cost a review round-trip
 through a release manager who was not watching (SM764). The tier existed; the
 script is what makes running it the handover rather than a step before it.
+Since SM1061 what that script runs is the precheck, widened by area; the whole
+suite is on demand, nightly, and required for a release.
 
 Every tier passes `-l`. Without it, tests that load `Lazysite::` modules die
 with zero tests run and `prove` reports a failure whose cause is not on screen.

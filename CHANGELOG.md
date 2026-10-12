@@ -99,6 +99,15 @@ Archive
   account or its session's groups), as a token needs `api`; an unsecured site
   is unchanged. Affects v0.14.4 and every v0.15.x. t/integration/220, 221.
 
+- SM1061 (PENDING) **internal: the handoff is the precheck, and one whole suite
+  runs at a time.** Ruled by the release manager 2026-10-12. `tools/handoff.sh`
+  runs the precheck on each branch and no whole suite unless `--full` or
+  `--release` asks for one. `tools/suite.sh` is the one way to run the whole
+  plain suite, behind a host-wide lock in the common git dir (a second run waits
+  and says who holds it). The precheck also runs the tests of each area a change
+  touches (`tools/precheck-areas.pl`; t/lint/255 keeps the map complete).
+  `tools/overnight.sh` runs queued handoffs and then `tools/suite.sh --nightly`
+  on main, filing a failure in the inbox.
 - SM1012 (PENDING) **internal: `render_content` is split at its seams.** The
   Template object for a content pass is built by `_tt_engine`; what the manager
   UI needs to know about the user (capabilities, scopes) comes from

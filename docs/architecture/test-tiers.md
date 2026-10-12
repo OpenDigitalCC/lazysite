@@ -11,9 +11,11 @@ standard-margins: true
 | --- | --- | --- | --- |
 | **fast** | `scripts/pre-review.sh fast` | **~4s** | While you work |
 | **review** | `scripts/pre-review.sh review` | **~45s** | Before offering a branch |
-| **suite** | `scripts/pre-review.sh suite` | **~4 min** at `-j4` | When behaviour changed, not only its description |
-| **handoff** | `bash tools/handoff.sh [--stack BASE]` | precheck **~10s** a branch, then the suite **~6 min** once | Before offering a branch, or a stack of them |
-| **gate** | `tools/gate-main.sh` (runs `tools/release.sh gate`) | the suite, bench and coverage: **~6 min**, **~75 min** when coverage is re-measured | After every landing, unattended |
+| **precheck** | `bash tools/precheck.sh` | **minutes**: the lints, the tests naming a changed file, and the tests of each area it touches | Each commit, and the handoff's test run (SM1061) |
+| **handoff** | `bash tools/handoff.sh [--stack BASE]` | the precheck on each branch; no whole suite unless `--full` or `--release` | Before offering a branch, or a stack of them; queued overnight when heavy (`tools/overnight.sh --queue`) |
+| **suite** | `bash tools/suite.sh` (or `scripts/pre-review.sh suite`) | the whole plain suite, one run at a time on the host | On demand (SM1061) |
+| **nightly** | `tools/overnight.sh` at 00:30: queued handoffs, then `tools/suite.sh --nightly` | the night | Every night, on main; a failure is filed in the inbox |
+| **gate** | `tools/gate-main.sh` (runs `tools/release.sh gate`) | the suite, bench and coverage: **~6 min**, **~75 min** when coverage is re-measured | Required for a release: after a landing, before a cut |
 | **build** | `tools/release.sh build X --notes FILE` | **minutes**: the release-material checks, then packaging | When the cut is called |
 
 # Why these boundaries and not others
