@@ -476,6 +476,20 @@ sub _form_field_textarea {
     return $field_html;
 }
 
+# SM1012 S5: A SELECT FIELD (arguments as _form_field_file's).
+sub _form_field_select {
+    my ( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules ) = @_;
+    my $field_html;
+    $field_html = qq(    <select name="$name" id="$name"$req_attr>\n);
+    $field_html .= qq(      <option value="">-- Select --</option>\n);
+    for my $opt ( @{ $rules{select} } ) {
+        my $e = _form_attr($opt);
+        $field_html .= qq(      <option value="$e">$e</option>\n);
+    }
+    $field_html .= qq(    </select>\n);
+    return $field_html;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -606,13 +620,7 @@ sub _render_form {
             $field_html = _form_field_textarea( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
         }
         elsif ( $rules{select} ) {
-            $field_html = qq(    <select name="$name" id="$name"$req_attr>\n);
-            $field_html .= qq(      <option value="">-- Select --</option>\n);
-            for my $opt ( @{ $rules{select} } ) {
-                my $e = _form_attr($opt);
-                $field_html .= qq(      <option value="$e">$e</option>\n);
-            }
-            $field_html .= qq(    </select>\n);
+            $field_html = _form_field_select( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
         }
 
         # SM401: radio and checklist. A select hides its options behind a click,
