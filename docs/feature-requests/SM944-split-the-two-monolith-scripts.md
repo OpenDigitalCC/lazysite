@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: processor
-status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1-S20 (n278-n304) the processor; S21-S32 (n306-n341) the manager API's context and areas; ITEM 1 (n339, n342); S33 (n343-n356) the dispatch branches, Manager::Data's four inline (ruled 2026-10-11). S34 (ruled 2026-10-11): tests (n362), fail-closed (n363), the gate in Manager::Csrf (n364), its refusal audited (n365). Next: Q16."
+status-note: "Planned 2026-10-08: S1-S34, one area per branch. Built: S1-S20 (n278-n304) the processor; S21-S32 (n306-n341) the manager API's context and areas; ITEM 1 (n339, n342); S33 (n343-n356) the dispatch branches, Manager::Data's four inline (ruled 2026-10-11). S34 (ruled 2026-10-11): tests (n362), fail-closed (n363), the gate in Manager::Csrf (n364), its refusal audited (n365). Q16 closed with no move (ruled 2026-10-12): the per-module log copies stay, Manager::Data's four stay inline for good."
 ---
 
 # Measured
@@ -290,6 +290,12 @@ The release manager ruled, in these words:
 
 - S33's Manager::Data question: "(b) stay inline for now" - the four (data-safety-export read/restore/delete, data-table-drop) stay inline; revisit with Q16. S33 is complete.
 - Order: "S34 first", then Q16.
+
+# Ruled: Q16, the per-module log copies (2026-10-12)
+
+Q16 Phase A (n366) inventoried the copies and stopped on a question (WORK-PLAN-0153, open questions; tmp/sm944-q16-a-probe.pl, .out): retiring them changes log lines, and an entry point that set Common's `$auth_user` for log attribution would open the fail-closed handlers in its process. MCP never set Domains' copy, so an MCP domain write logged `user=` and was committed as `unknown`.
+
+The release manager ruled, in these words: "Close Q16 + MCP attribution": keep the per-module log copies, close Q16 with no move; the four inline Manager::Data branches stay inline for good; Data's copy stays the row actor. Then build the separate one-line fix: MCP's setup (setup_context or equivalent) sets Lazysite::Manager::Domains' log copy of the account so MCP domain writes log `user=<account>` and are committed with that account as author instead of 'unknown'. It must NOT set Common's `$auth_user` (that would open the fail-closed handlers in the MCP process - prove with a test that after an MCP domain write, a fail-closed handler outside a request still refuses).
 
 # S34: the CSRF gate, inventoried (2026-10-11)
 
