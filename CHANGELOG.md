@@ -181,6 +181,15 @@ Archive
   `t/lint/257` refuses a scalar after an array or hash in a `my`/`our`/`state`
   list with an assignment; no other instance in the tree. t/unit/manager/335,
   t/lint/257.
+- odoo-extension (PENDING) **every Odoo action is an MCP tool, and an agent runs
+  a bound operation as its grant's own Odoo account (SM747 slice E).**
+  `odoo_status`, `odoo_calls`, `odoo_secret_set` and `odoo_secret_clear` are the
+  twins of the control-API actions; `odoo-bindings`, `odoo-run` and
+  `odoo-confirm` (and their twins) list and run the bindings a signed-in caller
+  may use, under the binding's own callers, modes and caps - never as a visitor.
+  An operator can give a grant its own Odoo login and key (`grant`, `login` on
+  `odoo-secret-set`); its MCP calls then run as that account, otherwise as the
+  connection user. t/unit/odoo/17-18, t/integration/171.
 
 - SM1012 (PENDING) **internal: `render_content` is split at its seams.** The
   Template object for a content pass is built by `_tt_engine`; what the manager

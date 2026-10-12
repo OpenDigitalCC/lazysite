@@ -489,6 +489,24 @@ sub _briefs {
     return;
 }
 
+# SM747 E: the Odoo engine, told where the site is; and who an agent is, for a
+# bound operation - its account, capabilities and groups, the request address,
+# and the channel, which is what lets the engine run it as the grant's own Odoo
+# account (Q2). Never a visitor.
+sub _odoo_engine {
+    require Lazysite::Odoo;
+    no warnings 'once';
+    $Lazysite::Odoo::DOCROOT = $DOCROOT;
+    return 'Lazysite::Odoo';
+}
+
+sub _odoo_who {
+    my ( $user, $caps ) = @_;
+    no warnings 'once';
+    return ( user => $user, caps => $caps || {}, groups => [@Lazysite::Auth::Acl::user_groups],
+        ip => _request_ip(), channel => 'mcp' );
+}
+
 # --- shared site-tool helpers ---------------------------------------------
 # site_backup and site_apply both resolve a configured domain and then test its
 # content root against the caller's scope union. The two blocks were verbatim
@@ -775,6 +793,78 @@ my %TOOLS = (
             );
             $r->{ok} = $r->{ok} ? JSON::PP::true : JSON::PP::false;
             return $r;
+        },
+    },
+
+    # SM747 E (R5, ruled 2026-10-12: "All operations should also be mcp tools").
+    # Every Odoo action has its twin here, declared once in
+    # Lazysite::ControlApi::Actions. An operation reaches an agent through a
+    # BINDING, as it reaches a page: the binding's modes, callers and caps decide,
+    # and only the fields it maps may be sent. An agent is an AUTHENTICATED
+    # caller and never a visitor, so a binding that works on a visitor's key is
+    # neither listed nor run here. Q2: the call runs as this grant's own Odoo
+    # account when the operator configured one, else as the connection user.
+    odoo_status => {
+        description => 'The Odoo connection: whether OOM is installed, the connection settings, whether the connection user (and each grant\'s own Odoo account) has a key - never the key - and the operations installed.',
+        cap => 'manage_connectors',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub { _odoo_engine()->can('action_odoo_status')->() },
+    },
+    odoo_calls => {
+        description => 'The record of Odoo calls, newest first: who caused each, through which binding and operation, in which mode, and how it ended. Never a payload or a credential.',
+        cap         => 'manage_connectors',
+        inputSchema => { type => 'object',
+            properties => { binding => { type => 'string' }, limit => { type => 'integer' } },
+            additionalProperties => JSON::PP::false },
+        run => sub {
+            _odoo_engine()->can('action_odoo_calls')->( binding => $_[0]->{binding}, limit => $_[0]->{limit} );
+        },
+    },
+    odoo_secret_set => {
+        description => 'Set the API key of the Odoo connection user, or - with `grant` and `login` - of the Odoo account a lazysite account\'s MCP calls run as. The key is stored on its own and never returned.',
+        cap         => 'manage_connectors',
+        inputSchema => { type => 'object',
+            properties => { secret => { type => 'string' }, grant => { type => 'string' },
+                login => { type => 'string' } },
+            required => ['secret'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ($a) = @_;
+            _odoo_engine()->can('action_odoo_secret_set')
+                ->( $a->{secret}, grant => $a->{grant}, login => $a->{login} );
+        },
+    },
+    odoo_secret_clear => {
+        description => 'Remove the Odoo connection user\'s API key, or - with `grant` - a grant\'s own Odoo account.',
+        cap         => 'manage_connectors',
+        inputSchema => { type => 'object', properties => { grant => { type => 'string' } },
+            additionalProperties => JSON::PP::false },
+        run => sub { _odoo_engine()->can('action_odoo_secret_clear')->( grant => $_[0]->{grant} ) },
+    },
+    odoo_bindings => {
+        description => 'The Odoo bindings this account may run: each one\'s operation, what it does, whether it writes, and the fields it takes.',
+        cap => undef,
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub { _odoo_engine()->can('action_odoo_bindings')->( _odoo_who( $_[1], $_[2] ) ) },
+    },
+    odoo_run => {
+        description => 'Run an Odoo binding by its id with the fields it takes. A read answers its report; a write answers its plan to confirm with odoo_confirm, or - where the binding says immediate - applies it. The binding decides whether this account may, and how often.',
+        cap         => undef,
+        inputSchema => { type => 'object',
+            properties => { binding => { type => 'string' }, params => { type => 'object' } },
+            required => ['binding'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $a, $user, $caps ) = @_;
+            _odoo_engine()->can('action_odoo_run')->( $a->{binding}, $a->{params}, _odoo_who( $user, $caps ) );
+        },
+    },
+    odoo_confirm => {
+        description => 'Apply a plan odoo_run gave you, by its id. Only the account that made a plan may apply it, within an hour, through the binding as it stands now.',
+        cap         => undef,
+        inputSchema => { type => 'object', properties => { plan => { type => 'string' } },
+            required => ['plan'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $a, $user, $caps ) = @_;
+            _odoo_engine()->can('action_odoo_confirm')->( $a->{plan}, _odoo_who( $user, $caps ) );
         },
     },
     list_files => {

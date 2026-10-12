@@ -101,7 +101,8 @@ is_deeply( \@broken, [], 'every predicate evaluated without dying' );
 # capability; what it reaches is the caller's own domains (SM976), decided by
 # the action, not the gate.
 my %DELIBERATELY_CONSTANT
-    = map { $_ => 1 } qw(whoami describe-capabilities actions-list connector-call display-names nav-read);
+    = map { $_ => 1 } qw(whoami describe-capabilities actions-list connector-call display-names nav-read
+    odoo-bindings odoo-run odoo-confirm);    # SM747 E: the binding decides, as the connector does
 my @unexpected = grep { !$DELIBERATELY_CONSTANT{$_} } @constant;
 is_deeply( \@unexpected, [], 'no gate silently ignores the capabilities it is given' )
     or diag( "constant-answer gates: @unexpected\n"

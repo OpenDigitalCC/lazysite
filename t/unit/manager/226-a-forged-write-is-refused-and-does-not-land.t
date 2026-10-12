@@ -202,6 +202,9 @@ sub setup {
 }
 setup( 'acl-set', query => 'path=secret.md', body => { read => ['admin'] } );
 setup( 'odoo-secret-set', body => { secret => 'k3y-set-before' } );    # SM747: so a clear lands
+# SM747 E: a binding for odoo-run to name. Running it reaches the gate, which
+# records its refusal (the extension is off here) - that record is the landing.
+setup( 'handler-save', body => { id => 'ob', type => 'odoo', name => 'OB', operation => 'shop.products' } );
 $S{backup} = setup('backup-create')->{name} // '';
 setup( 'data-table-save', body => { table => 'notes', descriptor => "title: Notes\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
 setup( 'data-migrate',       query => 'table=notes' );
@@ -272,6 +275,8 @@ my %REQ = (
     'connector-save' => { body => { id => 'c2', connector => { name => 'C2', url => 'https://example.invalid/' } } },
     'connector-secret-set' => { body  => { id => 'c1', secret => 's3cret-value' } },
     'odoo-secret-set'      => { body  => { secret => 'odoo-k3y-value' } },
+    'odoo-run'             => { body  => { binding => 'ob' } },
+    'odoo-confirm'         => { body  => { plan => '0' x 32 } },
     'copy'                 => { query => 'path=page.md&to=copy.md' },
     'data-import' => { query => 'table=notes&apply=1', multipart( 'file', 'notes.csv', 'text/csv', "slug\nb\n" ) },
     'data-migrate'    => { query => 'table=pending' },

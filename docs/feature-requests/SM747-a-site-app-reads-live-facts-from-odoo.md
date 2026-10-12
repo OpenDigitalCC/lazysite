@@ -290,6 +290,30 @@ OOM with the options paper (its second section), since OOM decides what its
 operations return. Answering it unblocks the wiring (about half of R's S-M), and
 then E.
 
+## Slice E - built 2026-10-12 (n475)
+
+| Row | What | Where |
+| --- | --- | --- |
+| R5, OM2 | **Every Odoo action has its MCP twin**, declared once on the action (SM943): `odoo_status`, `odoo_calls`, `odoo_secret_set`, `odoo_secret_clear` (`manage_connectors`, as on the control API; the key is never returned), and three new action pairs for running a bound operation - `odoo-bindings`/`odoo_bindings` (what this caller may run, with each one's fields), `odoo-run`/`odoo_run`, `odoo-confirm`/`odoo_confirm` | `lib/Lazysite/ControlApi/Actions.pm`, `lazysite-mcp.pl`, `lazysite-manager-api.pl`; t/unit/odoo/17, t/integration/171 |
+| OB4, OM2 | **An operation reaches an agent through a binding**, as it reaches a page: gate `ALWAYS` on the action (as connector-call's), and the binding's modes, callers and caps decide inside `Lazysite::Odoo::call`; only mapped fields, checked as on every door. An agent is AUTHENTICATED and never a visitor: a binding that works on a visitor's key is neither listed nor run on this door | `action_odoo_bindings`, `action_odoo_run`, `action_odoo_confirm`; t/unit/odoo/17 |
+| Q2, OM1 | **A grant runs as its own Odoo account when one is configured, else as the connection user.** `odoo-secret-set` with `grant` (the lazysite account) and `login` stores that account's key as the connection user's is (0600, its own file, named by a hash of the account); `odoo-status` lists each grant with `has_secret` three-state; a grant map that cannot be read refuses rather than falling back to the (likely wider) connection user; a configured grant without its key is refused, not run as the connection user. The control API's door stays the connection user's | `account_for_grant`, `_as_account`; t/unit/odoo/18, t/integration/171 |
+| Forgery, instance-wide | The four key and status actions and their twins sit in t/unit/manager/226 and t/integration/114; `odoo-run` and `odoo-confirm` are recorded in t/lint/218 as not instance-wide (the binding decides, and running one changes no setting) | |
+
+Not built in E, and why:
+
+- **`manage_odoo` (OM3).** The Odoo actions stay under `manage_connectors`, the
+  capability that already governs where site data goes and with what credential;
+  a capability of its own costs the map, the grid, both gates and the docs and is
+  a decision to take on its own.
+- **One tool per registry operation, unbound.** Every operation reaches an agent
+  through a binding instead, so the binding's callers, modes, caps and parameter
+  rules (no json, list or path from a request) hold on this door too. An
+  operation an operator wants an agent to run is bound for it.
+
+Once OOM answers R-Q1 (where a report carries its rows' descriptors), `odoo_run`
+and `odoo-run` hand back `fields` (drawn by `descriptor_fields`) and `refused` beside
+`report`, as the page binding will.
+
 # What this is for, and the work - RESTATED 2026-10-01
 
 This replaces a section I wrote earlier the same day. **I had it wrong, and the

@@ -311,7 +311,9 @@ my %ACTION_INFO = (
                     handler-list handler-save handler-delete form-targets-read
                     schedule-list schedule-save schedule-delete) ],
             # SM842: a connector handler is this capability's to configure.
-            mcp => [qw(list_handlers save_handler delete_handler list_schedule save_schedule delete_schedule)],
+            # SM747 E: and the Odoo connection's twins (R5).
+            mcp => [ qw(list_handlers save_handler delete_handler list_schedule save_schedule delete_schedule
+                    odoo_status odoo_calls odoo_secret_set odoo_secret_clear) ],
         },
     },
     # SM1019 (SM1010, ruled 2026-10-12 "New 'manage_notifications' cap"): WHO MAY

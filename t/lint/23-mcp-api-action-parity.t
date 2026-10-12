@@ -57,7 +57,11 @@ my %INTROSPECTION = map { $_ => 1 }
 # name. It has no capability home by design, and no MCP twin yet (phase 2).
 # SM579 phase 2: the MCP twin is gated the same way, by the connector, so it
 # has no capability home for the same reason its API half has none.
-my %CONNECTOR_GATED = map { $_ => 1 } qw(connector-call connector_call);
+my %CONNECTOR_GATED = map { $_ => 1 } qw(connector-call connector_call
+    odoo-bindings odoo_bindings odoo-run odoo_run odoo-confirm odoo_confirm);
+# SM747 E: the three Odoo binding actions join connector-call for the same
+# reason. The gate is the BINDING - its modes, callers and caps
+# (Lazysite::Odoo::may_call) - so they have no capability home on either door.
 # SM778: display-names / display_names have no capability home for the same
 # kind of reason as the introspection actions, but it is a DIFFERENT reason
 # and is written out rather than folded into that set. They disclose nothing a
@@ -191,15 +195,9 @@ my %API_ONLY = (
     # the purpose - not manage_connectors handed to an agent so it can browse.
     'connector-list' => 'SM579 phase 2: gated on manage_connectors, which a calling agent does not hold',
     'connector-calls' => 'SM579 phase 2: gated on manage_connectors, which a calling agent does not hold',
-    # SM747 CU: the Odoo connection user's key is a credential - set and cleared
-    # by an operator, on SM579's reasoning for a connector's secret. The two
-    # reads are the operator's view of the connection; what an AGENT gets is
-    # slice E's: every operation as a tool (R5), under the default or its own
-    # account (Q2).
-    'odoo-secret-set'   => 'SM747 CU: setting a credential is an operator act at a human surface',
-    'odoo-secret-clear' => 'SM747 CU: removing a credential is an operator act at a human surface',
-    'odoo-status'       => 'SM747 CU: the operator\'s view of the connection; the agent\'s surface is slice E',
-    'odoo-calls'        => 'SM747 CU: the operator\'s call record; the agent\'s surface is slice E',
+    # SM747 E: the Odoo actions are NOT here. R5 ruled "All operations should
+    # also be mcp tools", so each one has its twin (odoo_status, odoo_calls,
+    # odoo_secret_set, odoo_secret_clear, odoo_bindings, odoo_run, odoo_confirm).
 
     # SM802: operator-only by ruling. A remap rule sends visitors to another
     # host - the authority SM579 kept off MCP for connector destinations, by the

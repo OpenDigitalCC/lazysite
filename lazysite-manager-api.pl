@@ -2190,9 +2190,25 @@ elsif ( $action eq 'odoo-calls' ) {
 }
 elsif ( $action eq 'odoo-secret-set' ) {
     my $req = _json_body();
-    $result = _odoo()->can('action_odoo_secret_set')->( $req->{secret} );
+    $result = _odoo()->can('action_odoo_secret_set')
+        ->( $req->{secret}, grant => $req->{grant}, login => $req->{login} );
 }
-elsif ( $action eq 'odoo-secret-clear' ) { $result = _odoo()->can('action_odoo_secret_clear')->() }
+elsif ( $action eq 'odoo-secret-clear' ) {
+    my $req = _json_body();
+    $result = _odoo()->can('action_odoo_secret_clear')->( grant => $req->{grant} );
+}
+# SM747 E: a bound operation, run by a signed-in caller. The binding gates it
+# (its modes, callers and caps) inside Lazysite::Odoo, as a connector gates
+# connector-call; this door runs as the connection user.
+elsif ( $action eq 'odoo-bindings' ) { $result = _odoo()->can('action_odoo_bindings')->( _odoo_who() ) }
+elsif ( $action eq 'odoo-run' ) {
+    my $req = _json_body();
+    $result = _odoo()->can('action_odoo_run')->( $req->{binding}, $req->{params}, _odoo_who() );
+}
+elsif ( $action eq 'odoo-confirm' ) {
+    my $req = _json_body();
+    $result = _odoo()->can('action_odoo_confirm')->( $req->{plan}, _odoo_who() );
+}
 elsif ( $action eq 'connector-save' ) {
     my $req = _json_body();
     $result = _connectors()->can('action_connector_save')->( $req->{id}, $req->{connector} );
@@ -3000,6 +3016,18 @@ sub _odoo {
     no warnings 'once';
     $Lazysite::Odoo::DOCROOT = $DOCROOT;
     return 'Lazysite::Odoo';
+}
+
+# SM747 E: who is asking, for a bound operation - the verified account, its
+# capabilities and groups, and the request address. Never a visitor.
+sub _odoo_who {
+    return (
+        user    => $auth_user,
+        caps    => Lazysite::Auth::Settings::caps_for($auth_user) || {},
+        groups  => [ Lazysite::Auth::Settings::effective_groups($auth_user) ],
+        ip      => _request_ip(),
+        channel => 'api',
+    );
 }
 
 # SM516 MA-3: a gate refusal is three statements in one order - record it,

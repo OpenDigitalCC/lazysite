@@ -192,6 +192,8 @@ my %MCP = (
     activate_layout => { layout => 'spare' },
     install_layout  => { layout => 'x' },
     delete_layout   => { layout => 'gone' },
+    odoo_secret_set   => { secret => 's' },    # SM747 E: the key actions' twins
+    odoo_secret_clear => {},
     save_schedule   => { id => 'probe', handler => 'probe', every => 300 },
     delete_schedule => { id => 'probe' },
 );

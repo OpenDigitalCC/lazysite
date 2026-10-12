@@ -98,7 +98,9 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #   115, SM747 CU: odoo-status, odoo-calls, odoo-secret-set, odoo-secret-clear,
     #        gated manage_connectors as the connector's own four are.
     my %caps = gate_caps($cgi);
-    is( scalar keys %caps, 115, '115 actions are reachable with a token' )
+    #   118, SM747 E: odoo-bindings, odoo-run, odoo-confirm, gate ALWAYS as
+    #        connector-call is - the BINDING decides, by its modes, callers and caps.
+    is( scalar keys %caps, 118, '118 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 

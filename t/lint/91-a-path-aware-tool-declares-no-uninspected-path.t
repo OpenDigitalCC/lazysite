@@ -48,7 +48,11 @@ my %NOT_A_PATH = map { $_ => 1 } qw(
     offset order order_by payload query rating read register row submit subtitle
     summary table tags theme title trails update update_links uploads value
     version window write
+    binding grant login params plan secret
 );
+# SM747 E: the Odoo tools' arguments - a binding id, a lazysite account name, an
+# Odoo login, the fields a binding maps, a plan id and an API key. None names
+# a file or a page on the site.
 
 # A path-shaped name that is not a content path on this tool, and why.
 my %NOT_A_PATH_HERE = (

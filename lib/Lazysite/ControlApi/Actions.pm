@@ -101,6 +101,13 @@ our %GATE = (
     'odoo-secret-set'   => [qw(manage_connectors)],
     'odoo-secret-clear' => [qw(manage_connectors)],
     'odoo-calls'        => [qw(manage_connectors)],
+    # SM747 E: running a bound operation is gated by the BINDING - its modes,
+    # callers and caps (Lazysite::Odoo::may_call) - as connector-call is gated by
+    # its connector, so any signed-in caller reaches the action and the binding
+    # decides.
+    'odoo-bindings' => 'ALWAYS',
+    'odoo-run'      => 'ALWAYS',
+    'odoo-confirm'  => 'ALWAYS',
     # SM160: domain management + the portable site-package family are the
     # manage_domains capability (carved out of manage_config), so an
     # orchestrating control panel drives the lazysite side of a deploy
@@ -873,10 +880,17 @@ our %ACTION = (
     'me-2fa-disable' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns off their own second factor, with the password and a current code', params => [ { name => 'current_password', in => 'body' }, { name => 'code', in => 'body' } ] },
     'me-recovery-codes' => { self => 1, mutates => 1, cookie_only_reason => 'a person replaces their own recovery codes, with the password and a current code', params => [ { name => 'current_password', in => 'body' }, { name => 'code', in => 'body' } ] },
     # SM747 CU: the Odoo connection user. The key is set and cleared, never read.
-    'odoo-status' => { cookie_cap => 'manage_connectors', params => [] },
-    'odoo-secret-set' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_connectors', params => [ { name => 'secret', in => 'body', required => 1 } ] },
-    'odoo-secret-clear' => { instance_wide => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_connectors', params => [] },
-    'odoo-calls' => { cookie_cap => 'manage_connectors', params => [ { name => 'binding', in => 'query' }, { name => 'limit', in => 'query' } ] },
+    # SM747 E: every one has its MCP twin (R5, "All operations should also be mcp
+    # tools"); `grant` names the lazysite account an MCP grant's own Odoo
+    # account belongs to (Q2).
+    'odoo-status' => { mcp => 'odoo_status', cookie_cap => 'manage_connectors', params => [] },
+    'odoo-secret-set' => { mcp => 'odoo_secret_set', instance_wide => 1, mutates => 1, cookie_cap => 'manage_connectors', params => [ { name => 'secret', in => 'body', required => 1 }, { name => 'grant', in => 'body', note => 'a lazysite account: its MCP calls run as this Odoo account' }, { name => 'login', in => 'body', note => 'the Odoo login, with grant' } ] },
+    'odoo-secret-clear' => { mcp => 'odoo_secret_clear', instance_wide => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_connectors', params => [ { name => 'grant', in => 'body' } ] },
+    'odoo-calls' => { mcp => 'odoo_calls', cookie_cap => 'manage_connectors', params => [ { name => 'binding', in => 'query' }, { name => 'limit', in => 'query' } ] },
+# [mcp] odoo_run, odoo_confirm: SM747 E: openWorld - the call leaves this instance for Odoo.
+    'odoo-bindings' => { mcp => 'odoo_bindings', params => [] },
+    'odoo-run' => { mcp => 'odoo_run', mcp_open_world => 1, mutates => 1, params => [ { name => 'binding', in => 'body', required => 1 }, { name => 'params', in => 'body', note => 'the request fields the binding maps; nothing else is taken' } ] },
+    'odoo-confirm' => { mcp => 'odoo_confirm', mcp_open_world => 1, mutates => 1, params => [ { name => 'plan', in => 'body', required => 1 } ] },
     'start-page' => { params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { mutates => 1, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body', required => 1, note => 'an empty string clears the start page' } ] },
     'whoami' => { params => [ { name => 'plugins', in => 'query' } ] },

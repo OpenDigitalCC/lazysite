@@ -551,11 +551,11 @@ sub context {
     no warnings 'once';
     local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
     my $cfg = Odoo::Ops::Config->new(
-        url                => $conn->{url},
-        db                 => $conn->{db},
-        login              => $conn->{login},
-        credential         => 'file',
-        api_key_file       => Lazysite::Odoo::Secret::key_path( $o{account} // $ACCOUNT ),
+        url        => $conn->{url},
+        db         => $conn->{db},
+        login      => $conn->{login},
+        credential => 'file',
+        api_key_file => Lazysite::Odoo::Secret::key_path( $o{account} // $conn->{key_account} // $ACCOUNT ),
         timeout            => $conn->{timeout},
         max_response_bytes => $conn->{max_kb} * 1024,
         allow_writes       => ( $conn->{allow_writes} ? 1 : 0 ),
@@ -641,6 +641,7 @@ sub call {
     my %c = _with_visitor(%ctx);
     my ( $ok, $conn ) = gate( $b, %c );
     return $conn unless $ok;
+    $conn = _as_account( $conn, $ctx{account} );
     my %rec = ( _rec_base( $b, %c ), login => $conn->{login} );
 
     my ( $class, $refusal ) = _ready( $b, $conn, \%rec );
@@ -697,6 +698,7 @@ sub confirm {
     return ( _refusal( { %base, binding => $meta->{binding} // '' }, 'binding', $bwhy ) )[1] unless $b;
     my ( $ok, $conn ) = gate( $b, %c, phase => 'confirm' );
     return $conn unless $ok;
+    $conn = _as_account( $conn, $ctx{account} );
     my %rec = ( _rec_base( $b, %c, phase => 'confirm' ), login => $conn->{login} );
     return ( _refusal( \%rec, 'binding', 'the binding now names a different operation - make the plan again' ) )[1]
         if $b->{operation} ne ( $meta->{operation} // '' );
@@ -725,12 +727,13 @@ sub _ready {
     require Lazysite::Odoo::Binding;
     no warnings 'once';
     local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
-    my $has = Lazysite::Odoo::Secret::has_key($ACCOUNT);
+    my $has = Lazysite::Odoo::Secret::has_key( $conn->{key_account} // $ACCOUNT );
     return ( undef, ( _refusal( $rec, 'no-key',
                 'the connection user\'s key cannot be read by this process - see the event log' ) )[1] )
         unless defined $has;
     return ( undef, ( _refusal( $rec, 'no-key',
-                'the connection user has no API key set - a sysop sets it on the Odoo page' ) )[1] )
+                ( $conn->{key_account} ? 'this grant\'s Odoo account has no API key set'
+                    : 'the connection user has no API key set' ) . ' - a sysop sets it on the Odoo page' ) )[1] )
         unless $has;
     my ( $class, $why ) = operation_class( $conn, $b->{operation} );
     return ( undef, ( _refusal( $rec, 'no-operation', $why ) )[1] ) unless $class;
@@ -948,6 +951,12 @@ sub action_odoo_status {
     $out{has_secret} = Lazysite::Odoo::Secret::has_key($ACCOUNT);
     $out{warning} = 'the key file exists and cannot be read by this process - see the event log'
         unless defined $out{has_secret};
+    my $grants = read_grants();
+    $out{grants} = defined $grants
+        ? [ map { { grant => $_, login => $grants->{$_}{login},
+                has_secret => Lazysite::Odoo::Secret::has_key( $grants->{$_}{id} ) } }
+            sort keys %$grants ]
+        : undef;
     if ( $have && $conn ) {
         my $reg = eval { registry($conn) };
         $out{operations} = [
@@ -961,23 +970,212 @@ sub action_odoo_status {
     return \%out;
 }
 
+# action_odoo_secret_set( $secret, grant => $account, login => $odoo_login )
+#
+# Without `grant`, the connection user's key. With it (Q2, ruled 2026-10-12:
+# "MCP will use the default or specified account"), the Odoo account an MCP
+# grant acts as: the lazysite account the grant belongs to, the Odoo login, and
+# its key - stored as the connection user's is, in a file of its own.
 sub action_odoo_secret_set {
-    my ($secret) = @_;
+    my ( $secret, %o ) = @_;
     require Lazysite::Odoo::Secret;
     no warnings 'once';
     local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
+    my $grant = $o{grant} // '';
+    return _set_grant_key( $grant, $o{login}, $secret ) if length $grant;
     my ( $ok, $why ) = Lazysite::Odoo::Secret::set_key( $ACCOUNT, $secret );
     return { ok => 0, kind => 'invalid', field => 'secret', error => $why } unless $ok;
     return { ok => 1, has_secret => 1 };
 }
 
 sub action_odoo_secret_clear {
+    my (%o) = @_;
     require Lazysite::Odoo::Secret;
     no warnings 'once';
     local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
+    my $grant = $o{grant} // '';
+    return _clear_grant_key($grant) if length $grant;
     my ( $ok, $why ) = Lazysite::Odoo::Secret::clear_key($ACCOUNT);
     return { ok => 0, error      => $why } unless $ok;
     return { ok => 1, has_secret => 0 };
+}
+
+# --- Q2: an Odoo account per MCP grant ------------------------------------------
+#
+# lazysite/odoo/grants.json maps a lazysite account to { id, login }: the Odoo
+# login its MCP calls run as, and the id of its key file in the key store. The
+# id is derived from the account name, never the name itself, so an account
+# name with characters a file name should not carry never reaches the disk.
+# The map holds no secret; the keys stay in their own 0600 files.
+
+sub grants_file { return store_dir() . '/grants.json' }
+
+sub _grant_id {
+    my ($grant) = @_;
+    require Digest::SHA;
+    return 'grant-' . substr( Digest::SHA::sha256_hex("grant|$grant"), 0, 16 );
+}
+
+# The map, {} when there is none, undef when it exists and cannot be read.
+sub read_grants {
+    my $f = grants_file();
+    open my $fh, '<:raw', $f or do {
+        return {} if $!{ENOENT};
+        cannot_read( 'the Odoo grant accounts', $f );
+        return undef;
+    };
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $d = eval { JSON::PP::decode_json( $raw // '' ) };
+    return ref $d eq 'HASH' ? $d : undef;
+}
+
+sub _write_grants {
+    my ($all) = @_;
+    my $dir = store_dir();
+    eval { make_path($dir) unless -d $dir; 1 } or return ( 0, 'cannot make the Odoo store' );
+    my $f = grants_file();
+    open my $fh, '>:raw', "$f.tmp.$$" or return ( 0, "cannot write odoo/grants.json: $!" );
+    print {$fh} JSON::PP->new->canonical->pretty->encode($all);
+    close $fh or return ( 0, "cannot write odoo/grants.json: $!" );
+    secure_write_perms( "$f.tmp.$$", 0660 );
+    rename "$f.tmp.$$", $f or return ( 0, "cannot write odoo/grants.json: $!" );
+    return ( 1, '' );
+}
+
+sub _set_grant_key {
+    my ( $grant, $login, $secret ) = @_;
+    return { ok => 0, kind => 'invalid', field => 'grant', error => 'grant must be a lazysite account name' }
+        unless $grant =~ /\A[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}\z/;
+    return { ok => 0, kind => 'invalid', field => 'login',
+        error => 'login is required with grant - the Odoo login this grant acts as' }
+        unless defined $login && length $login;
+    return { ok => 0, kind => 'invalid', field => 'login', error => 'login must be one line of at most 128 characters' }
+        if length $login > 128 || $login =~ /[\r\n]/;
+    my $all = read_grants();
+    return { ok => 0, error => 'the grant accounts exist and cannot be read - nothing was written' }
+        unless defined $all;
+    my $id = _grant_id($grant);
+    my ( $ok, $why ) = Lazysite::Odoo::Secret::set_key( $id, $secret );
+    return { ok => 0, kind => 'invalid', field => 'secret', error => $why } unless $ok;
+    $all->{$grant} = { id => $id, login => $login };
+    my ( $wok, $wwhy ) = _write_grants($all);
+    return { ok => 0, error => $wwhy } unless $wok;
+    log_event( 'INFO', 'odoo', 'odoo grant account set', grant => $grant, login => $login );
+    return { ok => 1, grant => $grant, login => $login, has_secret => 1 };
+}
+
+sub _clear_grant_key {
+    my ($grant) = @_;
+    my $all = read_grants();
+    return { ok => 0, error => 'the grant accounts exist and cannot be read - nothing was removed' }
+        unless defined $all;
+    my ( $ok, $why ) = Lazysite::Odoo::Secret::clear_key( _grant_id($grant) );
+    return { ok => 0, error => $why } unless $ok;
+    if ( exists $all->{$grant} ) {
+        delete $all->{$grant};
+        my ( $wok, $wwhy ) = _write_grants($all);
+        return { ok => 0, error => $wwhy } unless $wok;
+    }
+    log_event( 'INFO', 'odoo', 'odoo grant account cleared', grant => $grant );
+    return { ok => 1, grant => $grant, has_secret => 0 };
+}
+
+# The account an MCP call runs as: the grant's own, when one is configured
+# with a key; the connection user otherwise (undef). ( $account, '' ), or
+# ( undef, why ) when the grant map cannot be read - which refuses, because
+# running as the connection user instead would widen what the agent may do
+# exactly when its own narrower account could not be checked.
+sub account_for_grant {
+    my ($grant) = @_;
+    my $all = read_grants();
+    return ( undef, 'the Odoo grant accounts cannot be read - see the event log' ) unless defined $all;
+    my $g = $all->{ $grant // '' } or return ( undef, '' );
+    return ( { id => $g->{id}, login => $g->{login} }, '' );
+}
+
+# The connection, as a given account sees it: its login and its key.
+sub _as_account {
+    my ( $conn, $account ) = @_;
+    return $conn unless ref $account eq 'HASH' && length( $account->{id} // '' );
+    return { %$conn, login => $account->{login}, key_account => $account->{id} };
+}
+
+# --- the bound operations, for a signed-in caller or an MCP agent ---------------
+#
+# R5 (ruled 2026-10-12): "All operations should also be mcp tools." An operation
+# reaches a caller through a BINDING, as it reaches a page: the binding's modes,
+# callers and caps decide, and a request sets only what the binding maps. These
+# are the authenticated door - never a visitor's, so a binding that works on a
+# visitor's key is not offered and not run here.
+#
+#   who: user, groups, caps, ip, channel ('api' | 'mcp')
+#
+# On the MCP channel the call runs as the grant's own Odoo account when one is
+# configured (Q2), else as the connection user.
+
+sub _who_ctx {
+    my (%w) = @_;
+    my %c = ( mode => 'authenticated', actor => $w{user} // '', groups => $w{groups} || [],
+        caps => $w{caps} || {}, ip => $w{ip} // '' );
+    if ( ( $w{channel} // '' ) eq 'mcp' ) {
+        my ( $acct, $why ) = account_for_grant( $w{user} );
+        return ( undef, $why ) if length $why;
+        $c{account} = $acct    if $acct;
+    }
+    return ( \%c, '' );
+}
+
+sub action_odoo_bindings {
+    my (%w) = @_;
+    require Lazysite::Handlers;
+    require Lazysite::Odoo::Binding;
+    no warnings 'once';
+    local $Lazysite::Handlers::DOCROOT = $DOCROOT;
+    my $all = Lazysite::Handlers::read_handlers();
+    return { ok => 0, error => 'the handler store cannot be read - see the event log' } unless defined $all;
+    my ($conn) = ( oom_check() )[0] ? connection() : ();
+    my @out;
+    for my $h ( grep { ( $_->{type} // '' ) eq 'odoo' && Lazysite::Handlers::enabled($_) } @$all ) {
+        my ($b) = Lazysite::Odoo::Binding::parse($h);
+        next unless $b && !length $b->{visitor_param};
+        my ($may) = may_call( $b, mode => 'authenticated', groups => $w{groups}, caps => $w{caps} );
+        next unless $may;
+        my %row = ( id => $b->{id}, name => $h->{name} // $b->{id}, operation => $b->{operation},
+            apply => $b->{apply} );
+        if ($conn) {
+            my ($class) = eval { operation_class( $conn, $b->{operation} ) };
+            if ($class) {
+                require Lazysite::Odoo::Fields;
+                $row{summary} = $class->summary;
+                $row{writes}  = $class->writes ? 1 : 0;
+                $row{params}  = Lazysite::Odoo::Fields::form_fields( $b, $class );
+            }
+        }
+        push @out, \%row;
+    }
+    return { ok => 1, bindings => \@out };
+}
+
+sub action_odoo_run {
+    my ( $id, $params, %w ) = @_;
+    my ( $b, $why ) = find_binding($id);
+    return { ok => 0, kind => 'not-found', error => $why } unless $b;
+    return { ok => 0, kind => 'mode',
+        error => "the Odoo binding '$id' works on a visitor's key, and this door is never a visitor's" }
+        if length $b->{visitor_param};
+    return { ok => 0, kind => 'invalid', error => 'params must be an object' }
+        if defined $params && ref $params ne 'HASH';
+    my ( $c, $cwhy ) = _who_ctx(%w);
+    return { ok => 0, kind => 'cannot-tell', error => $cwhy } unless $c;
+    return call( $b, $params // {}, %$c, strict => 1 );
+}
+
+sub action_odoo_confirm {
+    my ( $plan, %w )    = @_;
+    my ( $c,    $cwhy ) = _who_ctx(%w);
+    return { ok => 0, kind => 'cannot-tell', error => $cwhy } unless $c;
+    return confirm( $plan, %$c );
 }
 
 sub action_odoo_calls {

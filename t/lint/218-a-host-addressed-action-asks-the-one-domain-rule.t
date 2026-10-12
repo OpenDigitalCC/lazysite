@@ -251,6 +251,12 @@ my $OPERATOR_ONLY = 'needs manage_users on the cookie channel, which makes the c
 my %NOT_INSTANCE_WIDE = (
     'connector-call' => 'calls a connector an operator configured, which decides who may '
         . '(Connectors::may_call); it changes no setting',
+    # SM747 E: an Odoo binding an operator configured decides who may run it
+    # (Lazysite::Odoo::may_call); running one changes no setting of this site.
+    'odoo-run' => 'runs an Odoo binding an operator configured, which decides who may '
+        . '(Lazysite::Odoo::may_call); it changes no setting',
+    'odoo-confirm' => 'applies a plan its own caller made through a binding that decides '
+        . 'who may (Lazysite::Odoo::may_call); it changes no setting',
     'key-revoke'              => $OPERATOR_ONLY,
     'session-revoke'          => $OPERATOR_ONLY,
     'user-revoke'             => $OPERATOR_ONLY,
