@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1034 phase 1a, ruled by the release manager 2026-10-12
 area: accounts
-status-note: "SHIPPED (PENDING): /account joins the SM201 system pages (site layout, self-healing, account_page switch); ::: account-summary/-password/-sessions with /assets/lazysite-account.js; me, me-password, me-sessions, me-session-revoke, me-sign-out-everywhere - declared self, cookie-only, CSRF-gated, audited; password checks count against the sign-in rate limiter. t/unit/account/01-02, lint 246."
+status-note: "SHIPPED (PENDING): /account joins the SM201 system pages (site layout, self-healing, account_page switch); ::: account-summary/-password/-sessions with /assets/lazysite-account.js; me, me-password, me-sessions, me-session-revoke, me-sign-out-everywhere - declared self, cookie-only, CSRF-gated, audited; password checks count against the sign-in rate limiter. t/unit/account/01-02, 05, lint 246."
 ---
 
 # The ruling
@@ -73,11 +73,32 @@ limit, any session revocable, a token reaching the module, the switch ignored
 by actions or page, not a system page, the helper not injected, a self action
 taking `username`, the handler reading an account) - each fails a test.
 
-# Design choices the rulings did not settle
+# Design choices, confirmed
 
-- `me-sign-out-everywhere` ends the current session too ("everywhere"); a
-  member who wants to stay signed in ends sessions one by one, or changes the
-  password, which keeps the current session.
+Raised as choices the rulings did not settle; the release manager confirmed
+each as built, 2026-10-12, in these words:
+
+- `me-sign-out-everywhere` ends the current session too: **"Yes, including this
+  one"**. A member who wants to stay signed in ends sessions one by one, or
+  changes the password, which keeps the current session.
 - `account_page` is instance-wide (one account store serves every domain), and
-  a site that writes its own `account.md` keeps it when the switch is off - the
-  switch withdraws the engine's page and the actions, not the site's content.
+  a site that writes its own `account.md` keeps it when the switch is off:
+  **"Instance-wide"**.
+- Re-authentication on `/account` counts against the sign-in rate limiter, by
+  address and by account, five checks in five minutes: **"Share the sign-in
+  limit"**.
+
+# The manager door (SM1057)
+
+SM1057 made the manager API's cookie door require `ui`. A member - who
+`/account` is for - holds none, so the door lets an action declared `self` past
+that gate, and nothing else: the set is `Actions::self_actions()`, whose
+load-time checks refuse a self action in the token gate, with a capability, an
+MCP twin, a path scope, a content write, a file surface, an instance-wide
+effect or an account-naming parameter; lint 246 holds the gate to that
+declaration. `csrf-token` is answered before the gate. SM1057's content-write
+gate catches no `me-*` action: none is a content write, and the declaration
+refuses one that says it is. `t/unit/account/05`: a member without `ui` uses
+every self action and `/account`, and is refused 403 at the door on every other
+cookie action, `save` included; dropping the exemption, or widening it to every
+action, fails it.

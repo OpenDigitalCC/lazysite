@@ -165,10 +165,10 @@ Archive
   everywhere. It is a system page (a site's own copy wins; a deleted one comes
   back) built from `::: account-*` components a layout can restyle, over new
   control-API actions `me`, `me-password`, `me-sessions`, `me-session-revoke`
-  and `me-sign-out-everywhere`, which act only on the signed-in account, refuse
-  an access key, are CSRF-gated and audited; password checks count against the
-  sign-in rate limiter. `account_page: disabled` in lazysite.conf turns it off.
-  t/unit/account/01, 02; lint 246.
+  and `me-sign-out-everywhere`, which act only on the signed-in account, need
+  no manager (`ui`) access, refuse an access key, are CSRF-gated and audited;
+  password checks count against the sign-in rate limiter. `account_page:
+  disabled` in lazysite.conf turns it off. t/unit/account/01, 02, 05; lint 246.
 
 - SM1041 (PENDING) **a password has a minimum length, 12 unless the operator
   says otherwise.** `password_min_length` in lazysite.conf (8 to 128; default

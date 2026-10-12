@@ -49,6 +49,14 @@ for my $name ( sort keys %SELF ) {
         "$name: the dispatcher passes the handler no argument" );
 }
 
+# SM1057 x SM1043: the manager door lets self actions past its `ui` gate, and the
+# set it lets past is the declaration's - not a list of names kept beside the
+# gate, which the checks above would not hold.
+like( $api, qr/my %SELF_ACTION = Lazysite::ControlApi::Actions::self_actions\(\);/,
+    'the ui gate\'s exemption is read from the self declaration' );
+like( $api, qr/unless \(\s*\$SELF_ACTION\{\$action\}\s*\|\|\s*\$caps->\{manager_ui\}/,
+    'and it is the ui gate that consults it' );
+
 my $mod = do {
     open my $fh, '<', "$root/lib/Lazysite/Manager/Account.pm" or die $!;
     local $/;

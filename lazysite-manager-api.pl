@@ -769,6 +769,8 @@ if ( !$token_auth ) {
     my %COOKIE_GATES_ITSELF = Lazysite::ControlApi::Actions::cookie_gates_itself();
     # SM1057: the content writes, which need manage_content on this channel.
     my %CONTENT_WRITE = Lazysite::ControlApi::Actions::content_writes();
+    # SM1043: the caller-only actions, which the `ui` gate below lets through.
+    my %SELF_ACTION = Lazysite::ControlApi::Actions::self_actions();
     if ( !_operator() ) {
         my $caps = _user_caps($auth_user);
 
@@ -786,8 +788,16 @@ if ( !$token_auth ) {
         # operator group, `local`, or every account on an unsecured site - NOT a
         # holder of manage_users) never reaches here; a manage_users holder needs
         # `ui` like any other manager.
+        #
+        # SM1043: EXCEPT AN ACTION DECLARED `self` - the member's own account
+        # (me, me-password, ...), which acts on the signed-in caller and nobody
+        # else, needs no capability and grants none. A member with no `ui` is who
+        # /account is for. The set is the declaration's (Actions::self_actions,
+        # whose load-time checks and t/lint/246 keep it to caller-only actions),
+        # never a list kept here. csrf-token is answered above this gate.
         unless (
-            $caps->{manager_ui}
+            $SELF_ACTION{$action}
+            || $caps->{manager_ui}
             || Lazysite::Auth::Settings::groups_grant_cap( 'ui', grep { length } split /[,\s]+/,
                 ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) ) )
         {

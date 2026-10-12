@@ -970,12 +970,15 @@ for my $name ( sort keys %ACTION ) {
         if exists $spec->{mcp_open_world} && !defined $t;
 
     # SM1043: a self action acts on the caller alone - so no token reaches it, no
-    # capability opens it, no MCP twin serves it, and no parameter names anyone.
+    # capability opens it, no MCP twin serves it, it writes no site content and
+    # touches no file or instance setting, and no parameter names anyone. The
+    # manager API lets self actions past the `ui` gate (SM1057) on the strength
+    # of these checks, so each one is a wall, not a style rule.
     if ( $spec->{self} ) {
         die "Lazysite::ControlApi::Actions: self action '$name' is in the token gate\n"
             if exists $GATE{$name};
         die "Lazysite::ControlApi::Actions: self action '$name' declares $_\n"
-            for grep { exists $spec->{$_} } qw(cookie_cap cookie_gates_itself mcp scoped);
+            for grep { exists $spec->{$_} } qw(cookie_cap cookie_gates_itself mcp scoped content_write file_surface instance_wide);
         for my $p ( @{ $spec->{params} || [] } ) {
             die "Lazysite::ControlApi::Actions: self action '$name' takes '$p->{name}', "
                 . "which names an account - the subject of a self action is the caller\n"
