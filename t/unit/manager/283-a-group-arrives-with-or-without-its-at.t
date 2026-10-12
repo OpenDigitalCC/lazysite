@@ -28,6 +28,10 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: Agency\nsite_url: https://agency.example\n";
 close $cf;
 $Lazysite::Manager::Domains::DOCROOT = $d;
+# SM1016: a group allowed_groups names must exist.
+open my $g0, '>', "$d/lazysite/auth/groups" or die $!;
+print {$g0} "editors: alice, staff\nstaff: bob\n";
+close $g0;
 
 sub conf { open my $fh, '<', "$d/lazysite/lazysite.conf" or return ''; local $/; return <$fh> }
 

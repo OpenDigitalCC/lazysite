@@ -92,6 +92,11 @@ Expect
   group or account the site does not have, naming it, and says when there was
   nothing to do.
 
+  Every surface refuses a group or account the site does not have (SM1016):
+  the sheet shows the refusal, naming each unknown name, and nothing is saved.
+  A name the list already holds is not checked, so a group deleted since it
+  was allowed can still be removed.
+
 Negative
 : A locked user with no allowed domain is denied everywhere - never silently
   unconfined. That sentinel is the whole safety of the model: confirm it by

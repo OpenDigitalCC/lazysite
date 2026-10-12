@@ -158,6 +158,18 @@ Archive
   otherwise, by the handler, the header writer (every message), a handler's
   own `to`/`from`, and an account's address. A hand-written `to:` naming two
   addresses now fails at send and says why. t/unit/forms/60, 61.
+- SM1016 (PENDING) **a domain names only groups and accounts that exist.**
+  Ruled 2026-10-12 ("lazysite-domains.pl should reject invalid groups").
+  `domain_set` refuses a NEW name in `allowed_groups` that is not a group on
+  the site (the groups file or groups-settings.json), or in `locked_users`
+  that is not an account, naming every unknown one and writing nothing; a
+  store that cannot be read refuses the write. It is in `domain_set`, so the
+  Domains page, the control API's `domain-set`, MCP `domain_set` and every
+  `lazysite-domains.pl` command get it. A name the list already holds is not
+  asked about, so a group deleted after it was allowed can still be taken out.
+  The Domains page now shows a refused save's reason; it used to carry on and
+  say "Saved". t/unit/manager/284, t/tools/121, t/integration/150.
+
 - SM1015 (PENDING) **`lazysite-domains.pl group-add` and `group-remove`.**
   Ruled 2026-10-12 ("lets have cli command to add the domain group").
   `lazysite-domains.pl --docroot DIR group-add --host H --group G` adds one

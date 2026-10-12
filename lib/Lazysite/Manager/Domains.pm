@@ -1114,7 +1114,11 @@ sub domain_set {
                 unless $t =~ /^[A-Za-z0-9_-]+\z/;
         }
         my %seen;
-        $value = join ', ', grep { !$seen{$_}++ } @toks;
+        my @names = grep { !$seen{$_}++ } @toks;
+        if ( my $refusal = _refuse_unknown_names( $host, $key, @names ) ) {
+            return $refusal;
+        }
+        $value = join ', ', @names;
     }
     elsif ( $key eq 'lang' ) {
         # SM179: a BCP-47-ish language tag (en, fr, pt-BR). Strict - it lands in
@@ -1227,6 +1231,71 @@ sub domain_set {
     return $res;
 }
 
+# SM1016: RULED by the release manager on 2026-10-12, "lazysite-domains.pl
+# should reject invalid groups" - and so every surface, because they all write
+# through domain_set: the Domains page, the control API's domain-set, MCP
+# domain_set, `lazysite-domains.pl set` and group-add/user-add.
+#
+# A misspelt group in allowed_groups admits nobody to the domain, and a
+# misspelt account in locked_users locks nobody, each while the write reports
+# success. So a NEW name - one the host's own list does not already hold - must
+# be a group (in the groups file or groups-settings.json, the test group-nest
+# uses) or an account (in the users file). Every unknown name is named, and
+# nothing is written.
+#
+# ONLY NEW NAMES. A name the list already holds is not asked about: a group
+# deleted after it was allowed would otherwise make the list unwritable,
+# including the write that takes it out.
+#
+# A store that cannot be read is no answer (SM906), so the write is refused,
+# naming the store, rather than taken as "nobody exists".
+sub _refuse_unknown_names {
+    my ( $host, $key, @names ) = @_;
+    my $kind = $key eq 'allowed_groups' ? 'group' : 'account';
+    my ( undef, $ov ) = _parse();
+    my %had = map { $_ => 1 } grep { length }
+        map { s/^\s+|\s+$//gr } split /,/, ( ( ref $ov eq 'HASH' && $ov->{$host}{$key} ) // '' );
+    my @new = grep { !$had{$_} } @names;
+    return undef unless @new;
+
+    require Lazysite::Auth::Settings;
+    no warnings 'once';
+    local $Lazysite::Auth::Settings::AUTH_DIR = $Lazysite::Auth::Settings::AUTH_DIR
+        // ( _lz() . '/auth' );
+    my ( %known, $store );
+    if ( $kind eq 'group' ) {
+        my $members  = Lazysite::Auth::Settings::group_names();
+        my $bad      = $Lazysite::Auth::Settings::GROUPS_UNREADABLE;
+        my $settings = Lazysite::Auth::Settings::read_group_settings();
+        $store
+            = $bad ? 'lazysite/auth/groups'
+            : Lazysite::Auth::Settings::group_settings_unreadable()
+            ? 'lazysite/auth/groups-settings.json'
+            : '';
+        %known = ( %{ $members || {} }, ( ref $settings eq 'HASH' ? %$settings : () ) );
+    }
+    else {
+        my $accounts = Lazysite::Auth::Settings::account_names();
+        $store = $Lazysite::Auth::Settings::USERS_UNREADABLE ? 'lazysite/auth/users' : '';
+        %known = %{ $accounts || {} };
+    }
+    my $shown = sub { $kind eq 'group' ? "\@$_[0]" : $_[0] };
+    my $list  = join ', ', map { $shown->($_) } @new;
+    return { ok => 0, kind => 'unreadable',
+        error => "Cannot tell whether $list exists: $store cannot be read, so "
+            . "${host}'s $key is unchanged." }
+        if length $store;
+    my @unknown = grep { !$known{$_} } @new;
+    return undef unless @unknown;
+    my $names = join ', ', map { $shown->($_) } @unknown;
+    return { ok => 0, kind => 'unknown-principals', unknown => \@unknown,
+        error => 'No ' . ( @unknown == 1 ? $kind : "${kind}s" ) . " $names on this site, so "
+            . "${host}'s $key is unchanged: "
+            . ( $kind eq 'group'
+            ? 'a group that does not exist admits nobody to the domain.'
+            : 'an account that does not exist is locked to nothing.' ) };
+}
+
 # SM1015: add or remove ONE name in a domain's allowed_groups (or locked_users),
 # leaving the others as they are. Ruled 2026-10-12: "lets have cli command to
 # add the domain group" (lazysite-domains.pl group-add / group-remove, and
@@ -1242,12 +1311,8 @@ sub domain_set {
 # alias.<host>.<key> line - a primary's allowed_groups is not inherited - so
 # that is the list edited here.
 #
-# A NAME THAT IS NOT THERE IS REFUSED ON ADD. A misspelt group in
-# allowed_groups admits nobody, and a misspelt account in locked_users locks
-# nobody, each while reporting success. A group exists if the groups file or
-# groups-settings.json names it (cmd_group_nest's test); an account if the
-# users file does. A store that cannot be read is no answer, so the add is
-# refused, naming it. Remove asks nothing: taking out a name the site no
+# A NAME THAT IS NOT THERE IS REFUSED ON ADD, by domain_set (SM1016,
+# _refuse_unknown_names). Remove asks nothing: taking out a name the site no
 # longer has is how such a list is repaired.
 #
 # Idempotent: adding a name already there, or removing one that is not, writes
@@ -1286,39 +1351,8 @@ sub domain_access_edit {
             message => "$shown is not in ${host}'s $key; nothing changed." };
     }
 
-    if ( $op eq 'add' ) {
-        require Lazysite::Auth::Settings;
-        no warnings 'once';
-        local $Lazysite::Auth::Settings::AUTH_DIR = $Lazysite::Auth::Settings::AUTH_DIR
-            // ( _lz() . '/auth' );
-        my ( $known, $store );
-        if ( $kind eq 'group' ) {
-            my $members     = Lazysite::Auth::Settings::group_names();
-            my $members_bad = $Lazysite::Auth::Settings::GROUPS_UNREADABLE;
-            my $settings    = Lazysite::Auth::Settings::read_group_settings();
-            $store = $members_bad ? 'lazysite/auth/groups'
-                : Lazysite::Auth::Settings::group_settings_unreadable()
-                ? 'lazysite/auth/groups-settings.json'
-                : '';
-            $known = $members->{$name} || ( ref $settings eq 'HASH' && $settings->{$name} );
-        }
-        else {
-            my $accounts = Lazysite::Auth::Settings::account_names();
-            $store = $Lazysite::Auth::Settings::USERS_UNREADABLE ? 'lazysite/auth/users' : '';
-            $known = $accounts->{$name};
-        }
-        return { ok => 0, kind => 'unreadable',
-            error => "Cannot tell whether $shown exists: $store cannot be read, so it is "
-                . "not added to $key." }
-            if length $store;
-        return { ok => 0, kind => 'not-found',
-            error => "No $kind $shown on this site, so it is not added to ${host}'s $key: "
-                . ( $kind eq 'group'
-                ? 'a group that does not exist admits nobody to the domain.'
-                : 'an account that does not exist is locked to nothing.' ) }
-            unless $known;
-    }
-
+    # The name added is checked by domain_set (SM1016), as every new name on
+    # every surface is.
     my @new = $op eq 'add' ? ( @have, $name ) : grep { $_ ne $name } @have;
     my $r   = domain_set( $host, $key, join( ', ', @new ) );
     return $r unless ref $r eq 'HASH' && $r->{ok};

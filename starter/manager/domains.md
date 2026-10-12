@@ -920,7 +920,10 @@ function saveDomain(host) {
   cfgStatus('Saving ' + host + '...');
 
   var setKey = function (key, value) {
-    chain = chain.then(function () { return post('domain-set', { host: host, key: key, value: value }); });
+    // SM1016: a refused key stops the save and its reason is shown - an unknown
+    // group is refused by name, and the chain used to carry on to "Saved".
+    chain = chain.then(function () { return post('domain-set', { host: host, key: key, value: value }); })
+      .then(function (d) { if (!d || !d.ok) throw new Error((d && d.error) || ('Could not save ' + key + '.')); });
   };
   EDIT_KEYS.forEach(function (k) {
     var inp = document.getElementById('e-' + host + '-' + k);

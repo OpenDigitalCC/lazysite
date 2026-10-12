@@ -64,12 +64,13 @@ my $rule = [ { prefix => '/web', destination => 'https://backend.example.com' } 
 }
 
 # --- a scoped domain manager ------------------------------------------------
+# SM1016: the group is made (dm put in it) before a domain may name it.
+hold('manage_domains');    # scoped, and NOT an operator (manage_users would unconfine it)
 {
     my $r = $s->call( 'boss', 'domain-set',
         body => { host => 'mine.example.org', key => 'allowed_groups', value => 'domainfolk' } );
     ok( $r->{ok}, 'an operator confines dm to one domain by naming its group' ) or diag( $r->{error} // '' );
 }
-hold('manage_domains');    # scoped, and NOT an operator (manage_users would unconfine it)
 {
     my $in = $s->call( 'dm', 'remap-save', body => { host => 'mine.example.org', rules => $rule } );
     ok( $in->{ok}, 'a scoped manager sets rules for the domain it is scoped to' ) or diag( $in->{error} // '' );

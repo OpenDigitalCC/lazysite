@@ -1160,7 +1160,7 @@ my %TOOLS = (
             properties => {
                 host => { type => 'string', description => 'The configured domain, e.g. clienta.example' },
                 key => { type => 'string', description => 'theme | layout | site_name | site_url | nav_file | search_default | lang | lang_group | allowed_groups | locked_users (the last two also need manage_users)' },
-                value => { type => 'string', description => 'The value; an empty string clears the override so the domain inherits the primary again. allowed_groups is a comma-separated list of groups, each @name or name (stored as the name; the whole list is replaced); locked_users a comma-separated list of account names' },
+                value => { type => 'string', description => 'The value; an empty string clears the override so the domain inherits the primary again. allowed_groups is a comma-separated list of groups, each @name or name and each a group on this site (stored as the name; the whole list is replaced); locked_users a comma-separated list of accounts on this site. A name the site does not have is refused' },
             },
             required => [ 'host', 'key' ], additionalProperties => JSON::PP::false },
         run => sub {

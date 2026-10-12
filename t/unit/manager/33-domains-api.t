@@ -80,6 +80,9 @@ uapi( $d, { action => 'add', username => 'op', password => 'x' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_domains' );
 uapi( $d, { action => 'add', username => 'ed', password => 'y' } );
 grant_caps( $d, 'ed', 'manage_content' );
+# SM1016: the names a domain's access keys carry must exist.
+uapi( $d, { action => 'add', username => $_, password => 'z' } ) for qw(alice bob);
+uapi( $d, { action => 'group-add', username => 'alice', group => 'clienta-editors' } );
 
 # --- operator (manage_config) registers a domain ----------------------------
 {

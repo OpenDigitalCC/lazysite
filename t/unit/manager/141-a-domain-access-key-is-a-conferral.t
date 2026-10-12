@@ -42,6 +42,10 @@ for my $d ( [ 'mine.example.org', 'sites/mine' ], [ 'other.example.org', 'sites/
     ok( $r->{ok}, "set up $d->[0]" ) or diag( $r->{error} // '' );
 }
 
+# SM1016: a group named in allowed_groups must exist, so `editors` is made one.
+$s->add_user('ed');
+$s->users( 'group-add', 'ed', 'editors' );
+
 subtest 'an unscoped holder of both may still set an access key' => sub {
     my $r = $s->call( 'dm', 'domain-set',
         body => { host => 'mine.example.org', key => 'allowed_groups', value => 'editors' } );

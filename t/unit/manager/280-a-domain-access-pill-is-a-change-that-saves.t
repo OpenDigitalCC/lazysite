@@ -105,8 +105,8 @@ var document = { getElementById: function (id) { return ELS[id] || null; } };
 
 function esc(x) { return String(x == null ? '' : x).replace(/&/g, '&amp;')
   .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-var POSTED = [], STATUS = [];
-function post(action, obj) { POSTED.push({ action: action, body: obj }); return Promise.resolve({ ok: true }); }
+var POSTED = [], STATUS = [], REFUSE = null;
+function post(action, obj) { POSTED.push({ action: action, body: obj }); return Promise.resolve(REFUSE || { ok: true }); }
 function cfgStatus(m, k) { STATUS.push(m); }
 function loadDomains() {}
 function splitAppearance(v) { return { layout: v, theme: '' }; }
@@ -188,5 +188,11 @@ is_deeply( sets($at), ['allowed_groups=staff,editors'],
     'a group picked as @editors is saved as editors' );
 my $atdup = run_sheet( ['staff'], "addGroup('\@staff');" );
 is_deeply( sets($atdup), [], 'and @staff is the staff already there' );
+
+# --- SM1016: a refused save says why, and does not say Saved -----------------
+my $no = run_sheet( ['staff'],
+    "addGroup('\@ghost'); REFUSE = { ok: false, error: 'No group \@ghost on this site' };" );
+is( $no->{status}[-1], 'No group @ghost on this site', 'a refused save shows the refusal' );
+is( $no->{after},      '1 change not saved', 'and the change is still unsaved' );
 
 done_testing();
