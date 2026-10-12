@@ -2864,7 +2864,7 @@
             "died" : "mkdir DOCROOT/index.md: File exists at /usr/lib/x86_64-linux-gnu/perl5/5.40/Template/Provider.pm line 388.\n",
             "lang" : "unset",
             "log" : [],
-            "umask_after" : "0002",
+            "umask_after" : "0027",
             "vars" : null
          },
          "id" : "tt-compile-dir-is-a-file",

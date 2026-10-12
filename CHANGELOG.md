@@ -292,6 +292,14 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- SM1035 (PENDING) **a template engine that cannot be built leaves the umask
+  as it found it.** When the TT compile directory could not be made, the
+  content renderer and the registries widened the umask to 0002 for it and
+  then died inside `Template->new` - which dies rather than returning false -
+  past the line that restored it, so a persistent process wrote what came next
+  group-writable. Both now build the engine under `eval`, restore the umask and
+  re-throw the same failure. t/unit/processor/126.
+
 - filing-ids (PENDING) **a filing the release step stamps carries its id.**
   The release step stamps a filing's "SHIPPED (PENDING)" by its `id:`, and 35
   such filings had none - SM842 and 34 under `docs/feature-requests/archive/`.

@@ -671,16 +671,25 @@ sub _registry_stale {
 
         # Compile-cache dirs + .ttc files are minted during new()/process():
         # group-writable creation whichever identity renders first (_cache_umask).
+        # SM1035: make_path and Template->new (Template::Provider's mkdir) DIE
+        # when the compile dir cannot be made, so the `or do { umask }` never
+        # ran and the widened umask outlived the call. Both under eval, the
+        # umask restored, then the same failure re-thrown.
         my $old_umask = _cache_umask();
-        make_path($TT_COMPILE_DIR) unless -d $TT_COMPILE_DIR;
-        my $tt = Template->new(
-            ABSOLUTE    => 1,
-            ENCODING    => 'utf8',
-            EVAL_PERL   => 0,                                     # L-2
-            FILTERS     => { url_safe => \&_url_safe_filter },    # SM970
-            COMPILE_DIR => $TT_COMPILE_DIR,                       # P-4
-            COMPILE_EXT => '.ttc',                                # P-4
-        ) or do { umask $old_umask; return };
+        my $tt        = eval {
+            make_path($TT_COMPILE_DIR) unless -d $TT_COMPILE_DIR;
+            Template->new(
+                ABSOLUTE    => 1,
+                ENCODING    => 'utf8',
+                EVAL_PERL   => 0,                                     # L-2
+                FILTERS     => { url_safe => \&_url_safe_filter },    # SM970
+                COMPILE_DIR => $TT_COMPILE_DIR,                       # P-4
+                COMPILE_EXT => '.ttc',                                # P-4
+            );
+        };
+        my $tt_died = $@;
+        do { umask $old_umask; die $tt_died } if $tt_died;
+        do { umask $old_umask; return } unless $tt;
 
         for my $tmpl (@templates) {
             ( my $output_name = $tmpl ) =~ s/\.tt$//;

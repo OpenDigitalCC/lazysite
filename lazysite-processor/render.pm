@@ -87,10 +87,13 @@ sub _tt_render_impl {
 }
 
 # SM1012 S7: THE TEMPLATE OBJECT FOR A CONTENT PASS - cut from render_content,
-# built per call as it was (memoising it would be a change of behaviour). When
-# Template->new dies rather than returning false - it does when the compile
-# directory cannot be made - the umask is not put back; SM1012 records it, and
-# t/unit/processor/113 pins it.
+# built per call as it was (memoising it would be a change of behaviour).
+#
+# SM1035: Template->new DIES (Template::Provider's mkdir) when the compile
+# dir cannot be made, rather than returning false, so an `or do { umask }`
+# never ran and the widened umask outlived the call (SM1012 recorded it;
+# t/unit/processor/113 pins the umask it leaves). Built under eval, the
+# umask restored, then the same failure re-thrown.
 #
 # Content pass uses ABSOLUTE => 0 - the content body is a string reference
 # and should never need file access. ABSOLUTE => 1 would allow TT to follow
@@ -103,15 +106,20 @@ sub _tt_render_impl {
 sub _tt_engine {
     my $old_umask = _cache_umask();
     eval { make_path($TT_COMPILE_DIR) } unless -d $TT_COMPILE_DIR;
-    my $tt = Template->new(
-        ABSOLUTE    => 0,
-        ENCODING    => 'utf8',
-        EVAL_PERL   => 0,                                     # L-2
-        FILTERS     => { url_safe => \&_url_safe_filter },    # SM970
-        COMPILE_DIR => $TT_COMPILE_DIR,                       # P-4
-        COMPILE_EXT => '.ttc',                                # P-4
-    ) or do { umask $old_umask; die "Template error: " . Template->error() . "\n" };
+    my $tt = eval {
+        Template->new(
+            ABSOLUTE    => 0,
+            ENCODING    => 'utf8',
+            EVAL_PERL   => 0,                                     # L-2
+            FILTERS     => { url_safe => \&_url_safe_filter },    # SM970
+            COMPILE_DIR => $TT_COMPILE_DIR,                       # P-4
+            COMPILE_EXT => '.ttc',                                # P-4
+        );
+    };
+    my $tt_died = $@;
     umask $old_umask;
+    die $tt_died if $tt_died;
+    die "Template error: " . Template->error() . "\n" unless $tt;
     return $tt;
 }
 

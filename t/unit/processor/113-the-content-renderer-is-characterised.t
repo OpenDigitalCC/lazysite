@@ -18,10 +18,11 @@
 # template rewrote so that no block answers it (488), and a Template object that
 # cannot be built (107). That last one does not reach the branch: when the
 # compile directory cannot be made, Template->new DIES (Template::Provider's
-# mkdir) rather than returning false, so `or do { umask ...; die }` is not what
-# runs - and the umask _cache_umask set is not restored. The record says so
-# (umask_after 0002 for that case, 0027 for every other); no input was found
-# that makes Template->new return false with these fixed options.
+# mkdir) rather than returning false, so `or do { umask ...; die }` was not what
+# ran - and the umask _cache_umask set was not restored (0002 in the first
+# record). SM1035 builds the engine under eval and restores the umask before
+# re-throwing, so the record now says 0027 for that case as for every other;
+# no input was found that makes Template->new return false with these options.
 #
 # WHAT IS RECORDED per case: the body; the stash ($vars) as data, code refs as
 # "CODE" and objects as their class; $RESPONSE_LANG; every log_event call; the
