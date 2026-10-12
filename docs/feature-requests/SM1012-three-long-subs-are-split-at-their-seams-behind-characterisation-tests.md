@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-12
 raised-by: developer, WORK-PLAN-0154 P20 ("plan first"), 2026-10-12
 area: processor
-status-note: "Plan filed 2026-10-12 (WORK-PLAN-0154 P20); ruled 2026-10-12, _render_form now, hold main. Built: the deparse tools in tools/ (n450); the _render_form characterisation, t/unit/processor/112 (n451); S1-S6 (n452-n457), _render_form split; the render_content characterisation, t/unit/processor/113 (n458); S7-S11 (n459), render_content split. Next: main (S12-S15), held by the ruling; the umask finding (107) is its own item."
+status-note: "Ruled 2026-10-12: _render_form now, hold main. Built: tools (n450); _render_form characterised (112, n451) and split S1-S6 (n452-n457); render_content characterised (113, n458) and split S7-S11 (n459). Next: main (S12-S15), held; the render.pm 107 umask finding is its own item."
 ---
 
 # Why a plan and not a move
