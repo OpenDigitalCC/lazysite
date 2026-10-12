@@ -4,11 +4,11 @@ title: "SM1012: Three long subs are split at their seams, behind characterisatio
 subtitle: "WORK-PLAN-0154 P20. _render_form (562 lines), main (733) and render_content (435) were moved whole by SM944; splitting them is not a move. A plan: measures, seams, order, the proof per step, risks, sizes and the questions for a ruling. No code."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-10-12
 raised-by: developer, WORK-PLAN-0154 P20 ("plan first"), 2026-10-12
 area: processor
-status-note: "Plan filed 2026-10-12 (WORK-PLAN-0154 P20). Order: _render_form (M), render_content (M), main (L); each step behind a characterisation test written first, with whole-tree deparse showing every other sub unchanged. Q1-Q5 need a ruling before S1 starts."
+status-note: "Plan filed 2026-10-12 (WORK-PLAN-0154 P20); ruled 2026-10-12, _render_form now, hold main. Built: the deparse tools in tools/ (n450). Next: the _render_form characterisation test, then S1-S6. render_content after; main held."
 ---
 
 # Why a plan and not a move
@@ -300,6 +300,31 @@ Whole | L
 5. **Per-part coverage floors (P19) before or after?** Recommendation:
    before, so a step that loses coverage in its file fails the gate rather
    than being read by hand.
+
+# Ruling (2026-10-12)
+
+The release manager ruled, in these words: "_render_form now, hold main". The
+open questions, answered from that ruling:
+
+1. **Now?** `_render_form` now; hold `main`. `render_content` comes after
+   `_render_form`, and `main` is decided after seeing them.
+2. **The tools:** commit the deparse and move comparison tools from tmp/ into
+   tools/, each with a short usage header, and with tests of the tools
+   themselves where that is cheap. They are `tools/deparse-subs.pl` (every
+   processor sub deparsed; `--compare` two trees, or a tree and a saved listing,
+   and name the subs that differ - exit 0 only when exactly the `--expect` set
+   differs) and `tools/deparse-block.pl` (the block of an old file, wrapped as a
+   sub with its free variables as parameters, against the sub extracted from
+   it). t/unit/processor/111 runs each on a pair of trees that are the same and
+   a pair that are not.
+3. **S5:** one sub per field kind.
+4. **The characterisation records:** committed.
+5. **P19 floors first.** P19's per-part coverage floors are being built
+   separately; this work does not wait for them and does not change
+   `dist/config/coverage-floor`. Until they land, a step that loses coverage in
+   its file is not failed by the gate, so each step's coverage is read by hand
+   (Risks, "Coverage moves"). DEPENDENCY: once P19 lands, the floors hold this
+   work's files.
 
 # Done when
 
