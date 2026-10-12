@@ -673,7 +673,7 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
     # The operator's own page must keep working - the toggle lives there.
     # SM1057: as a manager-UI account - the cookie door needs `ui`, which cfg
     # cannot hold and keep its token (SM127).
-    uapi( $d, { action => 'add', username => 'cfgui', password => 'x' } );
+    uapi( $d, { action => 'add', username => 'cfgui', password => 'x-long-enough' } );
     grant_caps( $d, 'cfgui', 'ui', 'manage_config' );
     my $ui = mapi( $d, REQUEST_METHOD => 'POST',
         QUERY_STRING         => 'action=config-set',
@@ -710,7 +710,7 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
     # SM612: whoami carries the build. An agent re-checking a previous
     # release's finding could not read which release it was testing.
     # SM1057: op uses the manager, so its account holds `ui`.
-    uapi( $d, { action => 'add', username => 'op', password => 'x' } );
+    uapi( $d, { action => 'add', username => 'op', password => 'x-long-enough' } );
     grant_caps( $d, 'op', 'ui' );
     my $w = mapi( $d, QUERY_STRING => 'action=whoami',
         HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'sysops' );

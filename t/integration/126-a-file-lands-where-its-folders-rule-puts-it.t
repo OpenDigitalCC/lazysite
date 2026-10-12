@@ -178,7 +178,7 @@ subtest 'MCP move_file, copy_file and upload_file land there too' => sub {
 sub dav {
     my ( $method, $path, %o ) = @_;
     return TestHelper::run_dav( $d, $method, $path,
-        HTTP_AUTHORIZATION => 'Basic ' . encode_base64( 'dav:pw123456789', '' ), %o );
+        HTTP_AUTHORIZATION => 'Basic ' . encode_base64( 'dav:pw123456789-long-enough', '' ), %o );
 }
 
 subtest 'WebDAV MOVE, COPY and PUT land there too' => sub {
