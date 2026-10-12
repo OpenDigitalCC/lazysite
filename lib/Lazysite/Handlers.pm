@@ -71,7 +71,7 @@ our $DOCROOT = '';
 # already knows - `table` (a declared data table) and `connector` (a configured
 # connector). Those are chosen from a list on every surface that draws a form,
 # never typed (SM806).
-our @TYPE_ORDER = qw(smtp file table connector);
+our @TYPE_ORDER = qw(smtp file table connector notify);
 our %TYPES      = (
     smtp => {
         label  => 'Send email',
@@ -220,6 +220,55 @@ our %TYPES      = (
         ],
         note => 'Everything that leaves the site over HTTP goes through a connector. A '
             . 'connector with only a URL is the simple case.',
+    },
+
+    # SM1019 (SM1010 phase 1): A NOTIFICATION RULE. Delivering one queues the
+    # event (Lazysite::Outbox::enqueue) and returns; the daemon's notify-outbox
+    # job resolves the recipients and sends, once each. The grammar of
+    # `recipients` and the rulings it is built to are in Lazysite::Outbox.
+    #
+    # ITS OWN CAPABILITY, by ruling ("New 'manage_notifications' cap"): a rule
+    # can write to people taken from data, which is a different decision from
+    # mailing the form's owner or storing a row.
+    notify => {
+        label  => 'Notify people',
+        cap    => 'manage_notifications',
+        schema => [
+            { key => 'recipients', label => 'Recipients', type => 'text', required => 1,
+                max_len => 4000,
+                note => 'A JSON list of sources: {"accounts":[...]}, {"owners_of":{"table":..,'
+                    . '"where":{column: field}}}, {"addresses_from":{"table":..,"column":..,'
+                    . '"where":{..}}}, {"fixed":[addresses]}, {"submitter":"account"} or '
+                    . '{"submitter":{"field":..}}. A where whose field the event lacks '
+                    . 'matches nobody. Whether a recipient may be written to is the '
+                    . 'operator\'s responsibility; the engine sends one message to each '
+                    . 'address, once.' },
+            { key => 'channels', label => 'Channels', type => 'text', default => 'email',
+                note => 'email, bell, or both (comma separated). The bell reaches accounts '
+                    . 'only, each seeing their own.' },
+            { key => 'template', label => 'Template', type => 'text',
+                note => 'A name: lazysite/notify-templates/<name>.email.tt (a first line '
+                    . '"Subject: ..." then the body) and <name>.bell.tt. Blank uses the '
+                    . 'built-in message listing the event\'s fields.' },
+            { key => 'from', label => 'From address', type => 'email',
+                note => 'Blank uses the Form SMTP extension\'s default.' },
+            { key => 'notify_actor', label => 'Also notify whoever caused the event',
+                type => 'boolean', default => 'false',
+                note => 'Off: the account that submitted the form is left out, even when it '
+                    . 'is a recipient (a commenter is not told about their own comment).' },
+            { key => 'per_recipient_hour', label => 'Cap: messages to one recipient per hour',
+                type => 'number', default => '3',
+                note => 'Counted per recipient for this rule, on every channel.' },
+            { key => 'unsubscribe', label => 'Unsubscribe link', type => 'boolean',
+                default => 'true',
+                note    => 'On: every message carries a link to the page below and a '
+                    . 'List-Unsubscribe header.' },
+            { key => 'unsubscribe_path', label => 'Unsubscribe page', type => 'text',
+                note => 'A path on this site (/account/following) where a recipient stops '
+                    . 'these messages. Needed while the unsubscribe link is on.' },
+        ],
+        note => 'Queued, and sent by the scheduler\'s notify-outbox job - the site must run '
+            . 'the daemon. Quarantined submissions notify nobody.',
     },
 );
 
@@ -826,7 +875,51 @@ sub validate_handler {
             }
         }
     }
+    if ( $type eq 'notify' ) {
+        my ( $p, $field, $why ) = _notify_problem( \%out );
+        return ( undef, $why, $field ) if length $why;
+    }
     return ( \%out, '' );
+}
+
+# SM1019: what a notify handler's own settings say wrong, as ( undef, field,
+# why ) - checked at save, for SM807's reason (a rule that cannot work is found
+# by its author, not by the first event).
+sub _notify_problem {
+    my ($h) = @_;
+    require Lazysite::Outbox;
+    my ( $src, $why ) = Lazysite::Outbox::parse_recipients( $h->{recipients} );
+    return ( undef, 'recipients', $why ) unless $src;
+    # The account that caused the event is left out unless the rule says
+    # notify_actor, so a source that names exactly that account and nothing
+    # else would be refused at every send - said here instead.
+    return ( undef, 'recipients',
+        '{"submitter":"account"} writes to whoever caused the event, which this rule leaves '
+            . 'out - set notify_actor: true to send it' )
+        if ( $h->{notify_actor} // 'false' ) ne 'true'
+        && grep { defined $_->{submitter} && !ref $_->{submitter} } @$src;
+    my @ch = grep { length } split /\s*,\s*/, lc( $h->{channels} // 'email' );
+    return ( undef, 'channels', 'channels must name email, bell or both' )
+        if !@ch || grep { !/\A(?:email|bell)\z/ } @ch;
+    my %seen;
+    $h->{channels} = join ',', grep { !$seen{$_}++ } @ch;
+    return ( undef, 'template', 'template must be a name: letters, digits, - or _' )
+        if defined $h->{template} && length $h->{template}
+        && $h->{template} !~ /\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\z/;
+    return ( undef, 'per_recipient_hour', 'per_recipient_hour must be a whole number, 0 to 1000' )
+        unless ( $h->{per_recipient_hour} // '' ) =~ /\A\d{1,4}\z/ && $h->{per_recipient_hour} <= 1000;
+    if ( ( $h->{unsubscribe} // 'true' ) eq 'true' ) {
+        my $p = $h->{unsubscribe_path} // '';
+        return ( undef, 'unsubscribe_path',
+            'unsubscribe is on, so unsubscribe_path must name the page on this site where a '
+                . 'recipient stops these messages (a path starting /) - or turn unsubscribe off' )
+            unless $p =~ m{\A/(?!/)[A-Za-z0-9._~/%-]*\z};
+    }
+    elsif ( defined $h->{unsubscribe_path} && length $h->{unsubscribe_path} ) {
+        return ( undef, 'unsubscribe_path', 'unsubscribe_path must be a path starting /' )
+            unless $h->{unsubscribe_path} =~ m{\A/(?!/)[A-Za-z0-9._~/%-]*\z};
+    }
+    return ( $src, '', '' );
 }
 
 sub _bool { return ( defined $_[0] && $_[0] =~ /\A\s*(?:false|no|off|0)\s*\z/i ) ? 'false' : 'true' }
@@ -884,6 +977,35 @@ sub _destination_problem {
             return "files_column: '$h->{table}' has no column $col - its columns are: "
                 . join( ', ', sort( keys %{ $d->{fields} } ) )
                 if length $col && !exists $d->{fields}{$col};
+        }
+    }
+    # SM1019: every table a notify rule reads must be declared, an owners_of
+    # table must record who wrote each row (timestamps: true gives it created_by),
+    # and an addresses_from column and every where column must exist.
+    if ( $h->{type} eq 'notify' ) {
+        require Lazysite::Outbox;
+        my ($src) = Lazysite::Outbox::parse_recipients( $h->{recipients} );
+        my $tables = _declared_tables();
+        for my $pair ( @{ Lazysite::Outbox::tables_named($src) } ) {
+            my ( $k, $s ) = @$pair;
+            return "recipients: $k names no table '$s->{table}' - the declared tables are: "
+                . ( join( ', ', @$tables ) || 'none' )
+                if @$tables && !grep { $_ eq $s->{table} } @$tables;
+            my $d = eval {
+                require Lazysite::Data::Tables;
+                Lazysite::Data::Tables::load_table( $DOCROOT, $s->{table} );
+            };
+            next unless ref $d eq 'HASH' && $d->{ok} && ref $d->{fields} eq 'HASH';
+            my %cols = ( %{ $d->{fields} }, ( $d->{key} // 'id' ) => 1 );
+            $cols{$_} = 1 for eval { require Lazysite::Data::Owned; Lazysite::Data::Owned::owned_columns($d) };
+            return "recipients: owners_of '$s->{table}' does not record who wrote its rows - "
+                . 'it needs timestamps: true, which gives every row created_by'
+                if $k eq 'owners_of' && !$d->{timestamps};
+            for my $c ( ( $k eq 'addresses_from' ? $s->{column} : () ), sort keys %{ $s->{where} } ) {
+                return "recipients: '$s->{table}' has no column $c - its columns are: "
+                    . join( ', ', sort keys %cols )
+                    unless $cols{$c};
+            }
         }
     }
     if ( $h->{type} eq 'connector' ) {
@@ -1450,6 +1572,7 @@ sub _deliver_one {
     return _to_table( $h, $fields, $ctx )     if $t eq 'table';
     return _to_smtp( $h, $fields, $ctx )      if $t eq 'smtp';
     return _to_connector( $h, $fields, $ctx ) if $t eq 'connector';
+    return _to_notify( $h, $fields, $ctx )    if $t eq 'notify';
     return { ok => 0, why => _legacy_problem($h) };
 }
 
@@ -1992,6 +2115,22 @@ sub _to_connector {
         trigger => $ctx->{source} );
     return { ok => 1, call_id => $r->{call_id} } if $r->{ok};
     return { ok => 0, why => 'the connector did not deliver: ' . ( $r->{error} // $r->{state} // 'failed' ) };
+}
+
+# SM1019: A NOTIFY HANDLER QUEUES THE EVENT AND RETURNS. The daemon sends.
+#
+# A QUARANTINED SUBMISSION NOTIFIES NOBODY - asked of the CONTEXT, which is where
+# the form handler puts the flag (SM1017 is what asking the fields cost). It is
+# an ok delivery with a note, not a failure: nothing is wrong with the rule, and
+# the note reaches the delivery's audit row.
+sub _to_notify {
+    my ( $h, $fields, $ctx ) = @_;
+    return { ok => 1, note => 'the submission is held in quarantine, so this rule notified nobody' }
+        if $ctx->{quarantined} || $fields->{_quarantined};
+    require Lazysite::Outbox;
+    my $r = Lazysite::Outbox::enqueue( $DOCROOT, $h, { _visible($fields) }, $ctx );
+    return { ok => 0, why    => $r->{why} } unless $r->{ok};
+    return { ok => 1, queued => $r->{queued} };
 }
 
 # --- the timer's half --------------------------------------------------------

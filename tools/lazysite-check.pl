@@ -997,6 +997,7 @@ sub run_checks {
                 read_submissions delete_submissions
                 create_sub_users delegate_sub_user_creation
                 manage_data write_data manage_briefs run_jobs manage_connectors
+                manage_notifications
                 housekeeping purge audit_switch);
 
             my $gsettings = _read_json("$LZ/auth/groups-settings.json") || {};

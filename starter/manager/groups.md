@@ -71,6 +71,8 @@ var ACTIONS = [
   // looks for them, and a separate row because they are a separate grant.
   ['manage_services', 'Services (WebDAV/MCP/OAuth switches)'],
   ['manage_connectors', 'Connectors (where site data may be sent)'],
+  // SM1019: notification rules (the notify handler type) - off by default.
+  ['manage_notifications', 'Notification rules'],
   ['manage_users', 'Users & groups'],
   ['analytics', 'Analytics (visitor stats)'],
   ['audit', 'Audit trail'],

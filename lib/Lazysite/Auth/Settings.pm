@@ -53,7 +53,7 @@ our @CAP_KEYS = qw(
     delete_submissions
     create_sub_users delegate_sub_user_creation
     manage_data write_data manage_briefs
-    run_jobs manage_connectors
+    run_jobs manage_connectors manage_notifications
     housekeeping purge audit_switch);
 
 # SM591: the LATERAL grants. Deletion and tidying are the same job wherever they

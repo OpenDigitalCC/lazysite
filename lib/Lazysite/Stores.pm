@@ -125,6 +125,15 @@ my @STORES = (
         modules => ['lib/Lazysite/Handlers.pm'],
     },
 
+    # SM1019/SM1020: THE NOTIFICATION OUTBOX AND ITS LEDGER. A store: an outbox
+    # entry that will not open is an event nobody was told about, and a ledger
+    # that will not open is "cannot tell what was sent" - which must refuse to
+    # send rather than read as "nothing was", or a retry sends twice.
+    { dir => 'notify',
+        store   => 1,
+        modules => ['lib/Lazysite/Outbox.pm'],
+    },
+
     # NOT STORES. Each line is an argument, not a label.
     { dir => 'cache',
         store => 0,

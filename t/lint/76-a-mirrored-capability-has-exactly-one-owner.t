@@ -98,7 +98,7 @@ my %CORE = map { $_ => 1 } qw(
     delete_submissions
     housekeeping purge audit_switch
     create_sub_users delegate_sub_user_creation
-    manage_connectors);
+    manage_connectors manage_notifications);    # SM1019: core - the notify handler type
 
 subtest 'no capability is grantable with nobody implementing it' => sub {
     my @orphan = grep { !$CORE{$_} && !$claimed_by{$_} }

@@ -103,6 +103,15 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
+- SM1019 (PENDING) **a `notify` handler: a notification rule over a form
+  event.** A new handler type, bound as a form's second target (or a schedule
+  entry), whose recipients come from accounts, the owners of matching rows,
+  addresses held in a table, fixed addresses or the submitter. Saving one
+  needs the new `manage_notifications` capability - off by default, held by
+  the sysop (manager) groups. Delivering it queues the event for the daemon
+  and returns, so the visitor never waits on the sends; a quarantined
+  submission queues nothing. t/unit/notify/01, 02.
+
 - SM1018 (PENDING) **a signed-in member's form post names the member.** The
   form handler verified the session cookie only to waive the rate limit and
   delivered every submission with no actor, so a table handler declaring

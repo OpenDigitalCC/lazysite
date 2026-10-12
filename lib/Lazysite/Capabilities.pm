@@ -312,6 +312,27 @@ my %ACTION_INFO = (
             mcp => [qw(list_handlers save_handler delete_handler list_schedule save_schedule delete_schedule)],
         },
     },
+    # SM1019 (SM1010, ruled 2026-10-12 "New 'manage_notifications' cap"): WHO MAY
+    # WRITE A NOTIFICATION RULE. A notify handler sends mail and bell notices to
+    # recipients it resolves at send time - accounts, the owners of rows,
+    # addresses held in a table, fixed addresses, the submitter - so authoring
+    # one is its own decision, off by default and held by the operator (manager)
+    # groups, which are topped up with every capability. It is asked by the
+    # handler contract (cap_for_type 'notify'), not by an action gate: the
+    # handler actions' door is unchanged (manage_forms, manage_data or
+    # manage_connectors), so the map claims no action of its own.
+    manage_notifications => {
+        section => 'Site',
+        title   => 'Write notification rules: notify handlers, which mail and bell '
+            . 'people when something happens - a form is submitted, the schedule '
+            . 'fires. Recipients may be accounts, the owners of matching rows, '
+            . 'addresses held in a table, fixed addresses or the submitter; the '
+            . 'engine guards technical safety (one address per recipient, queued '
+            . 'and sent once, a per-recipient cap, an audit row each) and whether a '
+            . 'recipient may be written to is the operator\'s responsibility.',
+        grants => 'Create, change and delete notify handlers (with one of manage_forms, manage_data or manage_connectors to reach the handler actions at all, and manage_forms to bind one to a form). Off by default; held by the operator groups.',
+        unlocks => {},
+    },
     manage_data => {
         section => 'Data',
         title   => 'Read and write the site\'s data tables.',

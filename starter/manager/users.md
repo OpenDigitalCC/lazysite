@@ -236,6 +236,7 @@ var PERM_LABELS = {
   manage_domains: 'Domains & site packages', manage_config: 'Config + extensions',
   manage_services: 'Services (WebDAV/MCP/OAuth switches)',
   manage_connectors: 'Connectors',
+  manage_notifications: 'Notification rules',
   manage_users: 'Users & groups', analytics: 'Analytics', audit: 'Audit trail',
   notifications: 'Notifications', feedback: 'Agent feedback',
   read_submissions: 'Read submissions',
