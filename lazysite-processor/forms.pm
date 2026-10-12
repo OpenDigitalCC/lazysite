@@ -2,8 +2,8 @@ package main;
 
 # lazysite-processor/forms.pm - the processor's forms and fenced divs.
 #
-# HOLDS   convert_fenced_form() and _render_form() (one sub of 562 lines; a
-#         split is a separate change, not a move): a `:::form` block becomes
+# HOLDS   convert_fenced_form() and _render_form() (being split at its seams,
+#         SM1012: _form_rule_tokens): a `:::form` block becomes
 #         the form's markup - fields, options, prefill from the request's raw
 #         query (escaped here), the outcome banner from a closed sentence map,
 #         the step stylesheet link - with the timing-token placeholders that
@@ -208,6 +208,105 @@ sub _write_form_rules {
     return;
 }
 
+# SM1012 S1: A FIELD'S RULES, AS TOKENS - cut from _render_form's line loop.
+#
+# Tokens are whitespace-separated, but a key:"value" may quote a value that
+# contains spaces (e.g. placeholder:"Your full name" or
+# pattern:"[0-9 +()-]{7,20}"). $name is for the unclosed-quote warning only.
+# Both `last`s are this sub's own `while`'s.
+sub _form_rule_tokens {
+    my ( $rules_str, $name ) = @_;
+    my @rule_tokens;
+    my $rs = $rules_str;
+    while ( length $rs ) {
+        $rs =~ s/^\s+//;
+        last unless length $rs;
+        # select: takes the REST of the line - its comma-separated options may
+        # contain spaces, so put select: last among a field's rules. (Quotes
+        # around the list or an option are tolerated and stripped on render.)
+        # SM401: radio/checklist/checklist-qty take the REST of the line for
+        # the same reason select: does - their comma-separated options may
+        # contain spaces, so they go last among a field's rules.
+        if ( $rs =~ s/^((?:select|radio|checklist|checklist-qty):.*)\z//s ) {
+            push @rule_tokens, $1;
+        }
+
+        # SM921: `pattern:` TAKES THE REST OF THE LINE TOO, for the same reason
+        # the option lists do - its value may contain a space, and a regex is
+        # where a space is most likely to be meant literally.
+        #
+        # It did not, and the result was silent: `pattern:[0-9 ()+.-]{6,30}`
+        # rendered `pattern="[0-9"`, which IS a valid regex, so nothing was
+        # ignored and nothing was reported - the field simply refused almost
+        # every value. Under-rejecting is at least visible to whoever tests the
+        # form; over-rejecting a valid phone number looks like the visitor's
+        # fault.
+        #
+        # MEASURED BEFORE CHANGING IT, because taking the rest of the line
+        # swallows anything written after it - a `required` after a pattern
+        # would become part of the pattern and the field would quietly stop
+        # being required. Of the 16 form-field lines carrying a `pattern:` rule
+        # in the shipped tree and the live sites repo, exactly ZERO have another
+        # rule after it (tmp/pattern-population.pl); every author who has met
+        # this already puts the pattern last, which is also what the option
+        # lists document. The quoted form `pattern:"..."` is untouched and is
+        # handled below, so a pattern that must be followed by another rule has
+        # a spelling that still works.
+        elsif ( $rs =~ s/^(pattern:(?!")\S.*)\z//s ) {
+            ( my $tok = $1 ) =~ s/\s+\z//;
+            push @rule_tokens, $tok;
+        }
+        # SM871: THE QUOTED FORM UNDERSTANDS AN ESCAPED QUOTE.
+        #
+        # This was `"([^"]*)"`, which cannot contain a quote at all - so
+        # `value:"before \" x"` stopped at the inner quote, the value became
+        # `before \`, and THE REMAINDER WENT BACK THROUGH THIS LOOP as more
+        # rules. That second part is the one that bites: a leftover chunk
+        # like `max:5"` still matches the valued rules below, because they
+        # are matched with an unanchored regex rather than by equality. So a
+        # stray quote in a default could change a field's max, min, pattern
+        # or placeholder. (It could NOT switch on `required` - measured, and
+        # contrary to this filing's own headline example: the flags are
+        # compared with `eq`, so `required"` matches nothing and is dropped.)
+        #
+        # `(?:[^"\\]|\\.)*` steps over an escaped character, so the value
+        # runs to the real closing quote, and only `\"` is unescaped after -
+        # NOT every backslash. That distinction is load-bearing: `pattern:`
+        # values carry regex escapes, and unescaping all of them would turn
+        # `\d` into `d` and silently break every pattern in the field.
+        #
+        # THE TRADE, stated: a value whose last character is a backslash now
+        # reads as an escaped quote and so as unclosed. That is the correct
+        # reading once `\"` means a quote, and it is warned about below
+        # rather than being silent.
+        elsif ( $rs =~ s/^([A-Za-z]+:)"((?:[^"\\]|\\.)*)"// ) {
+            my ( $key, $val ) = ( $1, $2 );
+            $val =~ s/\\"/"/g;
+            push @rule_tokens, "$key$val";
+        }
+
+        # SM871: A QUOTED RULE THAT NEVER CLOSES IS SAID OUT LOUD.
+        #
+        # The behaviour is deliberately unchanged - the chunk is tokenised on
+        # whitespace exactly as before, so the field's OTHER rules still
+        # apply. Dropping them would be worse than the fault: a `required`
+        # written after a malformed value would silently become optional,
+        # which is a form weakening itself over a typo. So this adds the
+        # diagnosis and nothing else. SM856 set the precedent for saying
+        # what could not be read in this same function.
+        elsif ( $rs =~ /^([A-Za-z]+:)"/ ) {
+            log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                'form rule has an unclosed quoted value',
+                field => $name, rule => $1,
+                hint  => 'close the quote; write \\" for a quote inside it' );
+            $rs =~ s/^(\S+)// and push @rule_tokens, $1;
+        }
+        elsif ( $rs =~ s/^(\S+)// ) { push @rule_tokens, $1; }
+        else                        { last; }
+    }
+    return @rule_tokens;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -261,98 +360,9 @@ sub _render_form {
             next;
         }
 
-        # Parse rules. Tokens are whitespace-separated, but a key:"value" may
-        # quote a value that contains spaces (e.g. placeholder:"Your full name"
-        # or pattern:"[0-9 +()-]{7,20}").
         my %rules;
-        my @rule_tokens;
-        my $rs = $rules_str;
-        while ( length $rs ) {
-            $rs =~ s/^\s+//;
-            last unless length $rs;
-            # select: takes the REST of the line - its comma-separated options may
-            # contain spaces, so put select: last among a field's rules. (Quotes
-            # around the list or an option are tolerated and stripped on render.)
-            # SM401: radio/checklist/checklist-qty take the REST of the line for
-            # the same reason select: does - their comma-separated options may
-            # contain spaces, so they go last among a field's rules.
-            if ( $rs =~ s/^((?:select|radio|checklist|checklist-qty):.*)\z//s ) {
-                push @rule_tokens, $1;
-            }
-
-            # SM921: `pattern:` TAKES THE REST OF THE LINE TOO, for the same reason
-            # the option lists do - its value may contain a space, and a regex is
-            # where a space is most likely to be meant literally.
-            #
-            # It did not, and the result was silent: `pattern:[0-9 ()+.-]{6,30}`
-            # rendered `pattern="[0-9"`, which IS a valid regex, so nothing was
-            # ignored and nothing was reported - the field simply refused almost
-            # every value. Under-rejecting is at least visible to whoever tests the
-            # form; over-rejecting a valid phone number looks like the visitor's
-            # fault.
-            #
-            # MEASURED BEFORE CHANGING IT, because taking the rest of the line
-            # swallows anything written after it - a `required` after a pattern
-            # would become part of the pattern and the field would quietly stop
-            # being required. Of the 16 form-field lines carrying a `pattern:` rule
-            # in the shipped tree and the live sites repo, exactly ZERO have another
-            # rule after it (tmp/pattern-population.pl); every author who has met
-            # this already puts the pattern last, which is also what the option
-            # lists document. The quoted form `pattern:"..."` is untouched and is
-            # handled below, so a pattern that must be followed by another rule has
-            # a spelling that still works.
-            elsif ( $rs =~ s/^(pattern:(?!")\S.*)\z//s ) {
-                ( my $tok = $1 ) =~ s/\s+\z//;
-                push @rule_tokens, $tok;
-            }
-            # SM871: THE QUOTED FORM UNDERSTANDS AN ESCAPED QUOTE.
-            #
-            # This was `"([^"]*)"`, which cannot contain a quote at all - so
-            # `value:"before \" x"` stopped at the inner quote, the value became
-            # `before \`, and THE REMAINDER WENT BACK THROUGH THIS LOOP as more
-            # rules. That second part is the one that bites: a leftover chunk
-            # like `max:5"` still matches the valued rules below, because they
-            # are matched with an unanchored regex rather than by equality. So a
-            # stray quote in a default could change a field's max, min, pattern
-            # or placeholder. (It could NOT switch on `required` - measured, and
-            # contrary to this filing's own headline example: the flags are
-            # compared with `eq`, so `required"` matches nothing and is dropped.)
-            #
-            # `(?:[^"\\]|\\.)*` steps over an escaped character, so the value
-            # runs to the real closing quote, and only `\"` is unescaped after -
-            # NOT every backslash. That distinction is load-bearing: `pattern:`
-            # values carry regex escapes, and unescaping all of them would turn
-            # `\d` into `d` and silently break every pattern in the field.
-            #
-            # THE TRADE, stated: a value whose last character is a backslash now
-            # reads as an escaped quote and so as unclosed. That is the correct
-            # reading once `\"` means a quote, and it is warned about below
-            # rather than being silent.
-            elsif ( $rs =~ s/^([A-Za-z]+:)"((?:[^"\\]|\\.)*)"// ) {
-                my ( $key, $val ) = ( $1, $2 );
-                $val =~ s/\\"/"/g;
-                push @rule_tokens, "$key$val";
-            }
-
-            # SM871: A QUOTED RULE THAT NEVER CLOSES IS SAID OUT LOUD.
-            #
-            # The behaviour is deliberately unchanged - the chunk is tokenised on
-            # whitespace exactly as before, so the field's OTHER rules still
-            # apply. Dropping them would be worse than the fault: a `required`
-            # written after a malformed value would silently become optional,
-            # which is a form weakening itself over a typo. So this adds the
-            # diagnosis and nothing else. SM856 set the precedent for saying
-            # what could not be read in this same function.
-            elsif ( $rs =~ /^([A-Za-z]+:)"/ ) {
-                log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
-                    'form rule has an unclosed quoted value',
-                    field => $name, rule => $1,
-                    hint  => 'close the quote; write \\" for a quote inside it' );
-                $rs =~ s/^(\S+)// and push @rule_tokens, $1;
-            }
-            elsif ( $rs =~ s/^(\S+)// ) { push @rule_tokens, $1; }
-            else                        { last; }
-        }
+        # The rules, as tokens (SM1012 S1).
+        my @rule_tokens = _form_rule_tokens( $rules_str, $name );
         for my $r (@rule_tokens) {
             if    ( $r eq 'required' ) { $rules{required} = 1; }
             elsif ( $r eq 'optional' ) { $rules{optional} = 1; }
