@@ -631,6 +631,19 @@ Archive
   `form=<its own form>&file=<the other's store>`, and read and appended to
   another domain's page brief with `type=table&table=<its own table>`.
   t/integration/205, 206.
+- SM1031 (PENDING) **a text save writes UTF-8, and a saved-page preview is no
+  visit under the owning domain.** Ruled 2026-10-12 ("Fix all three"; found
+  working SM1030). The control API's save and MCP `write_file`,
+  `replace_text`, `copy_file`, `create_page` and `create_form` refuse content
+  that would not be written as valid UTF-8 - a lone surrogate or a code point
+  past U+10FFFF in the JSON body, an overlong form in a page read from disk -
+  as `page-encoding-refused`, naming the offset and writing nothing, as every
+  raw door already did (Q15h). A saved-page `preview_page` no longer records an
+  access-log visit, and renders under the Host of the domain that owns the
+  path (naming it as `rendered_as_host`), as `preview_public_page` and a draft
+  preview do; it inherited the MCP request's Host, so a domain's page was shown
+  in another site's layout and theme. t/unit/mcp/50.
+
 - SM1030 (PENDING) **MCP `preview_page` renders a draft and writes nothing.**
   `preview_page { path, content }` renders `content` at `path` in place of the
   saved page - as a public visitor, under the Host of the domain that owns the

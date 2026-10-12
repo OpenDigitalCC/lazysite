@@ -19,7 +19,7 @@ use Cwd             qw(realpath);
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal page_bytes_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal page_bytes_refusal text_save_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes
     %params _json_body); # SM944 S33: acl-set's handler reads the request's parameters and body
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows file_rule_bypass _acl_denied may_read_any_rule);
@@ -749,6 +749,12 @@ sub action_save_binary {
 # draft_refusal ask one list. undef when the content may be written.
 sub _content_write_refusal {
     my ( $rel, $content ) = @_;
+
+    # SM1031 (a): the bytes this save would write are UTF-8, as Q15h holds every
+    # raw door to - first, because every check below reads the text as text.
+    if ( my ( $err, $why ) = text_save_refusal( $rel, $content ) ) {
+        return { ok => 0, error => $err, kind => 'page-encoding-refused', audit_detail => $why };
+    }
 
     # SM189: refuse a content page that ships raw HTML/SVG (api:/raw: front matter
     # + a script-capable content_type). It bypasses the layout/theme, is served as

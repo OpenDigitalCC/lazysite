@@ -98,8 +98,9 @@ GET-only rule and the processor's UTF-8 check.
   by the server's decoder, and the text save writes them through the lax `:utf8`
   layer - the page `page_bytes_refusal` exists to keep off the disk, by the one
   door its comment says cannot produce one. A draft is refused for it here; the
-  save is not changed by this filing.
+  save is not changed by this filing. Ruled 2026-10-12, "Fix all three": SM1031.
 - **The saved-page `preview_page` records a visit** in the first-party access
   log, as an anonymous request with no user agent, and runs under the MCP
   request's Host rather than the owning domain's (which `preview_public_page`
   has done since SM441). Both unchanged here; the draft path does neither.
+  Ruled 2026-10-12, "Fix all three": SM1031.

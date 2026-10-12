@@ -29,7 +29,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _em
     caller_is_confined instance_wide_refusal
     served_artifact_refusal caller_may_reach_path form_pages form_bindings caller_may_reach_form form_reach_refusal
     page_form page_form_names page_form_or_none text_as_processor_reads form_bind_refusal form_bind_tree_refusal
-    page_bytes_refusal invalid_utf8_offset
+    page_bytes_refusal text_save_refusal invalid_utf8_offset
     caller_may_reach_table caller_may_reach_brief brief_reach_refusal
     handler_reach_refusal caller_may_use_handler handler_bind_refusal
     carveout_requirement carveout_refusal path_leads_to_carveout
@@ -946,8 +946,8 @@ sub text_as_processor_reads {
 # So a .md page arriving as raw bytes - action_save_binary (MCP upload_file),
 # the multipart upload, WebDAV PUT, a site package's content - is refused,
 # for every caller, unless its bytes are valid UTF-8 (RFC 3629: no overlong
-# forms, no surrogates, nothing past U+10FFFF). A text write cannot produce
-# such a page: it is encoded on the way out.
+# forms, no surrogates, nothing past U+10FFFF). A text write is held to the
+# same rule by text_save_refusal below (SM1031).
 sub page_bytes_refusal {
     my ( $rel, $bytes ) = @_;
     return unless defined $rel && defined $bytes;
@@ -964,6 +964,40 @@ sub page_bytes_refusal {
         'page-encoding-refused',
         "the page '$r' is not valid UTF-8 (first invalid byte at offset $at)",
         'save it as UTF-8 and write it again'
+    );
+}
+
+# SM1031 (ruled 2026-10-12, "Fix all three" (a)): A TEXT SAVE WRITES VALID UTF-8.
+#
+# page_bytes_refusal's comment said a text write "cannot produce such a page: it
+# is encoded on the way out". It can: write_file_checked encodes through the
+# lax :utf8 layer, which writes a character string's internal bytes as they are.
+# A JSON body carrying the raw bytes ED A0 80 decodes to U+D800, a lone
+# surrogate, and is written back as ED A0 80; F4 90 80 80 is U+110000; and a
+# page read laxly from disk (copy_file, replace_text) keeps an overlong C0 AF.
+# None of those is UTF-8, so every text door - the control API's save, MCP
+# write_file, replace_text, copy_file, create_page, create_form, all through
+# action_save - now asks of the bytes it WOULD write what Q15h asks of raw
+# bytes, for any file: a text save is text whatever its extension. A string
+# with no wide characters is written byte for byte as Latin-1 through the
+# layer, which is always valid UTF-8, so only a character string is judged.
+sub text_save_refusal {
+    my ( $rel, $content ) = @_;
+    return unless defined $content && utf8::is_utf8($content);
+    my $b = $content;
+    utf8::encode($b);    # the bytes the :utf8 layer writes
+    my $at = invalid_utf8_offset($b);
+    return unless defined $at;
+    ( my $r = $rel // '' ) =~ s{^/+}{};
+    my $noun = $r =~ /\.md\z/ ? 'page' : 'file';
+    return _refusal(
+        "The $noun '$r' would not be valid UTF-8 (the first invalid byte would be at offset $at), so "
+            . 'it was not written. A lone surrogate (U+D800 to U+DFFF), a code point past U+10FFFF and '
+            . 'an overlong form have no UTF-8 encoding, and lazysite reads every page as UTF-8. To fix '
+            . 'it, remove or replace that character and write it again.',
+        'page-encoding-refused',
+        "the $noun '$r' would not be valid UTF-8 (first invalid byte at offset $at)",
+        'remove the character that is not UTF-8 and write it again'
     );
 }
 

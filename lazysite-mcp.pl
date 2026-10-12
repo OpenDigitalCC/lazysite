@@ -2465,17 +2465,39 @@ sub _preview_page {
     my $proc = _processor_tool()
         or return { ok => 0, kind => 'not-found', error => 'processor not available' };
 
-    # Render fresh (no cache, no cache write), as a public visitor.
-    local %ENV = ( %ENV,
-        DOCUMENT_ROOT    => $DOCROOT,
-        REDIRECT_URL     => "/$slug",
-        REQUEST_URI      => "/$slug",
-        REQUEST_METHOD   => 'GET',
-        CONTENT_LENGTH   => '0',
-        LAZYSITE_NOCACHE => '1',
-    );
-    delete $ENV{HTTP_AUTHORIZATION};
-    delete $ENV{REDIRECT_HTTP_AUTHORIZATION};
+    # SM1031 (c): UNDER THE HOST OF THE DOMAIN THAT OWNS THE PATH, at the URL it
+    # serves it at - as preview_public_page has since SM441 and a draft preview
+    # always has. It inherited the MCP request's Host, so a domain's page was
+    # shown in the primary's layout and theme, and a primary page asked over a
+    # domain's Host was resolved against that domain's content root.
+    my ( $root, $owner ) = Lazysite::Manager::Domains::content_root_for_path($slug);
+    $owner //= '';
+    my $url = "/$slug";
+    if ( length $owner ) {
+        $url = $slug eq $root ? '/' : '/' . substr( $slug, length($root) + 1 );
+    }
+
+    # Render fresh (no cache, no cache write), as a public visitor: every
+    # credential and identity marker stripped, as the draft render strips them.
+    local %ENV = %ENV;
+    delete @ENV{
+        grep {
+            m{ \A (?: HTTP_X_REMOTE_ | HTTP_X_PAYMENT_ | LAZYSITE_AUTH_ | HTTP_COOKIE
+                | HTTP_AUTHORIZATION | REDIRECT_HTTP_AUTHORIZATION | LAZYSITE_FRONT_DOOR ) }x
+        } keys %ENV
+    };
+    $ENV{DOCUMENT_ROOT}    = $DOCROOT;
+    $ENV{REDIRECT_URL}     = $url;
+    $ENV{REQUEST_URI}      = $url;
+    $ENV{REQUEST_METHOD}   = 'GET';
+    $ENV{QUERY_STRING}     = '';
+    $ENV{CONTENT_LENGTH}   = '0';
+    $ENV{LAZYSITE_NOCACHE} = '1';
+    # SM1031 (b): a preview is no visit - the access log records visitors, and a
+    # draft render was already left out of it.
+    $ENV{LAZYSITE_PREVIEW} = '1';
+    if ( length $owner ) { $ENV{HTTP_HOST} = $owner }
+    else                 { delete $ENV{HTTP_HOST} }
 
     my $out = '';
     # Decode the rendered HTML so the JSON layer encodes it once (raw bytes here
@@ -2513,6 +2535,7 @@ sub _preview_page {
     if ( length $body > $MAX_READ_BYTES ) { $body = substr( $body, 0, $MAX_READ_BYTES ); $truncated = 1 }
     return { ok => 1, path => "/$slug", status => $status, bytes => length $body, html => $body,
         truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ),
+        ( length $owner ? ( rendered_as_host => $owner ) : () ),
         note => 'rendered fresh as a public visitor; a protected page shows the auth gate' };
 }
 

@@ -171,7 +171,9 @@ sub _access_field {
 # CGI appends cannot interleave.
 sub _access_record {
     return unless defined $ACCESS_REC{s};
-    return if _draft_requested();    # SM1030: a draft render is no visit
+    # SM1031 (b): a saved-page preview is no visit, as a draft render is not.
+    return if $ENV{LAZYSITE_PREVIEW};
+    return if _draft_requested();       # SM1030: a draft render is no visit
     my $ok = eval {
         # SM222 L0: DELIBERATELY NOT GATED ON THE REGISTRY YET, and the reason
         # is a ruling rather than an oversight.
