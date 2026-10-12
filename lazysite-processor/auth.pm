@@ -171,6 +171,8 @@ sub peek_auth {
     return {
         auth   => $m->{auth},
         groups => $m->{groups} // [],
+        # SM993: a paid page's auth_groups is its payment bypass, not a sign-in.
+        payment => $m->{payment},
         # SM980: { key => why } for an access key that cannot be read.
         ( $m->{access_unreadable} ? ( unreadable => $m->{access_unreadable} ) : () ),
     };
@@ -190,7 +192,8 @@ sub check_auth {
     # Manager pages have their own access control - skip auth_default enforcement
     # but still read auth headers so TT vars are populated
     my $manager_path = $site_vars->{manager_path} || '/manager';
-    if ( index( $uri, "$manager_path/" ) == 0 || $uri eq $manager_path ) {
+    my $in_manager = ( index( $uri, "$manager_path/" ) == 0 || $uri eq $manager_path ) ? 1 : 0;
+    if ($in_manager) {
         $auth_level = 'none';
     }
 
@@ -217,8 +220,17 @@ sub check_auth {
     # list is read now; what is still unreadable is a restriction the author
     # meant and the engine cannot apply, and the safe answer to that is no.
     # 403 for everyone, signed in or not, and a line naming the key.
-    if ( ref $auth_meta->{unreadable} eq 'HASH' && %{ $auth_meta->{unreadable} } ) {
-        my $u = $auth_meta->{unreadable};
+    #
+    # SM993 (ruled 2026-10-12, Finding 4, "Fix both as recommended"): `auth:
+    # manager` is enforced by the manager path's own gate and by nothing else, so
+    # on a content page it served the page to anonymous visitors. Outside the
+    # manager path it is UNREADABLE, by the reader's own words.
+    my %unreadable = %{ ref $auth_meta->{unreadable} eq 'HASH' ? $auth_meta->{unreadable} : {} };
+    if ( !$in_manager && ( $auth_meta->{auth} // '' ) eq 'manager' ) {
+        $unreadable{auth} = _access_keys_read( "auth: manager\n", 'content' )->{unreadable}{auth};
+    }
+    if (%unreadable) {
+        my $u = \%unreadable;
         for my $k ( sort keys %$u ) {
             log_event( 'WARN', $uri, 'access key unreadable - page refused to everyone',
                 key => $k, why => $u->{$k} );
@@ -230,6 +242,18 @@ sub check_auth {
             auth_denied_reason => 'unreadable_access_key',
         };
     }
+
+    # SM993 (ruled 2026-10-12, Finding 3, "Fix both as recommended"): AUTH_GROUPS
+    # MEANS SIGNED IN. With `auth: none` (the default) or `optional` the group
+    # test below never ran for an anonymous visitor - nor, for `none`, for anyone
+    # - so the page went to the public while a signed-in non-member was refused.
+    # A page naming groups is read as `auth: required`. Not on a PAID page: there
+    # auth_groups is the list that skips payment (docs/payment, check_payment)
+    # and everyone else is charged, which stays as it was. Not under the manager
+    # path, whose own gate decides.
+    my @required = @{ $auth_meta->{groups} // [] };
+    $auth_level = 'required'
+        if @required && !$in_manager && ( $auth_meta->{payment} // '' ) ne 'required';
 
     # For 'none' pages, return auth context without enforcement
     if ( $auth_level eq 'none' ) {
@@ -249,7 +273,6 @@ sub check_auth {
     }
 
     # Group check
-    my @required = @{ $auth_meta->{groups} // [] };
     if ( $authenticated && @required ) {
         my %user_groups = map  { lc($_) => 1 } split /\s*,\s*/, $auth_groups;
         my $in_group    = grep { $user_groups{ lc($_) } } @required;

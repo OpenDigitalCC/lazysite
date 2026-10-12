@@ -137,11 +137,13 @@ Template::Plugin::JSON module, which is not bundled; prefer `json:`.)
 
 `auth`
 : Authentication requirement. `required`, `optional`, or `none`
-  (default).
+  (default). Never `manager` on a content page: it refuses the page to
+  everyone.
 
 `auth_groups`
 : List of group names, as a block list or inline (`[a, b]`). User must be
-  in one of them. A value that is not a list of group names (a bare name,
+  signed in and in one of them, whatever `auth:` says (on a paid page, the
+  members who skip payment). A value that is not a list of group names (a bare name,
   `[]`) refuses the page to everyone - run `lazysite validate`.
 
 `payment`

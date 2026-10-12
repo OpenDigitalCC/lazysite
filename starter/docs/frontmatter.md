@@ -124,10 +124,10 @@ when you write it, and downgraded to `text/plain` if one already exists.
 ## Access keys
 
 `auth`
-: Authentication requirement: `required`, `optional`, or `none` (default). See [Authentication](/docs/auth).
+: Authentication requirement: `required`, `optional`, or `none` (default). `manager` is for the manager's own pages; on any other page it refuses the page to everyone. See [Authentication](/docs/auth).
 
 `auth_groups`
-: Group names; the user must be signed in and in at least one to view the page. A block list or an inline `[a, b]`; a value that is not a list of group names refuses the page to everyone (403), and `lazysite validate` reports it.
+: Group names; the user must be signed in and in at least one to view the page, whatever `auth:` says (on a paid page they are the members who skip payment). A block list or an inline `[a, b]`; a value that is not a list of group names refuses the page to everyone (403), and `lazysite validate` reports it.
 
 `admin_bar`
 : Set to `none` to stop the engine injecting the manager's admin bar on this

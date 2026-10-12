@@ -437,6 +437,19 @@ Archive
   restored" and the action's audit row, and `data_restored` gains
   `authors_kept`. A package built before this carries none, and its rows are
   the applier's. t/unit/data/70, lint 137.
+- SM993 (PENDING) **security: `auth_groups` means signed in, and `auth: manager`
+  stays in the manager** (ruled 2026-10-12, "Fix both as recommended"). A page
+  naming `auth_groups` with `auth: none` (the default) or `optional` was served
+  to anonymous visitors - with `none`, to everyone - and listed; a content page
+  saying `auth: manager` was served to anyone. **Behaviour change:** a page
+  naming `auth_groups` sends an anonymous visitor to sign in and refuses a
+  non-member, whatever its `auth:` says, and leaves anonymous scans and the
+  registries; a paid page keeps the list as its payment bypass. `auth: manager`
+  outside the manager path answers 403 to everyone, logged, in no listing, and
+  `lazysite validate` reports it. Three shipped docs pages (`ai-connector-setup`,
+  `ai-connector-tools`, `onboarding-brief-template`) said `auth: manager` and
+  now say `auth: required`. t/integration/130.
+
 - SM992 (PENDING) **security: an edit lock needs write access** (ruled
   2026-10-12, "Lock needs write access"). `lock` asked no file rule, so any
   manager account could lock any file and block its writers until the lock

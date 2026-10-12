@@ -1,6 +1,6 @@
 ---
 title: AI connector - tools reference
-auth: manager
+auth: required
 search: false
 ---
 

@@ -319,6 +319,11 @@ Values:
   users.
 - `none` - no auth check. This is the default.
 
+`auth: manager` belongs to the manager's own pages, whose gate enforces it.
+On any other page it would enforce nothing, so the page is refused to everyone
+(403, logged) and `lazysite validate` reports it: write `auth: required`, with
+`auth_groups` to say who.
+
 ### Group restrictions
 
 ```yaml
@@ -332,7 +337,12 @@ auth_groups:
 ```
 
 The user must be authenticated AND in at least one listed group.
-Users in the wrong group see the 403 page.
+Users in the wrong group see the 403 page. A page that names `auth_groups`
+is a signed-in page whatever its `auth:` says - with `auth: none`, `optional`
+or no `auth:` at all, an anonymous visitor is sent to sign in. The one
+exception is a paid page (`payment: required`), where `auth_groups` is the
+list of members who skip payment and everyone else is charged - see
+[Payment](/docs/payment).
 
 The list may also be written inline, `auth_groups: [admins, editors]`;
 the two forms mean the same. A value the engine cannot read as a list of

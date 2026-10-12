@@ -43,15 +43,15 @@ sub put {
 # A page carrying one of EVERY key the audit found a verbatim `.md` would
 # publish for the first time, so the withholding assertions below are about a
 # real shape rather than a convenient one.
-# SM980: auth_groups as a LIST - a single bare name is unreadable now and
-# refuses the page to everyone, which is not what this page is for.
+# SM993: auth_groups makes a page signed-in whatever its `auth:` says, so the
+# group name is carried by members.md below, read as a member; this page stays
+# public, which is what the cache assertions need.
 put( 'open.md', <<'MD' );
 ---
 title: "Open: a page"
 subtitle: A live [% client_ip %] subtitle
 description: What this page is
 auth: none
-auth_groups: [SECRET-GROUP-NAME]
 query_params:
   - SECRET-PARAM
 tt_page_var:
@@ -65,6 +65,7 @@ api: false
 
 THE-PROSE-ANYONE-MAY-READ
 MD
+put( 'members.md', "---\ntitle: Members\nauth_groups: [SECRET-GROUP-NAME]\n---\n\nMEMBERS-PROSE\n" );
 put( 'gated.md', "---\ntitle: Gated\nauth: required\n---\n\nGATED-PROSE\n" );
 put( 'bare.md',  "Just prose, no front matter at all.\n" );
 # Non-ASCII written as EXPLICIT codepoints, never as literal characters in this
@@ -115,9 +116,13 @@ subtest 'THE ALLOWLIST: three keys travel' => sub {
 
 subtest 'AND EVERYTHING ELSE IS WITHHELD' => sub {
     my $b = body_of( fetch('/open.md') );
+    # SM993: the group name, from a page its member reads.
+    my $m = body_of( run_processor( $d, '/members.md', HTTP_X_REMOTE_USER => 'rita',
+            HTTP_X_REMOTE_GROUPS => 'SECRET-GROUP-NAME', LAZYSITE_AUTH_TRUSTED => 1 ) // '' );
+    like( $m, qr/MEMBERS-PROSE/, 'a member reads the members page as markdown' );
+    unlike( $m, qr/SECRET-GROUP-NAME/, 'withheld: auth_groups - the name of a group' );
     # Each of these is a real key on a real shipped page, named in the audit.
     for my $secret (
-        [ 'SECRET-GROUP-NAME',       'auth_groups - the name of a group' ],
         [ 'SECRET-PARAM',            'query_params - the prefill allowlist' ],
         [ 'SECRET-BINDING',          'tt_page_var - the data bindings' ],
         [ 'SECRET-PAYMENT-ADDRESS',  'payment_address' ],

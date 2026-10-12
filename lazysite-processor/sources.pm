@@ -892,6 +892,12 @@ sub _scan_hidden {
     my $meta  = peek_auth($abs);
     return 1 if $meta->{unreadable};    # SM980: an access key it cannot read hides it
     my $level = $meta->{auth} || peek_conf_key('auth_default') || 'none';
+    # SM993: auth_groups means signed in (on a paid page it is the payment
+    # bypass), and `auth: manager` is in no listing - a manager page is not
+    # content, and on a content page it is refused to everyone.
+    $level = 'required'
+        if @{ $meta->{groups} // [] } && ( $meta->{payment} // '' ) ne 'required' && $level ne 'manager';
+    return 1 if $level eq 'manager';
     return 0 if $level eq 'none';
     return 1 unless length $user;
 
@@ -911,6 +917,12 @@ sub _registry_hidden {
     my $meta  = peek_auth($abs);
     return 1 if $meta->{unreadable};    # SM980: refused to everyone, listed nowhere
     my $level = $meta->{auth} || peek_conf_key('auth_default') || 'none';
+    # SM993: auth_groups means signed in (on a paid page it is the payment
+    # bypass), and `auth: manager` is in no listing - a manager page is not
+    # content, and on a content page it is refused to everyone.
+    $level = 'required'
+        if @{ $meta->{groups} // [] } && ( $meta->{payment} // '' ) ne 'required' && $level ne 'manager';
+    return 1 if $level eq 'manager';
     return $level eq 'none' ? 0 : 1;
 }
 

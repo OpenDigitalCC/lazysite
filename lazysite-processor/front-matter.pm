@@ -199,11 +199,20 @@ sub _parse_sections {
 # $fm is the front-matter text. Returns { auth, auth_groups, payment,
 # unreadable }; a key that is absent is undef and unreadable says nothing of it.
 #
+# SM993 (ruled 2026-10-12, Findings 3+4, "Fix both as recommended"): $where
+# says where the page is, when the caller knows - 'manager' for a page under the
+# manager path, 'content' for any other. `auth: manager` is enforced only by
+# the manager path's own gate; on a content page it enforced nothing (served to
+# anonymous visitors), so there it is UNREADABLE and the page is refused to
+# everyone. A caller that does not know ($where undef - the gate's peek, keyed
+# by file) reads it as before and check_auth, which has the URI, applies this
+# by asking the reader again with 'content'.
+#
 # MARKED COPY (ADR 0001): Lazysite::Validate::read_access_keys is this reading
 # for `lazysite validate` and validate_page, which cannot load the processor.
 # t/lint/220 runs both over the same texts. Change one, change both.
 sub _access_keys_read {
-    my ($fm)  = @_;
+    my ( $fm, $where ) = @_;
     my %out   = ( unreadable => {} );
     my @lines = split /\r?\n/, ( $fm // '' );
     my $NAME  = qr/\A[A-Za-z0-9_.-]+\z/;
@@ -227,7 +236,11 @@ sub _access_keys_read {
         if ( $key eq 'auth' || $key eq 'payment' ) {
             my $v = lc $clean->($rest);
             my @ok = $key eq 'auth' ? qw(required optional none manager) : qw(required none);
-            if ( grep { $_ eq $v } @ok ) { $out{$key} = $v }
+            if ( $key eq 'auth' && $v eq 'manager' && defined $where && $where ne 'manager' ) {
+                $out{unreadable}{auth} = "'auth: manager' applies only to the manager's own pages - "
+                    . 'on this page it enforces nothing; write auth: required (and auth_groups to name who)';
+            }
+            elsif ( grep { $_ eq $v } @ok ) { $out{$key} = $v }
             else {
                 $out{unreadable}{$key} = length $v
                     ? "'$key: $v' is not one of " . join( ', ', @ok )

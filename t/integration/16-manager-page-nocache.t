@@ -31,11 +31,13 @@ open my $nf, '>', "$d/404.md" or die $!;
 print $nf "---\ntitle: NF\n---\nNF.\n";
 close $nf;
 
-# A public page and an auth: manager page.
+# A public page and an auth: manager page. SM993: under the manager path, where
+# `auth: manager` means something - on a content page it refuses everyone.
 open my $pub, '>', "$d/public.md" or die $!;
 print $pub "---\ntitle: Public\n---\nHello.\n";
 close $pub;
-open my $mgr, '>', "$d/panel.md" or die $!;
+make_path("$d/manager");
+open my $mgr, '>', "$d/manager/panel.md" or die $!;
 print $mgr "---\ntitle: Panel\nauth: manager\n---\nManager only.\n";
 close $mgr;
 
@@ -45,10 +47,10 @@ like( $pubout, qr/Hello\./, 'public page renders' );
 ok( -f "$d/public.html", 'a public (auth: none) page IS written to the .html cache' );
 
 # --- an auth: manager page is NOT cached, even for an authenticated manager -----
-my $mgrout = run_processor( $d, '/panel',
+my $mgrout = run_processor( $d, '/manager/panel',
     HTTP_X_REMOTE_USER => 'alice', HTTP_X_REMOTE_GROUPS => '' );
 like( $mgrout, qr/Manager only\./, 'manager page renders for an authenticated manager' );
-ok( !-f "$d/panel.html",
+ok( !-f "$d/manager/panel.html",
     'an auth: manager page is NOT written to the shared cache (menu re-renders per request)' );
 
 done_testing;

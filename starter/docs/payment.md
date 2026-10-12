@@ -77,7 +77,8 @@ auth_groups:
 
 Authenticated users in `members` or `sponsors` see the content
 without paying. All other users (including unauthenticated) see the
-402 payment page.
+402 payment page. On a paid page this is what `auth_groups` means; on
+any other page it makes the page a signed-in page for those groups.
 
 ## Custom 402 page
 

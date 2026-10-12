@@ -1,6 +1,6 @@
 ---
 title: Onboarding brief template (operator)
-auth: manager
+auth: required
 search: false
 ---
 

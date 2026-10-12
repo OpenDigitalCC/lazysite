@@ -109,7 +109,15 @@ front matter) for the same flow-list fail-open, and fix within the same rule.
   with `---` declares none (the peek used to read an `auth:` line from the top of
   such a page's body).
 
-# Found, not changed (a ruling is needed)
+# Found, not changed - ruled 2026-10-12, built as [[SM993]]
+
+Release manager, 2026-10-12, Findings 3+4, "Fix both as recommended":
+auth_groups always implies sign-in (auth: optional + auth_groups -> anonymous
+refused, as auth: required); `auth: manager` on a content page (outside the
+manager path) is unreadable -> refuses everyone, logged, and `lazysite
+validate` reports it (extend SM980's single reader and its marked copy; lint
+220 keeps the copies equal). A paid page keeps `auth_groups` as its payment
+bypass list (SM993 says why).
 
 - **`auth_groups` binds only a signed-in request unless `auth: required`.** With
   `auth: none` (the default) or `optional`, `check_auth` returns before the group

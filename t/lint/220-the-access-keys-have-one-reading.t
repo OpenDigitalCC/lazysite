@@ -28,8 +28,9 @@ my $d = site_tempdir();
 setup_minimal_site($d);
 load_processor($d);
 
-sub proc { my $t = $_[0]; utf8::upgrade($t); return main::_access_keys_read($t) }
-sub lib  { return Lazysite::Validate::read_access_keys( $_[0] ) }
+# SM993: both take where the page is - undef (unknown), 'content' or 'manager'.
+sub proc { my ( $t, $w ) = @_; utf8::upgrade($t); return main::_access_keys_read( $t, $w ) }
+sub lib { return Lazysite::Validate::read_access_keys( $_[0], $_[1] ) }
 
 my @TEXTS = (
     "auth: required\nauth_groups:\n  - readers\n  - sysops\n",
@@ -70,7 +71,10 @@ my @TEXTS = (
     "",
 );
 for my $t (@TEXTS) {
-    is_deeply( proc($t), lib($t), 'one reading: ' . ( $t =~ s/\n/\\n/gr ) );
+    for my $w ( undef, 'content', 'manager' ) {
+        is_deeply( proc( $t, $w ), lib( $t, $w ),
+            'one reading (' . ( $w // 'anywhere' ) . '): ' . ( $t =~ s/\n/\\n/gr ) );
+    }
 }
 
 subtest 'the pin can see a difference at all' => sub {
@@ -80,13 +84,16 @@ subtest 'the pin can see a difference at all' => sub {
     is_deeply( proc("auth_groups: [a, b]\n")->{auth_groups}, [qw(a b)], 'the flow list is read' );
     ok( proc("auth_groups: a\n")->{unreadable}{auth_groups}, 'a bare name is not a list' );
     ok( proc("auth: \"x\"\n")->{unreadable}{auth}, 'an unknown auth value is unreadable' );
+    ok( proc( "auth: manager\n", 'content' )->{unreadable}{auth}, 'auth: manager on a content page is unreadable' );
+    is( proc( "auth: manager\n", 'manager' )->{auth}, 'manager', 'and read under the manager path' );
+    is( proc("auth: manager\n")->{auth}, 'manager', 'and where the reader is not told' );
 };
 
 # A seeded generator: fragments a hand-rolled reader gets wrong, combined.
 my @FRAG = (
     'auth_groups: [a, b]', "auth_groups:\n  - a\n  - b", 'auth_groups: a', 'auth_groups: []',
     "auth_groups:\n  - 'a'", 'auth_groups: ["a" , b ] # c', "auth_groups:\n  - a\n  x: y",
-    'auth: required', 'auth: "optional"', 'auth: none', 'auth: yes', 'auth:', 'AUTH: Required',
+    'auth: required', 'auth: manager', 'auth: "optional"', 'auth: none', 'auth: yes', 'auth:', 'AUTH: Required',
     'payment: required', 'payment: "Required"', 'payment: maybe', 'title: T', 'form: f',
     "query_params:\n  - q", "tags:\n  - auth_groups", '# a comment', '',
 );
@@ -94,7 +101,8 @@ srand(980);
 for my $n ( 1 .. 300 ) {
     my $t = join "\n", map { $FRAG[ int rand @FRAG ] } 1 .. 1 + int rand 5;
     $t .= "\n";
-    my ( $p, $l ) = ( proc($t), lib($t) );
+    my $w = ( undef, 'content', 'manager' )[ int rand 3 ];
+    my ( $p, $l ) = ( proc( $t, $w ), lib( $t, $w ) );
     is_deeply( $p, $l, "generated #$n" ) or do { diag( 'text: ' . ( $t =~ s/\n/\\n/gr ) ); last };
 }
 

@@ -198,8 +198,10 @@ sub parse_front_matter {
 # share; this one serves `lazysite validate` and validate_page, which cannot
 # load the processor. t/lint/220 runs both over the same texts. Change one,
 # change both. Returns { auth, auth_groups, payment, unreadable => { key => why } }.
+# SM993: $where is 'manager' or 'content' when the caller knows where the page
+# is, and `auth: manager` on a content page is unreadable (see the original).
 sub read_access_keys {
-    my ($fm)  = @_;
+    my ( $fm, $where ) = @_;
     my %out   = ( unreadable => {} );
     my @lines = split /\r?\n/, ( $fm // '' );
     my $NAME  = qr/\A[A-Za-z0-9_.-]+\z/;
@@ -223,7 +225,11 @@ sub read_access_keys {
         if ( $key eq 'auth' || $key eq 'payment' ) {
             my $v = lc $clean->($rest);
             my @ok = $key eq 'auth' ? qw(required optional none manager) : qw(required none);
-            if ( grep { $_ eq $v } @ok ) { $out{$key} = $v }
+            if ( $key eq 'auth' && $v eq 'manager' && defined $where && $where ne 'manager' ) {
+                $out{unreadable}{auth} = "'auth: manager' applies only to the manager's own pages - "
+                    . 'on this page it enforces nothing; write auth: required (and auth_groups to name who)';
+            }
+            elsif ( grep { $_ eq $v } @ok ) { $out{$key} = $v }
             else {
                 $out{unreadable}{$key} = length $v
                     ? "'$key: $v' is not one of " . join( ', ', @ok )
@@ -275,17 +281,47 @@ sub read_access_keys {
 # SM980: an access key the gate cannot read refuses the page to EVERYONE (403,
 # and a log line naming the key) - so the validator says so before a visitor
 # finds out. An issue, not a warning: the page will not serve.
+#
+# SM993: $where is _page_place's answer, so `auth: manager` on a content page is
+# reported too.
 sub _check_access_keys {
-    my ( $issues, $fm ) = @_;
-    my $u = read_access_keys($fm)->{unreadable};
+    my ( $issues, $fm, $where ) = @_;
+    my $u = read_access_keys( $fm, $where )->{unreadable};
     for my $k ( sort keys %$u ) {
         push @$issues, { kind => 'access-key-unreadable', key => $k,
             message => "$u->{$k}, so the page is refused to everyone (403) until it is "
                 . ( $k eq 'auth_groups'
                 ? 'a list of group names - [a, b], or one "- name" line each'
-                : 'one of the values listed' ) };
+                : $u->{$k} =~ /auth: manager/ ? 'changed as it says'
+                :                               'one of the values listed' ) };
     }
     return;
+}
+
+# SM993: where a page is, for read_access_keys - 'manager' for a page under the
+# manager path (lazysite.conf's manager_path, /manager by default), 'content'
+# for any other, undef when the caller named no path (validate_page given only
+# text). A path under the docroot is read from the docroot; any other path - a
+# file named on the command line, an MCP page path - is under the manager path
+# when one of its directories is the manager path's.
+sub _page_place {
+    my ( $path, $docroot, $lz ) = @_;
+    return undef unless defined $path && length $path;
+    my $mp = 'manager';
+    if ( defined $lz && length $lz && open my $fh, '<', "$lz/lazysite.conf" ) {
+        while ( my $l = <$fh> ) {
+            next unless $l =~ m{\A\s*manager_path\s*:\s*"?/*([^\s"#]*?)/*"?\s*(?:#.*)?\s*\z};
+            $mp = $1 if length $1;
+            last;
+        }
+        close $fh;
+    }
+    my $rel = $path;
+    if ( defined $docroot && length $docroot && index( $rel, "$docroot/" ) == 0 ) {
+        $rel = substr( $rel, length($docroot) + 1 );
+        return $rel =~ m{\A/*\Q$mp\E/} ? 'manager' : 'content';
+    }
+    return $rel =~ m{(?:\A|/)\Q$mp\E/} ? 'manager' : 'content';
 }
 
 # SM488: a warning's line number counts from the top of the FILE, so a scan
@@ -700,7 +736,7 @@ sub validate_content {
     my $h = parse_front_matter($fm);
 
     _check_front_matter( \@issues, \@warnings, $content, $h );
-    _check_access_keys( \@issues, $fm );    # SM980
+    _check_access_keys( \@issues, $fm, _page_place( $o{path}, $docroot, $lz ) ); # SM980, SM993
     _check_fences( \@warnings, $fm, $body );
     # SM900: with the front-matter offset, as _check_fences has always done, so
     # the two checks on one page count from the same place - the top of the file.

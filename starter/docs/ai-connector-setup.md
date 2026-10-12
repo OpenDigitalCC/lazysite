@@ -1,6 +1,6 @@
 ---
 title: Connect an AI assistant
-auth: manager
+auth: required
 search: false
 ---
 
