@@ -185,7 +185,9 @@ function load() {
   fetch(API + '?action=schedule-list')
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (!d.ok) { showStatus(d.error, true); return; }
+      // SM1010 R5: an account holding only Notifications reaches the handlers
+      // and not the schedule; that is the grant, not a fault to announce.
+      if (!d.ok) { if (d.kind !== 'forbidden') showStatus(d.error, true); return; }
       SCHEDULE = d.schedule || [];
       FLOOR = d.floor || 300;
       renderSchedule();

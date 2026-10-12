@@ -13,8 +13,9 @@ which forms call which, and what the timer calls - and the control API, MCP and
 
 It is not on the menu (SM957: set up once, not used daily). It is reached from
 the Extensions page and from each form on the Submissions page, which opens that
-form's card. The page is offered to an account holding any of Forms, Data or
-Connectors.
+form's card. The page is offered to an account holding any of Forms, Data, Connectors or
+Notifications (SM1010 R5); an account holding only Notifications sees and
+changes only notification rules, and not the schedule or the form bindings.
 What that account may change depends on **where each handler sends**: a table
 handler needs Data, a connector handler Connectors, an email or file handler
 Forms.

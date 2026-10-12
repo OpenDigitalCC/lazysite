@@ -193,6 +193,15 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
+- SM1010 R5 (PENDING) **`manage_notifications` reaches the Handlers page on its
+  own.** A group holding only the capability that writes notification rules
+  could not open the page they are written on: the handler actions asked for
+  manage_forms, manage_data or manage_connectors. It now opens handler-list,
+  handler-save and handler-delete on both doors, and is shown, and may write or
+  delete, only notify handlers - not the site's other handlers, their settings
+  or the form bindings. The schedule actions and binding are unchanged.
+  t/integration/195.
+
 - SM1042 (PENDING) **a member sets up their own two-factor; a manager can only
   reset it.** `/account` gains "Two-factor sign-in": set up with the current
   password, confirm with a code from the app, turn off or make new recovery

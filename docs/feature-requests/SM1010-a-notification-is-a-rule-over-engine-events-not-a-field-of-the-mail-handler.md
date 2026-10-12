@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-12
 raised-by: release manager, from the news site's reports (inbox 2026-10-11, archived), 2026-10-12
 area: notifications
-status-note: "Ruled 2026-10-12. Phase 0 built (SM1017). Phase 1 built: verified actor (SM1018), notify handler + manage_notifications (SM1019), notify-outbox job, email, per-member bell with F3 (SM1020). Remains: Q7 folding, a member bell surface (SM1034), Q5 handler-row state, one-click unsubscribe, the handler door, phases 2-3. See Built."
+status-note: "Ruled 2026-10-12. Phase 0 built (SM1017). Phase 1 built: verified actor (SM1018), notify handler + manage_notifications (SM1019), notify-outbox job, email, per-member bell with F3 (SM1020). Member bell on /account (SM1044) and the handler door (R5) built. Remains: Q7 folding, Q5 handler-row state, one-click unsubscribe, phases 2-3. See Built."
 ---
 
 # Ruled
@@ -58,6 +58,7 @@ overrides a recommendation below, the ruling stands.
 | B4 | The `notify-outbox` job: resolve, leave out the actor, per-recipient cap, ledger (sent once each), audit per recipient, email with RFC 2047 Subject and List-Unsubscribe, TT templates | SM1020, n443 |
 | B5 | The per-member bell and F3's reader filter | SM1020, n444 |
 | B6 | R2: a member reads the notices addressed to them on `/account` (`me-notices`), never a broadcast | SM1044, n502 |
+| B7 | R5: `manage_notifications` opens handler-list, -save and -delete on both doors, and sees and writes only notify handlers (ruled with SM1034 Q9) | n504 |
 
 Not built, in order of need (each a candidate for its own filing):
 
@@ -67,7 +68,7 @@ Not built, in order of need (each a candidate for its own filing):
 | R2 | A member surface for the bell | built as SM1044 (B6), under SM1034 |
 | R3 | Q5: the handler's row shows no "waiting for the scheduler" or last outcome; the outbox and `notify/failed/` are not shown in the manager | build |
 | R4 | One-click unsubscribe (an engine POST endpoint); today the link and header point at the operator's own page | build |
-| R5 | The handler actions' door admits manage_forms, manage_data or manage_connectors; a group holding only manage_notifications cannot reach it | a ruling (widens the door) |
+| R5 | The handler door for manage_notifications | built (B7), ruled 2026-10-12 with SM1034 Q9 |
 | R6 | The operator group (tmp/wt-a) should carry manage_notifications when it lands; today the sysop (manager) groups hold it by top-up | B-side of that branch |
 | R7 | Phase 2 (event points, chains.conf) and phase 3 (row events, per-account XMPP, digests, connector channel) | as briefed |
 

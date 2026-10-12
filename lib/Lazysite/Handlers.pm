@@ -1169,10 +1169,25 @@ sub form_account_email {
 # --- the actions (every surface calls these) ---------------------------------
 
 sub action_handler_list {
+    my (%who) = @_;
     my $all = read_handlers();
     return { ok => 0, error => _unreadable('handlers.conf') } unless defined $all;
-    my $b   = bindings()      // {};
-    my $s   = read_schedule() // [];
+    my $b = bindings()      // {};
+    my $s = read_schedule() // [];
+
+    # SM1010 R5 (ruled 2026-10-12 with SM1034 Q9): manage_notifications opens
+    # this door on its own, and the destination rule keeps it to what it may
+    # configure. A caller holding none of the three capabilities that opened it
+    # before is shown only the handlers whose type it governs (notify), and not
+    # the site's form bindings - binding is manage_forms'. A caller who passes no
+    # grant (the daemon, the CLI) and every caller who held the door before see
+    # the list exactly as they did.
+    my $narrow = %who && !$who{unconstrained}
+        && !grep { ( $who{caps} || {} )->{$_} } qw(manage_forms manage_data manage_connectors);
+    if ($narrow) {
+        $all = [ grep { my $c = cap_for_type( $_->{type} ); defined $c && ( $who{caps} || {} )->{$c} } @$all ];
+        $b = {};
+    }
     my @out = map {
         my %h = %$_;
         $h{enabled} = enabled($_) ? JSON::PP::true : JSON::PP::false;

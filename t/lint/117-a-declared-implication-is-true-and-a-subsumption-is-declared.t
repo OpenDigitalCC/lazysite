@@ -30,6 +30,12 @@ for my $c ( action_keys() ) {
 
 my %EXEMPT = (
     'manage_services<manage_config' => 'config-set needs manage_config AND manage_services for a service key - a conjunction, not a hierarchy',
+    # SM1010 R5: all four open the handler actions' door, and the destination
+    # rule inside decides which TYPE each may configure - manage_forms cannot
+    # write a notify handler, manage_notifications cannot write any other.
+    'manage_notifications<manage_forms'      => 'the handler door is shared; the type each may write is not (Handlers::cap_for_type)',
+    'manage_notifications<manage_data'       => 'the handler door is shared; the type each may write is not (Handlers::cap_for_type)',
+    'manage_notifications<manage_connectors' => 'the handler door is shared; the type each may write is not (Handlers::cap_for_type)',
 );
 
 subtest 'every declared implication is backed by the unlock lists' => sub {

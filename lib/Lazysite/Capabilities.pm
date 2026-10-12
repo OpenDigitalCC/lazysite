@@ -318,9 +318,11 @@ my %ACTION_INFO = (
     # addresses held in a table, fixed addresses, the submitter - so authoring
     # one is its own decision, off by default and held by the operator (manager)
     # groups, which are topped up with every capability. It is asked by the
-    # handler contract (cap_for_type 'notify'), not by an action gate: the
-    # handler actions' door is unchanged (manage_forms, manage_data or
-    # manage_connectors), so the map claims no action of its own.
+    # handler contract (cap_for_type 'notify'). SM1010 R5 (ruled 2026-10-12, with
+    # SM1034 Q9): it also opens the handler actions' door - list, save, delete -
+    # and the contract keeps it to notify handlers: a holder without
+    # manage_forms, manage_data or manage_connectors is shown only the handlers
+    # it may configure, and may save or delete only those.
     manage_notifications => {
         section => 'Site',
         title   => 'Write notification rules: notify handlers, which mail and bell '
@@ -330,8 +332,11 @@ my %ACTION_INFO = (
             . 'engine guards technical safety (one address per recipient, queued '
             . 'and sent once, a per-recipient cap, an audit row each) and whether a '
             . 'recipient may be written to is the operator\'s responsibility.',
-        grants => 'Create, change and delete notify handlers (with one of manage_forms, manage_data or manage_connectors to reach the handler actions at all, and manage_forms to bind one to a form). Off by default; held by the operator groups.',
-        unlocks => {},
+        grants => 'Create, change and delete notify handlers on the Handlers page or its actions, which it reaches on its own (SM1010 R5) and where it sees only notify handlers unless another handler capability shows more; binding one to a form needs manage_forms. Off by default; held by the operator groups.',
+        unlocks => {
+            api => [qw(handler-list handler-save handler-delete)],
+            mcp => [qw(list_handlers save_handler delete_handler)],
+        },
     },
     manage_data => {
         section => 'Data',

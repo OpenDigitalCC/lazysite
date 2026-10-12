@@ -2141,7 +2141,8 @@ elsif ( $action eq 'nav-save' ) {
         $params{host} // $req->{host} );
 }
 elsif ( $action eq 'handler-list' ) {
-    $result = Lazysite::Handlers::action_handler_list();
+    # SM1010 R5: the grant decides which handler types are listed.
+    $result = Lazysite::Handlers::action_handler_list( _handler_who() );
     # SM1051: a confined caller is shown the instance's handlers and its own
     # domains' - not another domain's.
     if ( ref $result eq 'HASH' && ref $result->{handlers} eq 'ARRAY' ) {

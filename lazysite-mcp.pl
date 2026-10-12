@@ -1617,10 +1617,11 @@ my %TOOLS = (
     list_handlers => {
         description => 'List the delivery handlers - the named functions a form or the schedule calls - with each one\'s type, settings, whether it is enabled, the capability that governs it (cap), and what uses it (used_by: forms and schedule entries). Also returns `types`: every handler type with its fields, which is what save_handler accepts. A handler is created by whoever holds its destination\'s capability; binding a form to one that exists needs only manage_forms.',
         cap      => 'manage_forms',
-        cap_also => [ 'manage_data', 'manage_connectors' ],
+        cap_also => [ 'manage_data', 'manage_connectors', 'manage_notifications' ],
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub {
-            my $r = Lazysite::Handlers::action_handler_list();
+            # SM1010 R5: the grant decides which handler types are listed.
+            my $r = Lazysite::Handlers::action_handler_list( caps => $_[2] );
             # SM1051: the instance's handlers and the grant's own domains', no other.
             $r->{handlers} = [ grep { Lazysite::Manager::Common::caller_may_use_handler( $_, _grant_reach( $_[2] ) ) }
                     @{ $r->{handlers} } ]
@@ -1631,7 +1632,7 @@ my %TOOLS = (
     save_handler => {
         description => 'Create or replace a delivery handler by id. `type` is one of smtp (send email: from, to, subject_prefix, attach_files), file (save to a store: path), table (a row in a declared data table: table, fields as "form_field=column,...", keep_copy), or connector (send through a configured connector: connector). THE DESTINATION DECIDES: a table handler needs manage_data, a connector handler manage_connectors, smtp and file manage_forms - and changing a handler\'s type needs both. A field the type does not declare is refused by name. There is no webhook type: outbound HTTP goes through a connector. A `domain` (SM1051) binds the handler to one configured domain: a grant confined to some domains creates, changes and deletes only handlers of its own domains, and a handler with no domain is the instance\'s.',
         cap         => 'manage_forms',
-        cap_also    => [ 'manage_data', 'manage_connectors' ],
+        cap_also    => [ 'manage_data', 'manage_connectors', 'manage_notifications' ],
         inputSchema => {
             type                 => 'object',
             properties           => _handler_properties(),
@@ -1652,7 +1653,7 @@ my %TOOLS = (
     delete_handler => {
         description => 'Delete a delivery handler. Refused while any form or schedule entry uses it (the answer names them) - unbind those first. Needs the capability of the handler\'s destination.',
         cap         => 'manage_forms',
-        cap_also    => [ 'manage_data', 'manage_connectors' ],
+        cap_also    => [ 'manage_data', 'manage_connectors', 'manage_notifications' ],
         destructive => 1,
         inputSchema => { type => 'object',
             properties => { id => { type => 'string', description => 'the handler id' } },

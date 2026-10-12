@@ -210,9 +210,9 @@ our %GATE = (
         # SM842: handler CRUD on the token channel too, reversing SM799's
         # cookie-only rule - the release manager's ruling that the destination
         # decides, on every surface. See the cookie table for the door.
-    'handler-list'      => [qw(manage_forms manage_data manage_connectors)],
-    'handler-save'      => [qw(manage_forms manage_data manage_connectors)],
-    'handler-delete'    => [qw(manage_forms manage_data manage_connectors)],
+    'handler-list' => [qw(manage_forms manage_data manage_connectors manage_notifications)], # SM1010 R5
+    'handler-save' => [qw(manage_forms manage_data manage_connectors manage_notifications)], # SM1010 R5
+    'handler-delete' => [qw(manage_forms manage_data manage_connectors manage_notifications)], # SM1010 R5
     'schedule-list'     => [qw(manage_forms manage_data manage_connectors)],
     'schedule-save'     => [qw(manage_forms manage_data manage_connectors)],
     'schedule-delete'   => [qw(manage_forms manage_data manage_connectors)],
@@ -688,15 +688,15 @@ our %ACTION = (
     # domain rule (Manager::Common::handler_reach_refusal): a confined caller
     # saves and deletes only its own domains' handlers; an instance handler (no
     # domain) is still refused to it, as instance_wide refused it.
-    'handler-delete' => { mcp => 'delete_handler', mutates => 1, destructive => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 } ] },
+    'handler-delete' => { mcp => 'delete_handler', mutates => 1, destructive => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors|manage_notifications', params => [ { name => 'id', in => 'body', required => 1 } ] },
     # [cookie_cap] SM842: the door to the handler actions opens for any of the three
     # destination capabilities; Lazysite::Handlers then decides by the
     # handler's type (a table handler needs manage_data, a connector
     # handler manage_connectors, email and file manage_forms). Binding a
     # form to a handler that exists is manage_forms alone.
-    'handler-list' => { mcp => 'list_handlers', cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [] },
+    'handler-list' => { mcp => 'list_handlers', cookie_cap => 'manage_forms|manage_data|manage_connectors|manage_notifications', params => [] },
     # [mcp] save_handler: a bound handler's destination is live delivery
-    'handler-save' => { mcp => 'save_handler', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'type', in => 'body', required => 1, note => 'smtp, file, table or connector; handler-list returns each type\'s fields' }, { name => 'name', in => 'body', required => 1 }, { name => 'enabled', in => 'body' }, { name => 'domain', in => 'body', note => 'SM1051: a configured domain the handler belongs to; omit for an instance handler' } ] },
+    'handler-save' => { mcp => 'save_handler', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors|manage_notifications', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'type', in => 'body', required => 1, note => 'smtp, file, table or connector; handler-list returns each type\'s fields' }, { name => 'name', in => 'body', required => 1 }, { name => 'enabled', in => 'body' }, { name => 'domain', in => 'body', note => 'SM1051: a configured domain the handler belongs to; omit for an instance handler' } ] },
     'schedule-list' => { mcp => 'list_schedule', cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [] },
     # [mcp] save_schedule: what the timer calls
     'schedule-save' => { instance_wide => 1, mcp => 'save_schedule', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'handler', in => 'body', required => 1 }, { name => 'every', in => 'body', required => 1, note => 'seconds, at least 300' }, { name => 'payload', in => 'body', note => 'a flat object of fixed fields' }, { name => 'enabled', in => 'body' } ] },
