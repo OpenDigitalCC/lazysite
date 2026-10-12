@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11 20:00, correction: members can already own rows, item 1); WORK-PLAN-0154 P17; ruling of 2026-10-12
 area: data
-status-note: "SHIPPED (PENDING): resolve_binding's own-rows read - (mine), a signed-in viewer and the caller's mine_reads_own opt-in, which only the processor's per-viewer render passes - reads created_by = viewer past may_read; everything else refused as before (t/unit/data/71)."
+status-note: "SHIPPED (PENDING): resolve_binding's own-rows read - (mine), a signed-in viewer and the caller's mine_reads_own opt-in, which only the processor's per-viewer render passes - reads created_by = viewer past may_read; everything else refused as before (t/unit/data/71). SM982's `where:` applies to it too (ruled; t/unit/data/72)."
 ---
 
 # The ruling
@@ -49,12 +49,38 @@ filter. Every shape a binding has reads through that one filter: the list, its
 key the viewer does not own each answer over the viewer's own rows only - the
 test asserts each. Rows with an empty `created_by` match nobody.
 
-# Noted for the security stack
+# The row condition (SM982): ruled 2026-10-12
 
-SM982 (P1d, on the security agent's stack, not on main) adds an optional row
-condition to published tables. When it lands, whether the own-rows read also
-applies that condition is a question for its author; this read adds
-`created_by` and nothing else.
+SM982 (P1d, on the security stack n380..n387, not under this one) adds an
+optional row condition to published tables (`where: field = value` or
+`field != value`). The release manager ruled how the two meet, in these words:
+"Apply where: too" - a `(mine)` own-rows read still applies the published
+table's row condition, so a moderator-hidden row disappears for its author too.
+
+**The requirement.** The own-rows read is a visitor surface like any other: the
+table's `where:` is ANDed into its list, its `_total`, `.count` and `.field`,
+and a filter in the binding cannot widen it. A row the condition holds back is
+not shown to its author, not counted, and not reached by its key.
+
+**How it is met.** SM982 sets `$opt{condition}` from the descriptor in
+resolve_binding, in the one `%opt` every binding reads with, below the read
+gate - the own-rows read included; it builds no options of its own. So the two
+stacks meet it as they are, with no code here. Checked on this branch by
+applying SM982's data-layer change (e8b3dec6: Descriptor.pm, SQLite.pm,
+Tables.pm) uncommitted: it applies cleanly, the condition line lands in that
+`%opt`, and t/unit/data/72 and 71 pass.
+
+**What binds it.** t/unit/data/72 skips while the tree has no `where:`
+(`Descriptor::_check_where` absent) and runs once both are in: ann's own rows
+of a table read only by @editors, with `where: status != hidden`, leave out her
+hidden row - list, total, count, `.field` by its key, a binding filtering for
+`status=hidden`, and a rendered page. Two sabotages over the applied SM982,
+each failing all three subtests: the condition line removed, and the condition
+dropped for an own-rows read only (`&& !$own_only`). Files restored by cp,
+checked by cmp (tmp/sab-bak/P17-where/).
+
+Whoever lands the second of the two stacks re-runs t/unit/data/72: if the
+rebase moved the condition out of the shared `%opt`, it fails.
 
 # Tests
 

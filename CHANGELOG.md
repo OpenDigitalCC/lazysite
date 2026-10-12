@@ -319,7 +319,11 @@ Archive
   signed-in viewer even when the table's read rule excludes them - only those
   rows: its count, total and a row by key are counted over them alone. A
   binding without `(mine)`, an anonymous viewer, the data endpoint, the
-  manager, the API and MCP still follow the table's rule. t/unit/data/71.
+  manager, the API and MCP still follow the table's rule. A table's row
+  condition (`where:`, SM982) applies to the own-rows read as to every other
+  binding, so a row a moderator has hidden is hidden from its author too, and
+  is neither counted nor reached by key (ruled 2026-10-12, "Apply where: too";
+  t/unit/data/72 runs once SM982 is in the tree). t/unit/data/71.
 
 - SM1002 (PENDING) **a site can allow its own external hosts in the CSP.** A
   site embedding one legitimate external script (a banner whose script then
