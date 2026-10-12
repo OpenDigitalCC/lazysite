@@ -467,7 +467,7 @@ effective set.
 | `manage_layouts` | Layout activation and structure authoring |
 | `manage_config` | `config-set`; site configuration + plugin registry |
 | `manage_domains` | The multi-domain admin and portable site packages (split out of `manage_config`, SM160) |
-| `manage_users` | User/group administration; the unrestricted operator bypass |
+| `manage_users` | User/group administration only - not the operator (SM991: the operator is a member of the operator group, the group carrying the `manager` flag) |
 | `analytics` | Visitor-stats analysis (`analyse_visitors`) |
 | `audit` | The audit trail (its own capability, split from analytics) |
 | `notifications` | The manager notices bell - operator notifications such as form submissions and requests awaiting a response (SM136; seeded on `user-managers`) |

@@ -123,8 +123,12 @@ subtest 'the permissions grid shows a nested grant' => sub {
 
 subtest 'operator status is read from the store, and the header still works' => sub {
     my $d = nested_fixture();
+    # SM991: the operator is a member of the operator group (the `manager`
+    # flag), no longer whoever holds manage_users - so `parent` carries the flag
+    # and the closure question is asked of it.
+    cli( $d, 'group-set', 'parent', 'manager', 'on' );
 
-    # Store-side: sub1 holds manage_users only through the nesting closure, and
+    # Store-side: sub1 is in the operator group only through the nesting closure, and
     # supplies NO groups header at all.
     require Lazysite::Auth::Acl;
     local $Lazysite::Auth::Acl::DOCROOT    = $d;
@@ -135,7 +139,7 @@ subtest 'operator status is read from the store, and the header still works' => 
         'the store answers, with no header in play' );
 
     # Header-side: an identity the local store does not know at all, carrying a
-    # group that grants manage_users - a trusted proxy or SSO. Dropping this,
+    # group that is the operator group - a trusted proxy or SSO. Dropping this,
     # as the review suggested, would break that deployment.
     local $Lazysite::Auth::Acl::auth_user = 'from-idp';
     local $ENV{HTTP_X_REMOTE_GROUPS} = 'parent';

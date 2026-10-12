@@ -80,7 +80,8 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "layout: base\ntheme: live\ncontrol_api_enabled: true\n";
 close $cf;
 open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
-print $gsf '{"admins":{"label":"Admins","ui":1,"manage_users":1}}';
+# SM991: the operator group is the one carrying the `manager` flag.
+print $gsf '{"admins":{"label":"Admins","ui":1,"manage_users":1,"manager":1}}';
 close $gsf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!;
 print $sf 'sekret' x 6, "\n";

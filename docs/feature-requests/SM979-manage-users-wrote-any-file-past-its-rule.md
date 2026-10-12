@@ -152,6 +152,21 @@ compiled on every credential check):
   as are `mkdir` and an upload there.
 - `approve_accounts` is new, off by default.
 
+# Revised 2026-10-12 (SM991)
+
+Release manager, 2026-10-12, SM979 revised, "Operators bypass, others bound",
+with Finding 1, "do 1, and add an explicit operator group": manage_users stops
+implying every capability - it grants user and group management only (a
+manage_users-only session must NOT pass config-set etc.); members of an
+EXPLICIT operator group pass every capability gate AND bypass file rules (as
+manage_users did before SM979); everyone else - manage_users, approve_accounts,
+all others - is bound by file rules (keep n380's binding for them); local (CLI)
+and an unsecured site keep bypassing as in n380; tokens never count as the
+operator. Built as [[SM991]]: the operator group is the group carrying the
+`manager` flag (setup-sysop's `sysops`), and the two items this filing
+reported and left - manage_users passing the manager's capability gates, and
+`lock` asking no file rule - are SM991 and SM992.
+
 # Evidence
 
 t/integration/124 (reproduction first: 42 assertions fail on main; all pass

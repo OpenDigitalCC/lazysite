@@ -23,10 +23,13 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
    capability set and per-file ACLs.
 4. **Authored content + layouts** -> Template Toolkit evaluates them server
    side.
-5. **The manager operator** (cookie, `manage_users`) -> passes the manager's
-   capability gates. Since SM979 it does NOT pass per-file ACLs: a file's rule
-   binds it as it binds anyone; only `local` (the CLI) and an unsecured site
-   do.
+5. **The manager operator** (cookie, a member of the operator group - the
+   group carrying the `manager` flag, which setup-sysop makes) -> passes the
+   manager's capability gates and per-file ACLs (SM991). `manage_users` is
+   user and group management and nothing more: since SM979 a file's rule binds
+   it, and since SM991 it passes no other capability gate and cannot change the
+   operator's account or the operator group. `local` (the CLI) and an unsecured
+   site pass too; a token never does.
 6. **The served tree boundary** (SM286, 0.10.8) -> protected content is MOVED
    out of the document root into `<docroot>-lazysite-private`, so the boundary
    is now a filesystem one and not only a decision one. A front end that serves

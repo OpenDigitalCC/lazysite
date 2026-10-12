@@ -85,12 +85,22 @@ that file rather than this one is authoritative for the list.
 `manage_users`
 : The delegation capability. A holder can create accounts and edit groups. It is
   NOT the operator for granting: since SM195 a holder is bounded by the ceiling
-  below. On the manager's cookie channel it passes every capability gate.
-  **Files are not among them (SM979):** a file's access rule binds a holder like
-  anyone else - read, write, and changing somebody else's rule - so a sysop
-  group reaches a file by being named in its rule (the starter's rules name
-  `@sysops`). Only `local` (the CLI) and an unsecured site pass a file's rule
-  unnamed.
+  below. **It is user and group management and nothing more (SM991):** it
+  passes no other capability gate, a file's access rule binds it like anyone
+  else (SM979), and it does not change the operator's account (password, setup
+  link, credential, settings, removal) or the operator group (its members, its
+  flag, what is nested in it). It still manages every other account, not only
+  the ones it created.
+
+The operator group
+: The group carrying the `manager` flag - the one `setup-sysop` makes
+  (`sysops`, labelled "Site operator"). Its members are the OPERATOR on the
+  manager's cookie channel (SM991): they pass every capability gate, whatever
+  the group's own capabilities say, and every file rule. Only `local` sets the
+  flag or puts anyone in the group (the SM195 ceiling walks the flag with the
+  capabilities). An existing site's bootstrap group already carries the flag,
+  so an upgrade keeps its operator with nothing migrated. `local` (the CLI) and
+  an unsecured site are the operator too; a token never is.
 
 `approve_accounts`
 : Approve account requests (SM979): read the submissions of a form that declares

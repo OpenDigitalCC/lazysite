@@ -437,6 +437,20 @@ Archive
   restored" and the action's audit row, and `data_restored` gains
   `authors_kept`. A package built before this carries none, and its rows are
   the applier's. t/unit/data/70, lint 137.
+- SM991 (PENDING) **security: the operator is the operator group, and
+  `manage_users` is user and group management** (ruled 2026-10-12, "Operators
+  bypass, others bound"). A session holding only `manage_users` passed every
+  capability gate on the manager (`config-set` answered 200). **Behaviour
+  change:** the operator is a member of the group carrying the `manager` flag -
+  the group `setup-sysop` makes (`sysops`, "Site operator"), which an existing
+  site already has, so nothing migrates; its members pass every capability gate
+  and every file rule on the manager, as `local` and an unsecured site do; a
+  token never does. `manage_users` (the `user-managers` role included) passes no
+  other gate, is bound by file and table rules, and can no longer change the
+  operator's account (password, setup link, credential, settings, removal) or
+  the operator group (its members, flag or nesting); it still manages every
+  other account. `group-reach` names the operator group and says what
+  `manage_users` grants. t/integration/128.
 
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the

@@ -580,8 +580,8 @@ who may change them, and the manager, the API, MCP and the data endpoint all
 ask it: a read list the account is not in refuses its row reads and downloads,
 and a write list it is not in refuses its row saves, deletes, imports, restores,
 rebuilds and drops, with a reply naming the table's rule. Only the **operator**
--- the command line as `local`, an unsecured site, or a signed-in holder of
-`manage_users` -- is not asked. A **page** is never treated as an operator -- it
+-- the command line as `local`, an unsecured site, or a signed-in member of the
+operator group -- is not asked; `manage_users` alone is asked like anyone. A **page** is never treated as an operator -- it
 renders the same rows for whoever is looking at it, so what you see while signed
 in is what your visitors see. The one exception is a binding that says `(mine)`, which asks for the
 viewer's own rows -- see *A page that shows each viewer their own rows*, below.

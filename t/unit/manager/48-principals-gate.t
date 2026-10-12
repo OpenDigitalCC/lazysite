@@ -27,10 +27,10 @@ make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: T\n";
 close $cf;
-# 'managers' is the operator group (manage_users); seed it so _is_operator has a
-# manager group to recognise.
+# 'managers' is the operator group - SM991: the `manager` flag, not manage_users;
+# seed it so _is_operator has an operator group to recognise.
 open my $gs, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
-print $gs '{"managers":{"label":"M","ui":1,"manage_users":1}}';
+print $gs '{"managers":{"label":"M","ui":1,"manage_users":1,"manager":1}}';
 close $gs;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!;
 print $sf 'sekret' x 6;

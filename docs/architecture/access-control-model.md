@@ -87,7 +87,7 @@ this.
 | Owner of the file | always allowed |
 | User named in the mode's list | allowed (exact username) |
 | Member of an `@group` in the list | allowed. Case-insensitive, and **nested groups expand**, so membership can be indirect |
-| Operator (cookie, `manage_users`) | bypasses the ACL - **on the authoring surfaces only, never on the anonymous read path** |
+| Operator (cookie, a member of the operator group - SM991; never `manage_users` alone) | bypasses the ACL - **on the authoring surfaces only, never on the anonymous read path** |
 | `local` user | always operator |
 | Any user, on a site where no group grants manager access | operator - which is why the public path must not consult it |
 | Partner (token / MCP / WebDAV) | never an operator; groups resolve from the account |

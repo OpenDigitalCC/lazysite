@@ -34,6 +34,7 @@ use JSON::PP                  qw(encode_json decode_json);
 use Lazysite::Util            qw(log_event);
 use Lazysite::Capabilities    qw(reachability);
 use Lazysite::Auth::Settings  ();
+use Lazysite::Auth::Acl       ();
 use Lazysite::Manager::Common qw($auth_user $token_auth %token_caps
     users_api _users_tool_path _user_caps _operator _display_names _users_tool_run);
 use Lazysite::Manager::Themes   qw(_read_active_layout_and_theme action_theme_list);
@@ -251,6 +252,41 @@ sub action_principals {
     return { ok => 1, users => \@users, groups => \@groups, _display_names(@users) };
 }
 
+# SM991: the users-tool verbs that only READ. Everything else the Users API
+# passes on changes an account, a group or a credential.
+my %USERS_READ_ONLY = map { $_ => 1 } qw(
+    list groups users-detail users-page group-settings-get settings-get settings
+    permissions-grid capability-holders permissions credential-status keys-list
+    partner-caps audit-scope principals recent-changes sessions-list
+);
+
+# SM991: a refusal when a caller who is not the operator asks to change the
+# operator's account, or a group whose membership makes an operator; undef
+# otherwise. The names a verb can carry are all looked at - the account in
+# `username`; `group`, and a nest's `sub` and `parent` - so a verb added later
+# is covered by the parameter it takes.
+sub _operator_target_refusal {
+    my ( $act, $p ) = @_;
+    return undef if $USERS_READ_ONLY{$act};
+    {
+        my $u = $p->{username};
+        last unless defined $u && !ref $u && length $u;
+        return { ok => 0, kind => 'forbidden',
+            error => "'$u' is the site operator (a member of the operator group). "
+                . 'Only the operator changes the operator\'s account.' }
+            if Lazysite::Auth::Acl::account_is_operator($u);
+    }
+    for my $k (qw(group sub parent)) {
+        my $g = $p->{$k};
+        next unless defined $g && !ref $g && length $g;
+        return { ok => 0, kind => 'forbidden',
+            error => "'$g' is the operator group, or makes its members operators. "
+                . 'Only the operator changes it or who belongs to it.' }
+            if Lazysite::Auth::Acl::group_confers_operator($g);
+    }
+    return undef;
+}
+
 sub action_users {
     my ( $request_body, $params_ref ) = @_;
     # SM944 S32 (4), ruled 2026-10-10 ("Yes, all four"): THE ACCOUNT STORE IS
@@ -346,6 +382,21 @@ sub action_users {
                     unless $DELEGABLE{$act};
             }
 
+            # SM991 (ruled 2026-10-12, "Operators bypass, others bound"): THE
+            # OPERATOR'S ACCOUNT AND THE OPERATOR GROUP ARE THE OPERATOR'S.
+            # manage_users is user and group management, and the operator is
+            # no longer whoever holds it - so a holder that could reset the
+            # operator's password, mint it a credential or a setup link, or
+            # put itself in the operator group would become the operator by
+            # one call. The users tool's ceiling already refuses JOINING the
+            # operator group to anyone but `local` (it walks the `manager`
+            # flag with the capabilities); this refuses the rest, for every
+            # caller who is not the operator: any change to an account that
+            # is the operator, or to a group whose membership makes one.
+            if ( $auth_user ne 'local' && !_operator() ) {
+                if ( my $r = _operator_target_refusal( $act, $parsed ) ) { return $r }
+            }
+
             # SM195: group-settings-set now enforces a per-capability ceiling in
             # the tool (a non-operator may confer only what they hold, or what an
             # operator put in their groups' grantable set) - so the tool has to
@@ -392,7 +443,11 @@ sub action_users {
 
             if ( $auth_user ne 'local'
                 && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|claim-cancel|rename|passwd)$/x ) {
-                $parsed->{actor} = $auth_user unless _operator();
+                # SM991: a manage_users holder is not the operator, and is still
+                # FULL user management - unconfined here as it was when it was
+                # the operator. A delegate (create_sub_users) is confined.
+                $parsed->{actor} = $auth_user
+                    unless _operator() || _user_caps($auth_user)->{manage_users};
                 $parsed->{created_by} //= $auth_user if $act eq 'account-create';
                 $request_body = encode_json($parsed);
             }

@@ -502,8 +502,8 @@ my %ACTION_INFO = (
     },
     manage_users => {
         section => 'Accounts',
-        title   => 'Manage user accounts and group membership.',
-        grants => 'Create and delete accounts, and change who belongs to which group - including what those groups may do. Manager UI only: no remote surface offers it.',
+        title => 'Manage user accounts and group membership - and nothing else: not the operator (SM991).',
+        grants => 'Create and delete accounts, and change who belongs to which group - including what those groups may do. User and group management ONLY (SM991): it passes no other capability gate, a file\'s rule binds it, and it does not change the operator\'s account or the operator group - the operator is a member of the operator group. Manager UI only: no remote surface offers it.',
         # SM858: with read_submissions, the Approve button on a registration
         # form's submissions.
         unlocks => { ui => [ 'the manager Users and Groups pages',
@@ -1021,11 +1021,12 @@ sub reach_for {
 #
 # The report above reads the `unlocks` tables, and two reaches are not in them:
 #
-#   * manage_users is the OPERATOR on the manager's cookie channel - it passes
-#     every capability gate there (lazysite-manager-api.pl, the `!_operator()`
-#     block), so its reach on `ui` is every manager action, not the two pages
-#     its own table entry lists. A report that said "2 callable" for it
-#     understated it by the whole manager.
+#   * the OPERATOR passes every capability gate on the manager's cookie channel
+#     (lazysite-manager-api.pl, the `!_operator()` block), so its reach on `ui`
+#     is every manager action. Until SM991 that was any manage_users holder, and
+#     a report that said "2 callable" for it understated it by the whole
+#     manager; since SM991 it is the operator group's members, and manage_users
+#     is what its table entry says.
 #   * FILES are decided by each path's access rule, never by a capability: the
 #     manager's file actions (save, move, copy, mkdir, delete, upload) take no
 #     capability, and the rule of the path decides. The report said "0 callable"
@@ -1039,10 +1040,26 @@ sub reach_for {
 sub group_reach_notes {
     my ( $docroot, $g, $caps ) = @_;
     my @out;
-    if ( $caps->{manage_users} && $caps->{ui} ) {
-        push @out, "   operator: manage_users passes EVERY capability gate on the manager (ui) channel -\n"
-            . "             every manager action, not only those listed. File rules still apply to it.\n";
+    # SM991 (ruled 2026-10-12, "Operators bypass, others bound"): the OPERATOR
+    # is a member of the operator group (the `manager` flag setup-sysop puts on
+    # the group it makes), not a holder of manage_users. Said for the group that
+    # is one, and for manage_users what it is now - and the operator groups are
+    # named either way, so a reader of one group's reach knows where the
+    # operator is.
+    my $is_op = Lazysite::Auth::Settings::groups_are_operator($g);
+    my @ops   = Lazysite::Auth::Settings::operator_groups();
+    if ($is_op) {
+        push @out, "   operator: this group is the OPERATOR group - its members pass EVERY capability gate on\n"
+            . "             the manager (ui) channel and every file rule there. Tokens never count.\n";
     }
+    elsif ( $caps->{manage_users} ) {
+        push @out, "   manage_users: user and group management only - the Users and Groups pages and account\n"
+            . "             approval. It passes no other gate, and file rules apply to it. It is not\n"
+            . "             the operator.\n";
+    }
+    push @out, '   operator group' . ( @ops == 1 ? '' : 's' ) . ': '
+        . ( @ops ? join( ', ', @ops ) : '(none - on a secured site only `local` passes every gate)' ) . "\n"
+        if $is_op || $caps->{manage_users} || $caps->{ui};
     return @out unless $caps->{ui} || $caps->{webdav};
 
     require Lazysite::Auth::Acl;

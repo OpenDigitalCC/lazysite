@@ -20,6 +20,7 @@ use Lazysite::Auth::Settings ();
 
 our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
     _is_operator _acl_denied groups_for_user may_read_any_rule file_rule_bypass
+    account_is_operator group_confers_operator
     gating_for root_gating placement_for relocating_key);
 
 our $DOCROOT;    # set by the script
@@ -691,12 +692,18 @@ sub _is_operator {
     # It reaches this code only when the wrapper set LAZYSITE_AUTH_TRUSTED, so
     # it is vouched for; the remaining objection was staleness, and consulting
     # the store first is what answers that.
+    #
+    # SM991 (ruled 2026-10-12, "Operators bypass, others bound"): the OPERATOR
+    # is a member of the operator group (Settings::groups_are_operator - the
+    # group carrying the `manager` flag, which setup-sysop creates), not a
+    # holder of manage_users. manage_users is user and group management; it
+    # passed every capability gate on the manager because this asked for it,
+    # so a group made to approve account requests could also set config.
     if ( defined $auth_user && length $auth_user ) {
-        my $caps = eval { Lazysite::Auth::Settings::caps_for($auth_user) } || {};
-        return 1 if $caps->{manage_users};
+        return 1 if eval { Lazysite::Auth::Settings::account_is_operator($auth_user) };
     }
     my @ug = grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
-    return 1 if _groups_grant_cap( 'manage_users', @ug );
+    return 1 if @ug && Lazysite::Auth::Settings::groups_are_operator(@ug);
 
     # A site where no group grants manager access at all is unsecured/dev: any
     # authenticated user is an operator.
@@ -715,8 +722,7 @@ sub _is_operator {
 # bypasses everything and leaves no trace) - are worse than the read they
 # route around.
 #
-# Who reads: an operator or a cookie-session holder of manage_users, which
-# _is_operator already answers - and a TOKEN whose OWN GRANT carries
+# Who reads: an operator or a cookie-session holder of manage_users - and a TOKEN whose OWN GRANT carries
 # manage_users. _is_operator refuses every token by design (a token is never
 # an operator), and that stays; the token override is deliberately keyed on
 # the grant the operator wrote for that partner, not on the account's group
@@ -726,6 +732,14 @@ our %token_caps;    # the token's OWN grant settings; set by the API/MCP entry
 sub may_read_any_rule {
     return 1 if _is_operator();
     return 1 if $token_auth && $token_caps{manage_users};
+    # SM991: a cookie holder of manage_users is no longer the operator, and
+    # reading any rule was granted to it by name (above) - SM464's audit half
+    # stays with the capability rather than leaving with the operator.
+    if ( !$token_auth && defined $auth_user && length $auth_user ) {
+        local $Lazysite::Auth::Settings::AUTH_DIR = _settings_dir();
+        my $caps = eval { Lazysite::Auth::Settings::caps_for($auth_user) } || {};
+        return 1 if $caps->{manage_users};
+    }
     return 0;
 }
 
@@ -736,8 +750,8 @@ sub may_read_any_rule {
 # manage_users.
 #
 # _is_operator() answers "may this account manage accounts and pass the
-# manager's capability gates", and its clause for manage_users is right for
-# that. It was ALSO the per-file bypass, so a group holding manage_users and
+# manager's capability gates", and its clause for manage_users was taken to be
+# right for that (SM991 removed it). It was ALSO the per-file bypass, so a group holding manage_users and
 # nothing else - made to approve account requests - saved a page at the site
 # root and overwrote another author's post through `save`, past rules that
 # named neither it nor its group, while `group-reach` said it could call
@@ -747,12 +761,30 @@ sub may_read_any_rule {
 # rule (the starter's rules name @sysops), or by the CLI as `local`.
 #
 # A token is never bypassed, as before: per-file rules bind every partner.
+#
+# SM991 (ruled 2026-10-12, "Operators bypass, others bound"): and a member of
+# the OPERATOR GROUP - which is what _is_operator now answers, so the two are
+# one test again. What SM979 took away was the bypass for manage_users; the
+# operator keeps the one it had, and manage_users, approve_accounts and every
+# other grant stay bound by the rule.
 sub file_rule_bypass {
-    return 0 if $token_auth;
-    return 1 if ( $auth_user // '' ) eq 'local';
+    return _is_operator() ? 1 : 0;
+}
+
+# SM991: is this ACCOUNT, or is any member of this GROUP, the operator? For the
+# manager's users API, which refuses a non-operator any change to the operator's
+# account or the operator group (Manager::Users).
+sub account_is_operator {
+    my ($user) = @_;
     local $Lazysite::Auth::Settings::AUTH_DIR = _settings_dir();
-    return 1 unless Lazysite::Auth::Settings::site_grants_manager();
-    return 0;
+    return Lazysite::Auth::Settings::account_is_operator($user) ? 1 : 0;
+}
+
+sub group_confers_operator {
+    my ($group) = @_;
+    return 0 unless defined $group && length $group;
+    local $Lazysite::Auth::Settings::AUTH_DIR = _settings_dir();
+    return Lazysite::Auth::Settings::groups_are_operator($group) ? 1 : 0;
 }
 
 # The per-file allow check with the bypass above; returns a refusal hashref or

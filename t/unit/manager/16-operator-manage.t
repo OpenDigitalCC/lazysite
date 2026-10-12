@@ -70,8 +70,11 @@ make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: T\n"; close $cf;
 # SM138: a group granting manager access secures the site (conf key retired).
+# SM991: `managers` carries the `manager` flag - the OPERATOR group, which is what
+# makes 'admin' (known only by X-Remote-Groups) the operator; manage_users alone
+# no longer does.
 open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
-print $gsf '{"managers":{"label":"Managers","ui":1,"manage_users":1}}';
+print $gsf '{"managers":{"label":"Managers","ui":1,"manage_users":1,"manager":1}}';
 close $gsf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close $sf;
 
@@ -87,14 +90,14 @@ my $op = manage( $d, 'admin', 'managers', { action => 'claim-create', username =
 ok( $op->{ok}, 'operator may generate a setup link for an account it did not create' );
 like( $op->{claim} // '', qr/^lzc_/, 'a claim token was minted' );
 
-# SM095 (c2): operator status is the manage_users capability, not just manager-
-# group membership. 'umadmin' is in NO manager group but carries manage_users via
-# a group (role-umadmin), so it may manage an account it did not create.
+# SM095 (c2), SM991: 'umadmin' is in NO operator group but carries manage_users via
+# a group (role-umadmin). It is not the operator (SM991), and manage_users is
+# still FULL user management, so it may manage an account it did not create.
 uapi( $d, { action => 'add', username => 'umadmin', password => 'x' } );
 grant_caps( $d, 'umadmin', 'manage_users' );
 my $cap = manage( $d, 'umadmin', 'role-umadmin', { action => 'claim-create', username => 'sw' } );
-ok( $cap->{ok}, 'a manage_users-capable account (no manager group) is an operator' );
-like( $cap->{claim} // '', qr/^lzc_/, 'claim token minted for the cap-based operator' );
+ok( $cap->{ok}, 'a manage_users-capable account (no operator group) manages any account' );
+like( $cap->{claim} // '', qr/^lzc_/, 'claim token minted for the manage_users holder' );
 
 # Delegated sub-manager outside sw's tree is refused.
 my $no = manage( $d, 'other', 'authors', { action => 'claim-create', username => 'sw' } );

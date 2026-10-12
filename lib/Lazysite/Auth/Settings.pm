@@ -15,6 +15,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     caps_for display_name_for display_names_for display_names_block settings_readable
     groups_grant_cap site_grants_manager
+    groups_are_operator account_is_operator operator_groups
     effective_groups touch_credential
     resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings group_is_assignable @CAP_KEYS
@@ -410,6 +411,48 @@ sub groups_grant_cap {
         return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap};
     }
     return 0;
+}
+
+# SM991 (ruled 2026-10-12, "Operators bypass, others bound"): THE OPERATOR GROUP.
+#
+# The operator is a member of a group carrying the `manager` flag - the group
+# setup-sysop creates and labels "Site operator" (sysops by default). It was
+# already the group the engine treats as the site owner's: only `local` may set
+# the flag or put anyone in such a group (the SM195 ceiling walks `manager` with
+# the capabilities, and no delegate may confer it), the last one cannot be
+# deleted or unflagged, and every manager group is topped up with every
+# capability. A second flag meaning the same thing would be a second answer to
+# one question, so the flag IS the operator group: an existing site keeps its
+# operator through an upgrade without a write, because the group setup-sysop
+# made already carries it.
+#
+# Until SM991 the operator was anyone holding `manage_users`; that capability is
+# now user and group management and nothing more.
+#
+# Membership follows the nesting closure (SM121), as capabilities do: a group
+# nested inside an operator group makes its members operators too.
+sub groups_are_operator {
+    my (@groups) = @_;
+    return 0 unless @groups;
+    my $gs = read_group_settings();
+    for my $g ( _group_closure(@groups) ) {
+        return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{manager};
+    }
+    return 0;
+}
+
+# 1 if this ACCOUNT is a member of an operator group (directly or nested).
+sub account_is_operator {
+    my ($user) = @_;
+    return 0 unless defined $user && length $user;
+    return groups_are_operator( _effective_groups($user) );
+}
+
+# The operator groups themselves, sorted - for reports (group-reach).
+sub operator_groups {
+    my $gs = read_group_settings();
+    my @g  = sort grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{manager} } keys %{$gs};
+    return @g;
 }
 
 # SM279: group_scopes / group_home_domain were REMOVED here.

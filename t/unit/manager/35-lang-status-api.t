@@ -92,6 +92,8 @@ close $di;
 
 uapi( $d, { action => 'add', username => 'op', password => 'x' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_domains' );
+# SM991: 'op' is the operator by its group's `manager` flag, not by manage_users.
+uapi( $d, { action => 'group-settings-set', group => 'role-op', key => 'manager', value => 'on' } );
 uapi( $d, { action => 'add', username => 'ed', password => 'y' } );
 grant_caps( $d, 'ed', 'manage_content' );
 

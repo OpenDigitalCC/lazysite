@@ -659,8 +659,9 @@ if ( !$token_auth ) {
     # account (content-editors) could config-set, run backups, enable plugins, etc.
     # Now the cookie path is capability-gated by the same model, and a state-changing
     # action must be POST (a GET would bypass the CSRF gate above - and be CSRF-able
-    # from an admin's browser). Operators (manage_users, or the unsecured/dev
-    # fallback where no group grants manager) bypass the CAPABILITY gate, matching
+    # from an admin's browser). Operators (SM991: a member of the operator group,
+    # `local`, or the unsecured/dev fallback where no group grants manager - NOT
+    # a holder of manage_users) bypass the CAPABILITY gate, matching
     # the rest of the manager. The users/sessions/keys/audit/notices actions keep
     # their own bespoke gates in dispatch (they carry actor confinement / forbidden
     # messaging), so they are not listed here.
@@ -2524,7 +2525,8 @@ sub _refuse_unreachable_form {
 
 # SM979: a cookie caller who reaches the submission views through
 # approve_accounts alone - without read_submissions, and not the operator
-# (manage_users passes every capability gate on this channel).
+# (SM991: a member of the operator group, who passes every capability gate on
+# this channel; manage_users alone no longer does).
 sub _approval_only {
     return 0 if $token_auth || _operator();
     my $caps = _user_caps($auth_user);

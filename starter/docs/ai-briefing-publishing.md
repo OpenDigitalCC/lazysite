@@ -244,8 +244,8 @@ found nothing - so check the key before concluding a feature is broken.
 
 `acl-get` (GET) / `acl-remove` (POST)
 : `path=<file>`. `acl-get` returns the entry; `acl-remove` clears it
-  (owner-only; since SM979 a holder of `manage_users` is no exception - only
-  the CLI as `local` is). Needs `webdav`.
+  (owner-only; a holder of `manage_users` is no exception - only the CLI as
+  `local` and a member of the operator group are). Needs `webdav`.
 
 A file that arrives in a folder whose rule holds content back (a read list, or
 `draft`) lands in the private store however it arrives - `save`, `move`, `copy`,

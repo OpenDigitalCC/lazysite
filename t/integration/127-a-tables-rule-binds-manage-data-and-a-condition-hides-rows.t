@@ -65,6 +65,8 @@ $s->add_user('hal');
 $s->grant( 'hal', 'hr', [qw(ui manage_data)], \@ALL );
 $s->add_user('boss');    # the operator
 $s->grant( 'boss', 'sysops', [qw(ui manage_users manage_data)], \@ALL );
+# SM991: the operator is a member of the operator group (the `manager` flag).
+$s->users( 'group-set', 'sysops', 'manager', 'on' );
 
 # The tables' own rules, as data-table-acl-set stores them.
 {

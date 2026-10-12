@@ -254,8 +254,9 @@ subtest 'a group that approved before still does' => sub {
 subtest 'group-reach says what a group can do' => sub {
     my $u = join ' ', map { quotemeta } $^X, "$root/tools/lazysite-users.pl", '--docroot', $d;
     my $out = qx($u group-reach approvers 2>&1);
-    like( $out, qr/operator: manage_users passes EVERY capability gate on the manager \(ui\) channel/,
-        'manage_users is reported as the operator it is on the manager channel' ) or diag($out);
+    # SM991: manage_users is no longer the operator; group-reach says what it is.
+    like( $out, qr/manage_users: user and group management only/,
+        'manage_users is reported as user and group management, not the operator' ) or diag($out);
     like( $out, qr/files\s+by rule/,        'and its files as decided by the rules' );
     like( $out, qr/write named in 0 rules/, 'naming none for this group' );
     like( $out, qr/a site-wide write rule governs every path here/, 'and the site-wide rule' );
