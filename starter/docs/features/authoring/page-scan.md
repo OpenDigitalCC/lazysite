@@ -32,6 +32,12 @@ and navigation from page metadata.
 - `NAME_total` beside the list counts the pages the pattern matched that the
   reader may see, before `filter=` and before the cap, so a page can say
   `showing [% posts.size %] of [% posts_total %]`
+- `limit=N` and `offset=N` page the list after `filter=` and `sort=`:
+  `scan:/blog/*.md sort=date desc offset=10 limit=10` is the second ten.
+  `limit=` is capped by `scan_limit`, and `offset=` reaches no further than
+  the pages the scan read, so raise `scan_limit` to page a longer list.
+  `NAME_total` is not changed by them. A value that is not a whole number is
+  ignored and logged.
 - Files outside the docroot are excluded (realpath check)
 
 ### Page object fields
@@ -60,6 +66,16 @@ Append `sort=FIELD DIRECTION` to the pattern:
 
 Supported fields: `date`, `title`, `filename`. Default: `filename asc`.
 Direction is optional and defaults to `asc`.
+
+### Paging modifiers
+
+Append `limit=N` and `offset=N` to list part of the sorted result:
+
+    scan:/blog/*.md sort=date desc limit=10
+    scan:/blog/*.md sort=date desc offset=10 limit=10
+
+They apply after `filter=` and `sort=`. `limit=` is capped by the site's
+`scan_limit`; `offset=` counts into the pages the scan read.
 
 ### Example
 

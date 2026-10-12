@@ -3,7 +3,8 @@ package main;
 # lazysite-processor/registries.pm - the page scan and the generated registries.
 #
 # HOLDS   resolve_scan(): the `scan:` source a page names, with
-#         _scan_parse_modifiers, _scan_collect_files, _page_date, _page_url,
+#         _scan_parse_modifiers (filter=, sort=, and limit=/offset=, P9),
+#         _scan_collect_files, _page_date, _page_url,
 #         _scan_limit (the site's cap, P9), _front_matter_reserved (the
 #         engine's front-matter keys, shared with the page's own stash) and
 #         _scan_page_unreadable (the log line
@@ -87,7 +88,20 @@ sub _scan_parse_modifiers {
         $sort_field = 'filename' unless $sort_field =~ /^\w+$/;
     }
 
-    return ( \@filters, $sort_field, $sort_dir );
+    # P9 revise (ruled 2026-10-12, "Keep, add per-scan limit="): `limit=N` and
+    # `offset=N` page the filtered, sorted list. Stripped whatever their value,
+    # so a bad one can never reach the glob; a bad one is ignored and logged.
+    my %page;
+    for my $k (qw(limit offset)) {
+        next unless $$pattern_ref =~ s/\s+$k=(\S*)//;
+        my $v  = $1;
+        my $ok = $k eq 'limit' ? qr/\A[1-9]\d{0,6}\z/ : qr/\A\d{1,7}\z/;
+        if ( $v =~ $ok ) { $page{$k} = 0 + $v; next }
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            "scan: $k= is not a whole number - ignored", value => $v );
+    }
+
+    return ( \@filters, $sort_field, $sort_dir, \%page );
 }
 
 # The files a scan pattern reaches, capped and deduplicated (PR-6). Lifted out
@@ -256,7 +270,7 @@ sub _scan_page_unreadable {
 sub resolve_scan {
     my ($pattern) = @_;
 
-    my ( $filters, $sort_field, $sort_dir ) = _scan_parse_modifiers( \$pattern );
+    my ( $filters, $sort_field, $sort_dir, $page ) = _scan_parse_modifiers( \$pattern );
     my @filters = @$filters;
 
     # Pattern must be root-relative starting with /
@@ -522,6 +536,19 @@ sub resolve_scan {
             "scan: is capped - reading the first $limit of $total pages in file order; "
                 . 'raise scan_limit in lazysite.conf, or render <var>_total so the page can say so',
             pattern => $pattern );
+    }
+
+    # P9 revise: the directive's own page of the list - after filter= and the
+    # sort, so offset=20 limit=10 is the third ten of what the reader would see.
+    # limit= is capped by scan_limit, the site's ceiling; offset= reaches no
+    # further than the pages the ceiling let the scan read, so paging a long
+    # list means raising scan_limit to cover it. `_total` is unchanged.
+    if ( defined $page->{offset} ) {
+        splice( @sorted, 0, $page->{offset} > @sorted ? scalar @sorted : $page->{offset} );
+    }
+    if ( defined $page->{limit} ) {
+        my $want = $page->{limit} < $limit ? $page->{limit} : $limit;
+        $#sorted = $want - 1 if @sorted > $want;
     }
 
     return wantarray ? ( \@sorted, $total ) : \@sorted;

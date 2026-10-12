@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM995 (PENDING) **a scan directive pages its own list: `limit=` and
+  `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the
+  second ten of the sorted, filtered result. `scan_limit` in lazysite.conf
+  stays the site's ceiling: `limit=` cannot exceed it, and `offset=` counts
+  into the pages the scan read. `NAME_total` is unchanged. A value that is not
+  a whole number is ignored and logged. t/unit/processor/99.
+
 - SM990 (PENDING) **a page a scan cannot open is left out, not fatal.** A page
   the serving user may not read (a file copied in by root with mode 0600) made
   every page whose `scan:` reached it, and the sitemap, answer 500. The scan

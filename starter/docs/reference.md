@@ -28,8 +28,9 @@ Remote URL
 : `key: url:https://...` - fetched, trimmed, and cached with the page.
 
 Directory scan
-: `key: scan:/path/*.md sort=field dir` - returns array of page objects,
-  at most `scan_limit` of them, and `key_total`, the number the pattern
+: `key: scan:/path/*.md sort=field dir limit=N offset=N` - returns array of
+  page objects, at most `scan_limit` of them (`limit=` and `offset=` page the
+  sorted list, `limit=` capped by `scan_limit`), and `key_total`, the number the pattern
   matched that the reader may see.
 
 ### Recognised keys
@@ -61,6 +62,7 @@ Directory scan
 `scan_limit`
 : How many pages a `scan:` reads, the first in file-name order. Default
   200. A scan that reaches more logs a warning; its `_total` says how many.
+  The ceiling for a directive's `limit=`.
 
 `search_default`
 : Site-wide default for the `search:` front matter key. Set to `true`

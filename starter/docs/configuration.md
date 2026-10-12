@@ -519,6 +519,12 @@ In a page body:
 - `NAME_total` beside the list counts the pages the pattern matched that the
   reader may see, before `filter=` and before the cap, so a page can say
   `showing [% posts.size %] of [% posts_total %]`
+- `limit=N` and `offset=N` page the list after `filter=` and `sort=`:
+  `scan:/blog/*.md sort=date desc offset=10 limit=10` is the second ten.
+  `limit=` is capped by `scan_limit`, and `offset=` reaches no further than
+  the pages the scan read, so raise `scan_limit` to page a longer list.
+  `NAME_total` is not changed by them. A value that is not a whole number is
+  ignored and logged.
 - Each result is realpath-checked - rejected if outside docroot
 
 ### Page object fields
