@@ -228,6 +228,8 @@ setup( 'data-migrate', query => 'table=wide' );
 setup( 'data-row-save', body => { table => 'wide', row => { slug => 'w', extra => 'gone' } } );
 setup( 'data-table-save', body => { table => 'wide', descriptor => "title: Wide\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
 setup( 'data-table-save', body => { table => 'pending', descriptor => "title: Pending\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
+# SM1053: an import staged for the operator to apply.
+$S{import} = setup( 'accounts-import-stage', body => { accounts => [ { username => 'imp1' } ] } )->{id} // '';
 users_api( { action => 'add', username => 'bot' } );    # an access-key account: no login
 users_tool( 'set', 'bot', 'ui', 'off' );
 users_api( { action => 'token', username => 'bot' } );
@@ -244,6 +246,8 @@ zip( \qq({"name":"up","version":"1.0.0","layouts":["base"],"config":{}}) => \$th
 # The request each action is sent with: what the control needs to land. An
 # action not named here is sent with its name alone and an empty JSON object.
 my %REQ = (
+    'accounts-import-apply' => { body => { id => $S{import}, confirm => $S{import} } },    # SM1053
+    'accounts-import-stage' => { body => { accounts => [ { username => 'imp2' } ] } },
     'acl-remove' => { query => 'path=secret.md' },
     'acl-set'    => { query => 'path=other.md', body => { read => ['admin'] } },
     'artifact-backups-delete' => { query => 'path=*' },
