@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1012 (PENDING) **internal: the deparse comparisons a split is proved with
+  are in tools/.** `tools/deparse-subs.pl` deparses every processor sub and
+  compares two trees (or a tree and a saved listing), naming the subs that
+  differ and passing only when exactly the expected set does;
+  `tools/deparse-block.pl` compares a block of an old file, wrapped as a sub,
+  with the sub extracted from it. They were untracked scripts under tmp/, so a
+  reviewer could not rerun the proof. Development only, not shipped.
+  t/unit/processor/111.
+
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the
   second ten of the sorted, filtered result. `scan_limit` in lazysite.conf

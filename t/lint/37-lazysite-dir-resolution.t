@@ -183,6 +183,11 @@ subtest 'nothing derives the engine dir behind the resolver' => sub {
         # Builds its own fixture site in a tempdir, unmigrated by construction,
         # as the tests under t/ do.
         'tools/bench.pl' => [qr{.}],
+
+        # SM1012: each loads the processor over a throwaway docroot it makes
+        # for the purpose, as the tests under t/ do; neither touches a site.
+        'tools/deparse-subs.pl'  => [qr{mkdir "\$doc/lazysite"}],
+        'tools/deparse-block.pl' => [qr{mkdir "\$doc/lazysite"}],
     );
 
     my @files;
