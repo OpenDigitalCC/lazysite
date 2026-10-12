@@ -475,6 +475,15 @@ Archive
   other account. `group-reach` names the operator group and says what
   `manage_users` grants. t/integration/128.
 
+- SM991 (PENDING) **security: only the operator revokes the operator's sessions
+  and access keys** (ruled 2026-10-12, "Yes, protect operator sessions too").
+  **Behaviour change:** the Sessions page's `session-revoke`, `user-revoke` and
+  `key-revoke` refuse a caller who is not the operator when the account they
+  reach is the operator, by the same rule as the users tool's verbs; a
+  `manage_users` holder still revokes every other account's. A session id the
+  session registry does not hold is the operator's alone to revoke.
+  t/integration/131.
+
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the
   second ten of the sorted, filtered result. `scan_limit` in lazysite.conf

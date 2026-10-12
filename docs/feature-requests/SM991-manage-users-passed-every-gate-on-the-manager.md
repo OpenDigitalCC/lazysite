@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM979's report, left there for a ruling (manage_users passing the manager's capability gates, config-set measured 200)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-12, Operators bypass, others bound. The operator is a member of the group carrying the manager flag (setup-sysop's sysops); it passes every gate and file rule. manage_users is user and group management only, and cannot change the operator's account or group. t/integration/128."
+status-note: "SHIPPED (PENDING): ruled 2026-10-12, Operators bypass, others bound. The operator is a member of the group carrying the manager flag (setup-sysop's sysops); it passes every gate and file rule. manage_users is user and group management only, and cannot change the operator's account or group, nor revoke the operator's sessions or access keys (ruled 2026-10-12, Yes, protect operator sessions too). t/integration/128, 131."
 ---
 
 # What was wrong
@@ -109,7 +109,9 @@ nest's `sub` and `parent`); reads are untouched. The operator itself, and
 - A holder of `manage_users` (the shipped `user-managers` role, or a group made
   to approve accounts) no longer passes the manager's capability gates: an
   action needs its own capability (`config-set` needs `manage_config`). It
-  cannot change the operator's account or the operator group.
+  cannot change the operator's account or the operator group, nor revoke the
+  operator's sessions or access keys (session-revoke, user-revoke,
+  key-revoke); it still revokes every other account's.
 - A member of the operator group passes every capability gate and every file
   rule on the manager's cookie channel - including a capability its group has
   switched off. Before SM979 that was every `manage_users` holder; between
@@ -131,3 +133,61 @@ operator fixtures name the operator group by the flag). Sabotage: 11 cases
 (`tmp/sec-evidence/sm991-sab*.out`), each bit; the first run found the store
 half of the operator test unasserted (the header carried it), and a call with
 no groups header was added.
+
+# The operator's sessions and keys (ruled 2026-10-12)
+
+Left open by the build above: the Sessions page's revokes did not ask the
+operator rule, so a `manage_users` holder could sign the operator out
+everywhere, sign out one of its sessions, or strip its OAuth grants, and do it
+again whenever it signed back in.
+
+Release manager, 2026-10-12, "Yes, protect operator sessions too": only the
+operator can revoke an operator's sessions or access keys; `manage_users` still
+manages everyone else's. Built on n387.
+
+## The revoke paths
+
+| Ref | Path | Reaches | Before | Now |
+|---|---|---|---|---|
+| R1 | manager API `session-revoke` (Sessions page, cookie only) | the account(s) the session registry records for the sid | any `manage_users` holder | operator rule |
+| R2 | manager API `user-revoke` (cookie only) | the username, cleaned | any `manage_users` holder | operator rule |
+| R3 | manager API `key-revoke` (cookie only) | the username: a key account's credential and OAuth grants, an interactive account's OAuth grants | any `manage_users` holder | operator rule |
+| R4 | manager API `users` with `key-revoke`, `token-rotate`, `claim-create` (reset), `account-disable`, `passwd` | the username | operator rule (SM991) | unchanged |
+| R5 | auth CGI logout (`action_session_revoke` on the caller's own sid) | the caller | itself | unchanged |
+| R6 | `lazysite-users user-key-revoke` (CLI) | the username | `local` | unchanged |
+| R7 | scheduler `sessions_sweep` | expired registry rows only | `manage_users` job account | unchanged: revokes nothing live |
+| R8 | `rotate-auth-secret` (`manage_config`, cookie only) | every session on the site, the operator's included | `manage_config` | unchanged - for a ruling |
+
+MCP has no revoke tool, and the control API refuses R1-R3 to every token
+(`caps => undef` in `Lazysite::ControlApi::Actions`). R8 targets no account, so
+it is outside the ruling as worded; it is listed so it can be ruled on.
+
+## The fix
+
+`Manager::Sessions::_revoke_target_refusal`, asked by `dispatch_sessions_keys`
+after the `manage_users` gate, hands the account each revoke reaches to
+`Manager::Users::_operator_target_refusal` - the one rule the users-tool verbs
+ask - for a caller that is neither `local` nor the operator:
+
+- `user-revoke`: the username cleaned by `_clean_username`, which
+  `action_user_revoke` now also uses, so the account checked is the account
+  signed out (`bo!ss` is `boss`).
+- `key-revoke`: the username as the users tool receives it.
+- `session-revoke`: every account the registry records for the sid. A sid in
+  the right shape the registry does not hold cannot be placed and may be the
+  operator's (the registry is advisory), so a non-operator is refused it - fail
+  closed. A malformed sid or an empty name meets the action's own refusal.
+
+## Evidence
+
+t/integration/131 (run on n386 first: 14 assertions fail,
+`tmp/sm991b-t131.base.out` in the n387 worktree; all pass after): a
+`manage_users`-only account is refused each revoke of the operator's (and a
+second operator's) session, sign-out and key, with revoked.json and oauth.json
+read back; it still revokes a non-operator's session, sign-out and key and its
+own session; the operator revokes another operator's, a non-operator's, its own
+and an unplaced sid. Sabotage: 7 cases (backups in `tmp/sab-bak/sm991b/`,
+restored by cp, checked by cmp) - the dispatch never asking, the operator
+bypass dropped, an unplaced sid let through, the name not cleaned, the registry
+lookup finding nothing, key-revoke's target not asked, and the rule ignoring an
+operator account - each bit.

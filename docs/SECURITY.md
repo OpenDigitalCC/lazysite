@@ -28,8 +28,9 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
    manager's capability gates and per-file ACLs (SM991). `manage_users` is
    user and group management and nothing more: since SM979 a file's rule binds
    it, and since SM991 it passes no other capability gate and cannot change the
-   operator's account or the operator group. `local` (the CLI) and an unsecured
-   site pass too; a token never does.
+   operator's account or the operator group, or revoke the operator's sessions
+   or access keys. `local` (the CLI) and an unsecured site pass too; a token
+   never does.
 6. **The served tree boundary** (SM286, 0.10.8) -> protected content is MOVED
    out of the document root into `<docroot>-lazysite-private`, so the boundary
    is now a filesystem one and not only a decision one. A front end that serves

@@ -265,6 +265,12 @@ my %USERS_READ_ONLY = map { $_ => 1 } qw(
 # otherwise. The names a verb can carry are all looked at - the account in
 # `username`; `group`, and a nest's `sub` and `parent` - so a verb added later
 # is covered by the parameter it takes.
+#
+# SM991, ruled 2026-10-12 ("Yes, protect operator sessions too"): THE SAME RULE
+# FOR THE SESSIONS PAGE. Manager::Sessions asks this for session-revoke,
+# user-revoke and key-revoke with the account each would sign out or strip
+# (`username`), so revoking the operator's sessions or access keys is the
+# operator's alone, by this one rule rather than a second copy of it.
 sub _operator_target_refusal {
     my ( $act, $p ) = @_;
     return undef if $USERS_READ_ONLY{$act};
@@ -273,7 +279,7 @@ sub _operator_target_refusal {
         last unless defined $u && !ref $u && length $u;
         return { ok => 0, kind => 'forbidden',
             error => "'$u' is the site operator (a member of the operator group). "
-                . 'Only the operator changes the operator\'s account.' }
+                . 'Only the operator changes the operator\'s account, or revokes its sessions or access keys.' }
             if Lazysite::Auth::Acl::account_is_operator($u);
     }
     for my $k (qw(group sub parent)) {

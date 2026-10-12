@@ -15,6 +15,8 @@ package Lazysite::Manager::Sessions;
 #
 # All three actions are gated on manage_users in lazysite-manager-api.pl and
 # are NOT in the token-client %need set, so only cookie managers reach them.
+# SM991: a revoke that reaches the operator's account is the operator's alone
+# (_revoke_target_refusal).
 
 use strict;
 use warnings;
@@ -26,7 +28,7 @@ our @EXPORT_OK = qw(action_sessions_list action_session_revoke action_user_revok
     dispatch_sessions_keys revoke_account_sessions session_is_kept);
 
 # SM944 S33: dispatch_sessions_keys reads the request's door, action and body.
-use Lazysite::Manager::Common qw($token_auth $action _user_caps _json_body);
+use Lazysite::Manager::Common qw($token_auth $action _user_caps _json_body _operator);
 
 our $LAZYSITE_DIR = '';
 our $auth_user    = '';
@@ -187,6 +189,7 @@ sub dispatch_sessions_keys {
             error => "Managing sessions and keys requires the 'Users & groups' permission. "
                 . "An administrator can grant it on the Groups page." };
     }
+    elsif ( my $r = _revoke_target_refusal() ) { $result = $r }
     elsif ( $action eq 'sessions-list' ) { $result = action_sessions_list() }
     elsif ( $action eq 'keys-list' ) {
         # SM145: the access-key inventory lives in the users tool (it reads the
@@ -204,6 +207,75 @@ sub dispatch_sessions_keys {
             : action_user_revoke( $req->{username} );
     }
     return $result;
+}
+
+# SM991, ruled 2026-10-12 ("Yes, protect operator sessions too"): THE
+# OPERATOR'S SESSIONS AND ACCESS KEYS ARE THE OPERATOR'S. manage_users manages
+# every other account, and the operator is no longer whoever holds it, so a
+# holder could sign the operator out everywhere, or strip its OAuth grants, and
+# keep it out by repeating that. A refusal for a caller who is neither `local`
+# nor the operator when a revoke would reach an account that is the operator;
+# undef otherwise. The rule is Manager::Users::_operator_target_refusal, the
+# one the users tool's verbs ask, handed the account each revoke reaches:
+#   user-revoke     the username, cleaned as action_user_revoke cleans it, so
+#                   the account checked is the account signed out
+#   key-revoke      the username, as the users tool receives it
+#   session-revoke  every account the registry records for the sid. A sid in
+#                   the right shape that the registry does not hold cannot be
+#                   placed, and may be the operator's (the registry is
+#                   advisory), so it is refused: fail closed.
+# A malformed sid or an empty username passes on to the action's own refusal.
+sub _revoke_target_refusal {
+    return undef unless $action =~ /\A(?:session-revoke|user-revoke|key-revoke)\z/;
+    return undef if $Lazysite::Manager::Common::auth_user eq 'local' || _operator();
+    my $req = _json_body();
+    $req = {} unless ref $req eq 'HASH';
+    my @who;
+    if ( $action eq 'session-revoke' ) {
+        my $sid = $req->{sid};
+        return undef unless defined $sid && !ref $sid && $sid =~ /\A[0-9a-f]{16}\z/;
+        @who = _sid_owners($sid);
+        return { ok => 0, kind => 'forbidden',
+            error => 'That session is not in the session registry, so whose it is cannot be told. '
+                . 'Only the operator signs out a session that may be the operator\'s.' }
+            unless @who;
+    }
+    elsif ( $action eq 'user-revoke' ) {
+        @who = ( _clean_username( $req->{username} ) );
+    }
+    else {
+        @who = ( $req->{username} );
+    }
+    for my $u (@who) {
+        my $r = Lazysite::Manager::Users::_operator_target_refusal( $action, { username => $u } ); ## no critic (Subroutines::ProtectPrivateSubs)
+        return $r if $r;
+    }
+    return undef;
+}
+
+# Every account the registry records against a sid, live or not.
+sub _sid_owners {
+    my ($sid) = @_;
+    my %who;
+    if ( open my $fh, '<:raw', _registry_path() ) {
+        while ( my $l = <$fh> ) {
+            my $s = eval { decode_json($l) };
+            next unless ref $s eq 'HASH' && defined $s->{sid} && defined $s->{user};
+            $who{ $s->{user} } = 1 if $s->{sid} eq $sid;
+        }
+        close $fh;
+    }
+    my @who = sort keys %who;
+    return @who;
+}
+
+# The account name user-revoke writes into not_before, and the one its refusal
+# asks about: one cleaning, so the two cannot differ.
+sub _clean_username {
+    my ($username) = @_;
+    $username = '' unless defined $username && !ref $username;
+    $username =~ s/[^a-zA-Z0-9_.-]//g;
+    return $username;
 }
 
 # Live sessions only - issued within COOKIE_MAX, sid not revoked, and not
@@ -259,9 +331,7 @@ sub action_session_revoke {
 # legacy pre-sid cookies, which carry their issued-at - fails verification.
 # The account itself is untouched; the user can sign straight back in.
 sub action_user_revoke {
-    my ($username) = @_;
-    $username = '' unless defined $username;
-    $username =~ s/[^a-zA-Z0-9_.-]//g;
+    my $username = _clean_username( $_[0] );
     return { ok => 0, error => 'A username is required' } unless length $username;
     # SM1040: everywhere means the session a credential change kept, too.
     my ( $ok, $err, $broken ) = _update_revoked( sub {
