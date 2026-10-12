@@ -458,6 +458,24 @@ sub _form_field_file {
     return $field_html;
 }
 
+# SM1012 S5: A TEXTAREA FIELD (arguments as _form_field_file's).
+sub _form_field_textarea {
+    my ( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules ) = @_;
+    my $field_html;
+    # A textarea carries its value as CONTENT, not an attribute - and it
+    # is escaped as text, not as an attribute, or a `<` in a prefilled
+    # value would open a tag inside the field (SM856).
+    # SM869: the same rule as the value attribute in _render_form - escaped here,
+    # whatever the source, and TT-inert.
+    my $ta
+        = ( defined $value && length $value )
+        ? _tt_inert( _esc_html($value) )
+        : '';
+    $field_html = qq(    <textarea name="$name" id="$name")
+        . qq( maxlength="$max"$ph_attr$req_attr>$ta</textarea>\n);
+    return $field_html;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -585,17 +603,7 @@ sub _render_form {
             $field_html = _form_field_file( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
         }
         elsif ( $rules{textarea} ) {
-            # A textarea carries its value as CONTENT, not an attribute - and it
-            # is escaped as text, not as an attribute, or a `<` in a prefilled
-            # value would open a tag inside the field (SM856).
-            # SM869: the same rule as the attribute above - escaped here,
-            # whatever the source, and TT-inert.
-            my $ta
-                = ( defined $value && length $value )
-                ? _tt_inert( _esc_html($value) )
-                : '';
-            $field_html = qq(    <textarea name="$name" id="$name")
-                . qq( maxlength="$max"$ph_attr$req_attr>$ta</textarea>\n);
+            $field_html = _form_field_textarea( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
         }
         elsif ( $rules{select} ) {
             $field_html = qq(    <select name="$name" id="$name"$req_attr>\n);
