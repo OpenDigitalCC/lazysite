@@ -126,6 +126,13 @@ subtest 'deparse-block: a block wrapped as a sub against the sub' => sub {
     is( $rc, 0, '--lines FROM-TO is --from/--to: SAME' ) or diag($out);
     ( $rc, $out ) = run_tool( 'deparse-block.pl', '--old', $args[1], '--lines', "$from,$to", @rest );
     is( $rc, 1, '--lines with a gap leaves the gap out: DIFFERENT' );
+
+    # --prologue: the block's first line given as code instead of taken.
+    my @tail = ( '--old', $args[1], '--lines', ( $from + 1 ) . "-$to", @rest );
+    ( $rc, $out ) = run_tool( 'deparse-block.pl', @tail, '--prologue', q{$v = '' unless defined $v;} );
+    is( $rc, 0, '--prologue runs after the unpack, before the block: SAME' ) or diag($out);
+    ( $rc, $out ) = run_tool( 'deparse-block.pl', @tail, '--prologue', q{$v = '-' unless defined $v;} );
+    is( $rc, 1, 'a different prologue: DIFFERENT' );
 };
 
 done_testing();

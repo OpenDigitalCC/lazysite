@@ -25,6 +25,8 @@
 #   --sub      the extracted sub, as TREE defines it in package main
 #   --params   the sub's parameter list, unpacked as `my (PARAMS) = @_;`
 #              (omit for a sub that takes none)
+#   --prologue statements the sub runs after the unpack and before the block -
+#              named arguments into the lexicals the block uses
 #   --returns  what the sub returns (omit for one that returns nothing)
 #   --tree     the tree whose processor defines --sub (default: this one)
 #
@@ -47,7 +49,7 @@ use FindBin;
 
 sub usage {
     print STDERR "usage: $0 --old REV:PATH (--from N --to M | --lines SPEC) --sub NAME"
-        . " [--params LIST] [--returns EXPR] [--tree DIR]\n";
+        . " [--params LIST] [--prologue CODE] [--returns EXPR] [--tree DIR]\n";
     exit 2;
 }
 
@@ -122,7 +124,7 @@ sub compile_in_main {
 my %o = ( tree => $ROOT );
 while (@ARGV) {
     my $k = shift @ARGV;
-    usage() unless $k =~ /\A--(old|from|to|lines|sub|params|returns|tree)\z/ && @ARGV;
+    usage() unless $k =~ /\A--(old|from|to|lines|sub|params|prologue|returns|tree)\z/ && @ARGV;
     $o{$1} = shift @ARGV;
 }
 $o{lines} //= "$o{from}-$o{to}" if defined $o{from} && defined $o{to};
@@ -144,7 +146,8 @@ print "block: $o{old} lines $o{lines}\n  first: $block[0]  last:  $block[-1]";
 my $src = "no strict;\nno warnings;\n"
     . file_scope(@lines)
     . "sub deparse_block_wrapped {\n"
-    . ( defined $o{params} ? "    my ( $o{params} ) = \@_;\n" : '' )
+    . ( defined $o{params}   ? "    my ( $o{params} ) = \@_;\n" : '' )
+    . ( defined $o{prologue} ? "$o{prologue}\n"                 : '' )
     . "#line $o{from}\n"
     . join( '', @block )
     . ( defined $o{returns} ? "    return $o{returns};\n" : '' )
