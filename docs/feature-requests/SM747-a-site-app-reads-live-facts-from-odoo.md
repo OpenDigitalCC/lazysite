@@ -5,7 +5,7 @@ subtitle: "One filing for the whole Odoo extension: per-user authentication carr
 brand: plain
 standard-margins: true
 status: candidate
-status-note: "RULED 2026-10-12: a connection user (a site Odoo account, its credential stored like a connector secret) runs named operations for pages, MCP and backend work; a site user's own sign-in waits on OOM's session transport; Odoo descriptors share data-table rendering; every operation is an MCP tool. Re-planned: A, CU, R, E unblocked. Filed to OOM 10-12: the session transport, the Ops layer in the deb."
+status-note: "RULED 2026-10-12: a connection user (a site Odoo account, its credential stored like a connector secret) runs named operations for pages, MCP and backend work; a site user's own sign-in waits on OOM's session transport; Odoo descriptors share data-table rendering; every operation is an MCP tool. Re-planned: A, CU, R, E unblocked. Filed to OOM 10-12: the session transport, the Ops layer in the deb. Q1-Q3 RULED 10-12: a public binding may apply unattended under the engine's controls; MCP uses the default or a per-grant account; the type mapping is OOM's (options filed)."
 ---
 
 # Provenance, and what this filing now is
@@ -74,7 +74,7 @@ Nothing else in the requirements changes.
 | OB8 | Actor (lazysite account if any), Odoo login, model, method, mode, outcome | For a connection-user call the actor is **the lazysite account that triggered it** (or the mode and binding, for a scheduled or public call) and the Odoo login is the connection user's. OOM's own audit carries the same actor: `Odoo::Ops::Context` takes `actor` (`Context.pm:65`) and the Guard writes it on every record (`Guard.pm:128`) |
 | Outcome 2 | Every operation attributed in Odoo to that user, not to a shared integration account | Per-user path: unchanged. Connection-user path: **attributed in Odoo to the connection user**, and in lazysite's audit to the lazysite account (or mode) that triggered it. The two records together are the truthful trail |
 | Outcome 4 | No Odoo credential stored anywhere on the lazysite server | No **user's** Odoo credential stored anywhere - unchanged, demonstrated by inspection. The connection user's key exists in exactly one place, the extension's 0600 secret file, and the inspection extends to proving it is in no table, log, cache, page, response or audit record |
-| OM1 | An agent uses its own Odoo account, configured by the operator | **Met by the connection user**: an operator-configured, non-human account; never a person's credential, never impersonation. Whether MCP gets an account of its own is Q2 below |
+| OM1 | An agent uses its own Odoo account, configured by the operator | **Met by the connection user**: an operator-configured, non-human account; never a person's credential, never impersonation. Whether MCP gets an account of its own is Q2 below - **ruled 2026-10-12: the default or a per-grant account** |
 | OM2 | The tool set is settled when the mapper spec is merged; at minimum introspect, read, write | **All operations** (R5): every operation OOM's `Odoo::Ops::Registry` lists becomes a tool, generated from its `op_name`, `summary` and `params`, with no per-operation engine code. 16 today - 12 CRM, 2 Comms and 2 Core (`core.check`, `core.rights`). A write operation's tool returns its plan; one apply tool applies a plan by fingerprint |
 | Scope control, first rule | Store credentials server-side under any circumstance | Applies to **user** credentials. The connection user is the ruled exception, on OB1's terms and no others |
 | Field descriptors (*Engine notes*, spec section 8) | Whether they can share the data extension's rendering is unanswered | **Closed by R4**: they render through the data extension's table rendering (`Lazysite::Data::Descriptor`'s types - text, integer, decimal, boolean, date, datetime, enum; `lib/Lazysite/Data/Descriptor.pm`). Where the Odoo-type-to-lazysite-type mapping lives is Q3 |
@@ -82,6 +82,9 @@ Nothing else in the requirements changes.
 Outcome 12 and OM3 stand as written; the connection user satisfies the first.
 
 ## Questions the ruling leaves (none blocks slice A or CU's read half)
+
+> **All three RULED 2026-10-12** - see *Ruled 2026-10-12 (Q1-Q3)* below. The
+> questions and their recommendations are kept as the record the rulings answered.
 
 - **Q1. May a scheduled or public binding apply a write plan with nobody to confirm
   it?** Mode 2 previews the plan's buckets and applies on confirm. Modes 1 and 3 have
@@ -106,6 +109,61 @@ filed on 2026-10-01 with its hash and `t/lint/207`, the two seams that filing le
 open (descriptors, the MCP selection), the session transport OOM does not have, and
 the 0.01 deb's 8 modules of 41. All of it is in the body below; R3 to R5 close the
 three that were open.
+
+# Ruled 2026-10-12 (Q1-Q3)
+
+The release manager, in their words:
+
+> **Q1** (may a scheduled or public binding apply a write plan with nobody to
+> confirm): "use case includes ecommerce, where a visitor adds to basket and this
+> creates sales quotation as basket. there may be other functions that an anonymous
+> visitor uses, and determined by the internal odoo user to control what this may
+> do."
+>
+> **Q2** (MCP account): "MCP will use the default or specified account. the default
+> user is likely to be more restrictive, so having an own user may open up more
+> functionality."
+>
+> **Q3** (where the Odoo-field-type to lazysite-type mapping lives): "open to
+> recommendations, maybe put options to oom inbox, and it can be worked through
+> there."
+
+## What they decide
+
+| Ref | Decided |
+| --- | --- |
+| Q1 | **A public (or scheduled) binding may APPLY a named write operation through the connection user with nobody confirming.** What it may do is bounded by two things and only two: (1) the connection user's rights, set in Odoo by whoever administers Odoo; (2) which named operations the page binds - OOM's Guard refuses any call outside the bound operation's declared scope before it leaves. Lazysite narrows nothing Odoo allows and grants nothing Odoo refuses. |
+| Q2 | **MCP uses the connection user by default, or an Odoo account configured for that MCP grant**, its key stored as the connection user's is (0600, written alone, never returned, `has_secret` three-state), one per grant. Slice E. |
+| Q3 | **The mapping is OOM's to settle, worked through in its inbox.** Filed as an options paper: `/srv/projects/odoo/oom/inbox/2026-10-12-field-type-mapping-options-for-lazysite.md`. Slice R is built against an interface that takes the PORTABLE type from OOM's descriptor when present and otherwise REFUSES to render the field, naming it - so lazysite holds no mapping whichever option OOM takes, and t/lint/240 keeps it that way. |
+
+## The design Q1 requires of the engine
+
+An anonymous write path into an ERP is the sharpest thing this extension adds, so the
+controls are the engine's on every public apply, whatever the operation:
+
+| Control | What the engine does |
+| --- | --- |
+| Opt-in, per binding | A binding permits `public` only when it says so (SM579's opt-in); a write binding declares `apply: immediate` to apply in the same request, otherwise its plan waits for a confirm. The gate is `Lazysite::Egress`, as for a connector. |
+| Rate caps | Two, counted from the call record and decided by `Egress::within_caps`, most specific first: **per visitor per hour** and **per binding per hour**. A cap whose count cannot be taken refuses (an unreadable record is not zero). This is what stands between a script and a flood of quotations. |
+| CSRF on the page's POST | A public POST carries a token bound to the visitor's key (HMAC under the extension's own secret); a signed-in POST carries the manager-api session token. The visitor cookie is `HttpOnly; Secure; SameSite=Strict`, so a cross-site POST arrives without it and cannot name a basket. |
+| Input validation by the operation's declared parameters | Only the parameters the binding MAPS from input can come from input; each is checked against the operation's own declaration (type, required) before OOM is called, and an unknown or unmapped name is refused by name. Fixed parameters (`fixed:`) and the visitor parameter cannot be overridden by anything the request carries. |
+| The visitor's own basket, and nobody else's | A visitor key is 256 random bits minted SERVER-SIDE and signed, so a key the server did not mint is refused. It reaches the operation only through the binding's declared `visitor_param`; a plan is stored against the key that made it and only that key may apply it; plan ids are unguessable. A visitor can therefore neither name, read nor alter another visitor's basket or quotation. |
+| Audit naming the visitor | OB8's record names the actor as `visitor`, a hash of the visitor key (never the key, which is a bearer secret), the IP, the binding, the operation, the mode and the outcome; OOM's own audit carries the same actor on every RPC record. |
+
+What the operation pack does with the visitor key - which Odoo record holds a basket,
+how a basket becomes a quotation - is the pack's, per *The rule that keeps it
+general-purpose*.
+
+## What they change against this filing's text
+
+| Row | Now |
+| --- | --- |
+| OB4 (amended 2026-10-12 R1) | **Q1:** a binding's `public` and `scheduled` modes may apply a write operation unattended when the binding declares `apply: immediate`, under the controls above. |
+| OB5 | The per-identity rate cap is **per visitor key** on the public path and per lazysite account on the authenticated path. |
+| OB8 (amended R1) | **Q1:** for a public call the actor is `visitor` with the visitor-key hash and the IP. |
+| OM1 (amended R1) | **Q2:** the connection user by default, or an account configured for the MCP grant. |
+| Field descriptors (closed by R4) | **Q3:** the type comes from OOM as a portable type; lazysite refuses a field without one. Options filed to OOM. |
+| Outcome 9 | Holds on the public path too: a state-changing public call without a valid visitor-bound token is refused. |
 
 # What this is for, and the work - RESTATED 2026-10-01
 
@@ -347,11 +405,11 @@ scheduled and closed by reference.
 | OB1 | Per-site Odoo connection in the extension's config: `odoo_url`, `odoo_db`, `odoo_strategies`, `odoo_timeout`, `odoo_identity_ttl`. No shared service account and no stored credential for the user-facing path. If the MCP surface needs a service account (OM1) it follows the mode-600 credentials-file convention and is never displayed. **Amended 2026-10-12 (R1):** the config may hold a connection user, its API key stored as connector secrets are - see *Ruled 2026-10-12*. |
 | OB2 | **Scoped mode**: a declared allowlist of models and permitted methods per app. Refused by lazysite before the call leaves. The default for a purpose-built app. (P1's "named queries" live here - a named query is a scoped allowlist with bound parameters.) |
 | OB3 | **General mode**: no model or method allowlist; bounded by the user's own Odoo permissions exactly as Odoo's web client is. An allowlist here would mean enumerating Odoo badly and forever. **Applies only to a call made with the user's own credential** - see *Reconciling*. |
-| OB4 | Caller gating is lazysite's: the proxy is reached by a lazysite session on an app page (mode 2 of [[SM579]]), and the call carries the Odoo credential from the cookie. No scheduled and no public mode for the per-user proxy. **Amended 2026-10-12 (R1):** the connection-user path takes SM579's three modes, declared per binding. |
-| OB5 | A per-call timeout (`odoo_timeout`); a rate cap per identity; Odoo faults mapped to lazysite's `{ ok: 0, error, kind }` shape with **distinct kinds** for session-expired, invalid-credential, odoo-access-refused and transport-failure. The fault's own text is logged, never returned verbatim (three leaks in three passes taught this - [[SM713]], [[SM738]], [[SM739]]; `t/lint/112` checks the source). |
+| OB4 | Caller gating is lazysite's: the proxy is reached by a lazysite session on an app page (mode 2 of [[SM579]]), and the call carries the Odoo credential from the cookie. No scheduled and no public mode for the per-user proxy. **Amended 2026-10-12 (R1):** the connection-user path takes SM579's three modes, declared per binding. **Ruled 2026-10-12 (Q1):** a public or scheduled binding may apply a write operation unattended when it declares `apply: immediate`, under the controls in *Ruled 2026-10-12 (Q1-Q3)*. |
+| OB5 | A per-call timeout (`odoo_timeout`); a rate cap per identity; Odoo faults mapped to lazysite's `{ ok: 0, error, kind }` shape with **distinct kinds** for session-expired, invalid-credential, odoo-access-refused and transport-failure. The fault's own text is logged, never returned verbatim (three leaks in three passes taught this - [[SM713]], [[SM738]], [[SM739]]; `t/lint/112` checks the source). **2026-10-12 (Q1):** the per-identity cap is per visitor key on the public path and per account on the authenticated path, with a per-binding cap beside it. |
 | OB6 | Transport discipline, the connector's reused as behaviour: no redirect following - a 3xx is a named refusal, because the credential would travel with it; a response size cap sized for Odoo reads and configurable; TLS peer verification on; `https://` to any host and `http://` only to loopback. **X4-a settled this 2026-09-28: no plain `http://` to an RFC1918 Odoo** - `https://` to a private hostname, which the connector rule already permits, is what "internal network" means here. |
 | OB7 | OOM is delivered as a versioned package (`libodoo-oom-perl`); the extension declares a minimum version in `owns.deps` and never carries a copy of the code. Settled by the release manager 2026-09-03. **MEASURED 2026-10-01: THE PACKAGE THAT EXISTS CANNOT SATISFY THIS.** `/srv/projects/packages/libodoo-oom-perl_0.01_all.deb` (2026-09-03, 26,972 bytes) carries **8 modules - the mapper layer only**: Client, Commands, Error, Model, Record, RecordSet and the two transports. The OOM tree has **41**, and the 33 it is missing are the whole `Odoo::Ops::*` layer the specification's layer table says the extension consumes - including `Odoo::Ops::Guard`, **which IS the scoped mode.** Installing 0.01 would therefore give the engine a mapper with no scope guard: general mode only, which X4-b permits solely with the user's own credential, so the named-query mode this filing is built around would be unavailable. `Odoo/Transport.pm` itself is also absent. A **0.02 carrying both layers is a prerequisite of OP-25**, not a later tidy. **Ruled 2026-10-12 (R3):** the deb will be updated; what it must carry is filed to OOM's inbox. |
-| OB8 | One audit record per proxied call on the lazysite side: actor (lazysite account if any), Odoo login, model, method, mode, outcome state (answered / unanswered / refused / odoo-fault), never the payload and never the credential. Written the way connectors write theirs. **Amended 2026-10-12 (R1):** for a connection-user call the actor is the lazysite account (or mode and binding) that triggered it. |
+| OB8 | One audit record per proxied call on the lazysite side: actor (lazysite account if any), Odoo login, model, method, mode, outcome state (answered / unanswered / refused / odoo-fault), never the payload and never the credential. Written the way connectors write theirs. **Amended 2026-10-12 (R1):** for a connection-user call the actor is the lazysite account (or mode and binding) that triggered it. **2026-10-12 (Q1):** a public call's actor is `visitor`, recorded with a hash of the visitor key and the IP. |
 | OB9 | Recorded in SECURITY.md as a new outbound interface (threat delta, controls, residual risk, verdict), as SM136 was for XMPP; named in FEATURES.md as the third egress kind after the guarded GET and the connector: *a per-user proxy to an operator-configured upstream*. |
 
 ## Authentication and the credential cookie (P2 Parts 2 and 3)
@@ -379,7 +437,7 @@ scheduled and closed by reference.
 
 | Ref | Requirement |
 | --- | --- |
-| OM1 | An agent uses ITS OWN Odoo account, configured by the operator - never a human user's credential and never impersonation. Attribution in Odoo's audit trail stays truthful; the agent's Odoo permissions are what bound it. **2026-10-12 (R1):** met by the connection user; Q2 asks whether MCP gets its own. |
+| OM1 | An agent uses ITS OWN Odoo account, configured by the operator - never a human user's credential and never impersonation. Attribution in Odoo's audit trail stays truthful; the agent's Odoo permissions are what bound it. **2026-10-12 (R1):** met by the connection user; Q2 asks whether MCP gets its own. **Ruled 2026-10-12 (Q2):** the connection user by default, or an Odoo account configured for the MCP grant, stored as the connection user's key is. |
 | OM2 | Tools follow the connector's naming and error conventions. The exact set is settled when the mapper spec is merged; at minimum: introspect models and fields, read, write, all within the agent's own permissions. **Ruled 2026-10-12 (R5): all operations** - every operation the registry lists is a tool. |
 | OM3 | A distinct `manage_odoo` capability, separate from `manage_content` and `manage_data`; writes audited on the lazysite side as well as Odoo's. Engine note: a new capability costs the map, the grid, `describe-capabilities`, both channel gates and the docs ([[SM857]] (g) priced this); the briefing asks for it deliberately and the cost is accepted here rather than discovered at build. |
 
