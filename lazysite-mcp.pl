@@ -2470,13 +2470,9 @@ sub _preview_page {
     # serves it at - as preview_public_page has since SM441 and a draft preview
     # always has. It inherited the MCP request's Host, so a domain's page was
     # shown in the primary's layout and theme, and a primary page asked over a
-    # domain's Host was resolved against that domain's content root.
-    my ( $root, $owner ) = Lazysite::Manager::Domains::content_root_for_path($slug);
-    $owner //= '';
-    my $url = "/$slug";
-    if ( length $owner ) {
-        $url = $slug eq $root ? '/' : '/' . substr( $slug, length($root) + 1 );
-    }
+    # domain's Host was resolved against that domain's content root. SM1065:
+    # one helper for every preview, so the Host and the URL cannot drift apart.
+    my ( $owner, $url ) = Lazysite::Manager::Domains::served_at($slug);
 
     # Render fresh (no cache, no cache write), as a public visitor: every
     # credential and identity marker stripped, as the draft render strips them.
@@ -2613,10 +2609,8 @@ sub _preview_draft {
         or return { ok => 0, kind => 'not-found', error => 'processor not available' };
 
     # Under the Host of the domain that owns the path, at the URL it serves it at.
-    my ( $root, $owner ) = Lazysite::Manager::Domains::content_root_for_path($rel);
-    $owner //= '';
-    my $url_rel = length $owner ? substr( $rel, length($root) + 1 ) : $rel;
-    ( my $url = "/$url_rel" ) =~ s/\.md\z//;
+    my ( $owner, $url ) = Lazysite::Manager::Domains::served_at($rel);
+    $url =~ s/\.md\z//;
     $url =~ s{(\A|/)index\z}{$1};
 
     local %ENV = %ENV;

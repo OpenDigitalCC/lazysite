@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1065 (PENDING) **a preview renders a page where its site serves it.** The
+  manager's `preview-public` and `preview`, and MCP `preview_public_page`,
+  sent a domain's page to its Host under the docroot path, so
+  `/sites/mine/index` answered 404 under `mine.test`; and a primary page asked
+  while the request carried a domain's Host came back as the domain's page of
+  the same name. Every single-page preview now takes the Host and the URL from
+  one helper, `Domains::served_at`, which MCP `preview_page` (SM1031 (c)) now
+  shares; a primary page renders with no Host. `preview_public` names a primary
+  render `(default)`. `domain-preview` had no mismatch. t/integration/226.
+
 - SM1064 (PENDING) **a preview is no visit, on every door.** MCP
   `preview_public_page` and `preview_domain`, and the manager's `preview`,
   `preview-public` and `domain-preview`, each wrote a visit to the first-party

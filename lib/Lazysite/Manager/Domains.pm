@@ -23,7 +23,7 @@ use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
 use Lazysite::Paths   ();
 use Lazysite::Private ();    # N141D: purge reaches the private store too
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add creation_root_refusal domain_add_alias domain_remove domain_set domain_access_edit domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value action_domain_check action_domains_list);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add creation_root_refusal domain_add_alias domain_remove domain_set domain_access_edit domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path served_at domains_for_scopes valid_presentation_name presentation_value action_domain_check action_domains_list);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 our $LAZYSITE_DIR;           # set by the script (SM944 S27)
@@ -454,6 +454,31 @@ sub host_for_path {
     return ( $host, $tied );
 }
 
+# SM1065: WHERE A DOCROOT PATH IS SERVED - the Host of the domain that owns it
+# and the URL that domain serves it at. Every preview that renders one page asks
+# here, so the Host and the URL cannot come apart again.
+#
+# They did: SM441 set the owner's Host and left the URL at the docroot path, and
+# under that Host the processor resolves the URL against the domain's own
+# content root - /sites/mine/index under mine.test looked for
+# sites/mine/sites/mine/index and answered 404. SM1031 (c) fixed it in MCP
+# preview_page with the arithmetic written inline; SM1064 found it still in
+# preview_public and the manager's preview.
+#
+# Returns ( $host, $url, $tied ). $host is '' for a path the primary owns, and
+# the caller then renders WITHOUT a Host rather than inheriting the request's:
+# a request that arrived under a domain's name would otherwise resolve the
+# primary's page against that domain's root (SM1031 (c), its other half).
+sub served_at {
+    my ($rel) = @_;
+    $rel = '' unless defined $rel;
+    $rel =~ s{^/+}{};
+    my ( $root, $host, $tied ) = content_root_for_path($rel);
+    return ( '', "/$rel", 0 ) unless length( $host // '' );
+    my $url = $rel eq $root ? '/' : '/' . substr( $rel, length($root) + 1 );
+    return ( $host, $url, $tied );
+}
+
 # SM593/SM578: which domains a CONFINED caller may act on, derived from the
 # grant rather than from anything the caller says.
 #
@@ -617,21 +642,27 @@ sub preview_public {
     local %ENV = %ENV;
     _anonymous_env();
 
-    $ENV{DOCUMENT_ROOT}    = $DOCROOT;
-    $ENV{REDIRECT_URL}     = $rel;
-    $ENV{REQUEST_METHOD}   = 'GET';
-    $ENV{QUERY_STRING}     = '';
-    $ENV{LAZYSITE_NOCACHE} = '1';
-    $ENV{LAZYSITE_PREVIEW} = '1';        # SM1064: a preview is no visit (SM1031)
-
     # SM441: render under the OWNING domain's Host, so the per-Host overlay
     # supplies that site's layout, theme and nav. Without this the preview
     # inherited the manager request's Host - normally the primary - and this
     # tool, whose whole claim is to show what a public visitor gets, showed a
     # different site's presentation.
-    my ($owner) = host_for_path($rel);
-    $ENV{HTTP_HOST} = $owner if length $owner;
-    my $rendered_as = length $owner ? $owner : ( $ENV{HTTP_HOST} // '' );
+    #
+    # SM1065: AT THE URL THAT DOMAIN SERVES IT AT. The docroot path under the
+    # owner's Host is resolved against the owner's content root, so a domain's
+    # page came back 404. A primary page renders with no Host, never the
+    # request's, which may be a domain's name.
+    my ( $owner, $url ) = served_at($rel);
+    my $rendered_as = length $owner ? $owner : '(default)';
+
+    $ENV{DOCUMENT_ROOT}    = $DOCROOT;
+    $ENV{REDIRECT_URL}     = $url;
+    $ENV{REQUEST_METHOD}   = 'GET';
+    $ENV{QUERY_STRING}     = '';
+    $ENV{LAZYSITE_NOCACHE} = '1';
+    $ENV{LAZYSITE_PREVIEW} = '1';        # SM1064: a preview is no visit (SM1031)
+    if ( length $owner ) { $ENV{HTTP_HOST} = $owner }
+    else                 { delete $ENV{HTTP_HOST} }
 
     my $processor = processor_path();
     my $raw       = qx($^X \Q$processor\E 2>/dev/null);

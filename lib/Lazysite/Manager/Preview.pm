@@ -171,10 +171,16 @@ sub action_preview {
     $uri =~ s/\.md$//;
     $uri =~ s{/index$}{/};
 
-    local $ENV{LAZYSITE_NOCACHE} = '1';
-    local $ENV{REDIRECT_URL}     = $uri;
-    local $ENV{DOCUMENT_ROOT}    = $DOCROOT;
-    local $ENV{LAZYSITE_PREVIEW} = '1';        # SM1064: a preview is no visit (SM1031)
+    # SM1065: under the owner's Host AT THE URL THAT DOMAIN SERVES IT AT
+    # (Domains::served_at). SM441 set the Host and kept the docroot path, which
+    # that Host resolves against the domain's own content root - a 404.
+    my ( $owner, $url ) = Lazysite::Manager::Domains::served_at($uri);
+
+    local %ENV = %ENV;
+    $ENV{LAZYSITE_NOCACHE} = '1';
+    $ENV{REDIRECT_URL}     = $url;
+    $ENV{DOCUMENT_ROOT}    = $DOCROOT;
+    $ENV{LAZYSITE_PREVIEW} = '1';        # SM1064: a preview is no visit (SM1031)
 
     # SM441: render under the Host of the domain that OWNS this path. Without
     # it the preview inherited the Host of whatever the sysop was browsing
@@ -184,9 +190,11 @@ sub action_preview {
     # reads as a page given the wrong theme rather than as a preview that has
     # not been told which site it is. An operator who happened to open the
     # manager on the domain's own host saw a correct preview, which is what
-    # made it intermittent.
-    my ($owner) = Lazysite::Manager::Domains::host_for_path($rel_path);
-    local $ENV{HTTP_HOST} = length $owner ? $owner : ( $ENV{HTTP_HOST} // '' );
+    # made it intermittent. That same inherited Host is why a primary page
+    # renders with no Host (SM1065): opened on a domain's name, the manager
+    # would otherwise preview the domain's page of the same name.
+    if ( length $owner ) { $ENV{HTTP_HOST} = $owner }
+    else                 { delete $ENV{HTTP_HOST} }
 
     my $processor = processor_path();
     my $output    = qx($^X \Q$processor\E 2>/dev/null);
