@@ -133,6 +133,16 @@ Archive
   ORDER:` and READY FOR REVIEW lines; red names each failing file's cause -
   main, a stack, or two stacks together - and only those stacks are NOT READY.
   An empty queue runs the plain nightly on main. t/tools/145-149.
+- SM1063 (PENDING) **a connector sweep that expires nothing counts zero.** The
+  sweep declared its counters after the kept list in one list assignment, so
+  the list took the zeros: a sweep that expired nothing reported `expired:
+  null` (and `unanswered: null` with no stuck calls) in the daemon's run record,
+  and a sweep that expired something wrote `00` in front of the first record it
+  kept, which then no longer read. The counters are declared first.
+  `t/lint/257` refuses a scalar after an array or hash in a `my`/`our`/`state`
+  list with an assignment; no other instance in the tree. t/unit/manager/335,
+  t/lint/257.
+
 - SM1012 (PENDING) **internal: `render_content` is split at its seams.** The
   Template object for a content pass is built by `_tt_engine`; what the manager
   UI needs to know about the user (capabilities, scopes) comes from

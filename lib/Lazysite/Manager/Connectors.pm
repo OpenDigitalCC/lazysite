@@ -957,7 +957,7 @@ sub sweep {
         return { ok => 0, error => _calls_unreadable() };
     };
     my $cutoff = time - $KEEP_CALLS_DAYS * 86400;
-    my ( @keep, $expired, $unanswered ) = ( (), 0, 0 );
+    my ( $expired, $unanswered, @keep ) = ( 0, 0 );
     while ( my $l = <$fh> ) {
         my $r = eval { JSON::PP::decode_json($l) } or next;
         if ( ( $r->{at} // 0 ) < $cutoff ) { $expired++; next }
