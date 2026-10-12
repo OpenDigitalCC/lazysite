@@ -830,6 +830,19 @@ sub _site_url {
     return interpolate_env($raw);
 }
 
+# SM1020: the site's absolute address for a link a message carries - notify.conf's
+# base_url, else site_url expanded - with no trailing slash, or '' when neither
+# resolves (a daemon has no request to borrow a host from; see _site_url).
+sub site_base {
+    my ($docroot) = @_;
+    my $conf      = _notify_conf($docroot);
+    my $b         = $conf->{base_url};
+    $b = _site_url($docroot) unless defined $b && length $b;
+    $b = ''                  unless defined $b;
+    $b =~ s{/+\z}{};
+    return $b;
+}
+
 sub _plugin_enabled {
     my ( $docroot, $name ) = @_;
     open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return 0; # not a store - site config

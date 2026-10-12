@@ -103,6 +103,18 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
+- SM1020 (PENDING) **notification rules are sent, once each, by the daemon.** A
+  new engine job, `notify-outbox`, sends what `notify` handlers queued: it
+  resolves the recipients, leaves out whoever caused the event (unless the
+  rule says `notify_actor: true`), applies the rule's per-recipient cap,
+  renders the rule's template and mails each recipient once - a retry after a
+  transport failure reaches only those not yet sent to. Each message carries
+  an unsubscribe link and a `List-Unsubscribe` header unless the rule turns it
+  off, and a non-ASCII Subject is encoded (RFC 2047). One audit row per
+  recipient names the account or address. The job account needs
+  `manage_notifications`. Compliance with privacy and consent rules is the
+  operator's responsibility (docs/forms). t/unit/notify/03, 04.
+
 - SM1019 (PENDING) **a `notify` handler: a notification rule over a form
   event.** A new handler type, bound as a form's second target (or a schedule
   entry), whose recipients come from accounts, the owners of matching rows,

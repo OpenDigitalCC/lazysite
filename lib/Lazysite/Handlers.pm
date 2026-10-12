@@ -2060,6 +2060,11 @@ sub _acknowledge_submitter {
     return '';
 }
 
+# SM1020: the two, published for Lazysite::Outbox, which sends through the same
+# extension script the same way.
+sub find_script     { return _find_script(@_) }
+sub run_smtp_script { return _run_smtp_script(@_) }
+
 sub _find_script {
     my ($name) = @_;
     require Cwd;

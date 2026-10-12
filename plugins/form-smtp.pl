@@ -115,7 +115,9 @@ if ( grep { $_ eq '--pipe' } @ARGV ) {
             } @{ $data->{files} } ];
         }
 
-        send_email( $config, $form, $files );
+        # SM1020: a notification rule's message arrives composed (Lazysite::Outbox).
+        if ( ref $data->{message} eq 'HASH' ) { send_message( $config, $data->{message} ) }
+        else                                  { send_email( $config, $form, $files ) }
         log_event( 'INFO', $config->{to} // '-', 'email sent', method => $config->{method} // 'sendmail', from => $config->{from} // '-' );
         print encode_json( { ok => 1 } );
     };
@@ -344,8 +346,59 @@ sub send_email {
     }
 }
 
+# SM1020: A COMPOSED MESSAGE - the notify rules' mail (Lazysite::Outbox).
+#
+# send_email above builds a FORM's message: "Form submission", one line per
+# field, the submitter's address. A notification is composed by its rule's
+# template instead, so it arrives here whole - subject, plain-text body, and
+# the headers a rule may add - and this only puts it on the wire:
+#
+#   * To and From are exactly one address, refused otherwise (SM1017);
+#   * the Subject is folded of CR/LF and RFC 2047-encoded when not ASCII;
+#   * a header is accepted only from a closed list, and its value only in the
+#     shape that header takes - List-Unsubscribe is one <http(s)://...> URL.
+#     Nothing a template writes can add a header.
+# A sub, not a file-scope hash: the --pipe block above runs before a `my` here
+# would be assigned.
+sub _message_header_shape {
+    my ($name) = @_;
+    my %shape = ( q{List-Unsubscribe} => qr{\A<https?://[^\s<>"]+>\z} );
+    return $shape{$name};
+}
+
+sub send_message {
+    my ( $conf, $msg ) = @_;
+    my $from = sanitise_email( $conf->{from}, 'From address' );
+    my $to   = sanitise_email( $conf->{to},   'To address' );
+    require Lazysite::Mail;
+    my $subject = Lazysite::Mail::encode_header( $msg->{subject} // '' );
+    my @extra;
+    my $h = ref $msg->{headers} eq 'HASH' ? $msg->{headers} : {};
+    for my $name ( sort keys %$h ) {
+        my $re = _message_header_shape($name) or die "the header $name is not one a message may carry\n";
+        my $v = $h->{$name} // '';
+        die "the $name header is refused: it is not in the shape that header takes\n"
+            unless !ref $v && $v =~ $re;
+        push @extra, "$name: $v";
+    }
+    my $body = $msg->{text} // '';
+    $body =~ s/\r\n?/\n/g;
+    utf8::encode($body) if utf8::is_utf8($body);
+    my $ctype = 'text/plain; charset=utf-8';
+    if ( $conf->{method} eq 'sendmail' ) {
+        send_via_sendmail( $conf->{sendmail_path}, $from, $to, $subject, $body, $ctype, \@extra );
+    }
+    elsif ( $conf->{method} eq 'smtp' ) {
+        send_via_smtp( $conf, $from, $to, $subject, $body, $ctype, \@extra );
+    }
+    else {
+        die "Unknown SMTP method: $conf->{method}\n";
+    }
+    return;
+}
+
 sub send_via_sendmail {
-    my ( $sendmail, $from, $to, $subject, $body, $ctype ) = @_;
+    my ( $sendmail, $from, $to, $subject, $body, $ctype, $extra ) = @_;
     $ctype ||= 'text/plain; charset=utf-8';
 
     die "sendmail not found at $sendmail\n" unless -x $sendmail;
@@ -356,6 +409,7 @@ sub send_via_sendmail {
     print $fh "From: $from\n";
     print $fh "To: $to\n";
     print $fh "Subject: $subject\n";
+    print $fh "$_\n" for @{ $extra || [] };    # SM1020: from a closed list (send_message)
     print $fh "Content-Type: $ctype\n";
     print $fh "MIME-Version: 1.0\n";
     print $fh "\n";
@@ -364,7 +418,7 @@ sub send_via_sendmail {
 }
 
 sub send_via_smtp {
-    my ( $conf, $from, $to, $subject, $body, $ctype ) = @_;
+    my ( $conf, $from, $to, $subject, $body, $ctype, $extra ) = @_;
 
     require Net::SMTP;
 
@@ -402,6 +456,7 @@ sub send_via_smtp {
     $smtp->datasend("From: $from\n");
     $smtp->datasend("To: $to\n");
     $smtp->datasend("Subject: $subject\n");
+    $smtp->datasend("$_\n") for @{ $extra || [] };    # SM1020
     $smtp->datasend( "Content-Type: " . ( $ctype || 'text/plain; charset=utf-8' ) . "\n" );
     $smtp->datasend("MIME-Version: 1.0\n");
     $smtp->datasend("\n");

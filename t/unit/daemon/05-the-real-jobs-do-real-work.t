@@ -91,8 +91,8 @@ subtest 'the set: closed, small, and every need is a real capability' => sub {
     # this assertion, not a formality: %JOBS is a closed literal, and a job
     # arriving without a filing behind it is the drift this names.
     is_deeply( [ sort keys %JOBS ],
-        [qw(connectors-sweep daemon-heartbeat schedule-run sessions-sweep stats-rollup)],
-        'five jobs, named' );
+        [qw(connectors-sweep daemon-heartbeat notify-outbox schedule-run sessions-sweep stats-rollup)],
+        'six jobs, named - SM1020 added notify-outbox' );
 
     my %cap = map { $_ => 1 } @CAP_KEYS;
     for my $name ( sort keys %JOBS ) {

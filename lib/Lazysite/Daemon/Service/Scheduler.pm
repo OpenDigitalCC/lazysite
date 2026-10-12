@@ -117,6 +117,18 @@ our %JOBS = (
         needs => undef,
         run   => \&Lazysite::Daemon::Jobs::schedule_run,
     },
+
+    # SM1020 (SM1010 phase 1): SEND WHAT THE NOTIFY RULES QUEUED. A notify
+    # handler writes an outbox entry and returns, so a visitor never waits on
+    # mail; this sends each entry's messages, once each, as the job account.
+    # `needs` is the type's own capability - the one that gated writing the
+    # rule (Lazysite::Handlers::cap_for_type('notify')). A tick a minute: a
+    # comment's followers hear about it within one.
+    'notify-outbox' => {
+        every => 60,
+        needs => 'manage_notifications',
+        run   => \&Lazysite::Daemon::Jobs::notify_outbox,
+    },
 );
 
 sub jobs { return \%JOBS }

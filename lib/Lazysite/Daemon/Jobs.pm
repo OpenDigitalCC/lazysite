@@ -225,6 +225,14 @@ sub _write_schedule_runs {
     return 1;
 }
 
+# SM1020: the notification outbox. The body is Lazysite::Outbox::run, which
+# resolves, caps, sends once each and audits; this is the daemon's call to it.
+sub notify_outbox {
+    my (%ctx) = @_;
+    require Lazysite::Outbox;
+    return Lazysite::Outbox::run( docroot => $ctx{docroot}, actor => $ctx{actor}, now => $ctx{now} );
+}
+
 sub sessions_sweep {
     my (%ctx) = @_;
     require Lazysite::Manager::Sessions;

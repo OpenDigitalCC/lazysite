@@ -285,6 +285,7 @@ everywhere.
 | `smtp`, `file` | `manage_forms` |
 | `table` | `manage_data` |
 | `connector` | `manage_connectors` |
+| `notify` | `manage_notifications` (off by default; the sysop groups hold it) |
 
 Changing a handler's type needs both. **Binding** a form to a handler that
 already exists needs `manage_forms` alone - the vetting happened when the
@@ -330,6 +331,46 @@ handler was made. A refusal names the capability that would work.
   submissions store. It needs the copy, which is what stores the files, and
   the column is checked against the table when the handler is saved.
   See [Data tables](/docs/data-tables).
+
+`notify`
+: A notification rule: tells people that something happened - a comment on
+  a post they follow, say - by email and the site bell. Bind it as a form's
+  second target (after the handler that stores the submission) or call it
+  from the schedule. It does not send while the visitor waits: it queues the
+  event, and the daemon's `notify-outbox` job sends within a minute, so the
+  site must run the daemon and its job account must hold
+  `manage_notifications`. A quarantined submission notifies nobody.
+
+  `recipients` is a JSON list on one line, each item one source:
+  `{"accounts":["ann"]}`, `{"owners_of":{"table":"subscriptions","where":{"post":"post"}}}`
+  (the accounts that wrote the matching rows - the table needs
+  `timestamps: true`), `{"addresses_from":{"table":"members","column":"email","where":{"list":"list"}}}`,
+  `{"fixed":["desk@example.org"]}`, `{"submitter":"account"}` (the signed-in
+  submitter; needs `notify_actor: true`) or `{"submitter":{"field":"email"}}`.
+  A `where` maps a column to a field of the event; if the event lacks that
+  field, the source matches nobody. `channels` is `email`, `bell` or both;
+  the bell reaches accounts only, each seeing their own notices. The account
+  that caused the event is left out unless `notify_actor: true`.
+
+  `template: comment` reads `lazysite/notify-templates/comment.email.tt` -
+  a first line `Subject: ...`, then the body - and `comment.bell.tt`, with
+  the event's fields as `fields.<name>` (each at most 400 characters),
+  `actor`, `recipient`, `rule` and `unsubscribe_url`. A non-ASCII subject is
+  encoded for mail (RFC 2047). Without a template the message lists the
+  fields.
+
+  `unsubscribe` is on by default: every message carries a link to
+  `unsubscribe_path` (a page of this site, made absolute with `base_url` in
+  `lazysite/notify.conf` or `site_url`) and a `List-Unsubscribe` header.
+  `per_recipient_hour` (default 3) caps how many messages of this rule one
+  recipient gets in an hour; past it, the next is refused and recorded.
+
+  **Who may be written to is the operator's decision, and complying with
+  privacy and consent rules is the operator's responsibility** (ruled
+  2026-10-12). The engine guards the technical side only: every recipient is
+  exactly one address, refused if it names more; each message is sent once,
+  even across retries; the cap above; and one audit row per recipient,
+  naming the account or address and the outcome.
 
 There are no `webhook`, `api` or `db` handlers any more: a webhook is a
 connector, and `db` is `table` with `keep_copy: false`. The upgrade to

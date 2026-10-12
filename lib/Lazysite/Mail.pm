@@ -26,7 +26,7 @@ use strict;
 use warnings;
 use Exporter 'import';
 
-our @EXPORT_OK = qw(one_address);
+our @EXPORT_OK = qw(one_address encode_header);
 
 my $ATOM = qr/[^\s\@,;<>"()\\\x00-\x1f\x7f]+/;
 
@@ -47,6 +47,34 @@ sub one_address {
         if $v =~ /[,;<>]/;
     return ( undef, 'it is not an email address' ) unless $v =~ /\A$ATOM\@$ATOM\z/;
     return ( $v,    '' );
+}
+
+
+# SM1020: A HEADER VALUE THAT IS NOT ASCII, ENCODED (RFC 2047).
+#
+# A Subject carrying "é" or "—" went out as raw UTF-8 bytes in a header, which
+# the RFCs do not allow and mail clients render as mojibake or reject. ASCII
+# passes unchanged. Anything else becomes one or more `=?UTF-8?B?...?=` words of
+# at most 45 bytes each (so every encoded word stays under 75 characters), split
+# only between characters - an encoded word may not end inside one - and joined
+# by a folding newline and space. CR and LF are refused by the caller first;
+# this never emits a bare line break that is not a fold.
+sub encode_header {
+    my ($v) = @_;
+    $v = '' unless defined $v;
+    $v =~ s/[\r\n]+/ /g;
+    return $v unless $v =~ /[^\x20-\x7e]/;
+    require MIME::Base64;
+    my ( @words, $buf );
+    $buf = '';
+    for my $ch ( split //, $v ) {
+        my $b = $ch;
+        utf8::encode($b);
+        if ( length($buf) + length($b) > 45 ) { push @words, $buf; $buf = '' }
+        $buf .= $b;
+    }
+    push @words, $buf if length $buf;
+    return join "\n ", map { '=?UTF-8?B?' . MIME::Base64::encode_base64( $_, '' ) . '?=' } @words;
 }
 
 1;
