@@ -77,6 +77,16 @@ Archive
   handler. A handler with no domain is the instance's and stays out of a
   confined caller's reach; another domain's handlers are neither shown nor
   bindable. t/integration/210.
+- SM1057 (PENDING) **security: a content write in the manager needs
+  `manage_content`.** Ruled 2026-10-12 ("Require manage_content"). On the
+  manager API's cookie door save, delete, move, copy, file-upload, mkdir,
+  migrate-to-local and the edit locks need `manage_content`, as WebDAV and MCP
+  already require; the file's rule still applies on top, so a rule naming an
+  account no longer lets it write without the capability. An account with `ui`
+  alone is read-only in the manager. Paths in the engine's tree keep their own
+  capabilities (nav.conf's `manage_nav`); operators and unsecured sites are
+  unaffected. t/integration/222.
+
 - SM1057 (PENDING) **security: the manager API's cookie door needs manager
   access (`ui`).** A signed-in account in no group - a member login holding no
   capability - could send `save` (and delete, mkdir, move, copy, file-upload,

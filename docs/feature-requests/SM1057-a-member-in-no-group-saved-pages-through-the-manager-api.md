@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox report 2026-10-12, sites.lazysite.io (tprf-news domain), engine 0.15.4
 area: security
-status-note: "SHIPPED (PENDING): a non-operator cookie session needs ui (account store or session groups) at the manager API; unsecured sites unchanged. Affects v0.14.4 and v0.15.0-0.15.4. t/integration/220 (reproduction), 221 (key space and operator pinned on every door)."
+status-note: "SHIPPED (PENDING): a non-operator cookie session needs ui at the manager API (n540), and a content write needs manage_content with the file's rule on top (n541, ruled \"Require manage_content\"); unsecured sites unchanged. Affects v0.14.4, v0.15.0-0.15.4. t/integration/220-222. Open: acl-set on an unruled path."
 ---
 
 # The report
@@ -92,9 +92,9 @@ Every manager-API action now passes the `ui` gate first. After it:
 
 | Action | Gate after `ui` | Verdict |
 | --- | --- | --- |
-| save, delete, move, copy, file-upload, migrate-to-local | per-file rule (`_acl_denied`, Files.pm) | closed for no-ui accounts; see open question |
-| mkdir | none (no user passed, Files.pm action_mkdir) | closed for no-ui; SM992 (n385) adds the rule check |
-| lock, unlock, renew-lock | none | closed for no-ui; SM992 (n385) adds the rule check |
+| save, delete, move, copy, file-upload, migrate-to-local | per-file rule (`_acl_denied`, Files.pm) | closed for no-ui; manage_content required (n541) |
+| mkdir | none (no user passed, Files.pm action_mkdir) | closed for no-ui; manage_content required (n541); SM992 (n385) adds the rule check |
+| lock, unlock, renew-lock | none | closed for no-ui; manage_content required (n541); SM992 (n385) adds the rule check |
 | acl-set, acl-remove | ownership / write rule (Files.pm action_acl_set) | closed for no-ui |
 | git-restore | manage_content | unchanged |
 | cache-invalidate | none (self-healing) | closed for no-ui |
@@ -129,14 +129,53 @@ What an operator can do before a patch release:
   `post/zz-gate-check-*.md` at the docroot) and the audit trail for `save`
   rows by accounts without `ui`.
 
-# Open question (not changed here)
+# The ruling: "Require manage_content"
 
-An account holding `ui` but not `manage_content` still writes any unruled path
-through the cookie door, because the content writes stay rule-authorised on
-this channel (WebDAV and MCP require `manage_content`). Closing that changes
-who may edit on every secured site and is a ruling, not part of this fix.
+The question n540 left open - an account holding `ui` but not `manage_content`
+still wrote any unruled path through the cookie door, while WebDAV and MCP
+require `manage_content` - was ruled by the release manager on 2026-10-12:
+"Require manage_content". Built on n541.
+
+On the manager API's cookie door a content write needs `manage_content`, and
+the file's rule still applies on top. The writes are the actions declared
+`content_write` in Lazysite::ControlApi::Actions: save, delete, move, copy,
+file-upload, mkdir, migrate-to-local, lock, unlock and renew-lock (the
+inventory found no other content writer without a capability; git-restore
+already needs `manage_content`). The capability is read from the account store
+first and the session's groups second, as the `ui` gate reads it. A path in the
+engine's own tree (`lazysite/...`) keeps the capabilities that govern it -
+nav.conf's `manage_nav`, the layouts' - as WebDAV's content namespace does. An
+account with `ui` alone is read-only in the manager. Operators, and every
+account on an unsecured site, are unaffected. Refused 403 `forbidden`, audited
+`denied: content write capability`.
+
+A rule that names an account no longer lets it write without the capability:
+the rule says who may write which file among those who may write content.
+
+## Still open: acl-set on an unruled path
+
+acl-set and acl-remove keep their ownership rule. On a path no rule governs,
+acl-set by a non-operator is authorised by "write access to the file"
+(Files::action_acl_set, `_acl_allows($rel, 'write', ...)`), which a `ui`-only
+account still passes - so it can claim an unruled page as owner, with a write
+list that locks the editors out. The recommendation is that creating the first
+rule on a content path needs `manage_content` too: the code's own test is
+"write access to the file", which the ruling now defines, and the token and MCP
+doors already gate acl-set on `manage_content`. Not built; asked.
 
 # Tests
+
+n541: t/integration/222 - a `ui`-only account is refused each of the ten
+content writes (reproduced on n540: it saved, deleted, made a folder, copied and
+took locks), including a page whose rule names it; it still reads; a
+`manage_nav` holder still saves nav.conf by path; a `manage_content` holder
+writes an unruled page and is still refused one whose rule does not name it.
+t/unit/manager/15's authors and editors groups gain `manage_content`. Sabotage:
+no gate fails 222 (28); no account-store half fails 222 (2); no session-groups
+half fails 15 (3); no engine-tree exemption fails 222 (1); `save` undeclared
+fails 222 (9).
+
+n540:
 
 t/integration/220: the reproduction - save, read, delete, mkdir, lock, move,
 copy and acl-set by the member, on the domain's Host and the primary's, each
