@@ -79,6 +79,14 @@ starts.
 | Q16e | **ruled 2026-10-11 "queue the dist fix" - built (n357)**: `release.sh build` run from a git worktree wrote its tarball, debs and skill zip to that worktree's dist/, which the deploy monitor does not watch (0.15.3 and 0.15.4 never reached it); it writes them to STATE_ROOT/dist, the main checkout (Q14b), t/tools/104 | found after the 0.15.4 cut | XS |
 | Q16f | **built (n358)**: exit 4 meant two things on the rollout path - install.pl's "installed, not serviceable" (SM933) passed through the Hestia deploy script, whose 4 is the channel skip, so the 0.15.4 edge rollout listed an upgraded, failing site as skipped, counted 0 failed, left it out of the check summary ("0 clean, 0 with warnings or failures") and the watcher said "deployed". The deploy script finishes the install (permission pass, repair) and exits 5 if its final check still fails; the updater reports 5 as NOT SERVICEABLE, checks it, and exits 2 (findings, needs a human); t/tools/107 drives the scripts' own text with stand-in deploys | found in the 0.15.4 edge rollout output | S |
 | Q16g | **built (n359)**: `lazysite check` run as a user that cannot read a directory printed File::Find's raw "Can't opendir(<docroot>-lazysite-private/sites): Permission denied" from three walks and reported as if complete; all eleven walks in the tool go through `find_noting`, which collects the warning, and each check's unread directories are one WARN naming them, the check, and how to run it so it can (root, or the site's user); t/tools/108 | found in the 0.15.4 edge rollout output | S |
+| Q17a | **[[SM979]] security, ruled 2026-10-11 "New approve capability" - landed 30861240 (n380)**: a file's rule binds a `manage_users` holder; `approve_accounts` approves account requests; group-reach names what each capability reaches (t/integration/124). WORK-PLAN-0154 P1a | inbox 2026-10-11 | M |
+| Q17b | **[[SM980]] security, ruled 2026-10-11 "Parse it + fail closed" - landed 904aca3f (n381)**: `auth`, `auth_groups` and `payment` have one reading; an unreadable value answers 403 to everyone, logged, reported by `lazysite validate` (t/integration/125). P1b | inbox 2026-10-11 | S |
+| Q17c | **[[SM981]] security, ruled 2026-10-11 "Land where save would" - landed a6106bec (n382)**: placement decided by every rule governing the path, on every door; `acl reapply` repairs a misplaced file (t/integration/126). P1c | inbox 2026-10-11 | S |
+| Q17d | **[[SM982]] security, ruled 2026-10-11 "Table ACLs bind it + row filter" - landed 140d5870 (n383)**: a table's read and write rules bind every non-operator on every door; a descriptor's `where:` limits what is published (t/integration/127). P1d | inbox 2026-10-11 | M |
+| Q17e | **[[SM991]] security, ruled 2026-10-12 "Operators bypass, others bound" - landed e62da548 (n384)**: the operator is a member of the group carrying the `manager` flag; `manage_users` is user and group management (t/integration/128) | SM979 | M |
+| Q17f | **[[SM992]] security, ruled 2026-10-12 "Lock needs write access" - landed c37798ad (n385)**: lock, renew-lock and unlock ask the path's write rule; WebDAV `UNLOCK` is a write (t/integration/129) | SM979 | S |
+| Q17g | **[[SM993]] security, ruled 2026-10-12 "Fix both as recommended" - landed 26958a46 (n386)**: a page naming groups is a signed-in page; `auth: manager` on a content page is unreadable, 403 to everyone (t/integration/130) | SM980 | S |
+| Q17h | **[[SM991]] security, ruled 2026-10-12 "Yes, protect operator sessions too" - landed eec4b595 (n387)**: only the operator revokes the operator's sessions and keys (t/integration/131) | Q17e, Q17g | S |
 
 Applied throughout: E8 (comments state the invariant) on every file touched.
 
@@ -88,6 +96,12 @@ Not in the queue, and why:
 - E4 [[SM947]] - the toolchain's; brief filed.
 
 Open questions raised while working the queue:
+
+- ~~**Q17b (SM980): two access-key findings, 2026-10-11.**~~ **RULED
+  2026-10-12: "Fix both as recommended" - landed as [[SM993]] 26958a46
+  (n386).** (1) `auth_groups` bound only a signed-in request unless the page
+  said `auth: required`; (2) `auth: manager` enforced nothing outside the
+  manager path.
 
 - ~~**Q16 (SM944), Phase A: retiring the log copies changes log lines -
   stopped, 2026-10-11.**~~ **RULED 2026-10-12 (SM944 § Ruled: Q16): "Close Q16 + MCP attribution": keep the per-module log copies, close Q16 with no move; the four inline Manager::Data branches stay inline for good; Data's copy stays the row actor. Then build the separate one-line fix: MCP's setup (setup_context or equivalent) sets Lazysite::Manager::Domains' log copy of the account so MCP domain writes log `user=<account>` and are committed with that account as author instead of 'unknown'. It must NOT set Common's `$auth_user` (that would open the fail-closed handlers in the MCP process - prove with a test that after an MCP domain write, a fail-closed handler outside a request still refuses). Q16 is closed; the MCP attribution fix built (n368).** Inventoried on main 41967751 (tmp/sm944-q16-a-probe.pl,
@@ -136,7 +150,8 @@ Open questions raised while working the queue:
   each surface (lint 137 holds it). Built: nothing.
 
 - **Q14 (SM944 S34 (a), n362): F-1, a forged upload spends the account's
-  upload budget, 2026-10-11. SECURITY. Built (n367), for review:** authorised
+  upload budget, 2026-10-11. SECURITY. Built (n367), landed as upload-budget
+  3cf4d320:** authorised
   by the coordinating session 2026-10-11 for the release manager's review
   ("upload-budget"). The rate check runs in the file-upload dispatch branch,
   after every gate; the size check stays before the body read; a genuine 61st
