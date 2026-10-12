@@ -432,6 +432,32 @@ sub _form_server_rule {
     return @server_rules;
 }
 
+# SM1012 S5: A FILE FIELD - cut from _render_form, like each field kind's
+# renderer. Every one takes the same arguments, ( $name, $value, $max,
+# $req_attr, $ph_attr, $val_attr, $eff_pat, %rules ), whether it reads
+# them all or not, so that the kinds are rows of one table.
+sub _form_field_file {
+    my ( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules ) = @_;
+    my $field_html;
+    my $acc = '';
+    if ( defined $rules{accept} ) {
+        my $a = _esc_attr( $rules{accept} );
+        $acc = qq( accept="$a");
+    }
+    my $mult = $rules{multiple} ? ' multiple' : '';
+    # SM905 U3: bare `capture` is a valid boolean attribute; with a value
+    # it names which camera.
+    my $cap = '';
+    if ( defined $rules{capture} ) {
+        $cap = length $rules{capture}
+            ? ' capture="' . _esc_attr( $rules{capture} ) . '"'
+            : ' capture';
+    }
+    $field_html = qq(    <input type="file" name="$name" id="$name")
+        . $acc . $mult . $cap . qq($req_attr>\n);
+    return $field_html;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -556,22 +582,7 @@ sub _render_form {
 
         my $field_html;
         if ( $rules{file} ) {
-            my $acc = '';
-            if ( defined $rules{accept} ) {
-                my $a = _esc_attr( $rules{accept} );
-                $acc = qq( accept="$a");
-            }
-            my $mult = $rules{multiple} ? ' multiple' : '';
-            # SM905 U3: bare `capture` is a valid boolean attribute; with a value
-            # it names which camera.
-            my $cap = '';
-            if ( defined $rules{capture} ) {
-                $cap = length $rules{capture}
-                    ? ' capture="' . _esc_attr( $rules{capture} ) . '"'
-                    : ' capture';
-            }
-            $field_html = qq(    <input type="file" name="$name" id="$name")
-                . $acc . $mult . $cap . qq($req_attr>\n);
+            $field_html = _form_field_file( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
         }
         elsif ( $rules{textarea} ) {
             # A textarea carries its value as CONTENT, not an attribute - and it
