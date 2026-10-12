@@ -133,7 +133,7 @@ get wrong. `make tiers` prints this.
 | `bash tools/handoff.sh --full` / `--release` | + the suite | a branch that wants the suite / a branch bound for a cut | the handoff plus `tools/suite.sh`; `--release` adds the bench |
 | `tools/gate-main.sh` | the release gate | **required for a release**: after a landing, before a cut | `tools/release.sh gate`: suite, bench, coverage on main's tip |
 | `make tier-release` | ~80 min | by hand, once per cut | suite (through `tools/suite.sh`), then bench, then coverage |
-| `bash tools/overnight.sh` | the night | 00:30, from claude's crontab | the queued handoffs, then `tools/suite.sh --nightly` on main |
+| `bash tools/overnight.sh` | the night | 00:30, from claude's crontab | **where READY comes from**: the queued stacks prechecked, cherry-picked onto main in queue order and tested with one whole suite (`tools/integration.pl`, SM1062); an empty queue runs `tools/suite.sh --nightly` on main |
 
 **The whole suite is not the handoff (SM1061).** The release manager ruled on
 2026-10-12: *a targeted subset on each commit and handoff (precheck); the whole
@@ -146,20 +146,52 @@ every handoff fault was found by the precheck, and the one cross-stack clash
 by a whole-suite run on main. The precheck now runs the tests of every area a
 change touches, which selects that test.
 
-**The overnight queue.** A handoff too heavy for the working day is queued
-rather than run: `bash tools/overnight.sh --queue WORKTREE TIP [--full|--release]`
-appends `WORKTREE TIP [FLAG]` to `tmp/overnight/queue.txt` in the main
-checkout. At 00:30 `tools/overnight.sh` takes the whole queue (lines added
-while it runs wait for the next night), checks each TIP out in its WORKTREE and
-runs `tools/handoff.sh --stack main [FLAG]` there, one at a time at nice 19 and
-idle I/O. The READY / NOT READY lines are in
-`tmp/overnight/results-DATE.txt`, each run's output in
-`tmp/overnight/handoff-DATE-TIP.log`. Then it runs `tools/suite.sh --nightly`:
-the whole suite on main's tip in `tmp/wt-nightly`, through the suite lock,
-logged to `tmp/nightly/DATE.log` (the newest 14 kept); a failure files
-`DATE-nightly-suite-failed-on-SHA.md` in `inbox/`, a pass files nothing. A run
-that finds its lock held logs a skip rather than queueing, so one night cannot
-overlap the next.
+**The overnight queue: the night tests what is about to land (SM1062).** The
+release manager ruled on 2026-10-12: *"maybe the suite runs on its own branch,
+not main, then the review process checks that in to main"*. A stack is queued
+rather than handed off in the day: `bash tools/overnight.sh --queue WORKTREE TIP
+[--full|--release]` appends `WORKTREE TIP [FLAG]` to `tmp/overnight/queue.txt` in
+the main checkout (FLAG is still accepted and changes nothing: every stack gets
+the whole suite, and the bench is the release gate's). At 00:30
+`tools/overnight.sh` takes the whole queue (lines added while it runs wait for
+the next night) and runs `tools/integration.pl` at nice 19 and idle I/O:
+
+1. **Release.** Every queued worktree, and any worktree holding a branch of a
+   queued stack, is detached at main, so vcs-review can offer the branches in
+   the morning. One with uncommitted changes is left alone; its stack is NOT
+   READY.
+2. **Precheck** each stack as `tools/handoff.sh` does - each branch against the
+   one below it. A failure is NOT READY and stays out of the tree.
+3. **Build** `tmp/wt-integration`, a detached worktree, fresh from main: each
+   stack's commits that `git cherry` says are not yet applied are cherry-picked
+   in queue order. vcs-review lands by cherry-pick, so landing the stacks in
+   that order makes main this tree - a merge would test a tree no landing
+   produces. A stack that does not apply is reported `CONFLICT with <earlier
+   stack>: files` (or with main), left out, and the rest continue; a commit
+   already on main (a stack landed in part) is skipped. The tip is kept as
+   `review/assess/integration`: vcs-review offers no `review/assess/` branch
+   (`review/integration` it would offer).
+4. **One whole suite** on that tip, `tools/suite.sh --tree tmp/wt-integration`:
+   the host-wide suite lock, nice 19, idle I/O, inside the 5 h the whole run
+   keeps to. A held lock is a skip, and the stacks go back on the queue.
+5. **The verdict**, in `tmp/overnight/results-DATE.txt`. GREEN: `LAND IN THIS
+   ORDER:`, the stack tips with SHAs, and a `READY FOR REVIEW: BRANCH SHA (...)`
+   line per branch, as `tools/handoff.sh` prints it. RED: each failing test file
+   is run again alone - on main, on each stack applied alone on main, and, when
+   no single stack fails it, on each pair - and put down to `main itself`,
+   `stack X` or `stacks X+Y together (clash)`. Only the stacks named are NOT
+   READY; the rest are READY and say they were not implicated. A red night, or
+   any CONFLICT, also files `DATE-overnight-integration-red|green.md` in
+   `inbox/`; a green night files nothing there.
+
+An empty queue (or one where every stack was left out) runs the plain nightly
+instead: `tools/suite.sh --nightly`, the whole suite on main's tip in
+`tmp/wt-nightly`, logged to `tmp/nightly/DATE.log` (the newest 14 kept); a
+failure files `DATE-nightly-suite-failed-on-SHA.md` in `inbox/`. Either way main
+is checked every night. A second overnight run finds the runner lock held and
+logs a skip rather than queueing, so one night cannot overlap the next.
+`tools/handoff.sh` keeps its daytime role: a quick precheck-only check for an
+agent that wants one before queueing.
 
 Two measured facts that explain the shape (SM269 phase 0/1, 6 cores): the plain
 suite is ~330s sequential and ~122s at `-j4`, and the release gate is ~80
@@ -175,7 +207,10 @@ the whole suite having been run on the branch; each cost a review round-trip
 through a release manager who was not watching (SM764). The tier existed; the
 script is what makes running it the handover rather than a step before it.
 Since SM1061 what that script runs is the precheck, widened by area; the whole
-suite is on demand, nightly, and required for a release.
+suite is on demand, nightly, and required for a release. Since SM1062 the READY
+a stack is offered with comes from the overnight integration run, which runs
+that precheck and then the whole suite on the stack together with everything
+else queued; `tools/handoff.sh` by day is the quick check before queueing.
 
 Every tier passes `-l`. Without it, tests that load `Lazysite::` modules die
 with zero tests run and `prove` reports a failure whose cause is not on screen.

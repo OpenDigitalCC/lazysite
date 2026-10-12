@@ -124,6 +124,15 @@ Archive
   touches (`tools/precheck-areas.pl`; t/lint/255 keeps the map complete).
   `tools/overnight.sh` runs queued handoffs and then `tools/suite.sh --nightly`
   on main, filing a failure in the inbox.
+- SM1062 (PENDING) **internal: the overnight run tests what is about to land.**
+  Ruled by the release manager 2026-10-12. `tools/overnight.sh` hands the queue
+  to `tools/integration.pl`: it detaches every queued worktree at main,
+  prechecks each stack, cherry-picks the stacks onto main in queue order as
+  `review/assess/integration` (a conflict is reported and left out), and runs
+  one whole suite there (`tools/suite.sh --tree`). Green prints `LAND IN THIS
+  ORDER:` and READY FOR REVIEW lines; red names each failing file's cause -
+  main, a stack, or two stacks together - and only those stacks are NOT READY.
+  An empty queue runs the plain nightly on main. t/tools/145-149.
 - SM1012 (PENDING) **internal: `render_content` is split at its seams.** The
   Template object for a content pass is built by `_tt_engine`; what the manager
   UI needs to know about the user (capabilities, scopes) comes from

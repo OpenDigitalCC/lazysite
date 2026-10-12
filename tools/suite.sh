@@ -28,16 +28,33 @@
 # 14 are kept. On a failure it files DATE-nightly-suite-failed-on-SHA.md in the
 # project inbox ($LAZYSITE_NIGHTLY_INBOX overrides) naming the failing files and
 # their first failure lines; a pass writes nothing there.
+#
+#   bash tools/suite.sh --tree DIR  # the worktree DIR, as the nightly runs (SM1062)
+#
+# --tree runs the suite in DIR, a worktree of this repository that the caller
+# has prepared (tools/integration.pl's tmp/wt-integration), with the nightly's
+# discipline: nice and ionice, the $LAZYSITE_NIGHTLY_LIMIT stop, and a lock found
+# held is a skip - exit 75, naming the holder - never a wait. The log is DIR's
+# tmp/suite.log; what is printed is as on demand. It files nothing: its caller
+# reports.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
 NIGHTLY=0
+TREE=0
 case "${1:-}" in
   -h | --help)
-    sed -n '2,30p' "$0" | sed 's/^# \?//'
+    sed -n '2,39p' "$0" | sed 's/^# \?//'
     exit 0
     ;;
   --nightly) NIGHTLY=1 ;;
+  --tree)
+    if [ -z "${2:-}" ] || ! cd "$2" 2>/dev/null; then
+      echo "suite: --tree needs a worktree directory" >&2
+      exit 2
+    fi
+    TREE=1
+    ;;
   '') ;;
   *)
     echo "suite: unknown argument '$1' (see --help)" >&2
@@ -162,10 +179,20 @@ if [ "$NIGHTLY" = 1 ]; then
   exit $?
 fi
 
-# --- on demand -----------------------------------------------------------------
+# --- on demand, or in a prepared tree ------------------------------------------
 LOG=tmp/suite.log
 mkdir -p tmp
-if ! flock -n 9; then
+RUN=()
+if [ "$TREE" = 1 ]; then
+  if ! flock -n 9; then
+    echo "suite: skipped - another whole-suite run holds $LOCK:"
+    show_holder
+    exit 75
+  fi
+  RUN=(timeout --kill-after=60 "${LAZYSITE_NIGHTLY_LIMIT:-5h}")
+  command -v nice >/dev/null 2>&1 && RUN+=(nice -n 19)
+  command -v ionice >/dev/null 2>&1 && RUN+=(ionice -c3)
+elif ! flock -n 9; then
   echo "suite: another whole-suite run holds $LOCK - waiting for it."
   show_holder
   flock 9 || {
@@ -178,12 +205,14 @@ write_note
 echo "==> suite: prove -lr -j$JOBS t/ in $PWD (log: $LOG)"
 # 9>&- : the lock is this script's. A process a test leaves behind must not
 # hold it for ever and stop every later suite on the host.
-prove -lr -j"$JOBS" t/ >"$LOG" 2>&1 9>&-
+"${RUN[@]}" prove -lr -j"$JOBS" t/ >"$LOG" 2>&1 9>&-
 RC=$?
 : >"$NOTE"
 
 if [ "$RC" = 0 ]; then
   grep -E '^Files=' "$LOG"
+elif [ "$TREE" = 1 ] && { [ "$RC" = 124 ] || [ "$RC" = 137 ]; }; then
+  echo "suite: STOPPED at the ${LAZYSITE_NIGHTLY_LIMIT:-5h} limit (exit $RC) - $LOG"
 else
   echo "suite: FAILED (prove exit $RC) - $LOG"
   grep -E '^#   Failed test|\(Wstat' "$LOG" | head -10

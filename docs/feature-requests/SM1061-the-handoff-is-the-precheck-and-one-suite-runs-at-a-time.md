@@ -117,3 +117,10 @@ it was not done here. Two options are open for a ruling:
 - `tools/release.sh` takes the origin repository's lock around its staged
   `prove` only - narrower, but it changes release.sh and the line t/lint/208
   pins.
+
+# Since
+
+The same day the release manager ruled that the queue is tested together, as
+it will land: "maybe the suite runs on its own branch, not main, then the
+review process checks that in to main". SM1062 builds it; the overnight queue
+described above now feeds `tools/integration.pl`.

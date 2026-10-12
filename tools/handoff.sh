@@ -22,6 +22,14 @@
 # cut that the suite on the branch would have found. SM971 ran it once per
 # stack, on the tip, instead of once per branch. SM1061 moves it to main.
 #
+# SM1062: THE READY A STACK IS OFFERED WITH NOW COMES FROM THE OVERNIGHT RUN.
+# Queue the stack (`tools/overnight.sh --queue WORKTREE TIP`); at 00:30
+# tools/integration.pl prechecks it as this script does, cherry-picks it with
+# the other queued stacks onto main in queue order, runs one whole suite on
+# that tree, and prints "LAND IN THIS ORDER:" and the READY FOR REVIEW lines in
+# tmp/overnight/results-DATE.txt. This script keeps its daytime role: a quick
+# precheck-only check for an agent that wants one before queueing.
+#
 # --stack BASE prechecks every branch between BASE and the checked-out tip, in
 # order, each against the branch below it (SM971); every branch is READY only if
 # all of that passed, and the first that fails stops the run, by name. Without

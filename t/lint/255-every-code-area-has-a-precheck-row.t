@@ -57,7 +57,7 @@ subtest 'the whole suite has one runner' => sub {
         open my $f, '<', "$root/$_[0]" or die "$_[0]: $!";
         return grep { !/^\s*#/ } <$f>;
     };
-    for my $f (qw(tools/handoff.sh Makefile tools/precheck.sh scripts/pre-review.sh tools/overnight.sh)) {
+    for my $f (qw(tools/handoff.sh Makefile tools/precheck.sh scripts/pre-review.sh tools/overnight.sh tools/integration.pl)) {
         my @direct = grep { /\bprove\b[^\n]*\s-\S*r\b[^\n]*\bt\/(?:\s|\|\||$)/ } $code->($f);
         is_deeply( \@direct, [], "$f runs no whole suite of its own" );
     }
