@@ -187,7 +187,14 @@ costs one `stat`; an unreadable or corrupt file fails open with a loud
 warning (no session revoked) rather than locking everyone out. The
 manager Sessions page drives both (`manage_users`-gated, audited);
 rotating the HMAC secret remains the invalidate-everything lever - see
-"Known constraints" below.
+"Known constraints" below. Since SM1040 a changed credential - any password
+set by `passwd`, a redeemed claim, a 2FA disable - writes the account's
+`not_before` first (a failure changes nothing) and names the session that
+made the change in `kept`, beside that `not_before`: the verifier admits the
+kept sid only while that `not_before` stands, so the next sign-out-everywhere
+ends it as well. The manager API takes the session to keep from the verified
+cookie, and only when the account is the caller's own; a request body cannot
+name one. Writes to `revoked.json` are serialised by `revoked.json.lock`.
 
 ### Localhost bypass
 

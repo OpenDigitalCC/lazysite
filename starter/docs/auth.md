@@ -153,6 +153,13 @@ rotating the signing secret - everyone at once. Losing the registry only
 degrades the listing; cookies minted before this feature cannot be listed
 but are still killable per-user or by rotation.
 
+Changing a credential signs the account's other sessions out. A password
+change - the account's own, an operator's `passwd`, or a redeemed setup or
+reset link - and turning two-factor off each end every session of that
+account except the one that made the change, which stays signed in. A setup
+or reset link is not a session, so redeeming one ends them all. A later "Sign
+out everywhere" ends the kept session too.
+
 ### Dev server
 
 The dev server auto-detects built-in auth when `lazysite/auth/users`

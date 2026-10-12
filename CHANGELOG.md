@@ -103,6 +103,16 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
+- SM1040 (PENDING) **a changed credential signs the account's other sessions
+  out.** SECURITY. A password change wrote the new password and nothing else,
+  so a session stolen before it stayed signed in. Now any password change -
+  the account's own, an operator's `passwd`, a redeemed setup or reset link -
+  and turning 2FA off end every other session of that account, legacy cookies
+  included; the session that made the change stays signed in, and a later
+  "Sign out everywhere" ends it too. The session kept is taken from the
+  verified cookie and only for the caller's own account, never from a request.
+  A revocation that cannot be written refuses the change. t/unit/auth/40.
+
 - SM1020 (PENDING) **notification rules are sent, once each, by the daemon.** A
   new engine job, `notify-outbox`, sends what `notify` handlers queued: it
   resolves the recipients, leaves out whoever caused the event (unless the

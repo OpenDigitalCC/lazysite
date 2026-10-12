@@ -18,11 +18,12 @@ package Lazysite::Manager::Sessions;
 
 use strict;
 use warnings;
+use Fcntl          qw(:flock);
 use JSON::PP       qw(encode_json decode_json);
 use Lazysite::Util qw(log_event);
 use Exporter       qw(import);
 our @EXPORT_OK = qw(action_sessions_list action_session_revoke action_user_revoke sweep_expired
-    dispatch_sessions_keys);
+    dispatch_sessions_keys revoke_account_sessions session_is_kept);
 
 # SM944 S33: dispatch_sessions_keys reads the request's door, action and body.
 use Lazysite::Manager::Common qw($token_auth $action _user_caps _json_body);
@@ -60,7 +61,29 @@ sub _read_revoked {
     $data               = {} unless ref $data eq 'HASH';
     $data->{sids}       = {} unless ref $data->{sids} eq 'HASH';
     $data->{not_before} = {} unless ref $data->{not_before} eq 'HASH';
+    $data->{kept}       = {} unless ref $data->{kept} eq 'HASH';
     return $data;
+}
+
+# SM1040: the one read-modify-write of revoked.json, under an exclusive lock.
+#
+# Two revocations at once - a logout and a password change, say - each read the
+# file, added their entry and renamed their copy over it, and the second rename
+# dropped the first's entry. For a logout that was a session that stayed signed
+# in; for "sign the others out" it would be the stolen session the change was
+# made to end. The lock is a sibling file, so the rename the writer does cannot
+# release it. Returns the writer's ( ok, error ).
+sub _update_revoked {
+    my ($change) = @_;
+    my $lock = _revoked_path() . '.lock';
+    open my $lfh, '>>', $lock or return ( 0, "Cannot open $lock: $!" );
+    chmod 0o660, $lock;
+    flock( $lfh, LOCK_EX ) or return ( 0, "Cannot lock $lock: $!" );
+    my $rev = _read_revoked();
+    $change->($rev);
+    my ( $ok, $err ) = _write_revoked($rev);
+    close $lfh;
+    return ( $ok, $err );
 }
 
 # Write revoked.json atomically (temp+rename, 0660), pruning entries older
@@ -75,6 +98,12 @@ sub _write_revoked {
             delete $data->{$bucket}{$k}
                 if ( $data->{$bucket}{$k} || 0 ) < $cutoff;
         }
+    }
+    # SM1040: a kept session ages out with the not_before it is exempt from.
+    for my $k ( keys %{ $data->{kept} || {} } ) {
+        my $e = $data->{kept}{$k};
+        delete $data->{kept}{$k}
+            unless ref $e eq 'HASH' && ( $e->{nb} || 0 ) >= $cutoff;
     }
     my $path = _revoked_path();
     my $tmp  = "$path.tmp.$$";
@@ -163,7 +192,8 @@ sub action_sessions_list {
             next unless $now - $t < _cookie_max();       # expired cookie
             next if exists $rev->{sids}{ $s->{sid} };    # session signed out
             my $nb = $rev->{not_before}{ $s->{user} };
-            next if defined $nb && $t < $nb;             # user signed out everywhere
+            next if defined $nb && $t < $nb              # user signed out everywhere
+                && !session_is_kept( $rev, $s->{user}, $s->{sid} );    # SM1040
             push @sessions, {
                 sid     => $s->{sid},
                 user    => $s->{user},
@@ -188,9 +218,7 @@ sub action_session_revoke {
     $sid = '' unless defined $sid;
     return { ok => 0, error => 'A session id (16 hex characters) is required' }
         unless $sid =~ /\A[0-9a-f]{16}\z/;
-    my $rev = _read_revoked();
-    $rev->{sids}{$sid} = time();
-    my ( $ok, $err ) = _write_revoked($rev);
+    my ( $ok, $err ) = _update_revoked( sub { $_[0]{sids}{$sid} = time() } );
     return { ok => 0, error => $err } unless $ok;
     log_event( 'WARN', $auth_user, 'session revoked', sid => substr( $sid, 0, 8 ) );
     return { ok => 1, sid => $sid };
@@ -204,12 +232,69 @@ sub action_user_revoke {
     $username = '' unless defined $username;
     $username =~ s/[^a-zA-Z0-9_.-]//g;
     return { ok => 0, error => 'A username is required' } unless length $username;
-    my $rev = _read_revoked();
-    $rev->{not_before}{$username} = time();
-    my ( $ok, $err ) = _write_revoked($rev);
+    # SM1040: everywhere means the session a credential change kept, too.
+    my ( $ok, $err ) = _update_revoked( sub {
+            $_[0]{not_before}{$username} = time();
+            delete $_[0]{kept}{$username};
+    } );
     return { ok => 0, error => $err } unless $ok;
     log_event( 'WARN', $auth_user, 'all sessions revoked for user', user => $username );
     return { ok => 1, user => $username };
+}
+
+# SM1040 (ruled 2026-10-12, "Fix now"): A CHANGED CREDENTIAL ENDS THE ACCOUNT'S
+# OTHER SESSIONS. Any password change - the account's own, an operator's passwd,
+# a redeemed setup or reset link - and any 2FA disable signs out every session of
+# that account except the one making the change. Before this a password change
+# signed nothing out, so a stolen session survived the change it prompted.
+#
+# The mechanism is the one "sign out everywhere" already uses, not_before, which
+# also ends legacy cookies that carry no session id. The session that made the
+# change is KEPT by naming it beside the not_before it is exempt from: the
+# exemption holds only while not_before is the one it was written with, so a
+# later sign-out-everywhere ends it too, without anything having to remember to.
+# A legacy cookie has no id and cannot be kept; a keep_sid that is not 16 hex
+# keeps nothing.
+#
+# keep_sid comes from the caller's VERIFIED session (LAZYSITE_AUTH_SID, which the
+# auth wrapper sets from the cookie), never from a request body: whoever passes
+# it is engine code that has checked the session belongs to $user.
+#
+#   revoke_account_sessions( dir => $LAZYSITE_DIR, user => $name,
+#       keep_sid => $sid )  ->  { ok, user, kept }  |  { ok => 0, error }
+sub revoke_account_sessions {
+    my (%o) = @_;
+    local $LAZYSITE_DIR = $o{dir} if defined $o{dir} && length $o{dir};
+    my $user = $o{user} // '';
+    return { ok => 0, error => 'An account is required' }
+        unless length $user && $user =~ /\A[a-zA-Z0-9_.-]+\z/;
+    my $keep = $o{keep_sid} // '';
+    $keep = '' unless $keep =~ /\A[0-9a-f]{16}\z/;
+    my ( $ok, $err ) = _update_revoked( sub {
+            my $now = time();
+            $_[0]{not_before}{$user} = $now;
+            if ( length $keep ) { $_[0]{kept}{$user} = { sid => $keep, nb => $now } }
+            else                { delete $_[0]{kept}{$user} }
+    } );
+    return { ok => 0, error => $err } unless $ok;
+    log_event( 'WARN', ( length $auth_user ? $auth_user : $user ),
+        'other sessions revoked for user',
+        user => $user, kept => ( length $keep ? substr( $keep, 0, 8 ) : 'none' ) );
+    return { ok => 1, user => $user, kept => ( length $keep ? 1 : 0 ) };
+}
+
+# SM1040: is this the session a credential change kept? True only for the sid
+# named beside the CURRENT not_before. Lazysite::Auth::Session asks the same
+# question of the same file when it verifies a cookie; t/unit/auth/40 holds the
+# listing and the verifier to one answer.
+sub session_is_kept {
+    my ( $rev, $user, $sid ) = @_;
+    return 0 unless defined $sid && length $sid;
+    my $k  = ref $rev->{kept} eq 'HASH'       ? $rev->{kept}{$user}       : undef;
+    my $nb = ref $rev->{not_before} eq 'HASH' ? $rev->{not_before}{$user} : undef;
+    return ( ref $k eq 'HASH'
+            && defined $k->{sid} && $k->{sid} eq $sid
+            && defined $nb && defined $k->{nb} && $k->{nb} == $nb ) ? 1 : 0;
 }
 
 
@@ -275,6 +360,9 @@ sub sweep_expired {
             $pruned += grep { ( $rev->{$bucket}{$_} || 0 ) < $cutoff }
                 keys %{ $rev->{$bucket} };
         }
+        $pruned += grep {    # SM1040: as _write_revoked prunes them
+            ref $rev->{kept}{$_} ne 'HASH' || ( $rev->{kept}{$_}{nb} || 0 ) < $cutoff
+        } keys %{ $rev->{kept} };
         if ($pruned) {
             my ( $ok, $err ) = _write_revoked($rev);
             return { ok => 0, error => $err } unless $ok;

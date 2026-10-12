@@ -301,6 +301,26 @@ sub action_users {
             return { ok => 0, error => "claim-redeem is not a manager action" }
                 if $act eq 'claim-redeem';
 
+            # SM1040: a password change or a 2FA disable signs the account's
+            # other sessions out and keeps the one making the change - which is
+            # this request's session only when the account is the caller's own.
+            # The session to keep is never taken from the request: a body that
+            # names one is ignored, so nobody can keep alive the session the
+            # change was meant to end.
+            {
+                my $had = exists $parsed->{keep_sid};
+                delete $parsed->{keep_sid};
+                my $sid = $ENV{LAZYSITE_AUTH_SID} // '';
+                if ( $act =~ /\A(?:passwd|mfa-disable)\z/
+                    && $sid =~ /\A[0-9a-f]{16}\z/
+                    && ( $parsed->{username} // '' ) eq $auth_user )
+                {
+                    $parsed->{keep_sid} = $sid;
+                }
+                $request_body = encode_json($parsed)
+                    if $had || exists $parsed->{keep_sid};
+            }
+
             # SEC-2026-07 (C1): a DELEGATED sub-manager (create_sub_users, not
             # full manage_users) may run only sub-tree-confinable operations on
             # its own descendants. The powerful account operations - group

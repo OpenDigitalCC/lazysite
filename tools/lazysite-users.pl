@@ -451,7 +451,8 @@ if ($API_MODE) {
             $result = { ok => 1, message => "User added" };
         }
         elsif ( $action eq 'passwd' ) {
-            cmd_passwd( $req->{username}, $req->{password}, actor => $req->{actor} );
+            cmd_passwd( $req->{username}, $req->{password}, actor => $req->{actor},
+                keep_sid => $req->{keep_sid} );
             $result = { ok => 1, message => "Password updated" };
         }
         elsif ( $action eq 'remove' ) {
@@ -700,7 +701,7 @@ if ($API_MODE) {
             $result = { ok => 1, %$r };
         }
         elsif ( $action eq 'mfa-disable' ) {
-            cmd_mfa_disable( $req->{username} );
+            cmd_mfa_disable( $req->{username}, keep_sid => $req->{keep_sid} );
             $result = { ok => 1, message => 'MFA disabled' };
         }
         elsif ( $action eq 'mfa-verify' ) {
@@ -963,12 +964,33 @@ sub cmd_passwd {
             unless $actor eq $user || is_ancestor( $actor, $user, $all );
     }
 
+    # SM1040: the other sessions end BEFORE the new password is written, so a
+    # failure leaves the old password and every session as they were rather
+    # than a changed password with a stolen session still signed in.
+    _end_other_sessions( $user, $opt{keep_sid} );
     $users{$user} = hash_password($pass);
     write_users(%users);
     clear_token_expiry($user);    # SM071: a password has no token expiry
     log_event( 'INFO', $user, 'password changed' );
     cli_audit( 'user-passwd', $user );
     print "Password updated for '$user'.\n" unless $API_MODE;
+}
+
+# SM1040 (ruled 2026-10-12, "Fix now"): a changed credential signs the account's
+# other sessions out - a password set by passwd (the account's own or an
+# operator's), a redeemed setup or reset link, and a 2FA disable. $keep_sid is the
+# session making the change, kept signed in; it is passed only by engine code that
+# took it from the caller's verified cookie for this same account (the manager
+# API strips any a request body carries). Dies when the revocation cannot be
+# written, before the caller changes anything.
+sub _end_other_sessions {
+    my ( $user, $keep_sid ) = @_;
+    require Lazysite::Manager::Sessions;
+    my $r = Lazysite::Manager::Sessions::revoke_account_sessions(
+        dir => $LAZYSITE_DIR, user => $user, keep_sid => $keep_sid );
+    die "Cannot sign out the other sessions of '$user' ($r->{error}) - nothing was changed\n"
+        unless ref $r eq 'HASH' && $r->{ok};
+    return;
 }
 
 sub cmd_remove {
@@ -2666,10 +2688,14 @@ sub cmd_claim_redeem {
         die $GENERIC unless $ui;
         my $pw = $opt{password};
         die "Password required\n" unless defined $pw && length $pw;
+        # SM1040: a redeemed link signs every session of the account out. The
+        # claim, not a session, authenticates this request, so none is kept.
+        _end_other_sessions( $user, undef );
         $users{$user} = hash_password($pw);
         $result = { ok => 1, purpose => $purpose };
     }
     else {    # mint-token
+        _end_other_sessions( $user, undef );    # SM1040: as the password branch
         my $token = generate_token();
         $users{$user} = hash_token($token);
 
@@ -2797,9 +2823,16 @@ sub cmd_mfa_enroll {
 }
 
 sub cmd_mfa_disable {
-    my ($user) = @_;
+    my ( $user, %opt ) = @_;
     die "Username required\n" unless defined $user && length $user;
     my $all = read_settings();
+    # SM1040: turning a second factor off signs the account's other sessions
+    # out, as a password change does - first, so a failure changes nothing. An
+    # account with nothing enrolled has nothing turned off and keeps its
+    # sessions.
+    _end_other_sessions( $user, $opt{keep_sid} )
+        if ref $all->{$user} eq 'HASH'
+        && ( $all->{$user}{totp_secret} || $all->{$user}{recovery_hashes} );
     if ( exists $all->{$user} ) {
         delete $all->{$user}{$_}
             for qw(totp_secret recovery_hashes mfa_required mfa_pending totp_last_step);

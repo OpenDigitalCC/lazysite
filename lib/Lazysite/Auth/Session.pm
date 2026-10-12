@@ -240,11 +240,25 @@ sub session_revoked {
     return 1 if length($sid) && exists $sids->{$sid};
 
     my $nb = ref $data->{not_before} eq 'HASH' ? $data->{not_before} : {};
-    return 1
-        if defined $nb->{$user}
+    return 0
+        unless defined $nb->{$user}
         && $nb->{$user} =~ /^\d+$/
         && $ts < $nb->{$user};
-    return 0;
+
+    # SM1040: a credential change signs the account's OTHER sessions out and
+    # keeps the one that made it, named beside the not_before it is exempt
+    # from. The exemption holds only while that not_before stands, so a later
+    # sign-out-everywhere ends it too. A legacy cookie has no sid to name.
+    # Lazysite::Manager::Sessions::session_is_kept is the listing's copy of
+    # this rule; t/unit/auth/40 holds the two to one answer.
+    my $kept = ref $data->{kept} eq 'HASH' ? $data->{kept}{$user} : undef;
+    return 0
+        if length $sid
+        && ref $kept eq 'HASH'
+        && defined $kept->{sid} && $kept->{sid} eq $sid
+        && defined $kept->{nb}  && $kept->{nb} =~ /^\d+$/
+        && $kept->{nb} == $nb->{$user};
+    return 1;
 }
 
 sub load_user_groups {
