@@ -117,7 +117,7 @@ w( 'content/a.txt',          "alpha bytes\n" );
 w( 'lazysite/backups/lazysite-backup-20261010T000000Z.tar.gz',    "backup bytes" );
 w( 'lazysite/backups/lazysite-site-test-20261010T000000Z.tar.gz', "package bytes" );
 uapi( { action => 'add', username => 'op', password => 'x' } );
-grant_caps( $d, 'op', qw(manage_users manage_content manage_config manage_domains manage_data) );
+grant_caps( $d, 'op', qw(ui manage_users manage_content manage_config manage_domains manage_data) );
 
 my @CASES = (
     [ 'page-pdf', 'action=page-pdf&path=content/page.md', 'application/pdf', '%PDF-1.4 stand-in', 'content/page.md' ],

@@ -77,7 +77,7 @@ print $sf $secret;
 close $sf;
 
 uapi( $d, { action => 'add', username => 'op', password => 'x' } );
-grant_caps( $d, 'op', 'manage_users', 'manage_domains' );
+grant_caps( $d, 'op', 'manage_users', 'manage_domains', 'ui' ); # SM1057: uses the manager
 uapi( $d, { action => 'add', username => 'ed', password => 'y' } );
 grant_caps( $d, 'ed', 'manage_content' );
 # SM1016: the names a domain's access keys carry must exist.

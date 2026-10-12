@@ -102,7 +102,7 @@ open my $b, '>', "$d/content/clientB/secret.md" or die $!; print $b "B\n"; close
 # groups match no domain allow-list => unconfined. client is in role-client,
 # which clienta.com allows => confined to content/clientA.
 uapi( $d, { action => 'add', username => 'op', password => 'x' } );
-grant_caps( $d, 'op', 'manage_users', 'manage_content' );
+grant_caps( $d, 'op', 'manage_users', 'manage_content', 'ui' ); # SM1057: uses the manager
 uapi( $d, { action => 'add', username => 'client', password => 'y' } );
 grant_caps( $d, 'client', 'manage_content', 'ui' );    # SM1057: a manager-UI client
 

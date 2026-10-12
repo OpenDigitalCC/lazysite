@@ -72,7 +72,7 @@ close $sf;
 
 uapi( $d, { action => 'add', username => 'op',   password => 'x' } );
 uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
-grant_caps( $d, 'op',   'manage_users' );
+grant_caps( $d, 'op', 'manage_users', 'ui' );    # SM1057: uses the manager
 grant_caps( $d, 'boss', 'create_sub_users' );
 my $BG = 'role-boss';
 my $OG = 'role-op';

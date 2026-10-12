@@ -46,7 +46,7 @@ spit( "$d/lazysite/auth/.secret", $secret );
     my $out = do { local $/; <$r> };
     waitpid $pid, 0;
 }
-grant_caps( $d, 'admin', 'manage_users' );
+grant_caps( $d, 'admin', 'manage_users', 'ui' );    # SM1057: uses the manager
 spit( "$d/page.md", "---\ntitle: Page\n---\nx\n" );
 
 sub token_for { my ( $user, $hours_ago ) = @_; hmac_sha256_hex( "csrf:$user:" . ( int( time() / 3600 ) - ( $hours_ago // 0 ) ), $secret ) }

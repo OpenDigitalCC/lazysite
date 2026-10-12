@@ -29,6 +29,11 @@ my $d = $s->docroot;
 $s->add_user('op');
 $s->add_user('member');
 $s->grant( 'op', 'g-op', \@ALL, \@ALL );
+# SM1057: the manager's door needs `ui`, which op's api/mcp group may not
+# also grant (SM127) - so the cookie calls below are a manager-UI account's.
+$s->add_user('mgr');
+$s->grant( 'mgr', 'g-mgr', [qw(ui manage_content manage_nav manage_users)],
+    [qw(ui manage_content manage_nav manage_users)] );
 
 sub uapi {
     my ($p) = @_;
@@ -75,19 +80,19 @@ my $SECRET = 'P24-SECRET-do-not-record';
 
 subtest 'a users read that succeeds writes no row (unchanged)' => sub {
     my $n = () = audit_lines();
-    my $r = $s->call( 'op', 'users', body => { action => 'users-detail' } );
+    my $r = $s->call( 'mgr', 'users', body => { action => 'users-detail' } );
     ok( $r->{ok}, 'users-detail answers' ) or diag explain $r;
     is( scalar( () = new_lines($n) ), 0, 'and nothing is recorded' );
 };
 
 subtest 'a users read that fails writes one row, without its text' => sub {
     my $n = () = audit_lines();
-    my $r = $s->call( 'op', 'users', body => { action => 'verify-credential', username => 'member',
+    my $r = $s->call( 'mgr', 'users', body => { action => 'verify-credential', username => 'member',
             secret => $SECRET } );
     ok( !$r->{ok}, 'a wrong secret is not verified' );
     my @l = new_lines($n);
     is( scalar @l, 1, 'one row' ) or diag @l;
-    like( $l[0] // '', qr/\|\s*op\s*\|\s*user-verify-credential\s*\|\s*member\s*\|.*\|\s*fail\s*\|/,
+    like( $l[0] // '', qr/\|\s*mgr\s*\|\s*user-verify-credential\s*\|\s*member\s*\|.*\|\s*fail\s*\|/,
         'naming the caller, the sub-action, the account and the failure' );
     unlike( join( '', audit_lines() ), qr/\Q$SECRET\E/, 'and never the secret' );
 };
@@ -100,7 +105,7 @@ subtest 'a users read whose error carries its input records the failure, not the
     local $ENV{CRASH_HOOK_SUB} = 'Lazysite::Auth::Verify::verify_credential';
     local $ENV{CRASH_HOOK_MSG} = "died holding $SECRET";
     my $n = () = audit_lines();
-    my $r = $s->call( 'op', 'users', body => { action => 'verify-credential', username => 'member',
+    my $r = $s->call( 'mgr', 'users', body => { action => 'verify-credential', username => 'member',
             secret => $SECRET } );
     ok( !$r->{ok}, 'the read fails' ) or diag explain $r;
     my @l = new_lines($n);
@@ -116,11 +121,11 @@ subtest 'a crashing control API handler writes one failure row' => sub {
     local $ENV{CRASH_HOOK_SUB} = 'Lazysite::Manager::Nav::action_nav_read';
     local $ENV{CRASH_HOOK_MSG} = "died holding $SECRET";
     my $n = () = audit_lines();
-    my $r = $s->call( 'op', 'nav-read' );
+    my $r = $s->call( 'mgr', 'nav-read' );
     ok( !$r->{ok}, 'the call fails' );
     my @l = new_lines($n);
     is( scalar @l, 1, 'one row' ) or diag @l;
-    like( $l[0] // '', qr/\|\s*op\s*\|\s*nav-read\s*\|.*\|\s*fail\s*\|.*crashed: the handler failed/,
+    like( $l[0] // '', qr/\|\s*mgr\s*\|\s*nav-read\s*\|.*\|\s*fail\s*\|.*crashed: the handler failed/,
         'naming the action and that it crashed' );
     unlike( join( '', audit_lines() ), qr/\Q$SECRET\E/, 'and never the error' );
 };

@@ -49,7 +49,7 @@ sub new_site {
     close $w;
     my $out = do { local $/; <$r> };
     waitpid $pid, 0;
-    grant_caps( $d, 'admin', 'manage_users' );
+    grant_caps( $d, 'admin', 'manage_users', 'ui' );    # SM1057: uses the manager
     return $d;
 }
 

@@ -69,7 +69,7 @@ sub setup {
     print $cf $conf;
     close $cf;
     uapi( $d, { action => 'add', username => 'op', password => 'x' } );
-    grant_caps( $d, 'op', 'manage_users', 'manage_domains' );
+    grant_caps( $d, 'op', 'manage_users', 'manage_domains', 'ui' ); # SM1057: uses the manager
     return $d;
 }
 

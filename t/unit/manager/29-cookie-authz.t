@@ -72,7 +72,7 @@ open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close
 
 # op = full operator (manage_users etc.); ed = content-editor only.
 uapi( $d, { action => 'add', username => 'op', password => 'x' } );
-grant_caps( $d, 'op', 'manage_users', 'manage_config', 'manage_content' );
+grant_caps( $d, 'op', 'manage_users', 'manage_config', 'manage_content', 'ui' );  # SM1057
 uapi( $d, { action => 'add', username => 'ed', password => 'y' } );
 grant_caps( $d, 'ed', 'manage_content' );
 
