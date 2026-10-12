@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1012 (PENDING) **internal: what the form renderer produces is recorded.**
+  t/unit/processor/112 renders every `:::form` block in the starter, the docs,
+  the website and the test fixtures (plain, prefilled with a hostile value, and
+  under each outcome) and 73 written cases - every rule, every field kind, and
+  each branch the 0.15.5 coverage left unreached - and compares the HTML, the
+  rules sidecar, the log lines and the warnings with a committed record. It is
+  the gate for splitting `_render_form`. No behaviour change.
+
 - SM1012 (PENDING) **internal: the deparse comparisons a split is proved with
   are in tools/.** `tools/deparse-subs.pl` deparses every processor sub and
   compares two trees (or a tree and a saved listing), naming the subs that
