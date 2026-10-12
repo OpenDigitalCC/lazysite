@@ -877,13 +877,22 @@ sub domains_using {
 # allowed_groups adds that domain's content root to the scope of every member
 # of the group, so the root decides what the group reaches from then on. The
 # ruling is that it reaches the new domain and no other, so the root must be
-# new content:
+# outside every domain:
 #
 #   - not another domain's root, nor inside one, nor containing one (a root
-#     that contains another domain's would put that domain inside the scope);
-#   - not a folder that already exists, public or in the private store - the
-#     adoption case is the operator's, because a member of the group scoped
-#     elsewhere would gain whatever was already there.
+#     that contains another domain's would put that domain inside the scope).
+#
+# D-2 (ruled 2026-10-12, "Allow adoption"): an existing folder outside every
+# domain may be adopted. Its content becomes reachable by every member of the
+# group, as the ruling accepts. A PROTECTED folder may not: one in the private
+# store, or one that any access rule touches (its own, one below it, one above
+# it). Measured before deciding (tmp/n512-adopt-probe.pl): a group member scoped
+# elsewhere, still refused the gated page by its rule, was shown the rule
+# itself - owner, read and write lists - by protected-sections, and under a rule
+# that leaves its write list empty it overwrote the gated page; the
+# token adopting it, which cannot read the content, would be handing reach to
+# content it is not allowed to see. Those stay the operator's. An access store
+# that cannot be read refuses, since it cannot say which case this is.
 #
 # Returns the refusal, or undef. A root that does not clean is left to
 # domain_add, which refuses it in its own words; an empty root (the host
@@ -908,13 +917,22 @@ sub creation_root_refusal {
                 . 'own, so that the group reaches the new domain and no other: pick a '
                 . 'folder outside every existing domain.' };
     }
-    my ($existing) = Lazysite::Private::resolve( $DOCROOT, $rel );
+    my ( $existing, $where ) = Lazysite::Private::resolve( $DOCROOT, $rel );
+    return undef unless defined $existing;    # a new folder
+    require Lazysite::Auth::Acl;
+    my $keys = Lazysite::Auth::Acl::rule_keys_touching( $DOCROOT, $rel );
     return { ok => 0, kind => 'forbidden',
-        error => "The content root '$rel' already exists. A domain given to your own "
-            . 'group starts with a new folder, so the group reaches nothing that was '
-            . 'there before; an operator can point a domain at existing content '
-            . '(Domains page).' }
-        if defined $existing;
+        error => "The content root '$rel' already exists and the access rules cannot be "
+            . 'read, so whether it is protected cannot be told. An operator can point a '
+            . 'domain at existing content (Domains page).' }
+        unless ref $keys eq 'ARRAY';
+    return { ok => 0, kind => 'forbidden',
+        error => "The content root '$rel' is protected content ("
+            . ( @{$keys} ? 'access rules on ' . join( ', ', map { "'$_'" } @{$keys} ) : 'held in the private store' )
+            . '). A domain given to your own group may adopt an existing folder only '
+            . 'when no access rule touches it; an operator can point a domain at '
+            . 'protected content (Domains page).' }
+        if $where eq 'private' || @{$keys};
     return undef;
 }
 

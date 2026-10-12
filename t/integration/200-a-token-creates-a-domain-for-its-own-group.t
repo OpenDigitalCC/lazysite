@@ -15,6 +15,9 @@
 #   - naming a group it is not in: refused, nothing written;
 #   - naming none: refused, with a message saying to name one;
 #   - a content root inside (or containing) another domain's root: refused;
+#   - D-2 ("Allow adoption"): an existing folder outside every domain is
+#     adopted; a protected one (private store, or any access rule touching it)
+#     stays refused;
 #   - audited with the caller, the host and the group.
 # The scoped token's SM976 check, the operator, and SM975 for every other
 # domain write are unchanged; t/integration/111 and 112 hold those.
@@ -38,10 +41,10 @@ plan skip_all => 'manager api missing' unless -f "$root/lazysite-manager-api.pl"
 my @ALL = qw(api ui manage_domains manage_users manage_config manage_content);
 my $s   = new_site( root => $root );    # site_tempdir() underneath
 my $d   = $s->docroot;
-make_path( "$d/sites/other", "$d/sites/existing" );
-{
-    open my $fh, '>', "$d/sites/other/index.md" or die $!;
-    print {$fh} "# other\n";
+make_path( "$d/sites/other", "$d/sites/existing", "$d/sites/held", "$d/sites/mixed/inner" );
+for my $f (qw(other existing held mixed mixed/inner)) {
+    open my $fh, '>', "$d/sites/$f/index.md" or die $!;
+    print {$fh} "---\ntitle: $f\n---\n# $f\n";
     close $fh;
 }
 
@@ -52,6 +55,14 @@ sub boss { my ( $a, $b ) = @_; return $s->call( 'boss', $a, body => $b ) }
 ok( boss( 'domain-add', { host => 'other.example.org', content_root => 'sites/other',
             site_url => 'https://other.example.org', site_name => 'Other' } )->{ok},
     'the operator adds other.example.org' );
+
+# Two protected folders outside every domain: `held` is gated whole (moved to
+# the private store); `mixed` is public with a gated folder inside it.
+for my $g (qw(/sites/held /sites/mixed/inner)) {
+    ok( $s->call( 'boss', 'acl-set', query => "action=acl-set&path=$g",
+            body => { read => ['boss'], write => ['boss'] } )->{ok},
+        "the operator gates $g" );
+}
 
 # The partner: a token account in `partners`, holding manage_domains, named on
 # no domain - so its scope is empty. `strangers` is a group it is not in.
@@ -66,9 +77,10 @@ sub uapi {
     return eval { decode_json($out) } // {};
 }
 my %auth;
-for my $u (qw(partner)) {
+for my $u ( [ partner => 'partners' ], [ adopter => 'adopters' ] ) {
+    my ( $u, $grp ) = @$u;
     $s->add_user($u);
-    $s->grant( $u, 'partners', [qw(api manage_domains manage_content)], \@ALL );
+    $s->grant( $u, $grp, [qw(api manage_domains manage_content)], \@ALL );
     my $t = uapi( { action => 'token', username => $u } )->{token} // '';
     ok( length $t, "a manage_domains token for '$u'" );
     $auth{$u} = 'Basic ' . encode_base64( "$u:$t", '' );
@@ -140,12 +152,39 @@ subtest "a content root that is another domain's: refused" => sub {
         like( $r->{error} // '', qr/overlaps 'sites\/other', which the domain 'other\.example\.org' serves/,
             '...naming the domain it overlaps' );
     }
-    my $r = tok( 'partner', 'domain-add', { %NEW, content_root => 'sites/existing', allowed_groups => 'partners' } );
-    ok( !$r->{ok}, 'refused: a folder that already exists' );
-    like( $r->{error} // '', qr/'sites\/existing' already exists/, '...saying so' );
     my $bad = tok( 'partner', 'domain-add', { %NEW, content_root => 'lazysite/x', allowed_groups => 'partners' } );
     ok( !$bad->{ok}, 'refused: a reserved area, as domain_add always refused it' );
     unlike( conf(), qr/tprf-news/, 'nothing was written' );
+};
+
+# D-2 (ruled 2026-10-12, "Allow adoption"): an existing folder outside every
+# domain may be adopted; a protected one may not (see creation_root_refusal).
+subtest 'a protected existing folder: refused' => sub {
+    for my $c ( [ 'sites/held', qr/'sites\/held' is protected content \(access rules on 'sites\/held'\)/ ],
+        [ 'sites/mixed', qr/'sites\/mixed' is protected content \(access rules on 'sites\/mixed\/inner'\)/ ] )
+    {
+        my $r = tok( 'adopter', 'domain-add', { host => 'adopt.example.org', content_root => $c->[0],
+                allowed_groups => 'adopters' } );
+        ok( !$r->{ok}, "refused: $c->[0]" );
+        is( $r->{kind}    // '', 'forbidden', '...as forbidden' );
+        like( $r->{error} // '', $c->[1], '...naming the rule that protects it' );
+    }
+    unlike( conf(), qr/adopt\.example\.org/, 'nothing was written' );
+};
+
+subtest 'an existing folder outside every domain: adopted' => sub {
+    my $r = tok( 'adopter', 'domain-add', { host => 'adopt.example.org', content_root => 'sites/existing',
+            allowed_groups => 'adopters' } );
+    ok( $r->{ok}, 'adopted' ) or diag explain $r;
+    like( conf(), qr/^alias\.adopt\.example\.org\.allowed_groups:\s*adopters\s*$/m, 'the domain names the group' );
+    my $f = "$d/sites/existing/index.md";
+    open my $fh, '<', $f or die "$f: $!";
+    my $body = do { local $/; <$fh> };
+    close $fh;
+    like( $body, qr/# existing/, 'its content is left as it was' );
+    my $list = tok( 'adopter', 'domains-list' );
+    is_deeply( [ map { $_->{host} } @{ $list->{domains} || [] } ], ['adopt.example.org'],
+        'and the adopter reaches that domain alone' );
 };
 
 subtest 'the reported case: naming its own group creates the domain' => sub {

@@ -247,6 +247,13 @@ Archive
   become named kinds with their text kept in the log; every call and refusal is
   one fixed-field record. Nothing calls Odoo yet. t/unit/odoo/01-05, lint 240
   (lazysite holds no Odoo knowledge).
+- SM1046 (PENDING) **a token's new domain may adopt an existing folder.** Ruled
+  2026-10-12, "Allow adoption": a domain a token gives to its own group may use
+  an existing folder as its content root when the folder lies outside every
+  domain. A protected folder - in the private store, or touched by any access
+  rule - is still refused, because adopting it would show the group its rule
+  and, with an empty write list, let the group write it. t/integration/200.
+
 - SM1046 (PENDING) **a token creates a domain for its own group.** A
   `manage_domains` token with no scope was refused `domain-add`, because it
   reached no domain until a domain named its group. Ruled 2026-10-12, "Allow,

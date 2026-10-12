@@ -492,6 +492,33 @@ sub gating_for {
     return _acl_entry_for( $map, $rel, 'read' ) ? 'gated' : 'open';
 }
 
+# SM1046 D-2: the rule keys that touch a folder - the folder's own, any below
+# it, and any above it (a site-wide rule included) - or undef when the store
+# cannot be read. Every mode counts: a write rule is as much a decision about
+# who may act there as a read rule. The open decides, as in gating_for.
+sub rule_keys_touching {
+    my ( $docroot, $rel ) = @_;
+    return undef unless defined $rel && length $rel;
+    local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
+    my ( $map, $state ) = _acl_map_or_state();
+    return [] if !ref $map && $state eq 'open';    # no store: no rules
+    return undef unless ref $map eq 'HASH';
+    my $r = _acl_norm($rel) // '';
+    $r =~ s{/+\z}{};
+    my @keys;
+    for my $k ( sort keys %{$map} ) {
+        my $n = _acl_norm($k) // '';
+        $n =~ s{/+\z}{};
+        $n = '' if $n eq '.';
+        push @keys, $k
+            if $n eq ''
+            || $n eq $r
+            || index( "$n/", "$r/" ) == 0
+            || index( "$r/", "$n/" ) == 0;
+    }
+    return \@keys;
+}
+
 # SM882: is EVERY page under this root gated? The invariant the release manager
 # ruled on the same day - a fully gated content root contains nothing public - is
 # only checkable if something can answer this, and it is the same store read.
