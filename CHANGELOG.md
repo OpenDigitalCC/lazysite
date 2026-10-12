@@ -495,6 +495,15 @@ Archive
   `manage_users` holder still revokes every other account's. A session id the
   session registry does not hold is the operator's alone to revoke.
   t/integration/131.
+- SM1049 (PENDING) **a write-only rule that moves nothing says ok.** A
+  write-only rule on a folder holding a gated subfolder - a domain root, as
+  reported - answered `ok:false`, kind `partial`, "content could not be moved",
+  although the rule was in force and nothing needed moving. A move back into
+  the document root is now due only when the private store holds something no
+  other rule keeps there; otherwise the reply is `ok:true` with
+  `content_moved: 0`. A due move that fails is still `partial`, and says which
+  way it could not move. t/integration/208.
+
 - SM1048 (PENDING) **a domain without sign-in pages uses the engine's.** On a
   domain whose content root had no copy, `/forgot` - the login page's own
   link - and `/logout`, where signing out lands, answered 404. Both join

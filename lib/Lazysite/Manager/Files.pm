@@ -2041,6 +2041,34 @@ our $CONTENT_MOVED_DIRECTION;
 # the second and not the first, so the failure carries its own flag.
 our $CONTENT_MOVE_FAILED;
 
+# SM1049: does the private twin of the folder whose rule is $rel hold a file that
+# no OTHER rule keeps from the public? A file is kept by a rule other than $rel
+# that names it, or names a folder it is in (a key is stored without its
+# trailing slash, so a folder's covers what starts with it and '/'), and gates
+# (_acl_gates_public). One
+# such file makes the move back due; none means the twin is there for other
+# rules and nothing is due. The store is read once, after $rel's rule is saved.
+sub _private_twin_holds_ungoverned {
+    my ( $rel, $priv_src ) = @_;
+    my $acls  = load_acls();
+    my @gated = grep { $_ ne $rel && _acl_gates_public( $acls->{$_} ) } keys %$acls;
+    return 0 if grep { _acl_root_key($_) eq 'root' } @gated;    # the whole site is held
+    my $proot = Lazysite::Private::private_root($DOCROOT);
+    my $found = 0;
+    find(
+        { no_chdir => 1,
+            wanted => sub {
+                return if $found || !-f $File::Find::name;
+                ( my $f = $File::Find::name ) =~ s{\A\Q$proot\E/}{};
+                $found = 1
+                    unless grep { $_ eq $f || index( $f, s{/*\z}{/}r ) == 0 } @gated;
+            },
+        },
+        $priv_src
+    );
+    return $found;
+}
+
 sub _sync_private_store {
     my ( $rel, $rec ) = @_;
     my @warnings;
@@ -2099,12 +2127,26 @@ sub _sync_private_store {
     my $priv_src = Lazysite::Private::private_path( $DOCROOT, $path );
     my $source_present =
         $gates ? ( -e "$DOCROOT/$path" ) : ( defined $priv_src && -e $priv_src );
+
+    # SM1049 (P-10): A FOLDER WHOSE PRIVATE TWIN HOLDS ONLY OTHER RULES' CONTENT
+    # HAS NOTHING TO MOVE BACK. A rule that does not gate a folder brings its
+    # content into the document root - but a gated subfolder (or file) beneath
+    # it keeps a twin of the folder in the store, and the mover was asked to
+    # move that whole twin into a document root that already holds the folder.
+    # It refused, rightly, since doing it would publish the gated content; but
+    # no move was due, and the reply said `partial`. Due means: something in the
+    # twin that no other rule keeps out of the public's reach.
+    my $nothing_due = 0;
+    if ( !$gates && $source_present && -d $priv_src && -d "$DOCROOT/$path" ) {
+        $nothing_due    = !_private_twin_holds_ungoverned( $rel, $priv_src );
+        $source_present = 0 if $nothing_due;
+    }
     $CONTENT_MOVED = 0 unless $source_present;
 
     my ( $ok, $err, $notes ) =
-        $gates
-        ? Lazysite::Private::move_in( $DOCROOT, $path )
-        : Lazysite::Private::move_out( $DOCROOT, $path );
+        $nothing_due ? ( 1, undef, undef )
+        : $gates     ? Lazysite::Private::move_in( $DOCROOT, $path )
+        :              Lazysite::Private::move_out( $DOCROOT, $path );
 
     # SM981: a path held in BOTH trees is merged, and what that did - which copy
     # was kept, where the other went - is said, never silent.
@@ -2710,8 +2752,11 @@ sub action_acl_set {
             content_moved       => ( $CONTENT_MOVED ? 1 : 0 ),
             content_move_failed => 1,
             error               => "the rule for '$rel' IS IN FORCE - the engine "
-                . 'honours it - but the content could not be moved out of the '
-                . 'document root, so a front end that serves these files without '
+                . 'honours it - but the content could not be moved '
+                # SM1049: by direction, as the warning is (SM529); an ungating
+                # rule's failure was reported as a move OUT.
+                . ( ( $CONTENT_MOVED_DIRECTION // 'out' ) eq 'in' ? 'back into' : 'out of' )
+                . ' the document root, so a front end that serves these files without '
                 . 'asking the engine would not be covered. This is a server '
                 . 'configuration fault, not a decision about your request. See '
                 . 'the warnings for the diagnostic and the repair.',
