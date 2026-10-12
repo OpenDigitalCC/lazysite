@@ -109,12 +109,18 @@ subtest 'the guard is called from the CHOKE POINT, and nowhere else but DAV' => 
     };
     my ($body) = $files =~ /sub action_save \{(.*?)\n\}/s;
     ok( defined $body, 'action_save is present in the shared module' );
-    like( $body, qr/page_parse_refusal/,
-        'and it consults the guard itself, so its callers inherit it' );
+
+    # SM1030: the content refusals are one sub, _content_write_refusal, which
+    # action_save calls and a draft preview asks too - so the guard is followed
+    # through it: action_save consults that sub, and that sub the guard.
+    my ($shared) = $files =~ /sub _content_write_refusal \{(.*?)\n\}/s;
+    like( $shared // '', qr/page_parse_refusal\s*\(/, 'the shared content refusals consult the guard' );
+    like( $body, qr/_content_write_refusal\s*\(/,
+        'and action_save consults them itself, so its callers inherit it' );
 
     # Ordering: the refusal must precede the write, or the page is already on
     # disk when we complain about it - SM708's own reasoning.
-    my $guard = index( $body, 'page_parse_refusal' );
+    my $guard = index( $body, '_content_write_refusal' );
     my $write = index( $body, 'write_file_checked' );
     cmp_ok( $guard, '>', -1, 'the guard is in action_save' );
     cmp_ok( $write, '>', -1, 'and so is the write' );
