@@ -2549,7 +2549,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
                 my ( $p, $before, $after, $pok, $why ) = @$row;
                 my $what = $pok ? _acl_audit_detail( $before, $after ) : $why;
                 audit_log( $auth_user, 'acl-set', $p, _request_ip(), ( $pok ? 'ok' : 'fail' ),
-                    $door, _audit_detail($what) );
+                    $door, $what );
             }
         }
 
