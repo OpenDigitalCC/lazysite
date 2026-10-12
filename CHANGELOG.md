@@ -158,6 +158,14 @@ Archive
   otherwise, by the handler, the header writer (every message), a handler's
   own `to`/`from`, and an account's address. A hand-written `to:` naming two
   addresses now fails at send and says why. t/unit/forms/60, 61.
+- SM1013 (PENDING) **a group or user added to a domain's Access section is
+  saved.** On the Domains page, adding a group to `allowed_groups` (or a user
+  to `locked_users`) and pressing Save said "Nothing had changed." and kept
+  nothing: the dirty check recognised the picker by a class it was never
+  drawn with, so it read as empty before and after. Adding or removing a pill
+  now marks the field changed, the unsaved count says so, and Save posts
+  `domain-set` with the new list. No other manager page tracks a picker this
+  way. t/unit/manager/280.
 
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the

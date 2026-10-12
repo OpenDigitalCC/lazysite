@@ -230,7 +230,19 @@ function loadPrincipals() {
 }
 function tokenPill(v) {
   return '<span class="mg-token" data-val="' + esc(v) + '">' + esc(v)
-    + '<button type="button" class="mg-token-x" title="Remove ' + esc(v) + '" onclick="this.parentNode.remove()">&times;</button></span>';
+    + '<button type="button" class="mg-token-x" title="Remove ' + esc(v) + '" onclick="removeToken(this)">&times;</button></span>';
+}
+// SM1013: a pill's x is a change like any other, so it marks the field dirty -
+// the box it leaves must read as changed before Save is pressed, and the count
+// under the sheet must say so.
+function removeToken(btn) {
+  var pill = btn.parentNode;
+  var box = pill.parentNode;
+  pill.remove();
+  if (box && !box.querySelector('.mg-token')) {
+    box.insertAdjacentHTML('beforeend', '<span class="mg-tokens-empty">None yet.</span>');
+  }
+  cfgMark();
 }
 // The token picker for one access key: current members as removable pills + the
 // shared principal <select> and an Add button. The .mg-tokens container is id
@@ -259,6 +271,7 @@ function addToken(input) {
   var empty = box.querySelector('.mg-tokens-empty'); if (empty) empty.remove();
   if (!dup) box.insertAdjacentHTML('beforeend', tokenPill(name));
   input.value = '';
+  cfgMark();   // SM1013: an added pill is a change; mark it and count it
 }
 
 function post(action, obj) {
@@ -840,9 +853,16 @@ function cfgTrack(el) {
 // One reader for both shapes on this page: an ordinary input, and the token
 // picker whose value is its pills. A second reader would disagree with the
 // writer in saveDomain the first time either changed.
+//
+// SM1013: the picker is the .mg-tokens container tokenPicker() draws. This
+// tested for 'mg-token-box', a class nothing on the page ever carried, so the
+// picker read as '' both when the sheet opened and when Save was pressed:
+// never dirty, never posted, and Save said "Nothing had changed." after a
+// group was added. The class is named once, here, for both readers.
+var CFG_PICKER_CLASS = 'mg-tokens';
 function cfgValueOf(el) {
   if (!el) return '';
-  if (PICK_KEYS && el.querySelectorAll && el.classList && el.classList.contains('mg-token-box')) {
+  if (el.querySelectorAll && el.classList && el.classList.contains(CFG_PICKER_CLASS)) {
     var picked = [];
     Array.prototype.forEach.call(el.querySelectorAll('.mg-token'), function (t) {
       picked.push(t.getAttribute('data-val'));
@@ -859,9 +879,8 @@ function cfgMark() {
     var el = document.getElementById(id);
     if (!el) return;
     var changed = cfgValueOf(el) !== CFG_ORIG[id];
-    var target = el.classList.contains('mg-token-box') ? el : el;
-    if (changed) { target.classList.add('mg-dirty'); n++; }
-    else { target.classList.remove('mg-dirty'); }
+    if (changed) { el.classList.add('mg-dirty'); n++; }
+    else { el.classList.remove('mg-dirty'); }
   });
   var note = document.getElementById('cfg-dirty');
   if (note) {
@@ -908,10 +927,9 @@ function saveDomain(host) {
         && cfgValueOf(inp) === CFG_ORIG[id]) { return; }
     changed++;
     if (PICK_KEYS[k]) {
-      // Token picker: the comma-list is the pills in the container.
-      var picked = [];
-      Array.prototype.forEach.call(inp.querySelectorAll('.mg-token'), function (t) { picked.push(t.getAttribute('data-val')); });
-      setKey(k, picked.join(','));
+      // Token picker: the comma-list is the pills in the container - read by
+      // the same cfgValueOf the dirty check used, so the two cannot disagree.
+      setKey(k, cfgValueOf(inp));
     } else if (k === 'appearance') {
       // One field, two conf keys: split "layout|theme" and write both.
       var ap = splitAppearance(inp.value);

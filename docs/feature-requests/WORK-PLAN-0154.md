@@ -73,6 +73,17 @@ questions below, and the next item starts.
 | P24 | The control API's `users` read sub-actions (including `verify-credential`) write no audit row when they fail; a crashing handler writes none on any surface | 2026-10-12: under SM943's audit rule (refusals and errors are audited): the control API's `users` read sub-actions (incl. verify-credential) write an audit row when they fail; a handler that crashes writes one failure row on every surface (API, MCP) naming the action, never the error's secret content. | under SM943's rule (refusals and errors are audited) | S |
 | P25 | The scan's page read still dies on a page it cannot open (permissions), outside the encoding rule | - | built (n399), SM990: both walks open the page inside the Q15h guard; left out, logged by relative path with the reason | XS |
 
+## From the 0.15.4 upgrade of sites.lazysite.io (release manager, 2026-10-12)
+
+"adding group to domains, then press save - message: Nothing had changed. also
+- groups should be prefixed with something say @ so they can be distinguished
+from users, and this should be consistent anywhere a group is picked. lets have
+cli command to add the domain group."
+
+| P | Item | Ruling | Needs | Size |
+| --- | --- | --- | --- | --- |
+| U1 | The Domains page's Access pickers never save: Save says "Nothing had changed." | - | built (n430), SM1013: the dirty check read the picker by a class it was never drawn with (`mg-token-box`, drawn `mg-tokens`); a pill added or removed marks the field and Save posts it | XS |
+
 # Not in the queue, and why
 
 - C1 SM911 - needs live scope state on edge; a request to the sites agent.
