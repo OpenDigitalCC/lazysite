@@ -32,7 +32,7 @@ for f in $CHANGED; do
   pat=$(basename "$f")
   case "$f" in lib/*.pm) pat="$pat
 $(echo "${f#lib/}" | sed 's#/#::#g; s#\.pm$##')" ;; esac
-  RELATED="$RELATED $(grep -rlF -e "$pat" t/unit t/integration t/tools 2>/dev/null)"
+  RELATED="$RELATED $(grep -rlF --include='*.t' -e "$pat" t/unit t/integration t/tools 2>/dev/null)"
 done
 RELATED=$( (printf '%s\n' $RELATED; printf '%s\n' $PERL | grep '^t/.*\.t$' | grep -v '^t/lint/') | sort -u | grep . || true)
 
