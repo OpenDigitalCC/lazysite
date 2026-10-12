@@ -2,21 +2,22 @@ package main;
 
 # lazysite-processor/forms.pm - the processor's forms and fenced divs.
 #
-# HOLDS   convert_fenced_form() and _render_form() (being split at its seams,
-#         SM1012: _form_rule_tokens, _form_rules_from_tokens,
-#         _form_field_value, _form_server_rule, a _form_field_* renderer per
-#         field kind in @FORM_FIELD_KINDS): a `:::form`
-#         block becomes
+# HOLDS   convert_fenced_form() and _render_form(): a `:::form` block becomes
 #         the form's markup - fields, options, prefill from the request's raw
 #         query (escaped here), the outcome banner from a closed sentence map,
 #         the step stylesheet link - with the timing-token placeholders that
-#         output_page fills per response; _write_form_rules (SM934 FV1), the
-#         rules the handler will hold a submission to, written beside the
-#         form's conf at render; load_form_secret, the form HMAC secret
-#         (output_page and the form handler read it); _form_options,
-#         _form_attr, _esc_attr, _form_step_css, _form_step_script;
-#         convert_fenced_divs, the `::: class` box pass that renders its body's
-#         Markdown.
+#         output_page fills per response. _render_form is the line loop and
+#         the assembly; its parts are subs of their own (SM1012):
+#         _form_rule_tokens and _form_rules_from_tokens (a field's rules),
+#         _form_field_value (its value, before escaping), _form_server_rule
+#         (what the server holds it to), a _form_field_* renderer per field
+#         kind in @FORM_FIELD_KINDS, and _form_outcome_banner.
+#         _write_form_rules (SM934 FV1), the rules the handler will hold a
+#         submission to, written beside the form's conf at render;
+#         load_form_secret, the form HMAC secret (output_page and the form
+#         handler read it); _form_options, _form_attr, _esc_attr,
+#         _form_step_css, _form_step_script; convert_fenced_divs, the
+#         `::: class` box pass that renders its body's Markdown.
 # OWNS    the form's markup and the rules file derived from it; which class
 #         names a fenced div may carry.
 # CALLS   convert_md, _tt_inert, _esc_html, _lazysite_version, log_event (the
@@ -594,6 +595,60 @@ sub _form_field_input {
     return $field_html;
 }
 
+# SM1012 S6: THE OUTCOME BANNER - cut from _render_form. When this request's
+# query string carries an outcome for THIS form (SM415), the banner above it:
+# an engine sentence from the closed %SAID map for ok and ok-processing, and
+# anything else, escaped and capped, as the refusal text. Empty otherwise.
+sub _form_outcome_banner {
+    my ($form_name) = @_;
+    my $banner      = '';
+    my $qs          = $ENV{QUERY_STRING} // '';
+    if ( $qs =~ /(?:\A|&)form=\Q$form_name\E(?:&|\z)/ && $qs =~ /(?:\A|&)outcome=([^&]*)/ ) {
+        my $o = $1;
+        $o =~ tr/+/ /;
+        $o =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
+        # SM869: decoded as parse_query_string decodes (non-ASCII was mojibake),
+        # and escaped as every sink into a pre-template body is: all five
+        # characters, then TT-inert - a `[%` here used to run.
+        $o = eval { decode( 'UTF-8', $o, 1 ) } // $o;
+        $o = substr( $o, 0, 300 );
+        $o = _tt_inert( _esc_html($o) );
+        # SM579: A SECOND SUCCESS STATE, AND THE VOCABULARY IS CLOSED.
+        #
+        # There was one success sentence and one style for everything else, so a
+        # connector call that SUCCEEDED could only say "your message has been
+        # sent" - which is untrue when nothing was sent to a person - or be shown
+        # to the visitor in form-status-error with role="alert".
+        #
+        # THE WORDING IS KEYED, NEVER CARRIED. The query string is
+        # attacker-writable by construction (SM415), so the sentence comes out
+        # of this closed map and the outcome only SELECTS one. That is why author
+        # copy was refused for this: text travelling in the URL would let a
+        # crafted link put any sentence on the page in the SUCCESS style, which is
+        # a materially better phishing aid than the red banner already is. An
+        # attacker choosing between two engine sentences gains nothing.
+        #
+        # THE HANDLER HOLDS THE SAME SENTENCES, because it answers the JS path
+        # with them in JSON and the render path is module-free (ADR 0001) - the
+        # same shape as _acl_allows_read's twin, and pinned the same way, by a
+        # lint rather than by hoping.
+        my %SAID = (
+            ok => 'Thank you - your message has been sent.',
+            # A connector delivered: something left the site for a service rather
+            # than reaching a person. True whether or not the connector keeps an
+            # answer, and it deliberately promises neither a reply nor a page -
+            # only the author knows whether the site shows the answer anywhere.
+            'ok-processing' =>
+                'Thank you - your submission has been received and sent for processing.',
+        );
+        $banner =
+            defined $SAID{$o}
+            ? qq(<p class="form-status form-status-ok" role="status">$SAID{$o}</p>\n)
+            : qq(<p class="form-status form-status-error" role="alert">$o</p>\n);
+    }
+    return $banner;
+}
+
 # SM1012 S5: ONE RENDERER PER FIELD KIND, IN THE ORDER THEY WIN. A field is
 # rendered by the first kind whose rule it carries - `file` before `textarea`,
 # `textarea` before the choosers - which is the order the if/elsif chain this
@@ -803,51 +858,7 @@ sub _render_form {
     $page = '' unless $page =~ m{\A/} && $page !~ m{\A//} && $page !~ /[\r\n<>"]/;
     my $page_esc = $page;
     $page_esc =~ s/&/&amp;/g;
-    my $banner = '';
-    my $qs     = $ENV{QUERY_STRING} // '';
-    if ( $qs =~ /(?:\A|&)form=\Q$form_name\E(?:&|\z)/ && $qs =~ /(?:\A|&)outcome=([^&]*)/ ) {
-        my $o = $1;
-        $o =~ tr/+/ /;
-        $o =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
-        # SM869: decoded as parse_query_string decodes (non-ASCII was mojibake),
-        # and escaped as every sink into a pre-template body is: all five
-        # characters, then TT-inert - a `[%` here used to run.
-        $o = eval { decode( 'UTF-8', $o, 1 ) } // $o;
-        $o = substr( $o, 0, 300 );
-        $o = _tt_inert( _esc_html($o) );
-        # SM579: A SECOND SUCCESS STATE, AND THE VOCABULARY IS CLOSED.
-        #
-        # There was one success sentence and one style for everything else, so a
-        # connector call that SUCCEEDED could only say "your message has been
-        # sent" - which is untrue when nothing was sent to a person - or be shown
-        # to the visitor in form-status-error with role="alert".
-        #
-        # THE WORDING IS KEYED, NEVER CARRIED. The query string is
-        # attacker-writable by construction (see above), so the sentence comes out
-        # of this closed map and the outcome only SELECTS one. That is why author
-        # copy was refused for this: text travelling in the URL would let a
-        # crafted link put any sentence on the page in the SUCCESS style, which is
-        # a materially better phishing aid than the red banner already is. An
-        # attacker choosing between two engine sentences gains nothing.
-        #
-        # THE HANDLER HOLDS THE SAME SENTENCES, because it answers the JS path
-        # with them in JSON and the render path is module-free (ADR 0001) - the
-        # same shape as _acl_allows_read's twin, and pinned the same way, by a
-        # lint rather than by hoping.
-        my %SAID = (
-            ok => 'Thank you - your message has been sent.',
-            # A connector delivered: something left the site for a service rather
-            # than reaching a person. True whether or not the connector keeps an
-            # answer, and it deliberately promises neither a reply nor a page -
-            # only the author knows whether the site shows the answer anywhere.
-            'ok-processing' =>
-                'Thank you - your submission has been received and sent for processing.',
-        );
-        $banner =
-            defined $SAID{$o}
-            ? qq(<p class="form-status form-status-ok" role="status">$SAID{$o}</p>\n)
-            : qq(<p class="form-status form-status-error" role="alert">$o</p>\n);
-    }
+    my $banner = _form_outcome_banner($form_name);    # SM1012 S6
     return <<"END_FORM";
 $banner$step_css<form method="POST"
       action="/cgi-bin/form-handler.pl"$enctype

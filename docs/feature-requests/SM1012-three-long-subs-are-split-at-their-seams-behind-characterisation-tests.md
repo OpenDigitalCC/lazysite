@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-12
 raised-by: developer, WORK-PLAN-0154 P20 ("plan first"), 2026-10-12
 area: processor
-status-note: "Plan filed 2026-10-12 (WORK-PLAN-0154 P20); ruled 2026-10-12, _render_form now, hold main. Built: the deparse tools in tools/ (n450); the _render_form characterisation, t/unit/processor/112 (n451); S1-S5 (n452-n456). Next: S6. render_content after; main held."
+status-note: "Plan filed 2026-10-12 (WORK-PLAN-0154 P20); ruled 2026-10-12, _render_form now, hold main. Built: the deparse tools in tools/ (n450); the _render_form characterisation, t/unit/processor/112 (n451); S1-S6 (n452-n457), _render_form split. Next: render_content (S7-S11); main held."
 ---
 
 # Why a plan and not a move
@@ -325,6 +325,74 @@ open questions, answered from that ruling:
    its file is not failed by the gate, so each step's coverage is read by hand
    (Risks, "Coverage moves"). DEPENDENCY: once P19 lands, the floors hold this
    work's files.
+
+# Built: `_render_form` (2026-10-12)
+
+Branches n450-n457, stacked on n421. Commit refs here are the branch's own and
+change when the stack lands by rebase. (A, run.)
+
+The tools (n450, n452): `tools/deparse-subs.pl` and `tools/deparse-block.pl`,
+tested by t/unit/processor/111. The characterisation (n451):
+t/unit/processor/112 and its committed record, 130 cases; it passes on the
+unsplit sub, and Devel::Cover over it alone leaves only forms.pm 272, 351 and
+the `else { last }` beside them unreached in `_render_form` - outcomes no input
+reaches, reasoned in the test.
+
+Each step was proved against the commit below it: the whole-tree deparse
+(only the parent and the new sub differ), the block against the sub where it
+has one exit, 112 with the form tests and lints 156 and 215, lints 02 and 06
+on forms.pm, and one sabotage in the new code seen to fail 112 (backups in
+tmp/sab-bak/sm1012/, restored by cp, checked by cmp).
+
+```datatable
+columns: Step | New sub | Other subs the same | Block deparse | Sabotage, 112 cases failed
+widths: 1.4cm | 4.2cm | 2.4cm | 3cm | X
+bold: 1
+tone: light
+---
+S1 | `_form_rule_tokens` | 230 | SAME (n451 268-355) | the unescape of `\"`: 2
+S2 | `_form_rules_from_tokens` | 231 | SAME (n452 363, 366-401) | `min:` read one higher: 5
+S3 | `_form_field_value` | 232 | SAME (n453 432, 450-464) | the prefilled value lower-cased: 7
+S4 | `_form_server_rule` | 233 | SAME (n454 410, 522-545) | the length bound one higher: 110
+S5 file | `_form_field_file` | 234 | SAME | `multiple=""`: 1
+S5 textarea | `_form_field_textarea` | 235 | SAME | two attributes swapped: 1
+S5 select | `_form_field_select` | 236 | SAME | the first option relabelled: 15
+S5 radio | `_form_field_radio` | 237 | SAME | `role="group"`: 4
+S5 checklist | `_form_field_checklist` | 238 | SAME | `required` on every box: 1
+S5 input | `_form_field_input` | 239 | SAME | default type `txt`: 97
+S5 table | none (`@FORM_FIELD_KINDS`) | 240 | not a block | select before textarea: 1; a row removed: 6; textarea as the default: 107
+S6 | `_form_outcome_banner` | 240 | SAME (S5's 806-850) | the cap one shorter: 1; a `%SAID` key misspelt fails lint 156
+```
+
+Two findings on the way. The order of `select`, `radio` and `checklist` in
+the table cannot be observed: each takes the rest of the line, so a field
+carries at most one of them, and swapping two of them passes 112 - as it must.
+(112's case `select-beats-radio` in fact shows `radio:` swallowing a later
+`select:`.) And a hostile value that is already lower case does not show a
+change of case: the first prefill sabotage passed, so 112's value carries
+capitals.
+
+THE BENCH IS CPU TIME, NOT WALL TIME. The host ran other agents' suites at a
+load average near 20 on 8 cores, and wall time there had a spread of 2-3x per
+tree. Each step was benched against n451 with tmp/render-bench.pl: the
+processor run as a request runs it (cache hit, cache miss, and the miss of a
+page with the contact form, which the bench page lacks), its children's user +
+system time per op, interleaved, 3-4 rounds in each order; and `_render_form`
+alone, in-process, 3000 calls. At every step the cache hit, the miss and the
+form page's miss were within 3% of n451 both ways, inside their spread.
+`_render_form` alone rose over the steps to 1.14-1.17x of n451 (S6, two runs),
+above its 1.01-1.13 spread: the extra calls and the copies of `%rules` each
+field's parts are given, about 50-60 us per render of an eleven-field form, on
+a cache miss only, against 130-160 ms of CPU for the request around it. The
+alternative - passing `%rules` by reference - would change each block's text
+and lose the block comparison; recorded here for a ruling if it matters.
+
+`_render_form` is now 210 lines (was 562): the guard, the line loop calling
+the parts, the step assembly, the page path and the heredoc.
+
+Not done: `render_content` (S7-S11), next by the ruling; `main` is held. P19's
+per-part floors are not in place, so the forms.pm coverage after each step is
+not gated: once P19 lands, its floor holds this file.
 
 # Done when
 
