@@ -312,6 +312,23 @@ sub groups_with_members {
     return { map { $_ => 1 } keys %g };
 }
 
+# SM1046: the groups that list this account BY NAME, sorted - its own groups,
+# not the closure. A domain-add naming one of them gives a new domain to a
+# group the account is in (ruled 2026-10-12, "Allow, own group only"). A
+# parent it inherits through nesting reaches further - its own members and
+# every group nested in it - so the narrower reading, membership by name, is
+# the one taken.
+sub direct_groups {
+    my ($user) = @_;
+    return () unless defined $AUTH_DIR && defined $user && length $user;
+    my %g    = _groups_membership();
+    my @mine = sort grep {
+        my $grp = $_;
+        grep { $_ eq $user } @{ $g{$grp} || [] }
+    } keys %g;
+    return @mine;
+}
+
 # Per-group capabilities + manager flag (read-only here; the users tool owns
 # seeding + writes). { group => { manager=>1, <cap>=>1, ... } }.
 # ADR 0001: JSON files are read as RAW OCTETS and decoded with decode_json

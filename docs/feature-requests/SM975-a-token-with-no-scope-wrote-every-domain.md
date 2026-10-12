@@ -87,6 +87,20 @@ and built as [[SM976]]:
   `site-backup-inspect` refused, because its second check reads
   `@REQUEST_SCOPES`.
 
+# Later ruling: a domain for the token's own group (SM1046)
+
+Release manager, 2026-10-12, "Allow, own group only". No scope = no domain
+left a `manage_domains` token unable to create the first domain it would
+manage, because the only way to give it a scope was a domain naming its group.
+A token with no scope may now `domain-add` when the request names one of its
+own groups (the groups that list the account by name) as the new domain's
+`allowed_groups`. A group it is not in is refused; naming none is refused with
+this file's refusal plus a sentence saying to name one. The content root must
+be new content: not another domain's root, inside one or containing one, and
+not a folder that already exists. Afterwards the token reaches that one domain
+through the group and no other. Every other domain write keeps this ruling
+unchanged. Built and recorded as [[SM1046]].
+
 # Related
 
-[[SM578]], [[SM647]], [[SM648]], [[SM944]].
+[[SM578]], [[SM647]], [[SM648]], [[SM944]], [[SM1046]].

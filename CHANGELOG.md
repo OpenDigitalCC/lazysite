@@ -247,6 +247,15 @@ Archive
   become named kinds with their text kept in the log; every call and refusal is
   one fixed-field record. Nothing calls Odoo yet. t/unit/odoo/01-05, lint 240
   (lazysite holds no Odoo knowledge).
+- SM1046 (PENDING) **a token creates a domain for its own group.** A
+  `manage_domains` token with no scope was refused `domain-add`, because it
+  reached no domain until a domain named its group. Ruled 2026-10-12, "Allow,
+  own group only": it may now add a domain whose `allowed_groups` names groups
+  its account is in, with a new content root outside every existing domain;
+  it then reaches that domain and no other. A group it is not in is refused,
+  naming none is refused with a message saying to name one, and the audit row
+  names the group. t/integration/200, t/unit/auth/51.
+
 - SM1045 (PENDING) **a group with no members is a group.** `acl-set` reported a
   group created on the Groups page as unknown until someone was in it, and
   refused a list naming only such groups, because the known groups were read

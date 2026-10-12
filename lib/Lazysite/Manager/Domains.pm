@@ -23,7 +23,7 @@ use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
 use Lazysite::Paths   ();
 use Lazysite::Private ();    # N141D: purge reaches the private store too
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_add_alias domain_remove domain_set domain_access_edit domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value action_domain_check action_domains_list);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add creation_root_refusal domain_add_alias domain_remove domain_set domain_access_edit domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value action_domain_check action_domains_list);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 our $LAZYSITE_DIR;           # set by the script (SM944 S27)
@@ -872,6 +872,52 @@ sub domains_using {
 
 # --- public: add -----------------------------------------------------------
 
+# SM1046 (ruled 2026-10-12, "Allow, own group only"): THE ROOT OF A DOMAIN A
+# CALLER GIVES TO ITS OWN GROUP. Naming a group in a new domain's
+# allowed_groups adds that domain's content root to the scope of every member
+# of the group, so the root decides what the group reaches from then on. The
+# ruling is that it reaches the new domain and no other, so the root must be
+# new content:
+#
+#   - not another domain's root, nor inside one, nor containing one (a root
+#     that contains another domain's would put that domain inside the scope);
+#   - not a folder that already exists, public or in the private store - the
+#     adoption case is the operator's, because a member of the group scoped
+#     elsewhere would gain whatever was already there.
+#
+# Returns the refusal, or undef. A root that does not clean is left to
+# domain_add, which refuses it in its own words; an empty root (the host
+# serves the primary site) adds no scope to anyone and passes.
+sub creation_root_refusal {
+    my ($raw) = @_;
+    return undef unless defined $raw && $raw =~ /\S/;
+    my $rel = _clean_content_root($raw);
+    return undef unless defined $rel;
+    my $list = domains_list();
+    for my $d ( @{ $list->{domains} || [] } ) {
+        my $r = _clean_content_root( $d->{content_root} // '' );
+        next unless defined $r && length $r;
+        next
+            unless $r eq $rel
+            || index( "$rel/", "$r/" ) == 0
+            || index( "$r/",   "$rel/" ) == 0;
+        return { ok => 0, kind => 'forbidden',
+            error => "The content root '$rel' overlaps '$r', which "
+                . ( $d->{is_primary} ? 'the primary site' : "the domain '$d->{host}'" )
+                . ' serves. A domain given to your own group must have content of its '
+                . 'own, so that the group reaches the new domain and no other: pick a '
+                . 'folder outside every existing domain.' };
+    }
+    my ($existing) = Lazysite::Private::resolve( $DOCROOT, $rel );
+    return { ok => 0, kind => 'forbidden',
+        error => "The content root '$rel' already exists. A domain given to your own "
+            . 'group starts with a new folder, so the group reaches nothing that was '
+            . 'there before; an operator can point a domain at existing content '
+            . '(Domains page).' }
+        if defined $existing;
+    return undef;
+}
+
 # %opts: content_root (OPTIONAL - empty means the host serves the DEFAULT site,
 # i.e. the docroot root, no per-host content of its own), and any of
 # site_url/site_name/theme/layout/nav_file/search_default; seed => 1 to write a
@@ -925,6 +971,18 @@ sub domain_add {
         return { ok => 0, kind => 'invalid', error => 'Value must be a single line' }
             if $opts{$k} =~ /[\r\n]/;
     }
+    # SM1046: allowed_groups arrives here only from the manager API's own-group
+    # creation path, already checked against the caller's groups; it is held to
+    # domain_set's shape rule as well, since this writes it as a conf line.
+    if ( defined $opts{allowed_groups} && length $opts{allowed_groups} ) {
+        my @toks = grep { length } map { s/^\s+|\s+$//gr } split /,/, $opts{allowed_groups};
+        for my $t (@toks) {
+            return { ok => 0, kind => 'invalid', error => "Invalid name in allowed_groups: $t" }
+                unless $t =~ /^[A-Za-z0-9_-]+\z/;
+        }
+        my %seen;
+        $opts{allowed_groups} = join ', ', grep { !$seen{$_}++ } @toks;
+    }
 
     my $content = _slurp();
     my ( $base, $ov, $hosts ) = _parse($content);
@@ -954,8 +1012,10 @@ sub domain_add {
     # to provision or seed.
     unless ( length $rel ) {
         log_event( 'INFO', $host, 'domain configured (serves the default site)',
-            host => $host, user => $auth_user );
-        return { ok => 1, host => $host, content_root => '' };
+            host => $host, user => $auth_user,
+            ( length( $opts{allowed_groups} // '' ) ? ( allowed_groups => $opts{allowed_groups} ) : () ) );
+        return { ok => 1, host => $host, content_root => '',
+            ( length( $opts{allowed_groups} // '' ) ? ( allowed_groups => $opts{allowed_groups} ) : () ) };
     }
 
     # Provision the content-root directory (+ optional seed). A directory that
@@ -1004,8 +1064,10 @@ sub domain_add {
     }
 
     log_event( 'INFO', 'domain-add', 'domain configured',
-        host => $host, content_root => $rel, user => $auth_user );
-    return { ok => 1, host => $host, content_root => $rel };
+        host => $host, content_root => $rel, user => $auth_user,
+        ( length( $opts{allowed_groups} // '' ) ? ( allowed_groups => $opts{allowed_groups} ) : () ) );
+    return { ok => 1, host => $host, content_root => $rel,
+        ( length( $opts{allowed_groups} // '' ) ? ( allowed_groups => $opts{allowed_groups} ) : () ) };
 }
 
 # SM217: register a host as an ALIAS of one that already exists.

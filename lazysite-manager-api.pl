@@ -1177,9 +1177,39 @@ elsif ( $action eq 'config-read' )  { $result = action_config_read() }
 elsif ( $action eq 'domains-list' ) { $result = action_domains_list() }
 elsif ( $action eq 'domain-add' ) {
     my $req = _json_body();
-    _refuse_unscoped_token();    # SM975
+
+    # SM1046 (ruled 2026-10-12, "Allow, own group only"): A TOKEN MAY CREATE A
+    # DOMAIN FOR ITS OWN GROUP. A manage_domains token with no scope reached no
+    # domain (SM975), and the only way to give it one was a domain naming its
+    # group - so the grant could not be used for the action it is named after.
+    # It may now add a domain whose allowed_groups names groups its account is
+    # in BY NAME; a group it is not in is refused, so it can hand a new domain
+    # only to itself or a group it already shares. The root must be new content
+    # (Domains::creation_root_refusal): after the write the account reaches that
+    # one domain through the group, and no other. Nothing about the domains that
+    # exist changes, and the operator can still remove or reassign it.
+    #
+    # RECONCILED WITH SM975/SM976. For an UNSCOPED token naming its own group,
+    # the rule above is the creation rule: SM975's no-scope refusal and SM976's
+    # root-in-scope check (which answers no for every root to a caller with no
+    # scope) are not asked, because both would refuse the very creation the
+    # ruling allows. A SCOPED token keeps SM976's check, and naming a group adds
+    # the own-group and new-root checks to it. A token naming no group is
+    # refused as before, and told it may name one.
+    my @own                = _domain_add_own_groups( $req->{allowed_groups} );
+    my $own_group_creation = ( @own && $token_auth && !@REQUEST_SCOPES ) ? 1 : 0;
+    unless ($own_group_creation) {
+        _refuse_unscoped_token(    # SM975, and SM1046's way through it
+            ' To create a new domain without a scope, name one of your own groups in '
+                . "the request's allowed_groups: the domain is then reached through that "
+                . 'group. Your groups: ' . ( join( ', ', _caller_direct_groups() ) || 'none' ) . '.' );
         # SM976: a new domain's content must lie inside the caller's scope.
-    _refuse_unreachable_domain( undef, root => ( $req->{content_root} // '' ) );
+        _refuse_unreachable_domain( undef, root => ( $req->{content_root} // '' ) );
+    }
+    if (@own) {
+        my $r = Lazysite::Manager::Domains::creation_root_refusal( $req->{content_root} );
+        _refuse( $r, 'api', 'denied: own-group domain root', $req->{host} // '' ) if $r;
+    }
     $result = domain_add(
         $req->{host},
         content_root   => $req->{content_root},
@@ -1191,6 +1221,7 @@ elsif ( $action eq 'domain-add' ) {
         search_default => $req->{search_default},
         lang           => $req->{lang},
         lang_group     => $req->{lang_group},
+        allowed_groups => join( q{, }, @own ),        # SM1046: own groups, checked above
         seed           => ( $req->{seed} ? 1 : 0 ),
     );
 }
@@ -2357,6 +2388,16 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
             $detail = _acl_audit_detail( $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
         }
 
+        # SM1046: a domain a token gave to its own group names the group. The
+        # caller is the trail's `user` and the host its target; the group is
+        # who reaches the new domain from now on, which is the question an
+        # auditor of this write asks.
+        if ( $ok && $aud_action eq 'domain-add' && ref $result eq 'HASH'
+            && length( $result->{allowed_groups} // '' ) )
+        {
+            $detail = "allowed_groups=$result->{allowed_groups} (own group, SM1046)";
+        }
+
         # SM505: a row action's material object is the ROW - "someone edited
         # that table" is half an answer when the question the trail gets asked
         # is which row. The handler's result carries the authoritative key
@@ -2461,11 +2502,60 @@ sub _refuse_unreachable_brief {
     return;
 }
 
-# The dispatch branches' form: refuse and audit, or return.
+# The dispatch branches' form: refuse and audit, or return. $more is appended
+# to the refusal's sentence where an action has a way through it (SM1046).
 sub _refuse_unscoped_token {
+    my ($more) = @_;
     my $r = _no_scope_refusal() or return;
+    $r->{error} .= $more if defined $more;
     _refuse( $r, 'api', 'denied: no dav_scope' );
     return;
+}
+
+# SM1046: the groups the calling account is in by name.
+sub _caller_direct_groups {
+    return Lazysite::Auth::Settings::direct_groups($auth_user);
+}
+
+# SM1046 (ruled 2026-10-12, "Allow, own group only"): the groups a domain-add
+# names in allowed_groups, each one the calling token's own, or a refusal.
+# Returns () when none is named. A list (JSON array) or a comma string; @name
+# and name are the same group. Only a token may name them: a cookie session
+# sets a domain's access keys with domain-set (Domains page), where SM647's
+# manage_users rule and the group-existence check are asked, so a cookie
+# request naming them is refused rather than taking a second, unchecked door.
+sub _domain_add_own_groups {
+    my ($raw) = @_;
+    return () unless defined $raw;
+    my @names = ref $raw eq 'ARRAY' ? @{$raw} : ( ref $raw ? () : split /,/, $raw );
+    @names = grep { length } map { my $n = $_ // ''; $n =~ s/^\s+|\s+$//g; $n =~ s/\A\@//; $n } @names;
+    _refuse( { ok => 0, kind => 'invalid',
+            error => 'allowed_groups is a group name or a list of them (a JSON array, or '
+                . 'names separated by commas).' },
+        ( $token_auth ? 'api' : 'ui' ), 'denied: allowed_groups shape', $auth_user )
+        if ref $raw && ref $raw ne 'ARRAY';
+    return () unless @names;
+    unless ($token_auth) {
+        _refuse( { ok => 0, kind => 'invalid',
+                error => "domain-add does not take allowed_groups from a signed-in session. "
+                    . 'Add the domain, then set who reaches it with domain-set '
+                    . '(the Domains page).' },
+            'ui', 'denied: allowed_groups on domain-add' );
+    }
+    my %mine = map  { $_ => 1 } _caller_direct_groups();
+    my @not  = grep { !$mine{$_} } @names;
+    if (@not) {
+        my @have = sort keys %mine;
+        _refuse( { ok => 0, kind => 'forbidden',
+                error => 'A new domain may be given only to a group your account is in, and '
+                    . 'it is not in ' . join( ', ', map { "\@$_" } @not ) . '. '
+                    . ( @have
+                    ? 'Your groups: ' . join( ', ', map { "\@$_" } @have ) . '.'
+                    : 'Your account is in no group by name.' ) },
+            'api', 'denied: allowed_groups not own', join( ',', @not ) );
+    }
+    my %seen;
+    return grep { !$seen{$_}++ } @names;
 }
 
 # SM976: the same form for the domain an action addresses - host => or root =>,

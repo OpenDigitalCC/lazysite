@@ -1007,6 +1007,18 @@ Evidence (n327)
   failing and passing restored by cp and cmp: each guard removed, each remedy
   silent, the nav read not decoding.
 
+# Later ruling: domain-add for the caller's own group (SM1046)
+
+Release manager, 2026-10-12, "Allow, own group only". The new content root's
+check here (`caller_may_reach_domain( root => ... )`) answers no for every
+root to a caller with no scope, so with SM975 it refused the creation the
+ruling allows. The two are reconciled in the `domain-add` branch: for a token
+with no scope that names its own groups in `allowed_groups`, the creation rule
+is "own group named, new content" (`Domains::creation_root_refusal`), and
+neither SM975's refusal nor this check is asked. A token with a scope keeps
+this check, and naming a group adds the own-group and new-content checks to
+it. Built and recorded as [[SM1046]].
+
 # Related
 
-[[SM975]], [[SM943]], [[SM578]], [[SM647]], [[SM648]], [[SM802]].
+[[SM975]], [[SM943]], [[SM578]], [[SM647]], [[SM648]], [[SM802]], [[SM1046]].

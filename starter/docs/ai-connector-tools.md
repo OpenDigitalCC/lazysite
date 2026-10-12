@@ -54,7 +54,12 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
   sites between them (the `site_backup` / `site_apply` tools; the `domain-*`
   control-API actions). A token reaches only the domains its scope names, and
   a token with no scope reaches none: the operator gives it one by naming its
-  group in a domain's `allowed_groups`. The same holds for every tool that
+  group in a domain's `allowed_groups`. Such a token may still create a domain
+  with the control API's `domain-add` by naming one of its own groups as the
+  new domain's `allowed_groups`: the content root must be a new folder outside
+  every existing domain, and afterwards the token reaches that domain through
+  the group and no other. A group the account is not in is refused. The same
+  holds for every tool that
   names a `host` - `domain_set`, `preview_domain`, `read_nav`, `set_nav`, the
   `host` form of `activate_theme` and `activate_layout` - and `list_domains`
   shows only the domains the grant reaches. A domain added or repointed must

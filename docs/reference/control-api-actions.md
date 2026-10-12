@@ -103,7 +103,7 @@ tone: medium
 `delete` | cookie only | path (query)
 `describe-capabilities` | any authenticated |  
 `display-names` | any authenticated | logins (query_or_body)
-`domain-add` | manage_domains | host (body), content_root (body), site_url (body), site_name (body), theme (body), layout (body), nav_file (body), search_default (body), lang (body), lang_group (body), seed (body)
+`domain-add` | manage_domains | host (body), content_root (body), site_url (body), site_name (body), theme (body), layout (body), nav_file (body), search_default (body), lang (body), lang_group (body), allowed_groups (body), seed (body)
 `domain-alias-add` | manage_domains | host (body), alias_of (body), site_url (body), site_name (body), theme (body), layout (body), nav_file (body), search_default (body), lang (body), lang_group (body)
 `domain-check` | manage_domains | host (query)
 `domain-preview` | manage_domains | host (query)
