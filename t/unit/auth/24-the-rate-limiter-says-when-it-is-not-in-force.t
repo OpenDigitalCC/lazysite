@@ -20,13 +20,21 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
+# SM1043: the limiter moved, unchanged, to Lazysite::Auth::LoginRate so the
+# member's account page counts against the same one; lazysite-auth.pl delegates.
 my $src = do {
-    open my $fh, '<', repo_root() . '/lazysite-auth.pl' or die $!;
+    open my $fh, '<', repo_root() . '/lib/Lazysite/Auth/LoginRate.pm' or die $!;
     local $/;
     <$fh>;
 };
 my ($sub) = $src =~ /(sub check_login_rate \{.*?\n\})/s;
 ok( $sub, 'check_login_rate was found' ) or do { done_testing; exit };
+{
+    open my $fh, '<', repo_root() . '/lazysite-auth.pl' or die $!;
+    my $cgi = do { local $/; <$fh> };
+    like( $cgi, qr/sub check_login_rate \{\s*my \(\$ip\) = \@_;\s*return Lazysite::Auth::LoginRate::check_login_rate\(/,
+        'the sign-in CGI asks the one limiter rather than keeping its own' );
+}
 
 subtest 'it still fails open' => sub {
     my @returns = $sub =~ /return 1;\s*#\s*fail open/g;

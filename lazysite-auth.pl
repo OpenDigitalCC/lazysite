@@ -29,6 +29,7 @@ use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
 use Lazysite::Auth::Settings   qw(read_settings groups_grant_cap);
 use Lazysite::Auth::Verify ();                   # SM685: verify in-process, no subprocess
+use Lazysite::Auth::LoginRate  ();    # SM1043: the sign-in rate limiter, shared
 use Lazysite::I18n         qw(chrome_string);    # SM179 P8: engine-chrome i18n
 $Lazysite::Util::COMPONENT = 'auth';
 
@@ -245,11 +246,9 @@ my $COOKIE_NAME = SESSION_COOKIE_NAME;
 # raising session_lifetime in lazysite.conf raises both halves together.
 my $COOKIE_MAX = Lazysite::Auth::Session::session_lifetime();
 
-# H-3: login rate limiting (per-IP, sliding window)
-my $LOGIN_RATE_DB = "$AUTH_DIR/.login-rate.db";
-my $LOGIN_MAX     = 5;                            # attempts per window
-my $LOGIN_WINDOW  = 300;                          # seconds (5 minutes)
-my $LOGIN_DELAY   = 2;                            # seconds sleep on failure
+# H-3: login rate limiting is Lazysite::Auth::LoginRate's (SM1043); the delay
+# a refused sign-in waits stays here, with the refusals that wait it.
+my $LOGIN_DELAY = 2;    # seconds sleep on failure
 
 # --- Main ---
 
@@ -1326,95 +1325,14 @@ sub update_user_hash {
     return 1;
 }
 
-# H-3: per-IP login rate limit. Fails open if DB_File tie fails so a
-# broken rate-limit store cannot lock out all logins.
-# SM798: is the login rate limit extension on? Asked of the one reader of the
-# registry, so the sign-in CGI, the manager's listing and lazysite check agree.
-# The name is a literal here, not a file-scope variable: this script's main
-# flow runs above its later declarations, so one would still be undefined when
-# a login arrived (t/lint/39's shape) - and "off" is the answer an undefined
-# name gets.
-sub _rate_limit_switched_on {
-    require Lazysite::Manager::Plugins;
-    no warnings 'once';    # SM557: required at runtime
-    local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
-    return Lazysite::Manager::Plugins::plugin_enabled('plugins/login-rate-limit.pl');
-}
-
+# H-3: the sign-in rate limiter, per visitor address. SM1043: the counter, its
+# window and its three not-in-force cases live in Lazysite::Auth::LoginRate now,
+# moved unchanged, so the member's account page counts its password and code
+# checks against this same limiter rather than a copy (SM1034, Q3).
 sub check_login_rate {
     my ($ip) = @_;
-    return 1 unless $ip;
-
-    # SM798, RULED 2026-09-10 AND 2026-09-11: A SWITCHABLE EXTENSION, ON BY
-    # DEFAULT. plugins/login-rate-limit.pl is the unit, and the registry says
-    # whether it is on - the installer lists it on every site, so this is off
-    # only where an operator switched it off. Off means nothing is counted and no
-    # counter is kept, and it says so in the same words as the two cases below:
-    # a site switched off on purpose and a site whose limiter broke must never
-    # look alike, and neither may look like a site that is counting.
-    unless ( _rate_limit_switched_on() ) {
-        log_event( 'WARN', 'auth',
-            'the login rate limiter is NOT in force: the login rate limit extension '
-                . 'is switched off, so attempts are not counted and every login is allowed' );
-        return 1;    # switched off, and said so
-    }
-    make_path($AUTH_DIR) unless -d $AUTH_DIR;
-
-    # SM022: do not capture the tie return value. A lexical holding
-    # a reference to the tied object triggers "untie attempted
-    # while inner references still exist" on the untie below.
-    # SM798: IT STILL FAILS OPEN, AND IT NO LONGER DOES SO IN SILENCE.
-    #
-    # Both returns below answer "this login is under the cap" for a limiter
-    # that could not run at all - which is the four-states collapse (SM784):
-    # "I could not check" rendered as "yes". A site whose DB_File is missing or
-    # whose counter cannot be opened has NO login rate limiting, and until now
-    # nothing anywhere said so; the surface that reports on the site's health
-    # reported nothing, because nothing had been told.
-    #
-    # THE DIRECTION IS DELIBERATELY UNCHANGED. Failing closed here would refuse
-    # every login on a host missing an optional module - locking an operator
-    # out of their own site to enforce a rate limit is a worse failure than not
-    # enforcing it. So the answer stays "allow", and the LOG carries what was
-    # actually established, which is the release manager's own formulation of
-    # the rule: reveal less if you must, record the real state.
-    #
-    # Logged per attempt rather than once, because these are CGI processes with
-    # nothing to remember between them - and a run of these lines is itself the
-    # signal that the limiter has been inert for a while.
-    my %db;
-    unless ( eval { require DB_File; 1 } ) {
-        log_event( 'WARN', 'auth',
-            'the login rate limiter is NOT in force: DB_File is not installed, '
-                . 'so attempts cannot be counted and every login is allowed '
-                . '(Debian: libdb-file-perl)' );
-        return 1;    # fail open, loudly
-    }
-    eval {
-        tie %db, 'DB_File', $LOGIN_RATE_DB, O_CREAT | O_RDWR, 0o600;
-    };
-    if ( $@ || !tied %db ) {
-        my $why = $@ || "$!";
-        $why =~ s/\s+\z//;
-        log_event( 'WARN', 'auth',
-            'the login rate limiter is NOT in force: its counter could not be '
-                . 'opened, so attempts cannot be counted and every login is allowed',
-            file => $LOGIN_RATE_DB, error => $why );
-        return 1;    # fail open, loudly
-    }
-
-    my $window = int( time() / $LOGIN_WINDOW );
-    my $key    = "$ip:$window";
-    my $count  = ( $db{$key} // 0 ) + 1;
-    $db{$key} = $count;
-
-    # Opportunistic cleanup of stale windows
-    for my $k ( keys %db ) {
-        delete $db{$k} if $k =~ /:(\d+)\z/ && $1 < $window - 1;
-    }
-    untie %db;
-
-    return $count <= $LOGIN_MAX;
+    return Lazysite::Auth::LoginRate::check_login_rate( $ip,
+        auth_dir => $AUTH_DIR, docroot => $DOCROOT );
 }
 
 sub read_conf_key {
