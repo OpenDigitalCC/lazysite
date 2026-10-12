@@ -92,6 +92,8 @@ query_params:
 
 [% IF query.error == 'mfa' %]
 <p class="auth-error">Enter your two-factor code to finish signing in.</p>
+[% ELSIF query.error == 'unavailable' %]
+<p class="auth-error">Sign-in is unavailable: the site cannot read its account records. This is a fault on the server, not your password. The site operator can see the cause in the site log.</p>
 [% ELSIF query.error %]
 <p class="auth-error">Invalid username or password.</p>
 [% END %]

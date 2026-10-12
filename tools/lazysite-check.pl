@@ -905,6 +905,21 @@ sub run_checks {
         }
     }
 
+    # SM1024 (ruled 2026-10-12, "Close all three"): the two session stores the
+    # sign-in gate reads. One that exists and does not decode (an empty file
+    # included) refuses every sign-in and every session until it is repaired,
+    # so it is a FAIL naming the file. Unreadable is the permission sweep's.
+    for my $name (qw(user-settings.json revoked.json)) {
+        my $sf = "$LZ/auth/$name";
+        my ( undef, $state ) = _read_json_state($sf);
+        $state = 'undecodable' if $state eq 'ok' && -z $sf;
+        next unless $state eq 'undecodable';
+        report( 'FAIL',
+            "$name does not decode as a JSON object ($sf) - every sign-in and every session "
+                . 'is refused (cannot tell) until it is repaired (SM1024)',
+            "repair the JSON in '$sf', or restore it from a backup" );
+    }
+
     # --- 7. manager bootstrap (ties to setup-sysop) ------------------------------
     #
     # SM872: THE REMEDIES HERE NAMED `setup-manager`, WHICH SM659 DELETED WITH NO

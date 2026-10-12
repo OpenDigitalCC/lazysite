@@ -27,7 +27,7 @@ use Lazysite::Util qw(const_eq log_event cannot_read);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
-    verify_session_cookie account_disabled load_user_groups session_revoked
+    verify_session_cookie account_disabled load_user_groups session_revoked session_store_fault
     SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
 
 # One name, one lifetime, stated once. lazysite-auth.pl mints with these and
@@ -196,44 +196,66 @@ sub _uri_decode {
 # reading through a :utf8 layer first hands it a character string that dies on
 # any non-ASCII content.
 #
-# Returns the hashref or undef. Undef covers absent, unreadable, unparseable
-# and not-an-object alike; each caller keeps its own default and its own log
-# line, because those differ and are what a sysop reads.
-# SM770: no stat guard. Returns the hash, or undef for BOTH absent and
-# unreadable - the callers below tell them apart by asking whether the file is
-# there, because the two mean different things to them.
-sub _read_json_hash {
+# SM1024 (ruled 2026-10-12, "Close all three"): THREE ANSWERS, not two. It
+# returned undef for absent, unreadable and undecodable alike, and the callers
+# told them apart by reading $! after cannot_read had clobbered it. Both read a
+# broken store as the permissive answer - a broken revoked.json revoked
+# nothing, a broken user-settings.json disabled nobody. Now ( $hash, 'ok' ),
+# ( undef, 'absent' ) - a fresh site, which is an answer - or ( undef,
+# 'broken' ): the store exists and cannot be opened or decoded, which is
+# cannot-tell. Errno is read before cannot_read.
+sub _json_store_state {
     my ($path) = @_;
-    open my $fh, '<:raw', $path or return cannot_read( 'session', $path );
+    open my $fh, '<:raw', $path or do {
+        my $absent = $!{ENOENT} ? 1 : 0;
+        cannot_read( 'session', $path );
+        return ( undef, $absent ? 'absent' : 'broken' );
+    };
     my $raw = do { local $/; <$fh> };
     close $fh;
     my $data = eval { JSON::PP::decode_json( $raw // '' ) };
-    return ref $data eq 'HASH' ? $data : undef;
+    return ref $data eq 'HASH' ? ( $data, 'ok' ) : ( undef, 'broken' );
 }
 
+# The docroot-relative name of the session store the last account_disabled or
+# session_revoked found broken, for verify_session_cookie's cannot-tell answer.
+our $STORE_FAULT = '';
+
+# A broken store fails CLOSED: the account reads as disabled (1), and
+# $STORE_FAULT names the store so the caller can say cannot-tell rather than
+# "disabled". Absent: nobody is disabled.
 sub account_disabled {
     my ($username) = @_;
-    my $path       = _auth_dir() . '/user-settings.json';
-    my $data       = _read_json_hash($path) or return 0;
-    my $s          = $data->{$username};
+    my $path = _auth_dir() . '/user-settings.json';
+    my ( $data, $state ) = _json_store_state($path);
+    if ( $state eq 'broken' ) {
+        $STORE_FAULT = 'lazysite/auth/user-settings.json';
+        log_event( 'WARN', $username // '-',
+            'user-settings.json cannot be read or does not decode - refusing sign-in and every '
+                . 'session until it is repaired (lazysite check --docroot names it)' );
+        return 1;
+    }
+    return 0 unless $data;
+    my $s = $data->{$username};
     return ( ref $s eq 'HASH' && $s->{disabled} ) ? 1 : 0;
 }
 
+# SM141 / SM1024: a broken revoked.json fails CLOSED - every session reads as
+# revoked, and $STORE_FAULT names the store. It used to read as "nothing is
+# revoked" with a WARN, which let a signed-out session straight back in. No
+# revocations file at all is the ordinary state of a site that has never
+# revoked anything.
 sub session_revoked {
     my ( $user, $ts, $sid ) = @_;
     my $path = _auth_dir() . '/revoked.json';
-
-    # SM770: the open decides. No revocations file at all is the ordinary
-    # state of a site that has never revoked anything and says nothing; a file
-    # that is there and will not open is the WARN below (cannot_read has
-    # already named the file, the error and the unix user).
-    my $data = _read_json_hash($path);
+    my ( $data, $state ) = _json_store_state($path);
+    return 0 if $state eq 'absent';
     unless ($data) {
-        return 0 if $!{ENOENT};
+        $STORE_FAULT = 'lazysite/auth/revoked.json';
         log_event( 'WARN', $user,
-            'revoked.json unreadable or corrupt - treating as empty (NO session is revoked); '
-                . 'run lazysite-check and repair or remove the file' );
-        return 0;
+            'revoked.json cannot be read or does not decode - refusing every session until it '
+                . 'is repaired (lazysite check --docroot names it)' );
+        return 1;
     }
 
     my $sids = ref $data->{sids} eq 'HASH' ? $data->{sids} : {};
@@ -259,6 +281,18 @@ sub session_revoked {
         && defined $kept->{nb}  && $kept->{nb} =~ /^\d+$/
         && $kept->{nb} == $nb->{$user};
     return 1;
+}
+
+# SM1024: the first session store that exists and cannot be read or decoded,
+# docroot-relative, or '' - asked by the sign-in gate before a cookie issues,
+# so a sign-in is refused as cannot-tell rather than reported as a bad password
+# or a disabled account. Opens each store itself (SM770: the open decides).
+sub session_store_fault {
+    for my $name (qw(user-settings.json revoked.json)) {
+        my ( undef, $state ) = _json_store_state( _auth_dir() . "/$name" );
+        return "lazysite/auth/$name" if $state eq 'broken';
+    }
+    return '';
 }
 
 sub load_user_groups {
@@ -356,13 +390,19 @@ sub verify_session_cookie {
         if ( time() - $seen ) >= session_lifetime();
 
     # SM071: an existing cookie for a now-disabled account is not an identity.
-    return ( undef, 'disabled', user => $user ) if account_disabled($user);
+    # SM1024: and one whose store cannot be read is not one either - answered
+    # as cannot-tell, naming the store, never as "disabled" or "revoked".
+    $STORE_FAULT = '';
+    my $disabled = account_disabled($user);
+    return ( undef, 'cannot-tell', user => $user, store => $STORE_FAULT ) if length $STORE_FAULT;
+    return ( undef, 'disabled', user => $user ) if $disabled;
 
     # SM141: a sysop signed this session out (revoked sid) or signed the
     # user out everywhere (not_before). Legacy cookies carry no sid but do
     # carry ts, so not_before kills them too.
-    return ( undef, 'revoked', user => $user )
-        if session_revoked( $user, $ts, $sid );
+    my $revoked = session_revoked( $user, $ts, $sid );
+    return ( undef, 'cannot-tell', user => $user, store => $STORE_FAULT ) if length $STORE_FAULT;
+    return ( undef, 'revoked', user => $user ) if $revoked;
 
     return ( { user => $user, sid => $sid, groups => load_user_groups($user) },
         undef );

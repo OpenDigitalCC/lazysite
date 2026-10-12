@@ -5,7 +5,9 @@
 #   - legacy 3-field cookies (user:ts:groups) stay valid until natural expiry
 #   - a revoked sid rejects THAT cookie; other sessions keep working
 #   - a per-user not_before rejects ALL of that user's cookies, legacy included
-#   - a corrupt revoked.json fails OPEN with a loud WARN (never a lockout)
+#   - a corrupt revoked.json fails CLOSED (SM1024, ruled 2026-10-12 "Close all
+#     three"): sign-in and every session are refused, cannot-tell, until it is
+#     repaired - it used to fail open, which let a signed-out session back in
 #   - the registry self-prunes lines older than COOKIE_MAX on write
 use strict;
 use warnings;
@@ -227,20 +229,21 @@ my ( $sid1, $cookie1 );
     like( $c->{out}, qr/^USER=carol$/m, 'another user is unaffected' );
 }
 
-# --- corrupt revoked.json: fail open with a loud WARN --------------------------
+# --- corrupt revoked.json: fail CLOSED, cannot-tell (SM1024) ---------------------
 {
     my $d = build_docroot();
     users_api( $d, { action => 'add', username => 'carol', password => 'pw' } );
+    my $r      = login( docroot => $d, username => 'carol', password => 'pw' );
+    my $cookie = cookie_from( $r->{out} );
     write_revoked( $d, "this is { not json" );
 
-    my $r = login( docroot => $d, username => 'carol', password => 'pw' );
-    like( $r->{out}, qr/302 Found/, 'corrupt revoked.json: login still works' );
-    my $cookie = cookie_from( $r->{out} );
+    $r = login( docroot => $d, username => 'carol', password => 'pw' );
+    like( $r->{out}, qr/error=unavailable/, 'corrupt revoked.json: sign-in refused as unavailable' );
 
     my $a = auth_get( $d, $cookie );
-    like( $a->{out}, qr/^USER=carol$/m, 'corrupt revoked.json: valid cookie still accepted' );
-    like( $a->{err}, qr/revoked\.json unreadable or corrupt/,
-        'corrupt revoked.json: WARN on stderr' );
+    like( $a->{out}, qr/^USER=$/m, 'corrupt revoked.json: a valid cookie is refused' );
+    like( $a->{err}, qr/revoked\.json cannot be read or does not decode/,
+        'corrupt revoked.json: WARN on stderr naming the file' );
 }
 
 # --- the registry self-prunes stale lines on write -----------------------------

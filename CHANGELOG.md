@@ -171,6 +171,16 @@ Archive
   later check in the same request allow every path, and registry builds list
   governed pages. The MCP audit flags it and the scheduler names it.
   t/integration/185, 186; t/unit/mcp/19; t/unit/daemon/10; t/tools/126.
+  Then ruled "Close all three" for the three stores that failed open on both
+  a failed open and a failed decode: a broken acls.json refuses a
+  non-operator's per-file check in the manager, WebDAV and data tables with
+  `cannot-tell` (503) naming the file, while the operator works on and can
+  repair the rule; a broken revoked.json or user-settings.json refuses sign-in
+  (the page says sign-in is unavailable and the log names the file) and every
+  existing session, and the Sessions page refuses rather than writing over
+  it. An absent store is still a fresh site. `lazysite check --docroot` FAILs
+  on either session store when it does not decode, naming it.
+  t/unit/auth/52; t/integration/187, 188.
 
 - SM1023 (PENDING) **`lazysite check` tells an auth store it cannot read from
   one that is absent.** Seen on sites.lazysite.io after the 0.15.4 upgrade: run

@@ -112,10 +112,12 @@ subtest 'once the directory is searchable again the answers come back' => sub {
 subtest 'an unreadable revocations file is not an empty one' => sub {
     put( "$auth/revoked.json", '{"alice":{"1":1}}' );
     chmod 0000, "$auth/revoked.json";
-    with_log( sub { Lazysite::Auth::Session::session_revoked( 'alice', 1, 'sid' ) } );
+    my ($rv) = with_log( sub { Lazysite::Auth::Session::session_revoked( 'alice', 1, 'sid' ) } );
     ok( warned_about('session'), 'the reader WARNs through cannot_read' ) or diag explain \@log;
-    ok( ( grep { $_->[0] eq 'WARN' && $_->[2] =~ /revoked\.json unreadable/ } @log ),
+    # SM1024 (ruled 2026-10-12, "Close all three"): and it now fails CLOSED.
+    ok( ( grep { $_->[0] eq 'WARN' && $_->[2] =~ /revoked\.json cannot be read/ } @log ),
         'and the caller says what it is doing about it' ) or diag explain \@log;
+    is( $rv, 1, 'and answers revoked: a store it cannot read revokes every session' );
     chmod 0644, "$auth/revoked.json";
 
     unlink "$auth/revoked.json";

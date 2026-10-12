@@ -45,18 +45,32 @@ sub _cookie_max {
 sub _registry_path { return "$LAZYSITE_DIR/auth/sessions.jsonl" }
 sub _revoked_path  { return "$LAZYSITE_DIR/auth/revoked.json" }
 
-# Read revoked.json into its canonical shape. Corrupt = treated as empty
-# with a loud WARN, matching the wrapper's fail-open-with-alarm decision.
+# Read revoked.json into its canonical shape, or undef when the store exists
+# and cannot be read or decoded.
+#
+# SM1024 (ruled 2026-10-12, "Close all three"): a broken store was "treated as
+# empty", matching the wrapper's old fail-open decision - so the list showed
+# signed-out sessions as live and a revoke REWROTE the store from {}, wiping
+# every other revocation. The wrapper now refuses every session on a broken
+# store; here the readers answer cannot-tell (_revoked_refusal) and nothing is
+# written over it. An ABSENT store is an empty one: nothing revoked.
 sub _read_revoked {
     my $path = _revoked_path();
     my $data;
-    if ( -f $path && open my $fh, '<:raw', $path ) {
+    if ( open my $fh, '<:raw', $path ) {
         my $raw = do { local $/; <$fh> };
         close $fh;
         $data = eval { decode_json( $raw // '' ) };
-        log_event( 'WARN', $auth_user,
-            'revoked.json unreadable or corrupt - treating as empty' )
-            unless ref $data eq 'HASH';
+        unless ( ref $data eq 'HASH' ) {
+            log_event( 'WARN', $auth_user, 'revoked.json does not decode - refusing until it is repaired' );
+            return undef;
+        }
+    }
+    elsif ( !$!{ENOENT} ) {
+        my $err = "$!";
+        log_event( 'WARN', $auth_user, 'revoked.json cannot be read - refusing until it is repaired',
+            error => $err );
+        return undef;
     }
     $data               = {} unless ref $data eq 'HASH';
     $data->{sids}       = {} unless ref $data->{sids} eq 'HASH';
@@ -79,11 +93,27 @@ sub _update_revoked {
     open my $lfh, '>>', $lock or return ( 0, "Cannot open $lock: $!" );
     chmod 0o660, $lock;
     flock( $lfh, LOCK_EX ) or return ( 0, "Cannot lock $lock: $!" );
+    # SM1024: a broken store is refused, never written over; the third value
+    # tells the caller to answer cannot-tell.
     my $rev = _read_revoked();
+    unless ($rev) { close $lfh; return ( 0, _revoked_refusal()->{error}, 1 ) }
     $change->($rev);
     my ( $ok, $err ) = _write_revoked($rev);
     close $lfh;
     return ( $ok, $err );
+}
+
+# SM1024: the one answer every Sessions action gives on a broken store.
+sub _revoked_refusal {
+    return {
+        ok     => 0,
+        kind   => 'cannot-tell',
+        store  => 'lazysite/auth/revoked.json',
+        repair => 'lazysite check --docroot <docroot>',
+        error => 'Cannot tell which sessions are signed out: lazysite/auth/revoked.json exists and '
+            . 'cannot be read or does not decode. Every session is refused until it is repaired, '
+            . 'and nothing is written over it; `lazysite check --docroot <docroot>` names the fault.',
+    };
 }
 
 # Write revoked.json atomically (temp+rename, 0660), pruning entries older
@@ -181,7 +211,7 @@ sub dispatch_sessions_keys {
 # the caller's own session via LAZYSITE_AUTH_SID (set by the auth wrapper).
 sub action_sessions_list {
     my $now = time();
-    my $rev = _read_revoked();
+    my $rev = _read_revoked() or return _revoked_refusal();
     my $cur = $ENV{LAZYSITE_AUTH_SID} // '';
     my @sessions;
     if ( open my $fh, '<:raw', _registry_path() ) {
@@ -218,7 +248,8 @@ sub action_session_revoke {
     $sid = '' unless defined $sid;
     return { ok => 0, error => 'A session id (16 hex characters) is required' }
         unless $sid =~ /\A[0-9a-f]{16}\z/;
-    my ( $ok, $err ) = _update_revoked( sub { $_[0]{sids}{$sid} = time() } );
+    my ( $ok, $err, $broken ) = _update_revoked( sub { $_[0]{sids}{$sid} = time() } );
+    return _revoked_refusal() if $broken;
     return { ok => 0, error => $err } unless $ok;
     log_event( 'WARN', $auth_user, 'session revoked', sid => substr( $sid, 0, 8 ) );
     return { ok => 1, sid => $sid };
@@ -233,10 +264,11 @@ sub action_user_revoke {
     $username =~ s/[^a-zA-Z0-9_.-]//g;
     return { ok => 0, error => 'A username is required' } unless length $username;
     # SM1040: everywhere means the session a credential change kept, too.
-    my ( $ok, $err ) = _update_revoked( sub {
+    my ( $ok, $err, $broken ) = _update_revoked( sub {
             $_[0]{not_before}{$username} = time();
             delete $_[0]{kept}{$username};
     } );
+    return _revoked_refusal() if $broken;
     return { ok => 0, error => $err } unless $ok;
     log_event( 'WARN', $auth_user, 'all sessions revoked for user', user => $username );
     return { ok => 1, user => $username };
@@ -270,12 +302,13 @@ sub revoke_account_sessions {
         unless length $user && $user =~ /\A[a-zA-Z0-9_.-]+\z/;
     my $keep = $o{keep_sid} // '';
     $keep = '' unless $keep =~ /\A[0-9a-f]{16}\z/;
-    my ( $ok, $err ) = _update_revoked( sub {
+    my ( $ok, $err, $broken ) = _update_revoked( sub {
             my $now = time();
             $_[0]{not_before}{$user} = $now;
             if ( length $keep ) { $_[0]{kept}{$user} = { sid => $keep, nb => $now } }
             else                { delete $_[0]{kept}{$user} }
     } );
+    return _revoked_refusal() if $broken;
     return { ok => 0, error => $err } unless $ok;
     log_event( 'WARN', ( length $auth_user ? $auth_user : $user ),
         'other sessions revoked for user',
@@ -355,7 +388,9 @@ sub sweep_expired {
     # rewrite that changes nothing is a modification time that lies.
     my $pruned = 0;
     if ( -f _revoked_path() ) {
-        my $rev = _read_revoked();
+        # SM1024: a broken store is left as it is, for its repair.
+        my $rev = _read_revoked()
+            or return { ok => 0, removed => $removed, kept => scalar @keep, %{ _revoked_refusal() } };
         for my $bucket (qw(sids not_before)) {
             $pruned += grep { ( $rev->{$bucket}{$_} || 0 ) < $cutoff }
                 keys %{ $rev->{$bucket} };

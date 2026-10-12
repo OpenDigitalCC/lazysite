@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: found while working SM1023 (WORK-PLAN-0154 U5)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-12 \"Fail closed everywhere\"; built on n437 (WORK-PLAN-0154 U6). An undecodable groups-settings.json sets the same fourth state as an unreadable one on every reader, and the processor's acls.json readers treat an undecodable store as a failed load. t/integration/185, 186."
+status-note: "SHIPPED (PENDING): ruled 2026-10-12 \"Fail closed everywhere\"; built on n437 (WORK-PLAN-0154 U6). An undecodable groups-settings.json sets the same fourth state as an unreadable one on every reader, and the processor's acls.json readers treat an undecodable store as a failed load. t/integration/185, 186. The three readers raised for a ruling were ruled 'Close all three' (2026-10-12) and built on n439: a broken acls.json refuses a non-operator's per-file check, a broken revoked.json or user-settings.json refuses sign-in and every session as cannot-tell. t/unit/auth/52, t/integration/187, 188."
 ---
 
 # What was found
@@ -127,18 +127,75 @@ The sibling stores:
 | acls.json, processor `_acl_governed`, `_acl_governing_key` | governed, cached | not governed, `{}` cached | FIXED: as an open failure |
 | acls.json, processor `_acl_is_draft` | not draft | not draft | agree; the read check refuses |
 | acls.json, Auth::Acl `_acl_map_or_state` (`gating_for`, `root_gating`) | unknown | unknown | agree |
-| acls.json, Auth::Acl `load_acls` (manager per-file ACL) | no rules | no rules | agree; open on both by design (the operator repairs from the manager) - see below |
+| acls.json, Auth::Acl `load_acls` (manager per-file ACL) | no rules | no rules | FIXED (n439, "Close all three"): a non-operator is refused, cannot-tell; the operator is not |
 | acls.json, lazysite-mcp.pl audit | flagged | clean bill | FIXED: flagged |
 | user-settings.json, Auth::Settings `read_settings` | unreadable | unreadable | agree (SM778) |
-| user-settings.json, Auth::Session `account_disabled` | not disabled | not disabled | agree; see below |
+| user-settings.json, Auth::Session `account_disabled` | not disabled | not disabled | FIXED (n439): sign-in and every session refused, cannot-tell; absent = nobody disabled |
 | users, groups (plain text) | flagged (SM906) | no decode step | n/a |
-| revoked.json, Auth::Session `session_revoked`, Manager::Sessions `_read_revoked` | nothing revoked, WARN | nothing revoked, WARN | agree; open on both by an earlier decision - see below |
+| revoked.json, Auth::Session `session_revoked`, Manager::Sessions `_read_revoked` | nothing revoked, WARN | nothing revoked, WARN | FIXED (n439): every session refused, cannot-tell; the Sessions page refuses and writes nothing; absent = nothing revoked |
 | oauth.json, Auth::OAuth `load_store` | no clients or tokens | no clients or tokens | agree; nothing authenticates |
 
-Three readers answer open-and-decode alike but fail OPEN on both, by earlier
-decisions that this ruling's question did not reach. They are not changed
-here and are raised for a ruling: Auth::Acl `load_acls` (a non-operator's
-per-file ACL check under a broken acls.json allows), `session_revoked`
-(a broken revoked.json revokes nothing), and `account_disabled` on the
-wrapper's sign-in path (a broken user-settings.json disables nobody; the
-API doors already refuse through `auth_cannot_tell`).
+Three readers answered open-and-decode alike but failed OPEN on both, by
+earlier decisions that the first ruling's question did not reach: Auth::Acl
+`load_acls` (a non-operator's per-file ACL check under a broken acls.json
+allowed), `session_revoked` (a broken revoked.json revoked nothing), and
+`account_disabled` on the wrapper's sign-in path (a broken user-settings.json
+disabled nobody). They were raised for a ruling - see below.
+
+# The second ruling: close all three
+
+Release manager, 2026-10-12, in its own words: "Close all three".
+
+1. Auth::Acl::load_acls: a broken acls.json (fails to open or fails to decode)
+   denies a non-operator's per-file check; the operator is unaffected.
+2. Auth::Session::session_revoked and Manager::Sessions::_read_revoked: a
+   broken revoked.json refuses sessions until it decodes (treated as
+   cannot-tell, not "revokes nothing"). An ABSENT revoked.json (a fresh site)
+   still means nothing revoked: absent is not broken.
+3. Auth::Session::account_disabled on the wrapper's sign-in path: a broken
+   user-settings.json refuses sign-in (same cannot-tell semantics as the API
+   doors). Absent file = nobody disabled.
+
+# What was built for it (n439)
+
+Reproduced on n437 first: a partner refused a file by an acls.json rule read
+it once the store was truncated (t/integration/188); with either session store
+truncated a disabled or signed-out account's cookie reached the page as its
+user, sign-in issued a cookie, and the Sessions page rewrote a broken
+revoked.json from `{}` (t/unit/auth/52, t/integration/187).
+
+- **acls.json.** `load_acls` records a store that exists and will not open or
+  decode in `$Auth::Acl::ACLS_FAULT`; `_acl_allows` answers no while it is set,
+  and `_acl_denied` refuses with kind `cannot-tell` (503) naming
+  `lazysite/auth/acls.json`. What the operator sees: their own reads and writes
+  work (the operator bypass is asked first), so the rule can be repaired from
+  the manager's ACL editor or a shell; a partner or editor is told the store is
+  broken, not that a rule refused them. The WebDAV per-file check and the data
+  tables' read check share `_acl_allows` and refuse too, as the render path
+  already did (SM268 H12).
+- **revoked.json and user-settings.json.** One reader,
+  `Session::_json_store_state`, answers ok, absent or broken (errno read before
+  `cannot_read`; the old reader tested `$!` after it). A broken store makes
+  `account_disabled` and `session_revoked` answer yes and sets `$STORE_FAULT`;
+  `verify_session_cookie` then answers reason `cannot-tell` naming the store,
+  so the wrapper passes the request on with no identity and logs
+  "auth: cannot tell". The sign-in gate asks `session_store_fault()` after the
+  credential check and refuses with `?error=unavailable`; the sign-in page says
+  sign-in is unavailable because the site cannot read its account records, a
+  fault on the server, and that the operator can see the cause in the site log.
+  Manager::Sessions answers cannot-tell for the list, a revoke and
+  sign-out-everywhere, and never writes over the broken store; the sweep leaves
+  it as it is. An absent store is a fresh site: nothing revoked, nobody
+  disabled.
+- **The repair path.** With a broken session store nobody can sign in, so the
+  repair is from a shell: `lazysite check --docroot <docroot>` now FAILs on a
+  user-settings.json or revoked.json that does not decode (an empty file
+  included), naming the file, as it already did for acls.json and
+  groups-settings.json; an unreadable one is the permission sweep's, which
+  `--fix` repairs. A token caller of the control API is answered by
+  `auth_cannot_tell` as before.
+
+Sabotage: each of the six fixes undone alone (the acls.json check and its
+decode flag, the revoked.json and user-settings.json fail-closed answers, the
+Sessions page refusal, the sign-in gate) and caught by its test; each file
+restored and compared.

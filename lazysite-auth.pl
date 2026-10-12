@@ -22,7 +22,7 @@ BEGIN {
 }
 use Lazysite::Util          qw(log_event request_address);
 use Lazysite::Auth::Session qw(
-    verify_session_cookie account_disabled load_user_groups
+    verify_session_cookie account_disabled load_user_groups session_store_fault
     SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
 use Lazysite::Paths            ();
 use Lazysite::Audit            qw(audit_log);
@@ -471,6 +471,20 @@ sub _account_gates {
     # SM071 Phase 2: a disabled account fails authentication outright,
     # ahead of the ui mechanism check. After credential verification, so
     # it leaks nothing to a password guesser.
+    # SM1024 (ruled 2026-10-12, "Close all three"): first, can the engine tell?
+    # A user-settings.json or revoked.json that exists and cannot be read or
+    # decoded refuses every sign-in until it is repaired - cannot-tell, the
+    # answer the API doors give - rather than "disabled" (or, before, a cookie
+    # for an account the broken store may have disabled). The page says sign-in
+    # is unavailable; the log names the file, and so does `lazysite check`.
+    if ( my $store = session_store_fault() ) {
+        log_event( 'WARN', $username, 'login refused: cannot tell - a session store cannot be read',
+            store => $store, ip => $ip,
+            repair => 'lazysite check --docroot <docroot> names it; repair or restore the file' );
+        _audit_auth( $username, 'login', 'fail', "cannot-tell: $store" );
+        redirect("$auth_redirect?error=unavailable");
+        return 0;
+    }
     if ( account_disabled($username) ) {
         log_event( 'WARN', $username, 'login refused: account disabled', ip => $ip );
         _audit_auth( $username, 'login', 'fail', 'account-disabled' );
@@ -1055,6 +1069,12 @@ sub handle_request {
         # unauthenticated.
         log_event( 'WARN', $uri, 'auth: account disabled',
             user => $detail{user} );
+    }
+    elsif ( $why eq 'cannot-tell' ) {
+        # SM1024: a session store cannot be read or decoded, so whether this
+        # session is disabled or signed out is unknown - refused, as no identity.
+        log_event( 'WARN', $uri, 'auth: cannot tell - session refused until the store is repaired',
+            user => $detail{user}, store => $detail{store} );
     }
     elsif ( $why eq 'revoked' ) {
         # SM141: an operator signed this session out (revoked sid) or signed

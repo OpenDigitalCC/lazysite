@@ -139,6 +139,17 @@ sub _acls_copy {
 #      several do - cannot change what the next caller reads.
 #
 # This is an access-control store, so none of these four is decorative.
+#
+# SM1024 (ruled 2026-10-12, "Close all three"): THE ANSWER CARRIES ITS FOURTH
+# STATE. load_acls still answers {} for a store that exists and will not open
+# or will not decode - its callers that list or edit rules want a map - but it
+# now records that in $ACLS_FAULT, and the per-file check (_acl_allows, and
+# _acl_denied's refusal) reads it: a broken store is not "no rules", so a
+# non-operator is refused until it is repaired. The operator is unaffected
+# (_acl_denied asks _is_operator first), which keeps the repair in reach from
+# the manager. An ABSENT store is an answer: no rules.
+our $ACLS_FAULT = 0;
+
 {
     my %_acls_cache;
 
@@ -151,16 +162,27 @@ sub _acls_copy {
         # as an open it may not make, and the guard turned that into "no rules"
         # before the open could report it. An absent file still reads as {} -
         # through the open's ENOENT, which cannot_read passes over in silence.
+        $ACLS_FAULT = 0;
         my @st  = stat $path;
         my $key = @st ? "$path:$st[9]:$st[7]" : '';
         return _acls_copy( $_acls_cache{$key} )
             if length $key && exists $_acls_cache{$key};
 
-        open my $fh, '<', $path or return ( Lazysite::Util::cannot_read( 'acls', $path ) // {} );
+        open my $fh, '<', $path or do {
+            $ACLS_FAULT = $!{ENOENT} ? 0 : 1;    # errno first: cannot_read clobbers $!
+            return ( Lazysite::Util::cannot_read( 'acls', $path ) // {} );
+        };
         my $raw = do { local $/; <$fh> };
         close $fh;
         my $m = eval { JSON::PP::decode_json( $raw // '{}' ) };
-        return {} unless ref $m eq 'HASH';
+        unless ( ref $m eq 'HASH' ) {
+            $ACLS_FAULT = 1;
+            Lazysite::Util::log_event( 'WARN', 'acl',
+                'acls.json does not decode as a JSON object - every per-file check by a '
+                    . 'non-operator is refused until it is repaired',
+                file => 'lazysite/auth/acls.json' );
+            return {};
+        }
 
         if ( length $key && @st && $st[9] < time() - 1 ) {
             %_acls_cache = () if keys %_acls_cache > 8;
@@ -544,7 +566,9 @@ sub root_gating {
 
 sub _acl_allows {
     my ( $rel, $mode, $user ) = @_;
-    my $a = _acl_entry_for( load_acls(), $rel, $mode );
+    my $map = load_acls();
+    return 0 if $ACLS_FAULT;    # SM1024: a broken store is not "no rules"
+    my $a = _acl_entry_for( $map, $rel, $mode );
     return 1 unless $a;
     return 1 if defined $a->{owner} && defined $user && $a->{owner} eq $user;
     my $list = $a->{$mode};
@@ -657,6 +681,18 @@ sub _acl_denied {
     my ( $rel, $mode, $user ) = @_;
     return undef if _is_operator();
     return undef if _acl_allows( $rel, $mode, $user );
+    # SM1024: refused because the store is broken, not because of a rule - the
+    # cannot-tell answer, naming the store and the repair (503).
+    return {
+        ok     => 0,
+        kind   => 'cannot-tell',
+        store  => 'lazysite/auth/acls.json',
+        repair => 'lazysite check --docroot <docroot>',
+        error => 'Cannot tell whether you may ' . $mode . ' this file: lazysite/auth/acls.json '
+            . 'exists and cannot be read or does not decode. This is a fault on the host, not a '
+            . 'rule about this file. Every per-file check is refused until the site operator '
+            . 'repairs it; `lazysite check --docroot <docroot>` names the fault.',
+    } if $ACLS_FAULT;
     return { ok => 0, error => "You do not have $mode access to this file", kind => 'permission' };
 }
 
