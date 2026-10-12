@@ -186,6 +186,33 @@ to hand over by any channel. The user opens it and the `/claim` page presents a
 - Disabled accounts and token-only (`ui` off) accounts cannot redeem a
   set-password claim.
 
+### The member's account page (`/account`)
+
+Every signed-in account has a page of its own at `/account`, in the site's own
+layout and theme, outside the manager. It needs no capability and grants none:
+it acts only on the account that is signed in. On it a member can see who they
+are signed in as, change their password (with their current one; the new one
+meets the password policy below, and every other session of the account is
+signed out), see where they are signed in, sign out one of those sessions, or
+sign out everywhere.
+
+- `/account` is a **system page**: the engine's copy is used unless a site
+  writes its own `account.md`, and it comes back if a site's copy is deleted.
+  The login page's "already signed in" panel links to it.
+- It is built from components a site can rearrange and a layout can restyle:
+  `::: account-summary`, `::: account-password`, `::: account-sessions`. A
+  layout's `components/<name>.tt` of the same name wins; keep the `data-ls-*`
+  attributes, which `/assets/lazysite-account.js` binds.
+- Behind it are the control API's `me-*` actions (`me`, `me-password`,
+  `me-sessions`, `me-session-revoke`, `me-sign-out-everywhere`). Their subject is
+  always the signed-in account - none of them takes an account name - they are
+  cookie-only (an access key is refused), every change needs the session's
+  CSRF token and is audited, and a password check counts against the sign-in
+  rate limiter for both the address and the account.
+- `account_page: disabled` in `lazysite.conf` turns it off: `/account` answers
+  404 (unless the site wrote its own page) and the `me-*` actions refuse, naming
+  the setting.
+
 ### Password policy
 
 A password must be at least `password_min_length` characters long - 12 unless

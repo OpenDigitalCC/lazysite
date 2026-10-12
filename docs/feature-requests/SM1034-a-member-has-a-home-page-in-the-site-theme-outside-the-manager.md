@@ -4,11 +4,11 @@ title: "SM1034: A member has a home page, in the site's theme, outside the manag
 subtitle: "WORK-PLAN-0154 P26. A brief for one page where a signed-in member manages their own account - password, two-factor, their bell, the messages they receive, their sessions - without manager access. Answers SM1010 R2 and folds in R1 and R4. Grounded in the engine at n444 (c9fcc20b)."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-10-12
 raised-by: release manager, on SM1010's open items, 2026-10-12
 area: accounts
-status-note: "Ruled 2026-10-12: build phase 1 (Q1-Q9 as recommended). Separate fixes ruled with it: other sessions end on any password change or 2FA disable (SM1040); password_min_length, default 12, on every way a password is set (SM1041). Phase 1 in progress: 1a /account and me-* (SM1043), 1b own notices, 1c self-enrolled 2FA (SM1042). Phase 2-3 not started."
+status-note: "Ruled 2026-10-12: build phase 1. Built: SM1040 (other sessions end on a password change or 2FA disable), SM1041 (password_min_length, default 12), 1a /account and me-* (SM1043). Remains: 1b own notices, 1c self-enrolled 2FA (SM1042), SM1010 R5; phases 2-3."
 ---
 
 # Ruled

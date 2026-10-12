@@ -164,11 +164,18 @@ our $PREVIEW_COOKIE = 'lzs_preview';    # SM071: theme/layout preview cookie
 # Both stay seeded at the primary's root (SM939 keeps them on a bare install);
 # their protected defaults are copies of those (t/integration/207 holds them
 # equal).
-my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim forgot logout 402 403 404);
+#
+# SM1043 (SM1034 phase 1a): `account` - the member's own account page - joins
+# the set, so it renders in each domain's own layout and theme and restores
+# itself if deleted. `account_page: disabled` in lazysite.conf withdraws the
+# engine default (the page answers 404 unless a site wrote its own) and turns
+# its me-* actions off with it.
+my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim forgot logout account 402 403 404);
 
 sub _system_page_md {
     my ( $base, $croot ) = @_;
     return undef unless defined $base && $SYSTEM_PAGES{$base};
+    return undef if $base eq 'account' && !_account_page_enabled();
     $croot = $DOCROOT unless defined $croot && length $croot;
     for my $cand ( "$croot/$base.md", "$DOCROOT/$base.md",
         "$LAZYSITE_DIR/templates/system/$base.md" )
@@ -192,6 +199,23 @@ $CONF_OVERRIDE //= $ENV{LAZYSITE_CONF};
 our $CONF_FILE = $CONF_OVERRIDE
     ? $CONF_OVERRIDE
     : "$LAZYSITE_DIR/lazysite.conf";
+
+# SM1043: the account_page switch, for the account system page above.
+# The switch is read here by the processor's own copy of
+# Lazysite::Util::account_page_enabled - ADR 0001: the render path loads no
+# modules - and t/unit/account/01 holds the two to one answer for every value.
+sub _account_page_enabled {
+    open my $fh, '<', $CONF_FILE or return 1;
+    my $on = 1;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^\s*account_page\s*:\s*(\S+)\s*$/;
+        $on = ( $1 =~ /\A(?:disabled|off|no|false|0)\z/i ) ? 0 : 1;
+        last;
+    }
+    close $fh;
+    return $on;
+}
+
 # D013: layouts/ is the new structural root. A local layout lives at
 # $LAYOUT_DIR/NAME/layout.tt with optional $LAYOUT_DIR/NAME/layout.json
 # metadata. Themes nest under layouts/NAME/themes/THEME/. No flat-template

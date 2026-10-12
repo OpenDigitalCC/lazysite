@@ -114,7 +114,7 @@ query_params:
 
 <div class="login-context" data-ls-auth-out style="display:none">
   <p><strong>You are already signed in.</strong></p>
-  <p><a href="/">Go to the site</a> &middot; <a href="/cgi-bin/lazysite-auth.pl?action=logout">Sign out</a></p>
+  <p><a href="/">Go to the site</a> &middot; <a href="/account">Your account</a> &middot; <a href="/cgi-bin/lazysite-auth.pl?action=logout">Sign out</a></p>
 </div>
 
 <form method="POST" action="/cgi-bin/lazysite-auth.pl?action=login" class="login-form" data-ls-auth-in>

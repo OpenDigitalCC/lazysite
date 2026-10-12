@@ -10,7 +10,7 @@ package main;
 #         _section_indexes, _section_theme, _theme_version,
 #         _render_fallback_layout; generate_theme_css (the processor's theme
 #         token generator, lint 61); the injectors that edit the finished
-#         HTML - _inject_auth_sync, _inject_data_helper, _inject_meta,
+#         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_meta,
 #         _inject_canonical, and the admin bar (_inject_admin_bar,
 #         _admin_bar_choice, _inject_admin_bar_live); _enabled_plugins,
 #         _manager_style, _asset_fingerprint; _engine_mtime and
@@ -544,6 +544,7 @@ sub render_template {
         # tag inline - but this one is conditional, so it cannot be in a
         # template that does not know what the body contains.
         $output = _inject_data_helper($output);
+        $output = _inject_account_helper($output);    # SM1043
 
         # Admin bar injected per-request at output time, not cached (see note below).
         return $output;
@@ -671,6 +672,7 @@ sub render_template {
     # marker cookie. Injected on every page so any layout can opt in with those attrs.
     $output = _inject_auth_sync($output);
     $output = _inject_data_helper($output);
+    $output = _inject_account_helper($output);    # SM1043
 
     # NOTE: the manager admin bar is deliberately NOT injected here. It is
     # per-viewer (manager-only) and this output is written to the shared page
@@ -732,6 +734,20 @@ sub _inject_data_helper {
     # Before the LAST </body>, for the reason spelled out in _inject_auth_sync:
     # a page can carry a literal "</body>" inside a JS string, and splicing a
     # script tag in there terminates the page's own inline script early.
+    $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
+    return $html;
+}
+
+# SM1043: the account helper, on the same terms as the data helper above - only
+# for a page whose rendered markup carries a region it binds (the ::: account-*
+# components), before the LAST </body>.
+sub _inject_account_helper {
+    my ($html) = @_;
+    return $html unless $html =~ m{</body>}i;
+    return $html unless $html =~ m{\bdata-ls-account\b};
+    return $html if $html =~ m{/assets/lazysite-account\.js};
+    my $script = '<script src="/assets/lazysite-account.js?v='
+        . _lazysite_version() . '" defer></script>';
     $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
     return $html;
 }

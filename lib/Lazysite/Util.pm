@@ -15,7 +15,7 @@ use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies unsafe_link_scheme nav_unsafe_entries);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies unsafe_link_scheme nav_unsafe_entries);
 
 our $COMPONENT = 'lazysite';
 
@@ -717,6 +717,25 @@ sub service_enabled {
     }
     close $fh;
     return _conf_bool($val);
+}
+
+# SM1043 (SM1034, ruled Q2 "on by default"): is the member's account page on?
+# It grants nothing, so it is ON unless lazysite.conf says `account_page:
+# disabled` (or off/no/false/0). Asked by the processor, which serves /account,
+# and by the manager API's me-* actions, so the page and its actions cannot
+# disagree. Instance-wide: one account store serves every domain.
+sub account_page_enabled {
+    my ($lazysite_dir) = @_;
+    return 1 unless defined $lazysite_dir && length $lazysite_dir;
+    open my $fh, '<', "$lazysite_dir/lazysite.conf" or return 1;
+    my $on = 1;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^\s*account_page\s*:\s*(\S+)\s*$/;
+        $on = ( $1 =~ /\A(?:disabled|off|no|false|0)\z/i ) ? 0 : 1;
+        last;
+    }
+    close $fh;
+    return $on;
 }
 
 sub _forward_conf {

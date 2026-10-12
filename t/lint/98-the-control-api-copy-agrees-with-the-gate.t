@@ -105,7 +105,10 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #   53 cookie-only, SM858 (0.15.3): form-submission-approve - it creates an
     #        account, and SM268 keeps minting credentials a human act. The token
     #        count does not move: no gate was added.
-    is( scalar @cookie_only, 56, '56 are cookie-only' );
+    #   61 cookie-only, SM1043: me, me-password, me-sessions, me-session-revoke,
+    #        me-sign-out-everywhere - self actions, a person's own account,
+    #        never a token's. No gate was added.
+    is( scalar @cookie_only, 61, '61 are cookie-only' );
 
     # Three spot checks, one per capability state, so a wholesale re-derivation
     # cannot pass by producing a table of the right size.

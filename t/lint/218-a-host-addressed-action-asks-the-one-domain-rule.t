@@ -258,6 +258,10 @@ my %NOT_INSTANCE_WIDE = (
     'preview-grant' => "the caller's own preview cookie; nothing a visitor sees changes (SM649)",
     'preview-clear' => "the caller's own preview cookie; nothing a visitor sees changes (SM649)",
     'start-page-set' => "one account's own setting, through the users tool's actor rule",
+    # SM1043: the self actions - the caller's own account, never anyone else's.
+    'me-password'            => "the caller's own password (a self action, lint 246)",
+    'me-session-revoke'      => "one of the caller's own sessions (a self action, lint 246)",
+    'me-sign-out-everywhere' => "the caller's own sessions (a self action, lint 246)",
     'regenerate-registries' => 'derived output, rebuilt from the content on the next request: '
         . 'the result is the same whoever asks, and no setting changes',
     'site-backup-upload' => 'stores a package; it changes a site only through site-backup-apply, '

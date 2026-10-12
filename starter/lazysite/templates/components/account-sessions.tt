@@ -1,0 +1,17 @@
+[%# SM1043: built-in account component - your own sessions. Use on /account:
+      ::: account-sessions
+      :::
+    Lists the signed-in account's live sessions from `me-sessions`, marks this
+    one, and ends one (`me-session-revoke`) or all of them
+    (`me-sign-out-everywhere`) through /assets/lazysite-account.js. Only the
+    caller's own sessions exist to this component. A layout may override it,
+    keeping the data-ls-* attributes. -%]
+<section class="lz-account lz-account-sessions" data-ls-account="sessions">
+  <table class="lz-account-table">
+    <thead><tr><th>Signed in</th><th>From</th><th>Browser</th><th></th></tr></thead>
+    <tbody data-ls-rows></tbody>
+  </table>
+  <p data-ls-empty hidden>No sessions are listed for your account.</p>
+  <div class="lz-account-actions"><button type="button" data-ls-everywhere>Sign out everywhere</button></div>
+  <p class="lz-account-status" data-ls-status role="status" aria-live="polite"></p>
+</section>

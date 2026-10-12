@@ -49,6 +49,8 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
     action_form_delete);
 use Lazysite::Manager::Notices qw(_notices_gate); # SM918: one notice reader, shared with MCP
 use Lazysite::Manager::StartPage qw(action_start_page dispatch_start_page_set); # SM944 S23
+use Lazysite::Manager::Account   qw(action_me dispatch_me_password action_me_sessions
+    dispatch_me_session_revoke action_me_sign_out_everywhere); # SM1043: the member's own account
 use Lazysite::Handlers         ();    # SM842: handlers, bindings, the schedule
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
@@ -97,6 +99,7 @@ $Lazysite::Manager::Upload::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Plugins::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::Notices::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::StartPage::DOCROOT   = $DOCROOT;           # SM944 S23
+$Lazysite::Manager::Account::DOCROOT     = $DOCROOT;           # SM1043
 $Lazysite::Handlers::DOCROOT             = $DOCROOT;           # SM842
 $Lazysite::Manager::Files::DOCROOT       = $DOCROOT;
 $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
@@ -121,6 +124,7 @@ $Lazysite::Manager::Themes::LAZYSITE_DIR   = $LAZYSITE_DIR;
 $Lazysite::Manager::Nav::LAZYSITE_DIR      = $LAZYSITE_DIR;
 $Lazysite::Manager::Layouts::LAZYSITE_DIR  = $LAZYSITE_DIR;
 $Lazysite::Manager::Sessions::LAZYSITE_DIR = $LAZYSITE_DIR;    # SM141
+$Lazysite::Manager::Account::LAZYSITE_DIR  = $LAZYSITE_DIR;    # SM1043
 $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Preview::DOCROOT       = $DOCROOT;         # SM944 S24
 $Lazysite::Manager::Preview::LAZYSITE_DIR  = $LAZYSITE_DIR;
@@ -2121,6 +2125,13 @@ elsif ( $action eq 'analyse_visitors' ) {
 }
 elsif ( $action eq 'whoami' ) { $result = action_whoami( $auth_user, $params{plugins} ) }
 elsif ( $action eq 'start-page' ) { $result = action_start_page( $params{username} ) }
+# SM1043: the member's own account. Every branch acts on $auth_user and reads no
+# account from the request; Lazysite::Manager::Account says why.
+elsif ( $action eq 'me' )                     { $result = action_me() }
+elsif ( $action eq 'me-password' )            { $result = dispatch_me_password() }
+elsif ( $action eq 'me-sessions' )            { $result = action_me_sessions() }
+elsif ( $action eq 'me-session-revoke' )      { $result = dispatch_me_session_revoke() }
+elsif ( $action eq 'me-sign-out-everywhere' ) { $result = action_me_sign_out_everywhere() }
 elsif ( $action eq 'start-page-set' ) {
     $result = dispatch_start_page_set();
 }
@@ -2513,6 +2524,10 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
             }
         }
     }
+
+    # SM1043: a me-* action is about the caller's own account, and names no
+    # other - the target is the account, never anything the request carried.
+    $aud_target = $auth_user if $action =~ /\Ame(?:-|\z)/;
 
     # SM141/SM145: the revokes carry their target in the POST body - name it
     # (a sid prefix / the username) instead of the meaningless '/' path.

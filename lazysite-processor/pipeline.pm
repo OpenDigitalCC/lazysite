@@ -264,7 +264,8 @@ sub _is_engine_asset {
     # new asset inherits none of the reasoning unless somebody adds it here.
     return ( $uri eq '/assets/lazysite-chrome.css'
             || $uri eq '/assets/lazysite-chrome.js'
-            || $uri eq '/assets/lazysite-data.js' ) ? 1 : 0;
+            || $uri eq '/assets/lazysite-data.js'
+            || $uri eq '/assets/lazysite-account.js' ) ? 1 : 0; # SM1043: /account on every domain
 }
 
 

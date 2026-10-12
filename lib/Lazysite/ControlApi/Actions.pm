@@ -350,6 +350,10 @@ our %GATE = (
 #   content_write => 1         SM1057 (ruled "Require manage_content"): writes site
 #                              content by path, so the cookie channel asks
 #                              manage_content before the file's rule (%CONTENT_WRITE)
+#   self => 1                  SM1043: the subject is ALWAYS the signed-in caller.
+#                              No capability, cookie-only (never in %GATE), and no
+#                              parameter may name an account - refused at load
+#                              below and by t/lint/246
 #   mcp => 'tool_name'         SM943 stage 2: the action's MCP twin - the tool that
 #                              does the same thing through the other door. The
 #                              twin's readOnly, destructive and changesAccess hints
@@ -839,6 +843,16 @@ our %ACTION = (
 # leaves this instance; that is the whole point of it, and the hint says so.
     'connector-call' => { mcp => 'connector_call', mcp_open_world => 1, mutates => 1, params => [ { name => 'id', in => 'body' }, { name => 'payload', in => 'body' }, { name => 'row', in => 'body', note => 'a row key: the connector\'s row_map decides which of its columns are sent' } ] },
     'connector-calls' => { cookie_cap => 'manage_connectors', params => [ { name => 'connector', in => 'query' }, { name => 'state', in => 'query' }, { name => 'limit', in => 'query' } ] },
+    # SM1043 (SM1034 phase 1a): the member's own account. `self` - the subject
+    # is the signed-in caller and nothing else, no parameter names an account
+    # (t/lint/246), and no capability is needed or granted. Cookie-only: these
+    # are a person's own credentials and sessions, the state SM918 ruled out of
+    # the token door. Lazysite::Manager::Account.
+    'me' => { self => 1, cookie_only_reason => 'it describes the signed-in person\'s own account', params => [] },
+    'me-password' => { self => 1, mutates => 1, cookie_only_reason => 'a person changes their own password in their own session, re-authenticated with the current one', params => [ { name => 'current_password', in => 'body' }, { name => 'new_password', in => 'body', required => 1 } ] },
+    'me-sessions' => { self => 1, cookie_only_reason => 'it lists the signed-in person\'s own sessions', params => [] },
+    'me-session-revoke' => { self => 1, mutates => 1, cookie_only_reason => 'a person ends one of their own sessions', params => [ { name => 'sid', in => 'body', required => 1, note => 'one of your own session ids, from me-sessions' } ] },
+    'me-sign-out-everywhere' => { self => 1, mutates => 1, cookie_only_reason => 'a person ends every session of their own account', params => [] },
     'start-page' => { params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { mutates => 1, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body', required => 1, note => 'an empty string clears the start page' } ] },
     'whoami' => { params => [ { name => 'plugins', in => 'query' } ] },
@@ -934,7 +948,7 @@ sub need_caps {
 my %FIELD = map { $_ => 1 } qw(
     params caps mutates destructive changes_access audited scoped file_surface
     cookie_cap cookie_gates_itself cookie_only_reason mcp mcp_open_world
-    instance_wide content_write
+    instance_wide content_write self
 );
 for my $name ( sort keys %ACTION ) {
     my $spec = $ACTION{$name};
@@ -954,6 +968,27 @@ for my $name ( sort keys %ACTION ) {
         if defined $t && $t !~ /\A[a-z][a-z_]*\z/;
     die "Lazysite::ControlApi::Actions: '$name' declares mcp_open_world with no mcp twin\n"
         if exists $spec->{mcp_open_world} && !defined $t;
+
+    # SM1043: a self action acts on the caller alone - so no token reaches it, no
+    # capability opens it, no MCP twin serves it, and no parameter names anyone.
+    if ( $spec->{self} ) {
+        die "Lazysite::ControlApi::Actions: self action '$name' is in the token gate\n"
+            if exists $GATE{$name};
+        die "Lazysite::ControlApi::Actions: self action '$name' declares $_\n"
+            for grep { exists $spec->{$_} } qw(cookie_cap cookie_gates_itself mcp scoped);
+        for my $p ( @{ $spec->{params} || [] } ) {
+            die "Lazysite::ControlApi::Actions: self action '$name' takes '$p->{name}', "
+                . "which names an account - the subject of a self action is the caller\n"
+                if self_param_names_account( $p->{name} );
+        }
+    }
+}
+
+# SM1043: does a parameter name look like it names an account? Shared with
+# t/lint/246, so the load-time refusal and the lint read one rule.
+sub self_param_names_account {
+    my ($n) = @_;
+    return ( ( $n // '' ) =~ /(?:user|account|login|name|actor|principal|owner|member|who)/i ) ? 1 : 0;
 }
 
 # One tool is the twin of one action: two actions naming the same tool would give
@@ -987,6 +1022,9 @@ sub cookie_caps         { return _valued('cookie_cap') }
 sub cookie_gates_itself { return _valued('cookie_gates_itself') }
 sub cookie_only_reasons { return _valued('cookie_only_reason') }
 sub content_writes      { return _flagged('content_write') }
+
+# SM1043: the actions whose subject is always the signed-in caller (`self`).
+sub self_actions { return _flagged('self') }
 
 # Audited by default exactly when it mutates; `audited` states the exceptions.
 sub audited {

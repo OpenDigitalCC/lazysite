@@ -158,6 +158,18 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
+- SM1043 (PENDING) **a member has an account page, `/account`, in the site's
+  own theme.** A signed-in account with no manager access can see who it is
+  signed in as, change its password (with the current one; the others are
+  signed out), see where it is signed in, end one of those sessions or sign out
+  everywhere. It is a system page (a site's own copy wins; a deleted one comes
+  back) built from `::: account-*` components a layout can restyle, over new
+  control-API actions `me`, `me-password`, `me-sessions`, `me-session-revoke`
+  and `me-sign-out-everywhere`, which act only on the signed-in account, refuse
+  an access key, are CSRF-gated and audited; password checks count against the
+  sign-in rate limiter. `account_page: disabled` in lazysite.conf turns it off.
+  t/unit/account/01, 02; lint 246.
+
 - SM1041 (PENDING) **a password has a minimum length, 12 unless the operator
   says otherwise.** `password_min_length` in lazysite.conf (8 to 128; default
   12) applies to every way a password is set - the users tool's add, passwd

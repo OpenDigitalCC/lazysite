@@ -155,6 +155,11 @@ tone: medium
 `layouts-repo-set` | cookie only | value (body)
 `list` | cookie only | path (query)
 `lock` | cookie only | path (query)
+`me` | cookie only |  
+`me-password` | cookie only | current_password (body), new_password (body)
+`me-session-revoke` | cookie only | sid (body)
+`me-sessions` | cookie only |  
+`me-sign-out-everywhere` | cookie only |  
 `migrate-to-local` | cookie only | path (query)
 `mkdir` | cookie only | path (query)
 `move` | cookie only | path (query), to (query)

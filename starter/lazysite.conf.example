@@ -40,6 +40,11 @@ update_policy: manual
 # before this keeps working until it is changed.
 # password_min_length: 12
 
+# SM1043: the member's own account page, /account (password, sessions). On by
+# default - it acts only on the signed-in account and grants nothing. 'disabled'
+# makes /account answer 404 and its me-* actions refuse.
+# account_page: enabled
+
 # D013: layouts repository for the manager's "Install from Releases"
 # browser (themes page). Format is OWNER/REPO; the manager hits the
 # GitHub REST API anonymously, which is rate-limited to 60 requests

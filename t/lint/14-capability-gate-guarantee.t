@@ -71,7 +71,8 @@ cmp_ok( scalar keys %mutating,    '>=', 30, '%MUTATING parsed non-trivially' );
 # Reviewed allowlists. READ = a read/introspection action any authenticated
 # manager may call (must NOT mutate state). BESPOKE = a user/session/key/notice
 # action with its own actor-confined gate in the dispatch body. PREAUTH = issued
-# before/around the auth boundary. Adding a NEW action means consciously placing
+# before/around the auth boundary. SM1043: me and me-sessions are BESPOKE - self
+# actions, acting only on the caller (Lazysite::Manager::Account; lint 246). Adding a NEW action means consciously placing
 # it in a cap map or one of these buckets - which is the whole point.
 my %READ = map { $_ => 1 } qw(
     list read cache-list recent-changes channel-services principals version preview
@@ -83,6 +84,7 @@ my %READ = map { $_ => 1 } qw(
 my %BESPOKE = map { $_ => 1 } qw(
     users audit notices keys-list key-revoke sessions-list session-revoke
     user-revoke
+    me me-sessions
 );
 my %PREAUTH = map { $_ => 1 } qw( csrf-token );
 

@@ -1,0 +1,17 @@
+[%# SM1043: built-in account component - who is signed in. Use on /account:
+      ::: account-summary
+      :::
+    Filled after render by /assets/lazysite-account.js from the `me` action,
+    which answers only about the signed-in account; every value goes in as
+    text, never markup. A layout may override this file with its own
+    components/account-summary.tt, keeping the data-ls-* attributes. -%]
+<section class="lz-account lz-account-summary" data-ls-account="summary">
+  <dl class="lz-account-facts">
+    <dt>Signed in as</dt><dd data-ls-field="user">&hellip;</dd>
+    <dt>Name</dt><dd data-ls-field="display_name"></dd>
+    <dt>Email</dt><dd data-ls-field="email"></dd>
+    <dt>Groups</dt><dd data-ls-field="groups"></dd>
+    <dt>Two-factor</dt><dd data-ls-field="mfa"></dd>
+  </dl>
+  <p class="lz-account-status" data-ls-status role="status" aria-live="polite"></p>
+</section>
