@@ -112,23 +112,17 @@ sub _tt_engine {
     return $tt;
 }
 
-sub render_content {
-    my ( $meta, $html_body, $query, $before_render ) = @_;
-    $query //= {};
-
-    my $tt = _tt_engine();    # SM1012 S7
-
-    my %site_vars = resolve_site_vars();
-    my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
-
-    my $groups_ref = $AUTH_CONTEXT{auth_groups};
-    my $groups_str = ref $groups_ref eq 'ARRAY' ? join( ',', @$groups_ref ) : ( $groups_ref // '' );
-    my $editor_flag = _is_manager( \%site_vars, $AUTH_CONTEXT{auth_user} // '', $groups_str ) ? 1 : 0;
-
-    # SM154 (P3): expose what the domain-aware manager UI needs - whether the
-    # user may manage domains (gates the Domains nav entry), and a bound editor's
-    # own content_root + home_domain (so the file browser roots there instead of
-    # the docroot the confinement would deny). Only computed when authenticated.
+# SM1012 S8: WHAT THE MANAGER UI NEEDS TO KNOW ABOUT THIS USER - cut from
+# render_content. Returns the nav-gating capabilities (a hash ref), the scope
+# root and home domain of a bound editor, and the editor's scopes (an array
+# ref); all empty for a visitor who is not signed in.
+#
+# SM154 (P3): expose what the domain-aware manager UI needs - whether the
+# user may manage domains (gates the Domains nav entry), and a bound editor's
+# own content_root + home_domain (so the file browser roots there instead of
+# the docroot the confinement would deny). Only computed when authenticated.
+sub _render_manager_facts {
+    my ($groups_str) = @_;
     my $mgr_user = $AUTH_CONTEXT{auth_user} // '';
     my %manager_caps;
     my ( $scope_root, $home_domain ) = ( '', '' );
@@ -170,6 +164,24 @@ sub render_content {
         $scope_root  = ( @my_scopes == 1 ) ? $my_scopes[0] : '';
         $home_domain = _domain_home( $mgr_user, split /\s*,\s*/, $groups_str );
     }
+    return \%manager_caps, $scope_root, $home_domain, \@my_scopes;
+}
+
+sub render_content {
+    my ( $meta, $html_body, $query, $before_render ) = @_;
+    $query //= {};
+
+    my $tt = _tt_engine();    # SM1012 S7
+
+    my %site_vars = resolve_site_vars();
+    my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
+
+    my $groups_ref = $AUTH_CONTEXT{auth_groups};
+    my $groups_str = ref $groups_ref eq 'ARRAY' ? join( ',', @$groups_ref ) : ( $groups_ref // '' );
+    my $editor_flag = _is_manager( \%site_vars, $AUTH_CONTEXT{auth_user} // '', $groups_str ) ? 1 : 0;
+
+    my ( $manager_caps, $scope_root, $home_domain, $my_scopes )
+        = _render_manager_facts($groups_str);    # SM1012 S8
 
     # SM179 (P1): language awareness. site_lang is the host's language (conf
     # `lang:` or the alias override); page_lang lets a page override it via front
@@ -396,10 +408,10 @@ sub render_content {
         # an unstyled manager.
         manager_style   => _manager_style(),
         enabled_plugins => _enabled_plugins(),         # conditional manager nav
-        manager_caps    => \%manager_caps,             # SM154: gate the Domains nav
+        manager_caps    => $manager_caps,              # SM154: gate the Domains nav
         scope_root      => $scope_root,                # SM154: a bound editor's root
         home_domain     => $home_domain,               # SM154: a bound editor's domain
-        dav_scopes      => join( ',', @my_scopes ),    # SM157: multi-domain switcher list
+        dav_scopes      => join( ',', @{$my_scopes} ), # SM157: multi-domain switcher list
         site_lang       => $site_lang,                 # SM179: the host's language
         page_lang       => $page_lang,                 # SM179: per-page override
         languages       => \@languages,                # SM179 P2: switcher/hreflang
