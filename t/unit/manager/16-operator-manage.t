@@ -95,7 +95,8 @@ like( $op->{claim} // '', qr/^lzc_/, 'a claim token was minted' );
 # a group (role-umadmin). It is not the operator (SM991), and manage_users is
 # still FULL user management, so it may manage an account it did not create.
 uapi( $d, { action => 'add', username => 'umadmin', password => 'x' } );
-grant_caps( $d, 'umadmin', 'manage_users' );
+# SM1057: it manages users in the manager, so it holds `ui`.
+grant_caps( $d, 'umadmin', 'manage_users', 'ui' );
 my $cap = manage( $d, 'umadmin', 'role-umadmin', { action => 'claim-create', username => 'sw' } );
 ok( $cap->{ok}, 'a manage_users-capable account (no operator group) manages any account' );
 like( $cap->{claim} // '', qr/^lzc_/, 'claim token minted for the manage_users holder' );

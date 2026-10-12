@@ -777,8 +777,10 @@ if ( !$token_auth ) {
         # wrote /search.md and a new post into the primary's tree. The token door
         # has had its channel gate since SM126 (`api`); this is the same gate for
         # this channel, asked from the account store first and the session's
-        # groups second, as _is_operator asks. An operator - including the
-        # unsecured site's every account - never reaches here.
+        # groups second, as _is_operator asks. The operator (SM991: a member of the
+        # operator group, `local`, or every account on an unsecured site - NOT a
+        # holder of manage_users) never reaches here; a manage_users holder needs
+        # `ui` like any other manager.
         unless (
             $caps->{manager_ui}
             || Lazysite::Auth::Settings::groups_grant_cap( 'ui', grep { length } split /[,\s]+/,
