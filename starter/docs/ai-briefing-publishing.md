@@ -241,6 +241,9 @@ found nothing - so check the key before concluding a feature is broken.
 : `path=<file>` in the query, plus a JSON body `{ "read": [...], "write": [...] }`
   (only the CLI, as `local`, may also pass `"owner"`). The first `acl-set` on a
   file you can write records you as owner. Needs `webdav`. See *Own your pages*.
+  To give many files the same rule, send `"paths": [...]` in the body instead
+  of `path` (SM1052): every path is checked first and none is written if any is
+  refused; the trail records one row per path.
 
 `acl-get` (GET) / `acl-remove` (POST)
 : `path=<file>`. `acl-get` returns the entry; `acl-remove` clears it

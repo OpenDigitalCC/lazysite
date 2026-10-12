@@ -534,6 +534,41 @@ sub row_write_refusal {
     };
 }
 
+# SM1052 (inbox 2026-10-12, P-6), ruled 2026-10-12, "Import respects
+# writable_by, Owner bypass on import":
+#
+#   (b) A BULK LOAD IS A ROW WRITE, so data-import asks row_write_refusal as a
+#       row save does: an account the table's writable_by names may import;
+#       one it does not name is refused, manage_data or not. A partner loading a
+#       table that has writable_by is added to it - the descriptor is never
+#       cleared for the load and restored after.
+#   (c) THE TABLE'S OWNER may import past writable_by. A table has an owner
+#       where it has an access rule (data-table-acl-set): the `owner` of that
+#       rule, the account that set the first one or the one the operator named
+#       (action_table_acl_set). The descriptor records no creator, so a table
+#       with no access rule has no owner and nobody bypasses.
+#
+# Returns the refusal, or undef.
+sub import_write_refusal {
+    my ( $table, $caps, $user ) = @_;
+    my $no    = row_write_refusal( $table, $caps, groups_for($user) ) or return undef;
+    my $owner = table_owner($table);
+    return undef if defined $owner && length $owner && defined $user && $owner eq $user;
+    return { %$no,
+        error => $no->{error} . '. An import is made by an account the table\'s writable_by '
+            . 'names, or by the table\'s owner (the owner of its access rule, '
+            . 'data-table-acl-set); add your group to writable_by to load it.' };
+}
+
+# SM1052: the owner of a table's access rule, or undef when it has none.
+sub table_owner {
+    my ($table) = @_;
+    return undef unless defined $table && $table =~ /\A[a-z][a-z0-9_]{0,63}\z/;
+    require Lazysite::Data::Access;
+    my $rec = load_acls()->{ _acl_norm( Lazysite::Data::Access::acl_key($table) ) };
+    return ref $rec eq 'HASH' ? $rec->{owner} : undef;
+}
+
 # SM682: the two halves of "did this save change who may write the rows".
 #
 # Compared as a normalised STRING rather than as a list, so a reorder is not a

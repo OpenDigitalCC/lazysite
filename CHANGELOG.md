@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1052 (PENDING) **one rule for many paths, and an import by the table's
+  writers.** `acl-set` takes `"paths": [...]` with one rule: every path is
+  scope-checked and validated before any is written, one refusal changes
+  nothing, and the trail records one row per path. `data-import` now follows a
+  table's `writable_by` as a row save does - an account the list does not name
+  is refused, whatever it holds - and the table's owner (the owner of its access
+  rule) may import past it, so a bulk load no longer needs the list cleared.
+  t/integration/211.
+
 - SM1051 (PENDING) **a handler may belong to a domain.** A handler carries
   `domain:`, and a partner confined to that domain creates, changes and deletes
   it, sees it in `handler-list`, and binds its forms to it or to an instance

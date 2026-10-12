@@ -2225,6 +2225,9 @@ sub dispatch_acl_set {
         unless length $Lazysite::Manager::Common::auth_user;
     my $req = _json_body();
 
+    # SM1052 (P-7): one rule for a LIST of paths.
+    return _acl_set_many($req) if ref $req eq 'HASH' && exists $req->{paths};
+
     # SM306: acl-set will not take the whole site private because an argument
     # was left out.
     #
@@ -2338,8 +2341,84 @@ sub dispatch_acl_set {
     return ( $result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
 }
 
+# SM1052 (inbox 2026-10-12, P-7), ruled 2026-10-12, "acl-set with a path list":
+# ONE RULE FOR A LIST OF PATHS. A partner giving 1,745 posts the same owner rule
+# made 1,745 calls. `paths` in the body carries the list and the lists and draft
+# carry the rule, as for one path. Each path is checked as one path is - the
+# dispatcher scope- and carve-out-checks every element before this runs - and
+# then ALL OR NOTHING: every path is validated by action_acl_set itself with
+# nothing written (dry_run), and a single refusal refuses the request, naming
+# each refused path, with nothing changed. Only then is each rule written, and
+# the dispatcher writes one audit row per path (`_acl_audit` below; SM465's
+# before and after). A write that fails after validation (the store, or a move -
+# SM650's partial) is reported per path; the ones before it stand.
+our $ACL_PATHS_MAX = 2000;
+
+sub _acl_set_many {
+    my ($req) = @_;
+    my $user  = $Lazysite::Manager::Common::auth_user;
+    my $ps    = $req->{paths};
+    return ( { ok => 0, kind => 'invalid', field => 'paths',
+            error => "paths is a list of 1 to $ACL_PATHS_MAX paths, each a non-empty string. "
+                . 'Nothing was changed.' }, undef, undef )
+        unless ref $ps eq 'ARRAY' && @$ps && @$ps <= $ACL_PATHS_MAX
+        && !grep { ref $_ || !defined $_ || !length $_ } @$ps;
+    return ( { ok => 0, kind => 'conflict', field => 'paths',
+            error => 'acl-set was given a path and a list of paths. Send one of them. '
+                . 'Nothing was changed.' }, undef, undef )
+        if exists $params{path} || exists $req->{path};
+    if ( my @misrouted = grep { exists $params{$_} } qw(read write owner draft) ) {
+        return ( { ok => 0, kind => 'misrouted-argument',
+                error => 'acl-set reads its lists from the JSON request body, not the query '
+                    . 'string, so ' . join( ' and ', map { "\"$_\"" } @misrouted )
+                    . ' would have been ignored. Nothing was changed.' }, undef, undef );
+    }
+    my %seen;
+    my @paths   = grep { !$seen{$_}++ } @$ps;
+    my $m_read  = $req->{read};
+    my $m_write = $req->{write};
+    my $m_owner = $req->{owner};
+    my $m_draft = $req->{draft};
+
+    my @refused;
+    for my $p (@paths) {
+        my $v = action_acl_set( $p, $user, $m_read, $m_write, $m_owner, $m_draft, { dry_run => 1 } );
+        push @refused, { path => $p, error => $v->{error} // 'refused',
+            ( $v->{kind} ? ( kind => $v->{kind} ) : () ) }
+            unless ref $v eq 'HASH' && $v->{ok};
+    }
+    if (@refused) {
+        return ( { ok => 0, kind => 'refused', refused => \@refused,
+                error => scalar(@refused) . ' of ' . scalar(@paths) . ' paths would be refused, so '
+                    . "nothing was changed. The first: '$refused[0]{path}': $refused[0]{error}" },
+            undef, undef );
+    }
+
+    my ( @results, @audit );
+    my $all_ok = 1;
+    for my $p (@paths) {
+        my $before = action_acl_get( $p, $user );
+        my $r      = action_acl_set( $p, $user, $m_read, $m_write, $m_owner, $m_draft );
+        my $ok     = ref $r eq 'HASH' && $r->{ok} ? 1 : 0;
+        $all_ok &&= $ok;
+        push @results, { path => ( ref $r eq 'HASH' && $r->{path} ) // $p, ok => $ok,
+            ( $ok ? () : ( kind => $r->{kind}, error => $r->{error} ) ),
+            ( ref $r eq 'HASH' && $r->{content_moved} ? ( content_moved => 1 ) : () ) };
+        push @audit, [ ( ref $r eq 'HASH' && $r->{path} ) // $p,
+            ( ref $before eq 'HASH' && $before->{ok} ? $before->{acl} : undef ),
+            { read => $m_read, write => $m_write, owner => $m_owner, draft => $m_draft }, $ok,
+            ( $ok ? '' : ( $r->{kind} // $r->{error} // '' ) ) ];
+    }
+    return ( { ok => ( $all_ok ? 1 : 0 ), ( $all_ok ? () : ( kind => 'partial',
+                    error => 'some rules could not be written in full; see results' ) ),
+            paths => scalar(@paths), results => \@results, _acl_audit => \@audit },
+        undef, undef );
+}
+
 sub action_acl_set {
-    my ( $rel_path, $user, $read, $write, $owner_req, $draft ) = @_;
+    # SM1052: $opts->{dry_run} validates everything a write would and writes
+    # nothing - the list form checks every path before it writes any.
+    my ( $rel_path, $user, $read, $write, $owner_req, $draft, $opts ) = @_;
 
     my $rootish = _acl_root_key($rel_path);
     if ( $rootish eq 'glob' ) {
@@ -2536,6 +2615,7 @@ sub action_acl_set {
     elsif ( $existing && $existing->{draft} ) {
         $rec{draft} = JSON::PP::true();
     }
+    return { ok => 1, dry_run => 1, path => $rel } if ref $opts eq 'HASH' && $opts->{dry_run};
     $acls->{$rel} = \%rec;
     save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
     log_event( 'INFO', 'acl-set', 'acl set', path => $rel, user => $auth_user );

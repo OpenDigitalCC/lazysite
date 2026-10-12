@@ -510,6 +510,12 @@ unless ($token_auth) {
 # SM943: declared as `scoped => 1` on the action in Lazysite::ControlApi::Actions.
 my %SCOPED_ACTION = Lazysite::ControlApi::Actions::scoped_actions();
 
+# SM1052 (P-7): acl-set's list of paths, when it is given one (below), and the
+# most one request may name - the handler's own limit.
+my @ACL_PATHS;
+my $ACL_PATHS_MAX = $Lazysite::Manager::Files::ACL_PATHS_MAX;
+
+
 # Confine this request to a SET of content-root scopes, refusing any content
 # path outside EVERY scope. SM155: the binding moved to groups, so the set is the
 # UNION of the user's scoped groups (already resolved into the settings'
@@ -519,7 +525,7 @@ my %SCOPED_ACTION = Lazysite::ControlApi::Actions::scoped_actions();
 sub _confine_scope {
     my ( $scopes, $origin ) = @_;
     return unless $SCOPED_ACTION{$action} && ref $scopes eq 'ARRAY' && @$scopes;
-    for my $p ( grep { defined && length } ( $path, $params{to}, $params{from} ) ) {
+    for my $p ( grep { defined && length } ( $path, $params{to}, $params{from}, @ACL_PATHS ) ) {
         next if $p =~ m{^/?lazysite/};
         next
             unless Lazysite::Manager::Common::outside_all_scopes( $scopes, $p );
@@ -613,6 +619,31 @@ if ( $action eq 'csrf-token' ) {
         }
         $params{path} = $bp;
         $path = $bp;
+    }
+
+    # SM1052 (P-7), ruled 2026-10-12 ("acl-set with a path list"): `paths`, a
+    # LIST in the body, one rule for each. Every element is checked as the one
+    # path is - the scope and carve-out checks below read @ACL_PATHS - and the
+    # handler reads the same decoded body. A list beside a path is refused: one
+    # request names its targets one way.
+    my $many = grep { ( $_->{name} // '' ) eq 'paths' } @{ $spec->{params} || [] };
+    my $lreq = $many ? _json_body() : undef;
+    if ( ref $lreq eq 'HASH' && exists $lreq->{paths} ) {
+        my $ps     = $lreq->{paths};
+        my $origin = $token_auth ? 'api' : 'ui';
+        _refuse( { ok => 0, kind => 'invalid', field => 'paths',
+                error => "paths is a list of 1 to $ACL_PATHS_MAX paths, each a non-empty string. "
+                    . 'Nothing was changed.' },
+            $origin, 'refused: paths not a list of paths' )
+            unless ref $ps eq 'ARRAY' && @$ps && @$ps <= $ACL_PATHS_MAX
+            && !grep { ref $_ || !defined $_ || !length $_ } @$ps;
+        _refuse( { ok => 0, kind => 'conflict', field => 'paths',
+                error => "$action was given a path and a list of paths. Send one of them. "
+                    . 'Nothing was changed.' },
+            $origin, 'refused: path and paths' )
+            if exists $params{path};
+        @ACL_PATHS = @$ps;
+        $path      = '';
     }
 }
 
@@ -1010,7 +1041,7 @@ if ($token_auth) {
         # capability, as `read` of that path would - the zip's own skip-and-log
         # convention is silent to the caller and would hand back an archive
         # that quietly lacked the file.
-        my @targets = ( $path, $params{to} );
+        my @targets = ( $path, $params{to}, @ACL_PATHS );
         push @targets, collect_zip_paths() if $action eq 'file-zip-download';
         for my $p (@targets) {
             next unless defined $p && length $p;
@@ -1563,7 +1594,12 @@ elsif ( $action eq 'data-import' ) {
     # the plugin, and must consult its enabled state. The parser cannot
     # sensibly do that - so the whole path, parse included, lives behind the
     # one _gate() in Manager::Data, which is what SM469 wants anyway.
-    $result = Lazysite::Manager::Data::action_data_import( $params{table},
+    #
+    # SM1052 (P-6): and a bulk load is a row write - writable_by decides, as it
+    # does for a row save, and the table's owner may import past it.
+    my $imp_caps = $token_auth ? \%token_caps : _user_caps($auth_user);
+    $result = Lazysite::Manager::Data::import_write_refusal( $params{table}, $imp_caps, $auth_user )
+        // Lazysite::Manager::Data::action_data_import( $params{table},
         $body, $ENV{CONTENT_TYPE} // '', ( $params{apply} // '' ) eq '1' );
 }
 elsif ( $action eq 'data-export' ) {
@@ -2503,6 +2539,20 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
             $detail = _acl_audit_detail( $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
         }
 
+        # SM1052: a list of paths is ONE AUDIT ROW PER PATH, each with what its
+        # rule was and became - the trail is asked about a path, not a request.
+        my $per_path = ( $aud_action eq 'acl-set' && ref $result eq 'HASH'
+                && ref $result->{_acl_audit} eq 'ARRAY' ) ? delete $result->{_acl_audit} : undef;
+        if ($per_path) {
+            my $door = $token_auth ? 'api' : 'ui';
+            for my $row (@$per_path) {
+                my ( $p, $before, $after, $pok, $why ) = @$row;
+                my $what = $pok ? _acl_audit_detail( $before, $after ) : $why;
+                audit_log( $auth_user, 'acl-set', $p, _request_ip(), ( $pok ? 'ok' : 'fail' ),
+                    $door, _audit_detail($what) );
+            }
+        }
+
         # SM1046: a domain a token gave to its own group names the group. The
         # caller is the trail's `user` and the host its target; the group is
         # who reaches the new domain from now on, which is the question an
@@ -2560,7 +2610,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
         audit_log( $auth_user, $aud_action, $aud_target, _request_ip(),
             ( $ok ? 'ok' : 'fail' ), ( $token_auth ? 'api' : 'ui' ),
             _audit_detail($detail) )
-            unless $skip_audit;
+            unless $skip_audit || $per_path;
     }
 }
 

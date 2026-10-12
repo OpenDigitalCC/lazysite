@@ -371,7 +371,7 @@ our %ACTION = (
 #                          setting `draft` gates the path and clearing it
 #                          publishes, so one action carries both directions.
 # [mcp] set_permissions: SM587: acl-set's twin - it moves the read boundary
-    'acl-set' => { mcp => 'set_permissions', mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may change its rule (Files::action_acl_set)', params => [ { name => 'path', in => 'query_or_body' }, { name => 'read', in => 'body' }, { name => 'write', in => 'body' }, { name => 'owner', in => 'body' }, { name => 'draft', in => 'body' } ] },
+    'acl-set' => { mcp => 'set_permissions', mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may change its rule (Files::action_acl_set)', params => [ { name => 'path', in => 'query_or_body' }, { name => 'read', in => 'body' }, { name => 'write', in => 'body' }, { name => 'owner', in => 'body' }, { name => 'draft', in => 'body' }, { name => 'paths', in => 'body', note => 'SM1052: a list of paths given the one rule, instead of path' } ] },
     'actions-list' => { params => [] },
     # SM576 part 1: the brief store's own capability. A read takes EITHER
     # (the three-state note above: any ONE of the listed caps is enough), so a

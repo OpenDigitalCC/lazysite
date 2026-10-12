@@ -829,6 +829,14 @@ fields:
 
 Leave it out and any `manage_data` holder may write.
 
+**An import is a row write** (SM1052). `data-import` follows the same rule: on a
+table with `writable_by`, an account the list names imports, and one it does
+not name is refused. To bulk-load such a table, add your group to
+`writable_by` - never clear the list for the load and restore it after. The
+table's **owner** may also import past the list: the owner of its access rule
+(the account that first set it with `data-table-acl-set`, or the one the
+operator named). A table with no access rule has no owner.
+
 **`writable=` on a page binding is not a permission.** It tells the page's own
 script whether to offer editing controls. The endpoint cannot see which page
 called it, so a marker in front matter could never gate anything.

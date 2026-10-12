@@ -45,7 +45,7 @@ tone: medium
 ---
 `acl-get` | manage_content | path (query)
 `acl-remove` | manage_content | path (query)
-`acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body)
+`acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body), paths (body)
 `actions-list` | any authenticated |  
 `aliases-list` | manage_content | host (query), path (query)
 `analyse_visitors` | analytics | window (query), day (query), month (query), index (query), trails (query), host (query), by_host (query)
