@@ -77,6 +77,17 @@ Archive
   handler. A handler with no domain is the instance's and stays out of a
   confined caller's reach; another domain's handlers are neither shown nor
   bindable. t/integration/210.
+- SM1057 (PENDING) **security: the manager API's cookie door needs manager
+  access (`ui`).** A signed-in account in no group - a member login holding no
+  capability - could send `save` (and delete, mkdir, move, copy, file-upload,
+  lock, acl-set on an unruled path) to the manager API with its cookie and
+  CSRF token, and write any path no access rule governs: the content writes
+  self-authorise against the file's rule on this channel, and the door never
+  asked for the `ui` capability the /manager/ pages require. Paths are
+  docroot-relative on every host, so on a domain the writes landed in the
+  primary site's tree. A non-operator cookie session now needs `ui` (from its
+  account or its session's groups), as a token needs `api`; an unsecured site
+  is unchanged. Affects v0.14.4 and every v0.15.x. t/integration/220, 221.
 
 - SM1012 (PENDING) **internal: `render_content` is split at its seams.** The
   Template object for a content pass is built by `_tt_engine`; what the manager
