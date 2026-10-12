@@ -159,6 +159,8 @@ my %CALL = (
     'connector-save' => [ { id => 'probe', connector => { type => 'http', url => 'https://example.invalid/' } } ],
     'connector-secret-set' => [ { id => 'probe', secret => 's' } ],
     'connector-delete'     => [ { id => 'probe' } ],
+    'odoo-secret-set'      => [ { secret => 's' } ],
+    'odoo-secret-clear'    => [ {} ],
     # SM1051: handler-save and handler-delete left the list - a handler may carry
     # domain:, and an instance handler (none) is refused to a confined caller in
     # the branch: t/integration/210.

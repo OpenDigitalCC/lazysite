@@ -173,6 +173,10 @@ tone: medium
 `nav-save` | manage_nav | items (body), host (query_or_body)
 `notices` | notifications |  
 `notices-seen` | cookie only | id (query), dismiss (query)
+`odoo-calls` | manage_connectors | binding (query), limit (query)
+`odoo-secret-clear` | manage_connectors |  
+`odoo-secret-set` | manage_connectors | secret (body)
+`odoo-status` | manage_connectors |  
 `page-pdf` | manage_content | path (query)
 `pages` | manage_content / manage_nav |  
 `plugin-action` | cookie only | plugin (query), script (body), action_id (body), params (body)

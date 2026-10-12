@@ -201,6 +201,7 @@ sub setup {
     return $r->{res};
 }
 setup( 'acl-set', query => 'path=secret.md', body => { read => ['admin'] } );
+setup( 'odoo-secret-set', body => { secret => 'k3y-set-before' } );    # SM747: so a clear lands
 $S{backup} = setup('backup-create')->{name} // '';
 setup( 'data-table-save', body => { table => 'notes', descriptor => "title: Notes\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
 setup( 'data-migrate',       query => 'table=notes' );
@@ -270,6 +271,7 @@ my %REQ = (
     'connector-delete' => { body  => { id  => 'c1' } },
     'connector-save' => { body => { id => 'c2', connector => { name => 'C2', url => 'https://example.invalid/' } } },
     'connector-secret-set' => { body  => { id => 'c1', secret => 's3cret-value' } },
+    'odoo-secret-set'      => { body  => { secret => 'odoo-k3y-value' } },
     'copy'                 => { query => 'path=page.md&to=copy.md' },
     'data-import' => { query => 'table=notes&apply=1', multipart( 'file', 'notes.csv', 'text/csv', "slug\nb\n" ) },
     'data-migrate'    => { query => 'table=pending' },

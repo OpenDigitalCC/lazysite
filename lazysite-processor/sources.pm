@@ -724,7 +724,7 @@ sub resolve_odoo {
 
 sub _odoo_inert {
     my ($v) = @_;
-    return [ map { _odoo_inert($_) } @$v ] if ref $v eq 'ARRAY';
+    return [ map { _odoo_inert($_) } @$v ]                        if ref $v eq 'ARRAY';
     return { map { ( $_ => _odoo_inert( $v->{$_} ) ) } keys %$v } if ref $v eq 'HASH';
     return $v if ref $v || !defined $v;
     return _data_inert( _esc_html($v) );

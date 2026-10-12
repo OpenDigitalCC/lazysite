@@ -1756,7 +1756,8 @@ our %REFUSAL_STATUS = (
     ( map { $_ => '502 Bad Gateway' } qw(transport-failure odoo-fault invalid-credential session-expired) ),
     'odoo-validation'  => '422 Unprocessable Content',
     'apply-incomplete' => '207 Multi-Status',
-    'internal'         => '500 Internal Server Error',
+    'method'   => '405 Method Not Allowed',     # the Odoo endpoint: a write sent as a GET
+    'internal' => '500 Internal Server Error',
     ( map { $_ => '503 Service Unavailable' } qw(unavailable no-key config) ),
 );
 
