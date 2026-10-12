@@ -56,9 +56,9 @@ the three names it, not a group another account created. An unconfined caller
 ## What group-set may do
 
 - **Exists** means SM1045's union: a name in `groups-settings.json` or in the
-  groups file (n510 builds it as `Settings::group_names`; the users tool's
-  group-create already asks it; Manager::Groups builds the same union until
-  SM1045 lands, then calls it).
+  groups file - `Settings::group_names`, which Manager::Groups asks (as acl-set
+  and SM1016's allowed_groups check do); the users tool's group-create asks the
+  same union.
 - **Never the operator flag.** `manager` (the operator group's flag, SM991) or
   `operator` in `caps` is refused, to everyone, the operator included.
 - **The operator group** is changed only by the operator.

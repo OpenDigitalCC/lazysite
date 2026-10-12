@@ -56,15 +56,13 @@ sub _store {
 
 # THE GROUPS THAT EXIST: a name in either store - groups-settings.json (where the
 # Groups page and group-create write a new group) or the groups file (where
-# membership lives). This is SM1045's definition (n510, Settings::group_names,
-# not yet landed when this was written); the users tool's group-create and
-# group-nest already ask the same union. When SM1045 lands, this is
-# Settings::group_names() and can call it.
+# membership lives). SM1045's definition, asked of Settings::group_names, which
+# acl-set and a domain's allowed_groups (SM1016) ask too; the users tool's
+# group-create and group-nest ask the same union.
 sub existing_groups {
-    my ( $gs, $m ) = @_;
-    ( $gs, $m ) = _store() unless $gs && $m;
-    my %e = map { $_ => 1 } ( keys %$gs, keys %$m );
-    return \%e;
+    local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
+    my $g = Lazysite::Auth::Settings::group_names();
+    return ref $g eq 'HASH' ? $g : {};
 }
 
 # WHICH GROUPS A DOMAIN-CONFINED CALLER SEES. A group is relevant to it when:
@@ -83,7 +81,7 @@ sub existing_groups {
 sub relevant_groups {
     my (%who) = @_;
     my ( $gs, $m ) = _store();
-    my $all = existing_groups( $gs, $m );
+    my $all = existing_groups();
     return $all unless $who{confined};
 
     my %rel;
@@ -201,8 +199,8 @@ sub group_set {
     }
 
     my ( $gs, $m ) = _store();
-    my $exists = existing_groups( $gs, $m )->{$group} ? 1             : 0;
-    my $rec    = ref $gs->{$group} eq 'HASH'          ? $gs->{$group} : {};
+    my $exists = existing_groups()->{$group} ? 1             : 0;
+    my $rec    = ref $gs->{$group} eq 'HASH' ? $gs->{$group} : {};
 
     # The operator group is the operator's (SM991).
     return { ok => 0, kind => 'forbidden',
