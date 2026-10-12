@@ -83,18 +83,21 @@ sub _tt_render_impl {
     return ( 0, $err );
 }
 
-sub render_content {
-    my ( $meta, $html_body, $query, $before_render ) = @_;
-    $query //= {};
-
-    # Content pass uses ABSOLUTE => 0 - the content body is a string reference
-    # and should never need file access. ABSOLUTE => 1 would allow TT to follow
-    # absolute paths found in the content, which causes parse errors on CSS etc.
-    # (content is processed as a string ref, which TT never writes to the
-    # compile cache - so an unwritable cache/tt cannot fail this instance;
-    # only the make_path needs guarding.)
-    # TT 3.x pre-creates compile-dir mirrors in new() - group-writable
-    # creation whichever identity renders first (_cache_umask).
+# SM1012 S7: THE TEMPLATE OBJECT FOR A CONTENT PASS - cut from render_content,
+# built per call as it was (memoising it would be a change of behaviour). When
+# Template->new dies rather than returning false - it does when the compile
+# directory cannot be made - the umask is not put back; SM1012 records it, and
+# t/unit/processor/113 pins it.
+#
+# Content pass uses ABSOLUTE => 0 - the content body is a string reference
+# and should never need file access. ABSOLUTE => 1 would allow TT to follow
+# absolute paths found in the content, which causes parse errors on CSS etc.
+# (content is processed as a string ref, which TT never writes to the
+# compile cache - so an unwritable cache/tt cannot fail this instance;
+# only the make_path needs guarding.)
+# TT 3.x pre-creates compile-dir mirrors in new() - group-writable
+# creation whichever identity renders first (_cache_umask).
+sub _tt_engine {
     my $old_umask = _cache_umask();
     eval { make_path($TT_COMPILE_DIR) } unless -d $TT_COMPILE_DIR;
     my $tt = Template->new(
@@ -106,6 +109,14 @@ sub render_content {
         COMPILE_EXT => '.ttc',                                # P-4
     ) or do { umask $old_umask; die "Template error: " . Template->error() . "\n" };
     umask $old_umask;
+    return $tt;
+}
+
+sub render_content {
+    my ( $meta, $html_body, $query, $before_render ) = @_;
+    $query //= {};
+
+    my $tt = _tt_engine();    # SM1012 S7
 
     my %site_vars = resolve_site_vars();
     my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
