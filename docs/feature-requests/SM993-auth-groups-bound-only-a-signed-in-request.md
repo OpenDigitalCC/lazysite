@@ -105,3 +105,15 @@ so its public page stays cacheable. Sabotage: 11 cases
 (`tmp/sec-evidence/sm993-sab*.out`) - each half of the gate, the paid-page
 exception and the payment key it reads, both readers, the validator's place,
 the scan and the registry - each bit.
+
+# Decisions, 2026-10-12
+
+The release manager ruled on the two points this filing left open, both
+recorded here and nothing built:
+
+1. **Paid pages** - "Keep paid pages as they are". On a `payment: required`
+   page `auth_groups` stays the list of members who skip payment; on every
+   other page it requires sign-in and membership. As built.
+2. **The three shipped docs pages** - "OK, auth: required". `ai-connector-setup`,
+   `ai-connector-tools` and `onboarding-brief-template` now say
+   `auth: required`. As built.
