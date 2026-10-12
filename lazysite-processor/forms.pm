@@ -4,7 +4,8 @@ package main;
 #
 # HOLDS   convert_fenced_form() and _render_form() (being split at its seams,
 #         SM1012: _form_rule_tokens, _form_rules_from_tokens,
-#         _form_field_value, _form_server_rule): a `:::form`
+#         _form_field_value, _form_server_rule, a _form_field_* renderer per
+#         field kind in @FORM_FIELD_KINDS): a `:::form`
 #         block becomes
 #         the form's markup - fields, options, prefill from the request's raw
 #         query (escaped here), the outcome banner from a closed sentence map,
@@ -593,6 +594,26 @@ sub _form_field_input {
     return $field_html;
 }
 
+# SM1012 S5: ONE RENDERER PER FIELD KIND, IN THE ORDER THEY WIN. A field is
+# rendered by the first kind whose rule it carries - `file` before `textarea`,
+# `textarea` before the choosers - which is the order the if/elsif chain this
+# replaces tested them in; a field with none of them is an <input>
+# (_form_field_input). A new kind is a row here and a sub above. (`select:`,
+# `radio:` and `checklist:` each take the rest of the line, so a field carries
+# at most one of them and their order among themselves is never seen.)
+#
+# SM401: radio and checklist. A select hides its options behind a click,
+# which is right for a long list and wrong for a page of short questions
+# answered in sequence - every option stays visible and a mis-pick is
+# obvious rather than silent.
+my @FORM_FIELD_KINDS = (
+    [ file      => \&_form_field_file ],
+    [ textarea  => \&_form_field_textarea ],
+    [ select    => \&_form_field_select ],
+    [ radio     => \&_form_field_radio ],
+    [ checklist => \&_form_field_checklist ],
+);
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -715,30 +736,14 @@ sub _render_form {
 
         push @server_rules, _form_server_rule( $name, $max, $eff_pat, %rules ); # SM1012 S4
 
-        my $field_html;
-        if ( $rules{file} ) {
-            $field_html = _form_field_file( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
+        # The field's markup: the first kind in @FORM_FIELD_KINDS whose rule it
+        # carries renders it, and a field with none of them is an <input>.
+        my $render = \&_form_field_input;
+        for my $kind (@FORM_FIELD_KINDS) {
+            if ( $rules{ $kind->[0] } ) { $render = $kind->[1]; last }
         }
-        elsif ( $rules{textarea} ) {
-            $field_html = _form_field_textarea( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
-        }
-        elsif ( $rules{select} ) {
-            $field_html = _form_field_select( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
-        }
-
-        # SM401: radio and checklist. A select hides its options behind a click,
-        # which is right for a long list and wrong for a page of short questions
-        # answered in sequence - every option stays visible and a mis-pick is
-        # obvious rather than silent.
-        elsif ( $rules{radio} ) {
-            $field_html = _form_field_radio( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
-        }
-        elsif ( $rules{checklist} ) {
-            $field_html = _form_field_checklist( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
-        }
-        else {
-            $field_html = _form_field_input( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
-        }
+        my $field_html
+            = $render->( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
 
         push @{ $steps[-1]{fields} }, qq(  <div class="form-field">\n)
             . qq(    <label for="$name">$label$req_mark</label>\n)

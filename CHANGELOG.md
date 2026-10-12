@@ -57,7 +57,9 @@ Archive
   rules are tokenised by `_form_rule_tokens` and read into the field's rules by
   `_form_rules_from_tokens`; its value, the literal or the declared prefill,
   comes from `_form_field_value`; the rule the server holds it to (SM934) from
-  `_form_server_rule`. Each step changes no other sub (tools/deparse-subs.pl),
+  `_form_server_rule`; and its markup from one renderer per field kind (file,
+  textarea, select, radio, checklist, input), chosen by a table in the order the
+  old chain tested them. Each step changes no other sub (tools/deparse-subs.pl),
   each block deparses as the sub it became where it has one exit
   (tools/deparse-block.pl), and t/unit/processor/112 passes unchanged. No
   behaviour change.
