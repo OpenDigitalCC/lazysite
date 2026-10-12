@@ -1,4 +1,5 @@
 ---
+id: SM665
 title: "SM665: the groups page says each name once, and each capability's label is its name"
 subtitle: "Release manager, 2026-08-28: 'Agent AI (agent-ai) as well as tooltip - only needs tooltip', and 'Purge - destroy what no copy survives ... just needs to say Purge'"
 brand: plain

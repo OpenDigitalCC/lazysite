@@ -1,4 +1,5 @@
 ---
+id: SM466
 title: "SM466: no supported way to verify that a public page renders its own layout"
 subtitle: "SM441 fixed previews that rendered a domain's page in the base theme. Confirming that fix on a live site means fetching the page as a visitor - and a partner agent's own tooling is the thing that cannot do it."
 brand: plain

@@ -292,6 +292,12 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- filing-ids (PENDING) **a filing the release step stamps carries its id.**
+  The release step stamps a filing's "SHIPPED (PENDING)" by its `id:`, and 35
+  such filings had none - SM842 and 34 under `docs/feature-requests/archive/`.
+  Each now carries the id its file name gives it, and lint 244 holds every
+  PENDING filing to an id that matches its name.
+
 - SM1037 (PENDING) **the nav docs describe the format the parser reads.** The
   configuration doc and the agent briefing on configuration said the nav file
   is YAML (`- label:`, `url:`, `children:`); the engine reads `Label | /url`

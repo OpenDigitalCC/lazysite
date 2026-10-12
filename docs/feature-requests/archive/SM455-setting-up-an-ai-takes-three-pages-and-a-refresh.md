@@ -1,4 +1,5 @@
 ---
+id: SM455
 title: "SM455: setting up an AI takes two pages, a manual refresh, and a choice nobody explained"
 subtitle: "Add the account to a group on one page, refresh because nothing tells you to, go to another page for the connector, then pick which AI script applies. Every step is necessary and none of them is announced."
 brand: plain

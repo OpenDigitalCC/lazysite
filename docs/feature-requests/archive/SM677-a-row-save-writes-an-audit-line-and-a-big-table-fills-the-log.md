@@ -1,4 +1,5 @@
 ---
+id: SM677
 title: "SM677: every row save writes an audit line, and on a big table that is the log"
 subtitle: "Release manager, 2026-08-28: 'data row save doesnt need to log, for big tables it fills the log' - which reopens a trade this project has now made twice"
 brand: plain

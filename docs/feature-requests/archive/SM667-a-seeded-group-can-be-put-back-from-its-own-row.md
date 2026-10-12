@@ -1,4 +1,5 @@
 ---
+id: SM667
 title: "SM667: a seeded group can be put back to its shipped permissions from its own row"
 subtitle: "Release manager, 2026-08-28: 'working with groups, what would be really useful in the groups panel, for seeded groups, is set permissions to default'"
 brand: plain

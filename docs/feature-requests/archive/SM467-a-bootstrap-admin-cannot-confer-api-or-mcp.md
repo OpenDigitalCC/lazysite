@@ -1,4 +1,5 @@
 ---
+id: SM467
 title: "SM467: a setup-manager admin cannot grant API or MCP access, and the refusal does not say how"
 subtitle: "setup-manager seeds the admin group with every capability except api and mcp, and no grant authority. So the only account on a fresh site cannot add anyone to a group that grants either - including the AI-agent group the documentation tells them to use."
 brand: plain

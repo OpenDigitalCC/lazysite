@@ -1,4 +1,5 @@
 ---
+id: SM440
 title: "SM440: aliases redirect to a URL that includes the content root, and 404"
 subtitle: "An alias on a page under a domain's content_root sends the visitor to the docroot-relative path. Declaring the alias is worse than leaving it off - a redirect to a 404 instead of a plain one - and it defeats the standing rule that every retired URL gets an alias on its successor."
 brand: plain

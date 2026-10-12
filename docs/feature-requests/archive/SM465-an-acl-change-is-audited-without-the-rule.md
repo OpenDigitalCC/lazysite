@@ -1,4 +1,5 @@
 ---
+id: SM465
 title: "SM465: an acl-set is audited without saying what the rule became"
 subtitle: "The audit trail records that a permission changed, who changed it and on what path - and not what it changed to. So the one question an audit of a permission change exists to answer is the one it cannot."
 brand: plain

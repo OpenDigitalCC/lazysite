@@ -1,4 +1,5 @@
 ---
+id: SM435
 title: "SM435: manage_config still advertises two files it can no longer write"
 subtitle: "0.8.1 moved nav.conf to manage_nav and the form configs to manage_forms over WebDAV. The capability descriptor was updated in both new places and missed in the old one, so manage_config still promises both - and a partner holding it alone gets a 403."
 brand: plain

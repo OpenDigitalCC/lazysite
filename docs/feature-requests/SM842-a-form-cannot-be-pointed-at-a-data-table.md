@@ -1,4 +1,5 @@
 ---
+id: SM842
 title: "SM842: a form cannot be pointed at a data table from any granted surface, while it can be pointed at any URL"
 subtitle: "Sites agent, 2026-09-11: the documented form-to-table route ends in a file no surface can read or write; the same grant may send every submission to an arbitrary external webhook. A proposal, and a tension between two rulings"
 brand: plain

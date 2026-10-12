@@ -1,4 +1,5 @@
 ---
+id: SM672
 title: "SM672: `Invalid domain host` was returned for two different problems and stated neither, which blocked a security measurement"
 subtitle: "Site agent, 2026-08-28: 'a fresh agent/operator adding a domain cannot tell what a valid host is. BLOCKS SM647.'"
 brand: plain

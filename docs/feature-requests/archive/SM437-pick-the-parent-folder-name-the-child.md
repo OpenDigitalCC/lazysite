@@ -1,4 +1,5 @@
 ---
+id: SM437
 title: "SM437: pick the parent folder, let the host name the child"
 subtitle: "Registering a domain asks the operator to type a content folder freehand. They are typing sites/<hostname> every time, and a typo there is silent - the domain registers, provisions the wrong directory, and serves an empty site."
 brand: plain

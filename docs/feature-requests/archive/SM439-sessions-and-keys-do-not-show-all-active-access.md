@@ -1,4 +1,5 @@
 ---
+id: SM439
 title: "SM439: Sessions and Keys do not show everyone who has access"
 subtitle: "The operator's stated intent for those two pages is that there be no hidden case where access is active or potentially active. Two cases are hidden today, and in one of them the obvious revoke control does not revoke."
 brand: plain

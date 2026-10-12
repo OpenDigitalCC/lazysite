@@ -1,4 +1,5 @@
 ---
+id: SM457
 title: "SM457: manage_forms admitted an agent to an action it never told them existed"
 subtitle: "The gate said yes. The descriptor said nothing. So the agent guessed six names, none of them real, against a surface it was already entitled to use."
 brand: plain

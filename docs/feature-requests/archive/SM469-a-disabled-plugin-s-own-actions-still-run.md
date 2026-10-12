@@ -1,4 +1,5 @@
 ---
+id: SM469
 title: "SM469: a disabled plugin's own control-API actions still run"
 subtitle: "The enabled gate covers plugin SCRIPT execution. A plugin that owns control-API actions - which is what ADR 0009's contract is for - has those actions dispatch straight past it."
 brand: plain

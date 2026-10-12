@@ -1,4 +1,5 @@
 ---
+id: SM445
 title: "SM445: an expired session makes the button do nothing at all"
 subtitle: "Not an error, not a message, not a redirect - the click is simply inert. The operator learns their session expired by refreshing on a hunch, and until then it reads as the feature being broken."
 brand: plain

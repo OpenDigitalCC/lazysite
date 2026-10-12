@@ -1,4 +1,5 @@
 ---
+id: SM675
 title: "SM675: a capability that only works while a plugin is enabled should say so, or not be offered"
 subtitle: "Release manager, 2026-08-28: 'groups that require modules should say so - if switching on data tables, it should check that the plugin is enabled ... whichever policy fits best with the proposed cleaner plugin infrastructure'"
 brand: plain

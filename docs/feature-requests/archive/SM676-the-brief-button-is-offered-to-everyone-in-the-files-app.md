@@ -1,4 +1,5 @@
 ---
+id: SM676
 title: "SM676: the Brief button is offered to everyone who can open a file's expander, and the write behind it is not"
 subtitle: "Release manager, 2026-08-28: 'i had brief option even though i didnt have briefs permission' - and the read genuinely does not need it, while the write does"
 brand: plain

@@ -1,4 +1,5 @@
 ---
+id: SM443
 title: "SM443: a per-domain nav save replaced another site's navigation"
 subtitle: "nav-read takes host in the QUERY; nav-save takes it in the BODY. Pass it the way the read wants and the save silently drops it, defaults to the shared nav.conf, and overwrites whatever the primary and every inheriting domain were using."
 brand: plain

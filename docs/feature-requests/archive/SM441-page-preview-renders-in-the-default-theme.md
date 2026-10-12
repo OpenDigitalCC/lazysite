@@ -1,4 +1,5 @@
 ---
+id: SM441
 title: "SM441: page preview renders a domain's page in the default theme"
 subtitle: "The Files preview shells the processor without a Host, so SM151's per-Host routing never fires. The page renders with the base layout, theme and nav - whoever it actually belongs to."
 brand: plain

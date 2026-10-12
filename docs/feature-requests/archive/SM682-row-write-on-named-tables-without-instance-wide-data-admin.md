@@ -1,4 +1,5 @@
 ---
+id: SM682
 title: "SM682: an external user can write its own rows, or hold instance-wide data administration, and there is nothing in between"
 subtitle: "Apps agent, 2026-08-28, from the learning-app build: 'it blocks safely shipping the learning app's submission flow to external learners' - and it is the capability boundary, not the feature"
 brand: plain

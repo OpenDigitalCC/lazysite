@@ -1,4 +1,5 @@
 ---
+id: SM436
 title: "SM436: a domain can be registered under a name no request can ever carry"
 subtitle: "alias_hosts accepts a single-label name like `dhcf`. The processor matches the full Host header with eq, so the alias never fires - and the visitor silently gets the PRIMARY site instead of the one that was configured."
 brand: plain

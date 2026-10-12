@@ -1,4 +1,5 @@
 ---
+id: SM446
 title: "SM446: configuring a domain says nothing about TLS, and nothing notices until a visitor does"
 subtitle: "The domain is added, the content root is provisioned, the settings are right - and the certificate does not cover the host. The check that diagnoses it precisely is one nobody is prompted to run."
 brand: plain

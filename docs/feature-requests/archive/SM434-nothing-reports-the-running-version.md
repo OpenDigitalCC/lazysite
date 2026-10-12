@@ -1,4 +1,5 @@
 ---
+id: SM434
 title: "SM434: nothing reports the running engine version"
 subtitle: "The generator meta says what RENDERED a page. There is no served surface that says what is running - so 'did the upgrade take' has no honest answer, and two agents in a row reached for the nearest number that looked like one."
 brand: plain

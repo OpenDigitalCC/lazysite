@@ -1,4 +1,5 @@
 ---
+id: SM668
 title: "SM668: an MCP agent connected over OAuth appears on neither Sessions nor Keys, so the only lever an operator can find is disabling the account"
 subtitle: "Release manager, 2026-08-28: 'an ai agent is connecting via an mcp user. i want to disconnect this but there is no listing in sessions/keys for this agent, so only option is disable account'"
 brand: plain

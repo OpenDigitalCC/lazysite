@@ -1,4 +1,5 @@
 ---
+id: SM660
 title: "SM660: `manage_forms` can delete a submission it may not read"
 subtitle: "Exposed by SM652, which made manage_forms definition-only for reads and left three destructive verbs behind"
 brand: plain

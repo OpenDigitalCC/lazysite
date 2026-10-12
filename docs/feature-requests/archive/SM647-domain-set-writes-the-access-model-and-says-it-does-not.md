@@ -1,4 +1,5 @@
 ---
+id: SM647
 title: "SM647: `domain-set` writes the domain access model and publishes `changes_access: false`, so the one flag a caller can consult is wrong about it"
 subtitle: "Site agent, 2026-08-26, closing the object-scoping question R-10 left open - by source review, because the honest instrument would have been a live grant-widening write"
 brand: plain

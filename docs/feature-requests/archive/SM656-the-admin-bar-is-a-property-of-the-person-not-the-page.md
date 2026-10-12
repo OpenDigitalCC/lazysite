@@ -1,4 +1,5 @@
 ---
+id: SM656
 title: "SM656: the admin bar is controlled by who is looking, not by what the page is, so an application page offers Edit-this-Markdown as its most prominent action"
 subtitle: "Site agent, 2026-08-25: taking `ui` away removes the bar and the manager UI with it, which is not a trade anyone should make to stop an Edit link appearing over a data-entry screen"
 brand: plain

@@ -1,4 +1,5 @@
 ---
+id: SM501
 title: "SM501: the form timing window is fixed while the rate limit is per-form"
 subtitle: "A submission must arrive within the 2-hour HMAC window; unlike rate_limit there is no per-form knob. Recorded from the field before it becomes a pattern - the reporter is working around it by design rather than asking for an exemption."
 brand: plain

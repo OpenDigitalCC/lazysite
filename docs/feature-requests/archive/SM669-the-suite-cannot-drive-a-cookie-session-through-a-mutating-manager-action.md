@@ -1,4 +1,5 @@
 ---
+id: SM669
 title: "SM669: the suite has no way to drive a cookie session through a mutating manager action, so cookie-side capability gates are asserted as text and not as behaviour"
 subtitle: "Found building SM660's test, 2026-08-28: the test was written, passed, and was deleted when sabotage showed it proved nothing"
 brand: plain

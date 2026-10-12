@@ -1,4 +1,5 @@
 ---
+id: SM664
 title: "SM664: the all-files history belongs on the history plugin's own page, as a modal"
 subtitle: "Release manager, 2026-08-28: 'that list should be a modal from the plugin config page, on the history plugin, not on the files page'"
 brand: plain

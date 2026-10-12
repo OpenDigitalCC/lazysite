@@ -1,4 +1,5 @@
 ---
+id: SM680
 title: "SM680: the Rows panel opens below the fold and a watched user did not see it"
 subtitle: "Release manager, 2026-08-28, from observation rather than inference: 'on watching user earlier, they didnt see it open up below'"
 brand: plain

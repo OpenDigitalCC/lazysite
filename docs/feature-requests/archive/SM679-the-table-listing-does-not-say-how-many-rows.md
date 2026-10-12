@@ -1,4 +1,5 @@
 ---
+id: SM679
 title: "SM679: the table listing says what a table is called and not how big it is"
 subtitle: "Release manager, 2026-08-28: 'data tables - on list of tables, add count of rows on the listing'"
 brand: plain

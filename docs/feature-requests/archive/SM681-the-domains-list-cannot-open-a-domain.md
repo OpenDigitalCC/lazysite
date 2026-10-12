@@ -1,4 +1,5 @@
 ---
+id: SM681
 title: "SM681: the domains list has no way to open the domain"
 subtitle: "Release manager, 2026-08-28: 'on domains list, add icon to click to open the site in new tab'"
 brand: plain

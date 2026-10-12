@@ -1,4 +1,5 @@
 ---
+id: SM444
 title: "SM444: a failed coverage gate reports a floor breach whichever way it failed"
 subtitle: "release.sh treats ANY non-zero exit from coverage.sh as 'coverage below the declared floor'. The 0.10.20 build failed that way and coverage was never the problem - it cost a 45-minute instrumented re-run and a second full build to establish that."
 brand: plain
