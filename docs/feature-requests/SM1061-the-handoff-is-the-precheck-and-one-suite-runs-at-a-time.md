@@ -118,6 +118,12 @@ it was not done here. Two options are open for a ruling:
   `prove` only - narrower, but it changes release.sh and the line t/lint/208
   pins.
 
+Ruled 2026-10-12, neither: "i think neither - becuase a release cant run when
+there isnt  suite run, so it simply manages itself without any furthec
+omplexity, if i understood that correctly". The gate stays outside the lock.
+The one care left is timing: a gate is not started where it would still be
+running at 00:30, when the overnight run starts.
+
 # Since
 
 The same day the release manager ruled that the queue is tested together, as

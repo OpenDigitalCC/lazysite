@@ -167,14 +167,14 @@ on n520-n526.
 | F-1 | SM1012's finding: a TT engine that cannot be built leaves umask 0002 | "Fix so the umask is restored on every path" | landed, SM1035 b4897d85 (n416) | XS |
 | F-2 | MCP `preview_page` renders a draft against the site's real layout, writing nothing | "yes queue the preview_page draft change" | landed, SM1030 028622af (n480) | S |
 | F-3 | Found working F-2: a text save writes non-UTF-8; a saved preview is a visit; it renders under the MCP Host | "Fix all three" | landed, SM1031 d87b98f1 (n481) | S |
-| F-4 | Do the other preview doors record a visit? (SM1031's open question) | SM1031's rule | landed, SM1064 36bf553a (n554). Two findings open (below) | XS |
+| F-4 | Do the other preview doors record a visit? (SM1031's open question) | SM1031's rule | landed, SM1064 36bf553a (n554). Its findings: `preview_public`'s path built on n556 (SM1065); the processor lookup open (below) | XS |
 | F-5 | `Connectors::sweep`'s counters: a sweep that expires nothing reports `expired: null` (found in SM747 CU) | - | landed, SM1063 0ec4daa9 (n553), lint 257 | XS |
 
 ## The testing model (SM1061, SM1062)
 
 | Ref | Item | Ruling | Status | Size |
 | --- | --- | --- | --- | --- |
-| T-1 | Four handoffs ran the whole suite at once and caught nothing the precheck missed | quoted under "Process" | landed, SM1061 33a4a067 (n551), filing d4e0ed28. Open: the gate's suite lock (below) | - |
+| T-1 | Four handoffs ran the whole suite at once and caught nothing the precheck missed | quoted under "Process" | landed, SM1061 33a4a067 (n551), filing d4e0ed28. The gate's suite lock ruled 2026-10-12: "i think neither - becuase a release cant run when there isnt  suite run, so it simply manages itself" | - |
 | T-2 | The overnight run tests what is about to land | "maybe the suite runs on its own branch, not main, then the review process checks that in to main" | landed, SM1062 18a79e91 (n552) | - |
 
 ## SM747 (Odoo), by slice
@@ -235,13 +235,11 @@ Each from its filing; none is in the queue until it is ruled or picked up.
 - **SM991 R8, `rotate-auth-secret`.** It ends every session, the operator's
   included, and needs only `manage_config`; listed in SM991 "so it can be ruled
   on".
-- **SM1061, the gate's suite lock.** `tools/gate-main.sh` holds the suite lock
-  around `release.sh gate`, or `release.sh` takes it around its staged `prove`
-  only; two options in the filing.
-- **SM1064, two findings.** `preview_public` renders a domain's page under the
-  owner's Host at its docroot path (404), the defect SM1031 (c) fixed in
-  `preview_page` - "for a ruling"; and MCP and the manager modules find the
-  processor two ways.
+- **SM1064, the processor found two ways.** MCP and the manager modules find
+  the processor differently (Common.pm `processor_path` versus beside
+  lazysite-mcp.pl); n556 reports whether one way can serve both. Its other
+  finding - `preview_public` renders a domain's page at its docroot path (404) -
+  falls under SM1031's "Fix all three" and is built on n556 (SM1065).
 - **P22, the 34 archived filings** (SM434-SM682) still say "SHIPPED (PENDING)":
   stamp them once by a sweep against CHANGELOG-archive.md, have the release step
   read archive/ too, or both.
