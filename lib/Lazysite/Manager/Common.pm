@@ -1642,7 +1642,7 @@ our %REFUSAL_STATUS = (
     # conflict with the state it was made against; an expired one is gone.
     ( map { $_ => '403 Forbidden' } qw(mode scope-refused odoo-access-refused read-only no-owner) ),
     ( map { $_ => '404 Not Found' } qw(no-operation odoo-missing) ),
-    ( map { $_ => '409 Conflict' }  qw(stale applied edited binding instance) ),
+    ( map { $_ => '409 Conflict' } qw(stale applied edited binding instance) ),
     'expired' => '410 Gone',
     ( map { $_ => '502 Bad Gateway' } qw(transport-failure odoo-fault invalid-credential session-expired) ),
     'odoo-validation'  => '422 Unprocessable Content',
