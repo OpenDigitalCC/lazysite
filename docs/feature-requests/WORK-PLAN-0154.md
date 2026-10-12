@@ -122,3 +122,10 @@ cli command to add the domain group."
   goes to an address a suspect submission chose. Read, not run (B). A fix
   branch, ahead of SM1010 (its F1 and Q9)? Answered 2026-10-12: "Fix now" -
   reproduced through form-handler.pl and fixed with F2, SM1017 (n440).
+- **U5 (SM1023) found SM1024, security, needs a ruling.** An
+  undecodable groups-settings.json is read as no groups by
+  Auth::Settings, so `site_grants_manager` says unsecured and the manager API
+  and sign-in treat every authenticated user as a manager; the render path
+  treats the same file as secured. Proposed: an undecodable store sets the same
+  fourth state as an unreadable one (SM906), so the manager refuses with "cannot
+  tell" until the file is repaired. Build it?
