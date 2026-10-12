@@ -8,8 +8,40 @@ status: candidate
 raised: 2026-10-12
 raised-by: release manager, on SM1010's open items, 2026-10-12
 area: accounts
-status-note: "Brief, not built. A system page /account in the site theme, served to any signed-in account, over a closed family of me-* control-API actions whose subject is always the caller. Phase 1: password, own sessions, own bell, 2FA. Phase 2: one-click unsubscribe (SM1010 R4) and preferences. Supersedes SM1010 R2. Q1-Q9 need a ruling."
+status-note: "Ruled 2026-10-12: build phase 1 (Q1-Q9 as recommended). Separate fixes ruled with it: other sessions end on any password change or 2FA disable (SM1040); password_min_length, default 12, on every way a password is set (SM1041). Phase 1 in progress: 1a /account and me-* (SM1043), 1b own notices, 1c self-enrolled 2FA (SM1042). Phase 2-3 not started."
 ---
+
+# Ruled
+
+The release manager, 2026-10-12. Recorded in the words given; where a ruling
+settles a question below, the ruling stands.
+
+- **"Accept, build phase 1"**, with the brief's recommended answers:
+  - Q1: `me-*` actions on the control API; the session-less unsubscribe goes
+    on the auth CGI, later.
+  - Q2: on by default, with an `account_page` switch to turn it off.
+  - Q3: re-authenticate per sensitive request - the current password; plus a
+    current 2FA code to disable 2FA or regenerate recovery codes.
+  - Q4: members may set a display name that cannot copy another account's
+    login or display name (phase 2).
+  - Q5, Q6, Q8, Q9 as the brief recommends: land at `/` with a link to
+    `/account`; `manage_notifications` reaches the notify handler page (the
+    per-type rule limits it to notify handlers).
+- **A separate security item, "Fix now"**: any password change (own, an
+  operator's `passwd`, a redeemed reset or claim link) and any 2FA disable
+  revokes that account's OTHER sessions; the current session stays. Its own
+  SM (SM1040), its own branch first, test and sabotage.
+- **"Min 12, configurable"**: `password_min_length` in lazysite.conf, default
+  12, applied to every way a password is set (users tool add and passwd,
+  claim and reset redemption, setup-sysop, me-password); existing passwords
+  keep working until changed. SM1041, its own branch.
+- **2FA, "Self-enrol only"**: members enrol their own 2FA (phase 1c); managers
+  can only reset or disable someone's 2FA and never see a secret or recovery
+  codes; until 1c lands manager enrolment stays so nobody is locked out - so
+  manager enrolment is removed in the same branch as 1c, not before. SM1042.
+
+Build order, each its own stacked branch: SM1040 (n446), SM1041 (n500), phase
+1a (SM1043), phase 1b, phase 1c with the removal (SM1042), then SM1010 R5.
 
 # The ask
 
