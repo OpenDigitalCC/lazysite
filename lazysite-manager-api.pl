@@ -2097,7 +2097,7 @@ elsif ( $action eq 'form-submissions' ) {
     # named (action_form_submissions ignores `form` then), the form otherwise.
     my $sf_file = $params{file} // '';
     _refuse_unreachable_form( length $sf_file ? _form_of_store($sf_file) : $params{form} ); # SM976 F2
-    _refuse_beyond_account_requests( $params{file}, $params{form} );                                             # SM979
+    _refuse_beyond_account_requests( $params{file}, $params{form} );                        # SM979
     $result = action_form_submissions( $params{file}, $params{form} );
 }
 elsif ( $action eq 'form-submission' ) {
