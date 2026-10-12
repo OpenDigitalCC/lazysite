@@ -4,7 +4,7 @@ package main;
 #
 # HOLDS   convert_fenced_form() and _render_form() (being split at its seams,
 #         SM1012: _form_rule_tokens, _form_rules_from_tokens,
-#         _form_field_value): a `:::form`
+#         _form_field_value, _form_server_rule): a `:::form`
 #         block becomes
 #         the form's markup - fields, options, prefill from the request's raw
 #         query (escaped here), the outcome banner from a closed sentence map,
@@ -379,6 +379,59 @@ sub _form_field_value {
     return $value;
 }
 
+# SM1012 S4: THE RULE THE SERVER HOLDS THIS FIELD TO - cut from _render_form's
+# line loop. One rule, or none for a chooser that is not marked required.
+#
+# SM934 FV1: the rules this field will be held to at submission.
+#
+# DECLARED VALUES ONLY - no judgement is made here. Whether a `pattern`
+# is one a browser would actually compile is decided by
+# Lazysite::Validate::html_pattern_problem, which lint 204 holds must
+# exist exactly once and be called by name; the render path cannot load
+# a module (ADR 0001), so the handler makes that call instead. Copying
+# the character list here is precisely what that lint forbids.
+#
+# `max` carries its MEANING, not just its number: on a number field the
+# browser gets `max=` (a value bound) and everywhere else `maxlength=`
+# (a length bound). Recording 1000 against a text field with no declared
+# max is deliberate - that IS what the browser was told, and a server
+# that enforced nothing there would be looser than the page.
+# IT MIRRORS THE RENDER BRANCH BY BRANCH, because an entry that does not
+# is a server stricter or looser than the page. A chooser gets `required`
+# and nothing else - there is no maxlength or pattern on a `<select>` to
+# be parity with - and a multi-box checklist gets nothing, because the
+# render deliberately withholds `required` from a group of more than one
+# (SM888 A5: marking them all required would demand every option).
+sub _form_server_rule {
+    my ( $name, $max, $eff_pat, %rules ) = @_;
+    my @server_rules;
+    my $chooser = $rules{select} || $rules{radio} || $rules{checklist};
+    if ($chooser) {
+        my $marked =
+            $rules{checklist}
+            ? ( $rules{required} && @{ $rules{checklist} } == 1 )
+            : $rules{required};
+        push @server_rules, { name => $name, required => 1 } if $marked;
+    }
+    else {
+        push @server_rules, {
+            name => $name,
+            ( $rules{required} ? ( required => 1 )            : () ),
+            ( $rules{file}     ? ( file     => 1 )            : () ),
+            ( $rules{type}     ? ( type     => $rules{type} ) : () ),
+            ( defined $eff_pat ? ( pattern  => $eff_pat )     : () ),
+            ( ( $rules{type} // '' ) eq 'number'
+                ? ( ( defined $rules{max} ? ( max => $rules{max} ) : () ),
+                    ( defined $rules{min} ? ( min => $rules{min} ) : () ),
+                    bound => 'value',
+                    )
+                : ( max => $max, bound => 'length' )
+            ),
+        };
+    }
+    return @server_rules;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -499,50 +552,7 @@ sub _render_form {
         $eff_pat = '[0-9\\s\\(\\)\\+\\.\\-]{6,30}'
             if !defined $eff_pat && ( $rules{type} // '' ) eq 'tel';
 
-        # SM934 FV1: the rules this field will be held to at submission.
-        #
-        # DECLARED VALUES ONLY - no judgement is made here. Whether a `pattern`
-        # is one a browser would actually compile is decided by
-        # Lazysite::Validate::html_pattern_problem, which lint 204 holds must
-        # exist exactly once and be called by name; the render path cannot load
-        # a module (ADR 0001), so the handler makes that call instead. Copying
-        # the character list here is precisely what that lint forbids.
-        #
-        # `max` carries its MEANING, not just its number: on a number field the
-        # browser gets `max=` (a value bound) and everywhere else `maxlength=`
-        # (a length bound). Recording 1000 against a text field with no declared
-        # max is deliberate - that IS what the browser was told, and a server
-        # that enforced nothing there would be looser than the page.
-        # IT MIRRORS THE RENDER BRANCH BY BRANCH, because an entry that does not
-        # is a server stricter or looser than the page. A chooser gets `required`
-        # and nothing else - there is no maxlength or pattern on a `<select>` to
-        # be parity with - and a multi-box checklist gets nothing, because the
-        # render deliberately withholds `required` from a group of more than one
-        # (SM888 A5: marking them all required would demand every option).
-        my $chooser = $rules{select} || $rules{radio} || $rules{checklist};
-        if ($chooser) {
-            my $marked =
-                $rules{checklist}
-                ? ( $rules{required} && @{ $rules{checklist} } == 1 )
-                : $rules{required};
-            push @server_rules, { name => $name, required => 1 } if $marked;
-        }
-        else {
-            push @server_rules, {
-                name => $name,
-                ( $rules{required} ? ( required => 1 )            : () ),
-                ( $rules{file}     ? ( file     => 1 )            : () ),
-                ( $rules{type}     ? ( type     => $rules{type} ) : () ),
-                ( defined $eff_pat ? ( pattern  => $eff_pat )     : () ),
-                ( ( $rules{type} // '' ) eq 'number'
-                    ? ( ( defined $rules{max} ? ( max => $rules{max} ) : () ),
-                        ( defined $rules{min} ? ( min => $rules{min} ) : () ),
-                        bound => 'value',
-                        )
-                    : ( max => $max, bound => 'length' )
-                ),
-            };
-        }
+        push @server_rules, _form_server_rule( $name, $max, $eff_pat, %rules ); # SM1012 S4
 
         my $field_html;
         if ( $rules{file} ) {
