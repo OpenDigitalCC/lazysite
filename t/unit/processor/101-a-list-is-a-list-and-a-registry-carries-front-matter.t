@@ -38,8 +38,6 @@ links:
     url: /
 empty: []
 form: [contact]
-auth_groups:
-  - editors
 payment: none
 register:
   - posts.json
@@ -48,8 +46,26 @@ CATS=[% page_categories.join('|') %] KW=[% page_keywords.join('|') %] AUTHOR=[% 
 MD
 spit( "$d/post/first.md", $POST );
 
+# A page held back by auth_groups (SM980/SM993: a signed-in reader is asked
+# for). It names the same registry and category, so the scan and registry
+# below show it is left out for an anonymous reader.
+my $MEMBERS = <<'MD';
+---
+title: Members
+categories:
+  - news
+auth_groups:
+  - editors
+register:
+  - posts.json
+---
+held back
+MD
+spit( "$d/post/members.md", $MEMBERS );
+
 load_processor($d);
-my ($meta) = main::parse_yaml_front_matter($POST);
+my ($meta)    = main::parse_yaml_front_matter($POST);
+my ($members) = main::parse_yaml_front_matter($MEMBERS);
 
 subtest 'a block or flow list of scalars is a list' => sub {
     is_deeply( $meta->{categories}, [ 'Perl Foundation', 'news' ], 'a block list, quotes stripped' );
@@ -63,7 +79,7 @@ subtest 'a block or flow list of scalars is a list' => sub {
 subtest 'the engine\'s keys keep their own readings' => sub {
     ok( !ref $meta->{form}, 'form: [contact] is not made a list' );
     is( $meta->{form}, 'contact', '...and reads as the form sanitiser always read it' );
-    is_deeply( $meta->{auth_groups}, ['editors'], 'auth_groups keeps its own reader' );
+    is_deeply( $members->{auth_groups}, ['editors'], 'auth_groups keeps its own reader' );
     is( $meta->{payment}, 'none', 'payment is a scalar' );
     is_deeply( $meta->{register}, ['posts.json'], 'register keeps its own reader' );
 };
@@ -79,7 +95,8 @@ subtest 'a scan object carries the list, and filter= matches an item' => sub {
     spit( "$d/scan.md", "---\ntitle: S\ntt_page_var:\n  posts: scan:/post/*.md filter=categories:news\n---\n"
             . "N=[% posts.size %] [% FOREACH p IN posts %]C=[% p.categories.join('|') %][% END %]\n" );
     my $o = run_processor( $d, '/scan' ) // '';
-    like( $o, qr/N=1 C=Perl Foundation\|news/, 'listed by an item of its list' );
+    like( $o, qr/N=1 C=Perl Foundation\|news/,
+        'listed by an item of its list; the held-back page is not listed to an anonymous reader' );
 };
 
 subtest 'a registry object carries the page\'s front matter, less the engine-private keys' => sub {
@@ -90,11 +107,13 @@ subtest 'a registry object carries the page\'s front matter, less the engine-pri
     like( $o, qr/AUTHOR=Ann /,                 'a custom scalar' );
     like( $o, qr/CATS=Perl Foundation\|news /, 'a custom list' );
     like( $o, qr/TAGS=a\|b/,                   'and the tags, as a list' );
+    my @objects = $o =~ /^KEYS=/mg;
+    is( scalar @objects, 1, 'one object: the page held back by auth_groups is not in the registry' );
     my ($keys) = $o =~ /KEYS=(\S+)/;
     ok( defined $keys, 'the object was rendered' ) or return;
     my %k = map { $_ => 1 } split /,/, $keys;
     ok( $k{$_}, "carries $_" ) for qw(url title date register meta_desc meta_title tags author categories keywords);
-    ok( !$k{$_}, "does not publish $_" ) for qw(form auth_groups payment);
+    ok( !$k{$_}, "does not publish $_" ) for qw(form payment);
 };
 
 done_testing();
