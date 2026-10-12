@@ -8,8 +8,45 @@ status: candidate
 raised: 2026-10-12
 raised-by: release manager, from the news site's reports (inbox 2026-10-11, archived), 2026-10-12
 area: notifications
-status-note: "Brief filed 2026-10-12 (WORK-PLAN-0154 P18). First slice (M): a notify handler type mailing the opted-in accounts that own matching rows, queued for the daemon, bound as a form target. Then event points and a chain rule (M), then more events and channels (L). Q1-Q9 need a ruling; F1 (a quarantined post is acknowledged) is a defect to fix first."
+status-note: "Ruled 2026-10-12 (see Ruled): phase 0 fixed as SM1017 (F1 reproduced, F2 refused). Phase 1 next: a notify handler type; recipients from tables, owners, fixed or the submitter, the engine guarding technical safety only; authoring needs manage_notifications; unsubscribe per rule, default on."
 ---
+
+# Ruled
+
+The release manager, 2026-10-12. Recorded in the words given; where a ruling
+overrides a recommendation below, the ruling stands.
+
+- **Phase 0 - "Fix now".** F2 (SECURITY): a submitter address (and every place
+  the mail handler puts a caller-influenced address into a header) must be
+  exactly one address - no , ; < > or CR/LF - refused otherwise; F1: reproduce
+  through the real delivery path (form-handler -> deliver) first; if
+  confirmed, a quarantined submission sends no acknowledgement. Tests +
+  sabotage. One branch, its own SM, CHANGELOG (PENDING). Built as SM1017.
+- **Recipients.** "it isn't the system's job to enforce the policy of
+  recipients, that's a business decision, as there may be external
+  justifications to send to addresses loaded into the database, don't assume
+  this is the only system. allow operator judgement as to if they are
+  complying with privacy rules." Then ruled "Yes, engine = mechanism":
+  recipients may be addresses stored in a table, owners' accounts, fixed
+  addresses, or the submitter; the engine guards only technical safety - one
+  address per recipient field with header-injection refused, delivery queued
+  and sent once each, a per-recipient rate cap the operator sets, one audit row
+  per recipient; documentation states compliance is the operator's
+  responsibility.
+- **Authoring - "New 'manage_notifications' cap".** A dedicated capability, off
+  by default, held by the operator group, plus the capabilities of any handler
+  the rule calls.
+- **Unsubscribe - "Per rule, default on".** Each rule's messages carry an
+  unsubscribe link and a List-Unsubscribe header unless the rule turns it off.
+- **Everything else as this brief recommended**, except where the rulings
+  above override: Q2 is overridden (addresses held in rows are allowed); Q3
+  consent is the operator's judgement, with no engine-enforced opt-in; Q4
+  authoring is `manage_notifications`. So Q1 (a form delivery carries the
+  verified session account as its actor, context only), Q5 (queue only;
+  "waiting for the scheduler" without the daemon), Q6 (the account's address
+  as set), Q7 (per event, one message per recipient per hour per rule), Q8 (an
+  unsubscribe link and `List-Unsubscribe`) and Q9 (phase 0 first) stand as
+  recommended.
 
 # The ask
 
