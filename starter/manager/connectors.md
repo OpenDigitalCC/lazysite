@@ -295,19 +295,19 @@ function callersField(f, current) {
   var have = {};
   for (var i = 0; i < current.length; i++) { have[current[i]] = 1; }
   if (GROUPS === null) {
-    return field(f + 'callers', 'Caller groups', 'text', current.join(', '),
-      'Comma-separated. A signed-in caller must be in one of these, or hold Connectors. '
+    return field(f + 'callers', 'Caller groups', 'text', current.map(mgGroupLabel).join(', '),
+      'Comma-separated, each @name or name. A signed-in caller must be in one of these, or hold Connectors. '
       + 'The group list could not be read, so type the names.');
   }
   var boxes = '';
   for (var j = 0; j < GROUPS.length; j++) {
-    boxes += check(f + 'cg-' + GROUPS[j], GROUPS[j], have[GROUPS[j]], '');
+    boxes += check(f + 'cg-' + GROUPS[j], mgGroupLabel(GROUPS[j]), have[GROUPS[j]], '');
   }
   // A group named on the connector that no longer exists still has to be
   // visible, or saving would quietly drop it.
   for (var k = 0; k < current.length; k++) {
     if (GROUPS.indexOf(current[k]) === -1) {
-      boxes += check(f + 'cg-' + current[k], current[k], true, 'not a group on this site');
+      boxes += check(f + 'cg-' + current[k], mgGroupLabel(current[k]), true, 'not a group on this site');
     }
   }
   if (!boxes) { boxes = '<span class="mg-muted">This site has no groups yet.</span>'; }
@@ -326,7 +326,8 @@ function callersField(f, current) {
 function callersValue(f) {
   var box = document.getElementById(f + 'callers');
   if (box) {
-    return box.value.split(',').map(function(s) { return s.replace(/^\s+|\s+$/g, ''); })
+    // SM1014: a group typed @name or name; the connector stores the name.
+    return box.value.split(',').map(function(s) { return mgGroupName(s); })
       .filter(function(s) { return s.length; });
   }
   var out = [];

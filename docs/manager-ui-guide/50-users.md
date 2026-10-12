@@ -21,6 +21,9 @@ Expect
 : Both appear in the list. Removal takes the account out of every group it was
   in, and the audit trail records who removed whom.
 
+  The add-user form offers its groups as `@name`, as every group picker in the
+  manager does (SM1014); the account is added to the group of that name.
+
 Negative
 : A delegate can only see and act on accounts beneath them in the management
   tree - not the whole roster.

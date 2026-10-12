@@ -574,20 +574,43 @@
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    // The option list. `prefix` is the marker a page uses to distinguish a group
-    // from a user in a single namespace - '@' on Files, '' on Groups, where a
-    // nested group is named plainly. Sorted as one list rather than users-then-
-    // groups, so a name is where the reader expects it alphabetically.
+    // SM1014: A GROUP IS SHOWN AS @name, EVERYWHERE ONE IS PICKED OR SHOWN
+    // BESIDE PEOPLE. Ruled by the release manager on 2026-10-12: "groups should
+    // be prefixed with something say @ so they can be distinguished from users,
+    // and this should be consistent anywhere a group is picked". The Files and
+    // Data pickers already did; Groups and Domains named a group plainly, so
+    // the same group read as `@staff` on one page and `staff` on the next, and
+    // on the Groups page a nested group and a person looked alike.
+    //
+    // DISPLAY AND INPUT, NOT STORAGE. Each store keeps the form it has: an ACL
+    // rule names a group `@staff` (the @ is how that store tells a group from
+    // a user), while allowed_groups and a group's member list hold the plain
+    // name. A page shows mgGroupLabel(name) and, before it writes a store that
+    // holds plain names, takes the name back with mgGroupName(value), which
+    // accepts it with or without the @.
+    window.mgGroupLabel = function(g) {
+      g = String(g === null || g === undefined ? '' : g);
+      return g.charAt(0) === '@' ? g : '@' + g;
+    };
+    window.mgGroupName = function(v) {
+      v = String(v === null || v === undefined ? '' : v).replace(/^\s+|\s+$/g, '');
+      return v.charAt(0) === '@' ? v.slice(1) : v;
+    };
+
+    // The option list. A group's option is its mgGroupLabel - value and text
+    // alike, so a page reading the value knows a group from a person without
+    // a second lookup. There is no option to name groups plainly: that was
+    // `groupPrefix`, and SM1014 retired it (t/lint/230). Sorted as one list, so
+    // the @ brings the groups together ahead of the people.
     // `only` narrows to one kind where a field accepts only one - Domains names
     // groups in allowed_groups and users in locked_users, and offering the wrong
     // kind there would suggest a choice the field cannot store.
     window.mgPrincipalOptions = function(opts) {
       opts = opts || {};
-      var prefix = opts.groupPrefix === undefined ? '@' : opts.groupPrefix;
       var all = opts.only === 'groups' ? [] : USERS.slice();
       if (opts.only !== 'users') GROUPS.forEach(function(g) {
         if (opts.exclude && g === opts.exclude) return;   // a group cannot contain itself
-        all.push(prefix + g);
+        all.push(window.mgGroupLabel(g));
       });
       if (opts.extra) opts.extra.forEach(function(e) { if (all.indexOf(e) < 0) all.push(e); });
       return all.sort().map(function(k) {

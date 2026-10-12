@@ -178,8 +178,8 @@ function loadGroups() {
     allUsers  = res[1] || [];
     channelServices = res[2] || {};
     recentChanges = res[3] || {};
-    // SM305: feed the shared picker. Groups are named plainly here (a nested
-    // group is a member like any other), so renderGroups passes groupPrefix: ''.
+    // SM305: feed the shared picker. SM1014: a nested group is offered and shown
+    // as @name, as on every page, so it cannot be mistaken for a person.
     if (window.mgSetPrincipals) mgSetPrincipals(allUsers, Object.keys(allGroups));
     renderGroups();
   }).catch(function(e) { showStatus('Failed to load groups: ' + e.message, true); });
@@ -578,14 +578,14 @@ function renderGroups() {
       // not take the access away.
       var from = inherited[c[0]];
       if (from && from.length) {
-        var via = 'Inherited from ' + from.join(', ')
+        var via = 'Inherited from ' + from.map(mgGroupLabel).join(', ')
           + ' — change it there, not here. This group cannot revoke it.';
         if (caps[c[0]]) {
           // Both: leave the real control alone and mark the row.
           return '<label class="mg-chk" title="' + escHtml(c[0]) + '"><input type="checkbox" checked'
             + ' onchange="toggleSetting(\'' + ge + '\',\'' + c[0] + '\',this)"> ' + escHtml(c[1])
             + ' <span class="mg-cap-inherited" title="' + escHtml('Granted here AND inherited from '
-              + from.join(', ') + '. Unticking removes only the grant made here — members keep it '
+              + from.map(mgGroupLabel).join(', ') + '. Unticking removes only the grant made here — members keep it '
               + 'through the bundle.') + '">&#8618; also inherited</span>'
             + warn + info + '</label>';
         }
@@ -593,7 +593,7 @@ function renderGroups() {
           + '<input type="checkbox" checked disabled aria-label="' + escHtml(c[1] + ' — ' + via) + '"> '
           + escHtml(c[1])
           + ' <span class="mg-cap-inherited" title="' + escHtml(via) + '">&#8618; '
-          + escHtml(from.join(', ')) + '</span>'
+          + escHtml(from.map(mgGroupLabel).join(', ')) + '</span>'
           + warn + info + '</label>';
       }
 
@@ -668,7 +668,7 @@ function renderGroups() {
     // separate acts - which is also what the Files picker does, where the
     // equivalent onchange only adds a chip and nothing is written until Save.
     h += '<div class="mg-tokens-pick">' +
-         mgPrincipalSelect({ id: 'add-' + ge, groupPrefix: '', exclude: g,
+         mgPrincipalSelect({ id: 'add-' + ge, exclude: g,
                              placeholder: 'add a user or group…',
                              style: 'max-width:14rem' }) +
          ' <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addMember(\'' + ge + '\')">Add</button>' +
@@ -780,13 +780,15 @@ function toggleSetting(group, key, el) {
 function memberPillsHtml(members, ge) {
   if (!members.length) return '<span class="mg-tokens-empty">No members yet.</span>';
   return members.map(function(m) {
-    // SM121: a member may itself be a GROUP (compound groups) - link and tag it
-    // as such so a nested group is not mistaken for a user.
+    // SM121: a member may itself be a GROUP (compound groups) - link it as such
+    // so a nested group is not mistaken for a user. SM1014: and name it @name,
+    // as every page names a group; the member list stores the plain name.
     var isGroup = Object.prototype.hasOwnProperty.call(allGroups, m);
     var href = isGroup ? '/manager/groups' : '/manager/users?user=' + encodeURIComponent(m);
-    var tag = isGroup ? ' <span class="mg-muted" title="a nested group — its members inherit this group’s access">(group)</span>' : '';
-    return '<span class="mg-token"><a href="' + href + '">' + escHtml(m) + '</a>' + tag +
-      '<button type="button" class="mg-token-x" title="Remove ' + escHtml(m) + '" onclick="removeMember(\'' + escHtml(m) + '\',\'' + ge + '\')">&times;</button></span>';
+    var shown = isGroup ? mgGroupLabel(m) : m;
+    var tip = isGroup ? ' title="a nested group — its members inherit this group’s access"' : '';
+    return '<span class="mg-token"><a href="' + href + '"' + tip + '>' + escHtml(shown) + '</a>' +
+      '<button type="button" class="mg-token-x" title="Remove ' + escHtml(shown) + '" onclick="removeMember(\'' + escHtml(m) + '\',\'' + ge + '\')">&times;</button></span>';
   }).join('');
 }
 // SM667: put a SEEDED group back to what it shipped with, from its own row.
@@ -863,11 +865,14 @@ function refreshGroupMembers(group) {
 
 function addMember(group) {
   var inp = document.getElementById('add-' + group);
-  var name = (inp && inp.value || '').trim();
-  if (!name) { showStatus('Choose a user or group to add.', true); return; }
-  // SM121: adding a known GROUP nests it (its members inherit this group's
-  // access); anything else is added as a user.
-  var isGroup = Object.prototype.hasOwnProperty.call(allGroups, name) && name !== group;
+  var picked = (inp && inp.value || '').trim();
+  if (!picked) { showStatus('Choose a user or group to add.', true); return; }
+  // SM121: adding a GROUP nests it (its members inherit this group's access);
+  // anything else is added as a user. SM1014: the picker names a group @name,
+  // so the @ is what says which - a person and a group may share a name, and
+  // the bare name used to nest the group whichever was meant.
+  var isGroup = picked.charAt(0) === '@';
+  var name = isGroup ? mgGroupName(picked) : picked;
   var body = isGroup
     ? { action: 'group-nest', sub: name, parent: group }
     : { action: 'group-add', username: name, group: group };
@@ -879,7 +884,8 @@ function addMember(group) {
       if (m.indexOf(name) === -1) m.push(name);
       if (inp) inp.value = '';
       refreshGroupMembers(group); refreshGroupSummary(group);
-      showStatus((isGroup ? 'Nested group ' + name + ' in ' : 'Added ' + name + ' to ') + group + '.');
+      showStatus((isGroup ? 'Nested group ' + mgGroupLabel(name) + ' in ' : 'Added ' + name + ' to ')
+        + mgGroupLabel(group) + '.');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
@@ -891,7 +897,8 @@ function removeMember(user, group) {
       var m = allGroups[group].members = allGroups[group].members || [];
       var i = m.indexOf(user); if (i !== -1) m.splice(i, 1);
       refreshGroupMembers(group); refreshGroupSummary(group);
-      showStatus('Removed ' + user + ' from ' + group + '.');
+      var was = Object.prototype.hasOwnProperty.call(allGroups, user) ? mgGroupLabel(user) : user;
+      showStatus('Removed ' + was + ' from ' + mgGroupLabel(group) + '.');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }

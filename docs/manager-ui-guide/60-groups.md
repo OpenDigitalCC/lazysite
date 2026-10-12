@@ -50,11 +50,15 @@ Where
 : Access -> Groups -> nest
 
 Do
-: Nest `junior-editors` inside `editors`, then check a junior member's grid.
+: In `editors`' Members picker choose `@junior-editors` and press Add, then check
+  a junior member's grid.
 
 Expect
 : The junior holds everything `editors` grants, attributed to the granting group.
   Enforcement uses the same closure, so what the grid shows is what applies.
+  The nested group is listed among the members as `@junior-editors`; a person is
+  listed by name. The picker offers every group as `@name`, so a person and a
+  group that share a name are two different choices.
 
 Negative
 : A direct self-loop is refused. A longer cycle is harmless - the resolver

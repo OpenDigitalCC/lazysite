@@ -311,10 +311,10 @@ function approveSubmissionRow(filePath, rowId, formName, address) {
     }).then(function(r) { return r.json(); }).then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Approve failed', true); return; }
       var msg = 'Account "' + d.user + '" created for ' + d.email
-              + ((d.group && d.group.length) ? ', in ' + d.group.join(', ') : ', in no group')
+              + ((d.group && d.group.length) ? ', in ' + d.group.map(mgGroupLabel).join(', ') : ', in no group')
               // SM963: a flagged group it could not be placed in is said, with why.
               + ((d.unplaced && d.unplaced.length) ? '. It could NOT be placed in '
-                  + d.unplaced.map(function(u) { return u.group + ' (' + u.error + ')'; }).join('; ')
+                  + d.unplaced.map(function(u) { return mgGroupLabel(u.group) + ' (' + u.error + ')'; }).join('; ')
                   + ' - place it on the Groups page' : '')
               + '. They can fetch their own set-password link from the Forgot password page'
               + ' with that address, or you can send them this one: ' + (d.url || d.path || '');

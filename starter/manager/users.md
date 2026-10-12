@@ -274,7 +274,7 @@ function renderPermGrid(d, user) {
     var warn = dormant ? ' <span class="mg-cap-dormant" title="The ' + escHtml(lbl(c))
       + ' service is switched OFF site-wide — this channel is granted but inert until an '
       + 'admin enables it in Settings → Services.">&#9888;</span>' : '';
-    var title = by(c) ? (dormant ? 'granted, but the service is OFF site-wide' : 'granted by: ' + by(c).join(', ')) : 'not granted';
+    var title = by(c) ? (dormant ? 'granted, but the service is OFF site-wide' : 'granted by: ' + by(c).map(mgGroupLabel).join(', ')) : 'not granted';
     h += '<th style="text-align:center" title="' + escHtml(title) + '">' + escHtml(lbl(c)) + warn + '</th>';
   });
   h += '</tr></thead><tbody>';
@@ -283,7 +283,7 @@ function renderPermGrid(d, user) {
   // table; an action the served sections do not name draws under "Other".
   var byLabel = function(list) { return list.slice().sort(function(x, y) { return lbl(x).localeCompare(lbl(y)); }); };
   var actionRow = function(a) {
-    var h = '<tr><td title="' + (by(a) ? 'granted by: ' + by(a).join(', ') : 'not granted') + '">' + escHtml(lbl(a)) + '</td>';
+    var h = '<tr><td title="' + (by(a) ? 'granted by: ' + by(a).map(mgGroupLabel).join(', ') : 'not granted') + '">' + escHtml(lbl(a)) + '</td>';
     chans.forEach(function(c) {
       // SM197: a cell is a real "can do this here" only when the capability is
       // granted (by a group), the channel is held, AND the capability actually
@@ -292,8 +292,8 @@ function renderPermGrid(d, user) {
       var granted  = by(a) && by(c);
       var surfaced = !!(surf[a] && surf[a][c]);
       var by_tip = '';
-      if (by(a)) by_tip += lbl(a) + ' via ' + by(a).join(', ');
-      if (by(c)) by_tip += (by_tip ? '; ' : '') + lbl(c) + ' via ' + by(c).join(', ');
+      if (by(a)) by_tip += lbl(a) + ' via ' + by(a).map(mgGroupLabel).join(', ');
+      if (by(c)) by_tip += (by_tip ? '; ' : '') + lbl(c) + ' via ' + by(c).map(mgGroupLabel).join(', ');
       var glyph, color, tip;
       if (granted && surfaced) { glyph = '✓'; color = '#1a7f37'; tip = by_tip; }
       else if (granted && !surfaced) {
@@ -322,7 +322,8 @@ function renderPermGrid(d, user) {
   h += '<p class="mg-muted" style="font-size:11px;margin-top:0.3rem">&#10003; = the capability is granted, '
     + 'the channel is held, and the capability has a real surface on that channel; &ndash; = granted and the '
     + 'channel is held, but this capability does nothing on that channel; &middot; = not granted. '
-    + 'Hover a cell or header for the granting group(s). Groups: ' + d.groups.map(escHtml).join(', ')
+    + 'Hover a cell or header for the granting group(s). Groups: '
+    + d.groups.map(function(g) { return escHtml(mgGroupLabel(g)); }).join(', ')
     + '. Manager-UI access is the <b>Manager UI</b> channel capability, granted through a group.</p>';
   return h;
 }
@@ -716,15 +717,16 @@ function accountSettingsHtml(row) {
     // SM665: the tooltip always names the group, because the bracketed name
     // beside the label has gone. It was previously only named in the fallback,
     // so a group WITH a description lost its technical name entirely.
-    var tip = m.description ? (m.description + ' (group "' + g + '")')
-                            : ('Group "' + g + '"');
+    // SM1014: the group is named @name, as on every page that names one.
+    var tip = m.description ? (m.description + ' (group ' + mgGroupLabel(g) + ')')
+                            : ('Group ' + mgGroupLabel(g));
     if (!m.assignable) {
       tip = 'Backend group - held, but not offered for new assignment. ' + tip;
     }
     return '<label class="mg-chk" title="' + escHtml(tip) + '">'
       + '<input type="checkbox"' + (on ? ' checked' : '')
       + ' onchange="toggleGroup(\'' + ue + '\',\'' + escHtml(g) + '\',this)"> '
-      + escHtml(m.label)
+      + escHtml(m.label === g ? mgGroupLabel(g) : m.label)
       + '</label>';
   }).join('') : '<span class="mg-empty">No groups yet.</span>';
   if (backend > 0) {
@@ -908,9 +910,9 @@ function toggleGroup(user, group, el) {
       return (allGroups[gg] || []).indexOf(user) !== -1;
     });
     if (!keepsUi) {
-      var go = window.confirm('Removing "' + user + '" from "' + group +
-        '" will disable their manager interface (web login): "' + group +
-        '" is their only group with Manager UI access. They will still be able to '
+      var go = window.confirm('Removing "' + user + '" from ' + mgGroupLabel(group) +
+        ' will disable their manager interface (web login): ' + mgGroupLabel(group) +
+        ' is their only group with Manager UI access. They will still be able to '
         + 'connect via the API / MCP connector. Continue?');
       if (!go) { el.checked = true; return; }   // operator cancelled - revert, no change
     }
@@ -925,7 +927,7 @@ function toggleGroup(user, group, el) {
       var idx = m.indexOf(user);
       if (checked && idx === -1) m.push(user);
       if (!checked && idx !== -1) m.splice(idx, 1);
-      showStatus((checked ? 'Added ' : 'Removed ') + user + (checked ? ' to ' : ' from ') + group + '.');
+      showStatus((checked ? 'Added ' : 'Removed ') + user + (checked ? ' to ' : ' from ') + mgGroupLabel(group) + '.');
     })
     .catch(function(e) { el.checked = !checked; showStatus('Error: ' + e.message, true); });
 }
@@ -975,7 +977,7 @@ function connectAs(user, client) {
   var group = CLIENT_GROUP[client];
   if (!allGroups.hasOwnProperty(group)) {
     if (hint) hint.textContent = 'This account needs the "' + need +
-      '" channel, which the "' + group + '" group provides - and that group ' +
+      '" channel, which the ' + mgGroupLabel(group) + ' group provides - and that group ' +
       'does not exist on this site. Create it on the Groups page, or add the ' +
       need + ' capability to a group this account is in.';
     return;
@@ -983,7 +985,7 @@ function connectAs(user, client) {
 
   // THE PERMISSION IS NAMED, AND ASKED ABOUT. A grant is a decision, not a
   // side effect of picking a client from a list.
-  mgConfirm('Add "' + user + '" to the group "' + group + '"? That grants the "' +
+  mgConfirm('Add "' + user + '" to the group ' + mgGroupLabel(group) + '? That grants the "' +
     need + '" channel, which is what this client connects over. It is the same ' +
     'change as ticking the group on the Groups page, and it is audited the same way.',
     { ok: 'Grant and continue' }).then(function(okd) {
@@ -999,7 +1001,7 @@ function connectAs(user, client) {
           rowsByUser[user].settings = rowsByUser[user].settings || {};
           rowsByUser[user].settings[need] = true;
         }
-        showStatus('Added ' + user + ' to ' + group + '.');
+        showStatus('Added ' + user + ' to ' + mgGroupLabel(group) + '.');
         connectAsChannelled(user, client);
       })
       .catch(function(e) { showStatus('Error: ' + e.message, true); });
@@ -1584,7 +1586,8 @@ function disable2fa(user) {
 }
 
 // Add-user group picker: the same "pick none-or-many from a list" token widget
-// the Groups page uses for members. newUserGroups holds the staged selection.
+// the Groups page uses for members. newUserGroups holds the staged selection,
+// as plain names (what group-add takes); SM1014: shown and offered as @name.
 var newUserGroups = [];
 function populateAddUserGroups() { renderNewUserGroups(); }
 function renderNewUserGroups() {
@@ -1593,8 +1596,8 @@ function renderNewUserGroups() {
   if (!toks) return;
   toks.innerHTML = newUserGroups.length
     ? newUserGroups.map(function(g) {
-        return '<span class="mg-token">' + escHtml(g) +
-          '<button type="button" class="mg-token-x" title="Remove ' + escHtml(g) + '" onclick="removeNewUserGroup(\'' + escHtml(g) + '\')">&times;</button></span>';
+        return '<span class="mg-token">' + escHtml(mgGroupLabel(g)) +
+          '<button type="button" class="mg-token-x" title="Remove ' + escHtml(mgGroupLabel(g)) + '" onclick="removeNewUserGroup(\'' + escHtml(g) + '\')">&times;</button></span>';
       }).join('')
     : '<span class="mg-tokens-empty">No groups selected (optional).</span>';
   // SM305: the picker is a <select> now, so it carries a placeholder option and
@@ -1603,16 +1606,18 @@ function renderNewUserGroups() {
   if (dl) {
     var avail = Object.keys(allGroups).sort().filter(function(g) { return newUserGroups.indexOf(g) === -1; });
     dl.innerHTML = '<option value="">add a group&hellip;</option>'
-      + avail.map(function(g) { return '<option value="' + escHtml(g) + '">' + escHtml(g) + '</option>'; }).join('');
+      + avail.map(function(g) {
+          return '<option value="' + escHtml(mgGroupLabel(g)) + '">' + escHtml(mgGroupLabel(g)) + '</option>';
+        }).join('');
   }
 }
 function addNewUserGroup(g) { if (g && allGroups[g] && newUserGroups.indexOf(g) === -1) { newUserGroups.push(g); renderNewUserGroups(); } }
 function removeNewUserGroup(g) { newUserGroups = newUserGroups.filter(function(x) { return x !== g; }); renderNewUserGroups(); }
 function addNewUserGroupFromInput() {
   var inp = document.getElementById('new-group-input');
-  var g = (inp && inp.value || '').trim();
+  var g = mgGroupName(inp && inp.value);
   if (!g) return;
-  if (!allGroups[g]) { showStatus('No such group: ' + g, true); return; }
+  if (!allGroups[g]) { showStatus('No such group: ' + mgGroupLabel(g), true); return; }
   addNewUserGroup(g);
   if (inp) inp.value = '';
 }
@@ -1646,9 +1651,9 @@ function addUser() {
   // valid pending name is staged now; an unresolved one blocks the create
   // rather than being silently dropped.
   var ginp = document.getElementById('new-group-input');
-  var pending = (ginp && ginp.value || '').trim();
+  var pending = mgGroupName(ginp && ginp.value);
   if (pending) {
-    if (!allGroups[pending]) { showStatus('No such group: ' + pending + ' - fix or clear the group box.', true); return; }
+    if (!allGroups[pending]) { showStatus('No such group: ' + mgGroupLabel(pending) + ' - fix or clear the group box.', true); return; }
     addNewUserGroup(pending);
     ginp.value = '';
   }
@@ -1673,7 +1678,7 @@ function addUser() {
         };
       };
       var chain = Promise.resolve();
-      gl.forEach(function(g) { chain = chain.then(step({ action: 'group-add', username: username, group: g }, 'group "' + g + '"')); });
+      gl.forEach(function(g) { chain = chain.then(step({ action: 'group-add', username: username, group: g }, 'group ' + mgGroupLabel(g))); });
       if (type === 'ai') {
         // backend account: no interactive login - the card then leads with
         // Generate setup link / onboarding brief. Capabilities (WebDAV etc.)

@@ -216,7 +216,7 @@ function refreshServiceCounts() {
       : '. Switching this off makes those grants inert.';
 
     el.innerHTML = '<span class="mg-holder-count" title="'
-      + esc(g ? 'Granted by: ' + (h.group_names || []).join(', ') : '')
+      + esc(g ? 'Granted by: ' + (h.group_names || []).map(mgGroupLabel).join(', ') : '')
       + '">Held by <b>' + g + '</b> group' + (g === 1 ? '' : 's')
       + ' / <b>' + u + '</b> account' + (u === 1 ? '' : 's')
       + say + '</span>';

@@ -24,6 +24,7 @@ use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
+use PageScript qw(layout_js);
 
 my $page = repo_root() . '/starter/manager/groups.md';
 plan skip_all => "no $page" unless -f $page;
@@ -35,6 +36,10 @@ my $src = do { open my $fh, '<', $page or die $!; local $/; <$fh> };
 # --- SM617: the capability row ---------------------------------------------
 my ($row) = $src =~ /(var row = function\(c, isChannel\) \{.*?\n    \};)/s;
 ok( $row, 'the page carries the capability row builder' );
+
+# SM1014: the row names the group it inherits from through the layout's
+# mgGroupLabel, as every page names a group.
+my $helpers = layout_js('mgGroupLabel');
 
 my $dir = tempdir( CLEANUP => 1 );
 open my $js, '>', "$dir/row.js" or die $!;
@@ -59,6 +64,7 @@ var capabilityPlugin = {};
 // before rendering anything. TWO capabilities here, so one row can be examined
 // for the direct case and another for the inherited one.
 var inherited = { manage_themes: ['cap-design'], manage_forms: ['cap-content'] };
+$helpers
 $row
 console.log(JSON.stringify({
     html:      row(['manage_content', 'Create and edit pages'], false),

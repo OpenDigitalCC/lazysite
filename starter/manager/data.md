@@ -978,7 +978,7 @@ function renderTableAcl(table, card, acl, key) {
     + '<div class="mg-rights-add">'
     +   (window.mgPrincipalSelect
         ? mgPrincipalSelect({ onchange: 'addTableAclPrincipal(this)',
-                              groupPrefix: '@', cls: 'mg-rights-pick' })
+                              cls: 'mg-rights-pick' })
         : '')
     + '</div>'
     + '<div class="mg-perms-hint">' + escHtml(hint) + '</div>'

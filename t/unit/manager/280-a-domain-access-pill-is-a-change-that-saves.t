@@ -18,7 +18,7 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use JSON::PP   qw(decode_json);
-use PageScript qw(extract_function page_source);
+use PageScript qw(extract_function page_source layout_js);
 use TestHelper qw(repo_root site_tempdir);
 
 my $page = repo_root() . '/starter/manager/domains.md';
@@ -35,7 +35,8 @@ for my $v (qw(PICK_KEYS EDIT_KEYS CFG_PICKER_CLASS)) {
     ok( $decl, "the page declares $v" ) or BAIL_OUT("no $v to run");
     push @vars, $decl;
 }
-my $page_js = join "\n", @vars, @fns;
+# SM1014: the pills name a group through the layout's mgGroupLabel/mgGroupName.
+my $page_js = join "\n", layout_js(qw(mgGroupLabel mgGroupName)), @vars, @fns;
 
 my $dir = site_tempdir();
 
@@ -93,7 +94,7 @@ var HOST = 'a.example';
 var ELS = {};
 var row = new El('div');
 var box = row.append(new El('div', 'mg-tokens'));
-box.id = 'e-' + HOST + '-allowed_groups';
+box.id = 'e-' + HOST + '-allowed_groups'; box.attrs['data-kind'] = 'groups';
 var pick = row.append(new El('div', 'mg-tokens-pick'));
 var select = pick.append(new El('select', 'mg-principal-pick'));
 box.previousElementSibling = null; pick.previousElementSibling = box;
@@ -180,5 +181,12 @@ is_deeply( sets($undo), [], 'and Save posts nothing' );
 # --- the same group twice ----------------------------------------------------
 my $dup = run_sheet( ['staff'], "addGroup('staff');" );
 is_deeply( sets($dup), [], 'adding a group already there is no change' );
+
+# --- SM1014: the picker offers @name; allowed_groups stores the name ---------
+my $at = run_sheet( ['staff'], "addGroup('\@editors');" );
+is_deeply( sets($at), ['allowed_groups=staff,editors'],
+    'a group picked as @editors is saved as editors' );
+my $atdup = run_sheet( ['staff'], "addGroup('\@staff');" );
+is_deeply( sets($atdup), [], 'and @staff is the staff already there' );
 
 done_testing();

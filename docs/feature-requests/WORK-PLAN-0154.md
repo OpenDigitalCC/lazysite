@@ -83,6 +83,7 @@ cli command to add the domain group."
 | P | Item | Ruling | Needs | Size |
 | --- | --- | --- | --- | --- |
 | U1 | The Domains page's Access pickers never save: Save says "Nothing had changed." | - | built (n430), SM1013: the dirty check read the picker by a class it was never drawn with (`mg-token-box`, drawn `mg-tokens`); a pill added or removed marks the field and Save posts it; the same check found the Connectors page saving `callers: []` whenever its caller groups were drawn as checkboxes, fixed in the same item | XS |
+| U2 | Groups are named plainly on some pages and `@name` on others | 2026-10-12: "groups should be prefixed with something say @ so they can be distinguished from users, and this should be consistent anywhere a group is picked" | built (n431), SM1014: `@name` on every group picker and beside people (layout mgGroupLabel/mgGroupName; groupPrefix retired, lint 230); input with or without `@`; each store keeps its form (ACL `@g`; allowed_groups, members, callers `g`) | S |
 
 # Not in the queue, and why
 

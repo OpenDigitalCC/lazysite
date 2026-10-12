@@ -158,6 +158,23 @@ Archive
   otherwise, by the handler, the header writer (every message), a handler's
   own `to`/`from`, and an account's address. A hand-written `to:` naming two
   addresses now fails at send and says why. t/unit/forms/60, 61.
+- SM1014 (PENDING) **a group is `@name` wherever one is picked or shown
+  beside people.** Ruled 2026-10-12 ("groups should be prefixed with something
+  say @ ... consistent anywhere a group is picked"). Files and Data already
+  offered `@staff`; the Groups members picker, the Domains access picker, the
+  add-user group picker, Connectors' caller groups, the Users page's group
+  ticks and capability grid, the Settings "Granted by" note and the approval
+  message named it `staff`. All now show `@staff`, through one layout helper;
+  the shared picker's `groupPrefix` option, which let a page name groups
+  plainly, is retired and lint 230 keeps it so. On the Groups page the `@` is
+  what decides nest-or-add, so a person who shares a group's name can now be
+  added. A group is accepted with or without its `@`; **storage is unchanged**:
+  ACL rules keep `@staff`, while `allowed_groups`, a group's member list, a
+  connector's callers and group-add keep `staff` (`domain_set` now takes
+  `@staff` in `allowed_groups` on every surface and stores `staff`).
+  `lazysite-users.pl groups` lists a nested group as `@staff`. Docs: manager
+  guide (Groups, Users, Domains). t/unit/manager/282, 283; t/lint/230.
+
 - SM1013 (PENDING) **a group or user added to a domain's Access section is
   saved.** On the Domains page, adding a group to `allowed_groups` (or a user
   to `locked_users`) and pressing Save said "Nothing had changed." and kept

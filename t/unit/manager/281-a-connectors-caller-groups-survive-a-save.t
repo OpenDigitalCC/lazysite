@@ -18,7 +18,7 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use JSON::PP   qw(decode_json);
-use PageScript qw(extract_function page_source);
+use PageScript qw(extract_function page_source layout_js);
 use TestHelper qw(repo_root site_tempdir);
 
 my $page = repo_root() . '/starter/manager/connectors.md';
@@ -27,7 +27,7 @@ my $src  = page_source($page);
 chomp( my $node = `sh -c 'command -v node || command -v nodejs' 2>/dev/null` );
 plan skip_all => 'node not installed' unless length $node && -x $node;
 
-my $page_js = join "\n",
+my $page_js = join "\n", layout_js(qw(mgGroupLabel mgGroupName)),
     map { extract_function( $src, $_, $page ) } qw(callersField callersValue check field);
 
 like( extract_function( $src, 'saveConnector', $page ), qr/callers:\s*callersValue\(f\)/,
@@ -87,5 +87,7 @@ is_deeply( read_back( [qw(editors staff)], [qw(gone staff)], '' ), [qw(staff gon
     'a caller group the site no longer has is kept, as the page says it is' );
 is_deeply( read_back( undef, [qw(staff editors)], '' ), [qw(staff editors)],
     'with the group list unreadable, the typed names are read' );
+is_deeply( read_back( undef, [], "ELS[f + 'callers'].value = '\@staff, editors';" ),
+    [qw(staff editors)], 'SM1014: a typed group is read with or without its @' );
 
 done_testing();

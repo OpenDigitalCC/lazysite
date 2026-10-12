@@ -1623,8 +1623,11 @@ sub cmd_groups {
     my %all = map { $_ => 1 } ( keys %groups, keys %{$gs} );
     if (%all) {
         for my $g ( sort keys %all ) {
+            # SM1014: a member that is itself a group (SM121) is listed @name,
+            # as the manager shows it, so it cannot be read as a person. The
+            # groups file keeps the plain name.
             printf "%-20s %-40s %s\n", "$g:",
-                join( ', ', @{ $groups{$g} || [] } ),
+                join( ', ', map { $all{$_} ? "\@$_" : $_ } @{ $groups{$g} || [] } ),
                 ( Lazysite::Auth::Settings::group_is_assignable( $g, $gs )
                 ? '' : '[backend]' );
         }

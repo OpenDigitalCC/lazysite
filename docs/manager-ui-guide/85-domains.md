@@ -69,14 +69,22 @@ Where
 : Setup -> Domains -> a domain -> allowed groups / locked users
 
 Do
-: Name a group in a domain's `allowed_groups`, add a user to that group, and sign
-  in as them.
+: Add a group to a domain's **Groups allowed to manage** (the picker offers each
+  group as `@name`), press Save, add a user to that group, and sign in as them.
 
 Expect
 : **This is where confinement is set.** The user's scope becomes the content
   roots of the domains their groups may manage, intersected up the `created_by`
   chain so a sub-user can never out-reach its creator. It applies on the manager,
   WebDAV, MCP and the control API alike.
+
+  Before Save, adding or removing a group or user marks the field changed and
+  the sheet counts it; Save then says **Saved**, and the domain lists the
+  group. Saving with nothing changed says "Nothing had changed."
+
+  `allowed_groups` stores the group's plain name; a group may be given as
+  `@name` or `name` anywhere it is written (this sheet, the MCP `domain_set`
+  tool, the control API's `domain-set`, `lazysite-domains.pl`).
 
 Negative
 : A locked user with no allowed domain is denied everywhere - never silently

@@ -228,9 +228,12 @@ function loadPrincipals() {
     })
     .catch(function () {});
 }
-function tokenPill(v) {
-  return '<span class="mg-token" data-val="' + esc(v) + '">' + esc(v)
-    + '<button type="button" class="mg-token-x" title="Remove ' + esc(v) + '" onclick="removeToken(this)">&times;</button></span>';
+// SM1014: a group's pill reads @name, as a group does on every page that names
+// one; data-val keeps the plain name, which is what allowed_groups stores.
+function tokenPill(v, kind) {
+  var shown = kind === 'groups' ? mgGroupLabel(v) : v;
+  return '<span class="mg-token" data-val="' + esc(v) + '">' + esc(shown)
+    + '<button type="button" class="mg-token-x" title="Remove ' + esc(shown) + '" onclick="removeToken(this)">&times;</button></span>';
 }
 // SM1013: a pill's x is a change like any other, so it marks the field dirty -
 // the box it leaves must read as changed before Save is pressed, and the count
@@ -251,25 +254,29 @@ function tokenPicker(host, k, currentCsv) {
   var chosen = (currentCsv || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
   var kind = PICK_KEYS[k] === 'groups' ? 'groups' : 'users';
   var noun = kind === 'groups' ? 'a group' : 'a user';
-  var pills = chosen.length ? chosen.map(tokenPill).join('') : '<span class="mg-tokens-empty">None yet.</span>';
+  var pills = chosen.length
+    ? chosen.map(function (v) { return tokenPill(v, kind); }).join('')
+    : '<span class="mg-tokens-empty">None yet.</span>';
   // SM305: the shared <select>, not a datalist-backed input. A typo here is
   // costly in a way the Groups page's is not - a misspelt name in
   // allowed_groups leaves a domain that nobody can manage, and the control
   // accepted anything typed while looking as though it did not.
-  return '<div class="mg-tokens" id="e-' + esc(host) + '-' + esc(k) + '">' + pills + '</div>'
+  return '<div class="mg-tokens" data-kind="' + kind + '" id="e-' + esc(host) + '-' + esc(k) + '">' + pills + '</div>'
     + '<div class="mg-tokens-pick">'
-    + mgPrincipalSelect({ only: kind, groupPrefix: '',
+    + mgPrincipalSelect({ only: kind,
                           placeholder: 'add ' + noun + '…',
                           style: 'max-width:14rem' })
     + ' <button type="button" class="mg-btn mg-btn-sm mg-btn-primary" onclick="addToken(this.previousElementSibling)">Add</button></div>';
 }
 function addToken(input) {
-  var name = (input.value || '').trim();
-  if (!name) return;
   var box = input.closest('.mg-tokens-pick').previousElementSibling;
+  var kind = box.getAttribute('data-kind');
+  // SM1014: the group option's value is @name; allowed_groups stores the name.
+  var name = kind === 'groups' ? mgGroupName(input.value) : (input.value || '').trim();
+  if (!name) return;
   var dup = Array.prototype.some.call(box.querySelectorAll('.mg-token'), function (t) { return t.getAttribute('data-val') === name; });
   var empty = box.querySelector('.mg-tokens-empty'); if (empty) empty.remove();
-  if (!dup) box.insertAdjacentHTML('beforeend', tokenPill(name));
+  if (!dup) box.insertAdjacentHTML('beforeend', tokenPill(name, kind));
   input.value = '';
   cfgMark();   // SM1013: an added pill is a change; mark it and count it
 }

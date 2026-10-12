@@ -25,7 +25,7 @@ use strict;
 use warnings;
 use Exporter 'import';
 
-our @EXPORT_OK = qw(extract_function try_extract page_source);
+our @EXPORT_OK = qw(extract_function try_extract page_source layout_js);
 
 # The page's source, front matter stripped. Dies if it is not there, because a
 # test naming a page that does not exist is a broken test, not a skip.
@@ -63,6 +63,32 @@ sub extract_function {
         . "the regression. This dies rather than returning undef because the\n"
         . "defect it exists to prevent was a test that skipped its own\n"
         . "assertions when an extraction stopped matching (SM684).\n";
+}
+
+# SM1014: the shared manager layout's helpers (window.NAME = function ...),
+# as JavaScript a page's extracted functions can call under node: each is
+# defined on a stand-in `window` and bound to a global of the same name, as a
+# browser makes it. Dies on a helper the layout does not define, for the same
+# reason extract_function does.
+sub layout_js {
+    my (@names) = @_;
+    require FindBin;
+    my $path;
+    for my $up ( '..', '../..', '../../..' ) {
+        my $p = "$FindBin::Bin/$up/starter/lazysite/manager/layout.tt";
+        if ( -f $p ) { $path = $p; last }
+    }
+    die "PageScript: cannot find the manager layout from $FindBin::Bin\n"
+        unless defined $path;
+    my $src = page_source($path);
+    my @js  = ('var window = (typeof window === "undefined") ? {} : window;');
+    for my $name (@names) {
+        my ($def) = $src =~ /(window\.\Q$name\E = function\([^)]*\).*?\n    };)/s;
+        die "PageScript: the manager layout defines no window.$name\n"
+            unless defined $def;
+        push @js, $def, "var $name = window.$name;";
+    }
+    return join "\n", @js;
 }
 
 1;

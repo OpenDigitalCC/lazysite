@@ -1103,6 +1103,12 @@ sub domain_set {
         # blanks, dedupe) and reject any token that is not a plain name - this is
         # access-control config, so it fails closed rather than storing garbage.
         my @toks = grep { length } map { s/^\s+|\s+$//gr } split /,/, $value;
+        # SM1014: a group is named @name everywhere one is picked, so a group
+        # arrives with or without its @. allowed_groups STORES the plain name
+        # (DomainAccess compares it with the groups file's), so the @ comes off
+        # here. locked_users names accounts, where an @ is no part of a name and
+        # stays refused below.
+        @toks = map { s/\A\@//r } @toks if $key eq 'allowed_groups';
         for my $t (@toks) {
             return { ok => 0, kind => 'invalid', error => "Invalid name in $key: $t" }
                 unless $t =~ /^[A-Za-z0-9_-]+\z/;

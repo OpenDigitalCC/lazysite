@@ -335,7 +335,7 @@ function lockGlyph(f) {
 // wrapper because the per-file card builds its markup as a string and reads
 // better for it.
 function addOptions() {
-  return window.mgPrincipalOptions ? mgPrincipalOptions({ groupPrefix: '@' }) : '';
+  return window.mgPrincipalOptions ? mgPrincipalOptions() : '';
 }
 
 // One principal chip with r / w rights toggles and a remove control.
