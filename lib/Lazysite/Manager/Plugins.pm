@@ -394,12 +394,28 @@ sub _missing_deps {
     return undef unless @deps || @bins;
 
     my ( @absent, @bare );
-    for my $m (@deps) {
-        next unless $m =~ /\A[A-Za-z][\w:]*\z/;            # never interpolate a name
+    require Lazysite::Plugins::Owns;
+    for my $dep (@deps) {
+        # SM747: an entry may name its package and an oldest version - the
+        # grammar is Owns::parse_dep's, so the validator and this check read a
+        # declaration the same way. A name the grammar refuses is skipped here
+        # exactly as an unpatterned one always was: never interpolated.
+        my ( $m, $pkg, $min ) = Lazysite::Plugins::Owns::parse_dep($dep);
+        next unless defined $m && $m =~ /\A[A-Za-z][\w:]*\z/;    # never interpolate a name
         ( my $file = "$m.pm" ) =~ s{::}{/}g;
-        next if eval { require $file; 1 };
-        ( my $pkg = lc $m ) =~ s{::}{-}g;
-        push @absent, "$m (Debian: lib$pkg-perl)";
+        ( my $guess = lc $m ) =~ s{::}{-}g;
+        my $install = defined $pkg ? "$pkg (>= $min)" : "lib$guess-perl";
+        if ( eval { require $file; 1 } ) {
+            # PRESENT AND TOO OLD is missing too: a module that loads and lacks
+            # what the plugin calls fails at first use, the state SM472 refuses.
+            next unless defined $min;
+            next if eval { $m->VERSION($min); 1 };
+            my $have = eval { $m->VERSION } // 'unversioned';
+            push @absent, "$m $min or newer - this host has $have (Debian: $install)";
+            push @bare,   $m;
+            next;
+        }
+        push @absent, "$m (Debian: $install)";
         push @bare,   $m;
     }
 

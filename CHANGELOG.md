@@ -237,6 +237,16 @@ Archive
   `setup.sh` says the skill folder may be read-only or writable. Found in the
   release manager's real-session test of 2026-10-12, recorded in SM887.
   t/tools/83, 130, 131.
+- odoo-extension (PENDING) **the Odoo extension's skeleton: its declaration,
+  the connection and every refusal before a call (SM747 slice A).** `plugins/odoo.pl`
+  declares `Odoo::Ops (libodoo-oom-perl >= 0.02)`; a dependency may now name its
+  package and oldest version, and enabling an extension whose module is missing
+  or older names that package. The connection (`odoo_url`, `odoo_db`,
+  `odoo_login`, timeout, answer cap, writes switch) is checked once: https:// to
+  any host, http:// to loopback only, never to a private address. Odoo's faults
+  become named kinds with their text kept in the log; every call and refusal is
+  one fixed-field record. Nothing calls Odoo yet. t/unit/odoo/01-05, lint 240
+  (lazysite holds no Odoo knowledge).
 
 - SM995 (PENDING) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the

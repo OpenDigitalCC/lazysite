@@ -165,6 +165,47 @@ general-purpose*.
 | Field descriptors (closed by R4) | **Q3:** the type comes from OOM as a portable type; lazysite refuses a field without one. Options filed to OOM. |
 | Outcome 9 | Holds on the public path too: a state-changing public call without a valid visitor-bound token is refused. |
 
+# Built
+
+Stacked branches from n470, each with its tests and a sabotage run (every guard
+below was broken on purpose and its test went red; backups under
+`tmp/sab-bak/sm747/`, restored and compared). OOM is loaded from its tree for the
+tests (`t/lib/OdooTest.pm`, `LAZYSITE_OOM_LIB`), which says 0.01: a test that needs
+OOM to run raises `$Odoo::Ops::VERSION` to the 0.02 the deb will carry and says so;
+the refusal of 0.01 is tested without it. No test reaches a network: OOM's
+`Context` takes an injected transport, and the fake Odoo is OOM's own test double.
+
+## Slice A - built 2026-10-12 (n471)
+
+| Row | What | Where |
+| --- | --- | --- |
+| OB7, R3 | The extension, `plugins/odoo.pl`: a contract extension (born off), its config keys, and `owns.deps` = `Odoo::Ops (libodoo-oom-perl >= 0.02)`. The dep grammar gained `(package >= version)` (`Lazysite::Plugins::Owns::parse_dep`), read by the validator and by the enable path, which now refuses a module that loads but is older and names the declared package rather than one guessed from the module name (the guess was `libodoo-ops-perl`, which does not exist). At run time `Lazysite::Odoo::oom_check` refuses by the same name | `plugins/odoo.pl`, `lib/Lazysite/Plugins/Owns.pm`, `lib/Lazysite/Manager/Plugins.pm` (`_missing_deps`), `lib/Lazysite/Odoo.pm`; t/unit/odoo/04, 05 |
+| OB1 | The connection in the extension's config (`lazysite/odoo.conf`): `odoo_url`, `odoo_db`, `odoo_login`, `odoo_timeout` (30), `odoo_max_kb` (2048), `odoo_allow_writes` (off), `odoo_packs` (extra operation-pack namespaces). Read and checked once, by `connection()` | `Lazysite::Odoo::connection`; t/unit/odoo/01 |
+| X4-a, OB6 | https:// to any host; http:// to loopback only; plain http:// to an RFC1918 address refused in its own sentence, naming the remedy (https:// to the private hostname); a user or password in the URL refused | `check_url`; t/unit/odoo/01 |
+| OB5 | OOM's kinds and Odoo's fault categories mapped to `{ ok: 0, kind, error }`: `session-expired`, `invalid-credential`, `odoo-access-refused`, `transport-failure`, plus `odoo-validation`, `odoo-missing`, `odoo-fault`, `scope-refused`, `read-only`, `stale`, `applied`, `edited`, `refused`, `config`, `invalid`, `internal`. The text is logged, never returned | `fault`, `outcome_of`; t/unit/odoo/02 |
+| OB8 | One record per call in `lazysite/odoo/calls.jsonl` (0660), fixed fields `at call_id actor visitor ip login binding operation mode phase outcome kind ms`; the sink refuses any other key; one line in the shared audit trail (`odoo-call`) | `record_call`, `read_calls`; t/unit/odoo/03 |
+| OB4, X4 | The mode gate is `Lazysite::Egress::may_invoke`, and `gate()` asks, in order: who (mode, callers), the extension switch, OOM present and new enough, the connection. Every refusal is a row | `may_call`, `gate`; t/unit/odoo/04 |
+| *The rule that keeps it general-purpose* | **The boundary lint**: no RPC method or endpoint, ORM method name, dotted Odoo model name, Odoo field type or exception class in any functional file (comments and POD excepted, tests out of scope) | `t/lint/240-lazysite-holds-no-odoo-knowledge.t` |
+
+Decisions taken in A, each from the filing's own text:
+
+- **The endpoint.** The slice table says "endpoint config as a new handler type";
+  OB1 and R1 put the connection, one per site, in the extension's config. Both are
+  kept: the connection is the extension's, and the handler type `odoo` (slice CU) is
+  how a form, the schedule or a page reaches it, naming an operation. Repeating a URL
+  and a credential on every handler would be several copies of one connection.
+- **No `storage` declared.** `lazysite/odoo/` will hold the connection user's key and
+  plans carrying Odoo's records; a site package carries declared storage to another
+  site, and neither belongs there.
+- **The override capability is `manage_connectors`** until slice E brings
+  `manage_odoo` (OM3), which the plan places in E: it is the capability that already
+  governs where site data is sent and who sets a destination's secret.
+- **The CHANGELOG key is `odoo-extension`, not SM747.** t/lint/75 reads SM747 as
+  already shipped: c53a7143 ("the mapper specification filed") landed
+  `t/lint/207` under an SM747 subject in a tagged release whose section has no
+  SM747 bullet, so an Unreleased `- SM747` entry reads as stranded work. The
+  entries name SM747 in their titles instead.
+
 # What this is for, and the work - RESTATED 2026-10-01
 
 This replaces a section I wrote earlier the same day. **I had it wrong, and the

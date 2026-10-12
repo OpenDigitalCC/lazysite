@@ -28,7 +28,23 @@ use strict;
 use warnings;
 use Exporter qw(import);
 
-our @EXPORT_OK = qw(validate_owns owns_keys);
+our @EXPORT_OK = qw(validate_owns owns_keys parse_dep);
+
+# One `deps` entry, parsed: ( module, package, version ) - package and version
+# undef for a bare module name - or the empty list for anything else. ONE
+# grammar, read by the validator below and by the enable path's dependency
+# check, so the two cannot disagree about what a declaration says.
+sub parse_dep {
+    my ($m) = @_;
+    return () unless defined $m && !ref $m;
+    return ($1) if $m =~ /\A([A-Z][\w:]*)\z/;
+    return ( $1, $2, $3 ) if $m =~ m{
+        \A ( [A-Z] [\w:]* )                  # the module
+        \s+ \( ( [a-z0-9] [a-z0-9.+-]* )     # ( the package
+        \s* >= \s* ( [0-9]+ (?: \.[0-9]+ )* ) \) \z    # >= its oldest version )
+    }x;
+    return ();
+}
 
 # The declared keys, and nothing else. An unknown key is refused rather than
 # ignored: a plugin author writing `capability` for `capabilities` would
@@ -127,10 +143,19 @@ sub validate_owns {
             unless defined $e && !ref $e && $e =~ /\A[a-z][a-z0-9-]*\.pl\z/;
     }
 
+    # SM747: a dep MAY name the package that carries it and the oldest version
+    # that will do - `Odoo::Ops (libodoo-oom-perl >= 0.02)`. The module is still
+    # what the enable path requires; the package is what the operator is told to
+    # install, because guessing it from the module name (lib + module + -perl)
+    # names a package that does not exist whenever a distribution ships several
+    # modules under one name, which is exactly the Odoo extension's case.
     for my $m ( @{ $owns->{deps} || [] } ) {
+        my @parsed = parse_dep($m);
         push @bad, _err( $id, 'deps',
-            "'" . ( defined $m ? $m : '(undef)' ) . "' is not a module name" )
-            unless defined $m && !ref $m && $m =~ /\A[A-Z][\w:]*\z/;
+            "'" . ( defined $m ? $m : '(undef)' )
+                . "' is not a module name, or a module name followed by "
+                . '(package >= version)' )
+            unless @parsed;
     }
 
     # SM694: a PROGRAM the plugin needs, beside `deps` for a Perl module. A

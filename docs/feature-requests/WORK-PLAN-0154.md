@@ -102,8 +102,9 @@ cli command to add the domain group."
   first page capability. B, C, D wait on OOM's session transport. Building proceeds
   against the OOM tree; shipping waits on the deb carrying the Ops layer. Both asks
   filed to OOM's inbox 2026-10-12. Not in this queue: the build starts after review
-  of n470, on n471-n479. Open: Q1 (unattended apply), Q2 (MCP's own account), Q3
-  (where the type mapping lives).
+  of n470, on n471-n479. Q1-Q3 RULED 2026-10-12 (recorded in the filing; Q3 options
+  filed to OOM). BUILT: slice A on n471 (the declaration, the connection, the URL
+  rule, fault kinds, the call record, the mode gate, lint 240).
 - The catalogue layouts' `| url_safe` - the layouts repository, not this one.
 - OP-46, OP-47 - host items on the operator list (edge's install user and web template).
 

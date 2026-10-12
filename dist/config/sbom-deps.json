@@ -193,6 +193,50 @@
       "alpine_pkg": "perl-net-xmpp",
       "used_by": "XMPP notification delivery (notify-xmpp plugin, optional; lazy-required only when enabled)"
     },
+    "Odoo::Error": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM747): OOM's error kinds and fault categories, mapped to lazysite's fault kinds; lazy-required only when the extension runs",
+      "_note": "OOM (Odoo-OOM), Artistic-1.0-Perl or GPL-1+. Declared in the extension's owns.deps as Odoo::Ops (libodoo-oom-perl >= 0.02); packaged for Debian only."
+    },
+    "Odoo::Ops": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM747): the operations layer - presence and version check (>= 0.02); lazy-required only when the extension runs",
+      "_note": "OOM (Odoo-OOM), Artistic-1.0-Perl or GPL-1+. The 0.01 deb carries the mapper only; 0.02 is the first carrying the Ops layer."
+    },
+    "Odoo::Ops::Config": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM747): the connection built in memory per call; lazy-required only when the extension runs"
+    },
+    "Odoo::Ops::Context": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM747): one guarded connection per call, carrying the lazysite actor; lazy-required only when the extension runs"
+    },
+    "Odoo::Ops::Plan": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM747): a write operation's sealed plan, kept in the extension's private store until applied; lazy-required only when the extension runs"
+    },
+    "Odoo::Ops::Registry": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM747): the named operations a binding may name; lazy-required only when the extension runs"
+    },
+    "Odoo::Ops::Runner": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM747): applies a confirmed plan through OOM's journal; lazy-required only when the extension runs"
+    },
     "POSIX": {
       "core": true,
       "license": "Artistic-1.0-Perl",
