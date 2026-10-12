@@ -80,10 +80,11 @@ open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close
 
 # CLI setup (unrestricted): boss owns sw; 'other' is an unrelated sub-manager.
 uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
-grant_caps( $d, "boss", "create_sub_users" );
+# SM1057: a delegate uses the manager, so it holds `ui`.
+grant_caps( $d, "boss", "create_sub_users", "ui" );
 uapi( $d, { action => 'account-create', username => 'sw', password => '', created_by => 'boss' } );
 uapi( $d, { action => 'add', username => 'other', password => 'x' } );
-grant_caps( $d, "other", "create_sub_users" );
+grant_caps( $d, "other", "create_sub_users", "ui" );
 
 # Operator 'admin' (manager group) - did NOT create sw, but must manage it.
 my $op = manage( $d, 'admin', 'managers', { action => 'claim-create', username => 'sw' } );

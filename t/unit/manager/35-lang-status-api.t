@@ -95,7 +95,7 @@ grant_caps( $d, 'op', 'manage_users', 'manage_domains' );
 # SM991: 'op' is the operator by its group's `manager` flag, not by manage_users.
 uapi( $d, { action => 'group-settings-set', group => 'role-op', key => 'manager', value => 'on' } );
 uapi( $d, { action => 'add', username => 'ed', password => 'y' } );
-grant_caps( $d, 'ed', 'manage_content' );
+grant_caps( $d, 'ed', 'manage_content', 'ui' );    # SM1057: both use the manager
 
 # --- operator reads the set coverage (group defaulted from lang_group) --------
 {
@@ -124,7 +124,7 @@ grant_caps( $d, 'ed', 'manage_content' );
 # --- an account WITHOUT manage_content is forbidden ---------------------------
 {
     uapi( $d, { action => 'add', username => 'nc', password => 'z' } );
-    grant_caps( $d, 'nc', 'manage_themes' );
+    grant_caps( $d, 'nc', 'manage_themes', 'ui' );
     my $r = get( $d, 'nc', 'role-nc', 'action=lang-status' );
     ok( !$r->{ok}, 'an account without manage_content cannot read lang-status' );
     is( $r->{kind}, 'forbidden', 'lang-status is forbidden without manage_content' );

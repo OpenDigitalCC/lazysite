@@ -51,7 +51,7 @@ qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/d
 sub cgi_env {
     return ( env_passthrough(),
         DOCUMENT_ROOT         => $docroot,
-        HTTP_X_REMOTE_USER    => 'setup-sysop', '--user', 'sjm',
+        HTTP_X_REMOTE_USER    => 'sjm',      # SM1057: the sysop setup-sysop made
         LAZYSITE_AUTH_TRUSTED => 1,
     );
 }

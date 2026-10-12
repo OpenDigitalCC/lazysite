@@ -116,7 +116,7 @@ w( 'content/clientA/own-book.md',
 uapi( { action => 'add', username => 'op', password => 'x' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_content' );
 uapi( { action => 'add', username => 'client', password => 'y' } );
-grant_caps( $d, 'client', 'manage_content' );
+grant_caps( $d, 'client', 'manage_content', 'ui' );    # SM1057: a manager-UI client
 
 subtest 'the page itself: inside the scope it renders, outside it is refused' => sub {
     my $own = pdf( 'client', 'content/clientA/ok.md' );

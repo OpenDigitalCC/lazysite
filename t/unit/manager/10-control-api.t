@@ -389,7 +389,7 @@ uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
 grant_caps( $d, 'boss', 'create_sub_users', 'api' ); # SM126: token client holds the api channel cap
 # The audit trail requires its own 'audit' capability (strict gate), separate
 # from visitor analytics.
-grant_caps( $d, 'boss', 'audit' );
+grant_caps( $d, 'boss', 'audit', 'ui' );    # SM1057: boss uses the manager over a cookie
 uapi( $d, { action => 'account-create', username => 'child', password => 'x', created_by => 'boss' } );
 uapi( $d, { action => 'add', username => 'other', password => 'x' } );
 
@@ -671,11 +671,15 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
     }
 
     # The operator's own page must keep working - the toggle lives there.
+    # SM1057: as a manager-UI account - the cookie door needs `ui`, which cfg
+    # cannot hold and keep its token (SM127).
+    uapi( $d, { action => 'add', username => 'cfgui', password => 'x' } );
+    grant_caps( $d, 'cfgui', 'ui', 'manage_config' );
     my $ui = mapi( $d, REQUEST_METHOD => 'POST',
         QUERY_STRING         => 'action=config-set',
-        HTTP_X_REMOTE_USER   => 'cfg',
-        HTTP_X_REMOTE_GROUPS => 'role-cfg',
-        HTTP_X_CSRF_TOKEN    => csrf('cfg'),
+        HTTP_X_REMOTE_USER   => 'cfgui',
+        HTTP_X_REMOTE_GROUPS => 'role-cfgui',
+        HTTP_X_CSRF_TOKEN    => csrf('cfgui'),
         body => encode_json( { key => 'manager_path', value => '/manager' } ) );
     ok( $ui->{ok}, 'the manager UI over a cookie session still sets it' )
         or diag( 'cookie config-set said: ' . encode_json($ui) );
@@ -686,17 +690,17 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
     # the new refusal and called it the old one.
     my $badpath = mapi( $d, REQUEST_METHOD => 'POST',
         QUERY_STRING         => 'action=config-set',
-        HTTP_X_REMOTE_USER   => 'cfg',
-        HTTP_X_REMOTE_GROUPS => 'role-cfg',
-        HTTP_X_CSRF_TOKEN    => csrf('cfg'),
+        HTTP_X_REMOTE_USER   => 'cfgui',
+        HTTP_X_REMOTE_GROUPS => 'role-cfgui',
+        HTTP_X_CSRF_TOKEN    => csrf('cfgui'),
         body => encode_json( { key => 'manager_path', value => 'no-leading-slash' } ) );
     ok( !$badpath->{ok}, 'a manager_path without a leading slash is still refused' );
 
     my $badval = mapi( $d, REQUEST_METHOD => 'POST',
         QUERY_STRING         => 'action=config-set',
-        HTTP_X_REMOTE_USER   => 'cfg',
-        HTTP_X_REMOTE_GROUPS => 'role-cfg',
-        HTTP_X_CSRF_TOKEN    => csrf('cfg'),
+        HTTP_X_REMOTE_USER   => 'cfgui',
+        HTTP_X_REMOTE_GROUPS => 'role-cfgui',
+        HTTP_X_CSRF_TOKEN    => csrf('cfgui'),
         body                 => encode_json( { key => 'manager', value => 'maybe' } ) );
     ok( !$badval->{ok},
         'and an invalid manager value is still refused (enabled/disabled only)' );
@@ -705,6 +709,9 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
 {
     # SM612: whoami carries the build. An agent re-checking a previous
     # release's finding could not read which release it was testing.
+    # SM1057: op uses the manager, so its account holds `ui`.
+    uapi( $d, { action => 'add', username => 'op', password => 'x' } );
+    grant_caps( $d, 'op', 'ui' );
     my $w = mapi( $d, QUERY_STRING => 'action=whoami',
         HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'sysops' );
     ok( exists $w->{engine_version},

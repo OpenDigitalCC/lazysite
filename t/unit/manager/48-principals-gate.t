@@ -62,6 +62,8 @@ for my $spec (
     uapi( { action => 'group-settings-set', group => $group, key => $cap, value => 'on' } )
         if $cap;
 }
+# SM1057: editors and domainers use the manager, so their groups grant `ui`.
+uapi( { action => 'group-settings-set', group => $_, key => 'ui', value => 'on' } ) for qw(editors domainers);
 
 # Drive action=principals as a given cookie user.
 sub principals {

@@ -116,7 +116,10 @@ close $cf;
 # SM138: a group granting manager access secures the site (replaces the
 # retired conf manager_groups key); 'managers' members are operators.
 open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
-print $gsf '{"managers":{"label":"Managers","ui":1,"manage_users":1}}';
+# SM1057: authors and editors use the manager, so their groups grant `ui` -
+# the manager API refuses a session whose account does not hold it.
+print $gsf '{"managers":{"label":"Managers","ui":1,"manage_users":1},'
+    . '"authors":{"label":"Authors","ui":1},"editors":{"label":"Editors","ui":1}}';
 close $gsf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close $sf;
 open my $xf, '>', "$d/content/x.md" or die $!; print $xf "orig\n"; close $xf;

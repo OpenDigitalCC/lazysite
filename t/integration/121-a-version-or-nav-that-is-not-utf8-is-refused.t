@@ -36,6 +36,10 @@ sub slurp { my ($p) = @_; open my $fh, '<:raw', $p or die "$p: $!"; local $/; re
 
 $s->add_user('op');
 $s->grant( 'op', 'g-op', \@ALL, \@ALL );
+# SM1057: the manager's door needs `ui`, which a group granting mcp/api may not
+# also grant (SM127) - so the cookie calls below are a manager-UI account's.
+$s->add_user('ed');
+$s->grant( 'ed', 'g-ed', [qw(ui manage_content manage_nav)], [qw(ui manage_content manage_nav)] );
 
 sub uapi {
     my ($p) = @_;
@@ -110,7 +114,7 @@ SKIP: {
         is( Lazysite::Git::count_commits($d), $commits, 'MCP: no restore was recorded' );
 
         spit( "$d/hist.md", $now );
-        $r = $s->call( 'op', 'git-restore', query => "action=git-restore&path=/hist.md&sha=$sha", body => {} );
+        $r = $s->call( 'ed', 'git-restore', query => "action=git-restore&path=/hist.md&sha=$sha", body => {} );
         encoding_error( $r, 'API git-restore', 24, qr/Version [0-9a-f]{7} of the page 'hist\.md'/ );
         is( slurp("$d/hist.md"),              $now,     'API: the page is as it was' );
         is( Lazysite::Git::count_commits($d), $commits, 'API: no restore was recorded' );
@@ -121,7 +125,7 @@ SKIP: {
         ok( $r->{ok}, 'MCP restore_version restores' ) or diag explain $r;
         is( slurp("$d/good.md"), "---\ntitle: G\n---\nold caf\xC3\xA9 text\n", '...the version, byte for byte' );
         spit( "$d/good.md", "---\ntitle: G\n---\nnew text\n" );
-        $r = $s->call( 'op', 'git-restore', query => "action=git-restore&path=/good.md&sha=$gsha", body => {} );
+        $r = $s->call( 'ed', 'git-restore', query => "action=git-restore&path=/good.md&sha=$gsha", body => {} );
         ok( $r->{ok}, 'API git-restore restores' ) or diag explain $r;
         is( slurp("$d/good.md"), "---\ntitle: G\n---\nold caf\xC3\xA9 text\n", '...the version, byte for byte' );
     };
@@ -138,13 +142,13 @@ subtest 'the structured nav read of a nav.conf that is not UTF-8' => sub {
     my $r = mcp( read_nav => {} );
     encoding_error( $r, 'MCP read_nav', 12, qr/The file 'lazysite\/nav\.conf'/ );
     like( $r->{error} // '', qr/set_nav/, 'MCP: the remedy names set_nav' );
-    $r = $s->call( 'op', 'nav-read' );
+    $r = $s->call( 'ed', 'nav-read' );
     encoding_error( $r, 'API nav-read', 12, qr/The file 'lazysite\/nav\.conf'/ );
 };
 
 subtest 'a UTF-8 nav.conf reads as before (the control)' => sub {
     spit( "$d/lazysite/nav.conf", "Home | /\nCaf\xC3\xA9 | /cafe\n" );
-    for my $c ( [ 'MCP read_nav', mcp( read_nav => {} ) ], [ 'API nav-read', $s->call( 'op', 'nav-read' ) ] ) {
+    for my $c ( [ 'MCP read_nav', mcp( read_nav => {} ) ], [ 'API nav-read', $s->call( 'ed', 'nav-read' ) ] ) {
         my ( $label, $r ) = @$c;
         ok( $r->{ok}, "$label reads it" ) or diag explain $r;
         is( join( ',', map { $_->{label} } @{ $r->{items} || [] } ), "Home,Caf\x{e9}", '...its labels decoded' );

@@ -123,7 +123,8 @@ make_path( "$d/lazysite/auth", "$d/lazysite/logs" );
 uapi( { action => 'add', username => 'op', password => 'x' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_config' );
 uapi( { action => 'add', username => 'ed', password => 'y' } );
-grant_caps( $d, 'ed', 'manage_content', 'notifications' );
+# SM1057: an editor uses the manager, so it holds `ui`.
+grant_caps( $d, 'ed', 'manage_content', 'notifications', 'ui' );
 
 # --- the bell: the gate ahead of dispatch, then the action's own gate -------
 {

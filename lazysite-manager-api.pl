@@ -767,6 +767,31 @@ if ( !$token_auth ) {
     if ( !_operator() ) {
         my $caps = _user_caps($auth_user);
 
+        # SM1057: THE COOKIE DOOR IS THE MANAGER'S, AND THE MANAGER IS THE `ui`
+        # CAPABILITY. The /manager/ pages ask for it (the processor's
+        # _is_manager); this door asked only that the session carried a user. So
+        # an account in no group - a member login, holding nothing - sent `save`
+        # and wrote any path no rule governs, because the content actions below
+        # self-authorise against the file's rule and an unruled path is open to
+        # every writer. Measured on sites.lazysite.io (0.15.4): a domain's member
+        # wrote /search.md and a new post into the primary's tree. The token door
+        # has had its channel gate since SM126 (`api`); this is the same gate for
+        # this channel, asked from the account store first and the session's
+        # groups second, as _is_operator asks. An operator - including the
+        # unsecured site's every account - never reaches here.
+        unless (
+            $caps->{manager_ui}
+            || Lazysite::Auth::Settings::groups_grant_cap( 'ui', grep { length } split /[,\s]+/,
+                ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) ) )
+        {
+            _refuse(
+                { ok => 0, kind => 'forbidden',
+                    error => "This account does not have manager access (the 'ui' permission), "
+                        . 'so the manager API does nothing for it. An administrator can grant '
+                        . 'it on the Groups page.' },
+                'ui', 'denied: manager channel capability' );
+        }
+
         # Capability gate (H1): the escalation-sensitive actions need their cap.
         #
         # SM958: AND AN ACTION WITH A TOKEN GATE NEEDS THE SAME CAPABILITY HERE.

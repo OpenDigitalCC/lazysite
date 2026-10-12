@@ -80,6 +80,7 @@ uapi( $d, { action => 'add', username => 'boss',  password => 'x' } );
 uapi( $d, { action => 'add', username => 'alice', password => 'x' } );  # unrelated victim
 grant_caps( $d, 'op',   'manage_users' );        # a real operator
 grant_caps( $d, 'boss', 'create_sub_users' );    # a delegated sub-manager
+grant_caps( $d, 'boss', 'ui' );                  # SM1057: who uses the manager
 
 my $BG = 'role-boss';                            # boss's capability group
 my $OG = 'role-op';                              # the admin/manager group (manage_users)
