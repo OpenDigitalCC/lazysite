@@ -292,6 +292,17 @@ Archive
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
+- filing-stamps (PENDING) **a release says which release shipped a filing.**
+  A filing is written "SHIPPED (PENDING)" because its release is not known on
+  its branch, and nothing ever replaced that: 31 filings still said PENDING
+  after theirs shipped. `tools/release-material.pl`, which the gate and the
+  build run, now stamps the status-note of every filing whose id has an entry
+  in the section being released "SHIPPED (X.Y.Z)", and `docs/feature-requests/`
+  joins the release-material allowlist (lints 09 and 207 join the build's
+  checks). The 31 are stamped with the release whose section names them:
+  29 from 0.15.3 and 0.15.4 by a sweep, SM858 (0.15.3) and SM976 (0.15.3,
+  0.15.4) by hand. t/tools/111.
+
 - coverage-parts (PENDING) **the coverage gate holds every file the CGIs were
   split into.** `tools/coverage.sh --check` named the eight CGIs only, so the
   processor's parts and the manager modules SM944 moved out of the CGIs had no

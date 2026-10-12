@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-08
 raised-by: release manager, 2026-10-08
 area: release
-status-note: "SHIPPED (PENDING) on n276: tools/release-material.pl writes a release's mechanical material; the gate tests it in its stage (no rehearsal); build makes one release commit on main, checks it, tags it; publish pushes main and the tag atomically; handoff --stack runs one suite per stack. WORK-PLAN-0153 Q12c."
+status-note: "SHIPPED (0.15.3) on n276: tools/release-material.pl writes a release's mechanical material; the gate tests it in its stage (no rehearsal); build makes one release commit on main, checks it, tags it; publish pushes main and the tag atomically; handoff --stack runs one suite per stack. WORK-PLAN-0153 Q12c."
 ---
 
 # What the release manager asked for

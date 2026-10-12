@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the SM869 adversarial review (WORK-PLAN-0153 Q11)
 area: security
-status-note: "SHIPPED (PENDING): render_template's second include pass is removed. It never resolved an author's template-path block (Markdown had wrapped it) and resolved blocks that arrived as data - a visitor-written row on a public page could pull an unlisted file or a sign-in-only page's body in. t/unit/data/64."
+status-note: "SHIPPED (0.15.3): render_template's second include pass is removed. It never resolved an author's template-path block (Markdown had wrapped it) and resolved blocks that arrived as data - a visitor-written row on a public page could pull an unlisted file or a sign-in-only page's body in. t/unit/data/64."
 ---
 
 # What was wrong

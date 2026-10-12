@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, Q14g - three stats tests failed on main between local midnight and 01:00 BST (found by the SM944 S20 agent)
 area: correctness
-status-note: "SHIPPED (PENDING) n305: every stats day is a UTC day - _day_str uses gmtime, the server-log parser reads a stamp's offset and keys by the UTC day of the instant, the form handler records an outcome under the UTC day. Nineteen stats tests fixed to the same calendar; t/unit/plugins/48 pins all three product changes."
+status-note: "SHIPPED (0.15.3) n305: every stats day is a UTC day - _day_str uses gmtime, the server-log parser reads a stamp's offset and keys by the UTC day of the instant, the form handler records an outcome under the UTC day. Nineteen stats tests fixed to the same calendar; t/unit/plugins/48 pins all three product changes."
 ---
 
 # What was wrong

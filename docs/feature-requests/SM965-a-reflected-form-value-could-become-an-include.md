@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the SM869 adversarial review (WORK-PLAN-0153 Q11)
 area: security
-status-note: "SHIPPED (PENDING): _tt_inert, the one helper every pre-template-body sink uses (prefill attribute, prefill textarea, outcome banner), now encodes CR/LF as well as [ and %, so a reflected value cannot spell a block for the FIRST include pass. t/unit/processor/89; both B and C fail without it."
+status-note: "SHIPPED (0.15.3): _tt_inert, the one helper every pre-template-body sink uses (prefill attribute, prefill textarea, outcome banner), now encodes CR/LF as well as [ and %, so a reflected value cannot spell a block for the FIRST include pass. t/unit/processor/89; both B and C fail without it."
 ---
 
 # What was wrong

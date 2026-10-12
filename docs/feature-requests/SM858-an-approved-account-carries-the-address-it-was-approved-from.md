@@ -5,7 +5,7 @@ subtitle: "`account-approve` creates the account, places it in the flagged group
 brand: plain
 standard-margins: true
 status: shipped
-status-note: "SHIPPED (PENDING) for 0.15.3 (n262). The second half: a form declaring `account_email:` gets Approve on the Submissions view, running account-approve with the address from the stored row and the username from it (local part, lowercased). Refused by name, creating nothing: a bad name, a taken name in any case, an address on another account, quarantined or already-approved rows."
+status-note: "SHIPPED (0.15.3) (n262). The second half: a form declaring `account_email:` gets Approve on the Submissions view, running account-approve with the address from the stored row and the username from it (local part, lowercased). Refused by name, creating nothing: a bad name, a taken name in any case, an address on another account, quarantined or already-approved rows."
 raised: 2026-09-12
 raised-by: release manager (expo loop)
 area: auth

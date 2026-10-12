@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the sites agent (xisl.com), carrying the owner's ruling, 2026-10-06
 area: analytics
-status-note: "SHIPPED (PENDING): a third promotion trigger in stats.pl (_pace) - a run of more than 5 page views each <10 s apart moves the source to bot, with reach-back; counted in bot_paced; basis 5. t/unit/plugins/47 covers the ruled cases and two false-positive guards; seven sabotages each fail a subtest."
+status-note: "SHIPPED (0.15.3): a third promotion trigger in stats.pl (_pace) - a run of more than 5 page views each <10 s apart moves the source to bot, with reach-back; counted in bot_paced; basis 5. t/unit/plugins/47 covers the ruled cases and two false-positive guards; seven sabotages each fail a subtest."
 ---
 
 # The rule (owner, 2026-10-06)

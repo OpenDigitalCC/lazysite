@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the sites agent, 0.15.2 edge walk R4 (owner's finding), 2026-10-07
 area: notifications
-status-note: "SHIPPED (PENDING) as ruled R9: the XMPP test waits up to 3 s for a bounce and fails at a delivery stage with the server's condition; every delivery failure, test or real notice, is audited (notify ... failed). Tests: t/unit/lib/62 (stand-in client bounces), t/unit/lib/14. A real notice does not wait."
+status-note: "SHIPPED (0.15.3) as ruled R9: the XMPP test waits up to 3 s for a bounce and fails at a delivery stage with the server's condition; every delivery failure, test or real notice, is audited (notify ... failed). Tests: t/unit/lib/62 (stand-in client bounces), t/unit/lib/14. A real notice does not wait."
 ---
 
 # Measured

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-08
 raised-by: the developer agent, found during SM944 S7 (moving the payment gate)
 area: security
-status-note: "SHIPPED (PENDING): apply_trust_gate strips custom payment_header_verified/_payer names, as SM960 did for auth_header_*, unless auth_proxy_trusted: true. t/integration/109: a visitor-sent custom header got the paid body before, 402 now."
+status-note: "SHIPPED (0.15.3): apply_trust_gate strips custom payment_header_verified/_payer names, as SM960 did for auth_header_*, unless auth_proxy_trusted: true. t/integration/109: a visitor-sent custom header got the paid body before, 402 now."
 ---
 
 # What was wrong

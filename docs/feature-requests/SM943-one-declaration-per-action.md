@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: control-api
-status-note: "SHIPPED (PENDING) 2026-10-07: stages 1-3 (n259, n274). RULED 2026-10-09. Ruling 1 built (n309): a read is audited on neither door unless refused or failed. Ruling 2 built (n313) on SM976: the structured nav read (nav-read, read_nav) needs no capability, scope still applied; writes and the raw nav.conf stay manage_nav. Downloads stay audited."
+status-note: "SHIPPED (0.15.3) 2026-10-07: stages 1-3 (n259, n274). RULED 2026-10-09. Ruling 1 built (n309): a read is audited on neither door unless refused or failed. Ruling 2 built (n313) on SM976: the structured nav read (nav-read, read_nav) needs no capability, scope still applied; writes and the raw nav.conf stay manage_nav. Downloads stay audited."
 ---
 
 # Measured

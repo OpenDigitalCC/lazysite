@@ -219,7 +219,8 @@ subtest 'the allowlist and the checks it publishes' => sub {
     my ( $rc, $out ) = gen( $root, '--paths' );
     is( $out, join( '', map { "$_\n" } qw(CHANGELOG.md docs/releases/CHANGELOG-archive.md docs/FEATURES.md
                 docs/INDEX.md starter/docs/ai-briefing-practice.md VERSION NEXT_VERSION docs/releases/GATE-LOG.md
-                dist/config/coverage-last.json) ), 'the release-material allowlist, exactly' );
+                dist/config/coverage-last.json docs/feature-requests/) ), 'the release-material allowlist, exactly' );
+    # P22: docs/feature-requests/ is a PREFIX entry - the filings a release stamps.
     ( $rc, $out ) = gen( $root, '--lints', '--dir', $root );
     is( $rc, 0, '--lints resolves every listed check in this tree' ) or diag($out);
     ok( ( grep { -f "$root/$_" } split /\n/, $out ) == ( () = $out =~ /\n/g ), 'to files that exist' );

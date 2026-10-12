@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the developer agent, found while building SM858 (approve from a submission)
 area: forms
-status-note: "SHIPPED (PENDING): one sidecar lock (.<store>.lock, Lazysite::Util::store_lock) taken by the file handler around its append and by delete, confirm, bulk delete and approve across read-and-rewrite. t/unit/forms/36 forces both directions by holding the lock; each half removed fails it."
+status-note: "SHIPPED (0.15.3): one sidecar lock (.<store>.lock, Lazysite::Util::store_lock) taken by the file handler around its append and by delete, confirm, bulk delete and approve across read-and-rewrite. t/unit/forms/36 forces both directions by holding the lock; each half removed fails it."
 ---
 
 # What was wrong

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the sites agent, 0.15.2 edge walk R1 (owner's Firefox), 2026-10-07
 area: manager
-status-note: "SHIPPED (PENDING): the block runs when the document is ready. t/unit/lib/198 loads the layout head script and bell in headless Chromium; on the 0.15.2 layout it reported handler=undefined, as the owner saw; after the fix the handler exists and a click opens the panel. R1 of the 0.15.2 plan can be walked again."
+status-note: "SHIPPED (0.15.3): the block runs when the document is ready. t/unit/lib/198 loads the layout head script and bell in headless Chromium; on the 0.15.2 layout it reported handler=undefined, as the owner saw; after the fix the handler exists and a click opens the panel. R1 of the 0.15.2 plan can be walked again."
 ---
 
 # Measured

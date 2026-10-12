@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the developer agent, found while building SM857's read half
 area: security
-status-note: "SHIPPED (PENDING): the trust gate strips the configured auth_header_* names unless auth_proxy_trusted: true - including behind the built-in auth wrapper, which vouches for X-Remote-* only. t/integration/106: a visitor's Remote-User opened a gate before, and does not now. Docs say the flag is required."
+status-note: "SHIPPED (0.15.3): the trust gate strips the configured auth_header_* names unless auth_proxy_trusted: true - including behind the built-in auth wrapper, which vouches for X-Remote-* only. t/integration/106: a visitor's Remote-User opened a gate before, and does not now. Docs say the flag is required."
 ---
 
 # What was wrong

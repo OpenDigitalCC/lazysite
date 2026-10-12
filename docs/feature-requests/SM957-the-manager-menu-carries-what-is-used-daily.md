@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: release manager, 2026-10-07
 area: manager
-status-note: "SHIPPED (PENDING): menu Site/Setup/Access/System; /manager/submissions (the viewer moved, ?submissions= redirects) with the bell's unread submission count; one Extensions entry; Handlers off the menu, linked from each form and Extensions. Also: the bell's marks were refused GETs, now POST. t/unit/manager/202-204."
+status-note: "SHIPPED (0.15.3): menu Site/Setup/Access/System; /manager/submissions (the viewer moved, ?submissions= redirects) with the bell's unread submission count; one Extensions entry; Handlers off the menu, linked from each form and Extensions. Also: the bell's marks were refused GETs, now POST. t/unit/manager/202-204."
 ---
 
 # The request (release manager, 2026-10-07)

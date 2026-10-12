@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the SM869 adversarial review, second pass (n271)
 area: security
-status-note: "SHIPPED (PENDING) on n275, ruled 2026-10-07 option 1 with 3: a `url_safe` filter on every render passes no-scheme, http, https, mailto and tel values unchanged and turns any other scheme into #; the authoring docs say to use it in href/src/action; lint 213 holds the shipped pages, templates and fallback layout to it. WORK-PLAN-0153 Q12b."
+status-note: "SHIPPED (0.15.3) on n275, ruled 2026-10-07 option 1 with 3: a `url_safe` filter on every render passes no-scheme, http, https, mailto and tel values unchanged and turns any other scheme into #; the authoring docs say to use it in href/src/action; lint 213 holds the shipped pages, templates and fallback layout to it. WORK-PLAN-0153 Q12b."
 ---
 
 # What the review recorded

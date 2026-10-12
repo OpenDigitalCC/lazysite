@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, found during SM944 S22 (moving the remap actions)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09, no scope = no domain. An unscoped token is refused on domain-set, domain-add, domain-alias-add, domain-remove, remap-save, site-backup-apply and MCP domain_set; remap-list shows it no rules. Scoped tokens and the cookie operator unchanged. t/integration/111."
+status-note: "SHIPPED (0.15.3): ruled 2026-10-09, no scope = no domain. An unscoped token is refused on domain-set, domain-add, domain-alias-add, domain-remove, remap-save, site-backup-apply and MCP domain_set; remap-list shows it no rules. Scoped tokens and the cookie operator unchanged. t/integration/111."
 ---
 
 # What was wrong

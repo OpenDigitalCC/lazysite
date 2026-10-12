@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the sites agent, 0.15.2 edge walk R8, 2026-10-07
 area: forms
-status-note: "SHIPPED (PENDING), as ruled R8: stamps keyed on form and address; check_rate_limit only reads and record_rate_stamp writes once the submission is stored, so a refused-as-invalid post spends nothing. Sabotage-verified: the address-only key fails t/unit/forms/30 and 16; recording on every post fails 16. Docs: forms.md and the practice briefing."
+status-note: "SHIPPED (0.15.3), as ruled R8: stamps keyed on form and address; check_rate_limit only reads and record_rate_stamp writes once the submission is stored, so a refused-as-invalid post spends nothing. Sabotage-verified: the address-only key fails t/unit/forms/30 and 16; recording on every post fails 16. Docs: forms.md and the practice briefing."
 ---
 
 # Measured

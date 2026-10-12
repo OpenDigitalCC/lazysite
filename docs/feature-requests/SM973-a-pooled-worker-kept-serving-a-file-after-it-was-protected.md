@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-08
 raised-by: the developer agent, found during SM944 S19 (moving the ACL copies)
 area: security
-status-note: "SHIPPED (PENDING): reset_request_state clears $ACL_MAP_CACHE, so every request reads acls.json. t/integration/110: in one worker, a file protected after the first request was served before, refused now."
+status-note: "SHIPPED (0.15.3): reset_request_state clears $ACL_MAP_CACHE, so every request reads acls.json. t/integration/110: in one worker, a file protected after the first request was served before, refused now."
 ---
 
 # What was wrong

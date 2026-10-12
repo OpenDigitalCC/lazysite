@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the SM869 adversarial review, second pass (WORK-PLAN-0153 Q11b)
 area: security
-status-note: "SHIPPED (PENDING): render_content, where every page body is parsed, turns a body's TAGS directive into a comment and logs a WARN, so the tags stay [% %] and _tt_inert's encoding holds. Layouts keep TAGS. t/unit/processor/90 fails without it."
+status-note: "SHIPPED (0.15.3): render_content, where every page body is parsed, turns a body's TAGS directive into a comment and logs a WARN, so the tags stay [% %] and _tt_inert's encoding holds. Layouts keep TAGS. t/unit/processor/90 fails without it."
 ---
 
 # What was wrong

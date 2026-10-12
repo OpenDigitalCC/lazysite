@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the SM869 adversarial review, second pass (WORK-PLAN-0153 Q11b)
 area: security
-status-note: "SHIPPED (PENDING): each placeholder (RAWBLOCK in convert_md, CODEBLOCK in render_content, the NUL RAW marker in convert_p_links) carries a per-call key from one helper, _placeholder_key - random and never already in the text - so content cannot spell one. t/unit/processor/91 and t/unit/data/65 fail without it."
+status-note: "SHIPPED (0.15.3): each placeholder (RAWBLOCK in convert_md, CODEBLOCK in render_content, the NUL RAW marker in convert_p_links) carries a per-call key from one helper, _placeholder_key - random and never already in the text - so content cannot spell one. t/unit/processor/91 and t/unit/data/65 fail without it."
 ---
 
 # What was wrong

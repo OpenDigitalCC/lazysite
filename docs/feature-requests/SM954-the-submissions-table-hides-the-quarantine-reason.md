@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the sites agent, 0.15.2 edge walk R3 (owner's browser), 2026-10-07
 area: manager
-status-note: "SHIPPED (PENDING): the reason is drawn as text beside the quarantined tag (it was only a hover title). t/unit/manager/180 runs the viewer code against a recording DOM and asserts the visible text; with the line removed it fails. The single-submission page already showed it."
+status-note: "SHIPPED (0.15.3): the reason is drawn as text beside the quarantined tag (it was only a hover title). t/unit/manager/180 runs the viewer code against a recording DOM and asserts the visible text; with the line removed it fails. The single-submission page already showed it."
 ---
 
 # Measured

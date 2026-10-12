@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-10
 raised-by: the developer agent, found during SM944 S29 (moving the page PDF area)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-10, Scope it + composed parts. page-pdf is path-scoped, as preview is; every page a PDF reads - the page and each part - is asked the caller's scope and the content ACL; a part outside the scope refuses the document, naming it. Lint 218 reads calls, not words. t/integration/122."
+status-note: "SHIPPED (0.15.4): ruled 2026-10-10, Scope it + composed parts. page-pdf is path-scoped, as preview is; every page a PDF reads - the page and each part - is asked the caller's scope and the content ACL; a part outside the scope refuses the document, naming it. Lint 218 reads calls, not words. t/integration/122."
 ---
 
 # What was wrong

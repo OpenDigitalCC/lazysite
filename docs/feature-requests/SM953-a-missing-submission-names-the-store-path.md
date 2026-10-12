@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the sites agent, 0.15.2 edge walk R2 (owner's finding), 2026-10-07
 area: manager
-status-note: "SHIPPED (PENDING): action_form_submission names the form and the id - "no submission <id> on the form 'contact'" - and a missing store "no submissions for the form '<name>'". t/unit/forms/34 asserts no path appears; with the path restored it fails."
+status-note: "SHIPPED (0.15.3): action_form_submission names the form and the id - "no submission <id> on the form 'contact'" - and a missing store "no submissions for the form '<name>'". t/unit/forms/34 asserts no path appears; with the path restored it fails."
 ---
 
 # Measured

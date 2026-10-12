@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, found during SM976 Q15f (n317)
 area: data-loss
-status-note: "SHIPPED (PENDING): create_form reads the file it writes, appends, adds front matter to a page with none, refuses a page it cannot read, saves with the read's mtime (t/integration/119). Ruled 2026-10-09 \"Refuse existing target\": copy_file refuses an existing destination (n321, t/unit/mcp/30)."
+status-note: "SHIPPED (0.15.4): create_form reads the file it writes, appends, adds front matter to a page with none, refuses a page it cannot read, saves with the read's mtime (t/integration/119). Ruled 2026-10-09 \"Refuse existing target\": copy_file refuses an existing destination (n321, t/unit/mcp/30)."
 ---
 
 # What was wrong

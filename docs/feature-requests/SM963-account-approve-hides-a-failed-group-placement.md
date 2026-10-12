@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the developer agent, found while building SM858 (approve from a submission)
 area: auth
-status-note: "SHIPPED (PENDING) (n264). Reproduced with a flagged backend group: approve answered ok, group [learners], the other dropped unsaid. Each failed placement now comes back in `unplaced` with its reason - CLI lines, Users API result, both audit trails, SM858's result and its dialog. The account is still made. t/unit/users/49, ten sabotages."
+status-note: "SHIPPED (0.15.3) (n264). Reproduced with a flagged backend group: approve answered ok, group [learners], the other dropped unsaid. Each failed placement now comes back in `unplaced` with its reason - CLI lines, Users API result, both audit trails, SM858's result and its dialog. The account is still made. t/unit/users/49, ten sabotages."
 ---
 
 # Reported

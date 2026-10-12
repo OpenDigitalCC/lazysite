@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: release manager, from the development-cost analysis on WORK-PLAN-0153 (2026-10-07)
 area: release
-status-note: "SHIPPED (PENDING). (1) the gate suite runs -j4 (n244). (2) tools/gate-main.sh gates main after each landing, a rehearsal until the pre-cut pass. (3) passing coverage runs are kept by inputs digest and reused by a later gate; the digest leaves out tests that reach nothing measured (n272)."
+status-note: "SHIPPED (0.15.3). (1) the gate suite runs -j4 (n244). (2) tools/gate-main.sh gates main after each landing, a rehearsal until the pre-cut pass. (3) passing coverage runs are kept by inputs digest and reused by a later gate; the digest leaves out tests that reach nothing measured (n272)."
 ---
 
 # Measured

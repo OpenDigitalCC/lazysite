@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the developer agent, found by the SM943 survey of the action tables
 area: security
-status-note: "SHIPPED (PENDING): on the manager channel an action with a token gate and no %COOKIE_CAP line now needs the token gate's capability; four actions that decide for themselves are listed with reasons. Found by the SM943 survey. t/unit/manager/138 drives it; lints 14 and 87 now read `a+b` values and `_` names."
+status-note: "SHIPPED (0.15.3): on the manager channel an action with a token gate and no %COOKIE_CAP line now needs the token gate's capability; four actions that decide for themselves are listed with reasons. Found by the SM943 survey. t/unit/manager/138 drives it; lints 14 and 87 now read `a+b` values and `_` names."
 ---
 
 # What was wrong

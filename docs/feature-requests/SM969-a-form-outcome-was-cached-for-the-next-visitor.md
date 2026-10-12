@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the SM869 adversarial review, second pass (WORK-PLAN-0153 Q11b)
 area: security
-status-note: "SHIPPED (PENDING): a request carrying form= and outcome= is rendered for that request only - never read from or written to the page cache, as nocache: true is. t/unit/processor/90 (a visitor's outcome is not shown to the next) and 91 fail without it."
+status-note: "SHIPPED (0.15.3): a request carrying form= and outcome= is rendered for that request only - never read from or written to the page cache, as nocache: true is. t/unit/processor/90 (a visitor's outcome is not shown to the next) and 91 fail without it."
 ---
 
 # What was wrong

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the developer agent, found while building SM858 (approve from a submission)
 area: auth
-status-note: "SHIPPED (PENDING) (n264). Reproduced: account-approve jo+hn created john, then failed its claim for jo+hn. cmd_add now refuses a name holding any character outside letters, digits, . _ - by name, before anything is written - so approve, add, setup-sysop and the Users API refuse it alike. t/unit/users/48, three sabotages."
+status-note: "SHIPPED (0.15.3) (n264). Reproduced: account-approve jo+hn created john, then failed its claim for jo+hn. cmd_add now refuses a name holding any character outside letters, digits, . _ - by name, before anything is written - so approve, add, setup-sysop and the Users API refuse it alike. t/unit/users/48, three sabotages."
 ---
 
 # Reported

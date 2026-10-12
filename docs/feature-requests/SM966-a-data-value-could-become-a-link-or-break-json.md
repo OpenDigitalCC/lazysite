@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the SM869 adversarial review, second pass (WORK-PLAN-0153 Q11b)
 area: security
-status-note: "SHIPPED (PENDING): one helper, _data_inert, encodes [ ] \\ and the C0 controls (NUL as U+FFFD) as character references in every value the author did not write - the query stash, db: rows, and through _tt_inert the form prefill and banner. t/unit/processor/90 and 91, t/unit/data/65 fail without it."
+status-note: "SHIPPED (0.15.3): one helper, _data_inert, encodes [ ] \\ and the C0 controls (NUL as U+FFFD) as character references in every value the author did not write - the query stash, db: rows, and through _tt_inert the form prefill and banner. t/unit/processor/90 and 91, t/unit/data/65 fail without it."
 ---
 
 # What was wrong

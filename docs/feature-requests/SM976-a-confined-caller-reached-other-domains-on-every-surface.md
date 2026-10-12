@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-09
 raised-by: the developer agent, from the gaps SM975 found and did not change
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), n316, n317 (lint 219). Q15h (n321): raw-bytes pages UTF-8. Q15i (n322): walks skip a non-UTF-8 page. Q15j (n325): MCP page reads refuse it; walks say truncated. Q15k (n327): restore and nav read refuse it. t/integration/112, 114-121."
+status-note: "SHIPPED (0.15.3, 0.15.4): ruled 2026-10-09 \"One rule, fix all\" - a confined caller reaches only its own domains (n312, lint 218). R1-R4 (n314), F1-F4 (n315), n316, n317 (lint 219). Q15h (n321): raw-bytes pages UTF-8. Q15i (n322): walks skip a non-UTF-8 page. Q15j (n325): MCP page reads refuse it; walks say truncated. Q15k (n327): restore and nav read refuse it. t/integration/112, 114-121."
 ---
 
 # What was wrong

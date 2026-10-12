@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-07
 raised-by: the developer agent, from a flaky test (t/unit/forms/24) during the SM958 handoff
 area: robustness
-status-note: "SHIPPED (PENDING): every open2 / |- spawn in the shipped code (12 sites) runs with SIGPIPE ignored; lint 211 holds it; t/unit/lib/199 sends 300 KB to a child that exits at once and asserts the caller is not killed (signal 13 without the guard). t/unit/forms/24 went from 4 failures in 8 parallel runs to 0 in 8."
+status-note: "SHIPPED (0.15.3): every open2 / |- spawn in the shipped code (12 sites) runs with SIGPIPE ignored; lint 211 holds it; t/unit/lib/199 sends 300 KB to a child that exits at once and asserts the caller is not killed (signal 13 without the guard). t/unit/forms/24 went from 4 failures in 8 parallel runs to 0 in 8."
 ---
 
 # Measured

@@ -23,6 +23,10 @@
 #   starter/docs/ai-briefing-practice.md
 #                  re-imported for X.Y.Z (tools/import-field-practice.pl).
 #   docs/INDEX.md  regenerated (tools/gen-doc-index.pl --write).
+#   docs/feature-requests/*.md
+#                  the status-note of every filing whose id has an entry in the
+#                  released section and still says "SHIPPED (PENDING)" says
+#                  "SHIPPED (X.Y.Z)" (P22).
 #
 # THE GATE RUNS IT TOO, without notes: the subtitle and the FEATURES prose are
 # placeholders, everything else is what the build will write. So the gate tests
@@ -73,15 +77,16 @@ my @ALLOWLIST = qw(
     NEXT_VERSION
     docs/releases/GATE-LOG.md
     dist/config/coverage-last.json
+    docs/feature-requests/
 );
 
 # THE CHECKS THAT READ THOSE FILES - every lint naming one of them (t/lint/214
 # keeps this list complete), and the briefing's own unit test. release.sh build
 # runs them on the release commit; together they take well under a minute.
 my @LINTS = qw(
-    t/lint/03- t/lint/08- t/lint/26- t/lint/27- t/lint/36- t/lint/53-
+    t/lint/03- t/lint/08- t/lint/09- t/lint/26- t/lint/27- t/lint/36- t/lint/53-
     t/lint/62- t/lint/63- t/lint/65- t/lint/75- t/lint/89- t/lint/110-
-    t/lint/113- t/lint/138- t/lint/145- t/lint/149- t/lint/199- t/lint/210-
+    t/lint/113- t/lint/138- t/lint/145- t/lint/149- t/lint/199- t/lint/207- t/lint/210-
     t/unit/tools/71-
 );
 
@@ -136,7 +141,9 @@ my $notes =
     : { subtitle => $PLACEHOLDER_SUBTITLE, features => $PLACEHOLDER_FEATURES };
 
 my @said;
+my @RELEASED_IDS;    # P22: the ids with an entry in the section being released
 changelog();
+filings();
 archive() if $PAT == 0;
 features();
 version_pair();
@@ -146,8 +153,10 @@ run_tool( 'tools/gen-doc-index.pl', '--write' );
 push @said, 'doc index regenerated';
 
 # Its own output is inside the allowlist, or it says so before anyone commits it.
-my %allowed = map  { $_ => 1 } @ALLOWLIST;
-my @outside = grep { !$allowed{$_} } map { substr $_, 3 }
+# An entry ending in / allows the files below it, as release.sh's outside_of reads it.
+my %allowed = map  { $_ => 1 } grep { !m{/\z} } @ALLOWLIST;
+my @prefix  = grep { m{/\z} } @ALLOWLIST;
+my @outside = grep { my $p = $_; !$allowed{$p} && !grep { index( $p, $_ ) == 0 } @prefix } map { substr $_, 3 }
     split /\n/, git_out( 'status', '--porcelain', '--untracked-files=all' );
 refuse("wrote outside the release-material allowlist: @outside") if @outside;
 
@@ -177,6 +186,12 @@ sub changelog {
         $lines[$i] =~ s/^(- \S.*?\s)\(PENDING\)/$1($sha)/;
         $stamped++;
     }
+    # P22: the filings these entries close are stamped with the version below.
+    for my $i ( $u + 1 .. $end - 1 ) {
+        next unless $lines[$i] =~ /^- (SM\d+[a-z]?(?:[ ,\/+&]+SM\d+[a-z]?)*)\s/;
+        push @RELEASED_IDS, $1 =~ /(SM\d+[a-z]?)/g;
+    }
+
     refuse( "a PENDING ref cannot be resolved unambiguously - stamp these by hand on main:\n"
             . join( "\n", @refused ) )
         if @refused;
@@ -207,6 +222,41 @@ sub landed_sha {
     return ( undef, scalar(@added) . ' commits added this exact line: ' . join ' ', map { substr $_, 0, 8 } @added )
         if @added > 1;
     return ( substr( $added[0], 0, 8 ), undef );
+}
+
+# --- the filings -------------------------------------------------------------
+
+# P22 (WORK-PLAN-0154, ruled 2026-10-12): A FILING SAYS WHICH RELEASE SHIPPED IT.
+# A filing is written with `status-note: "SHIPPED (PENDING): ..."` on its branch,
+# because the release is not known there - and nothing ever said which release,
+# so 31 filings went on saying PENDING after theirs shipped. Here the release is
+# known: every filing in docs/feature-requests/ whose `id:` has an entry in the
+# section being released, and whose status-note still begins
+# `SHIPPED (PENDING)`, is stamped `SHIPPED (X.Y.Z)`. Nothing else in a filing is
+# touched; a filing whose id has no entry here is left for the release that
+# names it.
+sub filings {
+    my %released = map { ( $_ => 1 ) } @RELEASED_IDS;
+    return unless %released;
+    my $dir = "$DIR/docs/feature-requests";
+    opendir my $dh, $dir or return;
+    my @files = sort grep { /\.md\z/ } readdir $dh;
+    closedir $dh;
+    my $stamped = 0;
+    for my $name (@files) {
+        my $path = "$dir/$name";
+        my $text = slurp($path);
+        my ($fm) = $text =~ /\A---\n(.*?)\n---\n/s      or next;
+        my ($id) = $fm   =~ /^id:\s*(SM\d+[a-z]?)\s*$/m or next;
+        next unless $released{$id};
+        next unless $fm =~ /^status-note:\s*"SHIPPED \(PENDING\)/m;
+        ( my $new = $fm ) =~ s/^(status-note:\s*"SHIPPED )\(PENDING\)/$1($VERSION)/m;
+        $text =~ s/\A---\n\Q$fm\E\n---\n/---\n$new\n---\n/s or next;
+        spit( $path, $text );
+        $stamped++;
+    }
+    push @said, "filings: $stamped status-note(s) stamped SHIPPED ($VERSION)";
+    return;
 }
 
 # --- the archive, at a new minor ---------------------------------------------
