@@ -857,6 +857,13 @@ our %ACTION = (
     # addressed to the caller, never a broadcast; no capability.
     'me-notices' => { self => 1, cookie_only_reason => 'it is the signed-in person\'s own bell', params => [] },
     'me-notices-seen' => { self => 1, mutates => 1, cookie_only_reason => 'it is the signed-in person\'s own read state, which SM918 kept off the token door', params => [ { name => 'id', in => 'body', note => 'one of your notices, from me-notices; without it, all are marked read' }, { name => 'dismiss', in => 'body' } ] },
+    # SM1042 (SM1034 phase 1c, ruled "Self-enrol only"): the member's own two-
+    # factor. The secret and the recovery codes go to the account they protect
+    # and nowhere else; a manager can only reset (users mfa-disable).
+    'me-2fa-enrol' => { self => 1, mutates => 1, cookie_only_reason => 'a person sets up their own second factor and sees its secret once', params => [ { name => 'current_password', in => 'body' } ] },
+    'me-2fa-confirm' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns on their own second factor with a code from their app', params => [ { name => 'code', in => 'body' } ] },
+    'me-2fa-disable' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns off their own second factor, with the password and a current code', params => [ { name => 'current_password', in => 'body' }, { name => 'code', in => 'body' } ] },
+    'me-recovery-codes' => { self => 1, mutates => 1, cookie_only_reason => 'a person replaces their own recovery codes, with the password and a current code', params => [ { name => 'current_password', in => 'body' }, { name => 'code', in => 'body' } ] },
     'start-page' => { params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { mutates => 1, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body', required => 1, note => 'an empty string clears the start page' } ] },
     'whoami' => { params => [ { name => 'plugins', in => 'query' } ] },

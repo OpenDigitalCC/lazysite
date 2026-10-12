@@ -109,7 +109,8 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #        me-sign-out-everywhere - self actions, a person's own account,
     #        never a token's. No gate was added.
     #   63 cookie-only, SM1034 1b: me-notices, me-notices-seen - the member's own bell. No gate was added.
-    is( scalar @cookie_only, 63, '63 are cookie-only' );
+    #   67 cookie-only, SM1042: me-2fa-enrol, -confirm, -disable, me-recovery-codes - a person's own second factor. No gate was added.
+    is( scalar @cookie_only, 67, '67 are cookie-only' );
 
     # Three spot checks, one per capability state, so a wholesale re-derivation
     # cannot pass by producing a table of the right size.

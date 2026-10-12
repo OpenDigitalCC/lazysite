@@ -18,6 +18,11 @@ search: false
 ::: account-password
 :::
 
+## Two-factor sign-in
+
+::: account-2fa
+:::
+
 ## Where you are signed in
 
 ::: account-sessions

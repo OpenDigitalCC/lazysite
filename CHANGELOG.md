@@ -158,6 +158,15 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
+- SM1042 (PENDING) **a member sets up their own two-factor; a manager can only
+  reset it.** `/account` gains "Two-factor sign-in": set up with the current
+  password, confirm with a code from the app, turn off or make new recovery
+  codes with the password and a current code (turning it off signs the other
+  sessions out). The secret and recovery codes are shown only to the account
+  they protect. The Users page no longer sets up anybody's two-factor and never
+  shows a secret or a code: it offers Reset 2FA, and the manager API refuses
+  the enrolment verbs. t/unit/account/04.
+
 - SM1044 (PENDING) **a member reads the notices addressed to them.** `/account`
   gains "Your notices": the notices a notification rule addressed to the
   signed-in account, with read, dismiss and mark-all-read, over new actions

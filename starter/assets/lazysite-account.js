@@ -219,7 +219,126 @@
     render();
   }
 
-  var BIND = { summary: summary, password: password, sessions: sessions, bell: bell };
+  // --- two-factor (SM1042, SM1034 phase 1c) -----------------------------------
+  // The QR is computed by the bundled library and drawn from integers, as the
+  // ::: qr component does: the otpauth URI is never inserted as markup.
+  function drawQR(el, text) {
+    function draw() {
+      if (!window.qrcode) { el.textContent = '(QR unavailable - enter the key below in your app)'; return; }
+      var qr = window.qrcode(0, 'M'); qr.addData(text); qr.make();
+      var n = qr.getModuleCount(), cell = 4, m = 4, sz = (n + 2 * m) * cell;
+      var NS = 'http://www.w3.org/2000/svg';
+      var svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('width', String(sz)); svg.setAttribute('height', String(sz));
+      svg.setAttribute('viewBox', '0 0 ' + sz + ' ' + sz);
+      var bg = document.createElementNS(NS, 'rect');
+      bg.setAttribute('width', String(sz)); bg.setAttribute('height', String(sz)); bg.setAttribute('fill', '#fff');
+      svg.appendChild(bg);
+      for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+        if (!qr.isDark(y, x)) continue;
+        var r = document.createElementNS(NS, 'rect');
+        r.setAttribute('x', String((x + m) * cell)); r.setAttribute('y', String((y + m) * cell));
+        r.setAttribute('width', String(cell)); r.setAttribute('height', String(cell));
+        svg.appendChild(r);
+      }
+      while (el.firstChild) el.removeChild(el.firstChild);
+      el.appendChild(svg);
+    }
+    if (window.qrcode) { draw(); return; }
+    var s = document.createElement('script');
+    s.src = '/assets/qrcode.js';
+    s.onload = draw;
+    s.onerror = draw;
+    document.head.appendChild(s);
+  }
+
+  function twofa(region) {
+    var forms = {};
+    qa(region, '[data-ls-2fa]').forEach(function (el) { forms[el.getAttribute('data-ls-2fa')] = el; });
+    var state = q(region, '[data-ls-field="mfa-state"]');
+    function show(which) {
+      Object.keys(forms).forEach(function (k) {
+        if (k === 'confirm') return;    // lives inside 'setup', shown with it
+        forms[k].hidden = which.indexOf(k) < 0;
+      });
+    }
+    function refresh() {
+      me = null;
+      loadMe().then(function (r) {
+        if (!r || !r.ok) { say(region, (r && r.error) || 'Your account could not be read.', true); return; }
+        if (r.mfa_enrolled) { if (state) state.textContent = 'Two-factor is on.'; show(['off']); }
+        else if (r.mfa_pending) { if (state) state.textContent = 'Two-factor is being set up and is not on yet.'; show(['enrol', 'cancel']); }
+        else { if (state) state.textContent = 'Two-factor is off.'; show(['enrol']); }
+      });
+    }
+    function list(el, codes) {
+      while (el.firstChild) el.removeChild(el.firstChild);
+      (codes || []).forEach(function (c) { var li = document.createElement('li'); li.textContent = c; el.appendChild(li); });
+    }
+    if (forms.enrol) forms.enrol.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      post('me-2fa-enrol', { current_password: forms.enrol.elements.current_password.value }).then(function (res) {
+        forms.enrol.reset();
+        if (!(res && res.ok)) { say(region, (res && res.error) || 'Two-factor was not set up.', true); return; }
+        var sec = q(region, '[data-ls-field="secret"]');
+        if (sec) sec.textContent = res.secret || '';
+        var codes = q(region, '[data-ls-codes]');
+        if (codes) list(codes, res.recovery_codes);
+        var qrel = q(region, '[data-ls-qr]');
+        if (qrel && res.otpauth_uri) drawQR(qrel, res.otpauth_uri);
+        qa(region, '[data-ls-setup-only]').forEach(function (e) { e.hidden = false; });
+        show(['setup', 'cancel']);
+        say(region, 'Scan the code, then enter the code your app shows.');
+      });
+    });
+    var confirm = q(region, 'form[data-ls-2fa="confirm"]');
+    if (confirm) confirm.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      post('me-2fa-confirm', { code: confirm.elements.code.value }).then(function (res) {
+        if (!(res && res.ok)) { say(region, (res && res.error) || 'That code did not match.', true); return; }
+        confirm.reset();
+        say(region, res.message || 'Two-factor is on.');
+        refresh();
+      });
+    });
+    if (forms.cancel) forms.cancel.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      post('me-2fa-disable', { current_password: forms.cancel.elements.current_password.value }).then(function (res) {
+        forms.cancel.reset();
+        say(region, (res && (res.message || res.error)) || '', !(res && res.ok));
+        refresh();
+      });
+    });
+    if (forms.off) {
+      var act = 'me-2fa-disable';
+      qa(forms.off, '[data-ls-2fa-act]').forEach(function (b) {
+        b.addEventListener('click', function () { act = b.getAttribute('data-ls-2fa-act'); });
+      });
+      forms.off.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var body = { current_password: forms.off.elements.current_password.value, code: forms.off.elements.code.value };
+        post(act, body).then(function (res) {
+          forms.off.reset();
+          if (!(res && res.ok)) { say(region, (res && res.error) || 'Nothing was changed.', true); return; }
+          if (act === 'me-recovery-codes') {
+            var setup = forms.setup, codes = q(region, '[data-ls-codes]');
+            if (codes) list(codes, res.recovery_codes);
+            if (setup) {
+              setup.hidden = false;
+              qa(setup, '[data-ls-setup-only]').forEach(function (e) { e.hidden = true; });
+            }
+            say(region, 'New recovery codes - store them now; the old ones no longer work.');
+          } else {
+            say(region, res.message || 'Two-factor is off.');
+            refresh();
+          }
+        });
+      });
+    }
+    refresh();
+  }
+
+  var BIND = { summary: summary, password: password, sessions: sessions, bell: bell, '2fa': twofa };
   window.lzAccountBind = BIND;    // phase 1b and 1c add their regions here
 
   function start() {

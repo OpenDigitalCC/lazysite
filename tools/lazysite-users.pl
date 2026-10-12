@@ -298,6 +298,7 @@ our %CLI_AUDIT_ACTION = (
     cmd_mfa_enroll                => 'user-mfa-enroll',
     cmd_mfa_disable               => 'user-mfa-disable',
     cmd_mfa_confirm               => 'user-mfa-confirm',
+    cmd_mfa_recovery_regenerate   => 'user-mfa-recovery-regenerate',              # SM1042
     cmd_group_settings_set        => 'user-group-settings-set',
     cmd_group_create              => 'user-group-create',
     cmd_group_delete              => 'user-group-delete',
@@ -435,6 +436,23 @@ if ($API_MODE) {
                             . "(the manage_users capability is required)" } );
                 exit 0;
             }
+        }
+    }
+
+    # SM1042 (ruled 2026-10-12, 2FA "Self-enrol only"): a second factor is set up
+    # by the account it protects - the verbs that hand back a secret or recovery
+    # codes answer only an actor that IS the account. The manager API refuses
+    # them outright (Manager::Users); this is the tool defending itself whoever
+    # calls it. No actor is the sysadmin at the shell, as for every verb here.
+    if ( $action =~ /\A(?:mfa-enroll|mfa-confirm|mfa-recovery-regenerate)\z/ ) {
+        my $actor = $req->{actor};
+        if ( defined $actor && length $actor && $actor ne 'local'
+            && $actor ne ( $req->{username} // '' ) )
+        {
+            print encode_json( { ok => 0, kind => 'forbidden',
+                    error => "Two-factor is set up by the account it protects; '$actor' "
+                        . "may reset another account's, never set it up or see its codes." } );
+            exit 0;
         }
     }
 
@@ -716,6 +734,9 @@ if ($API_MODE) {
         }
         elsif ( $action eq 'mfa-confirm' ) {
             $result = cmd_mfa_confirm( $req->{username}, $req->{code} );
+        }
+        elsif ( $action eq 'mfa-recovery-regenerate' ) {    # SM1042
+            $result = cmd_mfa_recovery_regenerate( $req->{username} );
         }
         elsif ( $action eq 'totp-code' ) {
             $result = { ok => 1, code => totp_code( $req->{secret}, $req->{time}, $req->{step}, $req->{digits} ) };
@@ -2912,6 +2933,31 @@ sub cmd_mfa_confirm {
     log_event( 'INFO', $user, 'mfa confirmed' );
     cli_audit( 'user-mfa-confirm', $user );
     return { ok => 1, confirmed => 1 };
+}
+
+# SM1042 (SM1034 phase 1c): new recovery codes for an account whose 2FA is on.
+# There was no verb short of disable-and-enrol, which also replaces the secret
+# and leaves the account without a second factor in between. Eight fresh codes,
+# stored hashed, replacing every old one; the plaintext is returned once, to the
+# caller, which is the member's own account page and nothing else (the manager
+# API refuses this verb). The caller has re-authenticated with the password and
+# a current code before it gets here.
+sub cmd_mfa_recovery_regenerate {
+    my ($user) = @_;
+    return { ok => 0, error => 'Username required' } unless defined $user && length $user;
+    my $all = read_settings();
+    my $s   = $all->{$user} || {};
+    return { ok => 0, error => 'Two-factor is not on for this account.' }
+        unless $s->{totp_secret} && !$s->{mfa_pending};
+    my @recovery = map {
+        my $h = generate_random_hex(5);
+        substr( $h, 0, 5 ) . '-' . substr( $h, 5, 5 );
+    } 1 .. 8;
+    $all->{$user}{recovery_hashes} = [ map { hash_token($_) } @recovery ];
+    write_settings($all);
+    log_event( 'INFO', $user, 'mfa recovery codes regenerated' );
+    cli_audit( 'user-mfa-recovery-regenerate', $user );
+    return { ok => 1, recovery_codes => \@recovery };
 }
 
 # Verify a TOTP (6 digits) or a single-use recovery code. Returns { ok }.

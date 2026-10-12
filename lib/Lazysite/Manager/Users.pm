@@ -343,6 +343,17 @@ sub action_users {
             return { ok => 0, error => "claim-redeem is not a manager action" }
                 if $act eq 'claim-redeem';
 
+            # SM1042 (ruled 2026-10-12, 2FA "Self-enrol only"): a manager resets
+            # or disables someone's two-factor (mfa-disable) and never sets it up,
+            # because setting it up hands back the secret and the recovery codes -
+            # the person's own, which no operator should hold. Each account enrols
+            # its own on /account (me-2fa-*). The operator's own account too.
+            return { ok => 0, kind => 'forbidden',
+                error => 'Two-factor is set up by the person it protects, on their own '
+                    . 'account page (/account). A manager can reset it (Disable 2FA), '
+                    . 'never set it up or see its codes.' }
+                if $act =~ /\A(?:mfa-enroll|mfa-confirm|mfa-recovery-regenerate|mfa-verify|totp-code)\z/x;
+
             # SM1040: a password change or a 2FA disable signs the account's
             # other sessions out and keeps the one making the change - which is
             # this request's session only when the account is the caller's own.

@@ -39,6 +39,10 @@ package Lazysite::Manager::Account;
 #   action_me_sign_out_everywhere  me-sign-out-everywhere: all of mine, this too
 #   action_me_notices          me-notices: the notices addressed to me (1b)
 #   dispatch_me_notices_seen   me-notices-seen: mark mine read or dismissed (1b)
+#   dispatch_me_2fa_enrol      me-2fa-enrol: set up my two-factor (1c)
+#   dispatch_me_2fa_confirm    me-2fa-confirm: turn it on with a code (1c)
+#   dispatch_me_2fa_disable    me-2fa-disable: turn it off - password and code (1c)
+#   dispatch_me_recovery_codes me-recovery-codes: new recovery codes (1c)
 
 use strict;
 use warnings;
@@ -54,7 +58,8 @@ use Lazysite::Manager::Common qw($auth_user $token_auth users_api _request_ip _j
 
 our @EXPORT_OK = qw(account_page_enabled action_me dispatch_me_password action_me_sessions
     dispatch_me_session_revoke action_me_sign_out_everywhere me_refusal
-    action_me_notices dispatch_me_notices_seen);
+    action_me_notices dispatch_me_notices_seen
+    dispatch_me_2fa_enrol dispatch_me_2fa_confirm dispatch_me_2fa_disable dispatch_me_recovery_codes);
 
 our $DOCROOT;                          # set by the script
 our $LAZYSITE_DIR;                     # set by the script
@@ -198,6 +203,113 @@ sub dispatch_me_session_revoke {
     return $r unless ref $r eq 'HASH' && $r->{ok};
     return { ok => 1, sid => $sid,
         current => ( ( $ENV{LAZYSITE_AUTH_SID} // '' ) eq $sid ? JSON::PP::true() : JSON::PP::false() ) };
+}
+
+# --- SM1042 (SM1034 phase 1c): the member's own two-factor -------------------
+#
+# Ruled 2026-10-12, "Self-enrol only": the account enrols its own second factor,
+# here, and sees its own secret and recovery codes once; a manager can reset it
+# and never set it up (Manager::Users refuses the enrolment verbs, and the users
+# tool refuses them for any actor that is not the account). Re-authentication
+# (Q3): enrolling needs the current password; turning it off or regenerating the
+# recovery codes needs the password AND a current code - the authenticator's,
+# or one recovery code, which it then uses up. Every check counts against the
+# sign-in rate limiter, once per request.
+
+# A current code for the caller: the users tool's mfa-verify, which refuses a
+# replayed time-step and consumes a recovery code. undef when it matches.
+sub _code_refusal {
+    my ($code) = @_;
+    $code = '' unless defined $code && !ref $code;
+    $code =~ s/[^0-9A-Za-z-]//g;
+    my $v = length $code
+        ? users_api( { action => 'mfa-verify', username => $auth_user, code => $code } )
+        : undef;
+    return undef if ref $v eq 'HASH' && $v->{ok};
+    log_event( 'WARN', $auth_user, 'account page: 2FA code did not match', ip => _request_ip() );
+    sleep 1;
+    return { ok => 0, kind => 'forbidden', field => 'code',
+        error => 'That code is not right. Use the current code from your app, or one recovery code.' };
+}
+
+sub _mfa_state {
+    my $s = Lazysite::Auth::Verify::effective_settings( $DOCROOT, $auth_user ) || {};
+    return ( $s->{mfa_enrolled} ? 'on' : $s->{mfa_pending} ? 'pending' : 'off' );
+}
+
+# Set up: the current password, then a new secret and recovery codes - shown to
+# this account, once. Not while 2FA is on: turn it off first, so a stolen
+# session holding the password cannot quietly replace the person's authenticator.
+sub dispatch_me_2fa_enrol {
+    if ( my $r = me_refusal() ) { return $r }
+    my $req = _json_body() || {};
+    return { ok => 0, kind => 'conflict', field => 'mfa',
+        error => 'Two-factor is already on. Turn it off first to set it up again.' }
+        if _mfa_state() eq 'on';
+    if ( my $r = _reauth_refusal( $req->{current_password} ) ) { return $r }
+    my $r = users_api( { action => 'mfa-enroll', username => $auth_user, actor => $auth_user } );
+    return { ok => 0, error => ( ref $r eq 'HASH' && $r->{error} ) || 'Two-factor could not be set up.' }
+        unless ref $r eq 'HASH' && $r->{ok};
+    return { ok => 1, secret => $r->{secret}, otpauth_uri => $r->{otpauth_uri},
+        recovery_codes => $r->{recovery_codes}, pending => JSON::PP::true() };
+}
+
+# Confirm a pending set-up with a code from the app - only now is it enforced.
+sub dispatch_me_2fa_confirm {
+    if ( my $r = me_refusal() ) { return $r }
+    my $req = _json_body() || {};
+    return { ok => 0, kind => 'conflict', field => 'mfa',
+        error => 'There is no two-factor set-up waiting to be confirmed.' }
+        unless _mfa_state() eq 'pending';
+    if ( my $r = _rate_refusal() ) { return $r }
+    my $code = $req->{code};
+    $code = '' unless defined $code && !ref $code;
+    my $r = users_api( { action => 'mfa-confirm', username => $auth_user, code => $code,
+            actor => $auth_user } );
+    return { ok => 0, kind => 'forbidden', field => 'code',
+        error => ( ref $r eq 'HASH' && $r->{error} ) || 'That code did not match.' }
+        unless ref $r eq 'HASH' && $r->{ok};
+    return { ok => 1, message => 'Two-factor is on. You will be asked for a code when you sign in.' };
+}
+
+# Turn it off: the password and a current code. Every OTHER session of the
+# account ends and this one stays (SM1040). A set-up never confirmed is
+# cancelled with the password alone - nothing was enforced, and its code may
+# never have been seen.
+sub dispatch_me_2fa_disable {
+    if ( my $r = me_refusal() ) { return $r }
+    my $req   = _json_body() || {};
+    my $state = _mfa_state();
+    return { ok => 0, kind => 'conflict', field => 'mfa', error => 'Two-factor is not on.' }
+        if $state eq 'off';
+    if ( my $r = _reauth_refusal( $req->{current_password} ) ) { return $r }
+    if ( $state eq 'on' ) {
+        if ( my $r = _code_refusal( $req->{code} ) ) { return $r }
+    }
+    my $sid = $ENV{LAZYSITE_AUTH_SID} // '';
+    $sid = '' unless $sid =~ /\A[0-9a-f]{16}\z/;
+    my $r = users_api( { action => 'mfa-disable', username => $auth_user, keep_sid => $sid } );
+    return { ok => 0, error => ( ref $r eq 'HASH' && $r->{error} ) || 'Two-factor was not turned off.' }
+        unless ref $r eq 'HASH' && $r->{ok};
+    return { ok => 1, message => $state eq 'on'
+        ? 'Two-factor is off. Your other sessions have been signed out.'
+        : 'The two-factor set-up was cancelled.' };
+}
+
+# New recovery codes: the password and a current code; the old codes stop
+# working. Shown to this account, once.
+sub dispatch_me_recovery_codes {
+    if ( my $r = me_refusal() ) { return $r }
+    my $req = _json_body() || {};
+    return { ok => 0, kind => 'conflict', field => 'mfa', error => 'Two-factor is not on.' }
+        unless _mfa_state() eq 'on';
+    if ( my $r = _reauth_refusal( $req->{current_password} ) ) { return $r }
+    if ( my $r = _code_refusal( $req->{code} ) )               { return $r }
+    my $r = users_api( { action => 'mfa-recovery-regenerate', username => $auth_user,
+            actor => $auth_user } );
+    return { ok => 0, error => ( ref $r eq 'HASH' && $r->{error} ) || 'New codes could not be made.' }
+        unless ref $r eq 'HASH' && $r->{ok};
+    return { ok => 1, recovery_codes => $r->{recovery_codes} };
 }
 
 # SM1034 phase 1b (SM1010 R2): the member's own bell - the notices addressed to

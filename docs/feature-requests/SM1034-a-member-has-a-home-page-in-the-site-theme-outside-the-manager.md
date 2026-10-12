@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-12
 raised-by: release manager, on SM1010's open items, 2026-10-12
 area: accounts
-status-note: "Ruled 2026-10-12: build phase 1. Built: SM1040 (other sessions end on a password change or 2FA disable), SM1041 (password_min_length, default 12), 1a /account and me-* (SM1043), 1b own notices (SM1044). Remains: 1c self-enrolled 2FA (SM1042), SM1010 R5; phases 2-3."
+status-note: "Ruled 2026-10-12: build phase 1. Built: SM1040 (other sessions end on a password change or 2FA disable), SM1041 (password_min_length, default 12), 1a /account and me-* (SM1043), 1b own notices (SM1044), 1c self-enrolled 2FA with manager enrolment removed (SM1042). Remains: SM1010 R5; phases 2-3."
 ---
 
 # Ruled

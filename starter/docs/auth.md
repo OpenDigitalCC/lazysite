@@ -215,6 +215,10 @@ sign out everywhere.
   broadcast notices - those are the operators' bell, behind `notifications` -
   and never another account's. The account keeps its own last 100, however
   busy the site's store is.
+- **Two-factor** (`::: account-2fa`, actions `me-2fa-enrol`, `me-2fa-confirm`,
+  `me-2fa-disable`, `me-recovery-codes`): set up with the current password and
+  confirm with a code from the app; turn off or make new recovery codes with the
+  password and a current code. See "Two-factor (TOTP)" below.
 - `account_page: disabled` in `lazysite.conf` turns it off: `/account` answers
   404 (unless the site wrote its own page) and the `me-*` actions refuse, naming
   the setting.
@@ -317,8 +321,16 @@ the cookie is issued. Two-factor applies to interactive (password → cookie) lo
 only - token / WebDAV / connector auth is unchanged, since the token is already
 the strong factor there.
 
-    # enrol from the CLI (or via the Users page card action)
+    # the account enrols its own on /account; the sysadmin at the shell can still
     perl tools/lazysite-users.pl --docroot /path/to/public_html mfa-enroll alice
+
+**Each person sets up their own** (SM1042, ruled "Self-enrol only"): on their
+account page, `/account`, with their current password; they confirm it with a
+code from the app, and only they see the secret and the recovery codes. Turning
+it off, or making new recovery codes, needs the password and a current code (or
+one recovery code), and turning it off signs the account's other sessions out.
+On the Users page a manager can only **reset** someone's two-factor (turn it off,
+which signs that account out everywhere) - never set it up or see a code.
 
 The shared secret lives in `user-settings.json` under the same `0640`/`2770`
 protection as other credentials (the auth dir is off the web and group-restricted;

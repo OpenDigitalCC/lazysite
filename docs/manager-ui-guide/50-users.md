@@ -103,3 +103,24 @@ Expect
 Negative
 : Disabling an account with sub-users offers to cascade; without cascade the
   sub-tree keeps working, which is a deliberate choice and should read as one.
+
+## Two-factor: reset only
+
+Where
+: Access -> Users -> a user -> Two-factor
+
+Do
+: For an account with two-factor on, press Reset 2FA. For one whose set-up was
+  started and never confirmed, press Cancel setup. For one with none, read the
+  line.
+
+Expect
+: Reset turns the account's two-factor off and signs out every session of that
+  account; the person sets it up again on their own account page, `/account`.
+  The line for an account with none says so and offers nothing to press - a
+  manager cannot set up anybody's two-factor, the manager's own included, and
+  never sees a secret, a QR code or a recovery code (SM1042).
+
+Negative
+: Sending `mfa-enroll`, `mfa-confirm` or `mfa-recovery-regenerate` through the
+  `users` action is refused, with the reason, and returns no secret.

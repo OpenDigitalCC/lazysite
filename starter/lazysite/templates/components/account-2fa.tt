@@ -1,0 +1,52 @@
+[%# SM1042 (SM1034 phase 1c): built-in account component - your own two-factor.
+    Use on /account:
+      ::: account-2fa
+      :::
+    Set up (current password), confirm with a code from the app, turn off or
+    replace the recovery codes (password and a current code), through the
+    me-2fa-* actions and /assets/lazysite-account.js. The secret and recovery
+    codes are shown to the signed-in account once and to nobody else: a manager
+    can only reset two-factor. The QR is drawn from the bundled /assets/qrcode.js
+    as integers, so the secret never becomes markup. A layout may override this
+    file, keeping the data-ls-* attributes and the field names. -%]
+<section class="lz-account lz-account-2fa" data-ls-account="2fa">
+  <p class="lz-account-state" data-ls-field="mfa-state"></p>
+
+  <form class="lz-account-form" data-ls-2fa="enrol" hidden>
+    <label for="lz-2fa-enrol-pw">Current password</label>
+    <input type="password" id="lz-2fa-enrol-pw" name="current_password" required autocomplete="current-password">
+    <div class="lz-account-actions"><button type="submit">Set up two-factor</button></div>
+  </form>
+
+  <div class="lz-account-setup" data-ls-2fa="setup" hidden>
+    <p data-ls-setup-only>Scan this with an authenticator app, then enter the code it shows. Two-factor is not on until you do.</p>
+    <div class="lz-account-qr" data-ls-qr data-ls-setup-only role="img" aria-label="Two-factor QR code"></div>
+    <p data-ls-setup-only>Can't scan? Enter this key in the app: <code data-ls-field="secret"></code></p>
+    <p>Recovery codes - store them now, each works once, they are not shown again:</p>
+    <ul class="lz-account-codes" data-ls-codes></ul>
+    <form class="lz-account-form" data-ls-2fa="confirm" data-ls-setup-only>
+      <label for="lz-2fa-code">Code from the app</label>
+      <input type="text" id="lz-2fa-code" name="code" required inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+      <div class="lz-account-actions"><button type="submit">Turn two-factor on</button></div>
+    </form>
+  </div>
+
+  <form class="lz-account-form" data-ls-2fa="cancel" hidden>
+    <label for="lz-2fa-cancel-pw">Current password</label>
+    <input type="password" id="lz-2fa-cancel-pw" name="current_password" required autocomplete="current-password">
+    <div class="lz-account-actions"><button type="submit">Cancel the set-up</button></div>
+  </form>
+
+  <form class="lz-account-form" data-ls-2fa="off" hidden>
+    <label for="lz-2fa-off-pw">Current password</label>
+    <input type="password" id="lz-2fa-off-pw" name="current_password" required autocomplete="current-password">
+    <label for="lz-2fa-off-code">Current code, or a recovery code</label>
+    <input type="text" id="lz-2fa-off-code" name="code" required autocomplete="one-time-code">
+    <div class="lz-account-actions">
+      <button type="submit" data-ls-2fa-act="me-recovery-codes">Make new recovery codes</button>
+      <button type="submit" data-ls-2fa-act="me-2fa-disable">Turn two-factor off</button>
+    </div>
+  </form>
+
+  <p class="lz-account-status" data-ls-status role="status" aria-live="polite"></p>
+</section>

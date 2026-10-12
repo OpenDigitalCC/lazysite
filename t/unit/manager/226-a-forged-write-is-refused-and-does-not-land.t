@@ -308,6 +308,7 @@ my %REQ = (
     # SM1043: the caller's own password, and one of the caller's own sessions.
     'me-password' => { body => { current_password => 'pw-admin-0123456789', new_password => 'pw-admin-changed-0123' } },
     'me-session-revoke' => { body => { sid => 'fedcba9876543210' } },
+    'me-2fa-enrol'      => { body => { current_password => 'pw-admin-0123456789' } },    # SM1042
     'migrate-to-local' => { query => 'path=page.md' },
     'mkdir'            => { query => 'path=newdir' },
     'move'             => { query => 'path=gone.md&to=moved.md' },
@@ -345,6 +346,11 @@ my %RAN_ONLY = (
     'migrate-to-local' => 'fetches the .url page\'s remote source; the test makes no network call',
     'page-pdf' => 'its effect is the streamed document, made by an external converter the test does not need',
     'plugin-action' => 'runs an extension\'s own declared script; no extension here declares one that writes',
+    # SM1042: each needs a current code from an authenticator for a second factor
+    # the site template does not enrol; t/unit/account/04 lands all three.
+    'me-2fa-confirm'    => 'needs a code from the app for a pending set-up the template does not make',
+    'me-2fa-disable'    => 'needs two-factor on and a current code; the template has none',
+    'me-recovery-codes' => 'needs two-factor on and a current code; the template has none',
 );
 
 # SM944 S34 finding F-1 (found by this test): file-upload's rate check ran in

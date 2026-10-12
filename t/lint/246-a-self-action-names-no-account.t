@@ -45,7 +45,7 @@ my $api = do {
     <$fh>;
 };
 for my $name ( sort keys %SELF ) {
-    like( $api, qr/elsif \( \$action eq '\Q$name\E' \)\s*\{ \$result = (?:action|dispatch)_[a-z_]+\(\) \}/,
+    like( $api, qr/elsif \( \$action eq '\Q$name\E' \)\s*\{ \$result = (?:action|dispatch)_[a-z0-9_]+\(\) \}/,
         "$name: the dispatcher passes the handler no argument" );
 }
 
