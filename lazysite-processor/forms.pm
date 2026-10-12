@@ -490,6 +490,23 @@ sub _form_field_select {
     return $field_html;
 }
 
+# SM1012 S5: A RADIO GROUP (arguments as _form_field_file's).
+sub _form_field_radio {
+    my ( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules ) = @_;
+    my $field_html;
+    $field_html = qq(    <div class="form-options" role="radiogroup">\n);
+    my $i = 0;
+    for my $opt ( @{ $rules{radio} } ) {
+        my $e  = _form_attr($opt);
+        my $id = "$name-" . $i++;
+        $field_html
+            .= qq(      <label class="form-option" for="$id">)
+            . qq(<input type="radio" name="$name" id="$id" value="$e"$req_attr> $e</label>\n);
+    }
+    $field_html .= qq(    </div>\n);
+    return $field_html;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -628,16 +645,7 @@ sub _render_form {
         # answered in sequence - every option stays visible and a mis-pick is
         # obvious rather than silent.
         elsif ( $rules{radio} ) {
-            $field_html = qq(    <div class="form-options" role="radiogroup">\n);
-            my $i = 0;
-            for my $opt ( @{ $rules{radio} } ) {
-                my $e  = _form_attr($opt);
-                my $id = "$name-" . $i++;
-                $field_html
-                    .= qq(      <label class="form-option" for="$id">)
-                    . qq(<input type="radio" name="$name" id="$id" value="$e"$req_attr> $e</label>\n);
-            }
-            $field_html .= qq(    </div>\n);
+            $field_html = _form_field_radio( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
         }
         elsif ( $rules{checklist} ) {
 
