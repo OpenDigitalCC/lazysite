@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1012 (PENDING) **internal: what the content renderer produces is
+  recorded.** t/unit/processor/113 renders 34 written cases through
+  `render_content` - the stash under five request contexts and two hosts, the
+  code-block protection, the TAGS guard, a template error, the before_render
+  hook - and compares the body, the stash, the response language, the log
+  lines, any die and the umask it leaves with a committed record. It is the
+  gate for splitting `render_content`. No behaviour change. It records one
+  finding: when the template compile directory cannot be made, the umask the
+  render widened is not put back (SM1012).
+
 - SM1012 (PENDING) **internal: `_render_form` is split at its seams.** A field's
   rules are tokenised by `_form_rule_tokens` and read into the field's rules by
   `_form_rules_from_tokens`; its value, the literal or the declared prefill,

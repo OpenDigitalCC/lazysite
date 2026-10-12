@@ -1,0 +1,2842 @@
+{
+   "cases" : [
+      {
+         "body" : "<p>[% site_name %] | [% page_title %] | [% page_subtitle %] | [% auth_user %] | [% editor %] | [% site_lang %] [% page_lang %] | [% scope_root %] | [% request_uri %]</p>",
+         "context" : "anon",
+         "got" : {
+            "body" : "<p>Char Site | Title &amp; &lt;b&gt;bold&lt;/b&gt; | Sub &quot;q&quot; |  | 0 | en en |  | /page</p>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [
+               {
+                  "context" : "/page",
+                  "extra" : {
+                     "host" : "char.example"
+                  },
+                  "level" : "INFO",
+                  "message" : "host matched no configured domain - serving the default site"
+               }
+            ],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "Sub &quot;q&quot;",
+               "page_meta_desc_raw" : "Sub \"q\"",
+               "page_meta_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_meta_title_raw" : "Title & <b>bold</b>",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "/about.md",
+               "page_subtitle" : "Sub &quot;q&quot;",
+               "page_subtitle_raw" : "Sub \"q\"",
+               "page_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_title_raw" : "Title & <b>bold</b>",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "stash-anon",
+         "meta" : {
+            "_md_path" : "about.md",
+            "subtitle" : "Sub \"q\"",
+            "title" : "Title & <b>bold</b>"
+         },
+         "query" : null
+      },
+      {
+         "body" : "<p>[% site_name %] | [% page_title %] | [% page_subtitle %] | [% auth_user %] | [% editor %] | [% site_lang %] [% page_lang %] | [% scope_root %] | [% request_uri %]</p>",
+         "context" : "member",
+         "got" : {
+            "body" : "<p>Char Site | Title &amp; &lt;b&gt;bold&lt;/b&gt; | Sub &quot;q&quot; | bob | 1 | en en | fr | /page</p>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "bob@example.org",
+               "auth_groups" : [
+                  "fr-editors"
+               ],
+               "auth_name" : "Bob &lt;b&gt;",
+               "auth_user" : "bob",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "fr",
+               "domain" : "char.example",
+               "editor" : 1,
+               "enabled_plugins" : {},
+               "home_domain" : "fr.char.example",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {
+                  "audit" : 0,
+                  "manage_config" : 0,
+                  "manage_connectors" : 0,
+                  "manage_content" : 1,
+                  "manage_data" : 0,
+                  "manage_domains" : 0,
+                  "manage_forms" : 0,
+                  "manage_layouts" : 0,
+                  "manage_nav" : 0,
+                  "manage_themes" : 0,
+                  "manage_users" : 0,
+                  "notifications" : 0,
+                  "read_submissions" : 0
+               },
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "Sub &quot;q&quot;",
+               "page_meta_desc_raw" : "Sub \"q\"",
+               "page_meta_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_meta_title_raw" : "Title & <b>bold</b>",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "/about.md",
+               "page_subtitle" : "Sub &quot;q&quot;",
+               "page_subtitle_raw" : "Sub \"q\"",
+               "page_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_title_raw" : "Title & <b>bold</b>",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "fr",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "stash-member",
+         "meta" : {
+            "_md_path" : "about.md",
+            "subtitle" : "Sub \"q\"",
+            "title" : "Title & <b>bold</b>"
+         },
+         "query" : null
+      },
+      {
+         "body" : "<p>[% site_name %] | [% page_title %] | [% page_subtitle %] | [% auth_user %] | [% editor %] | [% site_lang %] [% page_lang %] | [% scope_root %] | [% request_uri %]</p>",
+         "context" : "member2",
+         "got" : {
+            "body" : "<p>Char Site | Title &amp; &lt;b&gt;bold&lt;/b&gt; | Sub &quot;q&quot; | carol | 0 | en en |  | /page</p>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "Carol",
+               "auth_user" : "carol",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {
+                  "audit" : 0,
+                  "manage_config" : 0,
+                  "manage_connectors" : 0,
+                  "manage_content" : 0,
+                  "manage_data" : 0,
+                  "manage_domains" : 0,
+                  "manage_forms" : 0,
+                  "manage_layouts" : 0,
+                  "manage_nav" : 0,
+                  "manage_themes" : 0,
+                  "manage_users" : 0,
+                  "notifications" : 0,
+                  "read_submissions" : 0
+               },
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "Sub &quot;q&quot;",
+               "page_meta_desc_raw" : "Sub \"q\"",
+               "page_meta_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_meta_title_raw" : "Title & <b>bold</b>",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "/about.md",
+               "page_subtitle" : "Sub &quot;q&quot;",
+               "page_subtitle_raw" : "Sub \"q\"",
+               "page_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_title_raw" : "Title & <b>bold</b>",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "stash-member2",
+         "meta" : {
+            "_md_path" : "about.md",
+            "subtitle" : "Sub \"q\"",
+            "title" : "Title & <b>bold</b>"
+         },
+         "query" : null
+      },
+      {
+         "body" : "<p>[% site_name %] | [% page_title %] | [% page_subtitle %] | [% auth_user %] | [% editor %] | [% site_lang %] [% page_lang %] | [% scope_root %] | [% request_uri %]</p>",
+         "context" : "manager",
+         "got" : {
+            "body" : "<p>Char Site | Title &amp; &lt;b&gt;bold&lt;/b&gt; | Sub &quot;q&quot; | alice | 1 | en en |  | /page</p>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "alice@example.org",
+               "auth_groups" : [
+                  "admins"
+               ],
+               "auth_name" : "Alice",
+               "auth_user" : "alice",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 1,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {
+                  "audit" : 0,
+                  "manage_config" : 1,
+                  "manage_connectors" : 0,
+                  "manage_content" : 0,
+                  "manage_data" : 0,
+                  "manage_domains" : 1,
+                  "manage_forms" : 0,
+                  "manage_layouts" : 0,
+                  "manage_nav" : 0,
+                  "manage_themes" : 0,
+                  "manage_users" : 1,
+                  "notifications" : 0,
+                  "read_submissions" : 0
+               },
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "Sub &quot;q&quot;",
+               "page_meta_desc_raw" : "Sub \"q\"",
+               "page_meta_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_meta_title_raw" : "Title & <b>bold</b>",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "/about.md",
+               "page_subtitle" : "Sub &quot;q&quot;",
+               "page_subtitle_raw" : "Sub \"q\"",
+               "page_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_title_raw" : "Title & <b>bold</b>",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "stash-manager",
+         "meta" : {
+            "_md_path" : "about.md",
+            "subtitle" : "Sub \"q\"",
+            "title" : "Title & <b>bold</b>"
+         },
+         "query" : null
+      },
+      {
+         "body" : "<p>[% site_name %] | [% page_title %] | [% page_subtitle %] | [% auth_user %] | [% editor %] | [% site_lang %] [% page_lang %] | [% scope_root %] | [% request_uri %]</p>",
+         "context" : "preview",
+         "got" : {
+            "body" : "<p>Char Site | Title &amp; &lt;b&gt;bold&lt;/b&gt; | Sub &quot;q&quot; | alice | 1 | en en |  | /page</p>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "alice@example.org",
+               "auth_groups" : [
+                  "admins"
+               ],
+               "auth_name" : "Alice",
+               "auth_user" : "alice",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 1,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "layout" : "plain",
+               "lazysite_version" : "",
+               "manager_caps" : {
+                  "audit" : 0,
+                  "manage_config" : 1,
+                  "manage_connectors" : 0,
+                  "manage_content" : 0,
+                  "manage_data" : 0,
+                  "manage_domains" : 1,
+                  "manage_forms" : 0,
+                  "manage_layouts" : 0,
+                  "manage_nav" : 0,
+                  "manage_themes" : 0,
+                  "manage_users" : 1,
+                  "notifications" : 0,
+                  "read_submissions" : 0
+               },
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "Sub &quot;q&quot;",
+               "page_meta_desc_raw" : "Sub \"q\"",
+               "page_meta_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_meta_title_raw" : "Title & <b>bold</b>",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "/about.md",
+               "page_subtitle" : "Sub &quot;q&quot;",
+               "page_subtitle_raw" : "Sub \"q\"",
+               "page_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_title_raw" : "Title & <b>bold</b>",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "theme" : "dusk",
+               "year" : "YEAR"
+            }
+         },
+         "id" : "stash-preview",
+         "meta" : {
+            "_md_path" : "about.md",
+            "subtitle" : "Sub \"q\"",
+            "title" : "Title & <b>bold</b>"
+         },
+         "query" : null
+      },
+      {
+         "body" : "<p>[% site_name %] | [% page_title %] | [% page_subtitle %] | [% auth_user %] | [% editor %] | [% site_lang %] [% page_lang %] | [% scope_root %] | [% request_uri %]</p>",
+         "context" : "payment",
+         "got" : {
+            "body" : "<p>Char Site | Title &amp; &lt;b&gt;bold&lt;/b&gt; | Sub &quot;q&quot; |  | 0 | en en |  | /page</p>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "Sub &quot;q&quot;",
+               "page_meta_desc_raw" : "Sub \"q\"",
+               "page_meta_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_meta_title_raw" : "Title & <b>bold</b>",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "/about.md",
+               "page_subtitle" : "Sub &quot;q&quot;",
+               "page_subtitle_raw" : "Sub \"q\"",
+               "page_title" : "Title &amp; &lt;b&gt;bold&lt;/b&gt;",
+               "page_title_raw" : "Title & <b>bold</b>",
+               "params" : {},
+               "payment_address" : "addr",
+               "payment_amount" : "5.00",
+               "payment_bypassed" : 0,
+               "payment_currency" : "GBP",
+               "payment_paid" : 1,
+               "payment_payer" : "p<1>",
+               "payment_required" : 0,
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "stash-payment",
+         "meta" : {
+            "_md_path" : "about.md",
+            "subtitle" : "Sub \"q\"",
+            "title" : "Title & <b>bold</b>"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% scope_root %]|[% home_domain %]|[% dav_scopes %]",
+         "context" : "member",
+         "got" : {
+            "body" : "fr|fr.char.example|fr",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "bob@example.org",
+               "auth_groups" : [
+                  "fr-editors"
+               ],
+               "auth_name" : "Bob &lt;b&gt;",
+               "auth_user" : "bob",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "fr",
+               "domain" : "char.example",
+               "editor" : 1,
+               "enabled_plugins" : {},
+               "home_domain" : "fr.char.example",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {
+                  "audit" : 0,
+                  "manage_config" : 0,
+                  "manage_connectors" : 0,
+                  "manage_content" : 1,
+                  "manage_data" : 0,
+                  "manage_domains" : 0,
+                  "manage_forms" : 0,
+                  "manage_layouts" : 0,
+                  "manage_nav" : 0,
+                  "manage_themes" : 0,
+                  "manage_users" : 0,
+                  "notifications" : 0,
+                  "read_submissions" : 0
+               },
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "fr",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "member-one-scope",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% scope_root %]|[% home_domain %]|[% dav_scopes %]",
+         "context" : "manager",
+         "got" : {
+            "body" : "||",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "alice@example.org",
+               "auth_groups" : [
+                  "admins"
+               ],
+               "auth_name" : "Alice",
+               "auth_user" : "alice",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 1,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {
+                  "audit" : 0,
+                  "manage_config" : 1,
+                  "manage_connectors" : 0,
+                  "manage_content" : 0,
+                  "manage_data" : 0,
+                  "manage_domains" : 1,
+                  "manage_forms" : 0,
+                  "manage_layouts" : 0,
+                  "manage_nav" : 0,
+                  "manage_themes" : 0,
+                  "manage_users" : 1,
+                  "notifications" : 0,
+                  "read_submissions" : 0
+               },
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "manager-every-scope",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% FOREACH k IN manager_caps.keys.sort %][% k %]=[% manager_caps.$k %] [% END %]",
+         "context" : "manager",
+         "got" : {
+            "body" : "audit=0 manage_config=1 manage_connectors=0 manage_content=0 manage_data=0 manage_domains=1 manage_forms=0 manage_layouts=0 manage_nav=0 manage_themes=0 manage_users=1 notifications=0 read_submissions=0 ",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "alice@example.org",
+               "auth_groups" : [
+                  "admins"
+               ],
+               "auth_name" : "Alice",
+               "auth_user" : "alice",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 1,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {
+                  "audit" : 0,
+                  "manage_config" : 1,
+                  "manage_connectors" : 0,
+                  "manage_content" : 0,
+                  "manage_data" : 0,
+                  "manage_domains" : 1,
+                  "manage_forms" : 0,
+                  "manage_layouts" : 0,
+                  "manage_nav" : 0,
+                  "manage_themes" : 0,
+                  "manage_users" : 1,
+                  "notifications" : 0,
+                  "read_submissions" : 0
+               },
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "manager-caps",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "<p>[% site_name %] | [% page_title %] | [% page_subtitle %] | [% auth_user %] | [% editor %] | [% site_lang %] [% page_lang %] | [% scope_root %] | [% request_uri %]</p>[% FOREACH l IN languages %]{[% l.lang %] [% l.url %] [% l.current %] [% l.exists %]}[% END %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "<p>Site FR | Accueil |  |  | 0 | fr fr |  | /</p>{en https://char.example/ 0 1}{fr https://fr.char.example/ 1 1}",
+            "died" : null,
+            "lang" : "fr",
+            "log" : [
+               {
+                  "context" : "/",
+                  "extra" : {
+                     "host" : "fr.char.example",
+                     "key" : "allowed_groups"
+                  },
+                  "level" : "WARN",
+                  "message" : "alias override ignored - key not whitelisted"
+               }
+            ],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "fr.char.example",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "content_root" : "fr",
+               "dav_scopes" : "",
+               "domain" : "fr.char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "fr",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 0,
+                     "exists" : 1,
+                     "lang" : "en",
+                     "url" : "https://char.example/"
+                  },
+                  {
+                     "current" : 1,
+                     "exists" : 1,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "fr",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "Accueil",
+               "page_meta_title_raw" : "Accueil",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "Accueil",
+               "page_title_raw" : "Accueil",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "fr",
+               "site_name" : "Site FR",
+               "site_url" : "https://fr.char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "host" : "fr.char.example",
+         "id" : "alias-host-french",
+         "meta" : {
+            "title" : "Accueil"
+         },
+         "query" : null,
+         "uri" : "/"
+      },
+      {
+         "body" : "[% FOREACH l IN languages %]{[% l.lang %] [% l.url %] [% l.current %] [% l.exists %]}[% END %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "{en https://char.example/about 1 1}{fr https://fr.char.example/about 0 0}",
+            "died" : null,
+            "lang" : "en",
+            "log" : [
+               {
+                  "context" : "/about?x=1",
+                  "extra" : {
+                     "host" : "char.example"
+                  },
+                  "level" : "INFO",
+                  "message" : "host matched no configured domain - serving the default site"
+               }
+            ],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 1,
+                     "lang" : "en",
+                     "url" : "https://char.example/about"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/about"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/about?x=1",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "language-set-on-the-primary",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null,
+         "uri" : "/about?x=1"
+      },
+      {
+         "body" : "[% page_lang %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "frscript",
+            "died" : null,
+            "lang" : "frscript",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "frscript",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "L",
+               "page_meta_title_raw" : "L",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "L",
+               "page_title_raw" : "L",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "page-lang-is-sanitised",
+         "meta" : {
+            "lang" : "fr\"><script>\r\n",
+            "title" : "L"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% page_lang %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "en",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "L",
+               "page_meta_title_raw" : "L",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "L",
+               "page_title_raw" : "L",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "page-lang-sanitised-to-nothing",
+         "meta" : {
+            "lang" : "<>",
+            "title" : "L"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% page_author %]|[% page_custom %]|[% page_meta_desc %]|[% page_meta_title %]|[% page_modified %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "A &lt;x&gt;|v&lt;1&gt;|D &amp; d|MT|2026-01-02",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "A &lt;x&gt;",
+               "page_author_raw" : "A <x>",
+               "page_custom" : "v&lt;1&gt;",
+               "page_lang" : "en",
+               "page_meta_desc" : "D &amp; d",
+               "page_meta_desc_raw" : "D & d",
+               "page_meta_title" : "MT",
+               "page_meta_title_raw" : "MT",
+               "page_modified" : "2026-01-02",
+               "page_modified_iso" : "2026-01-02T00:00:00Z",
+               "page_page_modified" : "2026-01-02",
+               "page_page_modified_iso" : "2026-01-02T00:00:00Z",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "T",
+               "page_title_raw" : "T",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "meta-extras",
+         "meta" : {
+            "_y" : "hidden",
+            "author" : "A <x>",
+            "custom" : "v<1>",
+            "meta_desc" : "D & d",
+            "meta_title" : "MT",
+            "page_modified" : "2026-01-02",
+            "page_modified_iso" : "2026-01-02T00:00:00Z",
+            "ref_val" : [
+               1
+            ],
+            "title" : "T",
+            "tt_x" : "hidden"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% greeting %] [% n %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "hello 3",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "greeting" : "hello",
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "n" : "3",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "T",
+               "page_meta_title_raw" : "T",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "T",
+               "page_title_raw" : "T",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "tt-page-var",
+         "meta" : {
+            "title" : "T",
+            "tt_page_var" : {
+               "greeting" : "hello",
+               "n" : "3"
+            }
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% FOREACH s IN sections %][% s.title %];[% END %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "One;Two;",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "S",
+               "page_meta_title_raw" : "S",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "S",
+               "page_title_raw" : "S",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [
+                  {
+                     "title" : "One"
+                  },
+                  {
+                     "title" : "Two"
+                  }
+               ],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "sections",
+         "meta" : {
+            "sections" : [
+               {
+                  "title" : "One"
+               },
+               {
+                  "title" : "Two"
+               }
+            ],
+            "title" : "S"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% query.q %]|[% params.q %]|[% query.n %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "a&lt;b&gt;&amp;&quot;c&#39; &#91;% x %&#93;|a&lt;b&gt;&amp;&quot;c&#39; &#91;% x %&#93;|7",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {
+                  "n" : "7",
+                  "q" : "a&lt;b&gt;&amp;&quot;c&#39; &#91;% x %&#93;"
+               },
+               "query" : {
+                  "n" : "7",
+                  "q" : "a&lt;b&gt;&amp;&quot;c&#39; &#91;% x %&#93;"
+               },
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "query-is-escaped",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : {
+            "n" : "7",
+            "q" : "a<b>&\"c' [% x %]"
+         }
+      },
+      {
+         "body" : "[% query.q %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "no-query-given",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "<pre><code class=\"x\">[% site_name %] CODEBLOCK_0_END</code></pre> <code>[% page_title %]</code> [% site_name %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "<pre><code class=\"x\">[% site_name %] CODEBLOCK_0_END</code></pre> <code>[% page_title %]</code> Char Site",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "code-blocks-protected",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% FOREACH i IN [1, 2, 3] %]<code>[% i %]</code>[% END %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "<code>[% i %]</code><code>[% i %]</code><code>[% i %]</code>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [
+               {
+                  "context" : "/page",
+                  "extra" : {
+                     "block" : 0,
+                     "copies" : 3
+                  },
+                  "level" : "WARN",
+                  "message" : "the render multiplied a protected code block, so its template directives are published unrendered - a code span inside a loop cannot be both protected from the template and expanded by it"
+               }
+            ],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "a-code-span-in-a-loop",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "<code>a</code>[% FOREACH i IN [1, 2] %]<code>b</code>[% END %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "<code>a</code><code>b</code><code>b</code>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [
+               {
+                  "context" : "/page",
+                  "extra" : {
+                     "block" : 1,
+                     "copies" : 2
+                  },
+                  "level" : "WARN",
+                  "message" : "the render multiplied a protected code block, so its template directives are published unrendered - a code span inside a loop cannot be both protected from the template and expanded by it"
+               }
+            ],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "a-code-span-in-a-loop-twice",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% FILTER replace('_0_END', '_9_END') %]<code>z</code>[% END %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "CODEBLOCKKEY_9_END",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "placeholder-rewritten-by-the-template",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "CODEBLOCK_7_END <code>c</code>",
+         "context" : "anon",
+         "got" : {
+            "body" : "CODEBLOCK_7_END <code>c</code>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "author-writes-a-placeholder",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% TAGS {{ }} %]{{ site_name }} [% site_name %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "{{ site_name }} Char Site",
+            "died" : null,
+            "lang" : "en",
+            "log" : [
+               {
+                  "context" : "/page",
+                  "extra" : {},
+                  "level" : "WARN",
+                  "message" : "a page body set TAGS - the directive is ignored: a page body uses [% %] tags"
+               }
+            ],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "tags-are-ignored",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[%- TAGS <+ +> %]<+ site_name +>",
+         "context" : "anon",
+         "got" : {
+            "body" : "<+ site_name +>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [
+               {
+                  "context" : "/page",
+                  "extra" : {},
+                  "level" : "WARN",
+                  "message" : "a page body set TAGS - the directive is ignored: a page body uses [% %] tags"
+               }
+            ],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "tags-with-a-chomp",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "<p>[% IF %]</p> <code>kept</code>",
+         "context" : "anon",
+         "got" : {
+            "body" : "<p>[% IF %]</p> <code>kept</code>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [
+               {
+                  "context" : "/page",
+                  "extra" : {
+                     "error" : "OBJECT(Template::Exception)"
+                  },
+                  "level" : "ERROR",
+                  "message" : "template error, using raw content"
+               }
+            ],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "a-template-error-renders-raw",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% hooked %]|[% site_name %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "yes|Hooked <i>",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "hooked" : "yes",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Hooked <i>",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "hook" : "stamps",
+         "id" : "the-hook-sees-the-stash",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% 'a b/c?d=e' | url_safe %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "a b/c?d=e",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "the-url-safe-filter",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% PERL %]print 1;[% END %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "[% PERL %]print 1;[% END %]",
+            "died" : null,
+            "lang" : "en",
+            "log" : [
+               {
+                  "context" : "/page",
+                  "extra" : {
+                     "error" : "OBJECT(Template::Exception)"
+                  },
+                  "level" : "ERROR",
+                  "message" : "template error, using raw content"
+               }
+            ],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "eval-perl-is-off",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% INCLUDE '/etc/hostname' %]",
+         "context" : "anon",
+         "got" : {
+            "body" : "[% INCLUDE '/etc/hostname' %]",
+            "died" : null,
+            "lang" : "en",
+            "log" : [
+               {
+                  "context" : "/page",
+                  "extra" : {
+                     "error" : "OBJECT(Template::Exception)"
+                  },
+                  "level" : "ERROR",
+                  "message" : "template error, using raw content"
+               }
+            ],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "an-absolute-include-is-refused",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "",
+         "context" : "anon",
+         "got" : {
+            "body" : "",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 0,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "empty-body",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% smtp_configured %] [% search_enabled %]",
+         "context" : "anon",
+         "files" : [
+            "lazysite/forms/smtp.conf",
+            "search-results.md"
+         ],
+         "got" : {
+            "body" : "1 1",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 1,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 1,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "smtp-and-search-present",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% search_enabled %]",
+         "context" : "anon",
+         "files" : [
+            "search-results.url"
+         ],
+         "got" : {
+            "body" : "1",
+            "died" : null,
+            "lang" : "en",
+            "log" : [],
+            "umask_after" : "0027",
+            "vars" : {
+               "alias_host" : "",
+               "alias_hosts" : "fr.char.example",
+               "auth_control" : "<a href=\"/login\" data-ls-auth-in class=\"ls-auth ls-auth-in\" style=\"display:none\">Sign in</a><a href=\"/cgi-bin/lazysite-auth.pl?action=logout\" data-ls-auth-out class=\"ls-auth ls-auth-out\" style=\"display:none\">Sign out</a>",
+               "auth_email" : "",
+               "auth_groups" : [],
+               "auth_name" : "",
+               "auth_user" : "",
+               "client_ip" : "203.0.113.7",
+               "dav_scopes" : "",
+               "domain" : "char.example",
+               "editor" : 0,
+               "enabled_plugins" : {},
+               "home_domain" : "",
+               "lang" : "en",
+               "lang_group" : "g1",
+               "languages" : [
+                  {
+                     "current" : 1,
+                     "exists" : 0,
+                     "lang" : "en",
+                     "url" : "https://char.example/page"
+                  },
+                  {
+                     "current" : 0,
+                     "exists" : 0,
+                     "lang" : "fr",
+                     "url" : "https://fr.char.example/page"
+                  }
+               ],
+               "lazysite_version" : "",
+               "manager_caps" : {},
+               "manager_style" : "classic",
+               "nav" : [],
+               "page_author" : "",
+               "page_author_raw" : "",
+               "page_lang" : "en",
+               "page_meta_desc" : "",
+               "page_meta_desc_raw" : "",
+               "page_meta_title" : "A page",
+               "page_meta_title_raw" : "A page",
+               "page_modified" : "",
+               "page_modified_iso" : "",
+               "page_source" : "",
+               "page_subtitle" : "",
+               "page_subtitle_raw" : "",
+               "page_title" : "A page",
+               "page_title_raw" : "A page",
+               "params" : {},
+               "query" : {},
+               "request_uri" : "/page",
+               "scope_root" : "",
+               "search_enabled" : 1,
+               "sections" : [],
+               "site_lang" : "en",
+               "site_name" : "Char Site",
+               "site_url" : "https://char.example",
+               "smtp_configured" : 0,
+               "t" : {},
+               "year" : "YEAR"
+            }
+         },
+         "id" : "search-by-url-page",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null
+      },
+      {
+         "body" : "[% site_name %]",
+         "context" : "anon",
+         "got" : {
+            "body" : null,
+            "died" : "mkdir DOCROOT/index.md: File exists at /usr/lib/x86_64-linux-gnu/perl5/5.40/Template/Provider.pm line 388.\n",
+            "lang" : "unset",
+            "log" : [],
+            "umask_after" : "0002",
+            "vars" : null
+         },
+         "id" : "tt-compile-dir-is-a-file",
+         "meta" : {
+            "title" : "A page"
+         },
+         "query" : null,
+         "tt_dir" : "index.md/tt"
+      }
+   ]
+}

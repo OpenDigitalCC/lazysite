@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-12
 raised-by: developer, WORK-PLAN-0154 P20 ("plan first"), 2026-10-12
 area: processor
-status-note: "Plan filed 2026-10-12 (WORK-PLAN-0154 P20); ruled 2026-10-12, _render_form now, hold main. Built: the deparse tools in tools/ (n450); the _render_form characterisation, t/unit/processor/112 (n451); S1-S6 (n452-n457), _render_form split. Next: render_content (S7-S11); main held."
+status-note: "Plan filed 2026-10-12 (WORK-PLAN-0154 P20); ruled 2026-10-12, _render_form now, hold main. Built: the deparse tools in tools/ (n450); the _render_form characterisation, t/unit/processor/112 (n451); S1-S6 (n452-n457), _render_form split; the render_content characterisation, t/unit/processor/113 (n458). Next: S7-S11; main held."
 ---
 
 # Why a plan and not a move
@@ -390,9 +390,40 @@ and lose the block comparison; recorded here for a ruling if it matters.
 `_render_form` is now 210 lines (was 562): the guard, the line loop calling
 the parts, the step assembly, the page path and the heredoc.
 
-Not done: `render_content` (S7-S11), next by the ruling; `main` is held. P19's
-per-part floors are not in place, so the forms.pm coverage after each step is
-not gated: once P19 lands, its floor holds this file.
+Not done: `render_content` (S7-S11), next by the ruling, behind the
+characterisation below; `main` is held. P19's per-part floors are not in
+place, so the forms.pm coverage after each step is not gated: once P19 lands,
+its floor holds this file.
+
+# Built: the `render_content` characterisation (2026-10-12)
+
+n458: t/unit/processor/113 and its committed record, 34 cases written in the
+test - the stash under five request contexts and two hosts, the language and
+the manager facts, the code-block protection and its one-pass restore, the
+TAGS guard, a template error, a protected block multiplied by a loop, the
+before_render hook - comparing the body, the stash as data, `$RESPONSE_LANG`,
+the log lines, any die and the umask the sub leaves. Recording it twice gives
+the same bytes; it passes on the unsplit sub. Devel::Cover over it alone
+reaches every branch outcome in `render_content` but one. (A, run.)
+
+THE ONE IT CANNOT REACH IS A FINDING. render.pm 107, `Template->new(...) or do
+{ umask $old_umask; die ... }`: when the compile directory cannot be made,
+`Template->new` does not return false - Template::Provider's mkdir dies inside
+it - so the `or do` never runs and the umask `_cache_umask` set (0002) is left
+in place. The record pins it (`umask_after` 0002 for that case, 0027 for every
+other). Under CGI the process ends with the request; a persistent worker would
+keep the wider umask for what it writes next. Not changed here: a split does
+not change behaviour, and the fix is its own item (an `eval` around `new`, or
+restoring the umask before re-throwing). No input was found that makes `new`
+return false with the options it is given. (A, run.)
+
+Sabotage of the unsplit render.pm, each restored by cp and checked by cmp,
+each failing 113: `ABSOLUTE => 1` (1 case), a capability dropped from the
+manager list (7), the single-scope root removed (2), the language fallback
+changed (1), `smtp_configured` always 1 (32), the before_render call removed
+(1), the TAGS guard disarmed (2), an unanswered placeholder blanked (1), the
+multiplied-block threshold raised (1). Writing the guard's comment as `[% #`
+instead of `[%#` passes, as it must: both are template comments.
 
 # Done when
 
