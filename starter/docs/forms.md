@@ -362,13 +362,25 @@ operator) creates, changes or deletes one.
   `template: comment` reads `lazysite/notify-templates/comment.email.tt` -
   a first line `Subject: ...`, then the body - and `comment.bell.tt`, with
   the event's fields as `fields.<name>` (each at most 400 characters),
-  `actor`, `recipient`, `rule` and `unsubscribe_url`. A non-ASCII subject is
+  `actor`, `recipient`, `rule`, `unsubscribe_url` and `manage_url`. A non-ASCII subject is
   encoded for mail (RFC 2047). Without a template the message lists the
   fields.
 
-  `unsubscribe` is on by default: every message carries a link to
-  `unsubscribe_path` (a page of this site, made absolute with `base_url` in
-  `lazysite/notify.conf` or `site_url`) and a `List-Unsubscribe` header.
+  `unsubscribe` is on by default: every email carries a one-click link that
+  stops THIS rule writing to THAT recipient, with no sign-in, and the
+  `List-Unsubscribe` and `List-Unsubscribe-Post` headers (RFC 8058), so a
+  mail client can offer it too. Opening the link shows a page asking to
+  confirm - a mail scanner fetching it stops nothing - and the button (or the
+  mail client's one-click request) records the stop; asking again changes
+  nothing. A stopped recipient gets nothing more from that rule, on any
+  channel, including what the cap was holding for them; other rules are not
+  affected. The link names the rule and a hash of the recipient, never an
+  address, and is signed with a key only the site holds
+  (`lazysite/notify/.unsubscribe.key`; deleting it voids every link sent).
+  Every stop, repeat and refused link is in the audit trail. The link is
+  made absolute with `base_url` in `lazysite/notify.conf` or `site_url`.
+  `unsubscribe_path`, if given, is a page of this site linked beside it as
+  the place to manage subscriptions.
   `per_recipient_hour` (default 3) caps how many messages of this rule one
   recipient gets in an hour. Past it, the next event is held, and so is every
   later one while something is held: when the hour moves on, the recipient

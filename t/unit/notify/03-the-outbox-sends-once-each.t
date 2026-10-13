@@ -114,8 +114,13 @@ subtest 'the followers each get one message, and the commenter does not' => sub 
     my $subj = MIME::Base64::decode_base64($b64);
     utf8::decode($subj);
     like( $subj, qr/\ANouveau commentaire — p1/, 'and decodes to what the template said' );
-    like( $m, qr{^List-Unsubscribe: <https://news\.example/account/following>$}m, 'a List-Unsubscribe header' );
-    like( $m, qr{To stop these messages: https://news\.example/account/following}, 'and the link in the body' );
+    # SM1073: the engine's one-click link (t/integration/248 follows it), and
+    # the rule's own page beside it.
+    like( $m, qr{^List-Unsubscribe: <https://news\.example/cgi-bin/lazysite-auth\.pl\?action=unsubscribe&t=v1\.followers\.[0-9a-f]{24}\.[0-9a-f]{32}>$}m,
+        'a List-Unsubscribe header with the one-click link' );
+    like( $m, qr{^List-Unsubscribe-Post: List-Unsubscribe=One-Click$}m, 'and RFC 8058\'s pair' );
+    like( $m, qr{To stop these messages: https://news\.example/cgi-bin/lazysite-auth\.pl\?action=unsubscribe&t=v1\.}, 'the link in the body' );
+    like( $m, qr{Manage your subscriptions: https://news\.example/account/following}, 'and the rule\'s own page' );
     like( $m, qr/zz9member wrote on p1/,        'the template rendered the event' );
     like( $m, qr/^From: news\@news\.example$/m, 'from the rule\'s address' );
 };

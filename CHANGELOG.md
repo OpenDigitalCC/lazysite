@@ -91,6 +91,21 @@ Archive
   the tree before them; a failure leaves the stack out and rebuilds the tree
   without it. The results file records each stack's base: `stack base is older
   than main by N commits`. t/tools/151-153.
+- SM1073 (PENDING) **one click stops one rule writing to one recipient.** A
+  notification rule's unsubscribe link and `List-Unsubscribe` header pointed
+  at a page the operator had to write, and nothing recorded a refusal, so the
+  daemon kept writing to whoever asked to stop. Every email of a rule now
+  carries the engine's own link, signed for that rule and that recipient, and
+  the `List-Unsubscribe-Post` header (RFC 8058): opening it asks to confirm and
+  changes nothing; the button, or a mail client's one-click request, records
+  the stop, without a sign-in. Asking again changes nothing; a link changed to
+  name another rule or recipient is refused. A stopped recipient gets nothing
+  more from that rule, on any channel, including what the per-recipient cap
+  was holding; other rules are not affected. Every stop, repeat and refused
+  link is audited by rule and a hash of the recipient, never an address. A
+  rule's `unsubscribe_path` is now optional, linked beside it as the page to
+  manage subscriptions (SM1010 R4). t/unit/lib/94, t/integration/248.
+
 - SM1072 (PENDING) **a notification rule says what its queue holds, and the
   outbox is shown in the manager.** A rule whose daemon was not running queued
   events nobody would send while its row on the Handlers page said "on". The

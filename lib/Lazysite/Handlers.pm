@@ -262,11 +262,12 @@ our %TYPES      = (
                     . 'events are held and sent as one message when the hour moves on.' },
             { key => 'unsubscribe', label => 'Unsubscribe link', type => 'boolean',
                 default => 'true',
-                note    => 'On: every message carries a link to the page below and a '
-                    . 'List-Unsubscribe header.' },
-            { key => 'unsubscribe_path', label => 'Unsubscribe page', type => 'text',
-                note => 'A path on this site (/account/following) where a recipient stops '
-                    . 'these messages. Needed while the unsubscribe link is on.' },
+                note => 'On: every email carries a one-click link that stops this rule '
+                    . 'writing to that recipient, with no sign-in, and List-Unsubscribe '
+                    . 'headers (RFC 8058).' },
+            { key => 'unsubscribe_path', label => 'Subscriptions page', type => 'text',
+                note => 'Optional: a path on this site (/account/following) where a recipient '
+                    . 'manages what they follow, linked beside the one-click link.' },
         ],
         note => 'Queued, and sent by the scheduler\'s notify-outbox job - the site must run '
             . 'the daemon. Quarantined submissions notify nobody.',
@@ -980,14 +981,10 @@ sub _notify_problem {
         && $h->{template} !~ /\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\z/;
     return ( undef, 'per_recipient_hour', 'per_recipient_hour must be a whole number, 0 to 1000' )
         unless ( $h->{per_recipient_hour} // '' ) =~ /\A\d{1,4}\z/ && $h->{per_recipient_hour} <= 1000;
-    if ( ( $h->{unsubscribe} // 'true' ) eq 'true' ) {
-        my $p = $h->{unsubscribe_path} // '';
-        return ( undef, 'unsubscribe_path',
-            'unsubscribe is on, so unsubscribe_path must name the page on this site where a '
-                . 'recipient stops these messages (a path starting /) - or turn unsubscribe off' )
-            unless $p =~ m{\A/(?!/)[A-Za-z0-9._~/%-]*\z};
-    }
-    elsif ( defined $h->{unsubscribe_path} && length $h->{unsubscribe_path} ) {
+    # SM1073 (SM1010 R4): the unsubscribe link is the engine's own one-click
+    # link, so a rule no longer needs a page for it; unsubscribe_path, where it
+    # is given, is offered beside it as the page to manage subscriptions on.
+    if ( defined $h->{unsubscribe_path} && length $h->{unsubscribe_path} ) {
         return ( undef, 'unsubscribe_path', 'unsubscribe_path must be a path starting /' )
             unless $h->{unsubscribe_path} =~ m{\A/(?!/)[A-Za-z0-9._~/%-]*\z};
     }

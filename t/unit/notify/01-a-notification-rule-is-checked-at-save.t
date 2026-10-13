@@ -68,7 +68,6 @@ subtest 'a rule that cannot work is refused, by field' => sub {
         [ 'a fixed address naming two', { recipients => '[{"fixed":["root,b@example.org"]}]' },
             'recipients', qr/more than one recipient/ ],
         [ 'bad channel', { channels => 'email,sms' }, 'channels', qr/email, bell or both/ ],
-        [ 'no unsubscribe page while it is on', { unsubscribe_path => '' }, 'unsubscribe_path', qr/turn unsubscribe off/ ],
         [ 'an off-site unsubscribe page', { unsubscribe_path => '//evil.example/x' }, 'unsubscribe_path', qr/starting \// ],
         [ 'a cap that is not a number', { per_recipient_hour => 'lots' }, 'per_recipient_hour', qr/whole number/ ],
         [ 'a template path', { template => '../../etc/passwd' }, 'template', qr/must be a name/ ],
@@ -83,6 +82,10 @@ subtest 'a rule that cannot work is refused, by field' => sub {
     my ( $h, $why ) = Lazysite::Handlers::validate_handler(
         rule( unsubscribe => 'false', unsubscribe_path => '' ) );
     ok( $h, 'the unsubscribe link can be turned off, and then needs no page' ) or diag $why;
+    # SM1073: the link is the engine's one-click link, so a rule needs no page
+    # for it while it is on either.
+    ( $h, $why ) = Lazysite::Handlers::validate_handler( rule( unsubscribe_path => '' ) );
+    ok( $h, 'unsubscribe on with no page of its own is accepted (SM1073)' ) or diag $why;
     ( $h, $why ) = Lazysite::Handlers::validate_handler( rule( recipients => '[{"submitter":"account"}]' ) );
     like( $why, qr/notify_actor/, 'writing to the submitter\'s account needs notify_actor' );
     ( $h, $why ) = Lazysite::Handlers::validate_handler(

@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-12
 raised-by: release manager, from the news site's reports (inbox 2026-10-11, archived), 2026-10-12
 area: notifications
-status-note: "Ruled 2026-10-12. Phase 0 built (SM1017). Phase 1 built: verified actor (SM1018), notify handler + manage_notifications (SM1019), notify-outbox job, email, per-member bell with F3 (SM1020). Member bell on /account (SM1044) and the handler door (R5) built. Q7 folding (SM1071) and Q5 handler-row state with the outbox view (SM1072) built. Remains: one-click unsubscribe, phases 2-3. See Built."
+status-note: "Ruled 2026-10-12. Phase 0 (SM1017) and phase 1 (SM1018-SM1020) built; R2 as SM1044, R5 on n504; R1 folding (SM1071), R3 row state and outbox view (SM1072), R4 one-click unsubscribe (SM1073) built; R6 done by SM991. Remains: R7 - phase 2 sized L, planned, two questions for a ruling; phase 3. See Built and R6 and R7."
 ---
 
 # Ruled
@@ -61,6 +61,7 @@ overrides a recommendation below, the ruling stands.
 | B7 | R5: `manage_notifications` opens handler-list, -save and -delete on both doors, and sees and writes only notify handlers (ruled with SM1034 Q9) | n504 |
 | B8 | R1: past the cap an event is held and folded into the next message, sent as one when the cap allows | SM1071, n566 |
 | B9 | R3: a notify rule's row shows its queue, last run and "waiting for the scheduler"; the outbox is shown in the manager and over MCP (manage_notifications; a confined caller sees its own domains' rules) | SM1072, n567 |
+| B10 | R4: the engine's signed one-click link (lazysite-auth.pl, RFC 8058), a suppression store per rule and recipient, the outbox skips a stopped recipient | SM1073, n568 |
 
 Not built, in order of need (each a candidate for its own filing):
 
@@ -69,10 +70,50 @@ Not built, in order of need (each a candidate for its own filing):
 | R1 | Q7 folding: a recipient over the cap is refused and audited; later comments are not folded into the next message | built as SM1071 (B8) |
 | R2 | A member surface for the bell | built as SM1044 (B6), under SM1034 |
 | R3 | Q5: the handler's row shows no "waiting for the scheduler" or last outcome; the outbox and `notify/failed/` are not shown in the manager | built as SM1072 (B9) |
-| R4 | One-click unsubscribe (an engine POST endpoint); today the link and header point at the operator's own page | build |
+| R4 | One-click unsubscribe (an engine POST endpoint); today the link and header point at the operator's own page | built as SM1073 (B10) |
 | R5 | The handler door for manage_notifications | built (B7), ruled 2026-10-12 with SM1034 Q9 |
-| R6 | The operator group (tmp/wt-a) should carry manage_notifications when it lands; today the sysop (manager) groups hold it by top-up | B-side of that branch |
-| R7 | Phase 2 (event points, chains.conf) and phase 3 (row events, per-account XMPP, digests, connector channel) | as briefed |
+| R6 | The operator group (tmp/wt-a) should carry manage_notifications when it lands; today the sysop (manager) groups hold it by top-up | done: SM991 made the manager-flag group the operator group, and it is topped up with manage_notifications (see R6 and R7) |
+| R7 | Phase 2 (event points, chains.conf) and phase 3 (row events, per-account XMPP, digests, connector channel) | phase 2 sized L and planned, two questions for a ruling (see R6 and R7); phase 3 as briefed |
+
+# R6 and R7, checked 2026-10-13 (n568)
+
+**R6 is done, by SM991 on main.** SM991 made the operator group the group
+carrying the `manager` flag (setup-sysop's `sysops`, "Site operator") rather
+than adding a second mechanism (the tmp/wt-a idea was folded into the flag).
+Every manager group is topped up with every capability in `@CAP_KEYS` but the
+two remote channels (`_ensure_manager_group_caps`, tools/lazysite-users.pl),
+and `manage_notifications` is in `@CAP_KEYS` (Auth/Settings.pm). Measured
+with the users tool (tmp/r6-check.pl in the n568 worktree): a fresh
+setup-sysop's `sysops` holds `manage_notifications: 1`; a `sysops` group with
+the key removed (an upgraded site) gets it back on the next group change or
+Users page read, where the top-up runs (`_ensure_groups_seeded`). An operator
+also passes every capability gate (SM991). Nothing to build.
+
+**R7 phase 2 is sized L and stopped with this plan.** The brief sized phase 2
+M; with the parity the engine now requires of every action it is larger:
+
+| Ref | Slice | Size |
+| --- | --- | --- |
+| P2a | Event points: one `emit($event, \%fields, %ctx)` with a stable event id, actor and origin, at `form.accepted` (form-handler.pl, after the spam assessment, not quarantined - the target loop at :301), `form.confirmed` (`Manager::Plugins::action_form_submission_confirm`, :1338) and `schedule.<id>` (`Daemon::Jobs::schedule_run`, :177). No consumer yet | S |
+| P2b | `lazysite/forms/chains.conf` beside handlers.conf and schedule.conf, read and written by the same family; validation (closed operators `present`, `equals`, `in`, `not`; steps are handler ids; `on_fail: stop or continue`; `per_hour`); the runner (steps in order, a step's result in the next one's context, depth cap 3, never on an event the rule caused, a ledger keyed rule / event / step); audit per step | M |
+| P2c | `chain-list`, `chain-save`, `chain-delete` on the control API and their MCP twins, with the declarations and lints that hold them (22, 23, 58, 71, 98, 218); a Chains card on the Handlers page; docs | M |
+
+Two questions need a ruling before P2b:
+
+1. **Who may author a chain.** The brief proposed "the union of the
+   capabilities of the handlers it calls ... and `manage_forms` to bind a rule
+   to a form event. No new capability in phases 1-2 (Q4)". Q4 was then ruled
+   "New 'manage_notifications' cap" for notify handlers. Recommendation: the
+   union of the step handlers' capabilities, plus `manage_forms` for a
+   `form.*` event - so a chain with a notify step needs
+   `manage_notifications` through the union, and no capability is added.
+2. **Whose chain it is.** Handlers may now belong to a domain (SM1051).
+   Recommendation: a chain may carry `domain:` as a handler does, names only
+   handlers that domain may use, and matches only that domain's forms; a
+   chain with no domain is the instance's and an operator's.
+
+Reserved and unused by n566-n568: SM1074, t/integration/249-252,
+t/unit/lib/95-96, t/unit/manager/341-344, t/lint/261.
 
 # The ask
 

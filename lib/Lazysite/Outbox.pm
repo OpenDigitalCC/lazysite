@@ -257,6 +257,7 @@ our $MAX_PER_TICK   = 50;      # entries handled per run
 our $MAX_ATTEMPTS   = 5;       # then the entry moves to notify/failed
 our $LEDGER_DAYS    = 8;       # a line older than this is pruned
 our $MAIL_SENDER    = \&_mail_send;   # tests may swap the transport; default is form-smtp
+our $UNSUBSCRIBED   = "unsubscribed: the recipient stopped this rule's messages (SM1073)";
 
 sub _lz_of      { return Lazysite::Paths::lazysite_dir( $_[0] ) }
 sub ledger_file { return _lz_of( $_[0] ) . '/notify/ledger.jsonl' }
@@ -451,7 +452,7 @@ sub render {
     my ( $docroot, $h, $entry, $recipient, $channel, $base ) = @_;
     my $c = _compose( $docroot, $h, $entry, $recipient, $channel, $base );
     return { text => $c->{text} } if $channel eq 'bell';
-    return _with_footer( $c->{subject}, $c->{text}, $c->{unsubscribe} );
+    return _with_footer( $c->{subject}, $c->{text}, $c );
 }
 
 # SM1071 (SM1010 R1, Q7): ONE MESSAGE FOR EVERY EVENT HELD BACK BY THE CAP.
@@ -471,15 +472,19 @@ sub render_folded {
     my $subject = $parts[0]{subject} . ( $more > 0 ? " (and $more more)" : '' );
     $subject = substr( $subject, 0, 200 );
     my $text = join "\n\n----\n\n", map { $_->{text} } @parts;
-    return _with_footer( $subject, $text, $parts[0]{unsubscribe} );
+    return _with_footer( $subject, $text, $parts[0] );
 }
 
 # THE ENGINE ADDS THE UNSUBSCRIBE LINE, not the template, so a template cannot
 # leave it out while the rule says it is on (ruled: per rule, default on).
 sub _with_footer {
-    my ( $subject, $text, $unsub ) = @_;
-    $text .= "\n\n-- \nTo stop these messages: $unsub" if length $unsub;
-    return { subject => $subject, text => "$text\n", unsubscribe => $unsub };
+    my ( $subject, $text, $c ) = @_;
+    my ( $unsub, $manage ) = ( $c->{unsubscribe} // '', $c->{manage} // '' );
+    $text .= "\n\n-- "                              if length $unsub || length $manage;
+    $text .= "\nTo stop these messages: $unsub"     if length $unsub;
+    $text .= "\nManage your subscriptions: $manage" if length $manage;
+    return { subject => $subject, text => "$text\n", unsubscribe => $unsub,
+        ( defined $c->{unsub_error} ? ( unsub_error => $c->{unsub_error} ) : () ) };
 }
 
 # One event as the channel shows it, before the footer: { subject, text,
@@ -487,9 +492,17 @@ sub _with_footer {
 sub _compose {
     my ( $docroot, $h, $entry, $recipient, $channel, $base ) = @_;
     my %fields = map { $_ => _clean_value( $entry->{fields}{$_} ) } keys %{ $entry->{fields} || {} };
-    my $unsub = '';
-    if ( ( $h->{unsubscribe} // 'true' ) ne 'false' && length( $h->{unsubscribe_path} // '' ) ) {
-        $unsub = ( $base // '' ) . $h->{unsubscribe_path};
+    # SM1073 (SM1010 R4): the unsubscribe link is the ENGINE'S one-click link,
+    # for this rule and this recipient (Lazysite::Unsubscribe); the rule's own
+    # unsubscribe_path, where it names one, is offered beside it as the page
+    # where a recipient manages their subscriptions.
+    my ( $unsub, $manage, $unsub_error ) = ( '', '', undef );
+    if ( ( $h->{unsubscribe} // 'true' ) ne 'false' && $channel eq 'email' ) {
+        require Lazysite::Unsubscribe;
+        my ( $t, $why ) = Lazysite::Unsubscribe::token( $docroot, $h->{id}, _hash( $recipient->{key} ) );
+        if ( defined $t ) { $unsub = ( $base // '' ) . "/cgi-bin/lazysite-auth.pl?action=unsubscribe&t=$t" }
+        else              { $unsub_error = "no unsubscribe link could be made: $why" }
+        $manage = ( $base // '' ) . $h->{unsubscribe_path} if length( $h->{unsubscribe_path} // '' );
     }
     my %vars = (
         rule            => $h->{name} // $h->{id},
@@ -498,6 +511,7 @@ sub _compose {
         recipient       => $recipient->{account} // '',
         site            => $base                 // '',
         unsubscribe_url => $unsub,
+        manage_url      => $manage,
         event           => $entry->{id},
     );
     my $default_text = join "\n", ( $vars{rule}, '', map { "$_: $fields{$_}" } sort keys %fields );
@@ -518,7 +532,8 @@ sub _compose {
     $subject = substr( $subject, 0, 200 );
     $text =~ s/[\x00-\x08\x0b-\x1f\x7f]//g;
     $text =~ s/\s+\z//;
-    return { subject => $subject, text => $text, unsubscribe => $unsub };
+    return { subject => $subject, text => $text, unsubscribe => $unsub, manage => $manage,
+        ( defined $unsub_error ? ( unsub_error => $unsub_error ) : () ) };
 }
 
 # --- the transport ---------------------------------------------------------------
@@ -535,7 +550,11 @@ sub _mail_send {
     local $Lazysite::Handlers::DOCROOT = $docroot;
     my $script = Lazysite::Handlers::find_script('form-smtp.pl')
         or die "the Form SMTP extension's script was not found\n";
-    my %headers = length( $msg->{unsubscribe} // '' ) ? ( 'List-Unsubscribe' => "<$msg->{unsubscribe}>" ) : ();
+    # SM1073: RFC 8058 one-click - the link takes a POST, so the header pair
+    # says so, and a mail client may unsubscribe without opening a page.
+    my %headers = length( $msg->{unsubscribe} // '' )
+        ? ( 'List-Unsubscribe' => "<$msg->{unsubscribe}>", 'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click' )
+        : ();
     my $r = Lazysite::Handlers::run_smtp_script( $script, {
             config => { to => $msg->{to}, ( length( $msg->{from} // '' ) ? ( from => $msg->{from} ) : () ) },
             form => {},
@@ -609,6 +628,14 @@ sub _process {
                 $done{$k} = 1;
                 _mark_ledger( $docroot, $ledger, { k => $k, r => $h->{id}, c => $ch, p => $p, s => $state, t => $now } );
             };
+
+            # SM1073 (SM1010 R4): A RECIPIENT WHO STOPPED THIS RULE IS NOT
+            # WRITTEN TO BY IT, on any channel - and is told nothing more.
+            if ( ( $ctx->{suppressed} || {} )->{"$h->{id}\0$p"} ) {
+                _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r), $UNSUBSCRIBED );
+                $mark->('refused');
+                next;
+            }
 
             # SM1071 (SM1010 R1, Q7): OVER THE CAP, THE EVENT IS HELD, NOT
             # REFUSED - and so is every later one while something is held, so
@@ -706,6 +733,9 @@ sub _mark_ledger {
 # ( 'sent' ), ( 'refused', $why ) - final - or ( 'retry', $why ).
 sub _send_one {
     my ( $docroot, $h, $r, $ch, $out, $accounts ) = @_;
+    # SM1073: a message the rule says carries an unsubscribe link is not sent
+    # without one.
+    return ( 'retry', $out->{unsub_error} ) if defined $out->{unsub_error};
     if ( $ch eq 'bell' ) {
         require Lazysite::Notify;
         my $ok = Lazysite::Notify::bell_for( $docroot, $r->{account},
@@ -818,6 +848,12 @@ sub _flush_folds {
             next;
         }
         my $p = _hash( $r->{key} );
+        # SM1073: stopped since it was held - the held message is not sent.
+        if ( ( $ctx->{suppressed} || {} )->{"$rule\0$p"} ) {
+            _audit( $docroot, $ctx->{actor}, $rule, $ch, 0, _who($r), "a held message is not sent: $UNSUBSCRIBED" );
+            unlink $path;
+            next;
+        }
         if ( ( $used->{ $rule . "\0$ch\0$p" } // 0 ) >= _cap($h) ) { $out{waiting}++; next }
 
         my $msg = render_folded( $docroot, $h, $f->{events}, $r, $ch, $base );
@@ -927,6 +963,15 @@ sub run {
             . 'was sent - sending without it could send twice; see the log' }
         unless defined $ledger;
     _prune_ledger( $docroot, $ledger, $ctx{now} );
+
+    # SM1073: who said stop. Read once, before anything is sent; a store that
+    # exists and will not open stops the run, as the ledger does - "could not
+    # tell who unsubscribed" is not "nobody did".
+    require Lazysite::Unsubscribe;
+    $ctx{suppressed} = Lazysite::Unsubscribe::suppressed($docroot);
+    return { ok => 0, error => 'the unsubscribe store exists and could not be read, so nothing '
+            . 'was sent - sending without it could write to someone who said stop; see the log' }
+        unless defined $ctx{suppressed};
 
     require Lazysite::Handlers;
     no warnings 'once';
@@ -1246,14 +1291,17 @@ sub _recipients_view {
     return { error => $why } unless $list;
     $list = _without_actor( $h, $e, $accounts, $list );
     my $ledger = _read_ledger($docroot) // [];
-    my %state  = map  { ( $_->{k} // '' ) => ( $_->{s} // '' ) } @$ledger;
-    my @ch     = grep { length } split /\s*,\s*/, ( $h->{channels} // 'email' );
+    my %state  = map { ( $_->{k} // '' ) => ( $_->{s} // '' ) } @$ledger;
+    require Lazysite::Unsubscribe;
+    my $stopped = Lazysite::Unsubscribe::suppressed($docroot) // {};
+    my @ch      = grep { length } split /\s*,\s*/, ( $h->{channels} // 'email' );
     my @out;
     for my $r (@$list) {
         my %by;
         for my $c (@ch) {
             next if $c eq 'bell' && !defined $r->{account};
             my $s = $state{ _hash( $h->{id}, $e->{id}, $c, $r->{key} ) } // 'pending';
+            $s = 'unsubscribed' if $s eq 'pending' && $stopped->{ "$h->{id}\0" . _hash( $r->{key} ) };
             $by{$c} = $s eq 'folded' ? 'held' : $s;
         }
         push @out, { who => _who($r), channels => \%by };

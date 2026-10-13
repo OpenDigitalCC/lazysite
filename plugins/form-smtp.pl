@@ -356,13 +356,17 @@ sub send_email {
 #   * To and From are exactly one address, refused otherwise (SM1017);
 #   * the Subject is folded of CR/LF and RFC 2047-encoded when not ASCII;
 #   * a header is accepted only from a closed list, and its value only in the
-#     shape that header takes - List-Unsubscribe is one <http(s)://...> URL.
+#     shape that header takes - List-Unsubscribe is one <http(s)://...> URL,
+#     and List-Unsubscribe-Post (RFC 8058, SM1073) its one fixed value.
 #     Nothing a template writes can add a header.
 # A sub, not a file-scope hash: the --pipe block above runs before a `my` here
 # would be assigned.
 sub _message_header_shape {
     my ($name) = @_;
-    my %shape = ( q{List-Unsubscribe} => qr{\A<https?://[^\s<>"]+>\z} );
+    my %shape = (
+        q{List-Unsubscribe}      => qr{\A<https?://[^\s<>"]+>\z},
+        q{List-Unsubscribe-Post} => qr{\AList-Unsubscribe=One-Click\z},
+    );
     return $shape{$name};
 }
 

@@ -119,7 +119,7 @@ subtest 'the events past the cap reach the recipient in the next message, in ord
     like( $m[1], qr/zz9member wrote: second.*zz9member wrote: third/s, 'carrying both comments, in order' );
     like( $m[1], qr/^Subject: New comment on p1 \(and 1 more\)$/m, 'the Subject says one more is folded in' );
     is( scalar( () = $m[1] =~ /To stop these messages:/g ), 1, 'with one unsubscribe line' );
-    like( $m[1], qr{^List-Unsubscribe: <https://news\.example/account/following>$}m, 'and the header' );
+    like( $m[1], qr{^List-Unsubscribe: <https://news\.example/cgi-bin/lazysite-auth\.pl\?action=unsubscribe&t=v1\.}m, 'and the header' );
     is( scalar( () = folds() ), 0, 'the held messages are gone' );
     ok( ( grep { /\| ok \| daemon \| account ann - the held message, folding 2 events/ } audit() ),
         'the send is audited as the held message' );

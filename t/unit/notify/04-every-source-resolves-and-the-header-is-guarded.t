@@ -97,9 +97,13 @@ subtest 'the message mode carries only the headers it knows, in their shape' => 
         return JSON::PP::decode_json($res);
     };
     unlink $OUT;
-    ok( $send->( { 'List-Unsubscribe' => '<https://news.example/lists>' } )->{ok}, 'a well-formed one is sent' );
+    ok( $send->( { 'List-Unsubscribe' => '<https://news.example/lists>',
+                'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click' } )->{ok},
+        'a well-formed pair is sent (SM1073: RFC 8058\'s Post header too)' );
     for my $bad ( { 'Bcc' => 'y@example.org' }, { 'List-Unsubscribe' => "<https://x>\nBcc: y\@example.org" },
-        { 'List-Unsubscribe' => 'mailto:y@example.org' } )
+        { 'List-Unsubscribe' => 'mailto:y@example.org' },
+        { 'List-Unsubscribe-Post' => "List-Unsubscribe=One-Click\nBcc: y\@example.org" },
+        { 'List-Unsubscribe-Post' => 'List-Unsubscribe=Everything' } )
     {
         my ($k) = keys %$bad;
         my $r = $send->($bad);

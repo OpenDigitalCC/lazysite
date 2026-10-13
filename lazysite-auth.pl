@@ -288,6 +288,9 @@ elsif ( $action eq 'rotate' && $method eq 'POST' ) {
 elsif ( $action eq 'forgot' && $method eq 'POST' ) {
     handle_forgot();
 }
+elsif ( $action eq 'unsubscribe' ) {
+    handle_unsubscribe();
+}
 else {
     handle_request();
 }
@@ -931,6 +934,113 @@ sub _forgot_dispatch {
     # SM072: a real reset link was issued - a material auth event. (The HTTP
     # response stays generic; only the internal audit trail records the match.)
     _audit_auth( $user, 'forgot', 'ok', 'reset link emailed', 'ui' );
+    return;
+}
+
+# SM1073 (SM1010 R4, ruled "Per rule, default on"; SM1034 Q1: the session-less
+# unsubscribe goes on the auth CGI): ONE CLICK STOPS ONE RULE WRITING TO ONE
+# RECIPIENT, with no sign-in.
+#
+# The link in every message of a notify rule, and its List-Unsubscribe header,
+# is ?action=unsubscribe&t=<token>. The token is the whole of its authority -
+# Lazysite::Unsubscribe says how it is made unguessable and bound to its own
+# rule and recipient - so this reads nothing else from the request.
+#
+#   GET   a page asking to confirm, and changes nothing: mail scanners fetch
+#         links, and a fetch must not unsubscribe anyone.
+#   POST  records the stop (idempotent) and says so. A mail client's RFC 8058
+#         one-click POST (body List-Unsubscribe=One-Click) is the same request.
+#
+# Every POST is audited: a stop, a repeat, and a token that does not verify.
+# The audit names the rule and the recipient's hash, never an address.
+sub handle_unsubscribe {
+    my %q;
+    for my $pair ( split /[&;]/, $query ) {
+        my ( $k, $v ) = split /=/, $pair, 2;
+        next unless defined $k && defined $v;
+        $v =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
+        $q{$k} //= $v;
+    }
+    my %body;
+    if ( $method eq 'POST' ) {
+        return _unsubscribe_page( 413, 'Too large', 'This request is larger than an unsubscribe can be.' )
+            if ( $ENV{CONTENT_LENGTH} // 0 ) > 4096;
+        %body = parse_post();
+    }
+    my $token = $q{t} // $body{t} // '';
+    require Lazysite::Unsubscribe;
+    my ( $rule, $p ) = Lazysite::Unsubscribe::verify( $DOCROOT, $token );
+    unless ( defined $rule ) {
+        audit_log( '', 'unsubscribe', 'notify', _request_ip(), 'denied', 'ui', 'the link is not valid' )
+            if $method eq 'POST';
+        return _unsubscribe_page( 400, 'This link is not valid',
+            'This unsubscribe link is not one this site made, or it has been withdrawn. '
+                . 'Nothing was changed.' );
+    }
+    my $name = _rule_name($rule);
+    if ( $method ne 'POST' ) {
+        my $stopped = Lazysite::Unsubscribe::suppressed($DOCROOT);
+        return _unsubscribe_page( 200, 'Already stopped',
+            "You have already stopped the messages from \x{201c}$name\x{201d}. Nothing more is needed." )
+            if $stopped && $stopped->{"$rule\0$p"};
+        return _unsubscribe_page( 200, 'Stop these messages?',
+            "Stop the messages from \x{201c}$name\x{201d} to this address? Other messages from this site "
+                . 'are not affected.', $token );
+    }
+    my ( $done, $why ) = Lazysite::Unsubscribe::record( $DOCROOT, $rule, $p );
+    unless ( defined $done ) {
+        audit_log( '', 'unsubscribe', "notify:$rule", _request_ip(), 'failed', 'ui', "recipient $p - $why" );
+        log_event( 'ERROR', 'unsubscribe', 'an unsubscribe could not be recorded', rule => $rule, error => $why );
+        return _unsubscribe_page( 503, 'Not recorded yet',
+            'Your request could not be recorded just now. Please try the link again later.' );
+    }
+    audit_log( '', 'unsubscribe', "notify:$rule", _request_ip(), 'ok', 'ui',
+        "recipient $p" . ( $done eq 'already' ? ' - already stopped' : '' ) );
+    return _unsubscribe_page( 200, 'Unsubscribed',
+        "You will get no more messages from \x{201c}$name\x{201d}." );
+}
+
+# The rule's name as its handler gives it, else its id - for the page only.
+sub _rule_name {
+    my ($rule) = @_;
+    my $name = eval {
+        require Lazysite::Handlers;
+        no warnings 'once';
+        local $Lazysite::Handlers::DOCROOT = $DOCROOT;
+        my $h = Lazysite::Handlers::find_handler( Lazysite::Handlers::read_handlers() || [], $rule );
+        $h && length( $h->{name} // '' ) ? $h->{name} : undef;
+    };
+    return $name // $rule;
+}
+
+# A page of its own: no layout, no script, no stylesheet, no outside resource -
+# and no Referer, because the URL that reached it carries the token.
+sub _unsubscribe_page {
+    my ( $code, $title, $text, $token ) = @_;
+    my $esc = sub {
+        my $s = shift // '';
+        $s =~ s/&/&amp;/g;
+        $s =~ s/</&lt;/g;
+        $s =~ s/>/&gt;/g;
+        $s =~ s/"/&quot;/g;
+        $s =~ s/'/&#39;/g;
+        return $s;
+    };
+    my $form = defined $token
+        ? '<form method="post" action="?action=unsubscribe&amp;t=' . $esc->($token) . '">'
+        . '<button type="submit" name="confirm" value="1">Stop these messages</button></form>'
+        : '';
+    binmode( STDOUT, ':utf8' );
+    print "Status: $code\r\n";
+    print "Content-Type: text/html; charset=utf-8\r\n";
+    print "Cache-Control: no-store\r\n";
+    print "Referrer-Policy: no-referrer\r\n";
+    print "X-Robots-Tag: noindex\r\n";
+    print "Content-Security-Policy: default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'\r\n\r\n";
+    print '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        . '<meta name="robots" content="noindex"><title>' . $esc->($title) . '</title></head>'
+        . '<body><main><h1>' . $esc->($title) . '</h1><p>' . $esc->($text) . "</p>$form</main></body></html>\n";
     return;
 }
 
