@@ -14,6 +14,11 @@
 # (b5ab1ce4, run from `git archive main`, tmp/sec-evidence/sm991-upgrade-fixture.out). Nothing
 # migrates it; the account the bootstrap made is the operator on the new code.
 #
+# SM1057 (ruled 2026-10-12, "Require manage_content"): a content write in the
+# manager needs manage_content before the file's rule is asked, so um and appr
+# are refused by that gate; umw, holding manage_content too, is refused by the
+# rule, which is what keeps manage_users from being the operator for files.
+#
 # Every refusal is read back from the docroot and the conf, not only the reply.
 use strict;
 use warnings;
@@ -112,8 +117,11 @@ for my $who (qw(um appr)) {
         is( $s->last_status, 403, 'answers 403' );
         ok( !conf_has("By $who"), 'and the conf is unchanged' );
 
+        # SM1057: it holds no manage_content, so the content-write gate refuses
+        # before the file's rule; the rule is asked below for a holder that has it.
         $r = save( $who, "by-$who.md", "---\ntitle: X\n---\nx\n" );
-        ok( !$r->{ok} && ( $r->{kind} // '' ) eq 'permission', 'a write outside its rules is refused' )
+        ok( ManagerSession->refused_for_capability($r) && ( $r->{error} // '' ) =~ /manage_content/,
+            'a write is refused for manage_content' )
             or diag( explain $r );
         ok( !-e "$d/by-$who.md", 'and no file was made' );
         $r = save( $who, 'post/a.md', "overwritten\n" );
@@ -129,6 +137,23 @@ for my $who (qw(um appr)) {
             'it still manages an account it did not create (a setup link)' ) or diag( explain $r );
     };
 }
+
+# SM1057: manage_users with manage_content passes the content-write gate; it is
+# still no operator, so the file's rule binds it.
+$s->add_user('umw');
+$s->users( 'group-add', 'umw', 'user-managers-who-write' );
+$s->users( 'group-set', 'user-managers-who-write', $_, 'on' ) for qw(ui manage_users manage_content);
+subtest 'manage_users with manage_content is bound by the file rule' => sub {
+    my $r = save( 'umw', 'by-umw.md', "---\ntitle: X\n---\nx\n" );
+    ok( !$r->{ok} && ( $r->{kind} // '' ) eq 'permission', 'a write outside its rules is refused' )
+        or diag( explain $r );
+    is( $s->last_status, 403, 'answers 403' );
+    ok( !-e "$d/by-umw.md", 'and no file was made' );
+    $r = save( 'umw', 'post/a.md', "overwritten\n" );
+    ok( !$r->{ok} && ( $r->{kind} // '' ) eq 'permission', "another author's post is not overwritten" )
+        or diag( explain $r );
+    is( slurp("$d/post/a.md"), $POST, 'it is as its author left it' );
+};
 
 subtest 'nor does manage_users make itself the operator' => sub {
     my %try = (

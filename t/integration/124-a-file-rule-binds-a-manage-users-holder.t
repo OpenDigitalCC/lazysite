@@ -18,6 +18,13 @@
 # those two asked no rule at all. A move and a copy asked the source's rule and
 # never the target's.
 #
+# SM1057 (ruled 2026-10-12, "Require manage_content"): a content write in the
+# manager now needs manage_content before the file's rule is asked, so the
+# reported group (ui + manage_users) and the ui + read_submissions account are
+# refused by that gate first. Each case asserts that refusal, and runs again as
+# a twin holding manage_content as well (apprw, rsw), which passes the gate and
+# is refused by the file's rule - the rule is what SM979 fixed, and stays tested.
+#
 # Every assertion reads the docroot afterwards, not only the reply, and every
 # request carries the account's groups as the auth wrapper sends them
 # (X-Remote-Groups), because @group entries match only through it.
@@ -56,6 +63,11 @@ $s->add_user('door');          # the new grant, alone
 $s->grant( 'door', 'doorkeepers', [qw(ui approve_accounts)], \@ALL );
 $s->add_user('ed');            # an editor, so @editors names somebody
 $s->grant( 'ed', 'editors', [qw(ui manage_content)], \@ALL );
+# SM1057: the twins that pass the manage_content gate, in groups no rule names.
+$s->add_user('apprw');         # manage_users that also writes content
+$s->grant( 'apprw', 'approvers-who-write', [qw(ui manage_users manage_content)], \@ALL );
+$s->add_user('rsw');           # read_submissions that also writes content
+$s->grant( 'rsw', 'readers-who-write', [qw(ui read_submissions manage_content)], \@ALL );
 
 make_path( "$d/post", "$d/members", "$d/editors-only" );
 my $POST = "---\ntitle: A\n---\nthe author's text\n";
@@ -84,11 +96,24 @@ sub refused_write {
         or diag( explain $r );
     is( $s->last_status, 403, "$label: 403" );
 }
+# SM1057: refused before the rule, for want of manage_content.
+sub refused_content_cap {
+    my ( $r, $label ) = @_;
+    ok( ManagerSession->refused_for_capability($r) && ( $r->{error} // '' ) =~ /manage_content/,
+        "$label: refused for manage_content" )
+        or diag( explain $r );
+    is( $s->last_status, 403, "$label: 403" );
+}
 
 subtest 'the reported case: a manage_users holder writes no file its rule does not name' => sub {
-    refused_write( save( 'appr', 'new-appr.md' ), 'a new page at the root' );
+    refused_content_cap( save( 'appr', 'new-appr.md' ), 'a new page at the root' );
     ok( !-e "$d/new-appr.md", 'and no page was made' );
-    refused_write( save( 'appr', 'post/a.md', "overwritten\n" ), "another author's post" );
+    refused_content_cap( save( 'appr', 'post/a.md', "overwritten\n" ), "another author's post" );
+    is( slurp("$d/post/a.md"), $POST, 'and the post is as its author left it' );
+
+    refused_write( save( 'apprw', 'new-apprw.md' ), 'a new page at the root, with manage_content too' );
+    ok( !-e "$d/new-apprw.md", 'and no page was made' );
+    refused_write( save( 'apprw', 'post/a.md', "overwritten\n" ), "another author's post, with manage_content too" );
     is( slurp("$d/post/a.md"), $POST, 'and the post is as its author left it' );
 };
 
@@ -103,27 +128,46 @@ subtest 'nor reaches one another way' => sub {
     like( $r->{error} // '', qr/Only the owner may remove permissions/, "nor removed" );
     $store = decode_json( slurp("$d/lazysite/auth/acls.json") );
     ok( $store->{'post/a.md'}, 'and the rule is still there' );
-    refused_write( call( 'appr', 'move', query => 'action=move&path=post/a.md&to=post/b.md', body => {} ),
-        "another author's post moved" );
-    ok( -e "$d/post/a.md" && !-e "$d/post/b.md", 'and it did not move' );
-    refused_write( call( 'appr', 'delete', query => 'action=delete&path=post/a.md', body => {} ),
-        "another author's post deleted" );
-    ok( -e "$d/post/a.md", 'and it is there' );
+    for my $u (qw(appr apprw)) {
+        my $refused = $u eq 'appr' ? \&refused_content_cap : \&refused_write;
+        $refused->( call( $u, 'move', query => 'action=move&path=post/a.md&to=post/b.md', body => {} ),
+            "another author's post moved ($u)" );
+        ok( -e "$d/post/a.md" && !-e "$d/post/b.md", 'and it did not move' );
+        $refused->( call( $u, 'delete', query => 'action=delete&path=post/a.md', body => {} ),
+            "another author's post deleted ($u)" );
+        ok( -e "$d/post/a.md", 'and it is there' );
+    }
 };
 
 subtest 'every file write asks the rule of the path it writes' => sub {
-    refused_write( call( 'rs', 'mkdir', query => 'action=mkdir&path=rsdir', body => {} ), 'mkdir' );
-    ok( !-e "$d/rsdir", 'no folder was made' );
-    refused_write( call( 'rs', 'copy', query => 'action=copy&path=post/a.md&to=rs-copy.md', body => {} ),
-        'a copy to a path the rule does not let it write' );
-    ok( !-e "$d/rs-copy.md", 'no copy was made' );
-
     my $B  = 'XyZb0undary';
     my $mp = "--$B\r\nContent-Disposition: form-data; name=\"overwrite\"\r\n\r\n1\r\n"
         . "--$B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.md\"\r\n"
         . "Content-Type: text/markdown\r\n\r\nreplaced by upload\r\n--$B--\r\n";
-    my $r = call( 'rs', 'file-upload', query => 'action=file-upload&path=post', raw => $mp,
-        content_type => "multipart/form-data; boundary=$B" );
+    my $upload = sub {
+        my ($u) = @_;
+        return call( $u, 'file-upload', query => 'action=file-upload&path=post', raw => $mp,
+            content_type => "multipart/form-data; boundary=$B" );
+    };
+
+    # SM1057: ui + read_submissions holds no manage_content, so the gate refuses first.
+    refused_content_cap( call( 'rs', 'mkdir', query => 'action=mkdir&path=rsdir', body => {} ), 'mkdir' );
+    ok( !-e "$d/rsdir", 'no folder was made' );
+    refused_content_cap( call( 'rs', 'copy', query => 'action=copy&path=post/a.md&to=rs-copy.md', body => {} ),
+        'a copy to a path the rule does not let it write' );
+    ok( !-e "$d/rs-copy.md", 'no copy was made' );
+    my $r = $upload->('rs');
+    refused_content_cap( $r, 'an upload over a file the rule does not let it write' );
+    is( scalar @{ $r->{saved} || [] }, 0, 'and saves nothing' ) or diag( explain $r );
+    is( slurp("$d/post/a.md"), $POST, 'the file is as its author left it' );
+
+    # The twin with manage_content passes the gate; the rule refuses each write.
+    refused_write( call( 'rsw', 'mkdir', query => 'action=mkdir&path=rsdir', body => {} ), 'mkdir' );
+    ok( !-e "$d/rsdir", 'no folder was made' );
+    refused_write( call( 'rsw', 'copy', query => 'action=copy&path=post/a.md&to=rs-copy.md', body => {} ),
+        'a copy to a path the rule does not let it write' );
+    ok( !-e "$d/rs-copy.md", 'no copy was made' );
+    $r = $upload->('rsw');
     is( scalar @{ $r->{saved} || [] }, 0, 'an upload over a file the rule does not let it write saves nothing' )
         or diag( explain $r );
     like( ( $r->{errors} || [ {} ] )->[0]{error} // '', qr/write access/, 'and says why, per file' );
@@ -231,7 +275,8 @@ subtest 'and reaches nothing else' => sub {
     ok( !$r->{ok}, 'the Users API\'s account-approve, which takes any name, is not reached' )
         or diag( explain $r );
     is_deeply( [ accounts() ], \@before, 'and no account was made' );
-    refused_write( save( 'door', 'door.md' ), 'a file write' );
+    refused_content_cap( save( 'door', 'door.md' ), 'a file write' );    # SM1057
+    ok( !-e "$d/door.md", 'and no file was made' );
     $r = call( 'door', 'config-set', query => 'action=config-set', body => { key => 'site_name', value => 'x' } );
     ok( ManagerSession->refused_for_capability($r), 'a capability-gated action (config-set)' )
         or diag( explain $r );
