@@ -324,6 +324,17 @@ without `fields` is handed over as today. The key is `portable_type` (the first 
 answered as option A with the per-field override of B). The wiring described above is now
 unblocked; it is not built in this re-filing. See section 8 of the filed specification and
 `/srv/projects/odoo/oom/inbox/archive/2026-10-13-answered/2026-10-12-field-type-mapping-options-for-lazysite.md`.
+## Slice R, the wiring - built 2026-10-13 (n581)
+
+OOM answered R-Q1 as recommended (0.02; see the answer under *Open: R-Q1*), and the release
+manager said on 2026-10-13 that the updated deb "can now start to be integrated".
+
+| Row | What | Where |
+| --- | --- | --- |
+| R4, R-Q1 | **A display read's descriptors, drawn or refused by name.** `odoo_run`/`odoo-run` (and the page endpoint, which answers the same result) hand back `fields` (drawn by `descriptor_fields`, so each is held to the data extension's own descriptor check) and `refused` (`{ field, why }`) **beside** `report`, which stays as the operation returned it. The `odoo:` page binding hands TT the report with `fields` drawn, `refused` named and `rows` cut to the drawn columns: a value of a field lazysite refused to draw is never put on a page. A report whose `fields` is not a mapping of descriptors (none, or the list of names from before 0.02) reaches every door exactly as it did. A field title from Odoo is escaped like any other value | `Lazysite::Odoo::Fields::present`, `page_report`; `_run` in `lib/Lazysite/Odoo.pm`; `resolve_odoo`; t/unit/odoo/23 |
+
+Not built: `x.form` (the parameter form, `form_fields`) on the page binding, and a
+`data-ls-odoo` region in the browser data helper; the second is slice D's browser module.
 
 ## Slice E - built 2026-10-12 (n475)
 

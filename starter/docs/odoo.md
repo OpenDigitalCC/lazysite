@@ -164,7 +164,10 @@ A page binding, `odoo:ID`
   reading binding on the page. It runs as `public` with no request input. It
   never runs an operation that writes, never runs a binding with a
   `visitor_param`, and every value in the report is HTML-escaped as a `db:`
-  value is.
+  value is. When the operation returns `rows` beside `fields` (descriptors with
+  a portable type), the variable carries `fields` (the ones lazysite can draw),
+  `refused` (each field it could not, and why) and `rows` cut to the drawn
+  columns; a field with no portable type is never guessed at.
 
 A form
 : A form bound to the binding runs it as `public`, with the form's fields as
@@ -177,7 +180,9 @@ The schedule
 The control API and MCP
 : `odoo-bindings` / `odoo_bindings` lists the bindings this caller may run,
   with the fields each takes. `odoo-run` / `odoo_run` runs one, and
-  `odoo-confirm` / `odoo_confirm` applies a plan the caller made. The caller is
+  `odoo-confirm` / `odoo_confirm` applies a plan the caller made. A reading
+  operation that returns descriptors also answers `fields` and `refused` beside
+  `report`. The caller is
   `authenticated`, under the binding's `callers`; it is never a visitor, so a
   binding with a `visitor_param` is not listed or run here.
 
@@ -267,5 +272,5 @@ never returned. The kinds a caller meets most:
 
 - A site user signing in to Odoo with their own credential. It waits on OOM's
   session transport.
-- Reports drawn as typed fields (`fields` beside `rows`). It waits on OOM's
-  answer to where a report carries its fields' descriptors.
+- The parameter form (`x.form`) on the page binding, and a browser helper that
+  fills a region from a binding.

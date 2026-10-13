@@ -1004,9 +1004,12 @@ when it writes. Lazysite holds no Odoo model name, field name or RPC shape -
   fixed fields - never a value, a report or a key - and one `odoo-call` audit
   line. Odoo's fault text is logged and never returned.
 
-Not built: a site user's own Odoo credential (waits on OOM's session
-transport), and reports drawn as typed fields (waits on OOM's answer to SM747
-R-Q1). Page: `/docs/odoo`.
+A reading operation that returns `rows` beside `fields` has its descriptors
+drawn by the data extension's own descriptor rules, or refused by name; lazysite
+reads only the portable type and never guesses one.
+
+Not built: a site user's own Odoo credential (the session transport has shipped
+in OOM 0.03; SM747 B-Q1). Page: `/docs/odoo`.
 
 ## Notifications
 

@@ -275,6 +275,12 @@ Archive
   its maker's approval, and an `apply: immediate` binding as the binding's, each against
   the plan's fingerprint, immediately before the apply; OOM's gate is left on. Without
   this every apply was refused against an OOM that has the gate. t/unit/odoo/40.
+- odoo-extension (PENDING) **an Odoo report's fields are drawn, or refused by name (SM747
+  R wiring).** When an operation returns `rows` beside `fields` (OOM 0.02), `odoo_run`
+  and the page endpoint answer `fields` (each held to the data extension's descriptor
+  check) and `refused` (each field lazysite could not draw, with why) beside the
+  report; the `odoo:` page binding gives the page those, with the rows cut to the drawn
+  columns. A report without descriptors is unchanged. t/unit/odoo/23.
 - odoo-extension (PENDING) **the Odoo extension is documented (SM747 F1).**
   `/docs/odoo` describes what the extension needs, the connection, the
   connection user's key, bindings and where each runs, the anonymous write

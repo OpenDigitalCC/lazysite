@@ -813,7 +813,15 @@ sub _run {
     my ( $b, $class, $conn, $params, $c ) = @_;
     my $ctx = context( $conn, actor => _actor_label(%$c) );
     my $op  = $class->new( ctx => $ctx, params => $params );
-    return { ok => 1, report => $op->run } unless $class->writes;
+    unless ( $class->writes ) {
+        my $report = $op->run;
+
+        # R wiring: a display read's descriptors, drawn or refused by name, beside
+        # the report - which stays as the operation returned it.
+        require Lazysite::Odoo::Fields;
+        my ( $fields, $refused ) = Lazysite::Odoo::Fields::present($report);
+        return { ok => 1, report => $report, ( $fields ? ( fields => $fields, refused => $refused ) : () ) };
+    }
 
     my $plan = $op->run;
     my ( $pid, $dir ) = _new_plan_dir();

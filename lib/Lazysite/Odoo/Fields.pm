@@ -93,6 +93,47 @@ sub _one {
     return ( \%spec, '' );
 }
 
+# present( $report ) -> ( \%fields, \@refused ), or () when the report carries
+# no descriptors to draw.
+#
+# OOM agreed (0.02, answering R-Q1) that a display read returns `rows` beside
+# `fields`: the descriptors, keyed as the rows are, each with its portable type.
+# A report whose `fields` is anything else - a list of names, as before 0.02, or
+# nothing - is not a display read, and every door hands it over as it always
+# did. The Odoo key name is not read here either: descriptor_fields reads only
+# the portable type.
+sub present {
+    my ($report) = @_;
+    return () unless ref $report eq 'HASH' && ref $report->{fields} eq 'HASH';
+    return descriptor_fields( $report->{fields} );
+}
+
+# page_report( $report ) -> $report for a template
+#
+# What a PAGE is handed: the report with `fields` drawn, `refused` named, and the
+# rows cut to the drawn columns - a value of a field lazysite refused to draw is
+# never put on a page, which is the point of refusing it. A report with no
+# descriptors comes back as it is.
+sub page_report {
+    my ($report) = @_;
+    my ( $fields, $refused ) = present($report);
+    return $report unless $fields;
+    my %out = %$report;
+    $out{fields}  = $fields;
+    $out{refused} = $refused;
+    if ( ref $report->{rows} eq 'ARRAY' ) {
+        $out{rows} = [
+            map {
+                my $row = $_;
+                ref $row eq q{HASH}
+                    ? { map { ( $_ => $row->{$_} ) } grep { exists $fields->{$_} } keys %$row }
+                    : $row
+            } @{ $report->{rows} }
+        ];
+    }
+    return \%out;
+}
+
 # form_fields( \%binding, $op_class ) -> \%fields
 #
 # The parameter form: one field per name the binding lets a request set, typed

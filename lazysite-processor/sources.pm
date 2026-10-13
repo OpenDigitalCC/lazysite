@@ -720,7 +720,8 @@ sub resolve_odoo {
             kind => ( $r->{kind} // '' ), why => ( $r->{error} // '' ) );
         return '';
     }
-    return _odoo_inert( $r->{report} );
+    require Lazysite::Odoo::Fields;
+    return _odoo_inert( Lazysite::Odoo::Fields::page_report( $r->{report} ) );
 }
 
 sub _odoo_inert {
