@@ -12,7 +12,7 @@ search: false
      Each new account has no password and gets a claim link; its address is
      recorded, so "forgot password" sends the person their own link. Groups that
      do not exist are left out, and say so. -->
-<div class="mg-note mg-note-info">A partner prepares an import; you review what it would do and apply it. New accounts have no password: each person sets their own with the claim link shown after applying, or by using <em>forgot password</em> with the address recorded. Groups that do not exist are left out.</div>
+<div class="mg-note mg-note-info">A partner prepares an import; you review what it would do and apply it. New accounts have no password: each person sets their own with the claim link shown after applying (mailed to them if you tick the box), or by using <em>forgot password</em> with the address recorded. Groups that do not exist are left out.</div>
 
 <div class="mg-card">
 <div class="mg-card-header"><span class="mg-card-title">Staged imports</span></div>
@@ -26,6 +26,8 @@ search: false
 <div class="mg-card-body">
 <p class="mg-muted" id="plan-summary"></p>
 <div class="mg-list" id="plan-rows"></div>
+<!-- n570: mailing the links is the operator's choice, made at each apply; off unless ticked. -->
+<label class="mg-chk"><input type="checkbox" id="apply-mail"> Mail each new account its claim link, at the address its row carries</label>
 <div class="mg-toolbar"><button class="mg-btn mg-btn-primary" id="apply-btn" data-impact="commit">Apply this import</button></div>
 </div>
 </div>
@@ -112,7 +114,7 @@ document.getElementById('apply-btn').addEventListener('click', function() {
   fetch(API + '?action=accounts-import-apply', {
     method: 'POST', credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: current, confirm: current })
+    body: JSON.stringify({ id: current, confirm: current, mail: document.getElementById('apply-mail').checked })
   })
     .then(function(res) { return res.json(); })
     .then(function(d) {
@@ -123,7 +125,8 @@ document.getElementById('apply-btn').addEventListener('click', function() {
       rows.textContent = '';
       (d.created || []).forEach(function(c) {
         rows.appendChild(row(c.username, (c.claim_url || c.claim_path)
-          + ((c.unplaced || []).length ? ' - not placed in ' + c.unplaced.map(function(u) { return u.group; }).join(', ') : '')));
+          + ((c.unplaced || []).length ? ' - not placed in ' + c.unplaced.map(function(u) { return u.group; }).join(', ') : '')
+          + (c.mailed ? ' - mailed' : '') + (c.mail_error ? ' - not mailed: ' + c.mail_error : '')));
       });
       (d.failed || []).forEach(function(f) { rows.appendChild(row(f.username, 'not created - ' + f.error)); });
       loadImports();

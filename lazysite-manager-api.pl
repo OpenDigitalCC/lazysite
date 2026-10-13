@@ -2052,7 +2052,10 @@ elsif ( $action eq 'accounts-import-plan' ) {
 elsif ( $action eq 'accounts-import-apply' ) {
     my $req = _json_body();
     $result = _import_operator_refusal() // Lazysite::Manager::AccountImport::apply(
-        $req->{id}, $req->{confirm}, actor => $auth_user, operator => 1 );
+        $req->{id}, $req->{confirm}, actor => $auth_user, operator => 1,
+        # n570: mail the claim links only when the operator says so - true, 1 or
+        # "true"; anything else, absent included, is off.
+        mail => ( ( defined $req->{mail} && "$req->{mail}" =~ /\A(?:1|true)\z/ ) ? 1 : 0 ) );
 }
 elsif ( $action eq 'groups-list' ) {
     # SM1050 (P-2): the groups, for any manage_users holder; a domain-confined

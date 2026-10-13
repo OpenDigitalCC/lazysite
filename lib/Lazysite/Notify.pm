@@ -438,6 +438,26 @@ sub _mail_notice {
     my ( $addr, $why ) = _mail_recipient( $docroot, $rec->{to} );
     return $why unless length $addr;
 
+    my ( $body, $from_file ) = _template( $docroot, $rec->{type}, 'email' );
+    my $text    = _render( $body, $from_file, $vars );
+    my $subject = sprintf '%s%s',
+        ( length( $vars->{site} // '' ) ? "[$vars->{site}] "            : '' ),
+        ( $TYPES{ $rec->{type} }        ? $TYPES{ $rec->{type} }{title} : 'Notice' );
+    return send_mail( $docroot, to => $addr, subject => $subject, text => $text, what => 'notice',
+        conf => $conf );
+}
+
+# SM1053 (n570): THE SITE'S MAIL TO ONE ACCOUNT, BOUNDED - steps 3 and 4 of a
+# notice and the send, for every caller that mails an account at the address its
+# own record holds. A notice is one; an account import's claim link, mailed when
+# the operator chooses it, is the other. One transport and one per-hour bound,
+# counted from one record, so a second caller cannot be a second way round it.
+# Returns '' when the mail was sent, or the reason it was not.
+sub send_mail {
+    my ( $docroot, %m ) = @_;
+    my $what = $m{what} // 'mail';
+    my $conf = ref $m{conf} eq 'HASH' ? $m{conf} : _notify_conf($docroot);
+
     # 3. THE TRANSPORT, NAMED WHEN IT IS OFF. There is one mail configuration on
     #    a lazysite site and it belongs to the Form SMTP extension - SM842 spent
     #    a release removing the second one, and a notice endpoint that carried
@@ -458,7 +478,7 @@ sub _mail_notice {
     $cap = $DEFAULT_MAIL_PER_HOUR unless defined $cap && $cap =~ /\A\d+\z/;
     require Lazysite::Egress;
     my ( $ok, $capwhy ) = Lazysite::Egress::within_caps(
-        what => 'notice',
+        what => $what,
         axes => [ {
                 name    => 'this site',
                 limit   => ( $cap ? $cap : undef ),
@@ -469,14 +489,8 @@ sub _mail_notice {
     );
     return $capwhy unless $ok;
 
-    my ( $body, $from_file ) = _template( $docroot, $rec->{type}, 'email' );
-    my $text    = _render( $body, $from_file, $vars );
-    my $subject = sprintf '%s%s',
-        ( length( $vars->{site} // '' ) ? "[$vars->{site}] "            : '' ),
-        ( $TYPES{ $rec->{type} }        ? $TYPES{ $rec->{type} }{title} : 'Notice' );
-
     local $@;
-    my $sent = eval { $MAIL_SENDER->( $docroot, $script, $addr, $subject, $text ) };
+    my $sent = eval { $MAIL_SENDER->( $docroot, $script, $m{to}, $m{subject}, $m{text} ) };
     if ( !$sent ) {
         my $err = $@ || 'the transport reported no reason';
         $err =~ s/\s+\z//;

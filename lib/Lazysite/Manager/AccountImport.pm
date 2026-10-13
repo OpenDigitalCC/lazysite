@@ -17,9 +17,10 @@ package Lazysite::Manager::AccountImport;
 #           staged file's id): each new account is created with no password, its
 #           email recorded, placed in the named groups that exist, and given a
 #           claim link (/claim: the person sets their own password). The links are
-#           returned to the operator; nothing is mailed by this - the address is
-#           recorded, so /forgot sends a person their own link. Audited: one
-#           row per account and one for the apply, written by the dispatcher.
+#           returned to the operator, and mailed to each person only when the
+#           operator asks at this apply (`mail`, off by default; n570). The
+#           address is recorded, so /forgot also sends a person their own
+#           link. Audited: one row per account and one for the apply, written by the dispatcher.
 #   list    (accounts-import-list, the operator): what is staged, and by whom.
 #
 # The store is written through the users tool (account-approve), its owner, as
@@ -200,6 +201,41 @@ sub plan {
         invalid => $d->{invalid} || [], groups_missing => [ sort keys %unknown ], rows => \@rows };
 }
 
+# n570 (SM1053, "mailed only if the operator chooses"): mail one new account its
+# claim link, at the address its row carried and the account now records. The
+# site's one mail path (Notify::send_mail: the Form SMTP extension and the
+# per-hour bound, mail.per_hour), so an import is held to the same bound as
+# every other mail the site sends to an account. Returns '' when it was sent, or
+# why not - which the caller puts on the row; it never stops the apply.
+sub _mail_claim {
+    my ( $user, $email, $res ) = @_;
+    return 'the row carries no address' unless length( $email // '' );
+    require Lazysite::Mail;
+    my ( $to, $bad ) = Lazysite::Mail::one_address($email);
+    return "the address is refused - $bad" unless defined $to;
+    require Lazysite::Notify;
+    my $docroot = $Lazysite::Manager::Common::DOCROOT;
+    # The link is absolute or it is not sent: a bare path in a mail is not a
+    # link, and guessing a host for a credential-bearing URL could send the
+    # person to the wrong one (SM863).
+    my $link = $res->{url} // '';
+    if ( $link !~ m{\A\w+://} ) {
+        my $base = Lazysite::Notify::site_base($docroot);
+        $link = ( $base =~ m{\A\w+://[^/\s]+} && length( $res->{path} // '' ) ) ? $base . $res->{path} : '';
+    }
+    return 'the site has no absolute address for the link (set site_url), so it was not mailed'
+        unless length $link;
+    return Lazysite::Notify::send_mail(
+        $docroot,
+        to      => $to,
+        subject => 'Set your password',
+        what    => 'claim link',
+        text    => "An account '$user' has been made for you.\n\n"
+            . "Open this one-time link (it expires in 24 hours) to set your password:\n\n"
+            . "$link\n\n"
+            . "If it has expired, use \"forgot password\" with this address to get a new one." );
+}
+
 # accounts-import-apply: the plan, carried out. confirm must repeat the id.
 sub apply {
     my ( $id, $confirm, %who ) = @_;
@@ -233,7 +269,13 @@ sub apply {
         push @created, { username => $r->{username}, groups => \@placed,
             ( @unplaced ? ( unplaced => \@unplaced ) : () ),
             claim_path => $res->{path}, ( $res->{url} ? ( claim_url => $res->{url} ) : () ) };
+        if ( $who{mail} ) {
+            my $why = _mail_claim( $r->{username}, $r->{email}, $res );
+            $created[-1]{ length $why ? 'mail_error' : 'mailed' } = length $why ? $why : 1;
+        }
     }
+    my $mailed   = grep { $_->{mailed} } @created;
+    my $unmailed = grep { defined $_->{mail_error} } @created;
 
     # Marked applied, so a second apply cannot run it again.
     my $f = _dir() . "/$d->{id}.json";
@@ -246,11 +288,12 @@ sub apply {
         rename "$f.tmp.$$", $f;
     }
     log_event( 'INFO', 'accounts-import', 'accounts import applied', id => $d->{id},
-        user   => $who{actor}, created => scalar @created, skipped => scalar @skipped,
-        failed => scalar @failed );
+        user => $who{actor}, created => scalar @created, skipped => scalar @skipped,
+        failed => scalar @failed, ( $who{mail} ? ( mailed => $mailed, not_mailed => $unmailed ) : () ) );
     return { ok => ( @failed ? 0 : 1 ), ( @failed ? ( kind => 'partial',
                 error => scalar(@failed) . ' account(s) could not be created; see failed' ) : () ),
         id => $d->{id}, created => \@created, skipped => \@skipped, failed => \@failed,
+        ( $who{mail} ? ( mail => { sent => $mailed, not_sent => $unmailed } ) : () ),
         # One audit row per account (the dispatcher writes them; the users tool
         # writes none on its API).
         _audit_rows => [
@@ -259,9 +302,17 @@ sub apply {
                             . ( @{ $_->{groups} } ? '; placed in ' . join( ',', @{ $_->{groups} } ) : '; no group' ) ] }
                     @created ),
             ( map { [ 'user-account-approve', $_->{username}, 0, "accounts import $d->{id}: $_->{error}" ] }
-                    @failed ) ],
+                    @failed ),
+            # n570: one row per claim link the operator asked to be mailed -
+            # sent, or why not. The account is named and the address is not
+            # (SM877: the trail is not a list of addresses).
+            ( map { [ 'accounts-import-mail', $_->{username}, ( $_->{mailed} ? 1 : 0 ),
+                        "accounts import $d->{id}: "
+                            . ( $_->{mailed} ? 'claim link mailed' : "claim link not mailed - $_->{mail_error}" ) ] }
+                grep { $_->{mailed} || defined $_->{mail_error} } @created ) ],
         change => 'created ' . scalar(@created) . ', skipped ' . scalar(@skipped)
-            . ', failed ' . scalar(@failed),
+            . ', failed ' . scalar(@failed)
+            . ( $who{mail} ? "; mailed $mailed, not mailed $unmailed" : '' ),
         note => 'Each new account has no password: send each person their claim link, or tell them '
             . 'to use "forgot password" with the address recorded - it sends them their own.' };
 }

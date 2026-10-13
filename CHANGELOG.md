@@ -130,6 +130,15 @@ Archive
   event is an audit row of its own (`held`); a held message carries at most
   50 events; a cap of 0 still sends nothing (SM1010 R1, Q7 as ruled).
   t/unit/lib/93.
+- SM1053 (PENDING) **an account import mails the claim links when the
+  operator chooses.** `accounts-import-apply` takes `mail` (the Account import
+  page's checkbox), off unless sent: each new account is mailed its own claim
+  link at the address its row carries, through the site's mail (the Form SMTP
+  extension) and within its per-hour bound, `mail.per_hour` in notify.conf,
+  which notices already share. A send that fails or that the bound refuses is
+  reported on its row, with the link still shown to the operator, and never
+  stops the apply; each send asked for is audited (`accounts-import-mail`,
+  naming the account, not the address). t/integration/253.
 
 - SM1069 (PENDING) **a `.url` page under a read rule is no-store, and a rule
   is found by its path's ancestors.** The `.url` output path never passed the

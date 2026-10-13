@@ -251,8 +251,9 @@ found nothing - so check the key before concluding a feature is broken.
   `{ "csv": "username,email,groups\n..." }` with groups separated by `;`. Never a
   password - a row carrying one refuses the file. Nothing is created: the
   operator reviews a dry run on the manager's Account import page and applies
-  it, and each person sets their own password from a claim link. Groups that do
-  not exist are left out. Needs `manage_users`.
+  it, and each person sets their own password from a claim link, which the
+  operator may choose to have mailed to the address the row carries. Groups
+  that do not exist are left out. Needs `manage_users`.
 
 `acl-get` (GET) / `acl-remove` (POST)
 : `path=<file>`. `acl-get` returns the entry; `acl-remove` clears it

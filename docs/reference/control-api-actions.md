@@ -43,7 +43,7 @@ widths: 5.4cm | 4.8cm | X
 bold: 1
 tone: medium
 ---
-`accounts-import-apply` | cookie only | id (body), confirm (body)
+`accounts-import-apply` | cookie only | id (body), confirm (body), mail (body)
 `accounts-import-list` | cookie only |  
 `accounts-import-plan` | cookie only | id (query)
 `accounts-import-stage` | manage_users | accounts (body), csv (body)

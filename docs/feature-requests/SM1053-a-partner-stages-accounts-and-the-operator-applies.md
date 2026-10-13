@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-5)
 area: security
-status-note: "SHIPPED (PENDING): the core - stage (manage_users, either door), list/plan/apply (the operator, cookie only), claim links, existing groups only, per-account audit, an Account import page; mailing the links is left for later (t/integration/212)."
+status-note: "SHIPPED (PENDING): the core - stage (manage_users, either door), list/plan/apply (the operator, cookie only), claim links, existing groups only, per-account audit, an Account import page (t/integration/212); the claim links mailed when the operator chooses, n570 (t/integration/253)."
 ---
 
 # The report and the ruling
@@ -68,10 +68,8 @@ review in the manager at all. Not built: the mailing (below).
 
 # Not built (the rest)
 
-1. **Mailing the claim links, if the operator chooses.** The ruling's
-   "mailed only if the operator chooses": a checkbox on apply that sends each
-   new account its link through the site's mail (as `forgot` does). Until then
-   the operator sends the links, or tells members to use "forgot password".
+1. **Mailing the claim links, if the operator chooses.** Built on n570: see
+   "The rest, built" below.
 2. **Removing a staged import** (or expiring old ones): the files stay in
    `lazysite/auth/import/` until removed by hand.
 3. **Updating existing accounts** from an import (an address or groups for an
@@ -98,3 +96,55 @@ existing group only and not the registration group; a second apply is refused;
 the trail holds the apply's row and each account's. Sabotage: a password
 staged, the registration fallback, missing groups kept, a re-apply - each fails
 212.
+
+# The rest, built (n570-n573)
+
+The release manager's ruling stands for all four: the partner prepares, the
+operator approves; SM268's cookie-only account creation is unchanged.
+
+## 1. Mailing the claim links, when the operator chooses (n570)
+
+- **The choice is per apply, and off.** `accounts-import-apply` takes `mail`;
+  only `true` (or `1`, `"true"`) turns it on - absent, `false` and the string
+  `"false"` are all off. The Account import page carries it as a checkbox beside
+  Apply, unticked each time.
+- **To the address the row carries.** Each new account is mailed its own claim
+  link at the address its row staged, which the apply has just recorded as the
+  account's. A row with no address, or one that is not exactly one address
+  (SM1017), is not mailed, and says so.
+- **The site's one mail path.** The send goes through `Notify::send_mail`, which
+  the bell notices' mail now calls too: the Form SMTP extension (installed,
+  switched on, its settings saved - each named when it is not) and the per-hour
+  bound counted from the site's own record, `mail.per_hour` in notify.conf
+  (default 60). An import is held to the same bound as every other mail the site
+  sends to an account, and an unreadable record refuses rather than counting as
+  zero.
+- **The link is absolute or it is not sent.** The users tool's `url`, else
+  notify.conf's `base_url` / the expanded `site_url` with the claim path; with
+  neither, the row says to set `site_url`. A host is never guessed for a link
+  that carries a credential (SM863).
+- **A failed send never blocks the apply.** Every account is created first;
+  each row then carries `mailed` or `mail_error` (the transport's refusal, the
+  bound reached naming `mail.per_hour`, no address, no SMTP settings), its claim
+  link is still shown to the operator, and the reply counts `mail.sent` and
+  `mail.not_sent`.
+- **Audited.** One `accounts-import-mail` row per send asked for, ok or fail,
+  naming the account and the import - never the address (SM877). The apply's
+  own row adds "mailed N, not mailed N".
+
+Trade, for a ruling if it matters: an import larger than what is left of the
+hour's bound mails up to the bound and reports the rest "cap reached"; for
+those rows the operator sends the link shown, or the person uses "forgot
+password". Sharing the bound also means a large import can use the hour's
+allowance that bell notices would otherwise have had. A separate bound for
+imports would be a second setting for one transport, so it is not built.
+
+Tests: t/integration/253 - no mail without the choice, nor with `"false"`;
+with it, a link to each new account at its own address, carrying its own link;
+no address, a transport refusal and the bound each reported on their row while
+all five accounts are created; one audit row per send, none naming an address;
+no SMTP settings reported per row. Sabotaged one at a time (backups in
+`tmp/sab-bak/n570/`, restored with `cp`, compared with `cmp`), each red in 253:
+mail sent without the choice; `"false"` read as yes; a failed send stopping the
+apply; the bound not asked; no audit row per send; the link mailed to an
+address other than the row's.
