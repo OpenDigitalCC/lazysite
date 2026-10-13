@@ -130,6 +130,14 @@ Archive
   event is an audit row of its own (`held`); a held message carries at most
   50 events; a cap of 0 still sends nothing (SM1010 R1, Q7 as ruled).
   t/unit/lib/93.
+- SM1075 (PENDING) **a rewrite into a held folder is repaired by reapply - a
+  test, no change.** Files written again into a folder already held as a draft
+  left the private copy in place and `acl reapply` refused ("the private store
+  already holds this path"). Reproduced on main: SM981 already fixed it - the
+  repair merges, keeps the private copy of a page both trees hold, moves the
+  other to `lazysite/displaced/` and names it. t/integration/257 holds it, and
+  fails on the tree before SM981.
+
 - SM1053 (PENDING) **an account import can be staged over MCP.** The MCP tool
   `stage_accounts` is the twin of `accounts-import-stage`, declared on the
   action: the same rows or CSV, never a password, `manage_users`, audited, and
