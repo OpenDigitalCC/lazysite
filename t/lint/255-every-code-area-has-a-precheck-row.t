@@ -9,6 +9,9 @@
 #   1. every top-level code area has its own row: each lazysite-*.pl front end,
 #      lazysite-processor/, each directory under lib/Lazysite/, lib/Lazysite/
 #      itself (its single modules), plugins/ and tools/;
+#   1b. every test helper under t/lib/ has its own row (n562): the manager
+#      integration tests reach the API only through t/lib/ManagerSession.pm, and
+#      a change to that helper selected nothing;
 #   2. every selector in the map selects at least one test, so a renamed test
 #      directory cannot leave a row that quietly runs nothing;
 #   3. the whole plain suite is run only by tools/suite.sh, which takes the
@@ -40,6 +43,23 @@ subtest 'every top-level code area has its own row' => sub {
     my @missing = grep { !$row{$_} } @areas;
     is_deeply( \@missing, [], 'each has a row in tools/precheck-areas.pl' )
         or diag('Add a row naming the test directories that cover it (SM1061).');
+};
+
+subtest 'every test helper has its own row' => sub {
+    my @helpers;
+    my @dirs = ("$root/t/lib");
+    while ( my $d = shift @dirs ) {
+        opendir my $dh, $d or die "$d: $!";
+        for my $e ( grep { !/^\./ } readdir $dh ) {
+            push @dirs,    "$d/$e"                      if -d "$d/$e";
+            push @helpers, "$d/$e" =~ s{^\Q$root\E/}{}r if $e =~ /\.pm$/;
+        }
+        closedir $dh;
+    }
+    cmp_ok( scalar @helpers, '>', 10, 'found the helpers under t/lib/' );
+    my @missing = grep { !$row{$_} || !grep { /^uses:/ } @{ $row{$_} }[ 1 .. $#{ $row{$_} } ] } @helpers;
+    is_deeply( \@missing, [], 'each has a uses: row in tools/precheck-areas.pl' )
+        or diag('A change to a helper must select the tests that load it (n562).');
 };
 
 subtest 'every selector selects a test' => sub {
