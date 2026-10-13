@@ -258,7 +258,8 @@ our %TYPES      = (
                     . 'is a recipient (a commenter is not told about their own comment).' },
             { key => 'per_recipient_hour', label => 'Cap: messages to one recipient per hour',
                 type => 'number', default => '3',
-                note => 'Counted per recipient for this rule, on every channel.' },
+                note => 'Counted per recipient for this rule, on every channel. Past it, the '
+                    . 'events are held and sent as one message when the hour moves on.' },
             { key => 'unsubscribe', label => 'Unsubscribe link', type => 'boolean',
                 default => 'true',
                 note    => 'On: every message carries a link to the page below and a '

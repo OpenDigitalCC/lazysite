@@ -370,7 +370,13 @@ operator) creates, changes or deletes one.
   `unsubscribe_path` (a page of this site, made absolute with `base_url` in
   `lazysite/notify.conf` or `site_url`) and a `List-Unsubscribe` header.
   `per_recipient_hour` (default 3) caps how many messages of this rule one
-  recipient gets in an hour; past it, the next is refused and recorded.
+  recipient gets in an hour. Past it, the next event is held, and so is every
+  later one while something is held: when the hour moves on, the recipient
+  gets ONE message carrying them all, in order - each part as the template
+  renders it, the subject saying how many more are folded in - and that
+  message counts against the cap like any other. A held event is an audit row
+  of its own (`held`). One message holds at most 50 events; past that an event
+  is refused and recorded. A cap of 0 sends nothing.
 
   **Who may be written to is the operator's decision, and complying with
   privacy and consent rules is the operator's responsibility** (ruled

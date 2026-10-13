@@ -221,7 +221,11 @@ sub enqueue {
     );
     eval { make_path($dir) unless -d $dir; 1 }
         or return { ok => 0, why => "cannot create the notification outbox: $@" };
-    my $path = "$dir/" . time . "-$id.json";
+    # SM1071: named by the microsecond, so the job takes two events of the same
+    # second in the order they came - a fold carries them in that order.
+    require Time::HiRes;
+    my ( $s, $us ) = Time::HiRes::gettimeofday();
+    my $path = "$dir/" . sprintf( '%d%06d', $s, $us ) . "-$id.json";
     my $tmp  = "$path.tmp.$$";
     open my $fh, '>:raw', $tmp or return { ok => 0, why => "cannot write the notification outbox: $!" };
     my $ok = print {$fh} JSON::PP->new->utf8->canonical->encode( \%entry );
@@ -445,6 +449,43 @@ sub _tt {
 # { subject, text } for the email channel; { text } for the bell.
 sub render {
     my ( $docroot, $h, $entry, $recipient, $channel, $base ) = @_;
+    my $c = _compose( $docroot, $h, $entry, $recipient, $channel, $base );
+    return { text => $c->{text} } if $channel eq 'bell';
+    return _with_footer( $c->{subject}, $c->{text}, $c->{unsubscribe} );
+}
+
+# SM1071 (SM1010 R1, Q7): ONE MESSAGE FOR EVERY EVENT HELD BACK BY THE CAP.
+# Each held event is composed as it would have been sent alone, in the order it
+# happened, and the parts are joined: a template written for one event needs no
+# change to be folded, and nothing a held event said is dropped. The Subject is
+# the first event's with "(and N more)"; the unsubscribe line is added once.
+sub render_folded {
+    my ( $docroot, $h, $events, $recipient, $channel, $base ) = @_;
+    my @parts = map { _compose( $docroot, $h, $_, $recipient, $channel, $base ) } @$events;
+    my $more  = @parts - 1;
+    if ( $channel eq 'bell' ) {
+        my $text = join ' / ', map { $_->{text} } @parts;
+        $text = ( @parts > 1 ? scalar(@parts) . ' updates: ' : '' ) . $text;
+        return { text => substr( $text, 0, 400 ) };
+    }
+    my $subject = $parts[0]{subject} . ( $more > 0 ? " (and $more more)" : '' );
+    $subject = substr( $subject, 0, 200 );
+    my $text = join "\n\n----\n\n", map { $_->{text} } @parts;
+    return _with_footer( $subject, $text, $parts[0]{unsubscribe} );
+}
+
+# THE ENGINE ADDS THE UNSUBSCRIBE LINE, not the template, so a template cannot
+# leave it out while the rule says it is on (ruled: per rule, default on).
+sub _with_footer {
+    my ( $subject, $text, $unsub ) = @_;
+    $text .= "\n\n-- \nTo stop these messages: $unsub" if length $unsub;
+    return { subject => $subject, text => "$text\n", unsubscribe => $unsub };
+}
+
+# One event as the channel shows it, before the footer: { subject, text,
+# unsubscribe } for email, { text } for the bell.
+sub _compose {
+    my ( $docroot, $h, $entry, $recipient, $channel, $base ) = @_;
     my %fields = map { $_ => _clean_value( $entry->{fields}{$_} ) } keys %{ $entry->{fields} || {} };
     my $unsub = '';
     if ( ( $h->{unsubscribe} // 'true' ) ne 'false' && length( $h->{unsubscribe_path} // '' ) ) {
@@ -477,10 +518,7 @@ sub render {
     $subject = substr( $subject, 0, 200 );
     $text =~ s/[\x00-\x08\x0b-\x1f\x7f]//g;
     $text =~ s/\s+\z//;
-    # THE ENGINE ADDS THE UNSUBSCRIBE LINE, not the template, so a template
-    # cannot leave it out while the rule says it is on (ruled: per rule, default on).
-    $text .= "\n\n-- \nTo stop these messages: $unsub" if length $unsub;
-    return { subject => $subject, text => "$text\n", unsubscribe => $unsub };
+    return { subject => $subject, text => $text, unsubscribe => $unsub };
 }
 
 # --- the transport ---------------------------------------------------------------
@@ -509,6 +547,8 @@ sub _mail_send {
 
 # --- one entry ---------------------------------------------------------------------
 
+# $ok is 1 (ok), 0 (failed) or 'held' (SM1071: folded into a later message -
+# neither sent nor refused, and said as neither).
 sub _audit {
     my ( $docroot, $actor, $rule, $channel, $ok, $who, $why ) = @_;
     eval {
@@ -516,7 +556,8 @@ sub _audit {
         no warnings 'once';
         local $Lazysite::Audit::LAZYSITE_DIR = _lz_of($docroot);
         Lazysite::Audit::audit_log( $actor, 'notify', "notify:$rule -> $channel", '',
-            ( $ok ? 'ok' : 'failed' ), 'daemon', $who . ( length( $why // '' ) ? " - $why" : '' ) );
+            ( $ok eq 'held' ? 'held' : $ok ? 'ok' : 'failed' ), 'daemon',
+            $who . ( length( $why // '' ) ? " - $why" : '' ) );
         1;
     };
     return;
@@ -546,15 +587,10 @@ sub _process {
     }
 
     my @channels = grep { length } split /\s*,\s*/, ( $h->{channels} // 'email' );
-    my $cap      = $h->{per_recipient_hour};
-    $cap = 3 unless defined $cap && $cap =~ /\A\d+\z/;
-    my $now  = $ctx->{now};
-    my %done = map { ( $_->{k} // '' ) => 1 } @$ledger;
-    my %used;
-    for my $l (@$ledger) {
-        next unless ( $l->{s} // '' ) eq 'sent' && ( $l->{t} // 0 ) >= $now - 3600;
-        $used{ ( $l->{r} // '' ) . "\0" . ( $l->{c} // '' ) . "\0" . ( $l->{p} // '' ) }++;
-    }
+    my $cap      = _cap($h);
+    my $now      = $ctx->{now};
+    my %done     = map { ( $_->{k} // '' ) => 1 } @$ledger;
+    my $used     = _used( $ledger, $now );
 
     my $unsub_on = ( $h->{unsubscribe} // 'true' ) ne 'false';
     return ( 'failed', 'unsubscribe is on and this site has no absolute address for the link - '
@@ -572,77 +608,239 @@ sub _process {
             my $mark = sub {
                 my ($state) = @_;
                 $done{$k} = 1;
-                my $rec = { k => $k, r => $h->{id}, c => $ch, p => $p, s => $state, t => $now };
-                push @$ledger, $rec;
-                _append_ledger( $docroot, $rec )
-                    or log_event( 'WARN', 'notify', 'could not write the notification ledger; a retry may resend',
-                    rule => $h->{id} );
+                _mark_ledger( $docroot, $ledger, { k => $k, r => $h->{id}, c => $ch, p => $p, s => $state, t => $now } );
             };
-            if ( ( $used{ $h->{id} . "\0$ch\0$p" } // 0 ) >= $cap ) {
+
+            # SM1071 (SM1010 R1, Q7): OVER THE CAP, THE EVENT IS HELD, NOT
+            # REFUSED - and so is every later one while something is held, so
+            # the recipient gets them in order, in one message, when the cap
+            # next allows. A cap of 0 sends nothing, so nothing is held for it.
+            my $fold = _fold_path( $docroot, $h->{id}, $ch, $r->{key} );
+            my $over = ( $used->{ $h->{id} . "\0$ch\0$p" } // 0 ) >= $cap;
+            if ( $cap > 0 && ( $over || -e $fold ) ) {
+                my ( $state, $why ) = _fold_add( $fold, $h, $ch, $r, $entry, $now );
+                if ( $state eq 'held' ) {
+                    _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 'held', _who($r),
+                        $over
+                        ? "held: the per-recipient cap ($cap an hour, per_recipient_hour) is reached, "
+                            . 'so this is folded into the next message'
+                        : 'held: folded into the next message, after those already held' );
+                    $mark->('folded');
+                }
+                elsif ( $state eq 'full' ) {
+                    _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r), $why );
+                    $mark->('refused');
+                }
+                else {
+                    $transient ||= $why;
+                    _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r), "will retry: $why" );
+                }
+                next;
+            }
+            if ($over) {
                 _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r),
                     "the per-recipient cap ($cap an hour, per_recipient_hour) is reached" );
                 $mark->('refused');
                 next;
             }
             my $out = render( $docroot, $h, $entry, $r, $ch, $base );
-            if ( $ch eq 'bell' ) {
-                require Lazysite::Notify;
-                my $ok = Lazysite::Notify::bell_for( $docroot, $r->{account},
-                    { type => 'rule', message => $out->{text}, target => $h->{id} } );
-                if ($ok) {
-                    _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 1, _who($r) );
-                    $used{ $h->{id} . "\0$ch\0$p" }++;
-                    $mark->('sent');
-                }
-                else {
-                    $transient ||= 'the bell store could not be written';
-                    _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r), $transient );
-                }
-                next;
-            }
-            # email
-            my $addr = $r->{address};
-            if ( defined $r->{account} ) {
-                my $a = $accounts->{ $r->{account} };
-                $addr = ref $a eq 'HASH' ? $a->{email} : undef;
-                if ( !defined $addr || !length $addr ) {
-                    _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r),
-                        ( ref $a eq 'HASH' ? 'the account has no address' : 'there is no such account' ) );
-                    $mark->('refused');
-                    next;
-                }
-            }
-            require Lazysite::Mail;
-            my ( $one, $bad ) = Lazysite::Mail::one_address($addr);
-            if ( !defined $one ) {
-                _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r), "refused: $bad" );
-                $mark->('refused');
-                next;
-            }
-            my $sent = eval {
-                $MAIL_SENDER->( $docroot, { %$out, to => $one, from => $h->{from} } );
-                1;
-            };
-            if ($sent) {
+            my ( $state, $why ) = _send_one( $docroot, $h, $r, $ch, $out, $accounts );
+            if ( $state eq 'sent' ) {
                 _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 1, _who($r) );
-                $used{ $h->{id} . "\0$ch\0$p" }++;
+                $used->{ $h->{id} . "\0$ch\0$p" }++;
                 $mark->('sent');
             }
+            elsif ( $state eq 'refused' ) {
+                _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r), $why );
+                $mark->('refused');
+            }
             else {
-                ( my $err = $@ || 'the transport gave no reason' ) =~ s/\s+\z//;
-                # A refusal of the ADDRESS is final; anything else may pass on a retry.
-                if ( $err =~ /is refused:/ ) {
-                    _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r), $err );
-                    $mark->('refused');
-                }
-                else {
-                    $transient ||= $err;
-                    _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r), "will retry: $err" );
-                }
+                $transient ||= $why;
+                _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r),
+                    ( $ch eq 'bell' ? $why : "will retry: $why" ) );
             }
         }
     }
     return length $transient ? ( 'retry', $transient ) : ( 'done', '' );
+}
+
+sub _cap {
+    my ($h) = @_;
+    my $cap = $h->{per_recipient_hour};
+    return ( defined $cap && $cap =~ /\A\d+\z/ ) ? $cap : 3;
+}
+
+# Messages sent in the last hour, per rule / channel / recipient hash.
+sub _used {
+    my ( $ledger, $now ) = @_;
+    my %used;
+    for my $l (@$ledger) {
+        next unless ( $l->{s} // '' ) eq 'sent' && ( $l->{t} // 0 ) >= $now - 3600;
+        $used{ ( $l->{r} // '' ) . "\0" . ( $l->{c} // '' ) . "\0" . ( $l->{p} // '' ) }++;
+    }
+    return \%used;
+}
+
+sub _mark_ledger {
+    my ( $docroot, $ledger, $rec ) = @_;
+    push @$ledger, $rec;
+    _append_ledger( $docroot, $rec )
+        or log_event( 'WARN', 'notify', 'could not write the notification ledger; a retry may resend',
+        rule => $rec->{r} );
+    return;
+}
+
+# Send one composed message to one recipient on one channel:
+# ( 'sent' ), ( 'refused', $why ) - final - or ( 'retry', $why ).
+sub _send_one {
+    my ( $docroot, $h, $r, $ch, $out, $accounts ) = @_;
+    if ( $ch eq 'bell' ) {
+        require Lazysite::Notify;
+        my $ok = Lazysite::Notify::bell_for( $docroot, $r->{account},
+            { type => 'rule', message => $out->{text}, target => $h->{id} } );
+        return $ok ? ('sent') : ( 'retry', 'the bell store could not be written' );
+    }
+    my $addr = $r->{address};
+    if ( defined $r->{account} ) {
+        my $a = $accounts->{ $r->{account} };
+        $addr = ref $a eq 'HASH' ? $a->{email} : undef;
+        return ( 'refused', ( ref $a eq 'HASH' ? 'the account has no address' : 'there is no such account' ) )
+            if !defined $addr || !length $addr;
+    }
+    require Lazysite::Mail;
+    my ( $one, $bad ) = Lazysite::Mail::one_address($addr);
+    return ( 'refused', "refused: $bad" ) unless defined $one;
+    my $sent = eval {
+        $MAIL_SENDER->( $docroot, { %$out, to => $one, from => $h->{from} } );
+        1;
+    };
+    return ('sent') if $sent;
+    ( my $err = $@ || 'the transport gave no reason' ) =~ s/\s+\z//;
+    # A refusal of the ADDRESS is final; anything else may pass on a retry.
+    return ( $err =~ /is refused:/ ? 'refused' : 'retry', $err );
+}
+
+# --- folding (SM1071, SM1010 R1) -------------------------------------------------
+#
+# Q7, as ruled: per event, one message per recipient per hour per rule, and the
+# events past the cap folded into the next message. A fold is one file per rule,
+# channel and recipient under notify/folds/, named by a hash of the three; it
+# holds the events in the order they came and, for an address recipient, the
+# address - as an outbox entry holds its fields - only until it is sent. The
+# job sends it when the recipient's cap next allows, as ONE message, counted
+# against the cap like any other.
+
+our $MAX_FOLDED = 50;    # events one fold holds; past it, an event is refused and audited
+
+sub folds_dir { return _lz_of( $_[0] ) . '/notify/folds' }
+
+sub _fold_path {
+    my ( $docroot, $rule, $ch, $key ) = @_;
+    return folds_dir($docroot) . '/' . _hash( 'fold', $rule, $ch, $key ) . '.json';
+}
+
+# ( 'held' ), ( 'full', $why ) or ( 'error', $why ).
+sub _fold_add {
+    my ( $path, $h, $ch, $r, $entry, $now ) = @_;
+    my $f = _read_entry($path);
+    return ( 'error', 'a held message could not be read' ) unless defined $f;
+    $f = undef if !ref $f || $f->{_torn};
+    my %who = ( key => $r->{key}, map { defined $r->{$_} ? ( $_ => $r->{$_} ) : () } qw(account address) );
+    $f //= {
+        rule      => $h->{id},
+        channel   => $ch,
+        recipient => \%who,
+        created   => $now,
+        attempts  => 0,
+        next_at   => 0,
+        events    => [],
+    };
+    return ('held') if grep { ( $_->{id} // '' ) eq $entry->{id} } @{ $f->{events} };
+    return ( 'full', "the held message already folds $MAX_FOLDED events; this one is not sent" )
+        if @{ $f->{events} } >= $MAX_FOLDED;
+    push @{ $f->{events} }, { map { ( $_ => $entry->{$_} ) } qw(id created actor fields) };
+    eval { make_path( dirname($path) ) unless -d dirname($path); 1 }
+        or return ( 'error', 'cannot create the folds directory' );
+    return _write_entry( $path, $f ) ? ('held') : ( 'error', 'a held message could not be written' );
+}
+
+sub _fold_files {
+    my ($docroot) = @_;
+    my $dir = folds_dir($docroot);
+    opendir my $dh, $dir or return $!{ENOENT} ? [] : cannot_read( 'the held notifications', $dir );
+    my @f = sort grep { /\A[0-9a-f]{24}\.json\z/ } readdir $dh;
+    closedir $dh;
+    return [ map { "$dir/$_" } @f ];
+}
+
+# Send every fold whose recipient's cap now allows it. Returns
+# { sent => n, waiting => n, retry => [...], failed => [...] }.
+sub _flush_folds {
+    my ( $docroot, $files, $handlers, $ctx, $ledger, $accounts, $base ) = @_;
+    my $now  = $ctx->{now};
+    my $used = _used( $ledger, $now );
+    my %out  = ( sent => 0, waiting => 0, retry => [], failed => [] );
+    for my $path (@$files) {
+        my $f = _read_entry($path);
+        next if defined $f && !ref $f;    # gone since the listing
+        unless ( defined $f ) { push @{ $out{retry} }, "$path: unreadable"; next }
+        if ( $f->{_torn} || ref $f->{events} ne 'ARRAY' || ref $f->{recipient} ne 'HASH' ) {
+            _fail_entry( $docroot, $path, ( $f->{_torn} ? {} : $f ), 'a held message is not readable JSON' );
+            push @{ $out{failed} }, 'torn fold';
+            next;
+        }
+        next if ( $f->{next_at} // 0 ) > $now;
+        my $r    = $f->{recipient};
+        my $ch   = $f->{channel} // 'email';
+        my $rule = $f->{rule}    // '';
+        my $h    = Lazysite::Handlers::find_handler( $handlers, $rule );
+        my $why
+            = !$h                              ? "no rule '$rule'"
+            : ( $h->{type} // '' ) ne 'notify' ? "handler '$rule' is not a notify rule"
+            : !Lazysite::Handlers::enabled($h) ? "rule '$rule' is switched off"
+            :                                    '';
+        if ( length $why ) {
+            _audit( $docroot, $ctx->{actor}, $rule, $ch, 0, _who($r), "a held message is not sent: $why" );
+            _fail_entry( $docroot, $path, $f, $why );
+            push @{ $out{failed} }, "fold: $why";
+            next;
+        }
+        my $p = _hash( $r->{key} );
+        if ( ( $used->{ $rule . "\0$ch\0$p" } // 0 ) >= _cap($h) ) { $out{waiting}++; next }
+
+        my $msg = render_folded( $docroot, $h, $f->{events}, $r, $ch, $base );
+        my ( $state, $err ) = _send_one( $docroot, $h, $r, $ch, $msg, $accounts );
+        my $n = scalar @{ $f->{events} };
+        if ( $state eq 'sent' || $state eq 'refused' ) {
+            my $k = _hash( $rule, 'fold', join( ',', map { $_->{id} // '' } @{ $f->{events} } ), $ch, $r->{key} );
+            _mark_ledger( $docroot, $ledger,
+                { k => $k, r => $rule, c => $ch, p => $p, s => $state, t => $now } );
+            if ( $state eq 'sent' ) {
+                _audit( $docroot, $ctx->{actor}, $rule, $ch, 1, _who($r),
+                    "the held message, folding $n event" . ( $n == 1 ? '' : 's' ) );
+                $used->{ $rule . "\0$ch\0$p" }++;
+                $out{sent}++;
+            }
+            else {
+                _audit( $docroot, $ctx->{actor}, $rule, $ch, 0, _who($r), $err );
+                push @{ $out{failed} }, "fold: $err";
+            }
+            unlink $path;
+            next;
+        }
+        $f->{attempts}   = ( $f->{attempts} // 0 ) + 1;
+        $f->{last_error} = $err;
+        _audit( $docroot, $ctx->{actor}, $rule, $ch, 0, _who($r), "will retry the held message: $err" );
+        if ( $f->{attempts} >= $MAX_ATTEMPTS ) {
+            _fail_entry( $docroot, $path, $f, "gave up after $f->{attempts} attempts: $err" );
+            push @{ $out{failed} }, "fold: $err";
+            next;
+        }
+        $f->{next_at} = $now + 60 * ( 2**$f->{attempts} );
+        _write_entry( $path, $f );
+        push @{ $out{retry} }, "fold: $err";
+    }
+    return \%out;
 }
 
 # --- the job -------------------------------------------------------------------------
@@ -651,9 +849,12 @@ sub _entry_files {
     my ($docroot) = @_;
     my $dir = outbox_dir($docroot);
     opendir my $dh, $dir or return $!{ENOENT} ? [] : cannot_read( 'the notification outbox', $dir );
-    my @f = sort grep { /\A\d+-[0-9a-f]{16}\.json\z/ } readdir $dh;
+    my @f = grep { /\A\d+-[0-9a-f]{16}\.json\z/ } readdir $dh;
     closedir $dh;
-    return [ map { "$dir/$_" } @f ];
+    # Oldest first. An entry queued before SM1071 is named by the second, a
+    # later one by the microsecond; both are read as microseconds.
+    my %at = map { my ($n) = /\A(\d+)/; ( $_ => ( length $n > 10 ? $n : $n * 1_000_000 ) ) } @f;
+    return [ map { "$dir/$_" } sort { $at{$a} <=> $at{$b} || $a cmp $b } @f ];
 }
 
 sub _read_entry {
@@ -697,7 +898,10 @@ sub run {
     my $files = _entry_files($docroot);
     return { ok => 0, error => 'the notification outbox could not be read; see the log' }
         unless defined $files;
-    return { ok => 1, detail => { queued => 0 } } unless @$files;
+    my $folds = _fold_files($docroot);
+    return { ok => 0, error => 'the held notifications could not be read; see the log' }
+        unless defined $folds;
+    return { ok => 1, detail => { queued => 0 } } unless @$files || @$folds;
 
     # One run at a time: two overlapping runs would each read the ledger before
     # the other wrote it.
@@ -764,8 +968,19 @@ sub run {
         _write_entry( $path, $e );
         push @retry, "$e->{id}: $reason";
     }
+
+    # SM1071: then what the cap held back, now that the hour may have moved on -
+    # listed again, because the entries above may have started a fold.
+    my $held = { sent => 0, waiting => 0, retry => [], failed => [] };
+    if ( my $now_folds = _fold_files($docroot) ) {
+        $held = _flush_folds( $docroot, $now_folds, $handlers, \%ctx, $ledger, $accounts, $base ) if @$now_folds;
+    }
+    else { push @retry, 'the held notifications could not be read' }
+    push @retry,  @{ $held->{retry} };
+    push @failed, @{ $held->{failed} };
     close $lk;
-    return { ok => 1, detail => { done => scalar @done, retry => \@retry, failed => \@failed } };
+    return { ok => 1, detail => { done => scalar @done, retry => \@retry, failed => \@failed,
+            held_sent => $held->{sent}, held_waiting => $held->{waiting} } };
 }
 
 1;

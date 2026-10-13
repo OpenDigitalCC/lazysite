@@ -91,6 +91,18 @@ Archive
   the tree before them; a failure leaves the stack out and rebuilds the tree
   without it. The results file records each stack's base: `stack base is older
   than main by N commits`. t/tools/151-153.
+- SM1071 (PENDING) **a notice over the cap is folded into the next message.**
+  A notification rule's `per_recipient_hour` refused the events past it, so a
+  member following a busy thread heard of the first comments each hour and
+  never of the rest. Past the cap an event is now held, and so is every later
+  one while something is held; when the hour moves on the recipient gets ONE
+  message carrying them all, in order, each part as the rule's template
+  renders it and the subject saying how many more are folded in - counted
+  against the cap like any other message. The bell folds the same way. A held
+  event is an audit row of its own (`held`); a held message carries at most
+  50 events; a cap of 0 still sends nothing (SM1010 R1, Q7 as ruled).
+  t/unit/lib/93.
+
 - SM1069 (PENDING) **a `.url` page under a read rule is no-store, and a rule
   is found by its path's ancestors.** The `.url` output path never passed the
   protected flag: a `.url` page under a read rule or draft was answered

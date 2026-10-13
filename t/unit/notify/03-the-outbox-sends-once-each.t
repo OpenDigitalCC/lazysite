@@ -127,13 +127,16 @@ subtest 'a where whose field the event lacks matches nobody - never everybody' =
     is_deeply( [ to_list() ], ['desk@news.example'], 'only the fixed address' );
 };
 
-subtest 'the per-recipient cap refuses the next, and says so' => sub {
+# SM1071 (SM1010 R1): past the cap the next is HELD for the next message, not
+# refused - t/unit/lib/93 follows it to that message.
+subtest 'the per-recipient cap holds the next back, and says so' => sub {
     site( per_recipient_hour => 1 );
     comment( post => 'p1', comment => 'one' );
     comment( post => 'p1', comment => 'two' );
     run_job();
     is( scalar( grep { $_ eq 'ann@example.net' } to_list() ), 1, 'ann gets one, not two' );
-    ok( ( grep { /failed .*account ann - the per-recipient cap/ } audit() ), 'the second is a failed row naming the cap' );
+    ok( ( grep { /\| held \| daemon \| account ann - held: the per-recipient cap/ } audit() ),
+        'the second is a held row naming the cap' );
 };
 
 subtest 'notify_actor sends to the commenter too' => sub {
