@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-13
 raised-by: SM1010 R3, ruled 2026-10-12 (Q5 "as this brief recommended")
 area: notifications
-status-note: "SHIPPED (PENDING): a notify rule's row in handler-list carries its queue in counts (queued, retrying, held, failed), its last run (sent, held, failed, the last failure) and `waiting` when the scheduler is not taking it; notify-outbox-list / read_notify_outbox (manage_notifications alone; a confined caller sees its own domains' rules) list queued, held and failed events and, by id, who one resolves to. t/unit/manager/340, t/integration/247."
+status-note: "SHIPPED (PENDING): handler-list gives a notify rule its queue in counts, its last run and `waiting` when the scheduler is not taking it; notify-outbox-list / read_notify_outbox (manage_notifications alone; a confined caller sees its own domains' rules) list queued, held and failed events and, by id, who one resolves to. t/unit/manager/340, t/integration/247."
 ---
 
 # The ruling

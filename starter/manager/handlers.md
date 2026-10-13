@@ -213,88 +213,6 @@ function load() {
   loadOutbox();
 }
 
-// --- the notification outbox (SM1072) ----------------------------------------
-
-var OUTBOX = { entries: [], held: [] };
-
-function loadOutbox() {
-  fetch(API + '?action=notify-outbox-list')
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      var card = document.getElementById('outbox-card');
-      // Not a holder of Notifications: the grant, not a fault to announce.
-      if (!d.ok) { if (d.kind !== 'forbidden') showStatus(d.error, true); card.hidden = true; return; }
-      card.hidden = false;
-      OUTBOX = { entries: d.entries || [], held: d.held || [] };
-      document.getElementById('outbox-waiting').innerHTML = d.waiting
-        ? '<p class="mg-note mg-note-warn">' + escHtml(d.waiting) + '</p>' : '';
-      renderOutbox(d.not_listed || 0);
-    })
-    .catch(function(e) { showStatus('Failed to load the notification outbox: ' + e.message, true); });
-}
-
-function renderOutbox(notListed) {
-  var el = document.getElementById('outbox-list');
-  if (!OUTBOX.entries.length && !OUTBOX.held.length) {
-    el.innerHTML = '<div class="mg-empty">Nothing is waiting: every queued notification has been sent.</div>';
-    return;
-  }
-  var rows = OUTBOX.entries.map(function(e) {
-    var key = 'o-' + e.id;
-    var tag = e.state === 'failed'
-      ? '<span class="mg-tag mg-tag-warn">failed</span>'
-      : '<span class="mg-tag mg-tag-off">' + escHtml(e.state) + '</span>';
-    var why = e.reason || e.last_error || '';
-    return '<div class="mg-row">'
-      + '<span class="mg-row-name">' + escHtml(e.rule) + ' <span class="mg-row-meta">' + escHtml(e.id) + '</span></span>'
-      + '<span class="mg-row-meta">' + escHtml(whenText(e.created))
-      + (e.actor ? ' &middot; by ' + escHtml(e.actor) : '')
-      + (e.attempts ? ' &middot; ' + escHtml(e.attempts) + ' attempt' + (e.attempts === 1 ? '' : 's') : '')
-      + (why ? ' &middot; ' + escHtml(why) : '') + '</span>'
-      + '<span class="mg-row-actions">' + tag + ' ' + chev('outbox-list', key, e.rule + ' ' + e.id, 'Recipients') + '</span>'
-      + '</div>'
-      + '<div class="mg-expand" id="exp-' + escHtml(key) + '" hidden></div>';
-  });
-  OUTBOX.held.forEach(function(h) {
-    rows.push('<div class="mg-row">'
-      + '<span class="mg-row-name">' + escHtml(h.rule) + ' <span class="mg-row-meta">' + escHtml(h.recipient) + '</span></span>'
-      + '<span class="mg-row-meta">' + escHtml(h.events) + ' event' + (h.events === 1 ? '' : 's') + ' held for one '
-      + escHtml(h.channel) + ' message since ' + escHtml(whenText(h.since))
-      + ((h.reason || h.last_error) ? ' &middot; ' + escHtml(h.reason || h.last_error) : '') + '</span>'
-      + '<span class="mg-row-actions">' + (h.state === 'failed'
-        ? '<span class="mg-tag mg-tag-warn">failed</span>' : '<span class="mg-tag mg-tag-off">held</span>') + '</span>'
-      + '</div>');
-  });
-  if (notListed) rows.push('<div class="mg-empty">' + escHtml(notListed) + ' more not listed.</div>');
-  el.innerHTML = rows.join('');
-}
-
-BUILD['outbox-list'] = function(key) {
-  var id = key.replace(/^o-/, '');
-  fetch(API + '?action=notify-outbox-list&id=' + encodeURIComponent(id))
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      var box = document.getElementById('rc-' + key);
-      if (!box) return;
-      if (!d.ok) { box.textContent = d.error; return; }
-      var rc = d.recipients || {};
-      if (rc.error) { box.textContent = 'Its recipients cannot be resolved: ' + rc.error; return; }
-      var list = rc.list || [];
-      var fields = d.entry && d.entry.fields ? Object.keys(d.entry.fields).sort().map(function(k) {
-        return escHtml(k) + ': ' + escHtml(d.entry.fields[k]);
-      }).join('<br>') : '';
-      box.innerHTML = (fields ? '<div class="mg-section-label">Fields</div><p class="mg-muted">' + fields + '</p>' : '')
-        + '<div class="mg-section-label">Recipients, under the rule as it stands</div>'
-        + (list.length ? list.map(function(r) {
-            return '<div class="mg-row"><span class="mg-row-name">' + escHtml(r.who) + '</span><span class="mg-row-meta">'
-              + Object.keys(r.channels).sort().map(function(c) { return escHtml(c) + ': ' + escHtml(r.channels[c]); }).join(', ')
-              + '</span><span class="mg-row-actions"></span></div>';
-          }).join('') : '<p class="mg-muted">It resolves to nobody.</p>');
-    })
-    .catch(function(e) { showStatus('Failed to load the recipients: ' + e.message, true); });
-  return '<div class="mg-expand-body" id="rc-' + escHtml(key) + '">Loading...</div>';
-};
-
 function typeDef(type) {
   for (var i = 0; i < TYPES.length; i++) { if (TYPES[i].type === type) return TYPES[i]; }
   return null;
@@ -888,6 +806,88 @@ function deleteEntry(id) {
     })
     .catch(function(e) { showStatus('Remove failed: ' + e.message, true); });
 }
+
+// --- the notification outbox (SM1072) ----------------------------------------
+
+var OUTBOX = { entries: [], held: [] };
+
+function loadOutbox() {
+  fetch(API + '?action=notify-outbox-list')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var card = document.getElementById('outbox-card');
+      // Not a holder of Notifications: the grant, not a fault to announce.
+      if (!d.ok) { if (d.kind !== 'forbidden') showStatus(d.error, true); card.hidden = true; return; }
+      card.hidden = false;
+      OUTBOX = { entries: d.entries || [], held: d.held || [] };
+      document.getElementById('outbox-waiting').innerHTML = d.waiting
+        ? '<p class="mg-note mg-note-warn">' + escHtml(d.waiting) + '</p>' : '';
+      renderOutbox(d.not_listed || 0);
+    })
+    .catch(function(e) { showStatus('Failed to load the notification outbox: ' + e.message, true); });
+}
+
+function renderOutbox(notListed) {
+  var el = document.getElementById('outbox-list');
+  if (!OUTBOX.entries.length && !OUTBOX.held.length) {
+    el.innerHTML = '<div class="mg-empty">Nothing is waiting: every queued notification has been sent.</div>';
+    return;
+  }
+  var rows = OUTBOX.entries.map(function(e) {
+    var key = 'o-' + e.id;
+    var tag = e.state === 'failed'
+      ? '<span class="mg-tag mg-tag-warn">failed</span>'
+      : '<span class="mg-tag mg-tag-off">' + escHtml(e.state) + '</span>';
+    var why = e.reason || e.last_error || '';
+    return '<div class="mg-row">'
+      + '<span class="mg-row-name">' + escHtml(e.rule) + ' <span class="mg-row-meta">' + escHtml(e.id) + '</span></span>'
+      + '<span class="mg-row-meta">' + escHtml(whenText(e.created))
+      + (e.actor ? ' &middot; by ' + escHtml(e.actor) : '')
+      + (e.attempts ? ' &middot; ' + escHtml(e.attempts) + ' attempt' + (e.attempts === 1 ? '' : 's') : '')
+      + (why ? ' &middot; ' + escHtml(why) : '') + '</span>'
+      + '<span class="mg-row-actions">' + tag + ' ' + chev('outbox-list', key, e.rule + ' ' + e.id, 'Recipients') + '</span>'
+      + '</div>'
+      + '<div class="mg-expand" id="exp-' + escHtml(key) + '" hidden></div>';
+  });
+  OUTBOX.held.forEach(function(h) {
+    rows.push('<div class="mg-row">'
+      + '<span class="mg-row-name">' + escHtml(h.rule) + ' <span class="mg-row-meta">' + escHtml(h.recipient) + '</span></span>'
+      + '<span class="mg-row-meta">' + escHtml(h.events) + ' event' + (h.events === 1 ? '' : 's') + ' held for one '
+      + escHtml(h.channel) + ' message since ' + escHtml(whenText(h.since))
+      + ((h.reason || h.last_error) ? ' &middot; ' + escHtml(h.reason || h.last_error) : '') + '</span>'
+      + '<span class="mg-row-actions">' + (h.state === 'failed'
+        ? '<span class="mg-tag mg-tag-warn">failed</span>' : '<span class="mg-tag mg-tag-off">held</span>') + '</span>'
+      + '</div>');
+  });
+  if (notListed) rows.push('<div class="mg-empty">' + escHtml(notListed) + ' more not listed.</div>');
+  el.innerHTML = rows.join('');
+}
+
+BUILD['outbox-list'] = function(key) {
+  var id = key.replace(/^o-/, '');
+  fetch(API + '?action=notify-outbox-list&id=' + encodeURIComponent(id))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var box = document.getElementById('rc-' + key);
+      if (!box) return;
+      if (!d.ok) { box.textContent = d.error; return; }
+      var rc = d.recipients || {};
+      if (rc.error) { box.textContent = 'Its recipients cannot be resolved: ' + rc.error; return; }
+      var list = rc.list || [];
+      var fields = d.entry && d.entry.fields ? Object.keys(d.entry.fields).sort().map(function(k) {
+        return escHtml(k) + ': ' + escHtml(d.entry.fields[k]);
+      }).join('<br>') : '';
+      box.innerHTML = (fields ? '<div class="mg-section-label">Fields</div><p class="mg-muted">' + fields + '</p>' : '')
+        + '<div class="mg-section-label">Recipients, under the rule as it stands</div>'
+        + (list.length ? list.map(function(r) {
+            return '<div class="mg-row"><span class="mg-row-name">' + escHtml(r.who) + '</span><span class="mg-row-meta">'
+              + Object.keys(r.channels).sort().map(function(c) { return escHtml(c) + ': ' + escHtml(r.channels[c]); }).join(', ')
+              + '</span><span class="mg-row-actions"></span></div>';
+          }).join('') : '<p class="mg-muted">It resolves to nobody.</p>');
+    })
+    .catch(function(e) { showStatus('Failed to load the recipients: ' + e.message, true); });
+  return '<div class="mg-expand-body" id="rc-' + escHtml(key) + '">Loading...</div>';
+};
 
 loadChoices();
 load();
