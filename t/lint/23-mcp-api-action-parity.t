@@ -156,12 +156,9 @@ for my $a ( sort keys %PAIR ) {
 
 # --- 3. one-sided actions, each with a recorded reason -----------------------
 my %API_ONLY = (
-    # SM1053: staging an account import is the partner's half of a human's act
-    # (SM268); undecided whether MCP needs it - the report's partner used the API.
-    'accounts-import-stage' => 'SM1053: undecided - staging accounts for the operator; the partner that asked used the control API',
-    # n571: removing a staged import is the stager's or the operator's; the partner
-    # that stages over the control API removes there. Undecided for MCP, as
-    # staging was until n573.
+    # n571: removing a staged import is the stager's or the operator's. Staging
+    # has an MCP twin since n573 (stage_accounts); removing is undecided for MCP -
+    # the brief built the staging twin only.
     'accounts-import-remove' => 'n571 (SM1053): undecided - removing a staged import by the account that staged it; the partner that asked used the control API',
     # SM924: the submission deletes are reachable on the control API, under a
     # capability of their own that is off by default, and have NO MCP twin.

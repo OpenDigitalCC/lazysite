@@ -1272,6 +1272,26 @@ my %TOOLS = (
                 _groups_who( $_[1], $_[2] ) );
         },
     },
+    # n573 (SM1053, "Operator-run import"): the twin of accounts-import-stage, on
+    # the same module. It stages and nothing more: the review - list, plan,
+    # apply - is the operator's, in the manager, on a cookie (SM268), and has
+    # no tool here.
+    stage_accounts => {
+        description => 'Stage a list of accounts for the site operator to create: accounts is a list of {username, email, groups}, or csv is the text "username,email,groups" with groups separated by ";". NEVER a password - a row carrying one refuses the whole list, and each person sets their own from a claim link. Creates nothing: the operator reviews a dry run in the manager and applies it, and may change existing accounts (address, groups) only as they tick. Groups that do not exist are left out. Answers the staged id, the count and the invalid rows.',
+        cap         => 'manage_users',
+        inputSchema => { type => 'object',
+            properties => {
+                accounts => { type => 'array', description => 'rows of {username, email, groups (a list)}',
+                    items => { type => 'object' } },
+                csv => { type => 'string', description => 'username,email,groups - groups separated by ;' },
+            },
+            additionalProperties => JSON::PP::false },
+        run => sub {
+            require Lazysite::Manager::AccountImport;
+            Lazysite::Manager::AccountImport::stage( { accounts => $_[0]->{accounts}, csv => $_[0]->{csv} },
+                actor => $_[1] );
+        },
+    },
     list_domains => {
         description => 'List the domains this instance serves - the primary site plus every configured domain, each with its content_root, layout, theme, nav and language settings, and which of those it INHERITS from the primary rather than setting itself. Call this FIRST on any task that mentions a domain, or before activate_theme / activate_layout on an instance that may serve more than one site: those are instance-wide without a host, and this is how you find out whether that matters. Read-only.',
         cap         => 'manage_domains',

@@ -396,7 +396,7 @@ our %ACTION = (
     'accounts-import-list' => { cookie_cap => 'manage_users', cookie_only_reason => 'the review half of an import, the operator\'s in the manager (SM268)', params => [] },
     'accounts-import-plan' => { cookie_cap => 'manage_users', cookie_only_reason => 'the review half of an import, the operator\'s in the manager (SM268)', params => [ { name => 'id', in => 'query' } ] },
     'accounts-import-remove' => { mutates => 1, cookie_cap => 'manage_users', params => [ { name => 'id', in => 'body' } ] },
-    'accounts-import-stage' => { mutates => 1, cookie_cap => 'manage_users', params => [ { name => 'accounts', in => 'body' }, { name => 'csv', in => 'body' } ] },
+    'accounts-import-stage' => { mcp => 'stage_accounts', mutates => 1, cookie_cap => 'manage_users', params => [ { name => 'accounts', in => 'body' }, { name => 'csv', in => 'body' } ] },
     'acl-get' => { mcp => 'get_permissions', scoped => 1, file_surface => 'read', cookie_gates_itself => 'the owner reads their rule, manage_users reads any (SM464, Files::action_acl_get)', params => [ { name => 'path', in => 'query' } ] },
     # [changes_access] see acl-set: one rule, set or cleared.
     'acl-remove' => { mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may remove its rule (Files::action_acl_remove)', params => [ { name => 'path', in => 'query' } ] },

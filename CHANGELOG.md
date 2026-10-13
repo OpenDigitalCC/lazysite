@@ -130,6 +130,12 @@ Archive
   event is an audit row of its own (`held`); a held message carries at most
   50 events; a cap of 0 still sends nothing (SM1010 R1, Q7 as ruled).
   t/unit/lib/93.
+- SM1053 (PENDING) **an account import can be staged over MCP.** The MCP tool
+  `stage_accounts` is the twin of `accounts-import-stage`, declared on the
+  action: the same rows or CSV, never a password, `manage_users`, audited, and
+  nothing created. Listing, planning and applying an import stay the
+  operator's, in the manager, with no MCP tool. t/integration/256.
+
 - SM1053 (PENDING) **an account import updates the existing accounts the
   operator ticks.** A staged row for an account that already exists is no
   longer only skipped: the dry run lists each change it would make - the

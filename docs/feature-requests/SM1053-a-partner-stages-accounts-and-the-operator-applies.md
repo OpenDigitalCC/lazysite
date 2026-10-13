@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-5)
 area: security
-status-note: "SHIPPED (PENDING): the core - stage (manage_users, either door), plan/apply (the operator, cookie only), claim links, existing groups only, audit, an Account import page (t/integration/212). The rest: links mailed if the operator chooses (n570, 253); remove a staged import (n571, 254); update existing accounts as ticked (n572, 255)."
+status-note: "SHIPPED (PENDING): the core - stage (manage_users, either door), plan/apply (the operator, cookie only), claim links, existing groups only, audit, an Account import page (t/integration/212). The rest: links mailed if the operator chooses (n570, 253); remove a staged import (n571, 254); update existing accounts as ticked (n572, 255); MCP stage_accounts (n573, 256)."
 ---
 
 # The report and the ruling
@@ -75,7 +75,7 @@ review in the manager at all. Not built: the mailing (below).
 3. **Updating existing accounts** from an import (an address or groups for an
    account that exists): built on n572, below.
 4. **An MCP twin** of `accounts-import-stage` (recorded as undecided in
-   t/lint/23).
+   t/lint/23): built on n573, below.
 
 # Interaction
 
@@ -242,3 +242,24 @@ Open, for a ruling if it matters: a NEW account in an import still joins any
 named group that exists, an operator or registration group included, as the
 core built it; the operator sees it in the dry run. Recommendation: hold
 creation to the same rule as updates.
+
+## 4. An MCP twin for staging (n573)
+
+- **`stage_accounts`**, declared once on the action (SM943: `mcp =>
+  'stage_accounts'` on `accounts-import-stage`), built on the same
+  `AccountImport::stage`: `accounts` (rows of username, email, groups) or `csv`,
+  never a password, `manage_users`, the grant's account recorded as `staged_by`,
+  audited as every MCP write is. t/lint/23 no longer lists staging as
+  undecided.
+- **Staging only.** No MCP tool lists, plans, applies or removes an import:
+  the review is the operator's, cookie only, in the manager (SM268). Removing
+  stays control-API only and is recorded in t/lint/23 as undecided for MCP.
+
+Tests: t/integration/256 - a `manage_users` MCP grant is offered the tool and
+no other import tool, a grant without it is neither offered nor allowed it; a
+password refuses the list and stages nothing; a list stages one row and names
+the invalid one, a CSV stages, nothing is created, the trail names the grant;
+the operator plans it (staged by the MCP grant) and applies it in the manager.
+t/lint/91 records `accounts` and `csv` as never a content path. Sabotaged (in
+`tmp/sab-bak/n573/`): the tool without `manage_users` and the tool with no
+actor, each red in 256; the twin undeclared on the action, red in t/lint/23.
