@@ -155,7 +155,7 @@ sub _audit_implicit_target {
         return "\@$g" if length $g && !ref $g;
     }
     # SM1053: an account import is named by the staged file it acts on.
-    if ( $action eq 'accounts-import-apply' || $action eq 'accounts-import-stage' ) {
+    if ( $action =~ /\Aaccounts-import-(?:apply|stage|remove)\z/ ) {
         my $i = $req->{id} // '';
         return length $i && !ref $i ? "accounts import $i" : 'accounts import';
     }

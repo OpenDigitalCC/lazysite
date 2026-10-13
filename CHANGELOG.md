@@ -130,6 +130,13 @@ Archive
   event is an audit row of its own (`held`); a held message carries at most
   50 events; a cap of 0 still sends nothing (SM1010 R1, Q7 as ruled).
   t/unit/lib/93.
+- SM1053 (PENDING) **a staged account import can be removed.**
+  `accounts-import-remove` (and Remove on the Account import page) deletes a
+  staged import: the account that staged it may remove it, by token or in the
+  manager, and the operator may remove any. Another holder of `manage_users`
+  may not. Accounts an applied import created stay. Each removal, and each
+  refusal, is audited naming the import. t/integration/254.
+
 - SM1053 (PENDING) **an account import mails the claim links when the
   operator chooses.** `accounts-import-apply` takes `mail` (the Account import
   page's checkbox), off unless sent: each new account is mailed its own claim

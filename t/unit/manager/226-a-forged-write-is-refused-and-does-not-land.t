@@ -234,6 +234,8 @@ setup( 'data-table-save', body => { table => 'wide', descriptor => "title: Wide\
 setup( 'data-table-save', body => { table => 'pending', descriptor => "title: Pending\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
 # SM1053: an import staged for the operator to apply.
 $S{import} = setup( 'accounts-import-stage', body => { accounts => [ { username => 'imp1' } ] } )->{id} // '';
+# n571: a second, for its stager to remove.
+$S{import_rm} = setup( 'accounts-import-stage', body => { accounts => [ { username => 'imp3' } ] } )->{id} // '';
 # SM1043: a live session of admin's in the registry, for me-session-revoke.
 {
     open my $sf, '>', "$lz/auth/sessions.jsonl" or die $!;
@@ -257,6 +259,7 @@ zip( \qq({"name":"up","version":"1.0.0","layouts":["base"],"config":{}}) => \$th
 # action not named here is sent with its name alone and an empty JSON object.
 my %REQ = (
     'accounts-import-apply' => { body => { id => $S{import}, confirm => $S{import} } },    # SM1053
+    'accounts-import-remove' => { body => { id => $S{import_rm} } },    # n571
     'accounts-import-stage' => { body => { accounts => [ { username => 'imp2' } ] } },
     'acl-remove' => { query => 'path=secret.md' },
     'acl-set'    => { query => 'path=other.md', body => { read => ['admin'] } },

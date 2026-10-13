@@ -39,7 +39,7 @@ use Lazysite::Auth::Acl       ();
 use Lazysite::Auth::Settings  ();
 use Lazysite::Manager::Common ();
 
-our @EXPORT_OK = qw(stage plan apply list_staged);
+our @EXPORT_OK = qw(stage plan apply list_staged remove);
 
 our $MAX_ROWS = 5000;
 my $USER_RE  = qr/\A[A-Za-z0-9_.-]{1,64}\z/;
@@ -152,6 +152,31 @@ sub _load {
     my $d = _read_json( _dir() . "/$id.json" );
     return ( undef, { ok => 0, kind => 'not-found', error => "no staged import '$id'" } ) unless $d;
     return ( $d, undef );
+}
+
+# accounts-import-remove (n571): a staged import is removed by the account that
+# staged it, or by the operator - nobody else, whatever they hold. The file is
+# the import; an applied one is its record of having run, and the trail keeps
+# what it did, so removing it after the apply loses nothing the audit holds.
+sub remove {
+    my ( $id, %who ) = @_;
+    return { ok => 0, kind => 'forbidden',
+        error => 'An import is removed by a signed-in account, and no account is asking.' }
+        unless length( $who{actor} // '' );
+    my ( $d, $no ) = _load($id);
+    return $no unless $d;
+    my $by = $d->{staged_by} // '';
+    return { ok => 0, kind => 'forbidden',
+        error => "import $d->{id} was staged by $by: it is removed by that account or the operator" }
+        unless $who{operator} || ( length $by && $by eq $who{actor} );
+    unlink( _dir() . "/$d->{id}.json" )
+        or return { ok => 0, error => "import $d->{id} could not be removed" };
+    my $n = scalar @{ $d->{accounts} || [] };
+    log_event( 'INFO', 'accounts-import', 'accounts import removed', id => $d->{id},
+        user => $who{actor}, staged_by => $by );
+    return { ok => 1, id => $d->{id}, removed => 1,
+        change => "removed; staged by $by, $n account(s), "
+            . ( $d->{applied_at} ? "applied by $d->{applied_by}" : 'not applied' ) };
 }
 
 # accounts-import-list.

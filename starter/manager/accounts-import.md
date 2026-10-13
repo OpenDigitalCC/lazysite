@@ -76,10 +76,31 @@ function loadImports() {
         var b = node('button', 'mg-btn', 'Review');
         b.addEventListener('click', function() { review(i.id); });
         r.appendChild(b);
+        // n571: remove a staged import (the operator removes any).
+        var x = node('button', 'mg-btn mg-btn-danger', 'Remove');
+        x.setAttribute('data-impact', 'destroy');
+        x.addEventListener('click', function() { removeImport(i.id); });
+        r.appendChild(x);
         list.appendChild(r);
       });
     })
     .catch(function(e) { fail('Could not list the imports: ' + e.message); });
+}
+
+function removeImport(id) {
+  if (!confirm('Remove the staged import ' + id + '? Accounts it already created stay.')) return;
+  fetch(API + '?action=accounts-import-remove', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id })
+  })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      if (!d.ok) { fail(d.error || 'The import was not removed.'); return; }
+      if (current === id) { current = ''; document.getElementById('plan-card').hidden = true; }
+      loadImports();
+    })
+    .catch(function(e) { fail('The import was not removed: ' + e.message); });
 }
 
 function review(id) {

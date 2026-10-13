@@ -255,6 +255,11 @@ found nothing - so check the key before concluding a feature is broken.
   operator may choose to have mailed to the address the row carries. Groups
   that do not exist are left out. Needs `manage_users`.
 
+`accounts-import-remove` (POST)
+: `{ "id": "..." }` removes a staged import (SM1053): the account that staged
+  it, or the operator. Accounts an applied import created stay. Needs
+  `manage_users`.
+
 `acl-get` (GET) / `acl-remove` (POST)
 : `path=<file>`. `acl-get` returns the entry; `acl-remove` clears it
   (owner-only; a holder of `manage_users` is no exception - only the CLI as

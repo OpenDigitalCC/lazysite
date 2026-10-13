@@ -278,6 +278,8 @@ our %GATE = (
     'group-set'   => [qw(manage_users)],
     # SM1053: a partner stages an account import for the operator to apply.
     'accounts-import-stage' => [qw(manage_users)],
+    # n571: the account that staged it, or the operator, removes a staged import.
+    'accounts-import-remove' => [qw(manage_users)],
     # SM134 follow-ups: the alias-redirect map is content-derived - a content
     # partner may list it (read-only; aliases are front-matter-authored).
     'aliases-list' => [qw(manage_content)],
@@ -393,6 +395,7 @@ our %ACTION = (
     'accounts-import-apply' => { mutates => 1, cookie_cap => 'manage_users', cookie_only_reason => 'it creates accounts, and SM268 ruled minting credentials a human-at-a-browser act: the operator reviews the dry run and applies it', params => [ { name => 'id', in => 'body' }, { name => 'confirm', in => 'body' }, { name => 'mail', in => 'body' } ] },
     'accounts-import-list' => { cookie_cap => 'manage_users', cookie_only_reason => 'the review half of an import, the operator\'s in the manager (SM268)', params => [] },
     'accounts-import-plan' => { cookie_cap => 'manage_users', cookie_only_reason => 'the review half of an import, the operator\'s in the manager (SM268)', params => [ { name => 'id', in => 'query' } ] },
+    'accounts-import-remove' => { mutates => 1, cookie_cap => 'manage_users', params => [ { name => 'id', in => 'body' } ] },
     'accounts-import-stage' => { mutates => 1, cookie_cap => 'manage_users', params => [ { name => 'accounts', in => 'body' }, { name => 'csv', in => 'body' } ] },
     'acl-get' => { mcp => 'get_permissions', scoped => 1, file_surface => 'read', cookie_gates_itself => 'the owner reads their rule, manage_users reads any (SM464, Files::action_acl_get)', params => [ { name => 'path', in => 'query' } ] },
     # [changes_access] see acl-set: one rule, set or cleared.

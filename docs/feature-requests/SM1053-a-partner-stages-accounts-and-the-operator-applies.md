@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-5)
 area: security
-status-note: "SHIPPED (PENDING): the core - stage (manage_users, either door), list/plan/apply (the operator, cookie only), claim links, existing groups only, per-account audit, an Account import page (t/integration/212); the claim links mailed when the operator chooses, n570 (t/integration/253)."
+status-note: "SHIPPED (PENDING): the core - stage (manage_users, either door), list/plan/apply (the operator, cookie only), claim links, existing groups only, per-account audit, an Account import page (t/integration/212); the claim links mailed when the operator chooses, n570 (t/integration/253); a staged import removed by its stager or the operator, n571 (t/integration/254)."
 ---
 
 # The report and the ruling
@@ -70,8 +70,8 @@ review in the manager at all. Not built: the mailing (below).
 
 1. **Mailing the claim links, if the operator chooses.** Built on n570: see
    "The rest, built" below.
-2. **Removing a staged import** (or expiring old ones): the files stay in
-   `lazysite/auth/import/` until removed by hand.
+2. **Removing a staged import** (or expiring old ones): removing built on
+   n571, below; expiring old ones is not built.
 3. **Updating existing accounts** from an import (an address or groups for an
    account that exists): rows for existing accounts are skipped.
 4. **An MCP twin** of `accounts-import-stage` (recorded as undecided in
@@ -148,3 +148,33 @@ no SMTP settings reported per row. Sabotaged one at a time (backups in
 mail sent without the choice; `"false"` read as yes; a failed send stopping the
 apply; the bound not asked; no audit row per send; the link mailed to an
 address other than the row's.
+
+## 2. Removing a staged import (n571)
+
+- **`accounts-import-remove`** (POST, `id` in the body), gated `manage_users`
+  as staging is, and a Remove button on the Account import page.
+- **Who.** The account that staged the import (its `staged_by`), by token or
+  cookie, as it staged; or the operator, from a cookie session (`_operator()`,
+  never a token). Holding `manage_users` is not enough, and neither is having
+  staged a different import: "import X was staged by Y: it is removed by that
+  account or the operator".
+- **What.** The staged file is deleted. An applied import may be removed too:
+  the file was its record of having run, and the trail already holds what it
+  did; the accounts it created stay.
+- **Audited** as every mutating action is, the target "accounts import <id>",
+  a success saying whose it was ("removed; staged by tks, 1 account(s), not
+  applied"), a refusal recorded as a failure.
+- Not built: expiring old imports. Nothing asked for it beyond the filing's
+  "(or expiring old ones)".
+- MCP: no twin; recorded as undecided in t/lint/23, as staging was.
+
+Tests: t/integration/254 - a `manage_users` cookie account that did not stage
+it, the partner on another account's import, and a session without
+`manage_users` are refused and the file stays, the refusal in the trail; the
+partner removes its own by token and a cookie account its own, each audited
+naming the import; removed twice is not-found and a path for an id is invalid;
+the operator removes the partner's, which then cannot be applied. Registered in
+t/lint/98 (119 token-reachable), 218, 23 and t/unit/manager/226. Sabotaged (in
+`tmp/sab-bak/n571/`), each red in 254: any `manage_users` holder removes any; a
+token counts as the operator; ok without deleting the file; not declared
+mutating (unaudited); the audit target without the import.

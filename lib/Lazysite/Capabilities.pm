@@ -517,7 +517,7 @@ my %ACTION_INFO = (
         # form's submissions.
         unlocks => { ui => [ 'the manager Users and Groups pages',
                 'Approve (an account) on a submission whose form declares account_email' ],
-            api => [qw(groups-list group-set accounts-import-stage)],    # SM1050, SM1053
+            api => [qw(groups-list group-set accounts-import-stage accounts-import-remove)], # SM1050, SM1053
             mcp => [qw(list_groups set_group)] },
     },
     analytics => {

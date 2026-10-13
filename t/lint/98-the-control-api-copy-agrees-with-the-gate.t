@@ -102,7 +102,9 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #        connector-call is - the BINDING decides, by its modes, callers and caps.
     #   119, SM1072: notify-outbox-list, gated manage_notifications - the
     #        notification outbox, read only; it shows recipients.
-    is( scalar keys %caps, 119, '119 actions are reachable with a token' )
+    #   120, n571 (SM1053): accounts-import-remove, gated manage_users as staging
+    #        is - the account that staged an import removes it, or the operator.
+    is( scalar keys %caps, 120, '120 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 

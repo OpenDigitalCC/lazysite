@@ -2043,6 +2043,13 @@ elsif ( $action eq 'accounts-import-stage' ) {
     $result = Lazysite::Manager::AccountImport::stage(
         { accounts => $req->{accounts}, csv => $req->{csv} }, actor => $auth_user );
 }
+elsif ( $action eq 'accounts-import-remove' ) {
+    # n571 (SM1053): the account that staged an import removes it, either door
+    # as staging is; the operator removes any, from a cookie session.
+    my $req = _json_body();
+    $result = Lazysite::Manager::AccountImport::remove( $req->{id}, actor => $auth_user,
+        operator => ( !$token_auth && _operator() ) ? 1 : 0 );
+}
 elsif ( $action eq 'accounts-import-list' ) {
     $result = _import_operator_refusal() // Lazysite::Manager::AccountImport::list_staged();
 }
@@ -2748,8 +2755,9 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
 
         # SM1050: a group-set records what it did to the group - created, and
         # each capability granted (+) or revoked (-) - as acl-set records the rule.
-        # SM1053: an account import's apply records what it did the same way.
-        if ( $aud_action =~ /\A(?:group-set|accounts-import-apply)\z/
+        # SM1053: an account import's apply records what it did the same way,
+        # and (n571) a removal whose import it was.
+        if ( ( grep { $aud_action eq $_ } qw(group-set accounts-import-apply accounts-import-remove) )
             && ref $result eq 'HASH'
             && defined $result->{change} )
         {
