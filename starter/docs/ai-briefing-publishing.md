@@ -256,8 +256,9 @@ found nothing - so check the key before concluding a feature is broken.
   that do not exist are left out. A row for an account that already exists
   proposes changes to its address and groups (a row's `groups` is the set it
   should have; a row without `groups` changes none): the operator ticks the ones
-  to make. Never a password, an operator group, a registration group, or an
-  operator's own account. Needs `manage_users`. Over MCP the same staging is
+  to make. A new account too joins only groups that exist and are neither an
+  operator nor a registration group. Never a password, or an operator's own
+  account. Needs `manage_users`. Over MCP the same staging is
   `stage_accounts`; the review stays in the manager.
 
 `accounts-import-remove` (POST)

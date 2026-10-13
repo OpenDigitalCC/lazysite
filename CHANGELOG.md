@@ -130,6 +130,13 @@ Archive
   event is an audit row of its own (`held`); a held message carries at most
   50 events; a cap of 0 still sends nothing (SM1010 R1, Q7 as ruled).
   t/unit/lib/93.
+- SM1053 (PENDING) **a new account in an import never joins an operator or a
+  registration group.** The rule an update has had since it was built now holds
+  for creation: an account an import creates joins the named groups that exist
+  except an operator group (the manager flag, nesting included) and a registration
+  group. The dry run shows each refused group and why; a row naming only such
+  groups still creates the account, in none. t/integration/258.
+
 - SM1075 (PENDING) **a rewrite into a held folder is repaired by reapply - a
   test, no change.** Files written again into a folder already held as a draft
   left the private copy in place and `acl reapply` refused ("the private store

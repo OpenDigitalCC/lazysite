@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-5)
 area: security
-status-note: "SHIPPED (PENDING): the core - stage (manage_users, either door), plan/apply (the operator, cookie only), claim links, existing groups only, audit, an Account import page (t/integration/212). The rest: links mailed if the operator chooses (n570, 253); remove a staged import (n571, 254); update existing accounts as ticked (n572, 255); MCP stage_accounts (n573, 256)."
+status-note: "SHIPPED (PENDING): the core - stage, plan/apply (operator, cookie only), claim links, audit, an Account import page (212). The rest: links mailed if chosen (n570, 253); remove (n571, 254); update as ticked (n572, 255); MCP stage_accounts (n573, 256); no operator or registration group for new accounts (n580, 258)."
 ---
 
 # The report and the ruling
@@ -238,10 +238,20 @@ group changeable; an operator's account changed; a row with no groups stripping
 them; staging forgetting that a row named no groups; no audit row per change;
 leaving a group signing the account out.
 
-Open, for a ruling if it matters: a NEW account in an import still joins any
-named group that exists, an operator or registration group included, as the
-core built it; the operator sees it in the dry run. Recommendation: hold
-creation to the same rule as updates.
+## 5. A new account joins no operator or registration group (n580)
+
+Closed by the coordinating session 2026-10-13, consistent with the P-1 ruling
+("never the operator flag") and SM991; the release manager can reverse it.
+The core let a NEW account join any named group that exists, an operator or
+registration group included, while an update (n572) never did. Creation now
+follows the updates' rule: the groups the plan shows are those that exist and
+are neither an operator group (the manager flag, nesting included) nor a
+registration group; each refused group is shown with why (`groups_refused`), and
+a row naming only refused groups still creates the account, in no group.
+Reproduced first (a staged row naming the operator, a group nested in it and a
+registration group was applied and the account joined them). t/integration/258;
+sabotaged (`tmp/sab-bak/n580/`): any existing group joinable, the refusal not
+shown, an operator group not recognised - each red.
 
 ## 4. An MCP twin for staging (n573)
 

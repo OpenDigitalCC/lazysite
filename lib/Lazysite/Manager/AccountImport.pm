@@ -270,12 +270,18 @@ sub plan {
         my $u   = $r->{username};
         my %row = ( username => $u, ( $r->{email} ? ( email => $r->{email} ) : () ) );
         if ( !$acc->{$u} ) {
-            my @join = grep { $grp->{$_} } @{ $r->{groups}  || [] };
-            my @miss = grep { !$grp->{$_} } @{ $r->{groups} || [] };
+            # n580: a new account never joins an operator or a registration
+            # group either (the rule an update has had since n572); a row naming
+            # only such groups still creates the account, in none.
+            my @join = grep   { $grp->{$_} && !$no_change->{$_} } @{ $r->{groups} || [] };
+            my @miss = grep   { !$grp->{$_} } @{ $r->{groups}                     || [] };
+            my @refused = map { { group => $_, why => $no_change->{$_} } }
+                grep { $grp->{$_} && $no_change->{$_} } @{ $r->{groups} || [] };
             $unknown{$_}++ for @miss;
             $count{create}++;
             push @rows, { %row, action => 'create', groups => \@join,
-                ( @miss ? ( groups_missing => \@miss ) : () ) };
+                ( @miss    ? ( groups_missing => \@miss )    : () ),
+                ( @refused ? ( groups_refused => \@refused ) : () ) };
             next;
         }
         # n572: an operator's own account is changed on the Users page, never by
