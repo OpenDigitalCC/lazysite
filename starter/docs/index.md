@@ -63,6 +63,9 @@ and cache behaviour.
 [Connectors](/docs/connectors)
 : A credentialed destination forms and callers send site data through, and where the answer is kept.
 
+[The Odoo extension](/docs/odoo)
+: Running named Odoo operations from pages, forms, the schedule and agents, and what bounds each.
+
 [Forms](/docs/forms)
 : Defining forms, field types, validation, limits, and reading what they collect.
 

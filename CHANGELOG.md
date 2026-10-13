@@ -275,6 +275,12 @@ Archive
   its maker's approval, and an `apply: immediate` binding as the binding's, each against
   the plan's fingerprint, immediately before the apply; OOM's gate is left on. Without
   this every apply was refused against an OOM that has the gate. t/unit/odoo/40.
+- odoo-extension (PENDING) **the Odoo extension is documented (SM747 F1).**
+  `/docs/odoo` describes what the extension needs, the connection, the
+  connection user's key, bindings and where each runs, the anonymous write
+  path and its caps, a grant's own Odoo account, domains, the call record
+  and the refusals. SECURITY.md carries four operator entries for it, and
+  FEATURES.md a section.
 - odoo-extension (PENDING) **a binding that belongs to a domain runs only for
   that domain (SM747 E-Q1).** A binding with `domain:` answers the page
   endpoint, the `odoo:` page binding and a form only on its own host, and the

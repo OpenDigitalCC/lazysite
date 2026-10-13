@@ -385,6 +385,14 @@ Once OOM answers R-Q1 (where a report carries its rows' descriptors), `odoo_run`
 and `odoo-run` hand back `fields` (drawn by `descriptor_fields`) and `refused` beside
 `report`, as the page binding will.
 
+## F1 - built 2026-10-13 (n577)
+
+| Row | What | Where |
+| --- | --- | --- |
+| F1 | **SECURITY.md**: four operator entries - the connection user's key, the visitor key, the anonymous write path and its caps, a grant's own Odoo account | `SECURITY.md` |
+| F1 | **FEATURES.md**: the extension's section (beside plugins and handlers) and one line in *The security model in one place* | `docs/FEATURES.md` |
+| F1 | **The extension's page**, `/docs/odoo`: what it needs, the connection, the key, bindings, where a binding runs, the anonymous write path, a grant's account, domains, the call record, refusals, what is not built; listed in the docs index | `starter/docs/odoo.md`, `starter/docs/index.md` |
+
 # What this is for, and the work - RESTATED 2026-10-01
 
 This replaces a section I wrote earlier the same day. **I had it wrong, and the

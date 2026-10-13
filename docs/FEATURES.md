@@ -960,6 +960,54 @@ alone. Every surface - the Handlers page, the control API, MCP and
 each delivery is one audit line. The **schedule** (`schedule.conf`) calls any
 handler on an interval with fixed fields, as the daemon's job account.
 
+## The Odoo extension (SM747)
+
+`plugins/odoo.pl`, a contract extension (installed disabled), runs **named
+operations** against one Odoo instance. The operations come from OOM operation
+packs (`libodoo-oom-perl`, 0.02 or newer, module `Odoo::Ops`); lazysite names
+an operation, binds its parameters, hands back its report and presents a plan
+when it writes. Lazysite holds no Odoo model name, field name or RPC shape -
+`t/lint/240` fails on one in functional code.
+
+- **The connection** is the extension's config (`lazysite/odoo.conf`: URL,
+  database, connection-user login, timeout, answer size cap, writes switch,
+  extra pack namespaces). `https://` to any host, plain `http://` only to
+  loopback. The **connection user** is an Odoo account whose rights are set
+  in Odoo; its API key is stored alone in a `0600` file and never returned.
+- **A binding** is a handler of type `odoo` (SM842), configured with
+  `manage_connectors`: the operation, which request fields map to which
+  plain-value parameters, fixed parameters, the visitor parameter, the modes
+  (`authenticated`, `public`, `scheduled`), the callers, `apply`
+  (`confirm` or `immediate`), two rate caps and an optional `domain:`.
+- **The doors**: the page endpoint `lazysite-odoo.pl` (a page's JavaScript;
+  verifies its own caller), the `odoo:ID` page binding (reads only, never a
+  visitor's binding, values escaped), a form and the schedule (as connector
+  handlers are run), and `odoo-bindings`/`odoo-run`/`odoo-confirm` with their
+  MCP twins for signed-in callers, who are never visitors.
+- **One function sends** (`Lazysite::Odoo::call`). It asks, in order: the mode
+  and callers (`Lazysite::Egress`, as for a connector), the binding's domain
+  (a domain's binding runs only on its host, or for a caller that reaches the
+  domain; the schedule runs it), the extension switch, OOM, the connection,
+  the key, the operation, the binding against the operation's declaration,
+  the parameters, the caps.
+- **The anonymous write path** (ruled Q1): a `public` binding with
+  `apply: immediate` applies a write in a visitor's request. The visitor is a
+  server-minted, signed 256-bit key in an `HttpOnly; SameSite=Strict` cookie,
+  reaching the operation only through the binding's `visitor_param`; every
+  POST carries a token bound to that key; caps per visitor and per binding per
+  hour refuse when their count cannot be read.
+- **Plans** live in a private store under 128-bit ids; only the account or
+  visitor that made one applies it, within an hour.
+- **An MCP grant may run as its own Odoo account** (ruled Q2), its key stored
+  as the connection user's; otherwise it runs as the connection user.
+- **The call record** (`lazysite/odoo/calls.jsonl`) is one line per call with
+  fixed fields - never a value, a report or a key - and one `odoo-call` audit
+  line. Odoo's fault text is logged and never returned.
+
+Not built: a site user's own Odoo credential (waits on OOM's session
+transport), and reports drawn as typed fields (waits on OOM's answer to SM747
+R-Q1). Page: `/docs/odoo`.
+
 ## Notifications
 
 Operator notifications (SM136) ride a shared write path (`Lazysite::Notify`):
@@ -1863,6 +1911,13 @@ SBOM gate; `release.sh` refuses to run when the lint tools are absent.
 - **Secrets are operator-only on every surface.** SMTP/handler configs, the HMAC
   secret, user/group files, and all `.pl` are denied everywhere; forms can be *wired*
   but never *credentialed* by an agent.
+- **Odoo runs as the accounts Odoo grants** (SM747). Every Odoo operation runs
+  as the connection user, or as an MCP grant's own Odoo account, with that
+  account's rights in Odoo; lazysite adds the binding's modes, callers, domain,
+  parameter rules and rate caps and narrows nothing Odoo allows. A public
+  binding that writes is the anonymous write path: off unless `odoo_allow_writes`
+  is on and the binding declares `public` and `apply: immediate`, keyed to a server-minted visitor
+  key, token-checked and capped.
 - **No-leak invariants.** Credential check precedes all state gates; generic
   responses on forgot/claim/exchange; single-use + locked redemption; hashed-at-rest
   secrets shown once; constant-time compares throughout; atomic, zero-byte-refusing,

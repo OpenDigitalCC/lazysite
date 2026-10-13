@@ -68,6 +68,40 @@ Key operational points (full detail in `docs/architecture/security.md`):
   (`public: 1`, off by default); bound the fields such a form sends (fixed
   choices, not free text). Every call is audited by connector, trigger, mode
   and data class - never the payload - and rate-capped per connector.
+- **The Odoo extension's connection user holds an Odoo API key (SM747).** It is
+  set and cleared with `manage_connectors` (`odoo-secret-set`,
+  `odoo-secret-clear`) and written alone in its own file under
+  `lazysite/odoo/keys/`, `0600` from creation in a `0700` directory; no action,
+  tool or page returns it and it is not logged. Every operation the extension
+  runs - for a page, a form, the schedule or an agent - runs with that
+  account's rights in Odoo, so **give the connection user only the rights the
+  site's operations need**: lazysite narrows nothing Odoo allows it.
+- **The Odoo visitor key is a bearer secret (SM747).** A visitor who is not
+  signed in is identified by 256 random bits the server mints, carried in the
+  `lzs_odoo_visitor` cookie (`HttpOnly`, `SameSite=Strict`, `Secure` over
+  HTTPS, 30 days) and signed with the extension's own secret,
+  `lazysite/odoo/visitor.secret` (`0600`). A key the server did not mint names
+  no visitor. Records carry a hash of the key, never the key. Deleting
+  `visitor.secret` invalidates every visitor key and orphans what was keyed by
+  them.
+- **An Odoo binding can let an anonymous visitor write to Odoo (SM747).** A
+  binding with `public` in its modes, a writing operation and
+  `apply: immediate` applies the write in the visitor's request with nobody
+  confirming. It is off unless the binding says all three, and
+  `odoo_allow_writes` is off by default. What it can change is bounded by the
+  connection user's rights and the operation's declared scope. The engine
+  requires the visitor token (bound to the visitor key) on every POST, takes
+  from the request only the plain-value parameters the binding maps, passes
+  the visitor key only through the binding's `visitor_param`, and caps
+  attempts per visitor per hour (`rate_per_visitor_hour`, default 20) and per
+  binding per hour (`rate_per_hour`, default 200); a cap whose count cannot be
+  read refuses. Set the caps to what the operation should see.
+- **An MCP grant can run as its own Odoo account (SM747).** `odoo-secret-set`
+  with `grant` and `login` stores that Odoo login's key for the grant, as the
+  connection user's key is stored; the grant's MCP calls then run with that
+  account's rights in Odoo instead of the connection user's. When the grant map
+  cannot be read, the grant's calls are refused rather than run as the
+  connection user.
 - **A form that acknowledges the submitter mails an address a stranger chose
   (SM877).** An email handler writes only to the address you configured until
   you set `mail_the_submitter_field`; from then on the site also sends a

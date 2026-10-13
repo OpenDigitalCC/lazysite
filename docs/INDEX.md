@@ -218,6 +218,7 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 | [`install.md`](install.md) - Installation | Requirements, server setup, and getting started. |
 | [`layouts.md`](layouts.md) - Layouts and Themes | How lazysite wraps page content in HTML layouts. |
 | [`manager.md`](manager.md) - Manager | Web-based admin and content manager for lazysite. |
+| [`odoo.md`](odoo.md) - The Odoo extension | Pages, forms, the schedule and agents run named Odoo operations through a connection user whose rights are set in Odoo. |
 | [`onboard-ai-agent.md`](onboard-ai-agent.md) - Onboard an AI agent | Give an AI assistant a scoped account to manage your site - in a few steps, fully under your control. |
 | [`onboarding-brief-template.md`](onboarding-brief-template.md) - Onboarding brief template (operator) | This is the operator's template for the out-of-band onboarding brief. |
 | [`payment.md`](payment.md) - Payment | Gate content behind x402 payments with member bypass. |
@@ -227,4 +228,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*112 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*113 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
