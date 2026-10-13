@@ -10,8 +10,9 @@
 - **Shared `lib/Lazysite/` module tree** (SM079 modular refactor): common
   logic lives once in `Util`, `Audit`, `Auth::{Acl,Credential,OAuth,Session,
   Settings}` and `Manager::{Artifact,Backups,Common,Files,Layouts,Plugins,
-  Themes,Upload}`; the CGIs import from it (`use lib` is wired by the
-  installer). The **one deliberate exception is the processor's render
+  Themes,Upload}`; the CGIs import from it, finding the tree by one rule (SM1078,
+  t/lint/263): beside the script's real directory, its parent or its
+  grandparent, then the docroot's `../lib`, where the installer puts it. The **one deliberate exception is the processor's render
   path**, which stays module-free so the page-serving hot path runs with no
   `@INC` dependency - its single duplicated helper is marked and recorded in
   `docs/adr/0001-capability-resolution.md`. Its areas are moving into parts

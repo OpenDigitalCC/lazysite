@@ -105,7 +105,8 @@ Seed files you've edited are preserved; code is always refreshed. `--dry-run`
 previews without writing anything, `lazysite backups --docroot D` lists the
 backups at `{docroot}/lazysite/backups/` and `--restore` puts one back.
 
-HestiaCP users: see `installers/hestia/`. Docker: see `installers/docker/`.
+HestiaCP users: see `installers/hestia/`. There is no Docker image yet
+(`installers/docker/` is a placeholder).
 
 ### First sign-in
 

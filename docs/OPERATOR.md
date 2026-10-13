@@ -9,7 +9,11 @@ day-to-day runbook.
 
 ```
 <docroot>/                      content (.md / .html cache / assets)
-<docroot>/cgi-bin/              the CGI scripts
+<cgibin>/                       the CGI scripts (provision's --cgibin; the
+                                docroot's sibling cgi-bin unless named)
+<docroot>/../lib/               the engine's modules (Lazysite::)
+<docroot>/../plugins/           plugins (form-handler linked into <cgibin>)
+<docroot>/../tools/             the site's tools
 <docroot>/lazysite/             state - not web-served
   auth/      users, groups, user-settings.json, .secret, locks (2770)
   cache/     generated HTML

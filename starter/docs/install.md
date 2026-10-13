@@ -159,60 +159,30 @@ The full sequence, including the nginx proxy layer and the per-domain
 onboarding command, is in `installers/hestia/INSTALL-RUNBOOK.md` in the
 release.
 
-### Manual Apache installation
+### Apache or nginx without HestiaCP
 
-For Apache without HestiaCP, install the Perl dependencies and configure
-the vhost manually:
+Install the Perl dependencies, provision the site as its own user, then
+render the vhost (as root):
 
 ```bash
 apt install libtext-multimarkdown-perl libtemplate-perl libwww-perl
+sudo -u siteuser lazysite provision \
+    --docroot /var/www/example.com/public_html \
+    --cgibin  /var/www/example.com/cgi-bin --domain example.com
+lazysite-apache-vhost add example.com --docroot /var/www/example.com/public_html
 ```
 
-Copy `lazysite-processor.pl` to your `cgi-bin/` directory and make it executable:
+`lazysite-nginx-vhost add` takes the same arguments. Both default `--cgibin`
+to the `cgi-bin` beside the docroot; name it when the site's cgi-bin is
+elsewhere.
 
-```bash
-cp lazysite-processor.pl /var/www/example.com/cgi-bin/
-chmod 755 /var/www/example.com/cgi-bin/lazysite-processor.pl
-```
-
-Copy the starter files to your docroot:
-
-```bash
-mkdir -p /var/www/example.com/public_html/lazysite/templates/registries
-mkdir -p /var/www/example.com/public_html/lazysite/layouts
-mkdir -p /var/www/example.com/public_html/lazysite-assets
-cp starter/lazysite.conf.example   /var/www/example.com/public_html/lazysite/lazysite.conf
-cp starter/lazysite/templates/registries/*.tt  /var/www/example.com/public_html/lazysite/templates/registries/
-mkdir -p /var/www/example.com/public_html/lazysite/templates/system
-cp starter/lazysite/templates/system/*.md  /var/www/example.com/public_html/lazysite/templates/system/
-cp starter/index.md                /var/www/example.com/public_html/
-```
-
-Add to your Apache vhost configuration:
-
-```apache
-DirectoryIndex index.html index.htm
-FallbackResource /cgi-bin/lazysite-processor.pl
-
-<Location /lazysite>
-    Require all denied
-</Location>
-
-<Directory /var/www/example.com/public_html>
-    Options -Indexes +ExecCGI
-    AllowOverride All
-</Directory>
-```
-
-Ensure the web server user can write to the docroot:
-
-```bash
-chown ispadmin:www-data /var/www/example.com/public_html
-chmod g+ws /var/www/example.com/public_html
-```
-
-The setgid bit (`s`) ensures new subdirectories created by the processor
-inherit the `www-data` group automatically.
+`provision` puts the CGIs in `--cgibin` and the engine's modules, plugins
+and tools beside the docroot, at `{docroot}/../lib`, `../plugins` and
+`../tools`. The cgi-bin may be anywhere: the CGIs find the modules beside
+themselves first and then at the docroot's `../lib` (SM1078). Copying
+`lazysite-processor.pl` into a cgi-bin by hand is not a supported install -
+it renders pages, but the manager, sign-in, MCP, WebDAV, forms and the
+features the processor loads modules for are missing.
 
 ## Getting started
 

@@ -37,8 +37,11 @@ use File::Basename ();
 BEGIN {
     # Locate the module tree relative to this script - run-in-place, tarball
     # and package installs alike - the same bootstrap the other surfaces use.
+    # SM1078: then the docroot's ../lib, where install.pl puts it whatever
+    # --cgibin was (one rule in every script a cgi-bin runs, t/lint/263).
     my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+    my $doc = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '';
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib", ( length $doc ? "$doc/../lib" : () ) ) {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }

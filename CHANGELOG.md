@@ -117,6 +117,21 @@ Archive
   is not UTF-8 as one it cannot read whatever the render returned (SM976 Q15j),
   which its test met only because its rig had no processor.
   t/integration/227, t/unit/lib/90, t/lint/258.
+- SM1078 (PENDING) **every CGI finds the engine's modules wherever the cgi-bin
+  is.** install.pl puts the modules at `{docroot}/../lib`; the CGIs looked only
+  beside themselves, so on install.pl's own example (`--docroot /var/www/html
+  --cgibin /usr/lib/cgi-bin`) every CGI but the linked form handler died
+  "Can't locate Lazysite/Util.pm" (the processor rendered, and failed the
+  features it loads modules for), and the install's health check passed it.
+  Every script a cgi-bin runs, and the processor's lazy lookup, now follow one
+  rule: beside itself, its parent, its grandparent, then the docroot's
+  `../lib`. Every layout that worked resolves to the same directory: probed by
+  installing each documented layout and running each CGI, 59 working cases
+  unchanged, 31 fixed. Docs: install.md's hand-copy Apache section (the
+  processor alone) is replaced by `provision` plus the vhost tool, OPERATOR.md's
+  layout shows where the cgi-bin, lib, plugins and tools go, and the README no
+  longer points at an empty Docker directory.
+  t/integration/259, t/unit/lib/97, t/lint/263.
 - SM1068 (PENDING) **a write-only rule leaves a page cacheable, and the rule
   store is decoded once per change.** Ruled "Read/draft only": only a `read`
   list or `draft` governs a page. A write-only rule (an owner, a `write` list)
