@@ -336,10 +336,10 @@ my %ACTION_INFO = (
             . 'engine guards technical safety (one address per recipient, queued '
             . 'and sent once, a per-recipient cap, an audit row each) and whether a '
             . 'recipient may be written to is the operator\'s responsibility.',
-        grants => 'Create, change and delete notify handlers on the Handlers page or its actions, which it reaches on its own (SM1010 R5) and where it sees only notify handlers unless another handler capability shows more; binding one to a form needs manage_forms. Off by default; held by the operator groups.',
+        grants => 'Create, change and delete notify handlers on the Handlers page or its actions, which it reaches on its own (SM1010 R5) and where it sees only notify handlers unless another handler capability shows more; binding one to a form needs manage_forms. Read the notification outbox - queued, held and failed events and who each resolves to (SM1072); a domain-confined holder sees only its own domains\' rules. Off by default; held by the operator groups.',
         unlocks => {
-            api => [qw(handler-list handler-save handler-delete)],
-            mcp => [qw(list_handlers save_handler delete_handler)],
+            api => [qw(handler-list handler-save handler-delete notify-outbox-list)],
+            mcp => [qw(list_handlers save_handler delete_handler read_notify_outbox)],
         },
     },
     manage_data => {

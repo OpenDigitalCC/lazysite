@@ -1768,6 +1768,28 @@ my %TOOLS = (
             return Lazysite::Handlers::action_handler_delete( $_[0]->{id}, caps => $_[2] );
         },
     },
+    # SM1072 (SM1010 R3): notify-outbox-list's twin. It shows recipients, so it
+    # needs manage_notifications alone, and a grant sees only the rules of its
+    # own domains.
+    read_notify_outbox => {
+        description => 'Read the notification outbox: the events notify rules have queued and not yet sent (queued, or retrying after a transport failure, with the last error), the messages held back by a rule\'s per-recipient cap (held), and those given up (failed, with the reason) - plus `waiting` when the daemon\'s notify-outbox job is not taking them. With `id`, one event and the recipients it resolves to under the rule as it stands, with what was decided for each on each channel (sent, refused, held, pending). It shows who is written to, so it needs manage_notifications, and a grant confined to some domains sees only their rules.',
+        cap         => 'manage_notifications',
+        inputSchema => { type => 'object',
+            properties => {
+                rule => { type => 'string', description => 'only this notify rule\'s events' },
+                id => { type => 'string', description => 'one event id, for its recipients' },
+            },
+            additionalProperties => JSON::PP::false },
+        run => sub {
+            require Lazysite::Outbox;
+            my %reach = _grant_reach( $_[2] );
+            return Lazysite::Outbox::outbox_list( docroot => $DOCROOT, rule => $_[0]->{rule}, id => $_[0]->{id},
+                may_see => sub {
+                    !Lazysite::Manager::Common::handler_reach_refusal( %reach,
+                        old => ( $_[0] ? $_[0]{domain} // '' : '' ) );
+                } );
+        },
+    },
     list_schedule => {
         description => 'List the schedule: each entry names a handler, how often the timer calls it (every, in seconds) and the fixed fields it is called with (payload). Entries run as the daemon\'s job account, which must hold the capability of each handler\'s destination.',
         cap      => 'manage_forms',

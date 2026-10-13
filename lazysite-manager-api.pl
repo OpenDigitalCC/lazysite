@@ -2153,6 +2153,17 @@ elsif ( $action eq 'handler-list' ) {
             = [ grep { Lazysite::Manager::Common::caller_may_use_handler($_) } @{ $result->{handlers} } ];
     }
 }
+# SM1072 (SM1010 R3): the notification outbox - queued, held and failed events,
+# and with `id` who one resolves to. It shows recipients, so it is
+# manage_notifications' (%GATE), and a confined caller sees only its own
+# domains' rules (Manager::Common::handler_reach_refusal).
+elsif ( $action eq 'notify-outbox-list' ) {
+    require Lazysite::Outbox;
+    $result = Lazysite::Outbox::outbox_list( docroot => $DOCROOT, rule => $params{rule}, id => $params{id},
+        may_see => sub {
+            !Lazysite::Manager::Common::handler_reach_refusal( old => ( $_[0] ? $_[0]{domain} // '' : '' ) );
+        } );
+}
 elsif ( $action eq 'schedule-list' ) { $result = Lazysite::Handlers::action_schedule_list() }
 elsif ( $action eq 'version' )       { $result = action_version() }
 elsif ( $action eq 'analyse_visitors' ) {

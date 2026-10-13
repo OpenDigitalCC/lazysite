@@ -378,6 +378,19 @@ operator) creates, changes or deletes one.
   of its own (`held`). One message holds at most 50 events; past that an event
   is refused and recorded. A cap of 0 sends nothing.
 
+  The Handlers page shows each rule's queue on its row - queued, retrying,
+  held by the cap, failed - and what its last run did, with the last
+  failure and when. When events wait more than three minutes and the
+  scheduler is not taking them (the daemon is not running, the
+  `notify-outbox` job is refused, or it last ran long ago) the row says
+  **waiting for the scheduler** and why. The **Notification outbox** card
+  lists the queued, held and failed events, and for each event who it
+  resolves to under the rule as it stands and what was decided for each
+  (sent, refused, held, pending). It shows recipients, so it needs
+  `manage_notifications`, and an account confined to some domains sees only
+  their rules (`notify-outbox-list` on the control API, `read_notify_outbox`
+  over MCP).
+
   **Who may be written to is the operator's decision, and complying with
   privacy and consent rules is the operator's responsibility** (ruled
   2026-10-12). The engine guards the technical side only: every recipient is

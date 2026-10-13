@@ -549,8 +549,16 @@ sub _mail_send {
 
 # $ok is 1 (ok), 0 (failed) or 'held' (SM1071: folded into a later message -
 # neither sent nor refused, and said as neither).
+#
+# SM1072 (SM1010 R3): every outcome is also counted for the rule's row, so the
+# Handlers page can say what the rule last did without reading the audit trail.
+our %TALLY;
+
 sub _audit {
     my ( $docroot, $actor, $rule, $channel, $ok, $who, $why ) = @_;
+    my $t = $TALLY{ $rule // '' } ||= { sent => 0, held => 0, failed => 0 };
+    $t->{ $ok eq 'held' ? 'held' : $ok ? 'sent' : 'failed' }++;
+    $t->{problem} = $who . ( length( $why // '' ) ? " - $why" : '' ) if !$ok;
     eval {
         require Lazysite::Audit;
         no warnings 'once';
@@ -575,16 +583,7 @@ sub _process {
     my ( $list, $why ) = resolve( $docroot, $sources, $entry, $accounts );
     return ( 'retry', $why ) unless $list;
 
-    # NOTHING TO THE ACCOUNT THAT CAUSED THE EVENT, unless the rule asks: the
-    # account itself, and its own address where an address source holds it.
-    my $actor = $entry->{actor} // '';
-    if ( length $actor && ( $h->{notify_actor} // 'false' ) ne 'true' ) {
-        my $mine = lc( ( ref $accounts->{$actor} eq 'HASH' ? $accounts->{$actor}{email} : '' ) // '' );
-        $list = [ grep {
-                !( defined $_->{account} && $_->{account} eq $actor )
-                && !( defined $_->{address} && length $mine && lc( $_->{address} ) eq $mine )
-        } @$list ];
-    }
+    $list = _without_actor( $h, $entry, $accounts, $list );
 
     my @channels = grep { length } split /\s*,\s*/, ( $h->{channels} // 'email' );
     my $cap      = _cap($h);
@@ -662,6 +661,19 @@ sub _process {
         }
     }
     return length $transient ? ( 'retry', $transient ) : ( 'done', '' );
+}
+
+# NOTHING TO THE ACCOUNT THAT CAUSED THE EVENT, unless the rule asks: the
+# account itself, and its own address where an address source holds it.
+sub _without_actor {
+    my ( $h, $entry, $accounts, $list ) = @_;
+    my $actor = $entry->{actor} // '';
+    return $list unless length $actor && ( $h->{notify_actor} // 'false' ) ne 'true';
+    my $mine = lc( ( ref $accounts->{$actor} eq 'HASH' ? $accounts->{$actor}{email} : '' ) // '' );
+    return [ grep {
+            !( defined $_->{account} && $_->{account} eq $actor )
+            && !( defined $_->{address} && length $mine && lc( $_->{address} ) eq $mine )
+    } @$list ];
 }
 
 sub _cap {
@@ -894,6 +906,7 @@ sub run {
     my (%ctx) = @_;
     my $docroot = $ctx{docroot};
     $ctx{now} //= time;
+    local %TALLY = ();
 
     my $files = _entry_files($docroot);
     return { ok => 0, error => 'the notification outbox could not be read; see the log' }
@@ -978,9 +991,274 @@ sub run {
     else { push @retry, 'the held notifications could not be read' }
     push @retry,  @{ $held->{retry} };
     push @failed, @{ $held->{failed} };
+    _write_status( $docroot, \%TALLY, $ctx{now} ) if %TALLY;
     close $lk;
     return { ok => 1, detail => { done => scalar @done, retry => \@retry, failed => \@failed,
             held_sent => $held->{sent}, held_waiting => $held->{waiting} } };
+}
+
+
+# --- what the manager is shown (SM1072, SM1010 R3) -------------------------------
+#
+# Q5 as ruled: delivery is queued only, and a site whose daemon is not running
+# shows "waiting for the scheduler" on the rule's row rather than sending inline.
+# R3 found the row showed nothing - no waiting, no last outcome - and the outbox
+# and notify/failed/ were visible only on the filesystem.
+#
+# notify/status.json: per rule, what its last run did - counts of sent, held and
+# failed rows, and the last failure with its time, kept until a later one
+# replaces it. Written by the job, under its lock, and read here; a convenience
+# beside the audit trail, which stays the record.
+
+sub status_file { return _lz_of( $_[0] ) . '/notify/status.json' }
+
+# { rule => {...} }, {} when there is none, or undef when it will not open.
+sub _read_status {
+    my ($docroot) = @_;
+    my $f = status_file($docroot);
+    open my $fh, '<:raw', $f or return $!{ENOENT} ? {} : cannot_read( 'the notification status', $f );
+    local $/;
+    my $raw = <$fh>;
+    close $fh;
+    my $s = eval { JSON::PP::decode_json( $raw // '' ) };
+    return ref $s eq 'HASH' ? $s : {};
+}
+
+sub _write_status {
+    my ( $docroot, $tally, $now ) = @_;
+    my $s = _read_status($docroot);
+    return unless defined $s;    # SM785: what could not be read is not overwritten
+    for my $rule ( keys %$tally ) {
+        next unless length $rule;
+        my $t    = $tally->{$rule};
+        my $prev = ref $s->{$rule} eq 'HASH' ? $s->{$rule} : {};
+        $s->{$rule} = {
+            last_run => $now,
+            sent     => $t->{sent}   // 0,
+            held     => $t->{held}   // 0,
+            failed   => $t->{failed} // 0,
+            ( defined $t->{problem}
+                ? ( problem => $t->{problem}, problem_at => $now )
+                : map { defined $prev->{$_} ? ( $_ => $prev->{$_} ) : () } qw(problem problem_at) ),
+        };
+    }
+    _write_entry( status_file($docroot), $s )
+        or log_event( 'WARN', 'notify', 'could not write the notification status', file => status_file($docroot) );
+    return;
+}
+
+our $WAIT_AFTER = 180;    # three ticks of the job: past this, a queued event is waiting
+
+# Everything the outbox holds, read once: { ok => 1, entries => [...], held =>
+# [...], job => {...} } or { ok => 0, error }. An entry carries its rule, so a
+# caller decides what it may show (outbox_list) - this reads, it does not filter.
+sub _outbox_read {
+    my ($docroot) = @_;
+    my $files = _entry_files($docroot);
+    return { ok => 0, error => 'the notification outbox could not be read; see the log' } unless defined $files;
+    my $folds = _fold_files($docroot);
+    return { ok => 0, error => 'the held notifications could not be read; see the log' } unless defined $folds;
+    my $fdir = failed_dir($docroot);
+    my @failed;
+    if ( opendir my $dh, $fdir ) {
+        @failed = map { "$fdir/$_" } sort grep { /\.json\z/ } readdir $dh;
+        closedir $dh;
+    }
+    elsif ( !$!{ENOENT} ) {
+        cannot_read( 'the failed notifications', $fdir );
+        return { ok => 0, error => 'the failed notifications could not be read; see the log' };
+    }
+    my ( @entries, @held );
+    for my $p (@$files) {
+        my $e = _read_entry($p);
+        next unless ref $e && !$e->{_torn};
+        push @entries, { %$e, state => ( ( $e->{attempts} // 0 ) > 0 ? 'retrying' : 'queued' ) };
+    }
+    for my $p (@$folds) {
+        my $f = _read_entry($p);
+        next unless ref $f && !$f->{_torn} && ref $f->{events} eq 'ARRAY';
+        push @held, { %$f, state => 'held' };
+    }
+    for my $p (@failed) {
+        my $e = _read_entry($p);
+        next unless ref $e && !$e->{_torn};
+        if   ( ref $e->{events} eq 'ARRAY' ) { push @held,    { %$e, state => 'failed' } }
+        else                                 { push @entries, { %$e, state => 'failed' } }
+    }
+    my $job = {};
+    eval {
+        require Lazysite::Daemon::Service::Scheduler;
+        my $runs = Lazysite::Daemon::Service::Scheduler::run_record($docroot);
+        $job = $runs->{'notify-outbox'} if ref $runs eq 'HASH' && ref $runs->{'notify-outbox'} eq 'HASH';
+        1;
+    };
+    return { ok => 1, entries => \@entries, held => \@held, job => $job };
+}
+
+# Why a queued event has not gone, or '' when nothing says it is stuck: the
+# scheduler refuses the job, has never run it, or last ran it too long ago.
+sub _waiting {
+    my ( $job, $oldest_due, $now ) = @_;
+    return '' unless defined $oldest_due && $now - $oldest_due > $WAIT_AFTER;
+    if ( ( $job->{outcome} // '' ) eq 'refused' ) {
+        return 'waiting for the scheduler: it refuses the notify-outbox job - '
+            . ( $job->{refusal_reason} // 'no reason recorded' );
+    }
+    my $last = $job->{last_run};
+    return 'waiting for the scheduler: the notify-outbox job has never run - is the daemon running?'
+        unless $last;
+    return '' unless $now - $last > $WAIT_AFTER;
+    return 'waiting for the scheduler: the notify-outbox job last ran '
+        . int( ( $now - $last ) / 60 ) . ' minutes ago - is the daemon running?';
+}
+
+# Per rule, for the Handlers page's row: { rule => { queued, retrying, failed,
+# held, waiting, last } }, or undef when the outbox cannot be read.
+sub rule_states {
+    my ( $docroot, $now ) = @_;
+    $now //= time;
+    my $o = _outbox_read($docroot);
+    return undef unless $o->{ok};
+    my $status = _read_status($docroot) // {};
+    my %s;
+    my $row = sub { $s{ $_[0] } ||= { queued => 0, retrying => 0, failed => 0, held => 0 } };
+    my %oldest;
+    for my $e ( @{ $o->{entries} } ) {
+        my $r = $row->( $e->{rule} // '' );
+        $r->{ $e->{state} eq 'failed' ? 'failed' : 'queued' }++;
+        $r->{retrying}++ if $e->{state} eq 'retrying';
+        next             if $e->{state} eq 'failed';
+        my $due = ( $e->{next_at} // 0 ) > ( $e->{created} // 0 ) ? $e->{next_at} : $e->{created};
+        $oldest{ $e->{rule} // '' } = $due
+            if defined $due && ( !defined $oldest{ $e->{rule} // '' } || $due < $oldest{ $e->{rule} // '' } );
+    }
+    for my $f ( @{ $o->{held} } ) {
+        my $r = $row->( $f->{rule} // '' );
+        $r->{ $f->{state} eq 'failed' ? 'failed' : 'held' }++;
+    }
+    for my $rule ( keys %$status ) { $row->($rule)->{last} = $status->{$rule} if ref $status->{$rule} eq 'HASH' }
+    for my $rule ( keys %s ) {
+        my $w = _waiting( $o->{job}, $oldest{$rule}, $now );
+        $s{$rule}{waiting} = $w if length $w;
+    }
+    return \%s;
+}
+
+# The outbox, for the manager and an agent holding manage_notifications:
+#   outbox_list( docroot => ..., may_see => sub { $handler_or_undef } -> bool,
+#                rule => <only this rule>, id => <one event, with its recipients> )
+#
+# IT SHOWS RECIPIENTS - the accounts and addresses an event resolves to, and the
+# fields it carries - so it is behind manage_notifications on both doors, and
+# may_see is the caller's domain rule: a confined caller sees only the rules of
+# its own domains (Manager::Common::handler_reach_refusal).
+our $MAX_LISTED = 200;
+
+sub outbox_list {
+    my (%a)     = @_;
+    my $docroot = $a{docroot};
+    my $now     = $a{now} // time;
+    my $may     = ref $a{may_see} eq 'CODE' ? $a{may_see} : sub { 1 };
+    return { ok => 0, kind => 'invalid', field => 'rule', error => 'rule must be a handler id' }
+        if defined $a{rule} && length $a{rule} && $a{rule} !~ /\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\z/;
+    return { ok => 0, kind => 'invalid', field => 'id', error => 'id must be an event id (16 hex characters)' }
+        if defined $a{id} && length $a{id} && $a{id} !~ /\A[0-9a-f]{16}\z/;
+    my $o = _outbox_read($docroot);
+    return $o unless $o->{ok};
+    require Lazysite::Handlers;
+    no warnings 'once';
+    local $Lazysite::Handlers::DOCROOT = $docroot;
+    my $handlers = Lazysite::Handlers::read_handlers();
+    return { ok => 0, error => 'lazysite/forms/handlers.conf could not be read; see the log' }
+        unless defined $handlers;
+    my %seen_rule;
+    my $visible = sub {
+        my ($rule) = @_;
+        $rule //= '';
+        return 0 if defined $a{rule} && length $a{rule} && $rule ne $a{rule};
+        $seen_rule{$rule} //= $may->( Lazysite::Handlers::find_handler( $handlers, $rule ) ) ? 1 : 0;
+        return $seen_rule{$rule};
+    };
+
+    if ( defined $a{id} && length $a{id} ) {
+        my ($e) = grep { ( $_->{id} // '' ) eq $a{id} && $visible->( $_->{rule} ) } @{ $o->{entries} };
+        return { ok => 0, kind => 'not-found', error => "no event '$a{id}' in the outbox you can see" } unless $e;
+        return { ok => 1, entry => _entry_view($e), recipients => _recipients_view( $docroot, $handlers, $e ) };
+    }
+
+    my @entries = map { _entry_view($_) } grep { $visible->( $_->{rule} ) } @{ $o->{entries} };
+    my @held = map { _held_view($_) } grep { $visible->( $_->{rule} ) } @{ $o->{held} };
+    my $more = @entries > $MAX_LISTED ? @entries - $MAX_LISTED : 0;
+    splice @entries, $MAX_LISTED if $more;
+    my $oldest;
+    for ( grep { $_->{state} ne 'failed' } @entries ) { $oldest = $_->{due} if !defined $oldest || $_->{due} < $oldest }
+    my $w = _waiting( $o->{job}, $oldest, $now );
+    return { ok => 1, entries => \@entries, held => \@held, ( $more ? ( not_listed => $more ) : () ),
+        job => { map { defined $o->{job}{$_} ? ( $_ => $o->{job}{$_} ) : () } qw(last_run outcome reason refusal_reason) },
+        ( length $w ? ( waiting => $w ) : () ) };
+}
+
+sub _entry_view {
+    my ($e) = @_;
+    my $due = ( $e->{next_at} // 0 ) > ( $e->{created} // 0 ) ? $e->{next_at} : ( $e->{created} // 0 );
+    return {
+        id       => $e->{id}   // '',
+        rule     => $e->{rule} // '',
+        state    => $e->{state},
+        created  => $e->{created} // 0,
+        due      => $due,
+        attempts => $e->{attempts} // 0,
+        actor    => $e->{actor}    // '',
+        origin   => $e->{origin}   // '',
+        source   => $e->{source}   // '',
+        fields   => ( ref $e->{fields} eq 'HASH' ? $e->{fields} : {} ),
+        ( defined $e->{last_error} ? ( last_error => $e->{last_error} ) : () ),
+        ( defined $e->{failed}     ? ( reason     => $e->{failed} )     : () ),
+    };
+}
+
+sub _held_view {
+    my ($f) = @_;
+    my $r = ref $f->{recipient} eq 'HASH' ? $f->{recipient} : {};
+    return {
+        rule    => $f->{rule} // '',
+        state   => $f->{state},
+        channel => $f->{channel} // '',
+        recipient => ( defined $r->{account} ? "account $r->{account}" : 'address ' . ( $r->{address} // '?' ) ),
+        events => scalar @{ $f->{events} || [] },
+        since  => $f->{created} // 0,
+        ( defined $f->{last_error} ? ( last_error => $f->{last_error} ) : () ),
+        ( defined $f->{failed}     ? ( reason     => $f->{failed} )     : () ),
+    };
+}
+
+# Who an event resolves to NOW, under the rule as it stands, and what the ledger
+# says was decided for each on each channel: sent, refused, held, or pending.
+sub _recipients_view {
+    my ( $docroot, $handlers, $e ) = @_;
+    my $h = Lazysite::Handlers::find_handler( $handlers, $e->{rule} // '' );
+    return { error => "no rule '" . ( $e->{rule} // '' ) . "'" } unless $h && ( $h->{type} // '' ) eq 'notify';
+    my ($sources) = parse_recipients( $h->{recipients} );
+    return { error => 'the rule has no usable recipient list' } unless $sources;
+    my $accounts = _accounts($docroot);
+    return { error => 'the account store could not be read' } unless defined $accounts;
+    my ( $list, $why ) = resolve( $docroot, $sources, $e, $accounts );
+    return { error => $why } unless $list;
+    $list = _without_actor( $h, $e, $accounts, $list );
+    my $ledger = _read_ledger($docroot) // [];
+    my %state  = map  { ( $_->{k} // '' ) => ( $_->{s} // '' ) } @$ledger;
+    my @ch     = grep { length } split /\s*,\s*/, ( $h->{channels} // 'email' );
+    my @out;
+    for my $r (@$list) {
+        my %by;
+        for my $c (@ch) {
+            next if $c eq 'bell' && !defined $r->{account};
+            my $s = $state{ _hash( $h->{id}, $e->{id}, $c, $r->{key} ) } // 'pending';
+            $by{$c} = $s eq 'folded' ? 'held' : $s;
+        }
+        push @out, { who => _who($r), channels => \%by };
+    }
+    return { list => \@out };
 }
 
 1;

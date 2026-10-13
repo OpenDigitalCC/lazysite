@@ -1195,12 +1195,26 @@ sub action_handler_list {
         $all = [ grep { my $c = cap_for_type( $_->{type} ); defined $c && ( $who{caps} || {} )->{$c} } @$all ];
         $b = {};
     }
+    # SM1072 (SM1010 R3, Q5 as ruled): a notify rule's row says what its queue
+    # holds and what it last did - and "waiting for the scheduler" when the
+    # daemon is not taking it. Counts only: who the events go to is the outbox
+    # view's, behind manage_notifications.
+    my $states;
+    if ( grep { ( $_->{type} // '' ) eq 'notify' } @$all ) {
+        require Lazysite::Outbox;
+        $states = Lazysite::Outbox::rule_states($DOCROOT);
+    }
     my @out = map {
         my %h = %$_;
         $h{enabled} = enabled($_) ? JSON::PP::true : JSON::PP::false;
         $h{cap}     = cap_for_type( $h{type} );
         $h{used_by} = used_by( $h{id}, $b, $s );
         $h{problem} = _legacy_problem($_) if length _legacy_problem($_);
+        if ( ( $h{type} // '' ) eq 'notify' ) {
+            $h{outbox} = defined $states
+                ? ( $states->{ $h{id} } // { queued => 0, retrying => 0, failed => 0, held => 0 } )
+                : { error => 'the notification outbox could not be read; see the log' };
+        }
         \%h;
     } @$all;
     # SM938 D2: where each form's submission notice will be announced, and if

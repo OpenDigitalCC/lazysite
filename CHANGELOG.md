@@ -91,6 +91,19 @@ Archive
   the tree before them; a failure leaves the stack out and rebuilds the tree
   without it. The results file records each stack's base: `stack base is older
   than main by N commits`. t/tools/151-153.
+- SM1072 (PENDING) **a notification rule says what its queue holds, and the
+  outbox is shown in the manager.** A rule whose daemon was not running queued
+  events nobody would send while its row on the Handlers page said "on". The
+  row now shows the rule's queue (queued, retrying, held by the cap, failed),
+  what its last run did with the last failure and when, and **waiting for the
+  scheduler** with the reason when the `notify-outbox` job is refused, has
+  never run or last ran long ago (SM1010 Q5, as ruled). A new Notification
+  outbox card - `notify-outbox-list`, and `read_notify_outbox` over MCP -
+  lists the queued, held and failed events and, for one event, who it
+  resolves to and what was decided for each. It shows recipients, so it needs
+  `manage_notifications` alone, and an account confined to some domains sees
+  only their rules. t/unit/manager/340, t/integration/247.
+
 - SM1071 (PENDING) **a notice over the cap is folded into the next message.**
   A notification rule's `per_recipient_hour` refused the events past it, so a
   member following a busy thread heard of the first comments each hour and

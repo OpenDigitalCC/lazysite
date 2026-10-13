@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-12
 raised-by: release manager, from the news site's reports (inbox 2026-10-11, archived), 2026-10-12
 area: notifications
-status-note: "Ruled 2026-10-12. Phase 0 built (SM1017). Phase 1 built: verified actor (SM1018), notify handler + manage_notifications (SM1019), notify-outbox job, email, per-member bell with F3 (SM1020). Member bell on /account (SM1044) and the handler door (R5) built. Q7 folding built (SM1071). Remains: Q5 handler-row state, one-click unsubscribe, phases 2-3. See Built."
+status-note: "Ruled 2026-10-12. Phase 0 built (SM1017). Phase 1 built: verified actor (SM1018), notify handler + manage_notifications (SM1019), notify-outbox job, email, per-member bell with F3 (SM1020). Member bell on /account (SM1044) and the handler door (R5) built. Q7 folding (SM1071) and Q5 handler-row state with the outbox view (SM1072) built. Remains: one-click unsubscribe, phases 2-3. See Built."
 ---
 
 # Ruled
@@ -60,6 +60,7 @@ overrides a recommendation below, the ruling stands.
 | B6 | R2: a member reads the notices addressed to them on `/account` (`me-notices`), never a broadcast | SM1044, n502 |
 | B7 | R5: `manage_notifications` opens handler-list, -save and -delete on both doors, and sees and writes only notify handlers (ruled with SM1034 Q9) | n504 |
 | B8 | R1: past the cap an event is held and folded into the next message, sent as one when the cap allows | SM1071, n566 |
+| B9 | R3: a notify rule's row shows its queue, last run and "waiting for the scheduler"; the outbox is shown in the manager and over MCP (manage_notifications; a confined caller sees its own domains' rules) | SM1072, n567 |
 
 Not built, in order of need (each a candidate for its own filing):
 
@@ -67,7 +68,7 @@ Not built, in order of need (each a candidate for its own filing):
 | --- | --- | --- |
 | R1 | Q7 folding: a recipient over the cap is refused and audited; later comments are not folded into the next message | built as SM1071 (B8) |
 | R2 | A member surface for the bell | built as SM1044 (B6), under SM1034 |
-| R3 | Q5: the handler's row shows no "waiting for the scheduler" or last outcome; the outbox and `notify/failed/` are not shown in the manager | build |
+| R3 | Q5: the handler's row shows no "waiting for the scheduler" or last outcome; the outbox and `notify/failed/` are not shown in the manager | built as SM1072 (B9) |
 | R4 | One-click unsubscribe (an engine POST endpoint); today the link and header point at the operator's own page | build |
 | R5 | The handler door for manage_notifications | built (B7), ruled 2026-10-12 with SM1034 Q9 |
 | R6 | The operator group (tmp/wt-a) should carry manage_notifications when it lands; today the sysop (manager) groups hold it by top-up | B-side of that branch |

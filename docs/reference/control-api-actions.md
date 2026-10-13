@@ -173,6 +173,7 @@ tone: medium
 `nav-save` | manage_nav | items (body), host (query_or_body)
 `notices` | notifications |  
 `notices-seen` | cookie only | id (query), dismiss (query)
+`notify-outbox-list` | manage_notifications | rule (query), id (query)
 `odoo-bindings` | any authenticated |  
 `odoo-calls` | manage_connectors | binding (query), limit (query)
 `odoo-confirm` | any authenticated | plan (body)

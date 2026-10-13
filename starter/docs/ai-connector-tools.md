@@ -214,6 +214,15 @@ save_handler `{ id, type, name, ... }` / delete_handler `{ id }`
   work. A handler still used by a form or schedule entry is not deleted - the
   answer names them. There is no webhook type: outbound HTTP is a connector.
 
+read_notify_outbox `{ rule?, id? }`
+: The notification outbox: events notify rules queued and not yet sent
+  (queued, or retrying with the last error), messages held back by a rule's
+  per-recipient cap, and those given up (failed, with the reason), plus
+  `waiting` when the daemon's `notify-outbox` job is not taking them. With
+  `id`, one event and who it resolves to, with what was decided for each. It
+  shows recipients, so it needs `manage_notifications`; a grant confined to
+  some domains sees only their rules.
+
 list_schedule / save_schedule `{ id, handler, every, payload }` / delete_schedule `{ id }`
 : What the timer calls: a handler, every so many seconds (300 or more), with
   fixed fields. Same capability rule as the handler it calls.

@@ -40,6 +40,23 @@ a handler that exists needs Forms alone.</div>
   </div>
 </div>
 
+<!-- SM1072 (SM1010 R3): the notification outbox. It shows who each event goes
+     to, so it answers only a holder of Notifications (manage_notifications),
+     and a domain-confined account sees its own domains' rules; for anyone else
+     the card stays hidden. -->
+<div class="mg-card" id="outbox-card" hidden>
+  <div class="mg-card-header">
+    <span class="mg-card-title">Notification outbox</span>
+    <span class="mg-card-subtitle">what notification rules have queued, held back or given up</span>
+  </div>
+  <div class="mg-card-body">
+    <div id="outbox-waiting"></div>
+    <div class="mg-list" id="outbox-list">
+      <div class="mg-row"><span class="mg-row-name">Loading...</span><span class="mg-row-meta"></span><span class="mg-row-actions"></span></div>
+    </div>
+  </div>
+</div>
+
 <div class="mg-card">
   <div class="mg-card-header">
     <span class="mg-card-title">Forms</span>
@@ -193,7 +210,90 @@ function load() {
       renderSchedule();
     })
     .catch(function(e) { showStatus('Failed to load the schedule: ' + e.message, true); });
+  loadOutbox();
 }
+
+// --- the notification outbox (SM1072) ----------------------------------------
+
+var OUTBOX = { entries: [], held: [] };
+
+function loadOutbox() {
+  fetch(API + '?action=notify-outbox-list')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var card = document.getElementById('outbox-card');
+      // Not a holder of Notifications: the grant, not a fault to announce.
+      if (!d.ok) { if (d.kind !== 'forbidden') showStatus(d.error, true); card.hidden = true; return; }
+      card.hidden = false;
+      OUTBOX = { entries: d.entries || [], held: d.held || [] };
+      document.getElementById('outbox-waiting').innerHTML = d.waiting
+        ? '<p class="mg-note mg-note-warn">' + escHtml(d.waiting) + '</p>' : '';
+      renderOutbox(d.not_listed || 0);
+    })
+    .catch(function(e) { showStatus('Failed to load the notification outbox: ' + e.message, true); });
+}
+
+function renderOutbox(notListed) {
+  var el = document.getElementById('outbox-list');
+  if (!OUTBOX.entries.length && !OUTBOX.held.length) {
+    el.innerHTML = '<div class="mg-empty">Nothing is waiting: every queued notification has been sent.</div>';
+    return;
+  }
+  var rows = OUTBOX.entries.map(function(e) {
+    var key = 'o-' + e.id;
+    var tag = e.state === 'failed'
+      ? '<span class="mg-tag mg-tag-warn">failed</span>'
+      : '<span class="mg-tag mg-tag-off">' + escHtml(e.state) + '</span>';
+    var why = e.reason || e.last_error || '';
+    return '<div class="mg-row">'
+      + '<span class="mg-row-name">' + escHtml(e.rule) + ' <span class="mg-row-meta">' + escHtml(e.id) + '</span></span>'
+      + '<span class="mg-row-meta">' + escHtml(whenText(e.created))
+      + (e.actor ? ' &middot; by ' + escHtml(e.actor) : '')
+      + (e.attempts ? ' &middot; ' + escHtml(e.attempts) + ' attempt' + (e.attempts === 1 ? '' : 's') : '')
+      + (why ? ' &middot; ' + escHtml(why) : '') + '</span>'
+      + '<span class="mg-row-actions">' + tag + ' ' + chev('outbox-list', key, e.rule + ' ' + e.id, 'Recipients') + '</span>'
+      + '</div>'
+      + '<div class="mg-expand" id="exp-' + escHtml(key) + '" hidden></div>';
+  });
+  OUTBOX.held.forEach(function(h) {
+    rows.push('<div class="mg-row">'
+      + '<span class="mg-row-name">' + escHtml(h.rule) + ' <span class="mg-row-meta">' + escHtml(h.recipient) + '</span></span>'
+      + '<span class="mg-row-meta">' + escHtml(h.events) + ' event' + (h.events === 1 ? '' : 's') + ' held for one '
+      + escHtml(h.channel) + ' message since ' + escHtml(whenText(h.since))
+      + ((h.reason || h.last_error) ? ' &middot; ' + escHtml(h.reason || h.last_error) : '') + '</span>'
+      + '<span class="mg-row-actions">' + (h.state === 'failed'
+        ? '<span class="mg-tag mg-tag-warn">failed</span>' : '<span class="mg-tag mg-tag-off">held</span>') + '</span>'
+      + '</div>');
+  });
+  if (notListed) rows.push('<div class="mg-empty">' + escHtml(notListed) + ' more not listed.</div>');
+  el.innerHTML = rows.join('');
+}
+
+BUILD['outbox-list'] = function(key) {
+  var id = key.replace(/^o-/, '');
+  fetch(API + '?action=notify-outbox-list&id=' + encodeURIComponent(id))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var box = document.getElementById('rc-' + key);
+      if (!box) return;
+      if (!d.ok) { box.textContent = d.error; return; }
+      var rc = d.recipients || {};
+      if (rc.error) { box.textContent = 'Its recipients cannot be resolved: ' + rc.error; return; }
+      var list = rc.list || [];
+      var fields = d.entry && d.entry.fields ? Object.keys(d.entry.fields).sort().map(function(k) {
+        return escHtml(k) + ': ' + escHtml(d.entry.fields[k]);
+      }).join('<br>') : '';
+      box.innerHTML = (fields ? '<div class="mg-section-label">Fields</div><p class="mg-muted">' + fields + '</p>' : '')
+        + '<div class="mg-section-label">Recipients, under the rule as it stands</div>'
+        + (list.length ? list.map(function(r) {
+            return '<div class="mg-row"><span class="mg-row-name">' + escHtml(r.who) + '</span><span class="mg-row-meta">'
+              + Object.keys(r.channels).sort().map(function(c) { return escHtml(c) + ': ' + escHtml(r.channels[c]); }).join(', ')
+              + '</span><span class="mg-row-actions"></span></div>';
+          }).join('') : '<p class="mg-muted">It resolves to nobody.</p>');
+    })
+    .catch(function(e) { showStatus('Failed to load the recipients: ' + e.message, true); });
+  return '<div class="mg-expand-body" id="rc-' + escHtml(key) + '">Loading...</div>';
+};
 
 function typeDef(type) {
   for (var i = 0; i < TYPES.length; i++) { if (TYPES[i].type === type) return TYPES[i]; }
@@ -265,7 +365,32 @@ function destinationOf(h) {
   if (h.type === 'file') return 'file in ' + (h.path || 'lazysite/forms/submissions');
   if (h.type === 'table') return 'rows into ' + (h.table || '?') + (h.keep_copy === 'false' ? '' : ', with a copy');
   if (h.type === 'connector') return 'through ' + (h.connector || '?');
+  if (h.type === 'notify') return 'notifies by ' + (h.channels || 'email');
   return h.type || 'unknown';
+}
+
+// SM1072 (SM1010 R3): what a notification rule's queue holds, in counts. Who the
+// events go to is the outbox card's, below, behind Notifications.
+function outboxText(o) {
+  if (!o) return '';
+  if (o.error) return o.error;
+  var parts = [];
+  if (o.queued) parts.push(o.queued + ' queued' + (o.retrying ? ' (' + o.retrying + ' retrying)' : ''));
+  if (o.held) parts.push(o.held + ' held by the cap');
+  if (o.failed) parts.push(o.failed + ' failed');
+  return parts.length ? parts.join(', ') : 'nothing queued';
+}
+
+function whenText(t) {
+  if (!t) return 'never';
+  var d = new Date(t * 1000);
+  return d.toLocaleString();
+}
+
+function lastRunText(l) {
+  if (!l) return 'It has not sent anything yet.';
+  return 'Last run ' + whenText(l.last_run) + ': ' + (l.sent || 0) + ' sent, ' + (l.held || 0) + ' held, '
+    + (l.failed || 0) + ' failed.';
 }
 
 function usedText(u) {
@@ -290,11 +415,16 @@ function handlerRow(h) {
   var state = h.problem
     ? '<span class="mg-tag mg-tag-warn">' + escHtml(h.problem) + '</span>'
     : (h.enabled ? '<span class="mg-tag mg-tag-on">on</span>' : '<span class="mg-tag mg-tag-off">off</span>');
+  // SM1072: Q5 as ruled - a rule whose events the daemon is not taking says so.
+  if (h.outbox && h.outbox.waiting) {
+    state = '<span class="mg-tag mg-tag-warn" title="' + escHtml(h.outbox.waiting) + '">waiting for the scheduler</span> ' + state;
+  }
   return '<div class="mg-row">'
     + '<span class="mg-row-name">' + escHtml(h.id)
     + (h.name ? ' <span class="mg-row-meta">' + escHtml(h.name) + '</span>' : '') + '</span>'
     + '<span class="mg-row-meta">' + escHtml(typeLabel(h.type)) + ' &middot; ' + escHtml(destinationOf(h))
-    + ' &middot; ' + escHtml(usedText(h.used_by)) + '</span>'
+    + ' &middot; ' + escHtml(usedText(h.used_by))
+    + (h.outbox ? ' &middot; ' + escHtml(outboxText(h.outbox)) : '') + '</span>'
     + '<span class="mg-row-actions">' + state + ' ' + chev('handler-list', key, h.id, 'Configure') + '</span>'
     + '</div>'
     + '<div class="mg-expand" id="exp-' + escHtml(key) + '" hidden></div>';
@@ -378,6 +508,14 @@ function handlerEditor(h, key, isNew) {
       + (h.used_by.forms.length ? 'Forms: ' + h.used_by.forms.map(escHtml).join(', ') + '. ' : '')
       + (h.used_by.schedule.length ? 'Schedule: ' + h.used_by.schedule.map(escHtml).join(', ') + '.' : '')
       + (h.used_by.forms.length || h.used_by.schedule.length ? '' : 'Nothing calls it yet.') + '</p>';
+  }
+  if (!isNew && h.outbox && !h.outbox.error) {
+    var o = h.outbox, l = o.last;
+    html += '<div class="mg-section-label">Sending</div><p class="mg-muted">'
+      + escHtml(outboxText(o)) + '. ' + escHtml(lastRunText(l))
+      + (l && l.problem ? ' Last failure (' + escHtml(whenText(l.problem_at)) + '): ' + escHtml(l.problem) + '.' : '')
+      + '</p>'
+      + (o.waiting ? '<p class="mg-note mg-note-warn">' + escHtml(o.waiting) + '</p>' : '');
   }
   html += '<div class="mg-toolbar">'
     + '<button class="mg-btn mg-btn-primary" data-impact="commit" onclick="saveHandler(\'' + escHtml(key) + '\', ' + (isNew ? 'true' : 'false') + ')">'
