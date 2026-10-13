@@ -13,6 +13,9 @@
 # Usage: tools/precheck.sh [BASE]   (default main). Exit non-zero on any failure.
 set -u
 cd "$(dirname "$0")/.." || exit 2
+# The log goes to tmp/, which is ignored: a fresh worktree has none, and the
+# redirect below failed there before prove ran (t/tools/150).
+mkdir -p tmp
 BASE=${1:-main}
 RC=0
 CHANGED=$(git diff --name-only "$BASE"...HEAD; git diff --name-only HEAD)

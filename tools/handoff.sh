@@ -46,6 +46,9 @@
 # Exit 0 = READY. Anything else = not ready, and it says what.
 set -u
 cd "$(dirname "$0")/.." || exit 2
+# tmp/ is ignored, so a fresh worktree has none; the bench log goes there
+# (t/tools/150).
+mkdir -p tmp
 
 BASE=${HANDOFF_BASE:-main}
 STACKED=0
