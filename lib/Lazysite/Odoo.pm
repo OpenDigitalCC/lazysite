@@ -1084,7 +1084,46 @@ sub sign_in {
         return ( _refusal( \%rec, 'unavailable', 'a sign-in cookie cannot be made on this host - see the event log' ) )[1];
     }
     record_call( %rec, actor => Lazysite::Odoo::Session::session_label( $r->{session_id} ), outcome => 'answered' );
-    return { ok => 1, cookie => $cookie, identity => $r->{identity} };
+    return { ok => 1, cookie => $cookie, identity => $r->{identity},
+        identity_cookie => _identity_cookie( $r->{identity_all} ) };
+}
+
+# --- C: the identity cookie ----------------------------------------------------
+#
+# How long an identity cookie lasts: `odoo_identity_ttl` (OB1), seconds, 60 to
+# 86400, default 900. Groups and companies change in Odoo and the cookie does not
+# know, so it is short, and refreshed from the session when it has ended.
+sub identity_ttl {
+    my $kv = read_conf() // {};
+    my $v  = $kv->{odoo_identity_ttl};
+    return ( defined $v && $v =~ /\A[0-9]+\z/ && $v >= 60 && $v <= 86400 ) ? 0 + $v : 900;
+}
+
+sub _identity_cookie {
+    my ($facts) = @_;
+    require Lazysite::Odoo::Identity;
+    require Lazysite::Odoo::Visitor;
+    no warnings 'once';
+    local $Lazysite::Odoo::Visitor::DOCROOT = $DOCROOT;
+    return Lazysite::Odoo::Identity::mint_cookie($facts);
+}
+
+# refresh_identity( session_id ) -> { ok, identity_cookie } or { ok => 0, kind, error[, clear_session] }
+#
+# The next call after the identity cookie has ended (OI3): ask Odoo who this
+# session is, through the session, and mint the cookie again. Nothing here
+# refuses or permits anything; it only freshens what a page may show.
+sub refresh_identity {
+    my (%a) = @_;
+    require Lazysite::Odoo::Session;
+    my ($have) = oom_check();
+    my ($conn) = $have ? connection() : ();
+    return { ok => 0, kind => 'config', error => 'the Odoo connection is not available' } unless $conn;
+    my $r = Lazysite::Odoo::Session::identity_of( $conn, $a{session_id} );
+    return $r unless $r->{ok};
+    my $c = _identity_cookie( $r->{identity} );
+    return { ok => 0, kind => 'unavailable', error => 'an identity cookie cannot be made on this host' } unless defined $c;
+    return { ok => 1, identity_cookie => $c };
 }
 
 # sign_out( session_id, ip ) -> { ok }: ends the session at Odoo. Never an error.

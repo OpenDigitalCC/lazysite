@@ -237,6 +237,12 @@
       "debian_pkg": "libodoo-oom-perl",
       "used_by": "Odoo extension (SM747): applies a confirmed plan through OOM's journal; lazy-required only when the extension runs"
     },
+    "Odoo::Client": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM747 C): asks Odoo who a signed-in session is, to refresh the identity cookie; lazy-required only when the extension runs"
+    },
     "Odoo::Transport::Session": {
       "core": false,
       "license": "Artistic-1.0-Perl",

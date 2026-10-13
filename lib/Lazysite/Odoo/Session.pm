@@ -147,10 +147,52 @@ sub sign_in {
     return {
         ok         => 1,
         session_id => $sid,
-        identity   => {
+
+        # What Odoo said about the person, kept to what a page may show (the
+        # identity cookie takes it from here); `identity` below is the part the
+        # sign-in's own answer tells the person.
+        identity_all => _facts($identity),
+        identity     => {
             map { ( $_ => $identity->{$_} ) } grep { defined $identity->{$_} && !ref $identity->{$_} } qw(name login lang tz)
         },
     };
+}
+
+# What of an OOM identity a page may be shown (Lazysite::Odoo::Identity::present
+# keeps it to this and no more): a name, a language, a time zone and the companies.
+sub _facts {
+    my ($id) = @_;
+    return { map { ( $_ => $id->{$_} ) } grep { defined $id->{$_} } qw(name lang tz company_id company_ids groups) };
+}
+
+# identity_of( \%connection, $sid ) -> { ok, identity } or { ok => 0, kind, error[, clear_session] }
+#
+# Asks Odoo, through the person's own session, who they are - the refresh of the
+# identity cookie, one round trip, made when the cookie has ended. A session that
+# Odoo has ended is a sign-in to make again; anything else is a failure to ask,
+# which leaves the person signed in and the page with no identity to show.
+sub identity_of {
+    my ( $conn, $sid ) = @_;
+    return _fail( 'signin-required', 'no Odoo sign-in' ) unless defined $sid && $sid =~ $ID;
+    my $id = eval {
+        require Odoo::Client;
+        require Odoo::Transport::Session;
+        my $t = Odoo::Transport::Session->new(
+            url                => $conn->{url},
+            timeout            => $conn->{timeout},
+            max_response_bytes => $conn->{max_kb} * 1024,
+            session            => $sid,
+            ( $HTTP ? ( http => $HTTP ) : () ),
+        );
+        Odoo::Client->new( url => $conn->{url}, db => $conn->{db}, transport => $t, retries => [0] )->session_identity;
+    };
+    my $err = $@;
+    return { ok => 1, identity => _facts($id) } if ref $id eq 'HASH';
+    if ( ref $err && eval { $err->isa('Odoo::Error') } && $err->is_session_expired ) {
+        return { %{ _fail( 'signin-required', 'your Odoo sign-in has ended - sign in again' ) }, clear_session => 1 };
+    }
+    log_event( 'WARN', 'odoo', 'odoo identity refresh failed', who => session_label($sid) );
+    return _fail( 'transport-failure', 'Odoo could not be reached, or did not answer in a usable way' );
 }
 
 sub _fail {

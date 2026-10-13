@@ -275,6 +275,12 @@ Archive
   its maker's approval, and an `apply: immediate` binding as the binding's, each against
   the plan's fingerprint, immediately before the apply; OOM's gate is left on. Without
   this every apply was refused against an OOM that has the gate. t/unit/odoo/40.
+- odoo-extension (PENDING) **a page can greet a person signed in to Odoo (SM747 C).** `tt_page_var:
+  me: odoo-identity:` gives `me.name`, `me.lang`, `me.tz`, `me.company_id`, `me.company_ids` and
+  `me.groups` (empty until OOM offers a groups read) from a second signed cookie, short-lived
+  (`odoo_identity_ttl`, default 15 minutes) and refreshed from the person's session on the next
+  call after it ends. It is for presentation only; a tampered or ended cookie renders as nobody
+  signed in; and the page is never read from or written to the shared page cache. t/unit/odoo/28-30.
 - odoo-extension (PENDING) **a person can sign in to Odoo through a page and run bindings as
   themselves (SM747 B).** A binding with `credential: session` runs on the signed-in person's
   own Odoo session, over OOM's session transport (OOM 0.03, now the declared minimum), and as

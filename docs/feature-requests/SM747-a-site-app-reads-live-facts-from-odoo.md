@@ -365,6 +365,26 @@ its own message. No text of an error from a sign-in is returned or logged, only 
 for "the login was accepted and no session was opened", so that a two-factor account is not
 recognised by reading OOM's message.
 
+## Slice C - built 2026-10-13 (n583)
+
+The identity half of the per-user path (OI1 to OI5, OT1, OT2), on the same release manager
+go as slice B. **Identity is for presentation only, never authorisation (OI4):** nothing in
+the engine reads it to permit anything; a call is run, or refused, on the person's session,
+which Odoo checks.
+
+| Row | What | Where |
+| --- | --- | --- |
+| OI1, OI2 | **The identity cookie** `lzs_odoo_identity`, a second cookie beside the credential: a name, language, time zone, the companies and the groups - never the session id, a user id, a login, an admin flag or a password. Signed under the extension's secret with a label of its own (a session cookie's signature cannot be replayed as an identity), so **a tampered identity is no identity** and the page renders as though nobody had signed in. `HttpOnly`, `SameSite=Lax` (a link from another site still greets the person; it carries nothing that can act), `Secure` over HTTPS | `Lazysite::Odoo::Identity`; t/unit/odoo/28 |
+| OI3 | **Short, and refreshed on the next call after it ends.** `odoo_identity_ttl` (60 to 86400 seconds, default 900), dated inside the signature and as the cookie's `Max-Age`. A person with a session and no current identity cookie is asked of Odoo once, through their own session (one round trip), on the endpoint's next call; Odoo having ended the session clears both cookies and the call is told to sign in | `Lazysite::Odoo::identity_ttl`, `refresh_identity`, `Session::identity_of`; `_refresh_identity` in `lazysite-odoo.pl`; t/unit/odoo/29 |
+| OT1, OT2 | **The TT namespace**: `tt_page_var:` with `me: odoo-identity:` gives `me.name`, `me.lang`, `me.tz`, `me.company_id`, `me.company_ids`, `me.groups`; every value HTML-escaped as a `db:` value is. A viewer with no cookie, an ended one or one that does not verify gets an empty mapping | `resolve_odoo_identity`; t/unit/odoo/30 |
+| OI5 | **The cache, fail-closed, by SM857's own mechanism**: a page whose front matter holds an `odoo-identity:` binding is per-viewer (`$per_viewer`), so it is never read from or written to the page cache and is no-store on output; a binding the front-matter peek did not see (a variable outside the page's own front matter) is REFUSED rather than rendered, because what it read could be cached for everyone | `_peek_md` (`odoo_me`), `main`, `resolve_odoo_identity`; t/unit/odoo/30 |
+
+**Groups: empty until OOM provides them.** OOM's session identity carries no groups, and the
+read of them (`res.users`, under `groups_id` to 16 and `group_ids` on 19) is Odoo knowledge
+that t/lint/240 keeps out of lazysite. `me.groups` is an empty list, filled from OOM when it
+offers a read. Asked of OOM, with a distinct fault for a login that opened no session:
+`/srv/projects/odoo/oom/inbox/2026-10-13-lazysite-asks-for-a-groups-read-and-a-no-session-fault.md`.
+
 ## Slice E - built 2026-10-12 (n475)
 
 | Row | What | Where |

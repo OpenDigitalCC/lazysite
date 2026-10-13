@@ -1330,7 +1330,7 @@ sub main {
     # next, so it takes exactly the gated page's treatment: never read from or
     # written to the page cache, no-store on output. `_protected` reaching
     # process_md is also what resolve_db checks before it will apply (mine).
-    my $per_viewer = ( @md_stat && _peek_md($md_path)->{db_mine} ) ? 1 : 0;
+    my $per_viewer = ( @md_stat && do { my $pk = _peek_md($md_path); $pk->{db_mine} || $pk->{odoo_me} } ) ? 1 : 0;
     my $protected  = $auth_protected || $payment_protected || $per_viewer
         || is_auth_surface($uri);
 

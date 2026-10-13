@@ -65,6 +65,11 @@ sub describe {
                 default => 'false',
                 note    => 'Off: write operations can plan but never apply. Odoo\'s own '
                     . 'rights for the connection user still decide what an apply may do.' },
+            { key => 'odoo_identity_ttl', label => 'Identity cookie lifetime (seconds)', type => 'text',
+                default => '900',
+                note => 'How long a page may show who a signed-in person is in Odoo before it is '
+                    . 'asked of Odoo again (60 to 86400). Presentation only: never what a person '
+                    . 'may do.' },
             { key => 'odoo_packs', label => 'Extra operation packs', type => 'text',
                 note => 'Perl namespaces of installed operation packs beyond OOM\'s own, '
                     . 'comma separated.' },
@@ -72,7 +77,7 @@ sub describe {
 
         owns => {
             config_keys =>
-                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_packs)],
+                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_identity_ttl odoo_packs)],
 
             # NO `storage`, deliberately. lazysite/odoo/ holds the connection
             # user's key and plans carrying Odoo's own records; a site package

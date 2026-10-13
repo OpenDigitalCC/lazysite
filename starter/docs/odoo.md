@@ -60,6 +60,10 @@ page:
   Odoo, by whoever administers Odoo. Lazysite grants it nothing and narrows
   nothing Odoo allows it.
 
+`odoo_identity_ttl`
+: Seconds a page may show who a signed-in person is in Odoo before it is
+  asked of Odoo again. 60 to 86400, default 900. Presentation only.
+
 `odoo_timeout`
 : Seconds per call. Default 30. A call is made once; a failed call is not
   retried.

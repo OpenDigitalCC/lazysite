@@ -135,6 +135,11 @@ our ( $DOCROOT, $LAZYSITE_DIR, $DRAFT_BYTES, %ACCESS_REC );
             # binding this misses is refused by resolve_db, never cached.
             $m{db_mine} = 1 if $line =~ /\bdb:/i && $line =~ /\bmine\b/;
 
+            # SM747 C: an `odoo-identity:` binding renders who the viewer is in Odoo,
+            # so the page is per viewer and takes the same treatment. A trigger, not a
+            # parser: one this misses is refused by resolve_odoo_identity, never cached.
+            $m{odoo_me} = 1 if $line =~ /\bodoo-identity:/;
+
             # query_params: block
             if ( $line =~ /^query_params\s*:\s*$/ ) {
                 $in_qp = 1; next;

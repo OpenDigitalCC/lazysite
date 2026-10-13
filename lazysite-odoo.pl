@@ -163,6 +163,7 @@ sub main {
         host => Lazysite::Util::request_host(), odoo_session => $odoo_session );
 
     if ( $method eq 'GET' ) {
+        $who{odoo_session} = _refresh_identity(%who);
         my $id = delete $q->{binding};
         my ( $b, $why ) = Lazysite::Odoo::find_binding($id);
         return refuse( { ok => 0, kind => 'not-found', error => $why } ) unless $b;
@@ -187,6 +188,7 @@ sub main {
     # as somebody else.
     return _signin( $req, %who )  if $req->{signin};
     return _signout( $req, %who ) if $req->{signout};
+    $who{odoo_session} = _refresh_identity(%who);
 
     if ( $req->{confirm} ) {
         # A confirm names no binding: which binding, and so which mode, is the
@@ -263,11 +265,44 @@ sub _answer {
 
     # B: Odoo ended the person's session (or no longer accepts it). The cookie goes,
     # and the body says to sign in - nothing else was run in its place.
-    if ( delete $r->{clear_session} ) {
-        push @EXTRA, Lazysite::Odoo::Session::clear_cookie_header( _cookie_scope() );
-    }
+    _clear_cookies() if delete $r->{clear_session};
     return refuse($r) unless $r->{ok};
     return reply( '200 OK', $r );
+}
+
+# The credential cookie and the identity cookie go together: a person whose
+# session has ended is shown no identity either.
+sub _clear_cookies {
+    push @EXTRA, Lazysite::Odoo::Session::clear_cookie_header( _cookie_scope() );
+    require Lazysite::Odoo::Identity;
+    push @EXTRA, Lazysite::Odoo::Identity::clear_cookie_header( secure => ( $ENV{HTTPS} ? 1 : 0 ) );
+    return;
+}
+
+sub _identity_cookie_out {
+    my ($value) = @_;
+    return unless defined $value;
+    require Lazysite::Odoo::Identity;
+    push @EXTRA, Lazysite::Odoo::Identity::set_cookie_header( $value,
+        secure => ( $ENV{HTTPS} ? 1 : 0 ), ttl => Lazysite::Odoo::identity_ttl() );
+    return;
+}
+
+# OI3: the identity cookie is short, and refreshed on the next call after it has
+# ended. A person with a session and no (or an ended) identity cookie is asked of
+# Odoo, once, through their own session. If Odoo has ended the session both
+# cookies are cleared and the call that follows is told to sign in. A failure to
+# ask leaves the person as they were, with nothing to show.
+sub _refresh_identity {
+    my (%who) = @_;
+    return $who{odoo_session} unless length( $who{odoo_session} // '' );
+    require Lazysite::Odoo::Identity;
+    return $who{odoo_session}
+        if Lazysite::Odoo::Identity::identity_from_cookie( $ENV{HTTP_COOKIE} // '', ttl => Lazysite::Odoo::identity_ttl() );
+    my $f = Lazysite::Odoo::refresh_identity( session_id => $who{odoo_session} );
+    if ( $f->{ok} ) { _identity_cookie_out( $f->{identity_cookie} ); return $who{odoo_session} }
+    if ( $f->{clear_session} ) { _clear_cookies(); return undef }
+    return $who{odoo_session};
 }
 
 sub _cookie_scope {
@@ -288,6 +323,7 @@ sub _signin {
     my $r = Lazysite::Odoo::sign_in( login => $req->{login}, password => $req->{password}, ip => $who{ip} );
     return refuse($r) unless $r->{ok};
     push @EXTRA, Lazysite::Odoo::Session::set_cookie_header( $r->{cookie}, _cookie_scope() );
+    _identity_cookie_out( $r->{identity_cookie} );
     return reply( '200 OK', { ok => 1, signed_in => 1, identity => $r->{identity} } );
 }
 
@@ -298,7 +334,7 @@ sub _signout {
     my %ctx = ( mode => 'public', visitor_key => $who{visitor} );
     return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
     Lazysite::Odoo::sign_out( session_id => $who{odoo_session}, ip => $who{ip} ) if $who{odoo_session};
-    push @EXTRA, Lazysite::Odoo::Session::clear_cookie_header( _cookie_scope() );
+    _clear_cookies();
     return reply( '200 OK', { ok => 1, signed_in => 0 } );
 }
 

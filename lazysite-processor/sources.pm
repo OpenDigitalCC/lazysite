@@ -731,6 +731,49 @@ sub resolve_odoo {
     return _odoo_inert( Lazysite::Odoo::Fields::page_report( $r->{report} ) );
 }
 
+# SM747 C (OI1, OI4, OI5): who the viewer is in Odoo, for the page to PRESENT.
+#
+#   tt_page_var:
+#     me: odoo-identity:
+#
+# gives `me.name`, `me.lang`, `me.tz`, `me.company_id`, `me.company_ids` and
+# `me.groups`, from the signed identity cookie - or an empty mapping, which is
+# what a page renders for a viewer who has not signed in, whose cookie has ended,
+# or whose cookie does not verify (a tampered one is no identity).
+#
+# PRESENTATION ONLY, never authorisation: showing or hiding a part of a page by
+# `me.groups` is a convenience, and Odoo is what refuses a call a person may not
+# make. Every value is HTML-escaped, as a `db:` value is.
+#
+# THE CACHE, FAIL-CLOSED (OI5), by SM857's own mechanism: main() marks a page
+# whose front matter holds an `odoo-identity:` binding as per-viewer, which is
+# the gated page's treatment - never read from or written to the page cache,
+# no-store on output - and arrives here as RENDER_QUERY's `_protected`. A binding
+# found anywhere that mark did not reach (a site-wide variable, an error page, a
+# binding the front-matter peek could not see) is REFUSED rather than rendered,
+# because what it read would be cached for everyone.
+sub resolve_odoo_identity {
+    my ($key) = @_;
+    unless ( $RENDER_QUERY{_protected} ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'odoo-identity: binding refused - it is not in a page\'s own tt_page_var, so the render '
+                . 'could be cached and served to another viewer',
+            key => $key );
+        return {};
+    }
+    $TT_DEP_LIVE = 1;
+    eval { require Lazysite::Odoo; require Lazysite::Odoo::Identity; require Lazysite::Odoo::Visitor; 1 } or do {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'odoo-identity: needs the Odoo modules', key => $key );
+        return {};
+    };
+    no warnings 'once';
+    local $Lazysite::Odoo::DOCROOT          = $DOCROOT;
+    local $Lazysite::Odoo::Visitor::DOCROOT = $DOCROOT;
+    my $id = Lazysite::Odoo::Identity::identity_from_cookie( $ENV{HTTP_COOKIE} // '', ttl => Lazysite::Odoo::identity_ttl() );
+    return {} unless $id;
+    return _odoo_inert($id);
+}
+
 sub _odoo_inert {
     my ($v) = @_;
     return [ map { _odoo_inert($_) } @$v ]                        if ref $v eq 'ARRAY';
@@ -770,6 +813,9 @@ sub resolve_tt_vars {
             # page can say "showing 200 of 250". Scalar bindings (.count,
             # .field) answer a value and carry no companion.
             $vars{ $key . '_total' } = 0 + $total if defined $total;
+        }
+        elsif ( $val =~ s/^odoo-identity:\s*//i ) {
+            $vars{$key} = resolve_odoo_identity($key);
         }
         elsif ( $val =~ s/^odoo://i ) {
             $val =~ s/^\s+|\s+$//g;
