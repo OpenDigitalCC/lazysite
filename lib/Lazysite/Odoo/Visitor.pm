@@ -69,6 +69,10 @@ sub _secret {
     return length $got >= 32 ? $got : undef;
 }
 
+# The extension's secret, for the signed cookies that share it (the Odoo session
+# cookie signs under a label of its own). undef when it cannot be read or made.
+sub secret { return _secret() }
+
 sub random_hex {
     my ($bytes) = @_;
     open my $u, '<:raw', '/dev/urandom' or return undef;

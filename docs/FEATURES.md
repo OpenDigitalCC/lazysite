@@ -964,7 +964,7 @@ handler on an interval with fixed fields, as the daemon's job account.
 
 `plugins/odoo.pl`, a contract extension (installed disabled), runs **named
 operations** against one Odoo instance. The operations come from OOM operation
-packs (`libodoo-oom-perl`, 0.02 or newer, module `Odoo::Ops`); lazysite names
+packs (`libodoo-oom-perl`, 0.03 or newer, module `Odoo::Ops`); lazysite names
 an operation, binds its parameters, hands back its report and presents a plan
 when it writes. Lazysite holds no Odoo model name, field name or RPC shape -
 `t/lint/240` fails on one in functional code.
@@ -1008,8 +1008,14 @@ A reading operation that returns `rows` beside `fields` has its descriptors
 drawn by the data extension's own descriptor rules, or refused by name; lazysite
 reads only the portable type and never guesses one.
 
-Not built: a site user's own Odoo credential (the session transport has shipped
-in OOM 0.03; SM747 B-Q1). Page: `/docs/odoo`.
+A binding with `credential: session` runs as the person signed in to Odoo through the
+page, on their own session, and as nobody else: with no sign-in, or once Odoo has ended
+the session, it is refused and never run as the connection user. The password goes to
+Odoo through OOM and is kept nowhere; the session id is in one signed, 12-hour,
+HttpOnly, SameSite=Strict cookie scoped to the endpoint.
+
+Not built: a site user's API-key sign-in (an API key cannot start an Odoo session), and the
+per-user path's own page and security entries. Page: `/docs/odoo`.
 
 ## Notifications
 

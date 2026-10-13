@@ -336,6 +336,35 @@ manager said on 2026-10-13 that the updated deb "can now start to be integrated"
 Not built: `x.form` (the parameter form, `form_fields`) on the page binding, and a
 `data-ls-odoo` region in the browser data helper; the second is slice D's browser module.
 
+## Slice B - built 2026-10-13 (n582), session-only
+
+The release manager, 2026-10-13: "oom deb is now updated. still more to do, however it can
+now start to be integrated." The coordinator took that as the go for the B-Q1 recommendation
+(build B session-only first, then C and D). **Not built, and not ruled: an API-key strategy**
+(an API key cannot start a session on Odoo 16 or 19). Not built: F2, the per-user path's
+SECURITY.md and docs entries.
+
+| Row | What | Where |
+| --- | --- | --- |
+| OA2, B | **A person signs in to Odoo through a page.** `POST {signin, login, password, visitor_token}` to the Odoo endpoint hands the password to OOM's session transport (`Odoo::Transport::Session`, OOM 0.03), once; the answer sets the session cookie and carries a name for a greeting. `POST {signout, visitor_token}` ends the session at Odoo and clears the cookie. A sign-in needs the visitor token (bound to the visitor cookie, `SameSite=Strict`), so a cross-site form cannot sign a victim in as someone else | `Lazysite::Odoo::sign_in`, `sign_out`; `lazysite-odoo.pl` (`_signin`, `_signout`); t/unit/odoo/25, 27 |
+| OA4 | **The credential cookie** `lzs_odoo_session`: the session id, the time it was minted and a signature (HMAC, domain-separated, under the extension's own secret), so a value this server did not mint names nothing and the cookie ends in 12 hours whatever Odoo says; `HttpOnly`, `SameSite=Strict`, `Secure` over HTTPS, `Path` the endpoint's own (nothing else on the site receives it). The id is never in a URL, a body, a log or a record: a record names `session:<hash>` | `Lazysite::Odoo::Session`; t/unit/odoo/24, 27 |
+| B | **A binding says whose credential runs it**: `credential: connection` (the default) or `session`. A session binding is authenticated mode only (no public, no schedule: there is no person), takes no callers (Odoo decides, for the person) and no visitor key, and **needs no connection-user key**. It runs through OOM's session context carrying the person's session as the cookie on every call | `Lazysite::Odoo::Binding::parse`, `context`, `session_binding`; t/unit/odoo/26 |
+| B | **No fallback, ever.** Without a sign-in a session binding is refused (`signin-required`, 401) and the connection user is not asked; when Odoo has ended the session (or no longer accepts it) it is the same refusal, the cookie is cleared, and nothing is run in its place. The override capability is not a sign-in | `gate`, `_session_end`; t/unit/odoo/26, 27 |
+| B | **No other door runs one**: the control API and MCP refuse it and do not list it; a form and the schedule refuse it by name; the `odoo:` page binding renders nothing for it (a page render is shared and cached, and what one person may see is never put in it). A session handed to a connection binding is ignored: what runs as the connection user is never recorded or owned as a person | `action_odoo_bindings`, `Handlers::_to_odoo`, `resolve_odoo`; t/unit/odoo/26 |
+| B | **A plan made by a session is that session's**: owned by the hash of the session, applied only by it, approved by it (OOM's run registry), through the person's own session. A binding changed between the plan and the confirm does not change whose plan it is | `confirm`; t/unit/odoo/26 |
+| B | **Two-factor accounts are refused by name** (`two-factor`, 403): Odoo accepts the password and opens no session. OOM names this case only in its message, which is read for it and nowhere else; a distinct fault is asked of OOM (below). A wrong password and an unknown login are told alike (`signin-refused`, 401) | `Lazysite::Odoo::Session::_classify`; t/unit/odoo/25 |
+| B | **Sign-in attempts share the site's limiter**: `Auth::LoginRate`, counted before Odoo is asked, per address and per login (`odoo-ip=`, `odoo-login=` keys; the login by hash), five in five minutes; the sixth is `rate`, 429 | `Lazysite::Odoo::sign_in`; t/unit/odoo/27 |
+| B | **The declared minimum is OOM 0.03** (the first with the session transport), in `owns.deps`, the gate's refusal, the tests and the docs | `plugins/odoo.pl`, `$OOM_MIN` |
+
+**The password**, tested with a stand-in for HTTP under OOM's real transport that records every
+post: it is in exactly one post (the authenticate route), in no URL or cookie, and in no result,
+log, call record or audit line - including when a transport failure echoes the request body into
+its own message. No text of an error from a sign-in is returned or logged, only its kind.
+
+**Asked of OOM** (in the groups-read filing, n583): a distinct fault, or a field on the error,
+for "the login was accepted and no session was opened", so that a two-factor account is not
+recognised by reading OOM's message.
+
 ## Slice E - built 2026-10-12 (n475)
 
 | Row | What | Where |

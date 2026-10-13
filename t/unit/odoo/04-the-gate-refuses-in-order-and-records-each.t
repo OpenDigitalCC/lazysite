@@ -65,7 +65,7 @@ subtest 'then OOM: absent, and too old, each by name' => sub {
         if eval { require Odoo::Ops; 1 };
     my ( $ok, $r ) = Lazysite::Odoo::gate( $binding, mode => 'authenticated', groups => ['staff'] );
     is( $r->{kind}, 'unavailable', 'kind unavailable' );
-    like( $r->{error}, qr/needs libodoo-oom-perl \(>= 0\.02\) - it is not installed/,
+    like( $r->{error}, qr/needs libodoo-oom-perl \(>= 0\.03\) - it is not installed/,
         'the package and version are named' );
 
     my $old = OdooTest::old_oom_lib();

@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM747 / OB7 / R3: the extension declares OOM as `libodoo-oom-perl (>= 0.02)`
+# SM747 / OB7 / R3: the extension declares OOM as `libodoo-oom-perl (>= 0.03)`
 # and the enable path refuses it by NAME when OOM is absent or older - telling
 # the operator the package that exists, not one guessed from a module name.
 #
@@ -33,7 +33,7 @@ subtest 'the declaration is sound' => sub {
 };
 
 subtest 'the dep grammar' => sub {
-    is_deeply( [ parse_dep( $d->{owns}{deps}[0] ) ], [ 'Odoo::Ops', 'libodoo-oom-perl', '0.02' ],
+    is_deeply( [ parse_dep( $d->{owns}{deps}[0] ) ], [ q{Odoo::Ops}, q{libodoo-oom-perl}, q{0.03} ],
         'the extension declares the module, its package and the oldest version' );
     is_deeply( [ parse_dep('YAML::PP') ], ['YAML::PP'], 'a bare module is still a dep' );
     for my $bad ( 'Odoo::Ops (libodoo-oom-perl)', 'Odoo::Ops libodoo-oom-perl >= 0.02',
@@ -59,14 +59,14 @@ sub missing_with {
 subtest 'absent: refused, naming the package that exists' => sub {
     plan skip_all => 'an Odoo::Ops is installed on this host' if eval { require Odoo::Ops; 1 };
     my ( $msg, $bare ) = @{ missing_with() };
-    like( $msg, qr/Odoo::Ops \(Debian: libodoo-oom-perl \(>= 0\.02\)\)/, 'the declared package' );
+    like( $msg, qr/Odoo::Ops \(Debian: libodoo-oom-perl \(>= 0\.03\)\)/, 'the declared package' );
     unlike( $msg, qr/libodoo-ops-perl/, 'not the guess' );
     is_deeply( $bare, ['Odoo::Ops'], 'the audit gets the bare name' );
 };
 
 subtest 'present and too old: refused, saying which version is here' => sub {
     my ( $msg, $bare ) = @{ missing_with( OdooTest::old_oom_lib() ) };
-    like( $msg, qr/Odoo::Ops 0\.02 or newer - this host has 0\.01/, 'the version gap is named' );
+    like( $msg, qr/Odoo::Ops 0\.03 or newer - this host has 0\.01/, 'the version gap is named' );
     is_deeply( $bare, ['Odoo::Ops'], 'and the module' );
 };
 

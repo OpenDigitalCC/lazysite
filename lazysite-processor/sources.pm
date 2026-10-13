@@ -704,6 +704,13 @@ sub resolve_odoo {
             key => $key, binding => $id );
         return '';
     }
+    if ( ( $b->{credential} // '' ) eq 'session' ) {
+        log_event( 'WARN', $page,
+            'odoo: page variable refused - the binding runs as a person signed in to Odoo, and a '
+                . 'page render is shared and cached; what one person may see is never put in it',
+            key => $key, binding => $id );
+        return '';
+    }
     my $w = Lazysite::Odoo::writes_of($b);
     unless ( defined $w && !$w ) {
         log_event( 'WARN', $page,

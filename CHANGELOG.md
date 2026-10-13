@@ -275,6 +275,16 @@ Archive
   its maker's approval, and an `apply: immediate` binding as the binding's, each against
   the plan's fingerprint, immediately before the apply; OOM's gate is left on. Without
   this every apply was refused against an OOM that has the gate. t/unit/odoo/40.
+- odoo-extension (PENDING) **a person can sign in to Odoo through a page and run bindings as
+  themselves (SM747 B).** A binding with `credential: session` runs on the signed-in person's
+  own Odoo session, over OOM's session transport (OOM 0.03, now the declared minimum), and as
+  nobody else: with no sign-in, or once Odoo has ended the session, it is refused and never run
+  as the connection user. The Odoo endpoint signs a person in (`signin`) and out (`signout`);
+  the password goes to Odoo through OOM and is kept nowhere, the session id lives only in a
+  signed, 12-hour, HttpOnly, SameSite=Strict cookie scoped to the endpoint, and sign-in attempts
+  share the site's login rate limiter. Two-factor accounts are refused by name. A session
+  binding is not offered over the control API or MCP, and not run by a form, the schedule or a
+  page render. t/unit/odoo/24-27.
 - odoo-extension (PENDING) **an Odoo report's fields are drawn, or refused by name (SM747
   R wiring).** When an operation returns `rows` beside `fields` (OOM 0.02), `odoo_run`
   and the page endpoint answer `fields` (each held to the data extension's descriptor

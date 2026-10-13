@@ -81,7 +81,7 @@ sub describe {
             # The page endpoint (SM411: it verifies its own caller).
             endpoints => ['lazysite-odoo.pl'],
 
-            deps => ['Odoo::Ops (libodoo-oom-perl >= 0.02)'],
+            deps => ['Odoo::Ops (libodoo-oom-perl >= 0.03)'],
         },
 
         actions => [ { id => 'status', label => 'Status', run => 'action', read => 1 } ],

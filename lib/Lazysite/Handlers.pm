@@ -306,6 +306,12 @@ our %TYPES      = (
                     . 'maker confirms it. immediate: applied in the same request, with '
                     . 'nobody confirming - the ruled basket case (Q1). Odoo\'s rights for '
                     . 'the connection user still bound what it can do.' },
+            { key => 'credential', label => 'Whose Odoo account runs it', type => 'text',
+                default => 'connection',
+                note => 'connection: the connection user. session: the person signed in '
+                    . 'to Odoo through the page, with their own Odoo rights; the binding is '
+                    . 'authenticated mode only, names no callers, and is never run by a page '
+                    . 'render, a form, the schedule or an agent.' },
             { key => 'rate_per_visitor_hour', label => 'Cap: runs per visitor per hour',
                 type => 'number', default => '20' },
             { key => 'rate_per_hour', label => 'Cap: runs of this binding per hour',
@@ -1713,6 +1719,9 @@ sub _to_odoo {
     return { ok => 0, why => "the Odoo binding '$b->{id}' works on a visitor's key, which only "
             . 'the Odoo page endpoint carries - bind it on a page, not a form or the schedule' }
         if length $b->{visitor_param};
+    return { ok => 0, why => "the Odoo binding '$b->{id}' runs as a person signed in to Odoo, which "
+            . 'only the Odoo page endpoint carries - not a form or the schedule' }
+        if ( $b->{credential} // '' ) eq 'session';
     return { ok => 0, why => "the Odoo binding '$b->{id}' waits for a confirm, and a form or the "
             . 'schedule has nobody to give one - set apply: immediate on it (Q1)' }
         if $b->{apply} ne 'immediate' && _odoo_writes($b);

@@ -15,6 +15,12 @@
 #   POST {binding, params}       run a binding (a write plans, or applies when
 #                                the binding says immediate)
 #   POST {plan, confirm: true}   apply a plan this caller made
+#   POST {signin: true, login, password, visitor_token}
+#                                sign a person in to Odoo (SM747 B): the password goes
+#                                to Odoo through OOM and nowhere else; the answer sets
+#                                the Odoo session cookie
+#   POST {signout: true, visitor_token}
+#                                end that session at Odoo and clear the cookie
 #
 # IT VERIFIES ITS OWN CALLER (SM411), as the data endpoint does: only the
 # processor and the manager API are wrapped, so X-Remote-User arrives here
@@ -129,7 +135,12 @@ sub main {
         $caps = Lazysite::Auth::Settings::caps_for($user) || {};
     }
     my $visitor = Lazysite::Odoo::Visitor::key_from_cookie( $ENV{HTTP_COOKIE} // '' );
-    my $ip      = _ip($docroot);
+
+    # B: the person's Odoo session, if the cookie is one this server minted and it
+    # is inside its twelve hours. A credential: it goes to Odoo and nowhere else.
+    require Lazysite::Odoo::Session;
+    my $odoo_session = Lazysite::Odoo::Session::sid_from_cookie( $ENV{HTTP_COOKIE} // '' );
+    my $ip           = _ip($docroot);
 
     my $q = _query();
     if ( ( $q->{csrf} // '' ) eq '1' ) {
@@ -143,12 +154,13 @@ sub main {
         }
         return reply( '200 OK',
             { ok => 1, visitor_token => Lazysite::Odoo::Visitor::csrf_token($visitor),
+                odoo_signed_in => ( $odoo_session ? 1 : 0 ),
                 ( length $user ? ( token => Lazysite::Auth::Session::generate_csrf_token($user) ) : () ) } );
     }
 
     require Lazysite::Util;
     my %who = ( user => $user, groups => \@groups, caps => $caps, visitor => $visitor, ip => $ip,
-        host => Lazysite::Util::request_host() );
+        host => Lazysite::Util::request_host(), odoo_session => $odoo_session );
 
     if ( $method eq 'GET' ) {
         my $id = delete $q->{binding};
@@ -169,6 +181,13 @@ sub main {
     return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'the body must be a JSON object' } )
         unless ref $req eq 'HASH';
 
+    # B: signing in and out. Neither names a binding, and both are a POST that
+    # needs the visitor token (bound to the visitor cookie, which SameSite=Strict
+    # keeps from a cross-site request): a forged form must not sign a victim in
+    # as somebody else.
+    return _signin( $req, %who )  if $req->{signin};
+    return _signout( $req, %who ) if $req->{signout};
+
     if ( $req->{confirm} ) {
         # A confirm names no binding: which binding, and so which mode, is the
         # plan's. The caller's token must fit what the caller is.
@@ -180,7 +199,7 @@ sub main {
     my ( $b, $why ) = Lazysite::Odoo::find_binding( $req->{binding} );
     return refuse( { ok => 0, kind => 'not-found', error => $why } ) unless $b;
     my %ctx = _ctx( $b, %who );
-    return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
+    return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req, $b );
     return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'params must be an object' } )
         if defined $req->{params} && ref $req->{params} ne 'HASH';
     return _answer( Lazysite::Odoo::call( $b, $req->{params} // {}, %ctx, strict => 1 ) );
@@ -192,6 +211,14 @@ sub main {
 # the engine turns it into a hash before anything is recorded.
 sub _ctx {
     my ( $b, %w ) = @_;
+
+    # B: a session binding runs as the person signed in to Odoo: authenticated mode,
+    # their session, and no visitor key in the engine (a record names the session).
+    # The visitor key stays here only to check the token.
+    return (
+        mode         => 'authenticated',  ip               => $w{ip}, host => $w{host},
+        odoo_session => $w{odoo_session}, csrf_visitor_key => $w{visitor},
+    ) if $b && ( $b->{credential} // '' ) eq 'session';
     my $authn = length $w{user} && ( !$b || $b->{modes}{authenticated} );
     return (
         mode   => ( $authn ? 'authenticated' : 'public' ),
@@ -200,12 +227,21 @@ sub _ctx {
         caps   => $w{caps},
         ip     => $w{ip},
         ( $w{visitor} ? ( visitor_key => $w{visitor} ) : () ),
+        ( $w{odoo_session} && !$b ? ( odoo_session => $w{odoo_session}, csrf_visitor_key => $w{visitor} ) : () ),
         host => $w{host},    # E-Q1: a domain's binding runs only for its own host
     );
 }
 
 sub _csrf_ok {
-    my ( $ctx, $req ) = @_;
+    my ( $ctx, $req, $b ) = @_;
+
+    # B: a person signed in to Odoo may have no account on this site, so what a
+    # session binding (or a confirm of its plan) carries is the visitor token -
+    # bound to the visitor cookie, which a cross-site request does not send.
+    if ( length( $ctx->{odoo_session} // '' ) && ( !$b || ( $b->{credential} // '' ) eq 'session' ) ) {
+        return 1 if Lazysite::Odoo::Visitor::verify_csrf( $req->{visitor_token} // '', $ctx->{csrf_visitor_key} );
+        return 0 if $b;
+    }
     if ( $ctx->{mode} eq 'authenticated' ) {
         my $t = $ENV{HTTP_X_CSRF_TOKEN} // $req->{token} // '';
         return Lazysite::Auth::Session::verify_csrf_token( $t, $ctx->{actor} );
@@ -224,8 +260,46 @@ sub _csrf_refusal {
 
 sub _answer {
     my ($r) = @_;
+
+    # B: Odoo ended the person's session (or no longer accepts it). The cookie goes,
+    # and the body says to sign in - nothing else was run in its place.
+    if ( delete $r->{clear_session} ) {
+        push @EXTRA, Lazysite::Odoo::Session::clear_cookie_header( _cookie_scope() );
+    }
     return refuse($r) unless $r->{ok};
     return reply( '200 OK', $r );
+}
+
+sub _cookie_scope {
+    return ( path => ( $ENV{SCRIPT_NAME} // '' ), secure => ( $ENV{HTTPS} ? 1 : 0 ) );
+}
+
+# B: sign a person in to Odoo. The login and the password are the two things in
+# the body that are never logged, never echoed and never stored: they go to the
+# engine, which hands the password to OOM and keeps nothing. The answer carries
+# the signed session cookie (HttpOnly, SameSite=Strict, Secure over HTTPS, scoped
+# to this endpoint) and a name for a greeting; the session id is in no body.
+sub _signin {
+    my ( $req, %who ) = @_;
+    my %ctx = ( mode => 'public', visitor_key => $who{visitor} );
+    return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
+    return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'a login and a password are both required' } )
+        if ref $req->{login} || ref $req->{password};
+    my $r = Lazysite::Odoo::sign_in( login => $req->{login}, password => $req->{password}, ip => $who{ip} );
+    return refuse($r) unless $r->{ok};
+    push @EXTRA, Lazysite::Odoo::Session::set_cookie_header( $r->{cookie}, _cookie_scope() );
+    return reply( '200 OK', { ok => 1, signed_in => 1, identity => $r->{identity} } );
+}
+
+# B: sign out. Ends the session at Odoo and clears the cookie; a person with no
+# session is told ok all the same.
+sub _signout {
+    my ( $req, %who ) = @_;
+    my %ctx = ( mode => 'public', visitor_key => $who{visitor} );
+    return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
+    Lazysite::Odoo::sign_out( session_id => $who{odoo_session}, ip => $who{ip} ) if $who{odoo_session};
+    push @EXTRA, Lazysite::Odoo::Session::clear_cookie_header( _cookie_scope() );
+    return reply( '200 OK', { ok => 1, signed_in => 0 } );
 }
 
 sub _writes {

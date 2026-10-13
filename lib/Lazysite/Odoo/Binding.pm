@@ -122,6 +122,27 @@ sub parse {
         unless $apply =~ /\A(?:confirm|immediate)\z/;
     $b{apply} = $apply;
 
+    # B: WHOSE CREDENTIAL RUNS IT. `connection` (the default) is the connection
+    # user; `session` is the person signed in to Odoo through the page, whose
+    # own session carries the call. A person's session exists only in a request
+    # from that person's browser, so a session binding is authenticated mode
+    # and nothing else - no public, no schedule - and who may run it is decided
+    # by Odoo for that person, so it names no callers and no visitor key.
+    my $cred = $h->{credential};
+    $cred = 'connection' unless defined $cred && length $cred;
+    return ( undef, "credential must be connection or session (got '$cred')", 'credential' )
+        unless $cred =~ /\A(?:connection|session)\z/;
+    $b{credential} = $cred;
+    if ( $cred eq 'session' ) {
+        return ( undef, 'a session binding runs as the person signed in to Odoo: public and '
+                . 'scheduled have no such person', 'modes' )
+            if $modes{public} || $modes{scheduled};
+        return ( undef, 'a session binding takes no callers - Odoo decides, for the person signed in', 'callers' )
+            if @callers;
+        return ( undef, 'a session binding has no visitor key - it runs as a person', 'visitor_param' )
+            if length $vp;
+    }
+
     for my $k (qw(rate_per_visitor_hour rate_per_hour)) {
         my $v = $h->{$k};
         $v = $k eq 'rate_per_hour' ? 200 : 20 unless defined $v && length $v;

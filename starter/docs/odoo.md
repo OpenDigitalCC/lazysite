@@ -31,7 +31,7 @@ in the call record.
 
 ## What it needs
 
-- **OOM 0.02 or newer**, installed as the `libodoo-oom-perl` package (the Perl
+- **OOM 0.03 or newer**, installed as the `libodoo-oom-perl` package (the Perl
   module `Odoo::Ops`). With OOM missing or older, every call is refused with a
   message naming the package and the version found; nothing is sent.
 - **The extension enabled** on the Extensions page. It is installed disabled.
@@ -270,7 +270,8 @@ never returned. The kinds a caller meets most:
 
 ## Not available yet
 
-- A site user signing in to Odoo with their own credential. It waits on OOM's
-  session transport.
+- A site user signing in to Odoo with their own credential is built
+  (`credential: session` on a binding, and `signin` and `signout` on the page
+  endpoint) and not yet documented here.
 - The parameter form (`x.form`) on the page binding, and a browser helper that
   fills a region from a binding.

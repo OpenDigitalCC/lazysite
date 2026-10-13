@@ -14,7 +14,7 @@ package Lazysite::Odoo;
 # WHAT IS HERE (slice A, 2026-10-12):
 #
 #   * whether OOM is present and new enough - the extension declares
-#     `libodoo-oom-perl (>= 0.02)` and refuses BY NAME when the Ops layer is
+#     `libodoo-oom-perl (>= 0.03)` and refuses BY NAME when the Ops layer is
 #     missing or older, rather than failing at a page;
 #   * the connection: odoo_url, odoo_db, odoo_login, odoo_timeout, odoo_max_kb,
 #     odoo_allow_writes and odoo_packs in the extension's own config (OB1: "a
@@ -58,7 +58,7 @@ our $DOCROOT = '';
 # installs; the version is the first that carries the Ops layer (filed to OOM's
 # inbox 2026-10-12: the 0.01 deb carries 8 of the tree's 41 modules).
 our $OOM_PACKAGE = 'libodoo-oom-perl';
-our $OOM_MIN     = '0.02';
+our $OOM_MIN     = '0.03';
 
 # The capability that stands in for a binding's `callers` groups, and that
 # configures Odoo bindings and the connection user's key. manage_odoo (OM3) is
@@ -418,6 +418,19 @@ sub new_call_id {
 # anything else is looked at.
 sub may_call {
     my ( $binding, %ctx ) = @_;
+
+    # B: a session binding is for whoever has signed in to Odoo, and Odoo is what
+    # decides what they may do. The mode must still be one it permits (only
+    # authenticated), and the override capability does not stand in for a sign-in.
+    if ( session_binding($binding) ) {
+        return Lazysite::Egress::may_invoke(
+            mode    => $ctx{mode},
+            what    => 'Odoo binding',
+            permits => $binding->{modes},
+            callers => ['odoo-session'],
+            groups  => ['odoo-session'],
+        );
+    }
     return Lazysite::Egress::may_invoke(
         mode     => $ctx{mode},
         what     => 'Odoo binding',
@@ -429,6 +442,9 @@ sub may_call {
     );
 }
 
+# Whether a binding runs as the person signed in to Odoo (credential: session).
+sub session_binding { return ( ref $_[0] eq 'HASH' && ( $_[0]{credential} // '' ) eq 'session' ) ? 1 : 0 }
+
 # gate( $binding, %ctx ) -> ( 1, \%connection ) or ( 0, \%refusal )
 #
 # THE ORDER IS THE POINT, and it is the connector's: WHO first (the mode gate),
@@ -438,6 +454,14 @@ sub may_call {
 sub gate {
     my ( $binding, %ctx ) = @_;
     my %rec = _rec_base( $binding, %ctx );
+
+    # B: a binding that runs as a person signed in to Odoo has nobody to run as
+    # without that sign-in. It is refused - never run as the connection user, whose
+    # account is likely wider than the person's.
+    return _refusal( \%rec, 'signin-required',
+        'this binding runs as a person signed in to Odoo, and the call carries no Odoo sign-in '
+            . '- only the Odoo endpoint, for a person who has signed in, carries one' )
+        if session_binding($binding) && !length( $ctx{odoo_session} // '' );
 
     my ( $may, $why ) = may_call( $binding, %ctx );
     return _refusal( \%rec, 'mode', $why ) unless $may;
@@ -589,6 +613,32 @@ sub operation_class {
 # page a visitor is waiting on.
 sub context {
     my ( $conn, %o ) = @_;
+    if ( defined $o{session} ) {
+
+        # B: the call runs as the person, over OOM's session transport, carrying
+        # THEIR session. The connection user's key and any injected connection
+        # transport play no part: a test that wants to see what a session call does
+        # must supply the session's own HTTP, so nothing can fall back by accident.
+        my $scfg = Odoo::Ops::Config->new(
+            url                => $conn->{url},
+            db                 => $conn->{db},
+            credential         => 'session',
+            session            => $o{session},
+            timeout            => $conn->{timeout},
+            max_response_bytes => $conn->{max_kb} * 1024,
+            allow_writes       => ( $conn->{allow_writes} ? 1 : 0 ),
+            runs_dir           => plans_dir(),
+        );
+        require Lazysite::Odoo::Session;
+        my @t;
+        if ($Lazysite::Odoo::Session::HTTP) {
+            require Odoo::Transport::Session;
+            @t = ( transport => Odoo::Transport::Session->new(
+                    url => $conn->{url}, session => $o{session}, http => $Lazysite::Odoo::Session::HTTP ) );
+        }
+        return Odoo::Ops::Context->new(
+            config => $scfg, actor => $o{actor} // 'lazysite', retries => [0], @t );
+    }
     require Lazysite::Odoo::Secret;
     no warnings 'once';
     local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
@@ -650,6 +700,7 @@ sub find_binding {
 # their key; an account is its name; the timer is the binding's.
 sub _actor_label {
     my (%c) = @_;
+    return $c{actor} if ( $c{actor} // '' ) =~ /\Asession:[0-9a-f]{16}\z/;
     return "account:$c{actor}" if ( $c{mode} // '' ) eq 'authenticated' && length( $c{actor} // '' );
     return "visitor:$c{visitor}" if length( $c{visitor} // '' );
     return 'scheduled'           if ( $c{mode}          // '' ) eq 'scheduled';
@@ -659,6 +710,7 @@ sub _actor_label {
 # Who may confirm a plan: the account or visitor that made it, and nobody else.
 sub _owner {
     my (%c) = @_;
+    return $c{actor} if ( $c{actor} // '' ) =~ /\Asession:[0-9a-f]{16}\z/;
     return "account:$c{actor}" if ( $c{mode} // '' ) eq 'authenticated' && length( $c{actor} // '' );
     return "visitor:$c{visitor}" if length( $c{visitor} // '' );
     return ( $c{mode} // '' ) eq 'scheduled' ? 'scheduled' : '';
@@ -680,6 +732,11 @@ sub _owner {
 # outcome is one record.
 sub call {
     my ( $b, $input, %ctx ) = @_;
+
+    # B: a sign-in is what a session binding runs on, and ONLY that: a connection
+    # binding handed one anyway ignores it, so what runs as the connection user
+    # is never labelled, owned or recorded as a person.
+    delete $ctx{odoo_session} unless session_binding($b);
     my %c = _with_visitor(%ctx);
     my ( $ok, $conn ) = gate( $b, %c );
     return $conn unless $ok;
@@ -705,7 +762,8 @@ sub call {
 
     my $t0  = _now_hires();
     my $res = eval { _run( $b, $class, $conn, $params, \%c ) };
-    return _finish( \%rec, $res, $@, $t0, $class->writes ? ( $b->{apply} eq 'immediate' ? 'apply' : 'plan' ) : 'run' );
+    return _session_end( $b,
+        _finish( \%rec, $res, $@, $t0, $class->writes ? ( $b->{apply} eq 'immediate' ? 'apply' : 'plan' ) : 'run' ) );
 }
 
 # confirm( $plan_id, %ctx ) -> { ok, ... }
@@ -719,6 +777,11 @@ sub call {
 # which plans there are.
 sub confirm {
     my ( $pid, %ctx ) = @_;
+
+    # B: a person's sign-in applies only to a plan made by a session binding, and
+    # only that person's: the owner is the hash of the session.
+    my $sess = delete $ctx{odoo_session};
+    my $swho = length( $sess // '' ) ? do { require Lazysite::Odoo::Session; Lazysite::Odoo::Session::session_label($sess) } : '';
     my %c = _with_visitor(%ctx);
     my $not_found = { ok => 0, kind => 'not-found', error => 'no such plan, or not yours to confirm' };
     my %base = ( call_id => new_call_id(), actor => $c{actor} // '',
@@ -731,13 +794,21 @@ sub confirm {
     my $meta = _read_json_file("$dir/meta.json");
     my $who  = _owner(%c);
     return ( _refusal( \%base, 'not-found', $not_found->{error} ) )[1]
-        unless ref $meta eq 'HASH' && length $who && ( $meta->{owner} // '' ) eq $who;
+        unless ref $meta eq 'HASH'
+        && ( ( length $who && ( $meta->{owner} // '' ) eq $who )
+        || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) );
     return ( _refusal( { %base, binding => $meta->{binding} // '' }, 'expired',
             'this plan is more than an hour old - make it again' ) )[1]
         if time - ( $meta->{created} // 0 ) > $PLAN_TTL;
 
     my ( $b, $bwhy ) = find_binding( $meta->{binding} );
     return ( _refusal( { %base, binding => $meta->{binding} // '' }, 'binding', $bwhy ) )[1] unless $b;
+    # The plan's binding says which owner it is: a session binding's plan is the
+    # session's, anything else's is the account's or visitor's - never the other.
+    my $expect = session_binding($b) ? $swho : $who;
+    return ( _refusal( \%base, 'not-found', $not_found->{error} ) )[1]
+        unless length $expect && ( $meta->{owner} // '' ) eq $expect;
+    %c = ( %c, odoo_session => $sess, actor => $swho, mode => 'authenticated' ) if session_binding($b);
     my ( $ok, $conn ) = gate( $b, %c, phase => 'confirm' );
     return $conn unless $ok;
     $conn = _as_account( $conn, $ctx{account} );
@@ -753,13 +824,25 @@ sub confirm {
     my $t0  = _now_hires();
     my $res = eval {
         my $plan = Odoo::Ops::Plan->load("$dir/plan.json");
-        my $ctx  = context( $conn, actor => _actor_label(%c) );
+        my $ctx  = context( $conn, actor => _actor_label(%c),
+            ( session_binding($b) ? ( session => $c{odoo_session} ) : () ) );
         $ctx->use_run_dir($dir);
         _approve( $dir, $plan, $meta->{owner}, 'confirmed in lazysite by its maker' );
         my $result = Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir );
         { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $pid, result => _result_summary($result) };
     };
-    return _finish( \%rec, $res, $@, $t0, 'apply' );
+    return _session_end( $b, _finish( \%rec, $res, $@, $t0, 'apply' ) );
+}
+
+# B: a session that has ended - Odoo forgot it, or no longer accepts it - is said as
+# a sign-in the person has to make again, and the endpoint clears the cookie. It
+# is NOT said as a fault of the connection, and nothing is retried as anyone else.
+sub _session_end {
+    my ( $b, $r ) = @_;
+    return $r unless session_binding($b) && ref $r eq 'HASH' && !$r->{ok};
+    return $r unless ( $r->{kind} // '' ) =~ /\A(?:session-expired|invalid-credential)\z/;
+    return { ok => 0, kind => 'signin-required', clear_session => 1,
+        error => 'your Odoo sign-in has ended - sign in again' };
 }
 
 # OOM's Runner applies only an APPROVED plan (its run registry, 2026-10-13; the
@@ -790,14 +873,16 @@ sub _ready {
     require Lazysite::Odoo::Binding;
     no warnings 'once';
     local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
-    my $has = Lazysite::Odoo::Secret::has_key( $conn->{key_account} // $ACCOUNT );
-    return ( undef, ( _refusal( $rec, 'no-key',
-                'the connection user\'s key cannot be read by this process - see the event log' ) )[1] )
-        unless defined $has;
-    return ( undef, ( _refusal( $rec, 'no-key',
-                ( $conn->{key_account} ? 'this grant\'s Odoo account has no API key set'
-                    : 'the connection user has no API key set' ) . ' - a sysop sets it on the Odoo page' ) )[1] )
-        unless $has;
+    unless ( session_binding($b) ) { # B: a session call runs on the person's own sign-in, not a key
+        my $has = Lazysite::Odoo::Secret::has_key( $conn->{key_account} // $ACCOUNT );
+        return ( undef, ( _refusal( $rec, 'no-key',
+                    'the connection user\'s key cannot be read by this process - see the event log' ) )[1] )
+            unless defined $has;
+        return ( undef, ( _refusal( $rec, 'no-key',
+                    ( $conn->{key_account} ? 'this grant\'s Odoo account has no API key set'
+                        : 'the connection user has no API key set' ) . ' - a sysop sets it on the Odoo page' ) )[1] )
+            unless $has;
+    }
     my ( $class, $why ) = operation_class( $conn, $b->{operation} );
     return ( undef, ( _refusal( $rec, 'no-operation', $why ) )[1] ) unless $class;
     my $cw = Lazysite::Odoo::Binding::check_against( $b, $class );
@@ -811,8 +896,9 @@ sub _ready {
 # in the same request.
 sub _run {
     my ( $b, $class, $conn, $params, $c ) = @_;
-    my $ctx = context( $conn, actor => _actor_label(%$c) );
-    my $op  = $class->new( ctx => $ctx, params => $params );
+    my $ctx = context( $conn, actor => _actor_label(%$c),
+        ( session_binding($b) ? ( session => $c->{odoo_session} ) : () ) );
+    my $op = $class->new( ctx => $ctx, params => $params );
     unless ( $class->writes ) {
         my $report = $op->run;
 
@@ -885,6 +971,13 @@ sub _with_visitor {
     my %c   = %ctx;
     delete $c{visitor_key};    # the key itself goes no further than assemble()
     $c{visitor} = $vid if length $vid;
+
+    # B: a record names the person's session by a hash, never by the id, which is
+    # a credential.
+    if ( length( $c{odoo_session} // '' ) ) {
+        require Lazysite::Odoo::Session;
+        $c{actor} = Lazysite::Odoo::Session::session_label( $c{odoo_session} );
+    }
     return %c;
 }
 
@@ -940,6 +1033,70 @@ sub _take_cap {
     print {$fh} @keep;
     close $fh;
     return ( $ok, $why );
+}
+
+# --- B: signing in, and out --------------------------------------------------------
+#
+# sign_in( login, password, ip ) -> { ok, cookie, identity } or { ok => 0, kind, error }
+#
+# The password is an argument and goes to OOM's session transport, once: never
+# into a record, a log, an error. What is checked first is the extension and the
+# connection, then the shape of what was typed, then THE SAME RATE LIMITER the
+# site's own sign-in uses (Auth::LoginRate): five attempts in five minutes, per
+# address and per login, counted before Odoo is asked so a guess is counted
+# whether or not it was right.
+sub sign_in {
+    my (%a) = @_;
+    require Lazysite::Odoo::Session;
+    require Lazysite::Odoo::Visitor;
+    no warnings q{once};
+    local $Lazysite::Odoo::Visitor::DOCROOT = $DOCROOT; # the cookie is signed with the extension's secret
+    my $login = $a{login};
+    my %rec = ( call_id => new_call_id(), actor => Lazysite::Odoo::Session::login_label($login),
+        ip => $a{ip} // '', mode => 'public', phase => 'signin', binding => '', operation => '' );
+    return ( _refusal( \%rec, 'disabled',
+            'the Odoo extension is switched off - a sysop can enable it on the Extensions page' ) )[1]
+        unless _extension_enabled();
+    my ( $have, $missing ) = oom_check();
+    return ( _refusal( \%rec, 'unavailable', $missing ) )[1] unless $have;
+    my ( $conn, $cwhy ) = connection();
+    return ( _refusal( \%rec, 'config', $cwhy ) )[1] unless $conn;
+
+    my $plain = defined $login && length $login && length $login <= 254 && $login !~ /[\x00-\x1f\x7f]/
+        && defined $a{password} && length $a{password} && length $a{password} <= 1024 && $a{password} !~ /\x00/;
+    return ( _refusal( \%rec, 'invalid', 'a login and a password are both required' ) )[1] unless $plain;
+
+    require Lazysite::Auth::LoginRate;
+    my %lim = ( auth_dir => _lz() . '/auth', docroot => $DOCROOT );
+    my $by_ip = Lazysite::Auth::LoginRate::check_login_rate( 'odoo-ip=' . ( $a{ip} // '' ), %lim );
+    my $by_login = Lazysite::Auth::LoginRate::check_login_rate( 'odoo-login=' . Lazysite::Odoo::Session::login_label($login), %lim );
+    return ( _refusal( \%rec, 'rate', 'too many sign-in attempts - wait a few minutes and try again' ) )[1]
+        unless $by_ip && $by_login;
+
+    my $r = Lazysite::Odoo::Session::sign_in( $conn, $login, $a{password} );
+    unless ( $r->{ok} ) {
+        record_call( %rec, outcome => outcome_of( $r->{kind} ), kind => $r->{kind} );
+        return { ok => 0, kind => $r->{kind}, error => $r->{error} };
+    }
+    my $cookie = Lazysite::Odoo::Session::mint_cookie( $r->{session_id} );
+    unless ( defined $cookie ) {
+        Lazysite::Odoo::Session::sign_out( $conn, $r->{session_id} );
+        return ( _refusal( \%rec, 'unavailable', 'a sign-in cookie cannot be made on this host - see the event log' ) )[1];
+    }
+    record_call( %rec, actor => Lazysite::Odoo::Session::session_label( $r->{session_id} ), outcome => 'answered' );
+    return { ok => 1, cookie => $cookie, identity => $r->{identity} };
+}
+
+# sign_out( session_id, ip ) -> { ok }: ends the session at Odoo. Never an error.
+sub sign_out {
+    my (%a) = @_;
+    require Lazysite::Odoo::Session;
+    my ($conn) = connection();
+    Lazysite::Odoo::Session::sign_out( $conn, $a{session_id} ) if $conn && length( $a{session_id} // '' );
+    record_call( call_id => new_call_id(), actor => Lazysite::Odoo::Session::session_label( $a{session_id} ),
+        ip => $a{ip} // '', mode => 'authenticated', phase => 'signout', binding => '', operation => '',
+        outcome => 'answered' );
+    return { ok => 1 };
 }
 
 sub _cap_unknown {
@@ -1216,6 +1373,7 @@ sub action_odoo_bindings {
         next unless $b && !length $b->{visitor_param};
         my ($may) = may_call( $b, mode => 'authenticated', groups => $w{groups}, caps => $w{caps} );
         next unless $may;
+        next if session_binding($b);  # B: never offered to a door that carries no sign-in
         next if length domain_refusal( $b, mode => 'authenticated',
             ( ref $w{reach} eq 'HASH' ? ( reach => $w{reach} ) : () ),
             ( defined $w{host}        ? ( host  => $w{host} )  : () ) );
