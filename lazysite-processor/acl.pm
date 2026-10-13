@@ -5,7 +5,8 @@ package main;
 # member holds, and which domains a member's file browser roots at.
 #
 # HOLDS   _acl_allows_read(), the copy of Auth::Acl's read decision (lint 31),
-#         with _acl_entry_for, the longest-match resolver it shares with
+#         with _acl_map, the rule store read every reader here shares (SM1068),
+#         and _acl_entry_for, the longest-match resolver it shares with
 #         _acl_is_draft, _acl_governed, _acl_governing_key and _acl_refused,
 #         the static file gate; the private-store copies of Lazysite::Private
 #         - _private_root and $PRIVATE_ROOT_CACHE, _content_rel, _content_abs,
@@ -358,6 +359,68 @@ sub _path_under_content {
     return _path_under( $real, $twin ) ? 1 : 0;
 }
 
+# SM1068: THE RULE STORE, decoded once per CHANGE rather than once per reader.
+#
+# Returns the decoded map, or 0 for a store that exists and will not open or
+# decode (SM268 H12, SM1024: the caller fails closed on 0). Every reader in this
+# part asks here, so a request decodes at most once - and before this,
+# _acl_is_draft decoded on every call of its own, which a registry rebuild makes
+# once per page.
+#
+# Two layers. $ACL_MAP_CACHE is the request's answer (SM268 H13), cleared by
+# reset_request_state (SM973). Under it, a process-wide copy keyed on the
+# file's identity - path, mtime, size, inode and ctime - the key
+# Lazysite::Auth::Acl::load_acls uses, plus the two that make a chmod or a
+# rename-over a new key. A persistent worker therefore decodes once per change;
+# a one-shot CGI still decodes once, since its memory ends with the request.
+#
+# Kept only when the file is more than a second old, as load_acls does (it asks
+# of mtime; this asks of ctime, which a backdated write cannot hold back): two
+# writes inside one second can leave mtime, size and ctime all equal, and the
+# second must not be answered from the first. The copy is shared and read-only:
+# no reader here writes to the map. A failure to DECODE is kept as a
+# failure (closed), never as {}; a failure to OPEN is never kept, since what
+# changes it (a permission) may not change the key.
+{
+    my %_acl_store;
+
+    sub _acl_map {
+        my ($rel) = @_;
+        return $ACL_MAP_CACHE if defined $ACL_MAP_CACHE;
+        my $f   = "$LAZYSITE_DIR/auth/acls.json";
+        my @st  = stat $f;
+        my $key = @st         ? join( ':', $f, @st[ 9, 7, 1, 10 ] ) : '';
+        my $got = length $key ? $_acl_store{$key}                   : undef;
+
+        unless ( defined $got ) {
+            my $raw = do {
+                if ( open my $fh, '<:raw', $f ) {
+                    local $/;
+                    my $c = <$fh>;
+                    close $fh;
+                    $c;
+                }
+                else { undef }
+            };
+            unless ( defined $raw ) {
+                log_event( 'ERROR', $rel // '-', 'ACL store unreadable - refusing (fail closed)' );
+                return $ACL_MAP_CACHE = 0;
+            }
+            my $map = eval { JSON::PP::decode_json($raw) };
+            $got = ref $map eq 'HASH' ? $map : 0;
+            if ( length $key && $st[10] < time() - 1 ) {
+                %_acl_store = () if keys %_acl_store > 4;
+                $_acl_store{$key} = $got;
+            }
+        }
+        log_event( 'ERROR', $rel // '-',
+            'ACL store unparseable - refusing (fail closed). Fix '
+                . 'lazysite/auth/acls.json; every protected path is denied until you do.' )
+            unless ref $got eq 'HASH';
+        return $ACL_MAP_CACHE = $got;
+    }
+}
+
 sub _acl_allows_read {
     my ( $rel, $user, @groups ) = @_;
     my $f = "$LAZYSITE_DIR/auth/acls.json";
@@ -378,36 +441,9 @@ sub _acl_allows_read {
     # filters up to 200 pages through it, and re-reading and re-decoding the
     # store per page would turn one render into 200 opens. A failed load is
     # cached as a failure, so it still fails closed and still logs once.
-    my $map;
-    if ( defined $ACL_MAP_CACHE ) {
-        return 0 unless ref $ACL_MAP_CACHE eq 'HASH';
-        $map = $ACL_MAP_CACHE;
-    }
-    else {
-        my $raw = do {
-            if ( open my $fh, '<:raw', $f ) {
-                local $/;
-                my $c = <$fh>;
-                close $fh;
-                $c;
-            }
-            else { undef }
-        };
-        unless ( defined $raw ) {
-            $ACL_MAP_CACHE = 0;
-            log_event( 'ERROR', $rel, 'ACL store unreadable - refusing (fail closed)' );
-            return 0;
-        }
-        $map = eval { JSON::PP::decode_json($raw) };
-        unless ( ref $map eq 'HASH' ) {
-            $ACL_MAP_CACHE = 0;
-            log_event( 'ERROR', $rel,
-                'ACL store unparseable - refusing (fail closed). Fix '
-                    . 'lazysite/auth/acls.json; every protected path is denied until you do.' );
-            return 0;
-        }
-        $ACL_MAP_CACHE = $map;
-    }
+    # SM1068: through _acl_map, which also keeps it across requests.
+    my $map = _acl_map($rel);
+    return 0 unless ref $map eq 'HASH';
     return 1 unless keys %$map;
 
     my $a = _acl_entry_for( $map, $rel, 'read' );
@@ -475,12 +511,11 @@ sub _acl_is_draft {
     return 0 unless defined $real;
     my $rel = _content_rel($real);
     return 0 unless defined $rel;
-    open my $fh, '<:raw', $f or return 0;
-    my $map = eval {
-        local $/;
-        JSON::PP::decode_json(<$fh>);
-    } || {};
-    close $fh;
+
+    # SM1068: the shared read. It decoded the store itself on every call, so a
+    # registry rebuild decoded it once per page. A store that will not load
+    # answers "not draft", as it did: the read check that follows refuses.
+    my $map = _acl_map($rel);
     return 0 unless ref $map eq 'HASH';
     my $a = _acl_entry_for( $map, $rel, 'draft' ); # SM981: an entry carrying draft decides
     return ( ref $a eq 'HASH' && $a->{draft} ) ? 1 : 0;
@@ -495,33 +530,19 @@ sub _acl_governed {
     my $rel = _content_rel($real);
     return 0 unless defined $rel;
 
-    # Shares _acl_allows_read's per-request parse (SM268 H13). A store that
-    # failed to load counts as governing everything: _acl_allows_read is
-    # refusing every path, and both callers want that answer - no-store on the
-    # response, and out of the registries.
-    my $map;
-    if ( defined $ACL_MAP_CACHE ) {
-        return 1 unless ref $ACL_MAP_CACHE eq 'HASH';
-        $map = $ACL_MAP_CACHE;
-    }
-    else {
-        # SM1024: a store that opens and does not decode is a FAILED load, as one
-        # that will not open is - governs everything, and cached as a failure.
-        # It decoded `|| {}` and cached the empty map, so the _acl_allows_read
-        # that followed in the same request found "no rules" and allowed every
-        # path, and the registries listed every governed page.
-        open my $fh, '<:raw', $f or return 1;
-        $map = eval {
-            local $/;
-            JSON::PP::decode_json(<$fh>);
-        };
-        close $fh;
-        unless ( ref $map eq 'HASH' ) {
-            $ACL_MAP_CACHE = 0;
-            return 1;
-        }
-        $ACL_MAP_CACHE = $map;
-    }
+    # Shares _acl_allows_read's parse (SM268 H13, SM1068). A store that failed
+    # to load counts as governing everything: _acl_allows_read is refusing every
+    # path, and the callers want that answer - no-store on the response, and out
+    # of the registries.
+    #
+    # SM1024: a store that opens and does not decode is a FAILED load, as one
+    # that will not open is - governs everything, and cached as a failure. It
+    # decoded `|| {}` and cached the empty map, so the _acl_allows_read that
+    # followed in the same request found "no rules" and allowed every path, and
+    # the registries listed every governed page.
+    my $map = _acl_map($rel);
+    return 1 unless ref $map eq 'HASH';
+
     # SM1068 (ruled 2026-10-13, "Read/draft only"): governed means a rule that
     # changes what a viewer SEES - a read list or a draft flag. A write-only
     # rule leaves the page the same for every viewer: cacheable, and listed.
@@ -549,25 +570,10 @@ sub _acl_governing_key {
     my $rel = _content_rel($real);
     return undef unless defined $rel;
 
-    my $map;
-    if ( defined $ACL_MAP_CACHE ) {
-        return '*' unless ref $ACL_MAP_CACHE eq 'HASH';
-        $map = $ACL_MAP_CACHE;
-    }
-    else {
-        # SM1024: undecodable is a failed load, as in _acl_governed above.
-        open my $fh, '<:raw', $f or return '*';
-        $map = eval {
-            local $/;
-            JSON::PP::decode_json(<$fh>);
-        };
-        close $fh;
-        unless ( ref $map eq 'HASH' ) {
-            $ACL_MAP_CACHE = 0;
-            return '*';
-        }
-        $ACL_MAP_CACHE = $map;
-    }
+    # SM1024: undecodable is a failed load, as in _acl_governed above.
+    my $map = _acl_map($rel);
+    return '*' unless ref $map eq 'HASH';
+
     # SM1068: the rule that decides who SEES the path, as _acl_governed asks. A
     # write-only rule decides no audience, so a partial under one is public
     # content, and a page under one is "governed by nothing" for this check.

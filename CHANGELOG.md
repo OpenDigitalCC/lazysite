@@ -74,6 +74,23 @@ Archive
   is not UTF-8 as one it cannot read whatever the render returned (SM976 Q15j),
   which its test met only because its rig had no processor.
   t/integration/227, t/unit/lib/90, t/lint/258.
+- SM1068 (PENDING) **a write-only rule leaves a page cacheable, and the rule
+  store is decoded once per change.** Ruled "Read/draft only": only a `read`
+  list or `draft` governs a page. A write-only rule (an owner, a `write` list)
+  no longer makes a page per-viewer: it is cached, answers without `no-store`,
+  and is listed in the sitemap, feeds and llms.txt; a static under one takes the
+  public revalidation default. Read lists and drafts behave as before, and an
+  undecodable or unreadable `acls.json` still fails closed. An `::: include` is
+  confined by the same audience rule. The processor reads `acls.json` through
+  one reader, keeping the decoded store across requests keyed on the file's
+  mtime, size, inode and ctime (a persistent worker decodes once per change; a
+  CGI request once), where it decoded it per request and once more per draft
+  check. The shared page cache now takes only a render made for no viewer: a
+  layout printing `auth_user` had handed the first signed-in viewer's name to
+  every later visitor of any public page. Measured on 1,800 per-post write
+  rules plus `/`: a post 0.46 s to 0.20 s (CGI) and 0.34 s to 0.004 s (pooled),
+  `Cache-Control` `no-store, private` to `no-cache, must-revalidate`.
+  t/integration/236-239, t/integration/74, t/unit/processor/127, t/lint/259.
 
 - SM1064 (PENDING) **a preview is no visit, on every door.** MCP
   `preview_public_page` and `preview_domain`, and the manager's `preview`,
