@@ -99,12 +99,15 @@ subtest 'a file no rule governs locks as before' => sub {
 
 my $LOCKBODY = '<?xml version="1.0"?><D:lockinfo xmlns:D="DAV:">'
     . '<D:lockscope><D:exclusive/></D:lockscope><D:locktype><D:write/></D:locktype></D:lockinfo>';
-sub basic { return 'Basic ' . encode_base64( "$_[0]:pw123456789", '' ) }
+# ManagerSession's add_user password (SM1041 lengthened it to the 12-character
+# minimum). The old one signs nobody in: every request below was a 401.
+sub basic { return 'Basic ' . encode_base64( "$_[0]:pw123456789-long-enough", '' ) }
 sub dav { my ( $u, $m, $p, %o ) = @_; return run_dav( $d, $m, "/$p", HTTP_AUTHORIZATION => basic($u), %o ) }
 
 subtest 'WebDAV: LOCK and UNLOCK ask the same rule' => sub {
     my $r = dav( 'rs', 'LOCK', 'post/a.md', body => $LOCKBODY );
     is( $r->{code}, 403, 'LOCK by a non-writer: 403' );
+    like( $r->{body} // '', qr/per-file ACL denies you write access/, 'refused by the file\'s rule' );
     ok( !-e lockfile('post/a.md'), 'and no lock' );
 
     $r = dav( 'GeekRuthie', 'LOCK', 'post/a.md', body => $LOCKBODY );
@@ -117,6 +120,7 @@ subtest 'WebDAV: LOCK and UNLOCK ask the same rule' => sub {
         'the rule is changed so it no longer names her' );
     $r = dav( 'GeekRuthie', 'UNLOCK', 'post/a.md', HTTP_LOCK_TOKEN => "<$tok>" );
     is( $r->{code}, 403, 'UNLOCK by a holder who can no longer write: 403' );
+    like( $r->{body} // '', qr/per-file ACL denies you write access/, 'refused by the file\'s rule' );
     ok( -e lockfile('post/a.md'), 'and the lock stays' );
 
     is( acl( q(remove), q(post/a.md) ), 0, q(the operator's rule is removed) );
