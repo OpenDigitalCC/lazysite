@@ -156,8 +156,14 @@ sub _acl_entry_for {
     # permission-changing capability.
     #
     # So for a mode decision, only entries carrying a non-empty list for that
-    # mode are candidates. With no mode ("does anything govern this path?") every
-    # entry counts, which is what the cache check wants.
+    # mode are candidates. With no mode every entry counts.
+    #
+    # SM1068 (ruled 2026-10-13, "Read/draft only"): 'see' is the mode for "does
+    # a rule change what a viewer sees here?" - an entry carrying a read list
+    # or `draft`. It is what the cache check, the registries and an include ask.
+    # A write list says who may CHANGE a page and nothing about who may see it,
+    # so asking with no mode made every page under a write-only rule per-viewer:
+    # never cached, no-store, and out of every registry.
     #
     # SM981: the DRAFT check is a mode of its own - only an entry carrying
     # `draft` decides it. It asked with no mode, so the nearest entry of ANY kind
@@ -170,6 +176,8 @@ sub _acl_entry_for {
         return 0 unless ref $e eq 'HASH';
         return 1 unless length $mode;
         return ( $e->{draft} ? 1 : 0 ) if $mode eq 'draft';
+        return ( $e->{draft} || ( ref $e->{read} eq 'ARRAY' && @{ $e->{read} } ) ) ? 1 : 0
+            if $mode eq 'see';    # SM1068
         return ( ref $e->{$mode} eq 'ARRAY' && @{ $e->{$mode} } ) ? 1 : 0;
     };
 
@@ -514,7 +522,10 @@ sub _acl_governed {
         }
         $ACL_MAP_CACHE = $map;
     }
-    return ref( _acl_entry_for( $map, $rel ) ) eq 'HASH' ? 1 : 0;
+    # SM1068 (ruled 2026-10-13, "Read/draft only"): governed means a rule that
+    # changes what a viewer SEES - a read list or a draft flag. A write-only
+    # rule leaves the page the same for every viewer: cacheable, and listed.
+    return ref( _acl_entry_for( $map, $rel, 'see' ) ) eq 'HASH' ? 1 : 0;
 }
 
 # SM898: WHICH entry governs a path - its key - or undef when none does.
@@ -557,7 +568,10 @@ sub _acl_governing_key {
         }
         $ACL_MAP_CACHE = $map;
     }
-    my $entry = _acl_entry_for( $map, $rel );
+    # SM1068: the rule that decides who SEES the path, as _acl_governed asks. A
+    # write-only rule decides no audience, so a partial under one is public
+    # content, and a page under one is "governed by nothing" for this check.
+    my $entry = _acl_entry_for( $map, $rel, 'see' );
     return undef unless ref $entry eq 'HASH';
     for my $k ( keys %$map ) {
         return $k if ref $map->{$k} eq 'HASH' && $map->{$k} == $entry;

@@ -1155,7 +1155,8 @@ sub main {
         # mechanism declared it.
         return if _acl_refused( $md_path, $uri );
         # A page under a governed prefix is per-identity, so it must never be
-        # written to or served from the shared HTML cache.
+        # written to or served from the shared HTML cache. SM1068: governed by a
+        # read list or a draft flag; a write-only rule leaves it cacheable.
         $auth_protected = 1 if _acl_governed($md_path);
 
         $auth_peek      = peek_auth($md_path);

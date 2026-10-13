@@ -166,14 +166,14 @@ subtest 'SM534: a DAV COPY reaches the registries' => sub {
     is( $r->{code}, 201, 'COPY answers 201' ) or diag $r->{body};
     ok( !registry_cached($docroot), 'the COPY clears the registry cache, as action_copy does' )
         or diag('the registry cache survived the COPY');
-    # Deliberately NOT asserted: that the copy is then listed. A copy is born
-    # with an owner-only ACL entry (the action_copy rule, on both surfaces)
-    # and _acl_governed hides ANY entry from the registries - so the
-    # manager's own copy is absent from the sitemap too, on this same
-    # fixture. That is a separate finding about what "governed" means, not
-    # about invalidation, and this test does not pretend to own it.
-    like( run_processor( $docroot, '/sitemap.xml' ), qr{URL: .*content/a\b},
-        'the re-rendered sitemap still lists the source' );
+    # A copy is born with an owner-only ACL entry (the action_copy rule, on
+    # both surfaces). _acl_governed hid ANY entry from the registries, so the
+    # copy was left out - the separate finding this test named and did not
+    # own. SM1068 ruled it ("Read/draft only"): an owner or write rule changes
+    # nothing a viewer sees, so the copy is listed.
+    my $sitemap = run_processor( $docroot, '/sitemap.xml' );
+    like( $sitemap, qr{URL: .*content/a\b}, 'the re-rendered sitemap still lists the source' );
+    like( $sitemap, qr{URL: .*content/c\b}, 'and lists the copy (SM1068)' );
 };
 
 done_testing();

@@ -6,6 +6,7 @@ package main;
 # HOLDS   process_md(), the Markdown page render (front matter, forms,
 #         components, divs, include, code, oEmbed, Markdown, then the template
 #         and layout), with %RENDER_QUERY, the request's declared query values;
+#         _render_has_viewer(), whether the render may fill the shared cache;
 #         process_url(), the same for a .url source; _strip_leaked_refs();
 #         sanitise_uri(), confine_content_root() and _path_under(), the path
 #         confinement; the escapers - _esc_html, _esc_query_value, _data_inert,
@@ -31,7 +32,7 @@ package main;
 #         before its parts load); Lazysite::I18n and Lazysite::Fetch, through
 #         _lazy_lib, on their cold paths only.
 # READS   $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $CONF_FILE, $REMOTE_TTL,
-#         %STATIC_CT; SETS @TT_DEPS, $TT_DEP_LIVE and %ACCESS_REC (the
+#         %STATIC_CT, %AUTH_CONTEXT; SETS @TT_DEPS, $TT_DEP_LIVE and %ACCESS_REC (the
 #         script's, declared `our` there).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S18). It is package main, required
@@ -40,7 +41,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $CONF_FILE, $REMOTE_TTL, $TT_DEP_LIVE, @TT_DEPS, %ACCESS_REC, %STATIC_CT );
+our ( $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $CONF_FILE, $REMOTE_TTL, $TT_DEP_LIVE, @TT_DEPS, %ACCESS_REC, %STATIC_CT, %AUTH_CONTEXT );
 
 # --- Processing ---
 
@@ -614,6 +615,12 @@ sub _serve_content_static {
 # context; the template stash gets its own escaped copy (render_content).
 our %RENDER_QUERY;
 
+# SM1068: did this render carry a viewer? A render made for one must never reach
+# the shared cache - see process_md.
+sub _render_has_viewer {
+    return ( $AUTH_CONTEXT{authenticated} || length( $AUTH_CONTEXT{auth_user} // '' ) ) ? 1 : 0;
+}
+
 sub process_md {
     my ( $md_path, $html_path, $md_mtime, $query ) = @_;
     $query //= {};
@@ -694,8 +701,18 @@ sub process_md {
     # SM833: no Perl reference reaches a visitor, whatever produced it.
     $page = _strip_leaked_refs( $page, $raw_text, $md_path );
 
-    # Only cache if no query params - query responses are dynamic
-    if ( !%$query ) {
+    # Only cache if no query params - query responses are dynamic.
+    #
+    # SM1068: AND ONLY A RENDER MADE FOR NOBODY. The stash carries the viewer -
+    # authenticated, auth_user, auth_name, editor - and a layout or page that
+    # prints one bakes it into the render. Written to the shared cache, the
+    # first signed-in viewer's name was served to every later visitor, signed in
+    # or not (measured on a page with no rule at all). Once a write-only rule
+    # stopped making a page per-viewer, the first viewer of a post is most often
+    # its author, so the gap would have been met on exactly those pages. A
+    # signed-in viewer still gets a cache hit; the cache is filled by the next
+    # anonymous render.
+    if ( !%$query && !_render_has_viewer() ) {
         write_html( $html_path, $page );
         eval { update_registries() };
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@ ) if $@;

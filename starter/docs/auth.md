@@ -453,7 +453,10 @@ Three behaviours worth knowing before you rely on it:
   as before. Nothing changes on a site that has not written an ACL.
 - **An entry with only an `owner` does not protect anything.** Ownership is not a
   read restriction here, and it is not one in the manager either. You need a
-  `read` list.
+  `read` list. The same holds for a `write` list: it says who may change a page,
+  so a page under an owner or write rule alone is cached and listed (sitemap,
+  feeds, search) like any public page. Only a `read` list or `draft` changes
+  that.
 - An anonymous request for a protected file is sent to the login page; a signed-in
   user who is not permitted gets `403`. Protected files are never stored by a
   shared cache.
@@ -799,6 +802,11 @@ Protected pages (`auth: required` or with `auth_groups:`) are never
 cached to disk and always include `Cache-Control: no-store, private`
 in the response. This prevents authenticated content from being
 served to unauthenticated users.
+
+A public page is cached from a render made for nobody: a signed-in
+visitor may be served the cached page, but their own render is never
+written to the cache, so a layout that prints `auth_user` cannot hand
+one visitor's name to the next.
 
 ## Further reading
 
