@@ -103,6 +103,20 @@ Archive
   rules plus `/`: a post 0.46 s to 0.20 s (CGI) and 0.34 s to 0.004 s (pooled),
   `Cache-Control` `no-store, private` to `no-cache, must-revalidate`.
   t/integration/236-239, t/integration/74, t/unit/processor/127, t/lint/259.
+- SM1070 (PENDING) **a removed account's session ends with it.** Security.
+  Removing an account wrote no revocation, and the cookie verifier never asked
+  whether the account existed, so a removed account's cookie still counted as
+  that account until it expired: on main it reached the members' pages,
+  /account, the bell, a data CSRF token, and a form post that skipped the rate
+  limit and wrote a personal row in the removed name; on 0.15.4 and earlier it
+  also wrote content through the manager (the SM1057 hole). The verifier now
+  refuses an account that is not in `lazysite/auth/users` (`no-account`; an
+  unreadable store refuses every session as cannot-tell), and `remove` and
+  `rename` sign the account's sessions out by name before changing anything,
+  so an account created later under the name inherits none. Disabled accounts
+  were already refused on every cookie door. The wrapper's passwordless flag
+  now comes from the same read, so a request reads the account store once.
+  t/unit/auth/55-56, t/integration/243.
 
 - SM1064 (PENDING) **a preview is no visit, on every door.** MCP
   `preview_public_page` and `preview_domain`, and the manager's `preview`,

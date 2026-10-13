@@ -33,6 +33,9 @@ my $SECRET = 'a' x 64;
 sub spit { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1]; close $fh }
 spit( "$d/lazysite/auth/.secret", "$SECRET\n" );
 spit( "$d/lazysite/auth/groups",  "admins: alice\neditors: alice, bob\n" );
+# SM1070: the accounts exist - a cookie for one the store does not hold is no
+# identity (t/unit/auth/55).
+spit( "$d/lazysite/auth/users", "alice:x\nbob:x\n" );
 
 sub cookie_for {
     my (%o) = @_;

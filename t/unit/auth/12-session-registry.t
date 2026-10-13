@@ -207,6 +207,9 @@ my ( $sid1, $cookie1 );
 {
     my $d = build_docroot();
     users_api( $d, { action => 'add', username => 'bob', password => 'pw-long-enough' } );
+    # SM1070: carol, the account that is unaffected, has to EXIST - a cookie for
+    # an account the store does not hold is no identity.
+    users_api( $d, { action => 'add', username => 'carol', password => 'pw-long-enough' } );
     # Mint the secret via a real login, then hand-mint bob's cookies in the past.
     my $r = login( docroot => $d, username => 'bob', password => 'pw-long-enough' );
     like( $r->{out}, qr/302 Found/, 'bob logs in (secret minted)' );

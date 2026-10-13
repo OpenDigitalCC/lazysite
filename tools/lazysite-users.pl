@@ -949,6 +949,9 @@ sub cmd_rename {
             unless $actor eq $old || is_ancestor( $actor, $old, $all );
     }
 
+    # SM1070: the old name is freed, so its sessions end with it (see
+    # _end_every_session). The account signs in again under its new name.
+    _end_every_session( $old, 'renamed' );
     $users{$new} = delete $users{$old};
     write_users(%users);
 
@@ -1033,6 +1036,23 @@ sub _end_other_sessions {
     return;
 }
 
+# SM1070 (n562, ruled 2026-10-13): an account that is removed, or renamed away
+# from a name, is signed out everywhere under that name - SM1040's mechanism with
+# nothing kept. The verifier also refuses a session whose account is not in the
+# store; this is the half that survives the name being created again, because a
+# cookie names its account by name and a new account under the old name would
+# otherwise inherit every session the old one left. Dies before anything is
+# changed when the revocation cannot be written.
+sub _end_every_session {
+    my ( $user, $what ) = @_;
+    require Lazysite::Manager::Sessions;
+    my $r = Lazysite::Manager::Sessions::revoke_account_sessions( dir => $LAZYSITE_DIR, user => $user );
+    die "Cannot sign out the sessions of '$user' ($r->{error}) - nothing was changed, "
+        . "the account is not $what\n"
+        unless ref $r eq 'HASH' && $r->{ok};
+    return;
+}
+
 sub cmd_remove {
     my ($user) = @_;
     die "Username required\n" unless $user;
@@ -1044,6 +1064,9 @@ sub cmd_remove {
     # which delete returns as a FALSE value, so `unless delete` wrongly reported
     # "not found" and left the account undeletable. Test existence, then delete.
     die "User '$user' not found\n" unless exists $users{$user};
+
+    # SM1070: its sessions end BEFORE the account goes, so a failure leaves both.
+    _end_every_session( $user, 'removed' );
     delete $users{$user};
 
     write_users(%users);

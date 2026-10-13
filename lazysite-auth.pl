@@ -1053,10 +1053,9 @@ sub handle_request {
 
         # Flag passwordless accounts so the admin bar can warn.
         # Checked per-request so setting a password clears it immediately.
-        my $users = load_users();
-        $ENV{LAZYSITE_AUTH_NO_PASSWORD} = '1'
-            if exists $users->{ $ident->{user} }
-            && !length $users->{ $ident->{user} };
+        # SM1070: from the verifier's own read of the account store, which it
+        # now makes to refuse a removed account - one read, not two.
+        $ENV{LAZYSITE_AUTH_NO_PASSWORD} = '1' if $ident->{no_password};
 
         log_event( 'INFO', $uri, 'auth: cookie valid',
             user => $ident->{user}, groups => $ident->{groups} );
@@ -1073,6 +1072,12 @@ sub handle_request {
     elsif ( $why eq 'expired' ) {
         log_event( 'WARN', $uri, 'auth: cookie expired or malformed ts',
             ts => $detail{ts} // 'undef' );
+    }
+    elsif ( $why eq 'no-account' ) {
+        # SM1070: the account was removed (or renamed) after this cookie was
+        # issued; no trusted headers are set, so the request is unauthenticated.
+        log_event( 'WARN', $uri, 'auth: account does not exist',
+            user => $detail{user} );
     }
     elsif ( $why eq 'disabled' ) {
         # SM071: reject an existing cookie for a now-disabled account; no

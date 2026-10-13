@@ -7,8 +7,8 @@ package Lazysite::Auth::Session;
 # lazysite/auth/.secret if present, else a dedicated minted manager secret.
 #
 # verify_session_cookie: the FULL verification chain that lazysite-auth.pl's
-# wrapper performs - parse, HMAC, payload shape, expiry, account-disabled,
-# session-revoked, and a FRESH group resolution (SEC-2026-07 M5: never the
+# wrapper performs - parse, HMAC, payload shape, expiry, account-exists
+# (SM1070), account-disabled, session-revoked, and a FRESH group resolution (SEC-2026-07 M5: never the
 # groups baked into the cookie). Extracted so that a surface that cannot sit
 # behind the wrapper can still hold a real identity: SM402 measured what
 # happens otherwise - the form handler trusted X-Remote-User as the client
@@ -283,6 +283,34 @@ sub session_revoked {
     return 1;
 }
 
+# SM1070 (n562, ruled 2026-10-13): is this account still in lazysite/auth/users?
+# Returns ( 'ok', $no_password ), ( 'absent' ) - the store answered and the name
+# is not in it, an absent store included (a site with no accounts) - or
+# ( 'broken' ): the store exists and cannot be opened, which is cannot-tell
+# (SM1024), never "exists". One open and a scan that stops at the account's own
+# line; the hash is read only to say whether it is empty, which the auth wrapper
+# flags as a passwordless account, so the wrapper reads the store once, here.
+sub _account_state {
+    my ($username) = @_;
+    my $path = _auth_dir() . '/users';
+    open my $fh, '<:utf8', $path or do {
+        my $absent = $!{ENOENT} ? 1 : 0;    # errno first: cannot_read clobbers $!
+        cannot_read( 'users', $path );
+        return $absent ? ('absent') : ('broken');
+    };
+    while ( defined( my $line = <$fh> ) ) {
+        chomp $line;
+        $line =~ s/^\s+|\s+$//g;
+        next if $line =~ /^#/ || !length $line;
+        my ( $u, $hash ) = split /:/, $line, 2;
+        next unless defined $u && defined $hash && $u eq $username;
+        close $fh;
+        return ( 'ok', length $hash ? 0 : 1 );
+    }
+    close $fh;
+    return ('absent');
+}
+
 # SM1024: the first session store that exists and cannot be read or decoded,
 # docroot-relative, or '' - asked by the sign-in gate before a cookie issues,
 # so a sign-in is refused as cannot-tell rather than reported as a bad password
@@ -318,8 +346,9 @@ sub load_user_groups {
 # The full chain, and the ONLY correct way to turn a session cookie into an
 # identity. Returns ( $ident, $why, %detail ):
 #
-#   $ident   { user, sid, groups } on success, undef on any failure
-#   $why     no-cookie | malformed | signature | expired | disabled | revoked
+#   $ident   { user, sid, groups, no_password } on success, undef on any failure
+#   $why     no-cookie | malformed | signature | expired | no-account |
+#            disabled | revoked | cannot-tell
 #   %detail  user => ..., ts => ... where the failing stage knew them, so the
 #            caller can log what the wrapper has always logged
 #
@@ -389,10 +418,21 @@ sub verify_session_cookie {
     return ( undef, 'expired', ts => $ts )
         if ( time() - $seen ) >= session_lifetime();
 
+    # SM1070: a cookie for an account that is no longer in the store is not an
+    # identity. Removing an account deletes its line, its groups and its
+    # settings - its disabled flag with them - so without this the cookie went
+    # on verifying as that name until it expired. Asked FIRST, so a removed
+    # account answers no-account whatever its revocations say. An unreadable
+    # store is cannot-tell (SM1024), never "exists".
+    $STORE_FAULT = '';
+    my ( $account, $no_password ) = _account_state($user);
+    return ( undef, 'cannot-tell', user => $user, store => 'lazysite/auth/users' )
+        if $account eq 'broken';
+    return ( undef, 'no-account', user => $user ) if $account eq 'absent';
+
     # SM071: an existing cookie for a now-disabled account is not an identity.
     # SM1024: and one whose store cannot be read is not one either - answered
     # as cannot-tell, naming the store, never as "disabled" or "revoked".
-    $STORE_FAULT = '';
     my $disabled = account_disabled($user);
     return ( undef, 'cannot-tell', user => $user, store => $STORE_FAULT ) if length $STORE_FAULT;
     return ( undef, 'disabled', user => $user ) if $disabled;
@@ -404,7 +444,9 @@ sub verify_session_cookie {
     return ( undef, 'cannot-tell', user => $user, store => $STORE_FAULT ) if length $STORE_FAULT;
     return ( undef, 'revoked', user => $user ) if $revoked;
 
-    return ( { user => $user, sid => $sid, groups => load_user_groups($user) },
+    return (
+        { user => $user, sid => $sid, groups => load_user_groups($user),
+            no_password => $no_password },
         undef );
 }
 

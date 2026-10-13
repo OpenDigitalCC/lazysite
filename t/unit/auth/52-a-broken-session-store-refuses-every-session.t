@@ -26,6 +26,9 @@ make_path($auth);
 sub put { my ( $p, $c ) = @_; open my $fh, '>:raw', $p or die "$p: $!"; print {$fh} $c; close $fh; return }
 put( "$auth/.secret", 'c' x 64 );
 put( "$auth/groups",  "staff: ann\n" );
+# SM1070: ann exists - a cookie for an account the store does not hold is no
+# identity, which would answer before either store below is asked.
+put( "$auth/users", "ann:x\n" );
 
 no warnings 'once';
 $Lazysite::Auth::Session::LAZYSITE_DIR     = "$d/lazysite";

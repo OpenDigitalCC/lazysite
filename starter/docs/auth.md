@@ -160,6 +160,12 @@ account except the one that made the change, which stays signed in. A setup
 or reset link is not a session, so redeeming one ends them all. A later "Sign
 out everywhere" ends the kept session too.
 
+Removing an account signs out every one of its sessions, and so does renaming
+one, for the old name. A session also stops counting the moment its account
+is no longer in `lazysite/auth/users`, or is disabled; if the account file
+cannot be read, every session is refused until it is repaired. An account
+created later under a removed name starts with no sessions.
+
 ### Dev server
 
 The dev server auto-detects built-in auth when `lazysite/auth/users`
