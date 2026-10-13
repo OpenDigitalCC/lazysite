@@ -235,6 +235,30 @@ Decisions taken in CU, from the rulings and the filing:
   zeros and a sweep that expires nothing reports `expired: null`. The same shape was
   written here first and caught by t/unit/odoo/06.
 
+### OOM's approval gate - found 2026-10-13, built (n585)
+
+On 2026-10-13 (OOM's run registry, `Odoo::Ops::Runs`, merged 17:35) OOM's `Runner->apply`
+began to refuse a plan nobody had approved (`unapproved`, `approval-stale`), unless the
+config says `approval = none`, which OOM describes as for tests and trusted batches.
+Every lazysite apply - a confirm, and an `apply: immediate` binding - was then refused
+(`refused`, "the call was refused before Odoo answered"), and so were
+t/unit/odoo/09 to 12 and 17 against OOM's tree.
+
+**Decision taken** (not settled by the rulings, taken because the alternative is the
+safer door left open): the approval is the act lazysite already has. A confirm is the
+approval of the account or visitor that made the plan (the owner, who alone can
+confirm), and `apply: immediate` is the operator's standing approval of that one
+operation, given when they saved the binding. The engine records it with
+`Odoo::Ops::Runs->approve_plan` - by whom, a note, the plan's own fingerprint -
+immediately before the apply, and **does not set `approval = none`**: OOM's gate stays
+on for anything lazysite did not approve. A plan already applied is not approved again
+(OOM refuses the replay by name, `applied`). An OOM without the registry has no gate and
+nothing is recorded. t/unit/odoo/40.
+
+**Asked of the release manager, if the other reading is wanted:** that a confirm is not
+enough and a second, separate approval step is. That is a design change to Q1's
+"nobody confirming" cases and is not taken here.
+
 ## Slice CU, the surfaces - built 2026-10-12 (n473)
 
 | Row | What | Where |

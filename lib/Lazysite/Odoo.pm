@@ -713,10 +713,31 @@ sub confirm {
         my $plan = Odoo::Ops::Plan->load("$dir/plan.json");
         my $ctx  = context( $conn, actor => _actor_label(%c) );
         $ctx->use_run_dir($dir);
+        _approve( $dir, $plan, $meta->{owner}, 'confirmed in lazysite by its maker' );
         my $result = Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir );
         { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $pid, result => _result_summary($result) };
     };
     return _finish( \%rec, $res, $@, $t0, 'apply' );
+}
+
+# OOM's Runner applies only an APPROVED plan (its run registry, 2026-10-13; the
+# config can say approval = none, which is for tests and trusted batches, and is
+# not set here). In lazysite the approval is the act that already exists: the
+# account or visitor that made a plan confirming it, or a binding that declares
+# `apply: immediate` - the operator's standing say-so for that one operation.
+# So it is recorded, by whom and against the plan's own fingerprint, immediately
+# before the apply, and OOM's gate stays on for everything else. An OOM that
+# predates the registry has no gate and nothing to record.
+sub _approve {
+    my ( $dir, $plan, $by, $note ) = @_;
+    return unless eval { require Odoo::Ops::Runs; Odoo::Ops::Runs->can('approve_plan') };
+
+    # A plan already applied has a journal, and OOM refuses a second apply of it by
+    # name (`applied`); approving it again would refuse first, and say something
+    # else.
+    return if -e "$dir/journal.jsonl";
+    Odoo::Ops::Runs->approve_plan( $dir, $plan, by => $by, note => $note );
+    return;
 }
 
 # What every call needs before its parameters are looked at: the key, the
@@ -760,6 +781,7 @@ sub _run {
         { binding => $b->{id}, operation => $b->{operation}, owner => _owner(%$c),
             created => time, fingerprint => $plan->fingerprint } );
     if ( $b->{apply} eq 'immediate' ) {
+        _approve( $dir, $plan, "binding:$b->{id}", 'apply: immediate on the binding' );
         my $result = Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir );
         return { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $pid,
             result => _result_summary($result) };

@@ -207,6 +207,11 @@ Archive
   `t/lint/257` refuses a scalar after an array or hash in a `my`/`our`/`state`
   list with an assignment; no other instance in the tree. t/unit/manager/335,
   t/lint/257.
+- odoo-extension (PENDING) **applying an Odoo plan works with OOM's approval gate (SM747).**
+  OOM's runner now refuses to apply a plan nobody approved. A confirm is recorded as
+  its maker's approval, and an `apply: immediate` binding as the binding's, each against
+  the plan's fingerprint, immediately before the apply; OOM's gate is left on. Without
+  this every apply was refused against an OOM that has the gate. t/unit/odoo/40.
 - odoo-extension (PENDING) **every Odoo action is an MCP tool, and an agent runs
   a bound operation as its grant's own Odoo account (SM747 slice E).**
   `odoo_status`, `odoo_calls`, `odoo_secret_set` and `odoo_secret_clear` are the

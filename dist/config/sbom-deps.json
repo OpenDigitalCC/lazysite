@@ -237,6 +237,12 @@
       "debian_pkg": "libodoo-oom-perl",
       "used_by": "Odoo extension (SM747): applies a confirmed plan through OOM's journal; lazy-required only when the extension runs"
     },
+    "Odoo::Ops::Runs": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM747): records the approval OOM's runner requires before it applies a plan (a confirm, or a binding that applies immediately); lazy-required only when the extension runs, and absent from an OOM that predates the run registry"
+    },
     "POSIX": {
       "core": true,
       "license": "Artistic-1.0-Perl",
