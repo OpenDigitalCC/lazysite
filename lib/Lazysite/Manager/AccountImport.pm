@@ -10,9 +10,10 @@ package Lazysite::Manager::AccountImport;
 #           of accounts - username, email, groups, and NO password - is written
 #           to the staging area, lazysite/auth/import/, as one file.
 #   plan    (accounts-import-plan, the operator, cookie only): the dry run - for
-#           each row, what applying would do: create, skip (the account exists),
-#           or refuse (the row is invalid); and which named groups exist and will
-#           be joined, and which do not and will be left out.
+#           each row, what applying would do: create; update (n572: the account
+#           exists, and its address or groups differ - each change listed);
+#           skip; or refuse (the row is invalid); and which named groups
+#           exist and will be joined, and which do not and will be left out.
 #   apply   (accounts-import-apply, the operator, cookie only, confirmed by the
 #           staged file's id): each new account is created with no password, its
 #           email recorded, placed in the named groups that exist, and given a
@@ -74,7 +75,7 @@ sub _rows_from {
             my @v = map { s/^\s+|\s+$//gr } split /,/, $l, -1;
             my %r;
             @r{@cols} = @v;
-            $r{groups} = [ grep { length } split /\s*;\s*/, ( $r{groups} // '' ) ];
+            $r{groups} = [ grep { length } split /\s*;\s*/, ( $r{groups} // '' ) ] if exists $r{groups};
             push @rows, \%r;
         }
     }
@@ -121,7 +122,10 @@ sub stage {
             if ref $g ne 'ARRAY' || grep { ref $_ || !defined $_ || $_ !~ /\A[A-Za-z0-9_-]{1,64}\z/ } @$g;
         push @err, 'the username appears twice' if defined $u && !ref $u && $seen{$u}++;
         if (@err) { push @bad, { row => $n, ( defined $u && !ref $u ? ( username => $u ) : () ), error => join( '; ', @err ) }; next }
-        push @clean, { username => $u, ( length $e ? ( email => $e ) : () ), groups => [@$g] };
+        # n572: a row that names no groups is kept so, and changes no existing
+        # account's groups; a row that names them (even none) sets them.
+        push @clean, { username => $u, ( length $e ? ( email => $e ) : () ),
+            ( exists $r->{groups} ? ( groups => [@$g] ) : () ) };
     }
 
     my $id = strftime( '%Y%m%d-%H%M%S', gmtime ) . '-' . sprintf( '%08x', int( rand(0xffffffff) ) );
@@ -195,12 +199,64 @@ sub list_staged {
     return { ok => 1, imports => [ reverse @out ] };
 }
 
-# The dry run's facts: which accounts and groups exist now.
+# The dry run's facts: which accounts and groups exist now, and (n572) what an
+# existing account has - its address, its own groups - and which groups an
+# import may change: those that exist, and never an operator group (the
+# `manager` flag, nesting included: SM991) or a registration group. Group
+# settings that cannot be read leave no group an import may change.
 sub _now {
     local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
     my $acc = Lazysite::Auth::Settings::account_names();
     my $grp = Lazysite::Auth::Settings::group_names();
-    return ( ( ref $acc eq 'HASH' ? $acc : {} ), ( ref $grp eq 'HASH' ? $grp : {} ) );
+    $acc = {} unless ref $acc eq 'HASH';
+    $grp = {} unless ref $grp eq 'HASH';
+    my $set    = Lazysite::Auth::Settings::read_settings();
+    my $gs     = Lazysite::Auth::Settings::read_group_settings();
+    my $gs_bad = Lazysite::Auth::Settings::group_settings_unreadable() ? 1 : 0;
+    my %no_change;    # group => why an import never changes it
+    for my $g ( keys %$grp ) {
+        if ($gs_bad) { $no_change{$g} = 'the group settings cannot be read'; next }
+        if ( Lazysite::Auth::Settings::groups_are_operator($g) ) {
+            $no_change{$g} = 'an operator group is never changed by an import';
+            next;
+        }
+        $no_change{$g} = 'a registration group is never changed by an import'
+            if ref $gs->{$g} eq 'HASH' && $gs->{$g}{registration};
+    }
+    my %have;
+    for my $u ( keys %$acc ) {
+        $have{$u} = {
+            email    => ( ref $set->{$u} eq 'HASH' ? $set->{$u}{email} // '' : '' ),
+            groups   => [ Lazysite::Auth::Settings::direct_groups($u) ],
+            operator => Lazysite::Auth::Settings::account_is_operator($u),
+        };
+    }
+    return ( $acc, $grp, \%no_change, \%have );
+}
+
+# n572: what applying would change on an existing account - [ changes ],
+# [ groups refused ] - each change with the id the operator ticks
+# (USER:email, USER:+GROUP, USER:-GROUP). Never a password.
+sub _changes {
+    my ( $r, $have, $grp, $no_change ) = @_;
+    my $u = $r->{username};
+    my ( @ch, @refused );
+    if ( length( $r->{email} // '' ) && lc $r->{email} ne lc( $have->{email} // '' ) ) {
+        push @ch, { id => "$u:email", field => 'email', from => $have->{email} // '', to => $r->{email} };
+    }
+    return ( \@ch, \@refused ) unless ref $r->{groups} eq 'ARRAY';
+    my %want = map { $_ => 1 } @{ $r->{groups} };
+    my %own  = map { $_ => 1 } @{ $have->{groups} || [] };
+    for my $g ( sort keys %want ) {
+        if ( !$grp->{$g} ) { push @refused, { group => $g, why => 'the group does not exist' } }
+        elsif ( $no_change->{$g} ) { push @refused, { group => $g, why => $no_change->{$g} } }
+        elsif ( !$own{$g} ) { push @ch, { id => "$u:+$g", field => 'group-add', group => $g } }
+    }
+    for my $g ( sort keys %own ) {
+        next if $want{$g} || $no_change->{$g} || !$grp->{$g};
+        push @ch, { id => "$u:-$g", field => 'group-remove', group => $g };
+    }
+    return ( \@ch, \@refused );
 }
 
 # accounts-import-plan: what applying would do, row by row. Nothing is written.
@@ -208,21 +264,38 @@ sub plan {
     my ($id) = @_;
     my ( $d, $no ) = _load($id);
     return $no unless $d;
-    my ( $acc, $grp ) = _now();
+    my ( $acc, $grp, $no_change, $have ) = _now();
     my ( @rows, %count, %unknown );
     for my $r ( @{ $d->{accounts} || [] } ) {
-        my @join = grep { $grp->{$_} } @{ $r->{groups}  || [] };
-        my @miss = grep { !$grp->{$_} } @{ $r->{groups} || [] };
-        $unknown{$_}++ for @miss;
-        my $do = $acc->{ $r->{username} } ? 'skip' : 'create';
+        my $u   = $r->{username};
+        my %row = ( username => $u, ( $r->{email} ? ( email => $r->{email} ) : () ) );
+        if ( !$acc->{$u} ) {
+            my @join = grep { $grp->{$_} } @{ $r->{groups}  || [] };
+            my @miss = grep { !$grp->{$_} } @{ $r->{groups} || [] };
+            $unknown{$_}++ for @miss;
+            $count{create}++;
+            push @rows, { %row, action => 'create', groups => \@join,
+                ( @miss ? ( groups_missing => \@miss ) : () ) };
+            next;
+        }
+        # n572: an operator's own account is changed on the Users page, never by
+        # a file a partner prepared - its address is where its reset link goes.
+        if ( $have->{$u}{operator} ) {
+            $count{skip}++;
+            push @rows, { %row, action => 'skip', why => 'an operator account is not changed by an import' };
+            next;
+        }
+        my ( $ch, $refused ) = _changes( $r, $have->{$u}, $grp, $no_change );
+        $unknown{ $_->{group} }++ for grep { $_->{why} =~ /does not exist/ } @$refused;
+        my $do = @$ch ? 'update' : 'skip';
         $count{$do}++;
-        push @rows, { username => $r->{username}, ( $r->{email} ? ( email => $r->{email} ) : () ),
-            action => $do, ( $do eq 'skip' ? ( why => 'the account exists' ) : () ),
-            groups => \@join, ( @miss ? ( groups_missing => \@miss ) : () ) };
+        push @rows, { %row, action => $do,
+            ( @$ch ? ( changes => $ch ) : ( why => 'the account exists and nothing differs' ) ),
+            ( @$refused ? ( groups_refused => $refused ) : () ) };
     }
     return { ok => 1, id => $d->{id}, staged_by => $d->{staged_by}, staged_at => $d->{staged_at},
         ( $d->{applied_at} ? ( applied_at => $d->{applied_at} ) : () ),
-        create => $count{create} // 0, skip            => $count{skip} // 0,
+        create => $count{create} // 0, update => $count{update} // 0, skip => $count{skip} // 0,
         invalid => $d->{invalid} || [], groups_missing => [ sort keys %unknown ], rows => \@rows };
 }
 
@@ -261,6 +334,37 @@ sub _mail_claim {
             . "If it has expired, use \"forgot password\" with this address to get a new one." );
 }
 
+# n572: how a change reads in the trail and on the page - never the address.
+sub _said {
+    my ($c) = @_;
+    return 'address changed'    if $c->{field} eq 'email';
+    return "joined $c->{group}" if $c->{field} eq 'group-add';
+    return "left $c->{group}"   if $c->{field} eq 'group-remove';
+    return 'changed';
+}
+
+# n572: make the ticked changes of one planned update, through the users tool -
+# the address with settings-set (the one writer of it), a group with group-add
+# or group-remove. Never a password. Leaving a group ends no session: groups are
+# read fresh on every request (SEC-2026-07 M5), so the account loses the
+# group's doors on its next request and keeps its own (SM1070's probe,
+# t/integration/243); SM1040 signs sessions out on a changed CREDENTIAL, and an
+# import changes none.
+sub _update {
+    my ( $r, $tick ) = @_;
+    my ( @applied, @done, @failed );
+    for my $c ( grep { $tick->{ $_->{id} } } @{ $r->{changes} || [] } ) {
+        my %req
+            = $c->{field} eq 'email'
+            ? ( action => 'settings-set', key => 'email', value => $c->{to} )
+            : ( action => $c->{field}, group => $c->{group} );
+        my $res = Lazysite::Manager::Common::users_api( { %req, username => $r->{username} } ) || {};
+        if ( $res->{ok} ) { push @applied, $c->{id}; push @done, $c; next }
+        push @failed, { %$c, username => $r->{username}, error => $res->{error} // 'not made' };
+    }
+    return { username => $r->{username}, applied => \@applied, failed => \@failed, applied_changes => \@done };
+}
+
 # accounts-import-apply: the plan, carried out. confirm must repeat the id.
 sub apply {
     my ( $id, $confirm, %who ) = @_;
@@ -275,9 +379,25 @@ sub apply {
             . strftime( '%Y-%m-%d %H:%M', gmtime $d->{applied_at} ) . " by $d->{applied_by}" }
         if $d->{applied_at};
 
+    # n572: the changes to existing accounts the operator ticked, by the ids the
+    # plan shows. None ticked, none made.
+    my $ticks = $who{updates} // [];
+    return { ok => 0, kind => 'invalid', field => 'updates',
+        error => 'updates is a list of the change ids the plan shows (USER:email, USER:+GROUP, '
+            . 'USER:-GROUP); nothing was created' }
+        if ref $ticks ne 'ARRAY' || grep { !defined $_ || ref $_ } @$ticks;
+    my %tick = map { $_ => 1 } @$ticks;
+
     my $p = plan($id);
-    my ( @created, @skipped, @failed );
+    my ( @created, @skipped, @failed, @updated, %offered );
     for my $r ( @{ $p->{rows} || [] } ) {
+        $offered{ $_->{id} } = 1 for @{ $r->{changes} || [] };
+        if ( $r->{action} eq 'update' ) {
+            my $u = _update( $r, \%tick );
+            if ( @{ $u->{applied} } || @{ $u->{failed} } ) { push @updated, $u }
+            else { push @skipped, { username => $r->{username}, why => 'no change was ticked' } }
+            next;
+        }
         if ( $r->{action} ne 'create' ) { push @skipped, { username => $r->{username}, why => $r->{why} }; next }
         # The groups the plan found to exist, and only those - never the
         # registration groups an approval otherwise falls back to.
@@ -299,14 +419,29 @@ sub apply {
             $created[-1]{ length $why ? 'mail_error' : 'mailed' } = length $why ? $why : 1;
         }
     }
-    my $mailed   = grep { $_->{mailed} } @created;
-    my $unmailed = grep { defined $_->{mail_error} } @created;
+    my $mailed    = grep      { $_->{mailed} } @created;
+    my $unmailed  = grep      { defined $_->{mail_error} } @created;
+    my @unmatched = sort grep { !$offered{$_} } keys %tick;
+    my $n_changes = 0;
+    $n_changes += @{ $_->{applied} } for @updated;
+    my @change_failed = map { @{ $_->{failed} } } @updated;
+    # n572: one audit row per change made to an existing account, or tried and
+    # not made - the address change named, the address not (SM877).
+    my @upd_audit;
+    for my $u (@updated) {
+        push @upd_audit, [ 'accounts-import-update', $u->{username}, 1, "accounts import $d->{id}: " . _said($_) ]
+            for @{ delete $u->{applied_changes} };
+        push @upd_audit, [ 'accounts-import-update', $u->{username}, 0,
+            "accounts import $d->{id}: " . _said($_) . " not made - $_->{error}" ]
+            for @{ $u->{failed} };
+    }
 
     # Marked applied, so a second apply cannot run it again.
     my $f = _dir() . "/$d->{id}.json";
     $d->{applied_at} = time;
     $d->{applied_by} = $who{actor};
-    $d->{result} = { created => [ map { $_->{username} } @created ], failed => \@failed };
+    $d->{result} = { created => [ map { $_->{username} } @created ], failed => \@failed,
+        ( @updated ? ( updated => [ map { { username => $_->{username}, applied => $_->{applied} } } @updated ] ) : () ) };
     if ( open my $fh, '>:raw', "$f.tmp.$$" ) {
         print {$fh} JSON::PP->new->canonical->pretty->encode($d);
         close $fh;
@@ -315,9 +450,12 @@ sub apply {
     log_event( 'INFO', 'accounts-import', 'accounts import applied', id => $d->{id},
         user => $who{actor}, created => scalar @created, skipped => scalar @skipped,
         failed => scalar @failed, ( $who{mail} ? ( mailed => $mailed, not_mailed => $unmailed ) : () ) );
-    return { ok => ( @failed ? 0 : 1 ), ( @failed ? ( kind => 'partial',
-                error => scalar(@failed) . ' account(s) could not be created; see failed' ) : () ),
+    return { ok => ( @failed || @change_failed ? 0 : 1 ),
+        ( @failed || @change_failed ? ( kind => 'partial',
+                error => scalar(@failed) . ' account(s) could not be created and '
+                    . scalar(@change_failed) . ' change(s) could not be made; see failed and updated' ) : () ),
         id => $d->{id}, created => \@created, skipped => \@skipped, failed => \@failed,
+        updated => \@updated, ( @unmatched ? ( unmatched => \@unmatched ) : () ),
         ( $who{mail} ? ( mail => { sent => $mailed, not_sent => $unmailed } ) : () ),
         # One audit row per account (the dispatcher writes them; the users tool
         # writes none on its API).
@@ -334,9 +472,11 @@ sub apply {
             ( map { [ 'accounts-import-mail', $_->{username}, ( $_->{mailed} ? 1 : 0 ),
                         "accounts import $d->{id}: "
                             . ( $_->{mailed} ? 'claim link mailed' : "claim link not mailed - $_->{mail_error}" ) ] }
-                grep { $_->{mailed} || defined $_->{mail_error} } @created ) ],
+                grep { $_->{mailed} || defined $_->{mail_error} } @created ),
+            @upd_audit ],
         change => 'created ' . scalar(@created) . ', skipped ' . scalar(@skipped)
             . ', failed ' . scalar(@failed)
+            . ( @updated ? '; updated ' . scalar(@updated) . " ($n_changes change(s))" : '' )
             . ( $who{mail} ? "; mailed $mailed, not mailed $unmailed" : '' ),
         note => 'Each new account has no password: send each person their claim link, or tell them '
             . 'to use "forgot password" with the address recorded - it sends them their own.' };

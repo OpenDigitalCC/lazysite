@@ -12,7 +12,7 @@ search: false
      Each new account has no password and gets a claim link; its address is
      recorded, so "forgot password" sends the person their own link. Groups that
      do not exist are left out, and say so. -->
-<div class="mg-note mg-note-info">A partner prepares an import; you review what it would do and apply it. New accounts have no password: each person sets their own with the claim link shown after applying (mailed to them if you tick the box), or by using <em>forgot password</em> with the address recorded. Groups that do not exist are left out.</div>
+<div class="mg-note mg-note-info">A partner prepares an import; you review what it would do and apply it. New accounts have no password: each person sets their own with the claim link shown after applying (mailed to them if you tick the box), or by using <em>forgot password</em> with the address recorded. Groups that do not exist are left out. For an account that already exists, the dry run lists each change to its address or groups, and only the changes you tick are made - never a password, an operator group or a registration group.</div>
 
 <div class="mg-card">
 <div class="mg-card-header"><span class="mg-card-title">Staged imports</span></div>
@@ -111,8 +111,9 @@ function review(id) {
       current = d.id;
       document.getElementById('plan-card').hidden = false;
       document.getElementById('plan-title').textContent = 'Dry run: ' + d.id;
-      document.getElementById('plan-summary').textContent = d.create + ' to create, ' + d.skip
-        + ' already exist (skipped), ' + (d.invalid || []).length + ' invalid'
+      document.getElementById('plan-summary').textContent = d.create + ' to create, '
+        + (d.update || 0) + ' to update (tick each change to make it), ' + d.skip
+        + ' skipped, ' + (d.invalid || []).length + ' invalid'
         + ((d.groups_missing || []).length ? '. Groups that do not exist, left out: ' + d.groups_missing.join(', ') : '')
         + (d.applied_at ? '. Already applied.' : '.');
       var rows = document.getElementById('plan-rows');
@@ -120,22 +121,40 @@ function review(id) {
       (d.rows || []).forEach(function(r) {
         rows.appendChild(row(r.username, r.action + (r.email ? ' - ' + r.email : '')
           + ((r.groups || []).length ? ' - joins ' + r.groups.join(', ') : '')
-          + ((r.groups_missing || []).length ? ' - not ' + r.groups_missing.join(', ') : '')));
+          + ((r.groups_missing || []).length ? ' - not ' + r.groups_missing.join(', ') : '')
+          + (r.why ? ' - ' + r.why : '')
+          + ((r.groups_refused || []).length ? ' - never ' + r.groups_refused.map(function(g) { return g.group + ' (' + g.why + ')'; }).join(', ') : '')));
+        // n572: each change to an existing account is made only when ticked.
+        (r.changes || []).forEach(function(c) {
+          var l = node('label', 'mg-chk');
+          var b = node('input');
+          b.type = 'checkbox';
+          b.className = 'import-change';
+          b.value = c.id;
+          l.appendChild(b);
+          l.appendChild(document.createTextNode(' ' + r.username + ': '
+            + (c.field === 'email' ? 'address ' + (c.from || '(none)') + ' to ' + c.to
+              : c.field === 'group-add' ? 'join ' + c.group : 'leave ' + c.group)));
+          rows.appendChild(l);
+        });
       });
       (d.invalid || []).forEach(function(r) {
         rows.appendChild(row('row ' + r.row + (r.username ? ' (' + r.username + ')' : ''), 'invalid - ' + r.error));
       });
-      document.getElementById('apply-btn').disabled = !!d.applied_at || !d.create;
+      document.getElementById('apply-btn').disabled = !!d.applied_at || !(d.create || d.update);
     })
     .catch(function(e) { fail('Could not plan the import: ' + e.message); });
 }
 
 document.getElementById('apply-btn').addEventListener('click', function() {
-  if (!current || !confirm('Create the accounts in ' + current + '?')) return;
+  var ticked = Array.prototype.map.call(document.querySelectorAll('.import-change:checked'), function(b) { return b.value; });
+  if (!current || !confirm('Apply ' + current + ': create its new accounts and make the '
+    + ticked.length + ' ticked change(s)?')) return;
   fetch(API + '?action=accounts-import-apply', {
     method: 'POST', credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: current, confirm: current, mail: document.getElementById('apply-mail').checked })
+    body: JSON.stringify({ id: current, confirm: current, mail: document.getElementById('apply-mail').checked,
+      updates: ticked })
   })
     .then(function(res) { return res.json(); })
     .then(function(d) {
@@ -150,6 +169,10 @@ document.getElementById('apply-btn').addEventListener('click', function() {
           + (c.mailed ? ' - mailed' : '') + (c.mail_error ? ' - not mailed: ' + c.mail_error : '')));
       });
       (d.failed || []).forEach(function(f) { rows.appendChild(row(f.username, 'not created - ' + f.error)); });
+      (d.updated || []).forEach(function(u) {
+        rows.appendChild(row(u.username, 'updated - ' + (u.applied || []).length + ' change(s)'
+          + (u.failed || []).map(function(f) { return '; not made: ' + f.id + ' - ' + f.error; }).join('')));
+      });
       loadImports();
       review(current);
     })

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-5)
 area: security
-status-note: "SHIPPED (PENDING): the core - stage (manage_users, either door), list/plan/apply (the operator, cookie only), claim links, existing groups only, per-account audit, an Account import page (t/integration/212); the claim links mailed when the operator chooses, n570 (t/integration/253); a staged import removed by its stager or the operator, n571 (t/integration/254)."
+status-note: "SHIPPED (PENDING): the core - stage (manage_users, either door), plan/apply (the operator, cookie only), claim links, existing groups only, audit, an Account import page (t/integration/212). The rest: links mailed if the operator chooses (n570, 253); remove a staged import (n571, 254); update existing accounts as ticked (n572, 255)."
 ---
 
 # The report and the ruling
@@ -73,7 +73,7 @@ review in the manager at all. Not built: the mailing (below).
 2. **Removing a staged import** (or expiring old ones): removing built on
    n571, below; expiring old ones is not built.
 3. **Updating existing accounts** from an import (an address or groups for an
-   account that exists): rows for existing accounts are skipped.
+   account that exists): built on n572, below.
 4. **An MCP twin** of `accounts-import-stage` (recorded as undecided in
    t/lint/23).
 
@@ -178,3 +178,67 @@ t/lint/98 (119 token-reachable), 218, 23 and t/unit/manager/226. Sabotaged (in
 `tmp/sab-bak/n571/`), each red in 254: any `manage_users` holder removes any; a
 token counts as the operator; ok without deleting the file; not declared
 mutating (unaudited); the audit target without the import.
+
+## 3. Updating existing accounts (n572)
+
+- **The dry run shows the changes.** A row for an account that exists is
+  `update` when its address or its groups differ, each change listed with the
+  id the operator ticks: `USER:email` (from, to), `USER:+GROUP` (join),
+  `USER:-GROUP` (leave). Otherwise `skip`, "the account exists and nothing
+  differs".
+- **A row's groups are the set the account should have.** Groups it names that
+  the account is not in are joins; groups the account is in that it does not
+  name are leaves. A row with no `groups` (a list row without the key, a CSV
+  without the column) proposes no group change at all - staging now keeps that
+  difference. An address only when the row carries one; an address is never
+  cleared.
+- **Only what is ticked.** `accounts-import-apply` takes `updates`, the list of
+  change ids; none ticked, none made. A tick that is no change in the plan when
+  it is applied is named in `unmatched` and not made. Each change goes through
+  the users tool, the store's owner: `settings-set email` (the one writer of the
+  address), `group-add`, `group-remove`. Never a password.
+- **Groups that exist, never an operator group or a registration group** -
+  in either direction: such a group is neither joined nor left, and the dry
+  run says why (`groups_refused`). An operator group is one carrying the
+  `manager` flag or nested in one (SM991's closure). Group settings that cannot
+  be read leave no group an import may change.
+- **An operator's own account is not changed by an import** (decided here, not
+  in the brief): its address is where its reset link goes, and a staged change
+  of address is the one row that would turn an import into a takeover of the
+  operator's account through "forgot password". It is changed on the Users page.
+- **Audited.** One `accounts-import-update` row per change made or refused,
+  naming the account and the import - "address changed", "joined authors",
+  "left editors" - never the address (SM877). The apply's row adds
+  "updated N (M change(s))".
+
+**Losing a group does not end the account's sessions.** Decided from the
+rulings: SM1070's probe, ruled on, recorded "the groups-removed column is right
+as it stands: groups are read fresh on every request (SEC-2026-07 M5), and an
+account that still exists keeps its member's doors", and t/integration/243
+holds it through the real cookie doors - the account loses the group's doors on
+its next request and keeps its own. SM1040 signs the other sessions out when a
+CREDENTIAL changes; an import changes no credential. Ending the sessions would
+add nothing the next request does not already do, and would sign the person out
+of what they may still use. t/integration/255 holds both halves: no revocation
+is written, and the account's next request no longer carries the left group's
+capability.
+
+Tests: t/integration/255 - the dry run lists u1's address, join and leave, the
+operator and registration groups and a missing group refused with the reason,
+the operator's own account and an unchanged account skipped, a row with no
+groups proposing none, and changes nothing; the apply makes only the two ticked
+changes (the untaken leave stays, the operator's account is untouched, two
+stale ticks named), the password line unchanged, one audit row per change and
+no address; a second import's ticked leave takes the group's capability on the
+next request with no revocation written; an account made an operator is not
+changed. t/integration/212 passes unchanged (its existing row is the
+operator's). Sabotaged (in `tmp/sab-bak/n572/`), each red in 255: every offered
+change made whether ticked or not; an operator group changeable; a registration
+group changeable; an operator's account changed; a row with no groups stripping
+them; staging forgetting that a row named no groups; no audit row per change;
+leaving a group signing the account out.
+
+Open, for a ruling if it matters: a NEW account in an import still joins any
+named group that exists, an operator or registration group included, as the
+core built it; the operator sees it in the dry run. Recommendation: hold
+creation to the same rule as updates.

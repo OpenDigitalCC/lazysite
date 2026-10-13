@@ -253,7 +253,11 @@ found nothing - so check the key before concluding a feature is broken.
   operator reviews a dry run on the manager's Account import page and applies
   it, and each person sets their own password from a claim link, which the
   operator may choose to have mailed to the address the row carries. Groups
-  that do not exist are left out. Needs `manage_users`.
+  that do not exist are left out. A row for an account that already exists
+  proposes changes to its address and groups (a row's `groups` is the set it
+  should have; a row without `groups` changes none): the operator ticks the ones
+  to make. Never a password, an operator group, a registration group, or an
+  operator's own account. Needs `manage_users`.
 
 `accounts-import-remove` (POST)
 : `{ "id": "..." }` removes a staged import (SM1053): the account that staged

@@ -130,6 +130,18 @@ Archive
   event is an audit row of its own (`held`); a held message carries at most
   50 events; a cap of 0 still sends nothing (SM1010 R1, Q7 as ruled).
   t/unit/lib/93.
+- SM1053 (PENDING) **an account import updates the existing accounts the
+  operator ticks.** A staged row for an account that already exists is no
+  longer only skipped: the dry run lists each change it would make - the
+  address, a group to join, a group to leave (a row's `groups` is the set the
+  account should have; a row without `groups` changes none) - and the apply
+  makes only the changes the operator ticks (`updates`, the change ids). Never a
+  password. Groups are those that exist and never an operator group or a
+  registration group, in either direction, and an operator's own account is not
+  changed by an import. Leaving a group ends no session: groups are read on
+  every request, so the account loses that group's access at once. Each change
+  is audited (`accounts-import-update`), naming no address. t/integration/255.
+
 - SM1053 (PENDING) **a staged account import can be removed.**
   `accounts-import-remove` (and Remove on the Account import page) deletes a
   staged import: the account that staged it may remove it, by token or in the

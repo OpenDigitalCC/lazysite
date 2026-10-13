@@ -2062,7 +2062,9 @@ elsif ( $action eq 'accounts-import-apply' ) {
         $req->{id}, $req->{confirm}, actor => $auth_user, operator => 1,
         # n570: mail the claim links only when the operator says so - true, 1 or
         # "true"; anything else, absent included, is off.
-        mail => ( ( defined $req->{mail} && "$req->{mail}" =~ /\A(?:1|true)\z/ ) ? 1 : 0 ) );
+        mail => ( ( defined $req->{mail} && "$req->{mail}" =~ /\A(?:1|true)\z/ ) ? 1 : 0 ),
+        # n572: the changes to existing accounts the operator ticked (none if absent).
+        ( defined $req->{updates} ? ( updates => $req->{updates} ) : () ) );
 }
 elsif ( $action eq 'groups-list' ) {
     # SM1050 (P-2): the groups, for any manage_users holder; a domain-confined
