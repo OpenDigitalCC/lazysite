@@ -5,7 +5,7 @@ subtitle: "One filing for the whole Odoo extension: per-user authentication carr
 brand: plain
 standard-margins: true
 status: candidate
-status-note: "RULED 2026-10-12: a connection user (a site Odoo account, its credential stored like a connector secret) runs named operations for pages, MCP and backend work; a site user's own sign-in waits on OOM's session transport; Odoo descriptors share data-table rendering; every operation is an MCP tool. Re-planned: A, CU, R, E unblocked. Filed to OOM 10-12: the session transport, the Ops layer in the deb. Q1-Q3 RULED 10-12: a public binding may apply unattended under the engine's controls; MCP uses the default or a per-grant account; the type mapping is OOM's (options filed)."
+status-note: "RULED 2026-10-12: a connection user (a site Odoo account, its credential stored like a connector secret) runs named operations for pages, MCP and backend work; a site user's own sign-in waits on OOM's session transport; Odoo descriptors share data-table rendering; every operation is an MCP tool. Re-planned: A, CU, R, E unblocked. Filed to OOM 10-12: the session transport, the Ops layer in the deb. Q1-Q3 RULED 10-12: a public binding may apply unattended under the engine's controls; MCP uses the default or a per-grant account; the type mapping is OOM's (options filed). RE-FILED 2026-10-13 against OOM 0.06: OOM built the session transport in 0.03 (live on Odoo 16 and 19), the Ops layer and the portable type in 0.02, all as debs in /srv/projects/packages; B, C and D are no longer waiting on OOM, and whether to build them is the release manager's (B-Q1)."
 ---
 
 # Provenance, and what this filing now is
@@ -51,7 +51,7 @@ The release manager, in their words:
 | Ref | Decided |
 | --- | --- |
 | R1 | **A connection user.** The extension holds a site-level Odoo account: a login and its API key. Its rights are set **in Odoo** by whoever administers Odoo, as the site's work needs; lazysite grants it nothing and narrows nothing Odoo allows. It lets the extension do backend work - a scheduled job, a public form, a page a lazysite user opens - with nobody signed in to Odoo. |
-| R2 | **A site user may specify their own credential** - the per-user path of Parts 2 to 4. It **waits for OOM's session transport**; OA3's fallback (the key itself carried in the cookie) is not taken. The request is filed (see *Where the 2026-10-12 requests were filed*). |
+| R2 | **A site user may specify their own credential** - the per-user path of Parts 2 to 4. It **waited for OOM's session transport, which shipped 2026-10-13 (0.03); building it is B-Q1**; OA3's fallback (the key itself carried in the cookie) is not taken. The request is filed (see *Where the 2026-10-12 requests were filed*). |
 | R3 | **OOM is delivered as the `libodoo-oom-perl` deb**, which will be updated to carry what the extension needs; a gap is filed to OOM's inbox. This answers stage 0's delivery-shape question (OP-25) and OB7. |
 | R4 | **Odoo field descriptors share lazysite's data-table rendering.** The seam this filing held open since 2026-09-26 is closed. |
 | R5 | **Every operation is also an MCP tool.** The open selection under OM2 is closed: all of them. |
@@ -172,7 +172,9 @@ below was broken on purpose and its test went red; backups under
 `tmp/sab-bak/sm747/`, restored and compared). OOM is loaded from its tree for the
 tests (`t/lib/OdooTest.pm`, `LAZYSITE_OOM_LIB`), which says 0.01: a test that needs
 OOM to run raises `$Odoo::Ops::VERSION` to the 0.02 the deb will carry and says so;
-the refusal of 0.01 is tested without it. No test reaches a network: OOM's
+the refusal of 0.01 is tested without it. (The tree no longer says 0.01: it says 0.06 since
+2026-10-13, so t/unit/odoo/04 and 05, which tested that refusal against it, fail on main;
+branch n576 stands up an Odoo::Ops of its own that says 0.01.) No test reaches a network: OOM's
 `Context` takes an injected transport, and the fake Odoo is OOM's own test double.
 
 ## Slice A - built 2026-10-12 (n471)
@@ -289,6 +291,15 @@ The test pack's `shop.products` already returns that shape. The question is file
 OOM with the options paper (its second section), since OOM decides what its
 operations return. Answering it unblocks the wiring (about half of R's S-M), and
 then E.
+
+**ANSWERED 2026-10-13 by OOM: agreed as recommended**, in 0.02. A display read returns
+`rows` (a list of hashes keyed by logical field) beside `fields` (the descriptors keyed the
+same way, carrying `portable_type`), built with `Operation->fields_for($model, @fields)`;
+`crm.export` does so with `inline=1`, and other reads adopt it as they are touched. A report
+without `fields` is handed over as today. The key is `portable_type` (the first question,
+answered as option A with the per-field override of B). The wiring described above is now
+unblocked; it is not built in this re-filing. See section 8 of the filed specification and
+`/srv/projects/odoo/oom/inbox/archive/2026-10-13-answered/2026-10-12-field-type-mapping-options-for-lazysite.md`.
 
 ## Slice E - built 2026-10-12 (n475)
 
@@ -427,6 +438,12 @@ that this "is a materially different risk and must not be silently adopted".
 > or wait for OOM to gain the session transport.** That is a ruling, and until it is
 > taken, slices B, C and D below cannot start.
 
+**UPDATE 2026-10-13: OOM built it.** `Odoo::Transport::Session` shipped in 0.03 and is live on
+Odoo 16 and 19 (section 7 of the filed specification); the blocker below is gone, and the
+ruling it asked for is narrower than this section says - see *B-Q1* near the end, which
+also records that an API key cannot start a session on either series, so OA3's preferred
+form does not exist.
+
 And the transport belongs in **OOM**, not here: endpoint paths and payload shapes are
 Odoo knowledge, which *What this is for* puts in the operation packs. The
 specification says "for the extension to implement"; that would put Odoo RPC knowledge
@@ -490,7 +507,7 @@ injected transport for tests (`Context.pm:49`), so `t/unit/odoo/` needs no Odoo.
 | 3 | **R** (new) | **Shared rendering** (R4): an operation's rows and its parameter form drawn by the data extension's table and form rendering, from OOM's `Profile` descriptors (`Profile.pm:211-221`) | **S-M** | CU; Q3 decides where the type mapping lives |
 | 4 | **E** | **MCP, all operations** (R5): one tool per registry operation, generated from its declaration; list and describe; one apply-plan tool; under the connection user (OM1 as amended), the `manage_odoo` capability (OM3), lazysite-side audit | **M** | CU (shares its runner and store); Q2 |
 | 5 | **F1** | SECURITY.md (the outbound interface, and the connection user's stored credential as a threat delta), FEATURES.md (OB9), the extension's page including the onchange obligation (spec section 10) | **S** | A, CU, E |
-| later | **B** | One per-user credential strategy end to end: acquire, carry, replay, clear, logout, outcome 10's re-authentication prompt | **M** | **OOM's session transport** (R2) |
+| later | **B** | One per-user credential strategy end to end: acquire, carry, replay, clear, logout, outcome 10's re-authentication prompt | **M** | OOM's session transport (R2) - **shipped 2026-10-13, 0.03**; B-Q1 |
 | later | **C** | Identity cookie (OI1-OI3), signed and TTL'd; TT exposure (OT1, OT2); the cache fail-closed (OI5) | **M** | B |
 | later | **D** | The shared browser data module (OA6) and the re-authentication prompt in the UI; CSRF has moved to CU | **S-M** | B |
 | later | **F2** | The per-user path's SECURITY.md and docs entries | **S** | B, C, D |
@@ -501,8 +518,9 @@ page whose operation writes shows the plan's buckets and applies them when a sig
 lazysite user confirms. M + L + S-M, about three sessions. A + CU alone already
 demonstrates it with the report unformatted; R is what makes it an app rather than a
 dump. **E follows at about one session** and is the cut that answers R5. B, C and D
-start when OOM ships the session transport, and the per-user path is then the
-original A + B + C + D minus the work CU has already done.
+were to start when OOM shipped the session transport; it shipped 2026-10-13 (0.03).
+Whether to start them is the release manager's, asked as B-Q1; the per-user path is
+the original A + B + C + D minus the work CU has already done.
 
 ## Two findings from the measurement, neither urgent
 
@@ -574,7 +592,7 @@ scheduled and closed by reference.
 | OB4 | Caller gating is lazysite's: the proxy is reached by a lazysite session on an app page (mode 2 of [[SM579]]), and the call carries the Odoo credential from the cookie. No scheduled and no public mode for the per-user proxy. **Amended 2026-10-12 (R1):** the connection-user path takes SM579's three modes, declared per binding. **Ruled 2026-10-12 (Q1):** a public or scheduled binding may apply a write operation unattended when it declares `apply: immediate`, under the controls in *Ruled 2026-10-12 (Q1-Q3)*. |
 | OB5 | A per-call timeout (`odoo_timeout`); a rate cap per identity; Odoo faults mapped to lazysite's `{ ok: 0, error, kind }` shape with **distinct kinds** for session-expired, invalid-credential, odoo-access-refused and transport-failure. The fault's own text is logged, never returned verbatim (three leaks in three passes taught this - [[SM713]], [[SM738]], [[SM739]]; `t/lint/112` checks the source). **2026-10-12 (Q1):** the per-identity cap is per visitor key on the public path and per account on the authenticated path, with a per-binding cap beside it. |
 | OB6 | Transport discipline, the connector's reused as behaviour: no redirect following - a 3xx is a named refusal, because the credential would travel with it; a response size cap sized for Odoo reads and configurable; TLS peer verification on; `https://` to any host and `http://` only to loopback. **X4-a settled this 2026-09-28: no plain `http://` to an RFC1918 Odoo** - `https://` to a private hostname, which the connector rule already permits, is what "internal network" means here. |
-| OB7 | OOM is delivered as a versioned package (`libodoo-oom-perl`); the extension declares a minimum version in `owns.deps` and never carries a copy of the code. Settled by the release manager 2026-09-03. **MEASURED 2026-10-01: THE PACKAGE THAT EXISTS CANNOT SATISFY THIS.** `/srv/projects/packages/libodoo-oom-perl_0.01_all.deb` (2026-09-03, 26,972 bytes) carries **8 modules - the mapper layer only**: Client, Commands, Error, Model, Record, RecordSet and the two transports. The OOM tree has **41**, and the 33 it is missing are the whole `Odoo::Ops::*` layer the specification's layer table says the extension consumes - including `Odoo::Ops::Guard`, **which IS the scoped mode.** Installing 0.01 would therefore give the engine a mapper with no scope guard: general mode only, which X4-b permits solely with the user's own credential, so the named-query mode this filing is built around would be unavailable. `Odoo/Transport.pm` itself is also absent. A **0.02 carrying both layers is a prerequisite of OP-25**, not a later tidy. **Ruled 2026-10-12 (R3):** the deb will be updated; what it must carry is filed to OOM's inbox. |
+| OB7 | OOM is delivered as a versioned package (`libodoo-oom-perl`); the extension declares a minimum version in `owns.deps` and never carries a copy of the code. Settled by the release manager 2026-09-03. **MEASURED 2026-10-01: THE PACKAGE THAT EXISTS CANNOT SATISFY THIS.** `/srv/projects/packages/libodoo-oom-perl_0.01_all.deb` (2026-09-03, 26,972 bytes) carries **8 modules - the mapper layer only**: Client, Commands, Error, Model, Record, RecordSet and the two transports. The OOM tree has **41**, and the 33 it is missing are the whole `Odoo::Ops::*` layer the specification's layer table says the extension consumes - including `Odoo::Ops::Guard`, **which IS the scoped mode.** Installing 0.01 would therefore give the engine a mapper with no scope guard: general mode only, which X4-b permits solely with the user's own credential, so the named-query mode this filing is built around would be unavailable. `Odoo/Transport.pm` itself is also absent. A **0.02 carrying both layers is a prerequisite of OP-25**, not a later tidy. **Ruled 2026-10-12 (R3):** the deb will be updated; what it must carry is filed to OOM's inbox. **Delivered 2026-10-13:** `/srv/projects/packages/` holds 0.02 to 0.06; 0.02 carries the Ops layer (42 modules) and 0.06 has 45, including `Odoo::Transport::Session` and `Odoo::Portable`. It is not installed on this host (`dpkg -s libodoo-oom-perl`). |
 | OB8 | One audit record per proxied call on the lazysite side: actor (lazysite account if any), Odoo login, model, method, mode, outcome state (answered / unanswered / refused / odoo-fault), never the payload and never the credential. Written the way connectors write theirs. **Amended 2026-10-12 (R1):** for a connection-user call the actor is the lazysite account (or mode and binding) that triggered it. **2026-10-12 (Q1):** a public call's actor is `visitor`, recorded with a hash of the visitor key and the IP. |
 | OB9 | Recorded in SECURITY.md as a new outbound interface (threat delta, controls, residual risk, verdict), as SM136 was for XMPP; named in FEATURES.md as the third egress kind after the guarded GET and the connector: *a per-user proxy to an operator-configured upstream*. |
 
@@ -871,8 +889,8 @@ it, and the release manager directed on 2026-10-01 that it be filed here.
 | | |
 | --- | --- |
 | Source | `/srv/projects/odoo/oom/docs/MAPPER-SPEC.md` |
-| Written | 2026-09-28, status DRAFT, "growing with use" |
-| sha256 at filing | `d6e8c731b19654e972d7c520dd1ccd4bc62cb549e91c3ef2ff0606ad6929ed7c` |
+| Written | 2026-09-28, status DRAFT, "growing with use"; RE-FILED 2026-10-13 from the source as of cc4823d (2026-10-13), after OOM's 0.02 to 0.06 |
+| sha256 at filing | `de03a7b53041d90264396060f55560f67f9984f6f962da81ffadc1fc5a675152` |
 | Living copy | stays in the OOM tree - that project owns it |
 | Drift gate | `t/lint/207-the-filed-mapper-spec-matches-its-source.t` |
 
@@ -896,8 +914,8 @@ or **design** (decided, not yet exercised).
 | Function packs | `Odoo::Ops::CRM::*`, `Odoo::Ops::Comms::*` | the business operations |
 
 The extension consumes the mapper **and the operations layer** as the
-`libodoo-oom-perl` package (OB7), never a copy. **That is a requirement on the
-package, and the package that exists does not meet it** - see OB7 below.
+`libodoo-oom-perl` package (OB7), never a copy. **That was a requirement on the
+package, which the 0.01 deb did not meet (OB7); the debs 0.02 to 0.06 do.**
 
 ## 2. Transport discipline (OB6) - tested
 
@@ -951,60 +969,93 @@ outcome fault_category ms`. **The sink refuses any other key**, so a payload or 
 credential cannot be added by accident. OM3's lazysite-side audit sits beside this,
 not instead of it.
 
-## 7. Credential strategies (OA1) - design, and ONE PIECE OF NEW WORK
+## 7. Credential strategies (OA1) - session shipped (0.03), live on 19
 
-`Odoo::Ops::Credential->resolve($config)` returns what the client needs. `file` (an
-API key file, mode 600 enforced) ships. **`session` and `cookie` are reserved names
-that REFUSE** - left for the extension to implement.
+`Odoo::Ops::Credential->resolve($config)` returns what the client
+needs. `file` (API key file, mode 600 enforced) ships. `session`
+ships in 0.03: the config carries a run-time session value (never a
+file entry: `Config->load` refuses it), and the context speaks
+`Odoo::Transport::Session` as that user. `cookie` stays a reserved
+name that refuses: a consumer replaying a per-user credential from a
+cookie turns it into a session first.
 
-**The consequence for Parts 2 and 3 of the briefing, which is new:** OOM speaks
-`common.authenticate` + `execute_kw`. The per-user credential cookie needs
-`/web/session/authenticate` + `/web/dataset/call_kw` - **a transport OOM does not
-have.** So the engine's own work includes that transport, or OOM gains it first. It
-is not a line of configuration, and it was not visible before the spec was filed.
+The session transport: one round trip to `/web/session/authenticate`
+(db, login, password) returns the identity and a session id the
+caller carries; every later call goes through
+`/web/dataset/call_kw/<model>/<method>` with the session cookie,
+presented as `call('object','execute_kw', ...)` so the Guard and
+everything above it are transport-blind; `/web/session/destroy` on
+sign-out; `/web/webclient/version_info` for `common.version`;
+`/web/session/get_session_info` once for a resumed session. Expired
+or destroyed: category `session` (and the transport forgets the id);
+refused login: category `credential`; neither retried. Two-factor
+users cannot complete a password session login (Odoo refuses). Groups
+are not in the identity: read `res.users` (in the Guard's base scope),
+minding the field name per series (`groups_id` to 16, `group_ids` on
+19).
 
-## 8. Field descriptors - tested in shape, live pending
+## 8. Field descriptors - tested (shape and portable type), live on 19
 
-`Profile->descriptor($model, $field)` returns the server's metadata under the
-logical name: `type string help required readonly store relation relation_field
-selection`, plus `name` (physical).
+`Profile->descriptor($model, $field)` returns the server's metadata
+under the logical name: `type string help required readonly store
+relation relation_field selection`, plus `name` (physical), plus a
+**portable reading of the type** for consumers that hold no Odoo
+knowledge (0.02, `Odoo::Portable`): `portable_type` is one of `text
+integer decimal boolean date datetime enum`; an enum carries `values`
+(selection keys) and `labels`; a decimal carries `places` (and
+`digits`) when the server states them. Odoo types with no single
+reading carry no `portable_type`: many2one, html, binary, the x2many
+types, reference, json, properties. A profile overrides per field with
+the map form `logical: { name: physical, portable_type: text }` (a
+many2one shown as its label); an unknown portable type is refused at
+load. A consumer that meets a field without `portable_type` refuses to
+render it by name - the mapping never lives on the consumer's side.
 
-The seam this filing asked about is **still open and now precisely stated**:
-comparison with lazysite's data-extension table descriptors has not been done, so
-whether the two can share a rendering layer (widget per type, generated forms) is
-unanswered. The spec says so itself rather than implying a shape.
+**Display reads** return `rows` (a list of hashes keyed by logical
+field) beside `fields` (those descriptors keyed the same way), built
+with `Operation->fields_for($logical_model, @fields)`. `crm.export`
+does so with `inline=1`; its report keys are `count`, `file`,
+`fields`, `rows`.
 
-## 9. Series - tested in mechanism, live pending
+## 9. Series - tested (mechanism), live pending
 
-Logical-to-physical profiles per pack and series, validated against live
-`fields_get`; nearest-lower fallback with a warning. Behaviour beyond names (for
-instance sending mail) dispatches per series and **refuses on an unprobed one** -
-which is the four-state discipline arriving from another project.
+Logical->physical profiles per pack and series, validated against live
+`fields_get`; nearest-lower fallback with a warning. Behaviour beyond
+names (e.g. sending mail) dispatches per series and refuses on an
+unprobed one.
 
 | Behaviour | 16 | 17 | 18 | 19 | 20 |
-| --- | --- | --- | --- | --- | --- |
-| crm profile | live 2026-09-28 (16.0-20250909): 42/42 fields, restricted CRM user | - | - | - | - |
-| `read_group` row count key `<field>_count` | live (crm.inspect) | - | - | - | - |
-| API key minted over the web session (make_key, identitycheck, run_check), then password spent | live 2026-09-28 | - | - | - | - |
+|---|---|---|---|---|---|
+| crm profile | live 2026-09-28 (16.0-20250909): 42/42 fields, restricted CRM user | - | - | not installed on the test instance | - |
+| `/jsonrpc` + `execute_kw`, API-key auth | live (jpm clone; local cluster 16.0 2026-10-13) | - | - | live 2026-10-13 (19.0, odoo-cluster) | - |
+| `copy` answers a list of ids (multi-record since 18) | single id | - | - | live 2026-10-13: `Model->copy` returns one id for one id on every series | - |
+| html field written as plain text reads back wrapped in `<p>` | verbatim | - | - | live 2026-10-13 | - |
+| `res.partner.date` | present | - | - | absent, live 2026-10-13 | - |
+| read/write/unlink/x2m commands/verify_credentials (t/98, t/99) | live (jpm clone; local cluster 16.0 2026-10-13) | - | - | live 2026-10-13 | - |
+| session transport: authenticate, call_kw, identity, destroy, expiry (t/97) | live 2026-10-13: 17/17 | - | - | live 2026-10-13: 17/17 | - |
+| sale: basket as draft order, lines by x2m commands, action_confirm, invoice via `sale.advance.payment.inv` + `create_invoices`, `action_post`, payment via `account.payment.register` + `action_create_payments` (t/95) | live 2026-10-13: paid | - | - | live 2026-10-13: paid | - |
+| chart of accounts on a fresh db | `l10n_generic_coa` is a module: `ir.module.module.button_immediate_install` over RPC loads the chart for a company without one; `res.company.chart_template_id` says so (live 2026-10-13) | - | - | `account.chart.template.try_loading('generic_coa', company=)`; `res.company.chart_template` (live 2026-10-13) | - |
+| crm.lead create + ir.attachment (image) + message_post note (t/95) | live 2026-10-13 | - | - | live 2026-10-13 | - |
+| hr.expense submit | report: `hr.expense.sheet` create + `action_submit_sheet`, state `submit` (live 2026-10-13) | - | - | no sheet: `hr.expense.action_submit`, result in `approval_state` (auto-approved when the submitter is the approver), live 2026-10-13 | - |
+| portal user writes their own res.partner over RPC | REFUSED (access) live 2026-10-13, same pattern | - | - | REFUSED (access) live 2026-10-13: the app verifies the session identity (`partner_id`) and applies through its service connection, as Odoo's portal controller does | - |
+| portal user reads crm.lead | refused (access), live | - | - | refused (access), live | - |
+| API key at `common.authenticate` (RPC) | live 2026-10-13: ACCEPTED (key minted as the user; an earlier probe minted as the superuser was refused and misreported) | - | - | live 2026-10-13: ACCEPTED (same correction) | - |
+| API key accepted at `/web/session/authenticate` | live 2026-10-13: REFUSED (credential) - a web session needs the password; "key once, then session" does not exist | - | - | live 2026-10-13: REFUSED (credential) | - |
+| module enable over RPC (`button_immediate_install`), `ir.config_parameter.set_param`, `res.config.settings` create + `execute` | live 2026-10-13 (l10n_generic_coa) | - | - | live 2026-10-13 (survey; group_multi_currency; a parameter) | - |
+| core.import: keyed create/update of res.partner (country by code, tag created when missing), product.template by default_code, product.product barcode by default_code; re-run all unchanged (t/96) | live 2026-10-13: 31/31 | - | - | live 2026-10-13: 31/31 | - |
+| root product category name | `All` (live 2026-10-13) | - | - | `Goods` (live 2026-10-13) - resolve categories by name only with that in mind | - |
+| serving slot after an external module install | needs a restart to see new models (live 2026-10-13); the cluster's module-install does it | - | - | same | - |
+| read_group row count key `<field>_count` | live (crm.inspect) | - | - | - | - |
+| API key minted over the web session (make_key -> identitycheck -> run_check), then password spent | live 2026-09-28 | - | - | - | - |
 | send via composer (mass_mail on one lead) | source | - | - | - | - |
 
-**Only series 16 is probed at all**, and only on one instance. Every other column is
-empty, and the mechanism refuses rather than guesses - so an 0.15.x extension is a
-16-series extension until somebody probes another.
+## 10. Onchange and x2many (SM747 seam)
 
-## 10. Onchange and x2many
-
-Writes **never invoke onchange** (a mapper decision, recorded in OOM's
-`docs/USAGE.md`): the tools set only the stored fields they name, so **a created
-lead is what the API creates, not what a form would.** x2many values go through
-`Odoo::Commands`; operations add tags by `(4, id)` and never replace a set unless
-told to (`on_match: overwrite`).
-
-This filing's seam said that whatever the spec decided, **the docs must be explicit
-about it.** That obligation is now concrete and belongs in the extension's own
-documentation: a record created through this path can differ from one a person
-creates in Odoo's UI, and an operator who does not know that will eventually find it
-out from a workflow that did not fire.
+Writes never invoke onchange (mapper decision, `docs/USAGE.md`): the
+tools set only stored fields they name, and a created lead is what the
+API creates, not what a form would. x2many values go through
+`Odoo::Commands`; operations add tags by `(4, id)` and never replace a
+set unless told to (`on_match: overwrite`).
 
 # What filing the spec closed, and what it did not
 
@@ -1012,16 +1063,19 @@ out from a workflow that did not fire.
 | --- | --- |
 | The proxy's request-shaping layer (OB2, OB3) | **CLOSED.** Section 4: the Guard is the scoped mode and its absence is general mode, which is the division X4-b already ruled |
 | Onchange and x2many (OM2's write behaviour) | **CLOSED**, section 10 - with a documentation obligation attached rather than a free choice |
-| Which strategies ride on OOM | **CLOSED, and it found work**: `file` ships, `session`/`cookie` refuse, and the session transport does not exist (section 7) |
-| Field descriptors sharing a rendering layer with the data extension | **CLOSED 2026-10-12 by ruling (R4)**: they share it. Slice R; where the type mapping lives is Q3 |
+| Which strategies ride on OOM | **CLOSED, and the work it found is done (2026-10-13)**: `file` and `session` ship (0.03); `cookie` refuses by design, a consumer turning it into a session first; an API key cannot start a session (sections 7 and 9) |
+| Field descriptors sharing a rendering layer with the data extension | **CLOSED 2026-10-12 by ruling (R4)**: they share it. Slice R; where the type mapping lives was Q3, **answered by OOM in 0.02**: `portable_type` on the descriptor, and `rows` beside `fields` on a display read (section 8) |
 | The MCP tool set (OM2) | **CLOSED 2026-10-12 by ruling (R5)**: all operations. The spec settled the vocabulary - a tool is a named operation with a declared scope; the registry lists 12 CRM, 2 Comms and 2 Core operations today, and a new pack becomes tools with no engine work. Slice E |
 
 **The spec's own open list, carried here rather than left in another tree:**
 
 1. live verification on the v16 CRM account (pending);
-2. the session transport for OA2 - which is the new work in section 7;
+2. the session transport for OA2 - **still listed in the source's own Open section, but its
+   section 7 says it shipped in 0.03 and section 9 says it is live on 16 and 19**; the list is
+   behind the text above it, and is carried here as it stands;
 3. descriptor comparison with the data extension - answered by ruling on
-   2026-10-12 (R4): they share the data-table rendering.
+   2026-10-12 (R4): they share the data-table rendering; and OOM's 0.02 gave the
+   descriptors a portable type for it (section 8).
 
 # Sequencing
 
@@ -1033,11 +1087,61 @@ engineering's.
 | --- | --- |
 | X4 and its sub-questions ruled | **DONE 2026-09-28**, as recommended |
 | SM579's invocation-mode policy becomes shared, so the proxy can be mode 2 *inside* it | **DONE, AND RELEASED.** `lib/Lazysite/Egress.pm` landed in 0.15.1 - `@MODES` and `may_invoke`, proved equivalent over 960 combinations, and its own comments already name `proxy` as a caller. This row said "the piece being built first" for three days after it was built, which is why the drift gate above now exists |
-| The mapper specification filed and merged here | **DONE 2026-10-01.** Filed above with its source hash. It closed three seams, left two open and **found one new piece of work** - the session transport OOM does not have (section 7) |
-| OOM reachable by this engine (OB7) | **STILL OPEN, and it is the only gate left - but it is a DECISION, not a packaging task.** `perl -MOdoo::Client -e1` fails on this host. This row first said a 0.02 deb had to be built; the release manager's direction of 2026-10-01 corrects that - OOM is under test and will have consumers beyond lazysite, so its delivery shape belongs to all of them. What survives is the requirement on CONTENT: whatever is delivered carries the `Odoo::Ops::*` layer, or there is no scoped mode. See *The direction, 2026-10-01*. OP-25. **RULED 2026-10-12 (R3): the deb, updated to carry what the extension needs.** The exact module list is filed to OOM's inbox (below). Building proceeds against the OOM tree; shipping waits on that deb |
-| OOM's session transport (per-user path only) | **OPEN, OOM's work (R2).** Slices B, C and D wait on it; A, CU, R and E do not. Request filed 2026-10-02, followed up 2026-10-12 (below) |
+| The mapper specification filed and merged here | **DONE 2026-10-01.** Filed above with its source hash. It closed three seams, left two open and **found one new piece of work** - the session transport OOM did not have (section 7), which OOM built in 0.03 (RE-FILED 2026-10-13) |
+| OOM reachable by this engine (OB7) | **STILL OPEN, and it is the only gate left - but it is a DECISION, not a packaging task.** `perl -MOdoo::Client -e1` fails on this host. This row first said a 0.02 deb had to be built; the release manager's direction of 2026-10-01 corrects that - OOM is under test and will have consumers beyond lazysite, so its delivery shape belongs to all of them. What survives is the requirement on CONTENT: whatever is delivered carries the `Odoo::Ops::*` layer, or there is no scoped mode. See *The direction, 2026-10-01*. OP-25. **RULED 2026-10-12 (R3): the deb, updated to carry what the extension needs.** The exact module list is filed to OOM's inbox (below). Building proceeds against the OOM tree; shipping waits on that deb. **2026-10-13: the deb exists (0.02 to 0.06, /srv/projects/packages) and is not installed on this host** |
+| OOM's session transport (per-user path only) | **SHIPPED 2026-10-13, OOM 0.03 (R2)**, live on Odoo 16 and 19 (17/17 checks each). Slices B, C and D no longer wait on OOM; whether to build them is B-Q1. Request filed 2026-10-02, followed up 2026-10-12 (below) |
 
 The first scoped app is the stock-corrections portal's live facts (P1).
+
+# Open: B-Q1 - build the per-user path now that OOM's session transport has shipped (2026-10-13)
+
+**For the release manager. Nothing is built for it, and the plan for B, C and D is unchanged
+from the slice table; only their blocker has moved.** R2 ruled that the per-user path waits
+for OOM's session transport. It shipped in OOM 0.03 and is live on Odoo 16 and 19, and the
+live probes that came with it changed one thing the plan assumed.
+
+**What the probes found** (section 9 of the filed specification, live 2026-10-13, 16 and 19):
+
+- An API key minted as the user authenticates over RPC (`common.authenticate`).
+- **`/web/session/authenticate` refuses an API key on both series** (kind `credential`): a web
+  session needs the password. OA3's preferred form - use the key once to obtain a session, carry
+  the session, discard the key - **does not exist**. OA3's own fallback is to carry the key,
+  which OA3 says "is a materially different risk and must not be silently adopted", and R2
+  already declined it.
+- A two-factor user cannot complete a password session login (Odoo refuses), as OA2 said.
+- A portal user is refused a direct write on their own contact over RPC; Odoo's portal controller
+  verifies the session identity and applies through its service connection, and OOM's use-case
+  test shows the same shape. That is the connection user's path (slice CU) with a verified
+  identity, not a per-user write.
+
+| Slice | What it needed | What OOM now provides | What lazysite still has to build |
+| --- | --- | --- | --- |
+| **B** (M): one per-user credential strategy end to end | A transport that signs a person in and carries their session | `Odoo::Transport::Session`: `authenticate(db, login, password)` once, returning the identity (uid, login, name, lang, tz, companies) and an opaque session id; resume with `session => $id`; `destroy` on sign-out; expiry dies as category `session`, a refused login as `credential`, neither retried; `Odoo::Ops::Config->new(credential => 'session', session => $id)` runs every operation as that person (in memory only: a config file may not carry a session) | The sign-in step that takes the password and hands it to OOM without logging, storing or echoing it; the credential cookie (httpOnly, Secure, SameSite, path-scoped, OA4) carrying the session id; replay on each call; clearing on logout and on a `session` fault; outcome 10's re-authentication prompt; a named refusal for a two-factor account; a rate limit on sign-in attempts; the declared minimum raised to the OOM that carries the transport (0.03) when this lands |
+| **C** (M): identity cookie, TT exposure, cache fail-closed | The person's Odoo identity once, at sign-in | The identity from `authenticate` (and `session_identity` on a resumed session). **Groups are not in it**: they are read from `res.users`, which the Guard allows, under a field named `groups_id` up to 16 and `group_ids` on 19 | The signed identity cookie with its TTL and refresh (OI1-OI3); the TT namespace (OT1, OT2); the cache fail-closed rule, reusing SM857's mechanism (OI5). The groups read is series-specific Odoo knowledge, so it needs to be an OOM operation or helper, not lazysite code (t/lint/240); that is a small ask of OOM |
+| **D** (S-M): shared browser data module, re-authentication prompt | B | Nothing directly. The `session` fault category is the cue for the prompt. CSRF has moved to CU and is already built | The browser module (OA6: fetch, the CSRF token with one retry, the prompt), beside or inside `starter/assets/lazysite-data.js` |
+| **F2** (S) | B, C, D | - | The per-user path's SECURITY.md and docs entries |
+
+**Recommendation, sized:**
+
+1. **Build B as a session-only (password) strategy first, then C, then D** - about one working
+   session each for B and C and half of one for D (the calibration the slice table already uses:
+   one session is about 34 files and 1,540 lines), F2 on the end. The first demonstrable result is
+   a person signing in with their Odoo password on a lazysite page and a page rendering their own
+   Odoo records, attributed to them in Odoo's own trail.
+2. **Do not build the `apikey` strategy (OA3) until it is ruled.** With the key-once form gone it
+   is only "carry the key", which R2 declined. If it is wanted, it is a separate ruling with the
+   risk written out; if not, outcome 11 ("both session and apikey strategies work") is amended to
+   the session strategy alone and two-factor accounts stay unsupported on this path.
+3. **For a customer-facing site, consider the connection-user path with a verified identity before
+   the per-user write path**: sign the person in over the session transport (B), then run the
+   write as the connection user with the verified `partner_id` as a bound parameter - the portal
+   pattern OOM tested live. That needs one new binding source (a parameter fed from the verified
+   Odoo identity, beside `fixed` and `visitor_param`), about S, and is a decision to take with C.
+4. **Ask OOM for the groups read** (above) so C does not put Odoo field names in lazysite.
+
+**Asked:** (a) build B, C, D now, in the order above, or wait; (b) the `apikey` strategy: carry the
+key (with the risk documented), or drop it from the outcomes; (c) whether the connection-user path
+with a verified identity (3) comes first.
 
 # Where the 2026-10-12 requests were filed
 
