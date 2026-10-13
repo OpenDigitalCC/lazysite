@@ -1693,19 +1693,14 @@ sub write_file_checked {
 #
 # Resolve the real content processor to shell for a server-side render.
 #
-# We must NOT shell $ENV{LAZYSITE_PROCESSOR} directly: in the wrapped
-# deployment (Apache/Hestia and the dev server) the auth wrapper sets
-# LAZYSITE_PROCESSOR to the ORIGINALLY requested CGI - which is THIS
-# manager-api when a preview action runs - so trusting it re-enters
-# manager-api (auth stripped -> "Authentication required") instead of the
-# processor. Take only the cgi-bin DIRECTORY it names and resolve the
-# processor by its own name there, falling back to the docroot-relative path.
+# SM1066: through Lazysite::Paths::find_processor, the one lookup MCP
+# preview_page uses too (LAZYSITE_PROCESSOR's directory, beside the running
+# CGI, the docroot's ../cgi-bin). When no candidate is a processor this answers
+# the last of them, the docroot's ../cgi-bin, so the caller's render fails and
+# says which path it tried, as it did before.
 sub processor_path {
-    my $lp  = $ENV{LAZYSITE_PROCESSOR};
-    my $dir = ( defined $lp && length $lp )
-        ? File::Basename::dirname($lp)
-        : "$DOCROOT/../cgi-bin";
-    return "$dir/lazysite-processor.pl";
+    return Lazysite::Paths::find_processor($DOCROOT)
+        // ( Lazysite::Paths::processor_candidates($DOCROOT) )[-1];
 }
 
 # SM670 (ruled 2026-09-11): the HTTP status a control-API refusal answers with,

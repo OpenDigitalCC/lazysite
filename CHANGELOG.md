@@ -62,6 +62,18 @@ Archive
   one helper, `Domains::served_at`, which MCP `preview_page` (SM1031 (c)) now
   shares; a primary page renders with no Host. `preview_public` names a primary
   render `(default)`. `domain-preview` had no mismatch. t/integration/226.
+- SM1066 (PENDING) **one lookup finds the processor for every preview.** MCP
+  `preview_page` looked beside lazysite-mcp.pl, and `preview_public_page` and
+  `preview_domain` read `LAZYSITE_PROCESSOR` or the docroot's `../cgi-bin` -
+  so where the cgi-bin is elsewhere (install.pl's `--cgibin /usr/lib/cgi-bin`)
+  and MCP is not handed the variable (the nginx and Hestia wiring), those two
+  shelled a processor that was not there. `Lazysite::Paths::find_processor`
+  now serves every preview: `LAZYSITE_PROCESSOR`'s directory, beside the
+  running CGI, the docroot's `../cgi-bin`. Every packaged layout that found the
+  processor finds the same file. `preview_public_page` now answers a page that
+  is not UTF-8 as one it cannot read whatever the render returned (SM976 Q15j),
+  which its test met only because its rig had no processor.
+  t/integration/227, t/unit/lib/90, t/lint/258.
 
 - SM1064 (PENDING) **a preview is no visit, on every door.** MCP
   `preview_public_page` and `preview_domain`, and the manager's `preview`,

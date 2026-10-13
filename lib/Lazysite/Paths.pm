@@ -42,7 +42,7 @@ use File::Basename qw(dirname basename);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(lazysite_dir external_lazysite_dir internal_lazysite_dir site_path
-    stray_lazysite canonical_docroot);
+    stray_lazysite canonical_docroot processor_candidates find_processor);
 
 our $DIRNAME = 'lazysite';
 
@@ -222,6 +222,56 @@ sub migrate_back {
         return ( 0, "cannot move the engine tree back: $err" );
     }
     return ( 1, 'moved back' );
+}
+
+# SM1066 (ruled 2026-10-12, "Fix, own branch"): WHERE THE CONTENT PROCESSOR IS,
+# one lookup for every preview. Manager::Common::processor_path (the manager's
+# previews, MCP preview_public_page and preview_domain) read LAZYSITE_PROCESSOR
+# or else the docroot's ../cgi-bin; MCP preview_page looked beside
+# lazysite-mcp.pl. The nginx examples and the Hestia templates set
+# LAZYSITE_PROCESSOR only for the processor and the manager API, so on an
+# install whose cgi-bin is not the docroot's ../cgi-bin the first two MCP
+# previews shelled a processor that was not there while the third rendered.
+#
+# The candidates, in order; the first that is a readable file wins:
+#
+#   1. the directory LAZYSITE_PROCESSOR names. Only the DIRECTORY: in the
+#      wrapped deployment the auth wrapper sets it to the ORIGINALLY requested
+#      CGI - the manager API itself when a preview runs - so shelling it would
+#      re-enter the manager ("Authentication required"), not render.
+#   2. beside the running CGI ($script, else $0), through abs_path exactly as
+#      MCP resolved itself, so a symlinked cgi-bin entry gives the same answer
+#      as it did there.
+#   3. the docroot's ../cgi-bin.
+#
+# Readable, not executable: every caller runs the processor through $^X, and
+# the source tree, the dev server and the suite carry the CGIs at 0644. Where
+# a rule above found the processor before, it still does, at the same path
+# (t/unit/lib/90 holds that over the packaged layouts); only an install where a
+# preview found nothing now finds one.
+#
+# Returns the path, or undef when no candidate is a processor.
+sub processor_candidates {
+    my ( $docroot, $script ) = @_;
+    my @c;
+    my $lp = $ENV{LAZYSITE_PROCESSOR};
+    push @c, dirname($lp) . '/lazysite-processor.pl' if defined $lp && length $lp;
+    $script //= $0;
+    if ( defined $script && length $script ) {
+        require Cwd;
+        my $real = Cwd::abs_path($script);
+        push @c, dirname($real) . '/lazysite-processor.pl' if defined $real && length $real;
+    }
+    push @c, "$docroot/../cgi-bin/lazysite-processor.pl" if defined $docroot && length $docroot;
+    return @c;
+}
+
+sub find_processor {
+    my ( $docroot, $script ) = @_;
+    for my $c ( processor_candidates( $docroot, $script ) ) {
+        return $c if -f $c && -r _;
+    }
+    return undef;
 }
 
 1;

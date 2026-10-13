@@ -1261,10 +1261,15 @@ my %TOOLS = (
             additionalProperties => JSON::PP::false },
         run => sub {
             my $r = Lazysite::Manager::Domains::preview_public( $_[0]->{path} );
-            # SM976 Q15j: a render that failed on a page that is not UTF-8 says
-            # so, as the other single-page reads do; judged through action_read,
-            # so a page the caller may not read is not described.
-            if ( ref $r eq 'HASH' && !$r->{ok} && ( $r->{kind} // '' ) eq 'render-failed' ) {
+            # SM976 Q15j: a page that is not UTF-8 says so, as the other
+            # single-page reads do; judged through action_read, so a page the
+            # caller may not read is not described. SM1066: whatever the render
+            # answered. This asked only after a render-failed, and a processor
+            # that runs answers such a page with a 200 of mojibake or a 500, not
+            # that; t/unit/mcp/31 met the rule only because its rig had no
+            # processor to find. preview_public returns an excerpt already
+            # decoded, so the page's own bytes are the one place to tell.
+            if ( ref $r eq 'HASH' ) {
                 my $src = _resolve_page_path( $_[0]->{path} // '/' );
                 my $rd  = action_read( $src, $_[1] );
                 if ( ref $rd eq 'HASH' && $rd->{ok} ) {
@@ -2453,10 +2458,10 @@ sub _page_status {
     }
 }
 
+# SM1066: the one lookup every preview uses (Lazysite::Paths::find_processor),
+# resolved from this script as it always was. undef when nothing is there.
 sub _processor_tool {
-    my $bin = dirname( Cwd::abs_path(__FILE__) );
-    return _sibling_tool( "$bin/lazysite-processor.pl",
-        "$DOCROOT/../cgi-bin/lazysite-processor.pl" );
+    return Lazysite::Paths::find_processor( $DOCROOT, __FILE__ );
 }
 
 sub _preview_page {
