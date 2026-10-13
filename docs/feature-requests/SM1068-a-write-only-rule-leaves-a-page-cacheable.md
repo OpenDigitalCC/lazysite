@@ -35,6 +35,11 @@ write-only rule no longer makes a page per-viewer or uncacheable, and no longer
 leaves it out of scans and registries. Read lists and drafts behave exactly as
 now."
 
+On the on-disk decoded copy named under "Measured" below, the release manager
+ruled on 2026-10-13, in these words: "No, leave as is". A CGI request keeps one
+decode of the store. The layout identity leak (security check 3) gets no
+operator note; it ships with 0.15.5.
+
 # Reproduced first
 
 The report's check, on a site with one write-only rule on `/`, requesting `/`
@@ -163,7 +168,8 @@ Two things the table shows that the fix does not remove:
   in a persistent worker (the pooled column), and every request is now one
   decode where it was two or more (`_acl_is_draft` decoded on each call). An
   on-disk decoded copy would take CGI to a stat; it would be a new file the
-  read decision trusts, so it is not built here - for a ruling.
+  read decision trusts, so it is not built here. Ruled 2026-10-13: "No,
+  leave as is".
 - **The first render after a registry goes stale pays the rebuild**: 3.29 s on
   the post above (2.86 s in a second run; 0.21 s with no registry templates;
   1.80 s with the store emptied). Before the fix the processor never rebuilt a
