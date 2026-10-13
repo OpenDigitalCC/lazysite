@@ -30,7 +30,10 @@ close $pf;
 # manager (the unsecured-site guard reads groups-settings.json itself; the
 # stub only answers verify-credential for the Bearer). Bootstrap through
 # the real writer, as the tools tests do.
-qx($^X \Q$root/tools/lazysite-users.pl\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
+# n562: and it has to SUCCEED - an 11-character password was refused (SM1041),
+# so the site stayed unsecured and nothing below ran against a real one.
+my $made = qx($^X \Q$root/tools/lazysite-users.pl\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789-long-enough 2>&1);
+is( $?, 0, 'the sysop account was made, so the site is a secured one' ) or diag($made);
 # SM901: the token principal the rules below name has to EXIST in the store -
 # a read list that resolves to nobody is refused. On a real site a token
 # holder always has a users line; the stub above only answers for the Bearer.

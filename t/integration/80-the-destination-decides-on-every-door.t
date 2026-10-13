@@ -32,7 +32,10 @@ close $cf;
 open my $tf, '>', "$docroot/lazysite/db/tables/leads.yaml" or die $!;
 print {$tf} "fields:\n  name:\n    type: text\n";
 close $tf;
-qx($^X \Q$root/tools/lazysite-users.pl\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
+# n562: the sysop has to EXIST - an 11-character password was refused (SM1041),
+# so the site stayed unsecured and nothing below ran against a real one.
+my $made = qx($^X \Q$root/tools/lazysite-users.pl\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789-long-enough 2>&1);
+is( $?, 0, 'the sysop account was made, so the site is a secured one' ) or diag($made);
 
 sub stub_with {
     my (%caps) = @_;

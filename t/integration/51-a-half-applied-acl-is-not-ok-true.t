@@ -33,7 +33,7 @@ use JSON::PP;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use File::Basename qw(dirname basename);
-use TestHelper qw(repo_root env_passthrough);
+use TestHelper     qw(repo_root env_passthrough);
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
@@ -46,7 +46,10 @@ print {$pg} "---\ntitle: Probe\n---\n\nSecret-ish.\n";
 close $pg;
 
 my $users = "$root/tools/lazysite-users.pl";
-qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
+# n562: the account has to EXIST - an 11-character password was refused (SM1041),
+# so every call below ran on an unsecured site, as any name at all.
+my $made = qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789-long-enough 2>&1);
+is( $?, 0, 'the sysop account was made - every call below is made as it' ) or diag($made);
 
 sub cgi_env {
     return ( env_passthrough(),
@@ -105,7 +108,7 @@ my $priv = dirname($docroot) . '/' . basename($docroot) . '-lazysite-private';
 make_path($priv);
 chmod 0500, $priv;
 
-my $half = api( 'action=acl-set&path=/probe', { read => ['setup-sysop', '--user', 'sjm'] } );
+my $half = api( 'action=acl-set&path=/probe', { read => ['sjm'] } );
 
 SKIP: {
     skip 'the move succeeded - cannot simulate the host fault as this user', 5
@@ -125,7 +128,7 @@ SKIP: {
     # be a second wrong answer.
     my $back = api('action=acl-get&path=/probe');
     ok( ( $back->{acl} && ref $back->{acl}{read} eq 'ARRAY'
-            && @{ $back->{acl}{read} } ),
+                && @{ $back->{acl}{read} } ),
         'the rule really was written - the error tells the truth' );
 }
 
@@ -134,7 +137,7 @@ chmod 0700, $priv;
 # --- and a clean apply is still a success ----------------------------------
 # Without this the fix could be "always refuse", which would pass everything
 # above and break every ordinary call.
-my $clean = api( 'action=acl-set&path=/probe', { read => ['setup-sysop', '--user', 'sjm'] } );
+my $clean = api( 'action=acl-set&path=/probe', { read => ['sjm'] } );
 ok( $clean->{ok}, 'a rule that applies cleanly is still ok:true' )
     or diag( $clean->{error} // 'no error' );
 ok( !$clean->{content_move_failed}, 'and reports no failed move' );

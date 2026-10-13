@@ -49,7 +49,10 @@ print {$pg} "---\ntitle: Probe\n---\n\nSecret-ish.\n";
 close $pg;
 
 my $users = "$root/tools/lazysite-users.pl";
-qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
+# n562: the account has to EXIST - an 11-character password was refused (SM1041),
+# so every call below ran on an unsecured site, as any name at all.
+my $made = qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789-long-enough 2>&1);
+is( $?, 0, 'the sysop account was made - every call below is made as it' ) or diag($made);
 # SM901: @team has to be a group the store knows - a read list naming nobody
 # who exists is refused, and that is the point of this file's other probe.
 open my $gf, '>>', "$docroot/lazysite/auth/groups" or die $!;
@@ -151,8 +154,8 @@ subtest 'A RULE THAT RESTRICTS NO READS SAYS SO' => sub {
     # An owner and no read list is legitimate - it governs writes. What made it
     # dangerous was the reply: ok:1, an acl object, and a note about content
     # leaving the document root, with nothing saying reading was still open.
-    my $d = api( 'action=acl-set&path=/probe', { owner => 'setup-sysop', '--user', 'sjm' } );
-    ok( $d->{ok}, 'the rule is accepted - it is a legitimate rule' );
+    my $d = api( 'action=acl-set&path=/probe', { owner => 'sjm' } );
+    ok( $d->{ok},                 'the rule is accepted - it is a legitimate rule' );
     ok( $d->{reads_unrestricted}, 'and the reply says reads are NOT restricted' )
         or diag( 'Without this the caller sees ok:1, an acl, and "content '
             . 'moved out of the document root" - and concludes the page is '
@@ -184,7 +187,7 @@ subtest 'SM937: A DRAFT RULE DOES RESTRICT READS, AND IS NOT CALLED OPEN' => sub
     # while _acl_gates_public - which already counted draft, with the reasoning
     # written beside it - answered the read OUTCOME. It now asks that one.
     my $d = api( 'action=acl-set&path=/probe',
-        { owner => 'setup-sysop', '--user', 'sjm', draft => JSON::PP::true() } );
+        { owner => 'sjm', draft => JSON::PP::true() } );
     ok( $d->{ok}, 'the rule is accepted' ) or diag( $d->{error} // '' );
 
     my $stored = api('action=acl-get&path=/probe');

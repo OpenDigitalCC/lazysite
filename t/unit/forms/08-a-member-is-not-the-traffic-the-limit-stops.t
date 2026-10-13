@@ -47,7 +47,10 @@ close $fs;
 # SM1070: the password meets the SM1041 minimum. At eleven characters the add
 # was refused, in silence (2>/dev/null), and the "member" existed only in the
 # cookie - which verified anyway until the verifier asked the account store.
-qx($^X \Q$root/tools/lazysite-users.pl\E --docroot \Q$docroot\E add zz9member pw123456789-long-enough 2>/dev/null);
+# n562: and the add has to SUCCEED, or the member below is a name with no
+# account behind it.
+my $made = qx($^X \Q$root/tools/lazysite-users.pl\E --docroot \Q$docroot\E add zz9member pw123456789-long-enough 2>&1);
+is( $?, 0, 'the member account was made' ) or diag($made);
 
 sub mint_cookie {
     my ($user) = @_;
