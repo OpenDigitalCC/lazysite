@@ -230,6 +230,28 @@ When the grant map cannot be read, the grant's calls are refused rather than
 run as the connection user. The control API always runs as the connection
 user.
 
+## The browser helper
+
+`/assets/lazysite-odoo.js` is the one module a page uses to talk to the endpoint. It
+is added to a page whose markup carries `data-ls-odoo`, `data-ls-odoo-signin` or
+`data-ls-odoo-signout`, and to no other.
+
+```
+<div data-ls-odoo="shop-list" data-ls-odoo-limit="10">
+  <template><li><span data-ls-field="name"></span></li></template>
+  <p data-ls-empty>Nothing to show yet.</p>
+</div>
+<button data-ls-odoo-signin>Sign in to Odoo</button>
+<button data-ls-odoo-signout>Sign out</button>
+```
+
+A region runs the binding with the request fields named by its `data-ls-odoo-<name>`
+attributes and fills its `<template>` from the rows, as text, for the fields the server
+drew. The module fetches the tokens, sends a stale one again once, and when the
+endpoint says to sign in, asks the person - and sends the call again once. The
+password goes in the body of one request to the page's own endpoint and the box is
+cleared before the answer arrives; nothing is stored in the browser.
+
 ## Domains
 
 On an instance serving several domains, a binding with `domain:` runs:
@@ -277,5 +299,4 @@ never returned. The kinds a caller meets most:
 - A site user signing in to Odoo with their own credential is built
   (`credential: session` on a binding, and `signin` and `signout` on the page
   endpoint) and not yet documented here.
-- The parameter form (`x.form`) on the page binding, and a browser helper that
-  fills a region from a binding.
+- The parameter form (`x.form`) on the page binding.

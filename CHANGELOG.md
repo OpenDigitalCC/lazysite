@@ -275,6 +275,13 @@ Archive
   its maker's approval, and an `apply: immediate` binding as the binding's, each against
   the plan's fingerprint, immediately before the apply; OOM's gate is left on. Without
   this every apply was refused against an OOM that has the gate. t/unit/odoo/40.
+- odoo-extension (PENDING) **one browser module talks to the Odoo endpoint (SM747 D).**
+  `/assets/lazysite-odoo.js` fetches the tokens, retries a stale one once, asks a person to
+  sign in when the endpoint says to and retries the call once, signs in and out, and fills
+  `data-ls-odoo` regions from a binding as text, only for the fields the server drew. The
+  password is read, the box is cleared before the answer arrives, and it is in one POST body
+  and nowhere else; nothing is stored in the browser. Injected only on a page whose markup
+  uses it, on both render paths, and served on every domain. t/unit/odoo/31, t/integration/174.
 - odoo-extension (PENDING) **a page can greet a person signed in to Odoo (SM747 C).** `tt_page_var:
   me: odoo-identity:` gives `me.name`, `me.lang`, `me.tz`, `me.company_id`, `me.company_ids` and
   `me.groups` (empty until OOM offers a groups read) from a second signed cookie, short-lived

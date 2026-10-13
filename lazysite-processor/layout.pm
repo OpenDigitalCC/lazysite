@@ -10,7 +10,7 @@ package main;
 #         _section_indexes, _section_theme, _theme_version,
 #         _render_fallback_layout; generate_theme_css (the processor's theme
 #         token generator, lint 61); the injectors that edit the finished
-#         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_meta,
+#         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_odoo_helper, _inject_meta,
 #         _inject_canonical, and the admin bar (_inject_admin_bar,
 #         _admin_bar_choice, _inject_admin_bar_live); _enabled_plugins,
 #         _manager_style, _asset_fingerprint; _engine_mtime and
@@ -545,6 +545,7 @@ sub render_template {
         # template that does not know what the body contains.
         $output = _inject_data_helper($output);
         $output = _inject_account_helper($output);    # SM1043
+        $output = _inject_odoo_helper($output);       # SM747 D
 
         # Admin bar injected per-request at output time, not cached (see note below).
         return $output;
@@ -673,6 +674,7 @@ sub render_template {
     $output = _inject_auth_sync($output);
     $output = _inject_data_helper($output);
     $output = _inject_account_helper($output);    # SM1043
+    $output = _inject_odoo_helper($output);       # SM747 D
 
     # NOTE: the manager admin bar is deliberately NOT injected here. It is
     # per-viewer (manager-only) and this output is written to the shared page
@@ -748,6 +750,22 @@ sub _inject_account_helper {
     return $html if $html =~ m{/assets/lazysite-account\.js};
     my $script = '<script src="/assets/lazysite-account.js?v='
         . _lazysite_version() . '" defer></script>';
+    $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
+    return $html;
+}
+
+# SM747 D (OA6): the Odoo helper, on the same terms as the data and account
+# helpers - only for a page whose rendered markup carries a region or a control it
+# binds (`data-ls-odoo`, `data-ls-odoo-signin`, `data-ls-odoo-signout`), before the
+# LAST </body>. Every page that talks to the Odoo endpoint uses this one module
+# (the CSRF token with one retry, the sign-in prompt, regions filled as text), so
+# none writes its own.
+sub _inject_odoo_helper {
+    my ($html) = @_;
+    return $html unless $html =~ m{</body>}i;
+    return $html unless $html =~ m{\bdata-ls-odoo\b};
+    return $html if $html =~ m{/assets/lazysite-odoo\.js};
+    my $script = '<script src="/assets/lazysite-odoo.js?v=' . _lazysite_version() . '" defer></script>';
     $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
     return $html;
 }

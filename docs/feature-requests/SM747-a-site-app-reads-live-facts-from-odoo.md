@@ -385,6 +385,21 @@ that t/lint/240 keeps out of lazysite. `me.groups` is an empty list, filled from
 offers a read. Asked of OOM, with a distinct fault for a login that opened no session:
 `/srv/projects/odoo/oom/inbox/2026-10-13-lazysite-asks-for-a-groups-read-and-a-no-session-fault.md`.
 
+## Slice D - built 2026-10-13 (n584)
+
+The browser half of the per-user path (OA6), and the last slice of the stack the release
+manager's go covered. **Not built: F2.**
+
+| Row | What | Where |
+| --- | --- | --- |
+| OA6 | **One browser module for the Odoo endpoint**, `/assets/lazysite-odoo.js`, so no page writes its own fetch: it fetches the tokens (`?csrf=1`) and sends the right one on every POST; on a stale token fetches fresh ones and **retries once, never twice**; on `signin-required` asks the person to sign in and **retries the call once** (so a wrong password cannot loop), or not at all when the caller says `prompt: false`; signs in and out; fills regions as text. `read`, `write`, `confirm`, `signIn`, `signOut`, `prompt`, `load`, `fill` on `window.LazysiteOdoo` | `starter/assets/lazysite-odoo.js`; t/unit/odoo/31 (under node, with a fake fetch that records every request) |
+| OA6, outcome 10 | **The re-authentication prompt**: a dialog (`role=dialog`, `aria-modal`) with a login box and a password box (`type=password`, `autocomplete=current-password`, so a password manager fills it). The password is read, **the box is cleared before the answer arrives**, and it is in the body of one POST to the page's own endpoint and nowhere else: not a URL, a header, a later request, a cookie, storage, the console or an event. The session id is in an HttpOnly cookie this script cannot read; the script never holds it | `API.prompt`; t/unit/odoo/31 |
+| OA6 | **Regions**: `data-ls-odoo="BINDING"` (request fields as `data-ls-odoo-<name>`) with a `<template>` row, as `data-ls-db` is; filled from the report's rows, **only for the fields the server drew** (`fields`; a field it refused is never filled) and **always as text** (`textContent`; nothing here builds markup from what Odoo returned). `data-ls-odoo-signin`, `data-ls-odoo-signout` and `data-ls-odoo-name` are the controls. A region that needs a sign-in keeps what it had and says `data-ls-odoo-state="signin-required"` unless it carries `data-ls-odoo-prompt` | `API.load`, `fill`; t/unit/odoo/31 |
+| SM382, DP-3b | **Shipped as the data helper is**: injected only on a page whose rendered markup carries a region or control it binds, on both render paths, once, with a version query; on the exact engine-asset list so it resolves on a domain with its own content root | `lazysite-processor/layout.pm` (`_inject_odoo_helper`), `pipeline.pm` (`_is_engine_asset`); t/integration/174 |
+
+The module holds no storage (`localStorage`, `sessionStorage`, `indexedDB`, `document.cookie`),
+no `innerHTML`, no `eval` and no `console`: held against its source by t/unit/odoo/31.
+
 ## Slice E - built 2026-10-12 (n475)
 
 | Row | What | Where |

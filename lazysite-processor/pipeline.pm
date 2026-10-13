@@ -266,7 +266,8 @@ sub _is_engine_asset {
     return ( $uri eq '/assets/lazysite-chrome.css'
             || $uri eq '/assets/lazysite-chrome.js'
             || $uri eq '/assets/lazysite-data.js'
-            || $uri eq '/assets/lazysite-account.js' ) ? 1 : 0; # SM1043: /account on every domain
+            || $uri eq '/assets/lazysite-account.js'    # SM1043: /account on every domain
+            || $uri eq '/assets/lazysite-odoo.js' ) ? 1 : 0; # SM747 D: the Odoo helper, on every domain
 }
 
 
