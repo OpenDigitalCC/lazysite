@@ -310,6 +310,23 @@ Not built in E, and why:
   rules (no json, list or path from a request) hold on this door too. An
   operation an operator wants an agent to run is bound for it.
 
+### Open: E-Q1 - what a binding's `domain:` limits (found 2026-10-12 on SM1051's rebase)
+
+SM1051 gave every handler an optional `domain:`, and an `odoo` binding is a handler,
+so it takes one. What the domain governs today is what SM1051 built for every
+handler type: who may create, change and delete the binding (that domain's editors)
+and which forms may bind it. It does **not** limit where the binding RUNS: the page
+endpoint (`lazysite-odoo.pl`), an `odoo:` page binding, `odoo-run` and `odoo_run`
+find a binding by id on any domain the instance serves. A binding an operator
+meant for one site's shop can therefore be run from another site's pages or by an
+agent confined to another domain, within the binding's own modes, callers and caps.
+
+Neither the rulings nor this filing settle whether it should. **Recommended:** a
+binding with `domain:` runs only for a request on that domain (the page endpoint
+and page binding by the request's host, a confined caller by its reach); a binding
+without one stays instance-wide, as it is for every other handler type. Nothing is
+built for it yet.
+
 Once OOM answers R-Q1 (where a report carries its rows' descriptors), `odoo_run`
 and `odoo-run` hand back `fields` (drawn by `descriptor_fields`) and `refused` beside
 `report`, as the page binding will.
