@@ -92,8 +92,8 @@ sub _mac {
 # The token for one rule and one recipient hash: ( $token ) or ( undef, $why ).
 sub token {
     my ( $docroot, $rule, $p ) = @_;
-    return ( undef, 'not a rule id' )        unless defined $rule && $rule =~ /\A$RULE_RE\z/;
-    return ( undef, 'not a recipient hash' ) unless defined $p    && $p    =~ /\A$P_RE\z/;
+    return ( undef, 'not a rule id' ) unless defined $rule     && $rule =~ /\A$RULE_RE\z/;
+    return ( undef, 'not a recipient hash' ) unless defined $p && $p    =~ /\A$P_RE\z/;
     my ( $key, $why ) = key( $docroot, create => 1 );
     return ( undef, $why ) unless defined $key;
     return ( "v1.$rule.$p." . _mac( $key, $rule, $p ) );
