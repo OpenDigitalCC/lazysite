@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-13
 raised-by: SM1066 ("Not changed - the /usr/lib/cgi-bin example and the engine's lib"), probed by n575
 area: installers
-status-note: "SHIPPED (PENDING): every script a cgi-bin runs, and the processor's _lazy_lib, find lib by one rule - beside the script's real directory, its parent, its grandparent, then the docroot's ../lib (DOCUMENT_ROOT, else REDIRECT_DOCUMENT_ROOT; the processor its file-scope $DOCROOT of the same). Every layout that worked resolves to the same directory (t/unit/lib/97). Needs the whole suite (queued overnight)."
+status-note: "SHIPPED (PENDING): every script a cgi-bin runs, and the processor's _lazy_lib, find lib by one rule - beside the script's real directory, its parent, its grandparent, then the docroot's ../lib (DOCUMENT_ROOT, else REDIRECT_DOCUMENT_ROOT). Every layout that worked resolves to the same directory (t/unit/lib/97)."
 ---
 
 # The problem
