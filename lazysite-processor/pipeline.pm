@@ -747,14 +747,19 @@ sub _strip_leaked_refs {
 }
 
 sub process_url {
-    my ( $url_path, $html_path, $url_mtime ) = @_;
+    my ( $url_path, $html_path, $url_mtime, $protected ) = @_;
 
     # Read URL from file
     my $url = read_file($url_path);
     $url =~ s/^\s+|\s+$//g;    # trim whitespace
 
+    # SM1069: a .url page under a read rule or a draft is a gated page, and a
+    # gated page never reads or writes the shared render cache - the rule the
+    # .md path has followed since SM223. Neither the TTL read, the stale read on
+    # a failed fetch, nor the write below happens for it.
+    #
     # Serve stale cache if still within TTL
-    if ( is_fresh_ttl($html_path) ) {
+    if ( !$protected && is_fresh_ttl($html_path) ) {
         return read_file($html_path);
     }
 
@@ -763,7 +768,7 @@ sub process_url {
 
     unless ( defined $raw ) {
         # Fetch failed - serve stale cache if available
-        if ( -f $html_path ) {
+        if ( !$protected && -f $html_path ) {
             return read_file($html_path);
         }
         # No cache. SM837: THE VISITOR IS TOLD THE CONTENT IS UNAVAILABLE AND
@@ -817,6 +822,7 @@ sub process_url {
     }
     $page = _strip_leaked_refs( $page, $raw, $url_path );    # SM833
 
+    return $page if $protected;    # SM1069: a gated render is written nowhere
     write_html( $html_path, $page );
     eval { update_registries() };
     log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@ ) if $@;

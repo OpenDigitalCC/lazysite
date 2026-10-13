@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM1069 (PENDING) **a `.url` page under a read rule is no-store, and a rule
+  is found by its path's ancestors.** The `.url` output path never passed the
+  protected flag: a `.url` page under a read rule or draft was answered
+  cacheable to its reader, and its render was read from and written to the
+  cache beside its source - in the document root for a source there. It now
+  takes the `.md` page's treatment: `no-store, private`, cache neither read nor
+  written. Every other output path was checked; none had the gap. A rule is
+  now looked up through its path's ancestors instead of a walk over every key,
+  so a registry rebuild costs pages, not pages x rules: on 1,800 per-post rules
+  the first render after a stale registry went from 5.3 to 1.6 CPU seconds.
+  t/integration/240-241, t/unit/processor/128-129.
+
 - SM1065 (PENDING) **a preview renders a page where its site serves it.** The
   manager's `preview-public` and `preview`, and MCP `preview_public_page`,
   sent a domain's page to its Host under the docroot path, so

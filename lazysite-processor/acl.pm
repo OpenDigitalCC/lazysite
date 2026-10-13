@@ -195,19 +195,23 @@ sub _acl_entry_for {
         return $map->{$stem} if $governs->( $map->{$stem} );
     }
 
-    my $best;
-    my $best_len = -1;
-    for my $k ( keys %$map ) {
-        next unless $governs->( $map->{$k} );
-        ( my $p = $k ) =~ s{\A/+}{};
-        $p =~ s{/+\z}{};
-        next unless length $p;
-        next unless index( $rel, "$p/" ) == 0;
-        next unless length($p) > $best_len;
-        $best     = $map->{$k};
-        $best_len = length $p;
+    # SM1069: THE ANCESTORS ARE LOOKED UP, NOT FOUND BY A WALK. A folder key
+    # governs $rel when, with its leading and trailing slashes taken off, it is
+    # a prefix of $rel followed by `/` - so the candidates are exactly the
+    # prefixes of $rel ending before each `/`, and the longest one that governs
+    # wins. The walk tested every key in the store for each path; a registry
+    # rebuild asks for every page, which made it pages x rules. The index maps
+    # each key's normalised spelling to the keys spelled that way, built once
+    # per decoded store.
+    my $idx = _acl_prefix_index($map);
+    my $i   = length $rel;
+    while ( ( $i = rindex( $rel, '/', $i - 1 ) ) > 0 ) {
+        my $p = substr( $rel, 0, $i );
+        next if $p =~ m{/\z};    # `a//b`: `a/` is no key's normalised spelling
+        for my $k ( @{ $idx->{$p} || [] } ) {
+            return $map->{$k} if $governs->( $map->{$k} );
+        }
     }
-    return $best if $best;
 
     # SM287: the SITE-WIDE rule, and it is the WEAKEST - checked only when
     # nothing more specific governs, so a public carve-out inside a private site
@@ -231,6 +235,33 @@ sub _acl_entry_for {
         return $map->{$rk} if $governs->( $map->{$rk} );
     }
     return;
+}
+
+# SM1069: a store's folder keys by their normalised spelling (leading and
+# trailing slashes off; '' left out, the site-wide rule being checked on its
+# own), each to its keys in sorted order.
+#
+# Kept only for the store _acl_map handed out - the one map no reader writes to,
+# the same until the store changes - in one slot holding that map, so its
+# address cannot be reused by the next while the index still names it. Any
+# other map (a caller's own, which it may change between calls) is indexed
+# afresh each time: the cost of the walk this replaces, and never stale.
+{
+    my ( $_idx_map, $_idx );
+
+    sub _acl_prefix_index {
+        my ($map) = @_;
+        my $store = ref $ACL_MAP_CACHE eq 'HASH' && $map == $ACL_MAP_CACHE;
+        return $_idx if $store && defined $_idx_map && $_idx_map == $map;
+        my %idx;
+        for my $k ( sort keys %$map ) {
+            ( my $p = $k ) =~ s{\A/+}{};
+            $p =~ s{/+\z}{};
+            push @{ $idx{$p} }, $k if length $p;
+        }
+        ( $_idx_map, $_idx ) = ( $map, \%idx ) if $store;
+        return \%idx;
+    }
 }
 
 # SM223: may this identity READ $rel on the anonymous/public path?

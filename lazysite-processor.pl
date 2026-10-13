@@ -1447,10 +1447,13 @@ sub main {
             return;
         }
         # SM837: a failed fetch answers with its own status, never a 200.
-        my ( $page, $status ) = process_url( $url_path, $html_path, ( stat($url_path) )[9] );
+        # SM1069: the protected flag reaches the .url branch, as it reaches the
+        # .md one. It never did, so a .url page under a read rule was answered
+        # cacheable and its render read and written beside its source.
+        my ( $page, $status ) = process_url( $url_path, $html_path, ( stat($url_path) )[9], $protected );
         my $ct = peek_content_type($url_path);
-        write_ct( $base, $ct );
-        output_page( _inject_admin_bar_live( $page, $url_path ), $ct, undef, undef, $status );
+        write_ct( $base, $ct ) unless $protected;
+        output_page( _inject_admin_bar_live( $page, $url_path ), $ct, undef, $protected, $status );
         return;
     }
 
