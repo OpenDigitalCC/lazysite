@@ -345,7 +345,27 @@ Not built in E, and why:
   rules (no json, list or path from a request) hold on this door too. An
   operation an operator wants an agent to run is bound for it.
 
-### Open: E-Q1 - what a binding's `domain:` limits (found 2026-10-12 on SM1051's rebase)
+### E-Q1 - what a binding's `domain:` limits (found 2026-10-12 on SM1051's rebase) - RULED AND BUILT
+
+**E-Q1: as recommended, approved 2026-10-13.** The release manager's words,
+relayed by the coordinator: "a binding with a `domain:` runs only for requests
+on that domain (the page endpoint, the `odoo:` page binding, and
+odoo-run/odoo_run, with the caller's own domain for MCP and the control API);
+a binding without one stays instance-wide."
+
+Built (branch n576) in the one function that sends, `Lazysite::Odoo::call`,
+so every door meets it: a request on a host (the page endpoint, the `odoo:`
+page binding, a form bound to the binding) runs a domain's binding only when
+its host is that domain; the control API and MCP, which have no host, run it
+only for a caller that reaches the domain by SM976's one rule (an unconfined
+operator does, a grant confined elsewhere does not, a grant naming no scope
+reaches none); the schedule names neither and runs what the operator
+scheduled; a call that names neither outside the schedule is refused, never
+assumed. The refusal is kind `wrong-domain` (403), recorded in the call record,
+and `odoo-bindings`/`odoo_bindings` list only what the caller may run.
+t/unit/odoo/19-20, t/integration/172.
+
+The finding as filed:
 
 SM1051 gave every handler an optional `domain:`, and an `odoo` binding is a handler,
 so it takes one. What the domain governs today is what SM1051 built for every
@@ -359,8 +379,7 @@ agent confined to another domain, within the binding's own modes, callers and ca
 Neither the rulings nor this filing settle whether it should. **Recommended:** a
 binding with `domain:` runs only for a request on that domain (the page endpoint
 and page binding by the request's host, a confined caller by its reach); a binding
-without one stays instance-wide, as it is for every other handler type. Nothing is
-built for it yet.
+without one stays instance-wide, as it is for every other handler type.
 
 Once OOM answers R-Q1 (where a report carries its rows' descriptors), `odoo_run`
 and `odoo-run` hand back `fields` (drawn by `descriptor_fields`) and `refused` beside

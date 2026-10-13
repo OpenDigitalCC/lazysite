@@ -88,6 +88,9 @@ sub parse {
         if length $vp && $vp !~ $PARAM;
     $b{visitor_param} = $vp;
 
+    # SM1051's domain, carried so the gate can hold a run to it (E-Q1).
+    $b{domain} = lc( $h->{domain} // '' );
+
     # ONE SOURCE PER PARAMETER.
     my %src;
     push @{ $src{$_} },  'params' for values %$in;

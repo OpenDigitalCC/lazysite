@@ -442,6 +442,9 @@ sub gate {
     my ( $may, $why ) = may_call( $binding, %ctx );
     return _refusal( \%rec, 'mode', $why ) unless $may;
 
+    my $dwhy = domain_refusal( $binding, %ctx );
+    return _refusal( \%rec, 'wrong-domain', $dwhy ) if length $dwhy;
+
     unless ( _extension_enabled() ) {
         return _refusal( \%rec, 'disabled',
             'the Odoo extension is switched off - a sysop can enable it on the Extensions page' );
@@ -453,6 +456,45 @@ sub gate {
     my ( $conn, $cwhy ) = connection();
     return _refusal( \%rec, 'config', $cwhy ) unless $conn;
     return ( 1, $conn );
+}
+
+# E-Q1 (as recommended, approved 2026-10-13): A BINDING WITH A `domain:` RUNS
+# ONLY FOR REQUESTS ON THAT DOMAIN; one without stays instance-wide. '' when
+# the call may go on, else why not.
+#
+# SM1051 gave every handler a domain, and it governs who edits a binding and
+# which forms bind it. This is the running half, asked inside the gate so every
+# door - the page endpoint, the page binding, a form, the control API, MCP, the
+# confirm - meets the same rule:
+#
+#   host    a request on a host: it must be the binding's domain. An alias host
+#           is a domain of its own here, as SM1051 names domains.
+#   reach   a signed-in caller with no host (the control API, MCP): it must
+#           reach the domain by SM976's one rule (Manager::Common::
+#           caller_may_use_handler) - { scopes => [...] } for an MCP grant, {}
+#           for the manager request, whose own state says who is asking.
+#   the schedule has neither: no request was made, and the operator scheduled
+#           it, so it runs.
+#
+# A call that says neither, outside the schedule, is REFUSED: a door that
+# forgot to name its domain must not run every domain's binding.
+sub domain_refusal {
+    my ( $b, %c ) = @_;
+    my $dom = lc( ( ref $b eq 'HASH' ? $b->{domain} : '' ) // '' );
+    return '' unless length $dom;
+    if ( defined $c{host} ) {
+        return '' if lc( $c{host} ) eq $dom;
+        return "this binding belongs to the domain $dom and runs only for requests there";
+    }
+    if ( ref $c{reach} eq 'HASH' ) {
+        require Lazysite::Manager::Common;
+        no warnings 'once';
+        local $Lazysite::Manager::Common::DOCROOT = $Lazysite::Manager::Common::DOCROOT // $DOCROOT;
+        return '' if Lazysite::Manager::Common::caller_may_use_handler( { domain => $dom }, %{ $c{reach} } );
+        return "this binding belongs to the domain $dom, and this account does not reach the domain $dom";
+    }
+    return '' if ( $c{mode} // '' ) eq 'scheduled';
+    return "this binding belongs to the domain $dom, and the call names no domain to check it against";
 }
 
 sub _rec_base {
@@ -1140,6 +1182,9 @@ sub _who_ctx {
     my (%w) = @_;
     my %c = ( mode => 'authenticated', actor => $w{user} // '', groups => $w{groups} || [],
         caps => $w{caps} || {}, ip => $w{ip} // '' );
+    # E-Q1: where the caller stands, for a binding that belongs to a domain.
+    $c{reach} = $w{reach} if ref $w{reach} eq 'HASH';
+    $c{host}  = $w{host}  if defined $w{host};
     if ( ( $w{channel} // '' ) eq 'mcp' ) {
         my ( $acct, $why ) = account_for_grant( $w{user} );
         return ( undef, $why ) if length $why;
@@ -1163,6 +1208,9 @@ sub action_odoo_bindings {
         next unless $b && !length $b->{visitor_param};
         my ($may) = may_call( $b, mode => 'authenticated', groups => $w{groups}, caps => $w{caps} );
         next unless $may;
+        next if length domain_refusal( $b, mode => 'authenticated',
+            ( ref $w{reach} eq 'HASH' ? ( reach => $w{reach} ) : () ),
+            ( defined $w{host}        ? ( host  => $w{host} )  : () ) );
         my %row = ( id => $b->{id}, name => $h->{name} // $b->{id}, operation => $b->{operation},
             apply => $b->{apply} );
         if ($conn) {

@@ -1719,9 +1719,18 @@ sub _to_odoo {
     my $r = Lazysite::Odoo::call( $b, { _visible($fields) },
         mode  => ( ( $ctx->{origin} // '' ) eq 'timer' ? 'scheduled' : 'public' ),
         actor => $ctx->{actor} // '',
-        ip    => $ctx->{ip}    // '' );
+        ip    => $ctx->{ip}    // '',
+        # E-Q1: a form is a request on a host, and a domain's binding runs only
+        # there; the timer has no host and runs what the operator scheduled.
+        ( ( $ctx->{origin} // '' ) eq 'timer' ? () : ( host => _odoo_host() ) ) );
     return { ok => 1 } if $r->{ok};
     return { ok => 0, why => 'the Odoo operation did not complete: ' . ( $r->{error} // $r->{kind} // 'failed' ) };
+}
+
+# The host a form was posted to, as Lazysite::Util reads it (E-Q1).
+sub _odoo_host {
+    require Lazysite::Util;
+    return Lazysite::Util::request_host();
 }
 
 # Whether the binding's operation writes - asked of OOM's registry, and treated

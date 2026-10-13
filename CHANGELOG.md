@@ -275,6 +275,14 @@ Archive
   its maker's approval, and an `apply: immediate` binding as the binding's, each against
   the plan's fingerprint, immediately before the apply; OOM's gate is left on. Without
   this every apply was refused against an OOM that has the gate. t/unit/odoo/40.
+- odoo-extension (PENDING) **a binding that belongs to a domain runs only for
+  that domain (SM747 E-Q1).** A binding with `domain:` answers the page
+  endpoint, the `odoo:` page binding and a form only on its own host, and the
+  control API's `odoo-run` and MCP's `odoo_run` only for a caller that reaches
+  the domain; anywhere else it is refused as `wrong-domain` (403) and recorded.
+  The schedule runs it. `odoo-bindings` lists only what the caller may run. A
+  binding without `domain:` is the instance's, as before.
+  t/unit/odoo/19-20, t/integration/172.
 - odoo-extension (PENDING) **every Odoo action is an MCP tool, and an agent runs
   a bound operation as its grant's own Odoo account (SM747 slice E).**
   `odoo_status`, `odoo_calls`, `odoo_secret_set` and `odoo_secret_clear` are the

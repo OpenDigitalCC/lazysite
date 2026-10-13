@@ -507,7 +507,7 @@ sub _odoo_who {
     my ( $user, $caps ) = @_;
     no warnings 'once';
     return ( user => $user, caps => $caps || {}, groups => [@Lazysite::Auth::Acl::user_groups],
-        ip => _request_ip(), channel => 'mcp' );
+        ip => _request_ip(), channel => 'mcp', reach => { _grant_reach($caps) } );  # E-Q1
 }
 
 # --- shared site-tool helpers ---------------------------------------------

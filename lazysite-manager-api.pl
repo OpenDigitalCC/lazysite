@@ -3030,6 +3030,7 @@ sub _odoo_who {
         groups  => [ Lazysite::Auth::Settings::effective_groups($auth_user) ],
         ip      => _request_ip(),
         channel => 'api',
+        reach   => {},    # E-Q1: this request's own reach (Manager::Common)
     );
 }
 

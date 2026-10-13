@@ -146,7 +146,9 @@ sub main {
                 ( length $user ? ( token => Lazysite::Auth::Session::generate_csrf_token($user) ) : () ) } );
     }
 
-    my %who = ( user => $user, groups => \@groups, caps => $caps, visitor => $visitor, ip => $ip );
+    require Lazysite::Util;
+    my %who = ( user => $user, groups => \@groups, caps => $caps, visitor => $visitor, ip => $ip,
+        host => Lazysite::Util::request_host() );
 
     if ( $method eq 'GET' ) {
         my $id = delete $q->{binding};
@@ -198,6 +200,7 @@ sub _ctx {
         caps   => $w{caps},
         ip     => $w{ip},
         ( $w{visitor} ? ( visitor_key => $w{visitor} ) : () ),
+        host => $w{host},    # E-Q1: a domain's binding runs only for its own host
     );
 }
 

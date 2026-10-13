@@ -713,7 +713,8 @@ sub resolve_odoo {
         return '';
     }
     $TT_DEP_LIVE = 1;
-    my $r = Lazysite::Odoo::call( $b, {}, mode => 'public', ip => ( _request_address( _trusted_proxy_spec() ) // '' ) );
+    my $r = Lazysite::Odoo::call( $b, {}, mode => 'public', ip => ( _request_address( _trusted_proxy_spec() ) // '' ),
+        host => _request_host() ); # E-Q1: a domain's binding renders only on its own host
     unless ( $r->{ok} ) {
         log_event( 'WARN', $page, 'odoo: page variable read nothing', key => $key, binding => $id,
             kind => ( $r->{kind} // '' ), why => ( $r->{error} // '' ) );
