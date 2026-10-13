@@ -68,11 +68,13 @@ subtest 'then OOM: absent, and too old, each by name' => sub {
     like( $r->{error}, qr/needs libodoo-oom-perl \(>= 0\.02\) - it is not installed/,
         'the package and version are named' );
 
-    plan skip_all => 'no OOM tree to test the version against' unless -f oom_lib() . '/Odoo/Ops.pm';
-    unshift @INC, oom_lib();
+    my $old = OdooTest::old_oom_lib();
+    unshift @INC, $old;
     ( $ok, $r ) = Lazysite::Odoo::gate( $binding, mode => 'authenticated', groups => ['staff'] );
-    is( $r->{kind}, 'unavailable', 'the 0.01 tree is refused too' );
+    is( $r->{kind}, 'unavailable', 'an 0.01 OOM is refused too' );
     like( $r->{error}, qr/this host has 0\.01/, 'saying which version is here' );
+    @INC = grep { $_ ne $old } @INC;
+    delete $INC{'Odoo/Ops.pm'};
 };
 
 subtest 'then the connection, and then through' => sub {

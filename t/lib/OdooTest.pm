@@ -81,6 +81,19 @@ sub quiet {
 
 sub oom_lib { return $ENV{LAZYSITE_OOM_LIB} // '/srv/projects/odoo/oom/lib' }
 
+# A lib holding an Odoo::Ops that says 0.01 and nothing else: the version the
+# extension refuses, stood up here so that refusal is tested whatever version
+# the OOM tree has reached (it said 0.01 until 2026-10-13).
+sub old_oom_lib {
+    require TestHelper;
+    my $d = TestHelper::site_tempdir();
+    make_path("$d/Odoo");
+    open my $fh, '>', "$d/Odoo/Ops.pm" or die "Odoo/Ops.pm: $!";
+    print {$fh} "package Odoo::Ops;\nour \$VERSION = '0.01';\n1;\n";
+    close $fh;
+    return $d;
+}
+
 sub _oom_test_lib { ( my $t = oom_lib() ) =~ s{/lib\z}{/t/lib}; return $t }
 
 # Puts OOM (and its test doubles) on @INC, or skips the whole file.

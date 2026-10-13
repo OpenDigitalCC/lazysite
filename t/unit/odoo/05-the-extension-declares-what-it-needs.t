@@ -65,8 +65,7 @@ subtest 'absent: refused, naming the package that exists' => sub {
 };
 
 subtest 'present and too old: refused, saying which version is here' => sub {
-    plan skip_all => 'no OOM tree' unless -f oom_lib() . '/Odoo/Ops.pm';
-    my ( $msg, $bare ) = @{ missing_with( oom_lib() ) };
+    my ( $msg, $bare ) = @{ missing_with( OdooTest::old_oom_lib() ) };
     like( $msg, qr/Odoo::Ops 0\.02 or newer - this host has 0\.01/, 'the version gap is named' );
     is_deeply( $bare, ['Odoo::Ops'], 'and the module' );
 };
