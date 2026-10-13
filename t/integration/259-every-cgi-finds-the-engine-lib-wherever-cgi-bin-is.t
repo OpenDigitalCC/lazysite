@@ -96,11 +96,11 @@ my @CGI = (
     [ 'auth', 'lazysite-auth.pl', uri => '/cgi-bin/lazysite-auth.pl', qs => 'action=logout' ],
     [ 'MCP', 'lazysite-mcp.pl', uri => '/cgi-bin/lazysite-mcp.pl', method => 'POST',
         body => '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' ],
-    [ 'DAV', 'lazysite-dav.pl', uri => '/dav/', method => 'PROPFIND', pi => '/' ],
-    [ 'data',         'lazysite-data.pl',  uri => '/cgi-bin/lazysite-data.pl' ],
-    [ 'form handler', 'form-handler.pl',   uri => '/cgi-bin/form-handler.pl' ],
-    [ 'OAuth',        'lazysite-oauth.pl', uri => '/cgi-bin/lazysite-oauth.pl' ],
-    [ 'Odoo',         'lazysite-odoo.pl',  uri => '/cgi-bin/lazysite-odoo.pl' ],
+    [ 'DAV',  'lazysite-dav.pl',  uri => '/dav/', method => 'PROPFIND', pi => '/' ],
+    [ 'data', 'lazysite-data.pl', uri => '/cgi-bin/lazysite-data.pl' ],
+    [ 'form handler', 'form-handler.pl', uri => '/cgi-bin/form-handler.pl' ], # the cgi-bin entry: bare-name-on-purpose
+    [ 'OAuth', 'lazysite-oauth.pl', uri => '/cgi-bin/lazysite-oauth.pl' ],
+    [ 'Odoo',  'lazysite-odoo.pl',  uri => '/cgi-bin/lazysite-odoo.pl' ],
     [ 'one-rule front door', 'lazysite-front.pl', uri => '/cgi-bin/lazysite-mcp.pl', front => 1 ],
 );
 

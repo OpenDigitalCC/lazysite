@@ -1671,8 +1671,10 @@ sub _lazy_lib {
         require File::Basename;
         # SM1078: then the docroot's ../lib, where install.pl puts it whatever
         # --cgibin was (one rule in every script a cgi-bin runs, t/lint/263).
+        # $DOCROOT is that same docroot read at file scope: under the pool a
+        # sub sees the request's %ENV, not the pool's (t/lint/43).
         my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-        my $doc = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '';
+        my $doc = $DOCROOT // '';
         for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib", ( length $doc ? "$doc/../lib" : () ) ) {
             if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
         }

@@ -13,6 +13,9 @@
 # them all in {CGIBIN}), the plugins install.pl links (or copies, where a
 # symlink fails) into the cgi-bin, read from install.pl itself, and the
 # processor's lazy lookup (_lazy_lib), which is the same rule inside a sub.
+# Inside a sub the processor reads the docroot from $DOCROOT, which is the
+# same expression captured at file scope: under the pool %ENV in a sub is the
+# request's, not the pool's (t/lint/43).
 use strict;
 use warnings;
 use Test::More;
@@ -31,9 +34,12 @@ my $CAND_LINE = q[for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib", ( 
 sub norm { my ($s) = @_; $s =~ s/\s+/ /g; $s =~ s/\A | \z//g; return $s }
 
 opendir my $dh, $root or die $!;
-my @scripts = sort grep { /\Alazysite-[a-z-]+\.pl\z/ && -f "$root/$_" } readdir $dh;
+my @scripts  = sort grep { /\Alazysite-[a-z-]+\.pl\z/ && -f "$root/$_" } readdir $dh;
+my $has_proc = grep      { $_ eq 'lazysite-processor.pl' } @scripts;
+@scripts = grep { $_ ne 'lazysite-processor.pl' } @scripts;    # _lazy_lib, below
 closedir $dh;
-cmp_ok( scalar @scripts, '>=', 9, 'the root CGIs are found (' . scalar(@scripts) . ')' );
+ok( $has_proc, 'the processor is among them' );
+cmp_ok( scalar @scripts, '>=', 8, 'the root CGIs are found (' . scalar(@scripts) . ')' );
 
 my ($linked) = slurp("$root/install.pl") =~ m{for my \$plugin \(qw\(([^)]+)\)\) \{\n\s+my \$src = "\$plugin_dir/\$plugin\.pl";\n\s+my \$dst = "\$cgibin/\$plugin\.pl";};
 ok( defined $linked, 'install.pl names the plugins it puts in the cgi-bin' );
@@ -54,7 +60,10 @@ for my $s (@scripts) {
     ok( defined $body, 'lazysite-processor.pl has _lazy_lib' );
     my @lines = map { norm($_) } split /\n/, $body // '';
     is( scalar( grep { $_ eq norm($CAND_LINE) } @lines ), 1, '_lazy_lib: the rule\'s list' );
-    is( scalar( grep { $_ eq norm($DOC_LINE) } @lines ), 1, '_lazy_lib: the docroot read the same way' );
+    is( scalar( grep { $_ eq 'my $doc = $DOCROOT // \'\';' } @lines ), 1, '_lazy_lib: the docroot is $DOCROOT' );
+    my $proc = slurp("$root/lazysite-processor.pl");
+    like( $proc, qr{^our \$DOCROOT = \$ENV\{DOCUMENT_ROOT\} \|\| \$ENV\{REDIRECT_DOCUMENT_ROOT\}$}m,
+        'which is DOCUMENT_ROOT, else REDIRECT_DOCUMENT_ROOT, read at file scope' );
 }
 
 done_testing();

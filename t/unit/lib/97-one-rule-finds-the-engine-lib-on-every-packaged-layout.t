@@ -72,9 +72,13 @@ sub rule_of {
     my @l      = split /\n/, slurp($file);
     my ($i)    = grep { $l[$_] =~ /\A\s*for my \$cand \( "\$bin\/lib"/ } 0 .. $#l;
     die "$file: no lib candidate list\n" unless defined $i;
-    my ($doc) = grep { /\A\s*my \$doc = \$ENV\{DOCUMENT_ROOT\}/ } @l;
-    my $code = "sub { my (\$bin) = \@_; local \@INC = (); "
-        . ( $doc // '' ) . "\n$l[$i]\n$l[$i+1]\n}\nreturn \$INC[0]; }";
+    # The line above the list reads the docroot; the processor's _lazy_lib reads
+    # its file-scope $DOCROOT, captured from the same two variables (t/lint/263).
+    my $doc = $i > 0 && $l[ $i - 1 ] =~ /\A\s*my \$doc = / ? $l[ $i - 1 ] : '';
+    my $code =
+        "sub { my (\$bin) = \@_; local \@INC = (); "
+        . "my \$DOCROOT = \$ENV{DOCUMENT_ROOT} || \$ENV{REDIRECT_DOCUMENT_ROOT};\n"
+        . "$doc\n$l[$i]\n$l[$i+1]\n}\nreturn \$INC[0]; }";
     my $sub = eval $code or die "$file: $@";    ## no critic (ProhibitStringyEval)
     return $sub;
 }

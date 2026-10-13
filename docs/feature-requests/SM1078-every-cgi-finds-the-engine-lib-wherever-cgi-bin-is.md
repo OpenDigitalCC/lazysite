@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-13
 raised-by: SM1066 ("Not changed - the /usr/lib/cgi-bin example and the engine's lib"), probed by n575
 area: installers
-status-note: "SHIPPED (PENDING): every script a cgi-bin runs, and the processor's _lazy_lib, find lib by one rule - beside the script's real directory, its parent, its grandparent, then the docroot's ../lib (DOCUMENT_ROOT, else REDIRECT_DOCUMENT_ROOT). Every layout that worked resolves to the same directory (t/unit/lib/97). Needs the whole suite (queued overnight)."
+status-note: "SHIPPED (PENDING): every script a cgi-bin runs, and the processor's _lazy_lib, find lib by one rule - beside the script's real directory, its parent, its grandparent, then the docroot's ../lib (DOCUMENT_ROOT, else REDIRECT_DOCUMENT_ROOT; the processor its file-scope $DOCROOT of the same). Every layout that worked resolves to the same directory (t/unit/lib/97). Needs the whole suite (queued overnight)."
 ---
 
 # The problem
@@ -113,9 +113,14 @@ t/lint/263; t/unit/lib/97 evaluates each script's own copy.
 `$DOCUMENT_ROOT/../lib` is the same fallback the CGIs already use for the site's
 tools and plugins (`$DOCROOT/../tools/lazysite-users.pl`,
 `$DOCROOT/../plugins/stats.pl`, `Lazysite::Handlers`). DOCUMENT_ROOT is set by
-the web server, never by the client. The processor reads it at the moment of
-the lazy require, from the request's environment (a pool worker's FCGI request
-binds `%ENV`).
+the web server, never by the client.
+
+The processor's copy is in a sub, so it reads `$DOCROOT`, the processor's own
+file-scope capture of the same two variables (`our $DOCROOT =
+$ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}`), not `%ENV`: under the
+pool, FCGI replaces `%ENV` with each request's parameters, and the pool's own
+DOCUMENT_ROOT is gone by then (t/lint/43, which the first draft of this fix
+failed). t/lint/263 holds that line too.
 
 # Nothing changes where a CGI worked
 
@@ -178,7 +183,8 @@ cmp clean): S1 no docroot candidate in lazysite-auth.pl fails 263, 97, 259; S2
 the docroot first in lazysite-mcp.pl fails 263, 97; S3 `_lazy_lib` back to the
 old rule fails 263, 97, 259; S4 lazysite-data.pl without `$bin/../../lib` fails
 263; S5 lazysite-dav.pl without `REDIRECT_DOCUMENT_ROOT` fails 263; S6
-lazysite-dav.pl back to the old rule fails 263, 97, 259.
+lazysite-dav.pl back to the old rule fails 263, 97, 259; S7 `_lazy_lib` reading
+`%ENV` in the sub fails 263 and t/lint/43.
 
 # Related
 
