@@ -1,0 +1,40 @@
+# stock.picking, Odoo 19. Read in the 19.0 source (OCB 19.0, commit
+# 8aa2b0a27) and met on the local 19 instance (demo.localhost) on
+# 2026-10-13. As 17 and 18 (no immediate-transfer wizard; a move line
+# carries one quantity and a picked flag; the package refusal counts
+# only positive quants), and two changes: a message posted by a user
+# with no email address no longer rolls the validation back, and
+# validating no longer subscribes the user.
+# Corrected 2026-10-13 against the 19.0 source: the first version of
+# this file said both rules held on 19 as on 16.
+model: stock.picking
+series: 19
+effects:
+  - on: validate
+    effect: posts a message on the picking when a done quantity differs from the demand; the acting user needs no email address on 19 (16, 17 and 18 roll the validation back without one)
+    evidence: source 19.0 stock_picking._log_less_quantities_than_expected and mail_thread._message_compute_author (no raise); the author rule is live 2026-10-13 on 19 (a lead note by an admin with no email ACCEPTED), the picking path itself was not run with a short quantity
+  - on: validate
+    effect: validates from the reservation when no line is marked picked (with a quantity on a move and no picked flag anywhere, every move is marked picked, a move whose destination is an inventory location not counting as a pick; with no quantity at all it refuses). No wizard asks; stage the quantities first
+    evidence: source 19.0 stock_picking.button_validate (no stock.immediate.transfer model); live 2026-10-13 (stock.net stages quantity with picked)
+  - on: validate
+    effect: a draft picking is confirmed first and a move with no quantity takes its demand as the quantity
+    evidence: source 19.0 stock_picking.button_validate
+  - on: validate
+    effect: does not subscribe the validating user as a follower (16, 17 and 18 do)
+    evidence: source 19.0 (no message_subscribe in stock_picking.py; present in button_validate of 16.0, 17.0 and 18.0)
+  - on: validate
+    effect: a result package may hold stock in two locations when the second holder is a negative quant, because only quants with a positive quantity count towards the refusal "You cannot move the same package content more than once in the same transfer or split the same package into two location"
+    evidence: source 19.0 stock_move._action_done (compare(q.quantity, 0) > 0, as 17.0 and 18.0; 16.0 counted abs(quantity) + abs(reserved_quantity)); live 2026-10-13 (the stock pack's mirror reversal ACCEPTED on 19, REFUSED on 16)
+  - on: validate
+    effect: opens the backorder wizard when done is below demand
+    evidence: source 19.0 stock_picking._check_backorder / _action_generate_backorder_wizard
+  - on: validate
+    effect: opens the expiry confirmation when a lot is past its expiration date, or a move line's removal date has passed
+    evidence: source 19.0 product_expiry stock_picking._check_expired_lots (adds ml.removal_date <= now)
+  - on: call
+    method: action_confirm
+    effect: merges moves of one product with the same locations and reserves stock; the stock pack removes the reserved lines and stages its own
+    evidence: live 2026-10-13 (stock.net on 19)
+routes:
+  validate_loop: { via: button_validate, why: returns True or a wizard action; same loop as 16 }
+probes: [acting_user_email, "module:product_expiry", "module:stock_account"]

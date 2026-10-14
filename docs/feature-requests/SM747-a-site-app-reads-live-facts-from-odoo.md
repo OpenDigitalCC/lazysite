@@ -912,17 +912,26 @@ it, and the release manager directed on 2026-10-01 that it be filed here.
 
 | | |
 | --- | --- |
-| Source | `/srv/projects/odoo/oom/docs/MAPPER-SPEC.md` |
-| Written | 2026-09-28, status DRAFT, "growing with use"; RE-FILED 2026-10-13 from the source as of 6844779 (2026-10-13), after OOM's 0.02 to 0.09 |
+| Source | `t/vendor/oom/docs/MAPPER-SPEC.md` |
+| Written | 2026-09-28, status DRAFT, "growing with use"; RE-FILED 2026-10-13 from OOM's working tree as of 6844779 (2026-10-13), after OOM's 0.02 to 0.09; that text is exactly the copy the 0.09 deb installs, and it is the copy lazysite now VENDORS (t/vendor/oom, OOM commit 2edc3db, SM1081) |
 | sha256 at filing | `8231bb2f29b5c50a3917fa4aa869f848d6d4ad1febe7d0582e2d3f2d15c2c2bc` |
-| Living copy | stays in the OOM tree - that project owns it |
+| Living copy | stays in the OOM tree - that project owns it, and its working tree may be AHEAD of the vendored copy without any failure here |
+| Re-file when | a newer OOM is adopted: `tools/vendor-oom.sh` refreshes `t/vendor/oom` and this section is updated from it in the SAME commit (t/lint/207 enforces it, t/lint/261 holds the snapshot to its MANIFEST) |
 | Drift gate | `t/lint/207-the-filed-mapper-spec-matches-its-source.t` |
 
 A second copy of a document that is still being edited elsewhere is how two
 descriptions of one thing come to disagree, and this filing has already been stale
-twice (see *Sequencing*). So the hash is recorded and a lint compares it whenever
-the OOM tree is readable, skipping where it is not - the shape `t/lint/89` uses for
-the field-practice briefing, for the same reason.
+twice (see *Sequencing*). So the hash is recorded and a lint compares it.
+
+**The gate follows a pinned snapshot, not OOM's working tree (SM1081, 2026-10-14).** The
+lint first compared the filing with OOM's working tree, which moved three times on
+2026-10-13 and 14 and failed the release gate each time with nothing wrong in lazysite.
+It now compares with the copy of the spec inside this repository,
+`t/vendor/oom/docs/MAPPER-SPEC.md`, which is always present, so the "source not
+readable" skip is gone. OOM's tree is ahead of it (0.10: `session_groups`, the no-session
+fault) and is adopted by a reviewable commit when the release manager decides. The gate
+follows the released spec. B, C and D's blockers, R-Q1 and the rest of this filing are
+unchanged by it.
 
 **Every claim in the spec says what it rests on**, and that grading is the most
 useful thing in it: **tested** (offline suite against a fake Odoo), **source** (read

@@ -1,0 +1,87 @@
+# CRM pack, Odoo 16. Logical names on the left are what operations
+# speak; physical names on the right are checked against the live
+# fields_get by `oom-ops run core.check --set pack=crm` before anything
+# trusts them. A field mapped to ~ is known-absent on this series.
+#
+# Records are held as crm.lead only (decided 2026-09-28): partners
+# arrive through Odoo's own convert flow, never from these tools.
+pack: crm
+series: 16
+models:
+  lead:
+    model: crm.lead
+    fields:
+      title: name                 # the lead's subject line (required)
+      type: type                  # lead | opportunity
+      contact_name: contact_name
+      company: partner_name
+      job_title: function
+      email: email_from
+      phone: phone
+      mobile: mobile
+      website: website
+      street: street
+      city: city
+      zip: zip
+      country: country_id
+      lang: lang_id
+      notes: description          # html
+      tags: tag_ids
+      stage: stage_id
+      team: team_id
+      salesperson: user_id
+      partner: partner_id         # set by Odoo's convert; read only here
+      source: source_id
+      medium: medium_id
+      campaign: campaign_id
+      priority: priority
+      expected_revenue: expected_revenue
+      probability: probability
+      deadline: date_deadline
+      active: active
+      created: create_date
+      creator: create_uid          # who saved the record
+      updated: write_date
+      blacklisted: is_blacklisted  # mail.thread.blacklist, computed
+  partner:                       # mapped so core.check reaches res.partner's behaviour and probes;
+    model: res.partner           # no crm operation writes it (see the note at the top)
+    fields:
+      name: name
+      email: email
+      vat: vat
+      street: street
+      parent: parent_id
+      is_company: is_company
+      commercial_partner: commercial_partner_id
+  tag:
+    model: crm.tag
+    fields:
+      name: name
+      color: color
+  stage:
+    model: crm.stage
+    fields:
+      name: name
+      sequence: sequence
+      won: is_won
+  team:
+    model: crm.team
+    fields:
+      name: name
+  source:
+    model: utm.source
+    fields:
+      name: name
+  medium:
+    model: utm.medium
+    fields:
+      name: name
+  campaign:
+    model: utm.campaign
+    fields:
+      name: name
+  country:
+    model: res.country
+    fields:
+      name: name
+      code: code

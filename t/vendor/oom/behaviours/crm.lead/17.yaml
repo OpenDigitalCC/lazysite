@@ -1,0 +1,46 @@
+# What crm.lead does when touched, Odoo 17. Read in the 17.0 source
+# (OCB origin/17.0, 2026-08-18, commit 13c1f01e3); 17 is not reachable
+# on this host (the live instance shares the host's one spare name with
+# 18), so no rule here is "live". Where 16 and 17 read alike the
+# evidence line names the 17.0 symbol.
+model: crm.lead
+series: 17
+effects:
+  - on: create
+    fields: [user_id]
+    effect: emails the assignee "you have been assigned" from the acting user, who must have an email address
+    requires: { acting_user_email: 1 }
+    suppress: { context: { mail_auto_subscribe_no_notify: true } }
+    evidence: source 17.0 mail_thread._message_auto_subscribe_notify (context key) and _message_compute_author (still raises without a sender email); not live on 17 (live on 16 and 18, 2026-10-13)
+  - on: write
+    fields: [user_id]
+    effect: emails the new assignee from the acting user, who must have an email address
+    requires: { acting_user_email: 1 }
+    suppress: { context: { mail_auto_subscribe_no_notify: true } }
+    evidence: source 17.0 mail_thread._message_auto_subscribe_notify; not live on 17 (live on 16 and 18, 2026-10-13)
+  - on: write
+    fields: [stage_id, team_id, street, city, zip, country_id, email_from, phone, source_id, medium_id, campaign_id, tag_ids, lang_id]
+    effect: re-scores automated_probability; a lead whose probability equals its automated score follows the new score. The fields that trigger it are stage_id, team_id and the list in the system parameter crm.pls_fields (the list here is the usual default)
+    evidence: source 17.0 crm_lead._compute_probabilities (depends on stage_id, team_id and _pls_get_safe_fields())
+  - on: call
+    method: action_unarchive
+    effect: clears lost_reason_id and re-scores the lead (the rule sits in toggle_active, which action_unarchive calls)
+    evidence: source 17.0 crm_lead.toggle_active
+  - on: write
+    fields: [website]
+    effect: normalises the value to http://...
+    evidence: source 17.0 crm_lead.create / write via res.partner._clean_website
+routes:
+  log_note: { via: mail.message.create, why: message_post refuses an author without an email address (_message_compute_author, 17.0); a note is created directly }
+  schedule_todo: { via: activity_schedule, args: { automated: false }, why: marks the activity as not automated, so the mixin's automated helpers (reschedule, feedback, unlink) leave it alone. The assignee-access check this once skipped is deprecated in 17.0 (mail.activity._check_access_assignation), so automated=false no longer lets Odoo refuse an assignee who cannot read the lead }
+# send_email: none. The composer's auto_delete_message field was
+# replaced by auto_delete / auto_delete_keep_log in 17.0
+# (mail.compose.message), so comms.send's composer call is 16 only.
+probes: [acting_user_email, "module:crm_iap_mine", "module:base_install_request"]
+invariants:
+  - name: probability-manual
+    text: no open lead's probability equals its automated_probability (the daily cron would re-score it)
+    check: count
+    model: crm.lead
+    domain: [["active", "=", true], ["probability", "=", { field: automated_probability }]]
+    expect: 0

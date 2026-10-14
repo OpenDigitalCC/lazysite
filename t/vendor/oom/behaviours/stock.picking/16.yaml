@@ -1,0 +1,41 @@
+# stock.picking, Odoo 16, from the dispatch catch-up on a live site
+# (filing 2026-10-13, rows SA1-SA9, SC3, SC6, SD2, SD3) and the OOM
+# stock pack's live runs of 2026-10-13.
+model: stock.picking
+series: 16
+effects:
+  - on: validate
+    effect: posts a chatter message as the acting user when a done quantity differs from the demand; the user must have an email address or validation rolls back
+    requires: { acting_user_email: 1 }
+    evidence: live 2026-10 (two failed dispatches, SA1); source stock_picking._action_done / mail_thread.message_post
+  - on: validate
+    effect: subscribes the validating user as a follower of the picking
+    evidence: live (SA2)
+  - on: validate
+    effect: refuses when a line would leave a package in two locations or move the same package content twice
+    evidence: live and clone (SA8); live 2026-10-13 (the OOM stock pack's mirror reversal on 16); source 16.0 stock_move._action_done counts every quant of the package with a quantity or a reservation, negative ones too (17.0 and later count only positive quantities)
+  - on: validate
+    effect: opens the immediate-transfer wizard when no line carries a done quantity, and that wizard fills qty_done from the reservation
+    evidence: source (SA9)
+  - on: validate
+    effect: opens the backorder wizard when done is below demand; process_cancel_backorder closes the rest
+    evidence: live (SC3)
+  - on: validate
+    effect: opens the expiry confirmation when a lot is past its expiration date; a lot whose expiration equals its create_date was never given one
+    evidence: live (SC4)
+  - on: call
+    method: action_confirm
+    effect: merges moves of one product with the same locations; ids created before confirming may no longer exist
+    evidence: clone (SA6)
+  - on: call
+    method: action_confirm
+    effect: reserves stock (the put-away strategy runs) unless the picking is an immediate transfer
+    evidence: clone (SA7)
+  - on: create
+    fields: [move_line_ids]
+    effect: a line added to a done picking becomes a stand-alone done move with no sale line; the goods sit in output on no delivery
+    evidence: live (SA3)
+routes:
+  validate_loop: { via: button_validate, why: returns True or a wizard action (res_model, context); create the wizard with that context and call process, until done (SD3); a wizard create returns a list of ids - unwrap before process (SD2) }
+  backdate: { via: write date_done; stock.move.date; stock.move.line.date, why: writable after validation, and what the reports read (SC6) }
+probes: [acting_user_email, "module:product_expiry", "module:stock_account"]

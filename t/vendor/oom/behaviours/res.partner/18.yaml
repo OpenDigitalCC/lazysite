@@ -1,0 +1,54 @@
+# res.partner, Odoo 18. Read in the 18.0 source (OCB 18.0, commit
+# 51565b7c7) for the sync machinery (as 16: no upstream sync) and met on
+# the local 18 instance (demo18.localhost, base_vat installed for the
+# run) by t/92-partner-behaviour-live.t on 2026-10-13, 28 checks. Reads
+# as 16 in every rule probed.
+model: res.partner
+series: 18
+effects:
+  - on: create
+    fields: [parent_id]
+    effect: a contact (type contact) created under a company takes the company's address at once, and any commercial field set on the company is copied onto it
+    evidence: live 2026-10-13 (address); source 18.0 res_partner._fields_sync
+  - on: write
+    fields: [parent_id]
+    effect: moving a partner under another company copies that company's commercial fields onto it and its descendants, and its address too when its type is contact
+    evidence: source 18.0 res_partner._fields_sync; not met live
+  - on: write
+    fields: [street, street2, zip, city, state_id, country_id]
+    effect: copies the address to every child of type contact; children of another type (delivery, invoice, other) keep their own. Nothing travels up
+    evidence: live 2026-10-13 (street on a company reached its contact, not its delivery address; street on the contact left the company's); source 18.0 res_partner._children_sync (no upstream step)
+  - on: write
+    fields: [vat, company_registry, industry_id]
+    effect: written on a commercial entity the value is copied to all its descendants that are not companies, replacing what they had. Written on a contact it stays on the contact and the company keeps its own
+    evidence: live 2026-10-13 (vat); source 18.0 res_partner._commercial_fields / _children_sync (no _synced_commercial_fields)
+  - on: write
+    fields: [vat, country_id]
+    effect: with base_vat installed a Tax ID that fails its country's check is refused at create and write, with or without a country on the partner; no_vat_validation skips the check
+    requires: { "module:base_vat": installed }
+    evidence: live 2026-10-13 (invalid BE number refused at write and create, with and without a country, accepted under no_vat_validation)
+  - on: write
+    fields: [is_company, company_type]
+    effect: company_type is only an interface to is_company; writing it writes is_company
+    evidence: live 2026-10-13
+  - on: write
+    fields: [is_company, parent_id]
+    effect: commercial_partner_id (stored) recomputes to the partner itself for a company or a partner with no parent, else to its parent's commercial partner
+    evidence: live 2026-10-13 (a contact's commercial partner is its company, a company's is itself)
+  - on: write
+    fields: [name, parent_id, is_company]
+    effect: display_name (stored) recomputes; a contact of a company reads "Company, Contact" and follows the company's rename
+    evidence: live 2026-10-13
+  - on: write
+    fields: [website]
+    effect: a value without a scheme is stored with http:// in front
+    evidence: live 2026-10-13; source 18.0 res_partner._clean_website
+  - on: write
+    fields: [email]
+    effect: email_normalized recomputes, lower-cased, empty when the text is not an address; a malformed address is stored as written
+    evidence: live 2026-10-13
+  - on: create
+    fields: [parent_id]
+    effect: the first contact created under a company with no address makes its own address the company's
+    evidence: source 18.0 res_partner._handle_first_contact_creation
+probes: ["module:base_vat", "module:contacts"]

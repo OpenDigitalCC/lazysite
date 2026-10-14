@@ -1,0 +1,56 @@
+# res.partner, Odoo 17. Read in the 17.0 source (OCB origin/17.0, commit
+# 13c1f01e3) for the sync machinery only: _fields_sync, _children_sync,
+# _commercial_fields, _handle_first_contact_creation and _clean_website
+# are there as in 16, and there is no upstream sync (no
+# _synced_commercial_fields, no "To UPSTREAM" step). 17 is not reachable
+# on this host, so nothing here is live; every other rule is inherited
+# from the 16 file and not read.
+model: res.partner
+series: 17
+effects:
+  - on: create
+    fields: [parent_id]
+    effect: a contact (type contact) created under a company takes the company's address at once, and any commercial field set on the company is copied onto it
+    evidence: source 17.0 res_partner._fields_sync; live on 16 and 18
+  - on: write
+    fields: [parent_id]
+    effect: moving a partner under another company copies that company's commercial fields onto it and its descendants, and its address too when its type is contact
+    evidence: source 17.0 res_partner._fields_sync
+  - on: write
+    fields: [street, street2, zip, city, state_id, country_id]
+    effect: copies the address to every child of type contact; children of another type keep their own. Nothing travels up
+    evidence: source 17.0 res_partner._children_sync (no upstream step); live on 16 and 18
+  - on: write
+    fields: [vat, company_registry, industry_id]
+    effect: written on a commercial entity the value is copied to all its descendants that are not companies, replacing what they had. Written on a contact it stays on the contact
+    evidence: source 17.0 res_partner._commercial_fields / _children_sync (no _synced_commercial_fields); live on 16 and 18
+  - on: write
+    fields: [vat, country_id]
+    effect: with base_vat installed a Tax ID that fails its country's check is refused at create and write; no_vat_validation skips the check
+    requires: { "module:base_vat": installed }
+    evidence: inherited from 16 and 18 (live there), 17.0 base_vat not read
+  - on: write
+    fields: [is_company, company_type]
+    effect: company_type is only an interface to is_company; writing it writes is_company
+    evidence: inherited from 16 and 18 (live there), not read in 17.0
+  - on: write
+    fields: [is_company, parent_id]
+    effect: commercial_partner_id (stored) recomputes to the partner itself for a company or a partner with no parent, else to its parent's commercial partner
+    evidence: inherited from 16 and 18 (live there), not read in 17.0
+  - on: write
+    fields: [name, parent_id, is_company]
+    effect: display_name (stored) recomputes; a contact of a company reads "Company, Contact"
+    evidence: inherited from 16 and 18 (live there), not read in 17.0
+  - on: write
+    fields: [website]
+    effect: a value without a scheme is stored with http:// in front
+    evidence: source 17.0 res_partner._clean_website; live on 16 and 18
+  - on: write
+    fields: [email]
+    effect: email_normalized recomputes, lower-cased, empty when the text is not an address; a malformed address is stored as written
+    evidence: inherited from 16 and 18 (live there), not read in 17.0
+  - on: create
+    fields: [parent_id]
+    effect: the first contact created under a company with no address makes its own address the company's
+    evidence: source 17.0 res_partner._handle_first_contact_creation
+probes: ["module:base_vat", "module:contacts"]

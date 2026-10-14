@@ -1,0 +1,42 @@
+# What crm.lead does when touched, Odoo 16. Every rule was met on a
+# live CRM (filing 2026-10-02, rows A1-A5, B2, C1-C3) and traced in
+# the 16.0 source; the evidence line says which.
+model: crm.lead
+series: 16
+effects:
+  - on: create
+    fields: [user_id]
+    effect: emails the assignee "you have been assigned" from the acting user, who must have an email address
+    requires: { acting_user_email: 1 }
+    suppress: { context: { mail_auto_subscribe_no_notify: true } }
+    evidence: live 2026-09-28 (the first import stopped on change 1); source mail_thread._message_auto_subscribe_notify
+  - on: write
+    fields: [user_id]
+    effect: emails the new assignee from the acting user, who must have an email address
+    requires: { acting_user_email: 1 }
+    suppress: { context: { mail_auto_subscribe_no_notify: true } }
+    evidence: live 2026-09-28; source mail_thread._message_auto_subscribe_notify
+  - on: write
+    fields: [stage_id, team_id, street, city, zip, country_id, email_from, phone, source_id, medium_id, campaign_id, tag_ids, lang_id]
+    effect: re-scores automated_probability; a lead whose probability equals its automated score follows the new score
+    evidence: live 2026-09-28 (two leads re-scored to 94.92 after an address write); source crm_lead._compute_probabilities
+  - on: call
+    method: action_unarchive
+    effect: clears lost_reason_id and re-scores the lead
+    evidence: source 16.0 crm_lead.toggle_active, which action_unarchive calls (2026-10-02; the symbol re-read 2026-10-13)
+  - on: write
+    fields: [website]
+    effect: normalises the value to http://...
+    evidence: live 2026-09-28 (read-back)
+routes:
+  log_note: { via: mail.message.create, why: message_post refuses an author without an email address (D1); a note is created directly }
+  schedule_todo: { via: activity_schedule, args: { automated: false }, why: lets Odoo refuse an assignee who cannot read the lead (B2) }
+  send_email: { via: mail.compose.message mass_mail, why: a lead without a partner is mailed through the composer in mass_mail mode (D3) }
+probes: [acting_user_email, "module:crm_iap_mine", "module:base_install_request"]
+invariants:
+  - name: probability-manual
+    text: no open lead's probability equals its automated_probability (the daily cron would re-score it)
+    check: count
+    model: crm.lead
+    domain: [["active", "=", true], ["probability", "=", { field: automated_probability }]]
+    expect: 0

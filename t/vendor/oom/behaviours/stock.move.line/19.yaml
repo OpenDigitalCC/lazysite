@@ -1,0 +1,15 @@
+# stock.move.line, Odoo 19. Read in the 19.0 source (OCB 19.0, commit
+# 8aa2b0a27) and met on the local 19 instance. As 17 and 18: one
+# quantity field and a picked flag.
+model: stock.move.line
+series: 19
+effects:
+  - on: write
+    fields: [quantity, picked]
+    effect: a line's quantity is its reservation until it is picked, so changing it re-reserves on the quants at once, and when the quantity would exceed what is free it releases another move's reservation (_free_reservation), so that move's picking shows less reserved
+    evidence: source 19.0 stock_move_line.write (_synchronize_quant, _free_reservation); live 2026-10-13 only in that the stock pack stages quantity with picked on 19 and validates
+  - on: create
+    fields: [package_id, result_package_id]
+    effect: the "package in two places" refusal counts only quants holding stock, so a line that leaves a negative quant behind in the package's other location does not make validation refuse (on 16 it does)
+    evidence: source 19.0 stock_move._action_done; live 2026-10-13 (the mirror reversal ACCEPTED on 19)
+probes: []

@@ -1,0 +1,84 @@
+# CRM pack, Odoo 19. As 16 and 18 but for one name: crm.lead has no
+# `mobile` field on 19 (core.check against the 16 profile on the local
+# 19 instance, 2026-10-13: "lead.mobile -> crm.lead.mobile" missing).
+# Read profiles/crm/16.yaml for the comments on each name.
+pack: crm
+series: 19
+models:
+  lead:
+    model: crm.lead
+    fields:
+      title: name
+      type: type
+      contact_name: contact_name
+      company: partner_name
+      job_title: function
+      email: email_from
+      phone: phone
+      mobile: ~                   # absent on 19
+      website: website
+      street: street
+      city: city
+      zip: zip
+      country: country_id
+      lang: lang_id
+      notes: description
+      tags: tag_ids
+      stage: stage_id
+      team: team_id
+      salesperson: user_id
+      partner: partner_id
+      source: source_id
+      medium: medium_id
+      campaign: campaign_id
+      priority: priority
+      expected_revenue: expected_revenue
+      probability: probability
+      deadline: date_deadline
+      active: active
+      created: create_date
+      creator: create_uid
+      updated: write_date
+      blacklisted: is_blacklisted
+  partner:
+    model: res.partner
+    fields:
+      name: name
+      email: email
+      vat: vat
+      street: street
+      parent: parent_id
+      is_company: is_company
+      commercial_partner: commercial_partner_id
+  tag:
+    model: crm.tag
+    fields:
+      name: name
+      color: color
+  stage:
+    model: crm.stage
+    fields:
+      name: name
+      sequence: sequence
+      won: is_won
+  team:
+    model: crm.team
+    fields:
+      name: name
+  source:
+    model: utm.source
+    fields:
+      name: name
+  medium:
+    model: utm.medium
+    fields:
+      name: name
+  campaign:
+    model: utm.campaign
+    fields:
+      name: name
+  country:
+    model: res.country
+    fields:
+      name: name
+      code: code

@@ -1,0 +1,16 @@
+# stock.quant, Odoo 18. The lot-total invariant of the 16 file, unchanged:
+# it is version-neutral, because stock.quant keeps quantity, product_id,
+# lot_id and location_id on every series (the stock profiles map them).
+model: stock.quant
+series: 18
+effects: []
+probes: []
+invariants:
+  - name: lot-totals-internal
+    text: the total of each product and lot over internal locations is unchanged by an apply (a move shifts stock between places; it creates and destroys none)
+    check: sum
+    model: stock.quant
+    domain: [["location_id.usage", "=", "internal"]]
+    field: quantity
+    group_by: [product_id, lot_id]
+    expect: unchanged

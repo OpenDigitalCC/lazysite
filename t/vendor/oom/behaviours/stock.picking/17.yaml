@@ -1,0 +1,46 @@
+# stock.picking, Odoo 17. Read in the 17.0 source (OCB origin/17.0,
+# commit 13c1f01e3); not reachable live on this host. What changed from
+# 16: no immediate-transfer wizard (stock.immediate.transfer is gone),
+# a move line carries one quantity and a picked flag, and the
+# package-in-two-places refusal counts only quants holding stock.
+model: stock.picking
+series: 17
+effects:
+  - on: validate
+    effect: posts a chatter message as the acting user when a done quantity differs from the demand; the user must have an email address or validation rolls back
+    requires: { acting_user_email: 1 }
+    evidence: source 17.0 stock_picking._log_less_quantities_than_expected / message_post and mail_thread._message_compute_author (raises without a sender email); not live on 17 (message_post without a sender email REFUSED live on 16 and 18, 2026-10-13)
+  - on: validate
+    effect: subscribes the validating user as a follower of the picking
+    evidence: source 17.0 stock_picking.button_validate (message_subscribe)
+  - on: validate
+    effect: validates from the reservation when no line is marked picked (with a quantity on a move and no picked flag anywhere, every move is marked picked; with no quantity at all it refuses "You cannot validate a transfer if no quantities are reserved"). No wizard asks; stage the quantities first
+    evidence: source 17.0 stock_picking._pre_action_done_hook and _sanity_check (no stock.immediate.transfer in 17.0)
+  - on: validate
+    effect: a draft picking is confirmed first and a move with no quantity takes its demand as the quantity
+    evidence: source 17.0 stock_picking.button_validate
+  - on: validate
+    effect: refuses when a result package would hold stock in two locations; only quants with a positive quantity count, so a negative counterpart no longer trips it (16 counted any quant with a quantity or reservation)
+    evidence: source 17.0 stock_move._action_done (float_compare(q.quantity, 0) > 0); not live on 17
+  - on: validate
+    effect: opens the backorder wizard when done is below demand; process_cancel_backorder closes the rest
+    evidence: source 17.0 stock_picking._check_backorder / _action_generate_backorder_wizard
+  - on: validate
+    effect: opens the expiry confirmation when a lot is past its expiration date
+    evidence: source 17.0 product_expiry stock_picking._pre_action_done_hook (lot.product_expiry_alert)
+  - on: call
+    method: action_confirm
+    effect: merges moves of one product with the same locations; ids created before confirming may no longer exist
+    evidence: source 17.0 stock_move._action_confirm (merge=True) / _merge_moves
+  - on: call
+    method: action_confirm
+    effect: reserves stock (the put-away strategy runs)
+    evidence: inherited from 16 (clone, SA7), 17.0 reservation path not traced
+  - on: create
+    fields: [move_line_ids]
+    effect: a line added to a done picking becomes a stand-alone done move with no sale line; the goods sit in output on no delivery
+    evidence: inherited from 16 (live, SA3), not read in 17.0
+routes:
+  validate_loop: { via: button_validate, why: returns True or a wizard action (res_model, context); create the wizard with that context and call process, until done. The immediate-transfer wizard no longer appears; the backorder and expiry wizards still do (17.0) }
+  backdate: { via: write date_done; stock.move.date; stock.move.line.date, why: inherited from 16 (SC6), not read in 17.0 }
+probes: [acting_user_email, "module:product_expiry", "module:stock_account"]

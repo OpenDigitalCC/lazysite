@@ -1,0 +1,14 @@
+# stock.move.line, Odoo 18. Read in the 18.0 source (OCB 18.0, commit
+# 51565b7c7). As 17: one quantity field and a picked flag.
+model: stock.move.line
+series: 18
+effects:
+  - on: write
+    fields: [quantity, picked]
+    effect: a line's quantity is its reservation until it is picked, so changing it re-reserves on the quants at once, and when the quantity would exceed what is free it releases another move's reservation (_free_reservation), so that move's picking shows less reserved; on a line of a done move the write moves the quants straight away
+    evidence: source 18.0 stock_move_line.write (_synchronize_quant action="reserved", _free_reservation, and the post-write _synchronize_quant for done lines); not met live on 18
+  - on: create
+    fields: [package_id, result_package_id]
+    effect: a partial take from a package must arrive loose (result_package_id false) or the package ends up in two places and validation refuses; the refusal counts only quants holding stock, so a negative counterpart does not trip it
+    evidence: source 18.0 stock_move._action_done; the 16 rule live (SA8, SE2, 2026-10-13); not live on 18
+probes: []

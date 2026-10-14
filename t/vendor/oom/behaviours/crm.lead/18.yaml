@@ -1,0 +1,44 @@
+# What crm.lead does when touched, Odoo 18. Read in the 18.0 source
+# (OCB 18.0, 2026-08-18, commit 51565b7c7) and met on the local 18
+# instance (demo18.localhost) on 2026-10-13 by tmp/probe-noemail.pl.
+model: crm.lead
+series: 18
+effects:
+  - on: create
+    fields: [user_id]
+    effect: emails the assignee "you have been assigned" from the acting user, who must have an email address
+    requires: { acting_user_email: 1 }
+    suppress: { context: { mail_auto_subscribe_no_notify: true } }
+    evidence: live 2026-10-13 on 18 (a lead created for another salesperson by an admin with no email was REFUSED "Unable to send message, please configure the sender's email address"; the same create under mail_auto_subscribe_no_notify was ACCEPTED); source 18.0 mail_thread._message_auto_subscribe_notify
+  - on: write
+    fields: [user_id]
+    effect: emails the new assignee from the acting user, who must have an email address
+    requires: { acting_user_email: 1 }
+    suppress: { context: { mail_auto_subscribe_no_notify: true } }
+    evidence: source 18.0 mail_thread._message_auto_subscribe_notify; the create case is live on 18 (above), the write case is not separately probed
+  - on: write
+    fields: [stage_id, team_id, street, city, zip, country_id, email_from, phone, source_id, medium_id, campaign_id, tag_ids, lang_id]
+    effect: re-scores automated_probability; a lead whose probability equals its automated score follows the new score. The fields that trigger it are stage_id, team_id and the list in the system parameter crm.pls_fields (the list here is the usual default)
+    evidence: source 18.0 crm_lead._compute_probabilities (depends on stage_id, team_id and _pls_get_safe_fields()); not re-scored live on 18
+  - on: call
+    method: action_unarchive
+    effect: clears lost_reason_id and re-scores the lead (the rule sits in toggle_active, which action_unarchive calls)
+    evidence: source 18.0 crm_lead.toggle_active
+  - on: write
+    fields: [website]
+    effect: normalises the value to http://...
+    evidence: source 18.0 crm_lead.create / write via res.partner._clean_website
+routes:
+  log_note: { via: mail.message.create, why: message_post refuses an author without an email address (live 2026-10-13 on 18: REFUSED); a note is created directly }
+  schedule_todo: { via: activity_schedule, args: { automated: false }, why: marks the activity as not automated, so the mixin's automated helpers (reschedule, feedback, unlink) leave it alone. The assignee-access check this once skipped is gone from mail.activity in 18.0 (no _check_access_assignation), so automated=false no longer lets Odoo refuse an assignee who cannot read the lead }
+# send_email: none. The composer's auto_delete_message field was
+# replaced by auto_delete / auto_delete_keep_log in 17.0 and 18.0 has
+# the same (mail.compose.message), so comms.send's composer call is 16 only.
+probes: [acting_user_email, "module:crm_iap_mine", "module:base_install_request"]
+invariants:
+  - name: probability-manual
+    text: no open lead's probability equals its automated_probability (the daily cron would re-score it)
+    check: count
+    model: crm.lead
+    domain: [["active", "=", true], ["probability", "=", { field: automated_probability }]]
+    expect: 0

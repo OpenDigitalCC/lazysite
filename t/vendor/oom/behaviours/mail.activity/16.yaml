@@ -1,0 +1,23 @@
+# mail.activity, Odoo 16 (filing 2026-10-02, rows A4, B2, C3).
+model: mail.activity
+series: 16
+effects:
+  - on: create
+    fields: [user_id]
+    effect: emails "activity assigned" to the assignee from the acting user, who must have an email address
+    requires: { acting_user_email: 1 }
+    suppress: { context: { mail_activity_quick_update: true } }
+    evidence: source mail_activity.create (2026-10-02); live 2026-10-07 (quick_update context in crm.activity)
+  - on: write
+    fields: [user_id]
+    effect: emails the new assignee from the acting user
+    requires: { acting_user_email: 1 }
+    suppress: { context: { mail_activity_quick_update: true } }
+    evidence: source mail_activity.write (2026-10-02)
+  - on: call
+    method: action_feedback
+    effect: marks the activity done, posts the feedback on the record's chatter and deletes the activity; the next activity of the type's chain is created
+    evidence: source mail_activity.action_feedback; live 2026-10-13 (crm.activity done)
+routes:
+  schedule: { via: activity_schedule, args: { automated: false }, why: the assignee-access check is skipped when automated (B2) }
+probes: [acting_user_email]

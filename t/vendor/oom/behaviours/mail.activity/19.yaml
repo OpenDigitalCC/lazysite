@@ -1,0 +1,27 @@
+# mail.activity, Odoo 19. Read in the 19.0 source (OCB 19.0, commit
+# 8aa2b0a27); the local 19 instance was reached on 2026-10-13 but no
+# activity was assigned there, so nothing in this file is "live".
+model: mail.activity
+series: 19
+effects:
+  - on: create
+    fields: [user_id]
+    effect: emails "activity assigned" to the assignee when the assignee is not the acting user; the acting user needs no email address
+    suppress: { context: { mail_activity_quick_update: true } }
+    evidence: source 19.0 mail_activity.create and mail_thread._message_compute_author (no longer raises); the same author rule is live 2026-10-13 on 19 for a lead note and a lead assignment, not for an activity
+  - on: write
+    fields: [user_id]
+    effect: emails the new assignee when it is not the acting user
+    suppress: { context: { mail_activity_quick_update: true } }
+    evidence: source 19.0 mail_activity.write
+  - on: create
+    fields: [user_id]
+    effect: does not refuse an assignee who cannot read the record (16 did, for a non-automated activity)
+    evidence: source 19.0 mail_activity (no _check_access_assignation)
+  - on: call
+    method: action_feedback
+    effect: marks the activity done, posts the feedback on the record's chatter and deletes the activity; the next activity of the type's chain is created
+    evidence: source 19.0 mail_activity.action_feedback / _action_done; inherited from 16 for the chain, not traced
+routes:
+  schedule: { via: activity_schedule, args: { automated: false }, why: marks the activity as not automated so the mixin's automated helpers leave it alone (activity_search takes only_automated in 19.0); the assignee-access check it once skipped is gone }
+probes: []

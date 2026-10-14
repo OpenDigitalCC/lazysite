@@ -257,6 +257,8 @@
     "^tools/precheck-areas\\.pl$",
     "^tools/suite\\.sh$",
     "^tools/overnight\\.sh$",
+    "^tools/ext-compat\\.sh$",
+    "^tools/vendor-oom\\.sh$",
     "^tools/integration\\.pl$",
     "^tools/gate-main\\.sh$",
     "^tools/release-material\\.pl$",

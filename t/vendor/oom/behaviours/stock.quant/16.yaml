@@ -1,0 +1,16 @@
+# stock.quant, Odoo 16. Holds the invariant the stock pack's tests used
+# to assert in the test file only (filing 2026-10-13, SE3). The
+# invariant is version-neutral and the later files carry it unchanged.
+model: stock.quant
+series: 16
+effects: []
+probes: []
+invariants:
+  - name: lot-totals-internal
+    text: the total of each product and lot over internal locations is unchanged by an apply (a move shifts stock between places; it creates and destroys none)
+    check: sum
+    model: stock.quant
+    domain: [["location_id.usage", "=", "internal"]]
+    field: quantity
+    group_by: [product_id, lot_id]
+    expect: unchanged

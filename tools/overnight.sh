@@ -109,6 +109,10 @@ if [ "$RC" = 3 ]; then
   stamp "nightly suite: exit $? (log in $STATE/tmp/nightly/$DAY.log)"
 fi
 
+# SM1081: the advisory compatibility tier - the Odoo tests against the installed OOM and OOM's tree. It
+# never fails the night and never touches the gate; a failing target files one inbox note.
+bash "$ROOT/tools/ext-compat.sh" --night 8>&- </dev/null || true
+
 find "$D" -maxdepth 1 -type f -mtime +14 ! -name queue.txt ! -name .runner.lock -delete
 stamp "overnight run finished"
 exit 0

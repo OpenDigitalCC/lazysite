@@ -15,8 +15,7 @@ use OdooTest ();
 BEGIN {
     my $lib = OdooTest::oom_lib();
     if ( -f "$lib/Odoo/Ops.pm" ) {
-        ( my $t = $lib ) =~ s{/lib\z}{/t/lib};
-        unshift @INC, $lib, $t;
+        unshift @INC, $lib, OdooTest::oom_test_lib();
         OdooTest::pretend_released();
         no warnings 'once';
         $Lazysite::Odoo::TRANSPORT = OdooTest::fake_shop();

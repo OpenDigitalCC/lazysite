@@ -1,0 +1,27 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Odoo-OOM
+Upstream-Contact: Stuart Mackintosh <sjm@opendigital.cc>
+
+Files: *
+Copyright: 2026 Stuart Mackintosh <sjm@opendigital.cc>
+License: Artistic-1.0-Perl or GPL-1+
+Comment: Independent client of Odoo's published external RPC API;
+ contains no Odoo code and links against nothing from Odoo. Design
+ lineage (concepts only) from OpenERP-OOM, which OpusVL published
+ under the same terms as Perl itself.
+
+License: Artistic-1.0-Perl
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the Artistic License, which comes with Perl.
+ .
+ On Debian systems, the complete text of the Artistic License can be
+ found in `/usr/share/common-licenses/Artistic'.
+
+License: GPL-1+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 1, or (at your option)
+ any later version.
+ .
+ On Debian systems, the complete text of version 1 of the GNU General
+ Public License can be found in `/usr/share/common-licenses/GPL-1'.

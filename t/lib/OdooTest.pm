@@ -3,15 +3,24 @@ package OdooTest;
 # SM747: what the Odoo extension's tests share - where OOM is, a site with the
 # extension switched on and configured, and the test operation pack.
 #
-# OOM IS LOADED FROM ITS TREE, on a library path, because the deb that will
-# carry the Ops layer (libodoo-oom-perl 0.02, filed to OOM 2026-10-12) does not
-# exist yet. LAZYSITE_OOM_LIB overrides the default; a host without the tree
-# SKIPS, cleanly and by name, as t/lint/207 does for the same tree.
+# OOM IS LOADED FROM A PINNED SNAPSHOT INSIDE THIS REPOSITORY, t/vendor/oom/
+# (SM1081): its released library, its test doubles, its data and its spec, taken
+# from one commit by tools/vendor-oom.sh and held to a MANIFEST by t/lint/261.
+# Release manager, 2026-10-14: "it isn't intended that oom changes will prevent a
+# lazysite build ... we can't be testing against odoo to run a lazysite, it's
+# just an extension, not core." The gate failed three times on 2026-10-13 and 14
+# for changes in OOM's working tree and in the host's perl5 directory, and
+# neither is read by a test any more (t/lint/262).
 #
-# THE TREE SAYS 0.01. The engine refuses below 0.02, which is the point of the
-# declaration, so a test that needs OOM to RUN raises $Odoo::Ops::VERSION to
-# the version the deb will carry - `pretend_released()` - and says so. The
-# refusal of 0.01 itself is tested without it.
+# LAZYSITE_OOM_LIB overrides the library, and LAZYSITE_OOM_TEST_LIB the test
+# doubles, for ONE purpose: tools/ext-compat.sh, the advisory compatibility tier,
+# which runs these same tests against the installed deb and against OOM's tree.
+# Nothing in the gate sets them.
+#
+# THE SNAPSHOT IS A RELEASED 0.09, which satisfies the engine's declared minimum,
+# so nothing needs to pretend a version any more (`pretend_released` is kept for
+# the tests that call it and does nothing). The refusal of an OOM that is too old
+# is tested with old_oom_lib(), a stand-in that says 0.01.
 #
 # NO NETWORK, EVER. OOM's Context takes an injected transport for tests
 # (Odoo::Ops::Context->new(transport => ...)), and the fake Odoo used here is
@@ -22,7 +31,7 @@ use Exporter   qw(import);
 use File::Path qw(make_path);
 use FindBin;
 
-our @EXPORT_OK = qw(oom_lib oom_or_skip pretend_released odoo_site enable_odoo write_conf
+our @EXPORT_OK = qw(oom_lib oom_test_lib vendor_dir oom_or_skip pretend_released odoo_site enable_odoo write_conf
     fake_shop shop_namespace bind set_key shop_ready quiet);
 
 # A binding is a handler of type odoo; saved through the handler contract, as
@@ -79,7 +88,15 @@ sub quiet {
     return ( $log, @r );
 }
 
-sub oom_lib { return $ENV{LAZYSITE_OOM_LIB} // '/srv/projects/odoo/oom/lib' }
+# The snapshot's directory, found from this file: t/lib/OdooTest.pm -> t/vendor/oom.
+sub vendor_dir {
+    require Cwd;
+    require File::Basename;
+    return Cwd::abs_path( File::Basename::dirname( Cwd::abs_path(__FILE__) ) . '/../vendor/oom' );
+}
+
+sub oom_lib { return $ENV{LAZYSITE_OOM_LIB} // vendor_dir() . '/lib' }
+
 
 # A lib holding an Odoo::Ops that says 0.01 and nothing else: the version the
 # extension refuses, stood up here so that refusal is tested whatever version
@@ -94,7 +111,12 @@ sub old_oom_lib {
     return $d;
 }
 
-sub _oom_test_lib { ( my $t = oom_lib() ) =~ s{/lib\z}{/t/lib}; return $t }
+# OOM's test doubles (Odoo::Test::FakeOdoo and the fixtures; the deb does not ship them).
+sub oom_test_lib {
+    return $ENV{LAZYSITE_OOM_TEST_LIB} if defined $ENV{LAZYSITE_OOM_TEST_LIB};
+    return vendor_dir() . '/t/lib';
+}
+
 
 # Puts OOM (and its test doubles) on @INC, or skips the whole file.
 sub oom_or_skip {
@@ -103,14 +125,15 @@ sub oom_or_skip {
         require Test::More;
         Test::More::plan( skip_all => "OOM is not at $lib (set LAZYSITE_OOM_LIB)" );
     }
-    unshift @INC, $lib, _oom_test_lib();
+    unshift @INC, $lib, oom_test_lib();
     return $lib;
 }
 
+# Kept for the tests that call it. The snapshot is a released OOM (see the header), so
+# there is no version to raise: raising it would be a test saying something its
+# library does not.
 sub pretend_released {
     require Odoo::Ops;
-    no warnings 'once';
-    $Odoo::Ops::VERSION = '0.02';
     return;
 }
 

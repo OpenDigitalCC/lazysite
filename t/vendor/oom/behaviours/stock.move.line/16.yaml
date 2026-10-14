@@ -1,0 +1,13 @@
+# stock.move.line, Odoo 16 (filing 2026-10-13, rows SA5, SA8, SE2).
+model: stock.move.line
+series: 16
+effects:
+  - on: write
+    fields: [qty_done]
+    effect: staging a done quantity on stock reserved by another move releases that move's reservation when validated; its picking then shows less reserved
+    evidence: live (SA5)
+  - on: create
+    fields: [package_id, result_package_id]
+    effect: a partial take from a package must arrive loose (result_package_id false) or the package ends up in two places and validation refuses
+    evidence: clone, then live (SA8, SE2); live 2026-10-13 (stock.net holds split-package)
+probes: []

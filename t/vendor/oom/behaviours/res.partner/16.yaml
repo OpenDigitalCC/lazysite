@@ -1,0 +1,72 @@
+# res.partner, Odoo 16: the second model taken through the learning
+# sequence of the filing (read the create / write overrides, computed and
+# inverse fields and constraints in odoo/addons/base/models/res_partner.py
+# 16.0, then meet two or more of them live). Source is OCB 16.0
+# (commit 2394ec6e3); "live 2026-10-13" is t/92-partner-behaviour-live.t
+# on the local 16 instance (demo16.localhost, base_vat installed for the
+# run), 28 checks.
+model: res.partner
+series: 16
+effects:
+  - on: create
+    fields: [parent_id]
+    effect: a contact (type contact) created under a company takes the company's address at once (street, street2, zip, city, state, country), and any commercial field set on the company (vat, company_registry, industry) is copied onto it
+    evidence: live 2026-10-13 (address); source 16.0 res_partner._fields_sync (1a, 1b) / _commercial_sync_from_company
+  - on: write
+    fields: [parent_id]
+    effect: moving a partner under another company copies that company's commercial fields onto it and its descendants, and its address too when its type is contact
+    evidence: source 16.0 res_partner._fields_sync; not met live
+  - on: write
+    fields: [street, street2, zip, city, state_id, country_id]
+    effect: copies the address to every child of type contact; children of another type (delivery, invoice, other) keep their own. Nothing travels up, so an address written on a contact stays on the contact
+    evidence: live 2026-10-13 (street on a company reached its contact, not its delivery address; street on the contact left the company's); source 16.0 res_partner._children_sync, update_address
+  - on: write
+    fields: [vat, company_registry, industry_id]
+    effect: written on a commercial entity (a company, or a partner with no parent) the value is copied to all its descendants that are not companies, replacing what they had. Written on a contact it stays on the contact and the company keeps its own
+    evidence: live 2026-10-13 (vat; the contact's own value was replaced by the company's, the delivery address too, and a vat written on the contact never reached the company); source 16.0 res_partner._commercial_sync_to_children, _commercial_fields
+  - on: write
+    fields: [vat, country_id]
+    effect: with base_vat installed a Tax ID that fails its country's check is refused (ValidationError naming the number) at create and write. The country is the commercial partner's; with none, the country prefix of the number is used. The context key no_vat_validation skips the check
+    requires: { "module:base_vat": installed }
+    evidence: live 2026-10-13 (invalid BE number refused at write and create, with and without a country on the partner, accepted under no_vat_validation); source 16.0 base_vat res_partner.check_vat (constrains vat, country_id)
+  - on: create
+    fields: [company_type]
+    effect: company_type is only an interface to is_company (computed from it, inverse writes it), company being true and person false. Do not use it in logic
+    evidence: live 2026-10-13 (create with person leaves is_company false; write company sets it); source 16.0 res_partner._compute_company_type / _write_company_type
+  - on: write
+    fields: [is_company, company_type]
+    effect: writing company_type writes is_company
+    evidence: live 2026-10-13; source 16.0 res_partner._write_company_type
+  - on: write
+    fields: [is_company, parent_id]
+    effect: commercial_partner_id (stored) recomputes to the partner itself for a company or a partner with no parent, else to its parent's commercial partner
+    evidence: live 2026-10-13 (a contact's commercial partner is its company, a company's is itself); source 16.0 res_partner._compute_commercial_partner
+  - on: write
+    fields: [name, parent_id, is_company]
+    effect: display_name (stored) recomputes; a contact of a company reads "Company, Contact" and follows the company's rename
+    evidence: live 2026-10-13; source 16.0 res_partner._get_name / _get_contact_name, _compute_display_name
+  - on: write
+    fields: [website]
+    effect: a value without a scheme is stored with http:// in front
+    evidence: live 2026-10-13; source 16.0 res_partner._clean_website (create and write)
+  - on: write
+    fields: [email]
+    effect: email_normalized (stored, from mail.thread.blacklist) recomputes, lower-cased, and is empty when the text is not an address. No check refuses a malformed address, which is stored as written
+    evidence: live 2026-10-13 (a text that is not an address accepted, normalised to nothing); source 16.0 mail_thread_blacklist._compute_email_normalized (no constraint on email in base or mail)
+  - on: create
+    fields: [parent_id]
+    effect: the first contact created under a company that has no address, with an address of its own, makes that address the company's
+    evidence: source 16.0 res_partner._handle_first_contact_creation; not met live
+  - on: create
+    fields: [parent_id]
+    effect: with a parent and no lang given, the contact takes the parent's language
+    evidence: source 16.0 res_partner.create (_onchange_parent_id_for_lang); not met live
+  - on: write
+    fields: [parent_id]
+    effect: company_name is cleared when a parent is set
+    evidence: source 16.0 res_partner.create / write; not met live
+  - on: write
+    fields: [active]
+    effect: archiving a partner that is linked to an active user is refused
+    evidence: source 16.0 res_partner.write (RedirectWarning / ValidationError listing the users); not met live
+probes: ["module:base_vat", "module:contacts"]

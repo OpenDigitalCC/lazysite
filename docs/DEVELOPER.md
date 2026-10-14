@@ -225,6 +225,34 @@ as **subprocesses** (`open3`/`open2`) with CGI env, or in-process via a
 `LOAD_ONLY` hook. `t/lib/TestHelper.pm` has the fixtures (`setup_dav_site`,
 `run_processor`, …). `tools/bench.pl --check` is the performance gate.
 
+## The Odoo extension's tests and OOM (SM1081)
+
+The Odoo extension uses OOM (`libodoo-oom-perl`), which is another project and changes on its
+own schedule. **An OOM change must never stop a lazysite build** (release manager,
+2026-10-14: "it isn't intended that oom changes will prevent a lazysite build ... we can't be
+testing against odoo to run a lazysite, it's just an extension, not core"). So:
+
+- **Every Odoo test runs on a pinned snapshot of OOM inside the repository**, `t/vendor/oom/`:
+  its library, its test doubles, its data and its specification, taken from one released commit.
+  `t/lint/261` holds it to its `MANIFEST`, so it never changes by accident; `t/lint/262` fails
+  any file under `t/`, `lib/` or `tools/` that names OOM's tree or reads OOM from the host's
+  perl5 directory. Nothing in the gate reads `/srv/projects/odoo` or an installed OOM.
+- **Adopting a newer OOM is one reviewable commit**: `tools/vendor-oom.sh [--deb FILE] COMMIT`
+  refreshes `t/vendor/oom/`, rewrites the `MANIFEST`, and prints what the SM747 filing's copy
+  of the specification must now say. Update the filing in the same commit; `t/lint/207`
+  fails until the filing and the snapshot agree. Run the Odoo tests, and the compatibility
+  tier below, before proposing it.
+- **The compatibility tier is advisory**: `tools/ext-compat.sh` runs the same tests against the
+  installed deb and against OOM's tree, one line per target. It always exits 0 and is never the
+  gate. `tools/overnight.sh` runs it after the nightly suite and a failing target files one
+  short note in the inbox. `LAZYSITE_OOM_LIB` and `LAZYSITE_OOM_TEST_LIB` exist for it alone.
+- **Live Odoo is never in an automatic run.** `tmp/live/odoo-live.pl` is manual: read-only unless
+  `--writes` is given, and `--writes` refuses to run unless its config says
+  `test_database: yes`. It never prints a password, key or session id.
+- The lazysite packages do not depend on OOM: `debian/control` has no `libodoo-oom-perl` in any
+  relation. The extension declares it (`owns.deps`) and refuses, by name, when it is missing or
+  older than 0.03.
+
 ## Where to start a change
 
 1. Read the relevant `docs/feature-requests/SM0xx-*.md` (the design of record).

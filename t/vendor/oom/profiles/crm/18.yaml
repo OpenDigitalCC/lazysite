@@ -1,0 +1,86 @@
+# CRM pack, Odoo 18. The 16 profile validated unchanged on the local 18
+# instance on 2026-10-13 (core.check --set pack=crm: 8 models, 43
+# fields, none missing; 9 models and 50 with the partner model added
+# the same day); this file exists so the loader does not warn that it
+# is borrowing the 16 one. Read profiles/crm/16.yaml for the
+# comments on each name.
+pack: crm
+series: 18
+models:
+  lead:
+    model: crm.lead
+    fields:
+      title: name
+      type: type
+      contact_name: contact_name
+      company: partner_name
+      job_title: function
+      email: email_from
+      phone: phone
+      mobile: mobile
+      website: website
+      street: street
+      city: city
+      zip: zip
+      country: country_id
+      lang: lang_id
+      notes: description
+      tags: tag_ids
+      stage: stage_id
+      team: team_id
+      salesperson: user_id
+      partner: partner_id
+      source: source_id
+      medium: medium_id
+      campaign: campaign_id
+      priority: priority
+      expected_revenue: expected_revenue
+      probability: probability
+      deadline: date_deadline
+      active: active
+      created: create_date
+      creator: create_uid
+      updated: write_date
+      blacklisted: is_blacklisted
+  partner:
+    model: res.partner
+    fields:
+      name: name
+      email: email
+      vat: vat
+      street: street
+      parent: parent_id
+      is_company: is_company
+      commercial_partner: commercial_partner_id
+  tag:
+    model: crm.tag
+    fields:
+      name: name
+      color: color
+  stage:
+    model: crm.stage
+    fields:
+      name: name
+      sequence: sequence
+      won: is_won
+  team:
+    model: crm.team
+    fields:
+      name: name
+  source:
+    model: utm.source
+    fields:
+      name: name
+  medium:
+    model: utm.medium
+    fields:
+      name: name
+  campaign:
+    model: utm.campaign
+    fields:
+      name: name
+  country:
+    model: res.country
+    fields:
+      name: name
+      code: code

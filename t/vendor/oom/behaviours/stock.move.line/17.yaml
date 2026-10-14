@@ -1,0 +1,16 @@
+# stock.move.line, Odoo 17. Read in the 17.0 source (OCB origin/17.0,
+# commit 13c1f01e3); not reachable live on this host. What changed
+# from 16: qty_done and reserved_uom_qty are one field, quantity, with a
+# picked flag beside it.
+model: stock.move.line
+series: 17
+effects:
+  - on: write
+    fields: [quantity, picked]
+    effect: a line's quantity is its reservation until it is picked, so changing it re-reserves on the quants at once, and when the quantity would exceed what is free it releases another move's reservation (_free_reservation), so that move's picking shows less reserved
+    evidence: source 17.0 stock_move_line.write (_synchronize_quant, _free_reservation); the 16 rule (SA5, live) read as qty_done; the 17 behaviour is not met live
+  - on: create
+    fields: [package_id, result_package_id]
+    effect: a partial take from a package must arrive loose (result_package_id false) or the package ends up in two places and validation refuses; on 17 the refusal counts only quants holding stock, so a negative counterpart does not trip it
+    evidence: source 17.0 stock_move._action_done; the 16 rule live (SA8, SE2, 2026-10-13); not live on 17
+probes: []

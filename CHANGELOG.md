@@ -207,6 +207,16 @@ Archive
   `t/lint/257` refuses a scalar after an array or hash in a `my`/`our`/`state`
   list with an assignment; no other instance in the tree. t/unit/manager/335,
   t/lint/257.
+- SM1081 (PENDING) **OOM's changes no longer gate a lazysite build.** The release gate failed
+  three times on 2026-10-13 and 14 for changes in OOM's working tree and in whichever OOM the
+  host had. The Odoo extension's tests now run on a pinned snapshot of OOM 0.09 held in
+  `t/vendor/oom` (library, test doubles, data, specification; held to a MANIFEST by
+  `t/lint/261`), `t/lint/207` compares SM747's filed specification with the vendored copy and
+  has no skip, and `t/lint/262` fails any test, library or tool that names OOM's tree or the
+  host's perl5 directory. `tools/vendor-oom.sh` adopts a newer OOM as one commit that also
+  updates the filing. `tools/ext-compat.sh` runs the same tests against the installed deb and
+  OOM's tree as an advisory tier from the overnight run: it always exits 0 and files an inbox
+  note on a failure. The lazysite packages do not depend on OOM. t/tools/154-155.
 - odoo-extension (PENDING) **applying an Odoo plan works with OOM's approval gate (SM747).**
   OOM's runner now refuses to apply a plan nobody approved. A confirm is recorded as
   its maker's approval, and an `apply: immediate` binding as the binding's, each against

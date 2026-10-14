@@ -1,0 +1,132 @@
+# Stock pack, Odoo 17 and later (19 validated live 2026-10-13; 17 and
+# 18 pending). Differences from 16: the move line carries one quantity
+# and a picked flag (reserved_uom_qty and qty_done are gone), the move's
+# done quantity is `quantity`, and the immediate-transfer wizard no
+# longer exists (a picking without done quantities validates from its
+# reservation).
+pack: stock
+series: 17
+models:
+  quant:
+    model: stock.quant
+    fields:
+      product: product_id
+      lot: lot_id
+      location: location_id
+      package: package_id
+      quantity: quantity
+      reserved: reserved_quantity
+      inventory_quantity: inventory_quantity
+      company: company_id
+  location:
+    model: stock.location
+    fields:
+      name: name
+      complete_name: complete_name
+      usage: usage
+      parent: location_id
+      active: active
+      warehouse: warehouse_id
+  package:
+    model: stock.quant.package
+    fields:
+      name: name
+      location: location_id
+  lot:
+    model: stock.lot
+    fields:
+      name: name
+      product: product_id
+      expiration: expiration_date
+      created: create_date
+  picking:
+    model: stock.picking
+    fields:
+      name: name
+      origin: origin
+      state: state
+      type: picking_type_id
+      source: location_id
+      destination: location_dest_id
+      partner: partner_id
+      done_at: date_done
+      scheduled: scheduled_date
+      immediate: ~
+      moves: move_ids
+      move_lines: move_line_ids
+      sale: sale_id
+      note: note
+      created: create_date
+  picking_type:
+    model: stock.picking.type
+    fields:
+      name: name
+      code: code
+      reservation_method: reservation_method
+      warehouse: warehouse_id
+      source: default_location_src_id
+      destination: default_location_dest_id
+  move:
+    model: stock.move
+    fields:
+      name: name
+      product: product_id
+      demand: product_uom_qty
+      done: quantity
+      uom: product_uom
+      source: location_id
+      destination: location_dest_id
+      picking: picking_id
+      state: state
+      date: date
+      sale_line: sale_line_id
+      origin_moves: move_orig_ids
+      dest_moves: move_dest_ids
+      move_lines: move_line_ids
+      reference: reference
+  move_line:
+    model: stock.move.line
+    fields:
+      product: product_id
+      lot: lot_id
+      lot_name: lot_name
+      package: package_id
+      result_package: result_package_id
+      source: location_id
+      destination: location_dest_id
+      reserved: ~
+      done: quantity
+      picked: picked
+      move: move_id
+      picking: picking_id
+      state: state
+      date: date
+      reference: reference
+      created: create_date
+      creator: create_uid
+      updated: write_date
+      updater: write_uid
+  sale_line:
+    model: sale.order.line
+    fields:
+      order: order_id
+      product: product_id
+      ordered: product_uom_qty
+      delivered: qty_delivered
+      invoiced: qty_invoiced
+  order:
+    model: sale.order
+    fields:
+      name: name
+      state: state
+      partner: partner_id
+      date: date_order
+      pickings: picking_ids
+      invoices: invoice_ids
+      lines: order_line
+  backorder_wizard:
+    model: stock.backorder.confirmation
+    fields:
+      pickings: pick_ids
+  # no immediate_wizard model on 17+: an operation checks `grep { $_ eq
+  # 'immediate_wizard' } $profile->models` before speaking of it

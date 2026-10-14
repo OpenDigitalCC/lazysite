@@ -1,0 +1,29 @@
+# mail.activity, Odoo 17. Read in the 17.0 source (OCB origin/17.0,
+# commit 13c1f01e3); not reachable live on this host. What changed
+# from 16: the assignee-access check is deprecated and no longer called.
+model: mail.activity
+series: 17
+effects:
+  - on: create
+    fields: [user_id]
+    effect: emails "activity assigned" to the assignee when the assignee is not the acting user; the acting user must have an email address
+    requires: { acting_user_email: 1 }
+    suppress: { context: { mail_activity_quick_update: true } }
+    evidence: source 17.0 mail_activity.create (notifies activities whose user_id differs from the acting user, unless mail_activity_quick_update) and mail_thread._message_compute_author (raises without a sender email); not live on 17
+  - on: write
+    fields: [user_id]
+    effect: emails the new assignee when it is not the acting user
+    requires: { acting_user_email: 1 }
+    suppress: { context: { mail_activity_quick_update: true } }
+    evidence: source 17.0 mail_activity.write; not live on 17
+  - on: create
+    fields: [user_id]
+    effect: no longer refuses an assignee who cannot read the record (16 raised in _check_access_assignation for a non-automated activity); the check is deprecated in 17.0 and nothing calls it
+    evidence: source 17.0 mail_activity._check_access_assignation docstring ("deprecated 17.0 ... we don't check access to the underlying records anymore") and create / write (no call); not live on 17
+  - on: call
+    method: action_feedback
+    effect: marks the activity done, posts the feedback on the record's chatter and deletes the activity; the next activity of the type's chain is created
+    evidence: source 17.0 mail_activity.action_feedback / _action_done; inherited from 16 for the chain, not traced
+routes:
+  schedule: { via: activity_schedule, args: { automated: false }, why: marks the activity as not automated so the mixin's automated helpers leave it alone; the assignee-access check it once skipped is gone in 17.0 }
+probes: [acting_user_email]
