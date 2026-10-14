@@ -22,7 +22,9 @@ CHANGED=$(git diff --name-only "$BASE"...HEAD; git diff --name-only HEAD)
 CHANGED=$(printf '%s\n' $CHANGED | sort -u)
 # Files the branch deleted or renamed away are in the diff too; there is nothing
 # of them to compile or run, and prove dies on a test that is not there.
-PERL=$(printf '%s\n' $CHANGED | grep -E '\.(pl|pm|t)$' | while read -r f; do [ -f "$f" ] && echo "$f"; done || true)
+# SM1081: t/vendor/ is OOM's own code, held to its MANIFEST by t/lint/261; its test doubles need OOM's library
+# on the path and do not compile standalone, so they are not compiled here.
+PERL=$(printf '%s\n' $CHANGED | grep -E '\.(pl|pm|t)$' | grep -v '^t/vendor/' | while read -r f; do [ -f "$f" ] && echo "$f"; done || true)
 
 for f in $PERL; do
   [ -f "$f" ] || continue
