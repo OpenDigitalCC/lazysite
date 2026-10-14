@@ -12,9 +12,12 @@
 #      queued stack, is detached at main (the main checkout returns to main), so
 #      vcs-review can offer the branches. One with uncommitted changes is left
 #      as it is and its stack is NOT READY.
-#   2. PRECHECK each stack as tools/handoff.sh does: every branch, lowest first,
-#      against the branch below it (main for the lowest) - the mangled-literal
-#      check, then tools/precheck.sh. A failure leaves the stack out, NOT READY.
+#   2. PRECHECK each stack as tools/handoff.sh does - the mangled-literal check,
+#      then tools/precheck.sh - but ON THE INTEGRATION TREE, after the stack's
+#      commits are cherry-picked onto it (SM1080): every branch, lowest first,
+#      against the tree before its commits. A stack based on an older main
+#      would otherwise fail on what main has fixed since. A failure leaves the
+#      stack out, NOT READY, and the tree goes back to what it was before it.
 #   3. BUILD the integration tree in tmp/wt-integration, a detached worktree,
 #      fresh from main: each stack's commits that `git cherry` says are not yet
 #      applied are cherry-picked in queue order, onto main and the stacks before
@@ -251,10 +254,12 @@ sub pending {
 
 # Apply a stack's pending commits on the worktree's HEAD. Returns () on success,
 # or the files a commit conflicted on (the commit's sha when it named none).
-sub apply_stack {
-    my ($s) = @_;
+sub apply_stack { return apply_commits( $_[0]{tip} ) }
+
+sub apply_commits {
+    my ($ref) = @_;
     my $before = git( $WT, 'rev-parse', 'HEAD' );
-    for my $c ( pending( $s->{tip} ) ) {
+    for my $c ( pending($ref) ) {
         next if git_ok( $WT, 'cherry-pick', '--allow-empty', '--keep-redundant-commits', $c );
         my @u = lines( git( $WT, 'diff', '--name-only', '--diff-filter=U' ) );
         run( 'git', '-C', $WT, 'cherry-pick', '--abort' );
@@ -264,39 +269,34 @@ sub apply_stack {
     return ();
 }
 
-# --- 2. precheck ---------------------------------------------------------------
+# --- 2. precheck, on the integration tree (SM1080) -----------------------------
 my $MANGLED = join '', 'gh', '\.', '0721', '03'; # spelt apart, as handoff.sh avoids matching itself
 
-sub precheck {
-    my ($s) = @_;
+# The branch's commits are on the worktree's HEAD; $prev is the tree before them.
+# Returns the reason it fails, or nothing.
+sub precheck_branch {
+    my ( $s, $b, $prev ) = @_;
+    my $diff = git( $WT, 'diff', "$prev...HEAD" ) // '';
+    return 'the diff carries the mangled literal (gh, a dot, 072103)'
+        if grep { /\A\+(?!\+\+)/ && /$MANGLED/ } split /\n/, $diff;
+    return 'it has no tools/precheck.sh' unless -f "$WT/tools/precheck.sh";
     my $log = "$D/precheck-$DAY-$s->{tip}.log";
-    my @br  = @{ $s->{branches} };
-    for my $i ( 0 .. $#br ) {
-        my ( $b, $p ) = ( $br[$i], $s->{parents}[$i] );
-        reset_wt($b);
-        my $diff = git( $WT, 'diff', "$p...HEAD" ) // '';
-        my $why;
-        if ( grep { /\A\+(?!\+\+)/ && /$MANGLED/ } split /\n/, $diff ) {
-            $why = "the diff carries the mangled literal (gh, a dot, 072103)";
-        }
-        elsif ( !-f "$WT/tools/precheck.sh" ) {
-            $why = 'it has no tools/precheck.sh';
-        }
-        else {
-            my $rc = run_in( undef, undef, 'sh', '-c', 'exec bash "$1" "$2" >>"$3" 2>&1', 'precheck',
-                "$WT/tools/precheck.sh", $p, $log );
-            $why = "precheck failed against $p ($log)" if $rc != 0;
-        }
-        next unless $why;
-        for my $j ( 0 .. $#br ) {
-            my $x = $br[$j];
-            say_line(
-                "NOT READY: $x " . short($x) . ' - ' . ( $j == $i ? $why : "the stack stops at $b" ) );
-        }
-        $s->{out} = 1;
-        return;
-    }
-    return 1;
+    my $rc  = run_in( undef, undef, 'sh', '-c', 'exec bash "$1" "$2" >>"$3" 2>&1',
+        'precheck', "$WT/tools/precheck.sh", $prev, $log );
+    return $rc == 0 ? () : "precheck failed on the integration tree after its commits ($log)";
+}
+
+# Say where a stack was based, and how far behind main that is.
+sub say_base {
+    my ($s)  = @_;
+    my $low  = $s->{branches}[0];
+    my $base = git( $STATE, 'merge-base', $BASE,     $low )           // return;
+    my $by   = git( $STATE, 'rev-list',   '--count', "$base..$BASE" ) // 0;
+    say_line( $by
+        ? "BASE: $s->{tip} sits on @{[ short($base) ]}; stack base is older than $BASE by $by commits - "
+            . 'its commits are cherry-picked onto the integration tree and prechecked there'
+        : "BASE: $s->{tip} sits on $BASE @{[ short($base) ]}" );
+    return;
 }
 
 # --- 3. build ------------------------------------------------------------------
@@ -310,8 +310,32 @@ sub build {
             $s->{out} = 1;
             next;
         }
+        say_base($s);
         my $before = git( $WT, 'rev-parse', 'HEAD' );
-        my @files  = apply_stack($s);
+        my @files;
+        my $failed;
+        for my $i ( 0 .. $#{ $s->{branches} } ) {
+            my $b    = $s->{branches}[$i];
+            my $prev = git( $WT, 'rev-parse', 'HEAD' );
+            @files = apply_commits($b);
+            if (@files) {
+                git_ok( $WT, 'reset', '-q', '--hard', $before );
+                last;
+            }
+            next if $prev eq git( $WT, 'rev-parse', 'HEAD' );
+            my $why = precheck_branch( $s, $b, $prev ) or next;
+            git_ok( $WT, 'reset', '-q', '--hard', $before );
+            $failed = [ $i, $why ];
+            last;
+        }
+        if ($failed) {
+            my @br = @{ $s->{branches} };
+            say_line( "NOT READY: $br[$_] " . short( $br[$_] ) . ' - '
+                    . ( $_ == $failed->[0] ? $failed->[1] : "the stack stops at $br[$failed->[0]]" ) )
+                for 0 .. $#br;
+            $s->{out} = 1;
+            next;
+        }
         if (@files) {
             my %f    = map { $_ => 1 } @files;
             my @with = map { $_->{tip} } grep {
@@ -414,7 +438,6 @@ for my $s ( grep { $_->{out} && $_->{wt} && -d $_->{wt} } @stacks ) {
     git_ok( $s->{wt}, 'checkout', '-q', '--detach', $BASE );
 }
 setup_wt();
-@live = grep { precheck($_) } @live;
 my @in = build(@live);
 
 if ( !@in ) {

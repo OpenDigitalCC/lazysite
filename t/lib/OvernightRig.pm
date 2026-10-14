@@ -4,7 +4,7 @@ package OvernightRig;
 #
 # The repository has the real overnight.sh, integration.pl and suite.sh, a
 # stand-in tools/precheck.sh that records where it ran and fails when the tree
-# holds PRECHECK-FAILS, and a `prove` on PATH that runs each named test file (or
+# holds PRECHECK-FAILS or OLD-BUG (a fault an older main had and a later one fixed), and a `prove` on PATH that runs each named test file (or
 # every t/*.t, for -r t/) as a shell script, records the call, and prints
 # prove's Wstat line for a file that exits non-zero. A test file is therefore a
 # one-line shell condition on the files a stack adds.
@@ -63,8 +63,9 @@ sub scratch {
     copy( "$ROOT/tools/$_", "$d/tools/$_" ) or die "$_: $!" for qw(overnight.sh integration.pl suite.sh);
     spit( "$d/tools/precheck.sh", <<'SH' );
 cd "$(dirname "$0")/.." || exit 2
-echo "PRECHECK $(git log -1 --format=%s) against $1" >> "$STUB_CALLS"
+echo "PRECHECK $(git log -1 --format=%s) against $(git log -1 --format=%s "$1")" >> "$STUB_CALLS"
 [ -e PRECHECK-FAILS ] && { echo "precheck: FAIL"; exit 1; }
+[ -e OLD-BUG ] && { echo "precheck: FAIL - OLD-BUG"; exit 1; }
 echo "Files=1, Tests=1"
 SH
     spit( "$d/bin/prove", <<'SH' );

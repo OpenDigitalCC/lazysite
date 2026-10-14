@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1080 (PENDING) **internal: the overnight run prechecks a stack where it
+  lands.** `tools/integration.pl` prechecked each stack's own tree, so a stack
+  based on an older main failed on faults main had already fixed (n568, n575
+  and n584 on 2026-10-14, Odoo tests n585 fixed) and was reported NOT READY
+  though it would have landed green. The precheck now runs after the stack's
+  commits are cherry-picked onto the integration tree, branch by branch against
+  the tree before them; a failure leaves the stack out and rebuilds the tree
+  without it. The results file records each stack's base: `stack base is older
+  than main by N commits`. t/tools/151-153.
 - SM1069 (PENDING) **a `.url` page under a read rule is no-store, and a rule
   is found by its path's ancestors.** The `.url` output path never passed the
   protected flag: a `.url` page under a read rule or draft was answered

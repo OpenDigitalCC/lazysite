@@ -36,7 +36,9 @@ The integration run
      vcs-review - which does not offer a checked-out branch - can offer them.
      A worktree with uncommitted changes is left as it is, and its stack is NOT
      READY: what is reviewed is what is committed.
-  2. **Precheck** each stack as `tools/handoff.sh --stack main` does: each
+  2. **Precheck** each stack as `tools/handoff.sh --stack main` does (since
+     SM1080, on the integration tree after its commits are picked, not on its
+     own branch tree): each
      branch, lowest first, against the one below it, with the mangled-literal
      check. A failure leaves the stack out, NOT READY, before anything is built.
   3. **Build** the integration tree in `tmp/wt-integration`, a detached

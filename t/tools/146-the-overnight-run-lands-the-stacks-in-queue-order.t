@@ -43,8 +43,8 @@ subtest 'a green night lands the stacks in queue order' => sub {
         'the integration branch is main plus each stack, cherry-picked in queue order' );
     is( git( $d, 'diff', '--name-only', 'main', 'review/assess/integration' ), "f1\nf2\ng", 'and holds all of them' );
     my $calls = slurp("$d/calls");
-    like( $calls, qr/^PRECHECK t1 against main\nPRECHECK s1 against main\nPRECHECK s2 against s1\n/m,
-        'each branch was prechecked against the one below it' );
+    like( $calls, qr/^PRECHECK t1 against base\nPRECHECK s1 against t1\nPRECHECK s2 against s1\n/m,
+        'each branch was prechecked on the integration tree, against the tree before its commits' );
     my @suite = $calls =~ /^PROVE -lr\S* -j\d+ t\/ in (\S+)$/mg;
     is_deeply( \@suite, ["$d/tmp/wt-integration"], 'ONE whole suite, in tmp/wt-integration' );
     is( git( "$d/tmp/wt-integration", 'rev-parse', 'HEAD' ), git( $d, 'rev-parse', 'review/assess/integration' ),

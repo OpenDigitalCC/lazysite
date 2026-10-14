@@ -60,7 +60,7 @@ subtest 'a stack failing its precheck is left out' => sub {
     queue( $d, "$q2 q2", "$r1 r1" );
     my ( $rc, $out, $res ) = overnight($d);
     my %sha = map { $_ => git( $d, 'rev-parse', '--short', $_ ) } qw(q1 q2);
-    like( $res, qr/^NOT READY: q1 \Q$sha{q1}\E - precheck failed against main /m, 'the failing branch is NOT READY' )
+    like( $res, qr/^NOT READY: q1 \Q$sha{q1}\E - precheck failed on the integration tree after its commits /m, 'the failing branch is NOT READY' )
         or diag( $res, $out );
     like( $res, qr/^NOT READY: q2 \Q$sha{q2}\E - the stack stops at q1$/m, 'and so is the rest of its stack' );
     like( $res, qr/^GREEN:/m, 'the other stack went on to a green suite' );

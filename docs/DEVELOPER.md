@@ -160,8 +160,16 @@ the next night) and runs `tools/integration.pl` at nice 19 and idle I/O:
    queued stack, is detached at main, so vcs-review can offer the branches in
    the morning. One with uncommitted changes is left alone; its stack is NOT
    READY.
-2. **Precheck** each stack as `tools/handoff.sh` does - each branch against the
-   one below it. A failure is NOT READY and stays out of the tree.
+2. **Precheck, on the integration tree (SM1080).** Each stack is prechecked
+   as `tools/handoff.sh` does - the mangled-literal check, then
+   `tools/precheck.sh` - but AFTER its commits are cherry-picked onto the tree
+   (step 3), branch by branch, each against the tree before its commits. A stack
+   based on an older main is therefore checked where main's later fixes are
+   present, as the suite is; on its own tree it failed on faults main had
+   already fixed. A failure is NOT READY, the tree goes back to what it was
+   before the stack, and the stack stays out. The results file says where each
+   stack was based: `BASE: <tip> sits on <sha>; stack base is older than main by
+   N commits`.
 3. **Build** `tmp/wt-integration`, a detached worktree, fresh from main: each
    stack's commits that `git cherry` says are not yet applied are cherry-picked
    in queue order. vcs-review lands by cherry-pick, so landing the stacks in
