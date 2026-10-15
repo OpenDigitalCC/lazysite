@@ -52,4 +52,34 @@ is( scalar @l, 1, 'no named file: one line' );
 like( $l[0], qr/\| ENV \|.*KILLED/, 'killed is ENV' );
 @l = split /\n/, digest("all fine\n");
 like( $l[0], qr/\| TEST \|/, 'nothing recognised is TEST, told to read the log' );
+
+# The coverage stage (0.15.5): cover's source listing quotes "inodes" in a
+# comment, the tools group's file was not measured, and the floor line fails.
+my $cov = <<'LOG';
+coverage: group auth: MEASURING - digest 09d7f0879249 (3 gated file(s) to measure)
+coverage: group auth: PASSED and recorded (3012s)
+coverage: group tools: MEASURING - digest 46a377f9c048 (1 gated file(s) to measure)
+70                                           # The first version let them start with 500,000 inodes free
+  tools/lazysite-users.pl                stmt  61.2%  bran  40.1%  (floors 75%/62%)  BELOW
+  tools/lazysite-bundle-apply.pl     NOT MEASURED - gate failure
+COVERAGE BELOW FLOOR
+coverage: group tools: FAILED (coverage.sh exit 1); no pass recorded for 46a377f9c048
+coverage: GROUPS: 4 measured, 0 reused, 4 nothing gated; STOPPED at tools after 1800s
+LOG
+@l = split /\n/, digest($cov);
+is( scalar @l, 3, 'the coverage stage: one line a file, then the group' );
+is( $l[0], 'coverage: group tools below floor - tools/lazysite-users.pl measured 61.2% vs floor 75% (statements) | TEST', 'a file under its floor, with the figures' );
+is( $l[1], "coverage: group tools below floor - tools/lazysite-bundle-apply.pl not measured by the group's tests | TEST", 'a file the group did not reach' );
+is( $l[2], 'coverage: group tools: FAILED (coverage.sh exit 1); no pass recorded for 46a377f9c048 | TEST', 'and the group line' );
+unlike( $o = digest($cov), qr/#/, 'no comment line is quoted' );
+@l = split /\n/, digest("  lib/X.pm   stmt  70.0%  bran  30.0%  (floors 75%/62%)  BELOW-BRANCH\nCOVERAGE BELOW FLOOR\n");
+like( $l[0], qr/^coverage: group \? below floor - lib\/X\.pm measured 30\.0% vs floor 62% \(branches\) \| TEST$/, 'a branch shortfall names the branch figures' );
+@l = split /\n/, digest("coverage: group front: FAILED (coverage.sh exit 6); no pass recorded for abc\ncoverage: KILLED (memory/signal) - cover exit 137\n");
+like( $l[0], qr/^coverage: group front: FAILED .* \| ENV$/, 'a group that failed on a kill is ENV' );
+@l = split /\n/, digest( "coverage: group auth: MEASURING - digest a\n  x.pl   stmt  10.0%  bran  10.0%  (floors 75%/62%)  BELOW\ncoverage: group auth: PASSED and recorded (3s)\n"
+        . "coverage: group tools: MEASURING - digest b\n  y.pl     NOT MEASURED - gate failure\nCOVERAGE BELOW FLOOR\n" );
+is( scalar @l, 1, 'a group that went on to pass has nothing to report' );
+like( $l[0], qr/^coverage: group tools below floor - y\.pl not measured/, 'only the group that failed is' );
+@l = split /\n/, digest("12   # a comment that mentions inodes and nothing else\n");
+like( $l[0], qr/\| TEST \| read the log tail/, 'a comment quoting an ENV word is not evidence' );
 done_testing;

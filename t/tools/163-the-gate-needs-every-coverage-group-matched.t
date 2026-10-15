@@ -20,7 +20,7 @@ subtest 'a group that fails stops the run, by name' => sub {
     my ( $rc, $o ) = parts( $d, '--check' );
     is( $rc, 1, 'exit 1, coverage.sh\'s own code' );
     like( $o, qr/^coverage: group auth: FAILED \(coverage.sh exit 1\); no pass recorded for [0-9a-f]{12}$/m, 'the group is named, with its digest' );
-    like( $o, qr/^coverage: GROUPS: \d+ measured, 0 reused, \d+ nothing gated; STOPPED at auth$/m, 'and the summary says where it stopped' );
+    like( $o, qr/^coverage: GROUPS: \d+ measured(?: \([^)]*\))?, 0 reused, \d+ nothing gated; STOPPED at auth after \d+s$/m, 'and the summary says where it stopped' );
     unlike( $o, qr/SKIPPED|at or above their floors/, 'no pass line and no skip line for release.sh to read' );
     ok( !-f "$d/dist/config/coverage-last.json", 'no combined record' );
     ok( !glob("$d/store/auth/*.json"),           'nothing recorded for auth' );

@@ -45,12 +45,14 @@ my @MAP = (
     [ 'lib/Lazysite/Odoo/'   => qw(t/unit/odoo/) ],
     # SM747: the engine file beside that directory, and the page endpoint.
     [ 'lib/Lazysite/Odoo.pm' => qw(t/unit/odoo/ integration:lazysite-odoo integration:OdooTest) ],
-    [ 'lazysite-odoo.pl'        => qw(t/unit/odoo/ integration:lazysite-odoo) ],
-    [ 'lib/Lazysite/Plugins/'   => qw(t/unit/plugins/ t/unit/odoo/) ],
-    [ 'lib/Lazysite/'           => qw(t/unit/lib/) ],
-    [ 'plugins/'                => qw(t/unit/plugins/) ],
-    [ 'tools/lazysite-users.pl' => qw(t/unit/users/) ],
-    [ 'tools/'                  => qw(t/unit/tools/) ],
+    [ 'lazysite-odoo.pl'               => qw(t/unit/odoo/ integration:lazysite-odoo) ],
+    [ 'lib/Lazysite/Plugins/'          => qw(t/unit/plugins/ t/unit/odoo/) ],
+    [ 'lib/Lazysite/'                  => qw(t/unit/lib/) ],
+    [ 'plugins/'                       => qw(t/unit/plugins/) ],
+    [ 'tools/lazysite-users.pl'        => qw(t/unit/users/) ],
+    [ 'tools/lazysite-bundle-apply.pl' => qw(t/unit/tools/ t/tools/03-bundle-apply) ],
+    [ 'tools/lazysite-bundle-apply.pl' => qw(t/unit/tools/ t/tools/03-bundle-apply) ],
+    [ 'tools/'                         => qw(t/unit/tools/) ],
     helper_rows(),
 );
 

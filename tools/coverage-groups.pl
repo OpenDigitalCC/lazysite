@@ -43,7 +43,7 @@ our @GROUPS = (
     [ daemon => qw(lib/Lazysite/Daemon/) ],
     [ odoo => qw(lib/Lazysite/Odoo/ lib/Lazysite/Odoo.pm lazysite-odoo.pl lib/Lazysite/Plugins/ plugins/) ],
     [ lib   => qw(lib/Lazysite/) ],
-    [ tools => qw(tools/) ],
+    [ tools => qw(tools/ tools/lazysite-bundle-apply.pl) ],
 );
 
 # The files coverage.sh gates (its list, and the parts P19 added), as patterns.

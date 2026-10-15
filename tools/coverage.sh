@@ -456,6 +456,15 @@ if [ "$1" = "--check" ]; then
             # A gated CGI with NO measurement is a gate FAILURE, not a skip -
             # a silent skip is exactly how lazysite-auth.pl went unmeasured
             # for weeks (2026-07-10 review, D3).
+            # SM1083 coverage in parts, pre-rebaseline: the group's own tests may
+            # not reach a file the whole suite did (0.15.5: the tools group's 17
+            # tests never ran tools/lazysite-bundle-apply.pl, whose test lives in
+            # t/tools/). That is a measure too; it is recorded, and the gate goes on.
+            if [ "$PRE_REBASELINE" = 1 ]; then
+                printf "  %-38s NOT MEASURED by this group's tests  MOVEMENT (pre-rebaseline, was gate failure)\n" "$f"
+                MOVED="$MOVED$f not measured by this group's tests; "
+                continue
+            fi
             printf "  %-34s NOT MEASURED - gate failure\n" "$f" >&2
             fail=1
             continue
@@ -469,16 +478,20 @@ if [ "$1" = "--check" ]; then
         sfl=$(awk -F= -v k="floor[$f]" '$1 == k { print $2; exit }' "$FLOOR_FILE" 2>/dev/null | grep -oE '^[0-9]+' | head -1)
         : "${sfl:=$floor}"
         st=ok
-        awk -v t="$pct" -v fl="$sfl" 'BEGIN{ exit (t+0 >= fl+0) ? 0 : 1 }' || { st=BELOW; fail=1; }
-        awk -v t="$brn" -v fl="$bfl" 'BEGIN{ exit (t+0 >= fl+0) ? 0 : 1 }' || { st=BELOW-BRANCH; fail=1; }
+        fst=0
+        awk -v t="$pct" -v fl="$sfl" 'BEGIN{ exit (t+0 >= fl+0) ? 0 : 1 }' || { st=BELOW; fst=1; }
+        awk -v t="$brn" -v fl="$bfl" 'BEGIN{ exit (t+0 >= fl+0) ? 0 : 1 }' || { st=BELOW-BRANCH; fst=1; }
         # SM1083 coverage in parts, pre-rebaseline: the floors were measured
         # under the whole suite; a group's own measure may come in lower. Until
         # the group is re-baselined, a shortfall is MOVEMENT - printed, kept in
         # the record for the re-baseline commit - and does not fail the gate.
-        if [ "$fail" = 1 ] && [ "$PRE_REBASELINE" = 1 ]; then
+        # SM1083 n596: judged PER FILE. The first version reset fail=0 here, so a
+        # later file's MOVEMENT cleared a failure an earlier file had set.
+        if [ "$fst" = 1 ] && [ "$PRE_REBASELINE" = 1 ]; then
             st="MOVEMENT (pre-rebaseline, was $st)"
-            fail=0
             MOVED="$MOVED$f stmt $pct% bran $brn% vs $sfl%/$bfl%; "
+        elif [ "$fst" = 1 ]; then
+            fail=1
         fi
         printf "  %-38s stmt %5s%%  bran %5s%%  (floors %s%%/%s%%)  %s\n" \
             "$f" "$pct" "$brn" "$sfl" "$bfl" "$st"

@@ -80,6 +80,7 @@ if [ "${LAZYSITE_HEAVY_HELD:-}" != 1 ]; then
 fi
 
 MEASURED=0
+TIMES=""
 REUSED=0
 NOTHING=0
 FAIL=""
@@ -105,6 +106,8 @@ while IFS="$(printf '\t')" read -r name digest state note; do
             ;;
     esac
     echo "coverage: group $name: MEASURING - digest ${digest:0:12} ($note)"
+    G0=$(date +%s)
+    G0=$(date +%s)
     perl "$GROUPS_PL" --tests "$name" >"$SCRATCH/$name.tests"
     perl "$GROUPS_PL" --files "$name" >"$SCRATCH/$name.files"
     perl "$GROUPS_PL" --floor "$name" >"$SCRATCH/$name.floor"
@@ -137,8 +140,10 @@ while IFS="$(printf '\t')" read -r name digest state note; do
         RC=4
         break
     fi
-    echo "coverage: group $name: PASSED and recorded"
+    GSECS=$(( $(date +%s) - G0 ))
+    echo "coverage: group $name: PASSED and recorded (${GSECS}s)"
     MEASURED=$((MEASURED + 1))
+    TIMES="${TIMES:+$TIMES, }$name ${GSECS}s"
 done < <(perl "$GROUPS_PL" --state "$STORE")
 
 # NO GROUPS IS NOT A PASS. A group map that fails to run (a syntax error, a
@@ -151,10 +156,12 @@ if [ -z "$FAIL" ] && [ $((MEASURED + REUSED + NOTHING)) -eq 0 ]; then
 fi
 
 if [ -n "$FAIL" ]; then
-    echo "coverage: GROUPS: $MEASURED measured, $REUSED reused, $NOTHING nothing gated; STOPPED at $FAIL" >&2
+    [ -n "$TIMES" ] && TIMES=" ($TIMES)"
+    echo "coverage: GROUPS: $MEASURED measured$TIMES, $REUSED reused, $NOTHING nothing gated; STOPPED at $FAIL after $(( $(date +%s) - ${G0:-$(date +%s)} ))s" >&2
     exit "$RC"
 fi
-echo "coverage: GROUPS: $MEASURED measured, $REUSED reused, $NOTHING nothing gated"
+[ -n "$TIMES" ] && TIMES=" ($TIMES)"
+echo "coverage: GROUPS: $MEASURED measured$TIMES, $REUSED reused, $NOTHING nothing gated"
 [ -n "$ONE" ] && exit 0
 if [ "$MEASURED" -eq 0 ]; then
     echo "coverage: SKIPPED - every group matched a recorded pass" >&2

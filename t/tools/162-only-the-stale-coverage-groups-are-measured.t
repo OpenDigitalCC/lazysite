@@ -27,7 +27,7 @@ like( $calls, qr/^RAN processor tests=t\/unit\/processor\/01-a\.t, files=lazysit
     'for the processor group: its tests, its files, its floor lines, its own DB' );
 my $pd = digest( $d, 'processor' );
 ok( -f "$d/store/processor/$pd.json", 'and its pass is recorded under the group and digest' );
-like( $o, qr/^coverage: GROUPS: 1 measured, 1 reused, \d+ nothing gated$/m, 'the summary counts' );
+like( $o, qr/^coverage: GROUPS: 1 measured \(processor \d+s\), 1 reused, \d+ nothing gated$/m, 'the summary counts, with each measured group\'s wall time' );
 unlike( $o, qr/^coverage: SKIPPED/m, 'a run that measured is not a skip' );
 like( $o, qr/^coverage: all measured production CGIs and their parts at or above their floors/m, 'and ends with the pass line release.sh reads' );
 like( slurp("$d/dist/config/coverage-last.json"), qr/"processor": \{ "digest": "$pd", "state": "pass" \}/, 'the combined record names each group and its digest' );
