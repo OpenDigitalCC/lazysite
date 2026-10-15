@@ -245,21 +245,28 @@ sub setup_wt {
     return reset_wt($BASE);
 }
 
-# Commits of TIP not yet applied on the worktree's HEAD, oldest first: what
-# vcs-review would still land (it skips what `git cherry` marks as applied).
+# Commits in FROM..TO not yet applied on the worktree's HEAD, oldest first: what
+# vcs-review would still land (it skips what `git cherry` marks as applied by
+# patch-id against the tree). SM1081: the range is the branch's OWN commits -
+# the tip of the branch below it (or the stack's base on main) to its tip -
+# never main..tip. (For the lowest branch, main..tip and base..tip are the same
+# commits: nothing on the branch and on main is missing from their merge base.) A pick that auto-merged (its context moved on main) has a new
+# patch-id, so over main..tip `git cherry` offered the lower branch's commits
+# again for every branch above it; the third copy collided and the stack was
+# reported CONFLICT with main (n566/n567/n568, 2026-10-15).
 sub pending {
-    my ($tip) = @_;
-    return map { /\A\+ (\S+)/ ? $1 : () } lines( git( $WT, 'cherry', 'HEAD', $tip ) );
+    my ( $to, $from ) = @_;
+    return map { /\A\+ (\S+)/ ? $1 : () } lines( git( $WT, 'cherry', 'HEAD', $to, $from ) );
 }
 
 # Apply a stack's pending commits on the worktree's HEAD. Returns () on success,
 # or the files a commit conflicted on (the commit's sha when it named none).
-sub apply_stack { return apply_commits( $_[0]{tip} ) }
+sub apply_stack { return apply_commits( $_[0]{tip}, $BASE ) }
 
 sub apply_commits {
-    my ($ref) = @_;
+    my ( $ref, $from ) = @_;
     my $before = git( $WT, 'rev-parse', 'HEAD' );
-    for my $c ( pending($ref) ) {
+    for my $c ( pending( $ref, $from ) ) {
         next if git_ok( $WT, 'cherry-pick', '--allow-empty', '--keep-redundant-commits', $c );
         my @u = lines( git( $WT, 'diff', '--name-only', '--diff-filter=U' ) );
         run( 'git', '-C', $WT, 'cherry-pick', '--abort' );
@@ -305,7 +312,7 @@ sub build {
     reset_wt($BASE);
     my @in;
     for my $s (@stacks) {
-        if ( !pending( $s->{tip} ) ) {
+        if ( !pending( $s->{tip}, $BASE ) ) {
             say_line("NOTHING TO APPLY: $s->{tip} - every commit is on $BASE or in an earlier stack tonight");
             $s->{out} = 1;
             next;
@@ -317,7 +324,8 @@ sub build {
         for my $i ( 0 .. $#{ $s->{branches} } ) {
             my $b    = $s->{branches}[$i];
             my $prev = git( $WT, 'rev-parse', 'HEAD' );
-            @files = apply_commits($b);
+            # SM1081: this branch's own commits only - from the branch below it.
+            @files = apply_commits( $b, $i ? $s->{branches}[ $i - 1 ] : $BASE );
             if (@files) {
                 git_ok( $WT, 'reset', '-q', '--hard', $before );
                 last;

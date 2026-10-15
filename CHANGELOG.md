@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1081 (PENDING) **internal: each commit of a stack is cherry-picked once.**
+  The overnight run picked a lower branch's commit again for every branch
+  above it when the first pick had auto-merged (its patch-id moved on main);
+  the third copy collided and the stack was reported CONFLICT with main
+  (n566/n567/n568, 2026-10-15). Each branch now picks only the branch below
+  it to its own tip, the lowest from main.
+  t/tools/166.
 - SM1083 (PENDING) **internal: coverage in parts.** The measured files fall
   into nine groups read from the area map (tools/coverage-groups.pl), each
   with its own inputs digest, cover DB, floor lines and recorded pass under
