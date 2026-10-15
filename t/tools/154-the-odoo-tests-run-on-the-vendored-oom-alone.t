@@ -70,16 +70,20 @@ subtest 'tools/ext-compat.sh is advisory: a broken OOM is a FAIL line and a note
     my $inbox = "$t/inbox";
     make_path($inbox);
     spit( "$tree/lib/Odoo/Ops.pm", "package Odoo::Ops;\nour \$VERSION = '9.9';\ndie 'broken on purpose';\n1;\n" );
-    my $run = sub { qx(cd $root && OOM_TREE=$tree LAZYSITE_INBOX=$inbox bash tools/ext-compat.sh --night 2>&1) };
+# The deb target is pointed at nothing (OOM_DEB_LIB): what this host has installed is not this test's
+# business, and the day OOM 0.11 was installed it filed a second note here and failed the gate.
+    my $run = sub { qx(cd $root && OOM_TREE=$tree OOM_DEB_LIB=$t/no-deb LAZYSITE_INBOX=$inbox bash tools/ext-compat.sh --night 2>&1) };
     my $out = $run->();
     is( $? >> 8, 0, 'it exits 0 although a target failed' );
     like( $out, qr/^ext-compat: OOM tree \(9\.9\): FAIL \(advisory\)/m, 'the broken OOM is a FAIL line, marked advisory' );
+    like( $out, qr/^ext-compat: installed deb: skipped/m, 'the deb target, pointed at nothing, is skipped - not read from this host' );
     my @notes = glob("$inbox/*oom-changes-break-lazysites-odoo-tests*.md");
     is( scalar @notes, 1, 'and files one note in the inbox' );
+    like( $notes[0] // '', qr/-oom-tree\.md\z/, 'named for its target' );
     like( do { open my $fh, '<', $notes[0] or die $!; local $/; <$fh> }, qr/Advisory only \(SM1081\)/, 'which says it is advisory' );
     $run->();
     is( scalar( () = glob("$inbox/*.md") ), 1, 'a second run the same day files no second note' );
-    my $quiet = qx(cd $root && OOM_TREE=$t/no-such-tree LAZYSITE_INBOX=$inbox bash tools/ext-compat.sh 2>&1);
+    my $quiet = qx(cd $root && OOM_TREE=$t/no-such-tree OOM_DEB_LIB=$t/no-deb LAZYSITE_INBOX=$inbox bash tools/ext-compat.sh 2>&1);
     is( $? >> 8, 0, 'a missing target is a skipped line, still exit 0' );
     like( $quiet, qr/OOM tree: skipped/, 'by name' );
 };

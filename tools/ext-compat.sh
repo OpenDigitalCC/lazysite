@@ -27,6 +27,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 NIGHT=0
 [ "${1:-}" = "--night" ] && NIGHT=1
 TREE="${OOM_TREE:-/srv/projects/odoo/oom}"
+# The deb's library. The override exists for t/tools/154 alone, so that test does not depend
+# on which OOM this host happens to have installed (it failed the day OOM 0.11 was installed).
+DEB_LIB="${OOM_DEB_LIB:-/usr/share/perl5}"
 INBOX="${LAZYSITE_INBOX:-/srv/projects/lazysite/inbox}"
 DAY="$(date +%F)"
 TESTS=("$ROOT/t/unit/odoo/")
@@ -41,10 +44,10 @@ report() {    # report LABEL VERSION LIBDIR TESTLIBDIR-or-empty
         echo "ext-compat: $label ($ver): PASS - $(echo "$out" | grep -E '^Files=' | sed 's/,.*//')"
         return
     fi
-    failed="$(echo "$out" | grep -E '^t/.*\(Wstat' | sed 's/ *(Wstat.*//' | tr '\n' ' ')"
+    failed="$(echo "$out" | grep -E '^ *t/.*\(Wstat' | sed 's/^ *//; s/ *(Wstat.*//' | tr '\n' ' ')"
     echo "ext-compat: $label ($ver): FAIL (advisory) - ${failed:-prove exit $rc}"
     if [ "$NIGHT" = 1 ] && [ -d "$INBOX" ]; then
-        note="$INBOX/$DAY-oom-changes-break-lazysites-odoo-tests-$(echo "$label" | tr -c 'a-z0-9' '-' | sed 's/-*$//').md"
+        note="$INBOX/$DAY-oom-changes-break-lazysites-odoo-tests-$(echo "$label" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9\n' '-' | sed 's/-*$//').md"
         if [ ! -e "$note" ]; then
             {
                 echo "OOM $ver ($label) changes break lazysite's Odoo tests: ${failed:-see tools/ext-compat.sh}"
@@ -58,8 +61,8 @@ report() {    # report LABEL VERSION LIBDIR TESTLIBDIR-or-empty
 
 echo "ext-compat: advisory compatibility tier ($DAY) - never the gate"
 
-if dpkg -s libodoo-oom-perl >/dev/null 2>&1; then
-    report "installed deb" "$(dpkg-query -W -f='${Version}' libodoo-oom-perl)" /usr/share/perl5 ""
+if dpkg -s libodoo-oom-perl >/dev/null 2>&1 && [ -f "$DEB_LIB/Odoo/Ops.pm" ]; then
+    report "installed deb" "$(dpkg-query -W -f='${Version}' libodoo-oom-perl)" "$DEB_LIB" ""
 else
     echo "ext-compat: installed deb: skipped - libodoo-oom-perl is not installed"
 fi
