@@ -24,6 +24,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
+use File::Copy qw(copy);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -45,6 +46,8 @@ sub rig {
     print {$out} $sh;
     close $out;
     chmod 0755, "$d/tools/coverage.sh";
+    # SM1083: coverage.sh sources the heavy lock and the preflight guard.
+    copy( "$root/tools/$_", "$d/tools/$_" ) or die "$_: $!" for qw(heavy-lock.sh preflight.sh);
 
     open my $fl, '>', "$d/dist/config/coverage-floor" or die $!;
     print {$fl} "floor=75\nbranch_floor=62\n";
@@ -94,7 +97,7 @@ sub run {
     # outcomes a test can have.
     #
     # A harness that tests a harness has to stand outside the one it is testing.
-    local $ENV{PERL5OPT} = '';
+    local $ENV{PERL5OPT}              = '';
     local $ENV{HARNESS_PERL_SWITCHES} = '';
 
     # AND SO IS EVERY LAZYSITE_COVER_* SETTING, for the same reason one level
@@ -103,7 +106,11 @@ sub run {
     # and wrote its own two-file run there, so the 0.13.13 build refused with a
     # log whose head was the miniature's deliberate failure and a run of NUL
     # bytes where the real output had been.
-    delete local @ENV{ grep {/^LAZYSITE_COVER_/} keys %ENV };
+    delete local @ENV{ grep { /^LAZYSITE_COVER_/ } keys %ENV };
+    # SM1083: this rig tests the VERDICTS, not the guard. As the gate's own stage
+    # does, it says the heavy lock is already held, so neither the lock nor the
+    # host's memory or swap (a refusal is exit 3 too) can stand in for a verdict.
+    local $ENV{LAZYSITE_HEAVY_HELD} = 1;
 
     my $out = qx(cd \Q$d\E && sh tools/coverage.sh $args 2>&1);
     return ( $? >> 8, $out );
@@ -162,7 +169,7 @@ subtest 'set -e does not eat the failure' => sub {
     my $d = rig(0);
     my ( $rc, $out ) = run($d);
     ok( length $out > 40, 'the script produced output after the failure' )
-        or diag( 'If this is empty, set -e aborted the run at the prove line.' );
+        or diag('If this is empty, set -e aborted the run at the prove line.');
     like( $out, qr/suite under instrumentation/,
         'including the line that comes after the suite' );
 };

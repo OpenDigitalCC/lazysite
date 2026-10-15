@@ -242,7 +242,9 @@ if [ "${LAZYSITE_COVER_REPORT_ONLY:-}" = "1" ]; then
     echo "coverage: REPORT ONLY - reusing $DB, no suite run" >&2
     SUITE_RC=0
 else
-    ( while :; do sleep 30; _reap_locks; done ) &
+    # SM1083: holding no pipe of the caller's - a kill leaves the sleep behind
+    # for up to 30 s, and a captured run (t/tools/60) waited on it each time.
+    ( while :; do sleep 30; _reap_locks; done ) >/dev/null 2>&1 </dev/null &
     REAPER_PID=$!
     PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,^/tmp/,+ignore,/t/,+ignore,Devel" \
         prove -l -j"$JOBS" -r t/ > "$SUITE_LOG" 2>&1 && SUITE_RC=0 || SUITE_RC=$?
