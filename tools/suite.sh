@@ -111,6 +111,12 @@ nightly() {
     } >>"$log"
     return 0
   fi
+  # SM1083: the ONE heavy lock; a nightly never queues behind a gate.
+  . "$(dirname "$0")/heavy-lock.sh"
+  heavy_lock "$PWD" "suite.sh --nightly" nowait || {
+    echo "$(date '+%F %T') nightly: skipped - a heavy job holds the heavy lock" >>"$log"
+    return 0
+  }
 
   # The worktree is this script's own: whatever a test left in it is discarded.
   if [ -d "$wt" ]; then
@@ -132,7 +138,7 @@ nightly() {
   command -v nice >/dev/null 2>&1 && quiet+=(nice -n 19)
   command -v ionice >/dev/null 2>&1 && quiet+=(ionice -c3)
   echo "$(date '+%F %T') nightly: main at $sha, prove -lr -j$JOBS t/ in $wt (limit $limit)" >>"$log"
-  timeout --kill-after=60 "$limit" "${quiet[@]}" prove -lr -j"$JOBS" t/ >>"$log" 2>&1 9>&-
+  timeout --kill-after=60 "$limit" "${quiet[@]}" prove -lr -j"$JOBS" t/ >>"$log" 2>&1 9>&- 7>&-
   rc=$?
   : >"$NOTE"
   if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
@@ -146,30 +152,15 @@ nightly() {
   [ "$rc" = 0 ] && return 0
   mkdir -p "$inbox"
   report="$inbox/$day-nightly-suite-failed-on-$sha.md"
-  perl -e '
-      my ( $log, $sha, $rc, $day ) = @ARGV;
-      open my $f, "<", $log or die "$log: $!\n";
-      my ( @order, %first, %failed, $pending );
-      while ( my $l = <$f> ) {
-          chomp $l;
-          if ( $l =~ /^#\s+Failed test/ ) { $pending = $l; next }
-          if ( $l =~ /^#\s+at (\S+\.t) line \d+/ && defined $pending ) {
-              $first{$1} //= "$pending\n$l";
-              undef $pending;
-              next;
-          }
-          if ( $l =~ /^(t\/\S+\.t)\s+\(Wstat: (\d+)/ ) {
-              push @order, $1 unless $failed{$1}++;
-          }
-      }
-      print "# Nightly suite failed on main at $sha ($day)\n\n";
-      print "tools/suite.sh --nightly: prove exited $rc. Log: $log\n\n";
-      print "No failing file was named; read the log tail.\n" unless @order;
-      for my $t (@order) {
-          print "- $t\n";
-          print map {"    $_\n"} split /\n/, $first{$t} if $first{$t};
-      }
-  ' "$log" "$sha" "$rc" "$day" >"$report"
+  # SM1083: the note is the 20-line failure digest, not a log.
+  {
+    echo "# Nightly suite failed on main at $sha ($day)"
+    echo
+    echo "tools/suite.sh --nightly: prove exited $rc. Log: $log"
+    echo
+    echo "file | first failed assertion | first diagnostic | class (ENV host, TEST code)"
+    perl "$(dirname "$0")/failure-digest.pl" "$log"
+  } >"$report"
   echo "$(date '+%F %T') nightly: FAILED - filed $report" >>"$log"
   return 1
 }
@@ -200,12 +191,23 @@ elif ! flock -n 9; then
     exit 2
   }
 fi
+# SM1083: the ONE heavy lock, shared with the release gate and coverage.sh.
+. "$(dirname "$0")/heavy-lock.sh"
+if [ "$TREE" = 1 ]; then
+  heavy_lock "$PWD" "suite.sh" nowait || {
+    echo "suite: skipped - a heavy job holds the heavy lock."
+    exit 75
+  }
+else
+  heavy_lock "$PWD" "suite.sh" wait || exit 2
+fi
 write_note
 
-echo "==> suite: prove -lr -j$JOBS t/ in $PWD (log: $LOG)"
+echo "==> suite: prove
+ -lr -j$JOBS t/ in $PWD (log: $LOG)"
 # 9>&- : the lock is this script's. A process a test leaves behind must not
 # hold it for ever and stop every later suite on the host.
-"${RUN[@]}" prove -lr -j"$JOBS" t/ >"$LOG" 2>&1 9>&-
+"${RUN[@]}" prove -lr -j"$JOBS" t/ >"$LOG" 2>&1 9>&- 7>&-
 RC=$?
 : >"$NOTE"
 

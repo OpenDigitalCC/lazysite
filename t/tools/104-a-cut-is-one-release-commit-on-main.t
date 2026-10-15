@@ -19,6 +19,7 @@ use Test::More;
 use File::Path  qw(make_path);
 use File::Temp  qw(tempdir);
 use File::Copy  qw(copy);
+use File::Spec;
 use Digest::SHA qw(sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -36,7 +37,14 @@ sub spit {
     close $f;
 }
 sub slurp { open my $f, '<', $_[0] or return ''; local $/; my $t = <$f>; close $f; $t }
-sub git { my ( $d, @a ) = @_; my $o = run_cmd( 'git', '-C', $d, @a ); die "git @a: $o" if $?; chomp $o; $o }
+# SM1083: Devel::Cover (PERL5OPT) prints "Devel::Cover: Deleting old coverage for
+# changed file ..." to stderr, which run_cmd folds into the output. Not the test's business.
+sub git { my ( $d, @a ) = @_; my $o = run_cmd( 'git', '-C', $d, @a ); die "git @a: $o" if $?; $o =~ s/^Devel::Cover:[^\n]*\n?//mg; chomp $o; $o }
+
+# SM1083: the nested builds' stage is on DISK when /tmp is a RAM-backed tmpfs: a
+# gate under instrumentation left 431k inodes there and release.sh refuses under 500k.
+my $STAGE_DIR = ( run_cmd( 'stat', '-f', '-c', '%T', File::Spec->tmpdir ) =~ /tmpfs|ramfs/ && -d '/var/tmp' && -w '/var/tmp' ) ? '/var/tmp' : undef;
+
 sub commit { my ( $d, $m ) = @_; git( $d, 'add', '-A' ); git( $d, 'commit', '-q', '-m', $m ); git( $d, 'rev-parse', 'HEAD' ) }
 
 # Gate tools the release refuses to run without - stubs, so the host's own
@@ -128,7 +136,7 @@ spit( $NOTES, "Subtitle: the second thing works\nFeatures: Two works (SM2).\nAss
 
 sub release {
     my ( $d, @args ) = @_;
-    my $stage = tempdir( CLEANUP => 1 );
+    my $stage = tempdir( CLEANUP => 1, ( $STAGE_DIR ? ( DIR => $STAGE_DIR ) : () ) );
     local $ENV{PATH}              = "$BIN:$ENV{PATH}";
     local $ENV{LAZYSITE_SKIP_DEB} = 1;
     local $ENV{STUB_WANT_VERSION} = '0.1.1';
@@ -198,7 +206,7 @@ subtest 'build from a worktree leaves its packages in the main checkout\'s dist/
     receipt($d);
     my $wt = tempdir( CLEANUP => 1 ) . '/wt';
     git( $d, 'worktree', 'add', '-q', '--detach', $wt, 'main' );
-    my $stage = tempdir( CLEANUP => 1 );
+    my $stage = tempdir( CLEANUP => 1, ( $STAGE_DIR ? ( DIR => $STAGE_DIR ) : () ) );
     local $ENV{PATH}              = "$BIN:$ENV{PATH}";
     local $ENV{LAZYSITE_SKIP_DEB} = 1;
     local $ENV{STUB_WANT_VERSION} = '0.1.1';

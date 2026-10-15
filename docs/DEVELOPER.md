@@ -261,7 +261,34 @@ testing against odoo to run a lazysite, it's just an extension, not core"). So:
   relation. The extension declares it (`owns.deps`) and refuses, by name, when it is missing or
   older than 0.03.
 
+## A reliable gate (SM1083)
+
+A gate must not start where it cannot finish, and a failure must be cheap to read.
+
+- **The guard.** `tools/preflight.sh HEAVY` refuses to start a heavy job unless
+  MemAvailable is at least 6 GB, swap in use at most 1 GB, the stage base has
+  3 GB and 600,000 inodes free and the heavy lock is free. It prints one line
+  naming the failed condition and exits 3, which a caller treats as a SKIP.
+  Thresholds are env-overridable (`LAZYSITE_PF_*`, see the script header).
+- **The lock.** The gate, `tools/coverage.sh` run alone and `tools/suite.sh`
+  share one lock under the git common dir (`tools/heavy-lock.sh`); a waiter
+  names the holder. A nested job (the gate's own coverage stage) sees
+  `LAZYSITE_HEAVY_HELD=1` and does not lock again.
+- **The disk stage.** The gate stages in /var/tmp/lazysite-stage unless
+  `--stage-dir` or `LAZYSITE_STAGE_DIR` is given; /tmp is RAM-backed and /srv is
+  nearly full. Retained stages older than 2 days are removed at the next run.
+- **Coverage on demand.** `tools/coverage.sh` is not scheduled. It skips when
+  its inputs digest matches a recorded pass (the gate reuses one), uses 4 jobs
+  when MemAvailable is at least 8 GB and else 2, and a killed `cover` is
+  reported as `KILLED (memory/signal)`: not a test failure, not a shortfall.
+- **The overnight run** does nothing when main is the commit the last green
+  night tested and the queue is empty.
+- **The digest.** `perl tools/failure-digest.pl LOG` prints at most 20 lines:
+  file, first failed assertion, first diagnostic, class ENV or TEST. The
+  nightly inbox note and the gate's failure message use it.
+
 ## Where to start a change
+
 
 1. Read the relevant `docs/feature-requests/SM0xx-*.md` (the design of record).
 2. Add tests first where practical (red→green).

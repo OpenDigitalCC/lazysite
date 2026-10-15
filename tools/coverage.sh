@@ -16,7 +16,7 @@
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
-DB="$ROOT/cover_db"
+DB="${LAZYSITE_COVER_DB:-$ROOT/cover_db}"
 
 # Where the instrumented suite's own output goes. Kept, not discarded: see the
 # note at the prove line below - a coverage report is only meaningful about a
@@ -50,6 +50,22 @@ if command -v flock >/dev/null 2>&1; then
             fi
         done
         exit 2
+    fi
+fi
+
+# SM1083: ONE heavy lock and a guard. Run alone, coverage waits for any other
+# heavy job (naming the holder), then refuses to START on a host that cannot
+# hold it: exit 3 is "not now" - a SKIP for the caller, never a failure. Inside
+# the gate (LAZYSITE_HEAVY_HELD=1) the gate has already done both.
+. "$ROOT/tools/heavy-lock.sh"
+if [ "${LAZYSITE_HEAVY_HELD:-}" != 1 ] && [ "${LAZYSITE_COVER_DECIDE_ONLY:-}" != "1" ] \
+    && [ "${LAZYSITE_COVER_REPORT_ONLY:-}" != "1" ]; then
+    heavy_lock "$ROOT" "coverage.sh" wait || exit 2
+    PF_RC=0
+    PF_MSG=$(bash "$ROOT/tools/preflight.sh" HEAVY) || PF_RC=$?
+    if [ "$PF_RC" -eq 3 ]; then
+        echo "coverage: SKIPPED (not now) - $PF_MSG" >&2
+        exit 3
     fi
 fi
 
@@ -180,7 +196,7 @@ fi
 # attribution fault, not noise. The gated CGIs the subset reaches (processor,
 # users tool) agreed exactly. Left at -j4 for the release manager to rule on
 # (serial costs about three times as long), recorded in SM971.
-JOBS=${LAZYSITE_COVER_JOBS:-4}
+JOBS=${LAZYSITE_COVER_JOBS:-$(bash "$ROOT/tools/preflight.sh" JOBS)}
 echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumented)..." >&2
 # `+ignore,^/tmp/` KEEPS THE INSTRUMENT OUT OF EPHEMERAL COPIES.
 #
@@ -334,6 +350,12 @@ echo "coverage: DB footprint $(du -sL --inodes "$DB" 2>/dev/null | cut -f1) inod
 COVER_ERR="${SUITE_LOG%-suite.*}-cover-stderr.txt"
 report=$(cover -silent -report text "$DB" 2>"$COVER_ERR") || {
     rc=$?
+    # SM1083: a killed report is the host, not the code.
+    if [ "$rc" -eq 137 ] || [ "$rc" -eq 143 ]; then
+        echo "coverage: KILLED (memory/signal) - cover exit $rc after a suite that passed." >&2
+        echo "coverage: not a test failure and not a shortfall; the host ran out of memory or was signalled." >&2
+        exit 6
+    fi
     echo "coverage: THE REPORT STEP FAILED (cover exit $rc) after a suite that passed." >&2
     echo "coverage: cover's stderr, kept at $COVER_ERR:" >&2
     tail -20 "$COVER_ERR" >&2

@@ -150,6 +150,22 @@ if ! flock -n 9; then
     refuse "another gate-main run holds $GATE_DIR/.gate-main.lock; wait for it."
 fi
 
+# SM1083: ONE heavy lock, a guard before the stage, and a disk stage by default.
+. "$ROOT/tools/heavy-lock.sh"
+heavy_lock "$ROOT" "release gate" wait || refuse "cannot take the heavy lock."
+if [ "${#STAGE_FLAG[@]}" -eq 0 ]; then
+    STAGE_DEFAULT=$(bash "$ROOT/tools/stage-default.sh") || refuse "cannot make the default stage dir."
+    STAGE_FLAG=(--stage-dir "$STAGE_DEFAULT")
+    export LAZYSITE_STAGE_DIR="$STAGE_DEFAULT"
+fi
+PF_BASE="${STAGE_FLAG[1]}"
+PF_RC=0
+PF_MSG=$(bash "$ROOT/tools/preflight.sh" HEAVY "$PF_BASE") || PF_RC=$?
+if [ "$PF_RC" -eq 3 ]; then
+    echo "gate-main: SKIPPED - $PF_MSG" >&2
+    exit 3
+fi
+
 if [ -f "$RECEIPT" ]; then
     echo "gate-main: superseding the receipt for $(field sha) ($(field result), $(field finished))"
 fi
@@ -161,12 +177,12 @@ RC=0
 # 9>&- : the lock is this script's, not the gate's - a process the gate leaves
 # behind must not hold it for ever.
 setsid -w bash "$ROOT/tools/release.sh" gate "$VERSION" --commit "$SHA" \
-    "${CHANNEL_FLAG[@]}" "${STAGE_FLAG[@]}" </dev/null >"$LOG" 2>&1 9>&- || RC=$?
+    "${CHANNEL_FLAG[@]}" "${STAGE_FLAG[@]}" </dev/null >"$LOG" 2>&1 9>&- 7>&- || RC=$?
 SECS=$(($(date +%s) - START))
 
 if [ "$RC" -ne 0 ] || [ "$(field sha)" != "$SHA" ] || [ "$(field result)" != pass ]; then
-    echo "gate-main: the gate FAILED for ${SHA:0:12} (exit $RC, ${SECS}s). Last lines of $LOG:" >&2
-    tail -20 "$LOG" >&2
+    echo "gate-main: the gate FAILED for ${SHA:0:12} (exit $RC, ${SECS}s). Digest (class ENV = host, TEST = code) of $LOG:" >&2
+    perl "$ROOT/tools/failure-digest.pl" "$LOG" >&2
     exit 1
 fi
 echo "gate-main: $(field result) for ${SHA:0:12} ($VERSION, $CHANNEL) in ${SECS}s;" \

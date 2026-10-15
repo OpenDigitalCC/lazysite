@@ -83,6 +83,16 @@ if ! flock -n 8; then
   exit 0
 fi
 
+# SM1083: NO UNCHANGED-CODE RUN. With an empty queue and main at the commit the
+# last green night tested, there is nothing new to learn: one log line, exit 0.
+# Coverage is NOT here: it runs on demand (tools/coverage.sh, or in the gate).
+LAST="$D/last-tested-sha"
+MAINSHA=$(git -C "$ROOT" rev-parse main 2>/dev/null || echo none)
+if [ ! -s "$Q" ] && [ -s "$LAST" ] && [ "$(cat "$LAST")" = "$MAINSHA" ]; then
+  stamp "main unchanged since the last green night (${MAINSHA:0:12}) and the queue is empty; nothing to test"
+  exit 0
+fi
+
 quiet=()
 command -v nice >/dev/null 2>&1 && quiet+=(nice -n 19)
 command -v ionice >/dev/null 2>&1 && quiet+=(ionice -c3)
@@ -106,7 +116,13 @@ fi
 if [ "$RC" = 3 ]; then
   stamp "nightly suite: tools/suite.sh --nightly"
   bash "$ROOT/tools/suite.sh" --nightly 8>&- </dev/null
-  stamp "nightly suite: exit $? (log in $STATE/tmp/nightly/$DAY.log)"
+  NRC=$?
+  stamp "nightly suite: exit $NRC (log in $STATE/tmp/nightly/$DAY.log)"
+  # Only a run that tested main and passed is recorded (a skipped run exits 0
+  # too, but leaves its own "skipped" line in the nightly log).
+  if [ "$NRC" = 0 ] && tail -1 "$STATE/tmp/nightly/$DAY.log" 2>/dev/null | grep -q 'prove exit 0'; then
+    echo "$MAINSHA" >"$LAST"
+  fi
 fi
 
 # SM1081: the advisory compatibility tier - the Odoo tests against the installed OOM and OOM's tree. It

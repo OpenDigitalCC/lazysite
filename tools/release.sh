@@ -982,7 +982,11 @@ if [ "$COV_STATUS" -ne 0 ]; then
     if grep -qx 'COVERAGE BELOW FLOOR' "$COV_LOG"; then
         echo "release.sh: coverage below the declared floor; not releasing." >&2
         grep -E 'BELOW' "$COV_LOG" >&2
+    elif grep -q '^coverage: KILLED (memory/signal)' "$COV_LOG"; then
+        echo "release.sh: verdict KILLED (memory/signal): the instrumented suite passed and cover was killed." >&2
+        echo "release.sh: not a test failure and not a shortfall; re-run when the host has memory." >&2
     elif grep -q '^coverage: THE REPORT STEP FAILED' "$COV_LOG"; then
+
         # SM895: the suite PASSED and cover(1) could not report on it. Twice
         # on 0.14.3 this was announced as "the instrumented run did not
         # finish", inferred from the absence of a string - and the cause was

@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM1083 (PENDING) **internal: a release gate that guards itself.** A gate of
+  three to five hours that failed for five different reasons in a week is
+  replaced by a process that refuses to start where it cannot finish.
+  `tools/preflight.sh HEAVY` checks memory, swap, stage disk, inodes and the
+  heavy lock (exit 3 is a skip, not a failure); one heavy lock keeps the
+  gate, coverage and the suite apart; the gate stages on disk
+  (/var/tmp/lazysite-stage); coverage jobs follow free memory and a killed
+  `cover` is reported as KILLED, not as a failure; t/tools/104 no longer
+  trips on a RAM-backed /tmp or on Devel::Cover's stderr;
+  `tools/failure-digest.pl` gives a failure in 20 lines; the overnight run
+  skips unchanged code. Coverage runs on demand, not nightly.
+
 - SM1080 (PENDING) **internal: the overnight run prechecks a stack where it
   lands.** `tools/integration.pl` prechecked each stack's own tree, so a stack
   based on an older main failed on faults main had already fixed (n568, n575
