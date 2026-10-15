@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1083 (PENDING) **internal: coverage in parts.** The measured files fall
+  into nine groups read from the area map (tools/coverage-groups.pl), each
+  with its own inputs digest, cover DB, floor lines and recorded pass under
+  tmp/release-gate/coverage-passes/GROUP/. `tools/coverage.sh --check`
+  measures only the groups whose digest has no recorded pass and reuses the
+  rest (`--all` measures every group, `--groups` lists their state); the gate
+  needs every group matched. Floors start as the whole-suite values marked
+  pre-rebaseline, so the first per-group run reports movement instead of
+  failing on it; one re-baseline commit follows.
+
 - SM1083 (PENDING) **internal: a release gate that guards itself.** A gate of
   three to five hours that failed for five different reasons in a week is
   replaced by a process that refuses to start where it cannot finish.

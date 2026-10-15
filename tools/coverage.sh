@@ -22,7 +22,18 @@ DB="${LAZYSITE_COVER_DB:-$ROOT/cover_db}"
 # note at the prove line below - a coverage report is only meaningful about a
 # suite that finished, and nothing could tell whether one had.
 SUITE_LOG="${LAZYSITE_COVER_SUITE_LOG:-$ROOT/cover_db-suite.log}"
-FLOOR_FILE="$ROOT/dist/config/coverage-floor"
+FLOOR_FILE="${LAZYSITE_COVER_FLOOR_FILE:-$ROOT/dist/config/coverage-floor}"
+
+# SM1083 COVERAGE IN PARTS: a tree with a group map is measured group by group
+# by tools/coverage-parts.sh, which calls back here once per group with
+# LAZYSITE_COVER_GROUP set (and the tests, files, floors and record for it).
+# LAZYSITE_COVER_WHOLE=1 runs the whole suite as before, in one DB.
+case " $* " in *" --groups "* | *" --all "* | *" --group "* | *" --store "*) PARTS_ARGS=1 ;; *) PARTS_ARGS=0 ;; esac
+if [ -z "${LAZYSITE_COVER_GROUP:-}" ] && [ "${LAZYSITE_COVER_WHOLE:-}" != 1 ] \
+    && [ "${LAZYSITE_COVER_DECIDE_ONLY:-}" != 1 ] && [ "${LAZYSITE_COVER_REPORT_ONLY:-}" != 1 ] \
+    && { [ -f "$ROOT/tools/coverage-groups.pl" ] || [ "$PARTS_ARGS" = 1 ]; }; then
+    exec bash "$ROOT/tools/coverage-parts.sh" "$@"
+fi
 
 # ONE RUN AT A TIME. Two concurrent runs share $DB: the second one's `rm -rf`
 # deletes files the first is still writing, and both then report nonsense - all
@@ -154,7 +165,8 @@ fi
 # not the one computed below, runs the stage. A run that measures writes its
 # record to this path, so what release.sh offers is a copy beside the stage.
 COVER_RECORD="${LAZYSITE_COVER_RECORD:-$ROOT/dist/config/coverage-last.json}"
-COVER_DIGEST=$(perl "$ROOT/tools/coverage-inputs.pl" 2>/dev/null | awk '{print $1}')
+# A group's digest is the group's (coverage in parts); the whole suite's is coverage-inputs.pl's.
+COVER_DIGEST=$( if [ -n "${LAZYSITE_COVER_GROUP:-}" ]; then perl "$ROOT/tools/coverage-groups.pl" --digest "$LAZYSITE_COVER_GROUP"; else perl "$ROOT/tools/coverage-inputs.pl"; fi 2>/dev/null | awk '{print $1}')
 if [ "${LAZYSITE_COVER_FORCE:-}" != "1" ] && [ -n "$COVER_DIGEST" ] && [ -f "$COVER_RECORD" ]; then
     prev=$(perl -MJSON::PP -e '
         local $/; open my $f, "<", $ARGV[0] or exit 0;
@@ -197,7 +209,15 @@ fi
 # users tool) agreed exactly. Left at -j4 for the release manager to rule on
 # (serial costs about three times as long), recorded in SM971.
 JOBS=${LAZYSITE_COVER_JOBS:-$(bash "$ROOT/tools/preflight.sh" JOBS)}
-echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumented)..." >&2
+# A group runs ONLY its tests (one path a line in $LAZYSITE_COVER_TESTS); the
+# whole suite is `-r t/`. Unquoted on purpose: a list of paths without spaces.
+if [ -n "${LAZYSITE_COVER_TESTS:-}" ]; then
+    TESTS=$(tr '\n' ' ' <"$LAZYSITE_COVER_TESTS")
+    echo "Running group '${LAZYSITE_COVER_GROUP:-?}' ($(wc -l <"$LAZYSITE_COVER_TESTS") test files) under Devel::Cover, $JOBS-way..." >&2
+else
+    TESTS="-r t/"
+    echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumented)..." >&2
+fi
 # `+ignore,^/tmp/` KEEPS THE INSTRUMENT OUT OF EPHEMERAL COPIES.
 #
 # Several fixtures copy a CGI into a tempdir and run it there. Instrumenting
@@ -247,7 +267,7 @@ else
     ( while :; do sleep 30; _reap_locks; done ) >/dev/null 2>&1 </dev/null &
     REAPER_PID=$!
     PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,^/tmp/,+ignore,/t/,+ignore,Devel" \
-        prove -l -j"$JOBS" -r t/ > "$SUITE_LOG" 2>&1 && SUITE_RC=0 || SUITE_RC=$?
+        prove -l -j"$JOBS" $TESTS > "$SUITE_LOG" 2>&1 && SUITE_RC=0 || SUITE_RC=$?
     kill "$REAPER_PID" 2>/dev/null || true
     wait "$REAPER_PID" 2>/dev/null || true
 fi
@@ -398,6 +418,9 @@ if [ "$1" = "--check" ]; then
     # $report is the one run above - it was run a second time here, another
     # ~12 minutes on this suite, and a second chance to die silently.
     fail=0
+    PRE_REBASELINE=0
+    MOVED=""
+    grep -qx 'status=pre-rebaseline' "$FLOOR_FILE" 2>/dev/null && PRE_REBASELINE=1
     # P19 (WORK-PLAN-0154, ruled 2026-10-12): AND EVERY FILE THE CGIS WERE SPLIT
     # INTO, each to its own floor. SM944 moved the processor into its parts
     # (lazysite-processor/*.pm) and the manager's actions into
@@ -410,10 +433,12 @@ if [ "$1" = "--check" ]; then
     # lands. Each takes the floors above unless dist/config/coverage-floor
     # names its own (`floor[FILE]=`, `branch_floor[FILE]=`) - set for the files
     # measured below the general floors, at what they measured, to ratchet up.
-    PARTS=$(ls lazysite-processor/*.pm lib/Lazysite/Manager/*.pm 2>/dev/null)
+    PARTS=$(ls lazysite-processor/*.pm lib/Lazysite/Manager/*.pm 2>/dev/null || true)
     for f in lazysite-dav.pl lazysite-processor.pl lazysite-manager-api.pl \
              lazysite-auth.pl lazysite-mcp.pl lazysite-oauth.pl \
              tools/lazysite-users.pl tools/lazysite-bundle-apply.pl $PARTS; do
+        # SM1083 coverage in parts: a group checks only its own files.
+        if [ -n "${LAZYSITE_COVER_FILES:-}" ] && ! grep -qxF "$f" "$LAZYSITE_COVER_FILES"; then continue; fi
         # Suffix match as well as exact: a test fixture may run a CGI from a
         # tempdir copy (e.g. the fake-repo fixture copies lazysite-auth.pl),
         # and cover then reports it under that ephemeral (often truncated)
@@ -446,6 +471,15 @@ if [ "$1" = "--check" ]; then
         st=ok
         awk -v t="$pct" -v fl="$sfl" 'BEGIN{ exit (t+0 >= fl+0) ? 0 : 1 }' || { st=BELOW; fail=1; }
         awk -v t="$brn" -v fl="$bfl" 'BEGIN{ exit (t+0 >= fl+0) ? 0 : 1 }' || { st=BELOW-BRANCH; fail=1; }
+        # SM1083 coverage in parts, pre-rebaseline: the floors were measured
+        # under the whole suite; a group's own measure may come in lower. Until
+        # the group is re-baselined, a shortfall is MOVEMENT - printed, kept in
+        # the record for the re-baseline commit - and does not fail the gate.
+        if [ "$fail" = 1 ] && [ "$PRE_REBASELINE" = 1 ]; then
+            st="MOVEMENT (pre-rebaseline, was $st)"
+            fail=0
+            MOVED="$MOVED$f stmt $pct% bran $brn% vs $sfl%/$bfl%; "
+        fi
         printf "  %-38s stmt %5s%%  bran %5s%%  (floors %s%%/%s%%)  %s\n" \
             "$f" "$pct" "$brn" "$sfl" "$bfl" "$st"
     done
@@ -453,14 +487,19 @@ if [ "$1" = "--check" ]; then
         echo "COVERAGE BELOW FLOOR" >&2
         exit 1
     fi
-    echo "coverage: all measured production CGIs and their parts at or above their floors (${floor}% statements / ${branch_floor}% branches unless named; target 75%)"
+    if [ -n "$MOVED" ]; then
+        echo "coverage: PRE-REBASELINE - moved against the starting floors, recorded, not failed: $MOVED" >&2
+    fi
+    echo "coverage: all measured production CGIs and their parts at or above their floors
+ (${floor}% statements / ${branch_floor}% branches unless named; target 75%)"
     # Record the pass against the digest of what produced it. Written only on a
     # PASS - a failed run must never license a skip. And never from REPORT_ONLY
     # (SM896): that path reports on a DB somebody pointed it at, which is not a
     # gate run of this tree, so it cannot be allowed to excuse one.
     if [ -n "${COVER_DIGEST:-}" ] && [ "${LAZYSITE_COVER_REPORT_ONLY:-}" != "1" ]; then
-        printf '{\n  "inputs_digest": "%s",\n  "result": "pass",\n  "floor": "%s",\n  "branch_floor": "%s",\n  "host": "%s",\n  "captured": "%s"\n}\n' \
-            "$COVER_DIGEST" "$floor" "$branch_floor" "$(hostname)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        printf '{\n  "inputs_digest": "%s",\n  "result": "pass",\n  "group": "%s",\n  "status": "%s",\n  "movement": "%s",\n  "floor": "%s",\n  "branch_floor": "%s",\n  "host": "%s",\n  "captured": "%s"\n}\n' \
+            "$COVER_DIGEST" "${LAZYSITE_COVER_GROUP:-whole}" "$([ "$PRE_REBASELINE" = 1 ] && echo pre-rebaseline || echo baselined)" "$MOVED" \
+            "$floor" "$branch_floor" "$(hostname)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             > "$COVER_RECORD"
         echo "coverage: recorded against digest $COVER_DIGEST" >&2
     fi

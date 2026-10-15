@@ -261,6 +261,8 @@
     "^tools/vendor-oom\\.sh$",
     "^tools/integration\\.pl$",
     "^tools/failure-digest\\.pl$",
+    "^tools/coverage-groups\\.pl$",
+    "^tools/coverage-parts\\.sh$",
     "^tools/gate-main\\.sh$",
     "^tools/heavy-lock\\.sh$",
     "^tools/preflight\\.sh$",

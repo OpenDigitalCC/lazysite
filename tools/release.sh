@@ -954,7 +954,17 @@ export LAZYSITE_COVER_SUITE_LOG="${STAGE}-coverage-suite.txt"
 # SM950 (3): offer coverage.sh a pass an earlier gate recorded for this exact
 # input set. Computed here (the stage is quiet: the suite has finished) and
 # again by coverage.sh, which decides; LAZYSITE_COVER_FORCE=1 still measures.
-COV_DIGEST=$(perl "$STAGE/tools/coverage-inputs.pl" 2>/dev/null | awk '{print $1}')
+# SM1083 coverage in parts: a tree with the group map is digested as the groups'
+# combined digest, and each group's own pass is decided by coverage-parts.sh
+# from the same store, group by group. ARGS is unquoted below on purpose.
+COV_DIGEST_TOOL=coverage-inputs.pl
+COV_DIGEST_ARGS=""
+if [ -f "$STAGE/tools/coverage-groups.pl" ]; then
+    COV_DIGEST_TOOL=coverage-groups.pl
+    COV_DIGEST_ARGS="--digest all"
+    export LAZYSITE_COVER_STORE="$COV_STORE"
+fi
+COV_DIGEST=$(perl "$STAGE/tools/${COV_DIGEST_TOOL:-coverage-inputs.pl}" ${COV_DIGEST_ARGS:-} 2>/dev/null | awk '{print $1}')
 COV_OFFER=$(coverage_offer "$COV_STORE" "$COV_DIGEST")
 if [ -n "$COV_OFFER" ]; then
     # A COPY, beside the stage: a run that measures after all writes its own

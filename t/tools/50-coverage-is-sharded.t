@@ -42,8 +42,8 @@ my $src = do { open my $fh, '<', $COV or die $!; local $/; <$fh> };
 my $code = join "\n", grep { !/^\s*#/ } split /\n/, $src;
 
 subtest 'the suite runs in parallel under coverage' => sub {
-    like( $src, qr/prove -l -j"\$JOBS" -r t\//,
-        'prove is given a job count' )
+    like( $src, qr/prove -l -j"\$JOBS" \$TESTS/, 'prove is given a job count' );
+    like( $src, qr/^\s*TESTS="-r t\/"$/m, 'and the whole tree unless a group names its tests (SM1083)' )
         or diag( 'Serial coverage is 92% of an eighty-minute gate and no other '
             . 'lever moves it.' );
 

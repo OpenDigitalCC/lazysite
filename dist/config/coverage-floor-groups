@@ -1,0 +1,55 @@
+# Coverage floors BY GROUP, for coverage in parts (SM1083; tools/coverage-groups.pl).
+#
+# tools/coverage.sh --check now measures each group on its own, with only the
+# tests the area map (tools/precheck-areas.pl) selects for it. The floors in
+# dist/config/coverage-floor were measured under the WHOLE suite, where a file
+# is also reached by tests of other areas, so a group's own measure can come
+# in lower without any code having got worse.
+#
+# STATUS pre-rebaseline: the starting values below ARE the whole-suite floors,
+# copied, and marked. While a group carries `status=pre-rebaseline`, a file
+# measuring under its floor is reported as MOVEMENT and recorded, not failed -
+# the first real per-group run is the measurement, and re-baselining is the
+# LAST step of it (dist/config/coverage-floor says why, 2026-08-22). The
+# re-baseline commit replaces each group's numbers with what it measured, keeps
+# these beside them for comparison, and removes the status line. Ratchet
+# upward after that - never down.
+#
+# A group section inherits floor= and branch_floor= from coverage-floor unless
+# it sets its own. Per-file lines use the same keys coverage.sh reads.
+
+[processor]
+status=pre-rebaseline
+floor[lazysite-processor/oembed.pm]=34
+branch_floor[lazysite-processor/oembed.pm]=0
+branch_floor[lazysite-processor/front-door.pm]=50
+
+[manager]
+status=pre-rebaseline
+branch_floor[lazysite-manager-api.pl]=60
+floor[lib/Lazysite/Manager/Connectors.pm]=31
+branch_floor[lib/Lazysite/Manager/Connectors.pm]=14
+branch_floor[lib/Lazysite/Manager/Config.pm]=60
+
+[auth]
+status=pre-rebaseline
+branch_floor[lazysite-auth.pl]=60
+
+[data]
+status=pre-rebaseline
+
+[front]
+status=pre-rebaseline
+branch_floor[lazysite-mcp.pl]=60
+
+[daemon]
+status=pre-rebaseline
+
+[odoo]
+status=pre-rebaseline
+
+[lib]
+status=pre-rebaseline
+
+[tools]
+status=pre-rebaseline

@@ -51,3 +51,48 @@ needed for every change." No waiver and no special case for any release.
   TEST); used in the nightly inbox note and the gate's failure message.
 - tools/overnight.sh does no work when main is the commit the last green night
   tested and the queue is empty. Coverage is not scheduled: it runs on demand.
+
+# Coverage in parts
+
+The release manager, 2026-10-15: "no need to run every night if the code
+hasnt changed. i dispefer the overnight anyway - so having cover run on
+demand is preferred. maybe it can be broken down into smaller parts, as i am
+sure it all isnt needed for every change."
+
+Shipped on n590 (PENDING). The measured files fall into nine groups, read from
+the area map (tools/precheck-areas.pl): processor, manager, auth, data, front,
+daemon, odoo, lib, tools. tools/coverage-groups.pl is the one declared place.
+Each group has
+
+- its own inputs digest: its code files, the tests the area map selects for
+  its prefixes, its floor lines and the coverage scripts;
+- its own cover DB (cover_db-GROUP) and suite log;
+- its own recorded pass, tmp/release-gate/coverage-passes/GROUP/DIGEST.json;
+- its own floor lines, dist/config/coverage-floor-groups, inheriting the
+  general floor= and branch_floor= from coverage-floor.
+
+`tools/coverage.sh --check` hands over to tools/coverage-parts.sh: behind the
+preflight and the heavy lock it measures only the groups whose digest has no
+recorded pass, reuses the rest, and stops - naming the group - when one cannot
+be matched. `--all` measures every group; `--groups` lists each group's state
+and runs nothing. The gate asks for the groups' combined digest and releases
+only when every group matched or measured. A group with no floor-checked file
+(data, daemon, odoo, lib) has nothing to measure and is marked so.
+
+A reused pass says less than it did: a change to a shared module re-stales
+the `lib` group, not every group that calls it. That is the trade the ruling
+asks for and the filing says so.
+
+## The one-time re-baseline
+
+The floors were measured under the whole suite, where a file is also reached
+by tests of other areas; a group measured alone can come in lower with no
+code having got worse. Every group starts `status=pre-rebaseline`: a file
+under its starting floor is reported as MOVEMENT, kept in the group's record,
+and does not fail. The re-baseline run is `LAZYSITE_COVER_FORCE=1
+tools/coverage.sh --check --all` on the host when the preflight allows it
+(MemAvailable 6 GB or more, swap under 1 GB, nothing else heavy); it reads
+each group's movement line, writes the measured numbers into
+coverage-floor-groups beside the whole-suite values for comparison, removes
+the status lines, and lands as one deliberate commit. Until then a per-group
+shortfall is reported, not enforced. Ratchet upward after that - never down.
