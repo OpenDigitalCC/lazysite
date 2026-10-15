@@ -146,6 +146,10 @@ for my $name ( sort keys %layout ) {
         my $case = "$name, $what";
         ok( -x "$cgibin/$file", "$case: $file is installed and executable" );
         my ( $so, $se, $recs ) = run_cgi( "$cgibin/$file", \%env, $o{body} );
+        # Under the coverage stage the CGIs run instrumented (PERL5OPT passes to
+        # them on purpose, so they are measured); Devel::Cover's own lines are
+        # not the CGI's.
+        $se = join '', grep { !/\ADevel::Cover:/ } split /^/m, $se;
         unlike( $se, qr/Can't locate Lazysite/, "$case: the engine's modules load" )
             or diag( ( split /\n/, $se )[0] );
         like( $so, qr/\A(?:Status: \d{3}|Content-Type:)/mi, "$case: it answers with CGI headers" );

@@ -357,4 +357,39 @@ subtest 'an unclassified ORDINARY file still refuses' => sub {
         'and the message names the FILE, not the manifest it was writing' );
 };
 
+# --- n594: a per-group cover DB at the root is tooling state too --------------
+#
+# tools/coverage-parts.sh measures each group into its own cover_db-GROUP/ at
+# the tree root. The exclude list named cover_db/ and cover_db-suite.log, not
+# that, so under the 0.15.5 gate's coverage stage the one test in the processor
+# group that builds a manifest (t/integration/259, through repo_manifest_guard)
+# was refused before it had printed any TAP - Wstat 512, "No plan found" - and
+# passed everywhere else. Same shape as SM271, two lines up; same lock, for the
+# same reason.
+subtest 'a per-group cover DB at the repo root does not break the build' => sub {
+    my $root_lock = TestHelper::repo_root_lock();
+
+    my $root  = "$FindBin::Bin/../..";
+    my $probe = "$root/cover_db-n594probe";
+    make_path($probe);
+    open my $fh, '>', "$probe/digests" or die $!;
+    print {$fh} "x\n";
+    close $fh;
+
+    my $dir = tempdir( CLEANUP => 1 );
+    my $out = "$dir/n594.json";
+    my $err = `$^X \Q$script\E --version 0.0.0-test --out \Q$out\E 2>&1`;
+    my $rc  = $?;
+    unlink "$probe/digests";
+    rmdir $probe;
+
+    is( $rc, 0, 'the manifest builds with cover_db-GROUP/ at the root' ) or diag $err;
+    ok( -f $out, 'and it was written' )                                  or return;
+    open my $mh, '<', $out or die $!;
+    my $mf = JSON::PP::decode_json( do { local $/; <$mh> } );
+    close $mh;
+    my @shipped = grep { m{\Acover_db} } map { $_->{path} } @{ $mf->{files} };
+    is_deeply( \@shipped, [], 'and nothing under it is shipped' );
+};
+
 done_testing();
