@@ -11,7 +11,11 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root run_cmd);
 
 my $root = repo_root();
-my $tmp  = tempdir( CLEANUP => 1 );
+# SM1083: the gate exports LAZYSITE_STAGE_DIR (and may export other LAZYSITE_*
+# settings) into the staged tree it tests; 157 read the gate's stage as "the
+# default" on 0.15.5. The scripts under test see only what this file gives them.
+delete @ENV{ grep { /^LAZYSITE_(?:STAGE_|PF_|HEAVY_|COVER_|NIGHTLY_)/ } keys %ENV };
+my $tmp = tempdir( CLEANUP => 1 );
 delete $ENV{LAZYSITE_HEAVY_HELD};
 $ENV{LAZYSITE_HEAVY_LOCK} = "$tmp/heavy.lock";
 my $hl = "$root/tools/heavy-lock.sh";

@@ -13,7 +13,11 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root run_cmd);
 
 my $root = repo_root();
-my $d    = tempdir( CLEANUP => 1 );
+# SM1083: the gate exports LAZYSITE_STAGE_DIR (and may export other LAZYSITE_*
+# settings) into the staged tree it tests; 157 read the gate's stage as "the
+# default" on 0.15.5. The scripts under test see only what this file gives them.
+delete @ENV{ grep { /^LAZYSITE_(?:STAGE_|PF_|HEAVY_|COVER_|NIGHTLY_)/ } keys %ENV };
+my $d = tempdir( CLEANUP => 1 );
 sub git { my $o = run_cmd( 'git', '-C', $d, @_ ); $o =~ s/\s+$//; $o }
 git( 'init',   '-q',         '-b', 'main' );
 git( 'config', 'user.email', 't@example.invalid' );
