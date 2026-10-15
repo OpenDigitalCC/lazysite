@@ -28,6 +28,9 @@ use Fcntl      qw(:flock);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root run_cmd);
+$ENV{$_} = 0 for qw(LAZYSITE_PF_MIN_MEM_KB LAZYSITE_PF_MAX_SWAP_KB LAZYSITE_PF_MIN_DISK_KB LAZYSITE_PF_MIN_INODES); # SM1083: the guard is not under test here
+$ENV{LAZYSITE_PF_MAX_SWAP_KB} = 999_999_999;
+$ENV{LAZYSITE_STAGE_DEFAULT} = "/tmp/n589-101-stage-$$";
 
 my $root = repo_root();
 plan skip_all => 'setsid or flock missing' unless grep { -x "$_/setsid" } split /:/, $ENV{PATH};
@@ -79,6 +82,7 @@ sub repo {
     spit( "$d/.gitignore",       "tmp/\ncalls\n" );
     spit( "$d/tools/release.sh", $STANDIN );
     copy( "$root/tools/gate-main.sh", "$d/tools/gate-main.sh" ) or die $!;
+    copy( "$root/tools/$_", "$d/tools/$_" ) or die "$_: $!" for qw(heavy-lock.sh preflight.sh stage-default.sh failure-digest.pl); # SM1083
     git( $d, 'add',    '-A' );
     git( $d, 'commit', '-q', '-m', 'one' );
     git( $d, 'tag',    'v0.1.0' );
@@ -106,7 +110,7 @@ subtest 'a cut-ready tip is gated for real, detached' => sub {
     my ( $rc, $out ) = gate_main($d);
     is( $rc, 0, 'exit 0' ) or diag($out);
     my $c = slurp("$d/calls");
-    like( $c, qr/^ARGS gate 0\.1\.1 --commit $sha$/m, 'release.sh gate NEXT_VERSION --commit SHA, nothing else' );
+    like( $c, qr/^ARGS gate 0\.1\.1 --commit $sha --stage-dir \S+$/m, "release.sh gate NEXT_VERSION --commit SHA, and the disk stage (SM1083)" );
     like( $c, qr/^SESSION-LEADER$/m, 'in a session of its own (setsid), so no terminal' );
     like( $c, qr/^STDIN-NULL$/m,     'with stdin from /dev/null' );
     unlike( $c, qr/FD9-INHERITED/, 'and without the lock, which a leftover process would hold for ever' );
@@ -131,14 +135,14 @@ subtest 'a passed receipt for the same commit is printed, not re-run' => sub {
 
     ( $rc, $out ) = gate_main( $d, '--beta' );
     is( calls($d), 3, 'another channel is another gate' );
-    like( slurp("$d/calls"), qr/^ARGS gate 0\.1\.1 --commit $sha2 --beta$/m, 'with the channel passed on' );
+    like( slurp("$d/calls"), qr/^ARGS gate 0\.1\.1 --commit $sha2 --beta --stage-dir \S+$/m, 'with the channel passed on' );
 };
 
 subtest 'a tree still stamped for the last release is gated for real' => sub {
     my $d = repo( stamp => '0.1.0' );
     my ( $rc, $out ) = gate_main($d);
     is( $rc, 0, 'exit 0' ) or diag($out);
-    like( slurp("$d/calls"), qr/^ARGS gate 0\.1\.1 --commit [0-9a-f]{40}$/m,
+    like( slurp("$d/calls"), qr/^ARGS gate 0\.1\.1 --commit [0-9a-f]{40} --stage-dir \S+$/m,
         'release.sh gate, with no rehearsal - the gate writes the material itself' );
     unlike( $out,                           qr/rehears/i, 'and nothing says rehearsal' );
     unlike( slurp("$d/tools/gate-main.sh"), qr/rehears/i, 'gate-main.sh has no rehearsal left in it' );
@@ -177,7 +181,7 @@ subtest 'a failed gate fails, and shows why' => sub {
     my ( $rc, $out ) = gate_main($d);
     is( $rc, 1, 'exit 1' );
     like( $out, qr/the gate FAILED/,       'says so' );
-    like( $out, qr/the suite failed here/, 'with the end of the log' );
+    like( $out, qr/Digest .* of \S+gate-main\.log:\n.*\| (?:TEST|ENV) \|/, "with the 20-line failure digest (SM1083)" );
 };
 
 subtest 'one run at a time' => sub {

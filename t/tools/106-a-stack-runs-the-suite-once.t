@@ -54,6 +54,7 @@ sub stack {
     make_path( "$d/tools", "$d/tmp" );
     copy( "$root/tools/handoff.sh", "$d/tools/handoff.sh" ) or die $!;
     copy( "$root/tools/suite.sh",   "$d/tools/suite.sh" )   or die $!;
+    copy( "$root/tools/$_", "$d/tools/$_" ) or die "$_: $!" for qw(heavy-lock.sh preflight.sh stage-default.sh failure-digest.pl); # SM1083
     spit( "$d/tools/precheck.sh", <<'SH' );
 b=$(git branch --show-current)
 echo "PRECHECK $b $1" >> calls

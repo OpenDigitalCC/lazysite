@@ -53,6 +53,7 @@ git( $d, 'config', 'user.email', 't@example.invalid' );
 git( $d, 'config', 'user.name',  't' );
 make_path("$d/tools");
 copy( "$root/tools/suite.sh", "$d/tools/suite.sh" ) or die $!;
+copy( "$root/tools/$_", "$d/tools/$_" ) or die "$_: $!" for qw(heavy-lock.sh preflight.sh stage-default.sh failure-digest.pl); # SM1083
 spit( "$d/bin/prove", <<'SH' );
 #!/bin/sh
 echo "start $STUB_ID" >> "$STUB_CALLS"
@@ -71,6 +72,7 @@ my $wt = tempdir( CLEANUP => 1 ) . '/wt';
 git( $d, 'worktree', 'add', '-q', '--detach', $wt );
 make_path("$wt/tools");
 copy( "$root/tools/suite.sh", "$wt/tools/suite.sh" ) or die $!;
+copy( "$root/tools/$_", "$wt/tools/$_" ) or die "$_: $!" for qw(heavy-lock.sh preflight.sh stage-default.sh failure-digest.pl); # SM1083
 
 sub start {
     my ( $dir, $id ) = @_;

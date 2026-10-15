@@ -60,7 +60,7 @@ sub scratch {
     git( $d, 'config', 'user.email', 't@example.invalid' );
     git( $d, 'config', 'user.name',  't' );
     make_path("$d/tools");
-    copy( "$ROOT/tools/$_", "$d/tools/$_" ) or die "$_: $!" for qw(overnight.sh integration.pl suite.sh);
+    copy( "$ROOT/tools/$_", "$d/tools/$_" ) or die "$_: $!" for qw(overnight.sh integration.pl suite.sh heavy-lock.sh);
     spit( "$d/tools/precheck.sh", <<'SH' );
 cd "$(dirname "$0")/.." || exit 2
 echo "PRECHECK $(git log -1 --format=%s) against $(git log -1 --format=%s "$1")" >> "$STUB_CALLS"

@@ -50,6 +50,7 @@ sub repo {
     make_path("$d/tools");
     copy( "$root/tools/handoff.sh", "$d/tools/handoff.sh" ) or die $!;
     copy( "$root/tools/suite.sh",   "$d/tools/suite.sh" )   or die $!;
+    copy( "$root/tools/$_", "$d/tools/$_" ) or die "$_: $!" for qw(heavy-lock.sh preflight.sh stage-default.sh failure-digest.pl); # SM1083
     spit( "$d/tools/precheck.sh",           qq{echo "PRECHECK \$1" >> calls\n} );
     spit( "$d/tools/regen-generated.sh",    "exit 0\n" );
     spit( "$d/tools/tracked-tree-check.pl", "exit 0;\n" );

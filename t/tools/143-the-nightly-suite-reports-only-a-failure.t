@@ -57,6 +57,7 @@ sub repo {
     git( $d, 'config', 'user.name',  't' );
     make_path("$d/tools");
     copy( "$root/tools/suite.sh", "$d/tools/suite.sh" ) or die $!;
+    copy( "$root/tools/$_", "$d/tools/$_" ) or die "$_: $!" for qw(heavy-lock.sh preflight.sh stage-default.sh failure-digest.pl); # SM1083
     spit( "$d/.gitignore", "tmp/\ncalls\nbin/\ninbox/\n" );
     spit( "$d/bin/prove",  <<'SH' );
 #!/bin/sh
@@ -125,8 +126,8 @@ subtest 'a failure files a short report naming the failing file' => sub {
     ok( -f $report, 'the report is DATE-nightly-suite-failed-on-SHA.md in the inbox' )
         or diag( join ' ', glob("$d/inbox/*") );
     my $r = slurp($report);
-    like( $r, qr/^- t\/unit\/x\/01-a\.t$/m, 'naming the failing file' );
-    like( $r, qr/Failed test 'the widget renders'\n\s+#\s+at t\/unit\/x\/01-a\.t line 12\./, 'with its first failure' );
+    like( $r, qr/^t\/unit\/x\/01-a\.t \|/m, 'naming the failing file (the 20-line digest)' );
+    like( $r, qr/^t\/unit\/x\/01-a\.t \| the widget renders \|/m, 'with its first failed assertion' );
     unlike( $r, qr/a later one/, 'and only the first' );
     like( slurp("$d/tmp/nightly/$day.log"), qr/FAILED - filed/, 'the log says it filed one' );
 };

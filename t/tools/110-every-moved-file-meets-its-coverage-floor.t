@@ -23,7 +23,7 @@ plan skip_all => 'awk and flock are needed' unless -x '/usr/bin/awk' && -x '/usr
 
 my $t = site_tempdir();
 make_path( "$t/tools", "$t/dist/config", "$t/lazysite-processor", "$t/lib/Lazysite/Manager", "$t/bin", "$t/cover_db" );
-copy( "$root/tools/$_", "$t/tools/$_" ) or die "$_: $!" for qw(coverage.sh coverage-inputs.pl);
+copy( "$root/tools/$_", "$t/tools/$_" ) or die "$_: $!" for qw(coverage.sh coverage-inputs.pl heavy-lock.sh preflight.sh stage-default.sh failure-digest.pl);
 copy( "$root/dist/config/coverage-floor", "$t/dist/config/coverage-floor" ) or die $!;
 sub spit { my ( $p, $s ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $s; close $fh; return }
 spit( "$t/$_", "1;\n" )

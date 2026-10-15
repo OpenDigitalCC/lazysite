@@ -203,8 +203,7 @@ else
 fi
 write_note
 
-echo "==> suite: prove
- -lr -j$JOBS t/ in $PWD (log: $LOG)"
+echo "==> suite: prove -lr -j$JOBS t/ in $PWD (log: $LOG)"
 # 9>&- : the lock is this script's. A process a test leaves behind must not
 # hold it for ever and stop every later suite on the host.
 "${RUN[@]}" prove -lr -j"$JOBS" t/ >"$LOG" 2>&1 9>&- 7>&-

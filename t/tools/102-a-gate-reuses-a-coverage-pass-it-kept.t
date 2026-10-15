@@ -66,6 +66,7 @@ sub gate {
     my $stage = "$o{origin}/stage-$o{sha}";
     spit( "$stage/tools/coverage-inputs.pl", qq{print "$o{digest} 9\\n";\n} );
     if ( $o{real} ) { copy( "$root/tools/coverage.sh", "$stage/tools/coverage.sh" ) or die $! }
+    copy( "$root/tools/$_", "$stage/tools/$_" ) or die "$_: $!" for qw(heavy-lock.sh preflight.sh stage-default.sh failure-digest.pl); # SM1083
     else            { spit( "$stage/tools/coverage.sh", $MEASURING ) }
     spit( "$stage/dist/config/coverage-last.json", $o{committed} ) if $o{committed};
     my $mode = $o{mode} // 'gate';

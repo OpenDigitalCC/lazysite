@@ -54,7 +54,7 @@ subtest 'the suite runs in parallel under coverage' => sub {
     # kind. Their coverage was absent from every report for as long as the flag
     # was missing.
     like( $src, qr/prove -l\b/, 'and the engine lib, which is not optional' );
-    like( $src, qr/JOBS=\$\{LAZYSITE_COVER_JOBS:-\d+\}/,
+    like( $src, qr/JOBS=\$\{LAZYSITE_COVER_JOBS:-[^}]+\}/,
         'with a default and an override' );
 };
 
