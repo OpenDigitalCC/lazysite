@@ -266,8 +266,9 @@ testing against odoo to run a lazysite, it's just an extension, not core"). So:
 A gate must not start where it cannot finish, and a failure must be cheap to read.
 
 - **The guard.** `tools/preflight.sh HEAVY` refuses to start a heavy job unless
-  MemAvailable is at least 6 GB, swap in use at most 1 GB, the stage base has
-  3 GB and 600,000 inodes free and the heavy lock is free. It prints one line
+  MemAvailable is at least 5 GB, the stage base has 3 GB and 600,000 inodes
+  free and the heavy lock is free; swap in use over 1 GB refuses only when
+  MemAvailable is also under 7 GB (swap lags), and is otherwise a note. It prints one line
   naming the failed condition and exits 3, which a caller treats as a SKIP.
   Thresholds are env-overridable (`LAZYSITE_PF_*`, see the script header).
 - **The lock.** The gate, `tools/coverage.sh` run alone and `tools/suite.sh`

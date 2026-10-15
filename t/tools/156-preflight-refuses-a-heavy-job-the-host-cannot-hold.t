@@ -45,9 +45,16 @@ is( $rc, 3, 'low MemAvailable is "not now" (3)' );
 like( $o, qr/^preflight: not now - MemAvailable/, 'and names memory' );
 is( scalar( () = $o =~ /\n/g ), 1, 'in one line' );
 
+# Swap in use lags (pages a finished run pushed out stay there), so it refuses
+# only when memory is ALSO short: under the memory threshold (5 GB) plus 2 GB.
+( $rc, $o ) = pf( %ok, LAZYSITE_PF_MEMINFO => meminfo( 6_000_000, 4_000_000, 1_000_000 ) );
+is( $rc, 3, 'swap in use over 1 GB with MemAvailable under 7 GB is "not now"' );
+like( $o, qr/^preflight: not now - swap in use 2929 MB is over 1024 MB and MemAvailable 5859 MB is under 7168 MB$/m, 'naming both' );
 ( $rc, $o ) = pf( %ok, LAZYSITE_PF_MEMINFO => meminfo( 16_000_000, 4_000_000, 1_000_000 ) );
-is( $rc, 3, 'swap in use over 1 GB is "not now"' );
-like( $o, qr/swap in use/, 'and names swap' );
+is( $rc, 0, 'the same swap with 16 GB available goes' );
+like( $o, qr/^preflight: note - swap in use 2929 MB is over 1024 MB, but MemAvailable 15625 MB is ample; not refusing/m, 'with a note, not a refusal' );
+( $rc, $o ) = pf( %ok, LAZYSITE_PF_MEMINFO => meminfo( 16_000_000, 4_000_000, 1_000_000 ), LAZYSITE_PF_SWAP_SLACK_KB => 20_000_000 );
+is( $rc, 3, 'the slack is a threshold of its own' );
 
 ( $rc, $o ) = pf( %ok, LAZYSITE_PF_MIN_DISK_KB => 999_999_999_999 );
 is( $rc, 3, 'too little stage disk is "not now"' );
