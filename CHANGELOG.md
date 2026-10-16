@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1093 (PENDING) **a deleted notify rule takes its queued notifications with
+  it.** Deleting a rule left its queued entries in the outbox (0.15.5 test
+  walk). The delete now removes the rule's queued, retrying and held entries
+  and says how many (`outbox_removed`, also in the audit detail); sent history
+  is kept. Entries already stranded by an earlier delete are given up at the
+  start of the outbox job and never sent. t/unit/notify/06.
+
 - SM1092 (PENDING) **security: a WebDAV folder DELETE removes the folder or
   refuses, naming why.** The 0.15.5 test walk saw a folder DELETE answer 204
   and leave the folder and its pages. Removing a page's rule moves the page
