@@ -134,7 +134,7 @@ subtest 'lazysite validate reports what the gate will refuse' => sub {
     my $v = join ' ', map { quotemeta } $^X, "$root/tools/lazysite-validate.pl", '--docroot', $d;
     my $out = qx($v \Q$d/bad-a-bare-name.md\E 2>&1);
     isnt( $? >> 8, 0, 'a page with an unreadable auth_groups fails validation' );
-    like( $out, qr/auth_groups.*is one value, not a list/, 'naming the key and why' ) or diag($out);
+    like( $out, qr/auth_groups.*could not be read as a list/, 'naming the key and why' ) or diag($out);
     like( $out, qr/refused to everyone \(403\)/, 'and what the gate will do about it' );
     $out = qx($v \Q$d/bad-an-unknown-payment-value.md\E 2>&1);
     like( $out, qr/payment: maybe.*not one of required, none/, 'an unreadable payment value too' ) or diag($out);

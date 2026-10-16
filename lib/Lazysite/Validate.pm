@@ -259,7 +259,10 @@ sub read_access_keys {
                 else { @names = map { $clean->($_) } split /,/, $inner, -1 }
             }
             else {
-                $why = "is one value, not a list - write [$inline] or a '- $inline' line below it";
+      # SM1094: quote the value as read and show the forms on their own - splicing it into
+      # the example read garbled for `[` ("write [[] or a '- [' line").
+                $why = "has the value '$inline', which could not be read as a list - write "
+                    . q{auth_groups: [editors], or one "- editors" line per group below it};
             }
         }
         elsif ($stray) { $why = 'has an indented line below it that is not a list item' }

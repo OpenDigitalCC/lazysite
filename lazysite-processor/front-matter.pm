@@ -270,7 +270,10 @@ sub _access_keys_read {
                 else { @names = map { $clean->($_) } split /,/, $inner, -1 }
             }
             else {
-                $why = "is one value, not a list - write [$inline] or a '- $inline' line below it";
+      # SM1094: quote the value as read and show the forms on their own - splicing it into
+      # the example read garbled for `[` ("write [[] or a '- [' line").
+                $why = "has the value '$inline', which could not be read as a list - write "
+                    . q{auth_groups: [editors], or one "- editors" line per group below it};
             }
         }
         elsif ($stray) { $why = 'has an indented line below it that is not a list item' }
@@ -375,7 +378,7 @@ sub parse_yaml_front_matter {
             next if $1 eq 'sections'; # nested block; parsed above (and \s* here would eat its first line)
             next if $1 eq 'tags'        && ref $meta{tags} eq 'ARRAY';
             next if $1 eq 'auth_groups';    # SM980: a list, read above, or none
-            # Strip TT directives from all scalar values including title and subtitle
+                # Strip TT directives from all scalar values including title and subtitle
             my ( $k, $v ) = ( $1, strip_tt_directives($2) );
             # YAML quoting: a matched pair of surrounding quotes is syntax, not
             # content - strip one level so `title: "Welcome"` yields Welcome (not
