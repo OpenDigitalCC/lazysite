@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1083 (PENDING) **internal: coverage for stable only.** "coverage run for
+  stable only" (release manager, 2026-10-16): an edge or beta gate is the
+  suite, the bench and the release material checks, and its receipt says
+  `coverage=not run (channel edge; stable only, SM1083 ruling 2026-10-16)`;
+  build accepts that for edge and beta and refuses it for stable and
+  certified. The coverage stage runs for `--final` and `--certified`, with
+  `LAZYSITE_COVER_FORCE=1` on any channel, or on demand via
+  `tools/coverage.sh`.
+
 - SM1081 (PENDING) **internal: each commit of a stack is cherry-picked once.**
   The overnight run picked a lower branch's commit again for every branch
   above it when the first pick had auto-merged (its patch-id moved on main);

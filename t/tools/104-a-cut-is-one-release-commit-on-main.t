@@ -16,9 +16,9 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Path  qw(make_path);
-use File::Temp  qw(tempdir);
-use File::Copy  qw(copy);
+use File::Path qw(make_path);
+use File::Temp qw(tempdir);
+use File::Copy qw(copy);
 use File::Spec;
 use Digest::SHA qw(sha256_hex);
 use FindBin;
@@ -92,7 +92,7 @@ use Test::More;
 open my $v, '<', 'VERSION' or die; chomp( my $ver = <$v> );
 open my $c, '<', 'CHANGELOG.md' or die; my $cl = do { local $/; <$c> };
 is( $ver, $ENV{STUB_WANT_VERSION} // $ver, 'VERSION is the version being gated' );
-like( $cl, qr/^## \Q$ver\E - EDGE: gated before its notes were written/m, 'the section is written' );
+like( $cl, qr/^## \Q$ver\E - [A-Z]+: gated before its notes were written/m, 'the section is written' );
 done_testing;
 T
     spit( "$d/dist/config/sbom-deps.json", "{}\n" );
@@ -144,6 +144,58 @@ sub release {
     return ( $? >> 8, $out );
 }
 sub tags { git( $_[0], 'tag', '-l', 'v0.1.1' ) }
+
+# SM1083 ruling 2026-10-16: coverage for stable only. The stand-in coverage.sh
+# prints the pass line when it runs, so the receipt says whether it did.
+subtest 'the coverage stage runs for stable only, or when forced' => sub {
+    my $d    = repo();
+    my $main = git( $d, 'rev-parse', 'main' );
+    my ( $rc, $out ) = release( $d, 'gate', '0.1.1', '--commit', $main );
+    is( $rc, 0, 'an edge gate passes' ) or diag($out);
+    my $r = slurp("$d/tmp/release-gate/0.1.1/receipt");
+    like( $r, qr/^coverage=not run \(channel edge; stable only, SM1083 ruling 2026-10-16\)$/m, 'with coverage not run, and the ruling named' );
+    like( $r,   qr/^coverage_from=none$/m,                  'from nowhere' );
+    like( $out, qr/^==> coverage: not run \(channel edge/m, 'said in the gate output' );
+    unlike( $out, qr/coverage\.sh --check \(instrumented/, 'and the stage was not started' );
+    like( slurp("$d/tmp/release-gate/0.1.1/coverage.txt"), qr/^coverage: not run/, 'the coverage log says so too' );
+
+    ( $rc, $out ) = release( $d, 'gate', '0.1.1', '--commit', $main, '--beta' );
+    is( $rc, 0, 'a beta gate passes' ) or diag($out);
+    like( slurp("$d/tmp/release-gate/0.1.1/receipt"), qr/^coverage=not run \(channel beta;/m, 'beta: not run either' );
+
+    ( $rc, $out ) = release( $d, 'gate', '0.1.1', '--commit', $main, '--final' );
+    is( $rc, 0, 'a stable gate passes' ) or diag($out);
+    like( slurp("$d/tmp/release-gate/0.1.1/receipt"), qr/^coverage=measured$/m, 'stable: the stage ran and measured' );
+    like( $out, qr/coverage\.sh --check \(instrumented/, 'and said it was starting' );
+
+    {
+        local $ENV{LAZYSITE_COVER_FORCE} = 1;
+        ( $rc, $out ) = release( $d, 'gate', '0.1.1', '--commit', $main );
+        is( $rc, 0, 'an edge gate with LAZYSITE_COVER_FORCE=1 passes' ) or diag($out);
+        like( slurp("$d/tmp/release-gate/0.1.1/receipt"), qr/^coverage=measured$/m, 'and measured: FORCE runs it on any channel' );
+    }
+};
+
+subtest 'build takes a receipt without coverage for edge, refuses it for stable' => sub {
+    my $d    = repo();
+    my $main = git( $d, 'rev-parse', 'main' );
+    my ( $rc, $out ) = release( $d, 'gate', '0.1.1', '--commit', $main );
+    is( $rc, 0, 'an edge gate (no coverage) passes' ) or diag($out);
+    ( $rc, $out ) = release( $d, 'build', '0.1.1', '--notes', $NOTES );
+    is( $rc, 0, 'the edge build accepts the receipt' ) or diag($out);
+    like( $out, qr/^==>   coverage: not run \(channel edge/m, 'saying coverage was not run' );
+
+    my $e = repo();
+    $main = git( $e, 'rev-parse', 'main' );
+    ( $rc, $out ) = release( $e, 'gate', '0.1.1', '--commit', $main, '--final' );
+    is( $rc, 0, 'a stable gate passes' ) or diag($out);
+    my $rf = "$e/tmp/release-gate/0.1.1/receipt";
+    spit( $rf, slurp($rf) =~ s/^coverage=measured$/coverage=not run (channel stable; hand-edited)/mr );
+    ( $rc, $out ) = release( $e, 'build', '0.1.1', '--notes', $NOTES, '--final' );
+    is( $rc, 1, 'a stable build refuses a receipt whose gate ran no coverage' );
+    like( $out, qr/ran no coverage \(not run \(channel stable; hand-edited\)\);\nrelease\.sh: a stable release needs the coverage stage\. Gate again: tools\/gate-main\.sh --version 0\.1\.1 --final/, 'and says how to get one' );
+    is( tags($e), '', 'nothing is tagged' );
+};
 
 subtest 'the gate writes the release material into its stage and gates that tree' => sub {
     my $d    = repo();

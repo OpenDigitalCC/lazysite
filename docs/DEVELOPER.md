@@ -278,6 +278,12 @@ A gate must not start where it cannot finish, and a failure must be cheap to rea
 - **The disk stage.** The gate stages in /var/tmp/lazysite-stage unless
   `--stage-dir` or `LAZYSITE_STAGE_DIR` is given; /tmp is RAM-backed and /srv is
   nearly full. Retained stages older than 2 days are removed at the next run.
+- **Coverage for stable only** (release manager, 2026-10-16: "coverage run for
+  stable only"). An edge or beta gate is the suite, the bench and the release
+  material checks, and its receipt says `coverage=not run (channel edge; stable
+  only, SM1083 ruling 2026-10-16)`; build accepts that for edge and beta and
+  refuses it for stable and certified. The coverage stage runs for `--final`
+  and `--certified`, or on any channel with `LAZYSITE_COVER_FORCE=1`.
 - **Coverage on demand.** `tools/coverage.sh` is not scheduled. It skips when
   its inputs digest matches a recorded pass (the gate reuses one), uses 4 jobs
   when MemAvailable is at least 8 GB and else 2, and a killed `cover` is

@@ -100,3 +100,25 @@ each group's movement line, writes the measured numbers into
 coverage-floor-groups beside the whole-suite values for comparison, removes
 the status lines, and lands as one deliberate commit. Until then a per-group
 shortfall is reported, not enforced. Ratchet upward after that - never down.
+
+# Coverage for stable only
+
+The release manager, 2026-10-16: "coverage run for stable only."
+
+The record behind it: ten gate attempts on 0.15.5 between 2026-10-12 and
+2026-10-16. The suite and the bench passed every time. Every failure was the
+coverage stage's: the filings lint, the mapper-spec lint (three times), two
+memory kills, t/tools/104 under Devel::Cover on a RAM-backed /tmp, a guard
+refusal on lagging swap, a test reading the gate's own environment, and a
+group whose own tests could not reach its one gated file. In the project's
+history the floor check has found no engine fault.
+
+Shipped on n597 (PENDING): an edge or beta gate is the suite, the bench and
+the release material checks; its receipt says `coverage=not run (channel
+edge; stable only, SM1083 ruling 2026-10-16)` and `coverage_from=none`.
+`release.sh build` accepts such a receipt for edge and beta and refuses it for
+stable and certified, saying to gate again with `--final`. The coverage stage
+runs when the channel is stable or certified (`--final`, `--certified`), on
+any channel with `LAZYSITE_COVER_FORCE=1`, or on demand through
+`tools/coverage.sh`. Coverage in parts and the re-baseline stand as filed; they
+now cost a stable cut, not every cut.

@@ -358,6 +358,19 @@ if [ "$MODE" = build ]; then
         echo "release.sh:            is from a gate that did not test the release material)" >&2
         exit 1
     fi
+    # SM1083 ruling 2026-10-16: an edge or beta receipt may say "coverage=not
+    # run"; a stable or certified one may not.
+    case "$CHANNEL" in
+        stable | certified)
+            case "$(receipt_field coverage)" in
+                "not run"*)
+                    echo "release.sh: the gate receipt for $VERSION ran no coverage ($(receipt_field coverage));" >&2
+                    echo "release.sh: a $CHANNEL release needs the coverage stage. Gate again: tools/gate-main.sh --version $VERSION --final" >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
+    esac
     echo "==> Gate passed for ${TARGET_SHA:0:12} ($(receipt_field finished)): $(receipt_field files) files, $(receipt_field tests) tests"
     echo "==>   coverage: $(receipt_field coverage) $(receipt_field coverage_from)"
     echo "==>   receipt and logs: $RECEIPT_DIR"
@@ -928,7 +941,24 @@ fi
 # several times over. An estimate that understates by 4x is worse than none -
 # during the 0.11.8 cut it led to a healthy run being diagnosed as a hang, and
 # the next person to look would have reached for the kill.
-echo "==> coverage.sh --check (instrumented run; ~1 hour - Devel::Cover is several times the uninstrumented ~10 min)"
+# SM1083 RULING (release manager, 2026-10-16): "coverage run for stable only."
+# Ten gate attempts on 0.15.5 (2026-10-12 to 16): the suite and the bench
+# passed every time; every failure was the coverage stage's - lints, inodes,
+# memory kills, a test under instrumentation, a floor the group's own tests
+# could not reach - and the floor check has found no engine fault in the
+# project's history. So edge and beta gates are suite + bench + the release
+# material checks; the coverage stage runs when the channel is stable or
+# certified, or when LAZYSITE_COVER_FORCE=1 asks for it on any channel, or on
+# demand through tools/coverage.sh. The receipt says which.
+COV_RUN=0
+case "$CHANNEL" in stable | certified) COV_RUN=1 ;; esac
+[ "${LAZYSITE_COVER_FORCE:-}" = 1 ] && COV_RUN=1
+COV_NOT_RUN="not run (channel $CHANNEL; stable only, SM1083 ruling 2026-10-16)"
+if [ "$COV_RUN" = 1 ]; then
+    echo "==> coverage.sh --check (instrumented, in groups; a group not matched to a recorded pass is measured - the whole set took 7 hours on 0.15.5)"
+else
+    echo "==> coverage: $COV_NOT_RUN"
+fi
 # SM444 follow-up: BESIDE the stage, never inside it.
 #
 # The first version wrote this to $STAGE/coverage-check.txt and the next step
@@ -979,8 +1009,12 @@ fi
 # `STATUS=$?` never reaches the second statement when cmd fails - the script
 # died here and the whole verdict block below was unreachable. Not `if !`
 # (58 forbids it: that form asserted a cause nobody had measured).
+# ${COV_RUN:-1}: t/tools/102 and 58 drive this block alone, from COV_DIGEST= down.
+# SM1083 ruling 2026-10-16: not run for edge and beta - the log says so and the
+# verdict below reads it. The run stays on the line after COV_STATUS=0 (58).
+[ "${COV_RUN:-1}" = 1 ] || echo "coverage: ${COV_NOT_RUN:-not run}" > "$COV_LOG"
 COV_STATUS=0
-detached bash "$STAGE/tools/coverage.sh" --check > "$COV_LOG" 2>&1 || COV_STATUS=$?
+[ "${COV_RUN:-1}" != 1 ] || detached bash "$STAGE/tools/coverage.sh" --check > "$COV_LOG" 2>&1 || COV_STATUS=$?
 cat "$COV_LOG"
 if [ "$COV_STATUS" -ne 0 ]; then
     # Q14d: THE MARKERS ARE MATCHED AS coverage.sh PRINTS THEM, whole and
@@ -1036,7 +1070,10 @@ fi
 # the committed one - and the receipt names where its pass came from.
 COV_RECORD="$STAGE/dist/config/coverage-last.json"
 COV_RECORD="${LAZYSITE_COVER_RECORD:-$COV_RECORD}"
-if grep -q '^coverage: SKIPPED' "$COV_LOG"; then
+if grep -q '^coverage: not run' "$COV_LOG"; then
+    COV_MODE="${COV_NOT_RUN:-not run}"
+    COV_FROM="none"
+elif grep -q '^coverage: SKIPPED' "$COV_LOG"; then
     COV_MODE=reused
     COV_FROM=$(coverage_origin "$COV_RECORD")
     echo "==> coverage REUSED, not re-measured: the pass at $COV_FROM"
