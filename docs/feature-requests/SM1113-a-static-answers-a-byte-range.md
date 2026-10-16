@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-16
 raised-by: field report, publishing interface clips to xisl.com (0.14.4) and edge (0.15.5), 2026-10-16
 area: serving
-status-note: "SHIPPED on n616: lazysite-processor/pipeline.pm _byte_range, _serve_content_static; t/unit/processor/130, t/integration/260."
+status-note: "SHIPPED on n616: lazysite-processor/pipeline.pm _byte_range, _serve_content_static; t/unit/processor/130, t/integration/261."
 ---
 
 # What happened

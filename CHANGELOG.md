@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1112 (PENDING) **media is served as media.** `.mp4`, `.webm` and other
+  video, audio and caption files were served as `application/octet-stream`
+  (xisl.com, 2026-10-16). Every content-type map the engine has now carries
+  them, and gives each extension one answer; t/lint/264 keeps the maps in
+  step.
+- SM1113 (PENDING) **an engine-served file answers a byte range.** On a site
+  with access rules every static passes through the engine, which ignored
+  `Range`, so Safari and iOS would not play video. It now answers 206, 416 and
+  `Accept-Ranges: bytes`, uncompressed, after the access check.
+  t/unit/processor/130, t/integration/261.
+
 - SM1108 (PENDING) **a blank password field keeps the stored password.** Saving
   Form SMTP with its password left blank cleared the stored one, though the
   field said "leave blank to keep". A blank `type: password` value is now
