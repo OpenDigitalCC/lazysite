@@ -111,6 +111,12 @@ Archive
   list form targets `/path`, a refused list names the paths it asked about,
   and the list result carries the read-without-write warning.
   t/unit/manager/344.
+- SM1099 (PENDING) **an anonymous request does not fill the web server's error
+  log.** The Apache error log filled with hundreds of MB of `[INFO] [auth]
+  [/] auth: no cookie` (release manager, 2026-10-16): the auth wrapper logged
+  one INFO line per request and never read `log_level`. "No cookie" and
+  "cookie valid" are now DEBUG, and the wrapper honours `log_level` from
+  lazysite.conf; `LAZYSITE_LOG_LEVEL` still wins. t/unit/auth/61.
 
 ## 0.15.6 - EDGE: an operator can add an operator, and a refused switch says why (2026-10-16)
 

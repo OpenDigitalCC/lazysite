@@ -263,6 +263,16 @@ my $action = '';
 # `rotate` does not shadow a longer one such as `rotate-auth-secret`.
 $action = $1 if $query =~ /action=([a-z][a-z-]*)/;
 
+# SM1099: THIS WRAPPER HONOURS log_level. Every request passes through it and
+# its log lines go to the web server's error log; the processor has read
+# log_level from lazysite.conf since it was added, and this file never did, so
+# it logged at INFO whatever the site said. The env override still wins, as in
+# the processor.
+{
+    my $lvl = read_conf_key('log_level');
+    $ENV{LAZYSITE_LOG_LEVEL} = $lvl if length $lvl && !$ENV{LAZYSITE_LOG_LEVEL};
+}
+
 # SM128: bad-URL auto-blocker. Refuse a blocked IP outright and count scanner
 # probes toward a block. Enabled by default; runs before the auth dispatch so it
 # covers every request through the wrapper (a blocked IP cannot even try to log in).
@@ -1170,11 +1180,14 @@ sub handle_request {
         # now makes to refuse a removed account - one read, not two.
         $ENV{LAZYSITE_AUTH_NO_PASSWORD} = '1' if $ident->{no_password};
 
-        log_event( 'INFO', $uri, 'auth: cookie valid',
+        # SM1099: one line per request is DEBUG: a signed-in or signed-out
+        # visitor is the normal case, and at INFO these two filled the web
+        # server's error log at the rate of the site's traffic.
+        log_event( 'DEBUG', $uri, 'auth: cookie valid',
             user => $ident->{user}, groups => $ident->{groups} );
     }
     elsif ( $why eq 'no-cookie' ) {
-        log_event( 'INFO', $uri, 'auth: no cookie' );
+        log_event( 'DEBUG', $uri, 'auth: no cookie' );
     }
     elsif ( $why eq 'malformed' ) {
         log_event( 'WARN', $uri, 'auth: cookie malformed' );
