@@ -2663,7 +2663,15 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
     }
 
     # Meaningful file events: a save is a create (new file) or an edit.
-    if ( $action eq 'save' && ref $result eq 'HASH' ) {
+    #
+    # SM1090: ONLY WHEN IT HAPPENED. A save that failed at the write has created
+    # nothing and edited nothing, and has no `created` flag, so this named every
+    # refused new page an `edit` that failed: the 0.15.5 edge test plan could
+    # not find the rows of its failed saves ("not audited at all") because it
+    # looked for the act it had attempted, `save`, and the trail said `edit`
+    # (and `create` never, for a page that was never made). A failed save keeps
+    # the request's own action, and its detail below is the write's reason.
+    if ( $action eq 'save' && ref $result eq 'HASH' && $result->{ok} ) {
         $aud_action = $result->{created} ? 'create' : 'edit';
     }
 
