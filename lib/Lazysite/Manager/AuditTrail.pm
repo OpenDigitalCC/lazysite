@@ -119,6 +119,18 @@ sub _audit_implicit_target {
     $params //= {};
     my $req = ( defined $body && length $body ) ? ( eval { decode_json($body) } // {} ) : {};
 
+    # SM1091: a list-form acl-set carries no path of its own; its refusal was
+    # audited with target '' while the single form names '/path'. Name the paths
+    # it asked about, spelt as the single form spells one, the first few and the
+    # count of the rest so a 2,000-path request stays a line.
+    if ( $action eq 'acl-set' && ref $req eq 'HASH' && ref $req->{paths} eq 'ARRAY' ) {
+        my @p = map { m{\A/} ? $_ : "/$_" } grep { defined && !ref && length } @{ $req->{paths} };
+        if (@p) {
+            my @show = splice( @p, 0, 5 );
+            return join( ',', @show ) . ( @p ? ' (+' . scalar(@p) . ' more)' : '' );
+        }
+    }
+
     if ( $action eq 'nav-save' ) {    # nav-save edits the site navigation
         my $h = $params->{host} // $req->{host} // '';
         return length $h ? "nav ($h)" : 'nav';

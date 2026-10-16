@@ -2382,12 +2382,22 @@ sub dispatch_acl_set {
         $result = action_acl_set( $Lazysite::Manager::Common::path, $Lazysite::Manager::Common::auth_user,
             $r_read,  $r_write,
             $r_owner, $r_draft );
-        $ACL_AUDIT_AFTER = {
+        # SM1091: the audit's after-state is the rule action_acl_set STORED, not
+        # the request that asked for it. The request's lists arrive as an array
+        # or as a string ("@g" / "a, b"), and the formatter reads arrays only, so
+        # a string-sent list recorded as "no restriction" - and an owner kept
+        # from the old rule was missing from it as well. The edge test plan
+        # (F7) read the row "read: @g; owner: x -> no restriction" for a rule
+        # that restricts read. The request is the fallback for a refusal, which
+        # carries no rule and whose row does not print the after-state.
+        $ACL_AUDIT_AFTER
+            = ( ref $result eq 'HASH' && ref $result->{acl} eq 'HASH' ) ? $result->{acl}
+            : {
             read  => $r_read,
             write => $r_write,
             owner => $r_owner,
             draft => $r_draft,
-        };
+            };
     }
     return ( $result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
 }
@@ -2445,7 +2455,7 @@ sub _acl_set_many {
             undef, undef );
     }
 
-    my ( @results, @audit );
+    my ( @results, @audit, @warnings, %warned );
     my $all_ok = 1;
     for my $p (@paths) {
         my $before = action_acl_get( $p, $user );
@@ -2455,14 +2465,26 @@ sub _acl_set_many {
         push @results, { path => ( ref $r eq 'HASH' && $r->{path} ) // $p, ok => $ok,
             ( $ok ? () : ( kind => $r->{kind}, error => $r->{error} ) ),
             ( ref $r eq 'HASH' && $r->{content_moved} ? ( content_moved => 1 ) : () ) };
-        push @audit, [ ( ref $r eq 'HASH' && $r->{path} ) // $p,
-            ( ref $before eq 'HASH' && $before->{ok} ? $before->{acl} : undef ),
-            { read => $m_read, write => $m_write, owner => $m_owner, draft => $m_draft }, $ok,
+        # SM1091: the warnings one path's write earned, said once for the request
+        # - the same rule is written to every path, so they are the same words,
+        # and the single form carries them (the read-without-write one among them).
+        if ( ref $r eq 'HASH' && ref $r->{warnings} eq 'ARRAY' ) {
+            push @warnings, grep { !$warned{$_}++ } @{ $r->{warnings} };
+        }
+        # SM1091: the path as the single form audits it ("/two.md", never
+        # "two.md"), and the rule as it was stored, not as it was asked for.
+        my $apath = ( ref $r eq 'HASH' && $r->{path} ) // $p;
+        $apath = "/$apath" unless $apath =~ m{\A/};
+        my $was = ( ref $before eq 'HASH' && $before->{ok} ) ? $before->{acl} : undef;
+        my $now = { read => $m_read, write => $m_write, owner => $m_owner, draft => $m_draft };
+        $now = $r->{acl} if ref $r eq 'HASH' && ref $r->{acl} eq 'HASH';
+        push @audit, [ $apath, $was, $now, $ok,
             ( $ok ? '' : ( $r->{kind} // $r->{error} // '' ) ) ];
     }
     return ( { ok => ( $all_ok ? 1 : 0 ), ( $all_ok ? () : ( kind => 'partial',
                     error => 'some rules could not be written in full; see results' ) ),
-            paths => scalar(@paths), results => \@results, _acl_audit => \@audit },
+            paths => scalar(@paths), results => \@results, _acl_audit => \@audit,
+            ( @warnings ? ( warnings => \@warnings ) : () ) },
         undef, undef );
 }
 
