@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.7"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.8"
 brand: plain
 ---
 
@@ -2023,6 +2023,10 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.8** (2026-10-16, edge) - **Mark all read is kept, and the site has one
+  address.** Mark all read and Dismiss are kept, or the bell says they were not
+  (SM1100); the Site URL field fills in the address the page is open at
+  (SM1101), and it is the one address links use (SM1102)
 - **0.15.7** (2026-10-16, edge) - **A folder delete deletes, and a signed-out
   visit is not an event.** A WebDAV folder DELETE checks every member and
   removes the folder everywhere, or refuses naming why (SM1092); a deleted
