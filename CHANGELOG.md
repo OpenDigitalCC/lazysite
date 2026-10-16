@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1104 (PENDING) **an info mark shows its note on keyboard focus.** Focus only
+  recoloured the mark, so a sighted keyboard user never saw the note (row N4 of
+  the 0.15.6 walk). The note is drawn beside the mark on hover and on
+  focus-visible, in all three manager styles, without being read twice by a
+  screen reader. t/unit/manager/349.
+
 - SM1103 (PENDING) **a write with no path is refused by name.** The edge test
   walk's "manager saves fail" was a client sending `path` in the JSON body:
   `save` reads it from the query, so it ran with no path and tried to create

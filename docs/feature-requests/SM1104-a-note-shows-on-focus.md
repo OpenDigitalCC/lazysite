@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-16
 raised-by: 0.15.6/0.15.7 test plan, row N4
 area: manager
-status-note: "SHIPPED on n613: manager-classic/-modern/-accessible.css .mg-info[data-note]; plugin-config.md, plugins.md, data.md; t/unit/manager/348 (real browser)."
+status-note: "SHIPPED on n613: manager-classic/-modern/-accessible.css .mg-info[data-note]; plugin-config.md, plugins.md, data.md; t/unit/manager/349 (real browser)."
 ---
 
 # What happened
