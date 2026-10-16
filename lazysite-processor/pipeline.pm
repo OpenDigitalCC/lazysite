@@ -450,6 +450,47 @@ sub _source_alternate {
     return $out . $text;
 }
 
+# SM1113: WHICH BYTES A `Range` HEADER ASKS FOR, against a file of $size bytes.
+#
+# Field report, 2026-10-16 (xisl.com on 0.14.4, edge on 0.15.5): "A request
+# with `Range: bytes=0-99` gets `200` and the whole file, with no
+# `Accept-Ranges` header ... Safari and iOS will not play a <video> whose server
+# ignores Range". On a site with an ACL store every static comes here (SM223,
+# the hestia-proxy/acl front), so this serve is the only thing that can answer
+# a range for one.
+#
+# Returns () to IGNORE the header and send the whole file, the string '416' for
+# a range nothing in the file satisfies, or (first, last) inclusive.
+#
+# ONE RANGE, BY CHOICE. RFC 9110 14.2 lets a server ignore Range altogether, so
+# answering a multi-range request with the whole file is correct; a
+# multipart/byteranges body is a second response format for a request no media
+# client makes. Anything that is not a well-formed single `bytes=` spec is
+# ignored the same way, which is what the RFC says to do with a header the
+# server does not understand - it is never an error.
+sub _byte_range {
+    my ( $spec, $size ) = @_;
+    return () unless defined $spec;
+    return () unless $spec =~ /\A\s*bytes\s*=\s*(\d*)\s*-\s*(\d*)\s*\z/i;
+    my ( $first, $last ) = ( $1, $2 );
+
+    # `-n`: the last n bytes. A suffix longer than the file is the whole file
+    # and still satisfiable; `-0`, or any suffix of an empty file, is not.
+    if ( !length $first ) {
+        return () unless length $last;
+        return '416' if $last == 0 || $size == 0;
+        return ( $last >= $size ? 0 : $size - $last, $size - 1 );
+    }
+
+    # `a-` and `a-b`. A last byte past the end is clamped to the end (RFC 9110
+    # 14.1.1); a first byte past it is unsatisfiable; b < a is not a valid
+    # range at all, so the header is ignored rather than refused.
+    return ()         if length $last && $last < $first;
+    return '416'      if $first >= $size;
+    $last = $size - 1 if !length $last || $last >= $size;
+    return ( $first, $last );
+}
+
 sub _serve_content_static {
     my ( $root, $rel, $uri ) = @_;
     return 0 unless length $rel;
@@ -555,12 +596,65 @@ sub _serve_content_static {
 
     my $size = ( stat $fh )[7] // 0;
     my $ct   = $STATIC_CT{ lc $ext } || 'application/octet-stream';
-    $ACCESS_REC{s} //= 200;
-    $ACCESS_REC{b} = $size;
+
+    # SM1113: the range, if one is asked for and may be honoured.
+    #
+    # If-Range makes a range conditional on the client's copy still being
+    # current, judged by the STRONG comparison (RFC 9110 13.1.5). The only
+    # validator this serve sends is the SM388 weak ETag, which never passes a
+    # strong comparison, and it sends no Last-Modified for a date to be checked
+    # against. So an If-Range here can never be satisfied, and the answer is the
+    # whole file - which is the safe failure: a client resuming a partial copy
+    # gets a fresh one rather than bytes spliced onto a file that changed.
+    my @range;
+    @range = _byte_range( $ENV{HTTP_RANGE}, $size )
+        if defined $ENV{HTTP_RANGE}
+        && !defined $ENV{HTTP_IF_RANGE};
+
+    # HEAD gets the GET's headers and no body. Apache drops a CGI's body on HEAD
+    # itself; not reading the file is what keeps the two agreeing on every
+    # front, the dev server and the FastCGI relay included.
+    my $head = ( $ENV{REQUEST_METHOD} // 'GET' ) eq 'HEAD';
+
     binmode(STDOUT);
-    print "Status: 200 OK\n";
+    if ( @range && $range[0] eq '416' ) {
+        $ACCESS_REC{s} //= 416;
+        $ACCESS_REC{b} = 0;
+        close $fh;
+        print "Status: 416 Range Not Satisfiable\n";
+        print "Content-type: $ct\n";
+        print "$_\n" for _security_headers();
+        print "Content-Range: bytes */$size\n";    # the length, so a client can retry
+        print "Accept-Ranges: bytes\n";
+        print "Content-Length: 0\n";
+        print _static_cache_control($real) . "\n";
+        print "ETag: $etag\n" if defined $etag;
+        print "\n";
+        return 1;
+    }
+
+    my ( $from, $len ) = @range ? ( $range[0], $range[1] - $range[0] + 1 ) : ( 0, $size );
+    $ACCESS_REC{s} //= @range ? 206 : 200;
+    $ACCESS_REC{b} = $head ? 0 : $len;
+    if (@range) {
+        print "Status: 206 Partial Content\n";
+    }
+    else {
+        print "Status: 200 OK\n";
+    }
     print "Content-type: $ct\n";
     print "$_\n" for _security_headers();    # SM352
+    print "Content-Range: bytes $range[0]-$range[1]/$size\n" if @range;
+    # SM1113: on the whole file too, or a media client has no reason to ask.
+    # Content-Length is the bytes this response carries - the span for a 206.
+    #
+    # NO COMPRESSION CAN TOUCH THIS. The engine compresses nothing, and the two
+    # layers in front that could leave a range alone: mod_deflate passes a
+    # response carrying Content-Range through untouched, and nginx's gzip filter
+    # acts on 200/403/404 only. A compressed range would be a span of bytes of
+    # a representation the client never asked for.
+    print "Accept-Ranges: bytes\n";
+    print "Content-Length: $len\n";
         # SM223: a file whose serving depended on WHO asked must not be stored by a
         # shared cache. no-cache still permits storage and revalidation; no-store
         # does not, and that is the distinction that matters for private material.
@@ -595,9 +689,22 @@ sub _serve_content_static {
     # 64 KiB blocks: large enough that the syscall count is irrelevant, small
     # enough that the worker's footprint is a constant rather than a function of
     # what the operator published.
+    #
+    # SM1113: a range seeks to its first byte and stops after its last, in the
+    # same blocks - a request for the last second of a long video reads one
+    # second of it, not the file up to that point.
+    if ($head) {
+        close $fh;
+        return 1;
+    }
+    seek $fh, $from, 0 if $from;
+    my $left = $len;
     my $buf;
-    while ( my $n = read $fh, $buf, 65_536 ) {
+    while ( $left > 0 ) {
+        my $n = read $fh, $buf, ( $left < 65_536 ? $left : 65_536 );
+        last unless $n;
         print $buf;
+        $left -= $n;
     }
     close $fh;
     return 1;

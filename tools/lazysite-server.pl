@@ -252,18 +252,18 @@ my %MIME = (
     pdf   => 'application/pdf',
     # SM1112: media and its captions, the same set as the processor's
     # %STATIC_CT (t/lint/264 holds every map together).
-    mp4   => 'video/mp4',
-    m4v   => 'video/mp4',
-    webm  => 'video/webm',
-    ogv   => 'video/ogg',
-    mp3   => 'audio/mpeg',
-    ogg   => 'audio/ogg',
-    oga   => 'audio/ogg',
-    opus  => 'audio/ogg',
-    wav   => 'audio/wav',
-    m4a   => 'audio/mp4',
-    flac  => 'audio/flac',
-    vtt   => 'text/vtt; charset=utf-8',
+    mp4  => 'video/mp4',
+    m4v  => 'video/mp4',
+    webm => 'video/webm',
+    ogv  => 'video/ogg',
+    mp3  => 'audio/mpeg',
+    ogg  => 'audio/ogg',
+    oga  => 'audio/ogg',
+    opus => 'audio/ogg',
+    wav  => 'audio/wav',
+    m4a  => 'audio/mp4',
+    flac => 'audio/flac',
+    vtt  => 'text/vtt; charset=utf-8',
 );
 
 # --- Seed scaffolding (only into a real lazysite docroot) ---
@@ -441,6 +441,14 @@ sub parse_cgi_headers {
         }
         elsif ( $line =~ /^Content-type:\s*(.+)/i ) {
             $content_type = $1;
+        }
+        elsif ( $line =~ /^Content-Length:/i ) {
+            # SM1113: the engine's static serve now sends its own, and this
+            # server writes one from the body it relays. Passing both on gave
+            # two Content-Length lines, which nginx refuses as a 502
+            # (t/integration/43 found it). The relayed body is the truth here,
+            # as it is for Apache, which also sets its own.
+            next;
         }
         elsif ( $line =~ /^([^:]+):\s*(.+)/ ) {
             push @extra, [ $1, $2 ];

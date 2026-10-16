@@ -78,7 +78,9 @@ subtest 'and it is read in blocks rather than slurped' => sub {
     my ($sub) = $src =~ /(\nsub _serve_content_static \{.*?\n\}\n)/s;
     ok( $sub, '_serve_content_static is present' ) or return;
 
-    like( $sub, qr/while \( my \$n = read \$fh/,
+    # SM1113: the loop counts down the bytes a range asks for, so it reads at
+    # most one block per pass rather than `while (read ...)` to end of file.
+    like( $sub, qr/while \( \$left > 0 \) \{\s*my \$n = read \$fh, \$buf,/,
         'the body is read in blocks' );
     unlike( $sub, qr/local \$\/;\s*<\$fh>/,
         'and not slurped whole' )

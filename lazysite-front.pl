@@ -100,10 +100,9 @@ unless ( defined $cgibin && length $cgibin ) {
 #
 #   content types     yes, %STATIC_CT
 #   conditional GET   yes, weak ETag + If-None-Match (SM388)
-#   byte ranges       NO. Media seeking fails wherever the engine answers a
-#                     static, and a Range request gets the whole file with a
-#                     200. Not fixed here; recorded so the gap is visible from
-#                     the place that used to deny it.
+#   byte ranges       yes, one `bytes=` range: 206 / 416, Accept-Ranges
+#                     (SM1113, after the field found Safari would not play a
+#                     clip the engine served whole)
 #
 # The reason for not reimplementing them at the front door is unchanged and
 # still good: one implementation is easier to keep correct than two.
