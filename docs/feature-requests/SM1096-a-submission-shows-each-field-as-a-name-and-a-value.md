@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-16
 raised-by: release manager, 2026-10-16 (0.15.5 test plan, T7)
 area: manager
-status-note: "SHIPPED on n606: starter/manager/submission.md render(), the three manager stylesheets; t/unit/manager/343."
+status-note: "SHIPPED on n606: starter/manager/submission.md render(), the three manager stylesheets; t/unit/manager/346."
 ---
 
 # What happened
@@ -30,6 +30,6 @@ a submission is shown and never parsed. The stylesheets give the value
 `white-space: pre-wrap`, so a body keeps its newlines (SM928), and wrap a long
 unbroken run inside the card.
 
-t/unit/manager/343 drives the page's own `render()` in node: a name node and a
+t/unit/manager/346 drives the page's own `render()` in node: a name node and a
 value node apart, the value's newlines intact, markup kept as text, no
 `innerHTML`, and the pre-wrap rule present in all three manager styles.

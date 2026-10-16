@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1096 (PENDING) **a submission shows each field as a name and a value.** The
+  submission view ran a field's name and value together ("messagezz55 F9
+  event 2"). Each field is now its name as a label above its value, and a
+  multi-line value keeps its newlines. t/unit/manager/346.
+- SM1097 (PENDING) **the bell is the one submission indicator.** The menu's
+  submission bubble showed the same events as the bell without saying which
+  form; the release manager ruled "bell stays" (2026-10-16). The bubble is
+  removed; the bell is unchanged. t/unit/manager/202, 204.
+
 - SM1094 (PENDING) **an unreadable auth_groups message quotes what it read.**
   `auth_groups: [` gave "write [[] or a '- [' line below it" (row S9 of the
   0.15.5 test walk): the raw value was spliced into the example. The message
