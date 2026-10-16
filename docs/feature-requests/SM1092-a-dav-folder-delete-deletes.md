@@ -32,6 +32,13 @@ The same handler removed every member of a folder after checking only the
 folder: a page inside it whose rule refused the caller write was deleted with
 the rest.
 
+# Ruling
+
+A folder with a member the caller may not delete is refused whole: 403,
+nothing removed, the member named. The release manager, 2026-10-16: "refuse
+whole is fine". Deleting what is permitted and answering 207 (RFC 4918
+9.6.1) was the alternative.
+
 # What shipped
 
 - **Every copy is a target.** `do_delete` deletes the path in the tree the

@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1092 (PENDING) **security: a WebDAV folder DELETE removes the folder or
+  refuses, naming why.** The 0.15.5 test walk saw a folder DELETE answer 204
+  and leave the folder and its pages. Removing a page's rule moves the page
+  back from the private store but leaves its folder there empty, and DELETE
+  removed only that private copy. It now removes the path from both trees and
+  answers 204 only when neither holds it. Every member is checked first, as
+  the request path is: a member the caller may not delete refuses the whole
+  DELETE (403, nothing removed, the member named; release manager,
+  2026-10-16). Before, members were not checked at all. t/unit/dav/32.
+
 - SM1090 (PENDING) **a failed save is audited as the save that failed.** The
   0.15.5 test walk on edge found manager saves failing with "Permission
   denied" and no save in the audit trail. A failed save was recorded as
