@@ -116,7 +116,13 @@ subtest 'with it, each new account is mailed its own link' => sub {
     ok( ( grep { /\bm1\b/ && /\| ok \|/ } @a ), '...m1 ok' ) or diag(@a);
     ok( ( grep { /\bm3\b/ && /\| fail \|/ } @a ), '...m3 failed' ) or diag(@a);
     ok( !( grep { /example\.org/ } @a ), '...naming no address (SM877)' ) or diag(@a);
-    ok( ( grep { /accounts-import-apply/ && /mailed 2/ } audit() ), 'the apply row counts the mail' );
+    ok( ( grep { /accounts-import-apply/ && /handed to the mail transport 2, not handed over 3/ } audit() ), 'the apply row counts the mail, as handed to the transport' ) or diag( audit() );
+    # SM1111: "mailed" meant "handed to the transport" - a site whose sendmail
+    # delivers nothing still read "mailed 3, not mailed 0". The reply says so.
+    like( $r->{change}, qr/handed to the mail transport 2, not handed over 3/, 'the reply says handed to the mail transport' );
+    unlike( $r->{change}, qr/\bmailed\b/, '...and does not say mailed' );
+    like( $r->{mail}{meaning} // '', qr/handed to the mail transport.*not (?:a )?confirm/i, '...and says that is not delivery' );
+    ok( ( grep { /\bm1\b/ && /claim link handed to the mail transport/ } @a ), 'the trail row says handed over, too' ) or diag(@a);
 };
 
 subtest 'a site that cannot send says so on each row' => sub {

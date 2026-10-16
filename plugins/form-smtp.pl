@@ -35,6 +35,12 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             config_schema => [
                 { key => 'method', label => 'Send method', type => 'select',
                     options => [ 'sendmail', 'smtp' ], default => 'sendmail', required => JSON::PP::true() },
+                # SM1109 (0.15.7 test plan U6): the sender is a setting. It was
+                # webforms@localhost with no way to change it, which a real mail
+                # server refuses at RCPT.
+                { key => 'from', label => 'From address', type => 'email',
+                    note => 'The sender of every mail this site sends. Leave empty to use '
+                        . 'no-reply@ followed by the host of the Site URL.' },
                 { key => 'sendmail_path', label => 'Sendmail path', type => 'text',
                     default => '/usr/sbin/sendmail', show_when => { key => 'method', value => ['sendmail'] } },
                 { key => 'host', label => 'SMTP host', type => 'text', default => 'localhost',
@@ -95,10 +101,14 @@ if ( grep { $_ eq '--pipe' } @ARGV ) {
             }
         }
 
+        # SM1109: the sender - the handler's own, else the extension's From
+        # setting, else the default derived from the site's address.
+        my $conf_from = $docroot ? load_smtp_conf_from( _lz($docroot) . "/forms/smtp.conf" )->{from} : undef;
+        $config->{from} = resolve_from( $config->{from}, $conf_from, $docroot );
+
         # Apply defaults
         $config->{method}         //= 'sendmail';
         $config->{sendmail_path}  //= '/usr/sbin/sendmail';
-        $config->{from}           //= 'webforms@localhost';
         $config->{to}             //= 'root@localhost';
         $config->{subject_prefix} //= '[Contact] ';
 
@@ -218,12 +228,46 @@ sub load_smtp_conf_from {
 # defaults in afterwards.
 sub load_smtp_conf {
     my $conf = load_smtp_conf_from( "$FORMS_DIR/smtp.conf", 1 );
-    $conf->{method}         //= 'sendmail';
-    $conf->{sendmail_path}  //= '/usr/sbin/sendmail';
-    $conf->{from}           //= 'webforms@localhost';
+    $conf->{method}        //= 'sendmail';
+    $conf->{sendmail_path} //= '/usr/sbin/sendmail';
+    $conf->{from} = resolve_from( undef, $conf->{from}, _docroot() );
     $conf->{to}             //= 'root@localhost';
     $conf->{subject_prefix} //= '[Form] ';
     return $conf;
+}
+
+# --- The sender ---
+
+# SM1109 (0.15.7 test plan U6): "The default sender webforms@localhost is refused
+# by a real mail server ... the Form SMTP settings cannot change (the extension
+# has no From field)". RULED 2026-10-16 ("from default ok"): the chain is
+#
+#   1. the handler's own `from`,
+#   2. the Form SMTP extension's From setting (smtp.conf `from`),
+#   3. no-reply@<host of the site's site_url>, site_url expanded,
+#   4. webforms@localhost - only when site_url does not resolve to an absolute
+#      address (a daemon has no request to borrow a host from), and the log says so.
+#
+# One resolver for every message: a form's copy, a notification, an account
+# claim link all pass through this script.
+sub resolve_from {
+    my ( $handler_from, $conf_from, $docroot ) = @_;
+    for my $v ( $handler_from, $conf_from ) {
+        next unless defined $v && !ref $v;
+        ( my $s = $v ) =~ s/^\s+|\s+$//g;
+        return $s if length $s;
+    }
+    my $base = '';
+    if ($docroot) {
+        $base = eval { require Lazysite::Notify; Lazysite::Notify::site_base($docroot) } // '';
+    }
+    if ( $base =~ m{\A\w+://(?:[^/@\s]*@)?([^/\s:]+)} ) {
+        return "no-reply\@$1";
+    }
+    log_event( 'WARN', '-', 'no sender configured and site_url does not resolve to an address; '
+            . 'sending as webforms@localhost, which a real mail server refuses - set the From '
+            . 'address on the Form SMTP extension or pin Site URL' );
+    return 'webforms@localhost';
 }
 
 # --- Email ---
@@ -407,9 +451,19 @@ sub send_via_sendmail {
 
     die "sendmail not found at $sendmail\n" unless -x $sendmail;
 
+    # SM1111: sendmail's stderr goes to a file for the length of the run, so a
+    # failure can quote it; the parent's own stderr is put back before anything
+    # else happens.
+    require File::Temp;
+    my ( $errfh, $errfile ) = File::Temp::tempfile( UNLINK => 1 );
+    open( my $olderr, '>&', \*STDERR ) or die "Cannot save stderr: $!\n";
+    open( STDERR,     '>&', $errfh )   or die "Cannot redirect stderr: $!\n";
     local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
-    open( my $fh, '|-', $sendmail, '-t', '-oi', '-f', $from )
-        or die "Cannot run sendmail: $!\n";
+    my $opened   = open( my $fh, '|-', $sendmail, '-t', '-oi', '-f', $from );
+    my $open_err = "$!";
+    open( STDERR, '>&', $olderr ) or die "Cannot restore stderr: $!\n";
+    close $olderr;
+    $opened or die "Cannot run sendmail: $open_err\n";
     print $fh "From: $from\n";
     print $fh "To: $to\n";
     print $fh "Subject: $subject\n";
@@ -418,7 +472,112 @@ sub send_via_sendmail {
     print $fh "MIME-Version: 1.0\n";
     print $fh "\n";
     print $fh $body;
-    close($fh) or die "sendmail failed: exit $?\n";
+    unless ( close($fh) ) {
+        my $why  = describe_wait_status( $?, $! );
+        my $said = _first_lines($errfile);
+        die "sendmail failed: $why" . ( length $said ? ": $said" : '' ) . "\n";
+    }
+}
+
+# SM1111 (0.15.7 test plan U9): "'sendmail failed: exit 256' is the raw wait
+# status (exit code 1)". The status of a child is an exit code in the high byte
+# and a signal in the low seven bits; it is said as what it is.
+sub describe_wait_status {
+    my ( $status, $errno ) = @_;
+    return "killed by signal " . ( $status & 127 ) . _signame( $status & 127 ) if $status & 127;
+    return 'exit code ' .        ( $status >> 8 ) if $status >> 8;
+    # A close that failed with a clean status is a write that did not complete.
+    return 'could not be written to' . ( $errno ? ": $errno" : '' );
+}
+
+sub _signame {
+    my ($n) = @_;
+    my %name = ( 1 => 'HUP', 2 => 'INT', 3 => 'QUIT', 6 => 'ABRT', 9 => 'KILL', 11 => 'SEGV', 13 => 'PIPE', 14 => 'ALRM', 15 => 'TERM' );
+    return $name{$n} ? " ($name{$n})" : '';
+}
+
+# The first few lines of a file as one line, bounded: sendmail's own words, for
+# the reason a send failed. Empty when there are none.
+sub _first_lines {
+    my ($path) = @_;
+    open( my $fh, '<', $path ) or return '';
+    my @l;
+    while ( my $l = <$fh> ) {
+        $l =~ s/\s+$//;
+        next unless length $l;
+        push @l, $l;
+        last if @l >= 3;
+    }
+    close $fh;
+    my $s = join ' / ', @l;
+    $s = substr( $s, 0, 300 ) . '...' if length $s > 300;
+    return $s;
+}
+
+# SM1110 (0.15.7 test plan U7): "STARTTLS fails on a hostname mismatch with only
+# 'STARTTLS failed'... the message should say 'certificate is for
+# isp.cloudient.net, not mail.explore.lazysite.io'."
+#
+# Upgrades the connection and, when that fails, says WHY. The verify callback
+# only watches: it records the names the server's certificate was issued for
+# (its subject alternative names, else its common name) and returns the verdict
+# unchanged, so it can never make a certificate acceptable. Returns (1) on
+# success, else (0, $message, $cert_seen) - $cert_seen is true when a
+# certificate was presented, which is how a caller tells a refused certificate
+# from a server that does not offer STARTTLS at all.
+sub _starttls {
+    my ($smtp) = @_;
+    my @names;
+    my $watch = sub {
+        my ( $ok, $store, $certname, $err, $cert ) = @_;
+        eval {
+            if ( $cert && Net::SSLeay::X509_STORE_CTX_get_error_depth($store) == 0 ) {
+                my @san = Net::SSLeay::X509_get_subjectAltNames($cert);
+                while ( my ( $type, $val ) = splice @san, 0, 2 ) { push @names, $val if $type == 2 }
+                unless (@names) {
+                    my $cn = Net::SSLeay::X509_NAME_get_text_by_NID(
+                        Net::SSLeay::X509_get_subject_name($cert), Net::SSLeay::NID_commonName() );
+                    push @names, $cn if defined $cn && length $cn;
+                }
+            }
+            1;
+        };
+        return $ok;
+    };
+    return (1) if $smtp->starttls( SSL_verify_callback => $watch );
+    return ( 0, starttls_failure( $smtp->host, \@names, $@, $smtp->code, scalar $smtp->message ), scalar @names );
+}
+
+# The sentence for a STARTTLS that failed. Pure, so it is tested without a
+# socket: $host is what was connected to, $names the certificate's names (may
+# be empty), $err the TLS library's error, $code/$reply the server's last reply.
+sub starttls_failure {
+    my ( $host, $names, $err, $code, $reply ) = @_;
+    $host //= '';
+    $err  //= '';
+    $err =~ s/\s+$//;
+    if ( defined $code && $code =~ /\A[45]/ ) {
+        ( my $r = $reply // '' ) =~ s/[\r\n]+/ /g;
+        $r =~ s/\s+$//;
+        return "STARTTLS failed: the server replied $code" . ( length $r ? " $r" : '' );
+    }
+    if ( $names && @$names && $err =~ /hostname verification failed/i ) {
+        return 'STARTTLS failed: certificate is for ' . join( ', ', @$names ) . ", not $host ($err)";
+    }
+    return "STARTTLS failed: $err" if length $err;
+    return 'STARTTLS failed';
+}
+
+# The server's last reply as one line ("550 5.7.1 ..."), or a plain word when it
+# gave none.
+sub _smtp_reply {
+    my ($smtp) = @_;
+    my $m = scalar( $smtp->message ) // '';
+    $m =~ s/[\r\n]+/ /g;
+    $m =~ s/\s+$//;
+    my $c = $smtp->code // '';
+    my $r = join ' ', grep { length } $c, $m;
+    return length $r ? $r : 'no reply from the server';
 }
 
 sub send_via_smtp {
@@ -445,7 +604,8 @@ sub send_via_smtp {
     my $smtp = Net::SMTP->new(%opts) or die "Cannot connect to $host:$port\n";
 
     if ( $tls eq 'starttls' ) {
-        $smtp->starttls() or die "STARTTLS failed\n";
+        my ( $tls_ok, $tls_why ) = _starttls($smtp);
+        die "$tls_why\n" unless $tls_ok;
     }
 
     if ($auth) {
@@ -455,8 +615,14 @@ sub send_via_smtp {
     }
 
     $smtp->mail($from) or die "MAIL FROM failed\n";
-    $smtp->to($to)     or die "RCPT TO failed\n";
-    $smtp->data()      or die "DATA failed\n";
+    # SM1109: the refusal names the sender used - the usual cause is a server
+    # that will not relay for the sender's domain, and the reply alone does not
+    # say which sender it was shown.
+    unless ( $smtp->to($to) ) {
+        my $reply = _smtp_reply($smtp);
+        die "RCPT TO refused for $to sending as $from: $reply\n";
+    }
+    $smtp->data() or die "DATA failed\n";
     $smtp->datasend("From: $from\n");
     $smtp->datasend("To: $to\n");
     $smtp->datasend("Subject: $subject\n");
@@ -664,9 +830,13 @@ sub validate_smtp {
         push @checked, 'connect';
 
         if ( $tls eq 'starttls' ) {
-            unless ( $smtp->starttls() ) {
+            my ( $tls_ok, $tls_why, $tls_cert ) = _starttls($smtp);
+            unless ($tls_ok) {
                 my $code = $smtp->code // '';
                 $smtp->quit;
+                # SM1110: a certificate that was refused says why; "may not offer
+                # STARTTLS" is the advice only when the server never got that far.
+                return { ok => 0, stage => 'tls', error => "TLS issue: $tls_why" } if $tls_cert;
                 return { ok => 0, stage => 'tls',
                     error => "TLS issue: STARTTLS failed ($code). The server may "
                         . 'not offer STARTTLS on this port - try tls: true on '

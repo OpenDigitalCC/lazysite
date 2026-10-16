@@ -166,7 +166,7 @@ document.getElementById('apply-btn').addEventListener('click', function() {
       (d.created || []).forEach(function(c) {
         rows.appendChild(row(c.username, (c.claim_url || c.claim_path)
           + ((c.unplaced || []).length ? ' - not placed in ' + c.unplaced.map(function(u) { return u.group; }).join(', ') : '')
-          + (c.mailed ? ' - mailed' : '') + (c.mail_error ? ' - not mailed: ' + c.mail_error : '')));
+          + (c.mailed ? ' - handed to the mail transport' : '') + (c.mail_error ? ' - not handed over: ' + c.mail_error : '')));
       });
       (d.failed || []).forEach(function(f) { rows.appendChild(row(f.username, 'not created - ' + f.error)); });
       (d.updated || []).forEach(function(u) {

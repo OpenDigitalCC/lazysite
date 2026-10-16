@@ -462,7 +462,12 @@ sub apply {
                     . scalar(@change_failed) . ' change(s) could not be made; see failed and updated' ) : () ),
         id => $d->{id}, created => \@created, skipped => \@skipped, failed => \@failed,
         updated => \@updated, ( @unmatched ? ( unmatched => \@unmatched ) : () ),
-        ( $who{mail} ? ( mail => { sent => $mailed, not_sent => $unmailed } ) : () ),
+        # SM1111 (0.15.7 test plan U9): "An import apply reported 'mailed 3, not
+        # mailed 0' while the same site's sendmail could deliver nothing". `sent`
+        # (kept: the key is part of the reply) counts mails the transport accepted,
+        # and acceptance is not delivery - the reply says so where it is read.
+        ( $who{mail} ? ( mail => { sent => $mailed, not_sent => $unmailed,
+                    meaning => 'sent counts mails handed to the mail transport; delivery is not confirmed' } ) : () ),
         # One audit row per account (the dispatcher writes them; the users tool
         # writes none on its API).
         _audit_rows => [
@@ -477,13 +482,13 @@ sub apply {
             # (SM877: the trail is not a list of addresses).
             ( map { [ 'accounts-import-mail', $_->{username}, ( $_->{mailed} ? 1 : 0 ),
                         "accounts import $d->{id}: "
-                            . ( $_->{mailed} ? 'claim link mailed' : "claim link not mailed - $_->{mail_error}" ) ] }
+                            . ( $_->{mailed} ? 'claim link handed to the mail transport' : "claim link not handed over - $_->{mail_error}" ) ] }
                 grep { $_->{mailed} || defined $_->{mail_error} } @created ),
             @upd_audit ],
         change => 'created ' . scalar(@created) . ', skipped ' . scalar(@skipped)
             . ', failed ' . scalar(@failed)
             . ( @updated ? '; updated ' . scalar(@updated) . " ($n_changes change(s))" : '' )
-            . ( $who{mail} ? "; mailed $mailed, not mailed $unmailed" : '' ),
+            . ( $who{mail} ? "; handed to the mail transport $mailed, not handed over $unmailed" : '' ),
         note => 'Each new account has no password: send each person their claim link, or tell them '
             . 'to use "forgot password" with the address recorded - it sends them their own.' };
 }

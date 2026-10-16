@@ -753,9 +753,26 @@ sub action_plugin_save {
         or return { ok => 0, error => 'Cannot describe plugin' };
 
     my %allowed = map { $_->{key} => 1 } @{ $desc->{config_schema} // [] };
+    my %is_password = map { $_->{key} => 1 }
+        grep { ( $_->{type} // '' ) eq 'password' } @{ $desc->{config_schema} // [] };
+    my %is_email = map { $_->{key} => 1 }
+        grep { ( $_->{type} // '' ) eq 'email' } @{ $desc->{config_schema} // [] };
     my %safe;
     for my $k ( keys %$values ) {
         next unless $allowed{$k};
+
+        # SM1108 (0.15.7 test plan U5): A BLANK PASSWORD IS "UNCHANGED", not
+        # "clear it".
+        #
+        # The manager never sends a stored password back, so a form saved with
+        # the field untouched posts it empty - and the field's own note says
+        # "Leave blank to keep the current one". The save wrote `password: ` over
+        # the stored value, reported it in `changed`, and the next send failed
+        # "SMTP auth failed". Every extension with a `type: password` field read
+        # the same way, so the rule is here and not in the one extension. There
+        # is no explicit "clear it" (the form never offered one); a password is
+        # removed by editing the extension's config file.
+        next if $is_password{$k} && defined $values->{$k} && !ref $values->{$k} && $values->{$k} !~ /\S/;
 
         # SM838: A VALUE IS ONE LINE, and a line break in one is refused.
         #
@@ -777,6 +794,16 @@ sub action_plugin_save {
             return { ok => 0, kind => 'invalid', field => $k,
                 error => "'$k' contains a line break. Each setting is stored on one line, "
                     . 'so a value cannot contain one.' };
+        }
+        # SM1109: an `email` field holds exactly one address or nothing (empty
+        # means "use the default"). The mail writer refuses anything else at
+        # send time (SM1017); refusing it at SAVE time says so while the
+        # operator is still on the form, not on the first failed send.
+        if ( $is_email{$k} && defined $values->{$k} && !ref $values->{$k} && length $values->{$k} ) {
+            require Lazysite::Mail;
+            my ( $one, $why ) = Lazysite::Mail::one_address( $values->{$k} );
+            return { ok => 0, kind => 'invalid', field => $k, error => "'$k' is refused: $why" }
+                unless defined $one;
         }
         $safe{$k} = $values->{$k};
     }

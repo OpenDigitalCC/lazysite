@@ -33,7 +33,7 @@ handlers:
 Keys:
 
 `from`
-: Envelope sender.
+: Envelope sender. When a handler gives none, the sender is the From address on the Form SMTP extension; when that is empty too, it is `no-reply@` followed by the host of the site's Site URL (`site_url`). Only when the Site URL does not resolve to an address is it `webforms@localhost`, which a real mail server refuses; the log says so.
 
 `to`
 : Destination address.
