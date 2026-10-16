@@ -53,6 +53,22 @@ Archive
 
 ## Unreleased
 
+- SM1108 (PENDING) **a blank password field keeps the stored password.** Saving
+  Form SMTP with its password left blank cleared the stored one, though the
+  field said "leave blank to keep". A blank `type: password` value is now
+  unchanged on every extension. t/unit/manager/351.
+- SM1109 (PENDING) **mail is sent from a real address.** The fallback sender was
+  `webforms@localhost`, which real servers refuse. Form SMTP gains a From
+  address; when it is empty the sender is `no-reply@` the site_url's host
+  (release manager, 2026-10-16). A refused recipient names the sender used.
+  t/unit/forms/63.
+- SM1110 (PENDING) **a failed STARTTLS says why.** "STARTTLS failed" now names
+  the hosts the certificate is for and the host connected to.
+  t/unit/forms/64.
+- SM1111 (PENDING) **a failed sendmail says how it failed.** "exit 256" is now
+  the exit code or signal with sendmail's own error lines; an account import
+  says its claim links were "handed to the mail transport". t/unit/forms/65.
+
 - SM1105 (PENDING) **the outbox list says what was sent.** Sent entries were
   still listed as queued (row R2 of the 0.15.6 walk). The ledger records each
   entry's event, and a sent entry is listed as sent whatever became of its

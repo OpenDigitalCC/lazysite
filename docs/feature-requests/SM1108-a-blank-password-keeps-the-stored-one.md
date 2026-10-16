@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-16
 raised-by: release manager, 2026-10-16 (0.15.7 test plan)
 area: auth
-status-note: "SHIPPED on n615: lib/Lazysite/Manager/Plugins.pm action_plugin_save; t/unit/manager/348."
+status-note: "SHIPPED on n615: lib/Lazysite/Manager/Plugins.pm action_plugin_save; t/unit/manager/351."
 ---
 
 # What happened
@@ -35,4 +35,4 @@ writes the other fields of the form.
 There is no explicit way to clear a password and none was added (the form never
 offered one): a password is removed by editing the extension's config file.
 
-t/unit/manager/348.
+t/unit/manager/351.
