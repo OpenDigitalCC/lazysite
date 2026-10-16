@@ -4628,6 +4628,10 @@ elsif ( $method eq 'tools/call' ) {
             : ( ref $out eq 'HASH'
             ? ( $out->{audit_detail} || $out->{kind} || $out->{error} || '' )
             : '' );
+        # SM1093: the control API's twin - how many queued notifications a
+        # deleted notify rule took with it.
+        $detail = "outbox_removed=$out->{outbox_removed}"
+            if $aok && $name eq 'delete_handler' && defined $out->{outbox_removed};
         audit_log( $user, $act, $target, _request_ip(),
             ( $aok ? 'ok' : 'fail' ), 'mcp', $detail );
     }

@@ -1312,8 +1312,23 @@ sub action_handler_delete {
     }
     my ( $ok, $err ) = write_handlers( [ grep { $_->{id} ne $id } @$all ] );
     return { ok => 0, error => $err } unless $ok;
-    log_event( 'INFO', 'handlers', 'handler deleted', handler => $id );
-    return { ok => 1, id => $id, deleted => $id };
+    # SM1093: a notify rule's unsent events go with it (see Outbox::purge_rule).
+    # The rule is already gone, so a failed read is said in the result and does
+    # not undo the delete.
+    my %extra;
+    if ( ( $h->{type} // '' ) eq 'notify' ) {
+        require Lazysite::Outbox;
+        my $n = Lazysite::Outbox::purge_rule( $DOCROOT, $id );
+        if ( defined $n ) { $extra{outbox_removed} = $n }
+        else {
+            $extra{outbox_removed} = 0;
+            $extra{warning} = 'the rule is deleted but its queued notifications could not be read; '
+                . 'the outbox job clears them on its next run';
+        }
+    }
+    log_event( 'INFO', 'handlers', 'handler deleted', handler => $id,
+        ( exists $extra{outbox_removed} ? ( outbox_removed => $extra{outbox_removed} ) : () ) );
+    return { ok => 1, id => $id, deleted => $id, %extra };
 }
 
 sub action_form_targets_read {

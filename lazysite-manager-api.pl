@@ -2701,6 +2701,12 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
         # reason above always wins the field it was written for.
         $detail = $aud_extra if $ok && length $aud_extra;
 
+        # SM1093: deleting a notify rule says how many queued notifications
+        # went with it - the trail is where "where did my events go" is asked.
+        if ( $ok && $aud_action eq 'handler-delete' && ref $result eq 'HASH' && defined $result->{outbox_removed} ) {
+            $detail = "outbox_removed=$result->{outbox_removed}";
+        }
+
         # SM858: an approval names the row and the account it became - who
         # approved is the trail's own `user` field, the store is the target.
         if ( $ok && $aud_action eq 'form-submission-approve' && ref $result eq 'HASH' ) {

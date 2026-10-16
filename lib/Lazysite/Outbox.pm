@@ -905,6 +905,37 @@ sub _entry_files {
     return [ map { "$dir/$_" } sort { $at{$a} <=> $at{$b} || $a cmp $b } @f ];
 }
 
+# SM1093 (0.15.5 test plan T4): what a rule left unsent - its outbox entries
+# (queued, or retrying) and its held messages (folds). Returns the paths of
+# those whose rule satisfies $match, or undef when either directory will not
+# read (cannot_read has logged it): "could not tell" is not "none".
+sub _unsent_of {
+    my ( $docroot, $match ) = @_;
+    my $files = _entry_files($docroot);
+    my $folds = _fold_files($docroot);
+    return unless defined $files && defined $folds;
+    my @hit;
+    for my $p ( @$files, @$folds ) {
+        my $e = _read_entry($p);
+        next unless ref $e && !$e->{_torn}; # gone since the listing, or torn: the job fails a torn one
+        push @hit, $p if $match->( $e->{rule} // '' );
+    }
+    return \@hit;
+}
+
+# The rule is being deleted: its unsent entries go with it, because a delete
+# that left them listed in the outbox (field report, SM1093: three for each of
+# two rules) left events nobody could send and nobody could clear. Sent history
+# (the ledger) and the failed record are not touched. Returns the count
+# removed, or undef when the outbox could not be read.
+sub purge_rule {
+    my ( $docroot, $rule ) = @_;
+    my $hit = _unsent_of( $docroot, sub { $_[0] eq $rule } ) // return;
+    my $n   = 0;
+    for my $p (@$hit) { $n++ if unlink $p }
+    return $n;
+}
+
 sub _read_entry {
     my ($path) = @_;
     open my $fh, '<:raw', $path or return $!{ENOENT} ? 0 : cannot_read( 'a notification outbox entry', $path );
@@ -979,6 +1010,33 @@ sub run {
     my $handlers = Lazysite::Handlers::read_handlers();
     return { ok => 0, error => 'lazysite/forms/handlers.conf could not be read; see the log' }
         unless defined $handlers;
+    # SM1093: entries and held messages whose rule is no longer in handlers.conf
+    # (deleted before the delete took them along) are not sent - there is no
+    # rule to say how. The loops below already give such an entry up (audited,
+    # kept with the failed ones, SM1071), but only when they reach it: not past
+    # the per-tick cap, not before its retry time. So they are given up here,
+    # first and together, with one log line naming the count. Only a rule that
+    # is gone: one switched off or retyped keeps its queue and is failed below,
+    # with the reason.
+    my $orphans = _unsent_of( $docroot, sub { !Lazysite::Handlers::find_handler( $handlers, $_[0] ) } ) // [];
+    my %gone    = map { $_ => 1 } @$orphans;
+    my $cleared = 0;
+    for my $p (@$orphans) {
+        my $e = _read_entry($p);
+        next unless ref $e && !$e->{_torn};
+        my $why = "no rule '" . ( $e->{rule} // '' ) . "'";
+        if ( ref $e->{events} eq 'ARRAY' ) {    # a held message
+            _audit( $docroot, $ctx{actor}, $e->{rule} // '', $e->{channel} // 'email', 0,
+                _who( $e->{recipient} || {} ), "a held message is not sent: $why" );
+        }
+        else { _audit( $docroot, $ctx{actor}, $e->{rule} // '', 'outbox', 0, "event $e->{id}", $why ) }
+        _fail_entry( $docroot, $p, $e, $why );
+        $cleared++;
+    }
+    log_event( 'INFO', 'notify', "cleared $cleared notification(s) queued for rules that no longer exist" )
+        if $cleared;
+    $files = [ grep { !$gone{$_} } @$files ];
+
     my $accounts = _accounts($docroot);
     return { ok => 0, error => 'the account store could not be read, so no recipient could be '
             . 'resolved; see the log' }
@@ -1039,7 +1097,7 @@ sub run {
     _write_status( $docroot, \%TALLY, $ctx{now} ) if %TALLY;
     close $lk;
     return { ok => 1, detail => { done => scalar @done, retry => \@retry, failed => \@failed,
-            held_sent => $held->{sent}, held_waiting => $held->{waiting} } };
+            held_sent => $held->{sent}, held_waiting => $held->{waiting}, orphans_cleared => $cleared } };
 }
 
 
