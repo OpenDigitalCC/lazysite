@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1098 (PENDING) **a declared lazysite-agent is counted as a bot, not a
+  scanner.** The 0.15.5 test walk's probes of missing draft pages put the
+  testing agent in the scanner class. A request declaring
+  `lazysite-agent/...` was classed bot, then promoted to scanner by the
+  five-404s rule, which never looked at the user agent. A declared agent is
+  no longer promoted; every other client is. t/unit/plugins/49.
+
 - SM1096 (PENDING) **a submission shows each field as a name and a value.** The
   submission view ran a field's name and value together ("messagezz55 F9
   event 2"). Each field is now its name as a label above its value, and a
