@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM1094 (PENDING) **an unreadable auth_groups message quotes what it read.**
+  `auth_groups: [` gave "write [[] or a '- [' line below it" (row S9 of the
+  0.15.5 test walk): the raw value was spliced into the example. The message
+  now quotes the value and shows the two correct forms on their own.
+  t/unit/lib/201.
+- SM1095 (PENDING) **a refusal to a token with no scope says what is true of
+  it.** Such a token was told it "reaches only the domains whose content lies
+  inside no scope: (default)". It is now told it is not confined to a
+  domain's content, which domains it reaches, and that a domain with a
+  content root of its own needs a scope covering that root.
+  t/unit/manager/345.
+
 - SM1093 (PENDING) **a deleted notify rule takes its queued notifications with
   it.** Deleting a rule left its queued entries in the outbox (0.15.5 test
   walk). The delete now removes the rule's queued, retrying and held entries

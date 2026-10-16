@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-16
 raised-by: the 0.15.5 test plan, "Domain-reach wording" (T6)
 area: manager
-status-note: "SHIPPED on n605: Lazysite::Manager::Common::domain_reach_refusal; t/unit/manager/343."
+status-note: "SHIPPED on n605: Lazysite::Manager::Common::domain_reach_refusal; t/unit/manager/345."
 ---
 
 # What happened
@@ -38,4 +38,4 @@ those words:
 A caller that has scopes keeps the confined-caller sentence naming them. The
 refusal's `kind` and `domains` are unchanged.
 
-t/unit/manager/343.
+t/unit/manager/345.
