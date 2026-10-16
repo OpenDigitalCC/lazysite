@@ -832,7 +832,20 @@ sub do_delete {
     my (%a) = @_;
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
-    if ( !$r->{parent_ok} || !-e $r->{abs} ) {
+
+    # SM1092 (0.15.5 test plan: "DELETE of the folder returned 204, and the
+    # folder and both .md files were still there"): A PATH CAN BE IN BOTH TREES.
+    # A rule on a page moves it into the private store and makes its folder
+    # there; removing the rule moves the page back and leaves that folder. The
+    # resolver prefers the private copy, so DELETE removed the empty twin and
+    # answered 204 over the public folder and its pages. Deleting a path deletes
+    # it wherever it is: every copy that exists is a target.
+    my @targets = grep { $_->{parent_ok} && ( -e $_->{abs} || -l $_->{abs} ) } $r;
+    if ( my $twin = _delete_twin( $a{rel}, $r ) ) {
+        return send_status( $twin->{err}, body => "Error\n" ) if $twin->{err};
+        push @targets, $twin;
+    }
+    if ( !@targets ) {
         # The 0.13.1 field pass read `http 404` in the trail beside rows that
         # said what and why: the same shape (SM750) for the one refusal a
         # write verb makes without a rule - there is nothing here to delete.
@@ -840,6 +853,7 @@ sub do_delete {
         return send_status( 404, body => "Not found: '$a{rel}' does not exist\n" );
     }
 
+    $r = $targets[0];
     if ( my $code = check_conditionals( \@_, $r->{abs}, 1, $a{rel} ) ) {
         return send_status( $code, body => "Precondition failed\n" );
     }
@@ -857,21 +871,38 @@ sub do_delete {
     # A .md path is its own list whether or not the public spelling exists
     # (a gated page lives in the private store, SM286); a collection is
     # walked.
-    my @pages = $key =~ /\.md\z/ ? ($key) : Lazysite::Aliases::md_rels( $DOCROOT, $key );
+    # SM1092: and the pages in either tree - md_rels walks the root it is given.
+    my %seen;
+    my @pages = $key =~ /\.md\z/ ? ($key)
+        :   grep { !$seen{$_}++ } map { Lazysite::Aliases::md_rels( $_->{root}, $key ) } @targets;
 
-    my ( $ok, $partial );
-    if ( -d $r->{abs} ) {
-        remove_tree( $r->{abs}, { safe => 1, error => \my $err } );
-        $ok = !-e $r->{abs};
-        # SM939 SC2 (ruled R1, amended 2026-10-07): A COLLECTION THAT IS PARTLY GONE.
-        # The top-level check below cannot see this - the parent is writable and
-        # remove_tree got some way in before a directory INSIDE refused it - so it
-        # answered a bare 500 and skipped every housekeeping step for the pages
-        # that WERE removed. Name the directory that stopped it and what is left.
-        $partial = _partial_delete( $r->{abs}, $err ) if !$ok && $err && @$err;
+    # SM1092: A FOLDER DELETE IS A DELETE OF EVERY PATH BENEATH IT, so each one
+    # is asked what a DELETE of it alone would be asked. main() authorised the
+    # folder; a page inside it whose rule refuses the caller write was removed
+    # with it all the same. The safe answer when one member refuses: nothing is
+    # removed and the response names the member (RFC 4918 9.6.1 allows a server
+    # to refuse a collection it cannot delete whole; removing the rest and
+    # answering 207 would leave a half-deleted folder nobody asked for).
+    if ( my $deny = _delete_member_refusal( \%a, \@targets ) ) {
+        return $deny;
     }
-    else {
-        $ok = unlink $r->{abs};
+
+    my ( $ok, $partial ) = (1);
+    for my $t (@targets) {
+        if ( -d $t->{abs} && !-l $t->{abs} ) {
+            remove_tree( $t->{abs}, { safe => 1, error => \my $err } );
+            next unless -e $t->{abs};
+            $ok = 0;
+            # SM939 SC2 (ruled R1, amended 2026-10-07): A COLLECTION THAT IS PARTLY GONE.
+            # The top-level check below cannot see this - the parent is writable and
+            # remove_tree got some way in before a directory INSIDE refused it - so it
+            # answered a bare 500 and skipped every housekeeping step for the pages
+            # that WERE removed. Name the directory that stopped it and what is left.
+            $partial //= _partial_delete( $t->{abs}, $err, $t->{root} ) if $err && @$err;
+        }
+        else {
+            unlink $t->{abs} or $ok = 0;
+        }
     }
     # SM284: removing an entry is a write to the directory that CONTAINS it, so
     # an unwritable parent fails a DELETE for exactly the reason it fails a PUT -
@@ -928,13 +959,71 @@ sub do_delete {
     send_status(204);
 }
 
+# SM1092: the copy of a DELETE's path in the tree the resolver did NOT choose,
+# when there is one. Returns undef (no other copy), a target as
+# resolve_under_docroot shapes it, or { err } when the other copy fails the
+# confinement - which refuses the DELETE rather than leaving it behind.
+# The engine tree and the theme-asset mirror have one home only (SM850, SM438),
+# so they have no twin.
+sub _delete_twin {
+    my ( $rel, $r ) = @_;
+    return undef unless length $rel;
+    return undef if $rel =~ m{\A(?:lazysite|lazysite-assets)(?:/|\z)};
+    my $priv = Lazysite::Private::private_root($DOCROOT);
+    return undef unless defined $priv;
+    my ( $pub_real, $priv_real ) = ( realpath($DOCROOT), realpath($priv) );
+    return undef unless defined $pub_real && defined $priv_real;
+    my $other = ( defined $r->{root} && $r->{root} eq $priv_real ) ? $pub_real : $priv_real;
+    return undef if defined $r->{root} && $r->{root} eq $other;
+    my $t = resolve_under_docroot( $rel, $other );
+    return $t if $t->{err};
+    return undef unless $t->{parent_ok} && ( -e $t->{abs} || -l $t->{abs} );
+    return $t;
+}
+
+# SM1092: every path beneath a collection DELETE's targets, asked what a DELETE
+# of that path alone is asked - authorise(), so scope, blocklist and per-file
+# rule, all as main() asks them of the request path. Answers the 403 itself and
+# returns its code when one refuses, undef when all agree. Symlinks are listed
+# and not followed: removing a link removes the link.
+sub _delete_member_refusal {
+    my ( $a, $targets ) = @_;
+    ( my $key = $a->{rel} ) =~ s{\A/+}{};
+    my %members;
+    require File::Find;
+    for my $t (@$targets) {
+        next unless -d $t->{abs} && !-l $t->{abs};
+        my $base = $t->{abs};
+        File::Find::find( { no_chdir => 1, wanted => sub {
+                    return if $File::Find::name eq $base;
+                    ( my $sub = substr( $File::Find::name, length $base ) ) =~ s{\A/+}{};
+                    $members{ length $key ? "$key/$sub" : $sub } = 1;
+        } }, $base );
+    }
+    for my $m ( sort keys %members ) {
+        my $code = authorise( $m, $a->{scope}, 1, $a->{conf}, $a->{user} ) or next;
+        my $why  = $DENY_REASON // "http $code";
+        $REFUSAL_DETAIL = "member-refused: '$m' inside '$key' refuses this delete ($why); nothing was removed";
+        log_event( 'WARN', $a->{user}, 'dav delete refused by a member',
+            path => $a->{rel}, member => $m, reason => $why, status => $code );
+        ( my $hdr = "'$m' inside the folder: $why" ) =~ s/[\r\n]+/ /g;
+        return send_status( $code,
+            headers => ["X-Lazysite-Deny-Reason: $hdr"],
+            body => "Forbidden: cannot delete '$key': '$m' inside it refuses you ($why). "
+                . "Nothing was removed - a folder is deleted whole or not at all. Delete or "
+                . "move what you may, or ask the owner of '$m'.\n" );
+    }
+    return undef;
+}
+
 # CF-2: the ACL key, spelled the same way DELETE already spells it.
 # SM939 SC2: what remove_tree's error list says stopped it, and what is left.
 # The first entry naming a path is the blocker; a path under the docroot is
 # reported relative to it and nothing else is (the SM-wide rule: no filesystem
 # paths in answers).
 sub _partial_delete {
-    my ( $abs, $err ) = @_;
+    my ( $abs, $err, $root ) = @_;
+    $root //= $DOCROOT;    # SM1092: the tree the collection was in
     my ( $blocker, $why );
     for my $e (@$err) {
         my ( $p, $m ) = %$e;
@@ -949,7 +1038,7 @@ sub _partial_delete {
     my $left = 0;
     require File::Find;
     File::Find::find( { no_chdir => 1, wanted => sub { $left++ if -f $_ } }, $abs ) if -d $abs;
-    ( my $rel = $blocker ) =~ s{\A\Q$DOCROOT\E/*}{};
+    ( my $rel = $blocker ) =~ s{\A\Q$root\E/*}{};
     $rel = '(outside the site)' if $rel eq $blocker;
     return { blocker => $rel, why => $why // '', left => $left };
 }
@@ -959,7 +1048,8 @@ sub _partial_delete {
 # rule beneath a key, and the files still there keep their protection.
 sub _partial_delete_answer {
     my ( $a, $key, $pages, $p ) = @_;
-    my @gone = grep { !-e "$DOCROOT/$_" } @$pages;
+    # SM1092: gone from both trees - a page left in the private store is not gone.
+    my @gone = grep { !( Lazysite::Private::resolve( $DOCROOT, $_ ) )[0] } @$pages;
     require Lazysite::Aliases;
     require Lazysite::Manager::Briefs;
     for my $page (@gone) {
@@ -1914,7 +2004,7 @@ sub is_blocked {
 # ---------------------------------------------------------------------
 
 sub resolve_under_docroot {
-    my ($rel) = @_;
+    my ( $rel, $in_root ) = @_;
 
     # SM286: content may live in the private store. Choose the TREE first and
     # then run the identical confinement against it, rather than teaching the
@@ -1934,7 +2024,12 @@ sub resolve_under_docroot {
     # the docroot, a PUT to lazysite/nav.conf on a site whose tree moved beside
     # the docroot (SM293) looked for a directory that is not there.
     my ( $root, $under ) = ( undef, $rel );
-    if ( $rel =~ m{\Alazysite(?:/(.*))?\z}s ) {
+    # SM1092: or a named tree - DELETE asks for the OTHER tree's copy of a path
+    # held in both, through the same confinement.
+    if ( defined $in_root ) {
+        $root = $in_root;
+    }
+    elsif ( $rel =~ m{\Alazysite(?:/(.*))?\z}s ) {
         ( $root, $under ) = ( $LAZYSITE_DIR, $1 // '' );
     }
     else {
@@ -1944,7 +2039,7 @@ sub resolve_under_docroot {
     my $droot = defined $root ? realpath($root) : undef;
     return { err => 500 } unless defined $droot;
     if ( !length $under ) {
-        return { abs => $droot, parent => $droot, parent_ok => 1 };
+        return { abs => $droot, parent => $droot, parent_ok => 1, root => $droot };
     }
     my $abs = "$droot/$under";
     ( my $parent = $abs ) =~ s{/[^/]*$}{};
@@ -1953,7 +2048,7 @@ sub resolve_under_docroot {
     # realpath() resolves the existing prefix and appends a missing
     # trailing component without erroring, so an existence check on the
     # resolved parent is required to detect a genuinely-missing parent.
-    return { abs => $abs, parent => $parent, parent_ok => 0 }
+    return { abs => $abs, parent => $parent, parent_ok => 0, root => $droot }
         unless defined $rp && -d $rp;
     return { err => 403 }
         unless $rp eq $droot || index( $rp, "$droot/" ) == 0;
@@ -2004,7 +2099,7 @@ sub resolve_under_docroot {
             }
         }
     }
-    return { abs => $full, parent => $rp, parent_ok => 1 };
+    return { abs => $full, parent => $rp, parent_ok => 1, root => $droot };
 }
 
 # Parse the Destination header (COPY/MOVE) into a docroot-relative path
