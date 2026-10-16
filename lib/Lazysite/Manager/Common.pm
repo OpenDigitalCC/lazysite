@@ -1659,6 +1659,90 @@ sub _perm_hint {
         : '';
 }
 
+# SM1103: A REFUSED CREATE SAYS WHO TRIED TO WRITE WHERE, and offers check
+# --fix only when the folder's mode is what refuses it.
+#
+# The 0.15.6/0.15.7 edge walk ("Root items, unchanged", V4): every manager save
+# answered "Cannot write file: Permission denied (the file is not writable by
+# the web-server user - run: lazysite check --fix)", the operator ran check
+# --fix, and the saves still failed while WebDAV, MCP and acl-set wrote the same
+# folders. The cause was a save with no path, writing beside the docroot (see
+# action_save), and the sentence could not have shown it: it named no file, no
+# folder and no identity, and it prescribed a repair of the site's tree for a
+# folder outside it. So the refusal names the file it tried to create and its
+# folder - SITE-relative, because a manager user who is not the operator reads
+# it too - the identity the process writes as, and the folder's owner, group
+# and mode, and says which of the mode's bits refuses. The ERROR log line
+# carries the same facts with the absolute path, for the operator.
+#
+# Where a folder is, for a reader of the site: '/blog' in the docroot, the same
+# key for the private store's twin (the key ACLs and the audit use), and
+# 'lazysite/...' in the engine tree. Anything else is outside the site, and the
+# sentence says only that. undef for outside.
+sub _site_folder {
+    my ($dir) = @_;
+    return undef unless defined $DOCROOT && length $DOCROOT;
+    my @roots = (
+        [ $DOCROOT,                                  '/', '' ],
+        [ Lazysite::Private::private_root($DOCROOT), '/', ' (in the private store)' ],
+        [ _lz(),                                     'lazysite/', '' ],
+    );
+    for my $r (@roots) {
+        my ( $base, $lead, $tail ) = @$r;
+        next unless defined $base && length $base;
+        return ( $lead eq '/' ? '/' : 'lazysite' ) . $tail if $dir eq $base;
+        return $lead . substr( $dir, length($base) + 1 ) . $tail
+            if index( $dir, "$base/" ) == 0;
+    }
+    return undef;
+}
+
+# The sentence for an EACCES/EPERM creating $tmp, with the ERROR log line beside
+# it. $err is the errno's text, taken by the caller before anything else ran.
+sub _perm_diagnosis {
+    my ( $verb, $err, $tmp ) = @_;
+    my $dir   = dirname($tmp);
+    my $where = _site_folder($dir);
+    my @gids  = split ' ', $);
+    my $me    = ( getpwuid $> )[0]       // $>;
+    my $mygrp = ( getgrgid $gids[0] )[0] // $gids[0];
+    my $msg   = "$verb: $err creating '" . basename($tmp) . "' "
+        . ( defined $where ? "in '$where'" : 'in a folder outside the site' )
+        . " as $me:$mygrp";
+    my $folder = '';
+    if ( my @st = stat $dir ) {
+        my ( $mode, $uid, $gid ) = ( $st[2] & 07777, @st[ 4, 5 ] );
+        $folder = sprintf '%s:%s %04o', ( getpwuid $uid )[0] // $uid,
+            ( getgrgid $gid )[0] // $gid, $mode;
+
+        # The class of the mode this process falls in, in the kernel's order -
+        # owner, then any of its groups, then others - and whether that class
+        # may create an entry here (write and search).
+        my ( $bits, $who )
+            = $> == $uid                    ? ( 0300, 'its owner' )
+            : ( grep { $_ == $gid } @gids ) ? ( 0030, 'its group' )
+            :   ( 0003, 'others, and this process is neither its owner nor in its group' );
+        $msg .= "; the folder is $folder";
+        if ( ( $mode & $bits ) != $bits ) {
+            $msg .= " - it is not writable by $who";
+            # check --fix repairs the site's own tree; a folder outside it is
+            # the host's, and the fix would not touch it.
+            $msg .= ' (run: lazysite check --fix)' if defined $where;
+        }
+        else {
+            # The mode allows it, so a mode repair cannot be the answer.
+            $msg .= ' - its mode allows this write, so something other than the mode refuses it'
+                . ' (an ACL, a file attribute or the mount)';
+        }
+    }
+    else {
+        $msg .= "; the folder cannot be examined ($!)";
+    }
+    log_event( 'ERROR', $action, 'write refused by the filesystem',
+        path => $tmp, process => "$me:$mygrp", folder => $folder, error => $err );
+    return $msg;
+}
+
 # Write a file ATOMICALLY: write a temp sibling, then rename(2) it over the
 # target (atomic on POSIX). A concurrent reader therefore always sees either the
 # old complete file or the new complete file - never a truncated or half-written
@@ -1669,8 +1753,13 @@ sub _perm_hint {
 sub write_file_checked {
     my ( $path, $content ) = @_;
     my $tmp = "$path.$$.tmp";
-    open my $fh, '>:utf8', $tmp
-        or return ( 0, "Cannot write file: $!" . _perm_hint() );
+    my $fh;
+    unless ( open $fh, '>:utf8', $tmp ) {
+        my $err = "$!";
+        return ( 0, ( $!{EACCES} || $!{EPERM} )
+            ? _perm_diagnosis( 'Cannot write file', $err, $tmp )
+            : "Cannot write file: $err" );
+    }
     unless ( print {$fh} $content ) {
         my $err  = "$!";
         my $hint = _perm_hint();

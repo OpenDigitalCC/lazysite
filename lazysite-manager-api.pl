@@ -526,6 +526,59 @@ my @ACL_PATHS;
 my $ACL_PATHS_MAX = $Lazysite::Manager::Files::ACL_PATHS_MAX;
 
 
+# SM1103: A PATH THE ACTION DOES NOT READ, OR NONE, IS REFUSED BY NAME.
+#
+# The 0.15.6/0.15.7 edge walk reported every manager save failing with
+# "Cannot write file: Permission denied", and asked for root to inspect the
+# host. The tester's correction (2026-10-16): "My harness sent `path` in the
+# body; `save` reads it from the query." The save had no path, $path fell
+# back to '/', the docroot was the write target, and write_file_checked
+# tried to create `<docroot>.<pid>.tmp` in the docroot's PARENT - EACCES on
+# that host, a stray file on one where the parent is writable. The audit
+# target "/" was the only clue.
+#
+# Two refusals, after the channel's gates (an account the door refuses
+# learns nothing about parameters) and before the scope check reads the
+# path:
+#
+#  - an action that declares path `in => 'query'` and finds it only in the
+#    JSON body. For `path` across every action, because no handler of a
+#    query-declared path reads the body's (the SM1047 query_or_body hoist is
+#    the one reader, for the actions that declare it). Not for every
+#    query-declared parameter: some handlers do fall back to the body (host,
+#    in places), and refusing those would break a client that works.
+#  - a content write (content_write) with no path, or an empty one. Absent
+#    meant '/', and '/' is the site root: never what a write meant by
+#    sending nothing. An explicit '/' still reaches the handler, where an
+#    upload into the root folder means it.
+#    file-upload is left out: its path is the FOLDER the files go into, and an
+#    empty one is the root, which clients use (t/integration/120) - nothing
+#    resolves to the docroot as a FILE there.
+sub _refuse_unread_or_missing_path {
+    my ($origin) = @_;
+    my $spec     = $Lazysite::ControlApi::Actions::ACTION{$action} || {};
+    my $qpath = grep { ( $_->{name} // '' ) eq 'path' && ( $_->{in} // '' ) eq 'query' }
+        @{ $spec->{params} || [] };
+    return unless $qpath;
+    my $jb;
+    $jb = _json_body() unless $action eq 'file-upload';    # multipart, never JSON
+    if ( !exists $params{path} && ref $jb eq 'HASH' && exists $jb->{path} ) {
+        my $bp = ( defined $jb->{path} && !ref $jb->{path} ) ? $jb->{path} : '';
+        _refuse( { ok => 0, kind => 'missing-parameter', field => 'path',
+                error => "path was sent in the body; $action reads it from the query string"
+                    . ( length $bp ? " (?action=$action&path=$bp, not '$bp' in the JSON body)" : '' )
+                    . '. Nothing was changed.' },
+            $origin, 'missing-parameter: path sent in the body, read from the query', $bp );
+    }
+    if ( $spec->{content_write} && $action ne 'file-upload' && !length( $params{path} // '' ) ) {
+        _refuse( { ok => 0, kind => 'missing-parameter', field => 'path',
+                error => "path is required (in the query). $action names the file or folder "
+                    . 'it writes by a docroot-relative path, such as ?path=/about.md. Nothing was changed.' },
+            $origin, 'missing-parameter: path is required (in the query)', '' );
+    }
+    return;
+}
+
 # Confine this request to a SET of content-root scopes, refusing any content
 # path outside EVERY scope. SM155: the binding moved to groups, so the set is the
 # UNION of the user's scoped groups (already resolved into the settings'
@@ -909,6 +962,7 @@ if ( !$token_auth ) {
         # group(s)) is confined to the union of their content roots on the
         # interactive channel too, so a delegated domain editor cannot reach
         # another domain's content through the manager UI.
+        _refuse_unread_or_missing_path('ui');    # SM1103
         _confine_scope( $caps->{dav_scopes}, 'ui' );
         @REQUEST_SCOPES = @{ $caps->{dav_scopes} || [] };
         # SM648: resolved, therefore CONFINED - even if the resolution is empty.
@@ -1099,6 +1153,7 @@ if ($token_auth) {
     # SEC-2026-07 (M2) / SM155: enforce the group-derived scope union on the
     # control-API channel too - a scoped partner credential is confined to its
     # content subtree(s) over WebDAV and must be here as well.
+    _refuse_unread_or_missing_path('api');    # SM1103
     _confine_scope( $token_caps{dav_scopes}, 'api' );
     @REQUEST_SCOPES = @{ $token_caps{dav_scopes} || [] };
     # SM648: a token client is always a confined principal - it holds a grant,

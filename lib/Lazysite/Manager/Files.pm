@@ -664,6 +664,35 @@ sub _both_trees {
     return ( Lazysite::Private::private_path( $DOCROOT, $r ), "$DOCROOT/$r" );
 }
 
+# SM1103: A FOLDER IS NEVER WHAT A SAVE WRITES, AND THE SITE ROOT IS NEVER WHAT
+# A DELETE, MOVE OR COPY TAKES.
+#
+# The 0.15.6/0.15.7 edge walk: a save whose path the request never delivered
+# resolved to the docroot - validate_path answers '/' as the site root, rightly,
+# for a listing - and write_file_checked went on to create `<docroot>.<pid>.tmp`
+# in the docroot's PARENT, outside the site (the tester's correction,
+# 2026-10-16). The API now refuses the missing path; this is the same rule where
+# the write is, for every caller (MCP, the control API, the manager): a save is a
+# file, so a target that is a folder - the root included - is refused by its
+# name before anything is created. And the root itself is the site: deleting,
+# moving or copying it whole is not an operation any surface offers.
+sub _folder_target_refusal {
+    my ($result) = @_;
+    return undef unless -d $result->{full};
+    my $name = length $result->{rel} ? "/$result->{rel}" : '/';
+    return _refused( 'is-a-folder',
+        "'$name' is a folder" . ( length $result->{rel} ? '' : ' (the site root)' )
+            . ', and a save writes a file',
+        "name the file inside it, such as '" . ( length $result->{rel} ? $name : '' ) . "/page.md'" );
+}
+
+sub _site_root_refusal {
+    my ( $rel, $what ) = @_;
+    return undef if length( $rel // '' );
+    return _refused( 'site-root', "'/' is the site root, and $what",
+        'name a file or folder inside the site' );
+}
+
 sub action_save_binary {
     my ( $rel_path, $username, $bytes ) = @_;
 
@@ -674,6 +703,9 @@ sub action_save_binary {
     # check_extensions => 1: the operator's configurable blocked list applies to
     # an upload, exactly as it does to the multipart upload path.
     if ( my $why = is_blocked_config( $result->{rel}, 1 ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
+    # SM1103: a folder is never what a save writes.
+    if ( my $d = _folder_target_refusal($result) ) { return $d }
+    # The served layout or theme.
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
     # SM976 Q15h: a page's raw bytes are valid UTF-8, or it is not written.
     if ( my $d = page_bytes_guard( $result->{rel}, $bytes ) ) { return $d }
@@ -840,6 +872,7 @@ sub action_save {
 
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
+    if ( my $d = _folder_target_refusal($result) ) { return $d }    # SM1103
 
     if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
     if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
@@ -990,6 +1023,8 @@ sub action_delete {
 
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
+    # SM1103: the site root is never what a delete takes.
+    if ( my $d = _site_root_refusal( $result->{rel}, 'a delete does not remove it' ) ) { return $d }
 
     if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
     if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
@@ -1125,6 +1160,8 @@ sub action_move {
         if ( my $why = is_blocked_config($r) ) { return _blocked( $r, $why, 'blocked-config' ) }
     }
     if ( my $g = _active_artifact_guard( $s->{rel}, $d->{rel} ) ) { return $g }
+    # SM1103: nor a move.
+    if ( my $g = _site_root_refusal( $s->{rel}, 'a move does not take it' ) ) { return $g }
 
     my ( $src_full, $dst_full ) = ( $s->{full}, $d->{full} );
     return _refused( 'not-found', "source '$s->{rel}' does not exist",
@@ -1298,6 +1335,8 @@ sub action_copy {
     # Only the DESTINATION is a write: copying a file OUT of the theme being
     # served is how a sysop starts a copy by hand, and reading it is fine.
     if ( my $g = _active_artifact_guard( $d->{rel} ) ) { return $g }
+    # SM1103: nor a copy (the whole site, copied into itself).
+    if ( my $g = _site_root_refusal( $s->{rel}, 'a copy does not take it' ) ) { return $g }
 
     my ( $src_full, $dst_full ) = ( $s->{full}, $d->{full} );
     return _refused( 'not-found', "source '$s->{rel}' does not exist",
