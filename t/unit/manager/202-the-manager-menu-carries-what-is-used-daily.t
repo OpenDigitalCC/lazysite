@@ -115,8 +115,8 @@ subtest 'every grant: the ruled groups, entries and order, every one a link' => 
     unlike( $nav, qr{/manager/handlers|>Handlers}, 'Handlers is OFF the menu (ruling, M5)' );
     unlike( $nav, qr{/manager/plugin-config|Extension (?:Manager|Config)},
         'and the two extension entries are one, "Extensions" (M4)' );
-    like( $m[0]{html}, qr{<span class="mg-nav-count" id="mg-nav-subs-count" hidden></span>},
-        'Submissions carries the unread count, hidden until the bell has counted' );
+    unlike( $m[0]{html}, qr{mg-nav-count|mg-nav-subs-count},
+        'SM1097: Submissions carries no bubble - the bell is the one indicator of a new submission' );
 };
 
 subtest 'no grant: the same entries, the gated ones locked with their reasons' => sub {
@@ -149,10 +149,12 @@ subtest 'a user manager without the grants is told which grant opens each' => su
         'naming the grant as the Groups page labels it' );
 };
 
-subtest 'the count is offered only with the notifications grant' => sub {
+subtest 'with the notifications grant too, the entry still has no bubble (SM1097)' => sub {
     my $html = render( manager_caps => { read_submissions => 1 } );
     like( $html, qr{<a href="/manager/submissions"}, 'read_submissions alone: the link' );
-    unlike( ( $html =~ m{(<nav class="mg-nav".*?</nav>)}s )[0], qr/mg-nav-subs-count/, 'and no count without notifications - gated like the bell' );
+    unlike( ( $html =~ m{(<nav class="mg-nav".*?</nav>)}s )[0], qr/mg-nav-subs-count/, 'and none without notifications' );
+    my $h2 = render( manager_caps => { read_submissions => 1, notifications => 1 } );
+    unlike( ( $h2 =~ m{(<nav class="mg-nav".*?</nav>)}s )[0], qr/mg-nav-subs-count/, 'nor with it - the bell carries that' );
 };
 
 subtest 'one entry lights for both extension pages' => sub {

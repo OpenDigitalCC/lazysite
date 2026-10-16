@@ -42,11 +42,15 @@ function render(d) {
   document.getElementById('sub-title').textContent = 'Submission: ' + (r._form || d.file);
   var body = document.getElementById('sub-body');
   body.textContent = '';
+  // SM1096: each field is its own block, the name a label above the value. They
+  // were two bare spans side by side, so "message" and "zz55 F9 event 2" read as
+  // "messagezz55 F9 event 2" and the body did not read as a body. The value is set
+  // as text (it is untrusted) and the stylesheet's pre-wrap keeps its newlines.
   var list = node('div', 'mg-list');
   (d.fields || []).forEach(function(k) {
-    var row = node('div', 'mg-row');
-    row.appendChild(node('span', 'mg-row-name', k));
-    row.appendChild(node('span', 'mg-row-meta', r[k]));
+    var row = node('div', 'mg-field');
+    row.appendChild(node('div', 'mg-field-name', k));
+    row.appendChild(node('div', 'mg-field-value', r[k]));
     list.appendChild(row);
   });
   body.appendChild(list);

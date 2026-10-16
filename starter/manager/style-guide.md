@@ -367,12 +367,26 @@ is mouse-only.</p>
 <div class="mg-sg-demo">
 <nav class="mg-nav">
   <div class="mg-nav-group">Site</div>
-  <a href="#" onclick="return false;">Submissions <span class="mg-nav-count">3</span></a>
+  <a href="#" onclick="return false;">Submissions</a>
   <a href="#" onclick="return false;">Files</a>
   <span class="mg-nav-locked" title="Edit the site navigation menu. This account does not hold the capability it needs; a user manager can grant it.">Navigation <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>
   <a href="#" class="mg-nav-locked" onclick="return false;" title="Read the append-only audit trail. To enable it, grant 'Audit trail' to a group on the Groups page.">Audit log <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>
 </nav>
-<span class="mg-muted">A count, reachable, unreachable, and unreachable-but-you-can-grant-it. The count (<code>.mg-nav-count</code>, SM957) is the operator's unread submission notices.</span>
+<span class="mg-muted">Reachable, unreachable, and unreachable-but-you-can-grant-it. A menu entry carries no count: the bell is the one indicator of new work (SM1097).</span>
+</div>
+
+<h2 class="mg-sg-h">A field's name and value</h2>
+<p class="mg-sg-note">Where a record is shown field by field (one submission), each
+field is a block: the name as a small label (<code>.mg-field-name</code>) and the
+value below it (<code>.mg-field-value</code>), set as text. The value keeps its
+newlines (<code>white-space: pre-wrap</code>), so a message body reads as a body
+(SM1096).</p>
+<div class="mg-sg-demo">
+<div class="mg-list">
+  <div class="mg-field"><div class="mg-field-name">name</div><div class="mg-field-value">Ada</div></div>
+  <div class="mg-field"><div class="mg-field-name">message</div><div class="mg-field-value">First line
+Second line</div></div>
+</div>
 </div>
 
 <h2 class="mg-sg-h">Button labels &mdash; the vocabulary</h2>

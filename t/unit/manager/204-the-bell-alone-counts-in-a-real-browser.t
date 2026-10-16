@@ -1,13 +1,17 @@
 #!/usr/bin/perl
-# SM957: the Submissions entry's unread count, asked of a browser.
+# SM957 / SM1097: the bell is the one indicator of a new submission, asked of a
+# browser.
 #
-# The count is drawn by the bell's own script (SM951: it runs once the page has
-# loaded, because the script is in <head> and the menu is in <body>), from the
-# bell's own notices and read marks. What a browser can show that the template
-# text cannot: the count appears, it moves when a notice is followed - from the
-# bell's panel or from a Submissions row - and it is not there for an account
-# the bell refuses. And the mark is a POST: the bell sent it as a GET, which the
-# API refuses, so until n265 no mark it made was kept.
+# SM957 gave the Submissions menu entry an unread-count bubble beside the bell.
+# The 0.15.5 test plan (2026-10-16): "the menu's submission bubble does not say
+# which form has the new submission, and the bell shows the same events: two
+# indicators for one thing." The release manager ruled "bell stays", so the
+# bubble is gone (SM1097) and this test, which pinned it, now pins its absence
+# and keeps what the bell itself must still do: its badge counts every unread
+# notice, moves when a notice is followed - from the panel or from a
+# Submissions row - and is not there for an account the bell refuses. And the
+# mark is a POST: the bell sent it as a GET, which the API refuses, so until
+# n265 no mark it made was kept.
 #
 # The layout is RENDERED (every grant, so the count element exists), its head
 # scripts and its menu and bell markup are loaded headless, and `fetch` is a stub
@@ -50,7 +54,8 @@ my @scripts = ( $head // '' ) =~ m{(<script>.*?</script>)}sg;
 my ($nav)   = $out            =~ m{(<nav class="mg-nav".*?</nav>)}s;
 my ($bell)  = $out =~ m{(<div class="mg-notif" id="mg-notif">.*?</div>\s*</div>)}s;
 ok( scalar @scripts,                     'the layout head scripts' );
-ok( $nav && $nav =~ /mg-nav-subs-count/, 'the menu, with the count element' );
+ok( $nav, 'the menu' );
+unlike( $out, qr/mg-nav-subs-count|mg-nav-count/, 'SM1097: no submission bubble anywhere in the layout' );
 ok( $bell,                               'the bell' ) or done_testing(), exit;
 
 my $FILE    = 'lazysite/forms/submissions/contact.jsonl';
@@ -93,8 +98,9 @@ sub scenario {
         "<script>\n",
         "window.addEventListener('click', function (e) { e.preventDefault(); });\n",
         "function report(r) {\n",
-        "  var c = document.getElementById('mg-nav-subs-count');\n",
+        "  var c = document.getElementById('mg-notif-badge');\n",
         "  r.count = c ? (c.hidden ? 'hidden' : c.textContent) : 'absent';\n",
+        "  r.bubble = document.getElementById('mg-nav-subs-count') ? 'present' : 'absent';\n",
         "  r.bell = document.getElementById('mg-notif') ? 'present' : 'gone';\n",
         "  return r;\n}\n",
         "window.addEventListener('load', function () { setTimeout(function () {\n",
@@ -120,32 +126,34 @@ sub scenario {
 my $none = scenario( 'none', \%NOTICES, '' );
 plan skip_all => 'chromium did not render the page' unless $none;
 
-is( $none->{before}, '1', 'the count shows the unread SUBMISSION notices only - one of two, not the reset request' )
+is( $none->{before}, '2', 'the bell counts every unread notice - the submission and the reset request' )
     or diag explain $none;
+is( $none->{bubble}, 'absent', 'and the menu draws no second count' );
 
 my $panel = scenario( 'panel', \%NOTICES,
     "window.mgToggleNotif(); document.querySelector('[data-notif-open=\"aaaaaaaaaaaa\"]').click();" );
-is( $panel->{count}, 'hidden', 'following the notice from the bell clears the count' ) or diag explain $panel;
+is( $panel->{count}, '1', 'following the notice from the bell moves the bell count' ) or diag explain $panel;
 is_deeply( [ map { [ $_->{method}, $_->{url} =~ /(id=\w+)/ ] } @{ $panel->{seen} } ], [ [ 'POST', 'id=aaaaaaaaaaaa' ] ],
     'and marks THAT notice, as a POST - the API refuses a write sent as a GET' );
 
 my $row = scenario( 'row', \%NOTICES, "window.mgNoticeFollowed('$FILE', '1111111111111111');" );
-is( $row->{count}, 'hidden', 'opening that row from the Submissions page clears it too' ) or diag explain $row;
+is( $row->{count}, '1', 'opening that row from the Submissions page moves it too' ) or diag explain $row;
 is_deeply( [ map { [ $_->{method}, $_->{url} =~ /(id=\w+)/ ] } @{ $row->{seen} } ], [ [ 'POST', 'id=aaaaaaaaaaaa' ] ],
     'marking the notice whose link names that store and row' );
 
 my $other = scenario( 'other', \%NOTICES, "window.mgNoticeFollowed('$FILE', '9999999999999999');" );
-is( $other->{count}, '1', 'a row no notice names marks nothing' ) or diag explain $other;
+is( $other->{count}, '2', 'a row no notice names marks nothing' ) or diag explain $other;
 is( scalar @{ $other->{seen} }, 0, 'and sends nothing' );
 
 my $all = scenario( 'all', \%NOTICES, "window.mgToggleNotif(); document.querySelector('[data-notif-all]').click();" );
-is( $all->{count}, 'hidden', 'mark all read clears it' ) or diag explain $all;
+is( $all->{count}, 'hidden', 'mark all read clears the bell' ) or diag explain $all;
 
 my $refused = scenario( 'refused', { ok => 0, kind => 'forbidden', error => 'no' }, '' );
-is( $refused->{before}, 'hidden', 'no notifications grant: no count' ) or diag explain $refused;
+is( $refused->{before}, 'absent', 'no notifications grant: no bell badge' ) or diag explain $refused;
+is( $refused->{bubble}, 'absent', 'and no bubble' );
 is( $refused->{bell}, 'gone', 'and no bell, as before' );
 
-my $zero = scenario( 'zero', { %NOTICES, unread_by_type => { 'reset-request' => 1 } }, '' );
-is( $zero->{before}, 'hidden', 'nothing unread of that type: the count is hidden, not a 0' );
+my $zero = scenario( 'zero', { ok => 1, unread => 0, unread_by_type => {}, notices => [] }, '' );
+is( $zero->{before}, 'hidden', 'nothing unread: the bell badge is hidden, not a 0' );
 
 done_testing();

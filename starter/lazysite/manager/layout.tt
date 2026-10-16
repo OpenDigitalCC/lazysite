@@ -429,21 +429,11 @@
       var btn=document.querySelector('#mg-notif .mg-notif-btn');
       if(btn) btn.classList.toggle('mg-notif-unread', n>0);
     }
-    // SM957: THE SUBMISSIONS ENTRY'S COUNT IS THIS BELL'S, NARROWED. Not a second
-    // read state: the same notices, the same per-operator marks (SM938 D3), the
-    // submission ones counted. So opening the Submissions page marks nothing -
-    // reading is said, not inferred - and following a notice's link, "Mark all
-    // read" and Dismiss each move this count exactly as they move the bell's.
-    // The element exists only for an account holding read_submissions AND
-    // notifications (the template decides); without a count it stays hidden.
-    function subsUnread(){ return notices.filter(function(n){ return !n.read && n.type === 'submission'; }).length; }
-    function setSubsCount(n){
-      var c=document.getElementById('mg-nav-subs-count'); if(!c)return;
-      if(n>0){
-        c.textContent=n>99?'99+':String(n); c.hidden=false;
-        c.title=n+' unread submission notice'+(n===1?'':'s');
-      } else { c.hidden=true; c.textContent=''; }
-    }
+    // SM1097: the Submissions menu entry carried a second count (SM957) beside this
+    // bell's badge; the 0.15.5 test plan found two indicators for one event, and the
+    // release manager ruled "bell stays". The bubble and its fetch-fed counters are
+    // gone; the badge below is the one indicator, and `notices` still answers
+    // unread_by_type for any caller that asks.
     function load(){
       fetch(API + '?action=notices').then(function(r){return r.json();}).then(function(d){
         if (!d || !d.ok) {
@@ -455,7 +445,6 @@
           return;
         }
         notices = d.notices || []; setBadge(d.unread || 0);
-        setSubsCount(d.store_unreadable ? 0 : ((d.unread_by_type || {}).submission || 0));
       }).catch(function(){});
     }
     function unreadCount(){ return notices.filter(function(n){ return !n.read; }).length; }
@@ -464,7 +453,7 @@
       // SM957: POST. It was a GET, and the API refuses a write sent as a GET
       // ("This action must be sent as POST.") - so from SM938 D3 on, no mark this
       // bell made was kept: the badge dropped on screen and came back on the next
-      // page. The Submissions count reads the same marks. t/unit/manager/204.
+      // page. t/unit/manager/204.
       return fetch(API + '?action=notices-seen' + (qs || ''),
                    { method: 'POST', credentials: 'same-origin', keepalive: true })
         .then(function(r){ return r.json(); });
@@ -499,7 +488,7 @@
         n.read = true;
         seen('&id=' + encodeURIComponent(n.id)).catch(function(){});
       });
-      setBadge(unreadCount()); setSubsCount(subsUnread());
+      setBadge(unreadCount());
     };
     window.mgToggleNotif = function(){
       var panel = document.getElementById('mg-notif-panel'); if (!panel) return;
@@ -514,14 +503,14 @@
       if (!t) return;
       if (t.hasAttribute('data-notif-all')) {
         seen('').then(function(d){
-          if (d && d.ok) { notices.forEach(function(n){ n.read = true; }); setBadge(0); setSubsCount(0); render(); }
+          if (d && d.ok) { notices.forEach(function(n){ n.read = true; }); setBadge(0); render(); }
         }).catch(function(){});
       } else if (t.hasAttribute('data-notif-dismiss')) {
         var id = t.getAttribute('data-notif-dismiss');
         seen('&id=' + encodeURIComponent(id) + '&dismiss=1').then(function(d){
           if (d && d.ok) {
             notices = notices.filter(function(n){ return n.id !== id; });
-            setBadge(d.unread || 0); setSubsCount(subsUnread()); render();
+            setBadge(d.unread || 0); render();
           }
         }).catch(function(){});
       } else {
@@ -529,7 +518,7 @@
         // travels with keepalive.
         var oid = t.getAttribute('data-notif-open');
         notices.forEach(function(n){ if (n.id === oid) n.read = true; });
-        setBadge(unreadCount()); setSubsCount(subsUnread());
+        setBadge(unreadCount());
         seen('&id=' + encodeURIComponent(oid)).catch(function(){});
       }
     });
@@ -777,7 +766,7 @@
          exists to stop. -->
     <nav class="mg-nav" aria-label="Manager navigation">
       <div class="mg-nav-group">Site</div>
-      [% IF manager_caps.read_submissions || manager_caps.approve_accounts %]<a href="/manager/submissions" [% IF request_uri.match('^/manager/submission') %]class="active" aria-current="page"[% END %]>Submissions[% IF manager_caps.notifications %] <span class="mg-nav-count" id="mg-nav-subs-count" hidden></span>[% END %]</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Read what visitors have sent through the site's forms. To enable it, grant 'Read form submissions' to a group on the Groups page.">Submissions <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Read what visitors have sent through the site's forms. This account does not hold the capability it needs; a user manager can grant it.">Submissions <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
+      [% IF manager_caps.read_submissions || manager_caps.approve_accounts %]<a href="/manager/submissions" [% IF request_uri.match('^/manager/submission') %]class="active" aria-current="page"[% END %]>Submissions</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Read what visitors have sent through the site's forms. To enable it, grant 'Read form submissions' to a group on the Groups page.">Submissions <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Read what visitors have sent through the site's forms. This account does not hold the capability it needs; a user manager can grant it.">Submissions <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
       [% IF manager_caps.manage_content %]<a href="/manager/files" [% IF request_uri.match('^/manager/files') %]class="active" aria-current="page"[% END %]>Files</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Read and write site content. To enable it, grant 'Content' to a group on the Groups page.">Files <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Read and write site content. This account does not hold the capability it needs; a user manager can grant it.">Files <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
       [% IF manager_caps.manage_nav %]<a href="/manager/nav" [% IF request_uri.match('^/manager/nav') %]class="active" aria-current="page"[% END %]>Navigation</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Edit the site navigation menu. To enable it, grant 'Navigation' to a group on the Groups page.">Navigation <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Edit the site navigation menu. This account does not hold the capability it needs; a user manager can grant it.">Navigation <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
       [% IF enabled_plugins.stats %]<a href="/manager/stats" [% IF request_uri.match('^/manager/stats') %]class="active" aria-current="page"[% END %]>Visitor statistics</a>[% END %]
