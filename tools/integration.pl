@@ -287,7 +287,12 @@ sub precheck_branch {
     return 'the diff carries the mangled literal (gh, a dot, 072103)'
         if grep { /\A\+(?!\+\+)/ && /$MANGLED/ } split /\n/, $diff;
     return 'it has no tools/precheck.sh' unless -f "$WT/tools/precheck.sh";
-    my $log = "$D/precheck-$DAY-$s->{tip}.log";
+    # SM1087: the tip is a branch name, and a house branch name has a slash
+    # (claude/n599-...). Used as-is it named a directory that does not exist, so
+    # the shell could not open the log and every such stack read as a failed
+    # precheck (2026-10-16). The name is flattened for the file only.
+    ( my $tag = $s->{tip} ) =~ s{[^A-Za-z0-9._-]+}{-}g;
+    my $log = "$D/precheck-$DAY-$tag.log";
     my $rc  = run_in( undef, undef, 'sh', '-c', 'exec bash "$1" "$2" >>"$3" 2>&1',
         'precheck', "$WT/tools/precheck.sh", $prev, $log );
     return $rc == 0 ? () : "precheck failed on the integration tree after its commits ($log)";

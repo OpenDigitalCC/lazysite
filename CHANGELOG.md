@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1087 (PENDING) **internal: a stack whose branch name has a slash is
+  prechecked.** The integration run named its precheck log from the branch
+  name as-is, so a `claude/...` branch pointed the log into a missing
+  directory and was reported "precheck failed" with no precheck run
+  (2026-10-16). The name is flattened for the file. t/tools/167.
+
 - SM1084 (PENDING) **a refused extension toggle says why at the row.** "the
   toggle just springs back - it should explain why it wont enable" (release
   manager, 2026-10-16, enabling Odoo without the OOM package). The reason went
