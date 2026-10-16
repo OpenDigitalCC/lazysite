@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.6"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.7"
 brand: plain
 ---
 
@@ -2024,6 +2024,12 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.7** (2026-10-16, edge) - **A folder delete deletes, and a signed-out
+  visit is not an event.** A WebDAV folder DELETE checks every member and
+  removes the folder everywhere, or refuses naming why (SM1092); a deleted
+  notify rule takes its queue (SM1093); a submission shows each field as a name
+  and a value, and the bell is the one indicator (SM1096, SM1097); the auth
+  wrapper logs a request's cookie state at DEBUG and honours log_level (SM1099)
 - **0.15.6** (2026-10-16, edge) - **An operator can add an operator, and a
   refused switch says why.** An operator may add someone to the operator group
   (SM1086); a refused extension toggle says why under its own row (SM1084); an

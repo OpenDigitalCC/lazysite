@@ -53,42 +53,44 @@ Archive
 
 ## Unreleased
 
-- SM1098 (PENDING) **a declared lazysite-agent is counted as a bot, not a
+## 0.15.7 - EDGE: a folder delete deletes, and a signed-out visit is not an event (2026-10-16)
+
+- SM1098 (0f8444a7) **a declared lazysite-agent is counted as a bot, not a
   scanner.** The 0.15.5 test walk's probes of missing draft pages put the
   testing agent in the scanner class. A request declaring
   `lazysite-agent/...` was classed bot, then promoted to scanner by the
   five-404s rule, which never looked at the user agent. A declared agent is
   no longer promoted; every other client is. t/unit/plugins/49.
 
-- SM1096 (PENDING) **a submission shows each field as a name and a value.** The
+- SM1096 (825da8c3) **a submission shows each field as a name and a value.** The
   submission view ran a field's name and value together ("messagezz55 F9
   event 2"). Each field is now its name as a label above its value, and a
   multi-line value keeps its newlines. t/unit/manager/346.
-- SM1097 (PENDING) **the bell is the one submission indicator.** The menu's
+- SM1097 (825da8c3) **the bell is the one submission indicator.** The menu's
   submission bubble showed the same events as the bell without saying which
   form; the release manager ruled "bell stays" (2026-10-16). The bubble is
   removed; the bell is unchanged. t/unit/manager/202, 204.
 
-- SM1094 (PENDING) **an unreadable auth_groups message quotes what it read.**
+- SM1094 (0ad82caf) **an unreadable auth_groups message quotes what it read.**
   `auth_groups: [` gave "write [[] or a '- [' line below it" (row S9 of the
   0.15.5 test walk): the raw value was spliced into the example. The message
   now quotes the value and shows the two correct forms on their own.
   t/unit/lib/201.
-- SM1095 (PENDING) **a refusal to a token with no scope says what is true of
+- SM1095 (0ad82caf) **a refusal to a token with no scope says what is true of
   it.** Such a token was told it "reaches only the domains whose content lies
   inside no scope: (default)". It is now told it is not confined to a
   domain's content, which domains it reaches, and that a domain with a
   content root of its own needs a scope covering that root.
   t/unit/manager/345.
 
-- SM1093 (PENDING) **a deleted notify rule takes its queued notifications with
+- SM1093 (74891fb2) **a deleted notify rule takes its queued notifications with
   it.** Deleting a rule left its queued entries in the outbox (0.15.5 test
   walk). The delete now removes the rule's queued, retrying and held entries
   and says how many (`outbox_removed`, also in the audit detail); sent history
   is kept. Entries already stranded by an earlier delete are given up at the
   start of the outbox job and never sent. t/unit/notify/06.
 
-- SM1092 (PENDING) **security: a WebDAV folder DELETE removes the folder or
+- SM1092 (d5510903) **security: a WebDAV folder DELETE removes the folder or
   refuses, naming why.** The 0.15.5 test walk saw a folder DELETE answer 204
   and leave the folder and its pages. Removing a page's rule moves the page
   back from the private store but leaves its folder there empty, and DELETE
@@ -98,20 +100,20 @@ Archive
   DELETE (403, nothing removed, the member named; release manager,
   2026-10-16). Before, members were not checked at all. t/unit/dav/32.
 
-- SM1090 (PENDING) **a failed save is audited as the save that failed.** The
+- SM1090 (2136f95d) **a failed save is audited as the save that failed.** The
   0.15.5 test walk on edge found manager saves failing with "Permission
   denied" and no save in the audit trail. A failed save was recorded as
   `edit`, from a flag only a successful save carries; it now keeps the action
   `save`, with `fail` and the write's reason. A save that left no row at all
   was not reproduced here. t/unit/manager/343.
-- SM1091 (PENDING) **an acl-set audit row records the rule it wrote.** Every
+- SM1091 (2136f95d) **an acl-set audit row records the rule it wrote.** Every
   acl-set row recorded the new rule as "no restriction" (row F7 of the 0.15.5
   test walk): the after-state was built from the request, whose lists may be
   strings. It now records the rule as stored, single and list form alike; the
   list form targets `/path`, a refused list names the paths it asked about,
   and the list result carries the read-without-write warning.
   t/unit/manager/344.
-- SM1099 (PENDING) **an anonymous request does not fill the web server's error
+- SM1099 (bf6d6270) **an anonymous request does not fill the web server's error
   log.** The Apache error log filled with hundreds of MB of `[INFO] [auth]
   [/] auth: no cookie` (release manager, 2026-10-16): the auth wrapper logged
   one INFO line per request and never read `log_level`. "No cookie" and
