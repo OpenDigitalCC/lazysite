@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1034 phase 1a, ruled by the release manager 2026-10-12
 area: accounts
-status-note: "SHIPPED (PENDING): /account joins the SM201 system pages (site layout, self-healing, account_page switch); ::: account-summary/-password/-sessions with /assets/lazysite-account.js; me, me-password, me-sessions, me-session-revoke, me-sign-out-everywhere - declared self, cookie-only, CSRF-gated, audited; password checks count against the sign-in rate limiter. t/unit/account/01-02, 05, lint 246."
+status-note: "SHIPPED (0.15.5): /account joins the SM201 system pages (site layout, self-healing, account_page switch); ::: account-summary/-password/-sessions with /assets/lazysite-account.js; me, me-password, me-sessions, me-session-revoke, me-sign-out-everywhere - declared self, cookie-only, CSRF-gated, audited; password checks count against the sign-in rate limiter. t/unit/account/01-02, 05, lint 246."
 ---
 
 # The ruling

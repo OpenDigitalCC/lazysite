@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-9)
 area: security
-status-note: "SHIPPED (PENDING): acl-set's path resolved once from query or body before the scope check, two that differ refused; form-submissions checks the store it reads; a brief's typed check only for type=row (t/integration/205, 206)."
+status-note: "SHIPPED (0.15.5): acl-set's path resolved once from query or body before the scope check, two that differ refused; form-submissions checks the store it reads; a brief's typed check only for type=row (t/integration/205, 206)."
 ---
 
 # The report

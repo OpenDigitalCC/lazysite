@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: WORK-PLAN-0154 U3, ruling of 2026-10-12 ("lets have cli command to add the domain group")
 area: tools
-status-note: "SHIPPED (PENDING): lazysite-domains.pl group-add / group-remove (and user-add / user-remove for locked_users) through domain_set; idempotent; an unknown group or account is refused by name (t/tools/120). Landed 2d403e12, e314cae9."
+status-note: "SHIPPED (0.15.5): lazysite-domains.pl group-add / group-remove (and user-add / user-remove for locked_users) through domain_set; idempotent; an unknown group or account is refused by name (t/tools/120). Landed 2d403e12, e314cae9."
 ---
 
 # The ruling

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-15
 raised-by: release manager, 2026-10-15
 area: release
-status-note: "SHIPPED (PENDING) on n589: tools/preflight.sh, tools/heavy-lock.sh, tools/stage-default.sh, tools/failure-digest.pl; gate-main.sh, coverage.sh, suite.sh, overnight.sh wired. Coverage in parts is filed as n590 (see the plan row)."
+status-note: "SHIPPED (0.15.5) on n589: tools/preflight.sh, tools/heavy-lock.sh, tools/stage-default.sh, tools/failure-digest.pl; gate-main.sh, coverage.sh, suite.sh, overnight.sh wired. Coverage in parts is filed as n590 (see the plan row)."
 ---
 
 # What happened

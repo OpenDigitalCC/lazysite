@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the developer agent, widening lint 137 for WORK-PLAN-0154 P21
 area: data
-status-note: "SHIPPED (PENDING): lint 137 also holds every insert_row/update_row/import_rows call in lib/, tools/ and plugins/ to `actor =>`; package_apply restores rows as the account applying it, as data-import does."
+status-note: "SHIPPED (0.15.5): lint 137 also holds every insert_row/update_row/import_rows call in lib/, tools/ and plugins/ to `actor =>`; package_apply restores rows as the account applying it, as data-import does."
 ---
 
 # What was wrong

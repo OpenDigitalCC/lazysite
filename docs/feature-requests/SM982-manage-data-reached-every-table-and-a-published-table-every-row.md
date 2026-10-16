@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox, 2026-10-11-a-manage-data-holder-reaches-every-table-and-a-published-table-is-public-to-the-last-row.md (a members' area on a local 0.15.3 site)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-11, Table ACLs bind it + row filter. Manager::Data::table_rule_refusal asks the table's read or write rule of every non-operator on every row read and write (manager, API, MCP, data endpoint); a descriptor's `where: field = value` / `field != value` is applied to page bindings and the data endpoint. t/integration/127."
+status-note: "SHIPPED (0.15.5): ruled 2026-10-11, Table ACLs bind it + row filter. Manager::Data::table_rule_refusal asks the table's read or write rule of every non-operator on every row read and write (manager, API, MCP, data endpoint); a descriptor's `where: field = value` / `field != value` is applied to page bindings and the data endpoint. t/integration/127."
 ---
 
 # What was wrong

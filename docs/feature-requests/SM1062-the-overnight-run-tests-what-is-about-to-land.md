@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: release manager, 2026-10-12
 area: release
-status-note: "SHIPPED (PENDING) on n552: tools/integration.pl (run by tools/overnight.sh) releases the queued worktrees, prechecks each stack, cherry-picks them onto main in queue order as review/assess/integration, runs one suite (tools/suite.sh --tree), and prints LAND IN THIS ORDER or a red verdict naming main, a stack or a clash. t/tools/145-149."
+status-note: "SHIPPED (0.15.5) on n552: tools/integration.pl (run by tools/overnight.sh) releases the queued worktrees, prechecks each stack, cherry-picks them onto main in queue order as review/assess/integration, runs one suite (tools/suite.sh --tree), and prints LAND IN THIS ORDER or a red verdict naming main, a stack or a clash. t/tools/145-149."
 ---
 
 # The ruling

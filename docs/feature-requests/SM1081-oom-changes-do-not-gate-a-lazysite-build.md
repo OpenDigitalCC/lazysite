@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-14
 raised-by: the release gate (lint 207, three failures), ruled by the release manager 2026-10-14
 area: odoo
-status-note: "SHIPPED (PENDING): t/vendor/oom pins OOM 0.09 (commit 2edc3db) under a MANIFEST (lint 261); every Odoo test runs on it; lint 207 compares SM747's spec with it; lint 262 keeps the gate off OOM's tree and the host; tools/vendor-oom.sh adopts a newer OOM; tools/ext-compat.sh is the advisory tier."
+status-note: "SHIPPED (0.15.5): t/vendor/oom pins OOM 0.09 (commit 2edc3db) under a MANIFEST (lint 261); every Odoo test runs on it; lint 207 compares SM747's spec with it; lint 262 keeps the gate off OOM's tree and the host; tools/vendor-oom.sh adopts a newer OOM; tools/ext-compat.sh is the advisory tier."
 ---
 
 # The ruling

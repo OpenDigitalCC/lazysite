@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: WORK-PLAN-0153 follow-up, listed as WORK-PLAN-0154 P24; ruling of 2026-10-12
 area: audit
-status-note: "SHIPPED (PENDING): a failed users read sub-action writes a user-<sub> fail row with its class only; a crashed control API handler (END guard) and a crashed MCP tool each write one fail row naming the action, never the error (t/integration/133)."
+status-note: "SHIPPED (0.15.5): a failed users read sub-action writes a user-<sub> fail row with its class only; a crashed control API handler (END guard) and a crashed MCP tool each write one fail row naming the action, never the error (t/integration/133)."
 ---
 
 # The ruling

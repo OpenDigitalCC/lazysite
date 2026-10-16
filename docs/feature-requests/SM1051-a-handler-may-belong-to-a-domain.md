@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-4)
 area: forms
-status-note: "SHIPPED (PENDING): handler domain:; handler-save/-delete and their MCP twins ask the domain rule (no longer instance_wide); handler-list shows a confined caller the instance's and its own; forms bind those (t/integration/210)."
+status-note: "SHIPPED (0.15.5): handler domain:; handler-save/-delete and their MCP twins ask the domain rule (no longer instance_wide); handler-list shows a confined caller the instance's and its own; forms bind those (t/integration/210)."
 ---
 
 # The report and the ruling

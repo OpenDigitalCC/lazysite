@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-15
 raised-by: coordinating session, 2026-10-15
 area: release
-status-note: "SHIPPED (PENDING) on n591: tools/integration.pl picks <previous branch tip>..<branch tip> per branch (the lowest from main), with git cherry's patch-id check limited to that range. t/tools/166."
+status-note: "SHIPPED (0.15.5) on n591: tools/integration.pl picks <previous branch tip>..<branch tip> per branch (the lowest from main), with git cherry's patch-id check limited to that range. t/tools/166."
 ---
 
 # What happened

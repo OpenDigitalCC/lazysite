@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1010 F1 and F2, ruled "Fix now" by the release manager 2026-10-12
 area: forms
-status-note: "SHIPPED (PENDING): the SM877 acknowledgement reads quarantine from the delivery context (F1, reproduced through form-handler.pl); an address put in a mail header is exactly one address, refused otherwise, by the handler, the header writer and the account store (F2). t/unit/forms/60, 61."
+status-note: "SHIPPED (0.15.5): the SM877 acknowledgement reads quarantine from the delivery context (F1, reproduced through form-handler.pl); an address put in a mail header is exactly one address, refused otherwise, by the handler, the header writer and the account store (F2). t/unit/forms/60, 61."
 ---
 
 # The ruling

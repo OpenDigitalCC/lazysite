@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox report 2026-10-12, sites.lazysite.io (engine 0.15.4)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-12 \"Allow, own group only\". An unscoped manage_domains token may domain-add naming its own groups in allowed_groups; a folder outside every domain, an existing one adopted unless an access rule touches it (D-2); audited with the group. t/integration/200, t/unit/auth/51."
+status-note: "SHIPPED (0.15.5): ruled 2026-10-12 \"Allow, own group only\". An unscoped manage_domains token may domain-add naming its own groups in allowed_groups; a folder outside every domain, an existing one adopted unless an access rule touches it (D-2); audited with the group. t/integration/200, t/unit/auth/51."
 ---
 
 # What was wrong

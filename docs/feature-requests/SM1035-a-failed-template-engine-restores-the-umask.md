@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1012's characterisation of render_content (t/unit/processor/113, n458), the render.pm 107 finding; ruled its own item 2026-10-12
 area: processor
-status-note: "SHIPPED (PENDING): render_content and update_registries build their Template object (and the registries' make_path) under eval, restore the umask, then re-throw the same failure; t/unit/processor/126. t/unit/processor/113's record (n458, another stack) pins umask_after 0002 for one case and must change to 0027 when the two meet."
+status-note: "SHIPPED (0.15.5): render_content and update_registries build their Template object (and the registries' make_path) under eval, restore the umask, then re-throw the same failure; t/unit/processor/126. t/unit/processor/113's record (n458, another stack) pins umask_after 0002 for one case and must change to 0027 when the two meet."
 ---
 
 # The finding

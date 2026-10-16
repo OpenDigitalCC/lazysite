@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1031's open question ("Not changed"), WORK-PLAN-0154 follow-up
 area: stats
-status-note: "SHIPPED (PENDING): preview_public, domain_preview and the manager's action_preview set LAZYSITE_PREVIEW, which the access log leaves out (SM1031); every preview door measured in one rig (t/integration/225). Needs n481's access-log guard."
+status-note: "SHIPPED (0.15.5): preview_public, domain_preview and the manager's action_preview set LAZYSITE_PREVIEW, which the access log leaves out (SM1031); every preview door measured in one rig (t/integration/225). Needs n481's access-log guard."
 ---
 
 # The question

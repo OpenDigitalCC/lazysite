@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox, 2026-10-11-an-inline-auth-groups-list-fails-open.md (a members' area on a local 0.15.3 site)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-11, Parse it + fail closed. auth_groups is read as a flow or block list on every reader; an auth_groups, auth or payment value that cannot be read answers 403 to everyone with a log line naming the key, is in no listing, and lazysite validate reports it. Lint 220 pins the validator's copy. t/integration/125."
+status-note: "SHIPPED (0.15.5): ruled 2026-10-11, Parse it + fail closed. auth_groups is read as a flow or block list on every reader; an auth_groups, auth or payment value that cannot be read answers 403 to everyone with a log line naming the key, is in no listing, and lazysite validate reports it. Lint 220 pins the validator's copy. t/integration/125."
 ---
 
 # What was wrong

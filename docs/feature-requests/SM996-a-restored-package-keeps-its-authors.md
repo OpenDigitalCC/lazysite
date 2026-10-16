@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: WORK-PLAN-0154 P21, ruling of 2026-10-12 ("Keep original authors")
 area: data
-status-note: "SHIPPED (PENDING): a package carries created_by/updated_by beside a timestamped table's rows and package_apply keeps them through insert_row's `authors =>`, beside `actor =>` (the applier); lint 137 confines `authors =>` to the restore (t/unit/data/70)."
+status-note: "SHIPPED (0.15.5): a package carries created_by/updated_by beside a timestamped table's rows and package_apply keeps them through insert_row's `authors =>`, beside `actor =>` (the applier); lint 137 confines `authors =>` to the restore (t/unit/data/70)."
 ---
 
 # The ruling

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-14
 raised-by: coordinating session, 2026-10-14
 area: release
-status-note: "SHIPPED (PENDING) on n587: tools/integration.pl cherry-picks each branch of a stack onto the integration tree, then runs the precheck there against the tree before it; a failure rebuilds the tree without the stack; the results record each stack's base and how far behind main it is. t/tools/151-153."
+status-note: "SHIPPED (0.15.5) on n587: tools/integration.pl cherry-picks each branch of a stack onto the integration tree, then runs the precheck there against the tree before it; a failure rebuilds the tree without the stack; the results record each stack's base and how far behind main it is. t/tools/151-153."
 ---
 
 # What happened

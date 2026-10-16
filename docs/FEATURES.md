@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.4"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.5"
 brand: plain
 ---
 
@@ -2024,6 +2024,16 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.5** (2026-10-16, edge) - **A signed-in account reaches only what its
+  grants allow.** The manager's cookie door needs the manager (ui), and a
+  content write needs manage_content (SM1057); manage_users is user management
+  and the operator is the operator group (SM991); a file's and a table's rule
+  bind every holder (SM979, SM982); a removed account's session ends with it
+  (SM1070); a member has an account page, /account, with self-enrolled 2FA
+  (SM1043, SM1042); a partner lists and creates groups, binds domain handlers
+  and stages accounts for the operator (SM1050-SM1053); a write-only rule
+  leaves a page cacheable (SM1068); a page reaches Odoo, as the connection user
+  or a signed-in person (SM747)
 - **0.15.4** (2026-10-11, edge) - **A confined caller writes only what its own
   domains serve.** Themes, layouts, forms, briefs and safety exports follow
   domain confinement (SM976); a page binds the form the processor renders, and

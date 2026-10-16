@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1065 ("Not changed - two ways to find the processor")
 area: manager
-status-note: "SHIPPED (PENDING): Lazysite::Paths::find_processor is the one lookup (LAZYSITE_PROCESSOR's directory, beside the running CGI, the docroot's ../cgi-bin); processor_path and MCP _processor_tool both call it. Every packaged layout that found the processor finds the same file (t/unit/lib/90). Needs the whole suite (queued overnight)."
+status-note: "SHIPPED (0.15.5): Lazysite::Paths::find_processor is the one lookup (LAZYSITE_PROCESSOR's directory, beside the running CGI, the docroot's ../cgi-bin); processor_path and MCP _processor_tool both call it. Every packaged layout that found the processor finds the same file (t/unit/lib/90). Needs the whole suite (queued overnight)."
 ---
 
 # The ruling

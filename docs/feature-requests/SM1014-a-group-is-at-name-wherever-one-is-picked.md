@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: WORK-PLAN-0154 U2, ruling of 2026-10-12 ("groups should be prefixed with something say @ so they can be distinguished from users, and this should be consistent anywhere a group is picked")
 area: manager
-status-note: "SHIPPED (PENDING): every group picker and group named beside people shows @name through one layout helper; groupPrefix retired (lint 230); input with or without @; each store keeps its form (t/unit/manager/282, 283). Landed 76a6c505."
+status-note: "SHIPPED (0.15.5): every group picker and group named beside people shows @name through one layout helper; groupPrefix retired (lint 230); input with or without @; each store keeps its form (t/unit/manager/282, 283). Landed 76a6c505."
 ---
 
 # The ruling

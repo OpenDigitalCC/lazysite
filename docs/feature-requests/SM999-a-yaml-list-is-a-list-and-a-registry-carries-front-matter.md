@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11, a 1,745-post site on 0.15.3, item 2); WORK-PLAN-0154 P12 and P13; ruling of 2026-10-12
 area: rendering
-status-note: "SHIPPED (PENDING): flow and block lists of scalars parse as lists for every non-engine key (scan, registry, page_<key>); registry objects carry the scan's custom keys and tags less _front_matter_private (t/unit/processor/101)."
+status-note: "SHIPPED (0.15.5): flow and block lists of scalars parse as lists for every non-engine key (scan, registry, page_<key>); registry objects carry the scan's custom keys and tags less _front_matter_private (t/unit/processor/101)."
 ---
 
 # The ruling

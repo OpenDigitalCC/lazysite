@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-13
 raised-by: inbox, 2026-10-13 "A write-only ACL rule marks every page under it as per-viewer"
 area: processor
-status-note: "SHIPPED (PENDING), n561: _acl_governed and _acl_governing_key ask by audience ('see': a read list or draft); _acl_map is the one reader of acls.json, kept across requests on (path, mtime, size, inode, ctime); the shared page cache takes only a render made for no viewer. t/integration/236-239, t/integration/74, t/unit/processor/127, t/lint/259."
+status-note: "SHIPPED (0.15.5), n561: _acl_governed and _acl_governing_key ask by audience ('see': a read list or draft); _acl_map is the one reader of acls.json, kept across requests on (path, mtime, size, inode, ctime); the shared page cache takes only a render made for no viewer. t/integration/236-239, t/integration/74, t/unit/processor/127, t/lint/259."
 ---
 
 # The report

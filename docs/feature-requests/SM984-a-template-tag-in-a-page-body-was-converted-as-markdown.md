@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11, a 1,745-post site on 0.15.3, item 3); WORK-PLAN-0154 P5
 area: rendering
-status-note: "SHIPPED (PENDING): convert_md lifts each [% %] tag out before the Markdown converter and puts it back as written; a tag in code is put back escaped and is not run; the markdown filter is unchanged (t/unit/processor/95)."
+status-note: "SHIPPED (0.15.5): convert_md lifts each [% %] tag out before the Markdown converter and puts it back as written; a tag in code is put back escaped and is not run; the markdown filter is unchanged (t/unit/processor/95)."
 ---
 
 # What was wrong

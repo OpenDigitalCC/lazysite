@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: WORK-PLAN-0154 P23 (SM997), found while building; ruling of 2026-10-12
 area: docs
-status-note: "SHIPPED (PENDING): configuration.md and ai-briefing-configuration.md give the line format parse_nav reads - Label | /url, a bare label a heading, children indented, one level, # comments - in place of a YAML format no reader parses (t/tools/140)."
+status-note: "SHIPPED (0.15.5): configuration.md and ai-briefing-configuration.md give the line format parse_nav reads - Label | /url, a bare label a heading, children indented, one level, # comments - in place of a YAML format no reader parses (t/tools/140)."
 ---
 
 # The ruling

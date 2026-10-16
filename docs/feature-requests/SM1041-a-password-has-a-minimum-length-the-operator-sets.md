@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1034 (no password policy beyond non-empty), ruled "Min 12, configurable" by the release manager 2026-10-12
 area: accounts
-status-note: "SHIPPED (PENDING): password_min_length in lazysite.conf, default 12 (8-128, else the default), asked by one reader in Lazysite::Auth::Credential and applied to add, passwd, account-create, setup-sysop and claim/reset redemption; existing passwords keep working. A too-short claim leaves the link unused. t/unit/auth/41."
+status-note: "SHIPPED (0.15.5): password_min_length in lazysite.conf, default 12 (8-128, else the default), asked by one reader in Lazysite::Auth::Credential and applied to add, passwd, account-create, setup-sysop and claim/reset redemption; existing passwords keep working. A too-short claim leaves the link unused. t/unit/auth/41."
 ---
 
 # The ruling

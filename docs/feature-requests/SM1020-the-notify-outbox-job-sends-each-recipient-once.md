@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1010 phase 1, ruled 2026-10-12
 area: notifications
-status-note: "SHIPPED (PENDING): engine job notify-outbox (needs manage_notifications) resolves the five sources, leaves out the actor unless notify_actor, caps per recipient, sends once each under a hashed ledger, one audit row per recipient; email via form-smtp's message mode (RFC 2047 Subject, List-Unsubscribe); per-member bell with F3's reader filter. t/unit/notify/03-05."
+status-note: "SHIPPED (0.15.5): engine job notify-outbox (needs manage_notifications) resolves the five sources, leaves out the actor unless notify_actor, caps per recipient, sends once each under a hashed ledger, one audit row per recipient; email via form-smtp's message mode (RFC 2047 Subject, List-Unsubscribe); per-member bell with F3's reader filter. t/unit/notify/03-05."
 ---
 
 # What was built

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: WORK-PLAN-0153 follow-up, listed as WORK-PLAN-0154 P25
 area: rendering
-status-note: "SHIPPED (PENDING): resolve_scan and scan_pages leave out a page they cannot open and log it at WARN by its docroot-relative path with the reason, as Q15h does for encoding (t/unit/processor/98)."
+status-note: "SHIPPED (0.15.5): resolve_scan and scan_pages leave out a page they cannot open and log it at WARN by its docroot-relative path with the reason, as Q15h does for encoding (t/unit/processor/98)."
 ---
 
 # What was wrong

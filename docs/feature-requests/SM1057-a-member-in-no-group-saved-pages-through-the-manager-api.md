@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox report 2026-10-12, sites.lazysite.io (tprf-news domain), engine 0.15.4
 area: security
-status-note: "SHIPPED (PENDING): a non-operator cookie session needs ui (n540); a content write needs manage_content with the file's rule on top (n541), and so does an acl-set creating the first rule on a content path (n542) - both ruled \"Require manage_content\". Unsecured sites unchanged. Affects v0.14.4, v0.15.0-0.15.4. t/integration/220-223."
+status-note: "SHIPPED (0.15.5): a non-operator cookie session needs ui (n540); a content write needs manage_content with the file's rule on top (n541), and so does an acl-set creating the first rule on a content path (n542) - both ruled \"Require manage_content\". Unsecured sites unchanged. Affects v0.14.4, v0.15.0-0.15.4. t/integration/220-223."
 ---
 
 # The report

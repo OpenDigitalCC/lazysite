@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-13
 raised-by: n562 (security review), ruled "Probe, then fix" by the release manager 2026-10-13
 area: accounts
-status-note: "SHIPPED (PENDING): the cookie verifier refuses a session whose account is not in lazysite/auth/users (no-account; an unreadable store is cannot-tell), and remove and rename revoke the account's sessions by name before changing anything. Disabled was already refused on every cookie door. t/unit/auth/55-56, t/integration/243."
+status-note: "SHIPPED (0.15.5): the cookie verifier refuses a session whose account is not in lazysite/auth/users (no-account; an unreadable store is cannot-tell), and remove and rename revoke the account's sessions by name before changing anything. Disabled was already refused on every cookie door. t/unit/auth/55-56, t/integration/243."
 ---
 
 # The ruling

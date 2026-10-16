@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox report 2026-10-12, sites.lazysite.io (engine 0.15.4)
 area: security
-status-note: "SHIPPED (PENDING): group_names() is the union of groups-settings.json and the groups file; a name in neither is still unknown. acl-set's store-empty guard still reads accounts and membership (groups_with_members). t/unit/auth/50, t/unit/manager/300."
+status-note: "SHIPPED (0.15.5): group_names() is the union of groups-settings.json and the groups file; a name in neither is still unknown. acl-set's store-empty guard still reads accounts and membership (groups_with_members). t/unit/auth/50, t/unit/manager/300."
 ---
 
 # What was wrong

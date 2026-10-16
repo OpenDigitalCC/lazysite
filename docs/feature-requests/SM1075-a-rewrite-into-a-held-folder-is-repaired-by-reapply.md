@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: inbox 2026-10-11 (a 1,745-post local site), WORK-PLAN-0154 P11
 area: security
-status-note: "SHIPPED (PENDING) as a test only: NOT REPRODUCED on main e63e1fe2. SM981 (a6106bec) made the repair merge - the private copy of a file both trees hold wins, the public one is moved to lazysite/displaced/ and named, the rest moves in. t/integration/257 passes on main and fails on a6106bec^ with the reported refusal."
+status-note: "SHIPPED (0.15.5) as a test only: NOT REPRODUCED on main e63e1fe2. SM981 (a6106bec) made the repair merge - the private copy of a file both trees hold wins, the public one is moved to lazysite/displaced/ and named, the rest moves in. t/integration/257 passes on main and fails on a6106bec^ with the reported refusal."
 ---
 
 # The report

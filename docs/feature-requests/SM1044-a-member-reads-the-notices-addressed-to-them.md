@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1034 phase 1b (SM1010 R2), ruled "Accept, build phase 1" by the release manager 2026-10-12
 area: accounts
-status-note: "SHIPPED (PENDING): me-notices and me-notices-seen (self, cookie-only, no capability) over the one notice reader with addressed_only - the account's own notices in a window of its own, never a broadcast; ::: account-bell on /account. t/unit/account/03."
+status-note: "SHIPPED (0.15.5): me-notices and me-notices-seen (self, cookie-only, no capability) over the one notice reader with addressed_only - the account's own notices in a window of its own, never a broadcast; ::: account-bell on /account. t/unit/account/03."
 ---
 
 # What was wrong

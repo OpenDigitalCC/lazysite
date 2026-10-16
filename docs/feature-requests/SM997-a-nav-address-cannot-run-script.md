@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: WORK-PLAN-0153 follow-up, listed as WORK-PLAN-0154 P23; ruling of 2026-10-12
 area: security
-status-note: "SHIPPED (PENDING): nav-save, set_nav, a WebDAV PUT of a nav file and a file-editor save of one refuse an address whose scheme is not http, https, mailto or tel (the | url_safe rule); parse_nav renders one as # and logs it; lazysite validate and lazysite check name it (t/integration/132, t/unit/processor/100, lint 223)."
+status-note: "SHIPPED (0.15.5): nav-save, set_nav, a WebDAV PUT of a nav file and a file-editor save of one refuse an address whose scheme is not http, https, mailto or tel (the | url_safe rule); parse_nav renders one as # and logs it; lazysite validate and lazysite check name it (t/integration/132, t/unit/processor/100, lint 223)."
 ---
 
 # The ruling

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11, a style guide on a local 0.15.3 site); WORK-PLAN-0154 P6
 area: rendering
-status-note: "SHIPPED (PENDING): fenced code blocks are converted first and held out of the ::: passes (form, components, divs, include, oembed), then put back; a code block inside a box is still a code block (t/unit/processor/96)."
+status-note: "SHIPPED (0.15.5): fenced code blocks are converted first and held out of the ::: passes (form, components, divs, include, oembed), then put back; a code block inside a box is still a code block (t/unit/processor/96)."
 ---
 
 # What was wrong

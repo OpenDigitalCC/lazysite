@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1034 (Changing one's password today), ruled "Fix now" by the release manager 2026-10-12
 area: accounts
-status-note: "SHIPPED (PENDING): passwd (own or an operator's, every door), a redeemed setup or reset link and a 2FA disable end every other session of the account, legacy cookies included; the session making the change stays, named beside its not_before and taken only from the verified cookie. revoked.json writes are locked. t/unit/auth/40."
+status-note: "SHIPPED (0.15.5): passwd (own or an operator's, every door), a redeemed setup or reset link and a 2FA disable end every other session of the account, legacy cookies included; the session making the change stays, named beside its not_before and taken only from the verified cookie. revoked.json writes are locked. t/unit/auth/40."
 ---
 
 # The ruling

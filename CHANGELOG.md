@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1083 (PENDING) **internal: coverage for stable only.** "coverage run for
+## 0.15.5 - EDGE: a signed-in account reaches only what its grants allow (2026-10-16)
+
+- SM1083 (4f01c464) **internal: coverage for stable only.** "coverage run for
   stable only" (release manager, 2026-10-16): an edge or beta gate is the
   suite, the bench and the release material checks, and its receipt says
   `coverage=not run (channel edge; stable only, SM1083 ruling 2026-10-16)`;
@@ -62,14 +64,14 @@ Archive
   `LAZYSITE_COVER_FORCE=1` on any channel, or on demand via
   `tools/coverage.sh`.
 
-- SM1081 (PENDING) **internal: each commit of a stack is cherry-picked once.**
+- SM1081 (e2cb1175) **internal: each commit of a stack is cherry-picked once.**
   The overnight run picked a lower branch's commit again for every branch
   above it when the first pick had auto-merged (its patch-id moved on main);
   the third copy collided and the stack was reported CONFLICT with main
   (n566/n567/n568, 2026-10-15). Each branch now picks only the branch below
   it to its own tip, the lowest from main.
   t/tools/166.
-- SM1083 (PENDING) **internal: coverage in parts.** The measured files fall
+- SM1083 (e10dfde4) **internal: coverage in parts.** The measured files fall
   into nine groups read from the area map (tools/coverage-groups.pl), each
   with its own inputs digest, cover DB, floor lines and recorded pass under
   tmp/release-gate/coverage-passes/GROUP/. `tools/coverage.sh --check`
@@ -79,7 +81,7 @@ Archive
   pre-rebaseline, so the first per-group run reports movement instead of
   failing on it; one re-baseline commit follows.
 
-- SM1083 (PENDING) **internal: a release gate that guards itself.** A gate of
+- SM1083 (3232ca6d) **internal: a release gate that guards itself.** A gate of
   three to five hours that failed for five different reasons in a week is
   replaced by a process that refuses to start where it cannot finish.
   `tools/preflight.sh HEAVY` checks memory, swap, stage disk, inodes and the
@@ -91,7 +93,7 @@ Archive
   `tools/failure-digest.pl` gives a failure in 20 lines; the overnight run
   skips unchanged code. Coverage runs on demand, not nightly.
 
-- SM1080 (PENDING) **internal: the overnight run prechecks a stack where it
+- SM1080 (80e0fb9f) **internal: the overnight run prechecks a stack where it
   lands.** `tools/integration.pl` prechecked each stack's own tree, so a stack
   based on an older main failed on faults main had already fixed (n568, n575
   and n584 on 2026-10-14, Odoo tests n585 fixed) and was reported NOT READY
@@ -100,7 +102,7 @@ Archive
   the tree before them; a failure leaves the stack out and rebuilds the tree
   without it. The results file records each stack's base: `stack base is older
   than main by N commits`. t/tools/151-153.
-- SM1073 (PENDING) **one click stops one rule writing to one recipient.** A
+- SM1073 (a7e72221) **one click stops one rule writing to one recipient.** A
   notification rule's unsubscribe link and `List-Unsubscribe` header pointed
   at a page the operator had to write, and nothing recorded a refusal, so the
   daemon kept writing to whoever asked to stop. Every email of a rule now
@@ -115,7 +117,7 @@ Archive
   rule's `unsubscribe_path` is now optional, linked beside it as the page to
   manage subscriptions (SM1010 R4). t/unit/lib/94, t/integration/248.
 
-- SM1072 (PENDING) **a notification rule says what its queue holds, and the
+- SM1072 (80e96f47) **a notification rule says what its queue holds, and the
   outbox is shown in the manager.** A rule whose daemon was not running queued
   events nobody would send while its row on the Handlers page said "on". The
   row now shows the rule's queue (queued, retrying, held by the cap, failed),
@@ -128,7 +130,7 @@ Archive
   `manage_notifications` alone, and an account confined to some domains sees
   only their rules. t/unit/manager/340, t/integration/247.
 
-- SM1071 (PENDING) **a notice over the cap is folded into the next message.**
+- SM1071 (91a9db24) **a notice over the cap is folded into the next message.**
   A notification rule's `per_recipient_hour` refused the events past it, so a
   member following a busy thread heard of the first comments each hour and
   never of the rest. Past the cap an event is now held, and so is every later
@@ -139,14 +141,14 @@ Archive
   event is an audit row of its own (`held`); a held message carries at most
   50 events; a cap of 0 still sends nothing (SM1010 R1, Q7 as ruled).
   t/unit/lib/93.
-- SM1053 (PENDING) **a new account in an import never joins an operator or a
+- SM1053 (bdaef5c2) **a new account in an import never joins an operator or a
   registration group.** The rule an update has had since it was built now holds
   for creation: an account an import creates joins the named groups that exist
   except an operator group (the manager flag, nesting included) and a registration
   group. The dry run shows each refused group and why; a row naming only such
   groups still creates the account, in none. t/integration/258.
 
-- SM1075 (PENDING) **a rewrite into a held folder is repaired by reapply - a
+- SM1075 (215837d2) **a rewrite into a held folder is repaired by reapply - a
   test, no change.** Files written again into a folder already held as a draft
   left the private copy in place and `acl reapply` refused ("the private store
   already holds this path"). Reproduced on main: SM981 already fixed it - the
@@ -154,13 +156,13 @@ Archive
   other to `lazysite/displaced/` and names it. t/integration/257 holds it, and
   fails on the tree before SM981.
 
-- SM1053 (PENDING) **an account import can be staged over MCP.** The MCP tool
+- SM1053 (a2a73d94) **an account import can be staged over MCP.** The MCP tool
   `stage_accounts` is the twin of `accounts-import-stage`, declared on the
   action: the same rows or CSV, never a password, `manage_users`, audited, and
   nothing created. Listing, planning and applying an import stay the
   operator's, in the manager, with no MCP tool. t/integration/256.
 
-- SM1053 (PENDING) **an account import updates the existing accounts the
+- SM1053 (8e6ace8f) **an account import updates the existing accounts the
   operator ticks.** A staged row for an account that already exists is no
   longer only skipped: the dry run lists each change it would make - the
   address, a group to join, a group to leave (a row's `groups` is the set the
@@ -172,14 +174,14 @@ Archive
   every request, so the account loses that group's access at once. Each change
   is audited (`accounts-import-update`), naming no address. t/integration/255.
 
-- SM1053 (PENDING) **a staged account import can be removed.**
+- SM1053 (bd3e093c) **a staged account import can be removed.**
   `accounts-import-remove` (and Remove on the Account import page) deletes a
   staged import: the account that staged it may remove it, by token or in the
   manager, and the operator may remove any. Another holder of `manage_users`
   may not. Accounts an applied import created stay. Each removal, and each
   refusal, is audited naming the import. t/integration/254.
 
-- SM1053 (PENDING) **an account import mails the claim links when the
+- SM1053 (afb21fbc) **an account import mails the claim links when the
   operator chooses.** `accounts-import-apply` takes `mail` (the Account import
   page's checkbox), off unless sent: each new account is mailed its own claim
   link at the address its row carries, through the site's mail (the Form SMTP
@@ -189,7 +191,7 @@ Archive
   stops the apply; each send asked for is audited (`accounts-import-mail`,
   naming the account, not the address). t/integration/253.
 
-- SM1069 (PENDING) **a `.url` page under a read rule is no-store, and a rule
+- SM1069 (3b159190) **a `.url` page under a read rule is no-store, and a rule
   is found by its path's ancestors.** The `.url` output path never passed the
   protected flag: a `.url` page under a read rule or draft was answered
   cacheable to its reader, and its render was read from and written to the
@@ -201,7 +203,7 @@ Archive
   the first render after a stale registry went from 5.3 to 1.6 CPU seconds.
   t/integration/240-241, t/unit/processor/128-129.
 
-- SM1065 (PENDING) **a preview renders a page where its site serves it.** The
+- SM1065 (baa96ae2) **a preview renders a page where its site serves it.** The
   manager's `preview-public` and `preview`, and MCP `preview_public_page`,
   sent a domain's page to its Host under the docroot path, so
   `/sites/mine/index` answered 404 under `mine.test`; and a primary page asked
@@ -210,7 +212,7 @@ Archive
   one helper, `Domains::served_at`, which MCP `preview_page` (SM1031 (c)) now
   shares; a primary page renders with no Host. `preview_public` names a primary
   render `(default)`. `domain-preview` had no mismatch. t/integration/226.
-- SM1066 (PENDING) **one lookup finds the processor for every preview.** MCP
+- SM1066 (9ccdb087) **one lookup finds the processor for every preview.** MCP
   `preview_page` looked beside lazysite-mcp.pl, and `preview_public_page` and
   `preview_domain` read `LAZYSITE_PROCESSOR` or the docroot's `../cgi-bin` -
   so where the cgi-bin is elsewhere (install.pl's `--cgibin /usr/lib/cgi-bin`)
@@ -222,7 +224,7 @@ Archive
   is not UTF-8 as one it cannot read whatever the render returned (SM976 Q15j),
   which its test met only because its rig had no processor.
   t/integration/227, t/unit/lib/90, t/lint/258.
-- SM1078 (PENDING) **every CGI finds the engine's modules wherever the cgi-bin
+- SM1078 (2e9b02f1) **every CGI finds the engine's modules wherever the cgi-bin
   is.** install.pl puts the modules at `{docroot}/../lib`; the CGIs looked only
   beside themselves, so on install.pl's own example (`--docroot /var/www/html
   --cgibin /usr/lib/cgi-bin`) every CGI but the linked form handler died
@@ -237,7 +239,7 @@ Archive
   layout shows where the cgi-bin, lib, plugins and tools go, and the README no
   longer points at an empty Docker directory.
   t/integration/259, t/unit/lib/97, t/lint/263.
-- SM1068 (PENDING) **a write-only rule leaves a page cacheable, and the rule
+- SM1068 (02c590bd) **a write-only rule leaves a page cacheable, and the rule
   store is decoded once per change.** Ruled "Read/draft only": only a `read`
   list or `draft` governs a page. A write-only rule (an owner, a `write` list)
   no longer makes a page per-viewer: it is cached, answers without `no-store`,
@@ -254,7 +256,7 @@ Archive
   rules plus `/`: a post 0.46 s to 0.20 s (CGI) and 0.34 s to 0.004 s (pooled),
   `Cache-Control` `no-store, private` to `no-cache, must-revalidate`.
   t/integration/236-239, t/integration/74, t/unit/processor/127, t/lint/259.
-- SM1070 (PENDING) **a removed account's session ends with it.** Security.
+- SM1070 (9703d552) **a removed account's session ends with it.** Security.
   Removing an account wrote no revocation, and the cookie verifier never asked
   whether the account existed, so a removed account's cookie still counted as
   that account until it expired: on main it reached the members' pages,
@@ -269,14 +271,14 @@ Archive
   now comes from the same read, so a request reads the account store once.
   t/unit/auth/55-56, t/integration/243.
 
-- SM1064 (PENDING) **a preview is no visit, on every door.** MCP
+- SM1064 (36bf553a) **a preview is no visit, on every door.** MCP
   `preview_public_page` and `preview_domain`, and the manager's `preview`,
   `preview-public` and `domain-preview`, each wrote a visit to the first-party
   access log. They now set `LAZYSITE_PREVIEW`, which the log leaves out, as
   SM1031 does for `preview_page`. Measured in one rig that names the processor
   (`LAZYSITE_PROCESSOR`), which SM1031's probe lacked. t/integration/225.
 
-- SM1053 (PENDING) **a partner stages accounts, and the operator applies
+- SM1053 (80c18383) **a partner stages accounts, and the operator applies
   them.** `accounts-import-stage` takes a list of accounts - usernames,
   addresses, groups, never a password - and creates nothing. The operator
   reviews the dry run on the new Account import page (linked from Users) and
@@ -285,7 +287,7 @@ Archive
   built yet; the recorded address lets a member use "forgot password".
   t/integration/212.
 
-- SM1052 (PENDING) **one rule for many paths, and an import by the table's
+- SM1052 (5e09ff0e) **one rule for many paths, and an import by the table's
   writers.** `acl-set` takes `"paths": [...]` with one rule: every path is
   scope-checked and validated before any is written, one refusal changes
   nothing, and the trail records one row per path. `data-import` now follows a
@@ -294,13 +296,13 @@ Archive
   rule) may import past it, so a bulk load no longer needs the list cleared.
   t/integration/211.
 
-- SM1051 (PENDING) **a handler may belong to a domain.** A handler carries
+- SM1051 (fee70911) **a handler may belong to a domain.** A handler carries
   `domain:`, and a partner confined to that domain creates, changes and deletes
   it, sees it in `handler-list`, and binds its forms to it or to an instance
   handler. A handler with no domain is the instance's and stays out of a
   confined caller's reach; another domain's handlers are neither shown nor
   bindable. t/integration/210.
-- SM1057 (PENDING) **security: the first access rule on a page needs
+- SM1057 (1fddc26a) **security: the first access rule on a page needs
   `manage_content`.** Ruled 2026-10-12 ("Require manage_content"). In the
   manager, an acl-set that creates the first rule on a content path that has
   none needs `manage_content` from a non-operator, as the control API and MCP
@@ -309,7 +311,7 @@ Archive
   existing rule still changes it; paths in the engine's tree are exempt.
   t/integration/223.
 
-- SM1057 (PENDING) **security: a content write in the manager needs
+- SM1057 (b2c8d84b) **security: a content write in the manager needs
   `manage_content`.** Ruled 2026-10-12 ("Require manage_content"). On the
   manager API's cookie door save, delete, move, copy, file-upload, mkdir,
   migrate-to-local and the edit locks need `manage_content`, as WebDAV and MCP
@@ -319,7 +321,7 @@ Archive
   capabilities (nav.conf's `manage_nav`); operators and unsecured sites are
   unaffected. t/integration/222.
 
-- SM1057 (PENDING) **security: the manager API's cookie door needs manager
+- SM1057 (cc74c21e) **security: the manager API's cookie door needs manager
   access (`ui`).** A signed-in account in no group - a member login holding no
   capability - could send `save` (and delete, mkdir, move, copy, file-upload,
   lock, acl-set on an unruled path) to the manager API with its cookie and
@@ -331,7 +333,7 @@ Archive
   account or its session's groups), as a token needs `api`; an unsecured site
   is unchanged. Affects v0.14.4 and every v0.15.x. t/integration/220, 221.
 
-- SM1061 (PENDING) **internal: the handoff is the precheck, and one whole suite
+- SM1061 (d4e0ed28) **internal: the handoff is the precheck, and one whole suite
   runs at a time.** Ruled by the release manager 2026-10-12. `tools/handoff.sh`
   runs the precheck on each branch and no whole suite unless `--full` or
   `--release` asks for one. `tools/suite.sh` is the one way to run the whole
@@ -340,7 +342,7 @@ Archive
   touches (`tools/precheck-areas.pl`; t/lint/255 keeps the map complete).
   `tools/overnight.sh` runs queued handoffs and then `tools/suite.sh --nightly`
   on main, filing a failure in the inbox.
-- SM1062 (PENDING) **internal: the overnight run tests what is about to land.**
+- SM1062 (18a79e91) **internal: the overnight run tests what is about to land.**
   Ruled by the release manager 2026-10-12. `tools/overnight.sh` hands the queue
   to `tools/integration.pl`: it detaches every queued worktree at main,
   prechecks each stack, cherry-picks the stacks onto main in queue order as
@@ -349,7 +351,7 @@ Archive
   ORDER:` and READY FOR REVIEW lines; red names each failing file's cause -
   main, a stack, or two stacks together - and only those stacks are NOT READY.
   An empty queue runs the plain nightly on main. t/tools/145-149.
-- SM1063 (PENDING) **a connector sweep that expires nothing counts zero.** The
+- SM1063 (0ec4daa9) **a connector sweep that expires nothing counts zero.** The
   sweep declared its counters after the kept list in one list assignment, so
   the list took the zeros: a sweep that expired nothing reported `expired:
   null` (and `unanswered: null` with no stuck calls) in the daemon's run record,
@@ -358,7 +360,7 @@ Archive
   `t/lint/257` refuses a scalar after an array or hash in a `my`/`our`/`state`
   list with an assignment; no other instance in the tree. t/unit/manager/335,
   t/lint/257.
-- SM1081 (PENDING) **OOM's changes no longer gate a lazysite build.** The release gate failed
+- SM1081 (ee160471) **OOM's changes no longer gate a lazysite build.** The release gate failed
   three times on 2026-10-13 and 14 for changes in OOM's working tree and in whichever OOM the
   host had. The Odoo extension's tests now run on a pinned snapshot of OOM 0.09 held in
   `t/vendor/oom` (library, test doubles, data, specification; held to a MANIFEST by
@@ -368,25 +370,25 @@ Archive
   updates the filing. `tools/ext-compat.sh` runs the same tests against the installed deb and
   OOM's tree as an advisory tier from the overnight run: it always exits 0 and files an inbox
   note on a failure. The lazysite packages do not depend on OOM. t/tools/154-155.
-- odoo-extension (PENDING) **applying an Odoo plan works with OOM's approval gate (SM747).**
+- odoo-extension (4c932a62) **applying an Odoo plan works with OOM's approval gate (SM747).**
   OOM's runner now refuses to apply a plan nobody approved. A confirm is recorded as
   its maker's approval, and an `apply: immediate` binding as the binding's, each against
   the plan's fingerprint, immediately before the apply; OOM's gate is left on. Without
   this every apply was refused against an OOM that has the gate. t/unit/odoo/40.
-- odoo-extension (PENDING) **one browser module talks to the Odoo endpoint (SM747 D).**
+- odoo-extension (6256d111) **one browser module talks to the Odoo endpoint (SM747 D).**
   `/assets/lazysite-odoo.js` fetches the tokens, retries a stale one once, asks a person to
   sign in when the endpoint says to and retries the call once, signs in and out, and fills
   `data-ls-odoo` regions from a binding as text, only for the fields the server drew. The
   password is read, the box is cleared before the answer arrives, and it is in one POST body
   and nowhere else; nothing is stored in the browser. Injected only on a page whose markup
   uses it, on both render paths, and served on every domain. t/unit/odoo/31, t/integration/174.
-- odoo-extension (PENDING) **a page can greet a person signed in to Odoo (SM747 C).** `tt_page_var:
+- odoo-extension (c494bd13) **a page can greet a person signed in to Odoo (SM747 C).** `tt_page_var:
   me: odoo-identity:` gives `me.name`, `me.lang`, `me.tz`, `me.company_id`, `me.company_ids` and
   `me.groups` (empty until OOM offers a groups read) from a second signed cookie, short-lived
   (`odoo_identity_ttl`, default 15 minutes) and refreshed from the person's session on the next
   call after it ends. It is for presentation only; a tampered or ended cookie renders as nobody
   signed in; and the page is never read from or written to the shared page cache. t/unit/odoo/28-30.
-- odoo-extension (PENDING) **a person can sign in to Odoo through a page and run bindings as
+- odoo-extension (14994a23) **a person can sign in to Odoo through a page and run bindings as
   themselves (SM747 B).** A binding with `credential: session` runs on the signed-in person's
   own Odoo session, over OOM's session transport (OOM 0.03, now the declared minimum), and as
   nobody else: with no sign-in, or once Odoo has ended the session, it is refused and never run
@@ -396,19 +398,19 @@ Archive
   share the site's login rate limiter. Two-factor accounts are refused by name. A session
   binding is not offered over the control API or MCP, and not run by a form, the schedule or a
   page render. t/unit/odoo/24-27.
-- odoo-extension (PENDING) **an Odoo report's fields are drawn, or refused by name (SM747
+- odoo-extension (c89e75dc) **an Odoo report's fields are drawn, or refused by name (SM747
   R wiring).** When an operation returns `rows` beside `fields` (OOM 0.02), `odoo_run`
   and the page endpoint answer `fields` (each held to the data extension's descriptor
   check) and `refused` (each field lazysite could not draw, with why) beside the
   report; the `odoo:` page binding gives the page those, with the rows cut to the drawn
   columns. A report without descriptors is unchanged. t/unit/odoo/23.
-- odoo-extension (PENDING) **the Odoo extension is documented (SM747 F1).**
+- odoo-extension (fc78ef91) **the Odoo extension is documented (SM747 F1).**
   `/docs/odoo` describes what the extension needs, the connection, the
   connection user's key, bindings and where each runs, the anonymous write
   path and its caps, a grant's own Odoo account, domains, the call record
   and the refusals. SECURITY.md carries four operator entries for it, and
   FEATURES.md a section.
-- odoo-extension (PENDING) **a binding that belongs to a domain runs only for
+- odoo-extension (c77df5f5) **a binding that belongs to a domain runs only for
   that domain (SM747 E-Q1).** A binding with `domain:` answers the page
   endpoint, the `odoo:` page binding and a form only on its own host, and the
   control API's `odoo-run` and MCP's `odoo_run` only for a caller that reaches
@@ -416,7 +418,7 @@ Archive
   The schedule runs it. `odoo-bindings` lists only what the caller may run. A
   binding without `domain:` is the instance's, as before.
   t/unit/odoo/19-20, t/integration/172.
-- odoo-extension (PENDING) **every Odoo action is an MCP tool, and an agent runs
+- odoo-extension (6b33ebe6) **every Odoo action is an MCP tool, and an agent runs
   a bound operation as its grant's own Odoo account (SM747 slice E).**
   `odoo_status`, `odoo_calls`, `odoo_secret_set` and `odoo_secret_clear` are the
   twins of the control-API actions; `odoo-bindings`, `odoo-run` and
@@ -426,7 +428,7 @@ Archive
   `odoo-secret-set`); its MCP calls then run as that account, otherwise as the
   connection user. t/unit/odoo/17-18, t/integration/171.
 
-- SM1012 (PENDING) **internal: `render_content` is split at its seams.** The
+- SM1012 (a5a9af14) **internal: `render_content` is split at its seams.** The
   Template object for a content pass is built by `_tt_engine`; what the manager
   UI needs to know about the user (capabilities, scopes) comes from
   `_render_manager_facts`; the site's and the page's language from
@@ -438,7 +440,7 @@ Archive
   (tools/deparse-block.pl), and t/unit/processor/113 passes unchanged. No
   behaviour change.
 
-- SM1012 (PENDING) **internal: what the content renderer produces is
+- SM1012 (197879c2) **internal: what the content renderer produces is
   recorded.** t/unit/processor/113 renders 34 written cases through
   `render_content` - the stash under five request contexts and two hosts, the
   code-block protection, the TAGS guard, a template error, the before_render
@@ -448,7 +450,7 @@ Archive
   finding: when the template compile directory cannot be made, the umask the
   render widened is not put back (SM1012).
 
-- SM1012 (PENDING) **internal: `_render_form` is split at its seams.** A field's
+- SM1012 (537d7281) **internal: `_render_form` is split at its seams.** A field's
   rules are tokenised by `_form_rule_tokens` and read into the field's rules by
   `_form_rules_from_tokens`; its value, the literal or the declared prefill,
   comes from `_form_field_value`; the rule the server holds it to (SM934) from
@@ -460,7 +462,7 @@ Archive
   one exit (tools/deparse-block.pl), and t/unit/processor/112 passes unchanged.
   No behaviour change.
 
-- SM1012 (PENDING) **internal: what the form renderer produces is recorded.**
+- SM1012 (2c86550e) **internal: what the form renderer produces is recorded.**
   t/unit/processor/112 renders every `:::form` block in the starter, the docs,
   the website and the test fixtures (plain, prefilled with a hostile value, and
   under each outcome) and 73 written cases - every rule, every field kind, and
@@ -468,7 +470,7 @@ Archive
   rules sidecar, the log lines and the warnings with a committed record. It is
   the gate for splitting `_render_form`. No behaviour change.
 
-- SM1012 (PENDING) **internal: the deparse comparisons a split is proved with
+- SM1012 (56550bca) **internal: the deparse comparisons a split is proved with
   are in tools/.** `tools/deparse-subs.pl` deparses every processor sub and
   compares two trees (or a tree and a saved listing), naming the subs that
   differ and passing only when exactly the expected set does;
@@ -476,7 +478,7 @@ Archive
   with the sub extracted from it. They were untracked scripts under tmp/, so a
   reviewer could not rerun the proof. Development only, not shipped.
   t/unit/processor/111.
-- SM1010 R5 (PENDING) **`manage_notifications` reaches the Handlers page on its
+- SM1010 R5 (3eec2e43) **`manage_notifications` reaches the Handlers page on its
   own.** A group holding only the capability that writes notification rules
   could not open the page they are written on: the handler actions asked for
   manage_forms, manage_data or manage_connectors. It now opens handler-list,
@@ -485,7 +487,7 @@ Archive
   or the form bindings. The schedule actions and binding are unchanged.
   t/integration/195.
 
-- SM1042 (PENDING) **a member sets up their own two-factor; a manager can only
+- SM1042 (3fe14ea1) **a member sets up their own two-factor; a manager can only
   reset it.** `/account` gains "Two-factor sign-in": set up with the current
   password, confirm with a code from the app, turn off or make new recovery
   codes with the password and a current code (turning it off signs the other
@@ -494,14 +496,14 @@ Archive
   shows a secret or a code: it offers Reset 2FA, and the manager API refuses
   the enrolment verbs. t/unit/account/04.
 
-- SM1044 (PENDING) **a member reads the notices addressed to them.** `/account`
+- SM1044 (5e3de77f) **a member reads the notices addressed to them.** `/account`
   gains "Your notices": the notices a notification rule addressed to the
   signed-in account, with read, dismiss and mark-all-read, over new actions
   `me-notices` and `me-notices-seen`. Never a broadcast and never another
   account's; the account keeps its own last 100 however busy the site's store
   is. No capability is needed (SM1010 R2). t/unit/account/03.
 
-- SM1043 (PENDING) **a member has an account page, `/account`, in the site's
+- SM1043 (522c0c1e) **a member has an account page, `/account`, in the site's
   own theme.** A signed-in account with no manager access can see who it is
   signed in as, change its password (with the current one; the others are
   signed out), see where it is signed in, end one of those sessions or sign out
@@ -513,7 +515,7 @@ Archive
   password checks count against the sign-in rate limiter. `account_page:
   disabled` in lazysite.conf turns it off. t/unit/account/01, 02, 05; lint 246.
 
-- SM1041 (PENDING) **a password has a minimum length, 12 unless the operator
+- SM1041 (12b275bc) **a password has a minimum length, 12 unless the operator
   says otherwise.** `password_min_length` in lazysite.conf (8 to 128; default
   12) applies to every way a password is set - the users tool's add, passwd
   and account-create, setup-sysop, and a setup or reset link. A password set
@@ -521,7 +523,7 @@ Archive
   that is too short is not used up: the page says how long one must be and
   offers the form again. t/unit/auth/41.
 
-- SM1040 (PENDING) **a changed credential signs the account's other sessions
+- SM1040 (3d273e89) **a changed credential signs the account's other sessions
   out.** SECURITY. A password change wrote the new password and nothing else,
   so a session stolen before it stayed signed in. Now any password change -
   the account's own, an operator's `passwd`, a redeemed setup or reset link -
@@ -531,7 +533,7 @@ Archive
   verified cookie and only for the caller's own account, never from a request.
   A revocation that cannot be written refuses the change. t/unit/auth/40.
 
-- SM1020 (PENDING) **notification rules are sent, once each, by the daemon.** A
+- SM1020 (89a839a1) **notification rules are sent, once each, by the daemon.** A
   new engine job, `notify-outbox`, sends what `notify` handlers queued: it
   resolves the recipients, leaves out whoever caused the event (unless the
   rule says `notify_actor: true`), applies the rule's per-recipient cap,
@@ -546,7 +548,7 @@ Archive
   with privacy and consent rules is the operator's responsibility (docs/forms).
   t/unit/notify/03-05.
 
-- SM1019 (PENDING) **a `notify` handler: a notification rule over a form
+- SM1019 (b36a89f0) **a `notify` handler: a notification rule over a form
   event.** A new handler type, bound as a form's second target (or a schedule
   entry), whose recipients come from accounts, the owners of matching rows,
   addresses held in a table, fixed addresses or the submitter. Saving one
@@ -555,7 +557,7 @@ Archive
   and returns, so the visitor never waits on the sends; a quarantined
   submission queues nothing. t/unit/notify/01, 02.
 
-- SM1018 (PENDING) **a signed-in member's form post names the member.** The
+- SM1018 (9b6f584f) **a signed-in member's form post names the member.** The
   form handler verified the session cookie only to waive the rate limit and
   delivered every submission with no actor, so a table handler declaring
   `row_policy: personal` wrote rows that belonged to nobody even for a member.
@@ -564,7 +566,7 @@ Archive
   submission carries no name, a forged cookie or `X-Remote-User` header names
   nobody, and anonymous posts are unchanged. t/unit/forms/07, 08, 62.
 
-- SM1017 (PENDING) **a quarantined submission is not acknowledged, and a mail
+- SM1017 (25c7f06f) **a quarantined submission is not acknowledged, and a mail
   header names exactly one address.** SECURITY. A form whose email handler
   acknowledges the submitter (`mail_the_submitter_field`) mailed the address a
   QUARANTINED submission gave: the check read a flag the form handler strips
@@ -576,7 +578,7 @@ Archive
   otherwise, by the handler, the header writer (every message), a handler's
   own `to`/`from`, and an account's address. A hand-written `to:` naming two
   addresses now fails at send and says why. t/unit/forms/60, 61.
-- SM1024 (PENDING) **an undecodable groups-settings.json makes nobody a
+- SM1024 (375c8fe8) **an undecodable groups-settings.json makes nobody a
   manager.** Ruled 2026-10-12 ("Fail closed everywhere"). A store that opened
   and did not decode read as "no groups" in Auth::Settings - the unsecured
   mode, in which every signed-in account is a manager and an ACL operator -
@@ -600,7 +602,7 @@ Archive
   on either session store when it does not decode, naming it.
   t/unit/auth/52; t/integration/187, 188.
 
-- SM1023 (PENDING) **`lazysite check` tells an auth store it cannot read from
+- SM1023 (372aef0f) **`lazysite check` tells an auth store it cannot read from
   one that is absent.** Seen on sites.lazysite.io after the 0.15.4 upgrade: run
   as an account outside the site group, the check said "no group grants manager
   access - the manager is unconfigured"; as root it said "manager
@@ -614,7 +616,7 @@ Archive
   ACL). `--check-acl` no longer starts from an acls.json it cannot read or
   decode, which it would have rewritten from an empty map. t/tools/126.
 
-- SM1016 (PENDING) **a domain names only groups and accounts that exist.**
+- SM1016 (9f8de4cb) **a domain names only groups and accounts that exist.**
   Ruled 2026-10-12 ("lazysite-domains.pl should reject invalid groups").
   `domain_set` refuses a NEW name in `allowed_groups` that is not a group on
   the site (the groups file or groups-settings.json), or in `locked_users`
@@ -626,7 +628,7 @@ Archive
   The Domains page now shows a refused save's reason; it used to carry on and
   say "Saved". t/unit/manager/284, t/tools/121, t/integration/150.
 
-- SM1015 (PENDING) **`lazysite-domains.pl group-add` and `group-remove`.**
+- SM1015 (2d403e12) **`lazysite-domains.pl group-add` and `group-remove`.**
   Ruled 2026-10-12 ("lets have cli command to add the domain group").
   `lazysite-domains.pl --docroot DIR group-add --host H --group G` adds one
   group to a domain's `allowed_groups` and keeps the others; `group-remove`
@@ -638,7 +640,7 @@ Archive
   naming it, because a misspelt group admits nobody; a store that cannot be
   read refuses the add. The tool gains `--help`. t/tools/120.
 
-- SM1014 (PENDING) **a group is `@name` wherever one is picked or shown
+- SM1014 (76a6c505) **a group is `@name` wherever one is picked or shown
   beside people.** Ruled 2026-10-12 ("groups should be prefixed with something
   say @ ... consistent anywhere a group is picked"). Files and Data already
   offered `@staff`; the Groups members picker, the Domains access picker, the
@@ -655,7 +657,7 @@ Archive
   `lazysite-users.pl groups` lists a nested group as `@staff`. Docs: manager
   guide (Groups, Users, Domains). t/unit/manager/282, 283; t/lint/230.
 
-- SM1013 (PENDING) **a group or user added to a domain's Access section is
+- SM1013 (ee93c190) **a group or user added to a domain's Access section is
   saved.** On the Domains page, adding a group to `allowed_groups` (or a user
   to `locked_users`) and pressing Save said "Nothing had changed." and kept
   nothing: the dirty check recognised the picker by a class it was never
@@ -668,7 +670,7 @@ Archive
   could be read dropped them (the connector then refused every signed-in
   caller) and said "Saved". The ticked boxes are now what is saved.
   t/unit/manager/281.
-- SM887 (PENDING) **the claude.ai skill renders a pulled theme styled.** With
+- SM887 (285c0a6c) **the claude.ai skill renders a pulled theme styled.** With
   a site's layout and theme pulled into the skill's local tree, every
   stylesheet link 404'd: `/lazysite-assets/<layout>/<theme>/` is written when a
   theme is activated, and nothing activates one there. `serve.sh start` now
@@ -679,7 +681,7 @@ Archive
   `setup.sh` says the skill folder may be read-only or writable. Found in the
   release manager's real-session test of 2026-10-12, recorded in SM887.
   t/tools/83, 130, 131.
-- odoo-extension (PENDING) **Odoo's field descriptors in the data extension's
+- odoo-extension (2d8081d4) **Odoo's field descriptors in the data extension's
   terms, by portable type (SM747 slice R, the interface).** A field is drawn as
   one of the data extension's seven types only from the portable type OOM hands
   over, and checked by the data extension's own descriptor rules; a field
@@ -689,7 +691,7 @@ Archive
   where a report carries its descriptors (recorded in SM747, filed to OOM).
   t/unit/odoo/16.
 
-- odoo-extension (PENDING) **a page uses Odoo: the endpoint, the `odoo:` page
+- odoo-extension (8511cda1) **a page uses Odoo: the endpoint, the `odoo:` page
   binding and the connection user's key actions (SM747 slice CU, the
   surfaces).** `lazysite-odoo.pl` lets a page's own script run a binding: it
   hands out a visitor token (and the session one for a signed-in account), runs
@@ -701,7 +703,7 @@ Archive
   `odoo-secret-clear`, `odoo-calls`; the key is never returned.
   t/integration/170, t/unit/odoo/14-15.
 
-- odoo-extension (PENDING) **an Odoo operation runs as the site's connection
+- odoo-extension (4d2e8e69) **an Odoo operation runs as the site's connection
   user, and a visitor reaches only their own basket (SM747 slice CU, the
   engine).** The connection user's API key is stored alone, 0600, and never
   shown. A handler of type `odoo` binds a named operation: which request
@@ -713,7 +715,7 @@ Archive
   reaches the operation only through the binding. A form or the schedule can
   run a binding. t/unit/odoo/06-13.
 
-- odoo-extension (PENDING) **the Odoo extension's skeleton: its declaration,
+- odoo-extension (a3c86e97) **the Odoo extension's skeleton: its declaration,
   the connection and every refusal before a call (SM747 slice A).** `plugins/odoo.pl`
   declares `Odoo::Ops (libodoo-oom-perl >= 0.02)`; a dependency may now name its
   package and oldest version, and enabling an extension whose module is missing
@@ -723,14 +725,14 @@ Archive
   become named kinds with their text kept in the log; every call and refusal is
   one fixed-field record. Nothing calls Odoo yet. t/unit/odoo/01-05, lint 240
   (lazysite holds no Odoo knowledge).
-- SM1046 (PENDING) **a token's new domain may adopt an existing folder.** Ruled
+- SM1046 (ebaa8269) **a token's new domain may adopt an existing folder.** Ruled
   2026-10-12, "Allow adoption": a domain a token gives to its own group may use
   an existing folder as its content root when the folder lies outside every
   domain. A protected folder - in the private store, or touched by any access
   rule - is still refused, because adopting it would show the group its rule
   and, with an empty write list, let the group write it. t/integration/200.
 
-- SM1046 (PENDING) **a token creates a domain for its own group.** A
+- SM1046 (8f654c69) **a token creates a domain for its own group.** A
   `manage_domains` token with no scope was refused `domain-add`, because it
   reached no domain until a domain named its group. Ruled 2026-10-12, "Allow,
   own group only": it may now add a domain whose `allowed_groups` names groups
@@ -739,12 +741,12 @@ Archive
   naming none is refused with a message saying to name one, and the audit row
   names the group. t/integration/200, t/unit/auth/51.
 
-- SM1045 (PENDING) **a group with no members is a group.** `acl-set` reported a
+- SM1045 (ad361042) **a group with no members is a group.** `acl-set` reported a
   group created on the Groups page as unknown until someone was in it, and
   refused a list naming only such groups, because the known groups were read
   from membership alone. They are now the groups in either store; a name in
   neither is still unknown. t/unit/auth/50, t/unit/manager/300.
-- SM1035 (PENDING) **a template engine that cannot be built leaves the umask
+- SM1035 (b4897d85) **a template engine that cannot be built leaves the umask
   as it found it.** When the TT compile directory could not be made, the
   content renderer and the registries widened the umask to 0002 for it and
   then died inside `Template->new` - which dies rather than returning false -
@@ -752,13 +754,13 @@ Archive
   group-writable. Both now build the engine under `eval`, restore the umask and
   re-throw the same failure. t/unit/processor/126.
 
-- filing-ids (PENDING) **a filing the release step stamps carries its id.**
+- filing-ids (5d025a4e) **a filing the release step stamps carries its id.**
   The release step stamps a filing's "SHIPPED (PENDING)" by its `id:`, and 35
   such filings had none - SM842 and 34 under `docs/feature-requests/archive/`.
   Each now carries the id its file name gives it, and lint 244 holds every
   PENDING filing to an id that matches its name.
 
-- SM1037 (PENDING) **the nav docs describe the format the parser reads.** The
+- SM1037 (74651ae2) **the nav docs describe the format the parser reads.** The
   configuration doc and the agent briefing on configuration said the nav file
   is YAML (`- label:`, `url:`, `children:`); the engine reads `Label | /url`
   lines, so a nav written from the doc rendered as labels with no links. Both
@@ -766,7 +768,7 @@ Archive
   indented line a child (one level), `#` at the start a comment. Docs only.
   t/tools/140.
 
-- SM1036 (PENDING) **a restored site package keeps its rows' keys, policies
+- SM1036 (d4ec4ff4) **a restored site package keeps its rows' keys, policies
   and times.** A package could not restore a table whose key the store assigns
   (the import refused the key the export carried, and the table was skipped),
   brought a personal row back shared - so any writer the table admitted could
@@ -780,7 +782,7 @@ Archive
   `auto_key =>` and `times =>` beside `authors =>`, each refused without an
   actor and, by lint 137, from anything but the restore. t/unit/data/73.
 
-- filing-stamps (PENDING) **a release says which release shipped a filing.**
+- filing-stamps (c2a25a00) **a release says which release shipped a filing.**
   A filing is written "SHIPPED (PENDING)" because its release is not known on
   its branch, and nothing ever replaced that: 31 filings still said PENDING
   after theirs shipped. `tools/release-material.pl`, which the gate and the
@@ -791,7 +793,7 @@ Archive
   29 from 0.15.3 and 0.15.4 by a sweep, SM858 (0.15.3) and SM976 (0.15.3,
   0.15.4) by hand. t/tools/111.
 
-- coverage-parts (PENDING) **the coverage gate holds every file the CGIs were
+- coverage-parts (6fb617e6) **the coverage gate holds every file the CGIs were
   split into.** `tools/coverage.sh --check` named the eight CGIs only, so the
   processor's parts and the manager modules SM944 moved out of the CGIs had no
   floor. Each `lazysite-processor/*.pm` and `lib/Lazysite/Manager/*.pm` is now
@@ -800,7 +802,7 @@ Archive
   beside `branch_floor[FILE]=`, used for the four files that measured below
   75/62 at the last gate. t/tools/110.
 
-- SM1003 (PENDING) **`(mine)` shows a viewer their own rows of a table they may
+- SM1003 (459074b3) **`(mine)` shows a viewer their own rows of a table they may
   not otherwise read.** A member could be shown their own follow list only if
   members could read the table, which let every member read every row. A
   `(mine)` binding in a page now returns the rows whose `created_by` is the
@@ -813,7 +815,7 @@ Archive
   is neither counted nor reached by key (ruled 2026-10-12, "Apply where: too";
   t/unit/data/72 runs once SM982 is in the tree). t/unit/data/71.
 
-- SM1002 (PENDING) **a site can allow its own external hosts in the CSP.** A
+- SM1002 (64b50259) **a site can allow its own external hosts in the CSP.** A
   site embedding one legitimate external script (a banner whose script then
   fetches from its host) had no setting to permit it under `csp: enforce`.
   `csp_script_src`, `csp_connect_src`, `csp_img_src` and `csp_frame_src` in
@@ -826,7 +828,7 @@ Archive
   default policy is unchanged when no list is set. t/unit/processor/103,
   lints 55 and 225.
 
-- SM1001 (PENDING) **visitor traffic is read per domain, and a confined caller
+- SM1001 (5afe5399) **visitor traffic is read per domain, and a confined caller
   reads only its own.** Each visitor-log event already carried the request's
   host (SM151); nothing read it. `analyse_visitors` (control API and MCP) now
   takes `host` - one domain's traffic, counted from the raw log by the domain
@@ -838,7 +840,7 @@ Archive
   by domain. Previously every caller with `analytics` read every domain's
   traffic. On a one-domain instance nothing changes. t/integration/134.
 
-- SM1000 (PENDING) **an alias renders from its canonical domain.** A host
+- SM1000 (3d19b097) **an alias renders from its canonical domain.** A host
   registered as an alias (sharing another domain's content folder, as
   `domain-alias-add` registers it) named itself as canonical, so one site
   answered as two. Its pages' `<link rel="canonical">`, and the addresses in
@@ -850,7 +852,7 @@ Archive
   alias of the primary and names the primary as canonical (ruled 2026-10-12,
   "Keep"). t/unit/processor/102, lint 224.
 
-- SM999 (PENDING) **a YAML list is a list, and a registry carries the page's
+- SM999 (9f529b64) **a YAML list is a list, and a registry carries the page's
   front matter.** A list key other than `tags` - `categories:` with `- item`
   lines, or `keywords: [a, b]` - arrived as raw text. Any flow or block list of
   scalars is now a list in a `scan:` object, a registry object and the page's
@@ -862,7 +864,7 @@ Archive
   `tt_*`/`_*`). The engine's own keys keep their own readings.
   t/unit/processor/101.
 
-- SM998 (PENDING) **a failed account read and a crashed handler are audited.**
+- SM998 (4de84e87) **a failed account read and a crashed handler are audited.**
   Under SM943's rule (refusals and errors are audited): the control API's
   `users` read sub-actions - `users-detail`, `verify-credential` and the
   other reads - now write an audit row (`user-<sub>`, `fail`) when they fail,
@@ -871,7 +873,7 @@ Archive
   "crashed: the handler failed - the error is in the error log"; the error
   itself stays in the error log. t/integration/133.
 
-- SM997 (PENDING) **a nav address cannot run script.** The nav parser stored a
+- SM997 (42b545e0) **a nav address cannot run script.** The nav parser stored a
   `javascript:` address as written, and every layout puts a nav address in an
   href. A nav entry's address must now be a path, an `http`/`https` address,
   `mailto:` or `tel:` - the rule `| url_safe` applies (SM970). The Navigation
@@ -881,7 +883,7 @@ Archive
   `lazysite validate nav.conf` and `lazysite check` name it.
   t/integration/132, t/unit/processor/100, lint 223.
 
-- SM996 (PENDING) **rows restored from a site package keep their authors.**
+- SM996 (7b55ca34) **rows restored from a site package keep their authors.**
   SM989 recorded every restored row as the account that applied the package,
   which replaced who really wrote it. A package now carries each row's
   `created_by` and `updated_by` (tables with `timestamps: true`), and the
@@ -889,7 +891,7 @@ Archive
   restored" and the action's audit row, and `data_restored` gains
   `authors_kept`. A package built before this carries none, and its rows are
   the applier's. t/unit/data/70, lint 137.
-- SM993 (PENDING) **security: `auth_groups` means signed in, and `auth: manager`
+- SM993 (26958a46) **security: `auth_groups` means signed in, and `auth: manager`
   stays in the manager** (ruled 2026-10-12, "Fix both as recommended"). A page
   naming `auth_groups` with `auth: none` (the default) or `optional` was served
   to anonymous visitors - with `none`, to everyone - and listed; a content page
@@ -902,7 +904,7 @@ Archive
   `ai-connector-tools`, `onboarding-brief-template`) said `auth: manager` and
   now say `auth: required`. t/integration/130.
 
-- SM992 (PENDING) **security: an edit lock needs write access** (ruled
+- SM992 (c37798ad) **security: an edit lock needs write access** (ruled
   2026-10-12, "Lock needs write access"). `lock` asked no file rule, so any
   manager account could lock any file and block its writers until the lock
   expired, and `unlock` released anybody's lock. **Behaviour change:** the
@@ -912,7 +914,7 @@ Archive
   a file no rule governs locks as before. The editor says why it cannot edit
   such a file. t/integration/129.
 
-- SM991 (PENDING) **security: the operator is the operator group, and
+- SM991 (e62da548) **security: the operator is the operator group, and
   `manage_users` is user and group management** (ruled 2026-10-12, "Operators
   bypass, others bound"). A session holding only `manage_users` passed every
   capability gate on the manager (`config-set` answered 200). **Behaviour
@@ -927,7 +929,7 @@ Archive
   other account. `group-reach` names the operator group and says what
   `manage_users` grants. t/integration/128.
 
-- SM991 (PENDING) **security: only the operator revokes the operator's sessions
+- SM991 (eec4b595) **security: only the operator revokes the operator's sessions
   and access keys** (ruled 2026-10-12, "Yes, protect operator sessions too").
   **Behaviour change:** the Sessions page's `session-revoke`, `user-revoke` and
   `key-revoke` refuse a caller who is not the operator when the account they
@@ -935,7 +937,7 @@ Archive
   `manage_users` holder still revokes every other account's. A session id the
   session registry does not hold is the operator's alone to revoke.
   t/integration/131.
-- SM1050 (PENDING) **a partner lists and creates groups within its grant.**
+- SM1050 (e356926b) **a partner lists and creates groups within its grant.**
   `groups-list` and `group-set` on the control API, `list_groups` and
   `set_group` on MCP, behind `manage_users`. A domain-confined caller sees the
   groups its domains name, the groups it is in and the groups it created, and
@@ -944,7 +946,7 @@ Archive
   with what it granted and revoked. Membership is still managed in the manager.
   t/integration/209.
 
-- SM1049 (PENDING) **a write-only rule that moves nothing says ok.** A
+- SM1049 (f748ff2a) **a write-only rule that moves nothing says ok.** A
   write-only rule on a folder holding a gated subfolder - a domain root, as
   reported - answered `ok:false`, kind `partial`, "content could not be moved",
   although the rule was in force and nothing needed moving. A move back into
@@ -953,14 +955,14 @@ Archive
   `content_moved: 0`. A due move that fails is still `partial`, and says which
   way it could not move. t/integration/208.
 
-- SM1048 (PENDING) **a domain without sign-in pages uses the engine's.** On a
+- SM1048 (ef8c6834) **a domain without sign-in pages uses the engine's.** On a
   domain whose content root had no copy, `/forgot` - the login page's own
   link - and `/logout`, where signing out lands, answered 404. Both join
   SM201's system pages: the domain's copy, then the primary's, then a protected
   default under `lazysite/templates/system/`. `/login` and `/claim` already fell
   back on main; `lazysite check` now probes all four. t/integration/207.
 
-- SM1047 (PENDING) **a scope check reads the path the handler writes.**
+- SM1047 (2975f26f) **a scope check reads the path the handler writes.**
   `acl-set` checked a confined caller's scope against the query's path, '/'
   when absent, and refused a path sent in the body, so a partner following the
   reference (`path` in query or body) was told "Path '/' is outside your
@@ -971,7 +973,7 @@ Archive
   `form=<its own form>&file=<the other's store>`, and read and appended to
   another domain's page brief with `type=table&table=<its own table>`.
   t/integration/205, 206.
-- SM1031 (PENDING) **a text save writes UTF-8, and a saved-page preview is no
+- SM1031 (d87b98f1) **a text save writes UTF-8, and a saved-page preview is no
   visit under the owning domain.** Ruled 2026-10-12 ("Fix all three"; found
   working SM1030). The control API's save and MCP `write_file`,
   `replace_text`, `copy_file`, `create_page` and `create_form` refuse content
@@ -984,7 +986,7 @@ Archive
   preview do; it inherited the MCP request's Host, so a domain's page was shown
   in another site's layout and theme. t/unit/mcp/50.
 
-- SM1030 (PENDING) **MCP `preview_page` renders a draft and writes nothing.**
+- SM1030 (028622af) **MCP `preview_page` renders a draft and writes nothing.**
   `preview_page { path, content }` renders `content` at `path` in place of the
   saved page - as a public visitor, under the Host of the domain that owns the
   path, so with that site's layout, theme, navigation and access rules - and
@@ -995,46 +997,46 @@ Archive
   HTML, the path's write rules) and over 512 KiB; `path` is required. Without
   `content` the tool is unchanged. Ruled 2026-10-12; recorded in SM887.
 
-- SM995 (PENDING) **a scan directive pages its own list: `limit=` and
+- SM995 (b5ab1ce4) **a scan directive pages its own list: `limit=` and
   `offset=`.** `scan:/post/*.md sort=date desc offset=10 limit=10` lists the
   second ten of the sorted, filtered result. `scan_limit` in lazysite.conf
   stays the site's ceiling: `limit=` cannot exceed it, and `offset=` counts
   into the pages the scan read. `NAME_total` is unchanged. A value that is not
   a whole number is ignored and logged. t/unit/processor/99.
 
-- SM990 (PENDING) **a page a scan cannot open is left out, not fatal.** A page
+- SM990 (ed416939) **a page a scan cannot open is left out, not fatal.** A page
   the serving user may not read (a file copied in by root with mode 0600) made
   every page whose `scan:` reached it, and the sitemap, answer 500. The scan
   and the registries now leave it out and log it by its path with the reason,
   as they do for a page that is not UTF-8. t/unit/processor/98.
 
-- SM989 (PENDING) **rows restored from a site package record who restored
+- SM989 (1615ac72) **rows restored from a site package record who restored
   them.** Applying a package that carried table data inserted every row with
   no actor, so `created_by` read as written anonymously. They now record the
   account that applied the package, as an import does. Found by lint 137,
   which now holds every row-writing call in the modules, not only the
   top-level scripts, to naming its actor.
 
-- install-plan (PENDING) **a dry run prints no uninitialised-value warnings.**
+- install-plan (4d187eb5) **a dry run prints no uninitialised-value warnings.**
   `lazysite provision` and `install.pl --dry-run` printed "Use of uninitialized
   value" three times (install.pl ~1223): the plan prints each runtime path's
   `purpose`, and three entries in classification.json carry `why` instead. The
   plan prints `why` when there is no `purpose`. t/tools/109.
 
-- SM988 (PENDING) **a scan says how many pages it matched, and its cap is the
+- SM988 (035822f0) **a scan says how many pages it matched, and its cap is the
   site's.** `scan:` read at most 200 pages, the first by file name, and nothing
   said so: a 1,745-post listing rendered 200 and looked complete. `scan_limit:`
   in lazysite.conf now sets the cap (default 200, still the same pages on every
   render), `NAME_total` beside the list counts the pages matched that the
   reader may see, and a capped scan logs a warning. t/unit/processor/97.
 
-- SM987 (PENDING) **the development server receives a form post.** Native
+- SM987 (c9874e31) **the development server receives a form post.** Native
   forms post to `/cgi-bin/form-handler.pl`, and `tools/lazysite-server.pl`
   routed only the `lazysite-*` scripts, so every form on a staged site answered
   404. The server now runs the form handler for it, as an installed site does.
   t/unit/tools/80.
 
-- SM986 (PENDING) **a setup link refused over plain HTTP says so.** The claim
+- SM986 (800c0874) **a setup link refused over plain HTTP says so.** The claim
   page answered a password set over http from another machine with "That
   setup link is invalid or has expired", the answer for a bad or used link, so
   the person asked for another link, which failed the same way. The refusal
@@ -1042,14 +1044,14 @@ Archive
   has not been used. It says nothing about whether the account or link exists.
   t/unit/auth/26.
 
-- SM985 (PENDING) **a code block can show `:::` syntax.** The `:::` passes
+- SM985 (4f8ade64) **a code block can show `:::` syntax.** The `:::` passes
   (components, boxes, include, forms, oembed) ran before code blocks were
   converted, so a ``` block showing how a component is written rendered the
   component inside the code block. Fenced code is now held out of those
   passes; a code block inside a box is still a code block.
   t/unit/processor/96.
 
-- SM984 (PENDING) **`&&`, `||` and `<` work in a template tag in a page body.**
+- SM984 (140baad1) **`&&`, `||` and `<` work in a template tag in a page body.**
   The body is converted from Markdown before the template pass, and the
   converter escaped the tags as prose: `[% IF a && b %]` reached the template
   as `[% IF a &amp;&amp; b %]`, failed to parse, and the page showed its own
@@ -1057,14 +1059,14 @@ Archive
   before, and a tag shown in code is still shown, not run.
   t/unit/processor/95.
 
-- SM983 (PENDING) **approving an account request reads one field, not every
+- SM983 (c1f332f1) **approving an account request reads one field, not every
   account.** The approval's "is this name or address taken" check asked for
   every account's full settings, each derived afresh: 43 s for 695 accounts,
   so the browser gave up first. It now asks `users-detail` for
   `fields: ["email"]`, answered from the settings store in one read (0.27 s for
   700 generated accounts, from 26.7 s), and refuses on an unreadable store.
   t/unit/users/50, t/unit/manager/240.
-- mcp-domain-attribution (PENDING) **a domain change made over MCP names the
+- mcp-domain-attribution (2bcc4a7a) **a domain change made over MCP names the
   account that made it** (ruled 2026-10-12: "Close Q16 + MCP attribution"). An
   MCP `domain_set` - and a theme or layout activated for a domain, which writes
   through it - logged `[domain-set] domain key set ... user=` with nobody named,
@@ -1074,7 +1076,7 @@ Archive
   handlers that refuse when no manager request is asking still refuse in the
   MCP process. t/unit/manager/270.
 
-- upload-budget (PENDING) **security: a forged upload no longer spends the
+- upload-budget (3cf4d320) **security: a forged upload no longer spends the
   account's hourly upload budget** (SM944 S34 finding F-1, built for review
   2026-10-11). The file-upload rate check reserves a slot as it checks, and it
   ran before the CSRF gate, so a cross-site POST from a signed-in manager's
@@ -1086,7 +1088,7 @@ Archive
   the hourly budget is now read (at most that size) before it is refused.
   t/unit/manager/228; test 226 now finds no write from a forged upload.
 
-- csrf-audit (PENDING) **a write refused for its CSRF token is recorded in the
+- csrf-audit (c16151ea) **a write refused for its CSRF token is recorded in the
   audit trail** (ruled 2026-10-11: "Audit refusals"). A POST from a signed-in
   manager session without a valid CSRF token - what a cross-site page sends - was
   refused and left no audit line, and at the default log level no log line
@@ -1096,26 +1098,26 @@ Archive
   part of it. The answer is unchanged (403, "Invalid or missing CSRF token").
   t/unit/manager/227.
 
-- SM944 (PENDING) **internal: the CSRF gate is Manager::Csrf's** (S34 of the
+- SM944 (30f30cb3) **internal: the CSRF gate is Manager::Csrf's** (S34 of the
   plan in the filing, ruled 2026-10-11). `csrf_refusal($method)` returns the
   refusal and the manager API ends the request on it, at the gate's old place;
   the module never exits. No answer changes. Tests 43, 205 and 226.
 
-- SM944 (PENDING) **security hardening: the CSRF gate refuses when no account
+- SM944 (6454e568) **security hardening: the CSRF gate refuses when no account
   is asking** (S34 of the plan in the filing, ruled 2026-10-11). The gate
   exempts a token client, and the request context's reset leaves one with
   nobody asking, so the gate run outside a request passed a POST for nobody.
   It now refuses an empty account first. Inside a request the auth check has
   already refused one on both channels, so no answer changes.
 
-- SM944 (PENDING) **internal: every mutating action is proven refused, and not
+- SM944 (f12eaec3) **internal: every mutating action is proven refused, and not
   landed, without a CSRF token** (S34 of the plan in the filing, ruled
   2026-10-11). t/unit/manager/226 POSTs every action the declaration marks
   mutating, and `users`, from a signed-in session with no token: each must be
   refused 403 and change no file of the site and write no audit row, while the
   same request with a token does what it was refused. Test 43 sampled 19, and
   a gate moved after the dispatch let a forged write land behind its 403.
-- SM982 (PENDING) **security: a table's own rule binds a `manage_data` holder,
+- SM982 (140d5870) **security: a table's own rule binds a `manage_data` holder,
   and a published table can hold rows back** (ruled 2026-10-11, "Table ACLs bind
   it + row filter"). A member holding `manage_data` wrote rows in tables whose
   write rule did not list them and read, through the control API, a table whose
@@ -1130,7 +1132,7 @@ Archive
   shows through page bindings and the data endpoint, counts included; the
   manager, API and MCP still see every row. Docs: data-tables. t/integration/127.
 
-- SM981 (PENDING) **security: a file that arrives in a held-back folder lands in
+- SM981 (a6106bec) **security: a file that arrives in a held-back folder lands in
   the private store, however it arrives** (ruled 2026-10-11, "Land where save
   would"). A post carrying a rule of its own (an owner-only rule, which every copy
   gets) moved into a draft or read-gated folder was moved back OUT of the store
@@ -1146,7 +1148,7 @@ Archive
   one is moved to `lazysite/displaced/<time>/`, named in the output, never deleted.
   t/integration/126.
 
-- SM980 (PENDING) **security: an inline `auth_groups: [a, b]` restricts the page,
+- SM980 (904aca3f) **security: an inline `auth_groups: [a, b]` restricts the page,
   and an access key the engine cannot read refuses it** (ruled 2026-10-11, "Parse
   it + fail closed"). The gate read `auth_groups` only as a block list, so the flow
   list - ordinary YAML - was not read at all and the page was served, data rows
@@ -1164,7 +1166,7 @@ Archive
   refused), and `auth: manager` enforces nothing outside the manager path.
   t/integration/125, t/lint/220.
 
-- SM979 (PENDING) **security: manage_users no longer passes a file's rule, and
+- SM979 (30861240) **security: manage_users no longer passes a file's rule, and
   approving an account request is a grant of its own** (ruled 2026-10-11, "New
   approve capability"). A group holding only `manage_users` - made to approve
   account requests - saved a page at the site root and overwrote another
@@ -1185,7 +1187,7 @@ Archive
   Reported, not changed: `manage_users` passing the manager's capability gates
   (e.g. `config-set`), and `lock` asking no file rule. t/integration/124.
 
-- lazysite-check (PENDING) **a check that cannot read part of the site says
+- lazysite-check (41967751) **a check that cannot read part of the site says
   so.** Run as a user that cannot read a directory - the private store, on the
   0.15.4 rollout - three of `lazysite check`'s walks printed Perl's raw
   "Can't opendir(...): Permission denied" and reported as if they had looked
@@ -1194,7 +1196,7 @@ Archive
   them, and to run the check as root or as the site's own user.
   t/tools/108.
 
-- rollout (PENDING) **a site that upgraded and is not serviceable is reported
+- rollout (6dc09ada) **a site that upgraded and is not serviceable is reported
   as one, not as a channel skip.** install.pl exits 4 for "installed, and the
   site is not serviceable"; the Hestia deploy script exits 4 for "skipped by
   the update channel" and passed install.pl's 4 straight through, so the fleet
@@ -1208,7 +1210,7 @@ Archive
   exits 2, which the watcher reports as findings that need a human.
   t/tools/107.
 
-- release-dist (PENDING) **a release built from a git worktree leaves its packages
+- release-dist (cdbd9ada) **a release built from a git worktree leaves its packages
   in the main checkout's dist/** (ruled 2026-10-11: "queue the dist fix").
   `tools/release.sh build` copied the tarball, debs and skill zip into the
   dist/ of the tree it ran from, so a build run from a worktree left them where
@@ -1216,14 +1218,14 @@ Archive
   (0.15.3 and 0.15.4 were copied across by hand). They go to the main
   checkout, where the gate's receipts already are. t/tools/104.
 
-- pdf-tests (PENDING) **internal: the PDF tests no longer fail on a loaded host.**
+- pdf-tests (607690f1) **internal: the PDF tests no longer fail on a loaded host.**
   t/unit/plugins/40 and 41 assert that a render succeeds, and under a host
   load of about 17-23 a render outlasted the plugin's 20 s ceiling and was
   killed. They widen the ceiling for themselves (the plugin's
   `$TIMEOUT_SECONDS` is now a package variable; production keeps 20 s), and
   40 asserts the ceiling itself with a converter that never finishes.
 
-- bad-url-blocker (PENDING) **the "Block this address" field is there when no address is
+- bad-url-blocker (09ab29d7) **the "Block this address" field is there when no address is
   blocked** (ruled 2026-10-11: "Always show the field"). On the bad-URL
   blocker's card, Blocked addresses, the field to block an address by hand was
   drawn only when the list already held one, so a site with none had no way to
@@ -1231,14 +1233,14 @@ Archive
   drawn either way; an empty list still says "No addresses are currently
   blocked." t/unit/manager/225.
 
-- SM944 (PENDING) **internal: theme-delete tells a token client by the request
+- SM944 (76ebb1bd) **internal: theme-delete tells a token client by the request
   context** (S33 of the plan in the filing, a held branch approved on
   2026-10-11). It reads `$token_auth`, Manager::Common's request fact, in place
   of a flag set at the end of the token branch - the two proven equal in every
   request. No answer changes: a token client deletes only the themes it
   created (SM262), now pinned by t/unit/manager/224.
 
-- SM944 (PENDING) **security hardening: the session and access-key actions
+- SM944 (76df249f) **security hardening: the session and access-key actions
   refuse when no account is asking, and are Manager::Sessions' handler** (S33
   of the plan in the filing, a held branch approved on 2026-10-11). The
   dispatch branch for sessions-list, session-revoke, user-revoke, keys-list

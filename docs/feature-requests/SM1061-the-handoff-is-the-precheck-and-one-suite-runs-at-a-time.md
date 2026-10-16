@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: release manager, 2026-10-12
 area: release
-status-note: "SHIPPED (PENDING) on n551: handoff runs the precheck only (--full/--release add the suite); tools/suite.sh is the one whole-suite runner, behind a lock in the common git dir; precheck adds each touched area's tests (tools/precheck-areas.pl, lint 255); tools/overnight.sh runs queued handoffs then suite.sh --nightly at 00:30. t/tools/106, 141-145."
+status-note: "SHIPPED (0.15.5) on n551: handoff runs the precheck only (--full/--release add the suite); tools/suite.sh is the one whole-suite runner, behind a lock in the common git dir; precheck adds each touched area's tests (tools/precheck-areas.pl, lint 255); tools/overnight.sh runs queued handoffs then suite.sh --nightly at 00:30. t/tools/106, 141-145."
 ---
 
 # What happened

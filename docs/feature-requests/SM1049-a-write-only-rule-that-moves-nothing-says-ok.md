@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-10)
 area: security
-status-note: "SHIPPED (PENDING): a move back into the document root is due only when the private twin holds a file no other gating rule keeps; otherwise acl-set answers ok:true, content_moved 0; a due move that fails stays partial, worded by direction (t/integration/208)."
+status-note: "SHIPPED (0.15.5): a move back into the document root is due only when the private twin holds a file no other gating rule keeps; otherwise acl-set answers ok:true, content_moved 0; a due move that fails stays partial, worded by direction (t/integration/208)."
 ---
 
 # The report

@@ -84,3 +84,4 @@ the two differ only by the release material (`tools/release-material.pl --paths`
 | 0.15.2 | edge | `d0ddee56719c736d27e510f9c1a26776d9b01d01` | 1016 | 15673 | 2026-10-06 17:36 |
 | 0.15.3 | edge | `1a6a6fc847c0adaab9693c66f863e50009e861fc` | 1074 | 16889 | 2026-10-09 15:57 |
 | 0.15.4 | edge | `4201d227187daa3135627c7fe2378cce577c6c99` | 1106 | 17354 | 2026-10-11 14:55 |
+| 0.15.5 | edge | `4f01c4647dc8697ac434a0f608a84f822ccedb21` | 1307 | 22489 | 2026-10-16 08:17 |

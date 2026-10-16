@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-6, P-7)
 area: security
-status-note: "SHIPPED (PENDING): acl-set paths list (scope- and carve-out-checked each, validated all before any write, one audit row per path); data-import asks row_write_refusal; the owner of a table's access rule imports past writable_by (t/integration/211)."
+status-note: "SHIPPED (0.15.5): acl-set paths list (scope- and carve-out-checked each, validated all before any write, one audit row per path); data-import asks row_write_refusal; the owner of a table's access rule imports past writable_by (t/integration/211)."
 ---
 
 # The report and the ruling

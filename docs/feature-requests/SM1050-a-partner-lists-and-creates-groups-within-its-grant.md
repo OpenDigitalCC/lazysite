@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-1, P-2, P-3)
 area: security
-status-note: "SHIPPED (PENDING): groups-list / list_groups and group-set / set_group behind manage_users on one module (Manager::Groups); a confined caller sees its domains' allowed groups, its own and the ones it created, and changes only the ones it created; only held capabilities are granted; never the operator flag; audited (t/integration/209)."
+status-note: "SHIPPED (0.15.5): groups-list / list_groups and group-set / set_group behind manage_users on one module (Manager::Groups); a confined caller sees its domains' allowed groups, its own and the ones it created, and changes only the ones it created; only held capabilities are granted; never the operator flag; audited (t/integration/209)."
 ---
 
 # The report and the ruling

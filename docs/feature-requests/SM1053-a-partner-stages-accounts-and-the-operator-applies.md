@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-5)
 area: security
-status-note: "SHIPPED (PENDING): the core - stage, plan/apply (operator, cookie only), claim links, audit, an Account import page (212). The rest: links mailed if chosen (n570, 253); remove (n571, 254); update as ticked (n572, 255); MCP stage_accounts (n573, 256); no operator or registration group for new accounts (n580, 258)."
+status-note: "SHIPPED (0.15.5): the core - stage, plan/apply (operator, cookie only), claim links, audit, an Account import page (212). The rest: links mailed if chosen (n570, 253); remove (n571, 254); update as ticked (n572, 255); MCP stage_accounts (n573, 256); no operator or registration group for new accounts (n580, 258)."
 ---
 
 # The report and the ruling

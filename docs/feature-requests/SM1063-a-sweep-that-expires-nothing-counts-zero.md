@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: WORK-PLAN-0154 follow-up
 area: connectors
-status-note: "SHIPPED (PENDING): Connectors::sweep declares its counters before the kept list; t/lint/257 refuses a scalar after an array or hash in a my/our/state list with an assignment. t/unit/manager/335, t/lint/257."
+status-note: "SHIPPED (0.15.5): Connectors::sweep declares its counters before the kept list; t/lint/257 refuses a scalar after an array or hash in a my/our/state list with an assignment. t/unit/manager/335, t/lint/257."
 ---
 
 # What was wrong

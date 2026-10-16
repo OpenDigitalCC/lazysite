@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-13
 raised-by: SM1010 R4, ruled 2026-10-12 ("Per rule, default on"); SM1034 Q1 (the session-less unsubscribe on the auth CGI) and Q7 (per rule and recipient)
 area: notifications
-status-note: "SHIPPED (PENDING): lazysite-auth.pl?action=unsubscribe&t=<token> - GET asks, POST (and RFC 8058 one-click) records a stop in notify/suppressed.jsonl, idempotent and audited; the token is an HMAC over rule and recipient hash under notify/.unsubscribe.key; the outbox skips a stopped pair on every channel, held messages too. t/unit/lib/94, t/integration/248."
+status-note: "SHIPPED (0.15.5): lazysite-auth.pl?action=unsubscribe&t=<token> - GET asks, POST (and RFC 8058 one-click) records a stop in notify/suppressed.jsonl, idempotent and audited; the token is an HMAC over rule and recipient hash under notify/.unsubscribe.key; the outbox skips a stopped pair on every channel, held messages too. t/unit/lib/94, t/integration/248."
 ---
 
 # The rulings

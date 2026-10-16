@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: WORK-PLAN-0154 U1, the release manager on the 0.15.4 upgrade of sites.lazysite.io ("adding group to domains, then press save - message: Nothing had changed")
 area: manager
-status-note: "SHIPPED (PENDING): the Domains page's Access pickers mark the field changed and Save posts domain-set with the new list (t/unit/manager/280); a connector's caller groups are saved from the boxes that are drawn (t/unit/manager/281). Landed ee93c190, dbf5f52d."
+status-note: "SHIPPED (0.15.5): the Domains page's Access pickers mark the field changed and Save posts domain-set with the new list (t/unit/manager/280); a connector's caller groups are saved from the boxes that are drawn (t/unit/manager/281). Landed ee93c190, dbf5f52d."
 ---
 
 # What was wrong

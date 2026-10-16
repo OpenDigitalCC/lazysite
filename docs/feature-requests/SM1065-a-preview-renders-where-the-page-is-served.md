@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1064 ("Found, not changed"); covered by the release manager's ruling on SM1031, "Fix all three"
 area: manager
-status-note: "SHIPPED (PENDING): Domains::served_at gives the owning domain's Host and the URL it serves the page at; preview_public, the manager's action_preview and MCP preview_page and its draft render through it (t/integration/226). domain_preview had no mismatch. The two processor lookups are left as they are; see below."
+status-note: "SHIPPED (0.15.5): Domains::served_at gives the owning domain's Host and the URL it serves the page at; preview_public, the manager's action_preview and MCP preview_page and its draft render through it (t/integration/226). domain_preview had no mismatch. The two processor lookups are left as they are; see below."
 ---
 
 # The defect

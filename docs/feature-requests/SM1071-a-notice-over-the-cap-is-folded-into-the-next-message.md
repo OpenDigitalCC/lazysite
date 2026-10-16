@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-13
 raised-by: SM1010 R1, ruled 2026-10-12 (Q7 "as this brief recommended")
 area: notifications
-status-note: "SHIPPED (PENDING): past per_recipient_hour an event is held in notify/folds/ (audited `held`), and every later one while something is held joins it; when the cap next allows, the job sends one message carrying them in order, counted against the cap. 50 events a fold; a cap of 0 still sends nothing. t/unit/lib/93, t/unit/notify/03."
+status-note: "SHIPPED (0.15.5): past per_recipient_hour an event is held in notify/folds/ (audited `held`), and every later one while something is held joins it; when the cap next allows, the job sends one message carrying them in order, counted against the cap. 50 events a fold; a cap of 0 still sends nothing. t/unit/lib/93, t/unit/notify/03."
 ---
 
 # The ruling

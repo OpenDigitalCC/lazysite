@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11, an alias host is its own canonical, item 1); WORK-PLAN-0154 P14; ruling of 2026-10-12
 area: rendering
-status-note: "SHIPPED (PENDING): canonical_url (the alias_of domain's site_url) drives the injected canonical link and every registry's site_url; the alias keeps its own site_url; _canonical_of is a marked copy of domains_list's derivation (t/unit/processor/102, lint 224)."
+status-note: "SHIPPED (0.15.5): canonical_url (the alias_of domain's site_url) drives the injected canonical link and every registry's site_url; the alias keeps its own site_url; _canonical_of is a marked copy of domains_list's derivation (t/unit/processor/102, lint 224)."
 ---
 
 # The ruling

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11, a local 0.15.3 site reached over http on a LAN); WORK-PLAN-0154 P7
 area: auth
-status-note: "SHIPPED (PENDING): the claim's transport refusal redirects with error=https and the claim page says a password can only be set over HTTPS; a bad or used link keeps the generic answer (t/unit/auth/26)."
+status-note: "SHIPPED (0.15.5): the claim's transport refusal redirects with error=https and the claim page says a password can only be set over HTTPS; a bad or used link keeps the generic answer (t/unit/auth/26)."
 ---
 
 # What was wrong

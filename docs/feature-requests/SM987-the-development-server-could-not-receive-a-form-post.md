@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11, a staged 0.15.3 site shown on a LAN); WORK-PLAN-0154 P8
 area: tools
-status-note: "SHIPPED (PENDING): the development server routes /cgi-bin/form-handler.pl to plugins/form-handler.pl, run directly as an installed site runs it, outside the auth wrapper (t/unit/tools/80)."
+status-note: "SHIPPED (0.15.5): the development server routes /cgi-bin/form-handler.pl to plugins/form-handler.pl, run directly as an installed site runs it, outside the auth wrapper (t/unit/tools/80)."
 ---
 
 # What was wrong

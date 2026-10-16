@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: WORK-PLAN-0154 P9, ruling of 2026-10-12 ("Keep, add per-scan limit=")
 area: rendering
-status-note: "SHIPPED (PENDING): limit=N and offset=N on a scan: directive page the filtered, sorted list; limit= is capped by scan_limit; _total unchanged (t/unit/processor/99)."
+status-note: "SHIPPED (0.15.5): limit=N and offset=N on a scan: directive page the filtered, sorted list; limit= is capped by scan_limit; _total unchanged (t/unit/processor/99)."
 ---
 
 # The ruling

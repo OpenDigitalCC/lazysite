@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11, the visitor log does not say which host, item 2); WORK-PLAN-0154 P15; ruling of 2026-10-12
 area: analytics
-status-note: "SHIPPED (PENDING): analyse_visitors takes host and by_host on both surfaces through Manager::Services::visitor_scope_args; stats.pl --host/--by-host count from the raw log by serving domain; a confined caller is held to its own domains and refused the instance-wide selectors (t/integration/134)."
+status-note: "SHIPPED (0.15.5): analyse_visitors takes host and by_host on both surfaces through Manager::Services::visitor_scope_args; stats.pl --host/--by-host count from the raw log by serving domain; a confined caller is held to its own domains and refused the instance-wide selectors (t/integration/134)."
 ---
 
 # The ruling

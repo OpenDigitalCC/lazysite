@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: WORK-PLAN-0154 P21, the open questions SM996 recorded; ruling of 2026-10-12
 area: data
-status-note: "SHIPPED (PENDING): a package carries each row's times and policy beside its rows (the auto key was already in them); package_apply keeps the key (import_table keep_auto_key, insert_row auto_key =>), the times (times =>) and the policy, logs what it kept; lint 137 holds times/auto_key to the restore (t/unit/data/73)."
+status-note: "SHIPPED (0.15.5): a package carries each row's times and policy beside its rows (the auto key was already in them); package_apply keeps the key (import_table keep_auto_key, insert_row auto_key =>), the times (times =>) and the policy, logs what it kept; lint 137 holds times/auto_key to the restore (t/unit/data/73)."
 ---
 
 # The ruling

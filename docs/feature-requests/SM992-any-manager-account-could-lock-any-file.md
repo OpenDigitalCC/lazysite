@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM979's inventory, left there for a ruling (`lock` asks no file rule)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-12, Lock needs write access. The manager's lock, renew-lock and unlock refuse a caller the path's write rule refuses (Files::lock_refusal); WebDAV's UNLOCK is authorised as a write, as LOCK was; the operator's force-unlock is unchanged. t/integration/129."
+status-note: "SHIPPED (0.15.5): ruled 2026-10-12, Lock needs write access. The manager's lock, renew-lock and unlock refuse a caller the path's write rule refuses (Files::lock_refusal); WebDAV's UNLOCK is authorised as a write, as LOCK was; the operator's force-unlock is unchanged. t/integration/129."
 ---
 
 # What was wrong

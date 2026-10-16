@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11, a 1,745-post site on 0.15.3, item 1); WORK-PLAN-0154 P9
 area: rendering
-status-note: "SHIPPED (PENDING): scan_limit in lazysite.conf sets the cap (default 200, still a stable prefix in file order); <var>_total counts the pages matched that the reader may see; a capped scan logs a warning; documented (t/unit/processor/97)."
+status-note: "SHIPPED (0.15.5): scan_limit in lazysite.conf sets the cap (default 200, still a stable prefix in file order); <var>_total counts the pages matched that the reader may see; a capped scan logs a warning; documented (t/unit/processor/97)."
 ---
 
 # What was wrong

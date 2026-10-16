@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM980's two findings, filed there for a ruling (WORK-PLAN-0153 open question Q17b)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-12, Fix both as recommended. auth_groups makes a page signed-in whatever auth: says (a paid page's list stays its payment bypass); auth: manager outside the manager path is unreadable - 403 to everyone, logged, listed nowhere, reported by lazysite validate. t/integration/130."
+status-note: "SHIPPED (0.15.5): ruled 2026-10-12, Fix both as recommended. auth_groups makes a page signed-in whatever auth: says (a paid page's list stays its payment bypass); auth: manager outside the manager path is unreadable - 403 to everyone, logged, listed nowhere, reported by lazysite validate. t/integration/130."
 ---
 
 # What was wrong

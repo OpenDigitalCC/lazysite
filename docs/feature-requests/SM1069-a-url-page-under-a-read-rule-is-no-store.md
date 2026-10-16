@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-13
 raised-by: developer, SM1068 findings; release manager 2026-10-13
 area: processor
-status-note: "SHIPPED (PENDING), n563: the .url branch passes the protected flag to process_url and output_page; a gated .url render is neither read from nor written to the render cache. _acl_entry_for looks up the path's ancestors through a per-store index of normalised keys. t/integration/240-241, t/unit/processor/128-129."
+status-note: "SHIPPED (0.15.5), n563: the .url branch passes the protected flag to process_url and output_page; a gated .url render is neither read from nor written to the render cache. _acl_entry_for looks up the path's ancestors through a per-store index of normalised keys. t/integration/240-241, t/unit/processor/128-129."
 ---
 
 # A. A `.url` page under a READ rule

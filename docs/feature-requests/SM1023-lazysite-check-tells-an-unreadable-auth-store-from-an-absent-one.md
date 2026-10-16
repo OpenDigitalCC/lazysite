@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: WORK-PLAN-0154 U5, seen on sites.lazysite.io after the 0.15.4 upgrade
 area: tools
-status-note: "SHIPPED (PENDING): absent is the unconfigured manager; unreadable is a WARN naming the file and user; undecodable is a FAIL naming the file - for groups-settings.json, auth/users and auth/groups, lazysite.conf and acls.json; --check-acl skips a store it cannot read (t/tools/126). Landed 372aef0f."
+status-note: "SHIPPED (0.15.5): absent is the unconfigured manager; unreadable is a WARN naming the file and user; undecodable is a FAIL naming the file - for groups-settings.json, auth/users and auth/groups, lazysite.conf and acls.json; --check-acl skips a store it cannot read (t/tools/126). Landed 372aef0f."
 ---
 
 # What was wrong

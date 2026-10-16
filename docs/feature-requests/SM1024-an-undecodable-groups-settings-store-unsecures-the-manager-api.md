@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: found while working SM1023 (WORK-PLAN-0154 U5)
 area: security
-status-note: "SHIPPED (PENDING): ruled 'Fail closed everywhere' (n437) and 'Close all three' (n439), 2026-10-12. A broken groups-settings.json, acls.json, revoked.json or user-settings.json fails closed on every reader: cannot-tell, never a manager, operator or open file. t/integration/185-188, t/unit/auth/52."
+status-note: "SHIPPED (0.15.5): ruled 'Fail closed everywhere' (n437) and 'Close all three' (n439), 2026-10-12. A broken groups-settings.json, acls.json, revoked.json or user-settings.json fails closed on every reader: cannot-tell, never a manager, operator or open file. t/integration/185-188, t/unit/auth/52."
 ---
 
 # What was found

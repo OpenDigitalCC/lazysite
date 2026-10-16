@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1034 phase 1c and Q6, ruled 2FA "Self-enrol only" by the release manager 2026-10-12
 area: accounts
-status-note: "SHIPPED (PENDING): me-2fa-enrol (password), me-2fa-confirm (code), me-2fa-disable and me-recovery-codes (password + code; disable ends other sessions) with ::: account-2fa; the manager API refuses mfa-enroll/-confirm/-recovery-regenerate/-verify/totp-code, the users tool refuses them for another actor, and the Users page offers reset only. t/unit/account/04."
+status-note: "SHIPPED (0.15.5): me-2fa-enrol (password), me-2fa-confirm (code), me-2fa-disable and me-recovery-codes (password + code; disable ends other sessions) with ::: account-2fa; the manager API refuses mfa-enroll/-confirm/-recovery-regenerate/-verify/totp-code, the users tool refuses them for another actor, and the Users page offers reset only. t/unit/account/04."
 ---
 
 # The ruling

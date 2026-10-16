@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: found working SM1030 (its "Found on the way"); ruled by the release manager 2026-10-12, "Fix all three"
 area: mcp
-status-note: "SHIPPED (PENDING): every text save refuses content that would not be written as valid UTF-8 (page-encoding-refused); a saved-page preview_page writes no access-log line and renders under the owning domain's Host at the URL it serves the page at (t/unit/mcp/50)."
+status-note: "SHIPPED (0.15.5): every text save refuses content that would not be written as valid UTF-8 (page-encoding-refused); a saved-page preview_page writes no access-log line and renders under the owning domain's Host at the URL it serves the page at (t/unit/mcp/50)."
 ---
 
 # The ruling

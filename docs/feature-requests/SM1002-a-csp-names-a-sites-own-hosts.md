@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11, the CSP has no way to allow one external host); WORK-PLAN-0154 P16; ruling of 2026-10-12
 area: security
-status-note: "SHIPPED (PENDING): csp_script_src/connect_src/img_src/frame_src lists of https origins, validated (csp_origin_ok, a marked copy in the processor), appended to the default, per domain through alias.<host>.csp_*_src; never on the manager; check reports bad entries (t/unit/processor/103, lints 55 and 225)."
+status-note: "SHIPPED (0.15.5): csp_script_src/connect_src/img_src/frame_src lists of https origins, validated (csp_origin_ok, a marked copy in the processor), appended to the default, per domain through alias.<host>.csp_*_src; never on the manager; check reports bad entries (t/unit/processor/103, lints 55 and 225)."
 ---
 
 # The ruling

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox, 2026-10-11-manage-users-alone-lets-a-signed-in-session-write-any-file.md (a members' area on a local 0.15.3 site)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-11, New approve capability. A file's rule binds a manage_users holder like anyone (read, write, re-rule); move and copy ask the target's rule, mkdir and the multipart upload ask the path's rule; approve_accounts approves account requests and reads only account-request forms; group-reach names the operator and the files by rule. t/integration/124."
+status-note: "SHIPPED (0.15.5): ruled 2026-10-11, New approve capability. A file's rule binds a manage_users holder like anyone (read, write, re-rule); move and copy ask the target's rule, mkdir and the multipart upload ask the path's rule; approve_accounts approves account requests and reads only account-request forms; group-reach names the operator and the files by rule. t/integration/124."
 ---
 
 # What was wrong

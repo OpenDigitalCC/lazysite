@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: the coordinating session's proposal, ruled by the release manager 2026-10-12 ("yes queue the preview_page draft change"); recorded in SM887
 area: mcp
-status-note: "SHIPPED (PENDING): preview_page { path, content } renders the draft at path as a public visitor, under the owning domain's Host, and writes nothing; refused for what a save would refuse, capped at 512 KiB (t/unit/mcp/40, 41)."
+status-note: "SHIPPED (0.15.5): preview_page { path, content } renders the draft at path as a public visitor, under the owning domain's Host, and writes nothing; refused for what a save would refuse, capped at 512 KiB (t/unit/mcp/40, 41)."
 ---
 
 # The ruling

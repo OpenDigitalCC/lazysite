@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11 20:00, correction: members can already own rows, item 1); WORK-PLAN-0154 P17; ruling of 2026-10-12
 area: data
-status-note: "SHIPPED (PENDING): resolve_binding's own-rows read - (mine), a signed-in viewer and the caller's mine_reads_own opt-in, which only the processor's per-viewer render passes - reads created_by = viewer past may_read; everything else refused as before (t/unit/data/71). SM982's `where:` applies to it too (ruled; t/unit/data/72)."
+status-note: "SHIPPED (0.15.5): resolve_binding's own-rows read - (mine), a signed-in viewer and the caller's mine_reads_own opt-in, which only the processor's per-viewer render passes - reads created_by = viewer past may_read; everything else refused as before (t/unit/data/71). SM982's `where:` applies to it too (ruled; t/unit/data/72)."
 ---
 
 # The ruling

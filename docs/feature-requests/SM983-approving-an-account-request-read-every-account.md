@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox (2026-10-11, a local 0.15.3 site of 695 imported accounts); WORK-PLAN-0154 P4
 area: performance
-status-note: "SHIPPED (PENDING): the approval asks users-detail for fields [email] only, answered from the settings store in one read: 0.27 s for 700 generated accounts, from 26.7 s (t/unit/users/50, t/unit/manager/240)."
+status-note: "SHIPPED (0.15.5): the approval asks users-detail for fields [email] only, answered from the settings store in one read: 0.27 s for 700 generated accounts, from 26.7 s (t/unit/users/50, t/unit/manager/240)."
 ---
 
 # What was wrong

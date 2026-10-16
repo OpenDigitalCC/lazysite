@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1010 phase 1, ruled 2026-10-12 ("Yes, engine = mechanism"; "New 'manage_notifications' cap"; "Per rule, default on")
 area: notifications
-status-note: "SHIPPED (PENDING): handler type notify (recipients JSON: accounts, owners_of, addresses_from, fixed, submitter), checked at save; needs manage_notifications (core, off by default, topped up into the manager groups); delivering it queues one outbox entry; quarantined submissions queue nothing. t/unit/notify/01, 02."
+status-note: "SHIPPED (0.15.5): handler type notify (recipients JSON: accounts, owners_of, addresses_from, fixed, submitter), checked at save; needs manage_notifications (core, off by default, topped up into the manager groups); delivering it queues one outbox entry; quarantined submissions queue nothing. t/unit/notify/01, 02."
 ---
 
 # The rulings it is built to

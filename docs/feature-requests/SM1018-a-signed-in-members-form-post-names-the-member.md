@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: SM1010 Q1, ruled 2026-10-12 ("All other SM1010 open questions as the brief recommended")
 area: forms
-status-note: "SHIPPED (PENDING): the form handler passes the account a verified session cookie names as the delivery's actor (blank otherwise); a personal table row is owned by its member, the audit names them; no field carries it and X-Remote-User is never read. t/unit/forms/07, 08, 62."
+status-note: "SHIPPED (0.15.5): the form handler passes the account a verified session cookie names as the delivery's actor (blank otherwise); a personal table row is owned by its member, the audit names them; no field carries it and X-Remote-User is never read. t/unit/forms/07, 08, 62."
 ---
 
 # The ruling

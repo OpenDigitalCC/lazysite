@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-11
 raised-by: the dev inbox, 2026-10-11-a-move-into-a-draft-folder-leaves-the-file-public.md (a local site at 0.15.3, the 0.15.4 tree)
 area: security
-status-note: "SHIPPED (PENDING): ruled 2026-10-11, Land where save would. Placement is decided by every rule that governs a path (Acl::placement_for), on the manager's and WebDAV's store sync and in resolve_for_write; the processor's draft check asks only entries carrying draft; move_in merges a path held in both trees (private kept, public moved to lazysite/displaced/). t/integration/126."
+status-note: "SHIPPED (0.15.5): ruled 2026-10-11, Land where save would. Placement is decided by every rule that governs a path (Acl::placement_for), on the manager's and WebDAV's store sync and in resolve_for_write; the processor's draft check asks only entries carrying draft; move_in merges a path held in both trees (private kept, public moved to lazysite/displaced/). t/integration/126."
 ---
 
 # What was wrong

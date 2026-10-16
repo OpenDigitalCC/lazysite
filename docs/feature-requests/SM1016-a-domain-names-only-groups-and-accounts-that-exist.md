@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: WORK-PLAN-0154 U4, ruling of 2026-10-12 ("lazysite-domains.pl should reject invalid groups")
 area: manager
-status-note: "SHIPPED (PENDING): domain_set refuses each unknown NEW name in allowed_groups / locked_users, naming them, writing nothing. Only names being added are checked; the release manager confirmed this on 2026-10-12: \"keep the design choice\" (t/unit/manager/284, t/tools/121, t/integration/150)."
+status-note: "SHIPPED (0.15.5): domain_set refuses each unknown NEW name in allowed_groups / locked_users, naming them, writing nothing. Only names being added are checked; the release manager confirmed this on 2026-10-12: \"keep the design choice\" (t/unit/manager/284, t/tools/121, t/integration/150)."
 ---
 
 # The ruling

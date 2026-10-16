@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-12
 raised-by: inbox 2026-10-12, what a site partner cannot do while building a site (P-8)
 area: auth
-status-note: "SHIPPED (PENDING): forgot and logout join SM201's system pages, with protected defaults under lazysite/templates/system/ held equal to the seeded pages; lazysite check probes them (t/integration/207)."
+status-note: "SHIPPED (0.15.5): forgot and logout join SM201's system pages, with protected defaults under lazysite/templates/system/ held equal to the seeded pages; lazysite check probes them (t/integration/207)."
 ---
 
 # The report
