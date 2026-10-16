@@ -160,7 +160,12 @@ if [ "${#STAGE_FLAG[@]}" -eq 0 ]; then
 fi
 PF_BASE="${STAGE_FLAG[1]}"
 PF_RC=0
-PF_MSG=$(bash "$ROOT/tools/preflight.sh" HEAVY "$PF_BASE") || PF_RC=$?
+# SM1088: the swap rule guards the coverage stage, which runs for stable and
+# certified or when LAZYSITE_COVER_FORCE=1 asks (release.sh's own rule).
+PF_MODE=SUITE
+case "$CHANNEL" in stable | certified) PF_MODE=HEAVY ;; esac
+[ "${LAZYSITE_COVER_FORCE:-}" = 1 ] && PF_MODE=HEAVY
+PF_MSG=$(bash "$ROOT/tools/preflight.sh" "$PF_MODE" "$PF_BASE") || PF_RC=$?
 if [ "$PF_RC" -eq 3 ]; then
     echo "gate-main: SKIPPED - $PF_MSG" >&2
     exit 3

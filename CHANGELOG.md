@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1088 (PENDING) **internal: the swap margin guards the coverage stage
+  only.** The 0.15.6 edge gate was refused on 2,521 MB of stale swap with
+  6,665 MB available, over the 5 GB threshold. `tools/preflight.sh SUITE` has
+  no swap rule, and `tools/gate-main.sh` uses it unless coverage will run
+  (stable, certified, `LAZYSITE_COVER_FORCE=1`). t/tools/156, t/tools/168.
+
 - SM1087 (PENDING) **internal: a stack whose branch name has a slash is
   prechecked.** The integration run named its precheck log from the branch
   name as-is, so a `claude/...` branch pointed the log into a missing

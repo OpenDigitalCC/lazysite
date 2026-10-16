@@ -30,8 +30,9 @@ sub meminfo {
 }
 sub pf {
     my (%env) = @_;
+    my $mode = delete $env{MODE} // q(HEAVY);
     local @ENV{ keys %env } = values %env;
-    my $o = run_cmd( 'bash', $pf, 'HEAVY', $tmp );
+    my $o = run_cmd( q(bash), $pf, $mode, $tmp );
     return ( $? >> 8, $o );
 }
 my $good = meminfo( 16_000_000, 4_000_000, 4_000_000 );
@@ -55,6 +56,14 @@ is( $rc, 0, 'the same swap with 16 GB available goes' );
 like( $o, qr/^preflight: note - swap in use 2929 MB is over 1024 MB, but MemAvailable 15625 MB is ample; not refusing/m, 'with a note, not a refusal' );
 ( $rc, $o ) = pf( %ok, LAZYSITE_PF_MEMINFO => meminfo( 16_000_000, 4_000_000, 1_000_000 ), LAZYSITE_PF_SWAP_SLACK_KB => 20_000_000 );
 is( $rc, 3, 'the slack is a threshold of its own' );
+
+# SM1088: SUITE, for a gate that runs no coverage stage, has no swap rule - the
+# 0.15.6 edge gate was refused on stale swap with 6,665 MB available.
+( $rc, $o ) = pf( %ok, MODE => q(SUITE), LAZYSITE_PF_MEMINFO => meminfo( 6_000_000, 4_000_000, 1_000_000 ) );
+is( $rc, 0, q(SUITE goes on the swap HEAVY refuses) );
+like( $o, qr/^preflight: note - swap in use 2929 MB is over 1024 MB; not refusing \(no coverage stage/m, q(with a note saying why) );
+( $rc, $o ) = pf( %ok, MODE => q(SUITE), LAZYSITE_PF_MEMINFO => meminfo( 1_000_000, 4_000_000, 4_000_000 ) );
+is( $rc, 3, q(SUITE still refuses memory under the threshold) );
 
 ( $rc, $o ) = pf( %ok, LAZYSITE_PF_MIN_DISK_KB => 999_999_999_999 );
 is( $rc, 3, 'too little stage disk is "not now"' );

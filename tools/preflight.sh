@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# SM1083: tools/preflight.sh HEAVY [STAGE_BASE]  |  tools/preflight.sh JOBS
+# SM1083: tools/preflight.sh HEAVY|SUITE [STAGE_BASE]  |  tools/preflight.sh JOBS
 #   HEAVY  refuse to START a heavy job on a host that cannot hold it. One line,
 #          naming the failed condition, exit 3 = "not now": a caller treats it
 #          as a SKIP, never a failure. Exit 0 = go.
+#   SUITE  as HEAVY without the swap rule: a gate that runs no coverage stage
+#          (SM1088). The swap rule is for the job that grows to fill memory -
+#          the coverage merge that was killed twice - and refused the 0.15.6
+#          edge gate on 2,521 MB of stale swap with 6,665 MB available, while
+#          the same suite had just run twice on that host at that level.
 #   JOBS   print the guarded LAZYSITE_COVER_JOBS: 4 when MemAvailable >= 8 GB, else 2.
 # THRESHOLDS LIVE HERE, overridable by env (tests): LAZYSITE_PF_MIN_MEM_KB,
 # LAZYSITE_PF_MAX_SWAP_KB, LAZYSITE_PF_MIN_DISK_KB, LAZYSITE_PF_MIN_INODES,
@@ -32,9 +37,9 @@ case "${1:-}" in
         if [ "$mem" -ge "$JOBS_MEM_KB" ]; then echo 4; else echo 2; fi
         exit 0
         ;;
-    HEAVY) ;;
+    HEAVY | SUITE) ;;
     *)
-        echo "usage: preflight.sh HEAVY [STAGE_BASE] | JOBS" >&2
+        echo "usage: preflight.sh HEAVY|SUITE [STAGE_BASE] | JOBS" >&2
         exit 2
         ;;
 esac
@@ -47,10 +52,14 @@ swf=$(awk '/^SwapFree:/{print $2}' "$MEMINFO")
 swap=$((${swt:-0} - ${swf:-0}))
 [ "$mem" -ge "$MIN_MEM_KB" ] || notnow "MemAvailable $((mem / 1024)) MB is under $((MIN_MEM_KB / 1024)) MB"
 if [ "$swap" -gt "$MAX_SWAP_KB" ]; then
-    if [ "$mem" -lt $((MIN_MEM_KB + SWAP_SLACK_KB)) ]; then
+    if [ "$1" = HEAVY ] && [ "$mem" -lt $((MIN_MEM_KB + SWAP_SLACK_KB)) ]; then
         notnow "swap in use $((swap / 1024)) MB is over $((MAX_SWAP_KB / 1024)) MB and MemAvailable $((mem / 1024)) MB is under $(((MIN_MEM_KB + SWAP_SLACK_KB) / 1024)) MB"
     fi
-    echo "preflight: note - swap in use $((swap / 1024)) MB is over $((MAX_SWAP_KB / 1024)) MB, but MemAvailable $((mem / 1024)) MB is ample; not refusing (swap in use lags)" >&2
+    if [ "$1" = SUITE ]; then
+        echo "preflight: note - swap in use $((swap / 1024)) MB is over $((MAX_SWAP_KB / 1024)) MB; not refusing (no coverage stage; swap in use lags)" >&2
+    else
+        echo "preflight: note - swap in use $((swap / 1024)) MB is over $((MAX_SWAP_KB / 1024)) MB, but MemAvailable $((mem / 1024)) MB is ample; not refusing (swap in use lags)" >&2
+    fi
 fi
 base=${2:-${LAZYSITE_STAGE_DIR:-/var/tmp/lazysite-stage}}
 while [ ! -d "$base" ] && [ "$base" != / ]; do base=$(dirname "$base"); done
