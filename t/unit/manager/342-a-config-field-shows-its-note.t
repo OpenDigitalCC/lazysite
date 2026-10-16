@@ -58,7 +58,7 @@ SKIP: {
 
     subtest 'renderForm draws the note as the info mark' => sub {
         like $html,
-            qr{<label>Explained <span class="mg-info" tabindex="0" role="img" aria-label="Says &quot;why&quot; &amp; &lt;how&gt;" title="Says &quot;why&quot; &amp; &lt;how&gt;">&#9432;</span></label>},
+            qr{<label>Explained <span class="mg-info" tabindex="0" role="img" aria-label="Says &quot;why&quot; &amp; &lt;how&gt;" data-note="Says &quot;why&quot; &amp; &lt;how&gt;">&#9432;</span></label>},
             'the note is beside the label, escaped, reachable by keyboard';
         like $html, qr{<label>Bare</label>}, 'a field with no note gets no empty mark';
     };

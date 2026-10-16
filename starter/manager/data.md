@@ -276,7 +276,7 @@ function loadTables() {
              with the buttons now. */
           +       '<span class="mg-info" tabindex="0" role="img"'
           +         ' aria-label="Which export format to choose"'
-          +         ' title="JSON is the exact copy: types survive and it is the one that'
+          +         ' data-note="JSON is the exact copy: types survive and it is the one that'
           +         ' goes back in. CSV is for a spreadsheet - no types, an unset value'
           +         ' reads as an empty one, and cells a spreadsheet would run as formulas'
           +         ' are prefixed with an apostrophe, which changes them.">&#9432;</span>'

@@ -347,10 +347,11 @@ function renderForm(plugin, values) {
     // SM1085: a field's `note` is its explanation, and this page never drew it -
     // every extension's descriptor carried notes nobody could read, so a label
     // like "Extra operation packs" stood alone. It shows as the same info mark
-    // the Extensions page uses: hover or focus it for the text.
+    // the Extensions page uses: hover or focus it for the text (SM1104: drawn from
+    // data-note by the stylesheet; a title showed on hover only).
     html += '<label>' + esc(f.label)
       + (f.note ? ' <span class="mg-info" tabindex="0" role="img" aria-label="' + esc(f.note)
-        + '" title="' + esc(f.note) + '">&#9432;</span>' : '')
+        + '" data-note="' + esc(f.note) + '">&#9432;</span>' : '')
       + '</label>';
     if (f.type === 'select') {
       html += '<select name="'+f.key+'" onchange="applyShowWhen(this.form)">';

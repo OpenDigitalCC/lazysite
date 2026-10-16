@@ -1378,6 +1378,30 @@ body.mg-sheet-open { overflow: hidden; }
 }
 .mg-info:hover, .mg-info:focus { border-color: var(--mg-accent); background: var(--mg-accent-bg); }
 
+/* SM1104: the note must be SEEN on keyboard focus. :focus only recoloured the
+   mark, so a sighted keyboard user never read it (title shows on mouse hover
+   only). The note rides in data-note and is drawn as generated content on
+   hover and :focus-visible; aria-label still carries it for a screen reader,
+   so the drawn copy has an empty alt and is not read twice. It opens below
+   and wraps; the mark at the right edge of a row opens leftwards. */
+.mg-info { position: relative; }
+.mg-info[data-note]:hover::after,
+.mg-info[data-note]:focus-visible::after {
+    content: attr(data-note);
+    content: attr(data-note) / "";
+    position: absolute; left: 0; top: calc(100% + 6px); z-index: 50;
+    width: max-content; max-width: min(22rem, 80vw); box-sizing: border-box;
+    padding: 6px 9px; white-space: normal; text-align: left;
+    font: normal 400 var(--mg-text-sm)/1.4 var(--mg-font);
+    letter-spacing: normal; text-transform: none; cursor: default;
+    color: var(--mg-text); background: var(--mg-surface);
+    border: 1px solid var(--mg-border); border-radius: var(--mg-radius, 0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.mg-plugin-end .mg-info[data-note]:hover::after,
+.mg-plugin-end .mg-info[data-note]:focus-visible::after { left: auto; right: 0; }
+.mg-info:focus-visible { border-color: var(--mg-accent); background: var(--mg-accent-bg); }
+
 /* "Turn these on" read as prose because it sat inline against its note with
    nothing between them. */
 .mg-config-preset { margin-top: 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

@@ -114,7 +114,7 @@ function renderPluginRegistry(plugins) {
       html += '<span class="mg-tag enabled" title="Always on - wired in the web server config">core</span>';
     } else {
       var info = 'File: ' + p._script + (p.version ? '  ·  v' + p.version : '') + (p.id ? '  ·  id: ' + p.id : '');
-      html += '<span class="mg-info" tabindex="0" role="img" aria-label="Extension details" title="' + esc(info) + '">&#9432;</span>';
+      html += '<span class="mg-info" tabindex="0" role="img" aria-label="Extension details" data-note="' + esc(info) + '">&#9432;</span>';
     }
     html += '</div></div>';
   });

@@ -827,7 +827,7 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-help"><span class="mg-sg-tag">.mg-help</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-info <span class="mg-sg-count">1</span></h3>
-<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<p class="mg-sg-note">The info mark: a focusable glyph whose note rides in <code>data-note</code> (and <code>aria-label</code>) and is drawn as a box on hover and keyboard focus (SM1104). No class is added for the box; it is the mark's <code>::after</code>.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-info"><span class="mg-sg-tag">.mg-info</span></div>
 </div>
