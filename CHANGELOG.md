@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1103 (PENDING) **a write with no path is refused by name.** The edge test
+  walk's "manager saves fail" was a client sending `path` in the JSON body:
+  `save` reads it from the query, so it ran with no path and tried to create
+  a file beside the docroot. A path sent only in the body, or a content write
+  with no path, now answers `missing-parameter` saying where the path goes; a
+  save onto a folder or the site root is refused; a refused create names the
+  file, the process's user and the folder's owner and mode.
+  t/unit/manager/348.
+
 ## 0.15.8 - EDGE: Mark all read is kept, and the site has one address (2026-10-16)
 
 - SM1102 (f85634c5) **the site has one address: base_url is removed.**
