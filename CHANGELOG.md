@@ -60,6 +60,11 @@ Archive
   action answered ok regardless. It is now written by renaming a new file over
   the old one, and a write that fails is an error the bell shows.
   t/unit/lib/202.
+- SM1101 (PENDING) **the Site URL field offers "Use this address".** The
+  default site_url is worked out per request, so a notice sent by the
+  scheduler or the command line had no address for its links. A button beside
+  the field fills in the address the page is open at; Save writes it (release
+  manager, 2026-10-16). t/unit/manager/347.
 
 ## 0.15.7 - EDGE: a folder delete deletes, and a signed-out visit is not an event (2026-10-16)
 

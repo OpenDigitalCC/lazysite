@@ -47,7 +47,8 @@ var SITE_SCHEMA = [
   { key: 'site_name', placeholder: 'My Site',      label: 'Site name',             type: 'text',   required: true,
     default: 'My Site', group: 'Identity' },
   { key: 'site_url', placeholder: 'Detected from the request',       label: 'Site URL',              type: 'text',
-    default: '${REQUEST_SCHEME}://${SERVER_NAME}' },
+    default: '${REQUEST_SCHEME}://${SERVER_NAME}', set_current: true,
+    note: 'The default is worked out per request, so a notice sent by the scheduler or the command line has no address to use and its links fall back to bare paths. "Use this address" fills in the address this page is open at.' },
   // Layout, theme and the layouts repo are managed in ONE place - the Appearance
   // page (Installed layouts & themes), where activation also clears the page cache
   // and mirrors theme assets - so they are NOT duplicated here in settings.
@@ -354,6 +355,20 @@ var SERVICE_PRESETS = {
   }
 };
 
+// SM1101: "Use this address" - fill a field with the address this page is
+// open at. The release manager, 2026-10-16: "offer a 'set this' option, which
+// sets it to the current ${REQUEST_SCHEME}://${SERVER_NAME}". The browser's
+// own origin is that address as the visitor reached it, through any proxy, and
+// carries a port only when it is not the default. Filled, not saved: the form
+// is marked dirty and Save writes it, as a preset does.
+function setCurrentAddress(key) {
+  var form = document.getElementById('site-form');
+  var el = form && form.elements[key];
+  if (!el) return;
+  el.value = location.protocol + '//' + location.host;
+  markSiteDirty();
+}
+
 function applyPreset(name) {
   var p = SERVICE_PRESETS[name];
   if (!p) return;
@@ -526,6 +541,11 @@ function renderSiteForm(values) {
       html += '<input type="text" name="'+f.key+'" value="'+esc(v)+'"'
            +  (f.placeholder ? ' placeholder="'+esc(f.placeholder)+'"' : '')
            +  (f.required?' required':'')+'>';
+      if (f.set_current) {
+        html += ' <button type="button" class="mg-btn mg-btn-sm" data-impact="edit" onclick="setCurrentAddress(\''
+             +  esc(f.key) + '\')" title="' + esc(location.protocol + '//' + location.host) + '">'
+             +  'Use this address</button>';
+      }
     }
     if (f.note) html += '<div class="mg-config-help mg-muted">' + esc(f.note) + '</div>';
     // SM277: an anchor for the reciprocal count, emitted for every field so
