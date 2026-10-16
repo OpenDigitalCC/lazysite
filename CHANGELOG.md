@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1114 (PENDING) **a failed WebDAV PUT leaves nothing behind.** A failed PUT
+  could leave its `.tmp` file in the tree (xisl.com, 2026-10-16), and a body
+  shorter than its declared length was stored as the whole file. Every
+  failure removes the temp file; a short body answers 400 and stores nothing;
+  a full disk or quota answers 507 naming the cause; PROPFIND hides temp
+  files. t/unit/dav/33.
+
 - SM1112 (PENDING) **media is served as media.** `.mp4`, `.webm` and other
   video, audio and caption files were served as `application/octet-stream`
   (xisl.com, 2026-10-16). Every content-type map the engine has now carries
