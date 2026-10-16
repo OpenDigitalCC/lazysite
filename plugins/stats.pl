@@ -2687,6 +2687,13 @@ sub _tally_batch {
         # SM392: promotion keys on token+UA, not the counting token.
         my $tok = $r->{pkey} || $r->{token} || '';
         next unless length $tok;
+        # SM1098: a client that DECLARES itself (`lazysite-agent/<partner-id>`)
+        # is told it will be recorded as bot, and classify() already says so.
+        # The sweep and probe promotion below ran regardless and rewrote it to
+        # `scanner` - 40 visits, 51% of a day's window in the 0.15.5 test plan,
+        # from an agent probing draft-folder 404s. The promotion key includes the
+        # UA, so skipping here touches no other client behind the same address.
+        next if $r->{agent};
         if ( _is_probe( $r->{path}, $r->{status} ) ) {
             push @newly_promoted, $tok unless $cache->{scanner}{$tok};
             $cache->{scanner}{$tok}    = 1;
@@ -3217,6 +3224,7 @@ sub _export_ingest_server_log {
                 path   => $p->{path},
                 status => $p->{status},
                 class => classify( $p->{path}, $p->{ua}, $extra_ai, $extra_noise, $p->{status} ),
+                agent => ( ( $p->{ua} // '' ) =~ $AGENT_RE ? 1 : 0 ),    # SM1098
                 # SM336: the user-agent was consumed by classify() and dropped.
                 # The verdict is not the only thing it can answer.
                 device => _device_class( $p->{ua} ),
@@ -3301,6 +3309,7 @@ sub _export_ingest_first_party {
                 path   => ( $r->{p} // '' ),
                 status => $st,
                 class => classify( ( $r->{p} // '' ), ( $r->{ua} // '' ), $extra_ai, $extra_noise, $st ),
+                agent => ( ( $r->{ua} // '' ) =~ $AGENT_RE ? 1 : 0 ),    # SM1098
                 # SM336: same two facts, from the same user-agent, on the other
                 # ingester - so a site with either log source answers the same
                 # questions. The record's own path may carry a query too.
