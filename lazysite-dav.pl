@@ -26,6 +26,7 @@ use File::Basename ();
 use File::Copy     qw(copy);
 use Fcntl          qw(:flock O_RDWR O_CREAT);
 use POSIX          qw(strftime);
+use Errno          ();
 
 BEGIN {
     # Locate the Lazysite module tree relative to this script (run-in-place,
@@ -102,6 +103,14 @@ my $PUT_CHUNK = 65536;
 # refusal knows how much is still coming and send_response can finish reading
 # it. Request-lifetime state, declared with the rest of it (t/lint/39).
 my $BODY_READ = 0;
+
+# SM1114 (U12): the temp file a PUT is writing, so that every way out of the
+# request - a return, a die, a signal, an exit - can remove it. A failed 7.5 MB
+# PUT left xitext-motif-print-room.mp4.tmp.545808 in the tree, visible over
+# WebDAV, until it was deleted by hand. Request-lifetime state, declared with
+# the rest of it (t/lint/39).
+my $PUT_TMP;
+END { unlink $PUT_TMP if defined $PUT_TMP }
 
 # FDO-1: caps_for() answers for this process. Declared up here, with the
 # other request-lifetime state, so nothing is initialised below the
@@ -280,7 +289,7 @@ sub main {
 
     my $code;
     if    ( $method eq 'PROPPATCH' ) { $code = do_proppatch(%args) }
-    elsif ( $method eq 'PUT' )       { $code = do_put(%args) }
+    elsif ( $method eq 'PUT' )    { $code = guarded_put( \%args, sub { do_put(%args) } ) }
     elsif ( $method eq 'MKCOL' )     { $code = do_mkcol(%args) }
     elsif ( $method eq 'DELETE' )    { $code = do_delete(%args) }
     elsif ( $method eq 'COPY' )      { $code = do_copy_move( %args, move => 0 ) }
@@ -429,7 +438,9 @@ sub do_propfind {
     my @blocks = prop_response( $a{rel}, $r->{abs}, $want_sha );
     if ( $depth == 1 && -d $r->{abs} ) {
         if ( opendir my $dh, $r->{abs} ) {
-            my @kids = sort grep { $_ ne '.' && $_ ne '..' } readdir $dh;
+            # SM1114: the engine's own PUT temp (name.tmp.<pid>) is not content;
+            # a leftover from a failed upload must not be listed as a file.
+            my @kids = sort grep { $_ ne '.' && $_ ne '..' && !/\.tmp\.\d+\z/ } readdir $dh;
             closedir $dh;
             for my $kid (@kids) {
                 my $krel = length $a{rel} ? "$a{rel}/$kid" : $kid;
@@ -544,6 +555,35 @@ sub do_get {
     return 200;
 }
 
+# SM1114 (U12): do_put under a guard. Kept apart from do_put so the
+# write-path lints still read the PUT's own body in one piece.
+sub guarded_put {
+    my ( $a, $run ) = @_;
+    # SM1114 (U12): the front's timeout arrives here as SIGTERM, a client that
+    # left as SIGPIPE. Either would end the process with the temp file still on
+    # disk; exit instead, so the END guard above removes it.
+    local $SIG{TERM} = sub { exit 143 };
+    local $SIG{PIPE} = sub { exit 141 };
+    local $SIG{HUP}  = sub { exit 129 };
+    my $code = eval { $run->() };
+    if ( my $e = $@ ) {
+        # A die between creating the temp and renaming it was a bare 500 from
+        # the hosting front, with the temp left behind. Answer from the engine,
+        # log the cause (it may name a path, so the caller gets only its kind).
+        unlink $PUT_TMP if defined $PUT_TMP;
+        $PUT_TMP = undef;
+        $e =~ s/\s+\z//;
+        log_event( 'ERROR', $a->{user}, 'dav put died', path => $a->{rel}, error => $e );
+        $REFUSAL_DETAIL = 'engine fault while storing the file';
+        return send_status( 500,
+            body => "Cannot store the file: the engine failed part-way and the "
+                . "upload was discarded. The cause is in the engine log.\n" );
+    }
+    unlink $PUT_TMP if defined $PUT_TMP;
+    $PUT_TMP = undef;
+    return $code;
+}
+
 sub do_put {
     my (%a) = @_;
     my $r = resolve_under_docroot( $a{rel} );
@@ -590,8 +630,18 @@ sub do_put {
     }
 
     my $tmp    = "$r->{abs}.tmp.$$";
+    $PUT_TMP = $tmp;
     my $stream = _stream_body( $tmp, $max, $clen );
     my $failed = $stream->{failed} // '';
+    # SM1114: the body ended before CONTENT_LENGTH - the client went, or a
+    # proxy cut it off. The old code renamed the partial bytes into place as
+    # the whole file; now nothing is stored and the caller is told how far it got.
+    if ( $failed eq 'short' ) {
+        $REFUSAL_DETAIL = "body ended at $stream->{written} of $clen bytes";
+        return send_status( 400,
+            body => "Request body ended after $stream->{written} of $clen bytes "
+                . "- the upload was cut off, nothing was stored. Send it again.\n" );
+    }
     return _write_failure( 'create the file', $stream->{errno}, $r->{abs} )
         if $failed eq 'create';
     return send_status( 413, body => "Payload too large\n" )
@@ -719,6 +769,7 @@ sub do_put {
         return _write_failure( 'store the file', $e, $r->{abs} );
     }
 
+    _sweep_stale_put_temps( $r->{abs} );
     _after_put( $a{rel}, $r->{abs}, $a{user} );
     # SM085: a DAV write is a content-history commit with the same actor
     # attribution as the audit trail (instant no-op when git history is off).
@@ -762,7 +813,13 @@ sub _stream_body {
             close $out; unlink $tmp;
             return { failed => 'toobig' };
         }
-        print {$out} $buf;
+        # SM1114: a failed write is seen here, not only at close - ENOSPC /
+        # EDQUOT surface on whichever flush meets them first.
+        unless ( print {$out} $buf ) {
+            my $e = $!;
+            close $out; unlink $tmp;
+            return { failed => 'write', errno => $e };
+        }
         $remaining -= $n if defined $remaining;
     }
     unless ( close $out ) {
@@ -770,7 +827,32 @@ sub _stream_body {
         unlink $tmp;
         return { failed => 'write', errno => $e };
     }
+    if ( defined $remaining && $remaining > 0 ) {
+        unlink $tmp;
+        return { failed => 'short', written => $written };
+    }
     return { written => $written };
+}
+
+# SM1114 (U12): a PUT that was killed outright (SIGKILL, power) cannot clean
+# up after itself, and its name.tmp.<pid> stays. Once the same name is stored
+# successfully the leftovers of earlier attempts at it are removed - but only
+# those older than an hour, because a fresh one belongs to an upload still in
+# flight from another client.
+sub _sweep_stale_put_temps {
+    my ($abs) = @_;
+    my $cut   = rindex( $abs, "/" );
+    my $dir   = substr( $abs, 0, $cut );
+    my $base  = substr( $abs, $cut + 1 );
+    opendir my $dh, $dir or return;
+    my @stale = grep { /\A\Q$base\E\.tmp\.\d+\z/ && -f "$dir/$_" && -M _ > 1 / 24 }
+        readdir $dh;
+    closedir $dh;
+    for my $t (@stale) {
+        log_event( 'INFO', 'dav-write', 'removed stale upload temp', name => $t )
+            if unlink "$dir/$t";
+    }
+    return;
 }
 
 # FD-12: the housekeeping a completed PUT owes the rest of the site, in the
@@ -2555,9 +2637,27 @@ sub _write_failure {
                 . "decision about your request - the operator must fix the "
                 . "directory permissions.\n" );
     }
+    # SM1114 (U12): a full disk or an exhausted quota says so. xisl.com's
+    # partner saw "Internal Server Error" for a 600 KB file and could not tell a
+    # full disk from a broken server.
+    {
+        no warnings 'numeric';
+        my $n = $errno + 0;
+        if ( $n == Errno::ENOSPC() || $n == Errno::EDQUOT() ) {
+            log_event( 'ERROR', 'dav-write', 'storage full', op => $what,
+                error => "$errno" );
+            return send_status( 507,
+                body => "Cannot $what: the storage is full ($errno) or the "
+                    . "account's quota is used up. Nothing was stored and the "
+                    . "partial upload was removed. The operator must free space "
+                    . "or raise the quota; retrying will not help until then.\n" );
+        }
+    }
     log_event( 'ERROR', 'dav-write', 'write failed', op => $what,
         error => "$errno" );
-    return send_status( 500, body => "Cannot $what.\n" );
+    # SM1114: name the cause (an errno text carries no path) - a bare
+    # "Cannot write the file." left the caller to guess.
+    return send_status( 500, body => "Cannot $what: $errno.\n" );
 }
 
 sub send_response {
