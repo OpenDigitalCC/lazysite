@@ -53,6 +53,19 @@ Archive
 
 ## Unreleased
 
+- SM1105 (PENDING) **the outbox list says what was sent.** Sent entries were
+  still listed as queued (row R2 of the 0.15.6 walk). The ledger records each
+  entry's event, and a sent entry is listed as sent whatever became of its
+  file; a failed removal is logged. t/unit/notify/07.
+- SM1106 (PENDING) **a repeat unsubscribe says already stopped.** A second POST
+  showed "Unsubscribed" again (row R3); it now shows the "Already stopped" page
+  and writes nothing. t/integration/248.
+- SM1107 (PENDING) **an operator can retry an outbox entry now.** A waiting entry
+  sat in backoff after a transport fix. `notify-outbox-retry` (control API and
+  MCP, manage_notifications) and a "Retry now" button on the Handlers page make
+  waiting entries due at the next run; the cap and held messages still apply.
+  t/unit/notify/08, t/integration/260, t/unit/manager/350.
+
 - SM1104 (PENDING) **an info mark shows its note on keyboard focus.** Focus only
   recoloured the mark, so a sighted keyboard user never saw the note (row N4 of
   the 0.15.6 walk). The note is drawn beside the mark on hover and on
