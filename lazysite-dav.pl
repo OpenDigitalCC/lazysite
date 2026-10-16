@@ -130,9 +130,23 @@ my %CONTENT_TYPE_MAP = (
     gif   => 'image/gif',
     webp  => 'image/webp',
     svg   => 'image/svg+xml',
-    ico   => 'image/vnd.microsoft.icon',
+    ico   => 'image/x-icon',
     pdf   => 'application/pdf',
     zip   => 'application/zip',
+    # SM1112: media and its captions, the same set as the processor's
+    # %STATIC_CT (t/lint/264 holds every map together).
+    mp4  => 'video/mp4',
+    m4v  => 'video/mp4',
+    webm => 'video/webm',
+    ogv  => 'video/ogg',
+    mp3  => 'audio/mpeg',
+    ogg  => 'audio/ogg',
+    oga  => 'audio/ogg',
+    opus => 'audio/ogg',
+    wav  => 'audio/wav',
+    m4a  => 'audio/mp4',
+    flac => 'audio/flac',
+    vtt  => 'text/vtt; charset=utf-8',
 );
 
 my %REASON = (

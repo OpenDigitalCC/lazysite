@@ -236,8 +236,8 @@ unless ( -f $PROCESSOR ) {
 # --- MIME types ---
 
 my %MIME = (
-    css   => 'text/css',
-    js    => 'application/javascript',
+    css   => 'text/css; charset=utf-8',
+    js    => 'text/javascript; charset=utf-8',
     png   => 'image/png',
     jpg   => 'image/jpeg',
     jpeg  => 'image/jpeg',
@@ -246,10 +246,24 @@ my %MIME = (
     ico   => 'image/x-icon',
     woff  => 'font/woff',
     woff2 => 'font/woff2',
-    txt   => 'text/plain',
-    xml   => 'application/xml',
-    json  => 'application/json',
+    txt   => 'text/plain; charset=utf-8',
+    xml   => 'application/xml; charset=utf-8',
+    json  => 'application/json; charset=utf-8',
     pdf   => 'application/pdf',
+    # SM1112: media and its captions, the same set as the processor's
+    # %STATIC_CT (t/lint/264 holds every map together).
+    mp4   => 'video/mp4',
+    m4v   => 'video/mp4',
+    webm  => 'video/webm',
+    ogv   => 'video/ogg',
+    mp3   => 'audio/mpeg',
+    ogg   => 'audio/ogg',
+    oga   => 'audio/ogg',
+    opus  => 'audio/ogg',
+    wav   => 'audio/wav',
+    m4a   => 'audio/mp4',
+    flac  => 'audio/flac',
+    vtt   => 'text/vtt; charset=utf-8',
 );
 
 # --- Seed scaffolding (only into a real lazysite docroot) ---

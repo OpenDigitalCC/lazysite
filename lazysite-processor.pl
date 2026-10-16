@@ -416,6 +416,23 @@ our %STATIC_CT = (
     pdf   => 'application/pdf',
     woff  => 'font/woff',
     woff2 => 'font/woff2',
+    # SM1112: media and its captions. Reported 2026-10-16: "`.mp4` / `.webm`
+    # are served as `application/octet-stream`" beside nosniff, which a strict
+    # client takes at its word - a download, not a video. The same set is in
+    # every content-type map the engine has (t/lint/264 holds them together).
+    mp4  => 'video/mp4',
+    m4v  => 'video/mp4',
+    webm => 'video/webm',
+    ogv  => 'video/ogg',
+    mp3  => 'audio/mpeg',
+    ogg  => 'audio/ogg',
+    oga  => 'audio/ogg',
+    # opus is Ogg Opus, as Apache's mime.types has it.
+    opus => 'audio/ogg',
+    wav  => 'audio/wav',
+    m4a  => 'audio/mp4',
+    flac => 'audio/flac',
+    vtt  => 'text/vtt; charset=utf-8',
 );
 
 # --- Payment ---
