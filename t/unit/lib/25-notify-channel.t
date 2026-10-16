@@ -188,12 +188,12 @@ sub notices {
         or diag $SENT[0];
 }
 
-# --- base_url overrides the site_url for link building ----------------------
+# --- SM1102: base_url is not read; site_url is the one address -------------
 {
     my $d = fixture( notify_conf => "base_url: https://admin.example.test\n" );
     notify( $d, { type => 'feedback', message => 'm', url => '/x' } );
-    like( $SENT[0], qr{https://admin\.example\.test/x},
-        'base_url wins over site_url, for a site whose manager is elsewhere' );
+    unlike( $SENT[0], qr{admin\.example\.test},
+        'a base_url left in notify.conf is not read: site_url is the one address' );
 }
 
 # --- the registry is introspectable -----------------------------------------

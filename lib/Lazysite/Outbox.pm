@@ -612,7 +612,7 @@ sub _process {
 
     my $unsub_on = ( $h->{unsubscribe} // 'true' ) ne 'false';
     return ( 'failed', 'unsubscribe is on and this site has no absolute address for the link - '
-            . 'set base_url in lazysite/notify.conf (or site_url), or turn unsubscribe off' )
+            . 'set the Site URL on the Config page ("Use this address"), or turn unsubscribe off' )
         if $unsub_on && ( grep { $_ eq 'email' } @channels )
         && ( $base // '' ) !~ m{\Ahttps?://[^/\s]+};
 

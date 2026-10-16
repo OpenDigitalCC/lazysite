@@ -378,7 +378,8 @@ operator) creates, changes or deletes one.
   address, and is signed with a key only the site holds
   (`lazysite/notify/.unsubscribe.key`; deleting it voids every link sent).
   Every stop, repeat and refused link is in the audit trail. The link is
-  made absolute with `base_url` in `lazysite/notify.conf` or `site_url`.
+  made absolute with the site's `site_url`: set it on the Config page
+  ("Use this address") so a link sent by the scheduler has an address.
   `unsubscribe_path`, if given, is a page of this site linked beside it as
   the place to manage subscriptions.
   `per_recipient_hour` (default 3) caps how many messages of this rule one

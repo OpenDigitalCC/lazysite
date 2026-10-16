@@ -187,7 +187,8 @@ subtest 'unsubscribe on with no absolute site address fails the entry, visibly' 
     comment( post => 'p1', comment => 'x' );
     run_job();
     is( scalar( () = messages() ), 0, 'nothing was sent' );
-    ok( ( grep { /failed .*base_url/ } audit() ), 'and the audit says what to set' );
+    ok( ( grep { /failed .*Site URL on the Config page/ } audit() ), 'and the audit says what to set' );
+    ok( !( grep { /base_url/ } audit() ), 'naming site_url, not the removed base_url (SM1102)' );
 };
 
 done_testing();

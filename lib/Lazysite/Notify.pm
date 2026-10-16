@@ -221,7 +221,10 @@ sub _render {
 # lazysite/notify.conf, one key per line:
 #   route.<type>:  bell,xmpp      which endpoints this type reaches
 #   emit.<type>:   off            silence a type without touching its caller
-#   base_url:      https://...    prefix for the [% url %] a template delivers
+#
+# SM1102: base_url, a second place for the site's own address, is gone - see
+# site_base. A notify.conf that still carries it is not an error; the line is
+# not read.
 #
 # Absent file, absent key: the type's own default_route, and emission on. So a
 # site that never writes this file behaves exactly as it did before SM231.
@@ -357,7 +360,7 @@ sub notify {
         url     => ( $rec{url}    // '' ),
         to      => ( $rec{to}     // '' ),
         site    => _site_name($docroot),
-        base    => ( $conf->{base_url} // _site_url($docroot) ),
+        base    => _site_url($docroot),
     );
     $vars{base} =~ s{/+$}{} if defined $vars{base};
 
@@ -832,10 +835,10 @@ sub _site_name { return _conf_value( $_[0], 'site_name' ) }
 # because it looks like a link. When the expansion cannot complete, the base is
 # empty and the template's `[% base %]/manager/...` degrades to an absolute PATH,
 # which a reader can still use against whatever host they reached the site on.
-# `base_url` in notify.conf overrides all of it and is the deliberate escape for a
-# site whose notifications must point elsewhere - NOT the fix for this, which was
-# ruled 2026-09-30: site_url is the single source of truth and a second place to
-# write the site's own address goes stale in silence.
+# The fix is a pinned site_url (Config -> Site URL -> "Use this address", SM1101).
+# Ruled 2026-09-30: site_url is the single source of truth and a second place to
+# write the site's own address goes stale in silence - so SM1102 removed the one
+# there was, notify.conf's base_url.
 sub _site_url {
     my ($docroot) = @_;
     my $raw = _conf_value( $docroot, 'site_url' );
@@ -873,15 +876,18 @@ sub bell_for {
     return $ok ? 1 : 0;
 }
 
-# SM1020: the site's absolute address for a link a message carries - notify.conf's
-# base_url, else site_url expanded - with no trailing slash, or '' when neither
-# resolves (a daemon has no request to borrow a host from; see _site_url).
+# SM1020: the site's absolute address for a link a message carries - site_url
+# expanded, with no trailing slash, or '' when it does not resolve (a daemon has
+# no request to borrow a host from; see _site_url).
+#
+# SM1102: SITE_URL ONLY. notify.conf's base_url overrode it, and the release
+# manager removed it (2026-10-16) once site_url could be pinned from the Config
+# page (SM1101): the 2026-09-30 ruling already said site_url is the single source
+# of truth and a second place for the site's own address goes stale in silence.
 sub site_base {
     my ($docroot) = @_;
-    my $conf      = _notify_conf($docroot);
-    my $b         = $conf->{base_url};
-    $b = _site_url($docroot) unless defined $b && length $b;
-    $b = ''                  unless defined $b;
+    my $b = _site_url($docroot);
+    $b = '' unless defined $b;
     $b =~ s{/+\z}{};
     return $b;
 }
@@ -1253,7 +1259,7 @@ sub _test_body {
         to     => '',
         url    => '/manager/plugins',
         site   => _site_name($docroot),
-        base   => ( $conf->{base_url} // _site_url($docroot) ),
+        base   => _site_url($docroot),
     );
     $vars{base} =~ s{/+$}{} if defined $vars{base};
     my ( $body, $from_file ) = _template( $docroot, 'test', 'xmpp' );

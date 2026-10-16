@@ -1061,12 +1061,11 @@ the write. The site route and the XMPP account are changed where they always wer
 
 **The channel (SM231).** A notice declares a **type**, and the type decides how
 it is rendered and where it goes. `lazysite/notify.conf` carries two keys per
-type and one global:
+type, and a site-wide ceiling on notice email:
 
 ```
 route.submission:    bell,xmpp     # which endpoints this type reaches
 emit.submission:     off           # silence a type without touching its caller
-base_url:            https://...   # how a link is made absolute
 mail.per_hour:       60            # ceiling on notice emails from this site
 ```
 

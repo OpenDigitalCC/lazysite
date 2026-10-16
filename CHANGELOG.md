@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1102 (PENDING) **the site has one address: base_url is removed.**
+  notify.conf's `base_url` overrode `site_url` for the links a notice carries,
+  and the outbox told operators to set it. With the Site URL now pinnable from
+  the Config page (SM1101), the release manager removed it (2026-10-16): links
+  use `site_url` alone, and a `base_url` line left in notify.conf is not read.
+  t/unit/lib/25, t/unit/notify/03.
+
 - SM1100 (PENDING) **Mark all read is kept, or the bell says it was not.** On
   edge, Mark all read cleared the bell and the notices came back unread on the
   next page (release manager, 2026-10-16). The read marker was written with a
