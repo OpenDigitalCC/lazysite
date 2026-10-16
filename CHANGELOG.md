@@ -53,29 +53,31 @@ Archive
 
 ## Unreleased
 
-- SM1088 (PENDING) **internal: the swap margin guards the coverage stage
+## 0.15.6 - EDGE: an operator can add an operator, and a refused switch says why (2026-10-16)
+
+- SM1088 (d3090a84) **internal: the swap margin guards the coverage stage
   only.** The 0.15.6 edge gate was refused on 2,521 MB of stale swap with
   6,665 MB available, over the 5 GB threshold. `tools/preflight.sh SUITE` has
   no swap rule, and `tools/gate-main.sh` uses it unless coverage will run
   (stable, certified, `LAZYSITE_COVER_FORCE=1`). t/tools/156, t/tools/168.
 
-- SM1087 (PENDING) **internal: a stack whose branch name has a slash is
+- SM1087 (83eb55e9) **internal: a stack whose branch name has a slash is
   prechecked.** The integration run named its precheck log from the branch
   name as-is, so a `claude/...` branch pointed the log into a missing
   directory and was reported "precheck failed" with no precheck run
   (2026-10-16). The name is flattened for the file. t/tools/167.
 
-- SM1084 (PENDING) **a refused extension toggle says why at the row.** "the
+- SM1084 (6b7a0c38) **a refused extension toggle says why at the row.** "the
   toggle just springs back - it should explain why it wont enable" (release
   manager, 2026-10-16, enabling Odoo without the OOM package). The reason went
   only to the muted status line at the top of the Extensions page. It now
   appears under the extension's own row as an alert, and the status line is
   styled as an error. t/unit/manager/341.
-- SM1085 (PENDING) **an extension config field shows its note.** The Configure
+- SM1085 (6b7a0c38) **an extension config field shows its note.** The Configure
   form never drew a field's `note`, on any extension. Each note is now an info
   mark beside its label. Odoo's timeout gained one, and "Extra operation packs"
   says what a pack is and when to leave it blank. t/unit/manager/342.
-- SM1086 (PENDING) **an operator may add someone to the operator group.** A
+- SM1086 (4fe2cdec) **an operator may add someone to the operator group.** A
   sysops member was refused "it grants 'manager', which you may not confer"
   (release manager on edge, 2026-10-16). The operator flag is not one of the
   capabilities `caps_for` reports, so no signed-in account could ever be shown

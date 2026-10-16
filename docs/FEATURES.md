@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.5"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.6"
 brand: plain
 ---
 
@@ -2024,6 +2024,10 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.6** (2026-10-16, edge) - **An operator can add an operator, and a
+  refused switch says why.** An operator may add someone to the operator group
+  (SM1086); a refused extension toggle says why under its own row (SM1084); an
+  extension config field shows its note as an info mark (SM1085)
 - **0.15.5** (2026-10-16, edge) - **A signed-in account reaches only what its
   grants allow.** The manager's cookie door needs the manager (ui), and a
   content write needs manage_content (SM1057); manage_users is user management
