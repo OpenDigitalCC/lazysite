@@ -1364,12 +1364,54 @@ sub check_timestamp {
 #
 # An operator setting `rate_limit:` on the one gated form they built is explicit,
 # auditable, and needs no trust decision about a header nobody verified.
+# SM1115: A RATE-LIMITED VISITOR IS TOLD SO, AND THE OPERATOR CAN SEE IT. This
+# refused with `reject`, so the visitor saw "An error occurred - please try
+# again." - which they then did, into the same limit - and nothing reached the
+# audit trail (the 0.15.8 edge walk; it is how an earlier walk stored 5 of 8
+# events). Like a timing refusal (SM888 A7) it happens to real people, so the
+# reason is safe to show: the limit is per form and address, and when the
+# oldest counted submission leaves the hour is when the next one is accepted.
 sub check_rate_limit {
     my ( $form, $ip, $limit ) = @_;
     my ( $stamps, $limit_n ) = _rate_stamps( $form, $ip, $limit );
     return unless defined $stamps;
-    reject( 'Rate limit exceeded', 'rate' ) if @$stamps >= $limit_n;
+    return unless @$stamps >= $limit_n;
+    my $wait = ( $stamps->[0] // time() ) + 3600 - time();
+    my $mins = $wait <= 60 ? 1 : int( ( $wait + 59 ) / 60 );
+    _audit_rate_refusal( $form, $ip, $limit_n, $mins );
+    my $unit = $mins == 1 ? 'minute' : 'minutes';
+    reject_user( "Too many submissions of this form from your address in the last hour. Please try again in about $mins $unit.", 'rate' );
+}
+
+# The refusal is audited ONCE per form, address and hour - the first one, when
+# the limit is hit. A flood past the limit is what the limit exists to absorb,
+# and a trail row per refused request would let it fill the trail instead.
+sub _audit_rate_refusal {
+    my ( $form, $ip, $limit_n, $mins ) = @_;
+    my $db   = _rate_db() or return;
+    my $mark = _rate_key( $form, $ip ) . ' refused';
+    my $hour = int( time() / 3600 );
+    my $seen = ( $db->{$mark} // -1 ) == $hour;
+    $db->{$mark} = $hour unless $seen;
+    untie %$db;
+    return if $seen;
+    eval {
+        require Lazysite::Audit;
+        no warnings 'once';
+        local $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
+        Lazysite::Audit::audit_log( '', 'submit', $form, $ip, 'fail', 'form',
+            "rate limit: $limit_n an hour from this address; next in about ${mins}m" );
+        1;
+    };
     return;
+}
+
+sub _rate_db {
+    _ensure_dir_for("$FORMS_DIR/.rate-limit.db");
+    my %db;
+    tie( %db, 'DB_File', "$FORMS_DIR/.rate-limit.db", O_RDWR | O_CREAT, 0o600, $DB_HASH )
+        or return;
+    return \%db;
 }
 
 # SM952 (ruled R8): the count is PER FORM AND ADDRESS, and only a STORED

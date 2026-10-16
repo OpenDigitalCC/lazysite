@@ -114,6 +114,12 @@ Archive
   save onto a folder or the site root is refused; a refused create names the
   file, the process's user and the folder's owner and mode.
   t/unit/manager/348.
+- SM1115 (PENDING) **a rate-limited visitor is told so, and the operator can see
+  it.** Past the per-form, per-address limit a visitor saw "An error occurred -
+  please try again." and nothing was audited (0.15.8 edge walk). The refusal
+  now says too many were sent from this address and when to try again, and the
+  first refusal in an hour writes a `submit <form> fail` row naming the rate
+  limit. t/unit/forms/66.
 
 ## 0.15.8 - EDGE: Mark all read is kept, and the site has one address (2026-10-16)
 

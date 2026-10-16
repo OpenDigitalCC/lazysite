@@ -48,7 +48,7 @@ my $sub = join "\n", map {
     my ($one) = $src =~ /^(sub \Q$_\E \{.*?^\})/ms
         or BAIL_OUT("could not lift $_ out of plugins/form-handler.pl");
     $one;
-} qw(check_rate_limit record_rate_stamp _rate_key _rate_stamps);
+} qw(check_rate_limit record_rate_stamp _rate_key _rate_stamps _rate_db _audit_rate_refusal);
 
 my @REJECTED;
 my $code = <<'HEAD' . $sub . "\n1;\n";
@@ -61,6 +61,8 @@ our $FORMS_DIR;
 our $DB_HASH = $DB_File::DB_HASH;
 sub _ensure_dir_for { return 1 }
 sub reject { push @main::REJECTED, $_[1] // 'rate'; die "REJECTED\n" }
+sub reject_user { push @main::REJECTED, $_[1] // 'rate'; die "REJECTED\n" }
+our $LAZYSITE_DIR;    # undef: the audit helper writes nothing here (SM1115)
 HEAD
 eval $code or BAIL_OUT("lifted rate limiter did not compile: $@");
 $RL::FORMS_DIR = "$doc/lazysite/forms";
