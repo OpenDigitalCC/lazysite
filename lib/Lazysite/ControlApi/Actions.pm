@@ -227,6 +227,7 @@ our %GATE = (
         # decides, on every surface. See the cookie table for the door.
     'handler-list' => [qw(manage_forms manage_data manage_connectors manage_notifications)], # SM1010 R5
     'notify-outbox-list' => [qw(manage_notifications)],    # SM1072: it shows recipients
+    'notify-outbox-retry' => [qw(manage_notifications)], # SM1107: ends the backoff of a rule's waiting entries
     'handler-save' => [qw(manage_forms manage_data manage_connectors manage_notifications)], # SM1010 R5
     'handler-delete' => [qw(manage_forms manage_data manage_connectors manage_notifications)], # SM1010 R5
     'schedule-list'     => [qw(manage_forms manage_data manage_connectors)],
@@ -721,6 +722,10 @@ our %ACTION = (
     # manage_notifications' alone, and a confined caller sees its own domains'
     # rules only.
     'notify-outbox-list' => { mcp => 'read_notify_outbox', cookie_cap => 'manage_notifications', params => [ { name => 'rule', in => 'query', note => 'only this rule\'s events' }, { name => 'id', in => 'query', note => 'one event, with the recipients it resolves to and what was decided for each' } ] },
+    # SM1107 (0.15.6 U8): retry now. Ends the backoff of the entries a rule has
+    # waiting (or of one event) - it sends nothing itself, so the cap and a held
+    # fold still apply. Audited as any mutator is.
+    'notify-outbox-retry' => { mcp => 'retry_notify_outbox', mutates => 1, cookie_cap => 'manage_notifications', params => [ { name => 'rule', in => 'body', note => 'every waiting event of this notify rule; give this or id' }, { name => 'id', in => 'body', note => 'one event, from notify-outbox-list; give this or rule' } ] },
     'schedule-list' => { mcp => 'list_schedule', cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [] },
     # [mcp] save_schedule: what the timer calls
     'schedule-save' => { instance_wide => 1, mcp => 'save_schedule', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_forms|manage_data|manage_connectors', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'handler', in => 'body', required => 1 }, { name => 'every', in => 'body', required => 1, note => 'seconds, at least 300' }, { name => 'payload', in => 'body', note => 'a flat object of fixed fields' }, { name => 'enabled', in => 'body' } ] },

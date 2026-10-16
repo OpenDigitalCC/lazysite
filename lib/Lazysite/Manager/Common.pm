@@ -1860,7 +1860,7 @@ our %REFUSAL_STATUS = (
     'apply-incomplete' => '207 Multi-Status',
     'method'   => '405 Method Not Allowed',     # the Odoo endpoint: a write sent as a GET
     'internal' => '500 Internal Server Error',
-    ( map { $_ => '503 Service Unavailable' } qw(unavailable no-key config) ),
+    ( map { $_ => '503 Service Unavailable' } qw(unavailable no-key config busy) ), # SM1107: busy - the outbox job holds its lock
 );
 
 sub refusal_status {

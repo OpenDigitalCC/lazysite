@@ -308,6 +308,7 @@ my %REQ = (
     'form-uploads-save' => { body => { form => 'contact', uploads => JSON::PP::true, max_kb => 100 } },
     'git-restore'    => { query => "path=other.md&sha=$S{sha}" },
     'handler-delete' => { body  => { id => 'unused' } },
+    'notify-outbox-retry' => { body => { rule => 'unused' } },    # SM1107
     'handler-save' => { body => { id => 'h2', type => 'file', name => 'H2', path => 'lazysite/forms/submissions' } },
     'group-set'    => { body => { group => 'newgroup', caps => {} } },    # SM1050
     'key-revoke'       => { body  => { username => 'bot' } },

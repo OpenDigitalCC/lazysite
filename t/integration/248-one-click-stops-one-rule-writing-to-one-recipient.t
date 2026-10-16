@@ -138,6 +138,7 @@ subtest 'a token changed to name another recipient or rule stops nobody' => sub 
 subtest 'POST stops it, once, and is audited' => sub {
     my $r = auth( 'POST', $query, 'confirm=1' );
     is( $r->{status}, 200, 'answered' );
+    like( $r->{out}, qr{<h1>Unsubscribed</h1>}, 'the first POST says Unsubscribed' );
     like( $r->{out}, qr/no more messages from \S+Comments you follow/, 'saying so' );
     my @a = grep { /\| unsubscribe \| notify:followers \|/ } audit();
     is( scalar(@a), 1, 'one audit row' );
@@ -145,6 +146,11 @@ subtest 'POST stops it, once, and is audited' => sub {
 
     $r = auth( 'POST', $query, 'List-Unsubscribe=One-Click' );
     is( $r->{status}, 200, 'a mail client\'s one-click POST of the same link is answered the same' );
+    # SM1106 (0.15.6 R3): "a repeat POST shows the same 'Unsubscribed' page, not
+    # 'already stopped'" - the repeat is the GET's answer, still 200.
+    like( $r->{out}, qr{<h1>Already stopped</h1>}, 'and the repeat says it is already stopped, not "Unsubscribed" again' );
+    unlike( $r->{out}, qr/Unsubscribed/, '...and does not claim to have just stopped it' );
+    like( $r->{out}, qr/Comments you follow/, '...naming the rule' );
     my @lines = split /\n/, slurp("$d/lazysite/notify/suppressed.jsonl");
     is( scalar(@lines), 1, 'and recorded nothing more' );
     ok( ( grep { /\| ok \| ui \| recipient [0-9a-f]{24} - already stopped$/ } audit() ), 'the repeat is audited as such' );

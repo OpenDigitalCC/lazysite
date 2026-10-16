@@ -175,6 +175,7 @@ tone: medium
 `notices` | notifications |  
 `notices-seen` | cookie only | id (query), dismiss (query)
 `notify-outbox-list` | manage_notifications | rule (query), id (query)
+`notify-outbox-retry` | manage_notifications | rule (body), id (body)
 `odoo-bindings` | any authenticated |  
 `odoo-calls` | manage_connectors | binding (query), limit (query)
 `odoo-confirm` | any authenticated | plan (body)

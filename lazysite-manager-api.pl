@@ -2231,6 +2231,19 @@ elsif ( $action eq 'notify-outbox-list' ) {
             !Lazysite::Manager::Common::handler_reach_refusal( old => ( $_[0] ? $_[0]{domain} // '' : '' ) );
         } );
 }
+# SM1107 (0.15.6 U8): retry now - make a waiting entry (by id) or a rule's waiting
+# entries due, so a mail fix is testable without posting fresh events. The job
+# still sends, under the cap and the held folds; this only ends the backoff. It
+# acts on the outbox, so it is manage_notifications' (%GATE) and a confined
+# caller reaches only its own domains' rules, as notify-outbox-list does.
+elsif ( $action eq 'notify-outbox-retry' ) {
+    my $req = _json_body();
+    require Lazysite::Outbox;
+    $result = Lazysite::Outbox::outbox_retry( docroot => $DOCROOT, rule => $req->{rule}, id => $req->{id},
+        may_see => sub {
+            !Lazysite::Manager::Common::handler_reach_refusal( old => ( $_[0] ? $_[0]{domain} // '' : '' ) );
+        } );
+}
 elsif ( $action eq 'schedule-list' ) { $result = Lazysite::Handlers::action_schedule_list() }
 elsif ( $action eq 'version' )       { $result = action_version() }
 elsif ( $action eq 'analyse_visitors' ) {

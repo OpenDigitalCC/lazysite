@@ -1006,6 +1006,13 @@ sub handle_unsubscribe {
     }
     audit_log( '', 'unsubscribe', "notify:$rule", _request_ip(), 'ok', 'ui',
         "recipient $p" . ( $done eq 'already' ? ' - already stopped' : '' ) );
+    # SM1106 (0.15.6 test plan R3): a repeat POST showed the same "Unsubscribed"
+    # page as the first, so a person who followed the link twice (or a mail
+    # client that re-posted) was told it had just been done again. It is the
+    # GET's answer for a stop already recorded; still 200, nothing written.
+    return _unsubscribe_page( 200, 'Already stopped',
+        "You have already stopped the messages from \x{201c}$name\x{201d}. Nothing more is needed." )
+        if $done eq 'already';
     return _unsubscribe_page( 200, 'Unsubscribed',
         "You will get no more messages from \x{201c}$name\x{201d}." );
 }

@@ -404,6 +404,13 @@ operator) creates, changes or deletes one.
   their rules (`notify-outbox-list` on the control API, `read_notify_outbox`
   over MCP).
 
+  **Retry now** (SM1107): after a mail fix, an entry in backoff can be made due
+  at once - the button on its row in the card, `notify-outbox-retry` on the
+  control API (a rule or an event id), `retry_notify_outbox` over MCP. It sends
+  nothing itself: the job does on its next run, so the per-recipient cap and a
+  held message still apply and an event already sent is not sent again. The
+  audit trail records it.
+
   **Who may be written to is the operator's decision, and complying with
   privacy and consent rules is the operator's responsibility** (ruled
   2026-10-12). The engine guards the technical side only: every recipient is

@@ -223,6 +223,14 @@ read_notify_outbox `{ rule?, id? }`
   shows recipients, so it needs `manage_notifications`; a grant confined to
   some domains sees only their rules.
 
+retry_notify_outbox `{ rule?, id? }`
+: Retry now: make the events a notify rule has waiting (in backoff for minutes
+  after a transport failure), or one event by `id`, due at once - to test a mail
+  fix without posting fresh events. It only ends the wait: the outbox job still
+  sends them on its next run, so the per-recipient cap and a held message still
+  apply, an event already sent is not sent again, and one given up stays given
+  up. Needs `manage_notifications`.
+
 list_schedule / save_schedule `{ id, handler, every, payload }` / delete_schedule `{ id }`
 : What the timer calls: a handler, every so many seconds (300 or more), with
   fixed fields. Same capability rule as the handler it calls.

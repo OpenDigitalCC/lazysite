@@ -626,7 +626,7 @@ sub _process {
             my $mark = sub {
                 my ($state) = @_;
                 $done{$k} = 1;
-                _mark_ledger( $docroot, $ledger, { k => $k, r => $h->{id}, c => $ch, p => $p, s => $state, t => $now } );
+                _mark_ledger( $docroot, $ledger, { k => $k, r => $h->{id}, c => $ch, p => $p, s => $state, t => $now, e => $entry->{id} } );
             };
 
             # SM1073 (SM1010 R4): A RECIPIENT WHO STOPPED THIS RULE IS NOT
@@ -1066,7 +1066,15 @@ sub run {
             next;
         }
         my ( $state, $reason ) = _process( $docroot, $e, $h, \%ctx, $ledger, $accounts, $base );
-        if ( $state eq 'done' ) { unlink $path; push @done, $e->{id}; next }
+        if ( $state eq 'done' ) {
+            # SM1105: the ledger already says it went, so an entry that stays
+            # cannot go twice - but it must not stay unsaid.
+            unlink $path
+                or log_event( 'WARN', 'notify', 'could not remove a sent notification from the outbox',
+                rule => $e->{rule} // '', id => $e->{id} // '', why => "$!" );
+            push @done, $e->{id};
+            next;
+        }
         if ( $state eq 'failed' ) {
             _audit( $docroot, $ctx{actor}, $h->{id}, 'outbox', 0, "event $e->{id}", $reason );
             _fail_entry( $docroot, $path, $e, $reason );
@@ -1150,6 +1158,24 @@ sub _write_status {
     return;
 }
 
+# SM1105 (0.15.6 R2): what the ledger says went, per event: { id => 'sent' |
+# 'handled' } ('handled': refused, or folded into a held message - decided, not
+# sent). The ledger is what stops an event going twice, so it knows an entry the
+# job sent and could not remove (the unlink failed), which the list showed as
+# queued beside a rule row that said it had sent 3. An entry never retried was
+# handled whole in one pass, so a ledger row for it means it is not waiting.
+# Rows from before the event id was recorded say nothing here.
+sub _ledger_events {
+    my ($docroot) = @_;
+    my %by_event;
+    for my $l ( @{ _read_ledger($docroot) // [] } ) {
+        next unless defined $l->{e};
+        $by_event{ $l->{e} } = 'sent' if ( $l->{s} // '' ) eq 'sent';
+        $by_event{ $l->{e} } //= 'handled';
+    }
+    return \%by_event;
+}
+
 our $WAIT_AFTER = 180;    # three ticks of the job: past this, a queued event is waiting
 
 # Everything the outbox holds, read once: { ok => 1, entries => [...], held =>
@@ -1171,11 +1197,14 @@ sub _outbox_read {
         cannot_read( 'the failed notifications', $fdir );
         return { ok => 0, error => 'the failed notifications could not be read; see the log' };
     }
+    my %by_event = %{ _ledger_events($docroot) };
     my ( @entries, @held );
     for my $p (@$files) {
         my $e = _read_entry($p);
         next unless ref $e && !$e->{_torn};
-        push @entries, { %$e, state => ( ( $e->{attempts} // 0 ) > 0 ? 'retrying' : 'queued' ) };
+        my $state = ( $e->{attempts} // 0 ) > 0 ? 'retrying' : 'queued';
+        $state = $by_event{ $e->{id} // '' } if $state eq 'queued' && $by_event{ $e->{id} // '' };
+        push @entries, { %$e, state => $state };
     }
     for my $p (@$folds) {
         my $f = _read_entry($p);
@@ -1228,6 +1257,7 @@ sub rule_states {
     my %oldest;
     for my $e ( @{ $o->{entries} } ) {
         my $r = $row->( $e->{rule} // '' );
+        next if $e->{state} eq 'sent' || $e->{state} eq 'handled'; # SM1105: it went; the job could not remove it
         $r->{ $e->{state} eq 'failed' ? 'failed' : 'queued' }++;
         $r->{retrying}++ if $e->{state} eq 'retrying';
         next             if $e->{state} eq 'failed';
@@ -1294,11 +1324,103 @@ sub outbox_list {
     my $more = @entries > $MAX_LISTED ? @entries - $MAX_LISTED : 0;
     splice @entries, $MAX_LISTED if $more;
     my $oldest;
-    for ( grep { $_->{state} ne 'failed' } @entries ) { $oldest = $_->{due} if !defined $oldest || $_->{due} < $oldest }
+    for ( grep { $_->{state} ne 'failed' && $_->{state} ne 'sent' && $_->{state} ne 'handled' } @entries ) { $oldest = $_->{due} if !defined $oldest || $_->{due} < $oldest }
     my $w = _waiting( $o->{job}, $oldest, $now );
     return { ok => 1, entries => \@entries, held => \@held, ( $more ? ( not_listed => $more ) : () ),
-        job => { map { defined $o->{job}{$_} ? ( $_ => $o->{job}{$_} ) : () } qw(last_run outcome reason refusal_reason) },
+        job => { map { defined $o->{job}{$_} ? ( $_ => $o->{job}{$_} ) : () } qw(last_run outcome reason refusal_reason refused_at) },
         ( length $w ? ( waiting => $w ) : () ) };
+}
+
+# Retry now (SM1107, 0.15.6 test plan U8): "After a transport fix, entries sit in
+# backoff for minutes ... A 'retry now' for the operator would make a mail fix
+# testable without posting fresh events."
+#   outbox_retry( docroot => ..., id => <one event> | rule => <every waiting event of it>,
+#                 may_see => sub { $handler_or_undef } -> bool, now => ... )
+# makes the waiting (retrying) entries due now, and nothing else: the job still
+# sends them, on its next tick, under every rule it always applies - so the
+# per-recipient cap and a held fold are not bypassed (a held message is left
+# and counted), an entry the ledger says went is not made due again, and a
+# given-up one (failed) stays given up. The attempts are kept: an entry that
+# fails again is given up when it reaches the limit, as it would have been.
+# Returns { ok => 1, retried, already_due, sent, held, failed, ids } or
+# { ok => 0, kind, error }. It writes entries, so it takes the job's own lock;
+# while the job runs it answers busy rather than race it.
+sub outbox_retry {
+    my (%a)      = @_;
+    my $docroot  = $a{docroot};
+    my $now      = $a{now} // time;
+    my $may      = ref $a{may_see} eq 'CODE' ? $a{may_see} : sub { 1 };
+    my $has_rule = defined $a{rule} && length $a{rule};
+    my $has_id   = defined $a{id}   && length $a{id};
+    return { ok => 0, kind => 'invalid', field => 'rule', error => 'give a rule, or an event id' }
+        unless $has_rule || $has_id;
+    return { ok => 0, kind => 'invalid', field => 'rule', error => 'rule must be a handler id' }
+        if $has_rule && $a{rule} !~ /\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\z/;
+    return { ok => 0, kind => 'invalid', field => 'id', error => 'id must be an event id (16 hex characters)' }
+        if $has_id && $a{id} !~ /\A[0-9a-f]{16}\z/;
+
+    my $files = _entry_files($docroot);
+    return { ok => 0, error => 'the notification outbox could not be read; see the log' } unless defined $files;
+    my $folds = _fold_files($docroot);
+    return { ok => 0, error => 'the held notifications could not be read; see the log' } unless defined $folds;
+
+    require Lazysite::Handlers;
+    no warnings 'once';
+    local $Lazysite::Handlers::DOCROOT = $docroot;
+    my $handlers = Lazysite::Handlers::read_handlers();
+    return { ok => 0, error => 'lazysite/forms/handlers.conf could not be read; see the log' }
+        unless defined $handlers;
+    my %seen;
+    my $visible = sub {
+        my ($rule) = @_;
+        $rule //= '';
+        return 0 if $has_rule && $rule ne $a{rule};
+        $seen{$rule} //= $may->( Lazysite::Handlers::find_handler( $handlers, $rule ) ) ? 1 : 0;
+        return $seen{$rule};
+    };
+
+    my $dir = _lz_of($docroot) . '/notify';
+    eval { make_path($dir) unless -d $dir; 1 } or return { ok => 0, error => "cannot create the notify directory: $!" };
+    open my $lk, '>>', "$dir/.run.lock" or return { ok => 0, error => "cannot open the outbox lock: $!" };
+    return { ok => 0, kind => 'busy', error => 'the notification job is running; try again in a moment' }
+        unless flock $lk, LOCK_EX | LOCK_NB;
+
+    my $went = _ledger_events($docroot);
+    my %n    = ( retried => 0, already_due => 0, sent => 0, held => 0, failed => 0 );
+    my ( @ids, $found );
+    for my $p (@$files) {
+        my $e = _read_entry($p);
+        next unless ref $e && !$e->{_torn};
+        next if $has_id && ( $e->{id} // '' ) ne $a{id};
+        next unless $visible->( $e->{rule} );
+        $found++;
+        if ( ( $e->{attempts} // 0 ) == 0 && $went->{ $e->{id} // '' } ) { $n{sent}++; next }
+        if ( ( $e->{next_at} // 0 ) <= $now ) { $n{already_due}++; next }
+        $e->{next_at} = 0;
+        if ( _write_entry( $p, $e ) ) { $n{retried}++; push @ids, $e->{id} }
+        else { close $lk; return { ok => 0, error => "could not update the outbox entry '$e->{id}'; see the log" } }
+    }
+    unless ($has_id) {
+        for my $p (@$folds) {
+            my $f = _read_entry($p);
+            next unless ref $f && !$f->{_torn} && $visible->( $f->{rule} );
+            $n{held}++;
+        }
+    }
+    my $failed = failed_dir($docroot);
+    if ( opendir my $dh, $failed ) {
+        for my $leaf ( grep { /\.json\z/ } readdir $dh ) {
+            my $e = _read_entry("$failed/$leaf");
+            next unless ref $e && !$e->{_torn} && ref $e->{events} ne 'ARRAY';
+            next if $has_id && ( $e->{id} // '' ) ne $a{id};
+            if ( $visible->( $e->{rule} ) ) { $n{failed}++; $found++ }
+        }
+        closedir $dh;
+    }
+    close $lk;
+    return { ok => 0, kind => 'not-found', error => "no event '$a{id}' in the outbox you can see" }
+        if $has_id && !$found;
+    return { ok => 1, %n, ids => \@ids };
 }
 
 sub _entry_view {

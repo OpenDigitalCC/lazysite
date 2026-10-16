@@ -104,7 +104,9 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #        notification outbox, read only; it shows recipients.
     #   120, n571 (SM1053): accounts-import-remove, gated manage_users as staging
     #        is - the account that staged an import removes it, or the operator.
-    is( scalar keys %caps, 120, '120 actions are reachable with a token' )
+    #   121, SM1107: notify-outbox-retry, gated manage_notifications as the list beside it
+    #        is - it ends the backoff of what the outbox holds; the job still sends.
+    is( scalar keys %caps, 121, '121 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 

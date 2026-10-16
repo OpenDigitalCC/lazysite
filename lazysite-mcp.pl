@@ -1810,6 +1810,28 @@ my %TOOLS = (
                 } );
         },
     },
+    # SM1107 (0.15.6 U8): notify-outbox-retry's twin. It ends the backoff of what
+    # a rule has waiting; the job still sends it under the cap, so it needs
+    # manage_notifications alone, and a grant reaches only its own domains' rules.
+    retry_notify_outbox => {
+        description => 'Retry the notification outbox now: make the events a notify rule has waiting (retrying after a transport failure, in backoff for minutes) due at once, by `rule`, or one event by `id` (from read_notify_outbox). Use it after fixing the mail transport, to test the fix without posting fresh events. It only ends the wait: the outbox job still sends them on its next tick, so a recipient\'s per-recipient cap and a held message still apply, an event already sent is not sent again, and one given up (failed) stays given up. Needs manage_notifications.',
+        cap         => 'manage_notifications',
+        inputSchema => { type => 'object',
+            properties => {
+                rule => { type => 'string', description => 'every waiting event of this notify rule' },
+                id => { type => 'string', description => 'one event id' },
+            },
+            additionalProperties => JSON::PP::false },
+        run => sub {
+            require Lazysite::Outbox;
+            my %reach = _grant_reach( $_[2] );
+            return Lazysite::Outbox::outbox_retry( docroot => $DOCROOT, rule => $_[0]->{rule}, id => $_[0]->{id},
+                may_see => sub {
+                    !Lazysite::Manager::Common::handler_reach_refusal( %reach,
+                        old => ( $_[0] ? $_[0]{domain} // '' : '' ) );
+                } );
+        },
+    },
     list_schedule => {
         description => 'List the schedule: each entry names a handler, how often the timer calls it (every, in seconds) and the fixed fields it is called with (payload). Entries run as the daemon\'s job account, which must hold the capability of each handler\'s destination.',
         cap      => 'manage_forms',

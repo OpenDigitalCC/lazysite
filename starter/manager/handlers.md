@@ -845,7 +845,13 @@ function renderOutbox(notListed) {
       + (e.actor ? ' &middot; by ' + escHtml(e.actor) : '')
       + (e.attempts ? ' &middot; ' + escHtml(e.attempts) + ' attempt' + (e.attempts === 1 ? '' : 's') : '')
       + (why ? ' &middot; ' + escHtml(why) : '') + '</span>'
-      + '<span class="mg-row-actions">' + tag + ' ' + chev('outbox-list', key, e.rule + ' ' + e.id, 'Recipients') + '</span>'
+      // SM1107: a retrying entry sits in backoff for minutes after a transport fix;
+      // "Retry now" makes it due, and the job sends it on its next run.
+      + '<span class="mg-row-actions">' + tag + ' '
+      + (e.state === 'retrying'
+          ? '<button class="mg-btn mg-btn-change mg-btn-sm" data-impact="change" onclick="retryOutbox(\'' + escHtml(e.id) + '\')">Retry now</button> '
+          : '')
+      + chev('outbox-list', key, e.rule + ' ' + e.id, 'Recipients') + '</span>'
       + '</div>'
       + '<div class="mg-expand" id="exp-' + escHtml(key) + '" hidden></div>';
   });
@@ -861,6 +867,20 @@ function renderOutbox(notListed) {
   });
   if (notListed) rows.push('<div class="mg-empty">' + escHtml(notListed) + ' more not listed.</div>');
   el.innerHTML = rows.join('');
+}
+
+// SM1107: end the backoff of one waiting entry. It sends nothing itself - the job
+// does, under the per-recipient cap - so the answer says what became due.
+function retryOutbox(id) {
+  post('notify-outbox-retry', { id: id })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
+      showStatus(d.retried
+        ? 'Due now: the notification job sends it on its next run.'
+        : (d.sent ? 'Already sent; nothing to retry.' : 'Nothing was waiting for that event.'));
+      loadOutbox();
+    })
+    .catch(function(e) { showStatus('Retry failed: ' + e.message, true); });
 }
 
 BUILD['outbox-list'] = function(key) {
