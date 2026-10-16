@@ -53,6 +53,20 @@ Archive
 
 ## Unreleased
 
+- SM1090 (PENDING) **a failed save is audited as the save that failed.** The
+  0.15.5 test walk on edge found manager saves failing with "Permission
+  denied" and no save in the audit trail. A failed save was recorded as
+  `edit`, from a flag only a successful save carries; it now keeps the action
+  `save`, with `fail` and the write's reason. A save that left no row at all
+  was not reproduced here. t/unit/manager/343.
+- SM1091 (PENDING) **an acl-set audit row records the rule it wrote.** Every
+  acl-set row recorded the new rule as "no restriction" (row F7 of the 0.15.5
+  test walk): the after-state was built from the request, whose lists may be
+  strings. It now records the rule as stored, single and list form alike; the
+  list form targets `/path`, a refused list names the paths it asked about,
+  and the list result carries the read-without-write warning.
+  t/unit/manager/344.
+
 ## 0.15.6 - EDGE: an operator can add an operator, and a refused switch says why (2026-10-16)
 
 - SM1088 (d3090a84) **internal: the swap margin guards the coverage stage
