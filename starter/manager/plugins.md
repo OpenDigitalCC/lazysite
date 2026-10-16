@@ -33,7 +33,39 @@ function esc(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-function warn(msg) { var el = document.getElementById('plugin-status'); if (el) { el.textContent = msg || ''; el.style.display = msg ? '' : 'none'; } }
+// SM1084: a refusal is styled as one (mg-status-error), not in the muted
+// colour of a progress line.
+function warn(msg, isError) {
+  var el = document.getElementById('plugin-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.display = msg ? '' : 'none';
+  el.classList.toggle('mg-status-error', !!(msg && isError));
+}
+// SM1084: A REFUSED TOGGLE SAYS WHY AT THE ROW. The reason went only to the
+// status line at the top of the page, above the list, in muted text - so an
+// operator toggling an extension further down saw the switch spring back and
+// nothing else ("the toggle just springs back - it should explain why it wont
+// enable"). The server's sentence names what is missing and how to install
+// it; this puts it under the extension it is about, where the eye already is.
+function showRowRefusal(input, msg) {
+  var row = input.closest('.mg-plugin-row');
+  var main = row && row.querySelector('.mg-plugin-main');
+  if (!main) return;
+  var note = main.querySelector('.mg-plugin-refusal');
+  if (!note) {
+    note = document.createElement('div');
+    note.className = 'mg-note mg-note-danger mg-plugin-refusal';
+    note.setAttribute('role', 'alert');
+    main.appendChild(note);
+  }
+  note.textContent = msg;
+}
+function clearRowRefusal(input) {
+  var row = input.closest('.mg-plugin-row');
+  var note = row && row.querySelector('.mg-plugin-refusal');
+  if (note) note.parentNode.removeChild(note);
+}
 
 function loadPluginRegistry() {
   fetch(API + '?action=extension-list').then(function (r) { return r.json(); }).then(function (data) {
@@ -93,6 +125,7 @@ function renderPluginRegistry(plugins) {
 function togglePlugin(input, script, name) {
   var action = input.checked ? 'extension-enable' : 'extension-disable';
   input.disabled = true;
+  clearRowRefusal(input);
   fetch(API + '?action=' + action, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: script })
@@ -106,7 +139,9 @@ function togglePlugin(input, script, name) {
       // reading that while trying to enable concludes the UI has lost track of
       // the switch, and the real reason, which is in this same banner, gets read
       // as noise. `action` was computed before the revert and is the truth.
-      warn('Failed to ' + (action === 'extension-enable' ? 'enable' : 'disable') + ' ' + name + ': ' + (data.error || 'unknown'));
+      var why = 'Failed to ' + (action === 'extension-enable' ? 'enable' : 'disable') + ' ' + name + ': ' + (data.error || 'unknown');
+      warn(why, true);
+      showRowRefusal(input, why);
     } else {
       // A plugin may run a setup/teardown step with its toggle (on_enable /
       // on_disable) - its outcome IS the news, so show it here.
@@ -117,7 +152,8 @@ function togglePlugin(input, script, name) {
       loadPluginRegistry();
     }
   }).catch(function (e) {
-    input.disabled = false; input.checked = !input.checked; warn('Error: ' + e.message);
+    input.disabled = false; input.checked = !input.checked;
+    warn('Error: ' + e.message, true); showRowRefusal(input, 'Error: ' + e.message);
   });
 }
 

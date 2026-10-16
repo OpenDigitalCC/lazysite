@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1084 (PENDING) **a refused extension toggle says why at the row.** "the
+  toggle just springs back - it should explain why it wont enable" (release
+  manager, 2026-10-16, enabling Odoo without the OOM package). The reason went
+  only to the muted status line at the top of the Extensions page. It now
+  appears under the extension's own row as an alert, and the status line is
+  styled as an error. t/unit/manager/341.
+- SM1085 (PENDING) **an extension config field shows its note.** The Configure
+  form never drew a field's `note`, on any extension. Each note is now an info
+  mark beside its label. Odoo's timeout gained one, and "Extra operation packs"
+  says what a pack is and when to leave it blank. t/unit/manager/342.
+
 ## 0.15.5 - EDGE: a signed-in account reaches only what its grants allow (2026-10-16)
 
 - SM1083 (4f01c464) **internal: coverage for stable only.** "coverage run for

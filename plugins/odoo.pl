@@ -57,7 +57,9 @@ sub describe {
                     . 'bound every operation run through it; lazysite grants it nothing. '
                     . 'Its API key is set separately and never shown.' },
             { key => 'odoo_timeout', label => 'Timeout per call (seconds)', type => 'text',
-                default => '30' },
+                default => '30',
+                note    => 'How long one call to Odoo may take before it is given up and '
+                    . 'the page told so.' },
             { key => 'odoo_max_kb', label => 'Largest answer accepted (KB)', type => 'text',
                 default => '2048',
                 note    => 'An answer over this is refused by name rather than read.' },
@@ -71,8 +73,11 @@ sub describe {
                     . 'asked of Odoo again (60 to 86400). Presentation only: never what a person '
                     . 'may do.' },
             { key => 'odoo_packs', label => 'Extra operation packs', type => 'text',
-                note => 'Perl namespaces of installed operation packs beyond OOM\'s own, '
-                    . 'comma separated.' },
+                note => 'Leave blank unless you have installed an extra OOM operation pack. '
+                    . 'An operation pack is a set of named Odoo operations (list, plan, apply); '
+                    . 'OOM ships its own. Name each extra pack by its Perl namespace, comma '
+                    . 'separated (for example Example::Odoo::Ops), and its operations become '
+                    . 'callable by name from pages and agents beside OOM\'s.' },
         ],
 
         owns => {

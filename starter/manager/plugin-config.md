@@ -344,7 +344,14 @@ function renderForm(plugin, values) {
     var sw = f.show_when;
     var da = sw ? ' data-show-key="'+sw.key+'" data-show-val="'+sw.value.join(',')+'"' : '';
     html += '<div class="mg-field mg-config-field"'+da+'>';
-    html += '<label>' + esc(f.label) + '</label>';
+    // SM1085: a field's `note` is its explanation, and this page never drew it -
+    // every extension's descriptor carried notes nobody could read, so a label
+    // like "Extra operation packs" stood alone. It shows as the same info mark
+    // the Extensions page uses: hover or focus it for the text.
+    html += '<label>' + esc(f.label)
+      + (f.note ? ' <span class="mg-info" tabindex="0" role="img" aria-label="' + esc(f.note)
+        + '" title="' + esc(f.note) + '">&#9432;</span>' : '')
+      + '</label>';
     if (f.type === 'select') {
       html += '<select name="'+f.key+'" onchange="applyShowWhen(this.form)">';
       (f.options||[]).forEach(function(o) { html += '<option'+(v===o?' selected':'')+'>'+o+'</option>'; });
