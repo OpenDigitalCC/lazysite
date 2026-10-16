@@ -504,6 +504,15 @@
       if (t.hasAttribute('data-notif-all')) {
         seen('').then(function(d){
           if (d && d.ok) { notices.forEach(function(n){ n.read = true; }); setBadge(0); render(); }
+          // SM1100: a mark that was not saved says so, here, rather than
+          // leaving the operator to find the notices unread on the next page.
+          else if (d && d.error) {
+            var note = document.createElement('div');
+            note.className = 'mg-notif-item mg-note mg-note-danger';
+            note.setAttribute('role', 'alert');
+            note.textContent = d.error;
+            panel.insertBefore(note, panel.firstChild);
+          }
         }).catch(function(){});
       } else if (t.hasAttribute('data-notif-dismiss')) {
         var id = t.getAttribute('data-notif-dismiss');

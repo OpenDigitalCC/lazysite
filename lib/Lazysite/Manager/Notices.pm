@@ -21,7 +21,7 @@ use warnings;
 use JSON::PP qw(encode_json decode_json);
 use Digest::SHA qw(sha1_hex);
 use Exporter 'import';
-use Lazysite::Util  qw(cannot_read);
+use Lazysite::Util  qw(cannot_read log_event);
 use Lazysite::Paths ();
 # SM944 S23: the gate reads the request context; Common sets none of it here.
 use Lazysite::Manager::Common qw($auth_user $token_auth %token_caps _user_caps);
@@ -286,9 +286,28 @@ sub action_notices_seen {
     }
     $h->{$principal} = $e;
 
-    if ( open my $wf, '>', _notices_seen_path() ) {
-        print {$wf} encode_json($h);
-        close $wf;
+    # SM1100: THE MARK IS KEPT, OR THE ANSWER SAYS IT WAS NOT. This wrote with a
+    # bare open '>' and answered ok whether or not the file opened. On edge the
+    # marker belonged to another account than the web server's, the open failed,
+    # and "Mark all read" cleared the bell on screen and came back on the next
+    # page (release manager, 2026-10-16). Written as a sibling and renamed over
+    # the marker, which the group-writable logs/ allows whoever owns the file;
+    # a write that still fails is an error with its reason.
+    my $path = _notices_seen_path();
+    my $tmp  = "$path.$$.tmp";
+    my $wf;
+    my $wrote = open( $wf, '>:raw', $tmp )
+        && ( print {$wf} encode_json($h) )
+        && close($wf);
+    my $err = "$!";
+    if ( $wrote && ( my @st = stat $path ) ) { chmod $st[2] & 07777, $tmp }
+    unless ( $wrote && rename $tmp, $path ) {
+        $err = "$!" if $wrote;
+        unlink $tmp;
+        log_event( 'ERROR', 'notices', 'seen-marker not written', path => $path, error => $err );
+        return { ok => 0, kind => 'not-saved',
+            error => "Your read marks were not saved: $path could not be written ($err). "
+                . 'The bell will show these notices as unread again. Run: lazysite check --fix' };
     }
     my $unread = grep { !$e->{dismissed}{ $_->{id} } && !_is_read( $e, $_ ) } @$notices;
     return { ok => 1, unread => $unread + 0 };

@@ -1748,7 +1748,7 @@ our %REFUSAL_STATUS = (
     # a runtime reason and could never match a key here. The refusal carries
     # `reason` for which fault it was; see Data::Tables.
     ( map { $_ => '500 Internal Server Error' }
-            qw(render-failed snapshot-failed no-cgi-headers empty-render store-uninspectable) ),
+            qw(render-failed snapshot-failed no-cgi-headers empty-render store-uninspectable not-saved) ),
     # SM906 T3: an auth store exists and the web server cannot read it, so the
     # engine cannot tell what the caller may do. Not 403 - nothing was decided
     # about the caller - and not 500: the host is up and says exactly which

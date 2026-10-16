@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1100 (PENDING) **Mark all read is kept, or the bell says it was not.** On
+  edge, Mark all read cleared the bell and the notices came back unread on the
+  next page (release manager, 2026-10-16). The read marker was written with a
+  bare open that failed where the file belonged to another account, and the
+  action answered ok regardless. It is now written by renaming a new file over
+  the old one, and a write that fails is an error the bell shows.
+  t/unit/lib/202.
+
 ## 0.15.7 - EDGE: a folder delete deletes, and a signed-out visit is not an event (2026-10-16)
 
 - SM1098 (0f8444a7) **a declared lazysite-agent is counted as a bot, not a
