@@ -4804,6 +4804,18 @@ sub _may_confer {
     my $caps = eval { caps_for($actor) } || {};
     return 1 if $caps->{$cap};    # holds it: may confer it
 
+    # SM1086: THE OPERATOR FLAG IS HELD BY THE OPERATOR. `manager` is a group
+    # flag, not one of @CAP_KEYS, so caps_for never reports it - and the
+    # granted side (_caps_granted_by_group_attributed) does count it. So
+    # "holds it: may confer it" could never be true of `manager`, and no
+    # signed-in account could add anyone to the operator group, the operator
+    # included: "You cannot add anyone to 'sysops': it grants 'manager'"
+    # (release manager on edge, 2026-10-16, as a sysops member). An operator
+    # holds the flag through its membership, so it may confer it; a
+    # manage_users holder outside the operator group still may not (SM991).
+    return 1
+        if $cap eq 'manager' && Lazysite::Auth::Settings::account_is_operator($actor);
+
     # SM268 02-5: the CLOSURE, not direct membership. caps_for above walks the
     # compound-group closure, so a capability held through nesting counts as
     # held; `grantable` read direct membership only, and the two halves of this

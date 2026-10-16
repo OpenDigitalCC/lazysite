@@ -63,6 +63,12 @@ Archive
   form never drew a field's `note`, on any extension. Each note is now an info
   mark beside its label. Odoo's timeout gained one, and "Extra operation packs"
   says what a pack is and when to leave it blank. t/unit/manager/342.
+- SM1086 (PENDING) **an operator may add someone to the operator group.** A
+  sysops member was refused "it grants 'manager', which you may not confer"
+  (release manager on edge, 2026-10-16). The operator flag is not one of the
+  capabilities `caps_for` reports, so no signed-in account could ever be shown
+  to hold it. An operator now counts as holding it; a `manage_users` holder
+  outside the operator group is still refused (SM991). t/unit/users/51.
 
 ## 0.15.5 - EDGE: a signed-in account reaches only what its grants allow (2026-10-16)
 
