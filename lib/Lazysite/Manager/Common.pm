@@ -724,9 +724,20 @@ sub domain_reach_refusal {
         ( $h eq '' || $h eq '(default)' ) ? 'the primary site' : "the domain '$h'";
         };
     my @mine  = reachable_domains(%who);
-    my $scope = @scopes
-        ? 'its scope (' . join( ', ', map { ( my $x = $_ ) =~ s{^/+|/+$}{}g; "$x/" } @scopes ) . ')'
-        : 'no scope';
+    # SM1095: a caller with no scope is not confined to a domain's content (R3,
+    # "Keep for primary"), so formatting its empty scope list read as nonsense
+    # to an account whose brief says "Content scope: whole docroot". Say what is
+    # true of it: the primary and the domains serving the primary's content are
+    # its reach; a domain with a content root of its own needs a scope.
+    unless (@scopes) {
+        return { ok => 0, kind => 'forbidden', domains => \@mine,
+            error => "You cannot reach $what. This caller names no scope, so it is not confined "
+                . "to a domain's content and reaches only the instance's default domain and the "
+                . "domains that serve its content; a domain with a content root of its own needs "
+                . 'a scope that covers that root'
+                . ( @mine ? '. It reaches: ' . join( ', ', @mine ) . '.' : '.' ) };
+    }
+    my $scope = 'its scope (' . join( ', ', map { ( my $x = $_ ) =~ s{^/+|/+$}{}g; "$x/" } @scopes ) . ')';
     return { ok => 0, kind => 'forbidden', domains => \@mine,
         error => "You cannot reach $what. A domain-confined caller reaches only the "
             . "domains whose content lies inside $scope"
