@@ -519,7 +519,7 @@ function renderSiteForm(values) {
       // Shows the current value (or "(not set)") and a small
       // link that points at f.link_href. The field is NOT
       // part of the submitted form — no <input name>, so
-      // plugin-save doesn't see it.
+      // extension-save doesn't see it.
       // Show the effective value: the configured one, or the field default
       // (e.g. the standard layouts repo) so it never reads "(not set)" when
       // a sensible default is in force.
@@ -616,7 +616,7 @@ function saveSiteSettings_go(values) {
 
   // SM042: the whole site-settings page now persists via the control API's
   // per-key config-set (each key validated + audited by the API) - NOT the
-  // lazysite pseudo-plugin's plugin-save. Only CHANGED, settable keys are
+  // lazysite pseudo-plugin's extension-save. Only CHANGED, settable keys are
   // written; readonly_with_link fields (layout/theme/layouts_repo, managed on
   // Appearance) are never sent. CSRF is added by the manager's fetch wrapper.
   var settable = {};
@@ -679,8 +679,8 @@ function saveSiteSettings_go(values) {
 
 // SM042: site settings load (config-read) and save (per-key config-set) go
 // straight through the control API. The old indirection - discovering the
-// processor as a pseudo-plugin (id 'lazysite') via plugin-list, then
-// plugin-read/plugin-save - is retired; SITE_SCHEMA below is now the sole source
+// processor as a pseudo-plugin (id 'lazysite') via extension-list, then
+// extension-read/extension-save - is retired; SITE_SCHEMA below is now the sole source
 // of truth for the form, and config-set's allow-list is the sole gate on writes.
 loadSiteSettings();
 </script>
