@@ -321,6 +321,9 @@ our %TYPES      = (
             { key => 'signin_addresses_deny', label => 'Session binding: never from (address lists)', type => 'text',
                 note => 'Optional, session bindings only: names of DENY address lists. A call of '
                     . 'this binding from one of these addresses is refused.' },
+            { key => 'rows_max', label => 'Cap: rows in a list a request gives', type => 'number',
+                note => 'Optional. A parameter the operation declares as a list of rows has a cap '
+                    . 'of its own; this can only lower it, for this binding.' },
             { key => 'rate_per_visitor_hour', label => 'Cap: runs per visitor per hour',
                 type => 'number', default => '20' },
             { key => 'rate_per_hour', label => 'Cap: runs of this binding per hour',

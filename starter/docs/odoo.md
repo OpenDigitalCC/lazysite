@@ -137,9 +137,32 @@ says what a request may set and who may cause it:
   and carries no control characters. The page endpoint refuses a field the
   binding does not map; a form drops it.
 
+  A parameter the operation declares as **`rows`** (OOM 0.32: a list of small
+  rows of plain values, such as a quotation's lines, with a `max` count) takes
+  a JSON **array of flat objects** in the request's body, the field's value
+  being the array itself:
+  `{"binding": "quote", "params": {"lines": [{"product_id": 7, "qty": 3}]}}`.
+  Before anything is sent to Odoo each row is checked against the operation's
+  declaration (no more than `max` rows, only the declared keys, every required
+  key present, each value of its type, no nesting) and each value passes the
+  plain-value rule above. Any failure refuses the whole call as `invalid`,
+  naming the row number and the key (`'lines' row 2: key 'qty' must be int`).
+  A form or a query string cannot carry one, since they post text.
+
+  Two declarations are not offered to a request, and saving the binding says
+  so by naming the parameter: a `rows` parameter with no `max`, and one whose
+  `row` is a description rather than a list of keys (`core.make`'s
+  `lines.<field>`, whose keys are known only when the change is planned). The
+  operator may still fix either with `fixed:`.
+
+`rows_max`
+: Optional. A whole number that lowers the cap on a `rows` parameter for this
+  binding; it cannot raise the operation's own `max`.
+
 `fixed`
 : `parameter=value`, comma separated. Set by the operator; nothing a request
-  sends overrides one. A `json` or `list` parameter can only be fixed. A `path`
+  sends overrides one. A `json` or `list` parameter can only be fixed (a
+  request feeds a list only as a declared `rows` parameter, above). A `path`
   parameter cannot be set by a binding at all.
 
 `visitor_param`

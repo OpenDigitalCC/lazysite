@@ -15,7 +15,10 @@ package Lazysite::Odoo::Binding;
 #                  operation declares as a plain value (str, int, bool). A json,
 #                  list or path parameter is a domain, a set or a file on this
 #                  server: it can be FIXED by the operator and never fed by a
-#                  visitor. That is the parameter-injection line.
+#                  visitor. That is the parameter-injection line. ONE more type
+#                  may be fed (SM1166): `rows`, OOM 0.32's declared list of
+#                  small rows of plain values with a cap - no row value is
+#                  anything but a plain value, so it cannot hold a domain.
 #   fixed          `parameter=value` - the operator's, and the request cannot
 #                  override one.
 #   visitor_param  the parameter that receives the visitor's key - minted by
@@ -52,6 +55,9 @@ my $OP    = qr/\A[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+\z/;
 
 # The types a request may feed. Everything else is the operator's to fix.
 our %FROM_INPUT = map { $_ => 1 } qw(str int bool);
+
+# SM1166: the type a request may feed as a LIST, checked row by row.
+our $ROWS = 'rows';
 
 # How long a plain value from a request may be. A basket line is a few
 # characters; this bounds what a script can push through one parameter.
@@ -174,6 +180,15 @@ sub parse {
         $b{$k} = \@n;
     }
 
+    # SM1166: the binding's own cap on a rows parameter, which can only LOWER the
+    # one the operation declares. Unset: the operation's cap stands.
+    my $rm = $h->{rows_max};
+    if ( defined $rm && length $rm ) {
+        return ( undef, 'rows_max must be a whole number of at least 1', 'rows_max' )
+            unless $rm =~ /\A[1-9][0-9]{0,5}\z/;
+        $b{rows_max} = 0 + $rm;
+    }
+
     for my $k (qw(rate_per_visitor_hour rate_per_hour)) {
         my $v = $h->{$k};
         $v = $k eq 'rate_per_hour' ? 200 : 20 unless defined $v && length $v;
@@ -209,9 +224,23 @@ sub check_against {
             if ( $d->{type} // 'str' ) eq 'path';
     }
     for my $p ( sort values %{ $b->{params} } ) {
-        my $t = param_decl( $spec, $p )->{type} // 'str';
-        return "parameter '$p' is $t - a request may feed only a plain value (str, int, bool); "
-            . 'fix it with fixed: instead'
+        my $d = param_decl( $spec, $p );
+        my $t = $d->{type} // 'str';
+        if ( $t eq $ROWS ) {
+
+            # SM1166 R2: a list a request fills must say how long it may be, and
+            # which keys a row has - or there is nothing to hold it to.
+            return "parameter '$p' is rows and declares no max - a request may feed a list only "
+                . 'when the operation caps it (a whole number of at least 1)'
+                unless defined $d->{max} && !ref $d->{max} && $d->{max} =~ /\A[1-9][0-9]*\z/;
+            return "parameter '$p' is rows whose row keys are not known until the change is "
+                . 'planned (the operation describes them in words) - a request cannot be checked '
+                . 'against them, so only the operator may fix it with fixed: instead'
+                unless ref $d->{row} eq 'HASH' && %{ $d->{row} };
+            next;
+        }
+        return "parameter '$p' is $t - a request may feed only a plain value (str, int, bool) "
+            . 'or a declared list of rows; fix it with fixed: instead'
             unless $FROM_INPUT{$t};
     }
     my %covered = map { $_ => 1 } values %{ $b->{params} }, keys %{ $b->{fixed} },
@@ -241,6 +270,43 @@ sub check_against {
 # Every value from the request is checked against the operation's declared type
 # HERE, before OOM is called, so a refusal names the field the visitor sent
 # rather than an operation parameter they have never heard of.
+# The plain-value rule, once: the length limit and no control character. Returns
+# the complaint without the field's name, or ''.
+sub _plain_problem {
+    my ($v) = @_;
+    return "is longer than $MAX_VALUE characters" if length $v > $MAX_VALUE;
+    return 'contains a control character' if $v =~ /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
+    return '';
+}
+
+# SM1166: a request's list of rows for parameter $p, as ( \@rows, '' ) or
+# ( undef, why ). OOM's check_rows first (count, keys, types, nesting - and it
+# names the row and the key), then the plain-value rule on every value OOM
+# passed, so a row value is held to what a single request value is. Any failure
+# refuses the whole call.
+sub _rows {
+    my ( $b, $class, $decl, $field, $v ) = @_;
+    return ( undef, "'$field' must be a list of rows (a JSON array of objects)" ) unless ref $v eq 'ARRAY';
+    my %d = %$decl;
+    $d{max} = $b->{rows_max} if defined $b->{rows_max} && $b->{rows_max} < $d{max};
+    # Called on the operation's own class (an Odoo::Ops::Operation), as OOM documents it.
+    my $rows = eval { $class->check_rows( \%d, $v, "'$field'" ) };
+    unless ($rows) {
+        my $e = $@;
+        return ( undef, ref $e && $e->can('message') ? $e->message : "'$field' is not a valid list of rows" );
+    }
+    my $n = 0;
+    for my $r (@$v) {
+        $n++;
+        for my $k ( sort keys %$r ) {
+            next if !defined $r->{$k} || ref $r->{$k};
+            my $why = _plain_problem( $r->{$k} );
+            return ( undef, "'$field' row $n: '$k' $why" ) if length $why;
+        }
+    }
+    return ( $rows, '' );
+}
+
 sub assemble {
     my ( $b, $class, $input, %o ) = @_;
     $input = {} unless ref $input eq 'HASH';
@@ -254,13 +320,23 @@ sub assemble {
 
     for my $field ( sort keys %{ $b->{params} } ) {
         next unless exists $input->{$field};
-        my $v = $input->{$field};
-        my $p = $b->{params}{$field};
-        my $t = ( param_decl( $spec, $p ) || {} )->{type} // 'str';
+        my $v    = $input->{$field};
+        my $p    = $b->{params}{$field};
+        my $decl = param_decl( $spec, $p ) || {};
+        my $t    = $decl->{type} // 'str';
+        if ( $t eq $ROWS ) {
+            next unless defined $v;
+            return ( undef, "'$field' cannot be given by a request" )
+                unless ref $decl->{row} eq 'HASH' && defined $decl->{max};
+            my ( $rows, $rwhy ) = _rows( $b, $class, $decl, $field, $v );
+            return ( undef, $rwhy ) unless $rows;
+            $out{$p} = $rows;
+            next;
+        }
         return ( undef, "'$field' must be a single value" ) if ref $v;
         next unless defined $v;
-        return ( undef, "'$field' is longer than $MAX_VALUE characters" ) if length $v > $MAX_VALUE;
-        return ( undef, "'$field' contains a control character" ) if $v =~ /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
+        my $plain = _plain_problem($v);
+        return ( undef, "'$field' $plain" )                 if length $plain;
         return ( undef, "'$field' must be a whole number" ) if $t eq 'int' && $v !~ /\A-?[0-9]{1,15}\z/;
         return ( undef, "'$field' must be yes or no" )
             if $t eq 'bool' && $v !~ /\A(?:1|0|yes|no|true|false)\z/i;
