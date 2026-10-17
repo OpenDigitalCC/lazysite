@@ -76,6 +76,11 @@ page paths, acl paths, group names, the conf key. `--force` (CLI) / `force: true
 forced); still named by ...`. A rule store that cannot be read refuses too,
 because it cannot say nothing names the list.
 
+The Address lists page shows the in-use refusal in the server's words (where the
+list is named) with **Delete anyway** and **Keep the list**, to the operator only.
+Delete anyway confirms a second time, saying an allow rule naming a deleted list
+admits nobody, and then sends `force: true` for that list (t/unit/manager/361).
+
 `lib/Lazysite/Auth/AddressRefs.pm` is the one reader of where the rules are; the
 check and the guard both use it, so they cannot disagree about "in use". It reads
 the contract's field names directly and does not depend on the slices that enforce
@@ -90,5 +95,4 @@ and a root written as an absolute path.
 
 # Left open
 
-- The manager's Address lists page shows the refusal text but has no "delete
-  anyway" control; the API takes `force`.
+Nothing.

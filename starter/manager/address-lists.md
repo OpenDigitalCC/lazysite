@@ -18,6 +18,16 @@ search: false
 <div class="mg-card-body">
 <div class="mg-list" id="lists"><div class="mg-empty">Loading...</div></div>
 <div class="mg-toolbar"><button class="mg-btn mg-btn-primary" id="new-btn" data-impact="commit" hidden>New list</button></div>
+<!-- SM1141 (finished when the SM1134 slices were stacked): a list a rule still names
+     is refused with where it is named; the operator may delete it anyway, after a
+     second confirmation, and the server audits what still refers to it. -->
+<div class="mg-note mg-note-warn" id="in-use" hidden>
+<p id="in-use-text"></p>
+<div class="mg-toolbar">
+<button class="mg-btn mg-btn-danger" id="force-btn" data-impact="destroy" onclick="forceDelete()">Delete anyway</button>
+<button class="mg-btn" id="keep-btn" data-impact="inert" onclick="hideInUse()">Keep the list</button>
+</div>
+</div>
 </div>
 </div>
 
@@ -190,16 +200,47 @@ function saveList() {
     .catch(function(e) { fail('The list was not saved: ' + e.message); });
 }
 
+var inUse = '';     // the list the server refused to delete because a rule names it
+
 function deleteList(name) {
   if (!confirm('Delete the address list ' + name + '? A rule that names it will find no such list.')) return;
+  sendDelete(name, false);
+}
+
+// The server's in-use refusal says where the list is named. Only the operator
+// (canEdit) is offered the way past it; the server holds force to the operator too.
+function showInUse(name, error) {
+  inUse = name;
+  document.getElementById('in-use-text').textContent = error;
+  document.getElementById('in-use').hidden = !canEdit;
+}
+
+function hideInUse() {
+  inUse = '';
+  document.getElementById('in-use').hidden = true;
+}
+
+function forceDelete() {
+  var name = inUse;
+  if (!name) return;
+  if (!confirm('Delete ' + name + ' anyway? An allow rule that still names it will admit nobody, '
+    + 'so what it guards closes to every address.')) return;
+  sendDelete(name, true);
+}
+
+function sendDelete(name, force) {
+  var body = { name: name };
+  if (force) body.force = true;
   fetch(API + '?action=address-list-delete', {
     method: 'POST', credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name })
+    body: JSON.stringify(body)
   })
     .then(function(res) { return res.json(); })
     .then(function(d) {
+      if (!d.ok && d.kind === 'in-use' && !force) { showInUse(name, d.error || 'The list is still in use.'); return; }
       if (!d.ok) { fail(d.error || 'The list was not deleted.'); return; }
+      hideInUse();
       if (editing === name) { editing = ''; document.getElementById('editor').hidden = true; }
       loadLists();
     })
