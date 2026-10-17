@@ -31,7 +31,8 @@ sub fresh_site {
     print $c "site_name: T\nmanager: enabled\nauth_proxy_trusted: true\nauth_proxy_trusted_from: 127.0.0.1\n";
     close $c;
     open my $g, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
-    print $g '{"admins":{"label":"Admins","ui":1}}';
+    # SM1135: the proxy names the group, so it grants ui only because the operator marked it.
+    print $g '{"admins":{"label":"Admins","ui":1,"directory_grants":1}}';
     close $g;
     open my $m, '>', "$d/manager/config.md" or die $!;
     print $m "---\ntitle: Site settings\nauth: manager\n---\nSETTINGS-BODY\n";

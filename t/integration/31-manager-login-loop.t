@@ -34,7 +34,8 @@ close $nf;
 # the bootstrap-grace "any authenticated user is a manager" path is off) and a
 # separate mcp-only group that does NOT.
 open my $gs, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
-print $gs '{"admins":{"label":"Admins","ui":1},"mcp":{"label":"MCP","mcp":1}}';
+# SM1135: the proxy names the group, so it grants ui only because the operator marked it.
+print $gs '{"admins":{"label":"Admins","ui":1,"directory_grants":1},"mcp":{"label":"MCP","mcp":1}}';
 close $gs;
 
 # --- authenticated mcp-only account at /manager/ -> terminal 403, NOT a loop ----

@@ -705,7 +705,10 @@ sub _is_operator {
     }
     # SM1131: the one identity reader (configured header names, one separator,
     # directory names mapped), not a read of the fixed X-Remote-Groups here.
-    my @ug = @{ Lazysite::Auth::Identity::request_identity( ( defined $DOCROOT ? ( lazysite_dir => _lz() ) : () ) )->{groups} };
+    # SM1135: a group a trusted proxy named counts toward operator status only if the
+    # operator marked it `directory_grants` (R1); a cookie identity is unfiltered.
+    my @ug = Lazysite::Auth::Settings::request_cap_groups(
+        Lazysite::Auth::Identity::request_identity( ( defined $DOCROOT ? ( lazysite_dir => _lz() ) : () ) ) );
     return 1 if @ug && Lazysite::Auth::Settings::groups_are_operator(@ug);
 
     # A site where no group grants manager access at all is unsecured/dev: any

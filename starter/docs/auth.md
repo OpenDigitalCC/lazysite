@@ -732,8 +732,10 @@ The 403 page is never cached.
 
 ## External auth proxy
 
-Any reverse proxy that sets HTTP headers works with lazysite. The
-processor reads these headers by default:
+Any reverse proxy that sets HTTP headers works with lazysite; the settings, the
+conditions that make it safe and a worked example are in
+[Behind an identity provider](/docs/behind-an-identity-provider). The processor
+reads these headers by default:
 
 - `X-Remote-User` - username
 - `X-Remote-Name` - display name
@@ -816,5 +818,6 @@ one visitor's name to the next.
 
 ## Further reading
 
+- [Behind an identity provider](/docs/behind-an-identity-provider)
 - [Upgrading to external auth](/docs/auth-upgrade)
 - [Auth feature reference](/docs/features/configuration/auth)

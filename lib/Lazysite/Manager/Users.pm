@@ -336,10 +336,12 @@ sub action_users {
     # of "Not authorised to manage 'X'" when an operator generates a setup
     # link for a user it owns through the tree but did not directly create.
     # created_by still defaults to the actor so a new account has an owner.
+    my $req_act = '';    # SM1135: the action asked, for the answer below
     if ( length $request_body ) {
         my $parsed = eval { decode_json($request_body) };
         if ( ref $parsed eq 'HASH' ) {
             my $act = $parsed->{action} // '';
+            $req_act = $act;
             return { ok => 0, error => "claim-redeem is not a manager action" }
                 if $act eq 'claim-redeem';
 
@@ -500,6 +502,14 @@ sub action_users {
     if ( ref $result eq 'HASH' && $result->{ok}
         && exists $result->{users} && exists $result->{groups} ) {
         $result->{me} = $auth_user;
+    }
+
+    # SM1135: the Groups page offers the `directory_grants` tick to the operator
+    # alone, and has no way to tell who is asking (the users tool is told no
+    # actor for a read). The server refuses the write from anyone else whatever
+    # the page shows; this only keeps a control the caller may not use out of view.
+    if ( $req_act eq 'group-settings-get' && ref $result eq 'HASH' && $result->{ok} ) {
+        $result->{viewer_operator} = ( !$token_auth && _operator() ) ? JSON::PP::true() : JSON::PP::false();
     }
 
     # SM778: the logins this response hands back, named.

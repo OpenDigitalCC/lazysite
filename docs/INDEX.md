@@ -206,6 +206,7 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 | [`auth-upgrade.md`](auth-upgrade.md) - Upgrading to external auth | Replace built-in auth with Authentik, Authelia, or another proxy. |
 | [`auth.md`](auth.md) - Authentication | Protect pages with built-in auth or an external proxy. |
 | [`authoring.md`](authoring.md) - Authoring | How to create and edit pages - the short version. |
+| [`behind-an-identity-provider.md`](behind-an-identity-provider.md) - Behind an identity provider | Let a proxy in front of the site sign visitors in, and say who may do what with the groups it sends. |
 | [`configuration.md`](configuration.md) - Configuration | Layouts, navigation, site variables, forms, auth, and extensions. |
 | [`connectors.md`](connectors.md) - Connectors | A reusable, credentialed destination that forms, callers and jobs send site data through - and where what comes back is kept. |
 | [`data-tables.md`](data-tables.md) - Data tables | Tables a site declares and holds - a product list, an events calendar, a directory - read on a page like any other variable. |
@@ -228,4 +229,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*113 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*114 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*

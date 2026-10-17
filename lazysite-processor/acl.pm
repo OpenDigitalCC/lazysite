@@ -11,7 +11,8 @@ package main;
 #         the static file gate; the private-store copies of Lazysite::Private
 #         - _private_root and $PRIVATE_ROOT_CACHE, _content_rel, _content_abs,
 #         _private_twin, _path_under_content; _groups_grant_cap, ADR 0001's
-#         marked copy of Auth::Settings::groups_grant_cap; _group_settings,
+#         marked copy of Auth::Settings::groups_grant_cap, and _cap_groups, the
+#         copy of Auth::Settings::request_cap_groups (SM1135); _group_settings,
 #         _group_membership_map and _group_closure, the copies of the compound
 #         group resolution; _display_name_for and its memo, the copy of
 #         Auth::Settings::display_name_for; the domain-access copy of
@@ -133,6 +134,22 @@ sub _groups_grant_cap {
         return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap};
     }
     return 0;
+}
+
+# SM1135 (SM1128 phase 1, P1-6; ruled R1): WHICH OF THE REQUEST'S GROUPS MAY GRANT
+# A CAPABILITY. DELIBERATE local copy of Auth::Settings::request_cap_groups (ADR
+# 0001: the render path loads no Lazysite:: module up front). Groups a trusted
+# proxy named give page and file access by name; they grant a capability only if
+# the operator marked the group `directory_grants`. A cookie or direct identity is
+# the account's own and passes whole. The caller hands the groups it holds; the
+# SOURCE comes from the one identity reader, so the answer does not depend on
+# which caller asks.
+sub _cap_groups {
+    my (@groups) = @_;
+    return @groups unless @groups;
+    return @groups unless ( _request_identity()->{source} // '' ) eq 'proxy';
+    my $gs = _group_settings();
+    return grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{directory_grants} } @groups;
 }
 
 # SM223: which ACL entry governs $rel? Exact path first, then the LONGEST

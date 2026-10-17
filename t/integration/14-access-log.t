@@ -20,7 +20,8 @@ open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $c "site_name: T\nmanager: enabled\nauth_proxy_trusted: true\nauth_proxy_trusted_from: 198.51.100.0/24\n";
 close $c;
 open my $g, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
-print $g '{"admins":{"label":"Admins","ui":1}}';
+# SM1135: the proxy names the group, so it grants ui only because the operator marked it.
+print $g '{"admins":{"label":"Admins","ui":1,"directory_grants":1}}';
 close $g;
 open my $m, '>', "$d/manager/config.md" or die $!;
 print $m "---\ntitle: S\nauth: manager\n---\nSETTINGS\n";

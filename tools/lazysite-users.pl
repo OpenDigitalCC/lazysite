@@ -4734,6 +4734,10 @@ sub _group_settings_view {
             # what the flag means.
             registration =>
                 ( $cfg->{registration} ? JSON::PP::true() : JSON::PP::false() ),
+            # SM1135: may a trusted proxy's group of this name grant these
+            # capabilities? Served for the Groups page's operator-only tick.
+            directory_grants =>
+                ( $cfg->{directory_grants} ? JSON::PP::true() : JSON::PP::false() ),
             assignable => (
                 Lazysite::Auth::Settings::group_is_assignable( $g, $gs )
                 ? JSON::PP::true()
@@ -5155,6 +5159,37 @@ sub cmd_group_settings_set {
             'registration=' . ( $on ? 'on' : 'off' ) );
         return { ok => 1,
             registration => $on ? JSON::PP::true() : JSON::PP::false() };
+    }
+
+    # SM1135 (SM1128 phase 1, P1-6; ruled 2026-10-17 R1): `directory_grants` - may
+    # the groups a trusted proxy names grant this group's CAPABILITIES? Without it a
+    # directory group of this name gives page and file access only. Not a capability
+    # and conferring nothing by itself, so it is handled before the capability
+    # branch; but turning it on lets every member of the directory group hold what
+    # this group grants, people nobody at the site has met. So it is the operator's
+    # alone, as the `manager` flag is: a manage_users holder, who may confer what
+    # they hold, may not mark a group (SM991: manage_users is not the operator).
+    # The operator is `local`, a member of the operator group, or anyone on an
+    # unsecured site (the same three _may_confer lets through). Off is stored as
+    # an explicit 0, as assignable and registration are. Audited like the rest.
+    if ( defined $key && $key eq 'directory_grants' ) {
+        my $operator = !( defined $actor && length $actor && $actor ne 'local' )
+            || Lazysite::Auth::Settings::account_is_operator($actor)
+            || !Lazysite::Auth::Settings::site_grants_manager();
+        return { ok => 0, kind => 'forbidden',
+            error => 'Only a sysop may let a directory group grant capabilities: it '
+                . "decides what everyone the identity provider puts in '$group' may do here." }
+            unless $operator;
+        my $gs = read_group_settings();
+        $gs->{$group} ||= _new_group_record($group);
+        my $on = ( defined $value && $value =~ /^(?:on|1|true|yes)$/i ) ? 1 : 0;
+        $gs->{$group}{directory_grants} = $on ? 1 : 0;
+        write_group_settings($gs);
+        log_event( 'WARN', $group, 'directory group grants flag set', directory_grants => $on );
+        cli_audit( 'user-group-settings-set', $group,
+            'directory_grants=' . ( $on ? 'on' : 'off' ) );
+        return { ok => 1,
+            directory_grants => $on ? JSON::PP::true() : JSON::PP::false() };
     }
 
     my %ok_key = map { $_ => 1 } ( @CAP_KEYS, 'manager' );
@@ -5677,7 +5712,9 @@ Commands:
                               grantable-add / grantable-remove (SM643: act on
                               the capabilities named and leave the rest alone,
                               so adding one needs no knowledge of the others),
-                              and assignable.
+                              assignable, and directory_grants (SM1135: the
+                              groups a trusted proxy names grant this group's
+                              capabilities only when it is on; sysop only).
   permissions USERNAME        Print the channel x capability grid for a user
                               (resolved from groups; debug user access issues)
   audit-registry              Dump the CLI audit classification as JSON (used

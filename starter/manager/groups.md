@@ -35,6 +35,7 @@ administration is the <b>Users &amp; groups</b> action.
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var allGroups = {};   // {group: {label, manager, assignable, caps:{}, members:[]}}
+var viewerOperator = false;   // SM1135: is the caller the operator? gates the directory_grants tick
 var allUsers  = [];   // [username]
 var CAP_GRANTS = {};        // SM427: {capability: plain sentence}, served
 var channelServices = {};   // SM180: {channel: 0|1} - is each channel's SITE service enabled
@@ -150,7 +151,10 @@ function apiCall(body) {
 
 function loadGroups() {
   var gp = apiCall({ action: 'group-settings-get' })
-    .then(function(d) { return (d.ok && d.groups) ? d.groups : {}; })
+    .then(function(d) {
+      viewerOperator = !!(d.ok && d.viewer_operator);    // SM1135
+      return (d.ok && d.groups) ? d.groups : {};
+    })
     .catch(function() { return {}; });
   var up = apiCall({ action: 'list' })
     .then(function(d) { return (d.ok && d.users) ? d.users : []; })
@@ -489,6 +493,22 @@ function renderGroups() {
          + '</label></div>';
     }
 
+    // SM1135 (ruled R1): whether the groups an identity provider sends may grant
+    // THIS group's capabilities. Without it a directory group of this name gives
+    // page and file access only. The operator's alone to set: it decides what
+    // everyone the provider puts in the group may do, so the tick is not offered
+    // to anyone else (the server refuses them regardless).
+    if (viewerOperator) {
+      h += '<div class="mg-line"><label class="mg-line-lbl">Directory</label>'
+         + '<label class="mg-chk"><input type="checkbox"' + (info.directory_grants ? ' checked' : '')
+         + ' onchange="setDirectoryGrants(\'' + ge + '\', this.checked)">'
+         + ' Groups sent by an identity provider grant this group\'s capabilities'
+         + ' <span class="mg-acc-note">— when someone signs in through a trusted proxy,'
+         + ' a group of this name from the provider holds what this group grants. Unticked, it gives page and file access only.'
+         + ' Operator only.</span>'
+         + '</label></div>';
+    }
+
     var row = function(c, isChannel) {
       // SM180: a channel that IS granted but whose SITE service is switched off
       // is dormant - it does nothing until an admin enables the service. Flag it
@@ -708,6 +728,20 @@ function setRegistration(group, on) {
       showStatus(on
         ? '"' + group + '" will take new registrations.'
         : '"' + group + '" no longer takes new registrations.');
+      loadGroups();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM1135: the operator-only mark that lets a directory group grant capabilities.
+function setDirectoryGrants(group, on) {
+  apiCall({ action: 'group-settings-set', group: group,
+            key: 'directory_grants', value: on ? 'on' : 'off' })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not set it.', true); loadGroups(); return; }
+      showStatus(on
+        ? 'A group called "' + group + '" sent by the identity provider now grants its capabilities.'
+        : 'A group called "' + group + '" sent by the identity provider gives page and file access only.');
       loadGroups();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });

@@ -869,7 +869,7 @@ if ( !$token_auth ) {
         unless (
             $SELF_ACTION{$action}
             || $caps->{manager_ui}
-            || Lazysite::Auth::Settings::groups_grant_cap( 'ui', @{ _request_identity()->{groups} } ) )
+            || Lazysite::Auth::Settings::groups_grant_cap( 'ui', Lazysite::Auth::Settings::request_cap_groups( _request_identity() ) ) )
         {
             _refuse(
                 { ok => 0, kind => 'forbidden',
@@ -889,7 +889,7 @@ if ( !$token_auth ) {
         # WebDAV's content namespace does; a `ui`-only account is read-only.
         my $holds_content = sub {
             return $caps->{manage_content}
-                || Lazysite::Auth::Settings::groups_grant_cap( 'manage_content', @{ _request_identity()->{groups} } );
+                || Lazysite::Auth::Settings::groups_grant_cap( 'manage_content', Lazysite::Auth::Settings::request_cap_groups( _request_identity() ) );
         };
         if ( $CONTENT_WRITE{$action} ) {
             my @content = grep { defined && !m{\A/*lazysite(?:/|\z)} } ( $path, $params{to} );

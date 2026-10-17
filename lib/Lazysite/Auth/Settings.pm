@@ -16,6 +16,7 @@ our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     caps_for display_name_for display_names_for display_names_block settings_readable
     groups_grant_cap site_grants_manager
     groups_are_operator account_is_operator operator_groups
+    request_cap_groups request_group_caps
     effective_groups touch_credential
     resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings group_is_assignable @CAP_KEYS
@@ -443,6 +444,61 @@ sub groups_are_operator {
         return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{manager};
     }
     return 0;
+}
+
+# SM1135 (SM1128 phase 1, P1-6; ruled 2026-10-17 R1: "page and file access by
+# default; capabilities only for groups the operator marks"): WHICH OF A
+# REQUEST'S GROUPS MAY GRANT A CAPABILITY.
+#
+# A trusted proxy sends group names the site never recorded. A page gate and a
+# per-file ACL read them as names (file access), and that stays. A CAPABILITY is
+# another matter: the directory decides who is in `staff`, and a lazysite group
+# that happens to be called `staff` and carries manage_config would hand it to
+# every directory member with no one at the site having decided so. So a group
+# the proxy named grants its capabilities (and, if it carries the flag, operator
+# status) only when its record in groups-settings.json says `directory_grants`,
+# which only an operator sets (tools/lazysite-users.pl).
+#
+# This is the ONE rule every capability gate asks: the manager API's `ui` and
+# `manage_content` gates and its per-account capabilities (Manager::Common
+# _user_caps), the ACL code's operator test, and the processor's /manager entry
+# and admin bar (which hold a module-free copy, lazysite-processor/acl.pm
+# _cap_groups, as ADR 0001 records for groups_grant_cap).
+#
+# Only an identity whose `source` is `proxy` is filtered. A cookie session's
+# groups are the account's own, read from the local store by the auth wrapper,
+# and `direct` is a caller that set the names itself (a test, a tool): both are
+# unchanged. Nesting is read after the filter: a marked group still inherits
+# what the groups it is nested in grant, because the operator marked it knowing
+# its record and its place in the tree.
+sub request_cap_groups {
+    my ($ident) = @_;
+    return () unless ref $ident eq 'HASH' && ref $ident->{groups} eq 'ARRAY';
+    my @g = @{ $ident->{groups} };
+    return @g unless ( $ident->{source} // '' ) eq 'proxy';
+    return () unless @g;
+    my $gs = read_group_settings();
+    return grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{directory_grants} } @g;
+}
+
+# The capabilities the request's own groups grant, as { cap => 1 }: the union
+# over the nesting closure of request_cap_groups. Empty for a cookie or direct
+# identity, whose capabilities come from the account store (caps_for) and are
+# not added to here. This is what lets a proxy user who has no local account
+# hold a capability through a marked group.
+sub request_group_caps {
+    my ($ident) = @_;
+    return {} unless ref $ident eq 'HASH' && ( $ident->{source} // '' ) eq 'proxy';
+    my @g = request_cap_groups($ident);
+    return {} unless @g;
+    my $gs = read_group_settings();
+    my %c;
+    for my $g ( _group_closure(@g) ) {
+        my $cfg = $gs->{$g};
+        next unless ref $cfg eq 'HASH';
+        for my $k (@CAP_KEYS) { $c{$k} = 1 if $cfg->{$k} }
+    }
+    return \%c;
 }
 
 # 1 if this ACCOUNT is a member of an operator group (directly or nested).

@@ -131,6 +131,10 @@ works on staging and production.
   no entry is normalised: lowercase, any run of other characters becomes one
   hyphen, hyphens trimmed at the ends, cut to 64 - so `Site Editors` is
   `site-editors`. A name with nothing left is dropped with a warning in the log.
+  A group that arrives this way gives page and file access by name; it grants
+  manager capabilities only when the operator has ticked the directory mark on
+  the group's record on the Groups page. See
+  [Behind an identity provider](/docs/behind-an-identity-provider).
 
 `webdav_enabled`
 : `true` or `false` (default). Master switch for the `/dav` WebDAV

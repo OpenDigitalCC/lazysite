@@ -167,7 +167,7 @@ sub _render_manager_facts {
             )
         {
             $manager_caps{$cap}
-                = ( $all || _groups_grant_cap( $cap, split /\s*,\s*/, $groups_str ) ) ? 1 : 0;
+                = ( $all || _groups_grant_cap( $cap, _cap_groups( split /\s*,\s*/, $groups_str ) ) ) ? 1 : 0; # SM1135
         }
         # SM165/SM157: access lives on the DOMAIN (allowed_groups + locked_users).
         # A single-domain editor is rooted at their one scope; a multi-domain

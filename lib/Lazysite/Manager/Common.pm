@@ -15,11 +15,12 @@ use File::Basename qw(dirname basename);
 use Fcntl          qw(:flock);
 use IPC::Open2     qw(open2);           # SM944 S22b: the users-tool client
 use JSON::PP          qw(encode_json decode_json);
-use Lazysite::Util qw(log_event);
+use Lazysite::Util    qw(log_event);
 use Lazysite::Private ();
 use Exporter 'import';
-use Lazysite::Paths ();
-use Lazysite::Auth::Settings ();                  # SM944 S31: _display_names
+use Lazysite::Paths          ();
+use Lazysite::Auth::Settings ();        # SM944 S31: _display_names
+use Lazysite::Auth::Identity ();        # SM1135: _user_caps asks the request's groups
 use Lazysite::Auth::Acl      qw(_is_operator);    # SM944 S32: _operator
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _emit_json
@@ -105,7 +106,7 @@ sub reset_request_context {
     $auth_user  = '';                                          # nobody
     $token_auth = 1;                                           # never the cookie operator
     %token_caps = ( dav_scopes => [ NO_REQUEST_CONTEXT() ] );  # no capability, no reach
-    @REQUEST_SCOPES   = ( NO_REQUEST_CONTEXT() );              # confined to nothing
+    @REQUEST_SCOPES   = ( NO_REQUEST_CONTEXT() );    # confined to nothing
     $REQUEST_CONFINED = 1;
     $IS_OPERATOR      = 0;
     $path             = undef;
@@ -252,8 +253,29 @@ sub _user_caps {
     # what makes this a memo rather than a copy, and carveout_refusal - the one
     # place it is passed on - reads it too.
     return $USER_CAPS{$user}
-        //= ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings}
-        || {};
+        //= _with_request_group_caps( $user,
+        ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {} );
+}
+
+# SM1135 (SM1128 P1-6, ruled R1): THE CAPABILITIES A TRUSTED PROXY'S GROUPS
+# GRANT. _user_caps read the local account store alone, so a directory user with
+# no account held nothing here while the `ui` and `manage_content` gates (which
+# also read the request's groups) let them in - two answers to one question. Now
+# the request's groups the operator marked `directory_grants` add their
+# capabilities to the account's own, for the caller only and only when the
+# identity came from the proxy; a cookie session is the account store, as it was.
+# `manager_ui` is `ui` under its other name (SM127).
+sub _with_request_group_caps {
+    my ( $user, $s ) = @_;
+    $s = {} unless ref $s eq 'HASH';
+    return $s if $token_auth || !defined $auth_user || $user ne $auth_user;
+    local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
+    my $extra = Lazysite::Auth::Settings::request_group_caps(
+        Lazysite::Auth::Identity::request_identity( lazysite_dir => $LAZYSITE_DIR // _lz() ) );
+    return $s unless %$extra;
+    my %c = ( %$s, ( map { $_ => 1 } keys %$extra ) );
+    $c{manager_ui} = 1 if $extra->{ui};
+    return \%c;
 }
 
 # SM516 MO-3: _is_operator() re-reads the group settings store on every call,
@@ -723,7 +745,7 @@ sub domain_reach_refusal {
         my $h = lc( $a{host} // '' );
         ( $h eq '' || $h eq '(default)' ) ? 'the primary site' : "the domain '$h'";
         };
-    my @mine  = reachable_domains(%who);
+    my @mine = reachable_domains(%who);
     # SM1095: a caller with no scope is not confined to a domain's content (R3,
     # "Keep for primary"), so formatting its empty scope list read as nonsense
     # to an account whose brief says "Content scope: whole docroot". Say what is
@@ -1829,8 +1851,8 @@ our %REFUSAL_STATUS = (
             qw(exists in-use confirm needs_confirmation has_submissions conflict draft-not-rendered) ), # SM858, SM1030
     'too-large' => '413 Payload Too Large',
     'page-encoding-refused' => '415 Unsupported Media Type', # SM976 Q15h: the content, not the request
-    'rate'      => '429 Too Many Requests',
-    'partial'   => '207 Multi-Status',
+    'rate'                  => '429 Too Many Requests',
+    'partial'               => '207 Multi-Status',
     # SM873: `store-uninspectable` joins them. The data store failing to open
     # or answer is this host unable to read its own state, not a malformed
     # request - and it used to answer 400, because the kind was assembled from

@@ -331,6 +331,10 @@ Two trust paths are supported:
    client-supplied `X-Remote-*` headers before setting its own, and when
    the proxy sends a user its identity wins over a lazysite cookie
    (SM1130); `lazysite check` warns while the flag is on.
+   A group the proxy names gives page and file access by name; it grants a
+   manager capability, or operator status, only if its record carries
+   `directory_grants` (SM1135), which only the operator sets
+   (`Auth::Settings::request_cap_groups`). A cookie identity is unfiltered.
 
 Default (`auth_proxy_trusted: false` or absent): if
 `HTTP_X_REMOTE_USER` arrives without the `LAZYSITE_AUTH_TRUSTED=1`

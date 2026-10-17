@@ -148,8 +148,29 @@ sub main {
     # failure - so treating the first value as a username put the string
     # "HASH(0x...)" into the identity below, which is the value the ACL layer
     # then reads. It failed closed here only by accident.
-    my ($session) = Lazysite::Auth::Session::verify_session_cookie();
-    my $user = ( ref $session eq 'HASH' ) ? ( $session->{user} // '' ) : '';
+    #
+    # SM1137 (left open by SM1130, which covered lazysite-auth.pl only): UNDER
+    # PROXY TRUST THE PROXY'S IDENTITY WINS HERE TOO. This endpoint always used
+    # its own verified session, so on a site behind an identity provider a visitor
+    # the directory had signed in (and who held no lazysite cookie) was anonymous
+    # to a page's data - while the page itself, gated by the same headers, served
+    # them - and a visitor with a stale cookie was the cookie's account, not the
+    # directory's. Now, when auth_proxy_trusted is on, the peer is listed in
+    # auth_proxy_trusted_from (SM1129: Lazysite::Util::proxy_identity, the one
+    # answer) and the request carries a user (SM1131: the one identity reader,
+    # under the configured name), that identity is the requester and the cookie is
+    # not consulted. With no proxy user the session check below is unchanged.
+    require Lazysite::Util;
+    require Lazysite::Auth::Identity;
+    my $lz    = Lazysite::Paths::lazysite_dir($docroot);
+    my $pid   = Lazysite::Util::proxy_identity($lz);
+    my $proxy = $pid->{trusted}
+        ? Lazysite::Auth::Identity::request_identity( lazysite_dir => $lz, proxy => $pid )
+        : undef;
+    my $via_proxy = ( $proxy && $proxy->{source} eq 'proxy' && length $proxy->{user} ) ? 1 : 0;
+
+    my ($session) = $via_proxy ? () : Lazysite::Auth::Session::verify_session_cookie();
+    my $user = $via_proxy ? $proxy->{user} : ( ref $session eq 'HASH' ) ? ( $session->{user} // '' ) : '';
 
     # DISABLED AND REVOKED ARE ALREADY DECIDED, and re-deciding them here was
     # wrong twice: verify_session_cookie returns undef with 'disabled' or
@@ -170,8 +191,13 @@ sub main {
     # SM1131: and the identity reader is told these fixed names are the verified
     # ones - without the flag a trusted-proxy site would read the CONFIGURED
     # header names, which this script never cleared and the client can send.
-    $ENV{LAZYSITE_AUTH_TRUSTED} = '1';
-    if ( length $user ) {
+    #
+    # Not for a proxy identity (SM1137): it is read under its configured names
+    # with `source` proxy, which is how the capability gates know a directory
+    # group may grant nothing unless the operator marked it (SM1135). Setting the
+    # sentinel would present it as a cookie session and lift that.
+    $ENV{LAZYSITE_AUTH_TRUSTED} = '1' unless $via_proxy;
+    if ( length $user && !$via_proxy ) {
         $ENV{HTTP_X_REMOTE_USER} = $user;
 
         # The groups the session already resolved, rather than resolving them
@@ -254,6 +280,15 @@ sub main {
         require Lazysite::Paths;
         local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($docroot) . "/auth";
         my $caps = Lazysite::Auth::Settings::caps_for($user) || {};
+
+        # SM1135 (R1): a proxy user's groups the operator marked
+        # `directory_grants` add their capabilities to the account's own; an
+        # unmarked directory group adds none. A cookie session adds nothing.
+        if ($via_proxy) {
+            $caps = { %$caps,
+                %{ Lazysite::Auth::Settings::request_group_caps(
+                        Lazysite::Auth::Identity::request_identity( lazysite_dir => $lz, proxy => $pid ) ) } };
+        }
         # SM682: manage_data OR write_data reaches a row write. They differ in
         # what `writable_by` then means - see below - so the check is here and
         # the distinction is there, rather than one tangled condition.

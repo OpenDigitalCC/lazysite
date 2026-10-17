@@ -362,7 +362,9 @@ sub _is_manager {
     # SM095: Manager-UI access is the `ui` channel capability, granted via a
     # group. SM138: the lazysite.conf manager_groups fallback is retired (the
     # migration granted those groups their capabilities explicitly).
-    return 1 if _groups_grant_cap( 'ui', split /\s*,\s*/, ( $auth_groups // '' ) );
+    # SM1135: groups a trusted proxy named grant `ui` only if the operator marked
+    # them (R1); page and file access by name is unaffected.
+    return 1 if _groups_grant_cap( 'ui', _cap_groups( split /\s*,\s*/, ( $auth_groups // '' ) ) );
     unless ( _site_grants_manager() ) {
         # L-3: config advisory, not an operational warning (DEBUG - under CGI
         # every request is a new process; the dev server surfaces it once).

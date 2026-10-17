@@ -60,9 +60,11 @@ sub site {
     spit( "$d/private/brief.html", '<h1>acl-private</h1>' );
     spit( "$d/lazysite/auth/acls.json", encode_json( { 'private/brief.html' => { read => ['@site-editors'] } } ) );
     # site-editors may use the manager; it is a directory group, so no local
-    # account and no local membership exists for it.
+    # account and no local membership exists for it. SM1135: a group a proxy names
+    # grants a capability only when the operator marked it, so it is marked here
+    # (t/integration/271 holds the unmarked half).
     spit( "$d/lazysite/auth/groups-settings.json",
-        encode_json( { 'site-editors' => { label => 'x', ui => 1, manage_content => 1 } } ) );
+        encode_json( { 'site-editors' => { label => 'x', ui => 1, manage_content => 1, directory_grants => 1 } } ) );
     spit( "$d/lazysite/auth/groups", "local: nobody\n" );
     return $d;
 }
@@ -129,7 +131,7 @@ subtest 'the ACL code (Auth::Acl::_is_operator) reads the same groups' => sub {
     my $d = site();
     # The operator group is a directory group too: the `manager` flag on its record.
     spit( "$d/lazysite/auth/groups-settings.json",
-        encode_json( { 'site-editors' => { label => 'x', ui => 1, manager => 1 },
+        encode_json( { 'site-editors' => { label => 'x', ui => 1, manager => 1, directory_grants => 1 },
                 'other' => { label => 'y', ui => 1, manager => 1 } } ) );
     require Lazysite::Auth::Acl;
     no warnings 'once';

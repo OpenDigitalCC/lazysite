@@ -78,6 +78,9 @@ and cache behaviour.
 [Authentication](/docs/auth)
 : Accounts, groups, capabilities and the access model.
 
+[Behind an identity provider](/docs/behind-an-identity-provider)
+: Letting a proxy in front of the site sign visitors in, what the provider's groups may do, and a Caddy and Authentik example.
+
 [API and raw mode](/docs/api)
 : The control API, and serving a page as an artifact rather than a document.
 
