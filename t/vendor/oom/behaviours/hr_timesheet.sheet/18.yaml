@@ -1,6 +1,9 @@
 # hr_timesheet.sheet, Odoo 18 (hr_timesheet_sheet, OCA). Read from the OCA tree
 # (hr_timesheet_sheet/models/hr_timesheet_sheet.py) and run on hr18 by t/97-hr-actions-live.t.
 # Review needs the policy's reviewer rights (a reviewer's user must be linked to an employee).
+# hr_timesheet_sheet_autodraft (OCA) adds no method to the sheet: it makes a sheet for timesheet lines that are on none,
+# when the company setting timesheet_sheets_autodraft is on and a line is made or changed, and through the method
+# action_autodraft_timesheet_sheets of account.analytic.line (see behaviours/account.analytic.line/18.yaml).
 model: hr_timesheet.sheet
 series: 18
 module: hr_timesheet_sheet

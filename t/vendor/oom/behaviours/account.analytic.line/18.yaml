@@ -1,0 +1,38 @@
+# account.analytic.line (the timesheet line), Odoo 18 (analytic, hr_timesheet, with project_timesheet_time_control
+# and hr_timesheet_sheet_autodraft from OCA). Read from the OCA tree
+# (project_timesheet_time_control/models/account_analytic_line.py, wizards/hr_timesheet_switch.py,
+# hr_timesheet_sheet_autodraft/models/account_analytic_line.py); run on hr18 by t/60-hr-coverage-live.t.
+# A line has no state. A timer is a line with a start (date_time) and no hours (unit_amount 0): it runs until
+# button_end_work gives it hours. The line the acting user's employee owns is what the buttons act on.
+model: account.analytic.line
+series: 18
+module: analytic
+actions:
+- method: button_end_work
+  module: project_timesheet_time_control
+  note: OCA; stops a running timer by writing its hours as the time from its start to now (the context stop_dt gives another end); Odoo refuses a line that has hours already
+  evidence: 'source OCA project_timesheet_time_control account_analytic_line.button_end_work; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (a running timer with stop_dt in the context got the hours between its start and stop_dt; a stopped line was refused in Odoo''s words: Cannot stop timer N because it is not running)'
+- method: button_resume_work
+  module: project_timesheet_time_control
+  wizard: hr.timesheet.switch
+  note: OCA; answers with the timer wizard's window and changes nothing; the new timer is the wizard's
+  evidence: source OCA project_timesheet_time_control account_analytic_line.button_resume_work; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (answered with a window on hr.timesheet.switch)
+- method: action_autodraft_timesheet_sheets
+  module: hr_timesheet_sheet_autodraft
+  creates:
+  - model: hr_timesheet.sheet
+    link: sheet_id
+  creates_evidence: 'source OCA hr_timesheet_sheet_autodraft account_analytic_line._autodraft_sheet (HrTimesheetSheet.create); live 2026-10-17 t/60-hr-coverage-live.t on hr18: one draft hr_timesheet.sheet, named by sheet_id on both lines'
+  note: OCA; for the lines that are on no sheet, makes the weekly (or the company's period) sheet that covers each, in draft, unless a sheet of that employee overlaps the dates
+  evidence: source OCA hr_timesheet_sheet_autodraft account_analytic_line.action_autodraft_timesheet_sheets; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (with the company setting timesheet_sheets_autodraft off Odoo made no sheet; with it on, two lines of one week got one draft sheet, named in the result; a second call made nothing)
+wizards:
+- model: hr.timesheet.switch
+  module: project_timesheet_time_control
+  method: action_switch
+  button: button_resume_work
+  values: [name, analytic_line_id, project_id, task_id, date_time, date_time_end, running_timer_id]
+  creates:
+  - model: account.analytic.line
+  creates_evidence: 'source OCA project_timesheet_time_control hr_timesheet_switch.action_switch (create or copy of a line); live 2026-10-17 t/60-hr-coverage-live.t on hr18: one running line made by the copy, named in the result'
+  note: OCA; stops the acting user's running timer and starts a new one now, a copy of the line it is run for. Odoo looks for the running timer of the acting user's employee and refuses when it finds more than one; running_timer_id given in the values (false for none) stops that search
+  evidence: source OCA project_timesheet_time_control hr_timesheet_switch.action_switch, _default_running_timer_id; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (with running_timer_id false and a line to copy, a running copy was made for the line's task; the revert is held irreversible and names the line)

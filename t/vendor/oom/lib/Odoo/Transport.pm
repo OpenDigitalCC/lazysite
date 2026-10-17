@@ -7,7 +7,7 @@ no warnings 'experimental::signatures';
 
 use HTTP::Tiny;
 
-our $VERSION = '0.24';
+our $VERSION = '0.27';
 
 use Odoo::Error;
 

@@ -1,0 +1,18 @@
+# ir.attachment, Odoo 18: the wizard that sends payroll PDFs (hr_payroll_document, OCA). Read from the OCA tree
+# (hr_payroll_document/wizard/payroll_management_wizard.py). The model has no state and no public action of its own, so
+# the file lists the wizard only; the module is named on the wizard because the file is read on servers without it.
+model: ir.attachment
+series: 18
+wizards:
+- model: payroll.management.wizard
+  method: send_payrolls
+  module: hr_payroll_document
+  button: menu Payroll Management (no action method opens it; it is a menu window)
+  values: [subject, payrolls]
+  creates:
+  - model: ir.attachment
+  - model: ir.attachment.payroll.custom
+  - model: mail.mail
+  creates_evidence: 'source OCA hr_payroll_document payroll_management_wizard.send_payrolls, send_mail (two ir.attachment rows for each employee found, one ir.attachment.payroll.custom, and the template''s mail); live 2026-10-17 t/59-hr-expense-flow-live.t on hr18: two ir.attachment, one ir.attachment.payroll.custom and one mail.mail, all create_uid the acting user'
+  note: 'splits the PDFs by the employee identification numbers it finds in their text (the company needs a country; an employee is found by identification_id), makes an encrypted PDF for each, stores it on the employee and sends it with the mail template payroll_employee_email_template, which it also gives that attachment (the template is a shared record). It answers with a notification, not a window. On a server with no mail server the mail is made and its state is exception ("Name or service not known" on hr18); the attachments and the payroll record stay. The PDF is written under /tmp of the Odoo server. The ir.attachment rows named as made include the employee''s avatar images (image_1920 and the smaller sizes) when Odoo stores them for the first time while the wizard reads the employee'
+  evidence: 'source OCA hr_payroll_document payroll_management_wizard.send_payrolls; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (one employee, a one-page PDF with his identification number: answered with a notification, the payroll attachment stored on the employee, the mail made in state exception)'

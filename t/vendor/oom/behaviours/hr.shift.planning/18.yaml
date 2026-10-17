@@ -6,11 +6,17 @@ module: hr_shift
 actions:
 - method: generate_shifts
   to: [assignment]
+  creates:
+  - model: hr.shift.planning.shift
+  creates_evidence: 'source OCA hr_shift shift_planning.generate_shifts (hr.shift.planning.shift create); live 2026-10-17 t/60-hr-coverage-live.t on hr18: one shift for each employee marked for shift planning (9), named in the result'
   note: makes a shift for each employee marked for shift planning that has none in this planning, and sets the planning to assignment; one planning per call
-  evidence: source OCA hr_shift shift_planning.generate_shifts
+  evidence: source OCA hr_shift shift_planning.generate_shifts; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (a planning made by core.import, key year,week_number, went new -> assignment)
 - method: regenerate_shifts
+  creates:
+  - model: hr.shift.planning.shift
+  creates_evidence: 'source OCA hr_shift shift_planning.regenerate_shifts (deletes the shifts, generate_shifts makes them again); live 2026-10-17 t/60-hr-coverage-live.t on hr18: the planning still held one shift per marked employee'
   note: deletes the planning's shifts and generates them again
-  evidence: source OCA hr_shift shift_planning.regenerate_shifts
+  evidence: source OCA hr_shift shift_planning.regenerate_shifts; live 2026-10-17 t/60-hr-coverage-live.t on hr18
 - method: copy_to_planning
   wizard: shift.planning.wizard
   note: answers with the copy wizard window and changes nothing

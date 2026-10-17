@@ -45,6 +45,16 @@ C<field=value>. The plan shows the values, the context and the records, each wit
 its state as read now. Apply reports what the method returned as C<core.action>
 does, and reads the target records back: state before and after.
 
+What the method made is named. When the behaviour entry lists C<creates:> (the
+models the method is known to make records in), apply reads the highest id of each
+before the call and, after it, the records above it whose C<create_uid> is the
+session's uid: they are reported as made by this login in that model while the
+action ran, in C<created> (C<< { model, id, name, state } >>) of the change's
+C<returned> block, of the result's C<custom> entry and of the journal. A C<link>
+field of the records acted on is read back beside them (C<links>; a record it names
+that the search did not find is "linked, not made in this call"). The plan line ends
+C<creates: M> or C<creates: not listed>. See L<Odoo::Ops::Core::ActionCommon/creates_after>.
+
 C<revert> is held C<irreversible> unless the behaviour file names an C<undo>
 action of the target model for the wizard; the revert then plans that action
 (for a wizard that acted on one record).
@@ -86,6 +96,11 @@ sub scope_for ( $self, $phase ) {
     $s{$for}{$_} = 1 for defined $for ? qw(search_read read) : ();
     if ( $phase eq 'apply' && defined $model ) {
         $s{$model}{$_} = 1 for 'create', grep { defined } $self->param('method');
+    }
+    if ( $phase eq 'apply' && defined $for && defined $model && defined $self->param('method') && $self->ctx ) {
+        my $entry = eval { $self->ctx->behaviour($for)->wizard( $model, $self->param('method') ) };
+        my %c = $AC->creates_scope($entry);
+        for my $m ( keys %c ) { $s{$m}{$_} = 1 for @{ $c{$m} } }
     }
     if ( $phase eq 'apply' ) {
         my $u = $AC->undo_scope;
@@ -145,6 +160,7 @@ sub plan ($self) {
     my %context = ( active_model => $for, active_id => $rids[0], active_ids => \@rids, %{ $entry->{context} // {} }, ( map { $_ => $rids[0] } @pin ), %$extra );
 
     $plan->note("$for $model $method: $entry->{note}") if length( $entry->{note} // '' );
+    my $creates = $AC->creates_specs( $self->ctx, $entry );
     my $names = join ', ', map { "$for $_->{id}" . $AC->name_of($_) } @found;
     my $json  = JSON::PP->new->canonical;
     my $sline = @state ? '; ' . join( '; ', map { my $r = $_; "$r->{id}: " . join( ', ', map { "$_ " . $AC->state_text( $r->{$_} ) } @state ) } @found ) : '';
@@ -154,10 +170,11 @@ sub plan ($self) {
         vals => {
             for => $for, method => $method, values => $values, context => \%context, ids => \@rids, state_fields => \@state,
             states_before => \%before,
+            ( @$creates ? ( creates => $creates ) : () ),
             names => { map { $_->{id} => ( $_->{display_name} // '' ) } @found },
             ( defined $entry->{undo} ? ( undo => $entry->{undo} ) : () ),
         },
-        line   => "$model $method for $names; values " . $json->encode($values) . "; context " . $json->encode( \%context ) . $sline,
+        line   => "$model $method for $names; values " . $json->encode($values) . "; context " . $json->encode( \%context ) . $sline . '; ' . $AC->creates_words($creates),
         reason => "$model is created with " . $json->encode($values) . " and its $method called, for $names",
     );
     return $plan;
@@ -190,11 +207,16 @@ sub apply_custom ( $class, $client, $c ) {
         if ref $v ne 'HASH' || ( $v->{method} // '' ) !~ /\A[A-Za-z]\w*\z/;
     my ( $ctx, $fields, $ids ) = ( $v->{context} // {}, $v->{state_fields} // [], $v->{ids} // [] );
     my ($was) = _states( $client, $v->{for}, $ids, $fields );
+    my $specs  = $v->{creates} // [];
+    my $before = $AC->creates_before( $client, $specs );
     my $wid = $client->execute_kw( $c->{model}, 'create', [ $v->{values} // {} ], { context => $ctx } );
     $wid = $wid->[0] if ref $wid eq 'ARRAY';
     my $ret = $client->execute_kw( $c->{model}, $v->{method}, [ [$wid] ], { context => $ctx } );
     my ( $now, $gone ) = _states( $client, $v->{for}, $ids, $fields );
     my $ans = $AC->answer($ret);
+    my $found = $AC->creates_after( $client, $specs, $before, $v->{for}, $ids );
+    my $wnote = $AC->window_note( $ans, $specs, $before );
+    $ans->{says} .= "; $wnote" if length $wnote;
 
     my @moved = map {
         my $id = $_;
@@ -208,9 +230,11 @@ sub apply_custom ( $class, $client, $c ) {
             wizard_id => $wid, method => $v->{method}, says => $says,
             ( @$fields ? ( state_before => $was, state_after => $now ) : () ),
             ( $ans->{window} ? ( window => $ans->{window} ) : () ),
+            $AC->found_returned($found),
             ( @$gone ? ( gone => $gone ) : () ),
         },
         after => @$gone ? undef : @$fields ? { records => $now } : { ids => $ids },
+        $AC->found_created($found),
     };
 }
 

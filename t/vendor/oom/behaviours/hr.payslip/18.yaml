@@ -1,5 +1,7 @@
 # hr.payslip, Odoo 18 (payroll, OCA). Read from the OCA tree (payroll/models/hr_payslip.py,
-# payroll/wizard/hr_payslip_change_state.py) and run on hr18 by t/97-hr-actions-live.t.
+# payroll/wizard/hr_payslip_change_state.py, payroll_account/models/hr_payslip.py) and run on hr18 by
+# t/97-hr-actions-live.t and t/59-hr-expense-flow-live.t. payroll_account is installed on hr18: it makes a posted journal
+# entry when a payslip is confirmed, if its salary rules carry accounts, and takes it away when the payslip is cancelled.
 model: hr.payslip
 series: 18
 module: payroll
@@ -15,26 +17,40 @@ unlink_requires:
   noun: payslip
 actions:
 - method: compute_sheet
+  creates:
+  - model: hr.payslip.line
+  creates_evidence: 'source OCA payroll hr_payslip.compute_sheet (it deletes the old lines and writes new ones); live 2026-10-17 (t/97-hr-actions-live.t on hr18): 6 lines made'
   to: [verify]
   undo: action_payslip_draft
   note: rebuilds the lines and takes a number from the salary.slip sequence when the payslip has none (a number taken stays taken)
   evidence: source OCA payroll hr_payslip.compute_sheet; live 2026-10-16 t/97-hr-actions-live.t on hr18 (draft -> verify; Odoo took a number and made 6 lines)
 - method: action_payslip_done
+  creates:
+  - model: hr.payslip.line
+  - model: account.move
+    link: move_id
+  creates_evidence: 'source OCA payroll hr_payslip.action_payslip_done (it computes the sheet first), payroll_account hr_payslip.action_payslip_done (makes the entry from the lines'' salary rules'' debit and credit accounts, writes move_id and posts it; no entry when no rule carries an account); live 2026-10-17 (t/97-hr-actions-live.t on hr18): 6 lines made again, no entry (the demo rules carry no account); live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 on hr18: a payslip whose rule carries accounts made one posted account.move, named by move_id'
   to: [done]
   undo: action_payslip_draft
-  note: computes the sheet first unless the company sets prevent_compute_on_confirm or the context carries without_compute_sheet
-  evidence: source OCA payroll hr_payslip.action_payslip_done; live 2026-10-16 t/97-hr-actions-live.t on hr18 (verify -> done)
+  note: 'computes the sheet first unless the company sets prevent_compute_on_confirm or the context carries without_compute_sheet. With payroll_account it makes and posts the payslip''s journal entry in the contract''s journal, which takes a number from that journal for good; action_payslip_draft, its undo, leaves the entry in place'
+  evidence: source OCA payroll hr_payslip.action_payslip_done; live 2026-10-16 t/97-hr-actions-live.t on hr18 (verify -> done); live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 (verify -> done with the entry)
 - method: action_payslip_cancel
   to: [cancel]
   undo: action_payslip_draft
-  note: Odoo refuses a done payslip unless the company allows cancelling payslips, and a payslip whose refund is not cancelled
-  evidence: 'source OCA payroll hr_payslip.action_payslip_cancel; live 2026-10-16 t/97-hr-actions-live.t on hr18 (verify -> cancel; Odoo refused a done payslip in its words: Cannot cancel a payslip that is done)'
+  note: 'Odoo refuses a done payslip unless the company allows cancelling payslips, and a payslip whose refund is not cancelled. With payroll_account it first cancels and deletes the payslip''s journal entry (a reversal when the journal is hashed); a payslip Odoo then refuses keeps its entry, because the refusal rolls the removal back'
+  evidence: 'source OCA payroll hr_payslip.action_payslip_cancel, payroll_account hr_payslip.action_payslip_cancel; live 2026-10-16 t/97-hr-actions-live.t on hr18 (verify -> cancel; Odoo refused a done payslip in its words: Cannot cancel a payslip that is done); live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 (a done payslip refused and its entry kept; a draft payslip with an entry cancelled and its entry deleted, move_id null)'
 - method: action_payslip_draft
   to: [draft]
   evidence: source OCA payroll hr_payslip.action_payslip_draft; live 2026-10-16 t/97-hr-actions-live.t on hr18 (cancel -> draft, done -> draft)
 - method: refund_sheet
-  note: copies the payslip as a credit note, numbers it, confirms it and links it as the refund; answers with a window on the credit notes
-  evidence: source OCA payroll hr_payslip.refund_sheet
+  creates:
+  - model: hr.payslip
+    link: refunded_id
+  - model: hr.payslip.line
+  - model: account.move
+  creates_evidence: 'source OCA payroll hr_payslip.refund_sheet (payslip.copy, then action_payslip_done on the copy with without_compute_sheet), payroll_account hr_payslip.action_payslip_done; live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 on hr18: one hr.payslip (done, named by refunded_id of the original), its hr.payslip.line rows and one posted account.move'
+  note: copies the payslip as a credit note, numbers it, confirms it and links it as the refund (refunded_id); answers with a window on the credit notes. With payroll_account the credit note makes its own posted journal entry; Odoo will not cancel the payslip until the credit note is cancelled
+  evidence: source OCA payroll hr_payslip.refund_sheet; live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 on hr18 (the credit note made and confirmed; the original stays done; both cancelled before the original could be)
 wizards:
 - model: hr.payslip.change.state
   method: change_state_confirm

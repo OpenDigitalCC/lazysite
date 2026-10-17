@@ -35,6 +35,7 @@ my $WRONG = 'hunter2-not-the-password';
 my $http  = OdooSessionHTTP->new( fake => $fake, people => {
         'jane@example.com' => { password => $PW, uid => 7, name => 'Jane Doe', login => 'jane@example.com' },
         'otp@example.com' => { password => $PW, uid => 8, name => 'Otto', login => 'otp@example.com', two_factor => 1 },
+        'totp@example.com' => { password => $PW, uid => 9, name => 'Tove', login => 'totp@example.com', totp => '123456' },
 } );
 $Lazysite::Odoo::Session::HTTP = $http;
 $Lazysite::Odoo::TRANSPORT     = undef;
@@ -107,6 +108,17 @@ subtest 'a two-factor account is refused by name' => sub {
     is( $r->{kind}, 'two-factor', 'its own kind' );
     like( $r->{error}, qr/two-factor authentication/, 'in words' );
     ok( !$r->{cookie}, 'and no session' );
+    unlike( encode_json($r) . $log, qr/\Q$PW\E/, 'the password is in neither' );
+};
+
+# SM1156: OOM 0.27 answers a two-factor account's right password with a true
+# `pending` result and a half-open session id (0.24 died). Taking it for a
+# sign-in would mint a cookie for a session that runs nothing.
+subtest 'a pending two-factor answer is not a sign-in (OOM 0.27)' => sub {
+    my ( $r, $log ) = signin( 'totp@example.com', $PW );
+    is( $r->{kind}, 'two-factor', 'refused by name' );
+    ok( !$r->{ok} && !$r->{cookie} && !$r->{session_id}, 'no cookie, no session id' );
+    is( scalar( keys %{ $http->pending } ), 0, 'and the half-open session was ended at Odoo' );
     unlike( encode_json($r) . $log, qr/\Q$PW\E/, 'the password is in neither' );
 };
 

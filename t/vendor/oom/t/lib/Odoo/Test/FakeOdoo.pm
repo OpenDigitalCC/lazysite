@@ -193,6 +193,8 @@ sub call ($self, $service, $method, @args) {
 
     if ( $m eq 'search_read' || $m eq 'search' || $m eq 'search_count' ) {
         my @ids = $self->_search( $model, $margs->[0] // [], $kw->{context} );
+        # order: the one the operations ask for, id (ascending) or id desc
+        @ids = reverse @ids if ( $kw->{order} // '' ) =~ /\Aid desc\z/i;
         @ids = @ids[ ( $kw->{offset} // 0 ) .. $#ids ] if $kw->{offset};
         @ids = @ids[ 0 .. $kw->{limit} - 1 ] if $kw->{limit} && @ids > $kw->{limit};
         return scalar @ids if $m eq 'search_count';
@@ -295,6 +297,8 @@ sub _create ($self, $model, $vals) {
     my $r  = { id => $id, active => 1 };
     $self->{data}{$model}{$id} = $r;
     $self->_assign( $model, $r, $vals );
+    # Odoo stamps who made a record, as the session's uid
+    $r->{create_uid} = $self->{caller_uid} if $self->{fields}{$model}{create_uid} && !exists $vals->{create_uid};
     return $id;
 }
 
@@ -474,7 +478,7 @@ sub authenticate ($self, $db, $login, $password) {
     my ($user) = grep { $_->{login} eq $login } values %{ $fake->{data}{'res.users'} // {} };
     my $pw_ok = $user && ( $fake->{pw}{$login} // '' ) eq ( $password // '' );
     # the web login route: a right password with two-factor on opens no session
-    Odoo::Error->throw( kind => 'fault', message => 'authentication did not establish a session', fault_class => 'oom.NoSession' )
+    return { second_factor => 'totp', pending => 1 }
         if $pw_ok && $user->{active} && $user->{totp_enabled};
     my $uid = $user && $user->{active} && ( $pw_ok || $fake->{keys}{$login}{ $password // '' } ) ? $user->{id} : 0;
     Odoo::Error->throw( kind => 'fault', message => 'authentication failed', fault_class => 'odoo.exceptions.AccessDenied' ) if !$uid;

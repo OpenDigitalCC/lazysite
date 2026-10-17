@@ -21,6 +21,12 @@ actions:
 wizards:
 - model: hr.payslip.employees
   method: compute_sheet
+  creates:
+  - model: hr.payslip
+    link: slip_ids
+  - model: hr.payslip.line
+  - model: hr.payslip.worked_days
+  creates_evidence: 'source OCA payroll hr_payroll_payslips_by_employees.compute_sheet; live 2026-10-17 (t/97-hr-actions-live.t on hr18): the wizard made one payslip with 6 lines and a worked-days line; slip_ids of the batch names it'
   values: [employee_ids]
   note: makes a payslip for each employee in the batch's period and structure and computes them, which takes a number from the salary.slip sequence for each; the batch comes from active_id
   evidence: source OCA payroll hr_payroll_payslips_by_employees.compute_sheet; live 2026-10-16 t/97-hr-actions-live.t on hr18 (made one payslip for the employee in the batch)

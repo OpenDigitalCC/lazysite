@@ -27,8 +27,9 @@ back from the server afterwards.
 What was made is in the result so the next step needs no journal:
 C<created>, C<written> and C<unlinked> are C<< { model => [ids] } >> in
 the order the journal has them, and C<custom> is C<< [ { key, kind,
-returned } ] >> for every custom change that was done (what its handler
-returned: a mailing's send state, a user's new id). The journal holds the
+returned, created } ] >> for every custom change that was done (what its handler
+returned: a mailing's send state, a user's new id; C<created>, C<< [ { model, id, name, state } ] >>,
+is there when the change made records as a side effect, see L<Odoo::Ops::Core::Action>). The journal holds the
 same facts line by line; the result gathers them. C<failed_changes> is
 C<< [ { seq, key, action, model, id, message } ] >> for every change that
 failed, with Odoo's message, so a screen can say why without the journal.

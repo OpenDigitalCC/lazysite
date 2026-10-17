@@ -1,0 +1,20 @@
+# calendar.public.holiday, Odoo 18 (calendar_public_holiday, OCA; hr_holidays_public depends on it). Read from the
+# OCA tree (calendar_public_holiday/models, calendar_public_holiday/wizards); run on hr18 by t/60-hr-coverage-live.t.
+# On 18 the public holidays of a year are a calendar.public.holiday record (a year and a country, with dated lines),
+# not hr.holidays.public, and the model has no state and no validate method: the only public method that
+# changes records is the wizard that copies a year forward. A line's create makes a calendar event, so the
+# wizard's lines make events too.
+model: calendar.public.holiday
+series: 18
+module: calendar_public_holiday
+wizards:
+- model: calendar.public.holiday.next.year
+  method: create_public_holidays
+  values: [public_holiday_ids, year]
+  creates:
+  - model: calendar.public.holiday
+  - model: calendar.public.holiday.line
+  - model: calendar.event
+  creates_evidence: 'source OCA calendar_public_holiday calendar_public_holiday_next_year_wizard.create_public_holidays (copy of the year and of each line), calendar_public_holiday_line.create (the line''s event); live 2026-10-17 t/60-hr-coverage-live.t on hr18: one calendar.public.holiday (2088), two lines and two calendar events, all named in the result'
+  note: copies the latest public holidays of each country (or the templates named in public_holiday_ids) into the year given, or the year after the template, with every line moved to that year; refuses a template that has a line on 29 February and, with no template at all, says so
+  evidence: source OCA calendar_public_holiday calendar_public_holiday_next_year_wizard.create_public_holidays; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (a template with a line on 29 February was refused in Odoo's words and made nothing; the same year again was refused as a duplicate; Odoo answered with a window on the new years)

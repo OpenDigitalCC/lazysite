@@ -43,12 +43,17 @@ traceback text, from which it is recovered. C<fault_category> folds
 it into the distinctions an application acts on:
 
     access      AccessError   - the user lacks rights; do not retry
-    credential  AccessDenied  - login/key refused
+    credential  AccessDenied  - login/key refused (also 'oom.AuthRefused': the
+                login call answered false, which is all Odoo says of an
+                archived login, a deleted or expired key, a wrong secret)
     session     SessionExpiredException - re-authenticate
-    second_factor  the credentials were accepted and no session was opened
-                (two-factor is on for the user): fault_class 'oom.NoSession',
-                set only by Odoo::Transport::Session::authenticate; a wrong
-                password stays 'credential'
+    second-factor-required  the login and password were right and the user has
+                two-factor on: the sign-in is pending until the authenticator code
+                is given (fault_class 'oom.SecondFactorRequired'; the fix line says
+                to complete the sign-in with complete_totp). A wrong password stays
+                'credential'
+    second-factor  Odoo refused the authenticator code (fault_class
+                'oom.SecondFactor', Odoo's own words); the pending sign-in stays open
     validation  ValidationError, UserError - the data was refused
     missing     MissingError  - the record is gone
     lazysite    a lazysite manager API answered ok:false (fault_class
@@ -65,7 +70,9 @@ my %CATEGORY = (
     'odoo.exceptions.UserError'            => 'validation',
     'odoo.exceptions.MissingError'         => 'missing',
     'lazysite'                             => 'lazysite',
-    'oom.NoSession'                        => 'second_factor',
+    'oom.SecondFactorRequired'             => 'second-factor-required',
+    'oom.SecondFactor'                     => 'second-factor',
+    'oom.AuthRefused'                      => 'credential',
 );
 
 sub new ($class, %args) {
@@ -98,8 +105,24 @@ access fault never reads C<fix: null>.
 
 sub fix ($self) {
     return $self->{fix} if defined $self->{fix};
+    return $self->credential_fix if $self->is_invalid_credential;
     return undef if !$self->is_access_denied;
     return $self->access_fix;
+}
+
+=head2 credential_fix
+
+The C<fix> of a credential fault (a refused login, key or password) that has
+none. Odoo gives one answer for an archived login, a key that was deleted or
+has expired, and a wrong secret. The line says so and names what reads the cause
+with an administrator config: C<oom-accounts probe> reads whether the login is
+archived and whether the key is past its date. Nothing is guessed.
+
+=cut
+
+sub credential_fix ($self) {
+    return 'Odoo gives one answer for an archived login, a deleted or expired key and a wrong secret; '
+        . 'with an administrator config, oom-accounts probe reads whether the login is archived or the key expired';
 }
 
 # The model Odoo's access text names ("... (account.move) records"), or undef.
@@ -153,16 +176,23 @@ sub is_invalid_credential  ($self) { ( $self->fault_category // '' ) eq 'credent
 sub is_session_expired     ($self) { ( $self->fault_category // '' ) eq 'session' }
 sub is_validation          ($self) { ( $self->fault_category // '' ) eq 'validation' }
 sub is_missing             ($self) { ( $self->fault_category // '' ) eq 'missing' }
-sub is_no_session          ($self) { ( $self->fault_category // '' ) eq 'second_factor' }
+sub is_no_session          ($self) { ( $self->fault_category // '' ) eq 'second-factor-required' }
+sub is_wrong_code          ($self) { ( $self->fault_category // '' ) eq 'second-factor' }
 
 =head2 is_no_session
 
-True exactly for the error L<Odoo::Transport::Session/authenticate>
-throws when Odoo accepted the login and password and opened no session,
-which is what a user with two-factor authentication gets from the web
-login route. Its C<fault_category> is C<second_factor>; a refused
-password is C<credential> and is not this. The wording of the message is
+True for the fault of category C<second-factor-required>: the login and
+password were right, the user has two-factor authentication and the
+sign-in waits for the authenticator code (L<Odoo::Transport::Session>
+C<complete_totp>). A refused password is C<credential> and is not this. The wording of the message is
 free to change: test this, not the text.
+
+=cut
+
+=head2 is_wrong_code
+
+True for the fault of category C<second-factor>: Odoo refused the
+authenticator code.
 
 =cut
 

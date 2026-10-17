@@ -7,6 +7,12 @@ series: 18
 module: hr_recruitment
 actions:
 - method: create_employee_from_applicant
+  creates:
+  - model: hr.employee
+    link: employee_id
+  - model: res.partner
+    link: partner_id
+  creates_evidence: 'source 18.0 hr_recruitment hr_applicant.create_employee_from_applicant, hr_candidate.create_employee_from_candidate (the contact is made only when the candidate has none); live 2026-10-17 (t/97-hr-actions-live.t on hr18): Odoo made the employee, named by employee_id, for a candidate that had a contact (no contact made); the contact is proved on hr.candidate create_employee_from_candidate. Odoo also makes the employee''s resource, resume line and calendar, which are not listed'
   note: makes an hr.employee from the applicant's candidate (making the candidate's contact when it has none) and copies job, department and the company's email and phone to it; one applicant per call; answers with a window on the employee
   evidence: source 18.0 hr_recruitment hr_applicant.create_employee_from_applicant, hr_candidate.create_employee_from_candidate; live 2026-10-16 t/97-hr-actions-live.t on hr18 (made an employee; the application stayed ongoing)
 - method: archive_applicant
@@ -16,6 +22,14 @@ actions:
 - method: reset_applicant
   note: puts the application back in the first open stage of its job and clears the refuse reason
   evidence: source 18.0 hr_recruitment hr_applicant.reset_applicant
+- method: action_print_survey
+  module: hr_recruitment_survey
+  note: answers with the print window of the job's interview survey (the applicant's latest answer when there is one) and changes nothing
+  evidence: source 18.0 hr_recruitment_survey hr_applicant.action_print_survey; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (answered with an ir.actions.act_url)
+- method: action_send_survey
+  module: hr_recruitment_survey
+  note: answers with the survey.invite window for the job's interview survey and sends nothing; the invitation is the window's wizard, which mails the applicant; Odoo refuses an application with no applicant name
+  evidence: 'source 18.0 hr_recruitment_survey hr_applicant.action_send_survey; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (a survey with no questions was refused in Odoo''s words: You cannot send an invitation for a survey that has no questions; with a question it answered with a window on survey.invite)'
 wizards:
 - model: applicant.get.refuse.reason
   method: action_refuse_reason_apply

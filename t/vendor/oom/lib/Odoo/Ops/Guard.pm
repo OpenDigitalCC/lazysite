@@ -99,6 +99,7 @@ sub derive ($self, $inner, %args) {
         login => $args{login} // $self->{login},
     );
     $d->{scope} = $self->{scope};
+    $d->{no_check} = $self->{no_check};
     $d->{op}    = $self->{op};
     return $d;
 }
@@ -110,6 +111,8 @@ sub allows ($self, $model, $method) {
 }
 
 sub call ($self, $service, $method, @params) {
+    # audit_required: once a line could not be written, no further call is made
+    $self->{audit}->ready if $self->{audit} && !$self->{no_check};
     my ( $model, $mmethod );
     if ( $service eq 'object' && $method eq 'execute_kw' ) {
         ( $model, $mmethod ) = @params[ 3, 4 ];
@@ -188,16 +191,17 @@ sub DESTROY ($self) { local $@; eval { $self->release_access_fault } }
 
 One audit record for a request that is not an RPC call (a report route
 fetched over the web session). It names the label and the outcome, never
-the content.
+the content. With C<second_factor> (and, for a refused
+code, C<fault_category>) it records the two-factor step of a sign-in.
 
 =cut
 
-sub audit_web ($self, $label, $outcome, $ms) {
-    $self->_audit( 'web', undef, $label, $outcome, undef, $ms );
+sub audit_web ($self, $label, $outcome, $ms, %extra) {
+    $self->_audit( 'web', undef, $label, $outcome, $extra{fault_category}, $ms, undef, $extra{second_factor} );
     return;
 }
 
-sub _audit ($self, $service, $model, $method, $outcome, $cat, $ms, $asked = undef) {
+sub _audit ($self, $service, $model, $method, $outcome, $cat, $ms, $asked = undef, $second_factor = undef) {
     return if !$self->{audit};
     my $is_read = defined $model && defined $method && $method =~ /^(?:read|search_read)\z/ && $service eq 'object';
     my %rec = (
@@ -212,6 +216,7 @@ sub _audit ($self, $service, $model, $method, $outcome, $cat, $ms, $asked = unde
         ( defined $cat ? ( fault_category => $cat ) : () ),
         # null when the call named no fields: Odoo then chose them
         ( $is_read ? ( fields => $asked ) : () ),
+        ( defined $second_factor ? ( second_factor => $second_factor ) : () ),
         ms => $ms,
     );
     # the first refused read while the tolerant read waits to say which fields were refused

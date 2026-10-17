@@ -5,6 +5,7 @@ use warnings;
 use feature qw(signatures);
 no warnings 'experimental::signatures';
 
+use File::Basename ();
 use File::Spec;
 use JSON::PP ();
 use Scalar::Util qw(blessed);
@@ -14,6 +15,7 @@ use Odoo::Ops;
 use Odoo::Ops::Invariant;
 use Odoo::Ops::Journal;
 use Odoo::Ops::Plan;
+use Odoo::Ops::PlanPrint;
 use Odoo::Ops::Registry;
 use Odoo::Ops::Result;
 use Odoo::Ops::Runs;
@@ -151,6 +153,8 @@ sub apply ($class, $ctx, $plan, %opts) {
     # an administrator's revert of another login's run: each audit line of the writes names both logins
     my $guard = $ctx->guard;
     local $guard->{for_login} = $plan->{params}{reverted_for};
+    # audit_required: the check is made between changes, so a change that began is finished and read back
+    local $guard->{no_check} = 1;
     return $ctx->guard->with_scope( $plan->scope, $plan->op, sub {
         # a plan worked in parts (only) is checked for the rows it will touch
         my $only = $opts{only} ? { map { $_ => 1 } @{ $opts{only} } } : undef;
@@ -192,13 +196,15 @@ sub apply ($class, $ctx, $plan, %opts) {
             if ( $outcome eq 'done' ) {
                 my %made = ( create => \%created, write => \%written, unlink => \%unlinked );
                 push @{ $made{ $c->{action} }{ $c->{model} } }, $entry->{id} // $c->{id} if $made{ $c->{action} };
-                push @custom, { key => $c->{key}, kind => $c->{kind}, returned => $entry->{returned} } if $c->{action} eq 'custom';
+                push @custom, { key => $c->{key}, kind => $c->{kind}, returned => $entry->{returned}, ( $entry->{created} ? ( created => $entry->{created} ) : () ) } if $c->{action} eq 'custom';
                 # a custom change that made or changed a record says which, so its id is where ids are (created, written), not only in custom
                 if ( $c->{action} eq 'custom' && ( $entry->{reported} // '' ) =~ /^(create|write)\z/ && defined( my $rid = $entry->{id} // $c->{id} ) ) {
                     push @{ ( $1 eq 'create' ? \%created : \%written )->{ $c->{model} } }, $rid;
                 }
             }
             $entry->{outcome} = $outcome;
+            # the audit trail names every button pressed, and what Odoo answered
+            $class->_audit_action( $ctx, $c, $entry ) if $c->{action} eq 'custom' && ( $c->{handler} // '' ) =~ /\Acore\.(?:action|wizard)\z/;
             $journal->change(%$entry);
             $counts{$outcome}++;
             $by_bucket{ $c->{bucket} }{$outcome}++;
@@ -233,7 +239,7 @@ sub apply ($class, $ctx, $plan, %opts) {
                 next;
             }
             my @run = ($c);
-            if ( $batch > 1 && _batchable($c) ) {
+            if ( $batch > 1 && _batchable($c) && !( $ctx->trail && $ctx->trail->broken ) ) {
                 while ( @run < $batch && $i + @run < @changes && $wanted->( $changes[ $i + @run ] ) && _batchable( $changes[ $i + @run ] ) && _same_batch( $c, $changes[ $i + @run ] ) ) {
                     push @run, $changes[ $i + @run ];
                 }
@@ -265,6 +271,7 @@ sub apply ($class, $ctx, $plan, %opts) {
                 }
                 else {
                     my $ok = eval {
+                        $ctx->audit->ready;
                         # id_ref: a custom change on a record an earlier change makes; its id is known now
                         my $resolved = { %$c, vals => _resolve_refs( $c->{vals}, \%refs ),
                             ( defined $c->{id_ref} ? ( id => _resolve_refs( { '$ref' => $c->{id_ref} }, \%refs ) ) : () ) };
@@ -308,9 +315,57 @@ sub apply ($class, $ctx, $plan, %opts) {
             invariants_failed => $inv_failed,
         );
         # the run record follows the journal; a folder that cannot take it does not undo the apply
-        eval { Odoo::Ops::Runs->record_applied( $dir, $result, by => $ctx->actor, now => $finished, plan => $plan ) };
+        my $idx = eval { Odoo::Ops::Runs->record_applied( $dir, $result, by => $ctx->actor, now => $finished, plan => $plan ) };
+        $class->_audit_run( $ctx, $plan, $dir, $idx, $result, \%created, \%written, \%unlinked, \@custom );
         return $result;
     } );
+}
+
+# The audit line of a core.action or core.wizard change that was applied: the
+# method, the state before and after, Odoo's answer in OOM's words. No value.
+sub _audit_action ($class, $ctx, $c, $entry) {
+    return if !$ctx->trail || ( $entry->{outcome} // '' ) ne 'done';
+    my $r = ref $entry->{returned} eq 'HASH' ? $entry->{returned} : {};
+    my $v = ref $c->{vals} eq 'HASH' ? $c->{vals} : {};
+    my @ids = ref $v->{ids} eq 'ARRAY' && @{ $v->{ids} } ? @{ $v->{ids} } : ( defined $c->{id} ? ( $c->{id} ) : () );
+    eval {
+        $ctx->trail->event( action =>
+            op => $c->{handler}, outcome => 'applied', model => $c->{model}, ids => \@ids,
+            method => $r->{method} // $v->{method},
+            ( ( $v->{on} // "" ) eq "model" ? ( args_count => scalar @{ $v->{args} // [] } ) : () ),
+            ( exists $r->{state_before} ? ( state_before => $r->{state_before} ) : () ),
+            ( exists $r->{state_after}  ? ( state_after  => $r->{state_after} )  : () ),
+            ( defined $r->{says} ? ( answer => $r->{says} ) : () ),
+            ( ref $r->{created} eq 'ARRAY' ? ( created => $r->{created} ) : () ),
+        );
+    };
+    return;
+}
+
+# The audit line of an apply, a revert or a resume that finished: the run's state,
+# the counts, and every record it wrote as model:id.
+sub _audit_run ($class, $ctx, $plan, $dir, $idx, $result, $created, $written, $unlinked, $custom) {
+    return if !$ctx->trail;
+    my $h     = $result->to_hash;
+    my $c     = $h->{counts} // {};
+    my $p     = $plan->{params} // {};
+    my $event = $plan->op eq 'revert' ? 'revert' : defined $p->{resumes} ? 'resume' : 'apply';
+    my $state = $idx ? ( $idx->{outcome} // $idx->{state} ) : undef;
+    $state //= !( $c->{failed} || $c->{not_attempted} ) ? 'applied' : $c->{done} ? 'partly-applied' : 'failed';
+    my @touched;
+    for my $m ( $created, $written, $unlinked ) {
+        for my $model ( sort keys %$m ) { push @touched, map { "$model:$_" } grep { defined } @{ $m->{$model} } }
+    }
+    my %seen;
+    @touched = grep { !$seen{$_}++ } @touched;
+    eval {
+        $ctx->trail->event( $event =>
+            op => $plan->op, run => File::Basename::basename($dir), outcome => $state,
+            changes => { done => $c->{done} // 0, failed => $c->{failed} // 0, held => $c->{held} // 0 },
+            touched => \@touched,
+        );
+    };
+    return;
 }
 
 # does the plan's declared scope let the apply read this model?
@@ -514,6 +569,8 @@ sub _do_change ($class, $client, $c, $entry) {
         $entry->{id}       = $out->{id} if defined $out->{id};
         $entry->{returned} = $out->{returned} if exists $out->{returned};
         $entry->{reported} = $out->{reported} if defined $out->{reported};
+        # what Odoo made as a side effect of the method (core.action, core.wizard): [ { model, id, name, state } ]
+        $entry->{created} = $out->{created} if ref $out->{created} eq 'ARRAY' && @{ $out->{created} };
         return $out->{after};
     }
     if ( $action eq 'call' ) {
@@ -727,6 +784,7 @@ sub revert_plan ($class, $ctx, $journal_path) {
     my $inbound = $class->_inbound( $ctx, \%undo_ids );
     my $states  = $class->_states_of( $ctx, \%undo_ids );
     my ( $ref_rows, $ref_records ) = ( 0, 0 );
+    my %made_by;    # model => ids Odoo made as a side effect of the actions being reverted
 
     for my $c (@done) {
         if ( $c->{action} eq 'create' || $c->{action} eq 'write' ) {
@@ -780,6 +838,14 @@ sub revert_plan ($class, $ctx, $journal_path) {
         }
         elsif ( $c->{action} eq 'custom' ) {
             my ( $undo, $why, $handler ) = $class->_undo_custom($c);
+            # what the action made is named on the revert's line; the revert never plans a change to it
+            my @made = ref $c->{created} eq 'ARRAY' ? @{ $c->{created} } : ();
+            if (@made) {
+                my $words = 'Odoo made ' . join( ', ', map { Odoo::Ops::PlanPrint::made_text($_) } @made ) . ' when it ran; the revert does not remove it';
+                push @{ $made_by{ $_->{model} } }, $_->{id} for @made;
+                if ($undo) { $undo->{line} = ( $undo->{line} // '' ) . "; $words"; $undo->{reason} = ( $undo->{reason} // '' ) . "; $words" }
+                else        { $why = ( $why // "$c->{handler} has no inverse (e.g. a sent email)" ) . "; $words" }
+            }
             if ($undo) {
                 $undo->{bucket} //= 'undo-custom';
                 $undo->{undoes} = $c->{seq};
@@ -813,6 +879,7 @@ sub revert_plan ($class, $ctx, $journal_path) {
     my $ps = { map { $_ => [ sort keys %{ $scope{$_} } ] } keys %scope };
     Odoo::Ops::Invariant->add_scope( $ps, Odoo::Ops::Invariant->for_models( $ctx, keys %scope ), Odoo::Ops::Invariant->for_plan( $ctx, $plan ) );
     $plan->note("reverts $journal_path");
+    $plan->note( "Odoo made $_ " . join( ', ', @{ $made_by{$_} } ) . " while the run's actions ran; the revert plans no change to them" ) for sort keys %made_by;
     $plan->note( "this run was applied by $other; you revert it as an administrator (" . $ctx->instance->{login} . ')' ) if defined $other;
     $plan->note( 'compared before undoing: the fields the journal image holds (a create) or the write set (a write), '
             . 'not ' . join( ', ', grep { $_ ne 'id' } sort keys %MOVES_ALONE ) )

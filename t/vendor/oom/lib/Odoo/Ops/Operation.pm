@@ -218,12 +218,33 @@ sub run ($self) {
     return wantarray ? @r : $r[0];
 }
 
+# A read reported: the models it may read and how many rows came back, counts only
+# (the audit trail never holds a value).
+sub _audit_read ($self, $scope, $report) {
+    my $trail = $self->{ctx}->can('trail') ? $self->{ctx}->trail : undef;
+    return if !$trail;
+    my $rows = ref $report eq 'HASH' ? $report->{rows} : $report;
+    eval {
+        $trail->event( read =>
+            op => $self->op_name, outcome => 'ok',
+            models => [ sort keys %$scope ],
+            ( ref $rows eq 'ARRAY' ? ( rows => scalar @$rows ) : () ),
+            params => [ sort keys %{ $self->{params} // {} } ],
+        );
+    };
+    return;
+}
+
 sub _run ($self) {
     my $scope = $self->scope_for('read');
     return $self->{ctx}->guard->with_scope( $scope, $self->op_name, sub {
         # an operation of a pack whose module this server lacks is not applicable here; that is said before anything else
         Odoo::Ops::Modules->gate_pack( $self->{ctx}, $self->op_name, $self->pack ) if defined $self->pack;
-        return $self->report if !$self->writes;
+        if ( !$self->writes ) {
+            my $report = $self->report;
+            $self->_audit_read( $scope, $report );
+            return $report;
+        }
         my $plan = $self->plan;    # unfinalized; sealed here with its scope
         $self->annotate_effects($plan);
         # the invariants of the models the plan writes are read around the apply

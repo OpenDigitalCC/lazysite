@@ -1,0 +1,15 @@
+# dms.field.template, Odoo 18 (OCA dms, module dms_field). Read from the 18.0 source
+# (dms-repo/dms_field/models/dms_field_template.py).
+# While a template for a model exists, Odoo makes a directory for every record anyone creates in that model
+# (dms_field_mixin.create), so a caller keeps the template for as short a time as it can.
+model: dms.field.template
+series: 18
+module: dms_field
+actions:
+- method: create_dms_directory
+  on: model
+  note: takes no arguments; the record it makes the directory for is named in the context, as the context keys res_model and res_id (pass --set context='{"res_model":"M","res_id":N}'); Odoo refuses (ValidationError) when no template is linked to that model or the record already has a directory
+  creates:
+  - model: dms.directory
+  creates_evidence: source 18.0 OCA dms dms_field dms_field_template.create_dms_directory (directory_model.create); live 2026-10-17 hr18 t/60-hr-coverage-live.t
+  evidence: source 18.0 OCA dms dms_field dms_field_template.create_dms_directory (@api.model, public, no arguments besides the context)

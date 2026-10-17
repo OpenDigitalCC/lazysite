@@ -7,11 +7,12 @@ no warnings 'experimental::signatures';
 
 use Scalar::Util qw(blessed looks_like_number);
 
+use Odoo::Transport::Session ();
 use Odoo::Error;
 use Odoo::Model;
 use Odoo::Portable;
 
-our $VERSION = '0.24';
+our $VERSION = '0.27';
 
 =head1 NAME
 
@@ -39,6 +40,9 @@ Holds the connection details, authenticates lazily on first use, and
 funnels every call through C<execute_kw> with the default context
 merged in. Transport-kind errors are retried on a ladder (default
 0/2/5/15 seconds); server faults are raised immediately.
+
+A client made with C<new> directly has no guard and no audit; the audited route is
+L<Odoo::Ops::Context>, whose C<client> goes through the guard and the config's audit trail.
 
 The API key is read once and never appears in error messages or logs.
 In Odoo an API key is simply used in place of the password, so
@@ -251,7 +255,7 @@ sub own_web_session ($self) {
     Odoo::Error->throw( kind => 'usage', message => 'this client holds no login and key to open a web session with' )
         if !defined $self->{login} || !defined $self->{key} || $self->{key} eq '';
     my $web = $self->web_session;
-    $web->authenticate( $self->{db}, $self->{login}, $self->{key} );
+    Odoo::Transport::Session::require_signed_in( $web, $web->authenticate( $self->{db}, $self->{login}, $self->{key} ) );
     return $web;
 }
 
@@ -289,8 +293,9 @@ sub _authenticate ($self) {
     );
     if (!defined $uid || !looks_like_number($uid) || !$uid) {
         Odoo::Error->throw(
-            kind    => 'fault',
-            message => "authentication failed for '$self->{login}' on '$self->{db}'",
+            kind        => 'fault',
+            fault_class => 'oom.AuthRefused',
+            message     => "authentication failed for '$self->{login}' on '$self->{db}' (Odoo answered false and gave no reason)",
         );
     }
     return $uid;

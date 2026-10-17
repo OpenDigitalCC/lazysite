@@ -65,7 +65,8 @@ C<unchanged>, or the change it needs. Modules install through
 C<button_immediate_install> (the server reloads its registry; a
 consumer's serving slot still needs its restart). Settings are applied
 as one C<res.config.settings> record executed, after comparing with
-C<default_get>. Parameters and company fields are plain writes with
+C<default_get> (a field related to the company, which C<default_get> leaves
+out, is read from a new unsaved settings record through C<onchange>). Parameters and company fields are plain writes with
 before-images, so C<revert> can undo them; module installs, settings
 and language installs are held as irreversible. Users are created
 without a password (set one with the instance tool) and never deleted
@@ -160,7 +161,7 @@ sub read_scope ($class) {
         'res.country'         => ['search_read'],
         'res.currency'        => [qw(search_read write)],
         'res.lang'            => [qw(search_read read)],
-        'res.config.settings' => [qw(default_get fields_get)],
+        'res.config.settings' => [qw(default_get fields_get onchange)],
         'account.chart.template' => ['search_read'],
         'account.move.line'      => ['search_count'],
     };
@@ -391,7 +392,7 @@ sub _plan_settings ($self, $plan, $spec) {
     my $known   = $s->fields;
     my @unknown = grep { !$known->{$_} } @fields;
     Odoo::Error->throw( kind => 'usage', message => 'unknown settings field(s): ' . join( ', ', @unknown ) ) if @unknown;
-    my $current = $s->call( 'default_get', [ \@fields ] );
+    my $current = _settings_now( $s, \@fields );
     my ( %set, %before );
     for my $f (@fields) {
         my $want = _settings_value( $known->{$f}{type}, $spec->{$f} );
@@ -405,6 +406,18 @@ sub _plan_settings ($self, $plan, $spec) {
         kind => 'settings', key => 'settings', vals => \%set, before => \%before,
         reason => 'applied as one settings record (Settings page semantics); not revertable here' );
     return 1;
+}
+
+# What the settings read now. default_get leaves out a field that is related to the company (timesheet_sheets_autodraft
+# is one), so a company that has it on would read as off; a field it left out is read from a new, unsaved settings
+# record (onchange), which is computed from the company. A server that cannot answer onchange keeps default_get's answer.
+sub _settings_now ($s, $fields) {
+    my $now  = $s->call( 'default_get', [$fields] );
+    my @left = grep { !exists $now->{$_} } @$fields;
+    return $now if !@left;
+    my $oc = eval { $s->call( 'onchange', [ [], {}, [], { company_id => {}, map { $_ => {} } @left } ] ) };
+    if ( ref $oc eq 'HASH' && ref $oc->{value} eq 'HASH' ) { $now->{$_} = $oc->{value}{$_} for grep { exists $oc->{value}{$_} } @left }
+    return $now;
 }
 
 sub _settings_value ($type, $v) {
@@ -589,7 +602,7 @@ sub apply_custom ($class, $client, $c) {
         my $s  = $client->model('res.config.settings');
         my $id = $s->create( $c->{vals} );
         $s->call( 'execute', [ [$id] ] );
-        my $after = $s->call( 'default_get', [ [ sort keys %{ $c->{vals} } ] ] );
+        my $after = _settings_now( $s, [ sort keys %{ $c->{vals} } ] );
         my $ok = 1;
         for my $f ( keys %{ $c->{vals} } ) { $ok = 0 if !_same( $after->{$f}, $c->{vals}{$f} ) }
         return { id => $id, after => ( $ok ? $after : undef ) };

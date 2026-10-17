@@ -1,0 +1,32 @@
+# resource.booking, Odoo 18 (resource_booking, OCA). Read from the OCA tree
+# (resource_booking/models/resource_booking.py); run on hr18 by t/60-hr-coverage-live.t.
+# state is computed and stored: canceled when the booking is archived, confirmed when the requester has accepted the
+# meeting, scheduled when it has a meeting, pending when not. A booking is scheduled by writing start (Odoo makes
+# or moves its calendar meeting), so the methods below change the state by acting on the meeting or the booking.
+# action_open_portal only answers with the portal's URL and is not listed.
+model: resource.booking
+series: 18
+module: resource_booking
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+actions:
+- method: action_schedule
+  from: [pending, scheduled, confirmed]
+  note: answers with a window on the calendar to schedule in and changes nothing; a booking is scheduled by writing its start
+  evidence: source OCA resource_booking resource_booking.action_schedule; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (answered with a window on calendar.event; the state stayed pending)
+- method: action_confirm
+  to: [confirmed]
+  note: makes the booking's attendees and resources' users attendees of its meeting and sets the requester's attendance to accepted (the acting user's too when the context has confirm_own_attendance); a booking with no meeting is skipped without a word
+  evidence: source OCA resource_booking resource_booking.action_confirm; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (scheduled -> confirmed)
+- method: action_unschedule
+  from: [scheduled, confirmed]
+  to: [pending]
+  note: deletes the booking's meeting; the booking stays, to be scheduled again by writing start
+  evidence: source OCA resource_booking resource_booking.action_unschedule; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (confirmed -> pending, the meeting deleted; the revert is held irreversible)
+- method: action_cancel
+  to: [canceled]
+  note: deletes the booking's meeting, archives the booking and clears its access token; core.unarchive brings the booking back, not its meeting
+  evidence: source OCA resource_booking resource_booking.action_cancel; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (scheduled -> canceled and archived; core.unarchive brought it back as pending)

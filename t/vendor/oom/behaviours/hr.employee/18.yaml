@@ -1,9 +1,27 @@
 # hr.employee, Odoo 18 (hr). Read from the 18.0 source (addons/hr/models/hr_employee.py,
 # addons/hr/wizard/hr_departure_wizard.py). An employee is archived through core.archive and a login is made through
-# core.user, so the only thing listed here is the departure wizard.
+# core.user, so what is listed here is the departure wizard and the badge check-in.
+# Checking in and out: hr_attendance changes an employee's attendance only through _attendance_action_change, a private
+# method (the kiosk and the systray reach it by HTTP routes), so nothing of core is listed for it. The one public method
+# that does it is register_attendance(card_code) of the OCA module hr_attendance_rfid: an @api.model method (defined on
+# hr.employee.base) that finds the employee by rfid_card_code and checks them in, or out when they are in. It takes no
+# records, so it is listed on: model with its one argument. Attendances are also made through core.import (hr.attendance,
+# key employee_id,check_in).
 model: hr.employee
 series: 18
 module: hr
+actions:
+- method: register_attendance
+  module: hr_attendance_rfid
+  on: model
+  params:
+  - name: card_code
+    type: str
+  note: the answer is a dict (rfid_card_code, employee_name, employee_id, error_message, logged, action); a card no employee holds is answered with error_message set and logged false, not refused; the first call for an employee with no open attendance checks in (an hr.attendance is made), the next checks out (that attendance is written, none is made)
+  creates:
+  - model: hr.attendance
+  creates_evidence: source 18.0 OCA hr-attendance hr_attendance_rfid models/hr_employee.py register_attendance -> _attendance_action_change; live 2026-10-17 hr18 t/60-hr-coverage-live.t
+  evidence: source 18.0 OCA hr-attendance hr_attendance_rfid models/hr_employee.py register_attendance (@api.model, public); live 2026-10-17 hr18 t/60-hr-coverage-live.t
 wizards:
 - model: hr.departure.wizard
   method: action_register_departure

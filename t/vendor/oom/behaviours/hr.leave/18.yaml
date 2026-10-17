@@ -15,12 +15,24 @@ unlink_requires:
   noun: time off
 actions:
 - method: action_approve
+  creates:
+  - model: account.analytic.line
+  - model: resource.calendar.leaves
+  - model: calendar.event
+    link: meeting_id
+  creates_evidence: 'source 18.0 hr_holidays hr_leave._validate_leave_request (the resource leave, sudo; the meeting, made with_user the employee''s user), project_timesheet_holidays hr_leave._validate_leave_request (the timesheet line); made when the approval is the last one; live 2026-10-17 (probe of this spec, hr18): Odoo made one timesheet line and one resource leave as the acting user. The calendar event named by meeting_id was made by the employee''s own login (create_uid 32 against the acting user 2), so it is reported linked, not made in this call'
   from: [confirm]
   to: [validate1, validate]
   undo: action_refuse
   note: the acting user's employee is recorded as the approver; a type with two approvals moves to validate1 and calls action_validate after the second; Odoo posts to the employee's user when the leave is validated
   evidence: 'source 18.0 hr_holidays hr_leave.action_approve; live 2026-10-16 t/97-hr-actions-live.t on hr18 (confirm -> validate; the meeting and the first approver were set; Odoo refused a second approve in its words: Time off request must be confirmed)'
 - method: action_validate
+  creates:
+  - model: account.analytic.line
+  - model: resource.calendar.leaves
+  - model: calendar.event
+    link: meeting_id
+  creates_evidence: 'source 18.0 hr_holidays hr_leave.action_validate (the same _validate_leave_request as action_approve''s last approval); live 2026-10-17 through action_approve on hr18'
   from: [confirm, validate1]
   to: [validate]
   undo: action_refuse

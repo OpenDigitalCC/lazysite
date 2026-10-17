@@ -83,4 +83,50 @@ sub fix_lines ($h, $conf, %o) {
     return @out;
 }
 
+=head2 made_text($created)
+
+One record an action made, as the lines say it: C<hr.expense.sheet 16 (EX0016, draft)>.
+$created is C<< { model, id, name, state } >>.
+
+=cut
+
+sub made_text ($c) {
+    my @in = grep { defined && length } ( $c->{name}, $c->{state} );
+    return "$c->{model} $c->{id}" . ( @in ? ' (' . join( ', ', @in ) . ')' : '' );
+}
+
+=head2 made_lines(\@created, %o)
+
+C<made: hr.expense.sheet 16 (EX0016, draft)>, one line per record that Odoo
+made as a side effect of a change (C<created> on a result's C<custom> entry or a
+journal change). C<lead> is put in front of each line.
+
+=cut
+
+sub made_lines ($created, %o) {
+    my $lead = $o{lead} // '';
+    return map { $lead . 'made: ' . made_text($_) } @{ $created // [] };
+}
+
+=head2 journal_made_lines($journal_path, %o)
+
+The C<made:> lines of every done change in a journal, each after the change that
+made them (C<#seq model id>), for C<oom-ops show>. Nothing when the journal made none
+or cannot be read.
+
+=cut
+
+sub journal_made_lines ($path, %o) {
+    require Odoo::Ops::Journal;
+    my $lead = $o{lead} // '';
+    my ( $h, $changes ) = eval { Odoo::Ops::Journal->read($path) };
+    return () if !$changes;
+    my @out;
+    for my $c ( grep { ref $_->{created} eq 'ARRAY' && @{ $_->{created} } } @$changes ) {
+        push @out, $lead . "#$c->{seq} " . join( ' ', grep { defined } $c->{model}, $c->{id} ) . ( defined $c->{key} ? " [$c->{key}]" : '' ) . ':';
+        push @out, made_lines( $c->{created}, lead => $lead . '  ' );
+    }
+    return @out;
+}
+
 1;

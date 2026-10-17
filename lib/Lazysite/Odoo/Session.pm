@@ -41,6 +41,10 @@ our $HTTP;
 my $ID   = qr/\A[A-Za-z0-9_-]{8,200}\z/;
 my $PATH = qr{\A/[A-Za-z0-9._/-]{0,200}\z};
 
+# What a two-factor account is told while the sign-in has no code step.
+use constant _TWO_FACTOR => 'Odoo accepted that sign-in but opened no session. An account with two-factor '
+    . 'authentication cannot sign in with a password alone here.';
+
 sub _secret {
     require Lazysite::Odoo::Visitor;
 
@@ -131,6 +135,17 @@ sub sign_in {
         log_event( 'WARN', 'odoo', 'odoo sign-in refused', kind => $kind, who => login_label($login) );
         return _fail( $kind, $said );
     }
+    # SM1156: OOM 0.27 answers a two-factor account's right password with
+    # { second_factor => 'totp', pending => 1 } and a HALF-OPEN session id, where
+    # 0.24 and before died. The answer is true, and the session id is a real one
+    # - taking it for a sign-in would hand the person a cookie for a session that
+    # runs nothing. Until the code step is built (SM1157) it is refused by name,
+    # and the half-open session is ended at Odoo.
+    if ( ref $identity eq 'HASH' && $identity->{pending} ) {
+        eval { $t->destroy };
+        log_event( 'WARN', 'odoo', 'odoo sign-in refused', kind => 'two-factor', who => login_label($login) );
+        return _fail( 'two-factor', _TWO_FACTOR );
+    }
     my $sid = $t->session_id;
     unless ( defined $sid && $sid =~ $ID ) {
         eval { $t->destroy };
@@ -217,23 +232,19 @@ sub _classify {
         return ( 'config', 'the Odoo connection is not configured correctly - see the event log' )
             if $k eq 'config';
         if ( $k eq 'fault' ) {
-            # SM1117: OOM 0.24 answered the ask - the "accepted, no session
-            # opened" fault has its own category (second_factor, is_no_session)
-            # and is no longer a credential fault, so the message test below never
-            # saw it and a two-factor account read as an internal error. The
-            # signal is read first; the message test stays for an OOM before it.
-            return ( 'two-factor',
-                'Odoo accepted that sign-in but opened no session. An account with two-factor '
-                    . 'authentication cannot sign in with a password alone here.' )
+            # SM1117: OOM 0.24 gave "accepted, no session opened" its own category
+            # (second_factor, is_no_session), no longer a credential fault. SM1156:
+            # OOM 0.27 renamed it second-factor-required (is_no_session still reads
+            # it) and left the older fault, "authentication did not establish a
+            # session" (oom.NoSession), uncategorised ('other') - so the message
+            # test below can no longer sit behind the credential test. The signal
+            # is read first; the message stays for an OOM before 0.24.
+            my $cat = $err->can('fault_category') ? ( $err->fault_category // '' ) : '';
+            return ( 'two-factor', _TWO_FACTOR )
                 if ( $err->can('is_no_session') && $err->is_no_session )
-                || ( $err->can('fault_category') && ( $err->fault_category // '' ) eq 'second_factor' );
-            if ( $err->is_invalid_credential ) {
-                return ( 'two-factor',
-                    'Odoo accepted that sign-in but opened no session. An account with two-factor '
-                        . 'authentication cannot sign in with a password alone here.' )
-                    if ( $err->message // '' ) =~ /did not establish a session/;
-                return ( 'signin-refused', 'Odoo did not accept that sign-in' );
-            }
+                || $cat eq 'second_factor' || $cat eq 'second-factor-required'
+                || ( $err->message // '' ) =~ /did not establish a session/;
+            return ( 'signin-refused', 'Odoo did not accept that sign-in' ) if $err->is_invalid_credential;
         }
     }
     return ( 'internal', 'the sign-in failed inside the engine - see the event log' );

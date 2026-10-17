@@ -1,10 +1,33 @@
-# hr.contract, Odoo 18 (hr_contract). Read from the 18.0 source (addons/hr_contract/models/hr_contract.py).
-# A contract has no action button: its state (draft, open, close, cancel) is a status bar, so it is written, and
-# core.import does not hold a row that sets it. The cron method update_state moves contracts by date; it is a model
-# method with no record, so core.action does not list it.
+# hr.contract, Odoo 18 (hr_contract, with hr_contract_renew and hr_contract_update_overtime from OCA). Read from the
+# 18.0 source (addons/hr_contract/models/hr_contract.py) and the OCA tree (hr_contract_renew/wizards,
+# hr_contract_update_overtime/models); run on hr18 by t/60-hr-coverage-live.t.
+# Odoo 18 moves a contract's state (draft, open, close, cancel) by a status-bar write and by the cron method
+# update_state; no public method of hr_contract changes it. So the state is written (written_by: write) and
+# core.import does not hold a row that sets it. update_state is a model method with no record (the cron calls it),
+# so core.action, which acts on records, does not list it; the action_open_* methods only open a screen.
+# Live 2026-10-17 (t/60-hr-coverage-live.t, hr18): core.import wrote state open -> close -> open with no state-field hold; a write
+# of close gave the contract the end date 2031-01-01 (its start date) when it had none.
 model: hr.contract
 series: 18
 module: hr_contract
 state:
   field: state
   written_by: write
+actions:
+- method: action_update_overtime
+  module: hr_contract_update_overtime
+  from: [open, close]
+  note: OCA; recomputes the overtime of the employee's attendances that fall within the contract's dates and posts "Overtime updated" on the contract; a contract in another state is skipped without a word
+  evidence: source OCA hr_contract_update_overtime hr_contract.action_update_overtime; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (open -> open, Odoo answered with nothing and posted "Overtime updated" on the contract once)
+wizards:
+- model: hr.contract.renew.wizard
+  module: hr_contract_renew
+  method: action_renew_contract
+  button: action_open_renew_contract_wizard
+  values: [contract_id, date_end]
+  context_from_record: [default_contract_id]
+  creates:
+  - model: hr.contract
+  creates_evidence: 'source OCA hr_contract_renew hr_contract_renew_wizard.action_renew_contract (contract_id.copy); live 2026-10-17 t/60-hr-coverage-live.t on hr18: Odoo made one draft contract, named in the result, and the wizard answered with a window on it'
+  note: OCA; copies the contract into a new draft contract that starts on date_end, and sets the old contract's end date to the day before; answers with a window on the new contract
+  evidence: source OCA hr_contract_renew hr_contract_renew_wizard.action_renew_contract; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (the old contract's end date became the day before date_end; the new contract started on date_end in draft; the revert is held irreversible and names the contract)

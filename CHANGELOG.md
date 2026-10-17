@@ -120,6 +120,13 @@ Archive
 - SM1150 (PENDING) **`credential: session` is documented.** The Odoo guide
   describes a person signing in and running bindings as themselves, as the code
   does, and no longer lists it as not available. t/unit/odoo/47.
+- SM1156 (PENDING) **lazysite adopts OOM 0.27.** The pinned snapshot moves from
+  0.24 (`t/vendor/oom`, SM747's filed spec re-filed with it). 0.27 answers a
+  two-factor account's right password as a pending sign-in rather than a
+  fault, and renames its category; lazysite took that answer for a sign-in and
+  would have set a cookie for a session that runs nothing. It is refused by
+  name (`two-factor`) and the half-open session is ended at Odoo. The
+  dependency floor is unchanged. t/unit/odoo/25.
 
 - SM1131 (PENDING) **every reader honours the configured header names.** Only the
   page gate read `auth_header_*`; one reader, `Lazysite::Auth::Identity`, now

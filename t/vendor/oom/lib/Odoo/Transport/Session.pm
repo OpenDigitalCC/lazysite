@@ -10,7 +10,10 @@ use JSON::PP ();
 use Odoo::Error;
 use Odoo::Transport;
 
-our $VERSION = '0.24';
+our $VERSION = '0.27';
+
+use constant TRUSTED_DEVICE_COOKIE => 'td_id';
+ use constant DEVICE_AGENT => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 odoo-oom-perl';
 
 =head1 NAME
 
@@ -49,8 +52,10 @@ Nothing is persisted: the session id is returned to the caller, who
 carries it (a cookie, a memory) and hands it back with C<session>.
 
 Faults keep their categories: an expired or destroyed session dies as
-a fault of category C<session>; a refused login as C<credential>.
-Neither is a transport failure, so neither is retried.
+a fault of category C<session>; a refused login as C<credential>; a
+call while a sign-in waits for the authenticator code as
+C<second-factor-required>; a refused code as C<second-factor>. None is a
+transport failure, so none is retried.
 
 Cookies: every cookie any response sets (the session id, and what a proxy
 or balancer in front of Odoo adds, such as a sticky-session cookie) is kept
@@ -60,10 +65,11 @@ no cookies. C<get> answers a route's raw response (a report is a route, not
 an RPC call); C<set_reauth> lets a holder with the password have an expired
 session opened again once.
 
-Odoo refuses a password login over C</web/session/authenticate> for a
-user with two-factor authentication; such users cannot use this
-transport. Whether a series accepts an API key in place of the
-password is a live question per series (TEST-PLAN), not assumed here.
+A user with Odoo's two-factor authentication (C<auth_totp>) is signed in in two
+steps: C<authenticate> answers C<< { second_factor => 'totp', pending => 1 } >>
+with the half-open session kept, and C<complete_totp> gives the authenticator
+code at C</web/login/totp>. Whether a series accepts an API key in place of
+the password is a live question per series (TEST-PLAN), not assumed here.
 
 =cut
 
@@ -118,33 +124,48 @@ C<common.authenticate> (which asks C</web/session/get_session_info>).
 
 sub identity ($self) { $self->{identity} }
 
-=head2 authenticate($db, $login, $password)
+=head2 authenticate($db, $login, $password, %opts)
 
 One round trip to C</web/session/authenticate>. Returns the identity;
 C<session_id> holds the value to carry. Dies with fault category
-C<credential> when refused. When Odoo accepts the login and opens no
-session (a user with two-factor authentication) it dies with fault
-category C<second_factor>: C<< $err->is_no_session >>.
+C<credential> when refused.
+
+When the password is right and Odoo opens no session because the user has
+two-factor authentication, it returns C<< { second_factor => 'totp',
+pending => 1 } >> instead, and keeps the half-open session's cookies so
+that L</complete_totp> continues it. Until then a call over this transport
+dies as category C<second-factor-required>.
+
+C<trusted_device =E<gt> VALUE> (the value L</complete_totp> returned) is sent
+as Odoo's trusted-device cookie C<td_id>. Odoo reads it at C</web/login/totp>:
+when it still trusts the device it opens the session at once and the
+identity is returned as for a user without a second factor; when it does not,
+the answer is the pending one again.
 
 =cut
 
-sub authenticate ($self, $db, $login, $password) {
+sub authenticate ($self, $db, $login, $password, %opts) {
     # a fresh login starts from no cookies: a sticky cookie of an earlier
     # (lost) session must not pin this one to the host that lost it
     $self->{cookies} = {};
     $self->{session} = undef;
+    $self->{pending} = 0;
+    $self->{identity} = undef;
+    $self->{db} = $db;
+    $self->{cookies}{ TRUSTED_DEVICE_COOKIE() } = $opts{trusted_device}
+        if defined $opts{trusted_device} && length $opts{trusted_device};
     my ( $result, $res ) = eval { $self->_rpc( '/web/session/authenticate',
         { db => $db, login => $login, password => $password }, 'session.authenticate' ) };
     if ( my $err = $@ ) {
         # Odoo hands an anonymous session cookie even to a refused login
         $self->{session} = undef;
-        delete $self->{cookies}{session_id};
+        $self->{cookies} = {};
         die $err;
     }
     my $sid = _cookie( $res, 'session_id' );
-    if ( !defined $sid || !ref $result || !$result->{uid} ) {
+    if ( !defined $sid ) {
         $self->{session} = undef;
-        delete $self->{cookies}{session_id};
+        $self->{cookies} = {};
         Odoo::Error->throw(
             kind        => 'fault',
             message     => 'authentication did not establish a session',
@@ -153,8 +174,115 @@ sub authenticate ($self, $db, $login, $password) {
     }
     $self->{session}  = $sid;
     $self->{cookies}{session_id} = $sid;
+    if ( !ref $result || !$result->{uid} ) {
+        # accepted, and no session: Odoo wants the second factor
+        $self->{pending} = 1;
+        return $self->_try_trusted_device if exists $self->{cookies}{ TRUSTED_DEVICE_COOKIE() };
+        return { second_factor => 'totp', pending => 1 };
+    }
+    delete $self->{cookies}{ TRUSTED_DEVICE_COOKIE() };
     $self->{identity} = _identity( $result, $db );
     return $self->{identity};
+}
+
+=head2 require_signed_in($transport, $identity)
+
+A plain function for a holder that can only use a password session: given what
+C<authenticate> answered, it returns the identity, or, when the answer is the
+pending sign-in, ends the half-open session at Odoo and dies with fault category
+C<second-factor-required>.
+
+=cut
+
+sub require_signed_in ($web, $id) {
+    return $id unless $id->{pending};
+    eval { $web->destroy };
+    Odoo::Error->throw( _second_factor_required() );
+}
+
+=head2 pending
+
+True while a sign-in waits for the authenticator code.
+
+=head2 resume_pending(session =E<gt> $sid, ...)
+
+A transport that holds a half-open sign-in (the C<session_id> a caller carried
+from the pending C<authenticate>) and can take L</complete_totp>. Called on a
+transport it shares that one's server and HTTP client; called on the class it
+takes C<url> and the options of C<new>. C<cookies> (a hash of name to value)
+restores what a balancer in front of Odoo set. C<db> is optional.
+
+=cut
+
+sub pending ($self) { $self->{pending} ? 1 : 0 }
+
+sub resume_pending ( $self, %args ) {
+    my $sid = delete $args{session}
+        or Odoo::Error->throw( kind => 'usage', message => 'resume_pending needs the session id of the pending sign-in' );
+    my $cookies = delete $args{cookies} // {};
+    my $db      = delete $args{db};
+    my $t = ref $self
+        ? ref($self)->new( url => $self->{url}, http => $self->{http}, %args )
+        : $self->new(%args);
+    $t->{cookies} = { %$cookies, session_id => $sid };
+    $t->{session} = $sid;
+    $t->{pending} = 1;
+    $t->{db}      = $db;
+    return $t;
+}
+
+=head2 complete_totp($code, remember =E<gt> 0|1)
+
+Finishes a pending sign-in. It reads the form Odoo serves at
+C</web/login/totp> (with its C<csrf_token>), posts C<totp_token> (the code)
+and, with C<remember>, C<remember=1> (the checkbox Odoo's own form offers,
+"Don't ask again on this device"), then reads the session back at
+C</web/session/get_session_info> and returns the identity as
+C<authenticate> does for a user without a second factor. With C<remember>
+the identity carries C<trusted_device>, C<< { name => 'td_id', value => ... } >>:
+Odoo's trusted-device cookie, which the transport does not keep. Odoo names the device after the browser and platform of the request's
+User-Agent and fails (HTTP 500, read live on 16) when it cannot place one, so with
+C<remember> the code is posted with C<user_agent> (the person's own browser, when
+the caller passes it) or, by default, a generic browser agent string. The route and
+the field names are the same on 16, 18 and 19.
+
+A wrong code dies as a fault of category C<second-factor>, with Odoo's own
+words; the pending sign-in stays open and the caller can ask again. Odoo's
+rate limit on codes is Odoo's: nothing here counts tries. A pending sign-in
+Odoo no longer knows (it expired, or was never made) dies as category
+C<session>, and the transport forgets it.
+
+=cut
+
+sub complete_totp ($self, $code, %opts) {
+    Odoo::Error->throw( kind => 'usage', message => 'no sign-in is waiting for an authenticator code' )
+        if !$self->{pending};
+    Odoo::Error->throw( kind => 'usage', message => 'complete_totp needs the code' )
+        if !defined $code || $code !~ /\S/;
+    my $form = $self->get('/web/login/totp');
+    my $gone = $self->_totp_gone($form);
+    return $self->_totp_signed_in( $form, $opts{remember} ) if defined $gone && !$gone;
+    $self->_forget_pending if $gone;
+    Odoo::Error->throw( _pending_expired() ) if $gone;
+    my $csrf = _csrf( $form->{content} );
+    Odoo::Error->throw( kind => 'fault', message => 'the two-factor form carries no csrf_token' )
+        if !defined $csrf;
+    # Odoo names the trusted device after the browser and platform it reads from the
+    # User-Agent and fails on a request whose agent it cannot place
+    my %agent = $opts{remember} ? ( headers => { 'user-agent' => $opts{user_agent} // DEVICE_AGENT } ) : ();
+    my $res = $self->post_form( '/web/login/totp',
+        { csrf_token => $csrf, totp_token => $code, ( $opts{remember} ? ( remember => 1 ) : () ) }, %agent );
+    my $after = $self->_totp_gone($res);
+    if ( defined $after && !$after ) { return $self->_totp_signed_in( $res, $opts{remember} ) }
+    if ($after) {
+        $self->_forget_pending;
+        Odoo::Error->throw( _pending_expired() );
+    }
+    Odoo::Error->throw(
+        kind        => 'fault',
+        message     => _form_error( $res->{content} ) // "Odoo did not accept the code (HTTP " . ( $res->{status} // 0 ) . ')',
+        fault_class => 'oom.SecondFactor',
+    );
 }
 
 =head2 destroy
@@ -168,6 +296,7 @@ sub destroy ($self) {
     return 1 if !defined $self->{session};
     eval { $self->_rpc( '/web/session/destroy', {}, 'session.destroy' ) };
     my $err = $@;
+    $self->{pending}  = 0;
     $self->{session}  = undef;
     $self->{identity} = undef;
     delete $self->{cookies}{session_id};
@@ -253,14 +382,14 @@ sub get ($self, $path, %opts) {
 
 A form POST (C<application/x-www-form-urlencoded>) to a route under the
 server's URL, with every cookie held, answering the raw response as C<get>
-does and keeping the cookies it sets. It is how a public page's form is
+does and keeping the cookies it sets. C<headers> (a hash) adds request headers. It is how a public page's form is
 submitted as a browser would (the password-reset page); no redirect is
 followed, so a 303 is the caller's to read.
 
 =cut
 
 sub post_form ($self, $path, $fields, %opts) {
-    my %headers;
+    my %headers = %{ $opts{headers} // {} };
     my $cookie = $self->_cookie_header;
     $headers{cookie} = $cookie if length $cookie;
     my $http = $self->{http};
@@ -298,6 +427,89 @@ sub has_session ($self) { defined $self->{session} }
 
 # --- internals --------------------------------------------------------------
 
+# the fault of a call or a sign-in that needs the authenticator code
+sub _second_factor_required () {
+    return (
+        kind        => 'fault',
+        message     => "this user's sign-in needs the second factor (Odoo's authenticator code)",
+        fault_class => 'oom.SecondFactorRequired',
+        fix         => 'ask the person for their Odoo authenticator code and complete the sign-in with complete_totp',
+    );
+}
+
+sub _pending_expired () {
+    return (
+        kind        => 'fault',
+        message     => 'the pending sign-in is no longer known to Odoo (it expired or was never made)',
+        fault_class => 'odoo.http.SessionExpiredException',
+        fix         => 'sign in again with the login and password',
+    );
+}
+
+sub _forget_pending ($self) {
+    $self->{pending} = 0;
+    $self->{session} = undef;
+    $self->{cookies} = {};
+    return;
+}
+
+# Did a /web/login/totp answer say the pending session is gone (1), the
+# sign-in is done (0), or is the form still to be filled in (undef)?
+sub _totp_gone ($self, $res) {
+    my $status = $res->{status} // 0;
+    return undef if $status !~ /\A3\d\d\z/;
+    my $to = $res->{headers}{location} // '';
+    return $to =~ m{/web/login(?:\?|\z)} ? 1 : 0;
+}
+
+# Odoo opened the session: read it back; the trusted-device cookie is
+# handed to the caller and kept out of the jar
+sub _totp_signed_in ($self, $res, $remember) {
+    my $td = $self->{cookies}{ TRUSTED_DEVICE_COOKIE() };
+    delete $self->{cookies}{ TRUSTED_DEVICE_COOKIE() };
+    $self->{pending} = 0;
+    my ($info) = $self->_rpc( '/web/session/get_session_info', {}, 'session.get_session_info' );
+    Odoo::Error->throw( kind => 'fault', message => 'the code was accepted and Odoo opened no session', fault_class => 'oom.NoSession' )
+        if !ref $info || !$info->{uid};
+    $self->{identity} = _identity( $info, $self->{db} );
+    my %id = %{ $self->{identity} };
+    $id{trusted_device} = { name => TRUSTED_DEVICE_COOKIE, value => $td } if $remember && defined $td;
+    return \%id;
+}
+
+# a trusted device: Odoo reads its cookie on the GET of the code form
+sub _try_trusted_device ($self) {
+    my $res  = $self->get('/web/login/totp');
+    my $gone = $self->_totp_gone($res);
+    return $self->_totp_signed_in( $res, 0 ) if defined $gone && !$gone;
+    delete $self->{cookies}{ TRUSTED_DEVICE_COOKIE() };
+    if ($gone) { $self->_forget_pending; Odoo::Error->throw( _pending_expired() ) }
+    return { second_factor => 'totp', pending => 1 };
+}
+
+# the csrf token of Odoo's form
+sub _csrf ($html) {
+    for my $tag ( ( $html // '' ) =~ /<input\b[^>]*>/gi ) {
+        next if $tag !~ /name=["']csrf_token["']/;
+        return $1 if $tag =~ /value=["']([^"']*)["']/;
+    }
+    return undef;
+}
+
+# the words of the form's alert, as Odoo wrote them
+sub _form_error ($html) {
+    my ($t) = ( $html // '' ) =~ m{<p\b[^>]*alert-danger[^>]*>(.*?)</p>}is or return undef;
+    $t =~ s/<[^>]*>//g;
+    $t =~ s/&lt;/</g;
+    $t =~ s/&gt;/>/g;
+    $t =~ s/&quot;/"/g;
+    $t =~ s/&#0*39;/'/g;
+    $t =~ s/&amp;/&/g;
+    $t =~ s/\s+/ /g;
+    $t =~ s/\A | \z//g;
+    return length $t ? $t : undef;
+}
+
 sub _cookie_header ($self) {
     my $c = $self->{cookies};
     return join '; ', map { "$_=$c->{$_}" } sort { $a eq 'session_id' ? -1 : $b eq 'session_id' ? 1 : $a cmp $b } keys %$c;
@@ -323,6 +535,7 @@ sub _absorb_cookies ($self, $res) {
 }
 
 sub _need_session ($self, $what) {
+    Odoo::Error->throw( _second_factor_required() ) if $self->{pending};
     Odoo::Error->throw(
         kind        => 'fault',
         message     => "no session: authenticate first ($what)",

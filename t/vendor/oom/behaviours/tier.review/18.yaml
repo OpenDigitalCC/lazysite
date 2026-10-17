@@ -1,0 +1,14 @@
+# tier.review (one step of a validation), Odoo 18 (base_tier_validation, OCA). Read from the OCA tree
+# (base_tier_validation/models/tier_review.py, tier_validation.py).
+# The model has no public method that changes state. A review's status is written by the methods of the record under
+# validation: request_validation makes the reviews (waiting or pending), validate_tier sets approved, reject_tier sets
+# rejected and restart_validation deletes them. Those are listed on the models that carry the mixin (hr.expense.sheet,
+# through hr_expense_tier_validation), so a write of status here goes past them and core.import holds it.
+model: tier.review
+series: 18
+module: base_tier_validation
+state:
+  field: status
+  written_by: actions
+  operations:
+  - core.action

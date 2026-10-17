@@ -52,7 +52,7 @@ sub fields_for ($series) {
         'ir.model.data' => { module => $c->(), name => $c->(), model => $c->(), res_id => { type => 'integer' }, noupdate => { type => 'boolean' } },
         'res.partner'   => { name => $c->(), email => $c->() },
         'res.company'   => { name => $c->() },
-        'res.users.apikeys' => { name => $c->(), user_id => { type => 'many2one', relation => 'res.users' },
+        'res.users.apikeys' => { name => $c->(), scope => $c->(), create_date => $c->(), user_id => { type => 'many2one', relation => 'res.users' },
             ( $series >= 18 ? ( expiration_date => $c->() ) : () ) },
         'res.users.apikeys.description' => { name => $c->(), duration => $c->() },
         'res.users.identitycheck'       => { password => $c->() },

@@ -11,9 +11,9 @@ actions:
   to: [approved]
   undo: action_refuse_overtime
   note: writes overtime_status
-  evidence: source 18.0 hr_attendance hr_attendance.action_approve_overtime
+  evidence: 'source 18.0 hr_attendance hr_attendance.action_approve_overtime; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (as the revert of action_refuse_overtime: refused -> approved)'
 - method: action_refuse_overtime
   to: [refused]
   undo: action_approve_overtime
   note: writes overtime_status
-  evidence: source 18.0 hr_attendance hr_attendance.action_refuse_overtime
+  evidence: source 18.0 hr_attendance hr_attendance.action_refuse_overtime; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (overtime_status approved -> refused on an attendance of ten hours)

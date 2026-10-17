@@ -51,6 +51,13 @@ line, C<#> comments, blank lines ignored. Recognised keys:
     record_reads          1 (default): oom-ops run of a read leaves a run folder with
                           its report.json; 0: it prints and leaves nothing, as
                           --check does (a shared instance, an agent that reads a lot)
+    audit_log             a path: one JSON-lines file, appended to by every command run with this
+                          config (created 0600; refused at load when other users can write it)
+    audit_syslog          1: send each audit line to syslog as well (default 0)
+    audit_syslog_facility user (default), auth, authpriv, daemon, local0 .. local7
+    audit_level           core (default): one line per event; transaction: and one per RPC call
+    audit_required        1: a command does not start unless every destination can be written,
+                          and stops before the next call to Odoo if a line cannot be written
 
 An unknown key is refused, so a typo in C<allow_writes> can never
 silently read as "writes off" or "writes on".
@@ -65,6 +72,7 @@ my %KNOWN = map { $_ => 1 } qw(
     max_response_bytes lang tz actor runs_dir profile_dir
     profile_series allow_writes name ssl_ca_file ssl_verify session
     approval plan_ttl mailcatcher record_reads
+    audit_log audit_syslog audit_syslog_facility audit_level audit_required
 );
 
 sub load ($class, $path) {
@@ -110,6 +118,28 @@ sub new ($class, %conf) {
         if defined $conf{plan_ttl} && $conf{plan_ttl} !~ /^[1-9]\d*\z/;
     Odoo::Error->throw( kind => q(config), message => "record_reads must be 0 or 1, not '$conf{record_reads}'" )
         if defined $conf{record_reads} && $conf{record_reads} !~ /^[01]\z/;
+    Odoo::Error->throw( kind => q(config), message => "audit_syslog must be 0 or 1, not '$conf{audit_syslog}'" )
+        if defined $conf{audit_syslog} && $conf{audit_syslog} !~ /^[01]\z/;
+    Odoo::Error->throw( kind => q(config), message => "audit_required must be 0 or 1, not '$conf{audit_required}'" )
+        if defined $conf{audit_required} && $conf{audit_required} !~ /^[01]\z/;
+    Odoo::Error->throw( kind => q(config), message => "audit_level must be core or transaction, not '$conf{audit_level}'" )
+        if defined $conf{audit_level} && $conf{audit_level} !~ /^(?:core|transaction)\z/;
+    if ( defined $conf{audit_syslog_facility} ) {
+        require Odoo::Ops::Trail;
+        my @ok = Odoo::Ops::Trail->facilities;
+        Odoo::Error->throw( kind => q(config), message => "audit_syslog_facility must be one of " . join( ', ', @ok ) . ", not '$conf{audit_syslog_facility}'" )
+            if !grep { $_ eq $conf{audit_syslog_facility} } @ok;
+    }
+    Odoo::Error->throw( kind => q(config), message => 'audit_log must be a path, not empty' )
+        if defined $conf{audit_log} && $conf{audit_log} eq '';
+    if ( defined $conf{audit_log} && -e $conf{audit_log} ) {
+        my @st = stat $conf{audit_log};
+        Odoo::Error->throw( kind => q(config),
+            message => sprintf( 'audit_log %s is mode %04o; other users can write it (chmod 600)', $conf{audit_log}, $st[2] & 07777 ) )
+            if $st[2] & 022;
+    }
+    Odoo::Error->throw( kind => q(config), message => 'audit_required needs audit_log or audit_syslog = 1' )
+        if ( $conf{audit_required} // 0 ) eq '1' && !defined $conf{audit_log} && ( $conf{audit_syslog} // 0 ) ne '1';
     return bless {%conf}, $class;
 }
 
@@ -131,6 +161,13 @@ sub plan_ttl ($self) { $self->{plan_ttl} // 86400 }
 
 # whether a read leaves a run folder; a write always does
 sub record_reads ($self) { ( $self->{record_reads} // 1 ) eq '1' }
+
+# the audit a config asks for: a file, syslog, or both
+sub audit_enabled  ($self) { defined $self->{audit_log} || ( $self->{audit_syslog} // 0 ) eq '1' }
+sub audit_syslog   ($self) { ( $self->{audit_syslog} // 0 ) eq '1' }
+sub audit_required ($self) { ( $self->{audit_required} // 0 ) eq '1' }
+sub audit_level    ($self) { $self->{audit_level} // 'core' }
+sub audit_facility ($self) { $self->{audit_syslog_facility} // 'user' }
 
 # Stable identity of the target, for binding plans to an instance.
 sub instance ($self) {

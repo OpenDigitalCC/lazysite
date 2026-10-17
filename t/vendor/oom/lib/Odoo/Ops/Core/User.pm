@@ -15,6 +15,7 @@ use Odoo::Ops;
 use Odoo::Ops::Credential;
 use Odoo::Ops::ResetForm;
 use Odoo::Ops::Rows;
+use Odoo::Transport::Session ();
 use Odoo::Ops::Totp;
 
 use parent 'Odoo::Ops::Operation';
@@ -619,7 +620,7 @@ sub _apply_reset_take ($class, $client, $c) {
 
     # proved from a fresh client, as the consumer will use it
     my $as = $client->web_session;
-    my $id = eval { $as->authenticate( $db, $login, $pw ) };
+    my $id = eval { Odoo::Transport::Session::require_signed_in( $as, $as->authenticate( $db, $login, $pw ) ) };
     if ( my $err = $@ ) {
         my $why = ref $err && $err->can('message') ? $err->message : "$err";
         $why = 'the password is right but the account has two-factor on, which opens no web session' if ref $err && $err->can('is_no_session') && $err->is_no_session;
@@ -677,6 +678,8 @@ sub _password_authenticates ($client, $login, $secret, $uid) {
         return $err->is_no_session ? 1 : 0;
     }
     eval { $web->destroy };
+    # right password, two-factor on: the sign-in waits for a code
+    return 1 if $id && $id->{pending};
     return $id && $id->{uid} == $uid ? 1 : 0;
 }
 
@@ -774,7 +777,7 @@ sub _apply_api_key ($class, $client, $c) {
 # web session as the user, because the check and the key belong to the session's user.
 sub _mint ($class, $client, $login, $pw, $series, $c) {
     my $web = $client->web_session;
-    $web->authenticate( $client->db, $login, $pw );
+    Odoo::Transport::Session::require_signed_in( $web, $web->authenticate( $client->db, $login, $pw ) );
     my $guard = $client->transport;
     my $t     = $guard->can('derive') ? $guard->derive( $web, login => $login ) : $web;
     my $as    = Odoo::Client->new( url => $client->url, db => $client->db, transport => $t, retries => [0] );
@@ -889,7 +892,7 @@ sub _totp_off ($class, $client, $c) {
 # a session as the user, held to the same scope and audit as the connection
 sub _as_user ($class, $client, $login, $pw) {
     my $web = $client->web_session;
-    $web->authenticate( $client->db, $login, $pw );
+    Odoo::Transport::Session::require_signed_in( $web, $web->authenticate( $client->db, $login, $pw ) );
     my $guard = $client->transport;
     my $t     = $guard->can('derive') ? $guard->derive( $web, login => $login ) : $web;
     return ( Odoo::Client->new( url => $client->url, db => $client->db, transport => $t, retries => [0] ), $web );

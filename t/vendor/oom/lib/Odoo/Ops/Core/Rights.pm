@@ -53,9 +53,11 @@ sub read_scope ($class) {
 
 sub report ($self) {
     my $c   = $self->client;
-    my $me  = $c->execute_kw( 'res.users', 'read', [ [ $c->uid ] ], { fields => [qw(login name groups_id share)] } )->[0];
+    # group_ids from 19, groups_id before
+    my $gf  = $c->model('res.users')->fields->{group_ids} ? 'group_ids' : 'groups_id';
+    my $me  = $c->execute_kw( 'res.users', 'read', [ [ $c->uid ] ], { fields => [ 'login', 'name', $gf, 'share' ] } )->[0];
     my %r   = ( login => $me->{login}, share => $me->{share} ? 1 : 0 );
-    my $gids = $me->{groups_id} // [];
+    my $gids = $me->{$gf} // [];
 
     my $groups = $self->_try( sub { $c->model('res.groups')->read( $gids, [qw(full_name implied_ids)] ) } );
     if ( !ref $groups ) { $r{groups} = { unreadable => $groups }; return \%r }

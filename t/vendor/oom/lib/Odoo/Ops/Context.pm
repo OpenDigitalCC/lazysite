@@ -8,6 +8,7 @@ no warnings 'experimental::signatures';
 use File::Path qw(make_path);
 use File::Spec;
 use Scalar::Util ();
+use Time::HiRes ();
 
 use Odoo::Client;
 use Odoo::Error;
@@ -16,6 +17,7 @@ use Odoo::Ops::Audit;
 use Odoo::Ops::Credential;
 use Odoo::Ops::Guard;
 use Odoo::Ops::Profile;
+use Odoo::Ops::Trail;
 
 =head1 NAME
 
@@ -37,8 +39,37 @@ L<Odoo::Ops::Audit> sink. With a run directory the audit is written to
 C<audit.jsonl> there; before one exists, records stay in memory and
 are flushed into it when it is created.
 
+The audit of the config (C<audit_log>, C<audit_syslog>, C<audit_level>,
+C<audit_required>; see L<Odoo::Ops::Config> and L<Odoo::Ops::Trail>) belongs to
+this route. A Perl program that builds a Context and uses C<< $ctx->client >>
+goes through the L<Odoo::Ops::Guard>, so its calls and the events it causes are
+audited exactly as the commands' are, at the same level, and with
+C<audit_required> the Context is refused (C<refused/audit-unavailable>) when the
+audit cannot be written. The actor is C<actor> passed to C<new>, else
+C<ODOO_OOM_ACTOR>, the config's C<actor> or C<$USER>.
+
 C<now> (a coderef returning epoch seconds) is injectable so tests are
 deterministic.
+
+=head2 A key in memory
+
+    my $ctx = Odoo::Ops::Context->new(
+        config     => $config,      # url, db, login (the service's own), audit_*
+        credential => { login => 'jane@example.com', api_key => $key },
+        actor      => 'jane@example.com',
+    );
+
+This is how a calling program runs as a person whose API key it holds, with
+no key file: a lazysite sign-in that keeps the person's key for the session
+is the case. The context authenticates as C<login> with C<api_key>, and every
+operation, guard decision and audit line is that person's: the audit's C<login>
+is C<jane@example.com> and the config's C<login> is left out of it. The key
+stays in this hash and in the client; it is in no error message, audit line,
+plan, journal or report (C<t/62-keys.t> searches for it). C<core.whoami> run on
+the context reports C<login>, C<< credential => 'api_key' >> and the key's
+name, scope and expiry, never its value. Odoo refuses the key when its login is
+archived, when the key was deleted or has expired; the refusal is a
+C<credential> fault whose C<fix> names C<oom-accounts probe>.
 
 =cut
 
@@ -48,6 +79,9 @@ sub new ($class, %args) {
     my $now = $args{now} // sub { time };
 
     my %cred = $args{credential} ? %{ $args{credential} } : Odoo::Ops::Credential->resolve($config);
+    # who the context runs as: the login of a credential given in memory, else the config's
+    my $login = defined $cred{login} && length $cred{login} ? $cred{login} : $config->get('login');
+    my $kind  = $cred{session} ? 'session' : defined $cred{password} ? 'password' : 'api_key';
     # the password strategy: login and password become a web session
     my $password  = delete $cred{password};
     my $pw_file   = delete $cred{password_file};
@@ -79,13 +113,15 @@ sub new ($class, %args) {
         delete $cred{login};
     }
 
-    my $actor = $args{actor} // $config->get('actor') // $ENV{USER} // 'unknown';
-    my $audit = Odoo::Ops::Audit->new( now => $now );
+    my ( $actor, $actor_from ) = defined $args{actor} ? ( $args{actor}, 'option' ) : Odoo::Ops::Trail->resolve_actor($config);
+    # the shared audit of the config, opened (and, when required, proved writable) before any call
+    my $trail = Odoo::Ops::Trail->for_config( $config, now => $now, actor => $actor, actor_from => $actor_from, login => $login );
+    my $audit = Odoo::Ops::Audit->new( now => $now, trail => $trail );
     my $guard = Odoo::Ops::Guard->new(
         inner => $inner,
         audit => $audit,
         actor => $actor,
-        login => $config->get('login'),
+        login => $login,
     );
 
     my %ctx;
@@ -100,18 +136,21 @@ sub new ($class, %args) {
         context   => \%ctx,
         ( $args{retries} ? ( retries => $args{retries} ) : () ),
     );
+    $trail->set_uid_source($client) if $trail;
 
     my $self = bless {
         config   => $config,
         client   => $client,
         guard    => $guard,
         audit    => $audit,
+        trail    => $trail,
         actor    => $actor,
         now      => $now,
         profiles => {},
         profile_dirs => $args{profile_dirs} // [ grep {defined} $config->get('profile_dir') ],
         password_file => $pw_file,
-        login         => $config->get('login'),
+        login         => $login,
+        credential_kind => $kind,
     }, $class;
     # a session that expires mid-run is opened again, once, for the call that met it
     if ( $by_login && $inner->can('set_reauth') ) {
@@ -129,8 +168,19 @@ sub config ($self) { $self->{config} }
 sub client ($self) { $self->{client} }
 sub guard  ($self) { $self->{guard} }
 sub audit  ($self) { $self->{audit} }
+sub trail  ($self) { $self->{trail} }
 sub actor  ($self) { $self->{actor} }
 sub now    ($self) { $self->{now}->() }
+
+=head2 credential_kind
+
+Which credential this context uses: C<api_key> (a key, from C<api_key_file> or
+given in memory), C<password> (a login and a password file, exchanged for a web
+session) or C<session> (a web session id the caller holds). Never the value.
+
+=cut
+
+sub credential_kind ($self) { $self->{credential_kind} }
 
 =head2 session_transport
 
@@ -156,16 +206,26 @@ again from the password file.
 
 sub can_reopen_session ($self) { defined $self->{password_file} }
 
-=head2 open_session($password)
+=head2 open_session($password, %opts)
 
 Authenticates the session transport with the login and the password (read
 again from C<password_file> when not given) and returns the identity.
 Called at start by a C<password> context, and again by an operation that
 meets a lost session. The password is not kept.
 
+When Odoo wants the second factor (the user has two-factor on) the call dies
+with C<kind =E<gt> 'fault'>, category C<second-factor-required> and a C<fix:>
+line: ask the person for their Odoo authenticator code and complete the
+sign-in with L</complete_totp>. The half-open session is kept on the
+transport. C<trusted_device =E<gt> VALUE> is passed on to
+L<Odoo::Transport::Session/authenticate>; a device Odoo still trusts signs in
+without a code. The sign-in is recorded in the audit as a C<web> call
+carrying C<second_factor: totp>; the password, the code and the trusted-device
+value are not.
+
 =cut
 
-sub open_session ($self, $password = undef) {
+sub open_session ($self, $password = undef, %opts) {
     my $t = $self->session_transport
         or Odoo::Error->throw( kind => 'usage', message => 'this connection has no web session to open' );
     $password //= Odoo::Ops::Credential->secret_file( $self->{password_file}, 'password_file' )
@@ -173,7 +233,40 @@ sub open_session ($self, $password = undef) {
     Odoo::Error->throw( kind => 'refused', code => 'needs-session', message => 'no password to open a web session with',
         fix => 'a config whose credential is password (login and password_file)' )
         if !defined $password;
-    return $t->authenticate( $self->{config}->get('db'), $self->{login}, $password );
+    my $id = $t->authenticate( $self->{config}->get('db'), $self->{login}, $password,
+        ( defined $opts{trusted_device} ? ( trusted_device => $opts{trusted_device} ) : () ) );
+    return $id if !$id->{pending};
+    $self->{guard}->audit_web( 'session.authenticate', 'answered', 0, second_factor => 'totp' );
+    Odoo::Error->throw( kind => 'fault', message => "this user's sign-in needs the second factor (Odoo's authenticator code)",
+        fault_class => 'oom.SecondFactorRequired',
+        fix => 'ask the person for their Odoo authenticator code and complete the sign-in with complete_totp' );
+}
+
+=head2 complete_totp($code, remember =E<gt> 0|1)
+
+Finishes a sign-in that C<open_session> left waiting for the code
+(L<Odoo::Transport::Session/complete_totp>) and returns the identity. A wrong
+code dies as category C<second-factor> and the sign-in stays open. Recorded
+in the audit as a C<web> call C<session.totp> carrying C<second_factor: totp>
+and its outcome (C<answered>, or C<fault> with the category); the code is not
+in the record.
+
+=cut
+
+sub complete_totp ($self, $code, %opts) {
+    my $t = $self->session_transport
+        or Odoo::Error->throw( kind => 'usage', message => 'this connection has no web session to complete' );
+    my $t0 = Time::HiRes::time();
+    my $id = eval { $t->complete_totp( $code, %opts ) };
+    my $err = $@;
+    my $ms = int( ( Time::HiRes::time() - $t0 ) * 1000 );
+    if ($err) {
+        my $cat = ref $err && $err->can('fault_category') ? $err->fault_category : undef;
+        $self->{guard}->audit_web( 'session.totp', 'fault', $ms, second_factor => 'totp', ( defined $cat ? ( fault_category => $cat ) : () ) );
+        die $err;
+    }
+    $self->{guard}->audit_web( 'session.totp', 'answered', $ms, second_factor => 'totp' );
+    return $id;
 }
 
 sub approval     ($self) { $self->{config}->approval }
@@ -248,10 +341,11 @@ Adopts an existing run directory (apply writes next to its plan).
 sub use_run_dir ($self, $dir) {
     my $held = $self->{audit}->records;
     my $file = Odoo::Ops::Audit->new(
-        path => File::Spec->catfile( $dir, 'audit.jsonl' ),
-        now  => $self->{now},
+        path  => File::Spec->catfile( $dir, 'audit.jsonl' ),
+        now   => $self->{now},
+        trail => $self->{trail},
     );
-    $file->record(%$_) for @$held;
+    $file->replay(%$_) for @$held;
     $self->{audit} = $file;
     $self->{guard}->set_audit($file);
     $self->{run_dir} = $dir;

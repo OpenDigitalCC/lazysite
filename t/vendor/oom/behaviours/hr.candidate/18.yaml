@@ -4,5 +4,11 @@ series: 18
 module: hr_recruitment
 actions:
 - method: create_employee_from_candidate
+  creates:
+  - model: hr.employee
+    link: employee_id
+  - model: res.partner
+    link: partner_id
+  creates_evidence: 'source 18.0 hr_recruitment hr_candidate.create_employee_from_candidate; live 2026-10-17 on hr18 (probe of this spec): a candidate with no contact: Odoo made the employee and the contact, named by employee_id and partner_id. Odoo also makes the employee''s resource, resume line and calendar, which are not listed'
   note: makes an hr.employee from the candidate, making the candidate's contact when it has none; the job fields are not copied (hr.applicant create_employee_from_applicant copies them); one candidate per call; answers with a window on the employee
   evidence: source 18.0 hr_recruitment hr_candidate.create_employee_from_candidate

@@ -1,5 +1,8 @@
 # hr.expense, Odoo 18 (hr_expense). Read from the 18.0 source (addons/hr_expense/models/hr_expense.py).
 # The state is computed from the expense report (hr.expense.sheet), so it is changed through the report's actions.
+# Not listed: action_view_sheet, action_show_same_receipt_expense_ids and action_get_attachment_view only open a screen;
+# action_approve_duplicates posts a message on the similar expenses and changes no state; action_split_wizard makes the
+# split lines and answers with the split wizard (hr.expense.split.wizard).
 model: hr.expense
 series: 18
 module: hr_expense
@@ -10,7 +13,19 @@ state:
   - core.action
 actions:
 - method: action_submit_expenses
+  creates:
+  - model: hr.expense.sheet
+    link: sheet_id
+  creates_evidence: 'source 18.0 hr_expense hr_expense.action_submit_expenses (_create_sheets_from_expense makes one report per payer); live 2026-10-17 (t/97-hr-actions-live.t on hr18): Odoo made the report, named by sheet_id; the same on the plain 18 (local18)'
   from: [draft]
   to: [reported]
   note: makes a draft expense report for the expenses (one per payer) and answers with a window on it; the expenses must have no report and be editable by the acting user
   evidence: source 18.0 hr_expense hr_expense.action_submit_expenses; live 2026-10-16 t/97-hr-actions-live.t on hr18 (draft -> reported; the window was on the new report)
+- method: action_expense_create_invoice
+  module: hr_expense_invoice
+  creates:
+  - model: account.move
+    link: invoice_id
+  creates_evidence: 'source OCA hr_expense_invoice hr_expense.action_expense_create_invoice (account.move create, then write of invoice_id); live 2026-10-17 t/59-hr-expense-flow-live.t on hr18: one draft in_invoice, create_uid the acting user, named by invoice_id'
+  note: 'makes a draft vendor bill for the expense (one line, the untaxed amount, the expense''s attachments copied to it) and sets it as the expense''s invoice_id. The expense must be in a report: for an expense in none Odoo refuses with "Vendor bill state must be Posted", because the bill is in draft. The bill is posted by its own action (account.post)'
+  evidence: 'source OCA hr_expense_invoice hr_expense.action_expense_create_invoice, _check_invoice_id; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (refused for an expense in no report, in the words above; a draft bill made for an expense in a report, and its price the expense''s untaxed amount)'

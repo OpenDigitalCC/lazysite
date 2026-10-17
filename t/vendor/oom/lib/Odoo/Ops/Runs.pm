@@ -10,6 +10,7 @@ use File::Spec;
 use Time::Local qw(timegm);
 
 use Odoo::Error;
+use Odoo::Ops::Trail;
 use Odoo::Ops;
 use Odoo::Ops::Journal;
 use Odoo::Ops::Plan;
@@ -173,6 +174,7 @@ sub withdraw ($self, $id, %o) {
     $idx->{state}     = 'withdrawn';
     $idx->{withdrawn} = { by => $o{by} // $ENV{USER} // 'unknown', at => Odoo::Ops::iso_time( $o{now} // $self->_now ), note => $o{note} };
     _write( $d, $idx );
+    Odoo::Ops::Trail->emit( withdraw => run => $id, op => $idx->{op}, outcome => 'ok' );
     return $idx;
 }
 
@@ -207,6 +209,7 @@ sub close_run ($self, $id, %o) {
     $idx->{state}  = 'closed';
     $idx->{closed} = { by => $o{by} // $ENV{USER} // 'unknown', at => Odoo::Ops::iso_time( $o{now} // $self->_now ), reason => $reason, was => $was };
     _write( $d, $idx );
+    Odoo::Ops::Trail->emit( close => run => $id, op => $idx->{op}, outcome => 'ok', reason => $reason );
     return $idx;
 }
 
@@ -401,6 +404,12 @@ sub index_plan ($class, $dir, $plan, %o) {
     $r{reverted_for} = $p->{reverted_for} if $h->{op} eq 'revert' && defined $p->{reverted_for};
     $r{resumes} = basename( dirname( $p->{resumes} ) ) if defined $p->{resumes} && !ref $p->{resumes};
     _write( $dir, \%r ) if !$o{nowrite};
+    if ( !$o{nowrite} ) {
+        my $ps = $plan->summary;
+        my %models = map { $_->{model} => 1 } grep { defined $_->{model} && $_->{action} !~ /^(?:skip|hold)\z/ } @{ $plan->changes };
+        Odoo::Ops::Trail->emit( plan => run => $r{id}, op => $r{op}, outcome => 'ok', buckets => $ps->{buckets}, input_count => $ps->{input_count},
+            models => [ sort keys %models ], params => [ sort keys %{ $h->{params} // {} } ] );
+    }
     return \%r;
 }
 
@@ -439,6 +448,7 @@ sub approve_plan ($class, $dir, $plan, %o) {
         fingerprint => $plan->fingerprint,
     };
     _write( $dir, $idx );
+    Odoo::Ops::Trail->emit( approve => run => $idx->{id}, op => $idx->{op}, outcome => 'ok' );
     return $idx;
 }
 

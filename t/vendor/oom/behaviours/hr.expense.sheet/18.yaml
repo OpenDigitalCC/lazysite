@@ -1,7 +1,24 @@
-# hr.expense.sheet (the expense report), Odoo 18 (hr_expense, with hr_expense_cancel from OCA).
-# Read from the 18.0 source (addons/hr_expense/models/hr_expense_sheet.py, addons/hr_expense/wizard/) and the
-# OCA tree (hr_expense_cancel/models/hr_expense.py); run on hr18 by t/97-hr-actions-live.t.
-# approval_state is what the actions write; state is computed from it, the moves and the payment.
+# hr.expense.sheet (the expense report), Odoo 18 (hr_expense, with the OCA hr-expense and validation modules).
+# Read from the 18.0 source (addons/hr_expense/models/hr_expense_sheet.py, addons/hr_expense/wizard/) and the OCA tree
+# (hr_expense_cancel, hr_expense_payment, hr_expense_invoice, hr_expense_advance_clearing, hr_expense_petty_cash,
+# hr_expense_exception, hr_expense_tier_validation, base_exception, base_tier_validation); run on hr18 by
+# t/97-hr-actions-live.t and t/59-hr-expense-flow-live.t.
+# approval_state is what the actions write; state is computed from it, the moves and the payment. validation_status is
+# the tier validation's own state (base_tier_validation), read beside them.
+#
+# Not listed, and why (source OCA/18.0, read 2026-10-17):
+# - action_open_expense_view, action_open_account_moves, action_view_invoices, open_clear_advance, action_open_clearings,
+#   action_open_payment_return and action_popup_exceptions only open a screen.
+# - set_to_paid and set_to_posted are hooks other modules call to bypass the payment and the move: each writes state
+#   directly, which OOM leaves to the actions above.
+# - hr_expense_advance_clearing (advances): it adds no method that changes state. An advance and its clearing are reports like
+#   any other: action_sheet_move_post posts the advance, and posting a clearing report (advance_sheet_id set) reconciles it against
+#   the advance and sets the state itself. The return of the rest of an advance is the payment wizard with the context key
+#   hr_return_advance.
+# - hr_expense_petty_cash (petty cash): the model petty.cash has no method that changes state. A report paid from petty cash is
+#   posted by action_approve_expense_sheets (it makes and posts the entry), and action_sheet_move_post then fails.
+# - tier.review (base_tier_validation) has no public method that changes state: the methods below change it.
+# - hr_expense_vendor_receipt and hr_expense_sequence add no public method.
 model: hr.expense.sheet
 series: 18
 module: hr_expense
@@ -9,6 +26,7 @@ state:
   field: approval_state
   also:
   - state
+  - validation_status
   written_by: actions
   operations:
   - core.action
@@ -17,36 +35,79 @@ actions:
   from: [draft]
   to: [submit]
   undo: action_reset_expense_sheets
-  note: schedules an approval activity for the responsible user
-  evidence: source 18.0 hr_expense hr_expense_sheet.action_submit_sheet; live 2026-10-16 t/97-hr-actions-live.t on hr18 (approval_state none -> submit, state draft -> submit)
+  note: 'schedules an approval activity for the responsible user. With hr_expense_exception, an active exception rule that fails the report makes Odoo refuse the submit with {"src_model": "hr.expense.sheet", "target_model": "hr.expense.sheet"} and store the exception on the report (exception_ids), so the call changes nothing but that; action_ignore_exceptions, then the submit, goes past it'
+  evidence: 'source 18.0 hr_expense hr_expense_sheet.action_submit_sheet, OCA hr_expense_exception hr_expense_sheet.action_submit_sheet; live 2026-10-16 t/97-hr-actions-live.t on hr18 (approval_state none -> submit, state draft -> submit); live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (refused by an exception rule in the JSON above, exception_ids stored; submitted once the exception was ignored)'
 - method: action_approve_expense_sheets
+  creates:
+  - model: account.move
+    link: account_move_ids
+  creates_evidence: 'source 18.0 hr_expense hr_expense_sheet._do_approve (_do_create_moves makes the vendor bill in draft for an own-account report); live 2026-10-17 on the plain 18 (local18, probe of actions-2): one draft account.move, create_uid the acting user, named by account_move_ids, and its reset deleted it. On hr18 nothing is made at approve for an own-account report: the OCA module hr_expense_invoice (installed there) bypasses _do_create_moves, so the move is made at post. A report paid from petty cash is the exception: OCA hr_expense_petty_cash _do_create_moves makes the entry and posts it at approve (live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 on hr18: made: account.move posted, state post). A company-paid report makes an account.payment as well (source only; local18 refused the approve for want of a payment method, hr18 refuses it for want of an outstanding account, so it is not listed)'
   from: [submit]
   to: [approve]
   undo: action_reset_expense_sheets
   wizard: hr.expense.approve.duplicate
-  note: the acting user must be allowed to approve (can_approve); answers with the duplicate wizard window, and approves nothing, when a similar expense is approved or done already
-  evidence: source 18.0 hr_expense hr_expense_sheet.action_approve_expense_sheets; live 2026-10-16 t/97-hr-actions-live.t on hr18 (submit -> approve; no duplicate, so no window)
+  note: 'the acting user must be allowed to approve (can_approve); answers with the duplicate wizard window, and approves nothing, when a similar expense is approved or done already. With base_tier_validation, Odoo refuses while a validation is pending: "A validation process is still open for at least one record." A company-paid report is refused on hr18: "A default outstanding account must be defined in the settings for company-paid expenses."'
+  evidence: source 18.0 hr_expense hr_expense_sheet.action_approve_expense_sheets; live 2026-10-16 t/97-hr-actions-live.t on hr18 (submit -> approve; no duplicate, so no window); live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (refused in the words above by a pending validation and by a company-paid report; approved once the validation was)
 - method: action_refuse_expense_sheets
   wizard: hr.expense.refuse.wizard
   note: answers with the refuse wizard window and changes nothing; the refusal is the wizard's
   evidence: source 18.0 hr_expense hr_expense_sheet.action_refuse_expense_sheets; live 2026-10-16 t/97-hr-actions-live.t on hr18 (answered with the refuse wizard window)
 - method: action_sheet_move_post
+  creates:
+  - model: account.move
+    link: account_move_ids
+  creates_evidence: 'source 18.0 hr_expense hr_expense_sheet.action_sheet_move_post (_do_create_moves when the report has no move); live 2026-10-17 (t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 on hr18): an own-account report approved then posted: Odoo made and posted one vendor bill, named by account_move_ids (state approve -> post); live 2026-10-16 t/97-hr-actions-live.t (the 0.24 run, the same)'
   from: [approve]
   to: [post]
   undo: action_reset_expense_sheets
-  note: makes the journal entries when there are none and posts them (or the payment, for a company-paid report), which takes numbers from the journal's sequence for good
-  evidence: 'source 18.0 hr_expense hr_expense_sheet.action_sheet_move_post; live 2026-10-16 t/97-hr-actions-live.t on hr18 (approve -> post: Odoo made and posted a vendor bill)'
+  note: 'makes the journal entries when there are none and posts them (or the payment, for a company-paid report), which takes numbers from the journal''s sequence for good. For an expense that carries a posted vendor bill (hr_expense_invoice) it makes a transfer entry in a general journal instead and posts it. A report paid from petty cash is posted at approve: the post then fails with Odoo''s words "The entry ... must be in draft."'
+  evidence: 'source 18.0 hr_expense hr_expense_sheet.action_sheet_move_post; live 2026-10-16 t/97-hr-actions-live.t on hr18 (approve -> post: Odoo made and posted a vendor bill); live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 (the same, the transfer entry for an expense with a posted bill, and the refusal for a petty-cash report)'
 - method: action_reset_expense_sheets
   from: [submit, approve, post, cancel]
   to: [draft]
-  note: reverses the report's journal entries; only an HR officer or the employee may reset
-  evidence: 'source 18.0 hr_expense hr_expense_sheet.action_reset_expense_sheets; live 2026-10-16 t/97-hr-actions-live.t on hr18 (post -> draft, as the revert of the post: Odoo posted a reversal and kept both entries)'
+  note: 'reverses the report''s journal entries; only an HR officer or the employee may reset. With base_tier_validation, a submitted report whose validation is done (its reviews exist) is refused: "You are not allowed to write those fields under validation."; restart_validation, then the reset'
+  evidence: 'source 18.0 hr_expense hr_expense_sheet.action_reset_expense_sheets; live 2026-10-16 t/97-hr-actions-live.t on hr18 (post -> draft, as the revert of the post: Odoo posted a reversal and kept both entries); live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (the refusal under a done validation)'
+- method: action_register_payment
+  wizard: account.payment.register
+  note: 'answers with the payment wizard window and changes nothing; the payment is the wizard''s. The window carries the context the button sets: active_model account.move, active_ids the report''s account_move_ids, and with hr_expense_payment expense_sheet_ids (the report); pass them to core.wizard as context. The report must be posted'
+  evidence: source 18.0 hr_expense hr_expense_sheet.action_register_payment, OCA hr_expense_payment hr_expense_sheet.action_register_payment; live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 on hr18 (answered with the payment wizard window)
 - method: action_cancel
   module: hr_expense_cancel
   from: [approve, post, done]
   to: [submit]
-  note: OCA; deletes the report's journal entries and cancels its payments, then sets the report back to Submitted
-  evidence: source OCA hr_expense_cancel hr_expense.action_cancel
+  note: OCA; deletes the report's journal entries and cancels its payments, then sets the report back to Submitted (state; approval_state stays as it was). The payments stay, cancelled; a vendor bill an expense carries is cancelled, not deleted
+  evidence: 'source OCA hr_expense_cancel hr_expense.action_cancel; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (an approved report: state approve -> submit; with ODOO_OOM_LIVE_POSTS=1 a paid report: state done -> submit, the bill deleted and the payment cancelled, payment_state paid -> not_paid; a report whose expense carried a posted bill: state post -> submit, the transfer entry deleted, the bill cancelled)'
+- method: detect_exceptions
+  module: hr_expense_exception
+  note: 'runs the active exception rules over the report and over its expenses and stores what they find in exception_ids, in a transaction of its own. When a rule newly fails, or a failure is not ignored, Odoo raises {"src_model": "hr.expense.sheet", "target_model": "hr.expense.sheet"}: the call then reports a failure and the exception is stored all the same'
+  evidence: source OCA base_exception base_exception_method.detect_exceptions, hr_expense_exception hr_expense_sheet.detect_exceptions; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (refused in the words above, exception_ids stored)
+- method: action_ignore_exceptions
+  module: hr_expense_exception
+  note: sets ignore_exception on the report; Odoo refuses it when a failing rule is blocking. The submit that follows goes past the stored exceptions
+  evidence: source OCA base_exception base_exception.action_ignore_exceptions; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (ignore_exception set, then the submit applied)
+- method: request_validation
+  module: hr_expense_tier_validation
+  creates:
+  - model: tier.review
+    link: review_ids
+  creates_evidence: 'source OCA base_tier_validation tier_validation.request_validation (tr_obj.create for each tier definition that applies); live 2026-10-17 t/59-hr-expense-flow-live.t on hr18: one tier.review (status pending), named by review_ids, create_uid the acting user'
+  undo: restart_validation
+  note: 'makes one review for each tier definition that applies to the report (a definition is for a model and a domain, made by hand), and answers with the reviews as Odoo prints them. A report no definition applies to gets none'
+  evidence: source OCA base_tier_validation tier_validation.request_validation; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (validation_status no -> pending)
+- method: validate_tier
+  module: hr_expense_tier_validation
+  wizard: comment.wizard
+  note: 'the acting user must be a reviewer of a pending review. Approves its reviews (validation_status pending -> validated); when the definition asks for a comment it answers with the comment wizard window and approves nothing'
+  evidence: source OCA base_tier_validation tier_validation.validate_tier; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (pending -> validated; with a comment definition, answered with the comment wizard window)
+- method: reject_tier
+  module: hr_expense_tier_validation
+  wizard: comment.wizard
+  note: the acting user must be a reviewer of a pending review. Rejects its reviews (validation_status pending -> rejected); when the definition asks for a comment it answers with the comment wizard window and rejects nothing
+  evidence: source OCA base_tier_validation tier_validation.reject_tier; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (pending -> rejected)
+- method: restart_validation
+  module: hr_expense_tier_validation
+  note: deletes the report's reviews (validation_status goes to no) while the report is submitted. It does not make them again; request_validation does
+  evidence: source OCA base_tier_validation tier_validation.restart_validation; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (pending -> no, rejected -> no, validated -> no)
 wizards:
 - model: hr.expense.refuse.wizard
   method: action_refuse
@@ -64,3 +125,28 @@ wizards:
   button: action_approve_expense_sheets
   values: [sheet_ids, expense_ids]
   evidence: source 18.0 hr_expense hr_expense_approve_duplicate.action_refuse
+- model: account.payment.register
+  method: action_create_payments
+  button: action_register_payment
+  values: [amount, payment_date, journal_id, payment_method_line_id]
+  creates:
+  - model: account.payment
+    link: payment_ids
+  - model: account.move
+  creates_evidence: 'source 18.0 account account_payment_register.action_create_payments, OCA hr_expense_payment account_payment_register._create_payment_vals_from_wizard (expense_sheet_ids from the context lands on the payment); live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 on hr18: one account.payment, named by payment_ids of the report; the payment''s own journal entry is the account.move'
+  note: 'registers the payment of the report''s posted entries: pass the context action_register_payment answers with (active_model account.move, active_ids the account_move_ids, expense_sheet_ids the report) or the wizard pays nothing for the report. The report goes post -> done and payment_state paid; the payment is posted, which takes a number for good. The wizard answers with a window on the payment'
+  evidence: 'source 18.0 account account_payment_register.action_create_payments, OCA hr_expense_payment; live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 on hr18 (post -> done, payment_state paid, answered with a window on the payment)'
+- model: expense.sheet.exception.confirm
+  method: action_confirm
+  module: hr_expense_exception
+  button: action_popup_exceptions
+  values: [ignore]
+  note: 'with ignore it resets the report (which clears the stored exceptions), sets ignore_exception and submits again; the submit finds the rule as a new exception and Odoo raises it again, so on hr18 the whole call is refused and changes nothing. The way past is action_ignore_exceptions, then action_submit_sheet'
+  evidence: 'source OCA hr_expense_exception expense_sheet_exception_confirm.action_confirm, base_exception base_exception_method.detect_exceptions; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (refused with {"src_model": "hr.expense.sheet", "target_model": "hr.expense.sheet"}, nothing changed)'
+- model: comment.wizard
+  method: add_comment
+  module: hr_expense_tier_validation
+  button: validate_tier, reject_tier
+  values: [res_model, res_id, review_ids, validate_reject, comment]
+  note: 'writes the comment on the reviews and then validates or rejects them: validate_reject is validate or reject, review_ids the reviews the window carried ([[6,0,[ids]]]), res_model and res_id the report'
+  evidence: source OCA base_tier_validation comment_wizard.add_comment; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (comment written, validation_status pending -> validated)

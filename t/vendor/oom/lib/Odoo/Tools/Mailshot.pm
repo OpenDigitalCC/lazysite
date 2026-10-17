@@ -23,7 +23,7 @@ use Odoo::Ops::Registry;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.24';
+our $VERSION = '0.27';
 
 =head1 NAME
 

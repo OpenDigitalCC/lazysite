@@ -59,6 +59,9 @@ series, so every operation on that model inherits it:
     module: hr_holidays                # the module that provides the model
     actions:                           # public methods core.action may call
       - { method: action_approve, undo: action_refuse, evidence: "source 18.0 ..." }
+      - method: create_employee_from_applicant   # on hr.applicant: the models it makes records in
+        creates: [ { model: hr.employee, link: employee_id } ]
+        evidence: "..."
     wizards:                           # transient models core.wizard may drive for this model
       - { model: hr.holidays.cancel.leave, method: action_cancel_leave, evidence: "..." }
     volatile: [customer_rank, supplier_rank]   # Odoo bumps these itself; not a change of the record
@@ -255,6 +258,24 @@ names a listed action, C<from> and C<to> are for the reader and for
 C<describe> (Odoo decides), and each entry carries its C<evidence>.
 C<action($method)> and C<wizard($model, $method)> return the entry or undef.
 
+An action entry is called on records (C<on: records>, the default: the ids are its
+first argument) or on the model (C<on: model>: an C<@api.model> method, called
+with no ids). A model-level entry names the positional arguments it takes, in
+order, as C<params> (C<name> and C<type>: C<str>, C<int>, C<bool> or C<json>);
+without C<params> it takes none. Its C<undo> is a model-level entry too, called
+with the same arguments. C<on_model($entry)> and C<params($entry)> read them.
+
+    - method: register_attendance
+      on: model
+      params: [ { name: card_code, type: str } ]
+
+C<creates> on an action or wizard entry lists the models the method is known to
+make records in (C<model>, and C<link>, the field of the record acted on that
+names what was made). The entry's C<creates_evidence> says how each was shown (source and the live run).
+C<core.action> and C<core.wizard> look in those models for what the call made
+and say so; an entry with no C<creates> says C<creates: not listed> in its plan
+line. C<creates($entry)> returns the list.
+
 =cut
 
 sub module  ($self) { $self->{module} }
@@ -262,6 +283,9 @@ sub actions ($self) { $self->{actions} // [] }
 sub wizards ($self) { $self->{wizards} // [] }
 sub action  ($self, $method) { ( grep { $_->{method} eq $method } @{ $self->{actions} // [] } )[0] }
 sub wizard  ($self, $model, $method) { ( grep { $_->{model} eq $model && $_->{method} eq $method } @{ $self->{wizards} // [] } )[0] }
+sub creates ($self, $entry) { return @{ $entry->{creates} // [] } }
+sub on_model ($self, $entry) { return ( $entry->{on} // 'records' ) eq 'model' ? 1 : 0 }
+sub params   ($self, $entry) { return @{ $entry->{params} // [] } }
 sub state_info ($self) { $self->{state} }
 sub state_fields ($self) {
     my $st = $self->{state} or return ();
@@ -270,6 +294,33 @@ sub state_fields ($self) {
 
 sub _check_actions ( $path, $d ) {
     my $bad = sub ($m) { Odoo::Error->throw( kind => 'config', message => "behaviour $path: $m" ) };
+    my $check_creates = sub ($what, $e) {
+        return if !exists $e->{creates};
+        $bad->("$what: creates must be a list of { model, link }") if ref $e->{creates} ne 'ARRAY' || !@{ $e->{creates} };
+        my %m;
+        for my $c ( @{ $e->{creates} } ) {
+            $bad->("$what: creates needs a model on each entry (physical, with a dot)")
+                if ref $c ne 'HASH' || ref $c->{model} || ( $c->{model} // '' ) !~ /\A\w+(?:\.\w+)+\z/;
+            $bad->("$what: creates lists $c->{model} twice") if $m{ $c->{model} }++;
+            $bad->("$what: creates link must be a field name")
+                if exists $c->{link} && ( ref $c->{link} || ( $c->{link} // '' ) !~ /\A\w+\z/ );
+        }
+        $bad->("$what: creates needs creates_evidence (what showed the records being made)") if !length( $e->{creates_evidence} // '' );
+    };
+    my $check_on = sub ($a) {
+        my $what = "action $a->{method}";
+        $bad->("$what: on must be records or model") if exists $a->{on} && ( ref $a->{on} || ( $a->{on} // '' ) !~ /\A(?:records|model)\z/ );
+        my $model_level = ( $a->{on} // 'records' ) eq 'model';
+        $bad->("$what: params belong to an on: model entry (a records entry takes its arguments after the ids, unnamed)") if exists $a->{params} && !$model_level;
+        return if !exists $a->{params};
+        $bad->("$what: params must be a list of { name, type }") if ref $a->{params} ne 'ARRAY';
+        my %n;
+        for my $p ( @{ $a->{params} } ) {
+            $bad->("$what: a param needs a name") if ref $p ne 'HASH' || ref $p->{name} || ( $p->{name} // '' ) !~ /\A[A-Za-z_]\w*\z/;
+            $bad->("$what: param $p->{name} is listed twice") if $n{ $p->{name} }++;
+            $bad->("$what: param $p->{name} needs a type of str, int, bool or json") if ref $p->{type} || ( $p->{type} // '' ) !~ /\A(?:str|int|bool|json)\z/;
+        }
+    };
     $bad->('module must be a module name') if exists $d->{module} && ( ref $d->{module} || !length( $d->{module} // '' ) );
     my ( %seen, @actions, @wizards );
     for my $a ( @{ $d->{actions} // [] } ) {
@@ -280,9 +331,13 @@ sub _check_actions ( $path, $d ) {
         for my $k (qw(from to)) {
             $bad->("action $a->{method}: $k must be a list of states") if exists $a->{$k} && ref $a->{$k} ne 'ARRAY';
         }
+        $check_on->( $a );
+        $check_creates->( "action $a->{method}", $a );
         push @actions, {%$a};
     }
+    my %level = map { $_->{method} => ( $_->{on} // 'records' ) } @actions;
     for my $a (@actions) {
+        $bad->("action $a->{method}: undo $a->{undo} is on: $level{ $a->{undo} } and the action is on: $level{ $a->{method} }; an undo is called the same way") if defined $a->{undo} && $seen{ $a->{undo} } && $level{ $a->{undo} } ne $level{ $a->{method} };
         $bad->("action $a->{method}: undo $a->{undo} is not a listed action") if defined $a->{undo} && !$seen{ $a->{undo} };
     }
     my %wseen;
@@ -296,6 +351,7 @@ sub _check_actions ( $path, $d ) {
             $bad->("wizard $w->{model} $w->{method}: $k must be a list") if exists $w->{$k} && ref $w->{$k} ne 'ARRAY';
         }
         $bad->("wizard $w->{model} $w->{method}: context must be a map of context keys") if exists $w->{context} && ref $w->{context} ne 'HASH';
+        $check_creates->( "wizard $w->{model} $w->{method}", $w );
         push @wizards, {%$w};
     }
     my %wm = map { $_->{model} => 1 } @wizards;

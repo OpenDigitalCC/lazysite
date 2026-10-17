@@ -29,7 +29,7 @@ use Odoo::Ops::ResetForm;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.24';
+our $VERSION = '0.27';
 
 =head1 NAME
 
@@ -611,7 +611,12 @@ For every account, from the consumer's side and without printing a
 secret: the connection by key (uid, administrator, C<check_access_rights>
 on the file's C<models>), the sign-in over the web session (signed in,
 refused as C<credential>, or refused as C<second_factor>, which is the
-password accepted and no session opened), and the key's expiry. The
+password accepted and no session opened), and the key's expiry. When the
+key is refused, the lines under it say what the config can read: whether the
+login is archived, whether Odoo holds a key of that description, and its
+expiry against the clock (C<key: the login is archived in Odoo>,
+C<key: the key 'x' expired at ...>); they are facts read from Odoo, with no
+cause chosen between them, and are kept in C<probe.last.json> as C<because>. The
 result is also written, without secrets, to C<probe.last.json> in
 C<secrets_dir> for C<handover>. Returns 1 when an account does not
 behave as the file says.
@@ -655,6 +660,11 @@ sub probe ($self) {
                     my $why = _why( $@ );
                     $self->_p("   key: REFUSED - $why");
                     $r{key} = { ok => 0, why => $why };
+                    # Odoo refuses an archived login, an expired or deleted key and a wrong secret with one answer;
+                    # what this config can read of the login and its keys is said beside it
+                    my @because = $self->_refusal_facts( $ctx, $cur, $a );
+                    $self->_p("   key: $_") for @because;
+                    $r{key}{because} = \@because;
                     push @wrong, 'the key does not connect';
                 }
                 else {
@@ -682,6 +692,9 @@ sub probe ($self) {
             else {
                 my $web = $client->web_session;
                 my $id  = eval { $web->authenticate( $client->db, $a->{login}, $pw ) };
+                # right password, two-factor on: Odoo opened no session and waits for a code
+                my $no_session = $id && $id->{pending};
+                if ( $no_session ) { eval { $web->destroy }; $id = undef }
                 if ($id) {
                     my $t = Odoo::Client->new( url => $client->url, db => $client->db, transport => $web, retries => [0] );
                     my $g = eval { $t->session_groups_report( xmlids => 0 ) };
@@ -701,8 +714,8 @@ sub probe ($self) {
                 }
                 else {
                     my $err = $@;
-                    my $cat = ref $err && $err->can('fault_category') ? ( $err->fault_category // $err->kind ) : 'error';
-                    $self->_p( "   sign-in: refused ($cat)" . ( ref $err && $err->can('is_no_session') && $err->is_no_session
+                    my $cat = $no_session ? 'second_factor' : ref $err && $err->can('fault_category') ? ( $err->fault_category // $err->kind ) : 'error';
+                    $self->_p( "   sign-in: refused ($cat)" . ( $no_session
                         ? ' - the password was accepted and no session was opened: two-factor' : '' ) );
                     $r{signin} = { result => 'refused', category => $cat };
                     push @wrong, 'the password does not sign in' if $a->{active} && !$a->{two_factor};
@@ -724,6 +737,25 @@ sub probe ($self) {
     print {$fh} $json;
     close $fh;
     return $bad ? 1 : 0;
+}
+
+# What the config can read of why a key is refused: whether the login is archived and
+# which keys of that description Odoo holds, with their expiry. Facts only; no cause is chosen.
+sub _refusal_facts ($self, $ctx, $cur, $a) {
+    my @f;
+    push @f, 'the login is archived in Odoo (Odoo refuses the key of an archived login)' if !$cur->{active};
+    my $keys = eval { $self->_keys_of( $ctx, $cur->{id} ) };
+    if ( !$keys ) { push @f, 'the keys of this login could not be read with this config'; return @f }
+    my @mine = grep { $_->{name} eq $a->{api_key}{name} } @$keys;
+    push @f, "Odoo holds no key named '$a->{api_key}{name}' for this login (deleted, or never made)" if !@mine;
+    my @t = gmtime $self->{now}->();
+    my $now = sprintf '%04d-%02d-%02d %02d:%02d:%02d', $t[5] + 1900, $t[4] + 1, @t[ 3, 2, 1, 0 ];
+    for my $k (@mine) {
+        my $e = _expiry($k);
+        push @f, $e eq 'never' ? "the key '$k->{name}' has no expiry" : $e lt $now ? "the key '$k->{name}' expired at $e (UTC)" : "the key '$k->{name}' expires at $e (UTC)";
+    }
+    push @f, 'the login is active' if $cur->{active};
+    return @f;
 }
 
 sub _key_client ($self, $login, $kf) {
