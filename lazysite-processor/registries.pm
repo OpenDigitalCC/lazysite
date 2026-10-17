@@ -15,7 +15,8 @@ package main;
 #         registry template exists; _feed_dates; the registry serving path -
 #         _serve_registry, _registry_cache_path, _registry_ct, _registry_stale
 #         and _regenerate_registries_once (the one regenerator, SM389, under a
-#         lock).
+#         lock), and _schedule_registry_rebuild (SM1152: a stale registry is
+#         rebuilt by a detached child, not inside the request that found it).
 # OWNS    what a scan lists and in what order; where a registry is cached and
 #         when it is regenerated; the content type it is served as.
 # CALLS   parse_yaml_front_matter, _scan_hidden, _registry_hidden, _scan_scalar,
@@ -38,6 +39,7 @@ use strict;
 use warnings;
 
 our ( $DOCROOT, $LAZYSITE_DIR, $REGISTRY_DIR, $REGISTRY_CACHE_DIR, $REGISTRY_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %ACCESS_REC );
+our $REGISTRY_REBUILDING;    # SM1152: true in the detached rebuild itself
 
 # --- Scan and registries ---
 #
@@ -646,17 +648,29 @@ sub _registry_stale {
 
         return unless @templates;
 
-        # Check if any registry needs updating
-        my $needs_update = 0;
+        # Check if any registry needs updating. $stale_path is the first output
+        # that does; $missing is set when one does not exist at all.
+        my ( $stale_path, $missing );
         for my $tmpl (@templates) {
             ( my $output_name = $tmpl ) =~ s/\.tt$//;
             my $output_path = _registry_cache_path( $root, $output_name );
-            if ( _registry_stale($output_path) ) {
-                $needs_update = 1;
+            if ( !-f $output_path ) {
+                $stale_path //= $output_path;
+                $missing = 1;
                 last;
             }
+            $stale_path //= $output_path if _registry_stale($output_path);
         }
-        return unless $needs_update;
+        return unless defined $stale_path;
+
+        # SM1152: STALE IS NOT MISSING. Every output exists, so there is
+        # something to serve and nobody needs to wait for the scan: SM1069
+        # measured it at 1.5-3 s on an 1,800-rule fixture, paid by the one
+        # request that arrived after the TTL (SM666 names the class: work that
+        # ran on the back of a visitor's request). It is handed to a detached
+        # child. A registry that does not exist yet is still built here, in the
+        # request that needs it - there is nothing to be stale WITH.
+        return if !$missing && !$REGISTRY_REBUILDING && _schedule_registry_rebuild($stale_path);
 
         # Scan the source pages of THIS content root only (SM151), so a domain's
         # registries list just its own subtree with content-root-relative URLs.
@@ -819,12 +833,22 @@ sub _registry_stale {
             };
 
             make_path( dirname($output_path) ) unless -d dirname($output_path);
-            open( my $fh, '>:utf8', $output_path ) or do {
+
+            # SM1152: written beside and renamed into place. The rebuild now
+            # runs while requests are reading the file it replaces (it used to
+            # run inside the one request that wanted the new one), and a reader
+            # must never be served half a sitemap.
+            my $tmp_path = "$output_path.tmp$$";
+            open( my $fh, '>:utf8', $tmp_path ) or do {
                 log_event( "WARN", "-", "cannot write registry", path => $output_path, error => $! );
                 next;
             };
             print $fh $output;
             close $fh;
+            rename( $tmp_path, $output_path ) or do {
+                log_event( "WARN", "-", "cannot write registry", path => $output_path, error => $! );
+                unlink $tmp_path;
+            };
         }
         umask $old_umask;
     }
@@ -969,8 +993,18 @@ sub _serve_registry {
     return 0 if -f "$root/$name";
 
     my $path = _registry_cache_path( $root, $name );
-    _regenerate_registries_once( $path, $uri )
-        if !-f $path || ( time() - ( stat($path) )[9] ) >= $REGISTRY_TTL;
+
+    # SM1152: a registry that exists is served as it is, stale or not, and a
+    # stale one is rebuilt by a detached child; only one that does not exist is
+    # built inside this request, because there is nothing else to send. If no
+    # child can be started it is rebuilt here, as it always was.
+    if ( !-f $path ) {
+        _regenerate_registries_once( $path, $uri );
+    }
+    elsif ( ( time() - ( stat($path) )[9] ) >= $REGISTRY_TTL ) {
+        _schedule_registry_rebuild($path)
+            or _regenerate_registries_once( $path, $uri );
+    }
 
     open my $fh, '<:utf8', $path or return 0;
     my $body = do { local $/; <$fh> };
@@ -993,6 +1027,64 @@ sub _serve_registry {
     print "Cache-Control: public, max-age=$REGISTRY_TTL\r\n\r\n";
     print $body;
     return 1;
+}
+
+# SM1152: THE REBUILD OF A STALE REGISTRY HAPPENS AFTER THE REQUEST THAT FOUND
+# IT, in a detached child. $path is any one output of the content root: the lock
+# sits beside it, one per root, and the child rebuilds every stale output of
+# that root (update_registries decides which).
+#
+# The lock is taken HERE, without waiting, and handed to the child by fork: the
+# open file description is shared, so the lock lives until the child exits and
+# is held by nobody once it has. Another request arriving meanwhile finds the
+# lock taken and starts nothing - "a rebuild is in hand" is true for it as well,
+# so it returns 1 without forking. That is how two concurrent stale requests
+# start one rebuild.
+#
+# Double fork, so the request never waits for the child and a long-lived worker
+# (FastCGI, the pool) collects no zombie; the grandchild leaves the session,
+# points descriptors 0-2 at /dev/null (the web server holds the response open
+# until every holder of its pipe has let go) and closes the others but the lock.
+# It leaves with _exit: the request's own END blocks and buffered output are the
+# parent's to run, not a copy's. Descriptors are dup2'd rather than the Perl
+# handles reopened, because under FastCGI STDOUT is a tied handle.
+#
+# Returns 1 when a rebuild is running or has been started, 0 when none could be
+# (no lock file, no fork) - the caller then rebuilds inline, as before.
+sub _schedule_registry_rebuild {
+    my ($path) = @_;
+    my $dir = dirname($path);
+    make_path($dir) unless -d $dir;
+
+    open my $lh, '>>', "$dir/.rebuild.lock" or return 0;
+    unless ( flock $lh, LOCK_EX() | LOCK_NB() ) {
+        close $lh;
+        return 1;    # one is already running
+    }
+
+    my $pid = fork();
+    if ( !defined $pid ) { close $lh; return 0 }
+    if ($pid) {
+        waitpid( $pid, 0 );
+        close $lh;   # ours only; the grandchild's copy keeps the lock
+        return 1;
+    }
+
+    # The child: start the grandchild and go.
+    my $gc = fork();
+    POSIX::_exit(0) if !defined $gc || $gc;
+
+    POSIX::setsid();
+    if ( open my $null, '+<', '/dev/null' ) {
+        POSIX::dup2( fileno($null), $_ ) for 0 .. 2;
+    }
+    my $keep = fileno($lh);
+    POSIX::close($_) for grep { $_ != $keep } 3 .. 63;
+
+    local $REGISTRY_REBUILDING = 1;
+    eval { update_registries() };
+    log_event( 'WARN', '-', 'background registry rebuild failed', error => $@ ) if $@;
+    POSIX::_exit(0);
 }
 
 # SM389: one regenerator, not N.

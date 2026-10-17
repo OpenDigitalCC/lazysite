@@ -153,6 +153,11 @@ Archive
   accept loop made a page's parallel requests queue, so the lab's timings
   measured the queue; each connection is now a forked child, up to eight at
   once. Dev only. t/unit/tools/82.
+- SM1152 (PENDING) **a stale registry is rebuilt after the request, not inside
+  it.** A request that finds a registry stale serves the one it has and starts a
+  detached rebuild under one lock (1.5-3 s on an 1,800-rule fixture); a content
+  write starts it when its request is over; a missing registry is still built on
+  first need. t/unit/processor/133, t/unit/manager/352.
 
 - SM1129 (PENDING) **security: a proxy is believed only from its address.** With
   `auth_proxy_trusted` on, any request carrying the identity headers was

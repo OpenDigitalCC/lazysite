@@ -1382,6 +1382,11 @@ if ( my $missing = _missing_required($action) ) {
 our $DISPATCH_CRASH_GUARD = 1;
 END { _audit_crashed_dispatch() }
 
+# SM1152: a content write drops the generated registries; once its response is
+# out, start the rebuild they are owed, detached, so no visitor's request builds
+# them. Not when the file is only loaded (the unit tests).
+END { Lazysite::Manager::Files::start_registry_rebuild() unless $ENV{LAZYSITE_API_LOAD_ONLY} }
+
 my $result;
 if    ( $action eq 'list' ) { $result = action_list($path) }
 elsif ( $action eq 'read' ) { $result = action_read( $path, $auth_user ) }

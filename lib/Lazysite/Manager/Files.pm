@@ -16,6 +16,7 @@ use File::Path      qw(make_path);
 use File::Copy      qw(copy);
 use File::Basename  qw(dirname);
 use Cwd             qw(realpath);
+use POSIX           ();
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
@@ -1614,6 +1615,55 @@ sub registry_roots { return _registry_roots() }
 # called here, which derived it again - two domains_list parses of
 # lazysite.conf per regenerate call. Passed nothing (the public wrapper, and
 # every save / delete / move) it derives its own, exactly as before.
+# SM1152 (SM1082 Q5): A WRITE THAT CHANGES CONTENT TRIGGERS THE REBUILD AFTER
+# IT COMPLETES. The invalidation above drops the outputs, so the next request
+# for one would build them inside itself - 1.5-3 s on an 1,800-rule fixture
+# (SM1069) - and so would the first page render. Dropping records which registry
+# is owed; start_registry_rebuild, called when the manager request has finished
+# (the END block in lazysite-manager-api.pl), runs the processor, detached, for
+# it. That one request builds every missing output; whoever arrives meanwhile
+# waits on the processor's own lock, which is one scan, as before.
+#
+# NOT inside the action. A unit test, the control API and MCP call the actions
+# in a process that is not a request and must not leave a process behind them.
+# Those paths rebuild on the next request, as they did.
+#
+# Runs for the host this manager request came in on, which is the primary
+# unless the manager is browsed on a domain's own name; another domain's
+# registries are rebuilt by its next request.
+our $REBUILD_URI;
+
+sub start_registry_rebuild {
+    my $uri = $REBUILD_URI;
+    return 0 unless defined $uri;
+    $REBUILD_URI = undef;
+
+    my $processor = Lazysite::Manager::Common::processor_path();
+    return 0 unless defined $processor && -f $processor;
+
+    my $pid = fork();
+    return 0 unless defined $pid;
+    if ($pid) { waitpid( $pid, 0 ); return 1 }
+
+    # Detached: no session, no terminal, no pipe the web server is waiting on.
+    my $gc = fork();
+    POSIX::_exit(0) if !defined $gc || $gc;
+    POSIX::setsid();
+    if ( open my $null, '+<', '/dev/null' ) {
+        POSIX::dup2( fileno($null), $_ ) for 0 .. 2;
+    }
+    POSIX::close($_) for 3 .. 63;
+
+    # A request for the registry, made for nobody: the manager's identity and
+    # cookie are not the processor's business, and a preview is no visit.
+    delete @ENV{ grep { /\AHTTP_(?:COOKIE|AUTHORIZATION|X_REMOTE_)/ } keys %ENV };
+    @ENV{qw(REQUEST_METHOD REDIRECT_URL REQUEST_URI QUERY_STRING DOCUMENT_ROOT LAZYSITE_PREVIEW)}
+        = ( 'GET', $uri, $uri, '', $DOCROOT, '1' );
+    delete @ENV{qw(CONTENT_LENGTH CONTENT_TYPE)};
+    exec { $^X } $^X, $processor or POSIX::_exit(127);
+    POSIX::_exit(127);
+}
+
 sub _invalidate_registries {
     my ($roots) = @_;
     my @roots = ref $roots eq 'ARRAY' ? @{$roots} : _registry_roots();
@@ -1648,7 +1698,10 @@ sub _invalidate_registries {
         for my $t (@tt) {
             ( my $out = $t ) =~ s/\.tt$//;
             my $cached = "$cache/$key/$out";
-            push @cleared, "$key/$out" if -f $cached && unlink $cached;
+            if ( -f $cached && unlink $cached ) {
+                push @cleared, "$key/$out";
+                $REBUILD_URI //= "/$out";    # SM1152: owed, started once the request is over
+            }
 
             # Not deleted - reported. See above.
             # SM500: NEVER an absolute filesystem path in a partner-facing
