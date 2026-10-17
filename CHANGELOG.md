@@ -146,7 +146,7 @@ Archive
   scripts stale-while-revalidate, images cache-first), never answers a page, the
   Odoo endpoint, the manager or the auth paths, never stores a `no-store` or
   `private` response, and updates on a deploy. `lazysite check` names a bad scope
-  or a missing icon. t/unit/processor/133, 134, t/unit/tools/82.
+  or a missing icon. t/unit/processor/134, 142, t/unit/tools/84.
 - SM1131 (PENDING) **every reader honours the configured header names.** Only the
   page gate read `auth_header_*`; one reader, `Lazysite::Auth::Identity`, now
   serves the page gate, the file rules, the manager and the API, and takes its

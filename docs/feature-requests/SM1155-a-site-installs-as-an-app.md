@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: OOM agent for the owner (L1), 2026-10-17
 area: front end
-status-note: "SHIPPED on n643: lazysite-processor/app.pm, starter/assets/lazysite-app.js; t/unit/processor/133, 134, t/unit/tools/82."
+status-note: "SHIPPED on n643: lazysite-processor/app.pm, starter/assets/lazysite-app.js; t/unit/processor/134, 142, t/unit/tools/84."
 ---
 
 # What happened
@@ -103,10 +103,10 @@ manifest, the worker and the registration. Setting `app_name` turns the app on.
   icon the site does not serve, and an app with no icons.
 
 Documented in `starter/docs/app.md` and `starter/docs/reference.md`.
-Tests: t/unit/processor/133 (manifest from settings, off by default, both
+Tests: t/unit/processor/142 (manifest from settings, off by default, both
 levels, icons, the version and fingerprint), 134 (the worker driven in node with
 a stand-in cache: refused paths, no-store and private, the strategies, install
-and activate), t/unit/tools/82 (the check).
+and activate), t/unit/tools/84 (the check).
 
 Left open: an offline queue, background sync and push were not asked. A page is
 not available offline.
