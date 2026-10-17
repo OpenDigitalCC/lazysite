@@ -23,7 +23,7 @@ use Odoo::Ops::Registry;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.27';
+our $VERSION = '0.32';
 
 =head1 NAME
 
@@ -92,6 +92,7 @@ and C<clock> (code refs, so a test can advance time without waiting).
 sub new ($class, %a) {
     my $config = $a{config} // ( defined $a{conf} ? Odoo::Ops::Config->load( $a{conf} )
         : Odoo::Error->throw( kind => 'usage', message => 'oom-mailshot needs the ops config (--conf C)', fix => 'oom-mailshot --help' ) );
+    Odoo::Ops::Registry->use_config($config);
     my $runs_dir = $config->get('runs_dir')
         or Odoo::Error->throw( kind => 'config', message => 'the config has no runs_dir', fix => 'add runs_dir = /path to the ops config' );
     return bless {

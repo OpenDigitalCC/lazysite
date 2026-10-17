@@ -1,7 +1,7 @@
 #!/bin/bash
 # tools/vendor-oom.sh - refresh the pinned snapshot of OOM that lazysite's tests run on.
 #
-#   tools/vendor-oom.sh [--deb FILE] COMMIT [OOM_REPO]
+#   tools/vendor-oom.sh [--deb FILE [--deb TOOLS_FILE]] COMMIT [OOM_REPO]
 #
 # WHY A SNAPSHOT (SM1081, release manager 2026-10-14: "it isn't intended that oom
 # changes will prevent a lazysite build ... we can't be testing against odoo to run
@@ -30,8 +30,15 @@
 set -euo pipefail
 
 DEB=''
+EXTRA_DEB=''
 if [ "${1:-}" = "--deb" ]; then
     DEB="${2:?--deb needs a file}"
+    shift 2
+fi
+# SM1167: OOM split odoo-oom-tools (Odoo/Accounts.pm, Odoo/Tools/) out of the library
+# deb; a second --deb names it so the whole of lib/Odoo is still checked against a deb.
+if [ "${1:-}" = "--deb" ]; then
+    EXTRA_DEB="${2:?--deb needs a file}"
     shift 2
 fi
 COMMIT="${1:?usage: tools/vendor-oom.sh [--deb FILE] COMMIT [OOM_REPO]}"
@@ -51,6 +58,9 @@ DEBVER=''
 if [ -n "$DEB" ]; then
     dpkg-deb -x "$DEB" "$TMP/deb"
     DEBVER="$(dpkg-deb -f "$DEB" Version)"
+    if [ -n "$EXTRA_DEB" ]; then
+        dpkg-deb -x "$EXTRA_DEB" "$TMP/deb"
+    fi
     diff -rq "$TMP/lib/Odoo" "$TMP/deb/usr/share/perl5/Odoo" >/dev/null \
         || { echo "vendor-oom: the deb's library is not commit $COMMIT's - it was built from another commit" >&2; exit 1; }
     zcat "$TMP/deb/usr/share/doc/libodoo-oom-perl/MAPPER-SPEC.md.gz" | cmp -s - "$TMP/docs/MAPPER-SPEC.md" \

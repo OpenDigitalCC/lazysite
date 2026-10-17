@@ -118,6 +118,29 @@ sub record ($self, $model, $id) { $self->{data}{$model}{$id} }
 sub all_ids ($self, $model) { [ sort { $a <=> $b } keys %{ $self->{data}{$model} // {} } ] }
 
 # the uid of the user whose login and password (or minted key) these are, else 0
+# "field [asc|desc], field ..." on fields the fake models.
+# A many2one sorts by its id, an empty value before any other, ties by id ascending (Odoo's own tie-break).
+sub _ordered ($self, $model, $ids, $order) {
+    my @terms = map { /\A\s*(\w+)(?:\s+(asc|desc))?\s*\z/i ? [ $1, lc( $2 // 'asc' ) ] : die "fake: unsupported order '$order'\n" } split /,/, $order;
+    # a field the fake does not model is not sorted on (as before this sorted at all): the ids stay as they are
+    return @$ids if grep { $_->[0] ne 'id' && !$self->{fields}{$model}{ $_->[0] } } @terms;
+    my $key = sub ($id, $f) {
+        my $v = $f eq 'id' ? $id : $self->{data}{$model}{$id}{$f};
+        $v = $v->[0] if ref $v eq 'ARRAY';
+        return defined $v && !ref $v ? $v : '';
+    };
+    return sort {
+        my $r = 0;
+        for my $t (@terms) {
+            my ( $x, $y ) = ( $key->( $a, $t->[0] ), $key->( $b, $t->[0] ) );
+            $r = ( $x =~ /\A-?\d+(?:\.\d+)?\z/ && $y =~ /\A-?\d+(?:\.\d+)?\z/ ) ? $x <=> $y : $x cmp $y;
+            $r = -$r if $t->[1] eq 'desc';
+            last if $r;
+        }
+        $r || $a <=> $b;
+    } @$ids;
+}
+
 sub _authenticate ($self, $login, $secret) {
     return 0 if !defined $login || !defined $secret;
     my ($user) = grep { $_->{login} eq $login } values %{ $self->{data}{'res.users'} // {} };
@@ -195,6 +218,7 @@ sub call ($self, $service, $method, @args) {
         my @ids = $self->_search( $model, $margs->[0] // [], $kw->{context} );
         # order: the one the operations ask for, id (ascending) or id desc
         @ids = reverse @ids if ( $kw->{order} // '' ) =~ /\Aid desc\z/i;
+        @ids = $self->_ordered( $model, \@ids, $kw->{order} ) if ( $kw->{order} // '' ) =~ /,|\A(?!id\b)\w/;
         @ids = @ids[ ( $kw->{offset} // 0 ) .. $#ids ] if $kw->{offset};
         @ids = @ids[ 0 .. $kw->{limit} - 1 ] if $kw->{limit} && @ids > $kw->{limit};
         return scalar @ids if $m eq 'search_count';

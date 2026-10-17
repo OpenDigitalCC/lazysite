@@ -1,0 +1,68 @@
+# Discuss pack, Odoo 16 (mail). Logical names on the left are what the
+# operations speak; physical names on the right are checked against the live
+# fields_get by `oom-ops run core.check --set pack=discuss`. Read from the
+# 16.0 source (mail/models/mail_channel.py, mail_channel_member.py,
+# mail_message.py, mail_thread.py, mail/controllers/discuss.py) and proved
+# live on demo16 (t/64-discuss-live.t). 17 to 19 rename the channel models to
+# discuss.channel and discuss.channel.member: that is a profile and a probe
+# away, and the operations refuse those series by name until then.
+#
+# `seen_route` and `empty_route` are the web routes Odoo's own client uses
+# where 16 has no public method: a private method (_channel_seen,
+# _message_update_content) cannot be called over RPC, so these two actions
+# run over a web session as the login.
+pack: discuss
+series: 16
+module: mail
+actions:
+  post: message_post                            # on mail.channel; public
+  comment_subtype: mail.mt_comment              # subtype_xmlid of a message people write
+  seen_route: /mail/channel/set_last_seen_message   # JSON-RPC; channel_id, last_message_id; moves the member's seen message forward
+  empty_route: /mail/message/update_content         # JSON-RPC; message_id, body, attachment_ids; the author or an administrator
+models:
+  channel:
+    model: mail.channel
+    fields:
+      name: name
+      type: channel_type              # channel | chat | group
+      members: member_count
+      active: active
+  member:
+    model: mail.channel.member
+    fields:
+      channel: channel_id
+      partner: partner_id
+      seen: seen_message_id           # last message the member has read
+      fetched: fetched_message_id     # last message delivered to the member's client
+      unread: message_unread_counter  # computed by Odoo
+  message:
+    model: mail.message
+    fields:
+      model: model
+      res_id: res_id
+      author: author_id
+      date: date
+      body: body                      # HTML
+      parent: parent_id               # the message replied to
+      attachments: attachment_ids
+      mentions: partner_ids
+      type: message_type              # comment | notification | user_notification | email ...
+  attachment:
+    model: ir.attachment
+    fields:
+      name: name
+      res_model: res_model
+      res_id: res_id
+      mimetype: mimetype
+      datas: datas
+      size: file_size
+      checksum: checksum
+  user:
+    model: res.users
+    fields:
+      login: login
+      partner: partner_id
+  partner:
+    model: res.partner
+    fields:
+      name: name

@@ -5,14 +5,16 @@ use warnings;
 use feature qw(signatures);
 no warnings 'experimental::signatures';
 
+use JSON::PP ();
 use Scalar::Util qw(blessed looks_like_number);
 
 use Odoo::Transport::Session ();
+use Odoo::Cache ();
 use Odoo::Error;
 use Odoo::Model;
 use Odoo::Portable;
 
-our $VERSION = '0.27';
+our $VERSION = '0.32';
 
 =head1 NAME
 
@@ -69,6 +71,41 @@ C<version> asks the server (no auth needed). C<uid> authenticates on
 first call and caches the numeric user id. C<whoami> reads back the
 login and display name of the authenticated user.
 
+=head2 The cache
+
+With C<cache> (an L<Odoo::Cache>; L<Odoo::Ops::Context> passes one unless the
+config says C<cache = 0>) a new client does not start from nothing:
+
+=over
+
+=item * The uid of an API key is kept per url, db, login and a SHA-256
+fingerprint of the key (never the key), and used instead of C<authenticate>,
+which Odoo makes slow on purpose. The first call Odoo refuses for credentials
+or access (or a missing user record, which is how Odoo answers a uid it does
+not know) while the uid is only remembered authenticates once, keeps the uid
+it learns and, when that is another uid, makes that call again once; a wrong key has no remembered uid and is
+refused by C<authenticate> as before. A client on a session transport, or with
+no key, remembers no uid.
+
+=item * C<version> is kept per url for C<cache_ttl_version> seconds (default
+300; 0 keeps nothing). C<< version( fresh => 1 ) >> always asks.
+
+=item * C<fields_get> (through L<Odoo::Model/fields>) is kept per url, db,
+model, login and language, and used while the state of the C<ir.model.fields>
+rows (the newest row, the number of rows and the newest C<write_date>) is the one it
+was kept at. That state is read once per process, with three calls for every model: a read per model would cost what the
+C<fields_get> it saves costs. A module installed or upgraded, or a field made,
+moves it and each model's fields are read again when next used. A login that
+may not read C<ir.model.fields> keeps nothing.
+
+=back
+
+The files hold ids, definitions and dates; no key, password, session id or
+field value.
+}) ;
+
+# constructor
+
 =head2 execute_kw($model, $method, \@args, \%kwargs)
 
 The raw escape hatch every higher layer uses. The rows of C<read> and
@@ -123,6 +160,13 @@ sub new ($class, %args) {
         retries => $args{retries} // [0, 2, 5, 15],
         overlay => $args{overlay},
         models  => {},
+        cache   => $args{cache},
+        ttl_version => $args{cache_ttl_version} // 300,
+        # a resident program lends the state of ir.model.fields from one client to the next (per login)
+        stamp_memory => $args{stamp_memory},
+        now     => $args{now} // sub { time },
+        # a remembered uid or field list is for a key that says who is calling
+        keyed   => ( defined $key && $key ne '' && !$sessioned ) ? 1 : 0,
     }, $class;
 
     my $transport = $args{transport} // 'jsonrpc';
@@ -175,8 +219,23 @@ sub login     ($self) { $self->{login} }
 sub transport ($self) { $self->{transport} }
 sub overlay   ($self) { $self->{overlay} }
 
-sub version ($self) {
-    return $self->_call('common', 'version');
+sub version ($self, %opt) {
+    my $cache = $self->{cache};
+    return $self->_call('common', 'version') if !$cache || $self->{ttl_version} <= 0;
+    my $url   = $self->{url};
+    my $kept  = $cache->recall('version.json');
+    my $entry = ref $kept eq 'HASH' ? $kept->{$url} : undef;
+    my $now   = $self->{now}->();
+    return $entry->{version}
+        if !$opt{fresh} && ref $entry eq 'HASH' && ref $entry->{version} eq 'HASH'
+        && $entry->{at} && $now - $entry->{at} < $self->{ttl_version} && $now >= $entry->{at};
+    my $v = $self->_call('common', 'version');
+    if ( ref $v eq 'HASH' ) {
+        $kept = {} if ref $kept ne 'HASH';
+        $kept->{$url} = { at => $now, version => $v };
+        $cache->keep( 'version.json', $kept );
+    }
+    return $v;
 }
 
 =head2 server_series
@@ -201,7 +260,41 @@ sub server_series ($self) {
 }
 
 sub uid ($self) {
-    return $self->{uid} //= $self->_authenticate;
+    return $self->{uid} if defined $self->{uid};
+    if ( defined( my $kept = $self->_remembered_uid ) ) {
+        $self->{uid_unproven} = 1;
+        return $self->{uid} = $kept;
+    }
+    my $uid = $self->_authenticate;
+    $self->_remember_uid($uid);
+    return $self->{uid} = $uid;
+}
+
+# The name of this identity in the uid file: a digest of url, db, login and
+# the key's own digest. Nothing in the name or the file can give the key back
+# short of guessing it.
+sub _uid_entry ($self) {
+    return Odoo::Cache->digest( 'uid', $self->{url}, $self->{db}, $self->{login}, Odoo::Cache->digest( 'key', $self->{key} ) );
+}
+
+sub _remembered_uid ($self) {
+    return undef if !$self->{cache} || !$self->{keyed};
+    my $kept = $self->{cache}->recall('uid.json');
+    my $e    = ref $kept eq 'HASH' ? $kept->{ $self->_uid_entry } : undef;
+    return ref $e eq 'HASH' && defined $e->{uid} && $e->{uid} =~ /\A[1-9]\d*\z/ ? 0 + $e->{uid} : undef;
+}
+
+sub _remember_uid ($self, $uid) {
+    return if !$self->{cache} || !$self->{keyed};
+    my $kept = $self->{cache}->recall('uid.json');
+    $kept = {} if ref $kept ne 'HASH';
+    if ( defined $uid ) {
+        $kept->{ $self->_uid_entry } = { uid => 0 + $uid, url => $self->{url}, db => $self->{db}, login => $self->{login} };
+    }
+    else {
+        delete $kept->{ $self->_uid_entry };
+    }
+    $self->{cache}->keep( 'uid.json', $kept );
 }
 
 # the transport, or the innermost transport a guard wraps, when it is
@@ -401,11 +494,7 @@ sub execute_kw ($self, $model, $method, $args = [], $kwargs = {}) {
     my %kw  = %$kwargs;
     my %ctx = (%{ $self->{context} }, %{ delete($kw{context}) // {} });
     $kw{context} = \%ctx if %ctx;
-    my $result = $self->_call(
-        'object', 'execute_kw',
-        $self->{db}, $self->uid, $self->{key},
-        $model, $method, $args, \%kw,
-    );
+    my $result = $self->_object_call( $model, $method, $args, \%kw );
     return $self->_empty_groups( $model, $args->[2], $result ) if $method eq 'read_group';
     return $result if $method ne 'read' && $method ne 'search_read';
     return $self->_empties_as_undef( $model, $result );
@@ -441,6 +530,109 @@ sub _empties_as_undef ($self, $model, $rows) {
     return $rows if ref $fields ne 'HASH';
     Odoo::Portable::empty_row( $fields, $_ ) for @$rows;
     return $rows;
+}
+
+# One object call. While the uid is only remembered, a call Odoo refuses for
+# credentials, access or a missing record is met once by a real authenticate:
+# the uid may be a user since replaced (Odoo answers a uid it does not know with
+# a MissingError on res.users, probed on 16, 18 and 19), or the key since revoked
+# (then authenticate refuses it in Odoo's words). When authenticate gives the uid
+# already held the refusal was the call's own and is raised as it came; when it
+# gives another the call is made again, once. The first answer that is not such a
+# refusal proves the uid.
+sub _object_call ($self, $model, $method, $args, $kw) {
+    my $result = eval {
+        $self->_call( 'object', 'execute_kw', $self->{db}, $self->uid, $self->{key}, $model, $method, $args, $kw );
+    };
+    if ( my $err = $@ ) {
+        die $err if !$self->{uid_unproven}
+            || !( blessed($err) && $err->isa('Odoo::Error') && $err->is_fault
+                && ( $err->is_invalid_credential || $err->is_access_denied || $err->is_missing ) );
+        delete $self->{uid_unproven};
+        my $held = delete $self->{uid};
+        $self->_remember_uid(undef);
+        die $err if $self->uid == $held;
+        $result = $self->_call( 'object', 'execute_kw', $self->{db}, $self->uid, $self->{key}, $model, $method, $args, $kw );
+    }
+    delete $self->{uid_unproven};
+    return $result;
+}
+
+=head2 fields_cached($model, \&fetch)
+
+The C<fields_get> answer of C<$model>: from the cache when it is kept and the
+model's C<ir.model.fields> has not changed since, else C<fetch> is called and
+its answer kept. With no cache, or when this login may not read
+C<ir.model.fields>, it is C<fetch> every time. C<stamp_memory> (a hash a resident program keeps and gives to each client) makes the check of
+C<ir.model.fields> once per login in C<cache_ttl_version> seconds instead of once per client.
+
+=head2 forget_fields($model)
+
+Makes the next C<fields_cached> look at the date of C<ir.model.fields> again.
+
+=cut
+
+sub forget_fields ($self, $model) { delete $self->{fields_stamp}; delete $self->{stamp_memory}{ $self->{stamp_login} // $self->{login} // '' } if $self->{stamp_memory}; }
+
+sub fields_cached ($self, $model, $fetch) {
+    my $cache = $self->{cache};
+    # the login the fields are kept for: the client's own, or the one a session transport says it signed in as
+    my $login = $self->{login};
+    if ( !defined $login ) {
+        my $st = _session_transport( $self->{transport} );
+        # a session transport new to this client has not been asked who it is yet; the answer is needed for the call anyway
+        $self->uid if $st && !$st->identity && $cache;
+        $login = $st->identity->{login} if $st && $st->identity;
+    }
+    return $fetch->() if !$cache || !defined $login;
+    $self->{stamp_login} = $login;
+    my $stamp = $self->{fields_stamp} //= $self->_stamp_for($login);
+    my $wd = $stamp->[0];
+    return $fetch->() if !defined $wd;
+    my $name = 'fields-' . ( $model =~ s/[^\w.-]//gr ) . '-'
+        . substr( Odoo::Cache->digest( 'fields', $self->{url}, $self->{db}, $model, $login, $self->{context}{lang} ), 0, 16 ) . '.json';
+    my $kept = $cache->recall($name);
+    return $kept->{fields} if ref $kept eq 'HASH' && ref $kept->{fields} eq 'HASH' && ( $kept->{stamp} // '' ) eq $wd;
+    my $fields = $fetch->();
+    $cache->keep( $name, { model => $model, url => $self->{url}, db => $self->{db}, login => $login,
+            stamp => $wd, fields => $fields } ) if ref $fields eq 'HASH';
+    return $fields;
+}
+
+# The state of ir.model.fields for this login: read, or, for a resident program that lends its memory to each client
+# (C<stamp_memory>, a hash it keeps), the one it read less than cache_ttl_version seconds ago for the same login.
+sub _stamp_for ($self, $login) {
+    my $mem = $self->{stamp_memory};
+    my $now = $self->{now}->();
+    my $m   = $mem ? $mem->{$login} : undef;
+    return $m->{stamp} if $m && $self->{ttl_version} > 0 && $now >= $m->{at} && $now - $m->{at} < $self->{ttl_version};
+    my $s = [ $self->_fields_stamp ];
+    $mem->{$login} = { stamp => $s, at => $now } if $mem;
+    return $s;
+}
+
+# What changed in the field definitions of every model, as one string; undef when it cannot be
+# read. Three cheap reads: the newest row (a module installed or a field made adds rows), the
+# number of rows (an uninstall removes them) and the newest write_date (an upgrade changes rows
+# in place). write_date alone does not serve: Odoo leaves it empty on the rows a module loads
+# (probed on 16, 18 and 19), and a descending order puts those first. A refusal here (a login
+# that may not read ir.model.fields) is no sign of a stale uid, so it does not go through the
+# authenticate-once path.
+sub _fields_stamp ($self) {
+    my $ask = sub ( $method, $domain, $kw ) {
+        $self->_call( 'object', 'execute_kw', $self->{db}, $self->uid, $self->{key}, 'ir.model.fields', $method, [$domain], $kw );
+    };
+    my @part = eval {
+        my $newest = $ask->( 'search_read', [], { fields => ['id'], order => 'id desc', limit => 1 } );
+        my $count  = $ask->( 'search_count', [], {} );
+        my $dated  = $ask->( 'search_read', [ [ 'write_date', '!=', JSON::PP::false() ] ],
+            { fields => ['write_date'], order => 'write_date desc, id desc', limit => 1 } );
+        die "no answer\n" if ref $newest ne 'ARRAY' || ref $dated ne 'ARRAY' || ref $count || !defined $count || $count !~ /\A\d+\z/;
+        my $id = ref $newest->[0] eq 'HASH' ? $newest->[0]{id} : 0;
+        my $wd = ref $dated->[0] eq 'HASH' && defined $dated->[0]{write_date} && !ref $dated->[0]{write_date} ? $dated->[0]{write_date} : '';
+        ( $id // 0, $count, $wd );
+    };
+    return @part == 3 ? join( ':', @part ) : undef;
 }
 
 sub model ($self, $name) {

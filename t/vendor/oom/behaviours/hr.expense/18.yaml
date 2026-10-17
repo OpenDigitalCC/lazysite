@@ -29,3 +29,23 @@ actions:
   creates_evidence: 'source OCA hr_expense_invoice hr_expense.action_expense_create_invoice (account.move create, then write of invoice_id); live 2026-10-17 t/59-hr-expense-flow-live.t on hr18: one draft in_invoice, create_uid the acting user, named by invoice_id'
   note: 'makes a draft vendor bill for the expense (one line, the untaxed amount, the expense''s attachments copied to it) and sets it as the expense''s invoice_id. The expense must be in a report: for an expense in none Odoo refuses with "Vendor bill state must be Posted", because the bill is in draft. The bill is posted by its own action (account.post)'
   evidence: 'source OCA hr_expense_invoice hr_expense.action_expense_create_invoice, _check_invoice_id; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (refused for an expense in no report, in the words above; a draft bill made for an expense in a report, and its price the expense''s untaxed amount)'
+- method: action_approve_duplicates
+  creates:
+  - model: mail.message
+  creates_evidence: 'source 18.0 hr_expense hr_expense.action_approve_duplicates (message_post on each expense of duplicate_expense_ids); live 2026-10-17 t/59-hr-expense-flow-live.t on hr18: two mail.message, create_uid the acting user, author OdooBot, one on each of two similar expenses'
+  note: 'posts one message on each expense the same employee has with the same product, date, amount and currency (the expense itself included), saying that the acting user confirms the expense is not a duplicate; the author shown is OdooBot. It changes no state and no field, and it posts nothing on an expense that has no similar one'
+  evidence: 'source 18.0 hr_expense hr_expense.action_approve_duplicates, _compute_duplicate_expense_ids; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (two similar draft expenses: one message on each, the state still draft)'
+- method: action_split_wizard
+  wizard: hr.expense.split.wizard
+  note: 'makes the split wizard and two split lines (the amount halved, rounded up and down) as transient records, and answers with a window on that wizard; the expense is not changed. core.wizard makes its own wizard from the values it is given'
+  evidence: 'source 18.0 hr_expense hr_expense.action_split_wizard, _get_split_values; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (answered with a window on hr.expense.split.wizard and said to use core.wizard; the expense unchanged). The transient records cannot be deleted by a login (no access rule for unlink); Odoo removes them itself'
+wizards:
+- model: hr.expense.split.wizard
+  method: action_split_expense
+  button: action_split_wizard
+  values: [expense_id, expense_split_line_ids]
+  creates:
+  - model: hr.expense
+  creates_evidence: 'source 18.0 hr_expense hr_expense_split_wizard.action_split_expense (expense.copy for every line after the first); live 2026-10-17 t/59-hr-expense-flow-live.t on hr18: a split into two lines made one hr.expense, create_uid the acting user, named in the result'
+  note: 'the first split line is written onto the expense and every further line becomes a copy of it (the expense''s attachments are copied to each copy); the copies are the records it makes. expense_split_line_ids is a list of create commands for hr.expense.split, and each line needs expense_id, currency_id and company_id as well as name, product_id, total_amount_currency and employee_id, because Odoo reads them from the line; without expense_id Odoo answered "Expected singleton: res.currency()". It answers with a window on the expenses'
+  evidence: 'source 18.0 hr_expense hr_expense_split_wizard.action_split_expense, hr_expense_split._get_values; live 2026-10-17 t/59-hr-expense-flow-live.t on hr18 (a 30 expense split into 10 and 20: the expense now 10, one copy of 20; answered with a window on hr.expense (list,form))'

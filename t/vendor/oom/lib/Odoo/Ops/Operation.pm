@@ -36,8 +36,9 @@ An operation declares, as class methods:
                  app use (SM747 OB2's named operation)
     summary      one line
     pack         the profile pack it speaks (crm, comms, ...), or undef
+    invariant_packs  the packs whose invariants judge its writes (default: its pack)
     params       { name => { type, required, default, help } }
-                 types: str int bool json list path
+                 types: str int bool json list path rows (see check_rows)
     read_scope   { model => [methods] } used while reporting/planning
     write_scope  { model => [methods] } added while applying; declaring
                  one makes the operation a write operation
@@ -48,6 +49,8 @@ An operation declares, as class methods:
                  person, each with the cause in one line
     fields       [ { name, meaning } ] for a read: the keys of the
                  descriptors it returns in its C<fields> block
+    immediate    true for an operation applied at once, never planned (it has no
+                 plan, run folder or journal; core.credential), else false
     buckets_from 'dynamic' with a reason, for an operation whose bucket
                  names cannot be listed; no shipped operation needs it
 
@@ -65,10 +68,15 @@ it never writes; L<Odoo::Ops::Runner> applies the saved plan later.
 sub op_name     ($class) { Odoo::Error->throw( kind => 'usage', message => "$class has no op_name" ) }
 sub summary     ($class) { '' }
 sub pack        ($class) { undef }
+
+# The packs whose invariants this operation's writes are judged by: its own
+# pack, plus any more an operation names to opt in to them.
+sub invariant_packs ($class) { defined $class->pack ? ( $class->pack ) : () }
 sub params      ($class) { {} }
 sub read_scope  ($class) { {} }
 sub write_scope ($class) { {} }
 sub writes      ($class) { !!%{ $class->write_scope } }
+sub immediate   ($class) { 0 }
 sub buckets     ($class) { [] }
 sub holds       ($class) { [] }
 sub fields      ($class) { [] }
@@ -139,13 +147,14 @@ sub check_params ($class, $raw) {
                 if $s->{required};
             next;
         }
-        $out{$k} = _typed( $class->op_name, $k, $s->{type} // 'str', $v );
+        $out{$k} = _typed( $class->op_name, $k, $s->{type} // 'str', $v, $s );
     }
     return \%out;
 }
 
-sub _typed ($op, $k, $type, $v) {
+sub _typed ($op, $k, $type, $v, $spec = {}) {
     my $bad = sub { Odoo::Error->throw( kind => 'usage', message => "$op: parameter '$k' must be $type", fix => "oom-ops describe $op shows each parameter's type" ) };
+    return Odoo::Ops::Operation->check_rows( $spec, $v, "$op: parameter '$k'" ) if $type eq 'rows';
     return $v if ref $v && $type =~ /^(json|list)\z/;
     if ( $type eq 'int' )  { $v =~ /^-?\d+\z/ or $bad->(); return 0 + $v }
     if ( $type eq 'bool' ) { $v =~ /^(1|0|yes|no|true|false)\z/i or $bad->(); return $v =~ /^(1|yes|true)\z/i ? 1 : 0 }
@@ -153,6 +162,92 @@ sub _typed ($op, $k, $type, $v) {
     if ( $type eq 'list' ) { return [ grep { length } split /\s*,\s*/, $v ] }
     if ( $type eq 'path' || $type eq 'str' ) { return "$v" }
     Odoo::Error->throw( kind => 'usage', message => "$op: parameter '$k' has unknown type '$type'" );
+}
+
+=head2 check_rows($decl, $value, $label)
+
+Class method: the value of a C<rows> parameter checked against its
+declaration, as C<check_params> checks it, so a caller can run the same rule
+before it sends. C<$decl> is the parameter's declaration:
+
+    lines => { type => 'rows', max => 50, required => 1,
+               row => { product_id => 'int', qty => 'int', discount => 'int?' } }
+
+Each row field is C<str>, C<int> or C<bool>, with C<?> for an optional key;
+C<max> is required. C<$value> is an array of hashes, or the text of a JSON
+array of flat objects. It must hold at most C<max> rows, each a hash with
+only the declared keys, every required key present and each value of its
+type with no nesting: an C<int> is a whole number (JSON number or digits), a
+C<bool> is true or false (C<1 0 yes no true false>), a C<str> is a plain
+value of at most 4096 characters holding no control character. A C<null>
+leaves an optional key out. Returns the rows (a new array of new hashes,
+values typed). A breach is C<usage>, naming the row number (from 1) and the
+key; C<$label> (default C<rows>) leads the message.
+
+=cut
+
+sub check_rows ($class, $decl, $value, $label = 'rows') {
+    my $bad = sub ($why, $kind = 'usage') {
+        Odoo::Error->throw( kind => $kind, message => "$label$why", fix => 'oom-ops describe <op> shows the rows each parameter takes' );
+    };
+    ref $decl eq 'HASH' && ( $decl->{type} // '' ) eq 'rows' or $bad->( ' is not declared as rows', 'config' );
+    my $max = $decl->{max};
+    defined $max && !ref $max && $max =~ /\A[1-9]\d*\z/ or $bad->( ' declares no max (a whole number of at least 1)', 'config' );
+    my $row = $decl->{row};
+    ref $row eq 'HASH' && %$row or $bad->( ' declares no row fields', 'config' );
+    my ( %type, %optional );
+    for my $k ( sort keys %$row ) {
+        my ( $ty, $q ) = ( $row->{$k} // '' ) =~ /\A(str|int|bool)(\?)?\z/
+            or $bad->( " declares row key '$k' as '" . ( $row->{$k} // '' ) . "' (str, int or bool, with ? for optional)", 'config' );
+        $type{$k}     = $ty;
+        $optional{$k} = 1 if $q;
+    }
+
+    my $rows = $value;
+    $rows = eval { Odoo::Ops::json()->decode( $value // '' ) } if !ref $rows;
+    ref $rows eq 'ARRAY' or $bad->( " must be a list of at most $max rows (a JSON array of objects)" );
+    $bad->( ' has ' . scalar(@$rows) . " rows; at most $max are allowed" ) if @$rows > $max;
+
+    my @out;
+    my $n = 0;
+    for my $r (@$rows) {
+        $n++;
+        ref $r eq 'HASH' or $bad->( " row $n must be an object of " . join( ', ', sort keys %type ) );
+        for my $k ( sort keys %$r ) {
+            $bad->( " row $n: key '$k' is not declared (the row takes " . join( ', ', sort keys %type ) . ')' ) if !$type{$k};
+        }
+        my %o;
+        for my $k ( sort keys %type ) {
+            my $v = $r->{$k};
+            if ( !defined $v ) {
+                $bad->( " row $n: key '$k' is required" ) if !$optional{$k};
+                next;
+            }
+            my $ty = $type{$k};
+            if ( ref $v ) {
+                # a JSON true or false is a bool; any other reference is nesting
+                $bad->( " row $n: key '$k' must be a plain $ty, not a nested value" )
+                    if $ty ne 'bool' || !eval { $v->isa('JSON::PP::Boolean') };
+                $o{$k} = $v ? 1 : 0;
+                next;
+            }
+            if ( $ty eq 'int' ) {
+                $v =~ /\A-?\d+\z/ or $bad->( " row $n: key '$k' must be int" );
+                $o{$k} = 0 + $v;
+            }
+            elsif ( $ty eq 'bool' ) {
+                $v =~ /\A(?:1|0|yes|no|true|false)\z/i or $bad->( " row $n: key '$k' must be bool" );
+                $o{$k} = $v =~ /\A(?:1|yes|true)\z/i ? 1 : 0;
+            }
+            else {
+                $bad->( " row $n: key '$k' must be at most 4096 characters" ) if length $v > 4096;
+                $bad->( " row $n: key '$k' must not hold a control character" ) if $v =~ /[\x00-\x1f\x7f]/;
+                $o{$k} = "$v";
+            }
+        }
+        push @out, \%o;
+    }
+    return \@out;
 }
 
 =head2 scope_for($phase)
@@ -229,6 +324,7 @@ sub _audit_read ($self, $scope, $report) {
             op => $self->op_name, outcome => 'ok',
             models => [ sort keys %$scope ],
             ( ref $rows eq 'ARRAY' ? ( rows => scalar @$rows ) : () ),
+            ( $self->can('audit_detail') ? $self->audit_detail($report) : () ),
             params => [ sort keys %{ $self->{params} // {} } ],
         );
     };
@@ -249,7 +345,9 @@ sub _run ($self) {
         $self->annotate_effects($plan);
         # the invariants of the models the plan writes are read around the apply
         my $scope = $self->scope_for('apply');
-        Odoo::Ops::Invariant->add_scope( $scope, Odoo::Ops::Invariant->for_plan( $self->{ctx}, $plan ) );
+        my @inv = Odoo::Ops::Invariant->for_plan( $self->{ctx}, $plan );
+        Odoo::Ops::Invariant->add_scope( $scope, @inv );
+        $plan->note( 'invariants checked at apply: ' . join( ', ', map { "$_->{name} ($_->{model})" } @inv ) ) if @inv;
         $plan->set_scope($scope);
         return $plan->finalize;
     } );
@@ -309,6 +407,7 @@ sub new_plan ($self, %args) {
         profile  => $profile ? { pack => $profile->pack, series => $profile->series } : undef,
         created  => Odoo::Ops::iso_time( $self->{ctx}->now ),
         actor    => $self->{ctx}->actor,
+        blob_min => $self->{ctx}->config->blob_min,
         %args,
     );
 }

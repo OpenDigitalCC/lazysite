@@ -7,7 +7,7 @@ use Scalar::Util ();
 use builtin qw(is_bool created_as_number);
 no warnings 'experimental::builtin';
 
-our $VERSION = '0.27';
+our $VERSION = '0.32';
 
 =head1 NAME
 

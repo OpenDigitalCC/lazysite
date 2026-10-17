@@ -5,10 +5,12 @@ use warnings;
 use feature qw(signatures);
 no warnings 'experimental::signatures';
 
+use File::Basename ();
 use IO::Handle;
 
 use Odoo::Error;
 use Odoo::Ops;
+use Odoo::Ops::Blob;
 
 =head1 NAME
 
@@ -23,21 +25,32 @@ before, vals, after, outcome, error). Lines are flushed as they are
 written, so a crash mid-apply leaves an exact record of how far it got
 - which is what C<revert> reads.
 
+A value over C<blob_min> (and the C<datas> and C<raw> of an C<ir.attachment>)
+is written once to C<blobs/HEX> in the journal's folder and the line carries
+its reference instead, as in L<Odoo::Ops::Blob>; the blob is on disk before the
+line that names it.
+
 =cut
 
-sub create ($class, $path) {
+sub create ($class, $path, %o) {
     Odoo::Error->throw( kind => 'refused', code => 'exists', message => "journal $path already exists" )
         if -e $path;
     open my $fh, '>', $path
         or Odoo::Error->throw( kind => 'config', message => "cannot write journal $path: $!" );
     $fh->autoflush(1);
-    return bless { fh => $fh, path => $path }, $class;
+    return bless { fh => $fh, path => $path, blob_min => $o{blob_min} }, $class;
 }
 
 sub path ($self) { $self->{path} }
 
 sub header ($self, %h) { $self->_line( type => 'run', %h ) }
-sub change ($self, %c) { $self->_line( type => 'change', %c ) }
+sub change ($self, %c) {
+    my %store;
+    my $slim = Odoo::Ops::Blob->externalise( \%c, min => $self->{blob_min} // Odoo::Ops::Blob->min_default, store => \%store );
+    Odoo::Ops::Blob->write( File::Basename::dirname( $self->{path} ), \%store ) if %store;
+    $self->_line( type => 'change', %$slim );
+}
+
 sub footer ($self, %f) { $self->_line( type => 'end', %f ) }
 
 sub _line ($self, %rec) {

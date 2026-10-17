@@ -5,13 +5,18 @@ use warnings;
 use feature qw(signatures);
 no warnings 'experimental::signatures';
 
+use Digest::SHA ();
+use IO::Handle;
+use Fcntl qw(:flock O_RDWR O_CREAT);
 use File::Basename qw(basename dirname);
+use File::Path qw(make_path);
 use File::Spec;
 use Time::Local qw(timegm);
 
 use Odoo::Error;
 use Odoo::Ops::Trail;
 use Odoo::Ops;
+use Odoo::Ops::Blob;
 use Odoo::Ops::Journal;
 use Odoo::Ops::Plan;
 use JSON::PP ();
@@ -61,6 +66,11 @@ approved and past C<expires>, 24 hours after planning unless the
 config's C<plan_ttl> says otherwise) and C<superseded> (planned or
 approved while a later plan of the same op, instance and params
 exists). Expiry wins when both hold.
+
+A run made with an idempotency key also holds C<idem> in its record: C<key>,
+C<owner> (the login) and C<request> (a digest of the operation and its
+parameters). The registry of keys is the C<.idem> folder of the runs_dir, one
+locked file per (instance, login, key) that names the run; see C<idem_claim>.
 
 C<now> (a coderef returning epoch seconds) is injectable.
 
@@ -187,7 +197,9 @@ the journal and what it touched stay as they are and nothing goes to Odoo.
 Refused (C<state>) from any other state: for C<planned> and C<approved> the
 fix names C<withdraw>, for C<applied> it names C<revert>. An unknown id and an
 empty reason are C<usage>. A closed run is not applied, resumed or reverted
-(C<refuse_closed>).
+(C<refuse_closed>). With C<purge> the run's blobs (L<Odoo::Ops::Blob>) are removed
+and C<closed.purged> says how many. A closed run no longer holds its
+idempotency key.
 
 =cut
 
@@ -208,9 +220,74 @@ sub close_run ($self, $id, %o) {
         if $was !~ /^(failed|partly-applied|partly-reverted)\z/;
     $idx->{state}  = 'closed';
     $idx->{closed} = { by => $o{by} // $ENV{USER} // 'unknown', at => Odoo::Ops::iso_time( $o{now} // $self->_now ), reason => $reason, was => $was };
+    $idx->{closed}{purged} = Odoo::Ops::Blob->purge($d) if $o{purge};
     _write( $d, $idx );
     Odoo::Ops::Trail->emit( close => run => $id, op => $idx->{op}, outcome => 'ok', reason => $reason );
     return $idx;
+}
+
+=head2 Odoo::Ops::Runs->idem_claim($root, instance => ..., owner => ..., key => ...)
+
+Takes the idempotency key of (instance, login, key) in the runs_dir C<$root>,
+waiting for another process that holds it, and returns the claim. The claim
+holds the lock until it is dropped, so two requests with one key are answered
+one after the other. C<< $claim->run >> is the record of the run the key
+belongs to, or undef when the key is free (never used, its run removed, or its
+run closed or withdrawn); C<< $claim->request >> is the digest of the request
+that made it. C<< $claim->bind($run_id, $request) >> writes the key against a run.
+
+=cut
+
+sub idem_claim ($class, $root, %o) {
+    Odoo::Error->throw( kind => 'usage', message => 'idem: the key is up to 128 printable characters',
+        fix => 'give a key you made for the request, such as a UUID' )
+        if !defined $o{key} || ref $o{key} || $o{key} !~ /\A[\x20-\x7e]{1,128}\z/;
+    my $dir = File::Spec->catdir( $root, '.idem' );
+    if ( !-d $dir ) {
+        make_path( $dir, { mode => 0700 } );
+        -d $dir or Odoo::Error->throw( kind => 'config', message => "cannot make $dir: $!" );
+    }
+    my $inst = $o{instance} // {};
+    my $hex  = Digest::SHA::sha256_hex( Odoo::Ops::json()->encode( [ $inst->{url} // '', $inst->{db} // '', $o{owner} // '', $o{key} ] ) );
+    my $path = File::Spec->catfile( $dir, $hex );
+    my $old  = umask 0077;
+    my $ok   = sysopen( my $fh, $path, O_RDWR | O_CREAT, 0600 );
+    umask $old;
+    $ok or Odoo::Error->throw( kind => 'config', message => "cannot open $path: $!" );
+    flock( $fh, LOCK_EX ) or Odoo::Error->throw( kind => 'config', message => "cannot lock $path: $!" );
+    my $raw = do { local $/; <$fh> };
+    my $rec = length( $raw // '' ) ? eval { Odoo::Ops::json()->decode($raw) } : undef;
+    my $run;
+    if ( ref $rec eq 'HASH' && defined $rec->{run} && $rec->{run} !~ m{/} ) {
+        my $d   = File::Spec->catdir( $root, $rec->{run} );
+        my $idx = -d $d ? eval { $class->_load_dir($d) } : undef;
+        $run = $idx if $idx && ( $idx->{state} // '' ) !~ /\A(?:closed|withdrawn)\z/;
+    }
+    return bless { fh => $fh, path => $path, key => $o{key}, owner => $o{owner}, run => $run,
+        request => ( $run ? $rec->{request} : undef ), dir => $root }, 'Odoo::Ops::Runs::Claim';
+}
+
+=head2 Odoo::Ops::Runs->set_idem($dir, \%idem)
+
+Puts C<idem> in the record of the run in C<$dir>.
+
+=cut
+
+sub set_idem ($class, $dir, $idem) {
+    my $idx = $class->_load_dir($dir) or return undef;
+    $idx->{idem} = $idem;
+    _write( $dir, $idx );
+    return $idx;
+}
+
+=head2 Odoo::Ops::Runs->request_digest($op, $params)
+
+The digest that says two requests are the same: the operation and its checked parameters.
+
+=cut
+
+sub request_digest ($class, $op, $params) {
+    return Digest::SHA::sha256_hex( Odoo::Ops::json()->encode( [ $op, $params ] ) );
 }
 
 =head2 Odoo::Ops::Runs->refuse_closed($dir)
@@ -317,6 +394,8 @@ sub record ($self, $id) {
     my $d = File::Spec->catdir( $self->{dir}, $id );
     $r->{paths} = { map { $_ => File::Spec->catfile( $d, "$_.json" . ( $_ =~ /^(journal|audit)\z/ ? 'l' : '' ) ) }
         qw(plan journal result audit) };
+    my $blobs = Odoo::Ops::Blob->list( $d );
+    $r->{blobs} = $blobs if @$blobs;
     return $r;
 }
 
@@ -396,6 +475,7 @@ sub index_plan ($class, $dir, $plan, %o) {
         result      => undef,
         expires     => Odoo::Ops::iso_time( _epoch($at) + $ttl ),
     );
+    $r{idem} = $o{idem} if ref $o{idem} eq 'HASH';
     # a revert plan names the journal it undoes and a resume plan the one it carries on: the registry follows both
     my $p = $h->{params} // {};
     $r{reverts} = basename( dirname( $p->{reverts} ) ) if $h->{op} eq 'revert' && defined $p->{reverts} && !ref $p->{reverts};
@@ -679,5 +759,30 @@ sub _epoch ($iso) {
         or Odoo::Error->throw( kind => 'config', message => "not an ISO time: $iso" );
     return timegm( $p[5], $p[4], $p[3], $p[2], $p[1] - 1, $p[0] );
 }
+
+package Odoo::Ops::Runs::Claim;
+
+use strict;
+use warnings;
+use feature qw(signatures);
+no warnings 'experimental::signatures';
+
+sub run     ($self) { $self->{run} }
+sub request ($self) { $self->{request} }
+sub key     ($self) { $self->{key} }
+sub owner   ($self) { $self->{owner} }
+
+sub bind ($self, $run_id, $request) {
+    my $fh = $self->{fh};
+    seek $fh, 0, 0;
+    truncate $fh, 0;
+    print {$fh} Odoo::Ops::json()->encode( { run => $run_id, request => $request, key => $self->{key} } ), "\n";
+    $fh->flush;
+    return $self;
+}
+
+sub release ($self) { close delete $self->{fh} if $self->{fh}; return }
+
+sub DESTROY ($self) { $self->release }
 
 1;

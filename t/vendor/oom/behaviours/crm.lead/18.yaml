@@ -37,6 +37,7 @@ routes:
 probes: [acting_user_email, "module:crm_iap_mine", "module:base_install_request"]
 invariants:
   - name: probability-manual
+    pack: crm
     text: no open lead's probability equals its automated_probability (the daily cron would re-score it)
     check: count
     model: crm.lead

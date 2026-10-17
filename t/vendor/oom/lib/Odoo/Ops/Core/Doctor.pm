@@ -20,6 +20,7 @@ use Odoo::Ops::Context;
 use Odoo::Ops::Credential;
 use Odoo::Ops::Modules;
 use Odoo::Ops::Profile;
+use Odoo::Ops::Runs;
 use Odoo::Transport;
 
 =head1 NAME
@@ -74,6 +75,14 @@ Checks, in order, and what a failure in each one skips:
                    C<ok> with the login when the credential is password and
                    its web session opened; C<info> for any other credential
                    (core.report render needs a web session).
+    config.cache   C<info>: the cache directory, its mode and the file names in it
+                   (C<warn> when the mode lets others in); C<cache = 0> says so.
+                   The login and version checks ask Odoo for real, whatever is
+                   remembered.
+    pack.*         one line for each pack the config's C<pack_dirs> hold (L<Odoo::Ops::Pack>):
+                   C<ok> with its version, C<oom_min> and series; a pack that was refused
+                   is C<warn> with the reason, C<fail> when the config's C<pack> names it.
+                   Nothing is reported when no pack is configured.
     server.wkhtmltopdf
                    the state Odoo reports for its pdf renderer
                    (C<get_wkhtmltopdf_state>): C<ok> for ok and upgrade,
@@ -178,7 +187,7 @@ sub examine ($class, $path, %opts) {
 # placeholder keeps the unauthenticated checks (TLS, version) runnable
 sub _context ($class, $config, %opts) {
     # a password credential opens its web session in the report, not here: a refused login is a line of it
-    my %extra = ( defer_login => 1, ($opts{now} ? ( now => $opts{now} ) : ()), ($opts{transport} ? ( transport => $opts{transport} ) : ()) );
+    my %extra = ( defer_login => 1, cache => 0, ($opts{now} ? ( now => $opts{now} ) : ()), ($opts{transport} ? ( transport => $opts{transport} ) : ()) );
     my $ctx = eval { Odoo::Ops::Context->new( config => $config, %extra ) };
     return $ctx if $ctx;
     my $err = $@;
@@ -217,6 +226,8 @@ sub report ($self) {
     my $config = $ctx->config;
     my @c      = $self->_static_checks($config);
     push @c, $self->_catcher_check($config);
+    push @c, $self->_cache_check($config);
+    push @c, $self->_pack_dir_checks($config);
     push @c, $self->_tls_chain($config);
 
     my $cred_ok     = !( grep { $_->{name} =~ /^credential\./ && $_->{status} eq 'fail' } @c );
@@ -294,6 +305,40 @@ sub report ($self) {
 
     push @c, $self->_runs_check($config);
     return _finish( \@c, $series, $uid, $config );
+}
+
+# The cache directory (docs/OPS.md, Speed): where it is, its mode and the file names in it. The
+# contents are not read out: the report names what is held, never a value. The checks above ask
+# Odoo for real (the context is made with cache => 0), so a remembered answer never stands for one.
+sub _cache_check ($self, $config) {
+    require Odoo::Cache;
+    return _check( 'config.cache', 'info', 'cache = 0: nothing is remembered between processes' ) if !$config->cache_enabled;
+    my $d = Odoo::Cache->new( dir => $config->cache_dir // Odoo::Cache->default_dir )->describe;
+    my $shown = _scrub( $d->{dir} );
+    return _check( 'config.cache', 'info', "$shown does not exist yet; the first cold process makes it (mode 0700)" ) if !$d->{exists};
+    my $held = @{ $d->{files} } ? join( ', ', map { "$_->{name} ($_->{mode})" } @{ $d->{files} } ) : 'nothing yet';
+    return _check( 'config.cache', 'warn', "$shown is mode $d->{mode}; it should be 0700 (chmod 700); holds $held" ) if $d->{mode} ne '0700';
+    my @loose = grep { $_->{mode} ne '0600' } @{ $d->{files} };
+    return _check( 'config.cache', 'warn', "$shown holds files that are not 0600: " . join( ', ', map { $_->{name} } @loose ) . '; they are not read' ) if @loose;
+    return _check( 'config.cache', 'info', "$shown, mode $d->{mode}; holds $held" );
+}
+
+# The packs the config's pack_dirs hold: each loaded one with its version, each refused one with the reason
+sub _pack_dir_checks ($self, $config) {
+    require Odoo::Ops::Registry;
+    my $reg = Odoo::Ops::Registry->new( config => $config );
+    my %packs = $reg->packs;
+    my %named = map { $_ => 1 } $config->pack_only;
+    my @c;
+    for my $n ( sort keys %packs ) {
+        my $p = $packs{$n};
+        push @c, _check( "pack.$n", 'ok', "version $p->{version}, needs OOM $p->{oom_min}, series " . join( ' ', @{ $p->{series} } )
+            . ', operations ' . join( ' ', grep { ( $reg->pack_of($_) // '' ) eq $n } $reg->names ) );
+    }
+    for my $r ( $reg->refused ) {
+        push @c, _check( "pack.$r->{name}", $named{ $r->{name} } ? 'fail' : 'warn', 'refused: ' . _scrub( $r->{reason} ) );
+    }
+    return @c;
 }
 
 # The one config key a mailshot trial depends on. Absent is information, not a
@@ -872,18 +917,23 @@ sub _runs_check ($self, $config) {
     return _check( 'runs', 'ok', 'no runs yet' ) if !defined $newest;
     my $dir = File::Spec->catdir( $root, $newest );
     my $has = sub ($f) { -f File::Spec->catfile( $dir, $f ) };
-    my $state;
+    my ( $state, $warn );
     if ( $has->('result.json') ) {
         my $r = _json_file( File::Spec->catfile( $dir, 'result.json' ) );
         my $c = ref $r eq 'HASH' && ref $r->{counts} eq 'HASH' ? $r->{counts} : {};
+        # the run's state in the registry's word (oom-ops runs): its record when it has one, else what the counts say
+        my $rec = $has->('run.json') ? _json_file( File::Spec->catfile( $dir, 'run.json' ) ) : undef;
+        my $word = ref $rec eq 'HASH' && length( $rec->{state} // '' ) ? $rec->{state} : Odoo::Ops::Runs::_apply_state($c);
+        $warn  = $word =~ /\A(?:failed|partly)/ ? 1 : 0;
         $state = ( $c->{failed} || $c->{not_attempted} )
-            ? "applied with $c->{failed} failed and $c->{not_attempted} not attempted"
-            : 'applied';
+            ? "$word (done " . ( $c->{done} // 0 ) . ', failed ' . ( $c->{failed} // 0 ) . ', not attempted ' . ( $c->{not_attempted} // 0 ) . ')'
+            : $word;
     }
     elsif ( $has->('plan.json') )    { $state = 'planned, not applied' }
     elsif ( $has->('journal.jsonl') ) { $state = 'journal without a result (an apply that stopped?)' }
     elsif ( $has->('report.json') )  { $state = 'report' }
     else                             { $state = 'empty' }
+    $warn //= $state =~ /stopped/ ? 1 : 0;
 
     my $plan = $has->('plan.json') ? _json_file( File::Spec->catfile( $dir, 'plan.json' ) ) : undef;
     my $inst = ref $plan eq 'HASH' ? $plan->{instance} : undef;
@@ -891,9 +941,9 @@ sub _runs_check ($self, $config) {
         my $mine = $config->instance;
         my @diff = grep { ( $inst->{$_} // '' ) ne ( $mine->{$_} // '' ) } qw(url db);
         return _check( 'runs', 'warn', "newest run $newest ($state) was made against " . _scrub( $inst->{url} // '?' ) . ' db ' . ( $inst->{db} // '?' ) . ', not this config\'s instance' ) if @diff;
-        return _check( 'runs', $state =~ /failed|stopped/ ? 'warn' : 'ok', "newest run $newest: $state; same instance as this config" );
+        return _check( 'runs', $warn ? 'warn' : 'ok', "newest run $newest: $state; same instance as this config" );
     }
-    return _check( 'runs', $state =~ /failed|stopped/ ? 'warn' : 'ok', "newest run $newest: $state; no plan in it to compare the instance" );
+    return _check( 'runs', $warn ? 'warn' : 'ok', "newest run $newest: $state; no plan in it to compare the instance" );
 }
 
 sub _json_file ($path) {

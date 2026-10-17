@@ -59,14 +59,20 @@ single portable reading carries none; a profile overrides per field
 with the map form C<< logical: { name: physical, portable_type: text } >>.
 
 Roots searched, in order: C<dirs> passed in, C<$ENV{ODOO_OOM_PROFILES}>,
-the source tree's C<profiles/>, C</usr/share/odoo-oom/profiles>.
+the source tree's C<profiles/>, C</usr/share/odoo-oom/profiles>, then the
+C<profiles/> of each loaded pack (L<Odoo::Ops::Pack>).
 
 =cut
 
-sub default_dirs ($class, @extra) {
+# core's own roots: what a pack may not replace
+sub core_dirs ($class) {
     my $tree = File::Spec->catdir( dirname( __FILE__ ), ('..') x 3, 'profiles' );
-    return grep { defined && -d } @extra, $ENV{ODOO_OOM_PROFILES}, $tree,
-        '/usr/share/odoo-oom/profiles';
+    return grep { defined && -d } $ENV{ODOO_OOM_PROFILES}, $tree, '/usr/share/odoo-oom/profiles';
+}
+
+sub default_dirs ($class, @extra) {
+    require Odoo::Ops::Pack;
+    return grep { defined && -d } @extra, $class->core_dirs, Odoo::Ops::Pack->roots('profiles');
 }
 
 sub load ($class, %args) {

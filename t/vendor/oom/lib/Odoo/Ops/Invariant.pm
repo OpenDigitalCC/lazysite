@@ -61,7 +61,12 @@ On a large model the read is large; name a domain that narrows it.
 
 Which invariants an apply checks: those of every model the plan
 writes - the C<model> of each change, plus, for a C<custom> change,
-the models its handler names in C<models_touched>.
+the models its handler names in C<models_touched> - that apply to the
+operation. An invariant with a C<pack> (C<pack: crm>) is a rule of that
+pack and judges only writes made by an operation of the pack (an
+operation's C<pack>, or the packs its C<invariant_packs> names, see
+L<Odoo::Ops::Operation>); a plain C<core.make> of a lead is not judged
+by it. An invariant with no C<pack> judges every write to its model.
 
 =cut
 
@@ -91,6 +96,7 @@ sub check_definition ($class, $path, $i) {
     $bad->('needs a model') if !$i->{model};
     my $check = $i->{check} // 'count';
     $bad->("has check '$check'; use count or sum") if $check ne 'count' && $check ne 'sum';
+    $bad->('has a pack that is not a name') if defined $i->{pack} && ( ref $i->{pack} || $i->{pack} !~ /\A\w+\z/ );
     $bad->('needs expect') if !defined $i->{expect};
     $bad->('has a domain that is not a list') if exists $i->{domain} && ref $i->{domain} ne 'ARRAY';
     if ( $check eq 'count' ) {
@@ -127,14 +133,15 @@ sub split_domain ($class, $domain) {
 =head2 for_plan($ctx, $plan)
 
 The invariants (each a hashref with C<model> and the rest of the
-definition) of every model the plan writes, once each, in a stable
-order.
+definition) of every model the plan writes that apply to the plan's
+operation, once each, in a stable order.
 
 =cut
 
 sub for_plan ($class, $ctx, $plan) {
     my %models;
     my $reg;
+    my $packs;    # the packs the plan's operation answers for, found when an invariant names a pack
     for my $c ( @{ $plan->changes } ) {
         next if $c->{action} eq 'skip' || $c->{action} eq 'hold';
         if ( $c->{action} eq 'custom' && $c->{handler} ) {
@@ -149,10 +156,23 @@ sub for_plan ($class, $ctx, $plan) {
         for my $i ( @{ $ctx->behaviour($m)->invariants } ) {
             my $key = "$i->{model}\0$i->{name}";
             next if $seen{$key}++;
+            if ( defined $i->{pack} ) {
+                $packs //= $class->_packs_of( $reg //= Odoo::Ops::Registry->new, $plan->op );
+                next if !$packs->{ $i->{pack} };
+            }
             push @out, $i;
         }
     }
     return @out;
+}
+
+# The packs an operation answers for, as a set: none for a name the registry
+# does not know (a revert, a resume), which no pack's rules judge.
+sub _packs_of ($class, $reg, $op) {
+    # every operation name has a dot (core.read, crm-page.lead); a revert or resume plan's does not, and asking the registry for it would scan every namespace
+    return {} if !defined $op || $op !~ /\./;
+    my $cls = eval { $reg->class_for($op) } or return {};
+    return { map { $_ => 1 } $cls->invariant_packs };
 }
 
 =head2 for_models($ctx, @models)

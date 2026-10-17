@@ -1,0 +1,30 @@
+# project.project, Odoo 18 (project, with project_timesheet_time_control from OCA). Read from the OCA tree
+# (project_timesheet_time_control/models/project_project.py, hr_timesheet_time_control_mixin.py,
+# wizards/hr_timesheet_switch.py); run on hr18 by t/60-hr-coverage-live.t.
+# The project has the same two timer buttons as project.task (the mixin hr.timesheet.time_control.mixin); button_resume_work
+# belongs to account.analytic.line only. The project's own state (stage, status) is not listed; only what the timer module
+# adds. A project that does not allow timesheets has no timer.
+model: project.project
+series: 18
+module: project
+actions:
+- method: button_start_work
+  module: project_timesheet_time_control
+  wizard: hr.timesheet.switch
+  note: OCA; answers with the timer wizard's window, asking for no task, and changes nothing; the timer is started by the wizard
+  evidence: source OCA project_timesheet_time_control project_project.button_start_work, hr_timesheet_time_control_mixin.button_start_work; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (answered with a window on hr.timesheet.switch, and said to use core.wizard)
+- method: button_end_work
+  module: project_timesheet_time_control
+  note: OCA; stops the acting user's running timers on the project, those on its tasks included (hours = the time since each started); Odoo refuses when the project has none running
+  evidence: 'source OCA project_timesheet_time_control hr_timesheet_time_control_mixin.button_end_work; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (stop_dt in the context set the line to 2.5 hours; with none running Odoo refused in its words: No running timer found in Project X. Refresh the page and check again.)'
+wizards:
+- model: hr.timesheet.switch
+  module: project_timesheet_time_control
+  method: action_switch
+  button: button_start_work
+  values: [name, analytic_line_id, project_id, task_id, date_time, date_time_end, running_timer_id]
+  creates:
+  - model: account.analytic.line
+  creates_evidence: 'source OCA project_timesheet_time_control hr_timesheet_switch.action_switch (create or copy of a line); live 2026-10-17 t/60-hr-coverage-live.t on hr18: one running line with no task made by the copy, named in the result'
+  note: OCA; stops the acting user's running timer and starts a new one on the project with no task. Odoo looks for the running timer of the acting user's employee and refuses when it finds more than one; running_timer_id given in the values (false for none) stops that search. analytic_line_id names the line to copy
+  evidence: 'source OCA project_timesheet_time_control hr_timesheet_switch.action_switch, _default_running_timer_id, _closest_suggestion (for project.project the latest line of the project with no task); live 2026-10-17 t/60-hr-coverage-live.t on hr18 (with a line of the project to copy and running_timer_id false the timer started: a running line on the project, no task)'

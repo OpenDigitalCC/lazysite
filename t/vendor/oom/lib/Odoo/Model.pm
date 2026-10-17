@@ -80,15 +80,16 @@ sub client ($self) { $self->{client} }
 #--- schema discovery ---------------------------------------------------------
 
 sub fields ($self) {
-    return $self->{fields} //= $self->{client}->execute_kw(
-        $self->{name}, 'fields_get',
-        [],
-        { attributes => \@FIELD_ATTRS },
-    );
+    return $self->{fields} //= do {
+        my $c     = $self->{client};
+        my $fetch = sub { $c->execute_kw( $self->{name}, 'fields_get', [], { attributes => \@FIELD_ATTRS } ) };
+        $c->can('fields_cached') ? $c->fields_cached( $self->{name}, $fetch ) : $fetch->();
+    };
 }
 
 sub refresh_fields ($self) {
     delete $self->{fields};
+    $self->{client}->forget_fields( $self->{name} ) if $self->{client}->can('forget_fields');
     return $self->fields;
 }
 

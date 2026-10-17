@@ -39,7 +39,10 @@ caller's C<context>), then calls C<method> on it.
 
 The wizard model and method must be listed under C<wizards:> in the behaviour
 file of the target model (C<for>), or the plan is refused with
-C<refused/unlisted-wizard>; a listed wizard whose module is not installed is
+C<refused/unlisted-wizard>; an entry with C<on: model> is a wizard a menu opens,
+with no records: C<records> is refused C<usage> for it, the context carries no
+C<active_*> keys, and C<for> only names the model whose file lists it (an entry
+without C<on: model> needs C<records>); a listed wizard whose module is not installed is
 refused C<refused/not-applicable>. C<records> is a list of ids or a
 C<field=value>. The plan shows the values, the context and the records, each with
 its state as read now. Apply reports what the method returned as C<core.action>
@@ -69,7 +72,7 @@ sub pack    ($class) { undef }
 sub params ($class) {
     {   model   => { type => 'str',  required => 1, help => 'the wizard: a transient model, e.g. hr.holidays.cancel.leave' },
         for     => { type => 'str',  required => 1, help => 'the model the wizard acts on, whose behaviour file lists it (hr.leave)' },
-        records => { type => 'str',  required => 1, help => 'the records it acts on: comma-separated ids, or field=value such as name=X' },
+        records => { type => 'str',  help => 'the records it acts on: comma-separated ids, or field=value such as name=X (not for an on: model entry)' },
         values  => { type => 'json', default => '{}', help => 'the wizard\'s field values, a JSON object' },
         method  => { type => 'str',  required => 1, help => 'the wizard\'s public method, listed under wizards (oom-ops describe core.wizard --set for=M)' },
         context => { type => 'json', help => 'more context for the create and the call, a JSON object' },
@@ -134,6 +137,30 @@ sub plan ($self) {
     my @state = grep { $fields->{$_} } $beh->state_fields;
     my @read  = ( 'id', 'display_name', @state );
     my $rec   = $self->param('records');
+    if ( $beh->on_model($entry) ) {
+        Odoo::Error->throw( kind => 'usage', message => "$me: $model $method is opened from a menu, not from a record: it takes no records, so records is not given",
+            fix => "drop --set records; for names the model whose behaviour file lists the wizard (oom-ops describe core.wizard --set for=$for)" )
+            if defined $rec && length $rec;
+        my $plan = $self->new_plan( input_count => 1 );
+        $plan->note("$for $model $method: $entry->{note}") if length( $entry->{note} // '' );
+        my %context = ( %{ $entry->{context} // {} }, %$extra );
+        my $creates = $AC->creates_specs( $self->ctx, $entry );
+        my $json    = JSON::PP->new->canonical;
+        $plan->add(
+            bucket => 'wizard', action => 'custom', handler => $me, kind => 'wizard', key => "$model:",
+            model => $model,
+            vals => {
+                for => $for, method => $method, values => $values, context => \%context, ids => [], state_fields => [], states_before => {},
+                ( @$creates ? ( creates => $creates ) : () ), names => {},
+                ( defined $entry->{undo} ? ( undo => $entry->{undo} ) : () ),
+            },
+            line   => "$model $method; no records; values " . $json->encode($values) . "; context " . $json->encode( \%context ) . '; ' . $AC->creates_words($creates),
+            reason => "$model is created with " . $json->encode($values) . " and its $method called, with no records",
+        );
+        return $plan;
+    }
+    Odoo::Error->throw( kind => 'usage', message => "$me: $model $method acts on records: records is required",
+        fix => 'name the records, as ids or field=value' ) if !defined $rec || !length $rec;
     my ( $one, $ids ) = $rec =~ /\A\s*\d+(?:\s*,\s*\d+)*\s*\z/ ? ( undef, [ split /\s*,\s*/, $rec =~ s/\A\s+|\s+\z//gr ] ) : ( $rec, undef );
     my ( $want, $by_id ) = $AC->resolve_records( $self->client, $me, $for, $fields, $one, $ids, \@read );
 
@@ -223,7 +250,12 @@ sub apply_custom ( $class, $client, $c ) {
         my $name = length( $v->{names}{$id} // '' ) ? " ($v->{names}{$id})" : '';
         "$v->{for} $id$name" . ( ( grep { $_ == $id } @$gone ) ? ' is gone' : @$fields ? ': ' . join( ', ', map { "$_ " . $AC->state_text( $was->{$id}{$_} ) . ' -> ' . $AC->state_text( $now->{$id}{$_} ) } @$fields ) : '' )
     } @$ids;
-    my $says = "$c->{model} $wid: $v->{method}; " . join( '; ', @moved ) . '; ' . $ans->{says};
+    my $says = join( '; ', "$c->{model} $wid: $v->{method}", @moved, $ans->{says} );
+    if ( !@$ids ) {
+        $says .= @$specs
+            ? ( @{ $found->{created} } ? '' : '; no record made in ' . join( ', ', map { $_->{model} } @$specs ) . ' by this login while it ran' )
+            : '; nothing read back: a wizard opened with no records has none';
+    }
     return {
         id       => $wid,
         returned => {

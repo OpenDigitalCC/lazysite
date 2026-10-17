@@ -14,6 +14,7 @@ use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Invariant;
 use Odoo::Ops::Journal;
+use Odoo::Ops::Blob;
 use Odoo::Ops::Plan;
 use Odoo::Ops::PlanPrint;
 use Odoo::Ops::Registry;
@@ -147,6 +148,18 @@ sub apply ($class, $ctx, $plan, %opts) {
     # after the applied check, so a second apply says "applied", not "unapproved"
     Odoo::Ops::Runs->check_apply( $dir, $plan, approval => $ctx->approval, now => $ctx->now );
 
+    # the large values of the plan are in its run folder (Odoo::Ops::Blob): all of them are there, and
+    # as they were planned, before anything is sent or journalled
+    $plan->write_blobs($dir);
+    my $blobs = $plan->blob_source($dir);
+    my %has_blob;
+    for my $c ( @{ $plan->changes } ) {
+        my @refs = Odoo::Ops::Blob->refs($c) or next;
+        $has_blob{ $c->{seq} } = 1;
+        $blobs->verify($_) for @refs;
+    }
+    my $resolve = sub ($c) { $has_blob{ $c->{seq} } ? $blobs->resolve($c) : $c };
+
     my $client  = $ctx->client;
     my $started = $ctx->now;
 
@@ -159,7 +172,7 @@ sub apply ($class, $ctx, $plan, %opts) {
         # a plan worked in parts (only) is checked for the rows it will touch
         my $only = $opts{only} ? { map { $_ => 1 } @{ $opts{only} } } : undef;
         my $wanted = sub ($c) { !$only || ( defined $c->{key} && $only->{ $c->{key} } ) };
-        my $detail = $class->_stale_detail( $client, [ grep { $wanted->($_) } @{ $plan->changes } ], $ctx );
+        my $detail = $class->_stale_detail( $client, [ map { $has_blob{ $_->{seq} } && ref $_->{before} ? { %$_, before => $blobs->resolve( $_->{before} ) } : $_ } grep { $wanted->($_) } @{ $plan->changes } ], $ctx );
         if ( my @stale = sort { $a <=> $b } keys %$detail ) {
             my %by_seq = map { $_->{seq} => $_ } @{ $plan->changes };
             my @what   = map { _stale_words( $by_seq{$_}, $detail->{$_} ) } @stale;
@@ -174,7 +187,7 @@ sub apply ($class, $ctx, $plan, %opts) {
             );
         }
 
-        my $journal = Odoo::Ops::Journal->create($journal_path);
+        my $journal = Odoo::Ops::Journal->create( $journal_path, blob_min => $ctx->config->blob_min );
         $journal->header(
             op               => $plan->op,
             plan_fingerprint => $plan->fingerprint,
@@ -204,7 +217,7 @@ sub apply ($class, $ctx, $plan, %opts) {
             }
             $entry->{outcome} = $outcome;
             # the audit trail names every button pressed, and what Odoo answered
-            $class->_audit_action( $ctx, $c, $entry ) if $c->{action} eq 'custom' && ( $c->{handler} // '' ) =~ /\Acore\.(?:action|wizard)\z/;
+            $class->_audit_action( $ctx, $c, $entry ) if $c->{action} eq 'custom' && ( $c->{handler} // '' ) =~ /\A(?:core\.(?:action|wizard)|discuss\.\w+)\z/;
             $journal->change(%$entry);
             $counts{$outcome}++;
             $by_bucket{ $c->{bucket} }{$outcome}++;
@@ -238,10 +251,10 @@ sub apply ($class, $ctx, $plan, %opts) {
                 $i++;
                 next;
             }
-            my @run = ($c);
+            my @run = ( $resolve->($c) );
             if ( $batch > 1 && _batchable($c) && !( $ctx->trail && $ctx->trail->broken ) ) {
                 while ( @run < $batch && $i + @run < @changes && $wanted->( $changes[ $i + @run ] ) && _batchable( $changes[ $i + @run ] ) && _same_batch( $c, $changes[ $i + @run ] ) ) {
-                    push @run, $changes[ $i + @run ];
+                    push @run, $resolve->( $changes[ $i + @run ] );
                 }
             }
             $i += @run;
@@ -648,6 +661,7 @@ sub _show ($v) {
         return '[' . join( ', ', sort { $a <=> $b } grep { !ref } @$v ) . ']';
     }
     return Odoo::Ops::json()->encode($v) if ref $v;
+    return '(' . length($v) . ' characters)' if length($v) > 200;
     return "$v";
 }
 
@@ -692,12 +706,13 @@ sub _stale_changes ($class, $client, $changes, $ctx = undef) {
     return sort { $a <=> $b } keys %{ $class->_stale_detail( $client, $changes, $ctx ) };
 }
 
-# Comparable form of a read value: many2one [id, label] -> id (labels
-# drift without the record changing); id lists sorted; empties equal.
+# Comparable form of a read value: many2one [id, label] -> its id, the same
+# as a bare id (labels drift without the record changing, and a plan may hold
+# either form); id lists sorted; empties equal.
 sub _norm ($v) {
     return '' if _blank($v);
     if ( ref $v eq 'ARRAY' ) {
-        return "m2o:$v->[0]" if @$v == 2 && !ref $v->[0] && defined $v->[1] && $v->[1] !~ /^-?\d+\z/;
+        return "$v->[0]" if @$v == 2 && !ref $v->[0] && defined $v->[1] && $v->[1] !~ /^-?\d+\z/;
         return 'ids:' . join ',', sort { $a <=> $b } grep { !ref } @$v;
     }
     return Odoo::Ops::json()->encode($v) if ref $v;
@@ -758,7 +773,19 @@ sub revert_plan ($class, $ctx, $journal_path) {
     my $other = $class->_journal_owner( $ctx, $header, 'revert' );
 
     my @done = reverse grep { $_->{outcome} eq 'done' } @$changes;
+    # A value the journal holds as a blob comes back for an undo that must put it back (a write, a custom
+    # change). A create is undone by deleting the record, so its after-image is compared without the
+    # blob-held fields and no blob is read.
+    my $blobs = Odoo::Ops::Blob->source( dirs => [ _dir_of($journal_path) ] );
+    @done = map {
+        my $c = $_;
+        $c->{action} eq 'create' ? { %$c, ( ref $c->{after} eq 'HASH' ? ( after => Odoo::Ops::Blob->strip( $c->{after} ) ) : () ) }
+        : $c->{action} =~ /^(?:write|custom)\z/ ? $blobs->resolve($c)
+        : $c
+    } @done;
     my $plan = Odoo::Ops::Plan->new(
+        blob_min    => $ctx->config->blob_min,
+
         op          => 'revert',
         params      => { journal => $journal_path, reverts => $journal_path, of => $header->{plan_fingerprint}, of_op => $header->{op},
             ( defined $other ? ( reverted_for => $other ) : () ) },
@@ -839,7 +866,8 @@ sub revert_plan ($class, $ctx, $journal_path) {
         elsif ( $c->{action} eq 'custom' ) {
             my ( $undo, $why, $handler ) = $class->_undo_custom($c);
             # what the action made is named on the revert's line; the revert never plans a change to it
-            my @made = ref $c->{created} eq 'ARRAY' ? @{ $c->{created} } : ();
+            # an undo that removes what the change made (unmakes) is not told that Odoo made it
+            my @made = ref $c->{created} eq 'ARRAY' && !( $undo && $undo->{unmakes} ) ? @{ $c->{created} } : ();
             if (@made) {
                 my $words = 'Odoo made ' . join( ', ', map { Odoo::Ops::PlanPrint::made_text($_) } @made ) . ' when it ran; the revert does not remove it';
                 push @{ $made_by{ $_->{model} } }, $_->{id} for @made;
@@ -1175,7 +1203,11 @@ sub resume_plan ($class, $ctx, $journal_path) {
     }
 
     my $n = grep { !$_->{support} } @carry;
+    my $blobs = $orig->blob_source( _dir_of($journal_path) );
+    @carry = map { $blobs->resolve($_) } @carry;
     my $plan = Odoo::Ops::Plan->new(
+        blob_min    => $ctx->config->blob_min,
+
         op          => $orig->op,
         params      => { %{ $orig->{params} // {} }, resumes => $journal_path },
         instance    => $ctx->instance,

@@ -11,6 +11,7 @@ use Odoo::Error;
 use Odoo::Ops::Modules;
 use Odoo::Ops;
 use Odoo::Portable;
+use Odoo::Ops::Core::OneRecord;
 
 use parent 'Odoo::Ops::Operation';
 
@@ -110,34 +111,10 @@ sub report ($self) {
         ( defined $self->param('order') ? ( order => $self->param('order') ) : () ),
         ( $self->param('archived') ? ( context => { active_test => JSON::PP::false } ) : () ) );
 
-    my @out;
-    for my $r (@$rows) {
-        my %o;
-        for my $k (@want) {
-            my $v = $r->{$k};
-            if ( ( $f->{$k}{type} // '' ) eq 'many2one' ) {
-                if ( ref $v eq 'ARRAY' ) { @o{ $k, "${k}_name" } = @$v }
-                else                      { @o{ $k, "${k}_name" } = ( undef, undef ) }
-            }
-            else { $o{$k} = $v }
-        }
-        push @out, \%o;
-    }
-    my %schema;
-    for my $k (@want) {
-        my $d = $f->{$k};
-        my %pt = Odoo::Portable::describe($d);
-        $schema{$k} = {
-            type => $d->{type}, string => $d->{string},
-            ( $pt{portable_type} ? ( portable_type => $pt{portable_type} ) : () ),
-            ( $d->{relation} ? ( relation => $d->{relation} ) : () ),
-            ( $pt{values} ? ( values => $pt{values} )
-              : ref $d->{selection} eq 'ARRAY' ? ( values => [ map { $_->[0] } @{ $d->{selection} } ] ) : () ),
-        };
-        $schema{"${k}_name"} = { type => 'char', string => ( $d->{string} // $k ) . ' (label)' } if ( $d->{type} // '' ) eq 'many2one';
-    }
+    my ( $out, $schema ) = Odoo::Ops::Core::OneRecord->rows_and_schema( $f, \@want, $rows );
+    my @out = @$out;
     return {
-        model => $model, count => scalar @out, rows => \@out, fields => \%schema,
+        model => $model, count => scalar @out, rows => \@out, fields => $schema,
         ( @out == $limit ? ( limit_reached => JSON::PP::true ) : () ),
     };
 }

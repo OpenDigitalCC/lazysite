@@ -34,7 +34,8 @@ SM747 OB2 asks for, placed where it cannot be bypassed from above.
 
 The base scope, always allowed: the C<common> service (version,
 authenticate), C<fields_get> on any model (introspection needs no
-rights and reveals no records), and C<res.users.read> (whoami). Outside
+rights and reveals no records), C<res.users.read> (whoami) and
+C<ir.model.fields> C<search_read> and C<search_count> (whether any model's fields have changed, which the field cache checks). Outside
 C<with_scope> nothing else is allowed.
 
 Every call, allowed or refused, writes one audit record.
@@ -107,6 +108,8 @@ sub derive ($self, $inner, %args) {
 sub allows ($self, $model, $method) {
     return 1 if $method eq 'fields_get';
     return 1 if $model eq 'res.users' && $method eq 'read';
+    # the date a model's field definitions last changed: what a kept fields_get is checked against
+    return 1 if $model eq 'ir.model.fields' && ($method eq 'search_read' || $method eq 'search_count');
     return !!( $self->{scope} && $self->{scope}{$model} && $self->{scope}{$model}{$method} );
 }
 

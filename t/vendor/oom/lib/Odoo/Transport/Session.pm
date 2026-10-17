@@ -10,7 +10,7 @@ use JSON::PP ();
 use Odoo::Error;
 use Odoo::Transport;
 
-our $VERSION = '0.27';
+our $VERSION = '0.32';
 
 use constant TRUSTED_DEVICE_COOKIE => 'td_id';
  use constant DEVICE_AGENT => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 odoo-oom-perl';
@@ -404,6 +404,22 @@ sub post_form ($self, $path, $fields, %opts) {
     Odoo::Error->throw( kind => 'refused', code => 'oversize', message => "$path: response over the configured size cap" )
         if $status == 599 && ( $res->{content} // '' ) =~ /exceeds the maximum allowed/;
     return $res;
+}
+
+=head2 route($path, \%params)
+
+One JSON-RPC call to a web route of Odoo that is not C</web/dataset/call_kw>
+(a controller such as C</mail/channel/set_last_seen_message>), with the
+session's cookies, answering the route's C<result>. Odoo's own fault comes
+back as a C<fault> in its words; a session Odoo no longer knows dies as
+category C<session>. A route that is not JSON-RPC is C<get> or C<post_form>.
+
+=cut
+
+sub route ($self, $path, $params = {}) {
+    $self->_need_session($path);
+    my ($result) = $self->_rpc( $path, $params, "route $path" );
+    return $result;
 }
 
 =head2 cookies

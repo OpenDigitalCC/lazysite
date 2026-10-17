@@ -7,6 +7,7 @@ wizards:
 - model: payroll.management.wizard
   method: send_payrolls
   module: hr_payroll_document
+  on: model
   button: menu Payroll Management (no action method opens it; it is a menu window)
   values: [subject, payrolls]
   creates:

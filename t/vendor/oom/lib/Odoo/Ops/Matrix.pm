@@ -142,9 +142,35 @@ sub select ($self, %f) {
 
 # operation name => pack, from the registry; loaded only when asked
 sub _packs ($self) {
+    # a pack's operations carry the pack's name
     require Odoo::Ops::Registry;
     my $reg = Odoo::Ops::Registry->new;
-    return map { $_ => ( $reg->class_for($_)->pack // '' ) } $reg->names;
+    return ( ( map { $_ => ( $reg->class_for($_)->pack // $reg->pack_of($_) // '' ) } $reg->names ), %{ $self->{pack_names} // {} } );
+}
+
+=head2 with_packs($reg)
+
+Adds a row for each operation of the packs the registry loaded (L<Odoo::Ops::Pack>).
+The matrix file grades what OOM proved; a pack's operations are not in it, so
+each row is C<not-probed> on every series, its evidence on the series the pack
+declares saying so and naming the pack and its version. The row's pack is the
+pack's name, so C<select(pack =E<gt> 'crm-page')> finds them.
+
+=cut
+
+sub with_packs ($self, $reg) {
+    my %packs = $reg->packs;
+    for my $op ( grep { defined $reg->pack_of($_) } $reg->names ) {
+        my $p = $packs{ $reg->pack_of($op) };
+        $self->{pack_names}{$op} = $p->{name};
+        my %declared = map { $_ => 1 } @{ $p->{series} };
+        push @{ $self->{rows} }, {
+            name => $op, kind => 'operation',
+            cells => { map { $_ => { grade => 'not-probed',
+                ( $declared{$_} ? ( evidence => "pack $p->{name} $p->{version} declares series $_; its own tests hold the evidence" ) : () ) } } $self->series },
+        };
+    }
+    return $self;
 }
 
 =head2 to_data(rows =E<gt> [...], series =E<gt> N)

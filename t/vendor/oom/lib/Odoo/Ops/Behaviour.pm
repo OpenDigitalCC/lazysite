@@ -74,8 +74,9 @@ series, so every operation on that model inherits it:
       state: [draft, sent, cancel]
       noun: order                      # what the parent is called
 
-    invariants:                        # checked around every apply, see L<Odoo::Ops::Invariant>
+    invariants:                        # checked around an apply that writes the model, see L<Odoo::Ops::Invariant>
       - name: probability-manual
+        pack: crm                      # optional: only an operation of this pack is judged by it
         model: crm.lead
         domain: [["active","=",true],["probability","=",{"field":"automated_probability"}]]
         expect: 0
@@ -94,13 +95,21 @@ change's context carries the suppressing key, so the person approving
 sees the consequences beside the values.
 
 Roots searched: C<$ENV{ODOO_OOM_BEHAVIOURS}>, the source tree's
-C<behaviours/>, C</usr/share/odoo-oom/behaviours>.
+C<behaviours/>, C</usr/share/odoo-oom/behaviours>, then the C<behaviours/> of
+each loaded pack (L<Odoo::Ops::Pack>), so a pack adds models and never
+shadows core's.
 
 =cut
 
-sub default_dirs ($class, @extra) {
+# core's own roots: what a pack may not replace
+sub core_dirs ($class) {
     my $tree = File::Spec->catdir( dirname(__FILE__), ('..') x 3, 'behaviours' );
-    return grep { defined && -d } @extra, $ENV{ODOO_OOM_BEHAVIOURS}, $tree, '/usr/share/odoo-oom/behaviours';
+    return grep { defined && -d } $ENV{ODOO_OOM_BEHAVIOURS}, $tree, '/usr/share/odoo-oom/behaviours';
+}
+
+sub default_dirs ($class, @extra) {
+    require Odoo::Ops::Pack;
+    return grep { defined && -d } @extra, $class->core_dirs, Odoo::Ops::Pack->roots('behaviours');
 }
 
 # a model with no file: an empty behaviour (nothing known, nothing claimed)
@@ -269,6 +278,10 @@ with the same arguments. C<on_model($entry)> and C<params($entry)> read them.
       on: model
       params: [ { name: card_code, type: str } ]
 
+A wizard entry may say C<on: model> too: a wizard a menu opens, with no records
+(C<core.wizard> then takes no C<records>, and sets no C<active_*> context). It has
+no C<context_from_record> and no C<undo>.
+
 C<creates> on an action or wizard entry lists the models the method is known to
 make records in (C<model>, and C<link>, the field of the record acted on that
 names what was made). The entry's C<creates_evidence> says how each was shown (source and the live run).
@@ -351,6 +364,9 @@ sub _check_actions ( $path, $d ) {
             $bad->("wizard $w->{model} $w->{method}: $k must be a list") if exists $w->{$k} && ref $w->{$k} ne 'ARRAY';
         }
         $bad->("wizard $w->{model} $w->{method}: context must be a map of context keys") if exists $w->{context} && ref $w->{context} ne 'HASH';
+        $bad->("wizard $w->{model} $w->{method}: on must be records or model") if exists $w->{on} && ( ref $w->{on} || ( $w->{on} // '' ) !~ /\A(?:records|model)\z/ );
+        $bad->("wizard $w->{model} $w->{method}: context_from_record names a record, and an on: model wizard has none") if ( $w->{on} // '' ) eq 'model' && exists $w->{context_from_record};
+        $bad->("wizard $w->{model} $w->{method}: undo names an action of the record, and an on: model wizard has none") if ( $w->{on} // '' ) eq 'model' && defined $w->{undo};
         $check_creates->( "wizard $w->{model} $w->{method}", $w );
         push @wizards, {%$w};
     }

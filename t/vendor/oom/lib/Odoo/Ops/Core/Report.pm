@@ -9,7 +9,7 @@ use Digest::SHA ();
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL O_TRUNC);
 use File::Path qw(make_path);
 use File::Spec;
-use MIME::Base64 qw(decode_base64);
+use MIME::Base64 qw(decode_base64 encode_base64);
 use Time::HiRes ();
 
 use Odoo::Error;
@@ -27,6 +27,8 @@ Odoo::Ops::Core::Report - bring a rendered report, or its stored copy, to a loca
     oom-ops run core.reports --conf C --set model=sale.order
     oom-ops run core.report  --conf C --set report=sale.report_saleorder \
         --set model=sale.order --set record=name=S00042 --set dir=out/
+    oom-ops run core.report  --conf C --set report=sale.report_saleorder \
+        --set model=sale.order --set record=name=S00042 --set inline=1 --json
 
 =head1 DESCRIPTION
 
@@ -66,6 +68,16 @@ A read operation; the report carries the report, its ids and one row per
 document with the path, size and SHA-1 of what was written. Nothing of the
 content is printed or journalled.
 
+C<inline=1> returns each document in its row instead of writing it:
+C<content_base64> (the bytes, base64 on one line) with C<name>, C<mimetype>,
+C<bytes>, C<sha1> and, for a pdf, C<pages>; no C<dir> is given and no file is
+made. C<dir> and C<inline> are exclusive, and one of them is needed. The
+config key C<max_inline_bytes> (default 10 MiB) caps the bytes of one call: a
+larger render, or several together, is C<refused/too-large>, naming the size,
+so a page cannot pull an unbounded file through memory. A pack calls
+C<core.report> inline through L<Odoo::Ops::Pack>C<< ->read >>. The audit line of
+the read names the report and the bytes, never the content.
+
 =cut
 
 sub op_name ($class) { 'core.report' }
@@ -77,7 +89,8 @@ sub params ($class) {
         record    => { type => 'str',  help => 'one record: an id, or field=value such as name=S00042' },
         ids       => { type => 'list', help => 'comma-separated record ids (instead of record)' },
         format    => { type => 'str',  default => 'pdf', help => 'pdf (default), html or text' },
-        dir       => { type => 'path', required => 1, help => 'directory the files are written to' },
+        dir       => { type => 'path', help => 'directory the files are written to (exactly one of dir and inline)' },
+        inline    => { type => 'bool', default => 0, help => 'return each document in the report as content_base64, with name, mimetype and bytes, and write no file; refused/too-large above max_inline_bytes (config, default 10 MiB)' },
         name      => { type => 'str',  help => 'file name for one document (default: Odoo\'s print name when plain, else report_name-id.format)' },
         overwrite => { type => 'bool', default => 0, help => 'replace a file already in dir' },
         source    => { type => 'str',  default => 'render', help => 'render (default; needs a web session), attachment (the stored copy, no render) or auto' },
@@ -103,6 +116,10 @@ sub fields ($class) {
         { name => 'source',      meaning => 'render, or attachment N (the stored copy that was read)' },
         { name => 'path',        meaning => 'The file written' },
         { name => 'size',        meaning => 'Bytes written' },
+        { name => 'content_base64', meaning => 'inline=1: the document, base64 on one line' },
+        { name => 'mimetype',    meaning => 'inline=1: application/pdf, text/html or text/plain' },
+        { name => 'bytes',       meaning => 'inline=1: the document\'s length in bytes (size, with a file)' },
+        { name => 'name',        meaning => 'inline=1: the file name the document would have had' },
         { name => 'sha1',        meaning => 'SHA-1 of what was written' },
         { name => 'checksum_ok', meaning => 'Stored copy only: Odoo\'s checksum equals the SHA-1 of what was written' },
         { name => 'stored',      meaning => 'The stored copy\'s attachment id. On an attachment row it is the copy that was read (the id in source); on a render row, of a report that stores a copy: the attachment id Odoo created or reloaded on the record. Odoo keeps the first stored copy and does not refresh it after posting, so a copy stored while the record was a draft stays the draft\'s (MAPPER-SPEC section 9); a draft record\'s result says so in notes' },
@@ -123,6 +140,13 @@ sub report ($self) {
     my $have_record = defined $p{record};
     my $have_ids    = defined $p{ids} && @{ $p{ids} };
     Odoo::Error->throw( kind => 'usage', message => 'core.report: give exactly one of record and ids' ) if $have_record == $have_ids || ( $have_record && $have_ids );
+    my $inline = $p{inline} ? 1 : 0;
+    Odoo::Error->throw( kind => 'usage', message => 'core.report: dir and inline are exclusive: inline returns the bytes in the report, dir writes files',
+        fix => 'give --set dir=... or --set inline=1, not both' ) if $inline && defined $p{dir};
+    Odoo::Error->throw( kind => 'usage', message => 'core.report: give dir (where the files are written) or inline=1 (the bytes in the report)',
+        fix => 'give --set dir=... or --set inline=1' ) if !$inline && !defined $p{dir};
+    my $cap = $self->ctx->config->get('max_inline_bytes') // 10 * 1024 * 1024;
+    my $total = 0;
     my @bad = grep { !/^\d+\z/ } @{ $p{ids} // [] };
     Odoo::Error->throw( kind => 'usage', message => "core.report: ids must be whole numbers, got '$bad[0]'" ) if @bad;
     Odoo::Error->throw( kind => 'usage', message => 'core.report: model is needed with record' ) if $have_record && !defined $p{model};
@@ -151,8 +175,10 @@ sub report ($self) {
             fix => 'give the id of a record that exists on the instance' ) if !exists $display{$id};
     }
 
-    make_path( $dir, { mode => 0700 } ) if !-d $dir;
-    Odoo::Error->throw( kind => 'usage', message => "cannot use dir $dir", fix => 'give a path this user can write (dir, out or name), then plan again' ) if !-d $dir || !-w _;
+    if (!$inline) {
+        make_path( $dir, { mode => 0700 } ) if !-d $dir;
+        Odoo::Error->throw( kind => 'usage', message => "cannot use dir $dir", fix => 'give a path this user can write (dir, out or name), then plan again' ) if !-d $dir || !-w _;
+    }
 
     # Odoo finds a stored copy by the name its attachment expression gives, so
     # that is the name to look for when the expression is a plain string
@@ -165,10 +191,11 @@ sub report ($self) {
             : "$rep->{report_name}-$id.$fmt";
         my $safe = Odoo::Ops::Core::Fetch::_safe_name( $want, $id );
         $safe = "$id-$safe" if $used{ lc $safe }++;
-        my $path = File::Spec->catfile( $dir, $safe );
+        my $path = $inline ? undef : File::Spec->catfile( $dir, $safe );
         # the target file is looked at last: a report that stores no copy, a record with none and a connection
         # with no session are answered first, so they show whether or not the file is already there
         my $check_exists = sub {
+            return if $inline;
             Odoo::Error->throw( kind => 'refused', code => 'exists', message => "cannot write $path: it exists; overwrite=1 replaces it", fix => 'pass --set overwrite=1' )
                 if -e $path && !$p{overwrite};
         };
@@ -184,6 +211,7 @@ sub report ($self) {
             my $att = $self->_stored_copy( $model, $id, $fmt, $plain );
             if ($att) {
                 $check_exists->();
+                $self->_too_large( $p{report}, $model, $id, int( length( $att->{datas} // '' ) * 3 / 4 ), $total, $cap ) if $inline;
                 ( $bytes, %extra ) = ( decode_base64( $att->{datas} ), source => "attachment $att->{id}", _att => $att, stored => $att->{id},
                     ( _text( $att->{name} ) ne ''        ? ( stored_name => $att->{name} )        : () ),
                     ( _text( $att->{create_date} ) ne '' ? ( stored_at   => $att->{create_date} ) : () ) );
@@ -213,22 +241,29 @@ sub report ($self) {
             }
         }
 
-        my $flags = O_WRONLY | O_CREAT | ( $p{overwrite} ? O_TRUNC : O_EXCL );
-        sysopen( my $fh, $path, $flags, 0600 )
-            or Odoo::Error->throw( -e $path
-                ? ( kind => 'refused', code => 'exists', message => "cannot write $path: it exists; overwrite=1 replaces it", fix => 'pass --set overwrite=1' )
-                : ( kind => 'usage', message => "cannot write $path: $!", fix => 'give a path this user can write (dir, out or name), then plan again' ) );
-        binmode $fh;
-        print {$fh} $bytes;
-        close $fh or Odoo::Error->throw( kind => 'usage', message => "cannot write $path: $!", fix => 'give a path this user can write (dir, out or name), then plan again' );
-        chmod 0600, $path;
+        $self->_too_large( $p{report}, $model, $id, length($bytes), $total, $cap ) if $inline;
+        $total += length($bytes);
+        if (!$inline) {
+            my $flags = O_WRONLY | O_CREAT | ( $p{overwrite} ? O_TRUNC : O_EXCL );
+            sysopen( my $fh, $path, $flags, 0600 )
+                or Odoo::Error->throw( -e $path
+                    ? ( kind => 'refused', code => 'exists', message => "cannot write $path: it exists; overwrite=1 replaces it", fix => 'pass --set overwrite=1' )
+                    : ( kind => 'usage', message => "cannot write $path: $!", fix => 'give a path this user can write (dir, out or name), then plan again' ) );
+            binmode $fh;
+            print {$fh} $bytes;
+            close $fh or Odoo::Error->throw( kind => 'usage', message => "cannot write $path: $!", fix => 'give a path this user can write (dir, out or name), then plan again' );
+            chmod 0600, $path;
+        }
         my $sum = Digest::SHA::sha1_hex($bytes);
         my $att = delete $extra{_att};
         push @notes, "the stored copy is this draft's; Odoo keeps the first stored copy and does not refresh it after posting (MAPPER-SPEC section 9)"
             if $stores && ( $extra{stored} || $att ) && ( $state{$id} // '' ) eq 'draft' && !grep { /this draft's/ } @notes;
         push @rows, {
             report => $p{report}, report_name => $rep->{report_name}, model => $model, id => $id,
-            display_name => $display{$id}, format => $fmt, path => $path, size => length($bytes), sha1 => $sum,
+            display_name => $display{$id}, format => $fmt,
+            ( $inline
+                ? ( name => $safe, mimetype => $MIME{$fmt}, bytes => length($bytes), sha1 => $sum, content_base64 => encode_base64( $bytes, '' ) )
+                : ( path => $path, size => length($bytes), sha1 => $sum ) ),
             ( $att ? ( checksum_ok => ( ( $att->{checksum} // '' ) eq $sum ? 1 : 0 ) ) : () ),
             ( $fmt eq 'pdf' ? ( pages => _pages($bytes) ) : () ),
             %extra,
@@ -238,10 +273,27 @@ sub report ($self) {
     return {
         report => $p{report}, report_name => $rep->{report_name}, model => $model, ids => \@ids,
         format => $fmt, source => $p{source},
-        rows => \@rows, count => scalar(@rows), dir => $dir,
+        rows => \@rows, count => scalar(@rows), ( $inline ? ( inline => 1 ) : ( dir => $dir ) ),
         ( @notes ? ( notes => \@notes ) : () ),
         fields => { map { $_->{name} => $text->( $_->{meaning} ) } @{ $self->fields } },
     };
+}
+
+# a document larger than the config allows, refused before its bytes ride in the report
+sub _too_large ($self, $report, $model, $id, $size, $so_far, $cap) {
+    return if $so_far + $size <= $cap;
+    Odoo::Error->throw( kind => 'refused', code => 'too-large',
+        message => "core.report: report $report for $model $id is $size bytes"
+            . ( $so_far ? " ($so_far already in this report)" : '' ) . "; max_inline_bytes is $cap",
+        fix => 'write it to a file with dir=... instead, or raise max_inline_bytes in the config' );
+}
+
+# what the audit line of a read says about it: the report and the bytes, never the content
+sub audit_detail ($self, $report) {
+    return () if ref $report ne 'HASH';
+    my $bytes = 0;
+    $bytes += ( $_->{bytes} // $_->{size} // 0 ) for @{ $report->{rows} // [] };
+    return ( report => $report->{report_name}, bytes => $bytes );
 }
 
 # --- the report -------------------------------------------------------------

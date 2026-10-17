@@ -8,8 +8,12 @@ no warnings 'experimental::signatures';
 use Digest::SHA ();
 use JSON::PP ();
 
+use File::Basename ();
+use File::Spec ();
+
 use Odoo::Error;
 use Odoo::Ops;
+use Odoo::Ops::Blob;
 
 =head1 NAME
 
@@ -60,6 +64,9 @@ order and the product) is C<< unique_by => { fields => [ 'order_id',
 'product_id' ] } >>, each part a field name or C<< { field =>, fold => 1 } >>;
 the record must match every part.
 
+C<add> refuses any other C<unique_by> (a list, for one) with a C<usage> error that names
+the change's key and the forms allowed; it is not left to fail inside Odoo at apply.
+
 A create or write may carry C<context> (a hashref sent with the call,
 e.g. C<< { mail_auto_subscribe_no_notify => 1 } >>), which is part of
 what the fingerprint seals.
@@ -84,6 +91,30 @@ C<hold>, each with its buckets and counts, the notes, the held rows with
 their reasons, and C<nothing_to_apply> when nothing would be written.
 C<will_write + skip + hold = input_count + support>, the support rows
 (a tag made for the contacts that carry it) being outside the input.
+
+
+=head2 Large values
+
+A value over C<blob_min> (the config key, default 64 KiB) and every C<datas>
+and C<raw> value of an C<ir.attachment> are kept once, outside the plan:
+C<finalize> replaces each by C<< { blob => 'sha256:HEX', bytes => N, type =>
+'base64' } >> in the changes and the params, and holds the value in memory.
+C<save> writes the values to C<blobs/HEX> beside the plan (0600), so the seal
+covers the digest and a plan stays small. A plan from C<load> reads them from
+the folder it came from. See L<Odoo::Ops::Blob>.
+
+=head2 blob_source(@dirs)
+
+A reader of the plan's blobs: the values held in memory, then the C<blobs/>
+of the plan's own folder and of each directory given.
+
+=head2 write_blobs($dir)
+
+Writes the blobs the plan holds in memory to C<$dir/blobs> unless they are there.
+
+=head2 blob_refs
+
+Every blob reference in the plan's changes.
 
 =cut
 
@@ -119,6 +150,8 @@ sub new ($class, %args) {
         created     => $args{created},
         actor       => $args{actor},
         changes     => [],
+        blob_min    => $args{blob_min},
+        blobs       => {},
         notes       => [],
         effects     => undef,
     }, $class;
@@ -169,6 +202,11 @@ sub add ($self, %c) {
         if $c{action} eq 'call' && !$c{method};
     Odoo::Error->throw( kind => 'usage', message => 'custom needs a handler (the operation name)' )
         if $c{action} eq 'custom' && !$c{handler};
+    if ( defined $c{unique_by} && ref $c{unique_by} ne 'HASH' && ref $c{unique_by} ne '' ) {
+        Odoo::Error->throw( kind => 'usage',
+            message => "unique_by of the change '" . ( $c{key} // $c{ref} // $c{model} // '?' ) . "' is a " . lc( ref $c{unique_by} ) . ' reference; it is a field name, or a hash ({ field => ..., fold => 1 } or { fields => [ ... ] })',
+            fix => "write unique_by => 'field', or unique_by => { fields => [ 'a', 'b' ] } for a composite key" );
+    }
     if ( defined $c{ref} ) {
         Odoo::Error->throw( kind => 'usage', message => 'only a create, or a custom change that makes a record, can carry a ref' )
             if $c{action} !~ /^(?:create|custom)\z/;
@@ -207,6 +245,7 @@ sub buckets ($self) {
 
 sub finalize ($self) {
     $self->_unsealed;
+    $self->_externalise;
     if ( defined $self->{input_count} ) {
         my $sum = grep { !$_->{support} } @{ $self->{changes} };
         Odoo::Error->throw(
@@ -226,6 +265,27 @@ sub finalize ($self) {
     for my $i ( 0 .. $#refs ) { $self->{changes}[$i]{effects_ref} = $refs[$i] if defined $refs[$i] }
     return $self;
 }
+
+# The large values leave the plan before it is sealed: the params and every change carry references,
+# the values wait in memory for save. A plan is made once, so nothing here runs twice on one.
+sub _externalise ($self) {
+    my $min   = $self->{blob_min} // Odoo::Ops::Blob->min_default;
+    my $store = $self->{blobs} //= {};
+    $self->{params}  = Odoo::Ops::Blob->externalise( $self->{params}, min => $min, store => $store );
+    $self->{changes} = [ map { Odoo::Ops::Blob->externalise( $_, min => $min, store => $store ) } @{ $self->{changes} } ];
+    return;
+}
+
+sub blob_dir ($self) { $self->{blob_dir} }
+
+sub blob_source ($self, @dirs) {
+    return Odoo::Ops::Blob->source( dirs => [ @dirs, $self->{blob_dir} ], mem => $self->{blobs} );
+}
+
+sub blob_refs ($self) { return Odoo::Ops::Blob->refs( $self->{changes} ) }
+
+sub write_blobs ($self, $dir) { return Odoo::Ops::Blob->write( $dir, $self->{blobs} // {} ) }
+
 
 sub _sealed_part ($self) {
     my $part = { map { $_ => $self->{$_} } qw(format op params instance profile scope input_count changes) };
@@ -291,6 +351,7 @@ sub summary ($self) {
 }
 
 sub save ($self, $path) {
+    Odoo::Ops::Blob->write( ( File::Spec->splitpath($path) )[1] || '.', $self->{blobs} // {} ) if %{ $self->{blobs} // {} };
     open my $fh, '>', $path
         or Odoo::Error->throw( kind => 'config', message => "cannot write plan $path: $!" );
     print {$fh} JSON::PP->new->utf8->canonical->pretty->encode( $self->to_hash );
@@ -305,7 +366,9 @@ sub load ($class, $path) {
     close $fh;
     my $h = eval { Odoo::Ops::json()->decode($raw) }
         or Odoo::Error->throw( kind => 'config', message => "plan $path is not valid JSON" );
-    return $class->from_hash($h);
+    my $plan = $class->from_hash($h);
+    $plan->{blob_dir} = File::Basename::dirname( File::Spec->rel2abs($path) );
+    return $plan;
 }
 
 sub from_hash ($class, $h) {

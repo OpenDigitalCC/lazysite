@@ -29,7 +29,7 @@ use Odoo::Ops::ResetForm;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.27';
+our $VERSION = '0.32';
 
 =head1 NAME
 
@@ -935,6 +935,7 @@ sub take_reset ($class, %o) {
     # 5. the proof
     my $code = 0;
     if ( defined $conf ) {
+        require Odoo::Ops::Core::Doctor;
         my $report = $o{doctor} ? $o{doctor}->($conf) : do { require Odoo::Ops::Core::Doctor; Odoo::Ops::Core::Doctor->examine($conf) };
         my ($sum) = grep { /^summary:/ } split /\n/, Odoo::Ops::Core::Doctor->format_text($report);
         $self->_p("   doctor: $sum");

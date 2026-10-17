@@ -1,0 +1,106 @@
+{
+   "namespaces" : {
+      "Odoo::Ops::CRM" : {
+         "files" : "Activity.pm,Assign.pm,Attach.pm,Dossier.pm,Export.pm,Import.pm,Inspect.pm,Lost.pm,Note.pm,Select.pm,Set.pm,Tag.pm,Update.pm",
+         "ops" : {
+            "crm.activity" : "Odoo::Ops::CRM::Activity",
+            "crm.assign" : "Odoo::Ops::CRM::Assign",
+            "crm.attach" : "Odoo::Ops::CRM::Attach",
+            "crm.dossier" : "Odoo::Ops::CRM::Dossier",
+            "crm.export" : "Odoo::Ops::CRM::Export",
+            "crm.import" : "Odoo::Ops::CRM::Import",
+            "crm.inspect" : "Odoo::Ops::CRM::Inspect",
+            "crm.lost" : "Odoo::Ops::CRM::Lost",
+            "crm.note" : "Odoo::Ops::CRM::Note",
+            "crm.set" : "Odoo::Ops::CRM::Set",
+            "crm.tag" : "Odoo::Ops::CRM::Tag",
+            "crm.update" : "Odoo::Ops::CRM::Update"
+         }
+      },
+      "Odoo::Ops::Comms" : {
+         "files" : "Render.pm,Send.pm",
+         "ops" : {
+            "comms.render" : "Odoo::Ops::Comms::Render",
+            "comms.send" : "Odoo::Ops::Comms::Send"
+         }
+      },
+      "Odoo::Ops::Core" : {
+         "files" : "Access.pm,Action.pm,ActionCommon.pm,Archive.pm,Attach.pm,Check.pm,Configure.pm,Credential.pm,Doctor.pm,Fetch.pm,Get.pm,Import.pm,Make.pm,OneRecord.pm,Read.pm,Report.pm,Reports.pm,Rights.pm,Set.pm,Skeleton.pm,Unarchive.pm,User.pm,Whoami.pm,Wizard.pm",
+         "ops" : {
+            "core.access" : "Odoo::Ops::Core::Access",
+            "core.action" : "Odoo::Ops::Core::Action",
+            "core.archive" : "Odoo::Ops::Core::Archive",
+            "core.attach" : "Odoo::Ops::Core::Attach",
+            "core.check" : "Odoo::Ops::Core::Check",
+            "core.configure" : "Odoo::Ops::Core::Configure",
+            "core.credential" : "Odoo::Ops::Core::Credential",
+            "core.doctor" : "Odoo::Ops::Core::Doctor",
+            "core.fetch" : "Odoo::Ops::Core::Fetch",
+            "core.get" : "Odoo::Ops::Core::Get",
+            "core.import" : "Odoo::Ops::Core::Import",
+            "core.make" : "Odoo::Ops::Core::Make",
+            "core.read" : "Odoo::Ops::Core::Read",
+            "core.report" : "Odoo::Ops::Core::Report",
+            "core.reports" : "Odoo::Ops::Core::Reports",
+            "core.rights" : "Odoo::Ops::Core::Rights",
+            "core.set" : "Odoo::Ops::Core::Set",
+            "core.skeleton" : "Odoo::Ops::Core::Skeleton",
+            "core.unarchive" : "Odoo::Ops::Core::Unarchive",
+            "core.user" : "Odoo::Ops::Core::User",
+            "core.whoami" : "Odoo::Ops::Core::Whoami",
+            "core.wizard" : "Odoo::Ops::Core::Wizard"
+         }
+      },
+      "Odoo::Ops::Discuss" : {
+         "files" : "Channels.pm,Common.pm,Delete.pm,Messages.pm,Post.pm,Seen.pm",
+         "ops" : {
+            "discuss.channels" : "Odoo::Ops::Discuss::Channels",
+            "discuss.delete" : "Odoo::Ops::Discuss::Delete",
+            "discuss.messages" : "Odoo::Ops::Discuss::Messages",
+            "discuss.post" : "Odoo::Ops::Discuss::Post",
+            "discuss.seen" : "Odoo::Ops::Discuss::Seen"
+         }
+      },
+      "Odoo::Ops::Documents" : {
+         "files" : "AccountCancel.pm,AccountDraft.pm,AccountPost.pm,Common.pm,PurchaseCancel.pm,PurchaseConfirm.pm,SaleCancel.pm,SaleConfirm.pm",
+         "ops" : {
+            "account.cancel" : "Odoo::Ops::Documents::AccountCancel",
+            "account.draft" : "Odoo::Ops::Documents::AccountDraft",
+            "account.post" : "Odoo::Ops::Documents::AccountPost",
+            "purchase.cancel" : "Odoo::Ops::Documents::PurchaseCancel",
+            "purchase.confirm" : "Odoo::Ops::Documents::PurchaseConfirm",
+            "sale.cancel" : "Odoo::Ops::Documents::SaleCancel",
+            "sale.confirm" : "Odoo::Ops::Documents::SaleConfirm"
+         }
+      },
+      "Odoo::Ops::Mailing" : {
+         "files" : "Archive.pm,Blacklist.pm,Blacklisted.pm,Cancel.pm,Common.pm,Contacts.pm,Create.pm,Delete.pm,Lists.pm,Preview.pm,Process.pm,Send.pm,Status.pm,Subscribe.pm,Test.pm",
+         "ops" : {
+            "mailing.archive" : "Odoo::Ops::Mailing::Archive",
+            "mailing.blacklist" : "Odoo::Ops::Mailing::Blacklist",
+            "mailing.blacklisted" : "Odoo::Ops::Mailing::Blacklisted",
+            "mailing.cancel" : "Odoo::Ops::Mailing::Cancel",
+            "mailing.contacts" : "Odoo::Ops::Mailing::Contacts",
+            "mailing.create" : "Odoo::Ops::Mailing::Create",
+            "mailing.delete" : "Odoo::Ops::Mailing::Delete",
+            "mailing.lists" : "Odoo::Ops::Mailing::Lists",
+            "mailing.preview" : "Odoo::Ops::Mailing::Preview",
+            "mailing.process" : "Odoo::Ops::Mailing::Process",
+            "mailing.send" : "Odoo::Ops::Mailing::Send",
+            "mailing.status" : "Odoo::Ops::Mailing::Status",
+            "mailing.subscribe" : "Odoo::Ops::Mailing::Subscribe",
+            "mailing.test" : "Odoo::Ops::Mailing::Test"
+         }
+      },
+      "Odoo::Ops::Stock" : {
+         "files" : "Dispatch.pm,Inspect.pm,LinkStranded.pm,Net.pm,Relocate.pm,Transfer.pm,Validate.pm",
+         "ops" : {
+            "stock.dispatch" : "Odoo::Ops::Stock::Dispatch",
+            "stock.inspect" : "Odoo::Ops::Stock::Inspect",
+            "stock.link-stranded" : "Odoo::Ops::Stock::LinkStranded",
+            "stock.net" : "Odoo::Ops::Stock::Net",
+            "stock.relocate" : "Odoo::Ops::Stock::Relocate"
+         }
+      }
+   }
+}

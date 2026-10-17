@@ -34,7 +34,7 @@ Every line is one JSON object with C<ts>, C<event>, the fields that say who
 (C<actor>, C<actor_from>, C<os_user>, C<login>, C<uid>, C<host>, C<pid>,
 C<instance>, C<db>) and the fields of its event. At the C<core> level the
 events are C<command plan read approve withdraw close apply revert resume
-action refused>; at the C<transaction> level every RPC call is a line as well
+action refused credential>; at the C<transaction> level every RPC call is a line as well
 (C<event: call>, the record L<Odoo::Ops::Audit> writes). No value is ever
 logged: each event has a fixed set of keys and the trail refuses any other.
 Parameters are named, never given.
@@ -64,17 +64,18 @@ my @WHO = qw(actor actor_from os_user login uid host pid instance db);
 my @COMMON = ( qw(ts event op run outcome), @WHO );
 
 my %EVENT = (
-    command  => [qw(command code exit ms calls params)],
-    plan     => [qw(buckets input_count models params)],
-    read     => [qw(models rows params)],
-    approve  => [],
+    command  => [qw(command code exit ms calls params idem repeat)],
+    plan     => [qw(buckets input_count models params idem)],
+    read     => [qw(models rows params report bytes)],
+    approve  => [qw(idem)],
     withdraw => [],
     close    => [qw(reason)],
-    apply    => [qw(changes touched touched_count)],
+    apply    => [qw(changes touched touched_count idem)],
     revert   => [qw(changes touched touched_count)],
     resume   => [qw(changes touched touched_count)],
     action   => [qw(model ids method args_count state_before state_after answer created)],
     refused  => [qw(code)],
+    credential => [qw(action fault_category)],
     call     => [qw(service model method fault_category ms fields refused_fields for_login second_factor)],
 );
 my %ALLOWED = map { my $e = $_; $e => { map { $_ => 1 } @COMMON, @{ $EVENT{$e} } } } keys %EVENT;
@@ -104,7 +105,7 @@ sub command ($class, $name) { $CMD{name} = $name; return }
 
 =head2 Odoo::Ops::Trail->note(op => ..., run => ..., params => [...])
 
-What the command is about, for its closing C<command> line.
+What the command is about, for its closing C<command> line: C<op>, C<run>, C<params> (names), C<idem> (the caller's key for the request, which the C<plan>, C<approve> and C<apply> lines of the request name too) and C<repeat>.
 
 =cut
 
@@ -402,6 +403,8 @@ One core line. Refuses an event or a key outside the set that event has.
 sub event ($self, $name, %data) {
     my $allowed = $ALLOWED{$name}
         or Odoo::Error->throw( kind => 'usage', message => "audit has no event '$name'" );
+    # the caller's key for the request is not a secret: every event of the request names it
+    $data{idem} //= $CMD{idem} if defined $CMD{idem} && $allowed->{idem};
     for my $k ( keys %data ) {
         Odoo::Error->throw( kind => 'usage', message => "audit event $name cannot carry '$k'" ) if !$allowed->{$k};
     }
@@ -492,6 +495,8 @@ sub finish_command ($class, $status) {
             ( defined $CMD{op}  ? ( op  => $CMD{op} )  : () ),
             ( defined $CMD{run} ? ( run => $CMD{run} ) : () ),
             ( ref $CMD{params} eq 'ARRAY' ? ( params => $CMD{params} ) : () ),
+            ( defined $CMD{idem}   ? ( idem   => $CMD{idem} )   : () ),
+            ( $CMD{repeat}         ? ( repeat => 1 )             : () ),
         );
     };
     if ( my $why = $t->broken ) {

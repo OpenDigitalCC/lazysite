@@ -10,6 +10,7 @@ use File::Spec;
 use Scalar::Util ();
 use Time::HiRes ();
 
+use Odoo::Cache;
 use Odoo::Client;
 use Odoo::Error;
 use Odoo::Ops;
@@ -77,6 +78,9 @@ sub new ($class, %args) {
     my $config = $args{config}
         or Odoo::Error->throw( kind => 'config', message => 'context needs config' );
     my $now = $args{now} // sub { time };
+    # the operations of this config's packs are found by every registry this process makes from here on
+    require Odoo::Ops::Registry;
+    Odoo::Ops::Registry->use_config($config);
 
     my %cred = $args{credential} ? %{ $args{credential} } : Odoo::Ops::Credential->resolve($config);
     # who the context runs as: the login of a credential given in memory, else the config's
@@ -86,27 +90,9 @@ sub new ($class, %args) {
     my $password  = delete $cred{password};
     my $pw_file   = delete $cred{password_file};
     my $by_login  = defined $password;
-    my $inner = $args{transport} // do {
-        my %backend = (
-            jsonrpc => 'Odoo::Transport::JSONRPC',
-            xmlrpc  => 'Odoo::Transport::XMLRPC',
-            json2   => 'Odoo::Transport::JSON2',
-            session => 'Odoo::Transport::Session',
-        );
-        # a session credential selects the session transport
-        my $name = $cred{session} || $by_login ? 'session' : ( $config->get('transport') // 'jsonrpc' );
-        my $pkg  = $backend{$name}
-            or Odoo::Error->throw( kind => 'config', message => "unknown transport '$name'" );
-        require( $pkg =~ s{::}{/}gr . '.pm' );
-        $pkg->new(
-            url                => $config->get('url'),
-            timeout            => $config->get('timeout') // 120,
-            max_response_bytes => $config->get('max_response_bytes'),
-            ssl_ca_file        => $config->get('ssl_ca_file'),
-            ssl_verify         => $config->get('ssl_verify'),
-            ( $cred{session} ? ( session => $cred{session} ) : () ),
-        );
-    };
+    # a session credential selects the session transport
+    my $inner = $args{transport} // $class->build_transport(
+        $config, ( $cred{session} || $by_login ? 'session' : undef ), ( $cred{session} ? ( session => $cred{session} ) : () ) );
     delete $cred{session};
     if ($by_login) {
         # the session answers who is calling; no login or key rides the calls
@@ -128,10 +114,18 @@ sub new ($class, %args) {
     $ctx{lang} = $config->get('lang') if $config->get('lang');
     $ctx{tz}   = $config->get('tz')   if $config->get('tz');
 
+    # what a cold process may remember (docs/OPS.md, Speed): off by config (cache = 0) or by the caller
+    # (cache => 0); a transport handed in (a test double) remembers nothing unless cache_dir says where
+    my $cache = $args{cache} // $config->cache_enabled ? Odoo::Cache->new(
+        dir => $args{cache_dir} // $config->cache_dir // Odoo::Cache->default_dir ) : undef;
+    $cache = undef if !$args{cache_dir} && $args{transport};
+    $cache = undef if defined $args{cache} && !$args{cache};
+
     my $client = Odoo::Client->new(
         url       => $config->get('url'),
         db        => $config->get('db'),
         %cred,
+        ( $cache ? ( cache => $cache, cache_ttl_version => $config->cache_ttl_version, ( $args{stamp_memory} ? ( stamp_memory => $args{stamp_memory} ) : () ) ) : () ),
         transport => $guard,
         context   => \%ctx,
         ( $args{retries} ? ( retries => $args{retries} ) : () ),
@@ -151,6 +145,7 @@ sub new ($class, %args) {
         password_file => $pw_file,
         login         => $login,
         credential_kind => $kind,
+        cache           => $cache,
     }, $class;
     # a session that expires mid-run is opened again, once, for the call that met it
     if ( $by_login && $inner->can('set_reauth') ) {
@@ -164,12 +159,50 @@ sub new ($class, %args) {
     return $self;
 }
 
+=head2 build_transport($config, $name, %opts)
+
+The transport this config's connection uses: C<$name> is C<session> for a web
+session (C<< session => $id >> may be given), else the config's C<transport>
+(C<jsonrpc> by default). A resident program that keeps one connection open for
+a key credential builds it here once and hands it to C<new> as C<transport>.
+
+=cut
+
+sub build_transport ($class, $config, $name = undef, %opts) {
+    my %backend = (
+        jsonrpc => 'Odoo::Transport::JSONRPC',
+        xmlrpc  => 'Odoo::Transport::XMLRPC',
+        json2   => 'Odoo::Transport::JSON2',
+        session => 'Odoo::Transport::Session',
+    );
+    $name //= $config->get('transport') // 'jsonrpc';
+    my $pkg = $backend{$name}
+        or Odoo::Error->throw( kind => 'config', message => "unknown transport '$name'" );
+    require( $pkg =~ s{::}{/}gr . '.pm' );
+    return $pkg->new(
+        url                => $config->get('url'),
+        timeout            => $config->get('timeout') // 120,
+        max_response_bytes => $config->get('max_response_bytes'),
+        ssl_ca_file        => $config->get('ssl_ca_file'),
+        ssl_verify         => $config->get('ssl_verify'),
+        ( $opts{session} ? ( session => $opts{session} ) : () ),
+    );
+}
+
 sub config ($self) { $self->{config} }
 sub client ($self) { $self->{client} }
 sub guard  ($self) { $self->{guard} }
 sub audit  ($self) { $self->{audit} }
 sub trail  ($self) { $self->{trail} }
 sub actor  ($self) { $self->{actor} }
+
+=head2 login
+
+The login the context runs as (the credential's, else the config's).
+
+=cut
+
+sub login  ($self) { $self->{login} }
 sub now    ($self) { $self->{now}->() }
 
 =head2 credential_kind
@@ -181,6 +214,16 @@ session) or C<session> (a web session id the caller holds). Never the value.
 =cut
 
 sub credential_kind ($self) { $self->{credential_kind} }
+
+=head2 cache
+
+The L<Odoo::Cache> this context's client remembers in, or undef when the config
+says C<cache = 0>, the caller passed C<< cache => 0 >>, or the connection
+was given a transport without a C<cache_dir>.
+
+=cut
+
+sub cache ($self) { $self->{cache} }
 
 =head2 session_transport
 
