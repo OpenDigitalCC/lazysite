@@ -230,4 +230,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*114 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*115 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
