@@ -81,9 +81,14 @@ check and the guard both use it, so they cannot disagree about "in use". It read
 the contract's field names directly and does not depend on the slices that enforce
 the rules.
 
+It walks the docroot and the private store, and that is every domain: a content root
+is served only from inside the docroot (`confine_content_root` reads it relative to
+the docroot, resolves symlinks and refuses anything outside, falling back to the
+docroot), and a gated page moves to the private store at the same relative path.
+t/unit/users/54 pins a page under a domain root, a gated one in the private store,
+and a root written as an absolute path.
+
 # Left open
 
 - The manager's Address lists page shows the refusal text but has no "delete
   anyway" control; the API takes `force`.
-- Pages are looked for under the docroot and its private store; a domain with its
-  own content root outside both is not walked.
