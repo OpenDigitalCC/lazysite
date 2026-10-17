@@ -71,6 +71,8 @@ BEGIN {
     }
 }
 
+use Lazysite::Timing (); # SM1144: after the lib search, so its load phase covers what is loaded below
+
 exit main() if !caller;
 
 # Headers set for this response before the body - the visitor cookie, when one
@@ -85,6 +87,8 @@ sub reply {
     print "Content-Type: application/json; charset=utf-8\r\n";
     # What a visitor sees depends on who they are: never cached by anything.
     print "Cache-Control: no-store\r\n";
+    my $tm = Lazysite::Timing::header_line();    # SM1144
+    print "$tm\r\n" if length $tm;
     print "$_\r\n" for @EXTRA;
     print 'Content-Length: ' . length($body) . "\r\n\r\n";
     print $body;
@@ -119,9 +123,21 @@ sub _query {
     return \%q;
 }
 
+# SM1144: an Odoo call, timed as the `call` phase. The sites agent measured an Odoo
+# read at about 550 ms of which Odoo's own answer is 50-90; this is what lets the
+# rest be read off the response rather than inferred.
+sub _timed {
+    my ($code) = @_;
+    Lazysite::Timing::to('call');
+    my @r = $code->();
+    Lazysite::Timing::to('render');
+    return wantarray ? @r : $r[0];
+}
+
 sub main {
     local @EXTRA = ();
     my $docroot = $ENV{DOCUMENT_ROOT} // '';
+    Lazysite::Timing::begin();    # SM1144: where this request's time goes
     return reply( '500 Internal Server Error', { ok => 0, error => 'no document root' } )
         unless length $docroot && -d $docroot;
     my $method = $ENV{REQUEST_METHOD} // 'GET';
@@ -130,8 +146,10 @@ sub main {
         unless $method eq 'GET' || $method eq 'POST';
 
     no warnings 'once';
+    Lazysite::Timing::to('load'); # SM1144: the modules this request needs, up to the identity
     require Lazysite::Manager::Plugins;
     require Lazysite::Paths;
+    Lazysite::Timing::configure( Lazysite::Paths::lazysite_dir($docroot) );
     local $Lazysite::Manager::Plugins::DOCROOT = $docroot;
     return reply( '403 Forbidden',
         { ok => 0, kind => 'disabled',
@@ -146,6 +164,7 @@ sub main {
     local $Lazysite::Odoo::Visitor::DOCROOT = $docroot;
 
     # THE IDENTITY, verified here.
+    Lazysite::Timing::to('identity');    # SM1144
     require Lazysite::Auth::Session;
     local $Lazysite::Auth::Session::LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($docroot);
     my ($session) = Lazysite::Auth::Session::verify_session_cookie();
@@ -158,7 +177,9 @@ sub main {
         require Lazysite::Auth::Settings;
         local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($docroot) . '/auth';
         $caps = Lazysite::Auth::Settings::caps_for($user) || {};
+        Lazysite::Timing::operator(1) if $caps->{ui}; # SM1144: an operator is shown the phases
     }
+    Lazysite::Timing::to('render');
     my $visitor = Lazysite::Odoo::Visitor::key_from_cookie( $ENV{HTTP_COOKIE} // '' );
 
     # B: the person's Odoo session, if the cookie is one this server minted and it
@@ -226,7 +247,7 @@ sub main {
         return reply( '405 Method Not Allowed',
             { ok => 0, kind => 'method', error => 'this binding changes data - send it as a POST with its token' } )
             if _writes($b);
-        return _answer( Lazysite::Odoo::call( $b, $q, _ctx( $b, %who ), strict => 1 ), \%who );
+        return _answer( _timed( sub { Lazysite::Odoo::call( $b, $q, _ctx( $b, %who ), strict => 1 ) } ), \%who );
     }
 
     return _signin( $req, %who )  if $req->{signin};
@@ -272,7 +293,7 @@ sub _post_one {
         # plan's. The caller's token must fit what the caller is.
         my %ctx = _ctx( undef, %$who );
         return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req );
-        return _settle( Lazysite::Odoo::confirm( $req->{plan}, %ctx ), $who );
+        return _settle( _timed( sub { Lazysite::Odoo::confirm( $req->{plan}, %ctx ) } ), $who );
     }
 
     my ( $b, $why ) = Lazysite::Odoo::find_binding( $req->{binding} );
@@ -281,7 +302,7 @@ sub _post_one {
     return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req, $b );
     return ( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'params must be an object' } )
         if defined $req->{params} && ref $req->{params} ne 'HASH';
-    return _settle( Lazysite::Odoo::call( $b, $req->{params} // {}, %ctx, strict => 1 ), $who );
+    return _settle( _timed( sub { Lazysite::Odoo::call( $b, $req->{params} // {}, %ctx, strict => 1 ) } ), $who );
 }
 
 # SM1146 (the OOM Lab's P2): SEVERAL CALLS IN ONE REQUEST. A page with N reads
@@ -431,7 +452,7 @@ sub _refresh_identity {
     require Lazysite::Odoo::Identity;
     return $who{odoo_session}
         if Lazysite::Odoo::Identity::identity_from_cookie( $ENV{HTTP_COOKIE} // '', ttl => Lazysite::Odoo::identity_ttl() );
-    my $f = Lazysite::Odoo::refresh_identity( session_id => $who{odoo_session} );
+    my $f = _timed( sub { Lazysite::Odoo::refresh_identity( session_id => $who{odoo_session} ) } );
     if ( $f->{ok} ) { _identity_cookie_out( $f->{identity_cookie} ); return $who{odoo_session} }
     if ( $f->{clear_session} ) { _clear_cookies(); return undef }
     return $who{odoo_session};
@@ -452,8 +473,10 @@ sub _signin {
     return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
     return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'a login and a password are both required' } )
         if ref $req->{login} || ref $req->{password};
-    my $r = Lazysite::Odoo::sign_in( login => $req->{login}, password => $req->{password}, ip => $who{ip},
-        secure => ( $ENV{HTTPS} ? 1 : 0 ), trusted_device => $who{device} );
+    my $r = _timed( sub {
+            Lazysite::Odoo::sign_in( login => $req->{login}, password => $req->{password}, ip => $who{ip},
+                secure => ( $ENV{HTTPS} ? 1 : 0 ), trusted_device => $who{device} );
+    } );
     return refuse($r) unless $r->{ok};
     push @EXTRA, Lazysite::Odoo::Session::clear_device_header( _cookie_scope() ) if $r->{clear_device};
 
@@ -481,9 +504,11 @@ sub _signin_code {
     return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
     return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'a code is required' } )
         if ref $req->{code};    # remember may be a JSON boolean
-    my $r = Lazysite::Odoo::sign_in_code( pending_session => $who{pending}, code => $req->{code},
-        remember => ( $req->{remember} ? 1 : 0 ), user_agent => $ENV{HTTP_USER_AGENT},
-        ip => $who{ip}, secure => ( $ENV{HTTPS} ? 1 : 0 ) );
+    my $r = _timed( sub {
+            Lazysite::Odoo::sign_in_code( pending_session => $who{pending}, code => $req->{code},
+                remember => ( $req->{remember} ? 1 : 0 ), user_agent => $ENV{HTTP_USER_AGENT},
+                ip => $who{ip}, secure => ( $ENV{HTTPS} ? 1 : 0 ) );
+    } );
     unless ( $r->{ok} ) {
         push @EXTRA, Lazysite::Odoo::Session::clear_pending_header( _cookie_scope() ) if $r->{clear_pending};
         return refuse($r);
@@ -504,11 +529,11 @@ sub _signout {
     my ( $req, %who ) = @_;
     my %ctx = ( mode => 'public', visitor_key => $who{visitor} );
     return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
-    Lazysite::Odoo::sign_out( session_id => $who{odoo_session}, ip => $who{ip} ) if $who{odoo_session};
+    _timed( sub { Lazysite::Odoo::sign_out( session_id => $who{odoo_session}, ip => $who{ip} ) } ) if $who{odoo_session};
 
     # SM1157: and a half-open two-factor sign-in the person gave up on
     if ( $who{pending} ) {
-        Lazysite::Odoo::sign_out( session_id => $who{pending}, ip => $who{ip} );
+        _timed( sub { Lazysite::Odoo::sign_out( session_id => $who{pending}, ip => $who{ip} ) } );
         push @EXTRA, Lazysite::Odoo::Session::clear_pending_header( _cookie_scope() );
     }
     _clear_cookies();

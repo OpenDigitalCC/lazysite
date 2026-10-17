@@ -25,6 +25,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
+use Lazysite::Timing (); # SM1144: first of ours, so its load phase covers the modules below
 use Lazysite::Util         qw(log_event const_eq);
 use Lazysite::Paths        ();
 use Lazysite::Audit        qw(audit_log);
@@ -120,6 +121,8 @@ $Lazysite::Manager::Remap::DOCROOT       = $DOCROOT;           # SM944 S22
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
 # SM944 S31: Manager::Common's _request_ip reads the request address's conf here.
 $Lazysite::Manager::Common::LAZYSITE_DIR = $LAZYSITE_DIR;
+Lazysite::Timing::begin();    # SM1144: where this request's time goes
+Lazysite::Timing::configure($LAZYSITE_DIR);
 
 $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR            = $LAZYSITE_DIR;
@@ -306,6 +309,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
 # lines below where the others were declared ($action, $path, $body,
 # $IS_OPERATOR), so the request runs as before. Only this file sets them
 # (t/lint/217).
+Lazysite::Timing::to('identity'); # SM1144: the token or the wrapper's cookie identity, below
 reset_request_context();
 $token_auth       = 0;
 %token_caps       = ();
@@ -407,6 +411,11 @@ unless ($token_auth) {
         );
     }
 }
+
+# SM1144: someone is signed in here (an unauthenticated request was refused
+# above), and this surface is the operators' own: they are shown the phases.
+Lazysite::Timing::operator(1);
+Lazysite::Timing::to('render');
 
 # --- Parse request ---
 
@@ -1380,6 +1389,11 @@ if ( my $missing = _missing_required($action) ) {
 # text, which can carry what the request carried - a secret, a path - and stays
 # in the error log.
 our $DISPATCH_CRASH_GUARD = 1;
+# SM1144: the handler's time is a `write` for an action that mutates, else `render`.
+{
+    my %mutates = Lazysite::ControlApi::Actions::mutating();
+    Lazysite::Timing::to( $mutates{$action} ? 'write' : 'render' );
+}
 END { _audit_crashed_dispatch() }
 
 # SM1152: a content write drops the generated registries; once its response is

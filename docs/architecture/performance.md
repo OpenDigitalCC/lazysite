@@ -187,6 +187,24 @@ sibling `.ct` file under `lazysite/cache/ct/`.
   per-file blocklist check all consult it within the same
   request.
 
+## Where a request's time goes (SM1144)
+
+`Lazysite::Timing` is the one helper every surface reports through (the processor
+loads that single dependency-free file and nothing else of the lib tree, so the
+render path stays as ADR 0001 keeps it). Each surface answers with a
+`Server-Timing` header naming the phases that happened: `config`, `identity` (the
+auth wrapper's time is handed across its exec, so the surface reports it),
+`load` (module loading, up to the first engine code; only the request that
+started a process has one), `render`, `call` (an Odoo call) and `write`. The
+header is shown to a verified operator or when the site says `server_timing: on`.
+The processor's access log line carries the same phases in a `tm` object.
+
+`tools/bench-surfaces.sh` is the bench: one CPU, nice 19, requests one at a time,
+the median and p90 of each phase per surface under CGI and (with `--with-pool`) a
+one-worker pool. Its default N is small enough to be a test; quote a figure from
+N=20 or more on a quiet host. `lazysite check` reports `pool: yes, N workers` or
+`pool: no (plain CGI)` for the site it is run against.
+
 ## Remaining opportunities
 
 - Replace `Text::MultiMarkdown` with a lighter Markdown parser. MMD

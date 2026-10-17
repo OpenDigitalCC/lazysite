@@ -204,6 +204,11 @@ systemctl restart lazysite@<domain>
 The auth wrapper, manager traffic and all cgi-bin/dav endpoints stay on the
 plain-CGI path; only anonymous visitor pages are pooled.
 
+`lazysite check --docroot PATH` says which this site is, in one greppable line:
+`pool: yes, N workers (<domain>.conf)`, `pool: no (plain CGI)`, or a WARN
+`pool: configured, N workers ... but its socket ... is not there` when the conf
+exists and the pool is not running (SM1144).
+
 ### The persistent runtime (lazysited)
 
 Since 0.13.0 a site may run a second per-site process, the persistent runtime
@@ -307,6 +312,15 @@ systemctl restart lazysited@<domain>
   on/off, default **off**. Both keys and `syslog_facility` are managed by the
   **Logging & forwarding** plugin.
 - Apache logs: the vhost's usual access/error logs.
+- **Where a request's time went** (SM1144). Every surface answers with a
+  `Server-Timing` header naming the phases it spent time in (`config`, `identity`,
+  `load`, `render`, `call`, `write`; only those that happened). It is shown to a
+  signed-in operator, and to anyone when `server_timing: on` is a line in
+  `lazysite/lazysite.conf`; it is never sent to an anonymous visitor otherwise,
+  because a duration leaks a little (that a page was a cache hit). The processor's
+  first-party access log carries the same phases in a `tm` object on each line,
+  whatever the setting says. `tools/bench-surfaces.sh` reads them per surface, one
+  request at a time, pinned to one CPU at the lowest priority (a development tool, in the source tree, not installed on a site).
 
 ## Routine tasks
 

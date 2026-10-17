@@ -542,6 +542,7 @@ sub _serve_content_static {
     # still refusing anything outside BOTH.
     my $path = _content_abs("$root/$rel");
     return 0 unless -f $path;
+    _timing_to('render');    # SM1144: a static the engine is about to serve
     my $real = realpath($path);
     return 0 unless defined $real;
     my $priv = _private_root();
@@ -634,6 +635,7 @@ sub _serve_content_static {
             $ACCESS_REC{b} = 0;
             print "Status: 304 Not Modified\n";
             print "$_\n" for _security_headers();
+            print "$_\n" for _timing_header();      # SM1144
             print "ETag: $etag\n";
             print "Last-Modified: $lastmod\n" if defined $lastmod;    # SM1120
             print _static_cache_control($real) . "\n";    # SM416
@@ -696,6 +698,7 @@ sub _serve_content_static {
         print "Status: 416 Range Not Satisfiable\n";
         print "Content-type: $ct\n";
         print "$_\n" for _security_headers();
+        print "$_\n" for _timing_header();         # SM1144
         print "Content-Range: bytes */$size\n";    # the length, so a client can retry
         print "Accept-Ranges: bytes\n";
         print "Content-Length: 0\n";
@@ -717,6 +720,7 @@ sub _serve_content_static {
     }
     print "Content-type: $ct\n";
     print "$_\n" for _security_headers();    # SM352
+    print "$_\n" for _timing_header();       # SM1144
     print "Content-Range: bytes $range[0]-$range[1]/$size\n" if @range;
     # SM1113: on the whole file too, or a media client has no reason to ask.
     # Content-Length is the bytes this response carries - the span for a 206.
@@ -907,7 +911,9 @@ sub process_md {
     # signed-in viewer still gets a cache hit; the cache is filled by the next
     # anonymous render.
     if ( !%$query && !_render_has_viewer() ) {
+        _timing_to('write');    # SM1144
         write_html( $html_path, $page );
+        _timing_to('render');
         eval { update_registries() };
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@ ) if $@;
     }
@@ -1017,7 +1023,9 @@ sub process_url {
     $page = _strip_leaked_refs( $page, $raw, $url_path );    # SM833
 
     return $page if $protected;    # SM1069: a gated render is written nowhere
+    _timing_to('write');           # SM1144
     write_html( $html_path, $page );
+    _timing_to('render');
     eval { update_registries() };
     log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@ ) if $@;
 

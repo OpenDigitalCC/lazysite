@@ -296,6 +296,7 @@
     "^tools/lazysite-compliance\\.pl$",
     "^tools/bump-version\\.pl$",
     "^tools/bench\\.pl$",
+    "^tools/bench-surfaces\\.(?:pl|sh)$",
     "^tools/coverage\\.sh$",
     "^tools/gen-host-deps\\.pl$",
     "^tools/gen-capability-docs\\.pl$",

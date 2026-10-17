@@ -1,6 +1,29 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+
+# SM1144 (SM1082 T0): THE TIMING HELPER, loaded first so its `load` phase covers
+# the modules below. The one file this script loads from the lib tree on the
+# request path, and the only one: it has no dependency of its own but
+# Time::HiRes, so ADR 0001's reason for keeping the render path module-free (a
+# render that needs the whole Lazysite:: tree) does not apply to it. Found by the
+# search every other surface uses (_lazy_lib's list) and OPTIONAL: a site whose
+# lib cannot be found serves exactly as before, without timing.
+our $TIMING;
+BEGIN {
+    require File::Basename;
+    require Cwd;
+    my $bin = File::Basename::dirname( Cwd::realpath(__FILE__) );
+    my $doc = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '';
+    # A grep, not the SM1078 candidate loop: that rule puts the lib on @INC for
+    # good, and this script carries no global @INC bootstrap (see _lazy_lib).
+    my ($lib) = grep { -f "$_/Lazysite/Timing.pm" }
+        ( "$bin/lib", "$bin/../lib", "$bin/../../lib", ( length $doc ? "$doc/../lib" : () ) );
+    if ( defined $lib ) {
+        local @INC = ( $lib, @INC );
+        $TIMING = eval { require Lazysite::Timing; 1 } ? 1 : 0;
+    }
+}
 use Text::MultiMarkdown;
 use Template;
 use File::Basename qw(dirname);
@@ -453,6 +476,7 @@ our %PREVIEW_CONTEXT;    # SM071: preview layout/theme override, set by main()
 # not at file scope, so a persistent worker cannot leak between requests.
 sub handle_one_request {
     reset_request_state();
+    _timing_begin();    # SM1144: a worker's later request starts its stopwatch afresh
     # SM222 L0: an FCGI worker must re-read the registry per request.
     _reset_units();
     %ACCESS_REC   = ();
@@ -1218,6 +1242,7 @@ sub main {
         # read list or a draft flag; a write-only rule leaves it cacheable.
         $auth_protected = 1 if _acl_governed($md_path);
 
+        _timing_to('identity');    # SM1144: what follows is who is asking
         $auth_peek      = peek_auth($md_path);
         %site_vars_peek = resolve_site_vars();
         $auth_result    = check_auth( $uri, $auth_peek, \%site_vars_peek );
@@ -1305,6 +1330,7 @@ sub main {
             if $auth_level ne 'none'
             || ( $auth_peek->{groups} && @{ $auth_peek->{groups} } );
     }
+    _timing_to('render');    # SM1144: the identity is settled; what follows is the answer
 
     # Payment check (after auth - auth group bypass may apply)
     my $payment_protected = 0;

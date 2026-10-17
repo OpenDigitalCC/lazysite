@@ -101,6 +101,7 @@ sub output_page {
         print "Cache-Control: no-cache, must-revalidate\n";
     }
     print "Vary: Cookie\n";
+    print "$_\n" for _timing_header();    # SM1144
     print "\n";
     print $content;
 }

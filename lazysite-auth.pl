@@ -23,6 +23,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
+use Lazysite::Timing ();    # SM1144: first, so its load phase covers the modules below
 use Lazysite::Util          qw(log_event request_address);
 use Lazysite::Auth::Session qw(
     verify_session_cookie account_disabled load_user_groups session_store_fault
@@ -73,6 +74,7 @@ my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
 my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
+Lazysite::Timing::begin(); # SM1144: the wrapper's own time, handed over at the exec below
 $Lazysite::Audit::LAZYSITE_DIR         = $LAZYSITE_DIR;
 $Lazysite::Auth::Settings::AUTH_DIR    = $AUTH_DIR;
 $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;        # SM411
@@ -1298,6 +1300,10 @@ sub handle_request {
         exit 0;
     }
 
+    # SM1144: the wrapper's whole time is the surface's `identity`, and its module
+    # loading joins the surface's own `load`. Handed across the exec in the
+    # environment, which only the web server and this program write.
+    Lazysite::Timing::handover();
     exec $^X, $processor;
     die "exec failed: $!\n";
 }

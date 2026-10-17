@@ -22,6 +22,7 @@ use Lazysite::Paths          ();
 use Lazysite::Auth::Settings ();        # SM944 S31: _display_names
 use Lazysite::Auth::Identity ();        # SM1135: _user_caps asks the request's groups
 use Lazysite::Auth::Acl      qw(_is_operator);    # SM944 S32: _operator
+use Lazysite::Timing ();    # SM1144: the Server-Timing header on the two JSON emitters
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _emit_json
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
@@ -1933,6 +1934,8 @@ sub respond {
     # double-encode non-ASCII content into mojibake).
     binmode(STDOUT);
     print "Status: $status\r\n";
+    my $tm = Lazysite::Timing::header_line();    # SM1144
+    print "$tm\r\n" if length $tm;
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json($data);
 }
@@ -1951,6 +1954,8 @@ sub _emit_json {
     binmode(STDOUT);
     print "Status: $status\r\n";
     print "$_\r\n" for @{ $headers || [] };
+    my $tm = Lazysite::Timing::header_line();    # SM1144
+    print "$tm\r\n" if length $tm;
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json($body);
     return;

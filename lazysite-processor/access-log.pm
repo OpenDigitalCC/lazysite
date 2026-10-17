@@ -30,7 +30,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $LAZYSITE_DIR, %ACCESS_REC );
+our ( $LAZYSITE_DIR, %ACCESS_REC, %AUTH_CONTEXT, $TIMING );
 
 # --- SM140: first-party access log -------------------------------------------
 # The processor records its own traffic - one JSON line per request under
@@ -40,6 +40,44 @@ our ( $LAZYSITE_DIR, %ACCESS_REC );
 # daily-salted keyed hash, never the IP. Emitters fill %ACCESS_REC; the main
 # wrapper records once per request. Module-free per ADR 0001; stats.pl
 # aggregates the files.
+
+# --- SM1144 (SM1082 T0): where the request's time went -------------------------
+# Lazysite::Timing is the one helper every surface reports through; the script's
+# BEGIN loads it when it can ($TIMING). These are the processor's seams to it,
+# each a no-op without it: the stopwatch starts per request (a pooled worker
+# serves many), phases are entered by name, and the Server-Timing header is built
+# at the response - shown to a signed-in manager or when `server_timing: on`.
+# The access record below carries the same phases in its `tm` object whatever the
+# switch says, because that file is the operator's own.
+sub _timing_begin {
+    return unless $TIMING;
+    Lazysite::Timing::begin();
+    Lazysite::Timing::configure($LAZYSITE_DIR);
+    return;
+}
+
+sub _timing_to {
+    return unless $TIMING;
+    Lazysite::Timing::to( $_[0] );
+    return;
+}
+
+# The header line for this response, as a list so a caller can `print "$_\n" for`
+# it as it does the security headers. The operator mark is decided HERE, from the
+# identity the page gate already settled, by the same _is_manager the admin bar
+# uses: signed in is not enough on a site where a group grants the manager.
+sub _timing_header {
+    return () unless $TIMING;
+    my $u = $AUTH_CONTEXT{auth_user} // '';
+    if ( length $u ) {
+        my $g  = $AUTH_CONTEXT{auth_groups};
+        my $gs = ref $g eq 'ARRAY' ? join( ',', @{$g} ) : ( $g // '' );
+        my %sv = resolve_site_vars();
+        Lazysite::Timing::operator(1) if _is_manager( \%sv, $u, $gs );
+    }
+    my $l = Lazysite::Timing::header_line();
+    return length $l ? ($l) : ();
+}
 
 # --- SM222 L0: the unit registry, read from the render path -------------------
 # `plugins:` in lazysite.conf IS the registry, and until now nothing on the
@@ -236,6 +274,13 @@ sub _access_record {
         # capped; empty (primary / malformed Host) is simply omitted.
         my $host = _request_host();
         $line .= ',"h":"' . _access_field( $host, 253 ) . '"' if length $host;
+        # SM1144: where the time went, appended so a reader of the older fields
+        # sees the line it always saw. The phase in progress is closed first.
+        if ($TIMING) {
+            Lazysite::Timing::finish();
+            my $tm = Lazysite::Timing::log_object();
+            $line .= ',"tm":' . $tm if length $tm;
+        }
         $line .= "}\n";
         sysopen( my $fh, $file, O_WRONLY() | O_APPEND() | O_CREAT(), 0664 )
             or return 1;    # silent: lazysite-check owns the writability story

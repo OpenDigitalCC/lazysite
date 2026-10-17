@@ -147,6 +147,17 @@ Archive
   Odoo endpoint, the manager or the auth paths, never stores a `no-store` or
   `private` response, and updates on a deploy. `lazysite check` names a bad scope
   or a missing icon. t/unit/processor/134, 142, t/unit/tools/84.
+- SM1144 (PENDING) **internal: a request says where its time went.** SM1082 track T0.
+  Every surface the engine answers (pages and statics, the manager API, MCP, the
+  data and Odoo endpoints, WebDAV, and the auth wrapper's hand-over) reports its
+  phases - config, identity, load, render, call, write, only those that happened -
+  in a `Server-Timing` header, shown to a verified operator or when lazysite.conf
+  says `server_timing: on` and to no anonymous visitor otherwise; the processor's
+  access log gains a `tm` object. `tools/bench-surfaces.sh` reports the median and
+  p90 of each phase per surface under CGI and, with `--with-pool`, a one-worker
+  pool, pinned to one CPU at nice 19 and never parallel. `lazysite check` reports
+  `pool: yes, N workers` or `pool: no (plain CGI)`. t/unit/lib/203,
+  t/integration/266, t/unit/odoo/41, t/tools/170, t/tools/171.
 - SM1131 (PENDING) **every reader honours the configured header names.** Only the
   page gate read `auth_header_*`; one reader, `Lazysite::Auth::Identity`, now
   serves the page gate, the file rules, the manager and the API, and takes its

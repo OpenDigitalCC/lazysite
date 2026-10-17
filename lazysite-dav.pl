@@ -42,6 +42,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
+use Lazysite::Timing (); # SM1144: first of ours, so its load phase covers the modules below
 use Lazysite::Util             qw(log_event);
 use Lazysite::Paths            ();
 use Lazysite::Audit            qw(audit_log);
@@ -185,6 +186,8 @@ exit 0;
 
 sub main {
     my $method = uc( $ENV{REQUEST_METHOD} // 'GET' );
+    Lazysite::Timing::begin();    # SM1144: where this request's time goes
+    Lazysite::Timing::configure( Lazysite::Paths::lazysite_dir($DOCROOT) ) if defined $DOCROOT && length $DOCROOT;
     # SM929: TWO QUESTIONS, TWO VALUES. The transport gate below asks whether the
     # PEER is this machine (so plaintext is a dev loopback rather than an exposed
     # one); the failed-attempt limiter inside _authenticate asks who the VISITOR
@@ -216,8 +219,11 @@ sub main {
     #    credential touch - _authenticate keeps them in that order, which is
     #    the security property. It answers the request itself on every
     #    refusal and hands back the status main returns.
+    Lazysite::Timing::to('identity');    # SM1144
     my ( $user, $refused ) = _authenticate($ip);
     return $refused unless defined $user;
+    Lazysite::Timing::operator(1);       # SM1144: a verified account is shown the phases
+    Lazysite::Timing::to('render');
 
     # OPTIONS advertises capabilities and touches no files.
     if ( $method eq 'OPTIONS' ) {
@@ -257,6 +263,8 @@ sub main {
         return send_status( $code, body => $body,
             ( defined $reason ? ( headers => ["X-Lazysite-Deny-Reason: $reason"] ) : () ) );
     }
+
+    Lazysite::Timing::to('write') if $is_write;    # SM1144
 
     # SM071 Phase 3 (P3.6): per-token volume throttle on writes (a deploy
     # is many PUTs). 429 + Retry-After per the retry contract.
@@ -545,6 +553,8 @@ sub do_get {
     print "Content-Length: " . ( $st[7] // 0 ) . "\r\n";
     print "ETag: " . etag_for( \@st ) . "\r\n";
     print "Last-Modified: $lastmod\r\n";
+    my $tm = Lazysite::Timing::header_line();    # SM1144
+    print "$tm\r\n" if length $tm;
     print "\r\n";
     unless ( $a{head} ) {
         binmode STDOUT;
@@ -2691,6 +2701,8 @@ sub send_response {
     for my $h (@headers) {
         print "$h\r\n";
     }
+    my $tm = Lazysite::Timing::header_line();    # SM1144
+    print "$tm\r\n" if length $tm;
     if ( defined $o{body} ) {
         my $type = $o{type} // 'text/plain; charset=utf-8';
         print "Content-Type: $type\r\n";

@@ -31,6 +31,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
+use Lazysite::Timing (); # SM1144: first of ours, so its load phase covers the modules below
 use Lazysite::Util           qw(log_event);
 use Lazysite::Paths          ();
 use Lazysite::Audit          qw(audit_log);
@@ -72,6 +73,8 @@ my $MAX_READ_BYTES = 512 * 1024;
 # tree for every module's confinement check.
 my $DOCROOT      = Lazysite::Paths::canonical_docroot( $ENV{DOCUMENT_ROOT} // '' );
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);                        # SM293
+Lazysite::Timing::begin();    # SM1144: where this request's time goes
+Lazysite::Timing::configure($LAZYSITE_DIR);
 # SM929: THE request address for this request - the visitor, not the front proxy.
 # One reader, cached, because everything below asks the same question about one
 # request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
@@ -101,6 +104,13 @@ my %AUTH_INFO = ( method => 'none', expires_at => undef );
 
 # --- output helpers -------------------------------------------------------
 
+# SM1144: the Server-Timing line, with its line ending, or nothing: shown to an
+# authenticated connector or when the site says server_timing: on.
+sub _timing_line {
+    my $l = Lazysite::Timing::header_line();
+    return length $l ? "$l\r\n" : '';
+}
+
 sub send_json {
     my ($obj) = @_;
     my $body = encode_json($obj);
@@ -110,6 +120,7 @@ sub send_json {
     print "Status: 200 OK\r\n";
     print "Content-Type: application/json\r\n";
     print "MCP-Protocol-Version: $PROTOCOL\r\n";
+    print _timing_line();
     print "\r\n";
     print $body;
     exit 0;
@@ -117,7 +128,9 @@ sub send_json {
 
 sub send_status {    # for notifications (no id) and bad methods on GET
     my ( $code, $text ) = @_;
-    print "Status: $code $text\r\n\r\n";
+    print "Status: $code $text\r\n";
+    print _timing_line();
+    print "\r\n";
     exit 0;
 }
 
@@ -212,7 +225,9 @@ sub send_cannot_tell {
     binmode STDOUT;    # encode_json emits UTF-8 bytes; do not re-encode
     print "Status: 503 Service Unavailable\r\n";
     print "Content-Type: application/json\r\n";
-    print "MCP-Protocol-Version: $PROTOCOL\r\n\r\n";
+    print "MCP-Protocol-Version: $PROTOCOL\r\n";
+    print _timing_line();
+    print "\r\n";
     print encode_json( { jsonrpc => '2.0', id => $id,
             error => { code => -32003, message => $r->{error},
                 data => { reason => $r->{kind}, kind => $r->{kind},
@@ -264,7 +279,9 @@ sub send_401 {
     print "Status: 401 Unauthorized\r\n";
     print "WWW-Authenticate: Bearer resource_metadata=\"$meta\"\r\n";
     print "Content-Type: application/json\r\n";
-    print "MCP-Protocol-Version: $PROTOCOL\r\n\r\n";
+    print "MCP-Protocol-Version: $PROTOCOL\r\n";
+    print _timing_line();
+    print "\r\n";
     print encode_json( { jsonrpc => '2.0', id => $id,
             error => { code => -32001, message => $msg, data => { reason => $reason } } } );
     exit 0;
@@ -4414,7 +4431,10 @@ elsif ( $method eq 'tools/list' ) {
     # unrecognised/revoked token) gets only the introspection subset, not the full
     # surface. Enforcement is unchanged (tools/call still gates); this only aligns
     # the advertised set with the caller's identity.
+    Lazysite::Timing::to('identity');
     my ( $lu, $lcaps ) = verify_bearer();
+    Lazysite::Timing::operator(1) if defined $lu;    # SM1144: a verified connector
+    Lazysite::Timing::to('render');
     rpc_result( $id, { tools => tool_list( defined $lu ? $lcaps : undef ) } );
 }
 elsif ( $method eq 'tools/call' ) {
@@ -4426,9 +4446,12 @@ elsif ( $method eq 'tools/call' ) {
     # anonymous caller got -32602 for an unknown name and 401 for a known one -
     # a tool-name oracle that handed back the vocabulary SM210 withholds from an
     # anonymous tools/list, one probe at a time.
+    Lazysite::Timing::to('identity');    # SM1144
     my ( $user, $caps ) = verify_bearer();
     send_cannot_tell( $id, $BEARER_CANNOT_TELL ) if length $BEARER_CANNOT_TELL;
     send_401($id)                                   unless defined $user;
+    Lazysite::Timing::operator(1);    # SM1144: a verified connector is shown the phases
+    Lazysite::Timing::to('render');
     rpc_error( $id, -32602, "Unknown tool: $name" ) unless $tool;
 
     # Introspection tools (whoami, describe_capabilities) stay open to ANY
@@ -4631,6 +4654,7 @@ elsif ( $method eq 'tools/call' ) {
         rpc_error( $id, -32602, $bad );
     }
 
+    Lazysite::Timing::to( $READ{$name} ? 'render' : 'write' );    # SM1144
     my $out = eval { $tool->{run}->( $args, $user, $caps ) };
     if ($@) {
         log_event( 'ERROR', 'mcp', 'tool died', tool => $name, err => "$@" );

@@ -1390,6 +1390,7 @@ sub run_checks {
 
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
     report_front_door_mode();
+    report_pool_status(); # SM1144: R5 reads the fleet's pool status from the deploy report
 
     # --- 8i2. is this site's persistent runtime armed? (SM893) ----------------
     report_daemon_runtime();
@@ -3033,30 +3034,74 @@ sub _have_systemctl {
     return 0;
 }
 
-sub report_front_door_mode {
-    my $dir = '/etc/lazysite/pools';
-    return unless -d $dir;    # no pools configured: plain CGI, nothing to say
+# SM1144: THE POOL CONF THAT IS THIS SITE'S, found once for both readers below.
+# /etc/lazysite/pools/<instance>.conf, matched on DOCROOT= (not on the instance
+# name, which is only conventionally the domain). LAZYSITE_POOLS_DIR moves the
+# directory, as lazysite-hestia-domain's does, so a test can stand in for the
+# host. Returns undef when the host has no pool dir or none names this docroot.
+sub find_pool_conf {
+    my $dir = $ENV{LAZYSITE_POOLS_DIR} || '/etc/lazysite/pools';
+    return undef unless -d $dir;
 
-    opendir my $dh, $dir or return;
+    opendir my $dh, $dir or return undef;
     my @confs = sort grep { /\.conf\z/ } readdir $dh;
     closedir $dh;
 
     my $want = abs_path( $opt{docroot} ) // $opt{docroot};
-    my ( $mine, $raw );
     for my $c (@confs) {
         open my $fh, '<', "$dir/$c" or next;
-        my ( $doc, $fd );
+        my %v;
         while ( my $l = <$fh> ) {
-            $doc = $1 if $l =~ /^\s*DOCROOT\s*=\s*"?([^"\s]+)"?/;
-            $fd  = $1 if $l =~ /^\s*FRONT_DOOR\s*=\s*"?([^"\s]*)"?/;
+            $v{docroot}    = $1 if $l =~ /^\s*DOCROOT\s*=\s*"?([^"\s]+)"?/;
+            $v{front_door} = $1 if $l =~ /^\s*FRONT_DOOR\s*=\s*"?([^"\s]*)"?/;
+            $v{workers}    = $1 if $l =~ /^\s*WORKERS\s*=\s*"?([^"\s]*)"?/;
+            $v{socket}     = $1 if $l =~ /^\s*SOCKET\s*=\s*"?([^"\s]+)"?/;
         }
         close $fh;
-        next unless defined $doc;
-        my $r = abs_path($doc) // $doc;
+        next unless defined $v{docroot};
+        my $r = abs_path( $v{docroot} ) // $v{docroot};
         next unless $r eq $want;
-        ( $mine, $raw ) = ( $c, $fd );
-        last;
+        ( my $inst = $c ) =~ s/\.conf\z//;
+        return { %v, file => $c, instance => $inst };
     }
+    return undef;
+}
+
+# SM1144 (SM1082 R5): DOES THIS SITE RUN THE POOL, AND WITH HOW MANY WORKERS?
+#
+# The persistent-runtime work (SM1082) pays only on sites that run the pool, and
+# until now the fleet's pool status could only be had by looking at each host.
+# One line, always, in a fixed shape a deploy report can grep:
+#
+#   pool: yes, N worker(s)   ... the host has a pool conf for this docroot
+#   pool: no (plain CGI)     ... it has none
+#
+# WORKERS= defaults to 2 in the launcher (tools/lazysite-pool.pl), so a conf that
+# does not set it is reported as that default. The socket is looked at because a
+# conf with no socket is a pool that is configured and not running, which is a
+# WARN rather than a count of workers nobody is serving from. Not a FAIL: a
+# stopped pool still serves, through plain CGI, only slower.
+sub report_pool_status {
+    my $p = find_pool_conf();
+    unless ($p) {
+        return report( 'OK', 'pool: no (plain CGI)',
+            'Every request starts its own process. A pool answers an anonymous '
+                . 'cached page in about a millisecond against about 65 ms; see '
+                . 'docs/architecture/performance.md.' );
+    }
+    my $w = ( defined $p->{workers} && $p->{workers} =~ /\A\d+\z/ && $p->{workers} > 0 ) ? $p->{workers} + 0 : 2;
+    my $sock = length( $p->{socket} // '' ) ? $p->{socket} : "/run/lazysite/$p->{instance}.sock";
+    my $ws = "$w worker" . ( $w == 1 ? '' : 's' );
+    return report( 'OK', "pool: yes, $ws ($p->{file})" ) if -S $sock;
+    return report( 'WARN', "pool: configured, $ws ($p->{file}), but its socket $sock is not there",
+        'The pool is not running, so this site is served by plain CGI until it is '
+            . "started: systemctl start lazysite\@$p->{instance}." );
+}
+
+sub report_front_door_mode {
+    my $p = find_pool_conf();
+    return unless $p;    # no pools configured: plain CGI, nothing to say
+    my ( $mine, $raw ) = ( $p->{file}, $p->{front_door} );
 
     # A site with no pool conf runs plain CGI, where front-door mode does not
     # apply at all. Silence is right - a check that speaks on every healthy site

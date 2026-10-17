@@ -60,6 +60,8 @@ BEGIN {
     }
 }
 
+use Lazysite::Timing (); # SM1144: after the lib search, so its load phase covers what is loaded below
+
 exit main() if !caller;
 
 sub reply {
@@ -95,6 +97,8 @@ sub reply {
     # they are, so a shared cache holding one answer would hand it to the next
     # person.
     print "Cache-Control: no-store\r\n";
+    my $tm = Lazysite::Timing::header_line();    # SM1144
+    print "$tm\r\n" if length $tm;
     print "Content-Length: " . length($body) . "\r\n\r\n";
     print $body;
     return 0;
@@ -102,6 +106,9 @@ sub reply {
 
 sub main {
     my $docroot = $ENV{DOCUMENT_ROOT} // '';
+    Lazysite::Timing::begin();                   # SM1144: where this request's time goes
+    require Lazysite::Paths;
+    Lazysite::Timing::configure( Lazysite::Paths::lazysite_dir($docroot) ) if length $docroot;
     return reply( 500, { ok => 0, error => 'no document root' } )
         unless length $docroot && -d $docroot;
 
@@ -138,6 +145,7 @@ sub main {
     return reply( 400, { ok => 0, error => 'table required' } )
         unless length $table || ( $q{csrf} // '' ) eq '1';
 
+    Lazysite::Timing::to('identity');    # SM1144
     no warnings 'once';    # SM557
                            # THE IDENTITY, verified here rather than taken from a header.
     require Lazysite::Auth::Session;
@@ -171,6 +179,16 @@ sub main {
 
     my ($session) = $via_proxy ? () : Lazysite::Auth::Session::verify_session_cookie();
     my $user = $via_proxy ? $proxy->{user} : ( ref $session eq 'HASH' ) ? ( $session->{user} // '' ) : '';
+
+    # SM1144: a verified account that holds `ui` is an operator and is shown the
+    # phases - whether the account was established by the session cookie or by a
+    # trusted proxy (SM1137) - and a signed-in member of the public is not.
+    if ( length $user ) {
+        require Lazysite::Auth::Settings;
+        local $Lazysite::Auth::Settings::AUTH_DIR = "$lz/auth";
+        Lazysite::Timing::operator(1) if ( Lazysite::Auth::Settings::caps_for($user) || {} )->{ui};
+    }
+    Lazysite::Timing::to('render');
 
     # DISABLED AND REVOKED ARE ALREADY DECIDED, and re-deciding them here was
     # wrong twice: verify_session_cookie returns undef with 'disabled' or
@@ -297,6 +315,7 @@ sub main {
                 error => 'this account holds neither manage_data nor '
                     . 'write_data, so it cannot write rows' } )
             unless $caps->{manage_data} || $caps->{write_data};
+        Lazysite::Timing::to('write');    # SM1144: the row write
 
         # `writable_by` NARROWS, and only narrows. The descriptor has carried
         # it since DP-1 - validated, exported, named in the MCP tool's own
