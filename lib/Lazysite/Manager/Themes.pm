@@ -846,6 +846,9 @@ sub _set_theme_pointer {
 # answers it the same way - it was the one walk that did not ask.
 sub _cache_source_exists { return Lazysite::Manager::Common::render_source_exists( $_[0] ) }
 
+# Public: Layouts drops the renders after an update switched in (SM1141).
+sub invalidate_html_cache { return _invalidate_html_cache() }
+
 sub _invalidate_html_cache {
     find( sub {
             return unless /\.html$/;

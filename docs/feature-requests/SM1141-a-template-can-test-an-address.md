@@ -46,6 +46,15 @@ so a fault in the store still keeps the page out of the cache. The flag is clear
 at the top of every request, as the pool reuses the process. The engine loads the
 address module only when a template first asks (ADR 0001).
 
+**A layout that starts asking.** A page cached before its layout called the test
+holds the old layout's render. The layout being served cannot be edited in place on
+any surface (SM749), activation drops every render, and an included partial is a
+recorded dependency (SM888), so the next request after either renders afresh. An
+update switched in under the same name (layout-install with update, SM756) kept the
+renders; it now drops them as activation does (t/unit/manager/362). A layout file
+changed from a shell, outside the engine, is seen only when something else stales
+the page or the cache is cleared.
+
 Documented in starter/docs/reference.md (Auth variables) and
 starter/docs/features/authoring/visitor-ip.md.
 

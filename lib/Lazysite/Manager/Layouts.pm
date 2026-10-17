@@ -1132,6 +1132,15 @@ sub _install_layout_from_dir {
                 return { ok => 0, error => "Update failed (switching layout $layout_name in)" };
             }
             _prune_backups( _lz() . "/layouts", $layout_name );
+            # SM1141 (checked when the SM1134 slices were stacked): the renders made
+            # with the old version go too. A cached page is checked against its
+            # source, the conf, the nav, its section indexes, the engine and its
+            # includes, never the layout file, so an update switched in under the
+            # same name kept every cached page in the old layout - one that added
+            # `visitor.in_list` to hold a block back from outside addresses went on
+            # serving the block to everyone. Activation drops them for the same
+            # reason; an update is the same change of chrome without the pointer move.
+            Lazysite::Manager::Themes::invalidate_html_cache();
             log_event( 'INFO', $action_label, 'layout updated',
                 name => $layout_name, files => join( ',', @differs ), user => $user );
             return { ok => 1, action => 'updated' };
