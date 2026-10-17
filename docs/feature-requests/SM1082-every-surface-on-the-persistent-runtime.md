@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-10-14
 raised-by: the release manager, 2026-10-14 ("we explored using forking process before ... both have happened. propose to me how we might now implement this, to improve performance")
 area: performance
-status-note: "PROPOSAL, nothing built, nothing measured for it yet. Filed so it can be revisited: phase 0 (measure, and find which fleet sites run the pool), then preload before fork, then SM297 (identity as a value, its own security review), then per-surface isolation, then work out of the request. The release manager asked to revisit it shortly."
+status-note: "PLAN revised 2026-10-17 with the Odoo endpoint measurement: T0 measure, Q1-Q5 quick wins, then C1 preload, C2 identity in-process (own review), C3 a process model per surface; R1-R4 ruled as proposed 2026-10-17; C3's Odoo part waits for OOM's resident design. Earlier a PROPOSAL: measure, preload, SM297, per-surface isolation, work out of the request."
 ---
 
 # The request
@@ -136,3 +136,83 @@ Phases, in order. Sizes are estimates.
 The numbers above are the earlier filings'. Which sites are pooled, the
 resident memory per worker, whether the manager modules load before or after the
 fork, and the cost of a warm fork on this host are all open until phase 0.
+
+# Plan, revised 2026-10-17
+
+The release manager, 2026-10-17: "check inbox re performance, make a plan to
+get this addressed". The sites agent's measurement
+(`lazysite/inbox/2026-10-17-the-200-ms-before-an-odoo-call-starts.md`, taken in
+the OOM Lab, medians of seven) is the first figure for a surface this filing
+covers: an Odoo read is about **550 ms**, of which about **200 ms is lazysite
+starting two programs** (the auth wrapper, then the endpoint, each compiling
+and loading its modules), about **240 ms is OOM starting up** (filed to OOM: a
+lazy registry and a resident client) and **50-90 ms is Odoo**. A pooled
+install does not help today: the front door relays the endpoint with fork and
+exec, like every surface that carries an identity.
+
+**What changed since 2026-10-14 that makes phase 3 smaller.** SM1129-SM1133
+(SM1128 phase 1) put the proxy-trust decision in one function
+(`Lazysite::Util::proxy_identity`) and the reading of identity headers in one
+module (`Lazysite::Auth::Identity::request_identity`), and SM411 already put
+cookie verification in one chain (`Lazysite::Auth::Session`). In-process
+identity is now "call the verifier the wrapper calls, and pass the result as a
+value", not a rewrite of the spine.
+
+## Tracks, in order
+
+```datatable
+columns: Ref | Work | Size | Effect | Depends
+widths: 1.1cm | X | 1.2cm | 3.6cm | 2cm
+---
+T0 | **Measure.** `Server-Timing` per phase (config, identity, load, render, call, write) on every surface and in the access log; a bench per surface under CGI and the pool, run in a constrained container or pinned with taskset (never extra load on the shared host); the request mix from the visitor logs; the fleet's pool status (which sites run the pool) from `lazysite check`. | S | the before figures, and a regression gate | -
+Q1 | **Who is signed in, on `?csrf=1`** (P3): the endpoint returns the identity cookie's display name, so a page stops making an Odoo call only to show a name. | S | one Odoo call less per page view | -
+Q2 | **A batch call** (P2): `POST {calls:[...]}` on the Odoo endpoint, each call checked and recorded as now. | S-M | N reads pay start-up once | -
+Q3 | **Lighter cold path** (P4): load `Lazysite::Odoo` and OOM only on the branches that call Odoo (`?csrf=1` and sign-out do not). | S | 50-100 ms on those branches | -
+Q4 | **The dev server forks per connection** (P5, dev only), so parallel reads stop queuing and the lab's timings are real. | S | honest measurements | -
+Q5 | **Registry rebuild out of the request** (phase 5): the scheduler rebuilds after a write; a stale registry is served meanwhile. | S-M | removes 1.5-3 s from an unlucky request | -
+C1 | **Preload before fork** (phase 2): every engine module loaded in the pool parent; a lint that every file-scope variable holding request data is reset (the SM973 class). | S-M | cheaper workers and respawns; the precondition for C2-C3 | T0
+C2 | **Identity in-process** (phase 3, SM297): the front door verifies the session with `Lazysite::Auth::Session` and passes the identity as a value to the surface it dispatches, with no exec of the auth wrapper; headers are never read for identity in-process except through `request_identity` under `proxy_identity`. Its own security review and its own release. | M-L | signed-in pages, the manager, MCP, DAV, data, forms and the Odoo endpoint all reach the pooled path | C1
+C3 | **A process model per surface** (phase 4): each surface declares `pool` (persistent, reset between requests) or `warm-fork` (forked per request from the preloaded parent, 1-3 ms, fresh state). Credential-bearing surfaces (auth, the manager, the Odoo sign-in) take `warm-fork`; the Odoo read path takes `pool`, so it keeps `Lazysite::Odoo`, its bindings and - once OOM keeps its clients - a warm Odoo connection (P1). Per-request state reset and worker recycling as the pool's; CGI stays the fallback. | M | an Odoo read toward Odoo's own 50-90 ms; every identity request near the pooled 1-3 ms | C2, OOM's resident client for the last part
+X1 | **OOM's start-up** (~240 ms): a lazy registry and a resident client, filed to OOM by the sites agent. Not lazysite's to build; C3 uses it when it exists. | - | the largest single cost after C3 | OOM
+```
+
+Q1-Q5 are independent of each other and of the C track, so they can go now
+as one batch; T0 goes with them, so the C track has its before figures.
+
+## Targets (to confirm against T0)
+
+- An Odoo read from a pooled site: about 550 ms today; about 350 ms after C3;
+  under 150 ms once OOM is resident (X1).
+- A signed-in page on a pooled site: 97 ms today; a few milliseconds after C2.
+- A page with three Odoo reads: three start-ups today; one after Q2; none
+  after C3.
+
+## Constraints kept
+
+Everything in the earlier sections: nothing added to the web server's
+configuration; one pool per site; SM760's privilege separation; plain CGI the
+default and the dev-server path; C2 not started without its own ruling and
+review. Added: the secrets (the Odoo connection key, the visitor and identity
+secrets) readable only by the site's user, who the worker runs as; the call
+record and audit line per call unchanged; a pooled surface carries nothing
+about a person from one request to the next.
+
+## Rulings needed
+
+| Ref | Question | Proposed |
+|---|---|---|
+| R1 | Start T0 and Q1-Q5 now, as one batch | Yes |
+| R2 | The order of the C track: C1, then C2 (its own review and release), then C3 | Yes |
+| R3 | `warm-fork` for credential-bearing surfaces, the pool for the rest | Yes (the earlier open decision 3) |
+| R4 | The Odoo read path as a persistent `pool` surface (so the Odoo connection stays warm), with its reset lint | Yes |
+| R5 | Which fleet sites run the pool, after T0 reports them | the release manager's, per site |
+
+## Rulings (2026-10-17)
+
+The release manager, 2026-10-17: "oom performance evaluation underway. likely it
+will have some app libs, plus a daemon with socket, so wait for this to be
+confirmed. still most of this is still valid in lazysite. go through inbox items
+and all rulings accepted". R1-R4 are ruled as proposed. C3's Odoo read path
+waits for OOM's resident design (application libraries and a daemon on a socket)
+to be confirmed; the rest of C3 and all of T0, Q1-Q5, C1 and C2 stand. R5 stays
+the release manager's, per site, after T0.
