@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: SM1128 phase 1, P1-1 (ruled by the release manager 2026-10-17); the hop check SM794 proposed and never built
 area: auth, security
-status-note: "SHIPPED on n630 (claude/n630-a-proxy-is-believed-only-from-its-address): Lazysite::Util::proxy_identity and the processor's pinned _proxy_identity; t/integration/262, t/unit/processor/131, t/unit/tools/81, t/lint/265."
+status-note: "SHIPPED on n630 (claude/n630-a-proxy-is-believed-only-from-its-address): Lazysite::Util::proxy_identity and the processor's pinned _proxy_identity; t/integration/264, t/unit/processor/132, t/unit/tools/81, t/lint/267."
 ---
 
 # What happened
@@ -64,11 +64,11 @@ of addresses and CIDR ranges, IPv4 and IPv6. With `auth_proxy_trusted: true`:
 identity header trustworthy" and returns the flag, the list, the state (`off`,
 `no-list`, `not-listed`, `listed`) and the peer. The processor's gate
 (`apply_trust_gate`) carries its pinned copy `_proxy_identity` (ADR 0001 keeps
-the render path module-free; t/unit/processor/131 holds the two to the same
+the render path module-free; t/unit/processor/132 holds the two to the same
 answers over a table). The manager API's gate and the auth wrapper call the
 module's. Before this the processor read the flag from its parsed conf and the
 manager API grepped the file; `lazysite-auth.pl` has no proxy branch of its own.
-t/lint/265 holds that no other code names the setting as a key, and that the
+t/lint/267 holds that no other code names the setting as a key, and that the
 three deciding surfaces call the function.
 
 `lazysite check` warns whenever the flag is on, naming the list, says plainly
@@ -82,7 +82,7 @@ for a site whose conf has the list.
 
 # Tests
 
-t/integration/262 drives the real processor (page gate, configured header names,
+t/integration/264 drives the real processor (page gate, configured header names,
 a per-file ACL on a static file) and the real manager API: a listed CIDR member
 and a listed host are believed; an unlisted peer, a v4 peer against a v6 range
 and a peer that names a listed address in `X-Forwarded-For` are anonymous; the

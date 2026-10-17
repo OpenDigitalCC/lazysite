@@ -189,7 +189,7 @@ sub _request_address {
 # reasoning is written once, in the module: the flag says a proxy supplies the
 # identity, `auth_proxy_trusted_from` says which peer (REMOTE_ADDR, never
 # X-Forwarded-For) may, and an absent or empty list trusts nobody. t/unit/
-# processor/131 holds the two to the same answers; t/lint/265 holds every other
+# processor/132 holds the two to the same answers; t/lint/267 holds every other
 # reader of the flag to calling this.
 sub _proxy_identity {
     my %r = (

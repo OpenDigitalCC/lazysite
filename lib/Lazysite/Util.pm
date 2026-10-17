@@ -531,7 +531,7 @@ sub request_address {
 # an empty list; an unlisted proxy that is believed anyway is the defect). Unlike
 # `trusted_proxies`, an empty value does NOT mean a default range.
 #
-# Every reader of the flag goes through here (t/lint/265): the processor's gate
+# Every reader of the flag goes through here (t/lint/267): the processor's gate
 # (its own pinned copy, ADR 0001), the manager API's gate, the auth wrapper.
 # Returns { flag, trusted, state, peer, from, rejected, user_header } where state
 # is off | no-list | not-listed | listed.

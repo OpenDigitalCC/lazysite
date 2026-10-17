@@ -181,7 +181,7 @@ return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 {
     my $trusted = ( $ENV{LAZYSITE_AUTH_TRUSTED} // '' ) eq '1';
 
-    # SM1129: ONE ANSWER, from Lazysite::Util::proxy_identity (t/lint/265 holds
+    # SM1129: ONE ANSWER, from Lazysite::Util::proxy_identity (t/lint/267 holds
     # every reader of the flag to it): the flag on AND the TCP peer listed. This
     # fails CLOSED either way - an unreadable conf reads as the flag off (SM917:
     # proxy_identity says why, with cannot_read) and an absent list believes

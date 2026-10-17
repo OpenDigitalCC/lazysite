@@ -587,7 +587,7 @@ sub apply_trust_gate {
     my $auth_trusted = $ENV{LAZYSITE_AUTH_TRUSTED} // '';
 
     # SM1129: the flag alone no longer vouches for a request. This is the ONE
-    # reader of auth_proxy_trusted on the render path (t/lint/265): the headers
+    # reader of auth_proxy_trusted on the render path (t/lint/267): the headers
     # are believed only from a peer in auth_proxy_trusted_from, and from any other
     # peer fall through to the strip below exactly as when the flag is off. With
     # the flag on and no list, nobody is believed (the list fails closed).
