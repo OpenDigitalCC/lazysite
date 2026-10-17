@@ -241,9 +241,9 @@ sub _resolve_plugin_or_why {
 # mtime - and the cache is used only while it is unchanged.
 sub _plugin_list_state {
     my ($reg) = @_;
-    my $base = Cwd::realpath("$DOCROOT/..") // '';
-    my @dir  = stat("$base/plugins");
-    my @bits = ( @dir ? "dir:$dir[9]" : 'dir:none' );
+    my $base  = Cwd::realpath("$DOCROOT/..") // '';
+    my @dir   = stat("$base/plugins");
+    my @bits  = ( @dir ? "dir:$dir[9]" : 'dir:none' );
     for my $rel ( sort keys %{$reg} ) {
         my @st = stat( $reg->{$rel} );
         push @bits, join( ':', $rel, $st[7] // '-', $st[9] // '-' );
@@ -336,7 +336,7 @@ sub action_plugin_list {
     # SM1153: NOTHING IS KEPT FOR A DIRECTORY THAT IS NOT THERE. An empty list
     # built because plugins/ does not exist yet is the list the lab was handed
     # for good; it answers this request and no later one.
-    my $base = Cwd::realpath("$DOCROOT/..") // '';
+    my $base      = Cwd::realpath("$DOCROOT/..") // '';
     my $cache_dir = dirname($cache_file);
     if ( -d "$base/plugins" ) {
         make_path($cache_dir) unless -d $cache_dir;

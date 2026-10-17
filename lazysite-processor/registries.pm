@@ -1066,7 +1066,7 @@ sub _schedule_registry_rebuild {
     if ( !defined $pid ) { close $lh; return 0 }
     if ($pid) {
         waitpid( $pid, 0 );
-        close $lh;   # ours only; the grandchild's copy keeps the lock
+        close $lh;    # ours only; the grandchild's copy keeps the lock
         return 1;
     }
 

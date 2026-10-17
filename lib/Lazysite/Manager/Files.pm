@@ -1660,7 +1660,7 @@ sub start_registry_rebuild {
     @ENV{qw(REQUEST_METHOD REDIRECT_URL REQUEST_URI QUERY_STRING DOCUMENT_ROOT LAZYSITE_PREVIEW)}
         = ( 'GET', $uri, $uri, '', $DOCROOT, '1' );
     delete @ENV{qw(CONTENT_LENGTH CONTENT_TYPE)};
-    exec { $^X } $^X, $processor or POSIX::_exit(127);
+    exec {$^X} $^X, $processor or POSIX::_exit(127);
     POSIX::_exit(127);
 }
 
@@ -1700,7 +1700,7 @@ sub _invalidate_registries {
             my $cached = "$cache/$key/$out";
             if ( -f $cached && unlink $cached ) {
                 push @cleared, "$key/$out";
-                $REBUILD_URI //= "/$out";    # SM1152: owed, started once the request is over
+                $REBUILD_URI //= "/$out"; # SM1152: owed, started once the request is over
             }
 
             # Not deleted - reported. See above.
