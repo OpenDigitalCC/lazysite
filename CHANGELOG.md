@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1131 (PENDING) **every reader honours the configured header names.** Only the
+  page gate read `auth_header_*`; one reader, `Lazysite::Auth::Identity`, now
+  serves the page gate, the file rules, the manager and the API, and takes its
+  trust decision from SM1129's check. t/integration/265.
+- SM1132 (PENDING) **one rule splits a groups header.** The page gate split on
+  commas and the manager on commas or spaces; `auth_header_groups_separator`
+  (default comma; Authentik sends `|`) is now the one rule. t/unit/auth/62.
+- SM1133 (PENDING) **a directory group name is mapped.** A directory's group
+  names (spaces, capitals) are normalised to lazysite names, with an optional
+  `auth_group_map` that wins (release manager, 2026-10-17). t/unit/auth/62.
+
 - SM1129 (PENDING) **security: a proxy is believed only from its address.** With
   `auth_proxy_trusted` on, any request carrying the identity headers was
   believed (SM794's open gap; SM1128 phase 1). `auth_proxy_trusted_from` lists
