@@ -942,6 +942,28 @@ sub _username_fault {
     return;
 }
 
+# SM1154 (oom-lab L-8): A SITE WITH NO OPERATOR. `add` then `group-add NAME
+# manager` made an account in a group that merely carries the name: no
+# capability, no operator flag, no manager access, and the tool said "added"
+# both times. setup-sysop is the way, and nothing on this path said so. True
+# when some operator group (the flag, SM991) has a member.
+sub _site_has_operator {
+    my %groups = read_groups();
+    for my $g ( Lazysite::Auth::Settings::operator_groups() ) {
+        return 1 if @{ $groups{$g} || [] };
+    }
+    return 0;
+}
+
+sub _no_operator_note {
+    my ($user) = @_;
+    return "Note: this site has no operator yet, so '$user' has no manager access.\n"
+        . "The first operator is made with: setup-sysop --user NAME  (it creates\n"
+        . "the account, the operator group and a registration link). Once an\n"
+        . "operator exists, the manager's Users page adds accounts and puts them\n"
+        . "in the operator group.\n";
+}
+
 sub cmd_add {
     my ( $user, $pass ) = @_;
     die "Username required\n" unless defined $user && length $user;
@@ -953,6 +975,7 @@ sub cmd_add {
     my %users = read_users();
     die "User '$user' already exists\n" if exists $users{$user};
     _password_policy($pass)             if length $pass;    # SM1041; empty = token-only
+    my $first_account = !%users;                            # SM1154
 
     # Empty password => empty hash: a token-only account (no interactive
     # login; generate a token for WebDAV/API). Same form as the seed.
@@ -961,6 +984,8 @@ sub cmd_add {
     log_event( 'INFO', $user, 'user added' );
     cli_audit( 'user-add', $user );
     print "User '$user' added.\n" unless $API_MODE;
+    # SM1154: the first account on a site with no operator is the set-up case.
+    print _no_operator_note($user) if !$API_MODE && $first_account && !_site_has_operator();
 }
 
 # SM072: rename an account across every store - credentials, settings
@@ -1226,6 +1251,12 @@ sub cmd_group_add {
     write_groups(%groups);
     cli_audit( 'user-group-add', "$user\@$group" );
     print "User '$user' added to group '$group'.\n" unless $API_MODE;
+    # SM1154: a group that is not an operator group gives no manager access, and
+    # on a site with no operator nothing else will.
+    print _no_operator_note($user)
+        if !$API_MODE
+        && !Lazysite::Auth::Settings::groups_are_operator($group)
+        && !_site_has_operator();
 }
 
 # SM255 (completion): the CLI writes the same file the manager writes, so it
@@ -6003,12 +6034,16 @@ guess, and --as-user NAMES the owner for that case. Repair an already-root-owned
 tree with lazysite-check.pl --fix (as root) first.
 
 Commands:
-  add USERNAME PASSWORD       Add a new user
+  add USERNAME PASSWORD       Add a new user. On a site with no operator the first
+                              account has no manager access: make the first
+                              operator with setup-sysop (below), not add + group-add
   passwd USERNAME NEWPASSWORD Change a user's password
   remove USERNAME             Remove a user (and from all groups)
   rename OLDNAME NEWNAME      Rename a user, carrying groups and settings over
   list                        List all users
-  group-add USERNAME GROUP    Add user to a group
+  group-add USERNAME GROUP    Add user to a group. A group gives manager access only
+                              if it is an operator group (setup-sysop makes one);
+                              on a site with no operator, use setup-sysop first
   group-remove USERNAME GROUP Remove user from a group
   groups                      List all groups and members
   reset-groups [--apply]      Restore the SEEDED groups - capability rows,
@@ -6187,6 +6222,12 @@ channel x capability grid for a user.
 C<setup-sysop> - one command to create the sysop account and its group, and to
 hand over a setup link (C<--link>, the default) or a generated password.
 Idempotent. A username is required; there is no default.
+
+It is also the only way to the FIRST manager access. C<add> followed by
+C<group-add NAME manager> makes an account in a group that is merely called
+manager, with no capabilities and no operator flag (SM1154); on a site with no
+operator both commands print a note saying so. Once an operator exists, the
+manager's Users page adds accounts and puts them in the operator group.
 
 SM659 renamed this from C<setup-manager> and deliberately left B<no alias>,
 because the old name created a role account by default and that is the thing

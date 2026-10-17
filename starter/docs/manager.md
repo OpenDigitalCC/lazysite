@@ -31,12 +31,19 @@ group carries it). Bootstrap in one command:
 perl tools/lazysite-users.pl --docroot /path/to/public_html setup-sysop --user NAME
 ```
 
-or add a user to the admin group:
+or, once the site has an operator, add a user to the admin group (the manager's
+Users page does the same):
 
 ```bash
 perl tools/lazysite-users.pl --docroot /path/to/public_html \
   group-add alice sysops
 ```
+
+On a site with no operator, `setup-sysop` is the only way to the first manager
+access. `add` followed by `group-add alice manager` makes an account in a group
+that is merely called `manager`: it carries no capabilities and is not an
+operator group, so the account can sign in and reach nothing in the manager. The
+users tool prints a note saying so on that path.
 
 (Capabilities on groups are the mechanism of record; the legacy
 `manager_groups:` conf key is retired and migrates itself away on upgrade.)

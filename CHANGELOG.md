@@ -162,6 +162,10 @@ Archive
   directory.** The cached list kept an empty answer after `plugins/` appeared
   (oom-lab L-5); it now records what it was built from, and an empty list for a
   missing directory is not kept. t/unit/lib/203.
+- SM1154 (PENDING) **the add path names setup-sysop on a site with no
+  operator.** `add` (first account) and `group-add` (a non-operator group)
+  print a note naming `setup-sysop` and the manager's Users page; the help and
+  the manager guide say it too (oom-lab L-8). t/unit/users/52.
 
 - SM1129 (PENDING) **security: a proxy is believed only from its address.** With
   `auth_proxy_trusted` on, any request carrying the identity headers was
