@@ -1940,6 +1940,15 @@ sub authorise {
     return _deny( 403, 'this path is on the server blocklist (protected file type or location)' )
         if is_blocked( $rel, $conf );
 
+    # SM1139: a file under an address rule is limited by the address it is asked
+    # from, over this door as over the page itself - a GET, PUT, DELETE, COPY or
+    # MOVE from outside the rule is refused with the ruled sentence, and audited
+    # once per file and address per hour. Before the ACL below: it needs no
+    # identity, and no capability or ownership lifts it.
+    if ( my $by_address = Lazysite::Auth::Acl::address_denial( $rel, 'dav' ) ) {
+        return _deny( 403, $by_address->{error} );
+    }
+
     # SM074: per-file ACLs (content namespace; the lazysite/ subtree returned
     # earlier). Ownership + read/write lists come from the central store.
     return _deny( 403, 'a per-file ACL denies you ' . ( $is_write ? 'write' : 'read' ) . ' access to this path' )

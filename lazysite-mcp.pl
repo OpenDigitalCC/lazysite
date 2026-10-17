@@ -1536,7 +1536,7 @@ my %TOOLS = (
     },
     set_permissions => {
         path_args => [qw(path)],
-        description => 'Set the ACL for a file OR a folder prefix: owner, read/write lists (users or @groups), and the draft flag. A folder prefix (a path ending in /) gates or hides every page and asset beneath it. PARTIAL UPDATE: fields you omit keep their current value - so setting a read list on a DRAFT section leaves it draft (still a 404). The API equivalent of the Publish button is {"draft": false} alongside your grants.',
+        description => 'Set the ACL for a file OR a folder prefix: owner, read/write lists (users or @groups), the draft flag, and the address lists that limit it by the address a visitor comes from (addresses, addresses_deny). A folder prefix (a path ending in /) gates or hides every page and asset beneath it. PARTIAL UPDATE: fields you omit keep their current value - so setting a read list on a DRAFT section leaves it draft (still a 404). The API equivalent of the Publish button is {"draft": false} alongside your grants.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
@@ -1545,11 +1545,16 @@ my %TOOLS = (
                 write => { type => 'string' },
                 draft => { type => 'boolean',
                     description => 'Hide this path outright: 404 to the public and absent from the sitemap, feeds and every listing, previewable by a signed-in editor. Omit to leave the current setting alone; false clears it and publishes.' },
+                addresses => { type => 'string',
+                    description => 'Comma-separated names of ALLOW address lists: the path is served only to a visitor whose address is in one of them (and every enclosing folder rule that names lists says the same). A name the store does not hold yet is accepted with a warning. Omit to leave the current setting alone; empty clears it.' },
+                addresses_deny => { type => 'string',
+                    description => 'Comma-separated names of DENY address lists: a visitor whose address is in one of them is refused, whatever else allows it. Omit to leave the current setting alone; empty clears it.' },
             },
             required => ['path'], additionalProperties => JSON::PP::false },
         run => sub {
             action_acl_set( $_[0]->{path}, $_[1], $_[0]->{read}, $_[0]->{write},
-                undef, $_[0]->{draft} );
+                undef, $_[0]->{draft},
+                { addresses => $_[0]->{addresses}, addresses_deny => $_[0]->{addresses_deny} } );
         },
     },
     list_themes => {

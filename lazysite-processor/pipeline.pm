@@ -290,6 +290,9 @@ sub _is_engine_asset {
 # asset must never sit in a shared or private cache at all.
 sub _static_cache_control {
     my ($real) = @_;
+    # SM1139: a file limited by address answers by who is asking, so it is private
+    # as well as uncached - a shared cache must not hold one visitor's copy.
+    return 'Cache-Control: no-store, private' if @{ _address_layers_for($real) };
     return 'Cache-Control: no-store' if _acl_governed($real);
     my %sv  = resolve_site_vars();
     my $age = $sv{asset_max_age} // '';

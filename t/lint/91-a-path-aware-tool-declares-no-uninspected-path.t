@@ -56,6 +56,9 @@ my %NOT_A_PATH = map { $_ => 1 } qw(
 # SM1072: read_notify_outbox takes a rule (a handler id) and an event id; neither
 # names a file or a page - "id" is above, "rule" is here.
 $NOT_A_PATH{rule} = 1;
+# SM1139: set_permissions' address list names - names in the address-list store
+# (SM1138), never a file or a page.
+$NOT_A_PATH{$_} = 1 for qw(addresses addresses_deny);
 # SM747 E: the Odoo tools' arguments - a binding id, a lazysite account name, an
 # Odoo login, the fields a binding maps, a plan id and an API key. None names
 # a file or a page on the site.

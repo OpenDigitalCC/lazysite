@@ -3232,6 +3232,12 @@ sub _acl_audit_fmt {
         # disagree with enforcement about the most misread rule in the system.
         push @bits, @{$v} ? "$k: " . join( ', ', @{$v} ) : "$k: (unrestricted)";
     }
+    # SM1139: the address lists a rule names, so the trail says who could reach a
+    # path from where, not only who could reach it.
+    for my $k (qw(addresses addresses_deny)) {
+        push @bits, "$k: " . join( ', ', @{ $acl->{$k} } )
+            if ref $acl->{$k} eq 'ARRAY' && @{ $acl->{$k} };
+    }
     push @bits, "owner: $acl->{owner}"
         if defined $acl->{owner} && length $acl->{owner};
     push @bits, 'draft' if $acl->{draft};

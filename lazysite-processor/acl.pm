@@ -37,7 +37,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $ACL_MAP_CACHE, %ACCESS_REC );
+our ( $DOCROOT, $LAZYSITE_DIR, $ACL_MAP_CACHE, %ACCESS_REC, %AUTH_CONTEXT );
 
 # --- ACL, group and domain copies ---
 
@@ -569,8 +569,152 @@ sub _acl_is_draft {
     return ( ref $a eq 'HASH' && $a->{draft} ) ? 1 : 0;
 }
 
+# SM1139 (slice B of SM1134): A PAGE, A FILE OR A FOLDER LIMITED BY THE VISITOR'S
+# ADDRESS. Three places can name address lists for a path, and the path is served
+# only when EVERY layer that names any admits the visitor:
+#
+#   the page's front matter    `addresses: [office]`  `addresses_deny: [blocked]`
+#   the path's own rule        acls.json entry for the file (or its page stem)
+#   each enclosing folder rule acls.json entries for every ancestor, and the
+#                              site-wide rule
+#
+# EACH LAYER IS DECIDED ON ITS OWN, by Lazysite::Auth::AddressLists::decide: the
+# address must be in one of THAT layer's allow lists and in none of its deny lists.
+# So a page allowing [office] inside a folder allowing [office, vpn] is served to
+# the office only, and a folder's allow list cannot be widened by a page inside it:
+# AND across layers, OR within a layer, and any deny wins (SM1134 ruling).
+#
+# NOT the longest-match rule the read lists use (_acl_entry_for). A read rule
+# names who may read and a tighter inner rule may re-state it; an address rule is a
+# restriction, and the reason a sub-folder carries one is to narrow what its parent
+# allows. Letting the inner rule replace the outer would let a folder be opened to
+# the world by a rule written inside it, which is the opposite of a limit.
+#
+# THE RENDER PATH IS MODULE-FREE (ADR 0001), so the decision is not copied here: the
+# module is loaded on first use by _lazy_lib, exactly as Auth::Identity is for the
+# page gate (SM1131), and only when a layer names a list - a site with no address
+# rule never loads it. The lazy load is the established pattern, and a pinned copy
+# of the decision would be a second answer to "is this address in that list" where
+# SM1138 made one.
+
+# The refusal sentence, ruled 2026-10-17 (SM1134, question 5). It does not name the
+# list. Lazysite::Auth::Acl::address_denial carries the same words; t/unit/processor/140
+# holds the two together.
+sub _address_refusal_sentence { return 'This page is not available from your address.' }
+
+# The acls.json entries, nearest first, that name an address list for $rel: its own
+# key, its page stem's (a folder's rule covers the section's landing page, SM268
+# H14), every ancestor folder's, then the site-wide rule. Returns [ { key, allow,
+# deny } ]. An entry naming no list is not a layer.
+sub _address_chain {
+    my ( $map, $rel ) = @_;
+    return [] unless ref $map eq 'HASH';
+    $rel =~ s{\A/+}{};
+    my ( @out, %seen );
+    my $take = sub {
+        my ($k) = @_;
+        return unless defined $k && !$seen{$k}++;
+        my $e = $map->{$k};
+        return unless ref $e eq 'HASH';
+        my $allow = ref $e->{addresses} eq 'ARRAY' ? [ grep { defined && !ref } @{ $e->{addresses} } ] : [];
+        my $deny = ref $e->{addresses_deny} eq 'ARRAY' ? [ grep { defined && !ref } @{ $e->{addresses_deny} } ] : [];
+        push @out, { key => $k, allow => $allow, deny => $deny } if @$allow || @$deny;
+    };
+    $take->($rel) if exists $map->{$rel};
+    $take->($1)   if $rel =~ m{\A(.+)\.(?:md|url|html)\z} && exists $map->{$1};
+    my $idx = _acl_prefix_index($map);
+    my $i   = length $rel;
+    while ( ( $i = rindex( $rel, '/', $i - 1 ) ) > 0 ) {
+        my $p = substr( $rel, 0, $i );
+        next if $p =~ m{/\z};
+        $take->($_) for @{ $idx->{$p} || [] };
+    }
+    $take->($_) for '/', '', '.';
+    return \@out;
+}
+
+# Every layer that limits $abs by address: the page's own front matter (a .md page
+# only), then its acls.json chain. [] when nothing limits it - the common case, and
+# the cheap one: no store and no front-matter list is two file tests.
+sub _address_layers_for {
+    my ($abs) = @_;
+    my @layers;
+    if ( $abs =~ /\.md\z/ ) {
+        my $m = peek_auth($abs);
+        push @layers, { key => "page:$abs", allow => $m->{addresses}, deny => $m->{addresses_deny} }
+            if @{ $m->{addresses} || [] } || @{ $m->{addresses_deny} || [] };
+    }
+    my $f = "$LAZYSITE_DIR/auth/acls.json";
+    if ( -f $f ) {
+        my $real = realpath($abs);
+        my $rel  = defined $real ? _content_rel($real) : undef;
+        # A store that will not load is refused to everyone by _acl_refused's own
+        # read check; there is no chain to read from it.
+        if ( defined $rel ) {
+            my $map = _acl_map($rel);
+            push @layers, @{ _address_chain( $map, $rel ) } if ref $map eq 'HASH';
+        }
+    }
+    return \@layers;
+}
+
+# 1 if it has written a refusal (the caller stops), 0 to carry on. Asked FIRST by
+# _acl_refused, before the who-may-read check, for two reasons: it needs no
+# identity, so an address outside the rule is refused without a sign-in that could
+# not help it (a login bounce would send a visitor to a form that cannot admit them);
+# and it must not be skipped by anything a page can declare about itself, as a
+# section gate must not be overridable by `auth: none` (SM181). BOTH rules must
+# allow - an address rule narrows who may read, it never widens it - so passing here
+# only hands the request to the existing checks.
+#
+# A DRAFT section answers 404 instead, as _acl_refused does for its own refusals: a
+# 403 naming "your address" would confirm the URL exists, the thing SM181 holds back.
+sub _address_refused {
+    my ( $abs, $uri ) = @_;
+    my $layers = _address_layers_for($abs);
+    return 0 unless @$layers;
+
+    # SM651: the way in is never gated by the thing it is the way in to.
+    return 0 if is_auth_surface($uri) || _is_engine_asset($uri);
+
+    _lazy_lib('Lazysite::Auth::AddressLists');
+    _lazy_lib('Lazysite::Auth::AddressAudit');
+    {
+        no warnings 'once';
+        $Lazysite::Auth::AddressLists::AUTH_DIR = "$LAZYSITE_DIR/auth";
+    }
+    my $address = Lazysite::Auth::AddressLists::client_address();
+    for my $l (@$layers) {
+        my ( $verdict, $why ) = Lazysite::Auth::AddressLists::decide( $address,
+            allow => $l->{allow}, deny => $l->{deny} );
+        next if $verdict eq 'allow';
+
+        log_event( 'WARN', $uri, 'refused by address', reason => $why );
+        Lazysite::Auth::AddressAudit::refused(
+            lazysite_dir => $LAZYSITE_DIR,
+            target       => $uri,
+            address      => $address,
+            reason       => $why,
+            lists        => [ @{ $l->{allow} }, @{ $l->{deny} } ],
+            origin       => 'web',
+        );
+        $ACCESS_REC{ar} = 1;
+        if ( _acl_is_draft($abs) ) {
+            not_found($uri);
+            return 1;
+        }
+        %AUTH_CONTEXT = ( authenticated => 0, auth_denied_reason => 'address' );
+        serve_403( { forbidden => 1, auth_denied_reason => 'address' } );
+        return 1;
+    }
+    return 0;
+}
+
 sub _acl_governed {
     my ($abs) = @_;
+    # SM1139: a path limited by address varies by visitor, so it is governed: no
+    # shared cache either way, no-store on the response, out of the registries.
+    return 1 if @{ _address_layers_for($abs) };
     my $f = "$LAZYSITE_DIR/auth/acls.json";
     return 0 unless -f $f;
     my $real = realpath($abs);
@@ -612,7 +756,11 @@ sub _acl_governed {
 sub _acl_governing_key {
     my ($abs) = @_;
     my $f = "$LAZYSITE_DIR/auth/acls.json";
-    return undef unless -f $f;
+    # SM1139: no store still leaves a page's own front-matter address lists.
+    unless ( -f $f ) {
+        my @own = map { $_->{key} } @{ _address_layers_for($abs) };
+        return @own ? join( '+', @own ) : undef;
+    }
     my $real = realpath($abs);
     return undef unless defined $real;
     my $rel = _content_rel($real);
@@ -626,11 +774,21 @@ sub _acl_governing_key {
     # write-only rule decides no audience, so a partial under one is public
     # content, and a page under one is "governed by nothing" for this check.
     my $entry = _acl_entry_for( $map, $rel, 'see' );
-    return undef unless ref $entry eq 'HASH';
-    for my $k ( keys %$map ) {
-        return $k if ref $map->{$k} eq 'HASH' && $map->{$k} == $entry;
+    my $key;
+    if ( ref $entry eq 'HASH' ) {
+        for my $k ( keys %$map ) {
+            if ( ref $map->{$k} eq 'HASH' && $map->{$k} == $entry ) { $key = $k; last }
+        }
     }
-    return undef;
+
+    # SM1139: AN ADDRESS RULE IS AN AUDIENCE TOO. A partial limited to the office
+    # included by a public page would put the office's text in front of everyone,
+    # so the including page must sit under the same address rules as the partial.
+    # The key is the read rule's key and then each address layer's, so a path with
+    # no address rule answers exactly as it did.
+    my @addr = map { $_->{key} } @{ _address_layers_for($abs) };
+    return $key unless @addr;
+    return join( '+', ( defined $key ? $key : () ), @addr );
 }
 
 # SM223: gate a SOURCE-LESS static file (no .md/.url behind it) on the ACL.
@@ -644,6 +802,9 @@ sub _acl_governing_key {
 # Authenticated and refused gets 403, because logging in again will not help.
 sub _acl_refused {
     my ( $abs, $uri ) = @_;
+
+    # SM1139: the visitor's address first (see _address_refused).
+    return 1 if _address_refused( $abs, $uri );
 
     my $f = "$LAZYSITE_DIR/auth/acls.json";
     return 0 unless -f $f;    # no store, no cost

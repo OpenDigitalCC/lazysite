@@ -163,6 +163,10 @@ our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, %ACCESS_REC );
         $m{auth}    = $ak->{auth}    if defined $ak->{auth};
         $m{payment} = $ak->{payment} if defined $ak->{payment};
         $m{groups} = $ak->{auth_groups} if ref $ak->{auth_groups} eq 'ARRAY' && @{ $ak->{auth_groups} };
+        # SM1139: the address lists a page names, on the same terms as its groups.
+        for my $k (qw(addresses addresses_deny)) {
+            $m{$k} = $ak->{$k} if ref $ak->{$k} eq 'ARRAY' && @{ $ak->{$k} };
+        }
         $m{access_unreadable} = $ak->{unreadable} if %{ $ak->{unreadable} };
         $m{query_params}      = \@qp              if @qp;
 
@@ -182,6 +186,9 @@ sub peek_auth {
     return {
         auth   => $m->{auth},
         groups => $m->{groups} // [],
+        # SM1139: the address lists the page names (empty when it names none).
+        addresses      => $m->{addresses}      // [],
+        addresses_deny => $m->{addresses_deny} // [],
         # SM993: a paid page's auth_groups is its payment bypass, not a sign-in.
         payment => $m->{payment},
         # SM980: { key => why } for an access key that cannot be read.
@@ -441,6 +448,18 @@ sub serve_403 {
         $page = _sanitise_not_found($page);
         _rewrite_if_changed( $html_path, $page ) if -f $html_path;
 
+        # SM1139: the refusal by address says the ruled sentence. The shipped 403
+        # page has a branch for it; a site's own copy of the page may not, and
+        # would say "sign in" to a visitor no sign-in can admit. So the sentence
+        # is put after the first heading when the page did not carry it.
+        if ( ( $auth_result->{auth_denied_reason} // '' ) eq 'address' ) {
+            my $said = _address_refusal_sentence();
+            unless ( index( $page, $said ) >= 0 ) {
+                my $p = "<p>$said</p>";
+                $page =~ s{(</h1>)}{$1$p}i or $page =~ s{(<body[^>]*>)}{$1$p}i or $page = $p . $page;
+            }
+        }
+
         # SM381: through output_page, which carries the baseline header set and
         # records the byte count for analytics. no-store/private is what
         # output_page already emits for an auth-protected response, which this
@@ -459,7 +478,9 @@ sub serve_403 {
         . '<h1>' . _chrome('forbidden.title') . '</h1>'
         . '<p>'
         . (
-        ( ( $auth_result->{auth_denied_reason} // '' ) eq 'insufficient_groups' )
+        ( ( $auth_result->{auth_denied_reason} // '' ) eq 'address' )
+        ? _address_refusal_sentence()    # SM1139
+        : ( ( $auth_result->{auth_denied_reason} // '' ) eq 'insufficient_groups' )
         ? _chrome('forbidden.insufficient')
         : _chrome('auth.required')
         )

@@ -197,7 +197,7 @@ sub parse_front_matter {
 # (lazysite-processor/front-matter.pm), which the gate and the render parse
 # share; this one serves `lazysite validate` and validate_page, which cannot
 # load the processor. t/lint/220 runs both over the same texts. Change one,
-# change both. Returns { auth, auth_groups, payment, unreadable => { key => why } }.
+# change both. Returns { auth, auth_groups, addresses, addresses_deny (SM1139), payment, unreadable => { key => why } }.
 # SM993: $where is 'manager' or 'content' when the caller knows where the page
 # is, and `auth: manager` on a content page is unreadable (see the original).
 sub read_access_keys {
@@ -216,7 +216,7 @@ sub read_access_keys {
     my %seen;
     for ( my $i = 0; $i < @lines; $i++ ) {
         my $line = $lines[$i];
-        next unless $line =~ /\A(auth|auth_groups|payment)[ \t]*:(.*)\z/i;
+        next unless $line =~ /\A(auth|auth_groups|addresses_deny|addresses|payment)[ \t]*:(.*)\z/ix;
         my ( $key, $rest ) = ( lc $1, $2 );
         if ( $seen{$key}++ ) {
             $out{unreadable}{$key} = "'$key' is given more than once";
@@ -238,7 +238,11 @@ sub read_access_keys {
             next;
         }
 
-        # auth_groups: an inline value, or the indented `- name` lines below it.
+        # auth_groups, addresses, addresses_deny (SM1139): an inline value, or the
+        # indented `- name` lines below it. The last two name ADDRESS LISTS, whose
+        # names are the store's ([a-z0-9_-], SM1138), not a group's.
+        my $noun   = $key eq 'auth_groups' ? 'group' : 'address list';
+        my $NAMEOK = $key eq 'auth_groups' ? $NAME   : qr/\A[a-z0-9_-]{1,64}\z/;
         my $inline = $rest;
         $inline =~ s/\s+#.*\z//;
         $inline =~ s/\A\s+|\s+\z//g;
@@ -255,28 +259,32 @@ sub read_access_keys {
             if ( @items || $stray ) { $why = 'has a value on its line and an indented list below it' }
             elsif ( $inline =~ /\A\[(.*)\]\z/ ) {
                 my $inner = $1;
-                if ( $inner =~ /\A\s*\z/ ) { $why = 'is an empty list - it names no group' }
+                if ( $inner =~ /\A\s*\z/ ) { $why = 'is an empty list - it names no ' . $noun }
                 else { @names = map { $clean->($_) } split /,/, $inner, -1 }
             }
             else {
       # SM1094: quote the value as read and show the forms on their own - splicing it into
       # the example read garbled for `[` ("write [[] or a '- [' line").
                 $why = "has the value '$inline', which could not be read as a list - write "
-                    . q{auth_groups: [editors], or one "- editors" line per group below it};
+                    . ( $key eq 'auth_groups'
+                    ? q{auth_groups: [editors], or one "- editors" line per group below it}
+                    : qq{$key: [office], or one "- office" line per list below it} );
             }
         }
         elsif ($stray) { $why = 'has an indented line below it that is not a list item' }
         elsif (@items) { @names = map { $clean->($_) } @items }
-        else           { $why   = 'has no value - it names no group' }
+        else           { $why   = 'has no value - it names no ' . $noun }
         if ( !defined $why ) {
-            my ($bad) = grep { $_ !~ $NAME } @names;
+            my ($bad) = grep { $_ !~ $NAMEOK } @names;
             $why = length( $bad // '' )
+                ? ( $key eq 'auth_groups'
                 ? "'$bad' is not a group name (letters, digits, '.', '_' or '-')"
+                : "'$bad' is not an address list name (lowercase letters, digits, '_' or '-')" )
                 : 'has an empty entry'
                 if defined $bad;
         }
-        if   ( defined $why ) { $out{unreadable}{auth_groups} = "'auth_groups' $why" }
-        else                  { $out{auth_groups}             = \@names }
+        if   ( defined $why ) { $out{unreadable}{$key} = "'$key' $why" }
+        else                  { $out{$key}             = \@names }
     }
     return \%out;
 }
@@ -295,6 +303,7 @@ sub _check_access_keys {
             message => "$u->{$k}, so the page is refused to everyone (403) until it is "
                 . ( $k eq 'auth_groups'
                 ? 'a list of group names - [a, b], or one "- name" line each'
+                : $k =~ /\Aaddresses/ ? 'a list of address list names - [office], or one "- name" line each'
                 : $u->{$k} =~ /auth: manager/ ? 'changed as it says'
                 :                               'one of the values listed' ) };
     }

@@ -60,7 +60,7 @@ my $verb = shift @ARGV;
 $verb = defined $verb ? $verb : '';
 
 my %opt = ( docroot => '', actor => '', read => undef, write => undef,
-    draft => undef, owner => undef, json => 0 );
+    draft => undef, owner => undef, json => 0, addresses => undef, addresses_deny => undef );
 
 Getopt::Long::GetOptions(
     'docroot=s' => \$opt{docroot},
@@ -69,6 +69,8 @@ Getopt::Long::GetOptions(
     'write=s'   => \$opt{write},
     'owner=s'   => \$opt{owner},
     'draft!'    => \$opt{draft},
+    'addresses=s'      => \$opt{addresses},        # SM1139
+    'addresses-deny=s' => \$opt{addresses_deny},
     'apply'     => \$opt{apply},
     'json'      => \$opt{json},
     'help|h'    => sub { usage(0) },
@@ -354,6 +356,11 @@ sub cmd_show {
     print '  write:  '
         . ( @{ $a->{write} || [] } ? join( ',', @{ $a->{write} } ) : '- (anyone)' ) . "\n";
     print '  policy: ' . ( $a->{draft} ? 'draft (404 to the public)' : 'gated' ) . "\n";
+    # SM1139: the address lists, when the rule names any.
+    print '  addresses:      ' . join( ',', @{ $a->{addresses} } ) . "\n"
+        if ref $a->{addresses} eq 'ARRAY' && @{ $a->{addresses} };
+    print '  addresses-deny: ' . join( ',', @{ $a->{addresses_deny} } ) . "\n"
+        if ref $a->{addresses_deny} eq 'ARRAY' && @{ $a->{addresses_deny} };
     return 0;
 }
 
@@ -362,16 +369,19 @@ sub cmd_set {
     my $actor = require_actor();
     fail('a PATH is required (use "/" for the whole site)')
         unless defined $path && length $path;
-    fail('nothing to set - give at least one of --read, --write, --owner, --draft/--no-draft')
+    fail('nothing to set - give at least one of --read, --write, --owner, --draft/--no-draft, --addresses, --addresses-deny')
         unless defined $opt{read}
         || defined $opt{write}
         || defined $opt{owner}
-        || defined $opt{draft};
+        || defined $opt{draft}
+        || defined $opt{addresses}
+        || defined $opt{addresses_deny};
 
     my $r = with_actor( $actor, sub {
             return action_acl_set( $path, $actor, subjects( $opt{read} ),
                 subjects( $opt{write} ), $opt{owner},
-                ( defined $opt{draft} ? ( $opt{draft} ? 'true' : 'false' ) : undef ) );
+                ( defined $opt{draft} ? ( $opt{draft} ? 'true' : 'false' ) : undef ),
+                { addresses => $opt{addresses}, addresses_deny => $opt{addresses_deny} } );
     } );
     say_warnings($r);
     my $rc = emit($r);
@@ -587,6 +597,7 @@ Sub-commands:
   show PATH                 the rule governing PATH, if any
   set  PATH --actor USER [--read LIST] [--write LIST] [--owner USER]
                          [--draft | --no-draft]
+                         [--addresses LIST] [--addresses-deny LIST]
   remove PATH --actor USER
   reapply --actor USER [--apply]
                          re-issue every stored rule so its content moves out
@@ -610,6 +621,10 @@ Options:
   --write LIST   likewise, for editing.
   --draft        hold the section back entirely: 404 to the public, and absent
                  from the sitemap, feeds and search. --no-draft clears it.
+  --addresses LIST       (SM1139) comma-separated names of ALLOW address lists: the
+                 path is served only to an address in one of them. Omit to
+                 leave unchanged; an EMPTY value clears.
+  --addresses-deny LIST  likewise for DENY lists; deny wins.
   --json         machine-readable output.
 
 PATH is relative to the document root, NOT to a domain's URL - on a

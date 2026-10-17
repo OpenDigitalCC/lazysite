@@ -390,6 +390,10 @@ sub action_list {
                     $entry->{owner} = $a->{owner} if defined $a->{owner};
                     $entry->{read}  = $a->{read}  if ref $a->{read} eq 'ARRAY';
                     $entry->{write} = $a->{write} if ref $a->{write} eq 'ARRAY';
+                   # SM1139: the address lists the rule names, for the permissions editor.
+                    for my $af (qw(addresses addresses_deny)) {
+                        $entry->{$af} = $a->{$af} if ref $a->{$af} eq 'ARRAY' && @{ $a->{$af} };
+                    }
                 }
 
                 # SM360: WHICH RULE is in effect, not just whether this file has
@@ -426,7 +430,8 @@ sub action_list {
         path => $dir_path, hidden => $hidden, user => $auth_user )
         if $hidden;
 
-    return { ok => 1, path => $dir_path, entries => \@entries };
+    return { ok => 1, path => $dir_path, entries => \@entries,
+        address_lists => _address_list_choices() }; # SM1139: for the permissions editor's pickers
 }
 
 sub action_read {
@@ -2004,6 +2009,7 @@ sub action_acl_get {
                 if $a && ( $a->{owner} // '' ) ne ( $user // '' );
         }
         return { ok => 1, path => '/', acl => $a,
+            address_lists => _address_list_choices(),
             Lazysite::Auth::Settings::display_names_block( _acl_logins($a) ) };
     }
 
@@ -2017,7 +2023,20 @@ sub action_acl_get {
             if $a && ( $a->{owner} // '' ) ne ( $user // '' );
     }
     return { ok => 1, path => $r->{rel}, acl => $a,
+        address_lists => _address_list_choices(),
         Lazysite::Auth::Settings::display_names_block( _acl_logins($a) ) };
+}
+
+# SM1139: the address lists a rule may name - name and kind, no entries. Offered by
+# acl-get so the Files page's permissions editor can show a choice to whoever may
+# set a rule; the entries are the site's own network and stay with Access -> Address
+# lists (manage_users), as SM1138 holds them.
+sub _address_list_choices {
+    require Lazysite::Auth::AddressLists;
+    no warnings 'once';
+    local $Lazysite::Auth::AddressLists::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
+    my $lists = Lazysite::Auth::AddressLists::lists();
+    return [ map { { name => $_, kind => $lists->{$_}{kind} } } sort keys %$lists ];
 }
 
 # SM287: which spellings mean "the whole site", and which are refused.
@@ -2382,7 +2401,7 @@ sub dispatch_acl_set {
     # Every signal available to them said protected. That is worse than an
     # unimplemented parameter, and it is why this refuses rather than warns.
     elsif ( my @misrouted = grep { exists $params{$_} }
-        qw(read write owner draft) )
+        qw(read write owner draft addresses addresses_deny) )
     {
         $result = { ok => 0,
             kind  => 'misrouted-argument',
@@ -2417,10 +2436,12 @@ sub dispatch_acl_set {
         my $r_write = $req->{write};
         my $r_owner = $req->{owner};
         my $r_draft = $req->{draft};
+        my $r_addr  = $req->{addresses};
+        my $r_deny  = $req->{addresses_deny};
 
         $result = action_acl_set( $Lazysite::Manager::Common::path, $Lazysite::Manager::Common::auth_user,
             $r_read,  $r_write,
-            $r_owner, $r_draft );
+            $r_owner, $r_draft, { addresses => $r_addr, addresses_deny => $r_deny } );
         # SM1091: the audit's after-state is the rule action_acl_set STORED, not
         # the request that asked for it. The request's lists arrive as an array
         # or as a string ("@g" / "a, b"), and the formatter reads arrays only, so
@@ -2432,10 +2453,12 @@ sub dispatch_acl_set {
         $ACL_AUDIT_AFTER
             = ( ref $result eq 'HASH' && ref $result->{acl} eq 'HASH' ) ? $result->{acl}
             : {
-            read  => $r_read,
-            write => $r_write,
-            owner => $r_owner,
-            draft => $r_draft,
+            read           => $r_read,
+            write          => $r_write,
+            owner          => $r_owner,
+            draft          => $r_draft,
+            addresses      => $r_addr,
+            addresses_deny => $r_deny,
             };
     }
     return ( $result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
@@ -2467,7 +2490,7 @@ sub _acl_set_many {
             error => 'acl-set was given a path and a list of paths. Send one of them. '
                 . 'Nothing was changed.' }, undef, undef )
         if exists $params{path} || exists $req->{path};
-    if ( my @misrouted = grep { exists $params{$_} } qw(read write owner draft) ) {
+    if ( my @misrouted = grep { exists $params{$_} } qw(read write owner draft addresses addresses_deny) ) {
         return ( { ok => 0, kind => 'misrouted-argument',
                 error => 'acl-set reads its lists from the JSON request body, not the query '
                     . 'string, so ' . join( ' and ', map { "\"$_\"" } @misrouted )
@@ -2479,10 +2502,13 @@ sub _acl_set_many {
     my $m_write = $req->{write};
     my $m_owner = $req->{owner};
     my $m_draft = $req->{draft};
+    my $m_addr  = $req->{addresses};
+    my $m_deny  = $req->{addresses_deny};
 
     my @refused;
     for my $p (@paths) {
-        my $v = action_acl_set( $p, $user, $m_read, $m_write, $m_owner, $m_draft, { dry_run => 1 } );
+        my $v = action_acl_set( $p, $user, $m_read, $m_write, $m_owner, $m_draft,
+            { dry_run => 1, addresses => $m_addr, addresses_deny => $m_deny } );
         push @refused, { path => $p, error => $v->{error} // 'refused',
             ( $v->{kind} ? ( kind => $v->{kind} ) : () ) }
             unless ref $v eq 'HASH' && $v->{ok};
@@ -2498,8 +2524,9 @@ sub _acl_set_many {
     my $all_ok = 1;
     for my $p (@paths) {
         my $before = action_acl_get( $p, $user );
-        my $r      = action_acl_set( $p, $user, $m_read, $m_write, $m_owner, $m_draft );
-        my $ok     = ref $r eq 'HASH' && $r->{ok} ? 1 : 0;
+        my $r      = action_acl_set( $p, $user, $m_read, $m_write, $m_owner, $m_draft,
+            { addresses => $m_addr, addresses_deny => $m_deny } );
+        my $ok = ref $r eq 'HASH' && $r->{ok} ? 1 : 0;
         $all_ok &&= $ok;
         push @results, { path => ( ref $r eq 'HASH' && $r->{path} ) // $p, ok => $ok,
             ( $ok ? () : ( kind => $r->{kind}, error => $r->{error} ) ),
@@ -2515,7 +2542,8 @@ sub _acl_set_many {
         my $apath = ( ref $r eq 'HASH' && $r->{path} ) // $p;
         $apath = "/$apath" unless $apath =~ m{\A/};
         my $was = ( ref $before eq 'HASH' && $before->{ok} ) ? $before->{acl} : undef;
-        my $now = { read => $m_read, write => $m_write, owner => $m_owner, draft => $m_draft };
+        my $now = { read => $m_read, write => $m_write, owner => $m_owner, draft => $m_draft,
+            addresses => $m_addr, addresses_deny => $m_deny };
         $now = $r->{acl} if ref $r eq 'HASH' && ref $r->{acl} eq 'HASH';
         push @audit, [ $apath, $was, $now, $ok,
             ( $ok ? '' : ( $r->{kind} // $r->{error} // '' ) ) ];
@@ -2525,6 +2553,57 @@ sub _acl_set_many {
             paths => scalar(@paths), results => \@results, _acl_audit => \@audit,
             ( @warnings ? ( warnings => \@warnings ) : () ) },
         undef, undef );
+}
+
+# SM1139: the names in an `addresses` / `addresses_deny` value - an array, or a
+# comma-separated string as the other lists arrive from a form or the MCP schema.
+# ( \@names, undef ) or ( undef, why ). Only the SHAPE is checked here (the
+# store's own name rule); whether the list exists is a warning, not a refusal.
+sub _address_list_names {
+    my ( $v, $field ) = @_;
+    my @in = ref $v eq 'ARRAY' ? @$v : ref $v ? () : split( /\s*,\s*/, $v );
+    return ( undef, "$field is a list of address list names - an array, or names separated by commas" )
+        if ref $v && ref $v ne 'ARRAY';
+    require Lazysite::Auth::AddressLists;
+    my ( @names, %seen );
+    for my $n (@in) {
+        next unless defined $n;
+        $n =~ s/\A\s+|\s+\z//g if !ref $n;
+        next                   if !ref $n && !length $n;
+        return ( undef, "'" . ( ref $n ? 'a nested value' : $n ) . "' is not an address list name in $field "
+                . "(lowercase letters, digits, '_' or '-', up to 64). Nothing was changed." )
+            unless Lazysite::Auth::AddressLists::valid_name($n);
+        push @names, $n unless $seen{$n}++;
+    }
+    return ( \@names, undef );
+}
+
+# The warnings for a rule's address lists: [ field, name ] pairs.
+sub _address_list_warnings {
+    my ($pairs) = @_;
+    return () unless @$pairs;
+    require Lazysite::Auth::AddressLists;
+    no warnings 'once';
+    local $Lazysite::Auth::AddressLists::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
+    my $lists = Lazysite::Auth::AddressLists::lists();
+    my ( @unknown, @wrong );
+    for my $p (@$pairs) {
+        my ( $f, $n ) = @$p;
+        my $want = $f eq 'addresses' ? 'allow' : 'deny';
+        if ( !$lists->{$n} ) { push @unknown, "$n ($f)" }
+        elsif ( $lists->{$n}{kind} ne $want ) { push @wrong, "$n is a $lists->{$n}{kind} list and is named in $f" }
+    }
+    my @w;
+    push @w, 'this rule names address lists the store does not hold yet: ' . join( ', ', @unknown )
+        . '. They are accepted, because a list may be created later. Until it exists, an allow list '
+        . 'that is missing admits NO address (the path is refused to everyone) and a deny list that '
+        . 'is missing blocks none.'
+        if @unknown;
+    push @w, 'this rule names a list of the wrong kind - ' . join( '; ', @wrong )
+        . '. It contributes no addresses; an allow list named under addresses_deny blocks nobody, '
+        . 'and a deny list named under addresses is an allow list with nothing in it.'
+        if @wrong;
+    return @w;
 }
 
 sub action_acl_set {
@@ -2575,10 +2654,32 @@ sub action_acl_set {
     my $owner =
         $existing ? $existing->{owner}
         : ( file_rule_bypass() && defined $owner_req && length $owner_req ) ? $owner_req
-        :                                                                 $user;
+        :                                                                     $user;
     my %rec = ( owner => $owner );
     my $rl  = _to_list($read);  $rec{read}  = $rl if defined $rl;
     my $wl  = _to_list($write); $rec{write} = $wl if defined $wl;
+
+    # SM1139 (slice B of SM1134): THE RULE MAY NAME ADDRESS LISTS. `addresses`
+    # (allow) and `addresses_deny` are lists of list NAMES from the store SM1138
+    # keeps. Like `draft`, absent means "leave as it is" - this record is rebuilt
+    # from scratch, so an existing rule's lists would otherwise be erased by an
+    # unrelated change - and an empty list clears. A name must be a valid list
+    # name (the store's own rule); a name the store does not know YET is accepted
+    # and WARNED about below, because a list may be created later (the same ruling
+    # as SM901's unknown account), not refused.
+    my @addr_names;
+    for my $f (qw(addresses addresses_deny)) {
+        my $given = ref $opts eq 'HASH' ? $opts->{$f} : undef;
+        if ( defined $given ) {
+            my ( $names, $why ) = _address_list_names( $given, $f );
+            return { ok => 0, kind => 'invalid', field => $f, error => $why } if defined $why;
+            $rec{$f} = $names                                                 if @$names;
+            push @addr_names, map { [ $f, $_ ] } @$names;
+        }
+        elsif ( $existing && ref $existing->{$f} eq 'ARRAY' && @{ $existing->{$f} } ) {
+            $rec{$f} = [ @{ $existing->{$f} } ];
+        }
+    }
 
     # SM901: EVERY NAME IN A LIST IS CHECKED AGAINST THE STORE.
     #
@@ -2822,6 +2923,12 @@ sub action_acl_set {
             . 'the day the name exists; until then it matches nobody. A group '
             . 'is spelt @name.';
     }
+
+    # SM1139: the address lists this rule names that the store does not hold, or
+    # holds the other way round. Accepted, because a list may be created later;
+    # said, because until it exists an allow list naming it admits nobody (the
+    # path is refused to every address) and a deny list naming it blocks nobody.
+    push @warnings, _address_list_warnings( \@addr_names );
 
     # SM912 P4: said in the same place, for the same reason. A rule written
     # against a store that knows nobody is stored as typed and checked against

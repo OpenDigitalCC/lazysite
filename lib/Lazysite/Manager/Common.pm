@@ -1843,6 +1843,7 @@ sub processor_path {
 # t/lint/139 holds this closed: every `kind => '...'` the tree emits is either
 # a key here or named in that test's "400 is the right answer" list.
 our %REFUSAL_STATUS = (
+    'address' => '403 Forbidden', # SM1139: the file is limited by the address it is asked from
     ( map { $_ => '403 Forbidden' } qw(forbidden not-yours permission blocked disabled served-artifact-refused form-bind-refused) ),
     ( map { $_ => '404 Not Found' }
             qw(not-found unknown-domain

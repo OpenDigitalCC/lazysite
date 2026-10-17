@@ -50,7 +50,7 @@ tone: medium
 `accounts-import-stage` | manage_users | accounts (body), csv (body)
 `acl-get` | manage_content | path (query)
 `acl-remove` | manage_content | path (query)
-`acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body), paths (body)
+`acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body), addresses (body), addresses_deny (body), paths (body)
 `actions-list` | any authenticated |  
 `address-list-delete` | cookie only | name (body)
 `address-list-set` | cookie only | name (body), kind (body), entries (body)

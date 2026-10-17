@@ -7,9 +7,9 @@ package Lazysite::Auth::Acl;
 
 use strict;
 use warnings;
-use JSON::PP       ();
-use File::Path     qw(make_path);
-use File::Basename qw(dirname);
+use JSON::PP                 ();
+use File::Path               qw(make_path);
+use File::Basename           qw(dirname);
 use Lazysite::Auth::Identity ();    # SM1131: the one reader of the request's groups
 use Lazysite::Util ();    # SM289: secure_write_perms - root must not own this store
 use Exporter 'import';
@@ -22,7 +22,7 @@ use Lazysite::Auth::Settings ();
 our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
     _is_operator _acl_denied groups_for_user may_read_any_rule file_rule_bypass
     account_is_operator group_confers_operator
-    gating_for root_gating placement_for relocating_key);
+    gating_for root_gating placement_for relocating_key address_denial address_chain);
 
 our $DOCROOT;    # set by the script
 
@@ -793,11 +793,92 @@ sub group_confers_operator {
     return Lazysite::Auth::Settings::groups_are_operator($group) ? 1 : 0;
 }
 
+# SM1139 (slice B of SM1134): THE ADDRESS RULE, for the doors that are not the
+# processor - the manager API, MCP and WebDAV read and write files through
+# _acl_denied / WebDAV's authorise, and a file under an address rule is limited by
+# the address wherever it is reached. The processor decides the same question in
+# lazysite-processor/acl.pm (_address_chain, _address_refused) on the render path,
+# which cannot load this tree up front (ADR 0001); t/unit/processor/140 holds the
+# two chains and the sentence to the same answers.
+#
+# THE LAYERS. Every acls.json entry that names an address list for $rel - its own
+# key, its page stem's, each ancestor folder's, the site-wide rule - is one layer.
+# Each layer is decided alone by Lazysite::Auth::AddressLists::decide (the address
+# in one of its allow lists, in none of its deny lists) and EVERY layer must admit:
+# AND across layers, OR within one, deny wins. See the processor's note for why this
+# is not the longest-match rule the read lists use.
+sub address_chain {
+    my ( $map, $rel ) = @_;
+    return [] unless ref $map eq 'HASH' && defined $rel;
+    $rel = _acl_norm($rel) // '';
+    $rel =~ s{/+\z}{};
+    my $stem = $rel =~ m{\A(.+)\.(?:md|url|html)\z} ? $1 : undef;
+    my ( @own, @stem, @above, @site );
+    for my $k ( sort keys %$map ) {
+        my $e = $map->{$k};
+        next unless ref $e eq 'HASH';
+        my $allow = ref $e->{addresses} eq 'ARRAY' ? [ grep { defined && !ref } @{ $e->{addresses} } ] : [];
+        my $deny = ref $e->{addresses_deny} eq 'ARRAY' ? [ grep { defined && !ref } @{ $e->{addresses_deny} } ] : [];
+        next unless @$allow || @$deny;
+        # The same spellings the processor's chain takes (t/unit/processor/140): the
+        # key as written, leading slashes off, is the path's own (or its stem's); a
+        # folder is the key with trailing slashes off and a `/` after it; the
+        # site-wide rule is '/', '' or '.'.
+        ( my $kn = $k )  =~ s{\A/+}{};
+        ( my $p  = $kn ) =~ s{/+\z}{};
+        my $layer = { key => $k, allow => $allow, deny => $deny };
+        if    ( $kn eq '' || $kn eq '.' )                { push @site,  $layer }
+        elsif ( $kn eq $rel )                            { push @own,   $layer }
+        elsif ( defined $stem && $kn eq $stem )          { push @stem,  $layer }
+        elsif ( length $p && index( $rel, "$p/" ) == 0 ) { push @above, $layer }
+    }
+    return [ @own, @stem, ( sort { length $b->{key} <=> length $a->{key} } @above ), @site ];
+}
+
+# undef when the address admits, else the refusal a caller returns: { ok => 0,
+# kind => 'address', error => the ruled sentence }. Not asked outside a web request
+# (no REMOTE_ADDR: the users tool, a script) - there is no visitor to limit - and
+# there is NO operator bypass: a rule that limits a file to the office limits the
+# operator too (the group form of this, an operator group held to one network, is
+# slice C's). A refusal is audited once per target per address per hour.
+sub address_denial {
+    my ( $rel, $origin ) = @_;
+    return undef unless defined $ENV{REMOTE_ADDR} && length $ENV{REMOTE_ADDR};
+    return undef unless defined $rel              && length $rel;
+    my $map = load_acls();
+    return undef if $ACLS_FAULT;    # _acl_denied's own store-fault refusal answers
+    my $layers = address_chain( $map, $rel );
+    return undef unless @$layers;
+
+    require Lazysite::Auth::AddressLists;
+    require Lazysite::Auth::AddressAudit;
+    no warnings 'once';
+    local $Lazysite::Auth::AddressLists::AUTH_DIR = _settings_dir();
+    my $address = Lazysite::Auth::AddressLists::client_address();
+    for my $l (@$layers) {
+        my ( $verdict, $why ) = Lazysite::Auth::AddressLists::decide( $address,
+            allow => $l->{allow}, deny => $l->{deny} );
+        next if $verdict eq 'allow';
+        Lazysite::Auth::AddressAudit::refused(
+            lazysite_dir => _lz(),
+            target       => '/' . ( _acl_norm($rel) // '' ),
+            address      => $address,
+            reason       => $why,
+            lists        => [ @{ $l->{allow} }, @{ $l->{deny} } ],
+            origin       => ( $origin // 'api' ),
+        );
+        return { ok => 0, kind => 'address', error => 'This page is not available from your address.' };
+    }
+    return undef;
+}
+
 # The per-file allow check with the bypass above; returns a refusal hashref or
 # undef if access is allowed. SM979: the bypass is file_rule_bypass, never
 # _is_operator - see there.
 sub _acl_denied {
     my ( $rel, $mode, $user ) = @_;
+    # SM1139: the visitor's address, before the bypass - see address_denial.
+    if ( my $by_address = address_denial($rel) ) { return $by_address }
     return undef if file_rule_bypass();
     return undef if _acl_allows( $rel, $mode, $user );
     # SM1024: refused because the store is broken, not because of a rule - the

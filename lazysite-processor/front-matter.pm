@@ -196,8 +196,8 @@ sub _parse_sections {
 # 403 for everyone. Never a guess: a single bare name is a string to YAML, not a
 # list, and an empty list names nobody - both refused, saying what to write.
 #
-# $fm is the front-matter text. Returns { auth, auth_groups, payment,
-# unreadable }; a key that is absent is undef and unreadable says nothing of it.
+# $fm is the front-matter text. Returns { auth, auth_groups, addresses,
+# addresses_deny, payment, unreadable }; a key that is absent is undef and unreadable says nothing of it.
 #
 # SM993 (ruled 2026-10-12, Findings 3+4, "Fix both as recommended"): $where
 # says where the page is, when the caller knows - 'manager' for a page under the
@@ -227,7 +227,7 @@ sub _access_keys_read {
     my %seen;
     for ( my $i = 0; $i < @lines; $i++ ) {
         my $line = $lines[$i];
-        next unless $line =~ /\A(auth|auth_groups|payment)[ \t]*:(.*)\z/i;
+        next unless $line =~ /\A(auth|auth_groups|addresses_deny|addresses|payment)[ \t]*:(.*)\z/ix;
         my ( $key, $rest ) = ( lc $1, $2 );
         if ( $seen{$key}++ ) {
             $out{unreadable}{$key} = "'$key' is given more than once";
@@ -249,7 +249,11 @@ sub _access_keys_read {
             next;
         }
 
-        # auth_groups: an inline value, or the indented `- name` lines below it.
+        # auth_groups, addresses, addresses_deny (SM1139): an inline value, or the
+        # indented `- name` lines below it. The last two name ADDRESS LISTS, whose
+        # names are the store's ([a-z0-9_-], SM1138), not a group's.
+        my $noun   = $key eq 'auth_groups' ? 'group' : 'address list';
+        my $NAMEOK = $key eq 'auth_groups' ? $NAME   : qr/\A[a-z0-9_-]{1,64}\z/;
         my $inline = $rest;
         $inline =~ s/\s+#.*\z//;
         $inline =~ s/\A\s+|\s+\z//g;
@@ -266,28 +270,32 @@ sub _access_keys_read {
             if ( @items || $stray ) { $why = 'has a value on its line and an indented list below it' }
             elsif ( $inline =~ /\A\[(.*)\]\z/ ) {
                 my $inner = $1;
-                if ( $inner =~ /\A\s*\z/ ) { $why = 'is an empty list - it names no group' }
+                if ( $inner =~ /\A\s*\z/ ) { $why = 'is an empty list - it names no ' . $noun }
                 else { @names = map { $clean->($_) } split /,/, $inner, -1 }
             }
             else {
       # SM1094: quote the value as read and show the forms on their own - splicing it into
       # the example read garbled for `[` ("write [[] or a '- [' line").
                 $why = "has the value '$inline', which could not be read as a list - write "
-                    . q{auth_groups: [editors], or one "- editors" line per group below it};
+                    . ( $key eq 'auth_groups'
+                    ? q{auth_groups: [editors], or one "- editors" line per group below it}
+                    : qq{$key: [office], or one "- office" line per list below it} );
             }
         }
         elsif ($stray) { $why = 'has an indented line below it that is not a list item' }
         elsif (@items) { @names = map { $clean->($_) } @items }
-        else           { $why   = 'has no value - it names no group' }
+        else           { $why   = 'has no value - it names no ' . $noun }
         if ( !defined $why ) {
-            my ($bad) = grep { $_ !~ $NAME } @names;
+            my ($bad) = grep { $_ !~ $NAMEOK } @names;
             $why = length( $bad // '' )
+                ? ( $key eq 'auth_groups'
                 ? "'$bad' is not a group name (letters, digits, '.', '_' or '-')"
+                : "'$bad' is not an address list name (lowercase letters, digits, '_' or '-')" )
                 : 'has an empty entry'
                 if defined $bad;
         }
-        if   ( defined $why ) { $out{unreadable}{auth_groups} = "'auth_groups' $why" }
-        else                  { $out{auth_groups}             = \@names }
+        if   ( defined $why ) { $out{unreadable}{$key} = "'$key' $why" }
+        else                  { $out{$key}             = \@names }
     }
     return \%out;
 }
@@ -376,7 +384,7 @@ sub parse_yaml_front_matter {
             next if $1 eq 'register';
             next if $1 eq 'query_params';
             next if $1 eq 'sections'; # nested block; parsed above (and \s* here would eat its first line)
-            next if $1 eq 'tags'        && ref $meta{tags} eq 'ARRAY';
+            next if $1 eq 'tags' && ref $meta{tags} eq 'ARRAY';
             next if $1 eq 'auth_groups';    # SM980: a list, read above, or none
                 # Strip TT directives from all scalar values including title and subtitle
             my ( $k, $v ) = ( $1, strip_tt_directives($2) );

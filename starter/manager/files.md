@@ -64,6 +64,7 @@ search: false
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var currentDir = '/';
 var PRINCIPALS = { users: [], groups: [] };   // SM077: assignable users + @groups
+var ADDRESS_LISTS = [];                       // SM1139: [{ name, kind }] the rule may name
 
 // SM019: must mirror %TEXT_EXTENSIONS in lazysite-manager-api.pl.
 var TEXT_EXTENSIONS = {
@@ -158,6 +159,7 @@ function loadDir(dir) {
             }
             return;
           }
+          ADDRESS_LISTS = data.address_lists || [];
           renderFiles(data.entries || []);
           updateSelection();
         });
@@ -604,6 +606,46 @@ function protectionBlock(f) {
     + '</div>' + acts;
 }
 
+// SM1139: the address lists a rule may name, as the two pickers of the permissions
+// card. Only the lists of the right kind are offered (an allow list under "Only
+// these addresses", a deny list under "Never these"); a name the rule already
+// carries that the store does not hold stays selected and is marked, so saving the
+// card does not silently drop it.
+function addressOptions(kind, chosen) {
+  chosen = chosen || [];
+  var have = {};
+  var h = '';
+  ADDRESS_LISTS.forEach(function(l) {
+    have[l.name] = true;
+    if (l.kind !== kind) return;
+    h += '<option value="' + escHtml(l.name) + '"' + (chosen.indexOf(l.name) >= 0 ? ' selected' : '') + '>' + escHtml(l.name) + '</option>';
+  });
+  chosen.forEach(function(n) {
+    if (!have[n]) h += '<option value="' + escHtml(n) + '" selected>' + escHtml(n) + ' (no such list yet)</option>';
+  });
+  return h;
+}
+
+function addressBlock(f) {
+  return '<div class="mg-perms-rights-label">Limited by address</div>'
+    + '<div class="mg-perms-owner"><label>Only these addresses</label>'
+    +   '<select multiple data-addr="allow" data-impact="edit">' + addressOptions('allow', f.addresses) + '</select></div>'
+    + '<div class="mg-perms-owner"><label>Never these</label>'
+    +   '<select multiple data-addr="deny" data-impact="edit">' + addressOptions('deny', f.addresses_deny) + '</select></div>'
+    + '<div class="mg-perms-hint">A visitor outside every list under <b>Only these addresses</b> is told the page is not available from their address; one on a list under <b>Never these</b> is refused whatever else allows them. Where a folder above also names lists, the address must satisfy both. Lists are kept under Access &rarr; Address lists.</div>';
+}
+
+// The names chosen in a card's two address pickers.
+function chosenAddresses(card) {
+  function picked(kind) {
+    var out = [], sel = card.querySelector('select[data-addr="' + kind + '"]');
+    if (!sel) return out;
+    for (var i = 0; i < sel.options.length; i++) if (sel.options[i].selected) out.push(sel.options[i].value);
+    return out;
+  }
+  return { addresses: picked('allow'), addresses_deny: picked('deny') };
+}
+
 // The per-file config card (collapsed by default; one open at a time).
 function permsCard(f) {
   return '<tr class="mg-expand" style="display:none"><td colspan="5" class="mg-perms-cell">'
@@ -615,6 +657,7 @@ function permsCard(f) {
     +   '<div class="mg-perms-owner"><label>Owner</label>'
     +     '<select class="mg-perm-owner">' + ownerOptions(f.owner) + '</select></div>'
     +   protectionBlock(f)
+    +   addressBlock(f)
     +   '<div class="mg-perms-rights-label">People &amp; groups with access</div>'
     +   '<div class="mg-rights">' + buildRights(f) + '</div>'
     +   '<div class="mg-rights-add">'
@@ -904,11 +947,14 @@ function savePerms(btn) {
     }
   }
 
+  var addr = chosenAddresses(card);   // SM1139
   var action, body;
-  if (!owner && !read.length && !write.length) {
+  if (!owner && !read.length && !write.length && !addr.addresses.length && !addr.addresses_deny.length) {
     action = 'acl-remove'; body = {};
   } else {
-    action = 'acl-set'; body = { owner: owner, read: read, write: write };
+    action = 'acl-set';
+    body = { owner: owner, read: read, write: write,
+             addresses: addr.addresses, addresses_deny: addr.addresses_deny };
   }
   fetch(API + '?action=' + action + '&path=' + encodeURIComponent(path), {
     method: 'POST',
@@ -918,7 +964,7 @@ function savePerms(btn) {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Could not save permissions', true); return; }
-      showStatus('Permissions updated.');
+      showStatus('Permissions updated.' + (d.warnings && d.warnings.length ? ' ' + d.warnings.join(' ') : ''));
       loadDir(currentDir);
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });

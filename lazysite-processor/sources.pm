@@ -1011,6 +1011,12 @@ sub _scan_hidden {
     # editor who may PREVIEW the page still does not see it listed.
     return 1 if _acl_is_draft($abs);
 
+    # SM1139: a page limited by address is out of every scan, for everyone. A scan
+    # is rendered into a page that may be cached, and what it lists would then
+    # depend on the first visitor's address; leaving the page out is the one
+    # answer that is the same for all of them.
+    return 1 if @{ _address_layers_for($abs) };
+
     my ( $user, $groups ) = _scan_identity();
 
     # The per-path ACL, keyed docroot-relative exactly as the read path keys it.
