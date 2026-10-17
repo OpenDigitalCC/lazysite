@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1143 (PENDING) **internal: the note-on-focus test waits for what it checks.**
+  Under heavy parallel load
+  the browser in the SM1104 test could return no document and the test read an
+  empty result, failing its two focus assertions; it now reruns the browser until
+  the page reports it finished and polls for the note up to a deadline. No CSS
+  change. t/unit/manager/349.
 - SM1131 (PENDING) **every reader honours the configured header names.** Only the
   page gate read `auth_header_*`; one reader, `Lazysite::Auth::Identity`, now
   serves the page gate, the file rules, the manager and the API, and takes its

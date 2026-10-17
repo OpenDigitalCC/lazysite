@@ -66,7 +66,7 @@ SKIP: {
 
 chomp( my $browser = `sh -c 'command -v chromium || command -v chromium-browser' 2>/dev/null` );
 SKIP: {
-    skip 'no chromium on this host: the note was NOT checked in a browser', scalar(@sheets) * 3 unless length $browser;
+    skip 'no chromium on this host: the note was NOT checked in a browser', scalar(@sheets) * 4 unless length $browser;
     my $dir = File::Temp->newdir;
     for my $css (@sheets) {
         ( my $name = $css ) =~ s{.*manager-(\w+)\.css}{$1};
@@ -80,18 +80,47 @@ window.addEventListener('load', function () {
   var a = document.getElementById('a'), b = document.getElementById('b');
   function c(e) { return getComputedStyle(e, '::after').content; }
   var r = { idle: c(a) };
-  a.focus(); r.focus = c(a);
-  b.focus(); r.edge = c(b);
-  var box = b.getBoundingClientRect();
-  r.right = Math.round(window.innerWidth - box.right);
-  document.title = JSON.stringify(r);
+  // SM1143: wait for the condition asserted, not for an instant. Focus lands
+  // and the page is made active asynchronously, so under load the first read
+  // can precede it. Focus again and read until the note shows or the deadline
+  // (200 x 50 ms, virtual time) passes; a note that never shows still reports
+  // whatever it did read, so the assertions below still fail.
+  function until(e, want, then) {
+    var n = 0;
+    (function poll() {
+      e.focus();
+      var v = c(e);
+      if (want.test(v) || ++n >= 200) return then(v);
+      setTimeout(poll, 50);
+    })();
+  }
+  until(a, /explanation/, function (v) {
+    r.focus = v;
+    until(b, /right edge/, function (w) {
+      r.edge = w;
+      var box = b.getBoundingClientRect();
+      r.right = Math.round(window.innerWidth - box.right);
+      r.done = 1;
+      document.title = JSON.stringify(r);
+    });
+  });
 });
 </script></body></html>};
         close $o;
-        my $dom = `timeout 60 \Q$browser\E --headless=new --no-sandbox --disable-gpu --user-data-dir=\Q$dir/p-$name\E --virtual-time-budget=3000 --dump-dom file://\Q$page\E 2>/dev/null`;
-        my ($t) = $dom =~ m{<title>(.*?)</title>}s;
-        $t =~ s/&quot;/"/g if defined $t;
-        my $r = eval { decode_json($t) } || {};
+        # SM1143: under load (the precheck runs many files at once) a browser
+        # can be killed by the timeout or dump a DOM before the page script ran,
+        # and the assertions below then read an empty result. Run it again until
+        # the page reports it finished (which it does only once the note has
+        # shown or its own 10 s deadline has passed); then assert on that.
+        my $r = {};
+        for my $try ( 1 .. 4 ) {
+            my $dom = `timeout 120 \Q$browser\E --headless=new --no-sandbox --disable-gpu --user-data-dir=\Q$dir/p-$name-$try\E --virtual-time-budget=30000 --dump-dom file://\Q$page\E 2>/dev/null`;
+            my ($t) = $dom =~ m{<title>(.*?)</title>}s;
+            $t =~ s/&quot;/"/g if defined $t;
+            $r = eval { decode_json($t) } || {};
+            last if $r->{done};
+        }
+        ok $r->{done}, "$name: the browser ran the page to the end";
         unlike $r->{idle} // '', qr/explanation/, "$name: an idle mark shows nothing";
         like $r->{focus} // '', qr/The long explanation of the field/, "$name: focusing the mark shows its note";
         like $r->{edge} // '',  qr/At the right edge/, "$name: and at the right edge too";
