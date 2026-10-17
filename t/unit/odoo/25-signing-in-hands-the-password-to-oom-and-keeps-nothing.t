@@ -114,7 +114,7 @@ subtest 'a two-factor account is refused by name' => sub {
 # SM1156: OOM 0.27 answers a two-factor account's right password with a true
 # `pending` result and a half-open session id (0.24 died). It is not a sign-in:
 # no session cookie may be minted for it. SM1157 carries it to the code step
-# (t/unit/odoo/41); here, that it is never taken for a session.
+# (t/unit/odoo/48); here, that it is never taken for a session.
 subtest 'a pending two-factor answer is not a sign-in (OOM 0.27)' => sub {
     my ( $r, $log ) = signin( 'totp@example.com', $PW );
     ok( $r->{ok}, 'the password step is answered' );

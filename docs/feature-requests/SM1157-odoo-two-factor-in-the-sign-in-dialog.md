@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: OOM agent (L4), at the owner's request; accepted by the release manager 2026-10-17
 area: odoo
-status-note: "SHIPPED on n644: lazysite-odoo.pl (signin_code), lib/Lazysite/Odoo.pm (sign_in_code, odoo_remember_device), lib/Lazysite/Odoo/Session.pm (pending and device cookies, complete_totp), starter/assets/lazysite-odoo.js; t/unit/odoo/41, 42."
+status-note: "SHIPPED on n644: lazysite-odoo.pl (signin_code), lib/Lazysite/Odoo.pm (sign_in_code, odoo_remember_device), lib/Lazysite/Odoo/Session.pm (pending and device cookies, complete_totp), starter/assets/lazysite-odoo.js; t/unit/odoo/48, 49."
 ---
 
 # What happened
@@ -64,17 +64,17 @@ site's decision (L3: on a shared tablet the person signed in is responsible).
 - **Sign-out** also ends a half-open sign-in the person gave up on.
 - **The call record** gains the phase `signin-code`, names the session by a
   hash and the outcome by its kind; the code, the password and the device value
-  are in no record, audit line, log line or response body (t/unit/odoo/41
+  are in no record, audit line, log line or response body (t/unit/odoo/48
   searches every file the engine wrote, the log and every body for all of them).
 - **The browser helper and its dialog** (`lazysite-odoo.js`) take the second
   step: the dialog turns into a one-time-code box, with the "don't ask again on
   this device" box only when offered; a wrong code is said and asked again; a
   lapsed sign-in returns to the password; Cancel ends the half-open sign-in.
   The code box is cleared before the answer arrives and the code is in the body
-  of its own POST only (t/unit/odoo/42).
+  of its own POST only (t/unit/odoo/49).
 - **The dependency floor stays at OOM 0.03.** The two-factor step needs 0.27, but
   an older OOM never answers a pending sign-in: such an account is refused by
-  name (`two-factor`, 403) as before, which t/unit/odoo/41 holds by removing
+  name (`two-factor`, 403) as before, which t/unit/odoo/48 holds by removing
   `complete_totp`. The setting's note and `starter/docs/odoo.md` say it needs
   0.27.
 - `second-factor` joins the 401 refusals (`Lazysite::Manager::Common`).

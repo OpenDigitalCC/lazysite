@@ -129,7 +129,7 @@ Archive
   off unless said and offered only over HTTPS; Odoo's device value is kept in one
   HttpOnly, Secure, SameSite=Strict cookie, never in a store. The code, the
   password and the device value are in no record or log. An older OOM still
-  refuses the account by name. t/unit/odoo/41, 42.
+  refuses the account by name. t/unit/odoo/48, 49.
 
 - SM1156 (PENDING) **lazysite adopts OOM 0.27.** The pinned snapshot moves from
   0.24 (`t/vendor/oom`, SM747's filed spec re-filed with it). 0.27 answers a
