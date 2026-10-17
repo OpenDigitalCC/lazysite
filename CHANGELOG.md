@@ -59,6 +59,19 @@ Archive
   empty result, failing its two focus assertions; it now reruns the browser until
   the page reports it finished and polls for the note up to a deadline. No CSS
   change. t/unit/manager/349.
+- SM1135 (PENDING) **a directory group grants capabilities only when marked.**
+  Under a trusted proxy, header groups gave page and file access, and only
+  some gates also read them for capabilities. One rule now serves every gate:
+  a group's capabilities, and operator status, come from the directory only
+  for a group the operator marks `directory_grants` (release manager,
+  2026-10-17, R1). t/integration/271.
+- SM1136 (PENDING) **a guide to running behind an identity provider.** A docs
+  page covers the trusted-header settings, the security conditions and a
+  worked Caddy and Authentik example.
+- SM1137 (PENDING) **the data endpoint honours a trusted proxy.** It used its
+  own session even when a trusted proxy named the user; the proxy's identity
+  now wins there too. t/integration/272.
+
 - SM1131 (PENDING) **every reader honours the configured header names.** Only the
   page gate read `auth_header_*`; one reader, `Lazysite::Auth::Identity`, now
   serves the page gate, the file rules, the manager and the API, and takes its
