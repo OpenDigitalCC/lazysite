@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1120 (PENDING) **an engine-served static says when it changed.** Every
+  200, 206, 304 and 416 from a static carries `Last-Modified`,
+  `If-Modified-Since` is answered with a 304 when no `If-None-Match` is sent,
+  and an `If-Range` carrying the exact date of a file at least a second old is
+  honoured as a range. t/unit/processor/131.
+
 - SM1116 (PENDING) **internal: everything a coverage run writes is classified.**
   The overnight coverage run of 2026-10-17 stopped in its first group: the
   manifest refused the run's own `cover_db-processor-suite.log`, which no

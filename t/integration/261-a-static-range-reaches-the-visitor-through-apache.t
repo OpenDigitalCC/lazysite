@@ -170,6 +170,8 @@ subtest 'the engine answers the asset, and DEFLATE is live' => sub {
         'by the engine - Apache itself sets no security headers here' );
     is( $r->{h}{'content-type'}, 'video/mp4', 'SM1112: as video/mp4' );
     is( $r->{h}{'accept-ranges'}, 'bytes', 'and says ranges are accepted' );
+    like( $r->{h}{'last-modified'} // '', qr/\A\w{3}, \d\d \w{3} \d{4} \d\d:\d\d:\d\d GMT\z/,
+        'SM1120: and says when the file changed, through Apache' );
 
     # The control. Without it "no Content-Encoding on the range" below would
     # pass on a host where the deflate filter simply never ran.

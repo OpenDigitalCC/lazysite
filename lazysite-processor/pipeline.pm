@@ -491,6 +491,36 @@ sub _byte_range {
     return ( $first, $last );
 }
 
+# SM1120: HTTP dates. RFC 9110 5.6.7 IMF-fixdate, built by hand so the day and
+# month names never follow the process locale (strftime would).
+sub _http_date {
+    my ($t) = @_;
+    my @d   = qw(Sun Mon Tue Wed Thu Fri Sat);
+    my @m   = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+    my @g   = gmtime $t;
+    return sprintf '%s, %02d %s %04d %02d:%02d:%02d GMT',
+        $d[ $g[6] ], $g[3], $m[ $g[4] ], $g[5] + 1900, @g[ 2, 1, 0 ];
+}
+
+# The epoch of an IMF-fixdate, or undef for anything else. Only the one format
+# a client is required to send is read; the two obsolete ones RFC 9110 asks a
+# recipient to accept are treated as no date, which for If-Modified-Since means
+# "send the file" and for If-Range means "send the whole file" - both safe.
+sub _parse_http_date {
+    my ($s) = @_;
+    return undef unless defined $s;
+    my %mon = ( Jan => 0, Feb => 1, Mar => 2, Apr => 3, May => 4, Jun => 5,
+        Jul => 6, Aug => 7, Sep => 8, Oct => 9, Nov => 10, Dec => 11 );
+    $s =~ /\A\s*(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat),[ ](\d\d)[ ](\w{3})[ ](\d{4})[ ]
+        (\d\d):(\d\d):(\d\d)[ ]GMT\s*\z/x
+        or return undef;
+    my ( $d, $mn, $y, $H, $M, $S ) = ( $1, $2, $3, $4, $5, $6 );
+    return undef unless exists $mon{$mn};
+    require Time::Local;
+    my $t = eval { Time::Local::timegm( $S, $M, $H, $d, $mon{$mn}, $y ) };
+    return $t;
+}
+
 sub _serve_content_static {
     my ( $root, $rel, $uri ) = @_;
     return 0 unless length $rel;
@@ -562,18 +592,45 @@ sub _serve_content_static {
     my @st   = stat($real);
     my $etag = @st ? sprintf( 'W/"%x-%x"', $st[9], $st[7] ) : undef;
 
+    # SM1120: THE FILE SAYS WHEN IT CHANGED. A date is the one validator a
+    # client can use to make If-Range work (RFC 9110 13.1.5: the strong
+    # comparison, which the weak ETag above can never pass), and it is what a
+    # plain If-Modified-Since client revalidates with. Sent on every response
+    # that carries the ETag, ACL-governed files included: the response already
+    # goes only to a reader the ACL passed, and a modification time tells that
+    # reader nothing the bytes do not.
+    my $mtime   = @st            ? $st[9]             : undef;
+    my $lastmod = defined $mtime ? _http_date($mtime) : undef;
+
     if ( defined $etag ) {
-        my $inm = $ENV{HTTP_IF_NONE_MATCH} // '';
+        # If-None-Match being PRESENT, not matching, is what makes it primary
+        # (RFC 9110 13.2.2): a client that sent one and did not match is told to
+        # fetch, whatever its date says.
+        my $inm     = $ENV{HTTP_IF_NONE_MATCH};
+        my $matched = 0;
         # A client may send several, and may send them weak.
-        for my $candidate ( split /\s*,\s*/, $inm ) {
+        for my $candidate ( split /\s*,\s*/, $inm // '' ) {
             $candidate =~ s/^\s+|\s+$//g;
             next unless length $candidate;
             next unless $candidate eq $etag || $candidate eq '*';
+            $matched = 1;
+            last;
+        }
+
+        # SM1120: If-Modified-Since, only when there is no If-None-Match. Second
+        # resolution, as the date is; not newer than the client's copy is 304.
+        if ( !$matched && !defined $inm && defined $ENV{HTTP_IF_MODIFIED_SINCE} ) {
+            my $since = _parse_http_date( $ENV{HTTP_IF_MODIFIED_SINCE} );
+            $matched = 1 if defined $since && $mtime <= $since;
+        }
+
+        if ($matched) {
             $ACCESS_REC{s} //= 304;
             $ACCESS_REC{b} = 0;
             print "Status: 304 Not Modified\n";
             print "$_\n" for _security_headers();
             print "ETag: $etag\n";
+            print "Last-Modified: $lastmod\n" if defined $lastmod;    # SM1120
             print _static_cache_control($real) . "\n";    # SM416
             print "\n";
             return 1;
@@ -600,16 +657,26 @@ sub _serve_content_static {
     # SM1113: the range, if one is asked for and may be honoured.
     #
     # If-Range makes a range conditional on the client's copy still being
-    # current, judged by the STRONG comparison (RFC 9110 13.1.5). The only
-    # validator this serve sends is the SM388 weak ETag, which never passes a
-    # strong comparison, and it sends no Last-Modified for a date to be checked
-    # against. So an If-Range here can never be satisfied, and the answer is the
-    # whole file - which is the safe failure: a client resuming a partial copy
-    # gets a fresh one rather than bytes spliced onto a file that changed.
+    # current, judged by the STRONG comparison (RFC 9110 13.1.5). The SM388 ETag
+    # is weak and never passes it, so an entity-tag If-Range gets the whole
+    # file - the safe failure: a client resuming a partial copy gets a fresh one
+    # rather than bytes spliced onto a file that changed.
+    #
+    # SM1120: a DATE can pass. It must equal Last-Modified exactly, and
+    # Last-Modified must be at least a second behind the clock: a date is a weak
+    # validator when the file could change again inside the second it names
+    # (13.1.5), and a write in that second would carry the same date. Anything
+    # else - another date, a date that does not parse, a file written this
+    # second - is the whole file.
+    my $range_ok = !defined $ENV{HTTP_IF_RANGE};
+    if ( !$range_ok && defined $lastmod ) {
+        my $ir = $ENV{HTTP_IF_RANGE};
+        $ir =~ s/\A\s+|\s+\z//g;
+        $range_ok = 1 if $ir eq $lastmod && time() - $mtime >= 1;
+    }
     my @range;
     @range = _byte_range( $ENV{HTTP_RANGE}, $size )
-        if defined $ENV{HTTP_RANGE}
-        && !defined $ENV{HTTP_IF_RANGE};
+        if defined $ENV{HTTP_RANGE} && $range_ok;
 
     # HEAD gets the GET's headers and no body. Apache drops a CGI's body on HEAD
     # itself; not reading the file is what keeps the two agreeing on every
@@ -629,6 +696,7 @@ sub _serve_content_static {
         print "Content-Length: 0\n";
         print _static_cache_control($real) . "\n";
         print "ETag: $etag\n" if defined $etag;
+        print "Last-Modified: $lastmod\n" if defined $lastmod;    # SM1120
         print "\n";
         return 1;
     }
@@ -684,6 +752,7 @@ sub _serve_content_static {
     print _static_cache_control($real) . "\n";    # SM416: sysop-set max-age
                                                   # or the revalidation default
     print "ETag: $etag\n" if defined $etag;       # SM388
+    print "Last-Modified: $lastmod\n" if defined $lastmod;    # SM1120
     print "\n";
 
     # 64 KiB blocks: large enough that the syscall count is irrelevant, small
