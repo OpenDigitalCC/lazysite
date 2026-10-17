@@ -388,6 +388,46 @@ When the grant map cannot be read, the grant's calls are refused rather than
 run as the connection user. The control API always runs as the connection
 user.
 
+## A scheduled binding's own Odoo login
+
+A binding whose modes include `scheduled` runs from the schedule as the
+connection user. An operator can instead give that binding an Odoo login of
+its own: `odoo-secret-set` with `scheduled` (the binding id), `login` (the Odoo
+login) and `secret` (that login's API key). The key is held as the connection
+user's is, in its own `0600` file named from a hash of the binding, and is never
+returned or logged. `odoo-secret-clear` with `scheduled` removes it, and the
+binding runs as the connection user again.
+
+A scheduled run on its own login is recorded with the actor
+`scheduled:<binding>` in the call record, the audit trail and OOM's audit, and
+the call record names the Odoo login it ran as. A binding that has a login
+configured but no key is refused (`no-key`), never run as the connection user;
+a scheduled-accounts file that cannot be read refuses too.
+
+`odoo-status` lists each scheduled key with its binding, login and `has_secret`
+(`1`, `0` or `null`), and, where OOM reports it, the key's expiry:
+
+`exact`
+: The login has one API key; `expires` is its date, or `never`.
+
+`latest-of`
+: The login has several keys and OOM does not say which one lazysite holds;
+  `expires` is the latest of their dates, which the held key cannot outlast.
+
+`unknown-which`
+: Several keys, one with no expiry: no date can be stood behind.
+
+`not-reported`
+: This Odoo series gives a key no expiry date (before 18).
+
+`lazysite check` warns when a key's date is within 14 days, or past. It reads
+the date `odoo-status` last recorded in `lazysite/odoo/scheduled-expiry.json`
+and makes no call to Odoo, so open the Odoo status page after setting a key
+to have its date read.
+
+A person's own key, held behind their site sign-in, is not built: it is
+deferred.
+
 ## The browser helper
 
 `/assets/lazysite-odoo.js` is the one module a page uses to talk to the endpoint. It

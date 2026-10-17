@@ -2361,11 +2361,11 @@ elsif ( $action eq 'odoo-calls' ) {
 elsif ( $action eq 'odoo-secret-set' ) {
     my $req = _json_body();
     $result = _odoo()->can('action_odoo_secret_set')
-        ->( $req->{secret}, grant => $req->{grant}, login => $req->{login} );
+        ->( $req->{secret}, grant => $req->{grant}, login => $req->{login}, scheduled => $req->{scheduled} );
 }
 elsif ( $action eq 'odoo-secret-clear' ) {
     my $req = _json_body();
-    $result = _odoo()->can('action_odoo_secret_clear')->( grant => $req->{grant} );
+    $result = _odoo()->can('action_odoo_secret_clear')->( grant => $req->{grant}, scheduled => $req->{scheduled} );
 }
 # SM747 E: a bound operation, run by a signed-in caller. The binding gates it
 # (its modes, callers and caps) inside Lazysite::Odoo, as a connector gates

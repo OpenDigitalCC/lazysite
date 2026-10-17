@@ -548,7 +548,10 @@ sub _rec_base {
     my ( $binding, %ctx ) = @_;
     return (
         call_id => $ctx{call_id} // new_call_id(),
-        actor   => $ctx{actor}   // '',
+
+        # SM1161: a scheduled run on its binding's own key is `scheduled:<binding>`
+        # in the record and the audit, not the job account that fired it.
+        actor => ( length( $ctx{scheduled_as} // '' ) ? "scheduled:$ctx{scheduled_as}" : $ctx{actor} // '' ),
         ( defined $ctx{visitor} ? ( visitor => $ctx{visitor} ) : () ),
         ip        => $ctx{ip}    // '',
         mode      => $ctx{mode}  // '',
@@ -728,6 +731,9 @@ sub _actor_label {
     return $c{actor} if ( $c{actor} // '' ) =~ /\Asession:[0-9a-f]{16}\z/;
     return "account:$c{actor}" if ( $c{mode} // '' ) eq 'authenticated' && length( $c{actor} // '' );
     return "visitor:$c{visitor}" if length( $c{visitor} // '' );
+
+    # SM1161: a scheduled run on a binding's own Odoo login is OOM's actor too.
+    return "scheduled:$c{scheduled_as}" if length( $c{scheduled_as} // '' );
     return 'scheduled'           if ( $c{mode}          // '' ) eq 'scheduled';
     return 'public';
 }
@@ -765,7 +771,22 @@ sub call {
     my %c = _with_visitor(%ctx);
     my ( $ok, $conn ) = gate( $b, %c );
     return $conn unless $ok;
-    $conn = _as_account( $conn, $ctx{account} );
+
+    # SM1161 (L5, "Scheduled keys now, person keys later"): a scheduled run uses
+    # the Odoo login the operator set for THIS binding, when one is set. A map
+    # that cannot be read refuses, for the reason a grant map does: running as the
+    # connection user instead would widen the run exactly when its own, narrower
+    # login could not be checked.
+    my $account = $ctx{account};
+    if ( !$account && ( $c{mode} // '' ) eq 'scheduled' ) {
+        my ( $sa, $swhy ) = account_for_scheduled( $b->{id} );
+        if ( length $swhy ) {
+            my %r0 = _rec_base( $b, %c );
+            return ( _refusal( \%r0, 'cannot-tell', $swhy ) )[1];
+        }
+        if ($sa) { $account = $sa; $c{scheduled_as} = $b->{id} }
+    }
+    $conn = _as_account( $conn, $account );
     my %rec = ( _rec_base( $b, %c ), login => $conn->{login} );
 
     my ( $class, $refusal ) = _ready( $b, $conn, \%rec );
@@ -904,7 +925,8 @@ sub _ready {
                     'the connection user\'s key cannot be read by this process - see the event log' ) )[1] )
             unless defined $has;
         return ( undef, ( _refusal( $rec, 'no-key',
-                    ( $conn->{key_account} ? 'this grant\'s Odoo account has no API key set'
+                    ( $conn->{key_kind} && $conn->{key_kind} eq 'scheduled' ? 'this binding\'s own Odoo login has no API key set'
+                        : $conn->{key_account} ? 'this grant\'s Odoo account has no API key set'
                         : 'the connection user has no API key set' ) . ' - a sysop sets it on the Odoo page' ) )[1] )
             unless $has;
     }
@@ -1401,6 +1423,7 @@ sub action_odoo_status {
                 has_secret => Lazysite::Odoo::Secret::has_key( $grants->{$_}{id} ) } }
             sort keys %$grants ]
         : undef;
+    $out{scheduled} = _scheduled_status( $have && $conn ? $conn : undef );    # SM1161
     if ( $have && $conn ) {
         my $reg = eval { registry($conn) };
         $out{operations} = [
@@ -1426,6 +1449,11 @@ sub action_odoo_secret_set {
     no warnings 'once';
     local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
     my $grant = $o{grant} // '';
+    my $sched = $o{scheduled} // '';
+    return { ok => 0, kind => 'invalid', field => 'scheduled',
+        error => 'grant and scheduled name different accounts - set one at a time' }
+        if length $grant && length $sched;
+    return _set_scheduled_key( $sched, $o{login}, $secret ) if length $sched;
     return _set_grant_key( $grant, $o{login}, $secret ) if length $grant;
     my ( $ok, $why ) = Lazysite::Odoo::Secret::set_key( $ACCOUNT, $secret );
     return { ok => 0, kind => 'invalid', field => 'secret', error => $why } unless $ok;
@@ -1438,6 +1466,11 @@ sub action_odoo_secret_clear {
     no warnings 'once';
     local $Lazysite::Odoo::Secret::DOCROOT = $DOCROOT;
     my $grant = $o{grant} // '';
+    my $sched = $o{scheduled} // '';
+    return { ok => 0, kind => 'invalid', field => 'scheduled',
+        error => 'grant and scheduled name different accounts - clear one at a time' }
+        if length $grant && length $sched;
+    return _clear_scheduled_key($sched) if length $sched;
     return _clear_grant_key($grant) if length $grant;
     my ( $ok, $why ) = Lazysite::Odoo::Secret::clear_key($ACCOUNT);
     return { ok => 0, error      => $why } unless $ok;
@@ -1461,11 +1494,13 @@ sub _grant_id {
 }
 
 # The map, {} when there is none, undef when it exists and cannot be read.
-sub read_grants {
-    my $f = grants_file();
+sub read_grants { return _read_map( grants_file(), 'the Odoo grant accounts' ) }
+
+sub _read_map {
+    my ( $f, $what ) = @_;
     open my $fh, '<:raw', $f or do {
         return {} if $!{ENOENT};
-        cannot_read( 'the Odoo grant accounts', $f );
+        cannot_read( $what, $f );
         return undef;
     };
     my $raw = do { local $/; <$fh> };
@@ -1474,16 +1509,17 @@ sub read_grants {
     return ref $d eq 'HASH' ? $d : undef;
 }
 
-sub _write_grants {
-    my ($all) = @_;
+sub _write_grants { return _write_map( $_[0], grants_file(), 'odoo/grants.json' ) }
+
+sub _write_map {
+    my ( $all, $f, $name ) = @_;
     my $dir = store_dir();
     eval { make_path($dir) unless -d $dir; 1 } or return ( 0, 'cannot make the Odoo store' );
-    my $f = grants_file();
-    open my $fh, '>:raw', "$f.tmp.$$" or return ( 0, "cannot write odoo/grants.json: $!" );
+    open my $fh, '>:raw', "$f.tmp.$$" or return ( 0, "cannot write $name: $!" );
     print {$fh} JSON::PP->new->canonical->pretty->encode($all);
-    close $fh or return ( 0, "cannot write odoo/grants.json: $!" );
+    close $fh or return ( 0, "cannot write $name: $!" );
     secure_write_perms( "$f.tmp.$$", 0660 );
-    rename "$f.tmp.$$", $f or return ( 0, "cannot write odoo/grants.json: $!" );
+    rename "$f.tmp.$$", $f or return ( 0, "cannot write $name: $!" );
     return ( 1, '' );
 }
 
@@ -1525,6 +1561,207 @@ sub _clear_grant_key {
     return { ok => 1, grant => $grant, has_secret => 0 };
 }
 
+# --- SM1161 (L5): an Odoo login per SCHEDULED binding ----------------------------
+#
+# Release manager, 2026-10-18: "Scheduled keys now, person keys later". A
+# scheduled binding runs as the connection user unless the operator sets a
+# named Odoo login and its API key for THAT binding. lazysite/odoo/scheduled.json
+# maps the binding to { id, login } - the id of its key file, derived from the
+# binding as a grant's is, so the key is held by the same writer and reader
+# (Lazysite::Odoo::Secret): its own 0600 file, written alone, never returned.
+# The map holds no secret.
+#
+# lazysite/odoo/scheduled-expiry.json is what odoo-status last read of each key's
+# expiry, so `lazysite check` can warn without a network call. It holds dates,
+# never a key.
+
+sub scheduled_file        { return store_dir() . '/scheduled.json' }
+sub scheduled_expiry_file { return store_dir() . '/scheduled-expiry.json' }
+
+sub _scheduled_id {
+    my ($binding) = @_;
+    require Digest::SHA;
+    return 'sched-' . substr( Digest::SHA::sha256_hex("scheduled|$binding"), 0, 16 );
+}
+
+sub read_scheduled { return _read_map( scheduled_file(), 'the Odoo scheduled-binding accounts' ) }
+
+# ( \%binding, '' ) when $id names an Odoo binding that may run on the schedule.
+# Switched off is allowed: an operator sets the key before switching it on.
+sub _scheduled_binding {
+    my ($id) = @_;
+    return ( undef, 'scheduled must be a binding id' )
+        unless defined $id && $id =~ /\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\z/;
+    require Lazysite::Handlers;
+    require Lazysite::Odoo::Binding;
+    no warnings 'once';
+    local $Lazysite::Handlers::DOCROOT = $DOCROOT;
+    my $all = Lazysite::Handlers::read_handlers();
+    return ( undef, 'the handler store cannot be read - see the event log' ) unless defined $all;
+    my $h = Lazysite::Handlers::find_handler( $all, $id );
+    return ( undef, "no Odoo binding '$id'" ) unless $h && ( $h->{type} // '' ) eq 'odoo';
+    my ($b) = Lazysite::Odoo::Binding::parse($h);
+    return ( undef, "the Odoo binding '$id' cannot be used" ) unless $b;
+    return ( undef, "the Odoo binding '$id' does not run on the schedule (modes: scheduled)" )
+        unless $b->{modes}{scheduled};
+    return ( $b, '' );
+}
+
+sub _set_scheduled_key {
+    my ( $id, $login, $secret ) = @_;
+    my ( $b, $bwhy ) = _scheduled_binding($id);
+    return { ok => 0, kind => 'invalid', field => 'scheduled', error => $bwhy } unless $b;
+    return { ok => 0, kind => 'invalid', field => 'login',
+        error => 'login is required with scheduled - the Odoo login this binding runs as' }
+        unless defined $login && length $login;
+    return { ok => 0, kind => 'invalid', field => 'login', error => 'login must be one line of at most 128 characters' }
+        if length $login > 128 || $login =~ /[\r\n]/;
+    my $all = read_scheduled();
+    return { ok => 0, error => 'the scheduled accounts exist and cannot be read - nothing was written' }
+        unless defined $all;
+    my $kid = _scheduled_id($id);
+    my ( $ok, $why ) = Lazysite::Odoo::Secret::set_key( $kid, $secret );
+    return { ok => 0, kind => 'invalid', field => 'secret', error => $why } unless $ok;
+    $all->{$id} = { id => $kid, login => $login };
+    my ( $wok, $wwhy ) = _write_map( $all, scheduled_file(), 'odoo/scheduled.json' );
+    return { ok => 0, error => $wwhy } unless $wok;
+    _forget_expiry($id);    # a new key: what was read of the old one says nothing of it
+    log_event( 'INFO', 'odoo', 'odoo scheduled account set', binding => $id, login => $login );
+    return { ok => 1, binding => $id, login => $login, has_secret => 1 };
+}
+
+sub _clear_scheduled_key {
+    my ($id) = @_;
+    return { ok => 0, kind => 'invalid', field => 'scheduled', error => 'scheduled must be a binding id' }
+        unless $id =~ /\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\z/;
+    my $all = read_scheduled();
+    return { ok => 0, error => 'the scheduled accounts exist and cannot be read - nothing was removed' }
+        unless defined $all;
+    my ( $ok, $why ) = Lazysite::Odoo::Secret::clear_key( _scheduled_id($id) );
+    return { ok => 0, error => $why } unless $ok;
+    if ( exists $all->{$id} ) {
+        delete $all->{$id};
+        my ( $wok, $wwhy ) = _write_map( $all, scheduled_file(), 'odoo/scheduled.json' );
+        return { ok => 0, error => $wwhy } unless $wok;
+    }
+    _forget_expiry($id);
+    log_event( 'INFO', 'odoo', 'odoo scheduled account cleared', binding => $id );
+    return { ok => 1, binding => $id, has_secret => 0 };
+}
+
+# The account a scheduled run uses: ( { id, login, kind }, '' ), ( undef, '' )
+# when the binding has none (it runs as the connection user), or ( undef, why )
+# when the map cannot be read.
+sub account_for_scheduled {
+    my ($binding) = @_;
+    my $all = read_scheduled();
+    return ( undef, 'the Odoo scheduled accounts cannot be read - see the event log' ) unless defined $all;
+    my $g = $all->{ $binding // '' } or return ( undef, '' );
+    return ( { id => $g->{id}, login => $g->{login}, source => 'scheduled' }, '' );
+}
+
+# What odoo-status last read of each key's expiry, { binding => { login, key,
+# read_at, expires_by } }; {} when none, undef when the file cannot be read.
+sub read_expiry_cache { return _read_map( scheduled_expiry_file(), 'the Odoo scheduled-key expiry record' ) }
+
+sub _forget_expiry {
+    my ($id) = @_;
+    my $c = read_expiry_cache() // return;
+    return unless exists $c->{$id};
+    delete $c->{$id};
+    _write_map( $c, scheduled_expiry_file(), 'odoo/scheduled-expiry.json' );
+    return;
+}
+
+# An Odoo date-time ('YYYY-MM-DD HH:MM:SS', UTC) as epoch seconds, undef when it
+# is not one.
+sub _odoo_epoch {
+    my ($t) = @_;
+    return undef unless defined $t && !ref $t && $t =~ /\A(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d):(\d\d))?/;
+    require Time::Local;
+    my $e = eval { Time::Local::timegm( $6 // 0, $5 // 0, $4 // 0, $3, $2 - 1, $1 ) };
+    return $e;
+}
+
+# What OOM reports of the expiry of the key a scheduled binding holds, asked of
+# Odoo as that login (OOM's core.whoami lists the login's own key rows with
+# `expiration_date` on the series that give a key a date). OOM does NOT say which
+# of the rows is the key in use, so the answer is exact only when the login has a
+# single key row:
+#
+#   exact          one row: its date (or 'never')
+#   latest-of      several rows, all dated: the held key expires by the latest
+#   unknown-which  several rows, one with no date: nothing can be said
+#   not-reported   this Odoo series gives a key no date
+#   unreadable     Odoo refused this login the read of its own keys
+#   failed         the question could not be put (the cause is in the event log)
+#
+# ( { expiry, keys, expires, epoch } ) - `epoch` is set only where a date can be
+# stood behind, and is what `lazysite check` warns on.
+sub _read_key_expiry {
+    my ( $conn, $account ) = @_;
+    my $r = eval {
+        my ($class) = operation_class( $conn, 'core.whoami' );
+        return { expiry => 'failed' } unless $class;
+        my $ctx = context( _as_account( $conn, $account ), actor => 'odoo-status' );
+        return $class->new( ctx => $ctx, params => {} )->run;
+    };
+    if ( !ref $r || ref $r ne 'HASH' ) {
+        log_event( 'WARN', 'odoo', 'a scheduled key\'s expiry could not be read',
+            detail => ( ref $@ && eval { $@->can('message') } ? $@->message : "$@" ) =~ s/\s+\z//r );
+        return { expiry => 'failed' };
+    }
+    return $r if $r->{expiry};
+    return { expiry => 'unreadable' } unless $r->{keys_readable};
+    my @rows = @{ $r->{keys} || [] };
+    return { expiry => 'failed', keys => 0 } unless @rows;
+    return { expiry => 'not-reported', keys => scalar @rows } unless grep { exists $_->{expiration_date} } @rows;
+    my @dates = map { $_->{expiration_date} ? $_->{expiration_date} : undef } @rows;
+    if ( @rows == 1 ) {
+        return { expiry => 'exact', keys => 1, expires => 'never' } unless defined $dates[0];
+        return { expiry => 'exact', keys => 1, expires => $dates[0], epoch => _odoo_epoch( $dates[0] ) };
+    }
+    return { expiry => 'unknown-which', keys => scalar @rows } if grep { !defined } @dates;
+    my ($latest) = sort { $b cmp $a } @dates;
+    return { expiry => 'latest-of', keys => scalar @rows, expires => $latest, epoch => _odoo_epoch($latest) };
+}
+
+# The scheduled keys as odoo-status shows them: binding, login, has_secret (1, 0
+# or null) and the expiry as OOM reports it - never the key. Where a key is held
+# and the connection can be asked, the expiry is read now and recorded for
+# `lazysite check`.
+sub _scheduled_status {
+    my ($conn) = @_;
+    my $all = read_scheduled();
+    return undef unless defined $all;
+    my $cache = read_expiry_cache();
+    my $dirty = 0;
+    my @rows;
+    for my $id ( sort keys %$all ) {
+        my $g   = $all->{$id};
+        my $has = Lazysite::Odoo::Secret::has_key( $g->{id} );
+        my %row = ( binding => $id, login => $g->{login}, has_secret => $has );
+        if ( $has && $conn ) {
+            my $e = _read_key_expiry( $conn, { id => $g->{id}, login => $g->{login}, source => 'scheduled' } );
+            @row{qw(expiry keys expires)} = @$e{qw(expiry keys expires)};
+            delete $row{$_} for grep { !defined $row{$_} } qw(keys expires);
+            if ( ref $cache eq 'HASH' ) {
+                my %old = ref $cache->{$id} eq 'HASH' ? %{ $cache->{$id} } : ();
+                my $new = { login => $g->{login}, key => $g->{id}, read_at => time, expiry => $e->{expiry},
+                    ( defined $e->{epoch} ? ( expires_by => $e->{epoch}, expires => $e->{expires} ) : () ) };
+                $cache->{$id} = $new;
+                $dirty = 1;
+            }
+        }
+        push @rows, \%row;
+    }
+    if ( ref $cache eq 'HASH' ) {
+        for my $id ( grep { !exists $all->{$_} } keys %$cache ) { delete $cache->{$id}; $dirty = 1 }
+        _write_map( $cache, scheduled_expiry_file(), 'odoo/scheduled-expiry.json' ) if $dirty;
+    }
+    return \@rows;
+}
+
 # The account an MCP call runs as: the grant's own, when one is configured
 # with a key; the connection user otherwise (undef). ( $account, '' ), or
 # ( undef, why ) when the grant map cannot be read - which refuses, because
@@ -1542,7 +1779,8 @@ sub account_for_grant {
 sub _as_account {
     my ( $conn, $account ) = @_;
     return $conn unless ref $account eq 'HASH' && length( $account->{id} // '' );
-    return { %$conn, login => $account->{login}, key_account => $account->{id} };
+    return { %$conn, login => $account->{login}, key_account => $account->{id},
+        ( $account->{source} ? ( key_kind => $account->{source} ) : () ) };
 }
 
 # --- the bound operations, for a signed-in caller or an MCP agent ---------------

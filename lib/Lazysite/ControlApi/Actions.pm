@@ -908,8 +908,8 @@ our %ACTION = (
     # tools"); `grant` names the lazysite account an MCP grant's own Odoo
     # account belongs to (Q2).
     'odoo-status' => { mcp => 'odoo_status', cookie_cap => 'manage_connectors', params => [] },
-    'odoo-secret-set' => { mcp => 'odoo_secret_set', instance_wide => 1, mutates => 1, cookie_cap => 'manage_connectors', params => [ { name => 'secret', in => 'body', required => 1 }, { name => 'grant', in => 'body', note => 'a lazysite account: its MCP calls run as this Odoo account' }, { name => 'login', in => 'body', note => 'the Odoo login, with grant' } ] },
-    'odoo-secret-clear' => { mcp => 'odoo_secret_clear', instance_wide => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_connectors', params => [ { name => 'grant', in => 'body' } ] },
+    'odoo-secret-set' => { mcp => 'odoo_secret_set', instance_wide => 1, mutates => 1, cookie_cap => 'manage_connectors', params => [ { name => 'secret', in => 'body', required => 1 }, { name => 'grant', in => 'body', note => 'a lazysite account: its MCP calls run as this Odoo account' }, { name => 'scheduled', in => 'body', note => 'a scheduled binding id: it runs as this Odoo login' }, { name => 'login', in => 'body', note => 'the Odoo login, with grant or scheduled' } ] },
+    'odoo-secret-clear' => { mcp => 'odoo_secret_clear', instance_wide => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_connectors', params => [ { name => 'grant', in => 'body' }, { name => 'scheduled', in => 'body' } ] },
     'odoo-calls' => { mcp => 'odoo_calls', cookie_cap => 'manage_connectors', params => [ { name => 'binding', in => 'query' }, { name => 'limit', in => 'query' } ] },
 # [mcp] odoo_run, odoo_confirm: SM747 E: openWorld - the call leaves this instance for Odoo.
     'odoo-bindings' => { mcp => 'odoo_bindings', params => [] },

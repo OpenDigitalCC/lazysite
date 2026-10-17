@@ -22,6 +22,7 @@ use strict;
 use warnings;
 use Cwd        qw(abs_path);
 use File::Find ();
+use POSIX      ();
 use JSON::PP   ();             # core; every call site is fully qualified
 
 my %opt = ( docroot => undef, cgibin => undef, owner => undef,
@@ -1373,6 +1374,9 @@ sub run_checks {
 
     # --- 8g2. is the login rate limiter actually counting? (SM798) --------------
     report_login_rate_limit();
+
+    # --- 8g3. do the Odoo keys scheduled bindings run on expire soon? (SM1161) ---
+    report_odoo_scheduled_keys();
 
     # --- 8e. where is this site's engine tree, and is there only one? (SM293) ---
     report_engine_tree();
@@ -3241,6 +3245,59 @@ sub report_login_rate_limit {
     }
     report( 'OK', 'the login rate limiter is in force (per address; its counter is '
             . ( -e $db ? 'usable' : 'created at the first sign-in' ) . ')' );
+    return;
+}
+
+# SM1161 (L5): A SCHEDULED BINDING'S OWN ODOO KEY EXPIRES, AND NOTHING ELSE
+# WOULD SAY SO UNTIL THE NIGHT'S RUN FAILED.
+#
+# A scheduled binding may run as an Odoo login of its own, on a key the operator
+# set (lazysite/odoo/scheduled.json). A key issued with a duration stops when it
+# runs out, and the first sign is a timer that quietly stops delivering. The date
+# is what `odoo-status` last read from OOM (lazysite/odoo/scheduled-expiry.json)
+# - this check makes no call to Odoo - and the days left are worked out HERE, from
+# that date, so a key that expired after the last read is still found.
+#
+# WARN within 14 days and when past; an expiry never read, or that OOM does not
+# report for this Odoo, is said so at ok - it is not a finding, but it is not
+# silence either. The key itself is never read, shown or named by file.
+sub report_odoo_scheduled_keys {
+    my $dir = "$LZ/odoo";
+    my ( $sched, $st, $err ) = _read_json_state("$dir/scheduled.json");
+    if ( $st eq 'unreadable' ) {
+        report( 'WARN', "the Odoo scheduled-binding accounts cannot be read ($err), so their keys' expiry is not checked",
+            'run the check as the web server user, or fix the file\'s group access' );
+        return;
+    }
+    return unless $st eq 'ok' && %$sched;
+    my $seen = _read_json("$dir/scheduled-expiry.json") || {};
+    my $now  = time;
+    for my $b ( sort keys %$sched ) {
+        my $login = $sched->{$b}{login} // '?';
+        my $e     = $seen->{$b};
+        my $what  = "the Odoo key for scheduled binding '$b' (login $login)";
+        if ( ref $e ne 'HASH' || ( $e->{key} // '' ) ne ( $sched->{$b}{id} // '' ) ) {
+            report( 'OK', "$what: expiry not yet read - the Odoo status page reads it" );
+            next;
+        }
+        unless ( defined $e->{expires_by} ) {
+            report( 'OK', "$what: expiry not reported (" . ( $e->{expiry} // 'unknown' ) . ')' );
+            next;
+        }
+        my $left = int( ( $e->{expires_by} - $now ) / 86400 );
+        my $when = POSIX::strftime( '%Y-%m-%d', gmtime $e->{expires_by} );
+        my $hint = 'issue a new key in Odoo for that login and set it again on the Odoo page '
+            . "(odoo-secret-set with scheduled=$b)";
+        if ( $e->{expires_by} <= $now ) {
+            report( 'WARN', "$what has expired ($when): its scheduled runs are refused by Odoo", $hint );
+        }
+        elsif ( $left < 14 ) {
+            report( 'WARN', "$what expires $when ($left day" . ( $left == 1 ? '' : 's' ) . ' left)', $hint );
+        }
+        else {
+            report( 'OK', "$what expires $when ($left days left)" );
+        }
+    }
     return;
 }
 

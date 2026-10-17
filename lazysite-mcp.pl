@@ -835,7 +835,7 @@ my %TOOLS = (
     # neither listed nor run here. Q2: the call runs as this grant's own Odoo
     # account when the operator configured one, else as the connection user.
     odoo_status => {
-        description => 'The Odoo connection: whether OOM is installed, the connection settings, whether the connection user (and each grant\'s own Odoo account) has a key - never the key - and the operations installed.',
+        description => 'The Odoo connection: whether OOM is installed, the connection settings, whether the connection user (and each grant\'s and scheduled binding\'s own Odoo account) has a key, and when a scheduled key expires where OOM reports it - never the key - and the operations installed.',
         cap => 'manage_connectors',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _odoo_engine()->can('action_odoo_status')->() },
@@ -851,24 +851,24 @@ my %TOOLS = (
         },
     },
     odoo_secret_set => {
-        description => 'Set the API key of the Odoo connection user, or - with `grant` and `login` - of the Odoo account a lazysite account\'s MCP calls run as. The key is stored on its own and never returned.',
+        description => 'Set the API key of the Odoo connection user, or - with `grant` and `login` - of the Odoo account a lazysite account\'s MCP calls run as, or - with `scheduled` (a binding id) and `login` - of the Odoo login that scheduled binding runs as. The key is stored on its own and never returned.',
         cap         => 'manage_connectors',
         inputSchema => { type => 'object',
             properties => { secret => { type => 'string' }, grant => { type => 'string' },
-                login => { type => 'string' } },
+                scheduled => { type => 'string' }, login => { type => 'string' } },
             required => ['secret'], additionalProperties => JSON::PP::false },
         run => sub {
             my ($a) = @_;
             _odoo_engine()->can('action_odoo_secret_set')
-                ->( $a->{secret}, grant => $a->{grant}, login => $a->{login} );
+                ->( $a->{secret}, grant => $a->{grant}, login => $a->{login}, scheduled => $a->{scheduled} );
         },
     },
     odoo_secret_clear => {
-        description => 'Remove the Odoo connection user\'s API key, or - with `grant` - a grant\'s own Odoo account.',
+        description => 'Remove the Odoo connection user\'s API key, or - with `grant` - a grant\'s own Odoo account, or - with `scheduled` - a scheduled binding\'s own Odoo login.',
         cap         => 'manage_connectors',
-        inputSchema => { type => 'object', properties => { grant => { type => 'string' } },
+        inputSchema => { type => 'object', properties => { grant => { type => 'string' }, scheduled => { type => 'string' } },
             additionalProperties => JSON::PP::false },
-        run => sub { _odoo_engine()->can('action_odoo_secret_clear')->( grant => $_[0]->{grant} ) },
+        run => sub { _odoo_engine()->can('action_odoo_secret_clear')->( grant => $_[0]->{grant}, scheduled => $_[0]->{scheduled} ) },
     },
     odoo_bindings => {
         description => 'The Odoo bindings this account may run: each one\'s operation, what it does, whether it writes, and the fields it takes.',

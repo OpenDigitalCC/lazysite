@@ -48,7 +48,7 @@ my %NOT_A_PATH = map { $_ => 1 } qw(
     offset order order_by payload query rating read register row submit subtitle
     summary table tags theme title trails update update_links uploads value
     version window write
-    binding grant login params plan secret
+    binding grant login params plan scheduled secret
     accounts csv
 );
 # n573 (SM1053): stage_accounts' rows of accounts and its CSV text - account
