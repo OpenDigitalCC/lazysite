@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: release manager, from SM1082 Q5 (SM1069's measurement, SM666's class), 2026-10-17
 area: performance
-status-note: "SHIPPED on n642: lazysite-processor/registries.pm, lib/Lazysite/Manager/Files.pm, lazysite-manager-api.pl; t/unit/processor/133, t/unit/manager/352."
+status-note: "SHIPPED on n642: lazysite-processor/registries.pm, lib/Lazysite/Manager/Files.pm, lazysite-manager-api.pl; t/unit/processor/141, t/unit/manager/363."
 ---
 
 # What happened
@@ -51,6 +51,6 @@ The scheduler was not used: its jobs run as a configured account with
 render state, so it would have needed its own copy of the registry build. A
 detached child of the processor works on every deployment, daemon or not.
 
-t/unit/processor/133 drives the real processor: a stale registry is served
+t/unit/processor/141 drives the real processor: a stale registry is served
 unchanged and is fresh afterwards; a missing one is built for the request; two
-requests against a slow rebuild start one. t/unit/manager/352 covers the write.
+requests against a slow rebuild start one. t/unit/manager/363 covers the write.

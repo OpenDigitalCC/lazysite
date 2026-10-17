@@ -152,12 +152,12 @@ Archive
 - SM1151 (PENDING) **the dev server answers connections side by side.** One
   accept loop made a page's parallel requests queue, so the lab's timings
   measured the queue; each connection is now a forked child, up to eight at
-  once. Dev only. t/unit/tools/82.
+  once. Dev only. t/unit/tools/83.
 - SM1152 (PENDING) **a stale registry is rebuilt after the request, not inside
   it.** A request that finds a registry stale serves the one it has and starts a
   detached rebuild under one lock (1.5-3 s on an 1,800-rule fixture); a content
   write starts it when its request is over; a missing registry is still built on
-  first need. t/unit/processor/133, t/unit/manager/352.
+  first need. t/unit/processor/141, t/unit/manager/363.
 - SM1153 (PENDING) **the extension-list cache follows the extensions
   directory.** The cached list kept an empty answer after `plugins/` appeared
   (oom-lab L-5); it now records what it was built from, and an empty list for a
@@ -165,7 +165,7 @@ Archive
 - SM1154 (PENDING) **the add path names setup-sysop on a site with no
   operator.** `add` (first account) and `group-add` (a non-operator group)
   print a note naming `setup-sysop` and the manager's Users page; the help and
-  the manager guide say it too (oom-lab L-8). t/unit/users/52.
+  the manager guide say it too (oom-lab L-8). t/unit/users/55.
 
 - SM1129 (PENDING) **security: a proxy is believed only from its address.** With
   `auth_proxy_trusted` on, any request carrying the identity headers was

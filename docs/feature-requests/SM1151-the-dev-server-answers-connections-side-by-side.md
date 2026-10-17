@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: lazysite-sites agent (oom-lab), accepted by the release manager 2026-10-17
 area: dev tools
-status-note: "SHIPPED on n642: tools/lazysite-server.pl; t/unit/tools/82. SM1082 Q4, oom-lab P5."
+status-note: "SHIPPED on n642: tools/lazysite-server.pl; t/unit/tools/83. SM1082 Q4, oom-lab P5."
 ---
 
 # What happened
@@ -36,6 +36,6 @@ Two details keep the children from hurting each other:
 
 Dev only: the CGI, FastCGI and pool paths are untouched.
 
-t/unit/tools/82 uses a processor that sleeps one second. Two requests finish in
+t/unit/tools/83 uses a processor that sleeps one second. Two requests finish in
 under 1.7 s (a serial server takes 2); with the cap at 2, four requests take
 between 1.9 and 3.5 s (two waves; a serial server takes 4, an uncapped one 1).

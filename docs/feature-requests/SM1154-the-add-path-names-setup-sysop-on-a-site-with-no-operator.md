@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: lazysite-sites agent (oom-lab, L-8), accepted by the release manager 2026-10-17
 area: users tool
-status-note: "SHIPPED on n642: tools/lazysite-users.pl, starter/docs/manager.md; t/unit/users/52."
+status-note: "SHIPPED on n642: tools/lazysite-users.pl, starter/docs/manager.md; t/unit/users/55."
 ---
 
 # What happened
@@ -38,4 +38,4 @@ the lab was left with an account that could sign in and do nothing.
 - `--help` says it beside `add` and `group-add`; the POD (Bootstrap) and
   starter/docs/manager.md describe the first-account path.
 
-t/unit/users/52 covers each case, with an operator and without.
+t/unit/users/55 covers each case, with an operator and without.
