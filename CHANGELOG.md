@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1122 (PENDING) **the outbox list keeps what it sent.** A sent entry vanished
+  from the list and the lookup by id (0.15.9 walk, X3): SM1105 covered only an
+  entry whose file could not be removed. Sent entries are now listed from the
+  ledger for its 8 days, with recipient counts per channel and no addresses
+  (release manager, 2026-10-17). t/unit/notify/09.
+- SM1123 (PENDING) **a retry names what it retried.** The retry audit row's
+  target was "/"; it is now the rule or entry id, with the counts.
+  t/integration/260.
+
 - SM1121 (PENDING) **a missing path is named, for the operator too.** The 0.15.9
   walk (X1) found a save with no path, or with the path in the body, refused
   as "'/' is a folder". SM1103's refusal ran only for accounts below the
