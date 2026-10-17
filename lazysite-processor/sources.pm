@@ -445,12 +445,8 @@ sub resolve_db {
     # visitor sends reads as anonymous, which (mine) answers with no rows.
     my $r = Lazysite::Data::Tables::resolve_binding(
         $DOCROOT, $spec,
-        { user => ( $ENV{HTTP_X_REMOTE_USER} // '' ),
-            groups => [
-                grep { length }
-                    split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' )
-            ],
-        },
+        # SM1131: the one identity reader.
+        do { my $i = _request_identity(); +{ user => $i->{user}, groups => $i->{groups} } },
         # P17 (ruled 2026-10-12, "Allow own rows"): a (mine) binding reads the
         # viewer's own rows of a table its read rule excludes - only into a
         # render nobody else is served (SM857's per-viewer mark, below).
@@ -959,20 +955,21 @@ sub peek_search_default {
 # Cache-Control: public, max-age=3600. Gating a folder stopped the page being
 # served and published its opening paragraph to a shared cache for an hour.
 #
-# The identity comes straight from the environment rather than through
-# resolve_site_vars, because resolve_scan is itself called FROM resolve_site_vars
-# for conf directives and asking for site vars here can re-enter it before its
-# cache is warm. A site that has RENAMED the auth headers therefore scans as
-# anonymous, which hides more than it should rather than less.
+# The identity comes from the one reader (SM1131), which reads the conf FILE
+# rather than going through resolve_site_vars, because resolve_scan is itself
+# called FROM resolve_site_vars for conf directives and asking for site vars here
+# can re-enter it before its cache is warm.
 {
     my ( $_scan_id_done, $_scan_user, @_scan_groups );
 
     sub _scan_identity {
         unless ($_scan_id_done) {
             $_scan_id_done = 1;
-            $_scan_user    = $ENV{HTTP_X_REMOTE_USER} // '';
-            @_scan_groups
-                = grep { length } split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+            # SM1131: the one identity reader. It reads the conf file itself, so
+            # a site that renamed its proxy headers scans as the proxy's user.
+            my $i = _request_identity();
+            $_scan_user   = $i->{user};
+            @_scan_groups = @{ $i->{groups} };
         }
         return ( $_scan_user, \@_scan_groups );
     }

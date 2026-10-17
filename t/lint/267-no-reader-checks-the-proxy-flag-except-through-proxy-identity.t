@@ -97,11 +97,17 @@ ok( $definition_seen{'lazysite-processor/request.pm'},        "the render path c
 is_deeply( \@readers, [], 'no other code reads auth_proxy_trusted or auth_proxy_trusted_from as a key' )
     or diag join "\n", @readers;
 
-# The three deciding surfaces call the one function.
+# The three deciding surfaces call the one function. SM1131: and so does the
+# identity reader, Lazysite::Auth::Identity::request_identity, which decides
+# whether the CONFIGURED header names count - from proxy_identity's answer, or
+# from the answer its caller already holds for this request (the processor passes
+# its pinned copy's), never from the flag (the key sweep above holds that).
 my %MUST = (
-    'lazysite-processor.pl'    => qr/\b_proxy_identity\s*\(/,
-    'lazysite-manager-api.pl'  => qr/Lazysite::Util::proxy_identity\s*\(/,
-    'lazysite-auth.pl'         => qr/Lazysite::Util::proxy_identity\s*\(/,
+    'lazysite-processor.pl'         => qr/\b_proxy_identity\s*\(/,
+    'lazysite-manager-api.pl'       => qr/Lazysite::Util::proxy_identity\s*\(/,
+    'lazysite-auth.pl'              => qr/Lazysite::Util::proxy_identity\s*\(/,
+    'lib/Lazysite/Auth/Identity.pm' => qr/Lazysite::Util::proxy_identity\s*\(/,
+    'lazysite-processor/auth.pm'    => qr/\bproxy\s*=>\s*_proxy_identity\s*\(/,
 );
 for my $rel ( sort keys %MUST ) {
     like( code_of( slurp("$root/$rel") ), $MUST{$rel}, "$rel asks the one function" );

@@ -167,6 +167,10 @@ sub main {
     # have none - see the header. It is set so that anything downstream which
     # does read an identity sees the true one rather than a forged header.
     delete $ENV{$_} for grep { /\AHTTP_X_REMOTE_/ } keys %ENV;
+    # SM1131: and the identity reader is told these fixed names are the verified
+    # ones - without the flag a trusted-proxy site would read the CONFIGURED
+    # header names, which this script never cleared and the client can send.
+    $ENV{LAZYSITE_AUTH_TRUSTED} = '1';
     if ( length $user ) {
         $ENV{HTTP_X_REMOTE_USER} = $user;
 
@@ -182,7 +186,10 @@ sub main {
     # Split once, from the value the block above just set - the writable_by
     # narrowing and the read binding both asked the environment the same
     # question and got the same answer.
-    my @groups = split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+    # SM1131: the one identity reader, not a re-read of the header.
+    require Lazysite::Auth::Identity;
+    my @groups = @{ Lazysite::Auth::Identity::request_identity(
+            lazysite_dir => Lazysite::Paths::lazysite_dir($docroot) )->{groups} };
 
     # A token for this session, so a page's JavaScript can write. Minted only
     # for a verified account: an anonymous caller has nothing to protect and

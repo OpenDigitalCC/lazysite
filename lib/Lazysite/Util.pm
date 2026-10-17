@@ -532,31 +532,31 @@ sub request_address {
 # `trusted_proxies`, an empty value does NOT mean a default range.
 #
 # Every reader of the flag goes through here (t/lint/267): the processor's gate
-# (its own pinned copy, ADR 0001), the manager API's gate, the auth wrapper.
-# Returns { flag, trusted, state, peer, from, rejected, user_header } where state
+# (its own pinned copy, ADR 0001), the manager API's gate, the auth wrapper, and
+# the identity reader (Lazysite::Auth::Identity, SM1131), which reads the
+# configured header names only when this says the proxy is trusted.
+# Returns { flag, trusted, state, peer, from, rejected } where state
 # is off | no-list | not-listed | listed.
 sub proxy_identity {
     my ($lazysite_dir) = @_;
     my %r = (
         flag => 0, trusted => 0, state => 'off', from => '', rejected => [],
-        peer => ( $ENV{REMOTE_ADDR} // '' ), user_header => 'X-Remote-User',
+        peer => ( $ENV{REMOTE_ADDR} // '' ),
     );
     return \%r unless defined $lazysite_dir && length $lazysite_dir;
     my $conf = "$lazysite_dir/lazysite.conf";
     return \%r unless -f $conf;
     # An unreadable conf is a flag that reads off: closed. cannot_read says why.
     open my $fh, '<:utf8', $conf or do { cannot_read( 'the site conf', $conf ); return \%r };
-    my ( $flag, $from, $uh ) = ( '', '', '' );
+    my ( $flag, $from ) = ( '', '' );
     while ( my $l = <$fh> ) {
         # Last one wins, as the processor's own conf reader has it.
         if    ( $l =~ /^auth_proxy_trusted\s*:\s*(.*?)\s*$/ )      { $flag = $1 }
         elsif ( $l =~ /^auth_proxy_trusted_from\s*:\s*(.*?)\s*$/ ) { $from = $1 }
-        elsif ( $l =~ /^auth_header_user\s*:\s*(.*?)\s*$/ )        { $uh   = $1 }
     }
     close $fh;
-    $r{user_header} = $uh if length $uh;
-    $r{from}        = $from;
-    $r{flag}        = lc($flag) eq 'true' ? 1 : 0;
+    $r{from} = $from;
+    $r{flag} = lc($flag) eq 'true' ? 1 : 0;
     return \%r unless $r{flag};
     my ( $set, $bad ) = ( [], [] );
     ( $set, $bad ) = parse_trusted_proxies($from) if length $from && lc($from) ne 'none';

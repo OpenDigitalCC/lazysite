@@ -35,8 +35,9 @@ the local session.
 
 When `auth_proxy_trusted` is on **and** the request's proxy headers are
 trusted (SM1129: the peer is in `auth_proxy_trusted_from`, answered by
-`Lazysite::Util::proxy_identity`) **and** they carry a user (the fixed
-`X-Remote-User`, or the configured `auth_header_user` name), the cookie is not
+`Lazysite::Util::proxy_identity`) **and** they carry a user (read by the one
+identity reader, SM1131, under the configured `auth_header_user` name, default
+`X-Remote-User` - the name every reader behind the wrapper reads), the cookie is not
 consulted for identity at all: no verification, no merge, no fallback. A DEBUG
 line, `auth: proxy identity wins, cookie ignored`, is logged when a cookie was
 sent. The wrapper sets no `LAZYSITE_AUTH_TRUSTED` sentinel in that case, so the
@@ -53,4 +54,6 @@ per-file ACL: a trusted proxy naming carol with a valid cookie for alice is
 carol (alice's file is refused to her with 403, carol's file is served); the
 same without the cookie; no proxy headers with alice's cookie is alice; and
 forged headers from an unlisted peer neither displace the visitor's own cookie
-nor make anyone of themselves. Checked by putting the `main` wrapper back.
+nor make anyone of themselves. Checked by putting the `main` wrapper back. On a
+site that renamed the proxy header (stacked with SM1131), the configured header
+wins over the cookie and an `X-Remote-User` passed through beside it does not.

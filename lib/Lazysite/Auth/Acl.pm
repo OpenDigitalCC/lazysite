@@ -10,6 +10,7 @@ use warnings;
 use JSON::PP       ();
 use File::Path     qw(make_path);
 use File::Basename qw(dirname);
+use Lazysite::Auth::Identity ();    # SM1131: the one reader of the request's groups
 use Lazysite::Util ();    # SM289: secure_write_perms - root must not own this store
 use Exporter 'import';
 use Lazysite::Paths ();
@@ -702,7 +703,9 @@ sub _is_operator {
     if ( defined $auth_user && length $auth_user ) {
         return 1 if eval { Lazysite::Auth::Settings::account_is_operator($auth_user) };
     }
-    my @ug = grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+    # SM1131: the one identity reader (configured header names, one separator,
+    # directory names mapped), not a read of the fixed X-Remote-Groups here.
+    my @ug = @{ Lazysite::Auth::Identity::request_identity( ( defined $DOCROOT ? ( lazysite_dir => _lz() ) : () ) )->{groups} };
     return 1 if @ug && Lazysite::Auth::Settings::groups_are_operator(@ug);
 
     # A site where no group grants manager access at all is unsecured/dev: any

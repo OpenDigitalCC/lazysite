@@ -47,9 +47,12 @@ print {$af} encode_json( {
 } );
 close $af;
 
-# One request through the wrapper. %o: addr, cookie_user, proxy_user.
+# One request through the wrapper. %o: addr, cookie_user, proxy_user; site (another
+# ManagerSession), env (more request headers).
 sub via_wrapper {
     my ( $uri, %o ) = @_;
+    my $site = $o{site} // $ms;
+    my $d    = $site->docroot;
     local %ENV = (
         env_passthrough(),
         DOCUMENT_ROOT        => $d,
@@ -59,8 +62,9 @@ sub via_wrapper {
         REMOTE_ADDR          => $o{addr},
         LAZYSITE_PROCESSOR   => "$root/lazysite-processor.pl",
         LAZYSITE_LOG_LEVEL   => 'DEBUG',
-        ( defined $o{cookie_user} ? ( HTTP_COOKIE => $ms->cookie_for( $o{cookie_user} ) ) : () ),
+        ( defined $o{cookie_user} ? ( HTTP_COOKIE => $site->cookie_for( $o{cookie_user} ) ) : () ),
         ( defined $o{proxy_user}  ? ( HTTP_X_REMOTE_USER => $o{proxy_user}, HTTP_X_REMOTE_GROUPS => '' ) : () ),
+        %{ $o{env} // {} },
     );
     my $err = gensym;
     my $pid = open3( my $w, my $r, $err, $^X, "$root/lazysite-auth.pl" );
@@ -105,6 +109,44 @@ subtest 'an untrusted peer sending proxy headers does not displace its cookie' =
     unlike( $log, qr/proxy identity wins/, 'and the cookie is not reported ignored' );
     ( $out ) = via_wrapper( '/private/for-carol', addr => $OTHER, proxy_user => 'carol' );
     unlike( $out, qr/body-for-carol/, 'and with no cookie the forged header is nobody' );
+};
+
+# SM1131: the wrapper finds the proxy's user by the one identity reader, so on a
+# site that renamed the proxy header it is the CONFIGURED name that wins over a
+# cookie - the name every reader behind the wrapper reads - and an X-Remote-User
+# passed through beside it is not a user and does not set the cookie aside.
+subtest 'renamed proxy header: the wrapper reads the name the readers read' => sub {
+    my $rn = ManagerSession::new_site(
+        root => $root,
+        conf => "site_name: T\nauth_proxy_trusted: true\nauth_proxy_trusted_from: 10.0.0.0/8\n"
+            . "auth_header_user: Remote-User\nauth_header_groups: Remote-Groups\n",
+    );
+    $rn->add_user('alice');
+    my $rd = $rn->docroot;
+    make_path("$rd/private");
+    for my $f (qw(for-alice for-carol)) {
+        open my $fh, '>', "$rd/private/$f.html" or die $!;
+        print {$fh} "<h1>body-$f</h1>";
+        close $fh;
+    }
+    open my $rf, '>', "$rd/lazysite/auth/acls.json" or die $!;
+    print {$rf} encode_json( {
+        'private/for-alice.html' => { read => ['alice'] },
+        'private/for-carol.html' => { read => ['carol'] },
+    } );
+    close $rf;
+
+    my ( $out, $log ) = via_wrapper( '/private/for-carol', site => $rn, addr => $PROXY,
+        cookie_user => 'alice', env => { HTTP_REMOTE_USER => 'carol', HTTP_REMOTE_GROUPS => '' } );
+    like( $out, qr/body-for-carol/, 'the configured header names carol, and she wins over the cookie' )
+        or diag substr( $out, 0, 300 );
+    like( $log, qr/proxy identity wins, cookie ignored/, 'and the cookie is reported ignored' );
+
+    ( $out, $log ) = via_wrapper( '/private/for-alice', site => $rn, addr => $PROXY,
+        cookie_user => 'alice', proxy_user => 'carol' );
+    like( $out, qr/body-for-alice/, 'an X-Remote-User beside a renamed proxy header does not displace the cookie' )
+        or diag substr( $out, 0, 300 );
+    unlike( $log, qr/proxy identity wins/, 'and nothing says the cookie was ignored' );
 };
 
 done_testing();

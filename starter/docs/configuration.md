@@ -112,6 +112,25 @@ works on staging and production.
 : Override HTTP header names when using an external auth proxy.
   Defaults: `X-Remote-User`, `X-Remote-Name`, `X-Remote-Email`,
   `X-Remote-Groups`.
+  Every reader honours them - the page gate, the per-file ACLs, the manager
+  and its API - and only under `auth_proxy_trusted: true`, from a peer listed
+  in `auth_proxy_trusted_from`; behind the built-in
+  cookie login the identity is the login's, whatever these are set to.
+
+`auth_header_groups_separator`
+: What separates the groups in the groups header. Default `,`; Authentik sends
+  `|`. Each part is trimmed and an empty part dropped. One rule for every
+  reader.
+
+`auth_group_map`
+: Maps a directory group name to a lazysite group name, for groups that arrive
+  in the groups header from a trusted proxy. One line, comma-separated entries:
+  `auth_group_map: Site Editors = editors, Platform Admins = operators`. The
+  directory name is matched ignoring case and extra spaces; the target must be a
+  valid group name (letters, digits, hyphen, underscore, at most 64). A name with
+  no entry is normalised: lowercase, any run of other characters becomes one
+  hyphen, hyphens trimmed at the ends, cut to 64 - so `Site Editors` is
+  `site-editors`. A name with nothing left is dropped with a warning in the log.
 
 `webdav_enabled`
 : `true` or `false` (default). Master switch for the `/dav` WebDAV

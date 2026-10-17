@@ -32,6 +32,7 @@ use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
 use Lazysite::Auth::Settings   qw(read_settings groups_grant_cap);
 use Lazysite::Auth::Verify ();                   # SM685: verify in-process, no subprocess
+use Lazysite::Auth::Identity   ();    # SM1131: the proxy's user, read the readers' way
 use Lazysite::Auth::LoginRate  ();    # SM1043: the sign-in rate limiter, shared
 use Lazysite::I18n         qw(chrome_string);    # SM179 P8: engine-chrome i18n
 $Lazysite::Util::COMPONENT = 'auth';
@@ -48,7 +49,8 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             core        => 1,
             config_file => '',
             config_keys => [ qw(auth_default auth_redirect auth_header_user
-                    auth_header_name auth_header_email auth_header_groups) ],
+                    auth_header_name auth_header_email auth_header_groups
+                    auth_header_groups_separator auth_group_map) ],
             config_schema => [
                 { key => 'auth_default', label => 'Default auth requirement', type => 'select',
                     options => [ 'none', 'optional', 'required' ], default => 'none' },
@@ -57,6 +59,8 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                 { key => 'auth_header_name', label => 'Display name header', type => 'text', default => 'X-Remote-Name' },
                 { key => 'auth_header_email', label => 'Email header name', type => 'text', default => 'X-Remote-Email' },
                 { key => 'auth_header_groups', label => 'Groups header name', type => 'text', default => 'X-Remote-Groups' },
+                { key => 'auth_header_groups_separator', label => 'Groups header separator', type => 'text', default => ',' },
+                { key => 'auth_group_map', label => 'Directory group map', type => 'text', default => '' },
             ],
             actions => [
                 { id => 'manage-users', label => 'Manage users', link => '/manager/users' },
@@ -1139,14 +1143,21 @@ sub handle_request {
     # cookie is not consulted at all: no merge, no fallback to it. A request with
     # NO proxy user keeps today's cookie behaviour (a site may use both), and the
     # processor and manager API believe the proxy's headers by the same function.
-    my $pid = Lazysite::Util::proxy_identity($LAZYSITE_DIR);
-    my $proxy_user
-        = $pid->{trusted}
-        ? ( $ENV{HTTP_X_REMOTE_USER} // '' )
-        : '';
-    if ( $pid->{trusted} && !length $proxy_user ) {
-        ( my $e = 'HTTP_' . uc $pid->{user_header} ) =~ s/-/_/g;
-        $proxy_user = $ENV{$e} // '';
+    #
+    # SM1131: and the proxy's USER is read by the one identity reader, under the
+    # configured name, with this request's proxy answer - the same name every
+    # reader downstream will read. The wrapper used to try X-Remote-User first and
+    # the configured name second, so on a site that renamed its proxy header a
+    # client-sent X-Remote-User the proxy passed through set the cookie aside for a
+    # user no reader would then see. With no proxy user the cookie path below sets
+    # the FIXED names and LAZYSITE_AUTH_TRUSTED, which the reader reads as the
+    # cookie's identity: the two rules are one rule.
+    my $pid        = Lazysite::Util::proxy_identity($LAZYSITE_DIR);
+    my $proxy_user = '';
+    if ( $pid->{trusted} ) {
+        my $pi = Lazysite::Auth::Identity::request_identity(
+            lazysite_dir => $LAZYSITE_DIR, proxy => $pid );
+        $proxy_user = $pi->{user} if $pi->{source} eq 'proxy';
     }
     my ( $ident, $why, %detail );
     if ( length $proxy_user ) {

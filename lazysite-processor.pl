@@ -685,8 +685,11 @@ sub handle_manager_path {
         return 1;
     }
 
-    my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
-    my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
+    # SM1131: the one identity reader, so a renamed proxy header opens the
+    # manager as it opens a page. _is_manager takes the groups as a list string.
+    my $ident       = _request_identity( conf => \%sv );
+    my $auth_user   = $ident->{user};
+    my $auth_groups = join ',', @{ $ident->{groups} };
 
     unless ( _is_manager( \%sv, $auth_user, $auth_groups ) ) {
         # An AUTHENTICATED account that lacks the `ui` capability (an MCP/API-only

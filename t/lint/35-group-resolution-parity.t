@@ -104,8 +104,12 @@ for my $file ( sort keys %CHANNEL ) {
 # not "make it consistent" by deleting the mechanism that carries the session.
 {
     my $api = code_of( slurp("$root/lazysite-manager-api.pl") );
-    like( $api, qr/HTTP_X_REMOTE_GROUPS/,
+    like( $api, qr/_request_identity\(\)->\{groups\}/,
         'the cookie path still reads the session groups from the trusted header' );
+    # SM1131: through the one identity reader, which reads X-Remote-Groups behind
+    # the wrapper (t/lint/268 pins that nothing else names the header).
+    like( code_of( slurp("$root/lib/Lazysite/Auth/Identity.pm") ), qr/HTTP_X_REMOTE_GROUPS/,
+        'and the reader is where the header is read' );
 }
 
 done_testing();

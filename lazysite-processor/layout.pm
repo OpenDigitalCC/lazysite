@@ -980,8 +980,9 @@ sub _inject_admin_bar {
         || index( $request_uri, "$manager_path/" ) == 0;
 
     # Who is viewing? Use the same rule as the /manager route protection.
-    my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
-    my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
+    my $ident       = _request_identity();    # SM1131
+    my $auth_user   = $ident->{user};
+    my $auth_groups = join ',', @{ $ident->{groups} };
     my $is_manager  = _is_manager( $vars, $auth_user, $auth_groups );
 
     # Manager tools: Manage / Edit / no-password warning / sign-out.

@@ -5,7 +5,7 @@ package main;
 #
 # HOLDS   check_auth(), the page gate: auth: none / required / optional, the
 #         page's auth_groups, the login and manager carve-outs, and the
-#         identity read from the (renameable) X-Remote-* headers; peek_auth()
+#         identity from Lazysite::Auth::Identity (SM1131); peek_auth()
 #         and _peek_md(), the single-pass front-matter peek every peek_* reads,
 #         with its per-request memo and _reset_peek_cache; _is_manager and
 #         _site_grants_manager, the local copy of Auth::Settings'
@@ -21,7 +21,7 @@ package main;
 #         _rewrite_if_changed, _chrome_lang, _chrome, _draft_is, _draft_stat,
 #         log_event (the script and its parts); JSON::PP::decode_json by its
 #         full name (loaded by the script's `use`, before its parts load).
-# READS   $DOCROOT, $LAZYSITE_DIR and $DRAFT_BYTES (SM1030: the peek reads a
+# READS   $DOCROOT, $LAZYSITE_DIR, $CONF_FILE and $DRAFT_BYTES (SM1030: the peek reads a
 #         draft from memory); SETS %ACCESS_REC (the script's, declared `our`
 #         there).
 #
@@ -30,11 +30,12 @@ package main;
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S20). It is package main, required
 # by absolute path from lazysite-processor.pl's BEGIN and never through @INC, and
-# it loads nothing - ADR 0001 keeps the render path free of the Lazysite:: tree.
+# it loads nothing up front - ADR 0001 keeps the render path free of the Lazysite::
+# tree; the one identity reader is loaded on first use by _lazy_lib (SM1131).
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $DRAFT_BYTES, %ACCESS_REC );
+our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, %ACCESS_REC );
 
 # --- Auth ---
 
@@ -207,18 +208,14 @@ sub check_auth {
         $auth_level = 'none';
     }
 
-    # Convert header names to env var format (X-Remote-User -> HTTP_X_REMOTE_USER)
-    my $make_env = sub {
-        my $h = shift;
-        $h = 'HTTP_' . uc($h);
-        $h =~ s/-/_/g;
-        return $h;
-    };
-
-    my $auth_user = $ENV{ $make_env->( $site_vars->{auth_header_user} || 'X-Remote-User' ) } // '';
-    my $auth_name = $ENV{ $make_env->( $site_vars->{auth_header_name} || 'X-Remote-Name' ) } // '';
-    my $auth_email = $ENV{ $make_env->( $site_vars->{auth_header_email} || 'X-Remote-Email' ) } // '';
-    my $auth_groups = $ENV{ $make_env->( $site_vars->{auth_header_groups} || 'X-Remote-Groups' ) } // '';
+    # SM1131: who is asking comes from the one reader (_request_identity), not
+    # from a header name spelled here - the page gate used to be the only reader
+    # that honoured the configured names.
+    my $ident       = _request_identity( conf => $site_vars );
+    my $auth_user   = $ident->{user};
+    my $auth_name   = $ident->{name};
+    my $auth_email  = $ident->{email};
+    my @auth_groups = @{ $ident->{groups} };
 
     my $authenticated = $auth_user ne '' ? 1 : 0;
 
@@ -272,7 +269,7 @@ sub check_auth {
             auth_user     => $auth_user,
             auth_name     => $auth_name,
             auth_email    => $auth_email,
-            auth_groups   => [ split /\s*,\s*/, $auth_groups ],
+            auth_groups   => [@auth_groups],
             authenticated => $authenticated,
         };
     }
@@ -284,7 +281,7 @@ sub check_auth {
 
     # Group check
     if ( $authenticated && @required ) {
-        my %user_groups = map  { lc($_) => 1 } split /\s*,\s*/, $auth_groups;
+        my %user_groups = map  { lc($_) => 1 } @auth_groups;
         my $in_group    = grep { $user_groups{ lc($_) } } @required;
         unless ($in_group) {
             return {
@@ -302,9 +299,29 @@ sub check_auth {
         auth_user     => $auth_user,
         auth_name     => $auth_name,
         auth_email    => $auth_email,
-        auth_groups   => [ split /\s*,\s*/, $auth_groups ],
+        auth_groups   => [@auth_groups],
         authenticated => $authenticated,
     };
+}
+
+# SM1131: THE PROCESSOR'S WAY TO THE ONE IDENTITY READER. Lazysite::Auth::Identity
+# is the only code that reads the identity headers out of the environment; the
+# processor reaches it by the lazy loader (ADR 0001 keeps the render path from
+# loading the lib tree up front), and every processor reader - the page gate, the
+# manager entry, the layout's admin bar, the data sources, the scan - calls this.
+# `conf` is the caller's site vars when it has them; otherwise the reader reads the
+# processor's own conf file. `proxy` is the render path's answer to "is the proxy
+# trusted for this request" - _proxy_identity, the pinned copy the trust gate
+# asked (SM1129) - so the reader decides which header names count by the same
+# answer that decided which headers survived the gate, and never by the flag.
+sub _request_identity {
+    my (%o) = @_;
+    _lazy_lib('Lazysite::Auth::Identity');
+    return Lazysite::Auth::Identity::request_identity(
+        ( ref $o{conf} eq 'HASH' ? () : ( conf_file => $CONF_FILE ) ),
+        lazysite_dir => $LAZYSITE_DIR,
+        proxy        => _proxy_identity(),
+        %o );
 }
 
 # SM138: does ANY group grant manager access (ui / manage_users / the manager

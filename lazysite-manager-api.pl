@@ -32,6 +32,7 @@ use Lazysite::Capabilities        qw(describe capability_keys channel_service);
 use Lazysite::ControlApi::Actions ();                        # SM350
 use Lazysite::BadUrl              qw(list_blocks block unblock);
 use Lazysite::Auth::Settings      qw(site_grants_manager);
+use Lazysite::Auth::Identity      ();
 use Lazysite::Auth::Acl           qw(load_acls save_acls _acl_norm _to_list _acl_allows);
 use Lazysite::Auth::Session       qw(generate_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond _emit_json
@@ -210,6 +211,15 @@ return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
     }
 }
 
+# SM1131: THE REQUEST'S IDENTITY, from the one reader. This script read the fixed
+# X-Remote-* names in five places and the page gate read the configured ones, so a
+# proxy that sent `Remote-User` opened a page and not the manager. user, name,
+# email and groups (split on the configured separator, mapped to lazysite names)
+# all come from Lazysite::Auth::Identity now; nothing below reads the headers.
+sub _request_identity {
+    return Lazysite::Auth::Identity::request_identity( lazysite_dir => $LAZYSITE_DIR );
+}
+
 # --- Auth check ---
 
 # SM138: is the site secured? A site where some group grants manager access
@@ -297,7 +307,7 @@ $REQUEST_CONFINED = 0;     # SM648: were this caller's scopes RESOLVED?
         if ( defined $u && defined $secret && $secret =~ /^lzs_/ ) {
             # A token request must not also carry a session cookie, so the
             # CSRF exemption can never be used to ride a browser session.
-            if ( length( $ENV{HTTP_X_REMOTE_USER} // '' ) ) {
+            if ( length( _request_identity()->{user} ) ) {
                 _bail( { ok => 0, error => 'Do not combine cookie and token auth' } );
             }
             # Service killswitch (0.9.0): the control-API token surface is OFF
@@ -342,7 +352,7 @@ $REQUEST_CONFINED = 0;     # SM648: were this caller's scopes RESOLVED?
 
 # Cookie (manager) auth: the trusted X-Remote-User set by the auth wrapper.
 unless ($token_auth) {
-    $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
+    $auth_user = _request_identity()->{user};
 
     # SM268 H9: an unauthenticated request is REFUSED. Always.
     #
@@ -486,7 +496,9 @@ $Lazysite::Auth::Acl::token_auth        = $token_auth;
 # SM077 / SM288: the requester's groups, for @group ACL entries.
 #
 # A COOKIE client's groups arrive in X-Remote-Groups, set by the auth wrapper
-# from the validated session - that is the trusted path and it stays.
+# from the validated session - that is the trusted path and it stays (the one
+# identity reader, SM1131, reads it; a trusted proxy's come through the same
+# reader under the configured names).
 #
 # A TOKEN client cannot send that header at all, so this used to leave a partner
 # with no groups and an @group entry silently never matched it - while the same
@@ -495,7 +507,7 @@ $Lazysite::Auth::Acl::token_auth        = $token_auth;
 @Lazysite::Auth::Acl::user_groups
     = $token_auth
     ? Lazysite::Auth::Acl::groups_for_user($auth_user)
-    : grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+    : @{ _request_identity()->{groups} };
 
 # SM906 T3: THE COOKIE DOOR ASKS THE SAME QUESTION. The token door's answer comes
 # from verify_credential; a cookie session was verified by the auth wrapper, so
@@ -857,8 +869,7 @@ if ( !$token_auth ) {
         unless (
             $SELF_ACTION{$action}
             || $caps->{manager_ui}
-            || Lazysite::Auth::Settings::groups_grant_cap( 'ui', grep { length } split /[,\s]+/,
-                ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) ) )
+            || Lazysite::Auth::Settings::groups_grant_cap( 'ui', @{ _request_identity()->{groups} } ) )
         {
             _refuse(
                 { ok => 0, kind => 'forbidden',
@@ -878,8 +889,7 @@ if ( !$token_auth ) {
         # WebDAV's content namespace does; a `ui`-only account is read-only.
         my $holds_content = sub {
             return $caps->{manage_content}
-                || Lazysite::Auth::Settings::groups_grant_cap( 'manage_content', grep { length } split /[,\s]+/,
-                ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) );
+                || Lazysite::Auth::Settings::groups_grant_cap( 'manage_content', @{ _request_identity()->{groups} } );
         };
         if ( $CONTENT_WRITE{$action} ) {
             my @content = grep { defined && !m{\A/*lazysite(?:/|\z)} } ( $path, $params{to} );
