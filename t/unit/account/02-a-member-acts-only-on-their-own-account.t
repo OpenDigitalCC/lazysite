@@ -29,6 +29,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root env_passthrough site_tempdir);
+use RateWindow qw(stay_in_one_window);
+use Lazysite::Auth::LoginRate ();
 
 my $root   = repo_root();
 my $auth   = "$root/lazysite-auth.pl";
@@ -227,6 +229,12 @@ SKIP: {
 # --- rate limit: guessing the password behind a stolen session -------------------------
 {
     my ( $d, $c ) = site();
+
+    # SM1163: the limiter counts in FIXED windows; six guesses that straddle a
+    # boundary restart the count (seen 2026-10-17 17:20:00: 'forbidden' not 'rate',
+    # then the right password got in). Begin them where the whole run fits one
+    # window; 60 s is generous for six CGI calls on a loaded host.
+    stay_in_one_window( $Lazysite::Auth::LoginRate::LOGIN_WINDOW, 60 );
     my $last;
     for my $i ( 1 .. 6 ) {
         $last = api( $d, 'alice', 'me-password',

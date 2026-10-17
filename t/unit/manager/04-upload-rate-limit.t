@@ -12,6 +12,7 @@ use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Upload qw(check_upload_rate);
 use Lazysite::Manager::Common ();
+use RateWindow qw(stay_in_one_window);
 
 eval { require DB_File };
 plan skip_all => 'DB_File not available' if $@;
@@ -20,6 +21,10 @@ my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/manager");
 $Lazysite::Manager::Upload::LAZYSITE_DIR = "$docroot/lazysite";
 $Lazysite::Manager::Common::DOCROOT      = $docroot;
+
+# SM1163: the budget counts in fixed hours; the count assertions below need all
+# their calls in one hour (a boundary restarts the count).
+stay_in_one_window( 3600, 30 );
 
 sub write_conf {
     my ($body) = @_;

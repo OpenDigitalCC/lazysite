@@ -16,6 +16,7 @@ use Fcntl qw(:flock O_RDWR O_CREAT);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root env_passthrough);
+use RateWindow qw(stay_in_one_window);
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
@@ -47,8 +48,7 @@ sub seed_count {
     # assertion fails (~sub-1% of runs). A failed login also sleeps a couple
     # of seconds, so guard a margin: if we are within 8 s of the rollover,
     # sleep past it before seeding.
-    my $into = time() % $LOGIN_WINDOW;
-    sleep( $LOGIN_WINDOW - $into + 1 ) if $into > $LOGIN_WINDOW - 8;
+    stay_in_one_window( $LOGIN_WINDOW, 8 );    # SM1163: the shared guard
     my %db;
     tie %db, 'DB_File', $rate_db, O_CREAT | O_RDWR, 0o600
         or die "cannot tie db: $!";

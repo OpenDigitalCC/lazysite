@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1163 (PENDING) **internal: a rate test stays in one window.** The sign-in limiter
+  counts in fixed windows, and a test whose guesses ran across a five-minute
+  boundary saw the count restart (2026-10-17 integration). One helper,
+  `t/lib/RateWindow.pm`, now begins the counted attempts where they fit one
+  window; the limiter itself is unchanged.
 - SM1143 (PENDING) **internal: the note-on-focus test waits for what it checks.**
   Under heavy parallel load
   the browser in the SM1104 test could return no document and the test read an

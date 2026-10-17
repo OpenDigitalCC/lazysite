@@ -8,6 +8,7 @@ use Fcntl qw(O_RDWR O_CREAT);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(setup_dav_site run_dav dav_users_tool);
+use RateWindow qw(stay_in_one_window);
 
 # --- site gate: webdav disabled => 404, nothing advertised ------------
 {
@@ -74,6 +75,7 @@ use TestHelper qw(setup_dav_site run_dav dav_users_tool);
     my $s = setup_dav_site();
     # Seed the failed-attempt DB for this IP at the limit.
     my $ip = '198.51.100.7';
+    stay_in_one_window( 300, 8 );    # SM1163: seed and request in one window
     require DB_File;
     my %db;
     my $window = int( time() / 300 );

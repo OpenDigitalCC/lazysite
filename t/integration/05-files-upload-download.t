@@ -11,6 +11,7 @@ use JSON::PP qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root env_passthrough);
+use RateWindow qw(stay_in_one_window);
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
@@ -192,6 +193,7 @@ ok( length($token) == 64, 'csrf token obtained' );
 
 # --- 6. Rate limit: 2 requests then a third rejected ---
 {
+    stay_in_one_window( 3600, 30 );    # SM1163: three counted calls in one hour
     write_conf("site_name: T\nmanager_upload_rate_count: 2\n"
              . "manager_upload_rate_mb: 100\n");
     unlink "$docroot/lazysite/manager/.upload-rate.db";

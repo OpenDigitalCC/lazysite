@@ -18,6 +18,7 @@ use Fcntl qw(O_RDWR O_CREAT);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root env_passthrough site_tempdir);
+use RateWindow qw(stay_in_one_window);
 
 my $root   = repo_root();
 my $WINDOW = 300;
@@ -39,8 +40,7 @@ sub site {
 
 sub seed_max {
     my ($d) = @_;
-    my $into = time() % $WINDOW;
-    sleep( $WINDOW - $into + 1 ) if $into > $WINDOW - 8;
+    stay_in_one_window( $WINDOW, 8 );    # SM1163: the shared guard
     my %db;
     tie %db, 'DB_File', "$d/lazysite/auth/.login-rate.db", O_CREAT | O_RDWR, 0o600 or die "tie: $!";
     $db{ "$ip:" . int( time() / $WINDOW ) } = 5;

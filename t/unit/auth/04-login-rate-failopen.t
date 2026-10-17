@@ -17,6 +17,7 @@ use Fcntl qw(O_RDWR O_CREAT);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root env_passthrough);
+use RateWindow qw(stay_in_one_window);
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
@@ -37,8 +38,7 @@ my $ip           = '10.55.44.33';
 
 # Guard the 300 s window rollover (as 03 does) so the seed and the request share
 # a window.
-my $into = time() % $LOGIN_WINDOW;
-sleep( $LOGIN_WINDOW - $into + 1 ) if $into > $LOGIN_WINDOW - 8;
+stay_in_one_window( $LOGIN_WINDOW, 8 );    # SM1163: the shared guard
 
 sub seed_over_limit {
     my %db;
