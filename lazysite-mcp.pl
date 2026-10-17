@@ -401,7 +401,8 @@ sub verify_bearer {
             if $v->{first_use};
         %AUTH_INFO = ( method => 'bearer',
             expires_at => ( $v->{settings} ? $v->{settings}{token_expires_at} : undef ) );
-        return ( $user, $v->{settings} || {} );
+        # SM1140: a group the caller's address is refused for grants nothing to this call.
+        return ( $user, _narrowed_to_address( $v->{settings} || {}, $user ) );
     }
 
     # Opaque OAuth access token: resolve to its partner, then its capabilities
@@ -417,7 +418,15 @@ sub verify_bearer {
     return () unless $r && $r->{ok};
     %AUTH_INFO = ( method => 'oauth',
         expires_at => Lazysite::Auth::OAuth::token_expiry($cred) );
-    return ( $partner, $r->{settings} || {} );
+    return ( $partner, _narrowed_to_address( $r->{settings} || {}, $partner ) );
+}
+
+# SM1140 (slice C of SM1134, ruled: machine doors too): the caller's settings cut back to
+# what its groups grant from THIS request's address (Auth::Settings::narrow_caps_to_request).
+sub _narrowed_to_address {
+    my ( $settings, $user ) = @_;
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
+    return Lazysite::Auth::Settings::narrow_caps_to_request( $settings, $user );
 }
 
 # Set the per-request module context once the caller is known.

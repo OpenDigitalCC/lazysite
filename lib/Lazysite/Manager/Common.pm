@@ -270,6 +270,8 @@ sub _with_request_group_caps {
     $s = {} unless ref $s eq 'HASH';
     return $s if $token_auth || !defined $auth_user || $user ne $auth_user;
     local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
+    # SM1140: a group the caller's address is refused for grants nothing at this door.
+    $s = Lazysite::Auth::Settings::narrow_caps_to_request( $s, $user );
     my $extra = Lazysite::Auth::Settings::request_group_caps(
         Lazysite::Auth::Identity::request_identity( lazysite_dir => $LAZYSITE_DIR // _lz() ) );
     return $s unless %$extra;

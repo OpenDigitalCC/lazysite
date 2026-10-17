@@ -82,6 +82,18 @@ var SITE_SCHEMA = [
   { key: 'manager_path', placeholder: '/manager',   label: 'Manager URL path',      type: 'text',
     default: '/manager',
     show_when: { key: 'manager', value: ['enabled'] } },
+  // SM1140 (SM1134, ruled): who may reach the manager and its API by address, apart from
+  // any group. Names of address lists (Access, Address lists). The Config page has no list
+  // chooser, so these are text fields with the names listed in the note; the server checks
+  // each name is a list of the right kind before it writes.
+  { key: 'manager_addresses', placeholder: 'any address', label: 'Manager only from (address lists)', type: 'text',
+    default: '', group: 'Manager user interface',
+    show_when: { key: 'manager', value: ['enabled'] },
+    note: 'Names of ALLOW address lists, comma separated (see Access, Address lists). When set, the manager and its API answer only to requests from those addresses, whatever groups the visitor holds; the sign-in pages are unaffected. Empty means any address. Needs trusted_proxies to cover your front end, or every visitor looks like the proxy.' },
+  { key: 'manager_addresses_deny', placeholder: 'no address refused', label: 'Manager never from (address lists)', type: 'text',
+    default: '', group: 'Manager user interface',
+    show_when: { key: 'manager', value: ['enabled'] },
+    note: 'Names of DENY address lists, comma separated. A request from one of these addresses is refused the manager and its API even if it is in an allow list above.' },
   // SM623: the service toggles are grouped BY WHAT A CLIENT NEEDS, not by the
   // order they were added. They were interleaved - WebDAV, MCP, OAuth, control
   // API, token exchange - so an operator setting up one kind of connection had

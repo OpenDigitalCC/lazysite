@@ -16,7 +16,7 @@ our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     caps_for display_name_for display_names_for display_names_block settings_readable
     groups_grant_cap site_grants_manager
     groups_are_operator account_is_operator operator_groups
-    request_cap_groups request_group_caps
+    request_cap_groups request_group_caps narrow_caps_to_request
     effective_groups touch_credential
     resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings group_is_assignable @CAP_KEYS
@@ -151,7 +151,30 @@ sub _group_closure {
     my (@seed)     = @_;
     my %membership = _groups_membership();
     my $gs         = read_group_settings();
-    return _group_closure_in( \%membership, $gs, @seed );
+
+    # SM1140 (slice C of SM1134, ruled: a group's address list limits only what the
+    # group grants): THE ONE PLACE A REQUEST'S GROUPS ARE WALKED. Every gate that
+    # asks what a request's groups grant or open (capabilities, operator status,
+    # page access, per-file @group entries, domain access) resolves membership here
+    # (the processor's module-free copy, _group_closure in lazysite-processor/acl.pm,
+    # does the same walk), so a group the visitor's address is refused for is left
+    # out in ONE place and every gate agrees. Nothing is read unless some group
+    # record carries a list, and nothing at all outside a web request.
+    my $blocked = _address_blocked_groups($gs);
+    return _group_closure_in( \%membership, $gs, @seed ) unless %$blocked;
+    my @left;
+    my @in = _group_closure_walk( \%membership, $gs, $blocked, \@left, @seed );
+    Lazysite::Auth::AddressScope::note_dropped( $blocked, $AUTH_DIR, @left ) if @left;
+    return @in;
+}
+
+# { group => [reason, lists] } for the groups the current request's address is
+# refused for; {} when none carries a rule.
+sub _address_blocked_groups {
+    my ($gs) = @_;
+    return {} unless grep { ref $gs->{$_} eq 'HASH' && ( $gs->{$_}{addresses} || $gs->{$_}{addresses_deny} ) } keys %{ $gs || {} };
+    require Lazysite::Auth::AddressScope;
+    return Lazysite::Auth::AddressScope::blocked_groups( $gs, $AUTH_DIR );
 }
 
 # The walk itself, against stores the CALLER supplies.
@@ -164,6 +187,16 @@ sub _group_closure {
 # is how the two would come to disagree about who inherits what.
 sub _group_closure_in {
     my ( $membership, $gs, @seed ) = @_;
+    return _group_closure_walk( $membership, $gs, {}, undef, @seed );
+}
+
+# The walk. $blocked names groups that do not count for this request (SM1140): a
+# blocked group is neither a seed nor a parent, and nothing is reached THROUGH it, so
+# a group nested under a blocked group does not inherit what the blocked group
+# grants, and a blocked group's own parents are not reached by way of it. $left, when
+# given, collects the blocked groups the walk actually met, for the audit.
+sub _group_closure_walk {
+    my ( $membership, $gs, $blocked, $left, @seed ) = @_;
     my %is_group = map { $_ => 1 } ( keys %{$membership}, keys %{ $gs || {} } );
     my %parent;    # sub-group => [ groups that list it as a member ]
     for my $g ( keys %{$membership} ) {
@@ -171,15 +204,18 @@ sub _group_closure_in {
             push @{ $parent{$m} }, $g if $is_group{$m} && $m ne $g;
         }
     }
-    my %eff   = map { $_ => 1 } grep { defined && length } @seed;
+    my %met;
+    my %eff = map { $_ => 1 } grep { defined && length && !( $blocked->{$_} && ++$met{$_} ) } @seed;
     my @stack = keys %eff;
     while ( defined( my $g = pop @stack ) ) {
         for my $p ( @{ $parent{$g} || [] } ) {
             next if $eff{$p};
+            if ( $blocked->{$p} ) { $met{$p}++; next }
             $eff{$p} = 1;
             push @stack, $p;
         }
     }
+    push @{$left}, sort keys %met if $left;
     return keys %eff;
 }
 
@@ -444,6 +480,34 @@ sub groups_are_operator {
         return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{manager};
     }
     return 0;
+}
+
+# SM1140: may this process apply the request's address to group membership? The users
+# tool manages the stores (what a group grants, who holds what), not a request, so it
+# sets this to 0; every web script leaves it on. Read by Auth::AddressScope.
+our $ADDRESS_RULES = 1;
+
+# SM1140: THE SETTINGS A DOOR HOLDS FOR THE CALLER, NARROWED TO THIS REQUEST'S
+# ADDRESS. The cookie manager reads the caller's settings from the users tool and an
+# OAuth connector's from `partner-caps` (also the tool), and a deployment that names
+# LAZYSITE_USERS_TOOL verifies a token there too; the tool answers what the account's
+# groups grant, whoever asks from wherever. A group whose address list refuses this
+# request must not count at the door, so the capabilities are cut back to what
+# caps_for (which walks the filtered membership) says. It only ever removes: a
+# capability the tool did not report stays absent. Nothing to do, and nothing read
+# beyond the group store, when no group carries a list.
+sub narrow_caps_to_request {
+    my ( $s, $user ) = @_;
+    return $s unless ref $s eq 'HASH' && defined $user && length $user;
+    return $s unless %{ _address_blocked_groups( read_group_settings() ) };
+    my $c = caps_for($user);
+    my %n = %$s;
+    for my $k (@CAP_KEYS) {
+        next if $k eq 'ui'; # `ui` here is "interactive login allowed", not the capability
+        $n{$k} = JSON::PP::false() if $n{$k} && !$c->{$k};
+    }
+    $n{manager_ui} = JSON::PP::false() if $n{manager_ui} && !$c->{ui};
+    return \%n;
 }
 
 # SM1135 (SM1128 phase 1, P1-6; ruled 2026-10-17 R1: "page and file access by

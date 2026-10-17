@@ -685,6 +685,17 @@ sub handle_manager_path {
         return 1;
     }
 
+    # SM1140 (slice C of SM1134, ruled): lazysite.conf `manager_addresses:` /
+    # `manager_addresses_deny:` limit the manager for everyone, whatever their groups
+    # (the manager API judges the same rule). A refused visitor gets the one ruled
+    # sentence on a page that stands alone, so it renders with a broken layout or
+    # theme; the sign-in pages are outside this path and stay reachable.
+    _lazy_lib('Lazysite::Auth::AddressScope');
+    if ( Lazysite::Auth::AddressScope::refuse_manager( $LAZYSITE_DIR, 'manager' ) ) {
+        _serve_manager_address_refused( \%sv );
+        return 1;
+    }
+
     # SM1131: the one identity reader, so a renamed proxy header opens the
     # manager as it opens a page. _is_manager takes the groups as a list string.
     my $ident       = _request_identity( conf => \%sv );

@@ -117,6 +117,19 @@ works on staging and production.
   in `auth_proxy_trusted_from`; behind the built-in
   cookie login the identity is the login's, whatever these are set to.
 
+`manager_addresses`, `manager_addresses_deny`
+: Names of address lists (Access, Address lists) that limit who may reach the
+  manager and its API by the address they come from, for everyone and apart from
+  any group. `manager_addresses: office` allows only the addresses in the allow
+  list `office`; `manager_addresses_deny: blocked` refuses those in the deny list
+  `blocked`, and deny wins. A refused visitor is told "This page is not available
+  from your address." The sign-in pages are outside the manager and stay
+  reachable. Comma separated; empty means any address. Set from the Config page by
+  a signed-in session (a value that would shut your own address out is refused).
+  The address is the visitor's, worked out with `trusted_proxies`: behind a front
+  end that is not listed there every visitor looks like the proxy and the rule
+  means nothing. A group can be limited the same way on the Groups page.
+
 `auth_header_groups_separator`
 : What separates the groups in the groups header. Default `,`; Authentik sends
   `|`. Each part is trimmed and an empty part dropped. One rule for every

@@ -278,6 +278,20 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
     exit 0;
 }
 
+# SM1140 (slice C of SM1134, ruled): lazysite.conf `manager_addresses:` /
+# `manager_addresses_deny:` limit the manager API for everyone, cookie and token alike,
+# independent of groups, before anything is verified or run. The address is the
+# visitor's (trusted_proxies), the same one the /manager/ pages are judged by.
+{
+    require Lazysite::Auth::AddressScope;
+    if ( Lazysite::Auth::AddressScope::refuse_manager( $LAZYSITE_DIR, 'manager api' ) ) {
+        _emit_json( '403 Forbidden', [],
+            { ok => JSON::PP::false, kind => 'forbidden',
+                error => 'This page is not available from your address.' } );
+        exit 0;
+    }
+}
+
 # SM071 Phase 3: control-API token front-path. A request authenticated by
 # Authorization: Basic <user>:<lzs_ token> carries no session cookie; it is
 # verified against the user database (via the users tool, which owns the
@@ -346,7 +360,8 @@ $REQUEST_CONFINED = 0;     # SM648: were this caller's scopes RESOLVED?
             }
             $auth_user  = $u;
             $token_auth = 1;
-            %token_caps = %{ $v->{settings} || {} };
+     # SM1140: a group the token's own address is refused for grants nothing to this call.
+            %token_caps = %{ Lazysite::Auth::Settings::narrow_caps_to_request( $v->{settings} || {}, $u ) };
         }
     }
 }

@@ -36,6 +36,7 @@ administration is the <b>Users &amp; groups</b> action.
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var allGroups = {};   // {group: {label, manager, assignable, caps:{}, members:[]}}
 var viewerOperator = false;   // SM1135: is the caller the operator? gates the directory_grants tick
+var addressLists = [];        // SM1140: [{name, kind}] the address lists a group can be limited by
 var allUsers  = [];   // [username]
 var CAP_GRANTS = {};        // SM427: {capability: plain sentence}, served
 var channelServices = {};   // SM180: {channel: 0|1} - is each channel's SITE service enabled
@@ -156,6 +157,11 @@ function loadGroups() {
       return (d.ok && d.groups) ? d.groups : {};
     })
     .catch(function() { return {}; });
+  // SM1140: the address lists, for the operator's chooser; a failure just offers none.
+  var al = fetch(API + '?action=address-lists', { credentials: 'same-origin' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { addressLists = (d.ok && d.lists) ? d.lists : []; })
+    .catch(function() { addressLists = []; });
   var up = apiCall({ action: 'list' })
     .then(function(d) { return (d.ok && d.users) ? d.users : []; })
     .catch(function() { return []; });
@@ -180,7 +186,7 @@ function loadGroups() {
   var rc = fetch(API + '?action=recent-changes').then(function(r) { return r.json(); })
     .then(function(d) { return (d.ok && d.changes) ? d.changes : {}; })
     .catch(function() { return {}; });
-  Promise.all([gp, up, cs, rc]).then(function(res) {
+  Promise.all([gp, up, cs, rc, al]).then(function(res) {
     allGroups = res[0] || {};
     allUsers  = res[1] || [];
     channelServices = res[2] || {};
@@ -509,6 +515,33 @@ function renderGroups() {
          + '</label></div>';
     }
 
+    // SM1140 (SM1134, ruled: a group's address list limits only what the group
+    // grants): the address lists a request's address must satisfy for this group to
+    // count at all (its capabilities, its page and file access, operator status).
+    // The operator's alone, like the directory tick above; the server refuses anyone
+    // else. A chooser of the lists that exist, one row for "only from" (allow lists)
+    // and one for "never from" (deny lists); deny wins.
+    if (viewerOperator) {
+      var addrRow = function(key, label, kind, note) {
+        var have = info[key] || [];
+        var names = addressLists.filter(function(l) { return l.kind === kind; }).map(function(l) { return l.name; });
+        have.forEach(function(n) { if (names.indexOf(n) < 0) names.push(n); });
+        var r = '<div class="mg-line"><label class="mg-line-lbl">' + label + '</label>'
+              + '<span data-addr-group="' + ge + '" data-addr-key="' + key + '">';
+        if (!names.length) r += '<span class="mg-acc-note">No ' + kind + ' address lists yet (Access, Address lists).</span>';
+        names.forEach(function(n) {
+          r += '<label class="mg-chk"><input type="checkbox" value="' + escHtml(n) + '"'
+             + (have.indexOf(n) >= 0 ? ' checked' : '')
+             + ' onchange="setGroupAddresses(\'' + ge + '\', \'' + key + '\')"> ' + escHtml(n) + '</label> ';
+        });
+        return r + ' <span class="mg-acc-note">â ' + note + ' Operator only.</span></span></div>';
+      };
+      h += addrRow('addresses', 'Only from', 'allow',
+        'this group counts only for a request from these addresses (none ticked: any address).');
+      h += addrRow('addresses_deny', 'Never from', 'deny',
+        'this group never counts for a request from these addresses; this wins over the line above.');
+    }
+
     var row = function(c, isChannel) {
       // SM180: a channel that IS granted but whose SITE service is switched off
       // is dormant - it does nothing until an admin enables the service. Flag it
@@ -742,6 +775,22 @@ function setDirectoryGrants(group, on) {
       showStatus(on
         ? 'A group called "' + group + '" sent by the identity provider now grants its capabilities.'
         : 'A group called "' + group + '" sent by the identity provider gives page and file access only.');
+      loadGroups();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM1140: the operator-only address limit on a group, from the ticked lists.
+function setGroupAddresses(group, key) {
+  var box = document.querySelector('[data-addr-group="' + group + '"][data-addr-key="' + key + '"]');
+  var names = [];
+  if (box) box.querySelectorAll('input:checked').forEach(function(i) { names.push(i.value); });
+  apiCall({ action: 'group-settings-set', group: group, key: key, value: names.join(',') })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not set it.', true); loadGroups(); return; }
+      showStatus(names.length
+        ? '@' + group + (key === 'addresses' ? ' now counts only from ' : ' never counts from ') + names.join(', ') + '.'
+        : '@' + group + (key === 'addresses' ? ' counts from any address.' : ' is no longer refused by address.'));
       loadGroups();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });

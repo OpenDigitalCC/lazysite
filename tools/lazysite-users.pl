@@ -218,6 +218,13 @@ unless ($DOCROOT) {
 # read the real store) while every account added from the shell went nowhere.
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);
 my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
+
+# SM1140: this tool manages the stores (what a group grants, who holds what) and answers
+# for any account, not for one web request, so a group's address list is not applied
+# here. It may have inherited a request's environment from the manager API that ran
+# it; the doors narrow the caller's own settings to the request themselves
+# (Auth::Settings::narrow_caps_to_request).
+$Lazysite::Auth::Settings::ADDRESS_RULES = 0;
 # Only set the default mode when we create the dir. Re-chmodding on every
 # run would clobber an operator's deliberate perms (e.g. 2770 group-write
 # for a www-data CGI that must mint .secret / rate DBs here).
@@ -4767,6 +4774,9 @@ sub _group_settings_view {
             # capabilities? Served for the Groups page's operator-only tick.
             directory_grants =>
                 ( $cfg->{directory_grants} ? JSON::PP::true() : JSON::PP::false() ),
+            # SM1140: the address lists that limit what this group grants (names).
+            addresses => [ @{ ref $cfg->{addresses} eq 'ARRAY' ? $cfg->{addresses} : [] } ],
+            addresses_deny => [ @{ ref $cfg->{addresses_deny} eq 'ARRAY' ? $cfg->{addresses_deny} : [] } ],
             assignable => (
                 Lazysite::Auth::Settings::group_is_assignable( $g, $gs )
                 ? JSON::PP::true()
@@ -5221,6 +5231,43 @@ sub cmd_group_settings_set {
             directory_grants => $on ? JSON::PP::true() : JSON::PP::false() };
     }
 
+    # SM1140 (slice C of SM1134, ruled 2026-10-17: "a group's address list limits only
+    # what the group grants"): `addresses` (allow) and `addresses_deny`, the NAMES of
+    # address lists (SM1138) a request's address must satisfy for this group to count at
+    # all: its capabilities, its page and file access and operator status. Deny wins;
+    # an allow list means only those addresses. Not a capability, so the SM195 ceiling
+    # has nothing to weigh, but it decides when the group's grants stand, and a
+    # holder of manage_users who could set it could shut an operator group out of
+    # everywhere or open one to anywhere. So it is the operator's alone, on the same
+    # terms as directory_grants above (SM991: manage_users is not the operator). The
+    # value is a comma-separated list of names; empty clears it. Audited.
+    if ( defined $key && ( $key eq 'addresses' || $key eq 'addresses_deny' ) ) {
+        my $operator = !( defined $actor && length $actor && $actor ne 'local' )
+            || Lazysite::Auth::Settings::account_is_operator($actor)
+            || !Lazysite::Auth::Settings::site_grants_manager();
+        return { ok => 0, kind => 'forbidden',
+            error => "Only a sysop may limit a group by address: it decides when '$group' "
+                . 'grants anything at all.' }
+            unless $operator;
+        require Lazysite::Auth::AddressLists;
+        my @names;
+        my %seen;
+        for my $n ( grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $value // '' ) ) {
+            return { ok => 0, error => "'$n' is not an address list name (lowercase letters, digits, hyphen, underscore)." }
+                unless Lazysite::Auth::AddressLists::valid_name($n);
+            push @names, $n unless $seen{$n}++;
+        }
+        my $gs = read_group_settings();
+        $gs->{$group} ||= _new_group_record($group);
+        my $was = join ',', @{ ref $gs->{$group}{$key} eq 'ARRAY' ? $gs->{$group}{$key} : [] };
+        if (@names) { $gs->{$group}{$key} = \@names } else { delete $gs->{$group}{$key} }
+        write_group_settings($gs);
+        log_event( 'WARN', $group, 'group address limit set', key => $key, lists => join( ',', @names ) );
+        cli_audit( 'user-group-settings-set', $group,
+            "$key=" . ( @names ? join( ',', @names ) : '(cleared)' ) . ( length $was ? "; was $was" : '' ) );
+        return { ok => 1, $key => \@names };
+    }
+
     my %ok_key = map { $_ => 1 } ( @CAP_KEYS, 'manager' );
     return { ok => 0, error => "unknown group setting: " . ( $key // '' ) }
         unless defined $key && $ok_key{$key};
@@ -5343,7 +5390,7 @@ sub cmd_group_set_cli {
     # home_domain and the grant-authority list all take a VALUE, and reporting
     # `group-set g dav_scope other` as "Set dav_scope off" told the sysop the
     # opposite of what had just been stored.
-    my %VALUED = map { $_ => 1 } qw(label description grantable);
+    my %VALUED = map { $_ => 1 } qw(label description grantable addresses addresses_deny);
     if ( $VALUED{$key} ) {
         print( length( $value // '' )
             ? "Set $key to '$value' for group '$group'.\n"
@@ -5968,6 +6015,10 @@ Commands:
                               assignable, and directory_grants (SM1135: the
                               groups a trusted proxy names grant this group's
                               capabilities only when it is on; sysop only).
+                              SM1140: addresses and addresses_deny take
+                              address-list names (comma-separated, empty
+                              clears): the group counts only for a request
+                              from those addresses; sysop only.
   permissions USERNAME        Print the channel x capability grid for a user
                               (resolved from groups; debug user access issues)
   audit-registry              Dump the CLI audit classification as JSON (used

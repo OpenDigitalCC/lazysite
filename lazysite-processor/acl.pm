@@ -960,15 +960,28 @@ sub _group_closure {
             push @{ $parent{$m} }, $g if $is_group{$m} && $m ne $g;
         }
     }
-    my %eff   = map { $_ => 1 } grep { defined && length } @seed;
+    # SM1140: the same blocked-group walk as Auth::Settings::_group_closure_walk,
+    # which is the one place a request's groups are resolved (lint 270 pins that the
+    # two agree): a group the visitor's address is refused for is neither a seed
+    # nor a parent, and nothing is reached through it. The decision is the module's
+    # (Auth::AddressScope, loaded only when some group record carries a list).
+    my $blocked = {};
+    if ( grep { ref $gs->{$_} eq 'HASH' && ( $gs->{$_}{addresses} || $gs->{$_}{addresses_deny} ) } keys %{$gs} ) {
+        _lazy_lib('Lazysite::Auth::AddressScope');
+        $blocked = Lazysite::Auth::AddressScope::blocked_groups( $gs, "$LAZYSITE_DIR/auth" );
+    }
+    my %met;
+    my %eff = map { $_ => 1 } grep { defined && length && !( $blocked->{$_} && ++$met{$_} ) } @seed;
     my @stack = keys %eff;
     while ( defined( my $g = pop @stack ) ) {
         for my $p ( @{ $parent{$g} || [] } ) {
             next if $eff{$p};
+            if ( $blocked->{$p} ) { $met{$p}++; next }
             $eff{$p} = 1;
             push @stack, $p;
         }
     }
+    Lazysite::Auth::AddressScope::note_dropped( $blocked, "$LAZYSITE_DIR/auth", sort keys %met ) if %met;
     return keys %eff;
 }
 

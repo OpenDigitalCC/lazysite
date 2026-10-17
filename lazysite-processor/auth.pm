@@ -414,6 +414,24 @@ HTML
         '403 Forbidden' );
 }
 
+# SM1140: the manager refused by the visitor's address (manager_addresses). Stands
+# alone for the same reason _serve_manager_forbidden does, and says the one ruled
+# sentence without naming a list.
+sub _serve_manager_address_refused {
+    my ($sv) = @_;
+    $ACCESS_REC{s} //= 403;
+    $ACCESS_REC{ar} = 1;    # an ACCESS refusal, as serve_403 records
+    my $body = <<"HTML";
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Access Denied</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:520px;margin:3em auto;padding:0 1em;line-height:1.5;">
+<h1 style="font-size:1.3rem;">Access Denied</h1>
+<p>This page is not available from your address.</p>
+</body></html>
+HTML
+    return output_page( $body, 'text/html; charset=utf-8', undef, 1, '403 Forbidden' );
+}
+
 sub serve_403 {
     my ($auth_result) = @_;
 

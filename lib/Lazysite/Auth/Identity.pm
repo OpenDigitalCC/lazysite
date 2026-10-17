@@ -67,6 +67,7 @@ use strict;
 use warnings;
 use Exporter 'import';
 use Lazysite::Util ();
+use JSON::PP       ();
 
 our @EXPORT_OK = qw(request_identity normalise_group_name parse_group_map);
 
@@ -217,7 +218,7 @@ sub request_identity {
     if ( $wrapper || !$proxy ) {
         $id{source} = $wrapper ? 'cookie' : 'direct';
         $id{$_}     = $ENV{ $FIXED{$_} } // '' for qw(user name email);
-        $id{groups} = [ _dedupe( _split_groups( $ENV{ $FIXED{groups} } ) ) ];
+        $id{groups} = _drop_address_blocked( [ _dedupe( _split_groups( $ENV{ $FIXED{groups} } ) ) ], \%opt );
         return \%id;
     }
 
@@ -243,8 +244,39 @@ sub request_identity {
         }
         push @groups, $to;
     }
-    $id{groups} = [ _dedupe(@groups) ];
+    $id{groups} = _drop_address_blocked( [ _dedupe(@groups) ], \%opt );
     return \%id;
+}
+
+# SM1140 (slice C of SM1134): THE GROUP NAMES A REQUEST HOLDS, LESS THOSE ITS ADDRESS
+# IS REFUSED FOR. A group record may carry `addresses` / `addresses_deny`; when the
+# visitor's address is not allowed for it the group does not count for this request:
+# not for a page's auth_groups, not for an ACL @group entry, not for a capability.
+# The page gate and the ACL read the NAMES this reader returns (a proxy's groups are
+# not walked), the capability gates walk them through Auth::Settings::_group_closure,
+# which leaves the same groups out; both ask Auth::AddressScope, so every gate agrees.
+# Names are compared lowercase, as the gates compare them. Nothing is read unless
+# groups-settings.json mentions a list, and nothing at all outside a web request.
+sub _drop_address_blocked {
+    my ( $groups, $opt ) = @_;
+    return $groups unless @$groups && ( defined $ENV{REMOTE_ADDR} || defined $ENV{REQUEST_METHOD} );
+    my $dir;
+    if ( defined $opt->{lazysite_dir} && length $opt->{lazysite_dir} ) { $dir = "$opt->{lazysite_dir}/auth" }
+    elsif ( defined $opt->{conf_file} && $opt->{conf_file} =~ m{\A(.*)/[^/]+\z} ) { $dir = "$1/auth" }
+    else { no warnings 'once'; $dir = $Lazysite::Auth::Settings::AUTH_DIR }
+    return $groups unless defined $dir && -f "$dir/groups-settings.json";
+    open my $fh, '<:raw', "$dir/groups-settings.json" or return $groups;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    return $groups unless defined $raw && $raw =~ /"addresses(?:_deny)?"\s*:/;
+    my $gs = eval { JSON::PP::decode_json($raw) };
+    return $groups unless ref $gs eq 'HASH';
+    require Lazysite::Auth::AddressScope;
+    my $blocked = Lazysite::Auth::AddressScope::blocked_groups( $gs, $dir );
+    return $groups unless %$blocked;
+    my %b = map { lc $_ => $_ } keys %$blocked;
+    Lazysite::Auth::AddressScope::note_dropped( $blocked, $dir, map { $b{ lc $_ } } grep { $b{ lc $_ } } @$groups );
+    return [ grep { !$b{ lc $_ } } @$groups ];
 }
 
 1;
