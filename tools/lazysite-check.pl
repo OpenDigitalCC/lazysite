@@ -1363,6 +1363,7 @@ sub run_checks {
     report_unsafe_nav_urls();
     report_csp_allow_lists();
     report_group_acl_reach();
+    report_address_rules();    # SM1141
 
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
     report_stray_public();
@@ -1802,6 +1803,130 @@ sub conf_value {
     return undef unless defined $val;
     $val =~ s/^\s+|\s+$//g;
     return $val;
+}
+
+# SM1141 (slice D of SM1134): ADDRESS RULES THAT MEAN NOTHING, OR EVERYTHING.
+#
+# A rule that names an address list decides from the visitor's address, and that
+# address is the front end's unless trusted_proxies says the front end is one to
+# believe (SM929): behind an untrusted proxy every visitor is the proxy, so an
+# allow list admits all of them or none and a deny list blocks all or none. Three
+# things are worth saying, each of them quiet at run time:
+#   - rules in use and no front end trusted: `none`, or a list that resolves to
+#     nothing. Every address is the connecting peer.
+#   - rules in use on an install that has a front end in front of the engine
+#     (a pool conf for this docroot, or Hestia's /home/USER/web/DOMAIN layout)
+#     and trusted_proxies unset. The default trusts only 10/8, 172.16/12 and
+#     192.168/16; a front end connecting from loopback or a public address is not
+#     covered. A line naming the front end settles it. The check cannot see the
+#     connecting address, so it names the evidence it went on.
+#   - a rule that names a list the store does not hold (an allow rule then admits
+#     nobody, SM1138), and a store this run cannot read or decode while rules name
+#     lists (the engine denies everything they name).
+# Where the rules are is Lazysite::Auth::AddressRefs, the reader the delete guard
+# in the users tool uses, so the two cannot disagree about what "in use" means.
+sub report_address_rules {
+    my $d = $opt{docroot};
+    require Lazysite::Auth::AddressRefs;
+    my $refs  = Lazysite::Auth::AddressRefs::rules($d);
+    my @rules = @{ $refs->{rules} };
+    if ( @{ $refs->{faults} } ) {
+        report( 'WARN',
+            'address rules could not be looked for everywhere: ' . join( '; ', @{ $refs->{faults} } )
+                . ' - a rule that names an address list may be in what was not read',
+            'run the check as root (sudo lazysite check ...) or as the site user, who can read the tree' );
+    }
+    return unless @rules;    # nothing uses an address rule: nothing to say
+
+    my $LZ    = Lazysite::Paths::lazysite_dir($d);
+    my $where = Lazysite::Auth::AddressRefs::describe(@rules);
+    my $conf  = "$LZ/lazysite.conf";
+    my $spec  = conf_value( $conf, 'trusted_proxies' );
+    require Lazysite::Util;
+    my ($set) = Lazysite::Util::parse_trusted_proxies($spec);
+    my $unset = !defined $spec || !length $spec;
+
+    if ( !@{$set} ) {
+        report( 'WARN',
+            'address rules are in use (' . $where . ') and trusted_proxies trusts no front end '
+                . ( $unset ? '' : "($spec) " )
+                . '- every visitor appears to come from the address that connects, which behind a proxy '
+                . 'is the proxy, so these rules admit or refuse everyone alike',
+            "set trusted_proxies in '$conf' to the front end's address or range (192.0.2.1, 10.0.0.0/8); "
+                . 'none is right only where visitors connect to this server directly' );
+    }
+    elsif ($unset) {
+        my $ev = _front_end_evidence($d);
+        if ( defined $ev ) {
+            report( 'WARN',
+                'address rules are in use (' . $where . ') behind a front end (' . $ev . ') and trusted_proxies is not set, '
+                    . 'so only the private ranges 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16 are believed: '
+                    . 'a front end that connects from loopback or a public address is not covered, and '
+                    . 'every visitor then appears to be that front end',
+                "name the front end in trusted_proxies in '$conf' (127.0.0.1 for a proxy on this host)" );
+        }
+    }
+    else {
+        report( 'OK', 'address rules are in use (' . $where . ') and trusted_proxies names the front end(s)' );
+    }
+
+    my @names = do { my %s; grep { !$s{$_}++ } map { $_->{name} } @rules };
+    my $store = Lazysite::Paths::lazysite_dir($d) . '/auth/address-lists.json';
+    my ( $lists, $state, $err ) = _read_json_state($store);
+    if ( $state eq 'unreadable' ) {
+        report( 'WARN',
+            'cannot read address-lists.json as ' . _running_as() . " ($err) while rules name "
+                . join( ', ', @names ) . ' - whether those lists exist is unknown',
+            "run the check as root (sudo lazysite check ...) or as the site user, who can read '$store'" );
+    }
+    elsif ( $state eq 'undecodable' ) {
+        report( 'WARN',
+            "address-lists.json does not decode as a JSON object ($store) while rules name "
+                . join( ', ', @names ) . ' - every address is refused by every rule that names a list, '
+                . 'allow and deny alike, until it is repaired',
+            "repair the JSON in '$store', or restore it from a backup" );
+    }
+    else {
+        my %have    = map  { $_ => 1 } keys %{ $lists || {} };
+        my @missing = grep { !$have{ $_->{name} } } @rules;
+        if (@missing) {
+            my %u;
+            my @n = grep { !$u{$_}++ } sort map { $_->{name} } @missing;
+            report( 'WARN',
+                'address rules name ' . ( @n == 1 ? 'a list' : 'lists' ) . ' the store does not hold: '
+                    . join( ', ', @n ) . ' (' . Lazysite::Auth::AddressRefs::describe(@missing)
+                    . ') - an allow rule naming a missing list admits nobody, a deny rule blocks nobody',
+                'create the list (Access -> Address lists, or lazysite-users address-list-set), or '
+                    . 'correct the name in the rule' );
+        }
+        else {
+            report( 'OK', 'every address list a rule names is in the store' );
+        }
+    }
+    return;
+}
+
+# Evidence that a front end sits between visitors and this engine, or undef. Two
+# kinds the check can see without a request: a pool conf for this docroot (the
+# engine runs behind a pool a front end proxies to), and Hestia's own layout.
+sub _front_end_evidence {
+    my ($d)  = @_;
+    my $want = abs_path($d)                // $d;
+    my $pools = $ENV{LAZYSITE_CHECK_POOLS} // '/etc/lazysite/pools'; # the tests stand in a dir
+    if ( opendir my $dh, $pools ) {
+        my @confs = sort grep { /\.conf\z/ } readdir $dh;
+        closedir $dh;
+        for my $c (@confs) {
+            open my $fh, '<', "$pools/$c" or next;
+            while ( my $l = <$fh> ) {
+                next unless $l =~ /^\s*DOCROOT\s*=\s*"?([^"\s]+)"?/;
+                return "pool $c" if ( abs_path($1) // $1 ) eq $want;
+            }
+            close $fh;
+        }
+    }
+    return 'Hestia layout' if $want =~ m{\A/home/[^/]+/web/[^/]+/public_html(?:/|\z)};
+    return undef;
 }
 
 # SM288 WIDENS ACCESS ON UPGRADE, so the operator gets to see it coming.

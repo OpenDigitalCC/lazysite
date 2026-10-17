@@ -6,7 +6,8 @@ package main;
 # HOLDS   process_md(), the Markdown page render (front matter, forms,
 #         components, divs, include, code, oEmbed, Markdown, then the template
 #         and layout), with %RENDER_QUERY, the request's declared query values;
-#         _render_has_viewer(), whether the render may fill the shared cache;
+#         _render_has_viewer(), whether the render may fill the shared cache, and
+#         $RENDER_BY_ADDRESS, set when a template asks the visitor's address (SM1141);
 #         process_url(), the same for a .url source; _strip_leaked_refs();
 #         sanitise_uri(), confine_content_root() and _path_under(), the path
 #         confinement; the escapers - _esc_html, _esc_query_value, _data_inert,
@@ -795,9 +796,21 @@ sub _serve_content_static {
 # context; the template stash gets its own escaped copy (render_content).
 our %RENDER_QUERY;
 
+# SM1141: DID THIS RENDER ASK WHAT THE VISITOR'S ADDRESS ALLOWS? Set by
+# visitor.in_list / visitor.in_any (render.pm) at the moment a template calls
+# them, and cleared at the top of every request (main). A page whose answer
+# depends on the address is a viewer-dependent render in SM1068's sense: it must
+# never be written to the shared cache and is sent no-store, private. A flag set
+# by the call, not a scan of the source, because the call can come from the page,
+# an included file or the layout, and a scan sees only the file it reads; it
+# costs nothing to a page that never asks. Declared without an initialiser (a
+# file-scoped initialiser in a part runs at load, not per request - lint 39).
+our $RENDER_BY_ADDRESS;
+
 # SM1068: did this render carry a viewer? A render made for one must never reach
 # the shared cache - see process_md.
 sub _render_has_viewer {
+    return 1 if $RENDER_BY_ADDRESS;    # SM1141: see below
     return ( $AUTH_CONTEXT{authenticated} || length( $AUTH_CONTEXT{auth_user} // '' ) ) ? 1 : 0;
 }
 

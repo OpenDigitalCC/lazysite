@@ -79,3 +79,33 @@ Three consequences worth knowing:
 The value is also sanitised to IP characters before rendering, which is a second
 line rather than the first: it stops markup reaching the page, and the trust rule
 above is what makes the address itself worth printing.
+
+### Asking whether the address is on a list
+
+When the page only needs to know whether the visitor is on a network you have named
+under Access -> Address lists, ask the list instead of printing the address:
+
+    ---
+    title: Staff notices
+    ---
+
+    [% IF visitor.in_list('office') %]
+    You are on the office network: the rota is [here](/rota).
+    [% ELSE %]
+    Staff notices are shown on the office network.
+    [% END %]
+
+`visitor.in_list('office')` is `1` or `0`, and `visitor.in_any(['office', 'branch'])`
+is `1` when the address is on any of them. It tells the page **membership and
+nothing else**: no variable holds the address, so there is nothing to print. A list
+that does not exist answers `0`.
+
+A page that asks is different for each visitor, so it is rendered on every request,
+never written to the page cache and sent `Cache-Control: no-store, private` -
+without needing `nocache: true`. That holds when the call is in an included file or
+the layout, too. The address used is the one in the section above: behind a front end
+the test is only about the visitor if `trusted_proxies` names the front end, and
+`lazysite check` warns when address rules are in use and it does not.
+
+To limit who may *read* a page by address, name the lists in its front matter
+instead (`addresses:` and `addresses_deny:`); the test is for what a page shows.

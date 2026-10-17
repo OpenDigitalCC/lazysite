@@ -23,11 +23,12 @@ package main;
 #         _front_matter_private, _content_rel,
 #         _request_address, _trusted_proxy_spec, _lazysite_version,
 #         _manager_style, _enabled_plugins, _placeholder_key, _url_safe_filter,
+#         _lazy_lib (the address test, on first ask),
 #         log_event (the script and its parts); Template->new and make_path
 #         (loaded by the script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $TT_COMPILE_DIR, %AUTH_CONTEXT,
 #         %PAYMENT_CONTEXT, %PREVIEW_CONTEXT; SETS $RESPONSE_LANG (the
-#         script's, declared `our` there).
+#         script's, declared `our` there) and $RENDER_BY_ADDRESS (pipeline.pm's).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S16). It is package main, required
 # by absolute path from lazysite-processor.pl's BEGIN and never through @INC, and
@@ -35,7 +36,39 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $RESPONSE_LANG, $TT_COMPILE_DIR, %AUTH_CONTEXT, %PAYMENT_CONTEXT, %PREVIEW_CONTEXT );
+our ( $DOCROOT, $LAZYSITE_DIR, $RESPONSE_LANG, $TT_COMPILE_DIR, %AUTH_CONTEXT, %PAYMENT_CONTEXT, %PREVIEW_CONTEXT, $RENDER_BY_ADDRESS );
+
+# SM1141 (slice D of SM1134): THE TEMPLATE TEST FOR THE VISITOR'S ADDRESS.
+# [% visitor.in_list('office') %] is true when the visitor's address is on that
+# list, [% visitor.in_any(['a','b']) %] when it is on any. MEMBERSHIP ONLY (ruled
+# 2026-10-17): `visitor` holds these two methods and no value, so there is no
+# spelling that prints the address, and the answer is a number, not a list.
+#
+# The address is Lazysite::Auth::AddressLists::client_address(), the one reader
+# that honours trusted_proxies, never X-Forwarded-For read here. The module is
+# loaded when a template first asks, so a page that never asks pays nothing and
+# the render path stays free of the Lazysite:: tree (ADR 0001). The flag is set
+# BEFORE the answer is worked out, so a fault in the store still keeps the page
+# out of the shared cache; a store that will not read answers false.
+sub _visitor_tests {
+    no warnings 'once'; # the module's AUTH_DIR is named here once, to point it at this site
+    my $ask = sub {
+        my (@names) = grep { defined && !ref } map { ref($_) eq 'ARRAY' ? @{$_} : $_ } @_;
+        $RENDER_BY_ADDRESS = 1;
+        my $ok = eval {
+            _lazy_lib('Lazysite::Auth::AddressLists');
+            local $Lazysite::Auth::AddressLists::AUTH_DIR = "$LAZYSITE_DIR/auth";
+            my $ip  = Lazysite::Auth::AddressLists::client_address();
+            my $hit = 0;
+            for my $n (@names) {
+                if ( Lazysite::Auth::AddressLists::in_list( $ip, $n ) ) { $hit = 1; last }
+            }
+            $hit;
+        };
+        return $ok ? 1 : 0;
+    };
+    return { in_list => $ask, in_any => $ask };
+}
 
 # Mixed-identity compile cache (field 2026-07-11): TT creates its compile
 # cache mirror dirs itself with plain mkdir, i.e. with the PROCESS umask -
@@ -267,6 +300,8 @@ sub _render_stash {
                 : []
             }
         ],
+        # SM1141: the address test - two methods, no value (see _visitor_tests).
+        visitor => _visitor_tests(),
         # SEC-2026-07 (H5): escape the author-controllable front-matter fields
         # HERE, at the single point they enter the stash, so EVERY layout - the
         # bundled fallback/manager layouts AND every third-party/library layout

@@ -434,7 +434,7 @@ our %ACTION = (
 # writes are the OPERATOR's (Manager::AddressLists), and the operator is never a token
 # (SM991), so they are cookie-only. A list decides who may reach a page, a group or the
 # manager, so it changes access the way a file's rule does.
-    'address-list-delete' => { mutates => 1, destructive => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address lists are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 } ] },
+    'address-list-delete' => { mutates => 1, destructive => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address lists are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'force', in => 'body' } ] },
     'address-list-set' => { mutates => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address lists are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'kind', in => 'body' }, { name => 'entries', in => 'body' } ] },
     'address-lists' => { mcp => 'list_address_lists', cookie_cap => 'manage_users', params => [] },
     'aliases-list' => { params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },

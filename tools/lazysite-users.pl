@@ -127,6 +127,7 @@ use Lazysite::Paths ();           # SM293: where this site keeps its engine tree
 use Lazysite::Util qw(log_event const_eq secure_write_perms drop_to_tree_owner cannot_read);
 use Lazysite::Auth::Verify ();    # SM685: the credential path, shared with the CGIs
 use Lazysite::Auth::AddressLists ();   # SM1138: the address-list store and its one reader
+use Lazysite::Auth::AddressRefs (); # SM1141: where a rule names a list (the delete guard)
 use Lazysite::Audit        qw(audit_log);
 use Lazysite::Mail         ();              # SM1017: what one mail address is
 use Lazysite::Auth::Credential
@@ -640,7 +641,8 @@ if ($API_MODE) {
                 actor => $req->{actor} );
         }
         elsif ( $action eq 'address-list-delete' ) {
-            $result = cmd_address_list_delete( $req->{name}, actor => $req->{actor} );
+            $result = cmd_address_list_delete( $req->{name}, actor => $req->{actor},
+                force => ( $req->{force} ? 1 : 0 ) );
         }
         elsif ( $action eq 'settings-get' ) {
             my %users = read_users();
@@ -5883,9 +5885,32 @@ sub cmd_address_list_delete {
         unless exists $raw->{$name};
     my $had = ref $raw->{$name} eq 'HASH'    ? $raw->{$name}               : {};
     my $n   = ref $had->{entries} eq 'ARRAY' ? scalar @{ $had->{entries} } : 0;
+
+    # SM1141: A LIST A RULE NAMES IS NOT DELETED BY ACCIDENT. A deleted list is
+    # not an empty one: an allow rule naming it admits nobody (SM1138), so the
+    # page, folder, group or manager behind it would shut with nothing said. The
+    # refusal says WHERE, so the operator edits those first; --force / force:true
+    # deletes anyway and the audit row names what still refers to it. A rule store
+    # that cannot be read cannot say nothing refers to the list, so it refuses too.
+    my $refs   = Lazysite::Auth::AddressRefs::rules($DOCROOT);
+    my @named  = grep { $_->{name} eq $name } @{ $refs->{rules} };
+    my @cannot = @{ $refs->{faults} };
+    my $left   = '';
+    if ( @named || @cannot ) {
+        my $where = Lazysite::Auth::AddressRefs::describe(@named);
+        $where .= ( length $where ? '; ' : '' ) . 'could not check: ' . join( ', ', @cannot ) if @cannot;
+        unless ( $o{force} ) {
+            return { ok => 0, kind => 'in-use', references => [ map { { %$_ } } @named ],
+                error => "Address list '$name' is still named by $where. Remove it from those "
+                    . 'first, or delete it anyway with --force (API: force) - a rule naming a '
+                    . 'deleted allow list admits nobody.' };
+        }
+        $left = "; still named by $where";
+    }
     delete $raw->{$name};
     Lazysite::Auth::AddressLists::write_lists($raw);
-    my $change = "deleted ($n entries" . ( $had->{kind} ? ", $had->{kind}" : '' ) . ')';
+    my $change = "deleted ($n entries" . ( $had->{kind} ? ", $had->{kind}" : '' )
+        . ( length $left ? ', forced' : '' ) . ")$left";
     log_event( 'INFO', $name, 'address list deleted', change => $change );
     cli_audit( 'address-list-delete', $name, $change );
     return { ok => 1, name => $name, change => $change };
@@ -5912,9 +5937,16 @@ sub cmd_address_list_set_cli {
 }
 
 sub cmd_address_list_delete_cli {
-    my ($name) = @_;
-    die "Usage: address-list-delete NAME\n" unless defined $name && length $name;
-    my $r = cmd_address_list_delete($name);
+    my @a = @_;
+    my ( $name, $force );
+    for my $x (@a) {
+        if    ( $x eq '--force' ) { $force = 1 }
+        elsif ( $x =~ /\A--/ )    { die "address-list-delete: unknown option '$x'\n" }
+        elsif ( !defined $name )  { $name = $x }
+        else                      { die "address-list-delete: unexpected '$x'\n" }
+    }
+    die "Usage: address-list-delete NAME [--force]\n" unless defined $name && length $name;
+    my $r = cmd_address_list_delete( $name, force => $force );
     die "$r->{error}\n"                          unless $r->{ok};
     print "Address list '$name' $r->{change}.\n" unless $API_MODE;
     return $r;
@@ -5998,7 +6030,9 @@ Commands:
                               optional note; the entries given are the whole list.
                               With no --entry an existing list keeps its entries.
                               Names are a-z, 0-9, _ and -, up to 64 characters.
-  address-list-delete NAME    Delete an address list
+  address-list-delete NAME [--force]
+                              Delete an address list; refused, naming where, while a
+                              page, folder, group or the manager still names it
   group-set GROUP KEY VALUE   Grant/revoke a group capability (on/off): ui,
                               webdav, api, mcp, manage_content, manage_nav,
                               manage_forms, manage_themes, manage_layouts,

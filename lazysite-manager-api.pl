@@ -2187,7 +2187,7 @@ elsif ( $action eq 'address-list-set' ) {
 }
 elsif ( $action eq 'address-list-delete' ) {
     my $req = _json_body();
-    $result = Lazysite::Manager::AddressLists::address_list_delete( { name => $req->{name} }, _groups_who() );
+    $result = Lazysite::Manager::AddressLists::address_list_delete( { name => $req->{name}, force => $req->{force} }, _groups_who() );
 }
 elsif ( $action eq 'display-names' ) {
     my $req = _json_body() || {};

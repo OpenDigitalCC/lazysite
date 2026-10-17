@@ -1396,6 +1396,7 @@ sub main {
     # via the protected flag. Reset per request so a stale value cannot
     # leak under a persistent interpreter.
     %PREVIEW_CONTEXT = ();
+    $main::RENDER_BY_ADDRESS = 0;   # SM1141: per request, as the pool reuses this process
     if ( my $pv = check_preview() ) {
         %PREVIEW_CONTEXT       = ( layout => $pv->{layout}, theme => $pv->{theme} );
         $protected             = 1;
@@ -1481,6 +1482,9 @@ sub main {
         }
 
         my $page = process_md( $md_path, $html_path, $md_stat[9], \%filtered_query );
+        # SM1141: a template that asked the visitor's address made this render the
+        # visitor's own (process_md has already kept it out of the cache).
+        $protected = 1 if $main::RENDER_BY_ADDRESS;
         my $ct   = peek_content_type($md_path);
         my $ttl  = $protected ? undef : peek_ttl($md_path);
         write_ct( $base, $ct ) unless $protected;

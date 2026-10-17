@@ -114,7 +114,9 @@ sub address_list_delete {
     my $r = Lazysite::Manager::Common::users_api( {
             action => 'address-list-delete',
             name   => $req->{name},
-            actor  => $who{actor},
+           # SM1141: force is the operator's (the write is already refused to anyone else)
+            force => ( $req->{force} ? 1 : 0 ),
+            actor => $who{actor},
     } ) || {};
     return $r->{ok} ? $r : { ok => 0, kind => ( $r->{kind} // 'error' ),
         error => ( $r->{error} // 'no answer from user management' ) };
