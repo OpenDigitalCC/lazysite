@@ -171,6 +171,11 @@ sub _audit_implicit_target {
         my $i = $req->{id} // '';
         return length $i && !ref $i ? "accounts import $i" : 'accounts import';
     }
+    # SM1138: an address-list change is named by the list.
+    if ( $action =~ /\Aaddress-list-(?:set|delete)\z/ ) {
+        my $n = $req->{name} // '';
+        return "address list $n" if length $n && !ref $n;
+    }
     # config-set: name the KEY that changed (e.g. site_name), not a bare '/'.
     if ( $action eq 'config-set' ) {
         my $k = $params->{key} // $req->{key} // '';

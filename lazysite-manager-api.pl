@@ -92,6 +92,7 @@ use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _au
 use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret); # SM944 S32
 use Lazysite::Manager::Groups        ();    # SM1050: groups-list, group-set
 use Lazysite::Manager::AccountImport ();    # SM1053: accounts-import-*
+use Lazysite::Manager::AddressLists (); # SM1138: address-lists, address-list-set, address-list-delete
 use Lazysite::Manager::SiteBackup qw(dispatch_backup_list); # SM944 S33: backup-list's branch
 use Lazysite::Manager::Csrf       qw(csrf_refusal);         # SM944 S34: the M-1 CSRF gate
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -2156,6 +2157,23 @@ elsif ( $action eq 'group-set' ) {
     my $req = _json_body();
     $result = Lazysite::Manager::Groups::group_set( $req->{group}, $req->{caps}, _groups_who() );
 }
+elsif ( $action eq 'address-lists' ) {
+    # SM1138: the address lists, for a manage_users holder who is not confined
+    # to some domains (the lists are the instance's).
+    $result = Lazysite::Manager::AddressLists::address_lists( _groups_who() );
+}
+elsif ( $action eq 'address-list-set' ) {
+    # SM1138: the operator's, cookie-only; the users tool owns the store.
+    my $req = _json_body();
+    $result = Lazysite::Manager::AddressLists::address_list_set(
+        { name => $req->{name}, kind => $req->{kind},
+            ( exists $req->{entries} ? ( entries => $req->{entries} ) : () ) },
+        _groups_who() );
+}
+elsif ( $action eq 'address-list-delete' ) {
+    my $req = _json_body();
+    $result = Lazysite::Manager::AddressLists::address_list_delete( { name => $req->{name} }, _groups_who() );
+}
 elsif ( $action eq 'display-names' ) {
     my $req = _json_body() || {};
     $result = action_display_names( $req->{logins} // $params{logins} );
@@ -2871,7 +2889,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
         # each capability granted (+) or revoked (-) - as acl-set records the rule.
         # SM1053: an account import's apply records what it did the same way,
         # and (n571) a removal whose import it was.
-        if ( ( grep { $aud_action eq $_ } qw(group-set accounts-import-apply accounts-import-remove) )
+        if ( ( grep { $aud_action eq $_ } qw(group-set accounts-import-apply accounts-import-remove address-list-set address-list-delete) )
             && ref $result eq 'HASH'
             && defined $result->{change} )
         {

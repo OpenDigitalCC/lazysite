@@ -51,6 +51,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
 use Lazysite::Manager::Groups      ();    # SM1050: list_groups, set_group
+use Lazysite::Manager::AddressLists ();    # SM1138: list_address_lists
 use Lazysite::Manager::Data        ();
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
 use Lazysite::Manager::Plugins qw(action_form_submissions action_form_submission action_form_list);
@@ -1271,6 +1272,15 @@ my %TOOLS = (
             Lazysite::Manager::Groups::group_set( $_[0]->{group}, $_[0]->{caps},
                 _groups_who( $_[1], $_[2] ) );
         },
+    },
+# SM1138 (slice A of SM1134): the twin of address-lists, on the same module. Read-only: the
+# lists are changed by the operator, in the manager. An MCP grant is always domain-confined
+# (SM648), and the lists are the instance's, so this answers it with a refusal that says so.
+    list_address_lists => {
+        description => 'List the named address lists an operator keeps for rules that limit access by the visitor\'s address: each with its name, its kind (allow or deny) and how many entries it holds. A grant not confined to some domains also sees the entries (a single address or a CIDR range, IPv4 or IPv6, each with a note) and who last changed it; a confined grant, which every MCP grant is, is not shown the site\'s addresses. Call this before naming a list in a rule, so a typo is not mistaken for a list that does not exist yet. Read-only; lists are changed by the operator in the manager.',
+        cap => 'manage_users',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub { Lazysite::Manager::AddressLists::address_lists( _groups_who( $_[1], $_[2] ) ) },
     },
     # n573 (SM1053, "Operator-run import"): the twin of accounts-import-stage, on
     # the same module. It stages and nothing more: the review - list, plan,

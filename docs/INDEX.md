@@ -124,6 +124,7 @@ The manager, page by page, as an operator meets it.
 | [`47-handlers.md`](47-handlers.md) - Handlers | A handler is a named function a form or the schedule calls: it sends email, keeps each submission in a file, stores a row in a data table, or sends th... |
 | [`50-users.md`](50-users.md) - Users | Governing capability: manage_users. |
 | [`60-groups.md`](60-groups.md) - Groups | Governing capability: manage_users. |
+| [`65-address-lists.md`](65-address-lists.md) - Address lists | Governing capability: manage_users to read; the operator to change. |
 | [`70-sessions-and-keys.md`](70-sessions-and-keys.md) - Sessions and keys | Governing capability: manage_users. |
 | [`80-site-settings.md`](80-site-settings.md) - Site settings | Governing capability: manage_config. |
 | [`85-domains.md`](85-domains.md) - Domains | Governing capability: manage_domains, carved out of manage_config precisely so it can be delegated separately. |

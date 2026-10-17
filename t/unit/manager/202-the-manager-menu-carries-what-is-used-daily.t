@@ -97,6 +97,7 @@ my @SHAPE = (
     [ Setup  => 'Domains',            '/manager/domains' ],
     [ Access => 'Users',              '/manager/users' ],
     [ Access => 'Groups',             '/manager/groups' ],
+    [ Access => 'Address lists',      '/manager/address-lists' ],    # SM1138
     [ Access => 'Sessions & keys',    '/manager/sessions' ],
     [ System => 'Site settings',      '/manager' ],
     [ System => 'Cache',              '/manager/cache' ],

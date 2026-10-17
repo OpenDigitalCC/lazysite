@@ -253,6 +253,7 @@
     [% IF manager_caps.manage_domains %]{ label: 'Domains',    url: '/manager/domains' },[% END %]
     { label: 'Users',      url: '/manager/users' },
     { label: 'Groups',     url: '/manager/groups' },
+    { label: 'Address lists', url: '/manager/address-lists' },
     { label: 'Sessions & keys', url: '/manager/sessions' },
     { label: 'Site settings', url: '/manager' },
     { label: 'Cache',      url: '/manager/cache' },
@@ -788,6 +789,7 @@
       <div class="mg-nav-group">Access</div>
       <a href="/manager/users" [% IF request_uri.match('^/manager/users') %]class="active" aria-current="page"[% END %]>Users</a>
       <a href="/manager/groups" [% IF request_uri.match('^/manager/groups') %]class="active" aria-current="page"[% END %]>Groups</a>
+      <a href="/manager/address-lists" [% IF request_uri.match('^/manager/address-lists') %]class="active" aria-current="page"[% END %]>Address lists</a>
       <a href="/manager/sessions" [% IF request_uri.match('^/manager/sessions') %]class="active" aria-current="page"[% END %]>Sessions &amp; keys</a>
       <div class="mg-nav-group">System</div>
       <a href="/manager" [% IF request_uri == '/manager' || request_uri == '/manager/' || request_uri.match('^/manager/config') %]class="active" aria-current="page"[% END %]>Site settings</a>

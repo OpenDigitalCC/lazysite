@@ -67,6 +67,7 @@ our %PAGES = (
     'plugins'  => { label => 'Extensions',      caps => [] },
     'users'         => { label => 'Users',           caps => [] },
     'groups'        => { label => 'Groups',          caps => [] },
+    'address-lists' => { label => 'Address lists',   caps => [] },                # SM1138
     'sessions'      => { label => 'Sessions & keys', caps => [] },
     'domains'       => { label => 'Domains',         caps => ['manage_domains'] },
     'cache'         => { label => 'Cache',           caps => [] },
@@ -84,7 +85,7 @@ our %PAGES = (
 );
 # SM957: the menu's order.
 my @PAGE_ORDER = qw(submissions files nav stats appearance plugins connectors data
-    domains users groups sessions index cache backups audit);
+    domains users groups address-lists sessions index cache backups audit);
 
 sub manager_pages { return map { { id => $_, %{ $PAGES{$_} } } } @PAGE_ORDER }
 

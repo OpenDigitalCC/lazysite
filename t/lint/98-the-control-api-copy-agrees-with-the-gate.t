@@ -106,7 +106,9 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #        is - the account that staged an import removes it, or the operator.
     #   121, SM1107: notify-outbox-retry, gated manage_notifications as the list beside it
     #        is - it ends the backoff of what the outbox holds; the job still sends.
-    is( scalar keys %caps, 121, '121 actions are reachable with a token' )
+    #   122, SM1138 (slice A of SM1134): address-lists, gated manage_users as groups-list is -
+    #        the named address lists, read only. Their writers are the operator's and cookie-only.
+    is( scalar keys %caps, 122, '122 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 
@@ -120,7 +122,9 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #        never a token's. No gate was added.
     #   63 cookie-only, SM1034 1b: me-notices, me-notices-seen - the member's own bell. No gate was added.
     #   67 cookie-only, SM1042: me-2fa-enrol, -confirm, -disable, me-recovery-codes - a person's own second factor. No gate was added.
-    is( scalar @cookie_only, 67, '67 are cookie-only' );
+    #   69 cookie-only, SM1138: address-list-set, address-list-delete - the operator's, and the
+    #        operator is never a token (SM991). The token count moves by the read alone.
+    is( scalar @cookie_only, 69, '69 are cookie-only' );
 
     # Three spot checks, one per capability state, so a wholesale re-derivation
     # cannot pass by producing a table of the right size.

@@ -52,6 +52,9 @@ tone: medium
 `acl-remove` | manage_content | path (query)
 `acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body), paths (body)
 `actions-list` | any authenticated |  
+`address-list-delete` | cookie only | name (body)
+`address-list-set` | cookie only | name (body), kind (body), entries (body)
+`address-lists` | manage_users |  
 `aliases-list` | manage_content | host (query), path (query)
 `analyse_visitors` | analytics | window (query), day (query), month (query), index (query), trails (query), host (query), by_host (query)
 `artifact-backups-delete` | purge | path (query)

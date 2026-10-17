@@ -63,7 +63,9 @@ $s->add_user('op');
 $s->grant( 'op', 'g-op', [ 'ui', 'manage_users', @WORK ], \@ALL );
 for my $u ( sort keys %CHAN ) {
     $s->add_user( $u, "pw-$u-0123456789" );
-    $s->grant( $u, "g-$u", [ $CHAN{$u}, @WORK ], \@ALL );
+    # SM1138: the confined cookie manager also holds manage_users, the cookie gate of the
+    # address-list writes, so that the instance-wide refusal (not the capability one) is what it meets.
+    $s->grant( $u, "g-$u", [ $CHAN{$u}, @WORK, ( $u eq q(cks) ? q(manage_users) : () ) ], \@ALL );
 }
 sub op { my ( $a, $b, $q ) = @_; return $s->call( 'op', $a, ( defined $b ? ( body => $b ) : () ), ( defined $q ? ( query => $q ) : () ) ) }
 ok( op( 'domain-add', { host => 'mine.example.org', content_root => 'sites/mine' } )->{ok}, 'setup: mine' );
@@ -167,6 +169,9 @@ my %CALL = (
     'schedule-save'   => [ { id => 'probe', handler => 'probe', every => 300 } ],
     'schedule-delete' => [ { id => 'probe' } ],
     'briefs-migrate'  => [ {} ],
+    # SM1138: the address lists are the instance's, and written by the operator (cookie-only).
+    'address-list-set'    => [ { name => 'probe', kind => 'allow', entries => ['192.0.2.7'] } ],
+    'address-list-delete' => [ { name => 'probe' } ],
 );
 my %IW = Lazysite::ControlApi::Actions::instance_wide();
 is_deeply( [ sort keys %CALL ], [ sort keys %IW ], 'this file calls every instance-wide action' );

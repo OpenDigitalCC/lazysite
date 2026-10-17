@@ -164,6 +164,8 @@ sub users_api {
 }
 users_api( { action => 'add', username => 'admin', password => 'pw-admin-0123456789' } );
 grant_caps( $tpl_doc, 'admin', 'manage_users', 'notifications', 'manage_config', 'audit_switch' );
+# SM1138: the address lists are the operator's to change, so admin is in the operator group.
+users_tool( 'group-set', 'role-admin', 'manager', 'on' );
 
 spit( "$tpl_doc/page.md",   "---\ntitle: Page\n---\nx\n" );
 spit( "$tpl_doc/page.html", "<p>x</p>\n" );                     # page.md's render cache
@@ -236,6 +238,8 @@ setup( 'data-table-save', body => { table => 'pending', descriptor => "title: Pe
 $S{import} = setup( 'accounts-import-stage', body => { accounts => [ { username => 'imp1' } ] } )->{id} // '';
 # n571: a second, for its stager to remove.
 $S{import_rm} = setup( 'accounts-import-stage', body => { accounts => [ { username => 'imp3' } ] } )->{id} // '';
+# SM1138: an address list for address-list-delete to remove (the users tool owns the store).
+users_api( { action => 'address-list-set', name => 'oldlist', kind => 'deny', entries => ['192.0.2.9'] } );
 # SM1043: a live session of admin's in the registry, for me-session-revoke.
 {
     open my $sf, '>', "$lz/auth/sessions.jsonl" or die $!;
@@ -260,6 +264,8 @@ zip( \qq({"name":"up","version":"1.0.0","layouts":["base"],"config":{}}) => \$th
 my %REQ = (
     'accounts-import-apply' => { body => { id => $S{import}, confirm => $S{import} } },    # SM1053
     'accounts-import-remove' => { body => { id => $S{import_rm} } },    # n571
+    'address-list-set'    => { body => { name => 'office', kind => 'allow', entries => ['192.0.2.7=probe'] } },    # SM1138
+    'address-list-delete' => { body => { name => 'oldlist' } },    # SM1138
     'accounts-import-stage' => { body => { accounts => [ { username => 'imp2' } ] } },
     'acl-remove' => { query => 'path=secret.md' },
     'acl-set'    => { query => 'path=other.md', body => { read => ['admin'] } },

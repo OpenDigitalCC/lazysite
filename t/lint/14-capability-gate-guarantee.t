@@ -215,6 +215,10 @@ my %COOKIE_READ = map { $_ => 1 } map { ( my $l = $_ ) =~ s/#.*//; split ' ', $l
     # notify rules queued; nothing it does changes the queue.
     notify-outbox-list
 
+    # SM1138: the address lists, read only; their writers (address-list-set and
+    # -delete) are in %MUTATING.
+    address-lists
+
     # SM747 CU: the Odoo connection's state (has_secret, never the key) and its
     # call record; the writers, odoo-secret-set and -clear, are in %MUTATING.
     odoo-status odoo-calls

@@ -126,6 +126,7 @@ BEGIN {
 use Lazysite::Paths ();           # SM293: where this site keeps its engine tree
 use Lazysite::Util qw(log_event const_eq secure_write_perms drop_to_tree_owner cannot_read);
 use Lazysite::Auth::Verify ();    # SM685: the credential path, shared with the CGIs
+use Lazysite::Auth::AddressLists ();   # SM1138: the address-list store and its one reader
 use Lazysite::Audit        qw(audit_log);
 use Lazysite::Mail         ();              # SM1017: what one mail address is
 use Lazysite::Auth::Credential
@@ -166,6 +167,11 @@ my $CONNECT_CODE_TTL = 1_800;        # SM200: 30 min (was 15) - the connect code
 my $TOKEN_TTL_MIN = $Lazysite::Auth::Settings::TOKEN_TTL_MIN;
 my $TOKEN_TTL_MAX = $Lazysite::Auth::Settings::TOKEN_TTL_MAX;
 my $CLAIM_TTL     = 86_400;    # SM072 setup/reset claim: 24 hours
+# SM1138: the bounds on an address list. Declared HERE, above the dispatch: a file-scoped
+# `my` below it is still empty when a verb runs (the main body exits first).
+my $AL_MAX_LISTS   = 200;
+my $AL_MAX_ENTRIES = 1000;
+my $AL_MAX_NOTE    = 200;
 
 my $DOCROOT;
 my $API_MODE = 0;
@@ -239,6 +245,7 @@ sub _store_readable { return Lazysite::Auth::Verify::store_readable() }
 my $GROUPS_FILE         = "$AUTH_DIR/groups";
 my $GROUP_SETTINGS_FILE = "$AUTH_DIR/groups-settings.json";
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
+$Lazysite::Auth::AddressLists::AUTH_DIR = $AUTH_DIR;
 $Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
 
 # Verbs (API actions and CLI commands) that ONLY read the auth store - they take
@@ -251,6 +258,7 @@ $Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
 # is harmless - it stays lock-free deliberately.
 my %STORE_READONLY = map { $_ => 1 } qw(
     list groups users-detail users-page group-settings-get settings-get settings
+    address-lists-get
     permissions-grid capability-holders permissions credential-status keys-list partner-caps
     audit-scope audit-registry totp-code verify-credential
 );
@@ -302,6 +310,10 @@ our %CLI_AUDIT_ACTION = (
     cmd_group_settings_set        => 'user-group-settings-set',
     cmd_group_create              => 'user-group-create',
     cmd_group_delete              => 'user-group-delete',
+    # SM1138: the address-list store. Named as the manager's own actions are, so
+    # one change is one name whichever door it came through.
+    cmd_address_list_set    => 'address-list-set',
+    cmd_address_list_delete => 'address-list-delete',
     cmd_group_nest                => 'user-group-nest',
     # SM644: writes the group store wholesale, so it is emphatically mutating.
     # The audit line names how many groups were restored and how many were left
@@ -323,10 +335,14 @@ our %CLI_NO_DIRECT_AUDIT = (
     cmd_permissions_cli    => 'read-only',
     cmd_credential_status  => 'read-only',
     cmd_keys_list          => 'read-only',
+    cmd_address_lists      => 'read-only',
     cmd_audit_registry     => 'read-only (audit introspection itself)',
     # thin CLI wrappers - the audited core command writes the entry
     cmd_set_cli                       => 'delegates to cmd_set',
     cmd_group_set_cli                 => 'delegates to cmd_group_settings_set',
+    cmd_address_list_set_cli          => 'delegates to cmd_address_list_set',
+    cmd_address_list_delete_cli       => 'delegates to cmd_address_list_delete',
+    cmd_address_lists_cli             => 'delegates to cmd_address_lists',
     cmd_brief_cli                     => 'delegates to cmd_onboarding',
     cmd_account_create_cli            => 'delegates to cmd_account_create',
     cmd_account_disable_cli           => 'delegates to cmd_account_set_disabled',
@@ -609,6 +625,16 @@ if ($API_MODE) {
         elsif ( $action eq 'group-delete' ) {
             $result = cmd_group_delete( $req->{group} );
         }
+        elsif ( $action eq 'address-lists-get' ) {
+            $result = cmd_address_lists();
+        }
+        elsif ( $action eq 'address-list-set' ) {
+            $result = cmd_address_list_set( $req->{name}, $req->{kind}, $req->{entries},
+                actor => $req->{actor} );
+        }
+        elsif ( $action eq 'address-list-delete' ) {
+            $result = cmd_address_list_delete( $req->{name}, actor => $req->{actor} );
+        }
         elsif ( $action eq 'settings-get' ) {
             my %users = read_users();
             die "User '" . ( $req->{username} // '' ) . "' not found\n"
@@ -825,6 +851,9 @@ elsif ( $cmd eq 'group-add' )    { cmd_group_add(@args) }
 elsif ( $cmd eq 'group-nest' )   { cmd_group_nest(@args) }
 elsif ( $cmd eq 'group-remove' ) { cmd_group_remove(@args) }
 elsif ( $cmd eq 'group-set' )    { cmd_group_set_cli(@args) }
+elsif ( $cmd eq 'address-lists' )       { cmd_address_lists_cli(@args) }
+elsif ( $cmd eq 'address-list-set' )    { cmd_address_list_set_cli(@args) }
+elsif ( $cmd eq 'address-list-delete' ) { cmd_address_list_delete_cli(@args) }
 elsif ( $cmd eq 'groups' )       { cmd_groups() }
 elsif ( $cmd eq 'group-reach' )  { cmd_group_reach(@args) }
 elsif ( $cmd eq 'reset-groups' ) { cmd_reset_groups(@args) }
@@ -5644,6 +5673,222 @@ sub cmd_group_delete {
     return { ok => 1 };
 }
 
+# --- SM1138: address lists (lazysite/auth/address-lists.json) ----------------
+#
+# SLICE A OF SM1134 (access limited by the visitor's address). The store is read
+# by Lazysite::Auth::AddressLists and written ONLY here, as the other access
+# stores are written only by this tool, under the same store lock.
+#
+# WHO MAY WRITE: THE OPERATOR, and nobody holding manage_users alone. A list
+# decides who may reach a page, a group's grants or the manager itself, so a
+# delegate that could edit one could lock the operator out of the manager (slice
+# D) or let itself in from anywhere: it is the operator's the way the operator
+# group is (SM991). The manager API passes the actor for every non-`local`
+# caller; a present actor who is not an operator is refused here, and an absent
+# one is the shell. An UNSECURED site (no group grants manager access) has no
+# operator to ask, as for every verb in this tool. READING needs only
+# manage_users, which the manager API asks.
+sub _address_list_refusal {
+    my ($actor) = @_;
+    return undef unless defined $actor && length $actor && $actor ne 'local';
+    return undef unless Lazysite::Auth::Settings::site_grants_manager();
+    return undef if Lazysite::Auth::Settings::account_is_operator($actor);
+    return { ok => 0, kind => 'forbidden',
+        error => 'Only the operator changes address lists: a list decides who may reach '
+            . 'a page, a group or the manager, so it is the operator\'s as the operator '
+            . 'group is.' };
+}
+
+# Entries arrive as the CLI spells them ("CIDR=note"), as the API sends them
+# ({cidr, note} objects), or as bare strings. Returns ( \@entries, undef ) or
+# ( undef, $reason ); every entry is validated before anything is written.
+sub _address_list_entries {
+    my ($in) = @_;
+    return ( [],    undef )                    unless defined $in;
+    return ( undef, 'entries must be a list' ) unless ref $in eq 'ARRAY';
+    return ( undef, "a list holds at most $AL_MAX_ENTRIES entries" ) if @{$in} > $AL_MAX_ENTRIES;
+    my ( @out, %seen );
+    for my $e ( @{$in} ) {
+        my ( $text, $note );
+        if    ( ref $e eq 'HASH' ) { ( $text, $note ) = ( $e->{cidr}, $e->{note} ) }
+        elsif ( !ref $e && defined $e ) {
+            ( $text, $note ) = split /=/, $e, 2;
+        }
+        else { return ( undef, 'each entry is a CIDR or {cidr, note}' ) }
+        my ( $canon, $why ) = Lazysite::Auth::AddressLists::check_entry($text);
+        return ( undef, $why ) unless defined $canon;
+        return ( undef, "'$canon' is listed twice" ) if $seen{$canon}++;
+        $note = '' unless defined $note && !ref $note;
+        $note =~ s/[\r\n]+/ /g;
+        $note =~ s/\A\s+|\s+\z//g;
+        return ( undef, "the note on '$canon' is longer than $AL_MAX_NOTE characters" )
+            if length $note > $AL_MAX_NOTE;
+        push @out, { cidr => $canon, note => $note };
+    }
+    return ( \@out, undef );
+}
+
+# The store, for the manager's page and the control API. A faulted store is
+# reported as such, never as "no lists".
+sub cmd_address_lists {
+    my $lists = Lazysite::Auth::AddressLists::lists();
+    my $fault = Lazysite::Auth::AddressLists::store_fault();
+    return { ok => 1, lists => $lists, store_fault => ( $fault || '' ) };
+}
+
+sub cmd_address_list_set {
+    my ( $name, $kind, $entries, %o ) = @_;
+    if ( my $no = _address_list_refusal( $o{actor} ) ) { return $no }
+    return { ok => 0, kind => 'invalid', field => 'name',
+        error => 'A list name is 1 to 64 characters of a-z, 0-9, _ or -.' }
+        unless Lazysite::Auth::AddressLists::valid_name($name);
+
+    my $raw = Lazysite::Auth::AddressLists::raw_lists();
+    my $why = Lazysite::Auth::AddressLists::store_fault();
+    return { ok => 0, kind => 'cannot-tell',
+        error => 'lazysite/auth/address-lists.json '
+            . ( $why eq 'undecodable' ? 'does not decode as a JSON object' : 'could not be read' )
+            . ', so nothing is written over it. Repair the file and retry.' }
+        if $why;
+
+    my $had = ref $raw->{$name} eq 'HASH' ? $raw->{$name} : undef;
+    $kind = $had->{kind} if !defined $kind && $had;
+    return { ok => 0, kind => 'invalid', field => 'kind',
+        error => 'kind is required for a new list: allow or deny.' }
+        unless defined $kind && !ref $kind && $kind =~ /\A(?:allow|deny)\z/;
+    return { ok => 0, kind => 'invalid', field => 'name',
+        error => "A site holds at most $AL_MAX_LISTS address lists." }
+        if !$had && keys %{$raw} >= $AL_MAX_LISTS;
+
+    # No entries given at all (the API key absent, no --entry on the command line)
+    # leaves an existing list's entries as they are, so a kind can be changed
+    # without retyping the list; an empty LIST clears it.
+    my ( $new, $err ) = defined $entries
+        ? _address_list_entries($entries)
+        : (
+        [ map { +{ cidr => $_->{cidr}, note => ( $_->{note} // '' ) } }
+            grep { ref $_ eq 'HASH' && defined $_->{cidr} }
+                ( $had && ref $had->{entries} eq 'ARRAY' ? @{ $had->{entries} } : () )
+        ],
+        undef
+        );
+    return { ok => 0, kind => 'invalid', field => 'entries', error => "$err. Nothing was changed." }
+        unless $new;
+
+    # WHAT CHANGED, for the audit row: the trail says which list and which
+    # addresses came or went, not that "a list changed".
+    my %before = map { $_->{cidr} => ( $_->{note} // '' ) }
+        grep { ref $_ eq 'HASH' && defined $_->{cidr} }
+        ( $had && ref $had->{entries} eq 'ARRAY' ? @{ $had->{entries} } : () );
+    my %after = map { $_->{cidr} => $_->{note} } @{$new};
+    my ( @add, @del, @note );
+    # In the order the operator gave them (and, for what went, the order they were
+    # stored in): the trail reads as the list does.
+    my @new_order = map { $_->{cidr} } @{$new};
+    my @old_order = map { $_->{cidr} }
+        grep { ref $_ eq 'HASH' && defined $_->{cidr} }
+        ( $had && ref $had->{entries} eq 'ARRAY' ? @{ $had->{entries} } : () );
+    push @add,  grep { !exists $before{$_} } @new_order;
+    push @del,  grep { !exists $after{$_} } @old_order;
+    push @note, grep { exists $before{$_} && $before{$_} ne $after{$_} } @new_order;
+    my @bits = (
+        ( $had                                    ? () : ('created') ),
+        ( $had && ( $had->{kind} // '' ) ne $kind ? ( "kind " . ( $had->{kind} // '?' ) . "->$kind" ) : () ),
+        ( !$had ? ("kind $kind")                   : () ),
+        ( @add  ? ( '+' . join( ',+', @add ) )     : () ),
+        ( @del  ? ( '-' . join( ',-', @del ) )     : () ),
+        ( @note ? ( 'note ' . join( ',', @note ) ) : () ),
+    );
+    my $change = @bits ? join( ' ', @bits ) : 'no change';
+
+    if (@bits) {
+        my $who = defined $o{actor} && length $o{actor} ? $o{actor} : 'system:' . ( getpwuid($<) // "uid:$<" );
+        $raw->{$name} = {
+            ( $had ? %{$had} : () ),
+            kind       => $kind,
+            entries    => $new,
+            updated_by => $who,
+            updated    => time(),
+            ( $had ? () : ( created_by => $who ) ),
+        };
+        Lazysite::Auth::AddressLists::write_lists($raw);
+        log_event( 'INFO', $name, 'address list set', change => $change );
+    }
+    cli_audit( 'address-list-set', $name, $change ) if @bits;
+    return { ok => 1, name => $name, kind => $kind, entries => scalar @{$new},
+        created => ( $had ? JSON::PP::false() : JSON::PP::true() ), change => $change };
+}
+
+sub cmd_address_list_delete {
+    my ( $name, %o ) = @_;
+    if ( my $no = _address_list_refusal( $o{actor} ) ) { return $no }
+    return { ok => 0, kind => 'invalid', field => 'name',
+        error => 'A list name is 1 to 64 characters of a-z, 0-9, _ or -.' }
+        unless Lazysite::Auth::AddressLists::valid_name($name);
+    my $raw = Lazysite::Auth::AddressLists::raw_lists();
+    my $why = Lazysite::Auth::AddressLists::store_fault();
+    return { ok => 0, kind => 'cannot-tell',
+        error => 'lazysite/auth/address-lists.json '
+            . ( $why eq 'undecodable' ? 'does not decode as a JSON object' : 'could not be read' )
+            . ', so nothing is written over it. Repair the file and retry.' }
+        if $why;
+    return { ok => 0, kind => 'not-found', error => "No address list called '$name'." }
+        unless exists $raw->{$name};
+    my $had = ref $raw->{$name} eq 'HASH'    ? $raw->{$name}               : {};
+    my $n   = ref $had->{entries} eq 'ARRAY' ? scalar @{ $had->{entries} } : 0;
+    delete $raw->{$name};
+    Lazysite::Auth::AddressLists::write_lists($raw);
+    my $change = "deleted ($n entries" . ( $had->{kind} ? ", $had->{kind}" : '' ) . ')';
+    log_event( 'INFO', $name, 'address list deleted', change => $change );
+    cli_audit( 'address-list-delete', $name, $change );
+    return { ok => 1, name => $name, change => $change };
+}
+
+# CLI: address-list-set NAME --kind allow|deny --entry CIDR[=note] ...
+sub cmd_address_list_set_cli {
+    my @a = @_;
+    my ( $name, $kind, @entries, $have_entries );
+    while (@a) {
+        my $x = shift @a;
+        if ( $x eq '--kind' ) { $kind = shift @a }
+        elsif ( $x eq '--entry' ) { my $e = shift @a; die "--entry needs a value\n" unless defined $e; push @entries, $e; $have_entries = 1 }
+        elsif ( $x =~ /\A--/ )   { die "address-list-set: unknown option '$x'\n" }
+        elsif ( !defined $name ) { $name = $x }
+        else                     { die "address-list-set: unexpected '$x'\n" }
+    }
+    die "Usage: address-list-set NAME --kind allow|deny [--entry CIDR[=note] ...]\n"
+        unless defined $name;
+    my $r = cmd_address_list_set( $name, $kind, $have_entries ? \@entries : undef );
+    die "$r->{error}\n"                                        unless $r->{ok};
+    print "Address list '$name' ($r->{kind}): $r->{change}.\n" unless $API_MODE;
+    return $r;
+}
+
+sub cmd_address_list_delete_cli {
+    my ($name) = @_;
+    die "Usage: address-list-delete NAME\n" unless defined $name && length $name;
+    my $r = cmd_address_list_delete($name);
+    die "$r->{error}\n"                          unless $r->{ok};
+    print "Address list '$name' $r->{change}.\n" unless $API_MODE;
+    return $r;
+}
+
+sub cmd_address_lists_cli {
+    my ($one) = @_;
+    my $r = cmd_address_lists();
+    die "lazysite/auth/address-lists.json is $r->{store_fault}: the lists cannot be read.\n"
+        if $r->{store_fault};
+    my @names = defined $one ? ($one) : sort keys %{ $r->{lists} };
+    for my $n (@names) {
+        my $l = $r->{lists}{$n} or die "No address list called '$n'.\n";
+        print "$n ($l->{kind}, " . scalar( @{ $l->{entries} } ) . " entries)\n";
+        print '  ' . $_->{cidr} . ( length $_->{note} ? "  # $_->{note}" : '' ) . "\n"
+            for @{ $l->{entries} };
+    }
+    print "No address lists.\n" unless @names;
+    return $r;
+}
+
 sub read_groups {
     return Lazysite::Auth::Verify::read_groups();    # SM685: see read_users
 }
@@ -5699,6 +5944,14 @@ Commands:
                               live capability tables through the nesting closure
   group-nest CHILD PARENT     Nest CHILD inside PARENT, so PARENT's members
                               inherit CHILD's capabilities through the closure
+  address-lists [NAME]        List the address lists (SM1138): name, kind, entries
+  address-list-set NAME --kind allow|deny [--entry CIDR[=note] ...]
+                              Create or replace an address list. Every entry is a
+                              single address or a CIDR range (IPv4 or IPv6) with an
+                              optional note; the entries given are the whole list.
+                              With no --entry an existing list keeps its entries.
+                              Names are a-z, 0-9, _ and -, up to 64 characters.
+  address-list-delete NAME    Delete an address list
   group-set GROUP KEY VALUE   Grant/revoke a group capability (on/off): ui,
                               webdav, api, mcp, manage_content, manage_nav,
                               manage_forms, manage_themes, manage_layouts,

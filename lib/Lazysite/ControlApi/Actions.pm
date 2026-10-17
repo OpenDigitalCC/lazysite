@@ -277,6 +277,9 @@ our %GATE = (
     # creates one, giving it only capabilities it holds (Manager::Groups).
     'groups-list' => [qw(manage_users)],
     'group-set'   => [qw(manage_users)],
+    # SM1138 (slice A of SM1134): the address lists, read-only on the token doors.
+    # Writing them is the operator's and cookie-only (see %ACTION).
+    'address-lists' => [qw(manage_users)],
     # SM1053: a partner stages an account import for the operator to apply.
     'accounts-import-stage' => [qw(manage_users)],
     # n571: the account that staged it, or the operator, removes a staged import.
@@ -427,6 +430,13 @@ our %ACTION = (
     # [cookie_cap] SM591: no copy survives
     # [mcp] delete_brief: destroys a record; changes nothing live
     'brief-delete' => { mcp => 'delete_brief', mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'path', in => 'query' } ] },
+# SM1138 (slice A of SM1134): named address lists. The read is manage_users on every door; the
+# writes are the OPERATOR's (Manager::AddressLists), and the operator is never a token
+# (SM991), so they are cookie-only. A list decides who may reach a page, a group or the
+# manager, so it changes access the way a file's rule does.
+    'address-list-delete' => { mutates => 1, destructive => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address lists are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 } ] },
+    'address-list-set' => { mutates => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address lists are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'kind', in => 'body' }, { name => 'entries', in => 'body' } ] },
+    'address-lists' => { mcp => 'list_address_lists', cookie_cap => 'manage_users', params => [] },
     'aliases-list' => { params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },
     'analyse_visitors' => { mcp => 'analyse_visitors', cookie_cap => 'analytics', params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' }, { name => 'host', in => 'query' }, { name => 'by_host', in => 'query' } ] },
     # [cookie_cap] SM591: no copy survives

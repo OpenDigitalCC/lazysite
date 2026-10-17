@@ -250,6 +250,22 @@ group can be deleted only once it is empty (the row says *Remove members to
 delete* until then). (Per-user assignment is also available on the Users
 page.)
 
+### Address lists
+
+`/manager/address-lists` (under **Access**). Named lists of addresses, each an
+**allow** list or a **deny** list. An entry is a single address or a CIDR range
+(IPv4 or IPv6), with a note saying whose it is. Anyone who holds the **Users &
+groups** permission may read the lists; **only the operator** creates, edits or
+deletes one. Every change is recorded in the audit log with the list and the
+addresses added or removed.
+
+A list does nothing by itself: it is applied by a rule that names it. Where an
+allow list and a deny list both match an address, deny wins. An address that is
+not a valid address, or a list the site cannot read, is refused where a rule
+names a list - the rules fail closed. The same lists are read over the control
+API (`address-lists`) and MCP (`list_address_lists`); writing them is the
+manager's.
+
 ### Sessions
 
 `/manager/sessions` (under **Access**; needs the **Users & groups**
