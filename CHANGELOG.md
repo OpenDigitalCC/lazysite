@@ -59,6 +59,13 @@ Archive
   empty result, failing its two focus assertions; it now reruns the browser until
   the page reports it finished and polls for the note up to a deadline. No CSS
   change. t/unit/manager/349.
+- SM1140 (PENDING) **security: a group is limited by address.** A group may be
+  limited to addresses; from outside, the group and everything it grants
+  (capabilities, page access, operator status, domain reach) drop out for
+  that request, for cookies and tokens. An account confined by its grants is
+  confined to nothing when none apply, never unconfined. `manager_addresses`
+  limits the manager and its API (SM1134, slice C). t/integration/285, 286.
+
 - SM1139 (PENDING) **a page or folder is limited by address.** Front matter and
   per-file rules take `addresses` and `addresses_deny`; every layer must
   admit the visitor's address and deny wins, on pages, statics, WebDAV and
