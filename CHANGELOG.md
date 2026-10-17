@@ -149,6 +149,10 @@ Archive
 - SM1133 (PENDING) **a directory group name is mapped.** A directory's group
   names (spaces, capitals) are normalised to lazysite names, with an optional
   `auth_group_map` that wins (release manager, 2026-10-17). t/unit/auth/62.
+- SM1151 (PENDING) **the dev server answers connections side by side.** One
+  accept loop made a page's parallel requests queue, so the lab's timings
+  measured the queue; each connection is now a forked child, up to eight at
+  once. Dev only. t/unit/tools/82.
 
 - SM1129 (PENDING) **security: a proxy is believed only from its address.** With
   `auth_proxy_trusted` on, any request carrying the identity headers was

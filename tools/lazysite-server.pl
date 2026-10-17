@@ -6,6 +6,7 @@ use IO::Socket::INET;
 use File::Basename qw(dirname);
 use Cwd            qw(abs_path);
 use Encode;
+use POSIX ();
 
 # SM293: this server is standalone by design, but a third copy of "where does
 # lazysite/ live" is exactly the drift that makes one directory mean two things,
@@ -418,8 +419,52 @@ my $server = IO::Socket::INET->new(
 
 # --- Main loop ---
 
+# SM1151 (P5/Q4, oom-lab finding): one connection at a time made a page's
+# parallel requests queue behind the accept loop - the lab's page with four
+# assets took four request-times, so its timings measured the queue, not the
+# engine. Each connection is now handled in a forked child, up to
+# $MAX_CONN at once (the browser's own parallelism is 6; 8 is headroom, and
+# it bounds the processes a runaway client can make). Dev only: the CGI,
+# FastCGI and pool paths are untouched.
+#
+# The child leaves with POSIX::_exit: the END block above would otherwise
+# remove the temporary browse cache and the error file out from under the
+# parent and the other children. The error file is per child for the same
+# reason - $ERR_FILE was named for the parent's pid, so two children would
+# have shared (and truncated) one stderr capture.
+my $MAX_CONN = $ENV{LAZYSITE_DEV_MAX_CONN} || 8;
+my %kids;
+
+sub reap_children {
+    my ($block) = @_;
+    while ( ( my $pid = waitpid( -1, $block ? 0 : POSIX::WNOHANG() ) ) > 0 ) {
+        delete $kids{$pid};
+        $block = 0;    # one blocking wait frees a slot; sweep the rest without blocking
+    }
+}
+
 while ( my $client = $server->accept() ) {
-    handle_request($client);
+    reap_children(0);
+    reap_children(1) while keys %kids >= $MAX_CONN;
+
+    my $pid = fork();
+    if ( !defined $pid ) {    # no process to spare: serve it here, as before
+        handle_request($client);
+        close $client;
+        next;
+    }
+    if ( !$pid ) {
+        $SIG{INT} = $SIG{TERM} = 'DEFAULT';
+        close $server;
+        $ERR_FILE = "/tmp/lazysite-server-$$.err";
+        handle_request($client);
+        close $client;
+        unlink $ERR_FILE if -f $ERR_FILE;
+        STDOUT->flush;
+        STDERR->flush;
+        POSIX::_exit(0);
+    }
+    $kids{$pid} = 1;
     close $client;
 }
 
