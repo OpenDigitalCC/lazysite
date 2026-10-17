@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1127 (PENDING) **internal: a short PUT through Apache leaves nothing.** The
+  0.15.9 walk could not reach the engine with a short body from outside. A test
+  now drives one through a real Apache: a cut-off and a stalled body both leave
+  no file and no temp. t/integration/262.
+
 - SM1125 (PENDING) **internal: nothing shipped calls a deprecated action name.**
   Three manager comments still named `plugin-*` actions; they name the
   `extension-*` ones, and t/lint/266 keeps shipped pages, assets and skills on
