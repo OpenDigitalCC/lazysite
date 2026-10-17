@@ -64,6 +64,7 @@ sub action_config_read {
         manager manager_path search_default update_channel canonical_ip
         asset_max_age manager_style backup_retention trusted_proxies
         manager_addresses manager_addresses_deny
+        signin_addresses signin_addresses_deny
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
@@ -151,6 +152,7 @@ sub action_config_set {
         update_channel canonical_ip manager manager_path asset_max_age
         manager_style backup_retention trusted_proxies
         manager_addresses manager_addresses_deny
+        signin_addresses signin_addresses_deny
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
 
     # SM612: settable, but NOT BY A TOKEN CLIENT. The operator toggles the
@@ -159,7 +161,8 @@ sub action_config_set {
     # SM1140: manager_addresses[_deny] limit who may reach the manager at all, so they
     # are the same kind of decision and are set the same way: a token that could narrow
     # the manager to nobody could not be undone from the manager.
-    my %cookie_only_key = ( manager => 1, manager_path => 1, manager_addresses => 1, manager_addresses_deny => 1 );
+    my %cookie_only_key = ( manager => 1, manager_path => 1, manager_addresses => 1, manager_addresses_deny => 1,
+        signin_addresses => 1, signin_addresses_deny => 1 );
 
     # SM698: a manager style must be one the engine ships. The renderer already
     # falls back to `classic` for anything else, so an unknown value here is
@@ -231,7 +234,7 @@ sub action_config_set {
     # list NAMES (SM1138) and each must exist, in the right slot: a name no list carries
     # admits nobody under manager_addresses, which would lock the manager (and its
     # operator) out, so a typo is refused here and not written.
-    if ( ( $key eq 'manager_addresses' || $key eq 'manager_addresses_deny' ) && defined $value && length $value ) {
+    if ( ( $key =~ /\A(?:manager|signin)_addresses(?:_deny)?\z/ ) && defined $value && length $value ) {
         require Lazysite::Auth::AddressLists;
         no warnings "once";
         local $Lazysite::Auth::AddressLists::AUTH_DIR = "$LAZYSITE_DIR/auth";
@@ -241,7 +244,7 @@ sub action_config_set {
                 error => 'lazysite/auth/address-lists.json ' . ( $fault eq 'undecodable' ? 'does not decode' : 'could not be read' )
                     . ', so the lists this names cannot be checked.' };
         }
-        my $kind = $key eq 'manager_addresses' ? 'allow' : 'deny';
+        my $kind = $key !~ /_deny\z/ ? 'allow' : 'deny';
         for my $n ( grep { length } map { s/^\s+|\s+$//gr } split /,/, $value ) {
             return { ok => 0, field => $key,
                 error => "'$n' is not " . ( $kind eq 'allow' ? 'an allow' : 'a deny' ) . ' address list. Make it on Access, Address lists first.' }
@@ -251,17 +254,20 @@ sub action_config_set {
     }
     # ...and a rule that would refuse the very request making it is refused too: the
     # manager is the only place it could be undone from.
-    if ( $key eq 'manager_addresses' || $key eq 'manager_addresses_deny' ) {
+    if ( $key =~ /\A(?:manager|signin)_addresses(?:_deny)?\z/ ) {
         require Lazysite::Auth::AddressScope;
-        my $conf = _conf_text() // '';
-        my $other = $key eq 'manager_addresses' ? 'manager_addresses_deny' : 'manager_addresses';
+        my $conf  = _conf_text() // '';
+        my $other = ( $key =~ s/_deny\z//r ) . ( $key =~ /_deny\z/ ? "" : "_deny" );
         my ($ov)  = $conf =~ /^\Q$other\E\s*:\s*(.*?)\s*$/m;
         my @mine  = Lazysite::Auth::AddressScope::names($value);
         my @their = Lazysite::Auth::AddressScope::names($ov);
-        my ( $allow, $deny ) = $key eq 'manager_addresses' ? ( \@mine, \@their ) : ( \@their, \@mine );
+        my ( $allow, $deny ) = $key !~ /_deny\z/ ? ( \@mine, \@their ) : ( \@their, \@mine );
         return { ok => 0, field => $key,
-            error => 'That would shut your own address out of the manager, and the manager is where it '
-                . 'would be undone. Add your address to an allow list first, or take it off the deny list.' }
+            error => ( $key =~ /\Asignin/
+                ? 'That would shut your own address out of signing in (SM1159): the next time you signed in from here it '
+                    . 'would be refused. Add your address to an allow list first, or take it off the deny list.'
+                : 'That would shut your own address out of the manager, and the manager is where it '
+                    . 'would be undone. Add your address to an allow list first, or take it off the deny list.' ) }
             if Lazysite::Auth::AddressScope::would_refuse( $LAZYSITE_DIR, $allow, $deny );
     }
     # SM156: canonical_ip is a comma list of this server's PUBLIC IPs (for the
@@ -301,7 +307,7 @@ sub action_config_set {
     # default, and "A value is required" made the shipped state unreachable
     # through the API. Every other key needs a value.
     my %clearable = map { $_ => 1 } qw(canonical_ip asset_max_age backup_retention
-        manager_addresses manager_addresses_deny);
+        manager_addresses manager_addresses_deny signin_addresses signin_addresses_deny);
     return { ok => 0,
         error => "A value is required: '$key' has no default to fall back to, so it "
             . 'cannot be cleared (the keys that can are '

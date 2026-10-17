@@ -314,6 +314,13 @@ our %TYPES      = (
                     . 'to Odoo through the page, with their own Odoo rights; the binding is '
                     . 'authenticated mode only, names no callers, and is never run by a page '
                     . 'render, a form, the schedule or an agent.' },
+            { key => 'signin_addresses', label => 'Session binding: only from (address lists)', type => 'text',
+                note => 'Optional, session bindings only: names of ALLOW address lists, comma '
+                    . 'separated. A call of this binding from any other address is refused. It can '
+                    . 'only narrow the site\'s signin_addresses, never widen it.' },
+            { key => 'signin_addresses_deny', label => 'Session binding: never from (address lists)', type => 'text',
+                note => 'Optional, session bindings only: names of DENY address lists. A call of '
+                    . 'this binding from one of these addresses is refused.' },
             { key => 'rate_per_visitor_hour', label => 'Cap: runs per visitor per hour',
                 type => 'number', default => '20' },
             { key => 'rate_per_hour', label => 'Cap: runs of this binding per hour',

@@ -94,6 +94,15 @@ var SITE_SCHEMA = [
     default: '', group: 'Manager user interface',
     show_when: { key: 'manager', value: ['enabled'] },
     note: 'Names of DENY address lists, comma separated. A request from one of these addresses is refused the manager and its API even if it is in an allow list above.' },
+  // SM1159 (L2): where a sign-in may be made from, beside the manager's own limit. Names of
+  // address lists, as above; the server checks each name and refuses a value that would
+  // shut the person setting it out of signing in.
+  { key: 'signin_addresses', placeholder: 'any address', label: 'Sign-in only from (address lists)', type: 'text',
+    default: '', group: 'Manager user interface',
+    note: 'Names of ALLOW address lists, comma separated (see Access, Address lists). When set, a sign-in attempt (this site\'s own and the Odoo sign-in through a page, including its code step) from any other address is refused before the password is looked at and before the sign-in rate limit counts it. A session already open is unaffected. Empty means any address. Needs trusted_proxies to cover your front end, or every visitor looks like the proxy.' },
+  { key: 'signin_addresses_deny', placeholder: 'no address refused', label: 'Sign-in never from (address lists)', type: 'text',
+    default: '', group: 'Manager user interface',
+    note: 'Names of DENY address lists, comma separated. A sign-in attempt from one of these addresses is refused even if it is in an allow list above.' },
   // SM623: the service toggles are grouped BY WHAT A CLIENT NEEDS, not by the
   // order they were added. They were interleaved - WebDAV, MCP, OAuth, control
   // API, token exchange - so an operator setting up one kind of connection had

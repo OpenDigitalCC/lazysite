@@ -226,6 +226,19 @@ sub main {
         # needs the visitor token (bound to the visitor cookie, which SameSite=Strict
         # keeps from a cross-site request): a forged form must not sign a victim in
         # as somebody else.
+        # SM1159 (L2): conf `signin_addresses` / `signin_addresses_deny` limit where a
+        # sign-in may come from - the password step and the code step alike. The refusal
+        # comes first: before the token is looked at, before the password reaches the
+        # engine, before the rate limiter counts it (a refused address is not a rate).
+        # Signing out is never refused. These two requests name no binding, so a
+        # binding's own narrowing is applied to the calls of a session binding instead
+        # (_address_refusal).
+        if ( $req->{signin} || $req->{signin_code} ) {
+            require Lazysite::Auth::AddressScope;
+            return reply( '403 Forbidden',
+                { ok => 0, kind => 'address', error => 'Sign-in is not available from your address.' } )
+                if Lazysite::Auth::AddressScope::refuse_signin( Lazysite::Paths::lazysite_dir($docroot), 'api' );
+        }
         if ( $req->{signin} || $req->{signout} ) {
             my %ctx = ( mode => 'public', visitor_key => $visitor );
             return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
@@ -244,6 +257,7 @@ sub main {
         my $id = delete $q->{binding};
         my ( $b, $why ) = Lazysite::Odoo::find_binding($id);
         return refuse( { ok => 0, kind => 'not-found', error => $why } ) unless $b;
+        if ( my $r = _address_refusal($b) ) { return refuse($r) }
         return reply( '405 Method Not Allowed',
             { ok => 0, kind => 'method', error => 'this binding changes data - send it as a POST with its token' } )
             if _writes($b);
@@ -265,6 +279,24 @@ sub _engine {
     require Lazysite::Odoo;
     $Lazysite::Odoo::DOCROOT = $docroot;
     return;
+}
+
+# SM1159: a session binding may carry its own `signin_addresses` /
+# `signin_addresses_deny`, which can only narrow the site's. The sign-in requests
+# name no binding, so the endpoint cannot know at sign-in which binding's page the
+# person is on; the binding's rule is therefore held where the binding IS named, on
+# its calls: a call from an address the binding refuses is not run, session or no
+# session. undef when the call may go on, else the refusal.
+sub _address_refusal {
+    my ($b) = @_;
+    return undef unless $b && ( $b->{credential} // '' ) eq 'session';
+    my @allow = @{ $b->{signin_addresses}      || [] };
+    my @deny  = @{ $b->{signin_addresses_deny} || [] };
+    return undef unless @allow || @deny;
+    require Lazysite::Auth::AddressScope;
+    return undef unless Lazysite::Auth::AddressScope::refuse_signin(
+        Lazysite::Paths::lazysite_dir( $ENV{DOCUMENT_ROOT} // '' ), 'api', \@allow, \@deny, $b->{id} );
+    return { ok => 0, kind => 'address', error => 'This page is not available from your address.' };
 }
 
 # SM1145: who is signed in, for a page to show - the display name
@@ -298,6 +330,7 @@ sub _post_one {
 
     my ( $b, $why ) = Lazysite::Odoo::find_binding( $req->{binding} );
     return _refusal_pair( { ok => 0, kind => 'not-found', error => $why } ) unless $b;
+    if ( my $r = _address_refusal($b) ) { return _refusal_pair($r) }
     my %ctx = _ctx( $b, %$who );
 
     # SM1168 (OOM Lab, session mode): a binding that runs as the person signed in

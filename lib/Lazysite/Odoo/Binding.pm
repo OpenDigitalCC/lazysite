@@ -143,6 +143,21 @@ sub parse {
             if length $vp;
     }
 
+    # SM1159 (L2): a session binding may carry its own sign-in address limit, names of
+    # address lists (SM1138), which can only narrow the site's `signin_addresses`.
+    # Held on the binding's calls (the sign-in itself names no binding). Meaning
+    # nothing on a connection binding, it is refused there rather than ignored.
+    for my $k (qw(signin_addresses signin_addresses_deny)) {
+        my $v = $h->{$k};
+        my @n = ref $v eq 'ARRAY' ? @$v : split /\s*,\s*/, ( $v // '' );
+        @n = grep { defined && length } map { s/\A\s+|\s+\z//gr } @n;
+        next unless @n;
+        return ( undef, "$k limits sign-in through a session binding; a connection binding has no sign-in", $k )
+            unless $cred eq 'session';
+        for (@n) { return ( undef, "$k: '$_' is not an address list name", $k ) unless /\A[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\z/ }
+        $b{$k} = \@n;
+    }
+
     for my $k (qw(rate_per_visitor_hour rate_per_hour)) {
         my $v = $h->{$k};
         $v = $k eq 'rate_per_hour' ? 200 : 20 unless defined $v && length $v;

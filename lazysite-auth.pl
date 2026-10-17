@@ -328,6 +328,18 @@ sub handle_login {
     # by everyone behind the front end, so one visitor's failures locked out all.
     my $ip = _request_ip();
 
+    # SM1159 (L2): conf `signin_addresses` / `signin_addresses_deny` limit where a
+    # sign-in may come from. The refusal is first - before the rate limiter counts the
+    # attempt (a refused address is not a rate) and before the password is looked at -
+    # with its own reason in the log and the audit, and a plain sentence on the page.
+    require Lazysite::Auth::AddressScope;
+    if ( Lazysite::Auth::AddressScope::refuse_signin( $LAZYSITE_DIR, 'web' ) ) {
+        log_event( 'WARN', $username, 'sign-in refused: address not allowed', ip => $ip );
+        _audit_auth( $username, 'login', 'fail', 'address-refused' );
+        redirect("$auth_redirect?error=address");
+        return;
+    }
+
     # H-3: per-IP rate limit before checking credentials (fail-closed on ok).
     unless ( check_login_rate($ip) ) {
         log_event( 'WARN', $username, 'login rate limit exceeded', ip => $ip );

@@ -134,6 +134,49 @@ sub would_refuse {
     return $verdict eq 'deny' ? 1 : 0;
 }
 
+# SM1159 (L2, the pocket portal plan): SIGN-IN MAY BE LIMITED BY ADDRESS. lazysite.conf
+# `signin_addresses:` / `signin_addresses_deny:` (names of address lists, SM1138) limit
+# where a sign-in attempt may come from: lazysite's own login and the Odoo endpoint's
+# signin and signin_code. The same evaluation as every other address rule (decide), the
+# same visitor address (trusted_proxies), the same audit row (`address-refused signin`,
+# once an hour per address). It is a refusal BEFORE the password is looked at and before
+# Auth::LoginRate counts anything: a refused address is not a rate. It limits the
+# attempt only; a session already open is not touched. A compensating control beside
+# the second factor, not a second factor.
+#
+# signin_refused($lz [, $allow, $deny]) -> undef when the attempt may go on, else
+# [ reason, list names ]. $allow / $deny (arrayrefs of names) are an Odoo session
+# binding's own, which can only narrow the site's: both must admit the address.
+# With $binding named (a call of that binding, in a session already open) only the
+# binding's own rule is asked.
+sub signin_refused {
+    my ( $lz, $b_allow, $b_deny, $binding ) = @_;
+    return undef unless request_context() && defined $lz && length $lz;
+    my $conf = _conf($lz);
+    my @sets = (
+        # A binding's call is made inside a session that is already open: the site-wide
+        # sign-in limit is about getting one, so only the binding's own rule applies.
+        ( defined $binding ? () : ( [ [ _names( $conf->{signin_addresses} ) ], [ _names( $conf->{signin_addresses_deny} ) ] ] ) ),
+        [ [ _names($b_allow) ], [ _names($b_deny) ] ],
+    );
+    for my $s (@sets) {
+        my ( $allow, $deny ) = @$s;
+        next unless @$allow || @$deny;
+        my ( $verdict, $why ) = _decide( "$lz/auth", $allow, $deny );
+        return [ $why, join( ',', @$allow, @$deny ) ] if $verdict eq 'deny';
+    }
+    return undef;
+}
+
+# signin_refused plus the audit row, for the doors. The target is `signin`, or
+# `signin <binding>` when a binding's own narrowing refused.
+sub refuse_signin {
+    my ( $lz, $origin, $b_allow, $b_deny, $binding ) = @_;
+    my $r = signin_refused( $lz, $b_allow, $b_deny, $binding ) or return 0;
+    audit_refusal( "$lz/auth", ( defined $binding ? "signin $binding" : 'signin' ), @$r, undef, $origin );
+    return 1;
+}
+
 # manager_refused plus the audit row, for the doors.
 sub refuse_manager {
     my ( $lz, $target, $user, $origin ) = @_;
@@ -153,7 +196,7 @@ sub _conf {
     my %c;
     if ( open my $fh, '<:utf8', $file ) {
         while ( my $l = <$fh> ) {
-            $c{$1} = $2 if $l =~ /^(manager_addresses(?:_deny)?)\h*:\h*(.+?)\h*$/;
+            $c{$1} = $2 if $l =~ /^((?:manager|signin)_addresses(?:_deny)?)\h*:\h*(.+?)\h*$/;
         }
         close $fh;
     }

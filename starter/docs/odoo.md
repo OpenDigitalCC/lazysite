@@ -269,6 +269,13 @@ What the binding is, as saved:
   Odoo session is refused and never run as the connection user, whose account is
   likely wider than the person's; a read says `signin-required` (`401`).
 
+A session binding may also carry `signin_addresses` and `signin_addresses_deny`
+(names of address lists, as in lazysite.conf), which narrow the site's own
+`signin_addresses` and never widen it. The sign-in requests name no binding, so the
+site-wide rule is what limits the sign-in itself; a binding's rule is held on that
+binding's calls: a call from an address it refuses is answered `address` (`403`).
+A connection binding with these fields is not saved.
+
 How a person signs in, on the page endpoint:
 
 `POST {signin: true, login, password, visitor_token}`

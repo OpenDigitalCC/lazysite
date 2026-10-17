@@ -94,7 +94,7 @@ sub _conf_names {
     my %v;
     open my $fh, '<:utf8', $conf or return %v;
     while ( my $l = <$fh> ) {
-        $v{$1} = $2 if $l =~ /^(manager_addresses|manager_addresses_deny)\s*:\s*(.*?)\s*$/;
+        $v{$1} = $2 if $l =~ /^((?:manager|signin)_addresses(?:_deny)?)\s*:\s*(.*?)\s*$/;
     }
     close $fh;
     return %v;
@@ -173,6 +173,11 @@ sub rules {
         for _names( $conf{manager_addresses} );
     push @rules, { where => 'conf', ref => 'manager_addresses_deny', slot => 'deny', name => $_ }
         for _names( $conf{manager_addresses_deny} );
+    # SM1159: sign-in's own limit names lists too, so a list it uses is not deleted.
+    push @rules, { where => 'conf', ref => 'signin_addresses', slot => 'allow', name => $_ }
+        for _names( $conf{signin_addresses} );
+    push @rules, { where => 'conf', ref => 'signin_addresses_deny', slot => 'deny', name => $_ }
+        for _names( $conf{signin_addresses_deny} );
 
     return { rules => \@rules, faults => \@faults };
 }

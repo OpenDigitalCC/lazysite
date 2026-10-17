@@ -130,6 +130,22 @@ works on staging and production.
   end that is not listed there every visitor looks like the proxy and the rule
   means nothing. A group can be limited the same way on the Groups page.
 
+`signin_addresses`, `signin_addresses_deny`
+: Names of address lists (Access, Address lists) that limit where a sign-in may be
+  made from: this site's own sign-in and the Odoo extension's sign-in through a
+  page (its password step and its authenticator-code step). `signin_addresses:
+  office` allows sign-in only from the addresses in the allow list `office`;
+  `signin_addresses_deny: blocked` refuses those in the deny list `blocked`, and
+  deny wins. The refusal comes before the password is looked at and before the
+  sign-in rate limit counts the attempt, and the visitor is told "Sign-in is not
+  available from your address." Each address is recorded once an hour as
+  `address-refused signin`. A session already open is untouched, and signing out
+  is never refused. It is a compensating control beside a second factor, not a
+  second factor. Comma separated; empty means any address. Set from the Config
+  page by a signed-in session (a value that would shut your own address out of
+  signing in is refused). The address is the visitor's, worked out with
+  `trusted_proxies`, as for `manager_addresses`.
+
 `auth_header_groups_separator`
 : What separates the groups in the groups header. Default `,`; Authentik sends
   `|`. Each part is trimmed and an empty part dropped. One rule for every
