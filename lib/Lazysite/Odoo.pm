@@ -982,11 +982,14 @@ sub _preview {
     };
 }
 
-# What apply did, without the journal's host path.
+# What apply did, without the journal's host path. `created` and `written`
+# (model to ids, this plan's own changes) go on so a page can open the record
+# its write made without reading it back (SM1165, OOM Lab L-10); `unlinked` is
+# not passed - a page has nothing to open.
 sub _result_summary {
     my ($r) = @_;
     my $h = $r->to_hash;
-    return { map { ( $_ => $h->{$_} ) } qw(total counts by_bucket verified stopped_by) };
+    return { map { ( $_ => $h->{$_} ) } qw(total counts by_bucket verified stopped_by created written) };
 }
 
 sub _with_visitor {

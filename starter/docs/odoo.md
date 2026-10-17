@@ -160,6 +160,12 @@ says what a request may set and who may cause it:
   visitor that made it applies with a confirm. `immediate`: the write applies
   in the same request.
 
+  The answer to an applied write (immediate, or a confirm) carries `result`:
+  `total`, `counts`, `by_bucket`, `verified`, `stopped_by`, and `created` and
+  `written`, each a map of model name to the ids this plan made or changed,
+  for example `created: {"sale.order": [42]}`. A page can open the new record
+  from it without reading it back. Records the plan deleted are not listed.
+
 `rate_per_visitor_hour`, `rate_per_hour`
 : The rate caps. Defaults 20 and 200.
 
