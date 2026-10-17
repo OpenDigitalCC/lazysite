@@ -94,7 +94,7 @@ for my $q ( 'action=nav-read', 'action=git-history&path=/x.md', 'action=pages' )
 
 # --- a read its handler refuses is an error: one `fail` row, over GET ------
 for my $c ( [ 'action=form-submissions&form=nope', 'form-submissions', qr/not-found/ ],
-    [ 'action=git-show&path=/x.md&commit=zz', 'git-show', qr/Invalid version id/ ] )
+    [ 'action=git-show&path=/x.md&sha=zz', 'git-show', qr/Invalid version id/ ] )
 {
     my ( $q, $a, $why ) = @$c;
     my $m = mark();

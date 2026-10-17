@@ -66,6 +66,14 @@ Archive
   keeping the message test for an older OOM. SM747's filed spec is re-filed.
   t/unit/odoo/25, 27.
 
+- SM1119 (PENDING) **internal: a required argument agrees across the two
+  surfaces.** t/lint/23 pinned that the control API and MCP expose the same
+  actions and nothing compared what each requires. Thirty-odd paired actions
+  marked an argument required on one side only; the API side now requires them
+  (nav-save with no `items` had saved an empty menu), and eight differences are
+  recorded with their reasons. A missing required parameter now leaves an audit
+  row. t/lint/265, 206.
+
 ## 0.15.9 - EDGE: mail sends from a real address, and video plays everywhere (2026-10-17)
 
 - SM1114 (e01b7471) **a failed WebDAV PUT leaves nothing behind.** A failed PUT

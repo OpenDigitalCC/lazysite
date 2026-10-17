@@ -1323,9 +1323,13 @@ sub _missing_required {
     return undef;
 }
 
+# SM1119: the absence is a row on the trail, as the handler's own refusal of
+# it was (SM943 ruling 1: a refusal or an error is audited, a read included).
+# This answered with no row, so marking a parameter required took away the row
+# the handler wrote - t/unit/manager/206 saw it for git-show.
 if ( my $missing = _missing_required($action) ) {
-    respond($missing);
-    exit 0;
+    _refuse( $missing, ( $token_auth ? 'api' : 'ui' ),
+        "missing-parameter: $missing->{field} is required", '' );
 }
 
 # --- Dispatch ---
