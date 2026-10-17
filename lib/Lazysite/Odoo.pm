@@ -650,12 +650,30 @@ sub recent_file { return store_dir() . '/recent.jsonl' }
 # registry is OOM's, and so is every name in it.
 sub registry {
     my ($conn) = @_;
+    return with_site_ops( $conn, sub {
+            # SM1164 D0: the site's pack directories, and a cache of its own beside the
+            # store (the default is under HOME, which a CGI user may not have). Without
+            # odoo_pack_dirs OOM reads its environment and the packaged packs, as before.
+            my @dirs = @{ $conn->{pack_dirs} || [] };
+            return Odoo::Ops::Registry->new( @dirs ? ( pack_dirs => \@dirs, cache_dir => store_dir() . '/cache' ) : () );
+    } );
+}
+
+# SM1170 (inbox L-12, 2026-10-17): runs $code with everything OOM reads from the
+# environment for THIS site's operations set, and puts it back after. OOM's
+# Runner->apply finds a `custom` change's class with Registry->new and no
+# arguments, which reads the environment alone; so registry(), which planned the
+# operation, and every apply must run inside this, or a site pack's custom
+# change ends apply-incomplete "no operation '<op>'". `local`, never process-wide:
+# one request must not hand its site's packs to another (OOM could take the
+# registry as an argument to apply instead; this does not need it).
+sub with_site_ops {
+    my ( $conn, $code ) = @_;
     local $ENV{ODOO_OPS_NAMESPACES} = join ',', @{ $conn->{packs} || [] };
-    # SM1164 D0: the site's pack directories, and a cache of its own beside the
-    # store (the default is under HOME, which a CGI user may not have). Without
-    # odoo_pack_dirs OOM reads its environment and the packaged packs, as before.
     my @dirs = @{ $conn->{pack_dirs} || [] };
-    return Odoo::Ops::Registry->new( @dirs ? ( pack_dirs => \@dirs, cache_dir => store_dir() . '/cache' ) : () );
+    local $ENV{ODOO_OOM_PACK_DIRS} = join ':', @dirs if @dirs;
+    local $ENV{XDG_CACHE_HOME} = store_dir() . '/cache' if @dirs; # OOM's cache, as registry() gives it
+    return $code->();
 }
 
 sub operation_class {
@@ -913,7 +931,7 @@ sub confirm {
             ( session_binding($b) ? ( session => $c{odoo_session} ) : () ) );
         $ctx->use_run_dir($dir);
         _approve( $dir, $plan, $meta->{owner}, 'confirmed in lazysite by its maker' );
-        my $result = Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir );
+        my $result = with_site_ops( $conn, sub { Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir ) } );
         { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $pid, result => _result_summary($result) };
     };
     return _session_end( $b, _finish( \%rec, $res, $@, $t0, 'apply' ) );
@@ -1004,7 +1022,7 @@ sub _run {
             created => time, fingerprint => $plan->fingerprint } );
     if ( $b->{apply} eq 'immediate' ) {
         _approve( $dir, $plan, "binding:$b->{id}", 'apply: immediate on the binding' );
-        my $result = Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir );
+        my $result = with_site_ops( $conn, sub { Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir ) } );
         return { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $pid,
             result => _result_summary($result) };
     }
