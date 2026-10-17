@@ -156,8 +156,8 @@ Archive
   access log gains a `tm` object. `tools/bench-surfaces.sh` reports the median and
   p90 of each phase per surface under CGI and, with `--with-pool`, a one-worker
   pool, pinned to one CPU at nice 19 and never parallel. `lazysite check` reports
-  `pool: yes, N workers` or `pool: no (plain CGI)`. t/unit/lib/203,
-  t/integration/266, t/unit/odoo/41, t/tools/170, t/tools/171.
+  `pool: yes, N workers` or `pool: no (plain CGI)`. t/unit/lib/204,
+  t/integration/287, t/unit/odoo/50, t/tools/170, t/tools/171.
 - SM1131 (PENDING) **every reader honours the configured header names.** Only the
   page gate read `auth_header_*`; one reader, `Lazysite::Auth::Identity`, now
   serves the page gate, the file rules, the manager and the API, and takes its

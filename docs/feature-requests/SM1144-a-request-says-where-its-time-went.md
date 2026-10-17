@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: the release manager, 2026-10-17 (SM1082 R1 ruled as proposed - "all rulings accepted")
 area: performance
-status-note: "SHIPPED on n640: lib/Lazysite/Timing.pm, tools/bench-surfaces.sh and .pl, tools/lazysite-check.pl report_pool_status; t/unit/lib/203, t/integration/266, t/unit/odoo/41, t/tools/170, t/tools/171."
+status-note: "SHIPPED on n640: lib/Lazysite/Timing.pm, tools/bench-surfaces.sh and .pl, tools/lazysite-check.pl report_pool_status; t/unit/lib/204, t/integration/287, t/unit/odoo/50, t/tools/170, t/tools/171."
 ---
 
 # What happened
@@ -126,7 +126,7 @@ leaving, the process exiting). The default N is 3, so a dry run is a test.
   (wrapper then processor), `manager` (wrapper then API), `mcp`, `data`, `odoo`
   (wrapper then endpoint, as the dev server and the rewrite run it), `odoo-direct`
   and `dav`. The Odoo figures are the `?csrf=1` request: the harness has no OOM and
-  so no `call` phase; `t/unit/odoo/41` shows the phase with OOM's fake Odoo.
+  so no `call` phase; `t/unit/odoo/50` shows the phase with OOM's fake Odoo.
 - `--with-pool` starts a ONE-worker front-door pool of its own on that site, in the
   same unprivileged way `tools/lazysite-pool.pl` runs when started by hand, measures
   the same surfaces through it, and stops it.
@@ -181,7 +181,7 @@ this: the `tm` field now lets the access log carry phases, but the mix needs the
 log's volume on a real site and is a separate read. The Odoo `call` figure needs a
 site with OOM and a binding; the harness measures the endpoint's own start-up.
 
-Tests: t/unit/lib/203 (the helper), t/integration/266 (the header on every
+Tests: t/unit/lib/204 (the helper), t/integration/287 (the header on every
 surface, present when enabled and absent when not, and the access log field),
-t/unit/odoo/41 (the `call` phase), t/tools/170 (the bench and its constraint),
+t/unit/odoo/50 (the `call` phase), t/tools/170 (the bench and its constraint),
 t/tools/171 (check's pool line).
