@@ -53,60 +53,62 @@ Archive
 
 ## Unreleased
 
-- SM1114 (PENDING) **a failed WebDAV PUT leaves nothing behind.** A failed PUT
+## 0.15.9 - EDGE: mail sends from a real address, and video plays everywhere (2026-10-17)
+
+- SM1114 (e01b7471) **a failed WebDAV PUT leaves nothing behind.** A failed PUT
   could leave its `.tmp` file in the tree (xisl.com, 2026-10-16), and a body
   shorter than its declared length was stored as the whole file. Every
   failure removes the temp file; a short body answers 400 and stores nothing;
   a full disk or quota answers 507 naming the cause; PROPFIND hides temp
   files. t/unit/dav/33.
 
-- SM1112 (PENDING) **media is served as media.** `.mp4`, `.webm` and other
+- SM1112 (f058d4ec) **media is served as media.** `.mp4`, `.webm` and other
   video, audio and caption files were served as `application/octet-stream`
   (xisl.com, 2026-10-16). Every content-type map the engine has now carries
   them, and gives each extension one answer; t/lint/264 keeps the maps in
   step.
-- SM1113 (PENDING) **an engine-served file answers a byte range.** On a site
+- SM1113 (f058d4ec) **an engine-served file answers a byte range.** On a site
   with access rules every static passes through the engine, which ignored
   `Range`, so Safari and iOS would not play video. It now answers 206, 416 and
   `Accept-Ranges: bytes`, uncompressed, after the access check.
   t/unit/processor/130, t/integration/261.
 
-- SM1108 (PENDING) **a blank password field keeps the stored password.** Saving
+- SM1108 (5c81fe24) **a blank password field keeps the stored password.** Saving
   Form SMTP with its password left blank cleared the stored one, though the
   field said "leave blank to keep". A blank `type: password` value is now
   unchanged on every extension. t/unit/manager/351.
-- SM1109 (PENDING) **mail is sent from a real address.** The fallback sender was
+- SM1109 (5c81fe24) **mail is sent from a real address.** The fallback sender was
   `webforms@localhost`, which real servers refuse. Form SMTP gains a From
   address; when it is empty the sender is `no-reply@` the site_url's host
   (release manager, 2026-10-16). A refused recipient names the sender used.
   t/unit/forms/63.
-- SM1110 (PENDING) **a failed STARTTLS says why.** "STARTTLS failed" now names
+- SM1110 (5c81fe24) **a failed STARTTLS says why.** "STARTTLS failed" now names
   the hosts the certificate is for and the host connected to.
   t/unit/forms/64.
-- SM1111 (PENDING) **a failed sendmail says how it failed.** "exit 256" is now
+- SM1111 (5c81fe24) **a failed sendmail says how it failed.** "exit 256" is now
   the exit code or signal with sendmail's own error lines; an account import
   says its claim links were "handed to the mail transport". t/unit/forms/65.
 
-- SM1105 (PENDING) **the outbox list says what was sent.** Sent entries were
+- SM1105 (b066a4de) **the outbox list says what was sent.** Sent entries were
   still listed as queued (row R2 of the 0.15.6 walk). The ledger records each
   entry's event, and a sent entry is listed as sent whatever became of its
   file; a failed removal is logged. t/unit/notify/07.
-- SM1106 (PENDING) **a repeat unsubscribe says already stopped.** A second POST
+- SM1106 (b066a4de) **a repeat unsubscribe says already stopped.** A second POST
   showed "Unsubscribed" again (row R3); it now shows the "Already stopped" page
   and writes nothing. t/integration/248.
-- SM1107 (PENDING) **an operator can retry an outbox entry now.** A waiting entry
+- SM1107 (b066a4de) **an operator can retry an outbox entry now.** A waiting entry
   sat in backoff after a transport fix. `notify-outbox-retry` (control API and
   MCP, manage_notifications) and a "Retry now" button on the Handlers page make
   waiting entries due at the next run; the cap and held messages still apply.
   t/unit/notify/08, t/integration/260, t/unit/manager/350.
 
-- SM1104 (PENDING) **an info mark shows its note on keyboard focus.** Focus only
+- SM1104 (5f00497c) **an info mark shows its note on keyboard focus.** Focus only
   recoloured the mark, so a sighted keyboard user never saw the note (row N4 of
   the 0.15.6 walk). The note is drawn beside the mark on hover and on
   focus-visible, in all three manager styles, without being read twice by a
   screen reader. t/unit/manager/349.
 
-- SM1103 (PENDING) **a write with no path is refused by name.** The edge test
+- SM1103 (22425c61) **a write with no path is refused by name.** The edge test
   walk's "manager saves fail" was a client sending `path` in the JSON body:
   `save` reads it from the query, so it ran with no path and tried to create
   a file beside the docroot. A path sent only in the body, or a content write
@@ -114,7 +116,7 @@ Archive
   save onto a folder or the site root is refused; a refused create names the
   file, the process's user and the folder's owner and mode.
   t/unit/manager/348.
-- SM1115 (PENDING) **a rate-limited visitor is told so, and the operator can see
+- SM1115 (3e7299e1) **a rate-limited visitor is told so, and the operator can see
   it.** Past the per-form, per-address limit a visitor saw "An error occurred -
   please try again." and nothing was audited (0.15.8 edge walk). The refusal
   now says too many were sent from this address and when to try again, and the

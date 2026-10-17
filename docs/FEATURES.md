@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.8"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.9"
 brand: plain
 ---
 
@@ -2023,6 +2023,12 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.9** (2026-10-17, edge) - **Mail sends from a real address, and video
+  plays everywhere.** Form SMTP has a From address, defaulting to no-reply at
+  the site's host (SM1109); a blank password keeps the stored one (SM1108);
+  video, audio and captions are served as media and answer byte ranges (SM1112,
+  SM1113); an operator can retry an outbox entry now (SM1107); a rate-limited
+  visitor is told so (SM1115)
 - **0.15.8** (2026-10-16, edge) - **Mark all read is kept, and the site has one
   address.** Mark all read and Dismiss are kept, or the bell says they were not
   (SM1100); the Site URL field fills in the address the page is open at
