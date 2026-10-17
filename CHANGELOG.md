@@ -59,6 +59,13 @@ Archive
   empty result, failing its two focus assertions; it now reruns the browser until
   the page reports it finished and polls for the note up to a deadline. No CSS
   change. t/unit/manager/349.
+- SM1139 (PENDING) **a page or folder is limited by address.** Front matter and
+  per-file rules take `addresses` and `addresses_deny`; every layer must
+  admit the visitor's address and deny wins, on pages, statics, WebDAV and
+  the manager. A refused visitor sees "This page is not available from your
+  address."; ruled pages are never cached (SM1134, slice B).
+  t/integration/280, 281.
+
 - SM1138 (PENDING) **address lists are a store.** Named allow and deny lists
   of addresses and ranges, managed on Access -> Address lists by the operator
   and audited, with one module that answers whether an address is allowed
