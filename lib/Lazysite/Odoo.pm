@@ -977,19 +977,65 @@ sub _preview {
     return {
         buckets => $h->{buckets} // {},
         total   => scalar @{ $h->{changes} || [] },
-        changes => [ map { { seq => $_->{seq}, bucket => $_->{bucket}, action => $_->{action} } }
-                @{ $h->{changes} || [] } ],
+        changes => [ map { _change_view($_) } @{ $h->{changes} || [] } ],
     };
 }
 
 # What apply did, without the journal's host path. `created` and `written`
 # (model to ids, this plan's own changes) go on so a page can open the record
 # its write made without reading it back (SM1165, OOM Lab L-10); `unlinked` is
-# not passed - a page has nothing to open.
+# not passed - a page has nothing to open. `changes` (SM1171, L-13) says per
+# change what became of it - see _applied_changes.
 sub _result_summary {
     my ($r) = @_;
-    my $h = $r->to_hash;
-    return { map { ( $_ => $h->{$_} ) } qw(total counts by_bucket verified stopped_by created written) };
+    my $h   = $r->to_hash;
+    my %out = map { ( $_ => $h->{$_} ) } qw(total counts by_bucket verified stopped_by created written);
+    $out{changes} = _applied_changes( $h->{journal} );
+    return \%out;
+}
+
+# A change as a page may see it: where it sits and why it was held. NOT its
+# values or before-image - the preview's rule - so a reason (the operation's
+# own words for why) is the only prose that goes (SM1171, OOM Lab L-13: "the
+# hold REASON ... never reach the page").
+sub _change_view {
+    my ($c) = @_;
+    return { map { ( $_ => $c->{$_} ) } grep { defined $c->{$_} } qw(seq bucket action reason) };
+}
+
+# `returned` is whatever the operation's handler answered (a backorder's name, a
+# mailing's send state), so it has no size of its own: past 4 KB of JSON it is
+# cut and says so, so one change cannot make the answer as large as the handler
+# chose.
+my $RETURNED_CAP = 4096;
+
+sub _capped {
+    my ($v) = @_;
+    my $json = JSON::PP->new->canonical->allow_nonref->encode($v);
+    return $v if length $json <= $RETURNED_CAP;
+    my $text = ref $v ? $json : "$v"; # a string is cut as the string it is, a structure as its JSON
+    return substr( $text, 0, $RETURNED_CAP ) . '...[truncated, ' . length($text) . ' bytes]';
+}
+
+# Per change of the apply, from the journal OOM kept of it (the result holds
+# only counts, and its path is the host's and stays here): seq, bucket, action,
+# model, the record id if there is one, the outcome, `reason` for a held or
+# skipped change and `returned` for a custom one. Nothing else of the entry -
+# its vals, before-image and handler stay in the journal for the operator. A
+# journal that cannot be read answers no list; the counts still stand.
+sub _applied_changes {
+    my ($path) = @_;
+    return [] unless defined $path && length $path;
+    my $rows = eval { require Odoo::Ops::Journal; ( Odoo::Ops::Journal->read($path) )[1] };
+    return [] unless ref $rows eq 'ARRAY';
+    my @out;
+    for my $e (@$rows) {
+        my %c = map { ( $_ => $e->{$_} ) } grep { defined $e->{$_} } qw(seq bucket action model id outcome);
+        $c{reason} = $e->{reason} if defined $e->{reason} && ( $e->{outcome} // '' ) =~ /\A(?:held|skipped)\z/;
+        $c{returned} = _capped( $e->{returned} ) if ( $e->{action} // '' ) eq 'custom' && defined $e->{returned};
+        push @out, \%c;
+    }
+    return \@out;
 }
 
 sub _with_visitor {

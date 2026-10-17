@@ -166,6 +166,17 @@ says what a request may set and who may cause it:
   for example `created: {"sale.order": [42]}`. A page can open the new record
   from it without reading it back. Records the plan deleted are not listed.
 
+  `result.changes` says what became of each change, in plan order: `seq`,
+  `bucket`, `action`, `model`, `id` (the record, when there is one), `outcome`
+  (`done`, `skipped`, `held` or `failed`), `reason` for a held or skipped
+  change (why it was held, in the operation's words) and `returned` for a
+  custom change (what its handler answered, such as a backorder's name). A
+  page can say why a line was held without a second call. Nothing else of a
+  change is passed: not its values, its before-image or the journal's path.
+  `returned` has no size of its own, so past 4 KB it is cut and ends in
+  `...[truncated, N bytes]`. A plan not yet confirmed shows the same `reason`
+  on each change in `preview.changes`, so a page can warn before the confirm.
+
 `rate_per_visitor_hour`, `rate_per_hour`
 : The rate caps. Defaults 20 and 200.
 

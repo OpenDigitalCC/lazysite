@@ -4,7 +4,7 @@
 # new record's id." OOM's result carries `created` and `written` (model to ids,
 # this plan's own changes); the apply answer passes both on, for an immediate
 # binding and for a confirmed plan alike. `unlinked` and the journal's path
-# stay out.
+# stay out. (`changes` joined them with SM1171.)
 use strict;
 use warnings;
 use Test::More;
@@ -66,7 +66,7 @@ subtest 'a confirmed plan answers the same, and passes on nothing else of the ru
     ok( !exists $c->{result}{unlinked}, 'unlinked stays out' );
     ok( !exists $c->{result}{journal},  'the journal stays out' );
     my @keys = sort keys %{ $c->{result} };
-    my @bad  = grep { !/^(?:total|counts|by_bucket|verified|stopped_by|created|written)$/ } @keys;
+    my @bad  = grep { !/^(?:total|counts|by_bucket|verified|stopped_by|created|written|changes)$/ } @keys;
     is_deeply( \@bad, [], 'only the named fields are passed' ) or diag "@keys";
 };
 

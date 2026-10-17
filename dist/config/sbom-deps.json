@@ -219,6 +219,12 @@
       "debian_pkg": "libodoo-oom-perl",
       "used_by": "Odoo extension (SM747): one guarded connection per call, carrying the lazysite actor; lazy-required only when the extension runs"
     },
+    "Odoo::Ops::Journal": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM1171): reads the journal OOM kept of an apply, so the answer can say per change what became of it; lazy-required only when the extension runs"
+    },
     "Odoo::Ops::Plan": {
       "core": false,
       "license": "Artistic-1.0-Perl",
