@@ -299,6 +299,20 @@ sub _post_one {
     my ( $b, $why ) = Lazysite::Odoo::find_binding( $req->{binding} );
     return _refusal_pair( { ok => 0, kind => 'not-found', error => $why } ) unless $b;
     my %ctx = _ctx( $b, %$who );
+
+    # SM1168 (OOM Lab, session mode): a binding that runs as the person signed in
+    # to Odoo, from a request with NO Odoo session, is answered "sign in" BEFORE
+    # the token check. The check ran first and, with no session to hold a token,
+    # failed as 403 csrf - and the browser helper opens its sign-in prompt only on
+    # 401 signin-required, so the person was never asked. The engine's gate is the
+    # one that refuses it (and records the refusal, SM771). This weakens no check:
+    # nothing runs and nothing of the binding is told, only "you are not signed
+    # in", which the caller already knows. A request WITH a session goes on to the
+    # token check below, unchanged.
+    if ( ( $b->{credential} // '' ) eq 'session' && !length( $ctx{odoo_session} // '' ) ) {
+        my ( undef, $refusal ) = Lazysite::Odoo::gate( $b, %ctx );
+        return _refusal_pair($refusal);
+    }
     return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req, $b );
     return ( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'params must be an object' } )
         if defined $req->{params} && ref $req->{params} ne 'HASH';

@@ -204,8 +204,8 @@ subtest 'a session Odoo has ended is not used by the calls after it' => sub {
     my ( $s2, $ck2, $j2 ) = batch( [ { binding => 'mine' }, { binding => 'mine' }, { binding => 'shared' } ],
         cookie => "$VC; $SESSION; $IDENT" );
     is( $s2, 200, 'answered' );
-    is_deeply( [ map { $_->{status} } @{ $j2->{results} } ], [ 401, 403, 200 ],
-        'the ended session: sign in; then no session left, so the person\'s token has nothing to fit (as a single POST with no session); and a public call still runs' )
+    is_deeply( [ map { $_->{status} } @{ $j2->{results} } ], [ 401, 401, 200 ],
+        'the ended session: sign in; then no session left, so the next call asks for the sign-in too (SM1168: not a 403 csrf); and a public call still runs' )
         or diag explain $j2;
     is( $j2->{results}[0]{kind}, 'signin-required', 'the first is told to sign in, by name' );
     is( scalar @{ $http->posts }, $p0 + 1, 'Odoo was asked once, by the first call, and never again on the dead session' );
