@@ -34,8 +34,6 @@ package Lazysite::Auth::AddressScope;
 
 use strict;
 use warnings;
-use Fcntl                        qw(:flock);
-use JSON::PP                     ();
 use Lazysite::Auth::AddressLists ();
 use Lazysite::Util               qw(log_event);
 
@@ -138,9 +136,9 @@ sub would_refuse {
 
 # manager_refused plus the audit row, for the doors.
 sub refuse_manager {
-    my ( $lz, $target, $user ) = @_;
+    my ( $lz, $target, $user, $origin ) = @_;
     my $r = manager_refused($lz) or return 0;
-    audit_refusal( "$lz/auth", $target, @$r, $user );
+    audit_refusal( "$lz/auth", $target, @$r, $user, $origin );
     return 1;
 }
 
@@ -162,12 +160,19 @@ sub _conf {
     return ( $CONF_MEMO{$file} = { sig => $sig, conf => \%c } )->{conf};
 }
 
-# One row per target and address per hour. The marker is a small JSON map in the logs
-# directory: { "target|address" => clock-hour }, pruned of earlier hours on each write.
-my %SEEN_THIS_PROCESS;
+# One row per target and address per hour, written by Lazysite::Auth::AddressAudit,
+# the one writer every refusal by address goes through (SM1139's pages and files,
+# these groups and the manager): one marker store (auth/.address-refused.db) and one
+# row shape (detail "REASON; lists NAMES"), so the trail reads the same whichever
+# rule refused. SM1140 first kept its own marker under logs/; the stack unified them.
+#
+# The memo saves reopening the marker store for every walk of one request (a request
+# walks the group graph once per gate); the store is still what decides across
+# processes. `our` so a test can stand in for a fresh process.
+our %SEEN_THIS_PROCESS;
 
 sub audit_refusal {
-    my ( $auth_dir, $target, $why, $lists, $user ) = @_;
+    my ( $auth_dir, $target, $why, $lists, $user, $origin ) = @_;
     my $lz = $LAZYSITE_DIR;
     unless ( defined $lz ) {
         ( $lz = $auth_dir // '' ) =~ s{/auth/?\z}{};
@@ -178,34 +183,17 @@ sub audit_refusal {
     my $hour = int( time() / 3600 );
     return if ( $SEEN_THIS_PROCESS{$key} // -1 ) == $hour;
     $SEEN_THIS_PROCESS{$key} = $hour;
-
-    my $dir  = "$lz/logs";
-    my $mark = "$dir/.address-refused.json";
-    -d $dir or mkdir $dir;
-    my $seen = 0;
-    if ( open my $fh, '+>>:raw', $mark ) {
-        flock( $fh, LOCK_EX );
-        seek $fh, 0, 0;
-        my $raw = do { local $/; <$fh> };
-        my $map = ( length( $raw // '' ) && eval { JSON::PP::decode_json($raw) } ) || {};
-        $map  = {} unless ref $map eq 'HASH';
-        $seen = ( $map->{$key} // -1 ) == $hour;
-        unless ($seen) {
-            my %keep = map { $_ => $map->{$_} } grep { ( $map->{$_} // -1 ) == $hour } keys %$map;
-            $keep{$key} = $hour;
-            truncate $fh, 0;
-            seek $fh, 0, 0;
-            print {$fh} JSON::PP::encode_json( \%keep );
-        }
-        close $fh;
-    }
-    return if $seen;
     eval {
-        require Lazysite::Audit;
-        no warnings 'once';
-        local $Lazysite::Audit::LAZYSITE_DIR = $lz;
-        Lazysite::Audit::audit_log( $user // '', 'address-refused', $target, $addr, 'fail', 'access',
-            join( ' ', grep { defined && length } $why, $lists ) );
+        require Lazysite::Auth::AddressAudit;
+        Lazysite::Auth::AddressAudit::refused(
+            lazysite_dir => $lz,
+            target       => $target,
+            address      => $addr,
+            reason       => $why,
+            lists        => [ _names($lists) ],
+            origin       => ( $origin // 'web' ),
+            user         => $user,
+        );
         1;
     } or log_event( 'WARN', $target, 'address refusal not audited', error => "$@" );
     return;

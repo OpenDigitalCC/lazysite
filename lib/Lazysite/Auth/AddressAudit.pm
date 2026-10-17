@@ -6,10 +6,13 @@ package Lazysite::Auth::AddressAudit;
 # is plugins/form-handler.pl _audit_rate_refusal: a marker per key holding the clock
 # hour, written when the row is, and the row skipped while the marker is this hour's.
 # This is that pattern for pages, files and the doors that serve them, in one place
-# so the processor, WebDAV and the manager API write the same row.
+# so the processor, WebDAV and the manager API write the same row. SM1140's group
+# and manager refusals (Auth::AddressScope::audit_refusal) write through here too,
+# so there is one marker store and one row shape for every refusal by address.
 #
 #   refused( lazysite_dir => $dir, target => '/office/rota', address => $ip,
-#            reason => 'not-allowed', lists => ['office'], origin => 'web' )
+#            reason => 'not-allowed', lists => ['office'], origin => 'web',
+#            user => $name )   # user optional: the account, where the door knows it
 #     -> 1 when it wrote the row, 0 when this hour already has one for this target
 #        and address (or the marker store could not be opened).
 #
@@ -65,7 +68,7 @@ sub refused (%o) {
     my $lists = join ',', @{ ref $o{lists} eq 'ARRAY' ? $o{lists} : [] };
     no warnings 'once';
     local $Lazysite::Audit::LAZYSITE_DIR = $dir;
-    Lazysite::Audit::audit_log( '', 'address-refused', $target, $address, 'fail',
+    Lazysite::Audit::audit_log( ( $o{user} // '' ), 'address-refused', $target, $address, 'fail',
         ( $o{origin} // 'web' ), join( '; ', grep { length } ( $o{reason}, length $lists ? "lists $lists" : '' ) ) );
     return 1;
 }

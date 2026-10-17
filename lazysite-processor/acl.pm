@@ -961,7 +961,7 @@ sub _group_closure {
         }
     }
     # SM1140: the same blocked-group walk as Auth::Settings::_group_closure_walk,
-    # which is the one place a request's groups are resolved (lint 270 pins that the
+    # which is the one place a request's groups are resolved (t/unit/auth/64 pins that the
     # two agree): a group the visitor's address is refused for is neither a seed
     # nor a parent, and nothing is reached through it. The decision is the module's
     # (Auth::AddressScope, loaded only when some group record carries a list).

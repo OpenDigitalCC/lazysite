@@ -118,8 +118,10 @@ names, and not to those two endpoints.
 ## Refusal and audit
 
 Group: one `address-refused group NAME` row per group per address per hour, written
-when a walk meets a refused group the request actually belongs to. The marker is
-`logs/.address-refused.json`, pruned to the current hour on each write.
+when a walk meets a refused group the request actually belongs to. The row is written by
+SM1139's `Lazysite::Auth::AddressAudit`, the one writer for every refusal by address: one
+marker store (`lazysite/auth/.address-refused.db`) and one detail shape (`REASON; lists
+NAMES`), origin `web` (the manager API's own refusal says `api`). t/unit/auth/65.
 
 ## Tests
 
@@ -141,8 +143,5 @@ copy in t/unit/auth/64).
 
 # Open
 
-- The audit marker for a refusal is a small JSON file under `logs/`; slice B keeps its
-  own (`Auth::AddressAudit`, a DB_File under `auth/`). The two write the same row
-  (`address-refused <target>`), and should share one writer once both land.
 - `narrow_caps_to_request` cuts capabilities only; the `dav_scopes` the users tool
   reports for a cookie caller are the account's whole, as before.

@@ -284,7 +284,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
 # visitor's (trusted_proxies), the same one the /manager/ pages are judged by.
 {
     require Lazysite::Auth::AddressScope;
-    if ( Lazysite::Auth::AddressScope::refuse_manager( $LAZYSITE_DIR, 'manager api' ) ) {
+    if ( Lazysite::Auth::AddressScope::refuse_manager( $LAZYSITE_DIR, 'manager api', undef, 'api' ) ) {
         _emit_json( '403 Forbidden', [],
             { ok => JSON::PP::false, kind => 'forbidden',
                 error => 'This page is not available from your address.' } );
