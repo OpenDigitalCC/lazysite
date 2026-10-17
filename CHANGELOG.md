@@ -158,6 +158,10 @@ Archive
   detached rebuild under one lock (1.5-3 s on an 1,800-rule fixture); a content
   write starts it when its request is over; a missing registry is still built on
   first need. t/unit/processor/133, t/unit/manager/352.
+- SM1153 (PENDING) **the extension-list cache follows the extensions
+  directory.** The cached list kept an empty answer after `plugins/` appeared
+  (oom-lab L-5); it now records what it was built from, and an empty list for a
+  missing directory is not kept. t/unit/lib/203.
 
 - SM1129 (PENDING) **security: a proxy is believed only from its address.** With
   `auth_proxy_trusted` on, any request carrying the identity headers was

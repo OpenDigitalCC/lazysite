@@ -233,13 +233,36 @@ sub _resolve_plugin_or_why {
             . 'JSON body as {"script": "<id>"}); call extension-list for the ids' );
 }
 
+# SM1153 (oom-lab L-5): WHAT THE CACHED LIST WAS BUILT FROM. The list was
+# trusted for 60 seconds on the cache file's age alone, so a set-up that listed
+# extensions, then created the extensions directory, was told there were none
+# until the cache was deleted by hand. This is the state of the registry's
+# sources - the directory's presence and mtime, and each script's name, size and
+# mtime - and the cache is used only while it is unchanged.
+sub _plugin_list_state {
+    my ($reg) = @_;
+    my $base = Cwd::realpath("$DOCROOT/..") // '';
+    my @dir  = stat("$base/plugins");
+    my @bits = ( @dir ? "dir:$dir[9]" : 'dir:none' );
+    for my $rel ( sort keys %{$reg} ) {
+        my @st = stat( $reg->{$rel} );
+        push @bits, join( ':', $rel, $st[7] // '-', $st[9] // '-' );
+    }
+    return join '|', @bits;
+}
+
 sub action_plugin_list {
     my $cache_file = _lz() . "/cache/plugin-list.cache";
+    my $reg        = plugin_registry();
+    my $state      = _plugin_list_state($reg);
     if ( -f $cache_file && ( time() - ( stat($cache_file) )[9] ) < 60 ) {
         open my $fh, '<', $cache_file or return { ok => 0, error => "cache read failed" };
         my $data   = do { local $/; <$fh> }; close $fh;
         my $parsed = eval { decode_json($data) };
-        return $parsed if $parsed && $parsed->{ok};
+        if ( $parsed && $parsed->{ok} && ( $parsed->{state} // '' ) eq $state ) {
+            delete $parsed->{state};
+            return $parsed;
+        }
     }
 
     my %enabled = %{ _enabled_map() };
@@ -258,7 +281,7 @@ sub action_plugin_list {
     # candidate is still validated by --describe below (a non-plugin .pl is
     # dropped); a new plugins/*.pl appears automatically. This is the same map
     # resolve_plugin_script uses, so what is LISTED is exactly what can be RUN.
-    my $reg = plugin_registry();
+    # ($reg is built above, with the state the cache is checked against.)
 
     for my $rel ( sort keys %$reg ) {
         my $full = $reg->{$rel};
@@ -310,11 +333,20 @@ sub action_plugin_list {
             || ( $a->{name} // '' ) cmp( $b->{name} // '' )
     } @plugins;
 
+    # SM1153: NOTHING IS KEPT FOR A DIRECTORY THAT IS NOT THERE. An empty list
+    # built because plugins/ does not exist yet is the list the lab was handed
+    # for good; it answers this request and no later one.
+    my $base = Cwd::realpath("$DOCROOT/..") // '';
     my $cache_dir = dirname($cache_file);
-    make_path($cache_dir) unless -d $cache_dir;
-    if ( open my $fh, '>', $cache_file ) {
-        print $fh encode_json( { ok => 1, plugins => \@plugins } );
-        close $fh;
+    if ( -d "$base/plugins" ) {
+        make_path($cache_dir) unless -d $cache_dir;
+        if ( open my $fh, '>', $cache_file ) {
+            print $fh encode_json( { ok => 1, state => $state, plugins => \@plugins } );
+            close $fh;
+        }
+    }
+    else {
+        unlink $cache_file;
     }
 
     return { ok => 1, plugins => \@plugins };
