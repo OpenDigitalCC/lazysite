@@ -59,6 +59,11 @@ Archive
   empty result, failing its two focus assertions; it now reruns the browser until
   the page reports it finished and polls for the note up to a deadline. No CSS
   change. t/unit/manager/349.
+- SM1138 (PENDING) **address lists are a store.** Named allow and deny lists
+  of addresses and ranges, managed on Access -> Address lists by the operator
+  and audited, with one module that answers whether an address is allowed
+  (SM1134, slice A). t/unit/auth/63, t/integration/266.
+
 - SM1135 (PENDING) **a directory group grants capabilities only when marked.**
   Under a trusted proxy, header groups gave page and file access, and only
   some gates also read them for capabilities. One rule now serves every gate:
