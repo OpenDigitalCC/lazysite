@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1125 (PENDING) **internal: nothing shipped calls a deprecated action name.**
+  Three manager comments still named `plugin-*` actions; they name the
+  `extension-*` ones, and t/lint/266 keeps shipped pages, assets and skills on
+  the current names. The old names still work.
+
 - SM1124 (PENDING) **security: a form's outcome is a code, not text.** The page
   printed any text placed in the `outcome=` parameter, so a link could make a
   site's own page show someone else's words (0.15.9 walk, F-3). The redirect

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-16
 raised-by: 0.15.9 test-plan walk, finding F-5
 area: manager
-status-note: "SHIPPED on n627: starter/manager/config.md; t/lint/265. The generated field-practice briefing still teaches the old name and is exempt until its source is changed."
+status-note: "SHIPPED on n627: starter/manager/config.md; t/lint/266. The generated field-practice briefing still teaches the old name and is exempt until its source is changed."
 ---
 
 # What happened
@@ -36,7 +36,7 @@ here.
   spellings.
 - The old spelling still works and is still audited `spelling=deprecated`:
   external scripts use it, and removal is not scheduled here.
-- t/lint/265 reads the deprecated set from the `plugin-*` keys of
+- t/lint/266 reads the deprecated set from the `plugin-*` keys of
   `lib/Lazysite/ControlApi/Actions.pm` (the set the API's own `\Aplugin-` test
   treats as deprecated) and fails if any file under `starter/` or `skills/` calls one. It exempts the generated briefing
   (recognised by its import checksum) until the source is changed and re-imported,
@@ -48,4 +48,4 @@ here.
 
 The site agent's APP-PRACTICE.md source needs `plugin-list`, `plugin-action`,
 `plugin-read` and `plugin-save` changed to the extension-* names; the next
-import then carries it, and the two exemptions in t/lint/265 can go.
+import then carries it, and the two exemptions in t/lint/266 can go.
