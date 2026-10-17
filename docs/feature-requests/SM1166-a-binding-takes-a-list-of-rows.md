@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-10-17
 raised-by: lazysite-sites agent, OOM Lab quotation app (inbox, L-11)
 area: odoo
-status-note: "CANDIDATE, 2026-10-18: needs OOM to declare a rows type (asked in odoo/oom/inbox) and a ruling, since it widens what a request may feed. Nothing built until both."
+status-note: "CANDIDATE, ruled 2026-10-18 (R1 yes as proposed, R2 refuse a binding with no cap). Waits for OOM to declare a rows type (asked in odoo/oom/inbox); built when OOM ships it."
 ---
 
 # The finding
@@ -43,9 +43,9 @@ and SM1166 must not move it for `json`.
 - **`json` and `list` stay operator-only.** A `rows` parameter cannot hold a
   domain because no row value is anything but a plain value.
 
-# Ruling needed
+# Rulings
 
-| Ref | Question | Proposed |
+| Ref | Question | Ruling (release manager, 2026-10-18) |
 |---|---|---|
-| R1 | Widen what a request may feed to a declared `rows` type | Yes, on the terms above |
-| R2 | The default cap when the operation declares none | Refuse the binding: a `rows` parameter must state its cap |
+| R1 | Widen what a request may feed to a declared `rows` type | Yes, as proposed: any binding whose operation declares rows, public visitor or signed-in |
+| R2 | The default cap when the operation declares none | Refuse the binding: a `rows` parameter must state its cap, caught when the config loads |
