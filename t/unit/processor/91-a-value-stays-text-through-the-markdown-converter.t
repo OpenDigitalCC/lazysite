@@ -149,8 +149,9 @@ for my $v (
         # showed the first value (SM969); and that one spelled RAWBLOCK (SM967).
         my $b = fetch( '/form', 'form=apply&outcome=' . enc($raw) );
         my $s = seg( $b, qr{<p class="form-status form-status-error" role="alert">(.*?)</p>}s );
-        ok( defined $s && $s !~ /</, 'the outcome banner holds text' );
-        is( unesc( $s // '' ), $raw, 'the outcome banner shows THIS request\'s value' );
+        # SM1124 F-3: the outcome is a code, never printed.
+        is( $s, 'Your submission could not be accepted. Please try again.',
+            'the outcome banner is the generic sentence, not the value' );
         is( count( $b, qr/var marker/ ), 1, 'banner: the author script once' );
     };
 }

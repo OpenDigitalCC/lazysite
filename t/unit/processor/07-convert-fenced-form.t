@@ -269,7 +269,10 @@ load_processor($docroot);
         { form => 'contact' },
     );
     like( $out, qr/form-status-error/,    'a non-ok outcome renders the error banner' );
-    like( $out, qr/Rate limit exceeded/,  'carrying the user-safe text' );
+    # SM1124 F-3: the sentence is the engine's, selected by a code. Text in the
+    # URL is never printed (t/unit/forms/67 holds the whole matrix).
+    like( $out, qr/Your submission could not be accepted/, 'with the one generic sentence' );
+    unlike( $out, qr/Rate limit exceeded/, 'and not the words the link carried' );
 }
 {
     local $ENV{QUERY_STRING} = 'form=OTHER&outcome=ok';
@@ -286,8 +289,8 @@ load_processor($docroot);
         "::: form\nname | Name | required\nsubmit | Send\n:::\n",
         { form => 'contact' },
     );
-    unlike( $out, qr/<script>/, 'outcome text is escaped - the query string is attacker-writable' );
-    like( $out, qr/&lt;script&gt;/, 'and shown as text' );
+    unlike( $out, qr/<script>/, 'outcome text is never printed - the query string is attacker-writable' );
+    unlike( $out, qr/script/i,  'not even escaped (SM1124 F-3)' );
 }
 {
     my $out = main::convert_fenced_form(

@@ -260,8 +260,11 @@ for my $v (@VALUES) {
         my ( undef, $html ) = fetch( $uri, "form=apply&outcome=$o" );
         # BEFORE (measured): a `[%` outcome was evaluated by the
         # body's template pass, and a non-ASCII one arrived as mojibake.
-        text_ok( segment( $html, qr{<p class="form-status form-status-error" role="alert">(.*?)</p>}s ),
-            $raw, 'outcome banner' );
+        # SM1124 F-3: the outcome is a code and is never printed, so the hostile
+        # value has no sink here: the banner is the one generic sentence.
+        is( segment( $html, qr{<p class="form-status form-status-error" role="alert">(.*?)</p>}s ),
+            'Your submission could not be accepted. Please try again.',
+            'outcome banner is the generic sentence, not the value' );
         unlike( $html, qr/\b49\b|SITE-NAME-LEAKED.*SITE-NAME-LEAKED/s,
             'a template tag in the outcome computes nothing' );
     };

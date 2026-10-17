@@ -120,6 +120,47 @@ our %OUTCOME_SAID = (
         'Thank you - your submission has been received and sent for processing.',
 );
 
+# SM1124 F-3: THE SENTENCES A REFUSAL MAY BE TOLD, keyed by a CODE. A no-JS
+# refusal used to put its sentence in `?outcome=` on the redirect back, and the
+# page printed whatever that held - so a crafted link made a site's own page say
+# anyone's words (the 0.15.9 walk: `outcome=zz59+probe+text`). Now the redirect
+# carries the code and, where the sentence has a number or a field name in it, a
+# separate plain parameter (`retry`, `n`, `field`); the page owns the wording.
+# The JSON (fetch) path is not a URL anyone can forge into a link and keeps
+# returning the whole message. `{retry}`, `{n}`, `{field}` are the slots (`{unit}`
+# follows `retry`). THE PROCESSOR HOLDS THE SAME TABLE as `my %REFUSED` for the
+# reason %OUTCOME_SAID is mirrored, and t/lint/156 holds the two together.
+our %REFUSAL_SAID = (
+    'unavailable' => 'This form is not accepting submissions right now. Please contact the site owner.',
+    'undelivered' => 'This form is not accepting submissions right now (nothing accepted the submission: its delivery is switched off or refused it - the site owner can see why in the event log). Please contact the site owner.',
+    'no-uploads'     => 'This form does not accept file uploads.',
+    'too-many-files' => 'Too many files (max {n}).',
+    'file-too-large' => 'A file is too large (max {n} KiB).',
+    'file-type'      => 'A file is of a type this form does not accept.',
+    'empty'          => 'Please fill in the form before submitting.',
+    'too-fast'       => 'That was too quick - please try again in a moment.',
+    'expired' => 'This form was open too long and has expired - please reload the page and send it again.',
+    'rate' => 'Too many submissions of this form from your address in the last hour. Please try again in about {retry} {unit}.',
+    'field-long' => 'The \'{field}\' field is too long (limit {n} KB). Nothing was saved - shorten it and send the form again.',
+    'field-required'   => 'The \'{field}\' field is required.',
+    'field-email'      => 'The \'{field}\' field needs an email address.',
+    'field-url'        => 'The \'{field}\' field needs a web address.',
+    'field-number'     => 'The \'{field}\' field needs a number.',
+    'field-max-length' => 'The \'{field}\' field is too long (limit {n}).',
+    'field-max'        => 'The \'{field}\' field must be {n} or less.',
+    'field-min'        => 'The \'{field}\' field must be {n} or more.',
+    'field-pattern'    => 'The \'{field}\' field is not in the expected format.',
+    'error'            => 'An error occurred - please try again.',
+);
+# What the redirect may carry besides the code, and the shape each must have; the
+# processor applies the same shapes before it prints anything.
+our %REFUSAL_PARAM_SHAPE = (
+    retry => qr/\A\d{1,6}\z/,
+    n     => qr/\A-?\d{1,15}(?:\.\d{1,6})?\z/,
+    field => qr/\A[A-Za-z0-9_.-]{1,64}\z/,
+);
+our ( $REFUSAL_CODE, %REFUSAL_PARAMS ) = ('');
+
 # Hard ceiling on a POST body, so a hostile upload can't exhaust memory before the
 # per-form size limits are even checked. Generous; real limits are per-form.
 my $MAX_POST_BYTES = 64 * 1024 * 1024;
@@ -206,8 +247,7 @@ eval {
         log_event( 'ERROR', $name,
             'the engine modules could not be loaded, so this form cannot deliver',
             error => $HANDLERS_ERR );
-        reject_user( 'This form is not accepting submissions right now. '
-                . 'Please contact the site owner.' );
+        refuse('unavailable');
     }
     my $conf = load_form_conf($name);
 
@@ -263,7 +303,7 @@ eval {
     # Binary uploads: reject up front (before any handler runs) if the form does
     # not accept files, or a file breaks the form's size / type / count limits.
     if ( my $files = $form{_files} ) {
-        reject_user('This form does not accept file uploads.') unless $conf->{upload};
+        refuse('no-uploads') unless $conf->{upload};
         validate_uploads( $files, $conf->{upload} );
     }
 
@@ -278,7 +318,7 @@ eval {
             if ( defined $form{$k} && $form{$k} =~ /\S/ ) { $has_content = 1; last }
         }
     }
-    reject_user('Please fill in the form before submitting.') unless $has_content;
+    refuse('empty') unless $has_content;
 
     # SM934 FV1: the declared field rules, enforced. See validate_fields.
     validate_fields( $name, \%form );
@@ -293,7 +333,7 @@ eval {
 
     # SM842: each target NAMES a handler, and the handler contract delivers -
     # the same code the schedule calls, one audit line per handler.
-    my $handlers  = Lazysite::Handlers::read_handlers();
+    my $handlers = Lazysite::Handlers::read_handlers();
     my $stored;    # SM938 D5: the row a file handler wrote - the notice links to it
     my $delivered = 0;
     my $processed = 0;    # SM579: a connector took it onward, see below
@@ -310,7 +350,7 @@ eval {
             spam_reason => $form{_spam_reason},
             ( defined $handlers ? ( handlers => $handlers ) : () ),
         );
-        $delivered++ if $r->{ok};
+        $delivered++             if $r->{ok};
         $stored //= $r->{stored} if $r->{ok} && ref $r->{stored} eq 'HASH';
         # SM579: DID ANYTHING LEAVE THE SITE FOR A SERVICE? A connector handler
         # sends the submission onward to be processed rather than to a person, so
@@ -328,10 +368,7 @@ eval {
         # SM781: "no active delivery target" sent the OWNER to the binding
         # when a connector had refused the mode; the record already holds the
         # reason. Say what happened - nothing accepted it - and where to look.
-        reject_user( 'This form is not accepting submissions right now '
-                . '(nothing accepted the submission: its delivery is switched off '
-                . 'or refused it - the site owner can see why in the event log). '
-                . 'Please contact the site owner.' );
+        refuse('undelivered');
     }
 
     log_event( 'INFO', $name, 'form received', ip => ( _request_ip() || 'unknown' ) );
@@ -345,11 +382,11 @@ eval {
         # form kept it. A member's post was waived above and spends nothing.
     record_rate_stamp( $name, _request_ip() || '0.0.0.0', $conf->{rate_limit} )
         unless $signed_in;
-        # SM579: WHICH TRUE SENTENCE. A connector delivered means the submission left
-        # for a service, so it was received and sent for processing - which is what
-        # happened, and it promises neither a reply nor a page, because only the author
-        # knows whether the site shows the answer anywhere. Everything else keeps the
-        # sentence it had.
+    # SM579: WHICH TRUE SENTENCE. A connector delivered means the submission left
+    # for a service, so it was received and sent for processing - which is what
+    # happened, and it promises neither a reply nor a page, because only the author
+    # knows whether the site shows the answer anywhere. Everything else keeps the
+    # sentence it had.
     my $outcome = $processed ? 'ok-processing' : 'ok';
     respond_ok( $OUTCOME_SAID{$outcome}, $outcome );
 };
@@ -368,8 +405,8 @@ if ($@) {
     }
     # USER: messages (e.g. upload too large / wrong type) are safe to show the
     # submitter; everything else gets a generic message.
-    if ( $err =~ /^USER:(.*)/s ) { respond_error($1); }
-    else { respond_error('An error occurred - please try again.'); }
+    if ( $err =~ /^USER:(.*)/s ) { respond_error( $1, $REFUSAL_CODE, \%REFUSAL_PARAMS ); }
+    else                         { respond_error( $REFUSAL_SAID{error}, 'error' ); }
 }
 
 # --- Config ---
@@ -539,8 +576,8 @@ sub _spam_assessment {
 
     if ( my $host = _disguised_link($text) ) { push @reasons, "a link written as '$host'" }
     if ( my $host = _shortener_link($text) ) { push @reasons, "a link shortener '$host'" }
-    if ( my $why = _one_value_everywhere($form) )       { push @reasons, $why }
-    if ( my $why = _own_domain_sender( $form, $conf ) ) { push @reasons, $why }
+    if ( my $why  = _one_value_everywhere($form) )       { push @reasons, $why }
+    if ( my $why  = _own_domain_sender( $form, $conf ) ) { push @reasons, $why }
 
     return @reasons ? ( 1, join( ' + ', @reasons ) ) : ( 0, '' );
 }
@@ -1015,9 +1052,9 @@ sub _notify_submission {
 # A declared-rule breach: the submitter's message, and a reason code that lands
 # in `invalid` rather than in the anti-spam `blocked` tally.
 sub reject_invalid {
-    my ( $message, $code ) = @_;
+    my ( $code, $said, $name, $n ) = @_;
     $INVALID_REASON = defined $code ? $code : '';
-    reject_user($message);
+    refuse( $said, undef, { field => $name, ( defined $n ? ( n => $n ) : () ) } );
     return;
 }
 
@@ -1049,7 +1086,7 @@ sub validate_fields {
         # refused for a field they were not shown. A declared field missing
         # from the post entirely is the same case as one posted empty.
         if ( $f->{required} && $v !~ /\S/ ) {
-            reject_invalid( "The '$name' field is required.", 'field_required' );
+            reject_invalid( 'field_required', 'field-required', $name );
         }
 
         # Everything below is a check on a VALUE, so an empty optional field
@@ -1062,27 +1099,26 @@ sub validate_fields {
             # requires one `@`, a non-empty local part and a dot-bearing domain;
             # matching that keeps the server and the page agreeing, and this is
             # the field the scanner's payload went into.
-            reject_invalid( "The '$name' field needs an email address.", 'field_email' )
+            reject_invalid( 'field_email', 'field-email', $name )
                 unless $v =~ /\A[^\s\@]+\@[^\s\@.]+(?:\.[^\s\@.]+)+\z/;
         }
         elsif ( ( $f->{type} // '' ) eq 'url' ) {
-            reject_invalid( "The '$name' field needs a web address.", 'field_url' )
+            reject_invalid( 'field_url', 'field-url', $name )
                 unless $v =~ m{\Ahttps?://\S+\z}i;
         }
         elsif ( ( $f->{type} // '' ) eq 'number' ) {
-            reject_invalid( "The '$name' field needs a number.", 'field_number' )
+            reject_invalid( 'field_number', 'field-number', $name )
                 unless $v =~ /\A-?\d+(?:\.\d+)?\z/;
         }
 
         if ( ( $f->{bound} // '' ) eq 'length' ) {
-            reject_invalid( "The '$name' field is too long (limit $f->{max}).",
-                'field_max' )
+            reject_invalid( 'field_max', 'field-max-length', $name, $f->{max} )
                 if defined $f->{max} && length($v) > $f->{max};
         }
         elsif ( ( $f->{bound} // '' ) eq 'value' && $v =~ /\A-?\d/ ) {
-            reject_invalid( "The '$name' field must be $f->{max} or less.", 'field_max' )
+            reject_invalid( 'field_max', 'field-max', $name, $f->{max} )
                 if defined $f->{max} && $v > $f->{max};
-            reject_invalid( "The '$name' field must be $f->{min} or more.", 'field_min' )
+            reject_invalid( 'field_min', 'field-min', $name, $f->{min} )
                 if defined $f->{min} && $v < $f->{min};
         }
 
@@ -1120,8 +1156,7 @@ sub validate_fields {
         # intended to exclude it.
         my $re = eval { qr/\A(?:$f->{pattern})\z/ };
         next unless $re;    # not compilable as Perl either: absent, as above
-        reject_invalid( "The '$name' field is not in the expected format.",
-            'field_pattern' )
+        reject_invalid( 'field_pattern', 'field-pattern', $name )
             unless $v =~ $re;
     }
     return;
@@ -1130,16 +1165,18 @@ sub validate_fields {
 # Enforce the form's upload constraints; reject() (die) on the first violation.
 sub validate_uploads {
     my ( $files, $cfg ) = @_;
-    reject_user("Too many files (max $cfg->{max_files}).")
+    refuse( 'too-many-files', undef, { n => $cfg->{max_files} } )
         if @$files > $cfg->{max_files};
     my %ok = map { $_ => 1 } @{ $cfg->{accept} };
     for my $f (@$files) {
         my $kb = int( ( length( $f->{data} ) + 1023 ) / 1024 );
-        reject_user("File '$f->{filename}' is too large (max $cfg->{max_kb} KiB).")
+        refuse( 'file-too-large', undef, { n => $cfg->{max_kb} },
+            "File '$f->{filename}' is too large (max $cfg->{max_kb} KiB)." )
             if $kb > $cfg->{max_kb};
         next unless keys %ok;
         my ($ext) = lc( $f->{filename} ) =~ /\.([a-z0-9]+)$/;
-        reject_user( "File type not allowed: $f->{filename} (accepted: "
+        refuse( 'file-type', undef, {},
+            "File type not allowed: $f->{filename} (accepted: "
                 . join( ', ', @{ $cfg->{accept} } ) . ').' )
             unless $ext && $ok{$ext};
     }
@@ -1324,7 +1361,7 @@ sub check_timestamp {
     #   visitor typed quickly or left the page open. Telling them costs nothing
     #   (the floor is three seconds and it is in this file) and saves them
     #   retyping a form they believe ate their answer.
-    reject_user( 'That was too quick - please try again in a moment.', 'too_fast' )
+    refuse( 'too-fast', 'too_fast' )
         if $age < 3;
 
     # SM501: per-form, defaulting to the shipped two hours. 0 disables the age
@@ -1336,9 +1373,7 @@ sub check_timestamp {
     # Shown, for the same reason as the floor above: this is a page that sat
     # open, not a token that failed. A visitor told only "an error occurred"
     # re-submits the same stale page and is refused identically.
-    reject_user(
-        'This form was open too long and has expired - please reload the page '
-            . 'and send it again.', 'expired' )
+    refuse( 'expired', 'expired' )
         if $window && $age > $window;
 }
 
@@ -1379,8 +1414,7 @@ sub check_rate_limit {
     my $wait = ( $stamps->[0] // time() ) + 3600 - time();
     my $mins = $wait <= 60 ? 1 : int( ( $wait + 59 ) / 60 );
     _audit_rate_refusal( $form, $ip, $limit_n, $mins );
-    my $unit = $mins == 1 ? 'minute' : 'minutes';
-    reject_user( "Too many submissions of this form from your address in the last hour. Please try again in about $mins $unit.", 'rate' );
+    refuse( 'rate', 'rate', { retry => $mins } );
 }
 
 # The refusal is audited ONCE per form, address and hour - the first one, when
@@ -1505,10 +1539,21 @@ sub _wants_json {
 }
 
 sub _redirect_back {
-    my ($outcome) = @_;
+    my ( $outcome, $params ) = @_;
     $outcome =~ s/([^A-Za-z0-9\-. _])/sprintf '%%%02X', ord $1/ge;
     $outcome =~ tr/ /+/;
     my $to = $REDIRECT_PAGE . '?form=' . $REDIRECT_FORM . '&outcome=' . $outcome;
+
+    # SM1124 F-3: only the declared parameters, each of its declared shape. A
+    # value that does not fit is dropped here and would be refused by the page
+    # again, so neither end prints a stranger's words.
+    for my $k ( sort keys %{ $params || {} } ) {
+        my $shape = $REFUSAL_PARAM_SHAPE{$k} or next;
+        my $v     = $params->{$k};
+        next unless defined $v && $v =~ $shape;
+        $v =~ s/([^A-Za-z0-9\-._])/sprintf '%%%02X', ord $1/ge;
+        $to .= "&$k=$v";
+    }
     print "Status: 303 See Other\r\n";
     print "Location: $to\r\n\r\n";
 }
@@ -1524,9 +1569,12 @@ sub respond_ok {
 }
 
 sub respond_error {
-    my ($msg) = @_;
+    my ( $msg, $code, $params ) = @_;
     binmode( STDOUT, ':utf8' );
-    return _redirect_back($msg) unless _wants_json();
+
+    # SM1124 F-3: the redirect carries the CODE, never the sentence.
+    return _redirect_back( ( $code && exists $REFUSAL_SAID{$code} ? $code : 'error' ), $params )
+        unless _wants_json();
     print "Status: 200 OK\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json( { ok => 0, error => $msg } );
@@ -1556,8 +1604,27 @@ sub reject {
 
 # Like reject(), but the message IS shown to the submitter (upload limits etc.).
 sub reject_user {
-    $BLOCK_REASON = defined $_[1] ? $_[1] : '';
+    $BLOCK_REASON   = defined $_[1]       ? $_[1]      : '';
+    $REFUSAL_CODE   = defined $_[2]       ? $_[2]      : '';
+    %REFUSAL_PARAMS = ref $_[3] eq 'HASH' ? %{ $_[3] } : ();
     die "USER:$_[0]\n";
+}
+
+# SM1124 F-3: the engine's sentence for a refusal code, slots filled.
+sub refusal_text {
+    my ( $code, $p ) = @_;
+    my %p = %{ $p || {} };
+    $p{unit} = $p{retry} == 1 ? 'minute' : 'minutes' if defined $p{retry};
+    ( my $t = $REFUSAL_SAID{$code} ) =~ s/\{(\w+)\}/defined $p{$1} ? $p{$1} : ''/ge;
+    return $t;
+}
+
+# A refusal the submitter is shown: the code selects the sentence. $said is the
+# JSON path's message where it must say more than the table (a file's name, which
+# a URL must never carry); it defaults to the table's sentence.
+sub refuse {
+    my ( $code, $reason, $params, $said ) = @_;
+    reject_user( defined $said ? $said : refusal_text( $code, $params ), $reason, $code, $params );
 }
 
 # --- Utilities ---
@@ -1601,8 +1668,7 @@ sub field_value {
     $val = '' unless defined $val;
     if ( length($val) > $MAX_FIELD_BYTES ) {
         my $kb = int( $MAX_FIELD_BYTES / 1024 );
-        reject_user( "The '$name' field is too long (limit ${kb} KB). "
-                . 'Nothing was saved - shorten it and send the form again.' );
+        refuse( 'field-long', undef, { field => $name, n => $kb } );
     }
 
     # A lone CR (an old Mac line ending, and what a CRLF leaves if the LF is

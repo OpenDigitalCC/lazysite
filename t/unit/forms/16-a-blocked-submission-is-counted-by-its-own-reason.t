@@ -308,6 +308,10 @@ subtest 'every anti-spam control in the source declares a reason code' => sub {
     while ( $src =~ /reject(?:_user)?\(\s*(?:'[^']*'|"[^"]*")(?:\s*\.\s*(?:'[^']*'|"[^"]*"))*\s*,\s*'([a-z_]+)'\s*\)/g ) {
         $declared{$1}++;
     }
+    # SM1124: a refusal shown to the submitter is raised as `refuse( CODE, REASON )`.
+    while ( $src =~ /\brefuse\(\s*'[a-z-]+'\s*,\s*'([a-z_]+)'/g ) {
+        $declared{$1}++;
+    }
     cmp_ok( scalar keys %declared, '>=', 5,
         'the source was parsed (five or more codes found)' )
         or diag( 'If this drops, the call shape changed and the roll-call below '
@@ -335,7 +339,7 @@ subtest 'every anti-spam control in the source declares a reason code' => sub {
     # `invalid` subtest above can reach, because a code nobody drives is a
     # counter nobody has seen work.
     my %invalid_declared;
-    while ( $src =~ /reject_invalid\(\s*(?:"[^"]*"|'[^']*')(?:\s*\.\s*(?:"[^"]*"|'[^']*'))*\s*,\s*'([a-z_]+)'\s*\)/g ) {
+    while ( $src =~ /reject_invalid\(\s*'([a-z_]+)'\s*,\s*'field-[a-z-]+'/g ) {
         $invalid_declared{$1}++;
     }
     cmp_ok( scalar keys %invalid_declared, '>=', 4,

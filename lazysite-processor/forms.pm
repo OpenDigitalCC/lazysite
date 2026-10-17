@@ -603,11 +603,12 @@ sub _form_field_input {
 # SM1012 S6: THE OUTCOME BANNER - cut from _render_form. When this request's
 # query string carries an outcome for THIS form (SM415), the banner above it:
 # an engine sentence from the closed %SAID map for ok and ok-processing, and
-# anything else, escaped and capped, as the refusal text. Empty otherwise.
+# a refusal CODE from %REFUSED (SM1124 F-3), and anything else the generic
+# sentence. The outcome is never printed. Empty when there is no outcome.
 sub _form_outcome_banner {
-    my ($form_name) = @_;
-    my $banner      = '';
-    my $qs          = $ENV{QUERY_STRING} // '';
+    my ( $form_name, $fields ) = @_;
+    my $banner = '';
+    my $qs     = $ENV{QUERY_STRING} // '';
     if ( $qs =~ /(?:\A|&)form=\Q$form_name\E(?:&|\z)/ && $qs =~ /(?:\A|&)outcome=([^&]*)/ ) {
         my $o = $1;
         $o =~ tr/+/ /;
@@ -617,7 +618,6 @@ sub _form_outcome_banner {
         # characters, then TT-inert - a `[%` here used to run.
         $o = eval { decode( 'UTF-8', $o, 1 ) } // $o;
         $o = substr( $o, 0, 300 );
-        $o = _tt_inert( _esc_html($o) );
         # SM579: A SECOND SUCCESS STATE, AND THE VOCABULARY IS CLOSED.
         #
         # There was one success sentence and one style for everything else, so a
@@ -646,10 +646,70 @@ sub _form_outcome_banner {
             'ok-processing' =>
                 'Thank you - your submission has been received and sent for processing.',
         );
-        $banner =
-            defined $SAID{$o}
-            ? qq(<p class="form-status form-status-ok" role="status">$SAID{$o}</p>\n)
-            : qq(<p class="form-status form-status-error" role="alert">$o</p>\n);
+        # SM1124 F-3: A REFUSAL IS A CODE TOO. This banner printed any other
+        # outcome, escaped, as "the refusal text" - so a link carrying
+        # `outcome=<any words>` made the site's own page say them (the 0.15.9 walk:
+        # `outcome=zz59+probe+text`; escaped, so not script, but a phone number or
+        # "your account is suspended" in the site's voice). The handler now
+        # redirects with a short code and, where the sentence holds a number or a
+        # field's name, a separate plain parameter. The wording is this table's;
+        # t/lint/156 holds it to the handler's %REFUSAL_SAID. A code the table
+        # does not hold, or a parameter that is not of its shape, shows ONE
+        # generic sentence - never the code, never any parameter's text.
+        my %REFUSED = (
+            'unavailable' => 'This form is not accepting submissions right now. Please contact the site owner.',
+            'undelivered' => 'This form is not accepting submissions right now (nothing accepted the submission: its delivery is switched off or refused it - the site owner can see why in the event log). Please contact the site owner.',
+            'no-uploads'     => 'This form does not accept file uploads.',
+            'too-many-files' => 'Too many files (max {n}).',
+            'file-too-large' => 'A file is too large (max {n} KiB).',
+            'file-type'      => 'A file is of a type this form does not accept.',
+            'empty'          => 'Please fill in the form before submitting.',
+            'too-fast'       => 'That was too quick - please try again in a moment.',
+            'expired' => 'This form was open too long and has expired - please reload the page and send it again.',
+            'rate' => 'Too many submissions of this form from your address in the last hour. Please try again in about {retry} {unit}.',
+            'field-long' => 'The \'{field}\' field is too long (limit {n} KB). Nothing was saved - shorten it and send the form again.',
+            'field-required'   => 'The \'{field}\' field is required.',
+            'field-email'      => 'The \'{field}\' field needs an email address.',
+            'field-url'        => 'The \'{field}\' field needs a web address.',
+            'field-number'     => 'The \'{field}\' field needs a number.',
+            'field-max-length' => 'The \'{field}\' field is too long (limit {n}).',
+            'field-max'        => 'The \'{field}\' field must be {n} or less.',
+            'field-min'        => 'The \'{field}\' field must be {n} or more.',
+            'field-pattern'    => 'The \'{field}\' field is not in the expected format.',
+            'error'            => 'An error occurred - please try again.',
+        );
+        my %SHAPE = (
+            retry => qr/\A\d{1,6}\z/,
+            n     => qr/\A-?\d{1,15}(?:\.\d{1,6})?\z/,
+            field => qr/\A[A-Za-z0-9_.-]{1,64}\z/,
+        );
+        my $generic = 'Your submission could not be accepted. Please try again.';
+        if ( defined $SAID{$o} ) {
+            $banner = qq(<p class="form-status form-status-ok" role="status">$SAID{$o}</p>\n);
+        }
+        else {
+            my $text = $o =~ /\A[a-z-]{1,40}\z/ ? $REFUSED{$o} : undef;
+            if ( defined $text ) {
+                my %p;
+                for my $k ( keys %SHAPE ) {
+                    next unless $qs =~ /(?:\A|&)\Q$k\E=([^&]*)/;
+                    my $v = $1;
+                    $p{$k} = $v if $v =~ $SHAPE{$k};
+                }
+                $p{retry} = 60 if defined $p{retry} && $p{retry} > 60;
+                $p{unit}  = $p{retry} == 1 ? 'minute' : 'minutes' if defined $p{retry};
+
+                # A field is named only if THIS form declares it: the page, not the
+                # link, says which names exist.
+                delete $p{field}
+                    if defined $p{field} && !grep { $_ eq $p{field} } @{ $fields || [] };
+                my $ok = 1;
+                $text =~ s{\{(\w+)\}}{ defined $p{$1} ? $p{$1} : do { $ok = 0; '' } }ge;
+                $text = $generic unless $ok;
+            }
+            else { $text = $generic }
+            $banner = qq(<p class="form-status form-status-error" role="alert">) . _tt_inert( _esc_html($text) ) . qq(</p>\n);
+        }
     }
     return $banner;
 }
@@ -730,7 +790,7 @@ sub _render_form {
         # The rules, as tokens and then as the field's rules (SM1012 S1, S2).
         my @rule_tokens = _form_rule_tokens( $rules_str, $name );
         my %rules       = _form_rules_from_tokens(@rule_tokens);
-        my $ph_attr = '';
+        my $ph_attr     = '';
         if ( defined $rules{placeholder} ) {
             my $ph = _esc_attr( $rules{placeholder} );
             $ph_attr = qq( placeholder="$ph");
@@ -863,7 +923,7 @@ sub _render_form {
     $page = '' unless $page =~ m{\A/} && $page !~ m{\A//} && $page !~ /[\r\n<>"]/;
     my $page_esc = $page;
     $page_esc =~ s/&/&amp;/g;
-    my $banner = _form_outcome_banner($form_name);    # SM1012 S6
+    my $banner = _form_outcome_banner( $form_name, [ map { $_->{name} } grep { ref $_ eq 'HASH' && defined $_->{name} } @server_rules ] ); # SM1012 S6
     return <<"END_FORM";
 $banner$step_css<form method="POST"
       action="/cgi-bin/form-handler.pl"$enctype

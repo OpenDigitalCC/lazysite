@@ -144,6 +144,16 @@ my ($sub) = $src =~ /^(sub validate_fields \{.*?^\})/ms
 my ($rej) = $src =~ /^(sub reject_invalid \{.*?^\})/ms
     or BAIL_OUT('could not lift reject_invalid out of plugins/form-handler.pl');
 
+# SM1124: reject_invalid now refuses through `refuse`, which builds the message
+# from the handler's %REFUSAL_SAID table - lifted too, so the wording asserted
+# below is still the handler's own.
+my ($refuse) = $src =~ /^(sub refuse \{.*?^\})/ms
+    or BAIL_OUT('could not lift refuse out of plugins/form-handler.pl');
+my ($rtext) = $src =~ /^(sub refusal_text \{.*?^\})/ms
+    or BAIL_OUT('could not lift refusal_text out of plugins/form-handler.pl');
+my ($table) = $src =~ /^(our %REFUSAL_SAID = \(.*?\n\);)/ms
+    or BAIL_OUT('could not lift %REFUSAL_SAID out of plugins/form-handler.pl');
+
 our @REJECTED;
 {
     no strict 'refs';
@@ -154,6 +164,9 @@ our @REJECTED;
         our \$FORMS_DIR;
         our \$INVALID_REASON = '';
         sub reject_user { push \@main::REJECTED, [ \$_[0], \$INVALID_REASON ]; die \"USER\\n\" }
+        $table
+        $rtext
+        $refuse
         $rej
         $sub
         1;

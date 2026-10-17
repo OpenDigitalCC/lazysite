@@ -32,6 +32,13 @@ my $src = do { open my $f, '<', $fh_p or die $!; local $/; <$f> };
 my ($sub) = $src =~ /(sub check_timestamp \{.*?\n\})/s;
 ok( $sub, 'check_timestamp was extracted' ) or BAIL_OUT('nothing to test');
 
+# SM1124: the timing refusals are raised through `refuse`, which builds the
+# message from the handler's %REFUSAL_SAID - lifted too, so the words matched
+# below are still the handler's own.
+my ($refuse) = $src =~ /^(sub refuse \{.*?^\})/ms or BAIL_OUT('no refuse');
+my ($rtext)  = $src =~ /^(sub refusal_text \{.*?^\})/ms or BAIL_OUT('no refusal_text');
+my ($table)  = $src =~ /^(our %REFUSAL_SAID = \(.*?\n\);)/ms or BAIL_OUT('no table');
+
 our @rejected;    # package, not lexical - see below
 
 # SM888 A7: reject_user IS STUBBED TOO, and it has to be. check_timestamp now
@@ -49,7 +56,7 @@ my $pkg = q{
     use Digest::SHA qw(hmac_sha256_hex);
     sub reject      { push @main::rejected, $_[0]; die "rejected\n" }
     sub reject_user { push @main::rejected, $_[0]; die "rejected\n" }
-} . $sub;
+} . $table . "\n" . $rtext . "\n" . $refuse . "\n" . $sub;
 # NOTE: reject() above pushes to @main::rejected. Declaring `my @rejected` here
 # instead creates a DIFFERENT array that never receives anything, so every call
 # appears to be accepted and the permissive assertions pass while the refusals

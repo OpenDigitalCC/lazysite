@@ -94,6 +94,22 @@ is_deeply( $processor, $handler,
         . "  handler:   " . join( ' | ', map { "$_=$handler->{$_}" } sort keys %{$handler} ) . "\n"
         . "  processor: " . join( ' | ', map { "$_=$processor->{$_}" } sort keys %{$processor} ) );
 
+# SM1124 F-3: THE REFUSALS ARE A CODE TOO, AND THE SAME TABLE SITS ON BOTH SIDES.
+# The no-JS redirect carries a refusal's code (and plain numeric/field parameters),
+# never its sentence; the page owns the wording. So the handler's %REFUSAL_SAID and
+# the processor's %REFUSED must agree, code for code, sentence for sentence.
+{
+    my ( $h_ref, $h_n ) = said_in( slurp("$root/plugins/form-handler.pl"), 'our %REFUSAL_SAID' );
+    my ( $p_ref, $p_n ) = said_in( slurp($FORMS), 'my %REFUSED' );
+    cmp_ok( scalar keys %{$h_ref}, '>=', 10, 'the handler declares its refusal sentences' );
+    is( scalar keys %{$h_ref}, $h_n, 'every refusal sentence the handler declares was read' );
+    is( scalar keys %{$p_ref}, $p_n, 'and every one the processor declares' );
+    is_deeply( $p_ref, $h_ref, 'the page and the handler say the same thing for every refusal code' );
+    for my $code ( sort keys %{$h_ref} ) {
+        like( $code, qr/\A[a-z-]{1,40}\z/, "the '$code' refusal code is a short [a-z-] token" );
+    }
+}
+
 # THE TOKENS MUST SURVIVE THE REDIRECT, which URL-encodes anything outside
 # [A-Za-z0-9-. _] and turns a space into `+`. A token that came back altered would
 # miss the map and render as an ERROR - the success shown as a failure.

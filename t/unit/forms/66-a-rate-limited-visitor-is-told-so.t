@@ -37,10 +37,14 @@ my $sub = join "\n", map {
     my ($one) = $src =~ /^(sub \Q$_\E \{.*?^\})/ms
         or BAIL_OUT("could not lift $_ out of plugins/form-handler.pl");
     $one;
-} qw(check_rate_limit record_rate_stamp _rate_key _rate_stamps _rate_db _audit_rate_refusal);
+} qw(check_rate_limit refuse refusal_text record_rate_stamp _rate_key _rate_stamps _rate_db _audit_rate_refusal);
+
+# SM1124: the sentences are a table in the handler, which `refuse` reads.
+my ($table) = $src =~ /^(our %REFUSAL_SAID = \(.*?\n\);)/ms
+    or BAIL_OUT('could not lift %REFUSAL_SAID out of plugins/form-handler.pl');
 
 our ( @SAID, @REASON );
-my $code = <<'HEAD' . $sub . "\n1;\n";
+my $code = <<'HEAD' . $table . "\n" . $sub . "\n1;\n";
 package RL;
 use strict;
 use warnings;

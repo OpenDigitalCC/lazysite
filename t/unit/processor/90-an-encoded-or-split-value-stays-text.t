@@ -150,11 +150,10 @@ sub every_sink {
         ( $h, $html ) = fetch( '/ban', "form=apply&outcome=$o" );
         page_ok( $h, $html, 'banner page' );
         my $ban = seg( $html, qr{<p class="form-status form-status-error" role="alert">(.*?)</p>}s );
-        text_ok( $ban, 'outcome banner' );
-        # BEFORE (measured): the banner page was written to the page cache, so
-        # every request after the first showed the FIRST visitor's text. SM969.
-        is( unesc( $ban // '' ), shown($raw), 'the outcome banner shows THIS request\'s value' )
-            if defined $raw;
+        # SM1124 F-3: the outcome is a code and is never printed; whatever the
+        # value, the banner is the one generic sentence.
+        is( $ban, 'Your submission could not be accepted. Please try again.',
+            'the outcome banner is the generic sentence, not the value' );
     };
 }
 
@@ -247,13 +246,13 @@ for my $style ( [ '{{ }}', '{{ site_name }}{{ 7 * 7 }}' ], [ 'star', '[* site_na
 # shown it, in the alert style. SM969.
 spit( "$docroot/ban2.md", "---\ntitle: Ban2\nform: apply\n---\n\n::: form\nname | Name |\n:::\n" );
 subtest 'a visitor\'s outcome is not shown to the next visitor' => sub {
-    my ( undef, $first ) = fetch( '/ban2', 'form=apply&outcome=FIRST-VISITOR-TEXT' );
-    like( $first, qr/FIRST-VISITOR-TEXT/, 'the visitor sees their own outcome' );
+    my ( undef, $first ) = fetch( '/ban2', 'form=apply&outcome=too-fast' );
+    like( $first, qr/That was too quick/, 'the visitor sees their own outcome' );
     my ( undef, $next ) = fetch( '/ban2', '' );
-    unlike( $next, qr/FIRST-VISITOR-TEXT/, 'the next visitor, with no query, does not' );
+    unlike( $next, qr/That was too quick/, 'the next visitor, with no query, does not' );
     unlike( $next, qr/form-status-error/, 'and sees no banner at all' );
     my ( undef, $other ) = fetch( '/ban2', 'form=apply&outcome=SECOND' );
-    like( $other, qr/SECOND/, 'a later outcome is shown, not the cached page' );
+    like( $other, qr/could not be accepted/, 'a later outcome is shown, not the cached page' );
 };
 
 # --- 5. api: true - a value cannot make the JSON invalid ---------------------
