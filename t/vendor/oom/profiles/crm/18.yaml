@@ -6,6 +6,7 @@
 # comments on each name.
 pack: crm
 series: 18
+module: crm
 models:
   lead:
     model: crm.lead

@@ -29,6 +29,16 @@ my %PLAIN = map { $_ => 1 } qw(char text html selection integer float monetary b
 sub op_name ($class) { 'crm.set' }
 sub summary ($class) { 'Set plain fields (probability, priority, ...) on selected leads' }
 sub pack    ($class) { 'crm' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'set', meaning => 'plain fields of the lead are written, with a before-image' },
+        { name => 'unchanged', meaning => 'the lead already holds the values' },
+    ];
+}
+sub holds ($class) { [] }
+
 sub params ($class) {
     +{  Odoo::Ops::CRM::Select->params,
         values => { type => 'json', required => 1, help => 'JSON object: logical lead field -> value' },

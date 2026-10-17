@@ -74,6 +74,29 @@ Odoo by marking it done or cancelling it.
 sub op_name ($class) { 'crm.activity' }
 sub summary ($class) { 'Schedule reviewed to-do activities for each lead\'s salesperson' }
 sub pack    ($class) { 'crm' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'schedule', meaning => 'a to-do activity is scheduled on the lead; its brief is appended to the lead\'s Internal Notes unless already there' },
+        { name => 'brief', meaning => 'the full brief is written to the lead\'s Internal Notes (body)' },
+        { name => 'edit', meaning => 'an open activity of the lead is changed (due date, note, user or summary), with a before-image' },
+        { name => 'done', meaning => 'an open activity is marked done through Odoo\'s action_feedback' },
+        { name => 'cancel', meaning => 'an open activity is removed' },
+        { name => 'unchanged', meaning => 'the lead already has an open activity with this summary; nothing to add' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'lead-gone', meaning => 'the lead is not readable: it does not exist or this user cannot see it' },
+        { name => 'no-assignee', meaning => 'the lead has no salesperson and the row names no user to give the activity to' },
+        { name => 'won', meaning => 'the lead is won; no follow-up is scheduled on it' },
+        { name => 'blocked', meaning => 'the lead carries the block tag (default "OCA - do not canvass")' },
+        { name => 'no-activity', meaning => 'edit, done or cancel names no open activity of the lead' },
+        { name => 'ambiguous', meaning => 'edit, done or cancel names more than one open activity of the lead' },
+    ];
+}
+
 sub params ($class) {
     {   file      => { type => 'path', required => 1, help => 'JSON lines: {id, action?, summary, note, due, user?, type?, brief?} | {id, action: edit|done|cancel, activity|summary, set|feedback}' },
         block_tag => { type => 'str', default => 'OCA - do not canvass', help => 'leads with this tag are never scheduled' },
@@ -192,7 +215,7 @@ sub _plan_schedule ($self, $plan, $r, $l, $key, $won, $block, $open, $sp_f, $tag
     # the brief goes to the lead body, once
     if ( my $b = $r->{brief} ) {
         my $old   = $l->{$notes_f};
-        my $old_s = defined $old && !ref $old && $old ne '0' ? $old : '';
+        my $old_s = defined $old && !ref $old ? $old : '';
         if ( index( _plain($old_s), _plain($b) ) < 0 ) {
             $plan->add( bucket => 'brief', action => 'write', model => $self->profile->model_name('lead'), id => $l->{id}, support => 1,
                 key => "$key brief", vals => { $notes_f => $old_s . $b }, before => { $notes_f => $old },
@@ -255,7 +278,7 @@ sub _route ($self) {
 
 sub _same_value ($a, $b) {
     $b = $b->[0] if ref $b eq 'ARRAY' && @$b == 2;    # many2one read as [id, name]
-    return 1 if !defined $a && ( !defined $b || $b eq '' || $b eq '0' );
+    return 1 if !defined $a && ( !defined $b || $b eq '' );
     return 0 if !defined $a || !defined $b;
     return "$a" eq "$b";
 }
@@ -269,13 +292,13 @@ sub _plain ($v) {
 }
 
 sub _read_file ($self, $path) {
-    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'config', message => "cannot read $path: $!" );
+    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
     my @rows;
     while ( my $line = <$fh> ) {
         next if $line !~ /\S/;
         my $r = eval { Odoo::Ops::json()->decode($line) }
-            // Odoo::Error->throw( kind => 'config', message => "$path line $.: not JSON" );
-        Odoo::Error->throw( kind => 'config', message => "$path line $.: needs a numeric id" ) if ( $r->{id} // '' ) !~ /^\d+\z/;
+            // Odoo::Error->throw( kind => 'usage', message => "$path line $.: not JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
+        Odoo::Error->throw( kind => 'usage', message => "$path line $.: needs a numeric id", fix => 'correct the file; oom-ops describe <op> shows what it holds' ) if ( $r->{id} // '' ) !~ /^\d+\z/;
         push @rows, $r;
     }
     close $fh;

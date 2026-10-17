@@ -36,6 +36,21 @@ C<unchanged>, so re-runs add nothing. Leads carrying C<block_tag>
 sub op_name ($class) { 'crm.note' }
 sub summary ($class) { 'Log reviewed internal notes on lead chatter' }
 sub pack    ($class) { 'crm' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'note', meaning => 'an internal note is logged in the lead\'s chatter' },
+        { name => 'unchanged', meaning => 'the chatter already holds a note with this title' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'lead-gone', meaning => 'the lead is not readable' },
+        { name => 'blocked', meaning => 'the lead carries the block tag (default "OCA - do not canvass")' },
+    ];
+}
+
 sub params ($class) {
     {   file      => { type => 'path', required => 1, help => 'JSON lines: {id, title, body}' },
         block_tag => { type => 'str', default => 'OCA - do not canvass', help => 'leads with this tag are held' },
@@ -74,7 +89,7 @@ sub plan ($self) {
     if ( $via eq 'mail.message.create' ) {
         ($note) = @{ $self->model('mail.message.subtype')->search_read(
             [ [ 'name', '=', 'Note' ], [ 'internal', '=', JSON::PP::true ] ], ['id'] ) };
-        Odoo::Error->throw( kind => 'config', message => 'no internal "Note" message subtype found' ) if !$note;
+        Odoo::Error->throw( kind => 'usage', message => 'no internal "Note" message subtype found', fix => 'correct the parameter or the file the message names, then plan again' ) if !$note;
     }
 
     my $plan = $self->new_plan( input_count => scalar @rows );
@@ -121,13 +136,13 @@ sub plan ($self) {
 sub _esc ($s) { $s =~ s/&/&amp;/gr =~ s/</&lt;/gr =~ s/>/&gt;/gr }
 
 sub _read_file ($self, $path) {
-    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'config', message => "cannot read $path: $!" );
+    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
     my @rows;
     while ( my $line = <$fh> ) {
         next if $line !~ /\S/;
         my $r = eval { Odoo::Ops::json()->decode($line) }
-            // Odoo::Error->throw( kind => 'config', message => "$path line $.: not JSON" );
-        Odoo::Error->throw( kind => 'config', message => "$path line $.: needs a numeric id" ) if ( $r->{id} // '' ) !~ /^\d+\z/;
+            // Odoo::Error->throw( kind => 'usage', message => "$path line $.: not JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
+        Odoo::Error->throw( kind => 'usage', message => "$path line $.: needs a numeric id", fix => 'correct the file; oom-ops describe <op> shows what it holds' ) if ( $r->{id} // '' ) !~ /^\d+\z/;
         push @rows, $r;
     }
     close $fh;

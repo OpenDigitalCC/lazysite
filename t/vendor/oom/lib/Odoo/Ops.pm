@@ -8,7 +8,7 @@ no warnings 'experimental::signatures';
 use JSON::PP ();
 use Digest::SHA qw(sha256_hex);
 
-our $VERSION = '0.09';
+our $VERSION = '0.24';
 
 =head1 NAME
 

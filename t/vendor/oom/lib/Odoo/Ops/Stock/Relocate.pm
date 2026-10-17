@@ -37,6 +37,21 @@ it back. C<reverse=<journal>> plans the way back.
 sub op_name ($class) { 'stock.relocate' }
 sub summary ($class) { 'Plan internal transfers moving the free stock of one location to another, with the reason' }
 sub pack    ($class) { 'stock' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'relocate', meaning => 'a free quant moves to the location a document names, by one internal transfer' },
+        { name => 'reverse', meaning => 'reverse=JOURNAL: the way back for a previous run\'s transfer' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'reserved', meaning => 'the quant is reserved by an open picking and nothing of it is free' },
+        { name => 'negative', meaning => 'the quant is negative; stock.net repairs those' },
+    ];
+}
+
 sub params ($class) {
     {   from    => { type => 'str', required => 1, help => 'complete name of the source location, e.g. WH/Unknown' },
         to      => { type => 'str', required => 1, help => 'complete name of the destination, e.g. WH/Stock/Bay A' },

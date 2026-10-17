@@ -1,0 +1,37 @@
+# hr.leave.allocation, Odoo 18 (hr_holidays). Read from the 18.0 source
+# (addons/hr_holidays/models/hr_leave_allocation.py) and run on hr18 by t/97-hr-actions-live.t.
+model: hr.leave.allocation
+series: 18
+module: hr_holidays
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+unlink_requires:
+  state:
+  - confirm
+  - refuse
+  noun: allocation
+actions:
+- method: action_approve
+  from: [confirm, validate1]
+  to: [validate1, validate]
+  undo: action_refuse
+  note: a type with two approvals moves to validate1 first; the acting user's employee is recorded as the approver
+  evidence: source 18.0 hr_holidays hr_leave_allocation.action_approve; live 2026-10-16 t/97-hr-actions-live.t on hr18 (confirm -> validate)
+- method: action_validate
+  from: [confirm, validate1]
+  to: [validate1, validate]
+  undo: action_refuse
+  note: the same as action_approve (Odoo keeps it for older callers)
+  evidence: source 18.0 hr_holidays hr_leave_allocation.action_validate
+- method: action_refuse
+  from: [confirm, validate1, validate]
+  to: [refuse]
+  undo: action_set_to_confirm
+  evidence: source 18.0 hr_holidays hr_leave_allocation.action_refuse; live 2026-10-16 t/97-hr-actions-live.t on hr18 (validate -> refuse, as the revert of action_approve)
+- method: action_set_to_confirm
+  from: [refuse]
+  to: [confirm]
+  evidence: source 18.0 hr_holidays hr_leave_allocation.action_set_to_confirm; live 2026-10-16 t/97-hr-actions-live.t on hr18 (refuse -> confirm)

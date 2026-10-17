@@ -94,7 +94,7 @@ sub _group ($self, $model, $pf) {
     my %out;
     for my $row (@$rows) {
         my $v = $row->{$pf};
-        my $label = ref $v eq 'ARRAY' ? $v->[1] : ( defined $v && $v ne '0' && $v ne '' ) ? $v : '(none)';
+        my $label = ref $v eq 'ARRAY' ? $v->[1] : ( defined $v && $v ne '' ) ? $v : '(none)';
         $out{$label} += $row->{__count} // $row->{"${pf}_count"} // 0;
     }
     return \%out;

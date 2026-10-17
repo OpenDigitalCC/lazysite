@@ -59,6 +59,27 @@ C<qty_delivered>. It is irreversible.
 sub op_name ($class) { 'stock.link-stranded' }
 sub summary ($class) { 'Plan the linking of stranded pick stock (a line added to a done pick) to the order\'s done delivery' }
 sub pack    ($class) { 'stock' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'link', meaning => 'a stranded done move is tied to the sale line and the done delivery (one custom change per move)' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'no-order', meaning => 'no sale order has that name' },
+        { name => 'no-stranded', meaning => 'the order has no stranded move' },
+        { name => 'invoiced', meaning => 'the order is already invoiced (SA4)' },
+        { name => 'no-sale-line', meaning => 'the product has no single sale line on the order, or the sale line sits on no single delivery' },
+        { name => 'delivery-not-done', meaning => 'the delivery is not done; validate it normally' },
+        { name => 'not-free', meaning => 'the stock is no longer free in output' },
+        { name => 'over-delivery', meaning => 'linking would deliver more than was ordered (allow_over=1 permits)' },
+        { name => 'already-linked', meaning => 'the delivery already carries an unlinked extra move for the product' },
+        { name => 'held-<kind>', meaning => 'the row carried held, with the reason' },
+    ];
+}
+
 sub params ($class) {
     {   orders     => { type => 'list', help => 'sale order names' },
         rows       => { type => 'path', help => 'orders file: .jsonl of { key, values: { order, date? } }' },
@@ -107,11 +128,11 @@ sub plan ($self) {
 sub _orders ($self) {
     return map { +{ key => $_, order => $_ } } @{ $self->param('orders') } if defined $self->param('orders');
     my $path = $self->param('rows');
-    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'config', message => "stock.link-stranded: cannot read $path: $!" );
+    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "stock.link-stranded: cannot read $path: $!", fix => 'check the path exists and this user can read it' );
     my @out;
     while ( my $line = <$fh> ) {
         next if $line !~ /\S/;
-        my $d = eval { Odoo::Ops::json()->decode($line) } // Odoo::Error->throw( kind => 'config', message => "$path line $.: not JSON" );
+        my $d = eval { Odoo::Ops::json()->decode($line) } // Odoo::Error->throw( kind => 'usage', message => "$path line $.: not JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
         my $val = ref $d->{values} eq 'HASH' ? $d->{values} : $d;
         push @out, { key => $d->{key} // $val->{order}, order => $val->{order}, date => $val->{date}, held => $d->{held} };
     }

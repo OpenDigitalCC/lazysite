@@ -1,0 +1,163 @@
+# Mailing pack, Odoo 16 (mass_mailing). Logical names on the left are what
+# operations speak; physical names on the right are checked against the
+# live fields_get by `oom-ops run core.check --set pack=mailing` before
+# anything trusts them. Read from the 16.0 source (mass_mailing/models/
+# mailing.py, mailing_trace.py, mailing_contact.py, mailing_list.py,
+# wizard/mailing_mailing_test.py, mail/models/mail_blacklist.py) and
+# proved live on demo16 (t/85-mailing-live.t, 2026-10-15).
+#
+# `actions` is the other half of what a series changes: the method and
+# xml id names the pack calls. A later series is this file plus a probe.
+pack: mailing
+series: 16
+module: mass_mailing
+actions:
+  put_in_queue: action_put_in_queue        # draft -> in_queue; a cron trigger is made, nothing is sent
+  cancel: action_cancel                    # back to draft, schedule cleared
+  send_mail: action_send_mail              # sends to the remaining recipients now; state ends done
+  test_send: send_mail_test                # on mailing.mailing.test; sends at once, then deletes its mail.mail
+  cron_trigger: method_direct_trigger      # on ir.cron; runs the job in the caller's request
+  process_mail_queue: process_email_queue  # on mail.mail; sends every outgoing mail now
+  mass_queue_cron: mass_mailing.ir_cron_mass_mailing_queue
+  mail_queue_cron: mail.ir_cron_mail_scheduler_action
+  unsubscribe_href: /unsubscribe_from_list # the anchor Odoo rewrites to the recipient's own link
+  render_one: get_mail_values              # on mail.compose.message; public, renders a mass mail per recipient and sends nothing
+  base_url: get_base_url                   # on mailing.mailing; public, the instance's web.base.url
+models:
+  mailing:
+    model: mailing.mailing
+    fields:
+      subject: subject
+      email_from: email_from
+      reply_to: reply_to
+      reply_to_mode: reply_to_mode
+      body_html: body_html            # the body as sent
+      body_arch: body_arch            # the body as the editor keeps it
+      state: state                    # draft | in_queue | sending | done
+      model: mailing_model_id         # ir.model; mailing.list for a mailing to lists
+      model_real: mailing_model_real  # mailing.contact when the model is mailing.list
+      lists: contact_list_ids
+      schedule_type: schedule_type
+      schedule_date: schedule_date
+      sent_date: sent_date
+      updated: write_date
+      created: create_date
+      active: active
+      total: total                    # contacts of the lists, opted-out and blacklisted included; expected is 0 until traces exist
+      expected: expected              # traces made
+      scheduled: scheduled
+      canceled: canceled
+      sent: sent
+      delivered: delivered
+      opened: opened
+      clicked: clicked
+      replied: replied
+      bounced: bounced
+      failed: failed
+      received_ratio: received_ratio
+      opened_ratio: opened_ratio
+  list:
+    model: mailing.list
+    fields:
+      name: name
+      active: active
+      contacts: contact_count             # subscriptions, opted-out included
+      opted_out: contact_count_opt_out
+      blacklisted: contact_count_blacklisted
+      reachable: contact_count_email      # valid address, not opted out, not blacklisted
+      mailings: mailing_count
+      subscriptions: subscription_ids      # the subscription rows of the list; a revert of a list delete recreates them
+  contact:
+    model: mailing.contact
+    fields:
+      name: name
+      email: email
+      email_normalized: email_normalized
+      company: company_name
+      tags: tag_ids
+      lists: list_ids
+      subscriptions: subscription_list_ids
+      blacklisted: is_blacklisted
+  subscription:
+    model: mailing.contact.subscription
+    fields:
+      contact: contact_id
+      list: list_id
+      opt_out: opt_out
+      since: unsubscription_date          # when the contact opted out
+  trace:
+    model: mailing.trace
+    fields:
+      mailing: mass_mailing_id
+      email: email
+      status: trace_status                # outgoing | sent | open | reply | bounce | error | cancel
+      failure_type: failure_type
+      sent: sent_datetime
+      opened: open_datetime
+      clicked: links_click_datetime
+      replied: reply_datetime
+      mail: mail_mail_id
+      res_id: res_id
+      model: model                        # mailing.contact for a mailing to lists
+  blacklist:
+    model: mail.blacklist
+    fields:
+      email: email
+      active: active
+      created: create_date
+  mail:
+    model: mail.mail
+    fields:
+      mailing: mailing_id
+      state: state
+      failure_reason: failure_reason
+      email_to: email_to
+      subject: subject
+  test_wizard:
+    model: mailing.mailing.test
+    fields:
+      mailing: mass_mailing_id
+      email_to: email_to
+  cron:
+    model: ir.cron
+    fields:
+      name: cron_name
+      interval_number: interval_number
+      interval_type: interval_type
+      next_call: nextcall
+      last_call: lastcall
+      active: active
+  tag:
+    model: res.partner.category
+    fields:
+      name: name
+  message:
+    model: mail.message
+    fields:
+      model: model
+      res_id: res_id
+      body: body
+  cron_trigger:
+    model: ir.cron.trigger          # a one-off call of a cron; action_put_in_queue makes one at once
+    fields:
+      cron: cron_id
+      call_at: call_at
+  composer:
+    model: mail.compose.message     # a transient record; get_mail_values renders a mass mail for given res_ids
+    fields:
+      mode: composition_mode
+      model: model
+      subject: subject
+      body: body
+      mailing: mass_mailing_id
+      lists: mailing_list_ids
+      email_from: email_from
+      reply_to: reply_to
+      reply_to_force_new: reply_to_force_new
+  link_tracker:
+    model: link.tracker             # one row per tracked link, made at send
+    fields:
+      mailing: mass_mailing_id
+      url: url
+      short_url: short_url
+      count: count

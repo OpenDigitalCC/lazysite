@@ -1,0 +1,9 @@
+# mailing.list, Odoo 16 (mass_mailing). Read from the 16.0 source and
+# met live by t/85-mailing-live.t on demo16 (2026-10-15).
+model: mailing.list
+series: 16
+effects:
+  - on: call
+    method: unlink
+    effect: the list's subscription rows go with it (mailing.contact.subscription.list_id is ondelete cascade) and the contacts stay; a mailing that names the list loses it (the many2many row cascades) and keeps its subject, body and traces. mailing.delete holds a list a mailing names unless force=1, and carries each subscription (contact and opt_out) in the change, so a revert recreates the list with its memberships (a new id; a mailing that lost the list does not get it back)
+    evidence: "source 16.0 mailing_contact.py, mailing_list.py; live 2026-10-15 (t/85 third pass, demo16, a forced delete, the draft that named the list kept and without it, a revert recreating the subscriptions)"

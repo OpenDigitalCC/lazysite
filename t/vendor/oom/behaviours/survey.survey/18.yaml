@@ -1,0 +1,18 @@
+# survey.survey, Odoo 18 (survey). Read from the 18.0 source (addons/survey/models/survey_survey.py,
+# addons/survey/wizard/survey_invite.py).
+model: survey.survey
+series: 18
+module: survey
+actions:
+- method: action_send_survey
+  wizard: survey.invite
+  note: Odoo checks the survey is valid, then answers with the invite wizard window and changes nothing
+  evidence: source 18.0 survey survey_survey.action_send_survey
+wizards:
+- model: survey.invite
+  method: action_invite
+  button: action_send_survey
+  values: [partner_ids, emails, subject, body, template_id, deadline]
+  context_from_record: [default_survey_id]
+  note: sends the invitation mail to the partners and the extra addresses
+  evidence: source 18.0 survey survey_invite.action_invite

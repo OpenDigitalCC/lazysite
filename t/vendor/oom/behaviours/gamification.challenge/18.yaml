@@ -1,0 +1,22 @@
+# gamification.challenge, Odoo 18 (gamification). Read from the 18.0 source
+# (addons/gamification/models/gamification_challenge.py).
+model: gamification.challenge
+series: 18
+module: gamification
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+actions:
+- method: action_start
+  from: [draft]
+  to: [inprogress]
+  note: writes the state; the goals are made by action_check
+  evidence: source 18.0 gamification gamification_challenge.action_start
+- method: action_check
+  note: deletes the challenge's goals still in progress and makes and updates them for the participants; may send mail and award badges
+  evidence: source 18.0 gamification gamification_challenge.action_check
+- method: action_report_progress
+  note: sends the progress report by mail to the participants
+  evidence: source 18.0 gamification gamification_challenge.action_report_progress

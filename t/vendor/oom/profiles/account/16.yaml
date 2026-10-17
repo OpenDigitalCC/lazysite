@@ -1,0 +1,33 @@
+# Account pack, Odoo 16: the state operations account.post, account.cancel and account.draft on account.move. Read from the 16.0 source (account/models/account_move.py) and proved live by t/49-documents-pack-live.t.
+pack: account
+series: 16
+module: account
+actions:
+  post: action_post
+  cancel: button_cancel
+  draft: button_draft
+models:
+  move:
+    model: account.move
+    fields:
+      name: name
+      state: state
+      partner: partner_id
+      type: move_type
+states:
+  post:
+    # action_post (soft=False: a future-dated move is posted now, not scheduled)
+    from: [draft]
+    to: [posted]
+    hints:
+      cancel: "oom-ops run account.draft --set move={id} first"
+  cancel:
+    # button_cancel; on 18 and 19 Odoo itself takes a posted move through draft, which this pack does not do silently
+    from: [draft]
+    to: [cancel]
+    hints:
+      posted: "oom-ops run account.draft --set move={id} first"
+  draft:
+    # button_draft
+    from: [posted, cancel]
+    to: [draft]

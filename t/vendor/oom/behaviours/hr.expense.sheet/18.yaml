@@ -1,0 +1,66 @@
+# hr.expense.sheet (the expense report), Odoo 18 (hr_expense, with hr_expense_cancel from OCA).
+# Read from the 18.0 source (addons/hr_expense/models/hr_expense_sheet.py, addons/hr_expense/wizard/) and the
+# OCA tree (hr_expense_cancel/models/hr_expense.py); run on hr18 by t/97-hr-actions-live.t.
+# approval_state is what the actions write; state is computed from it, the moves and the payment.
+model: hr.expense.sheet
+series: 18
+module: hr_expense
+state:
+  field: approval_state
+  also:
+  - state
+  written_by: actions
+  operations:
+  - core.action
+actions:
+- method: action_submit_sheet
+  from: [draft]
+  to: [submit]
+  undo: action_reset_expense_sheets
+  note: schedules an approval activity for the responsible user
+  evidence: source 18.0 hr_expense hr_expense_sheet.action_submit_sheet; live 2026-10-16 t/97-hr-actions-live.t on hr18 (approval_state none -> submit, state draft -> submit)
+- method: action_approve_expense_sheets
+  from: [submit]
+  to: [approve]
+  undo: action_reset_expense_sheets
+  wizard: hr.expense.approve.duplicate
+  note: the acting user must be allowed to approve (can_approve); answers with the duplicate wizard window, and approves nothing, when a similar expense is approved or done already
+  evidence: source 18.0 hr_expense hr_expense_sheet.action_approve_expense_sheets; live 2026-10-16 t/97-hr-actions-live.t on hr18 (submit -> approve; no duplicate, so no window)
+- method: action_refuse_expense_sheets
+  wizard: hr.expense.refuse.wizard
+  note: answers with the refuse wizard window and changes nothing; the refusal is the wizard's
+  evidence: source 18.0 hr_expense hr_expense_sheet.action_refuse_expense_sheets; live 2026-10-16 t/97-hr-actions-live.t on hr18 (answered with the refuse wizard window)
+- method: action_sheet_move_post
+  from: [approve]
+  to: [post]
+  undo: action_reset_expense_sheets
+  note: makes the journal entries when there are none and posts them (or the payment, for a company-paid report), which takes numbers from the journal's sequence for good
+  evidence: 'source 18.0 hr_expense hr_expense_sheet.action_sheet_move_post; live 2026-10-16 t/97-hr-actions-live.t on hr18 (approve -> post: Odoo made and posted a vendor bill)'
+- method: action_reset_expense_sheets
+  from: [submit, approve, post, cancel]
+  to: [draft]
+  note: reverses the report's journal entries; only an HR officer or the employee may reset
+  evidence: 'source 18.0 hr_expense hr_expense_sheet.action_reset_expense_sheets; live 2026-10-16 t/97-hr-actions-live.t on hr18 (post -> draft, as the revert of the post: Odoo posted a reversal and kept both entries)'
+- method: action_cancel
+  module: hr_expense_cancel
+  from: [approve, post, done]
+  to: [submit]
+  note: OCA; deletes the report's journal entries and cancels its payments, then sets the report back to Submitted
+  evidence: source OCA hr_expense_cancel hr_expense.action_cancel
+wizards:
+- model: hr.expense.refuse.wizard
+  method: action_refuse
+  button: action_refuse_expense_sheets
+  values: [reason]
+  undo: action_reset_expense_sheets
+  evidence: source 18.0 hr_expense hr_expense_refuse_reason.action_refuse (sheet_ids come from active_ids); live 2026-10-16 t/97-hr-actions-live.t on hr18 (approval_state submit -> cancel)
+- model: hr.expense.approve.duplicate
+  method: action_approve
+  button: action_approve_expense_sheets
+  values: [sheet_ids, expense_ids]
+  evidence: source 18.0 hr_expense hr_expense_approve_duplicate.action_approve
+- model: hr.expense.approve.duplicate
+  method: action_refuse
+  button: action_approve_expense_sheets
+  values: [sheet_ids, expense_ids]
+  evidence: source 18.0 hr_expense hr_expense_approve_duplicate.action_refuse

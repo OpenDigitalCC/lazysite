@@ -1,0 +1,40 @@
+# hr.course.schedule, Odoo 18 (hr_course, OCA). Read from the OCA tree (hr_course/models/hr_course_schedule.py).
+# state is read-only on the model and moves through these methods.
+model: hr.course.schedule
+series: 18
+module: hr_course
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+actions:
+- method: draft2waiting
+  from: [draft]
+  to: [waiting_attendees]
+  undo: back2draft
+  evidence: source OCA hr_course hr_course_schedule.draft2waiting
+- method: waiting2inprogress
+  from: [waiting_attendees]
+  to: [in_progress]
+  note: makes a course attendee for each employee in attendant_ids and removes the attendees no longer listed, posting the names removed
+  evidence: source OCA hr_course hr_course_schedule.waiting2inprogress
+- method: inprogress2validation
+  from: [in_progress]
+  to: [in_validation]
+  evidence: source OCA hr_course hr_course_schedule.inprogress2validation
+- method: validation2complete
+  from: [in_validation]
+  to: [completed]
+  note: Odoo refuses while an active attendee's result is pending
+  evidence: source OCA hr_course hr_course_schedule.validation2complete
+- method: back2draft
+  to: [draft]
+  evidence: source OCA hr_course hr_course_schedule.back2draft
+- method: cancel_course
+  to: [cancelled]
+  undo: back2draft
+  evidence: source OCA hr_course hr_course_schedule.cancel_course
+- method: all_passed
+  note: sets every attendee's result to passed
+  evidence: source OCA hr_course hr_course_schedule.all_passed

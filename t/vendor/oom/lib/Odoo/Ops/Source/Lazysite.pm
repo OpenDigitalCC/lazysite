@@ -48,9 +48,9 @@ C<retries> is an array reference of sleeps.
 
 sub new ($class, %a) {
     for my $k (qw(api credential)) {
-        Odoo::Error->throw( kind => 'config', message => "lazysite reader needs $k" ) if !$a{$k};
+        Odoo::Error->throw( kind => 'usage', message => "lazysite reader needs $k", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' ) if !$a{$k};
     }
-    Odoo::Error->throw( kind => 'config', message => "lazysite reader: api '$a{api}' must be an https:// or http:// URL" )
+    Odoo::Error->throw( kind => 'usage', message => "lazysite reader: api '$a{api}' must be an https:// or http:// URL", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
         if $a{api} !~ m{^https?://}i;
     return bless {
         api     => $a{api},

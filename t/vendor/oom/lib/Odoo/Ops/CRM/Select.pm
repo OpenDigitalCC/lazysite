@@ -43,7 +43,7 @@ sub domain_for ($class, $op) {
     if ( defined( my $name = $op->param('tag') ) ) {
         my $name_f = $p->field( tag => 'name' );
         my $tags = $op->model('tag')->search_read( [ [ $name_f, '=ilike', $name ] ], [$name_f] );
-        Odoo::Error->throw( kind => 'usage', message => "no tag named '$name'" ) if !@$tags;
+        Odoo::Error->throw( kind => 'refused', code => 'unknown-tag', message => "no tag named '$name'", fix => 'name a tag that exists on the instance' ) if !@$tags;
         push @d, [ $p->field( lead => 'tags' ), 'in', [ map { $_->{id} } @$tags ] ];
     }
     push @d, @{ $op->param('domain') } if $op->param('domain');

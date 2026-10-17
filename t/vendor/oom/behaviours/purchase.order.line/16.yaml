@@ -1,0 +1,16 @@
+# purchase.order.line, Odoo 16 (purchase). Read from the 16.0 source (purchase/models/purchase.py); the parent hold is met live by t/49-documents-pack-live.t.
+model: purchase.order.line
+series: 16
+unlink_requires:
+  parent: order_id
+  state:
+  - draft
+  - sent
+  - to approve
+  - cancel
+  noun: order
+effects:
+- 'on': call
+  method: unlink
+  effect: Odoo deletes a line while its order is in draft, sent, to approve or cancel; once the order is purchase or done it is refused (Cannot delete a purchase order line which is in state ...).
+  evidence: source 16.0 purchase_order_line._unlink_except_purchase_or_done (order state in purchase, done); live 2026-10-16 t/49-documents-pack-live.t on 16 (the refusal of a line of a confirmed order and the deletion after purchase.cancel)

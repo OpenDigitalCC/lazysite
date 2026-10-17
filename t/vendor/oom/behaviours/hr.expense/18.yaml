@@ -1,0 +1,16 @@
+# hr.expense, Odoo 18 (hr_expense). Read from the 18.0 source (addons/hr_expense/models/hr_expense.py).
+# The state is computed from the expense report (hr.expense.sheet), so it is changed through the report's actions.
+model: hr.expense
+series: 18
+module: hr_expense
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+actions:
+- method: action_submit_expenses
+  from: [draft]
+  to: [reported]
+  note: makes a draft expense report for the expenses (one per payer) and answers with a window on it; the expenses must have no report and be editable by the acting user
+  evidence: source 18.0 hr_expense hr_expense.action_submit_expenses; live 2026-10-16 t/97-hr-actions-live.t on hr18 (draft -> reported; the window was on the new report)

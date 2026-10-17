@@ -39,6 +39,17 @@ irreversible holds; run the opposite direction instead.
 sub op_name ($class) { 'crm.lost' }
 sub summary ($class) { 'Mark selected leads Lost (Odoo action_set_lost)' }
 sub pack    ($class) { 'crm' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'lost', meaning => 'the lead is marked Lost through Odoo\'s action_set_lost (archived, with the reason if given)' },
+        { name => 'restore', meaning => 'an archived lead is restored through action_unarchive (restore=1)' },
+        { name => 'unchanged', meaning => 'the lead is already in the state asked for' },
+    ];
+}
+sub holds ($class) { [] }
+
 sub params ($class) {
     +{  Odoo::Ops::CRM::Select->params,
         reason  => { type => 'str', help => 'existing lost reason name (optional)' },

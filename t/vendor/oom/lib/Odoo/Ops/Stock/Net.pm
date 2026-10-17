@@ -63,6 +63,23 @@ transfers, named by its journal - the undo.
 sub op_name ($class) { 'stock.net' }
 sub summary ($class) { 'Plan internal transfers netting negative quants against certain counterparts' }
 sub pack    ($class) { 'stock' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'net', meaning => 'an internal transfer raises a negative quant and lowers its counterpart by the same quantity' },
+        { name => 'reverse', meaning => 'reverse=JOURNAL: the opposite of a previous run\'s transfer' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'uncovered', meaning => 'no counterpart of an allowed kind; a count is the only repair' },
+        { name => 'partial', meaning => 'the counterpart covers part of the negative; the transfer is planned for the part' },
+        { name => 'reserved-counterpart', meaning => 'the only counterpart is reserved by an open picking' },
+        { name => 'split-package', meaning => 'the only transfer would put a package in two places' },
+    ];
+}
+
 sub params ($class) {
     {   kinds   => { type => 'list', default => 'same-place,mirror', help => 'counterpart kinds to net: same-place, mirror, unknown, same-package' },
         unknown => { type => 'str',  default => 'WH/Unknown', help => 'complete name of the "location unknown" bin' },
@@ -124,12 +141,12 @@ sub plan ($self) {
     my @domain = ( [ $f->( quant => 'location' ), 'in', [ map { 0 + $_ } keys %loc_name ] ] );
     if ( my $code = $self->param('product') ) {
         my $pr = $self->client->model('product.product')->search_read( [ [ 'default_code', '=', $code ] ], ['id'] );
-        Odoo::Error->throw( kind => 'usage', message => "stock.net: no product with default_code '$code'" ) if !@$pr;
+        Odoo::Error->throw( kind => 'refused', code => 'unknown-product', message => "stock.net: no product with default_code '$code'", fix => 'give the default_code of a product that exists' ) if !@$pr;
         push @domain, [ $f->( quant => 'product' ), 'in', [ map { $_->{id} } @$pr ] ];
     }
     if ( my $ln = $self->param('lot') ) {
         my $lots = $self->model('lot')->search_read( [ [ $f->( lot => 'name' ), '=', $ln ] ], ['id'] );
-        Odoo::Error->throw( kind => 'usage', message => "stock.net: no lot named '$ln'" ) if !@$lots;
+        Odoo::Error->throw( kind => 'refused', code => 'unknown-lot', message => "stock.net: no lot named '$ln'", fix => 'give the name of a lot that exists' ) if !@$lots;
         push @domain, [ $f->( quant => 'lot' ), 'in', [ map { $_->{id} } @$lots ] ];
     }
     my @fields = map { $f->( quant => $_ ) } qw(product lot location package quantity reserved);

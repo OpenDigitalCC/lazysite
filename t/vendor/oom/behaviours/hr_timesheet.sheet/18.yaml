@@ -1,0 +1,33 @@
+# hr_timesheet.sheet, Odoo 18 (hr_timesheet_sheet, OCA). Read from the OCA tree
+# (hr_timesheet_sheet/models/hr_timesheet_sheet.py) and run on hr18 by t/97-hr-actions-live.t.
+# Review needs the policy's reviewer rights (a reviewer's user must be linked to an employee).
+model: hr_timesheet.sheet
+series: 18
+module: hr_timesheet_sheet
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+actions:
+- method: action_timesheet_confirm
+  from: [new, draft]
+  to: [confirm]
+  undo: action_timesheet_refuse
+  note: subscribes the reviewers to the sheet
+  evidence: source OCA hr_timesheet_sheet hr_timesheet_sheet.action_timesheet_confirm; live 2026-10-16 t/97-hr-actions-live.t on hr18 (draft -> confirm)
+- method: action_timesheet_done
+  from: [confirm]
+  to: [done]
+  undo: action_timesheet_draft
+  note: records the acting user's employee as the reviewer
+  evidence: source OCA hr_timesheet_sheet hr_timesheet_sheet.action_timesheet_done; live 2026-10-16 t/97-hr-actions-live.t on hr18 (confirm -> done)
+- method: action_timesheet_refuse
+  from: [confirm]
+  to: [draft]
+  evidence: source OCA hr_timesheet_sheet hr_timesheet_sheet.action_timesheet_refuse
+- method: action_timesheet_draft
+  from: [done]
+  to: [draft]
+  note: clears the reviewer
+  evidence: source OCA hr_timesheet_sheet hr_timesheet_sheet.action_timesheet_draft; live 2026-10-16 t/97-hr-actions-live.t on hr18 (done -> draft, as the revert of action_timesheet_done)

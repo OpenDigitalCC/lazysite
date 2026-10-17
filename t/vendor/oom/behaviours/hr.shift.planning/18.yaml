@@ -1,0 +1,27 @@
+# hr.shift.planning, Odoo 18 (hr_shift, OCA). Read from the OCA tree (hr_shift/models/shift_planning.py,
+# hr_shift/wizards/shift_planning_wizard.py).
+model: hr.shift.planning
+series: 18
+module: hr_shift
+actions:
+- method: generate_shifts
+  to: [assignment]
+  note: makes a shift for each employee marked for shift planning that has none in this planning, and sets the planning to assignment; one planning per call
+  evidence: source OCA hr_shift shift_planning.generate_shifts
+- method: regenerate_shifts
+  note: deletes the planning's shifts and generates them again
+  evidence: source OCA hr_shift shift_planning.regenerate_shifts
+- method: copy_to_planning
+  wizard: shift.planning.wizard
+  note: answers with the copy wizard window and changes nothing
+  evidence: source OCA hr_shift shift_planning.copy_to_planning
+wizards:
+- model: shift.planning.wizard
+  method: generate
+  button: copy_to_planning
+  values: [generation_type, from_planning_id, week_number, year, copy_shift_details]
+  context_from_record: [default_from_planning_id]
+  context:
+    default_generation_type: from_planning
+  note: copies the planning to a new week and year and generates its shifts
+  evidence: source OCA hr_shift shift_planning_wizard.generate

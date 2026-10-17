@@ -316,7 +316,7 @@ my %TRANSFORM_ARG = (
         return ( sub ($v, $m) { defined $v && !ref $v ? [ split /\Q$sep\E/, $v ] : $v }, 1 );
     },
     round => sub ($arg, $lf) {
-        Odoo::Error->throw( kind => 'config', message => "mapping field '$lf': transform 'round:$arg' needs a number of places 0-12" )
+        Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': transform 'round:$arg' needs a number of places 0-12", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if $arg !~ /^\d{1,2}\z/ || $arg > 12;
         return sub ($v, $m) { _round( $v, $arg ) };
     },
@@ -324,7 +324,7 @@ my %TRANSFORM_ARG = (
         my ( $pat, $repl ) = split /(?<!\\):/, $arg, 2;
         for ( $pat, $repl ) { $_ = '' if !defined; s/\\:/:/g }
         my $re = eval { qr/$pat/ };
-        Odoo::Error->throw( kind => 'config', message => "mapping field '$lf': transform 'regex:$arg' has an invalid pattern: " . ( $@ =~ s/ at \S+ line \d+.*//sr ) )
+        Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': transform 'regex:$arg' has an invalid pattern: " . ( $@ =~ s/ at \S+ line \d+.*//sr ), fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if !$re || $pat eq '';
         return sub ($v, $m) {
             return $v if !defined $v;
@@ -332,7 +332,7 @@ my %TRANSFORM_ARG = (
         };
     },
     vat => sub ($arg, $lf) {
-        Odoo::Error->throw( kind => 'config', message => "mapping field '$lf': transform 'vat:$arg' needs a two-letter country code" )
+        Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': transform 'vat:$arg' needs a two-letter country code", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if $arg !~ /^[A-Za-z]{2}\z/;
         my $cc = uc $arg;
         return sub ($v, $m) {
@@ -342,7 +342,7 @@ my %TRANSFORM_ARG = (
         };
     },
     phone => sub ($arg, $lf) {
-        Odoo::Error->throw( kind => 'config', message => "mapping field '$lf': transform 'phone:$arg' needs a country calling code (digits, e.g. phone:44)" )
+        Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': transform 'phone:$arg' needs a country calling code (digits, e.g. phone:44)", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if $arg !~ /^\d{1,3}\z/;
         my $match = Odoo::Ops::Match->new( keys => ['phone'], phone_cc => $arg );
         return sub ($v, $m) {
@@ -412,9 +412,9 @@ my %REQUIRE = (
 # the list [present, email].
 sub _compile_requires ($lf, $spec) {
     my @names = ref $spec eq 'ARRAY' ? @$spec : ($spec);
-    Odoo::Error->throw( kind => 'config', message => "mapping field '$lf': require is empty" ) if !@names;
+    Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': require is empty", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' ) if !@names;
     return [ map {
-        Odoo::Error->throw( kind => 'config', message => "mapping field '$lf': require must be a name or a list of names" ) if ref $_ || !length;
+        Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': require must be a name or a list of names", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' ) if ref $_ || !length;
         [ $_, _compile_require( $lf, $_ ) ]
     } @names ];
 }
@@ -429,10 +429,10 @@ sub _compile_require ($lf, $req) {
     return $REQUIRE{$req} if $REQUIRE{$req};
     if ( $req =~ /^regex:(.+)\z/s ) {
         my $re = eval { qr/$1/ }
-            or Odoo::Error->throw( kind => 'config', message => "mapping field '$lf': require '$req' has an invalid pattern: " . ( $@ =~ s/ at \S+ line \d+.*//sr ) );
+            or Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': require '$req' has an invalid pattern: " . ( $@ =~ s/ at \S+ line \d+.*//sr ), fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' );
         return sub ($v) { defined $v && !ref $v && $v =~ $re ? 1 : 0 };
     }
-    Odoo::Error->throw( kind => 'config', message => "mapping field '$lf': unknown require '$req' (present, email, number, date, regex:PATTERN)" );
+    Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': unknown require '$req' (present, email, number, date, regex:PATTERN)", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' );
 }
 
 =head2 load($path, %opts)
@@ -446,9 +446,9 @@ handle for a C<dbi> reader (see below), used instead of connecting.
 
 sub load ($class, $path, %opts) {
     my $m = eval { YAML::PP->new( schema => ['Core'] )->load_file($path) }
-        or Odoo::Error->throw( kind => 'config', message => "cannot load mapping $path: $@" );
+        or Odoo::Error->throw( kind => 'usage', message => "cannot load mapping $path: $@", fix => 'check the path exists and this user can read it' );
     for my $req (qw(source target reader fields)) {
-        Odoo::Error->throw( kind => 'config', message => "mapping $path missing '$req'" )
+        Odoo::Error->throw( kind => 'usage', message => "mapping $path missing '$req'", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if !$m->{$req};
     }
     _check_lazysite_reader( $m->{reader} ) if ref $m->{reader} eq 'HASH' && ( $m->{reader}{kind} // '' ) eq 'lazysite-table';
@@ -456,7 +456,7 @@ sub load ($class, $path, %opts) {
         map { exists $opts{$_} ? ( $_ => $opts{$_} ) : () } qw(dbh http retries now) }, $class;
     for my $lf ( sort keys %{ $m->{fields} } ) {
         my $spec = $m->{fields}{$lf};
-        Odoo::Error->throw( kind => 'config', message => "mapping field '$lf' needs one of from, template, const" )
+        Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf' needs one of from, template, const", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if ref $spec ne 'HASH' || !grep { exists $spec->{$_} } qw(from template const);
         my @chain;
         for my $t ( @{ $spec->{transform} // [] } ) {
@@ -470,8 +470,9 @@ sub load ($class, $path, %opts) {
                 push @chain, [ sub ($v, $marks) { $fn->($v) }, 0 ];
             }
             else {
-                Odoo::Error->throw( kind => 'config',
-                    message => "mapping field '$lf': " . ( $TRANSFORM_ARG{$name} ? "transform '$name' needs an argument ($name:...)" : "unknown transform '$t'" ) );
+                Odoo::Error->throw( kind => 'usage',
+                    message => "mapping field '$lf': " . ( $TRANSFORM_ARG{$name} ? "transform '$name' needs an argument ($name:...)" : "unknown transform '$t'" ),
+                    fix => 'correct the transform in the mapping file' );
             }
         }
         $self->{chain}{$lf} = \@chain;
@@ -496,8 +497,9 @@ sub rows ($self) {
         my $ovr = $self->_overrides;
         my %have = map { ( "$_->{key}" => 1 ) } @in;
         my @stale = grep { !$have{$_} } sort keys %$ovr;
-        Odoo::Error->throw( kind => 'config',
-            message => 'overrides name keys the source does not have: ' . join( ', ', @stale ) ) if @stale;
+        Odoo::Error->throw( kind => 'usage',
+            message => 'overrides name keys the source does not have: ' . join( ', ', @stale ),
+            fix => 'remove those keys from the overrides file, or correct them to keys the source has' ) if @stale;
         [ map { $self->_map_row( $_, $ovr->{ "$_->{key}" } ) } @in ];
     };
 }
@@ -506,14 +508,14 @@ sub _overrides ($self) {
     my $file = $self->{mapping}{overrides} or return {};
     my $path = $self->_abs($file);
     my $o = eval { YAML::PP->new( schema => ['Core'] )->load_file($path) } // {};
-    Odoo::Error->throw( kind => 'config', message => "cannot load overrides $path: $@" ) if $@;
-    Odoo::Error->throw( kind => 'config', message => "overrides $path must map keys to entries" )
+    Odoo::Error->throw( kind => 'usage', message => "cannot load overrides $path: $@", fix => 'check the path exists and this user can read it' ) if $@;
+    Odoo::Error->throw( kind => 'usage', message => "overrides $path must map keys to entries", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
         if ref $o ne 'HASH';
     for my $k ( sort keys %$o ) {
         my $e = $o->{$k};
-        Odoo::Error->throw( kind => 'config', message => "override '$k' needs set and/or hold" )
+        Odoo::Error->throw( kind => 'usage', message => "override '$k' needs set and/or hold", fix => 'correct the parameter or the file the message names, then plan again' )
             if ref $e ne 'HASH' || ( !$e->{set} && !$e->{hold} );
-        Odoo::Error->throw( kind => 'config', message => "override '$k' needs a why" ) if !$e->{why};
+        Odoo::Error->throw( kind => 'usage', message => "override '$k' needs a why", fix => 'correct the parameter or the file the message names, then plan again' ) if !$e->{why};
     }
     return $o;
 }
@@ -527,11 +529,11 @@ sub _read ($self) {
     my $kind = $r->{kind} // '';
     return $self->_read_dbi($r) if $kind eq 'dbi';
     return $self->_read_lazysite($r) if $kind eq 'lazysite-table';
-    my $path = $self->_abs( $r->{path} // Odoo::Error->throw( kind => 'config', message => 'reader needs path' ) );
+    my $path = $self->_abs( $r->{path} // Odoo::Error->throw( kind => 'usage', message => 'reader needs path', fix => 'give the reader a path in the mapping file' ) );
     return $self->_read_json_dir( $r, $path ) if $kind eq 'json-dir';
     return $self->_read_jsonl( $r, $path )    if $kind eq 'jsonl';
     return $self->_read_csv( $r, $path )      if $kind eq 'csv';
-    Odoo::Error->throw( kind => 'config', message => "unknown reader kind '$kind'" );
+    Odoo::Error->throw( kind => 'usage', message => "unknown reader kind '$kind'", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' );
 }
 
 sub _envelope ($self, $r, $doc, $fallback_key) {
@@ -542,7 +544,7 @@ sub _envelope ($self, $r, $doc, $fallback_key) {
 }
 
 sub _read_json_dir ($self, $r, $dir) {
-    opendir my $dh, $dir or Odoo::Error->throw( kind => 'config', message => "cannot open $dir: $!" );
+    opendir my $dh, $dir or Odoo::Error->throw( kind => 'usage', message => "cannot open $dir: $!", fix => 'check the path exists and this user can read it' );
     my @files = sort grep { /\.json\z/ && -f File::Spec->catfile( $dir, $_ ) } readdir $dh;
     closedir $dh;
     return map {
@@ -553,12 +555,12 @@ sub _read_json_dir ($self, $r, $dir) {
 }
 
 sub _read_jsonl ($self, $r, $file) {
-    open my $fh, '<:raw', $file or Odoo::Error->throw( kind => 'config', message => "cannot read $file: $!" );
+    open my $fh, '<:raw', $file or Odoo::Error->throw( kind => 'usage', message => "cannot read $file: $!", fix => 'check the path exists and this user can read it' );
     my @out;
     while ( my $line = <$fh> ) {
         next if $line !~ /\S/;
         my $doc = eval { Odoo::Ops::json()->decode($line) }
-            // Odoo::Error->throw( kind => 'config', message => "$file line $.: not JSON" );
+            // Odoo::Error->throw( kind => 'usage', message => "$file line $.: not JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
         push @out, $self->_envelope( $r, $doc, "line$." );
     }
     close $fh;
@@ -568,8 +570,8 @@ sub _read_jsonl ($self, $r, $file) {
 sub _read_csv ($self, $r, $file) {
     my $csv = Text::CSV_XS->new( { binary => 1, auto_diag => 0, sep_char => $r->{sep} // ',' } );
     open my $fh, '<:encoding(UTF-8)', $file
-        or Odoo::Error->throw( kind => 'config', message => "cannot read $file: $!" );
-    my $head = $csv->getline($fh) or Odoo::Error->throw( kind => 'config', message => "$file has no header row" );
+        or Odoo::Error->throw( kind => 'usage', message => "cannot read $file: $!", fix => 'check the path exists and this user can read it' );
+    my $head = $csv->getline($fh) or Odoo::Error->throw( kind => 'usage', message => "$file has no header row", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
     s/^\x{FEFF}// for $head->[0];
     my ( @out, $n );
     while ( my $cells = $csv->getline($fh) ) {
@@ -580,7 +582,7 @@ sub _read_csv ($self, $r, $file) {
         my $key = defined $r->{key} ? $rec{ $r->{key} } : undef;
         push @out, { key => $key // "row$n", record => \%rec, flags => [] };
     }
-    Odoo::Error->throw( kind => 'config', message => "$file: " . ( $csv->error_diag )[1] )
+    Odoo::Error->throw( kind => 'usage', message => "$file: " . ( $csv->error_diag )[1], fix => 'correct the parameter or the file the message names, then plan again' )
         if !$csv->eof;
     close $fh;
     return @out;
@@ -591,16 +593,17 @@ sub _read_csv ($self, $r, $file) {
 # DBI is loaded here, at run time, so the package does not depend on it.
 sub _read_dbi ($self, $r) {
     for my $inline (qw(dsn user password)) {
-        Odoo::Error->throw( kind => 'config',
-            message => "reader.$inline inline is refused; put dsn, user and password in a credential file and name it with 'credential'" )
+        Odoo::Error->throw( kind => 'usage',
+            message => "reader.$inline inline is refused; put dsn, user and password in a credential file and name it with 'credential'",
+            fix => "move $inline into a credential file and name it with 'credential' in the mapping" )
             if exists $r->{$inline};
     }
-    my $sql = $r->{sql} // Odoo::Error->throw( kind => 'config', message => 'dbi reader needs sql' );
-    Odoo::Error->throw( kind => 'config', message => 'dbi reader sql must be one SELECT (or WITH ... SELECT); Source never writes to a database' )
+    my $sql = $r->{sql} // Odoo::Error->throw( kind => 'usage', message => 'dbi reader needs sql', fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' );
+    Odoo::Error->throw( kind => 'usage', message => 'dbi reader sql must be one SELECT (or WITH ... SELECT); Source never writes to a database', fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
         if $sql !~ /^\s*(?:select|with)\b/i || $sql =~ /;\s*\S/;
     my ( $dbh, $own ) = ( $self->{dbh}, 0 );
     if ( !$dbh ) {
-        my $name = $r->{credential} // Odoo::Error->throw( kind => 'config', message => 'dbi reader needs credential (a file of dsn, user, password lines)' );
+        my $name = $r->{credential} // Odoo::Error->throw( kind => 'usage', message => 'dbi reader needs credential (a file of dsn, user, password lines)', fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' );
         my $c = Odoo::Ops::Credential->dsn( $self->_credential_path($name) );
         eval { require DBI; 1 }
             or Odoo::Error->throw( kind => 'config', message => 'the dbi reader needs the DBI module and a DBD driver (apt install libdbi-perl and the driver for the database)' );
@@ -619,7 +622,7 @@ sub _read_dbi ($self, $r) {
         my $n = 0;
         while ( my $row = $sth->fetchrow_hashref('NAME') ) {
             $n++;
-            Odoo::Error->throw( kind => 'config', message => "dbi reader: key column '$r->{key}' is not in the result set (columns: " . join( ', ', sort keys %$row ) . ')' )
+            Odoo::Error->throw( kind => 'usage', message => "dbi reader: key column '$r->{key}' is not in the result set (columns: " . join( ', ', sort keys %$row ) . ')', fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
                 if defined $r->{key} && !exists $row->{ $r->{key} };
             my $key = defined $r->{key} ? $row->{ $r->{key} } : undef;
             push @out, { key => ( defined $key && length $key ? $key : "row$n" ), record => {%$row}, flags => [] };
@@ -640,19 +643,20 @@ sub _read_dbi ($self, $r) {
 # anything runs, whichever reader it names.
 sub _check_lazysite_reader ($r) {
     for my $inline (qw(token partner password user)) {
-        Odoo::Error->throw( kind => 'config',
-            message => "reader.$inline inline is refused; put partner, token and expires in a credential file (JSON, mode 600) and name it with 'credential'" )
+        Odoo::Error->throw( kind => 'usage',
+            message => "reader.$inline inline is refused; put partner, token and expires in a credential file (JSON, mode 600) and name it with 'credential'",
+            fix => "move $inline into a credential file and name it with 'credential' in the mapping" )
             if exists $r->{$inline};
     }
     for my $need (qw(api credential table)) {
-        Odoo::Error->throw( kind => 'config', message => "lazysite-table reader needs $need" )
+        Odoo::Error->throw( kind => 'usage', message => "lazysite-table reader needs $need", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if !defined $r->{$need} || ref $r->{$need} || $r->{$need} eq '';
     }
-    Odoo::Error->throw( kind => 'config', message => "lazysite-table reader: where must map column names to values" )
+    Odoo::Error->throw( kind => 'usage', message => "lazysite-table reader: where must map column names to values", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
         if defined $r->{where} && ref $r->{where} ne 'HASH';
-    Odoo::Error->throw( kind => 'config', message => "lazysite-table reader: also must map a name to a table" )
+    Odoo::Error->throw( kind => 'usage', message => "lazysite-table reader: also must map a name to a table", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
         if defined $r->{also} && ( ref $r->{also} ne 'HASH' || grep { !defined || ref } values %{ $r->{also} } );
-    Odoo::Error->throw( kind => 'config', message => "lazysite-table reader: also name '$_' is not a plain word (letters, digits, _)" )
+    Odoo::Error->throw( kind => 'usage', message => "lazysite-table reader: also name '$_' is not a plain word (letters, digits, _)", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
         for grep { !/^[A-Za-z]\w*\z/ } keys %{ $r->{also} // {} };
     return;
 }
@@ -684,7 +688,7 @@ sub _read_lazysite ($self, $r) {
             my @ok = ref $want eq 'ARRAY' ? @$want : ($want);
             !( defined $have && grep { defined && "$have" eq "$_" } @ok );
         } sort keys %where;
-        Odoo::Error->throw( kind => 'config', message => "lazysite-table reader: key column '$r->{key}' is not in table '$r->{table}' (columns: " . join( ', ', sort keys %$row ) . ')' )
+        Odoo::Error->throw( kind => 'usage', message => "lazysite-table reader: key column '$r->{key}' is not in table '$r->{table}' (columns: " . join( ', ', sort keys %$row ) . ')', fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if defined $r->{key} && !exists $row->{ $r->{key} };
         my $key = defined $r->{key} ? $row->{ $r->{key} } : undef;
         push @out, { key => ( defined $key && length $key ? $key : "row$n" ), record => {%$row}, flags => [] };
@@ -702,11 +706,11 @@ sub _credential_path ($self, $name, $ext = 'dsn') {
 }
 
 sub _read_json ($file) {
-    open my $fh, '<:raw', $file or Odoo::Error->throw( kind => 'config', message => "cannot read $file: $!" );
+    open my $fh, '<:raw', $file or Odoo::Error->throw( kind => 'usage', message => "cannot read $file: $!", fix => 'check the path exists and this user can read it' );
     my $raw = do { local $/; <$fh> };
     close $fh;
     return eval { Odoo::Ops::json()->decode($raw) }
-        // Odoo::Error->throw( kind => 'config', message => "$file is not valid JSON" );
+        // Odoo::Error->throw( kind => 'usage', message => "$file is not valid JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
 }
 
 sub _dig ($doc, $path) {
@@ -742,7 +746,7 @@ sub _map_row ($self, $in, $ovr = undef) {
             my $out = '';
             my $tt  = $self->{tt} //= Template->new( { ENCODING => 'utf8' } );
             $tt->process( \"[% IF ($rule->{if}) %]1[% END %]", { %$rec, ( $self->{tables} ? ( tables => $self->{tables} ) : () ) }, \$out )
-                or Odoo::Error->throw( kind => 'config', message => "hold_when '$rule->{if}': " . $tt->error );
+                or Odoo::Error->throw( kind => 'usage', message => "hold_when '$rule->{if}': " . $tt->error, fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' );
             if ( $out eq '1' ) { $row{held} = "rule:$rule->{reason}"; last }
         }
     }

@@ -129,13 +129,13 @@ sub report ($self) {
 
 # Every root-to-target path through the user's own implication graph.
 sub _paths ($self, $target, $parents, $seen = {}) {
-    return [ [$target] ] if !$parents->{$target};
+    return [$target] if !$parents->{$target};
     my @out;
     for my $p ( @{ $parents->{$target} } ) {
         next if $seen->{$p};
         push @out, map { [ @$_, $target ] } $self->_paths( $p, $parents, { %$seen, $target => 1 } );
     }
-    return @out ? @out : [ [$target] ];
+    return @out ? @out : [$target];
 }
 
 sub _try ($self, $code) {

@@ -1,0 +1,36 @@
+# document.page.history, Odoo 18 (document_page_approval, OCA). Read from the OCA tree
+# (document_page_approval/models/document_page_history.py). The acting user must be the owner or an approver of the
+# page, and approval needs an approver group of the page.
+model: document.page.history
+series: 18
+module: document_page_approval
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+actions:
+- method: action_to_approve
+  from: [draft]
+  to: ['to approve']
+  undo: action_cancel
+  note: asks the approver groups' users to approve by mail; a page that needs no approval is approved at once
+  evidence: source OCA document_page_approval document_page_history.action_to_approve
+- method: action_approve
+  from: [draft, to approve]
+  to: [approved]
+  note: makes this version the page's head and posts to the change request and to the page's followers; only an approver may
+  evidence: source OCA document_page_approval document_page_history.action_approve
+- method: action_cancel
+  to: [cancelled]
+  undo: action_draft
+  note: posts that the change request was cancelled
+  evidence: source OCA document_page_approval document_page_history.action_cancel
+- method: action_draft
+  from: [cancelled]
+  to: [draft]
+  evidence: source OCA document_page_approval document_page_history.action_draft
+- method: action_cancel_and_draft
+  to: [draft]
+  note: action_cancel, then action_draft
+  evidence: source OCA document_page_approval document_page_history.action_cancel_and_draft

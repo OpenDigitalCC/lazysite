@@ -1,0 +1,19 @@
+# hr.attendance, Odoo 18 (hr_attendance). Read from the 18.0 source (addons/hr_attendance/models/hr_attendance.py).
+# The overtime status is a plain field; the two actions write it, and so may a caller, so it is not held.
+model: hr.attendance
+series: 18
+module: hr_attendance
+state:
+  field: overtime_status
+  written_by: write
+actions:
+- method: action_approve_overtime
+  to: [approved]
+  undo: action_refuse_overtime
+  note: writes overtime_status
+  evidence: source 18.0 hr_attendance hr_attendance.action_approve_overtime
+- method: action_refuse_overtime
+  to: [refused]
+  undo: action_approve_overtime
+  note: writes overtime_status
+  evidence: source 18.0 hr_attendance hr_attendance.action_refuse_overtime

@@ -83,7 +83,7 @@ sub report ($self) {
     }
     my $dir = $self->param('dir');
     make_path( $dir, { mode => 0700 } ) if !-d $dir;
-    Odoo::Error->throw( kind => 'config', message => "cannot use dir $dir" ) if !-d $dir || !-w _;
+    Odoo::Error->throw( kind => 'usage', message => "cannot use dir $dir", fix => 'give a path this user can write (dir, out or name), then plan again' ) if !-d $dir || !-w _;
 
     my ( @rows, %used );
     my $att = $self->model('ir.attachment');
@@ -102,10 +102,12 @@ sub report ($self) {
         my $bytes = decode_base64( $r->{datas} );
         my $flags = O_WRONLY | O_CREAT | ( $self->param('overwrite') ? O_TRUNC : O_EXCL );
         sysopen( my $fh, $path, $flags, 0600 )
-            or Odoo::Error->throw( kind => 'config', message => "cannot write $path: $!" . ( -e $path ? ' (it exists; overwrite=1 replaces it)' : '' ) );
+            or Odoo::Error->throw( -e $path
+                ? ( kind => 'refused', code => 'exists', message => "cannot write $path: it exists; overwrite=1 replaces it", fix => 'pass --set overwrite=1' )
+                : ( kind => 'usage', message => "cannot write $path: $!", fix => 'give a path this user can write (dir, out or name), then plan again' ) );
         binmode $fh;
         print {$fh} $bytes;
-        close $fh or Odoo::Error->throw( kind => 'config', message => "cannot write $path: $!" );
+        close $fh or Odoo::Error->throw( kind => 'usage', message => "cannot write $path: $!", fix => 'give a path this user can write (dir, out or name), then plan again' );
         chmod 0600, $path;
         my $sum = Digest::SHA::sha1_hex($bytes);
         push @rows, { %row, path => $path, size => length($bytes), checksum => $r->{checksum}, checksum_ok => ( ( $r->{checksum} // '' ) eq $sum ? 1 : 0 ) };

@@ -1,0 +1,33 @@
+# Purchase pack, Odoo 19: the state operations purchase.confirm and purchase.cancel on purchase.order. Read from the master/19.0 source (purchase/models/purchase_order.py) and proved live by t/49-documents-pack-live.t.
+pack: purchase
+series: 19
+module: purchase
+actions:
+  confirm: button_confirm
+  cancel: button_cancel
+  draft: button_draft
+models:
+  order:
+    model: purchase.order
+    fields:
+      name: name
+      state: state
+      partner: partner_id
+      locked: locked
+states:
+  confirm:
+    # button_confirm; with double validation the order stops in to approve
+    from: [draft, sent]
+    to: [purchase]
+    hints:
+      cancel: "oom-ops run purchase.cancel --set order={id} --set draft=1 makes it a draft again, then confirm it"
+      'to approve': "it waits for an approver in Odoo (OOM has no operation for approval)"
+  cancel:
+    # button_cancel; Odoo refuses while a vendor bill that is neither draft nor cancelled points at the order
+    from: [draft, sent, 'to approve', purchase]
+    to: [cancel]
+    refuses_locked: 1
+  draft:
+    # button_draft; only the way back after a cancel is used (purchase.cancel draft=1)
+    from: [cancel]
+    to: [draft]

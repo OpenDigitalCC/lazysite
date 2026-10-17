@@ -9,6 +9,7 @@ use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Plan;
 use Odoo::Ops::Invariant;
+use Odoo::Ops::Modules;
 
 =head1 NAME
 
@@ -40,6 +41,15 @@ An operation declares, as class methods:
     read_scope   { model => [methods] } used while reporting/planning
     write_scope  { model => [methods] } added while applying; declaring
                  one makes the operation a write operation
+    buckets      [ { name, meaning } ] the buckets a plan of this operation
+                 sorts rows into that are written or skipped (a write
+                 operation declares it)
+    holds        [ { name, meaning } ] the buckets whose rows wait for a
+                 person, each with the cause in one line
+    fields       [ { name, meaning } ] for a read: the keys of the
+                 descriptors it returns in its C<fields> block
+    buckets_from 'dynamic' with a reason, for an operation whose bucket
+                 names cannot be listed; no shipped operation needs it
 
 Scope keys are logical profile models (C<lead>) or, where a key
 contains a dot, physical Odoo models (C<ir.module.module>). The guard
@@ -59,6 +69,10 @@ sub params      ($class) { {} }
 sub read_scope  ($class) { {} }
 sub write_scope ($class) { {} }
 sub writes      ($class) { !!%{ $class->write_scope } }
+sub buckets     ($class) { [] }
+sub holds       ($class) { [] }
+sub fields      ($class) { [] }
+sub buckets_from ($class) { undef }
 
 =head2 models_touched($change)
 
@@ -113,13 +127,15 @@ sub check_params ($class, $raw) {
             kind    => 'usage',
             message => $class->op_name . ": unknown parameter '$k' (known: "
                 . join( ', ', sort keys %$spec ) . ')',
+            fix     => 'oom-ops describe ' . $class->op_name . ' lists the parameters',
         ) if !$spec->{$k};
     }
     for my $k ( sort keys %$spec ) {
         my $s = $spec->{$k};
         my $v = exists $raw->{$k} ? $raw->{$k} : $s->{default};
         if ( !defined $v ) {
-            Odoo::Error->throw( kind => 'usage', message => $class->op_name . ": parameter '$k' is required" )
+            Odoo::Error->throw( kind => 'usage', message => $class->op_name . ": parameter '$k' is required",
+                fix => "pass it with --set $k=...; oom-ops describe " . $class->op_name . ' says what it takes' )
                 if $s->{required};
             next;
         }
@@ -129,7 +145,7 @@ sub check_params ($class, $raw) {
 }
 
 sub _typed ($op, $k, $type, $v) {
-    my $bad = sub { Odoo::Error->throw( kind => 'usage', message => "$op: parameter '$k' must be $type" ) };
+    my $bad = sub { Odoo::Error->throw( kind => 'usage', message => "$op: parameter '$k' must be $type", fix => "oom-ops describe $op shows each parameter's type" ) };
     return $v if ref $v && $type =~ /^(json|list)\z/;
     if ( $type eq 'int' )  { $v =~ /^-?\d+\z/ or $bad->(); return 0 + $v }
     if ( $type eq 'bool' ) { $v =~ /^(1|0|yes|no|true|false)\z/i or $bad->(); return $v =~ /^(1|yes|true)\z/i ? 1 : 0 }
@@ -165,7 +181,9 @@ sub scope_for ($self, $phase) {
 =head2 run
 
 Runs C<report> or C<plan> under the read scope. Returns the report
-hashref, or the finalized L<Odoo::Ops::Plan> carrying its apply scope.
+hashref, or the finalized L<Odoo::Ops::Plan> carrying its apply scope. An
+operation of a pack is refused C<refused/not-applicable> first when the pack's
+module (C<module:> of its profile) is not installed on the server.
 
 =cut
 
@@ -186,9 +204,25 @@ sub fields_for ($self, $lm, @lf) {
     return { map { $_ => $all->{$_} } grep { $all->{$_} } @lf };
 }
 
+# A usage error an operation raises about its own parameters carries the
+# same fix as the registry's: the describe output is the fix, so a caller
+# never has to guess. An error that already names its fix keeps it.
 sub run ($self) {
+    my @r = eval { wantarray ? $self->_run : scalar $self->_run };
+    if ( my $e = $@ ) {
+        if ( ref $e && eval { $e->isa('Odoo::Error') } && $e->kind eq 'usage' && !defined $e->fix ) {
+            $e->{fix} = 'oom-ops describe ' . $self->op_name . ' lists the parameters';
+        }
+        die $e;
+    }
+    return wantarray ? @r : $r[0];
+}
+
+sub _run ($self) {
     my $scope = $self->scope_for('read');
     return $self->{ctx}->guard->with_scope( $scope, $self->op_name, sub {
+        # an operation of a pack whose module this server lacks is not applicable here; that is said before anything else
+        Odoo::Ops::Modules->gate_pack( $self->{ctx}, $self->op_name, $self->pack ) if defined $self->pack;
         return $self->report if !$self->writes;
         my $plan = $self->plan;    # unfinalized; sealed here with its scope
         $self->annotate_effects($plan);
@@ -203,24 +237,41 @@ sub run ($self) {
 =head2 annotate_effects($plan)
 
 What each planned change will make Odoo do beside the values, from
-the model's behaviour file (L<Odoo::Ops::Behaviour>): C<effects> on
-the change, and a plan note counting the effects that stand - those
-the change's context does not suppress - so the person approving
-sees the consequences.
+the model's behaviour file (L<Odoo::Ops::Behaviour>). The effects are
+stated once per model on the plan (C<< $plan->effects >>: C<< { model =>
+[ { effect, evidence, requires?, changes, suppressed } ] } >>, where
+C<changes> counts the planned changes that trigger the effect and
+C<suppressed> those whose context suppresses it) and each change carries
+only C<< effects_ref => model >>. A plan note counts the effects that
+stand, so the person approving sees the consequences without reading
+every row. The seal covers what the plan will do, not the commentary on
+it: neither C<effects_ref> nor the plan-level block is part of the
+fingerprint.
 
 =cut
 
 sub annotate_effects ($self, $plan) {
-    my ( $standing, $suppressed );
+    my ( $standing, $suppressed, %by_model, %order );
     for my $c ( @{ $plan->changes } ) {
         next if !$c->{model} || $c->{action} eq 'hold' || $c->{action} eq 'skip';
         my $b = $self->{ctx}->behaviour( $c->{model} );
         next if !$b->known;
-        my $n = $b->annotate($c);
-        $standing   += $n;
-        $suppressed += grep { $_->{suppressed} } @{ $c->{effects} // [] };
+        $standing += $b->annotate($c);
+        for my $e ( @{ delete $c->{effects} // [] } ) {
+            $suppressed++ if $e->{suppressed};
+            my $line = $by_model{ $c->{model} }{ $e->{effect} } //= do {
+                push @{ $order{ $c->{model} } }, $e->{effect};
+                { effect => $e->{effect}, ( $e->{requires} ? ( requires => $e->{requires} ) : () ),
+                  evidence => $e->{evidence}, changes => 0, suppressed => 0 };
+            };
+            $line->{changes}++;
+            $line->{suppressed}++ if $e->{suppressed};
+            $c->{effects_ref} = $c->{model};
+        }
     }
-    $plan->note( "side effects: $standing standing, " . ( $suppressed // 0 ) . ' suppressed by context (see effects on each change)' )
+    $plan->set_effects( { map { my $m = $_; ( $m => [ map { $by_model{$m}{$_} } @{ $order{$m} } ] ) } keys %by_model } )
+        if %by_model;
+    $plan->note( 'side effects: ' . ( $standing // 0 ) . ' standing, ' . ( $suppressed // 0 ) . ' suppressed by context (oom-ops show lists them)' )
         if $standing || $suppressed;
     return;
 }

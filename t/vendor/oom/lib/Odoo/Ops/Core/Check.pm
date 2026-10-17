@@ -7,6 +7,8 @@ no warnings 'experimental::signatures';
 
 use parent 'Odoo::Ops::Operation';
 
+use Odoo::Ops::Modules;
+
 =head1 NAME
 
 Odoo::Ops::Core::Check - connection, identity and profile check
@@ -16,7 +18,11 @@ Odoo::Ops::Core::Check - connection, identity and profile check
 C<core.check>: the first thing to run against a new instance. Reports
 the server version and series, who the configured login is, and - with
 C<pack> - whether that pack's profile matches the live schema (every
-mapped field present), naming anything missing. Needs no rights beyond
+mapped field present), naming anything missing. A mapped field whose module
+is not installed is listed under C<not_applicable> in the validation and is not a
+mismatch; a pack whose own module is not installed is reported as not applicable
+and not validated. A pack OOM has no profile for is a C<usage> error that says
+so. Needs no rights beyond
 reading one's own user and C<fields_get>.
 
 =cut
@@ -42,6 +48,11 @@ sub report ($self) {
     );
     if ( my $pack = $self->param('pack') ) {
         my $p = $self->ctx->profile($pack);
+        if ( my $why = Odoo::Ops::Modules->missing( $self->ctx, $p->module ) ) {
+            # the pack's module is not here: the pack is not applicable, which is a fact and not a mismatch
+            $r{profile} = { pack => $p->pack, module => $p->module, applies => 0, not_applicable => "the $pack pack is not applicable here: $why" };
+            return \%r;
+        }
         $r{profile} = {
             pack             => $p->pack,
             series           => $p->series,
@@ -74,6 +85,7 @@ sub _probe ($self, $names, $me) {
         }
         elsif ( $n =~ /^module:(.+)\z/ ) {
             my $rows = eval { $self->client->model('ir.module.module')->search_read( [ [ 'name', '=', $1 ] ], ['state'] ) };
+            $self->{probe_error}{$n} = $@ if !$rows;
             $out{$n} = !$rows ? 'unreadable' : @$rows ? $rows->[0]{state} : 'absent';
         }
         else { $out{$n} = 'unknown probe' }

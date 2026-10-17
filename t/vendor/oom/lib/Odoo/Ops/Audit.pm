@@ -20,6 +20,13 @@ A sink for the records L<Odoo::Ops::Guard> writes. Each record has a
 fixed shape - C<ts actor login service model method op outcome
 fault_category ms> - and the sink refuses any other key, so a payload
 or a credential cannot be added to the trail by accident (SM747 OB8).
+A C<read> or C<search_read> record also carries C<fields>, the list the
+call asked for (null when it named none), and, when the pack's tolerant
+read (L<Odoo::Ops::Mailing::Common/search_read_named>) found which of them
+this user may not compute, the first, refused call's record carries
+C<refused_fields>: the names only, never a value. A write an administrator
+makes undoing another login's run also carries C<for_login>, that login
+(the other is C<login>, the one the calls are made as).
 
 Outcomes: C<answered>, C<refused> (by scope or HTTP policy, before or
 instead of an answer), C<fault> (Odoo said no), C<transport> (no usable
@@ -30,7 +37,7 @@ kept in memory (C<records>) - which is what the tests use.
 
 =cut
 
-my @FIELDS = qw(ts actor login service model method op outcome fault_category ms);
+my @FIELDS = qw(ts actor login for_login service model method op outcome fault_category ms fields refused_fields);
 my %FIELD  = map { $_ => 1 } @FIELDS;
 
 sub new ($class, %args) {
@@ -45,6 +52,8 @@ sub new ($class, %args) {
 }
 
 sub fields ($class) { @FIELDS }
+
+sub now ($self) { $self->{now}->() }
 
 sub record ($self, %rec) {
     for my $k ( keys %rec ) {

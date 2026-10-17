@@ -26,6 +26,17 @@ in C<remove> that does not exist is simply absent from every lead.
 sub op_name ($class) { 'crm.tag' }
 sub summary ($class) { 'Add/remove tags on selected leads' }
 sub pack    ($class) { 'crm' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'tag', meaning => 'tags are added to or removed from the lead' },
+        { name => 'new-tag', meaning => 'a tag named in add that does not exist is made first (a support row)' },
+        { name => 'unchanged', meaning => 'the lead already has exactly the tags asked for' },
+    ];
+}
+sub holds ($class) { [] }
+
 sub params ($class) {
     +{  Odoo::Ops::CRM::Select->params,
         add    => { type => 'list', help => 'tag names to add' },

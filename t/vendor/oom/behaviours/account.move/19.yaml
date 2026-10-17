@@ -1,0 +1,36 @@
+# account.move, Odoo 19 (account). Read from the 19.0 source (account/models/account_move.py) and met live by t/49-documents-pack-live.t.
+model: account.move
+series: 19
+state:
+  field: state
+  written_by: actions
+  operations:
+  - account.post
+  - account.cancel
+  - account.draft
+unlink_requires:
+  state:
+  - draft
+  - cancel
+  noun: move
+effects:
+- 'on': call
+  method: action_post
+  effect: state becomes posted and the move takes its number from the journal's sequence (a draft reads / until then; the number is read back after apply); the accounting entries are written and the sequence is consumed for good; a future-dated move is posted now, not scheduled
+  evidence: source 19.0 account_move.action_post, _post; live 2026-10-15 t/49-documents-pack-live.t on 19
+- 'on': call
+  method: button_draft
+  effect: state becomes draft; the move keeps its number, so the sequence stays consumed and posting it again reuses the number; reconciliations and analytic lines are removed; button_draft refuses a state other than posted or cancel; refused for a locked (hashed) entry
+  evidence: source 19.0 account_move.button_draft; live 2026-10-15 t/49-documents-pack-live.t on 19 (the keeping of the number; the refusals for a strict journal and a locked entry are source only)
+- 'on': call
+  method: button_cancel
+  effect: state becomes cancel; a posted move is put through button_draft first by Odoo itself, so account.cancel takes a draft only and account.draft is the visible step
+  evidence: source 19.0 account_move.button_cancel; live 2026-10-15 t/49-documents-pack-live.t on 19 (the cancel of a draft; the behaviour on a posted move is source only)
+- 'on': call
+  method: unlink
+  effect: Odoo deletes a move from draft or cancel; a posted move is refused (an item linked to a posted entry); with the company's restrictive audit trail on (restrictive_audit_trail) a move posted once cannot be deleted at all; a move that consumed a number and is not the last of its sequence chain is refused unless the user is an accountant manager
+  evidence: 'source 19.0 account_move.unlink, _unlink_forbid_parts_of_chain; live 2026-10-15 t/49-documents-pack-live.t on 19 (the refusal of a posted move and the deletion after button_draft; the audit-trail and sequence-chain refusals are source only: the setting is off on the demo instances)'
+routes:
+  state:
+    via: action_post, button_draft, button_cancel
+    why: state is readonly and driven by the actions; a write of it posts nothing, takes no number and skips the checks. account.post, account.cancel and account.draft run them

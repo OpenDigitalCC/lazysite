@@ -77,6 +77,33 @@ undone by a return, a separate write.
 sub op_name ($class) { 'stock.dispatch' }
 sub summary ($class) { 'Plan the recording of dispatches that left without being recorded: stage, validate, backdate, note' }
 sub pack    ($class) { 'stock' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'dispatch', meaning => 'the order\'s pick and delivery are validated for the paper\'s lots and dated to the paper (one custom change)' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'no-order', meaning => 'the row names no order, or no sale order (or more than one) has that name' },
+        { name => 'invoiced', meaning => 'the order has invoice records, draft or posted, or ones this user cannot read (check with Accounts)' },
+        { name => 'multi-out', meaning => 'the order has more than one outgoing picking, or more than one pick: not one chain' },
+        { name => 'no-delivery', meaning => 'the order has no delivery to record on' },
+        { name => 'already-done', meaning => 'the delivery is already done: the portal rows are stale' },
+        { name => 'stage-out', meaning => 'the pick is done, so the facts would be staged on the delivery and drawn from the output location (allow stage-out permits)' },
+        { name => 'quantity-differs', meaning => 'the paper\'s quantity does not agree: qty differs from the lots, is not above zero, or would over-deliver the order line' },
+        { name => 'no-move', meaning => 'a paper line does not match exactly one move: no lines, an unknown product, a product twice, not on the order, or several moves' },
+        { name => 'reserved', meaning => 'stock the lots need is reserved by another move (allow reserved releases it)' },
+        { name => 'shortfall', meaning => 'the stock bay holds less of a lot than the paper says left' },
+        { name => 'expired', meaning => 'a lot is past its expiry (allow expired dispatches it)' },
+        { name => 'paper-date', meaning => 'the paper has no dispatch date, or it is not YYYY-MM-DD' },
+        { name => 'staff-edit', meaning => 'a person changed a move line since the paper date; a person decides' },
+        { name => 'blocker', meaning => 'the acting user has no email address, which would make validating a differing quantity fail (SA1)' },
+        { name => 'held-<kind>', meaning => 'the row carried held (or an error, or no values), with the reason' },
+    ];
+}
+
 sub params ($class) {
     {   rows    => { type => 'path', help => 'orders file: .jsonl or .json (a list) of { key, values: { order, date, lines, note, allow }, held? }' },
         records => { type => 'json', help => 'in-process rows (a list) - for a program, not the command line' },
@@ -421,13 +448,13 @@ sub _portions ($self, $env, $stage, $pr, $smove, $mylines, $lots, $paper, $del_s
     }
     my %want = %$lots ? %$lots : ( '' => $paper );
     my $lot_rows = %$lots
-        ? $self->model('lot')->search_read( [ [ $f->( lot => 'name' ), 'in', [ keys %$lots ] ] ], [ 'id', map { $f->( lot => $_ ) } qw(name product expiration created) ] ) : [];
+        ? $self->model('lot')->search_read( [ [ $f->( lot => 'name' ), 'in', [ keys %$lots ] ] ], [ 'id', grep { defined } map { $f->( lot => $_ ) } qw(name product expiration created) ] ) : [];
     my %lot_by_name;
     my %lot_row;
     for my $r (@$lot_rows) {
         next if _id( $r->{ $f->( lot => 'product' ) } ) != $pr->{id};
         $lot_by_name{ $r->{ $f->( lot => 'name' ) } } = $r->{id};
-        $lot_row{ $r->{id} } = { id => $r->{id}, name => $r->{ $f->( lot => 'name' ) }, expiration => $r->{ $f->( lot => 'expiration' ) }, created => $r->{ $f->( lot => 'created' ) } };
+        $lot_row{ $r->{id} } = { id => $r->{id}, name => $r->{ $f->( lot => 'name' ) }, expiration => ( defined $f->( lot => 'expiration' ) ? $r->{ $f->( lot => 'expiration' ) } : undef ), created => $r->{ $f->( lot => 'created' ) } };
     }
     my ( @portions, @short, %pool );
     for my $name ( sort keys %want ) {
@@ -513,18 +540,18 @@ sub _rows ($self) {
     }
     else {
         my $path = $self->param('rows');
-        Odoo::Error->throw( kind => 'config', message => "stock.dispatch: cannot read $path" ) if !-r $path;
-        open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'config', message => "cannot read $path: $!" );
+        Odoo::Error->throw( kind => 'usage', message => "stock.dispatch: cannot read $path", fix => 'check the path exists and this user can read it' ) if !-r $path;
+        open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
         if ( $path =~ /\.jsonl\z/i ) {
             while ( my $line = <$fh> ) {
                 next if $line !~ /\S/;
-                push @docs, eval { Odoo::Ops::json()->decode($line) } // Odoo::Error->throw( kind => 'config', message => "$path line $.: not JSON" );
+                push @docs, eval { Odoo::Ops::json()->decode($line) } // Odoo::Error->throw( kind => 'usage', message => "$path line $.: not JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
             }
         }
         else {
             my $raw = do { local $/; <$fh> };
-            my $d = eval { Odoo::Ops::json()->decode($raw) } // Odoo::Error->throw( kind => 'config', message => "$path is not valid JSON" );
-            Odoo::Error->throw( kind => 'config', message => "$path must hold a list of rows" ) if ref $d ne 'ARRAY';
+            my $d = eval { Odoo::Ops::json()->decode($raw) } // Odoo::Error->throw( kind => 'usage', message => "$path is not valid JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
+            Odoo::Error->throw( kind => 'usage', message => "$path must hold a list of rows", fix => 'correct the file; oom-ops describe <op> shows what it holds' ) if ref $d ne 'ARRAY';
             @docs = @$d;
         }
         close $fh;

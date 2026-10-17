@@ -105,8 +105,9 @@ sub refresh ($self) {
 
 =head2 get($field)
 
-The raw wire value: many2one comes back as C<[id, display_name]> or
-false, x2many as an arrayref of ids. Pending local changes shadow the
+The value as read: many2one comes back as C<[id, display_name]> or
+undef when empty, x2many as an arrayref of ids; an empty char, text,
+html, date, datetime, selection or binary field is undef. Pending local changes shadow the
 stored value. A field outside the loaded set (binary, x2many,
 non-stored - see C<default_fields> in L<Odoo::Model>) is fetched on
 demand with a single-field read and cached.

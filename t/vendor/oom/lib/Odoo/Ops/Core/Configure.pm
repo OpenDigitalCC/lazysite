@@ -115,6 +115,37 @@ an error; Odoo stores the record and checks the host at login.
 sub op_name ($class) { 'core.configure' }
 sub summary ($class) { 'Bring modules, parameters, settings, company, users and languages to a desired state' }
 sub pack    ($class) { undef }    # physical models only: no profile pack
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'settings', meaning => 'res.config.settings values are written, as the Settings page would' },
+        { name => 'install', meaning => 'a module is installed' },
+        { name => 'chart', meaning => 'the chart of accounts is loaded for the company' },
+        { name => 'company', meaning => 'the company\'s name, email, country or other fields are written' },
+        { name => 'company-currency', meaning => 'the company\'s currency is changed' },
+        { name => 'param-create', meaning => 'a system parameter is made' },
+        { name => 'param-write', meaning => 'a system parameter\'s value is changed' },
+        { name => 'param-unset', meaning => 'a parameter given as ~ is removed' },
+        { name => 'user-create', meaning => 'a user is made, without a password' },
+        { name => 'user-write', meaning => 'a user\'s groups or active flag are written' },
+        { name => 'language', meaning => 'a language is installed' },
+        { name => 'ldap-create', meaning => 'an LDAP server entry is made' },
+        { name => 'ldap-write', meaning => 'an LDAP server entry is changed' },
+        { name => 'unchanged', meaning => 'the setting, parameter, user or entry already matches' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'unknown-module', meaning => 'the module is not in the instance\'s list, even after refreshing it' },
+        { name => 'module-missing', meaning => 'auth_ldap is neither installed nor in this file\'s modules.install' },
+        { name => 'unknown-template', meaning => 'the LDAP user template login does not exist (archived users included)' },
+        { name => 'unknown-company', meaning => 'no single company has that name' },
+        { name => 'ambiguous', meaning => 'two LDAP entries share the company and host' },
+        { name => 'currency-locked', meaning => 'the company has accounting entries, so Odoo will not change its currency' },
+    ];
+}
+
 sub params ($class) {
     {   file => { type => 'path', required => 1, help => 'desired state, YAML or JSON' } };
 }
@@ -166,11 +197,11 @@ sub plan ($self) {
 
 sub _load ($self, $path) {
     my $data = eval { YAML::PP->new( schema => ['Core'] )->load_file($path) }
-        // Odoo::Error->throw( kind => 'config', message => "cannot load $path: $@" );
-    Odoo::Error->throw( kind => 'config', message => "$path: expected a map of sections" ) if ref $data ne 'HASH';
+        // Odoo::Error->throw( kind => 'usage', message => "cannot load $path: $@", fix => 'check the path exists and this user can read it' );
+    Odoo::Error->throw( kind => 'usage', message => "$path: expected a map of sections", fix => 'correct the parameter or the file the message names, then plan again' ) if ref $data ne 'HASH';
     my %known = map { $_ => 1 } qw(modules params settings company users languages ldap);
     for my $k ( sort keys %$data ) {
-        Odoo::Error->throw( kind => 'config', message => "$path: unknown section '$k'" ) if !$known{$k};
+        Odoo::Error->throw( kind => 'usage', message => "$path: unknown section '$k'", fix => 'correct the parameter or the file the message names, then plan again' ) if !$known{$k};
     }
     return $data;
 }
@@ -216,7 +247,7 @@ my %LDAP_KNOWN = map { $_ => 1 } qw(name server port base filter bind_user bind_
 # company and host. The password is never put in the plan (a plan is a file
 # on disk): the change carries the path of the file, read at apply.
 sub _plan_ldap ($self, $plan, $spec, $installing) {
-    Odoo::Error->throw( kind => 'config', message => 'ldap must be a list of servers' ) if ref $spec ne 'ARRAY';
+    Odoo::Error->throw( kind => 'usage', message => 'ldap must be a list of servers', fix => 'correct the parameter or the file the message names, then plan again' ) if ref $spec ne 'ARRAY';
     return 0 if !@$spec;
     my $mods  = $self->model('ir.module.module');
     my ($mod) = @{ $mods->search_read( [ [ 'name', '=', 'auth_ldap' ] ], [qw(name state)] ) };
@@ -224,13 +255,13 @@ sub _plan_ldap ($self, $plan, $spec, $installing) {
     my $ldap  = $have ? $self->model('res.company.ldap') : undef;
     my @ids;
     for my $w (@$spec) {
-        Odoo::Error->throw( kind => 'config', message => 'ldap: each entry is a map' ) if ref $w ne 'HASH';
-        Odoo::Error->throw( kind => 'config', message => "ldap: '" . ( $w->{server} // '?' ) . "': a bind password is never a value here; name bind_password_file" )
+        Odoo::Error->throw( kind => 'usage', message => 'ldap: each entry is a map', fix => 'correct the parameter or the file the message names, then plan again' ) if ref $w ne 'HASH';
+        Odoo::Error->throw( kind => 'usage', message => "ldap: '" . ( $w->{server} // '?' ) . "': a bind password is never a value here; name bind_password_file", fix => 'correct the parameter or the file the message names, then plan again' )
             if exists $w->{bind_password} || exists $w->{password};
         my @bad = grep { !$LDAP_KNOWN{$_} } sort keys %$w;
-        Odoo::Error->throw( kind => 'config', message => "ldap: unknown field(s) " . join( ', ', @bad ) . ' (known: ' . join( ', ', sort keys %LDAP_KNOWN ) . ')' ) if @bad;
+        Odoo::Error->throw( kind => 'usage', message => "ldap: unknown field(s) " . join( ', ', @bad ) . ' (known: ' . join( ', ', sort keys %LDAP_KNOWN ) . ')', fix => 'correct the parameter or the file the message names, then plan again' ) if @bad;
         for my $req (qw(server base)) {
-            Odoo::Error->throw( kind => 'config', message => "ldap: each server needs '$req'" ) if !defined $w->{$req} || $w->{$req} eq '';
+            Odoo::Error->throw( kind => 'usage', message => "ldap: each server needs '$req'", fix => 'correct the parameter or the file the message names, then plan again' ) if !defined $w->{$req} || $w->{$req} eq '';
         }
     }
     my $companies = $self->model('res.company');
@@ -317,7 +348,7 @@ sub _plan_ldap ($self, $plan, $spec, $installing) {
 # --- system parameters ----------------------------------------------------
 
 sub _plan_params ($self, $plan, $spec) {
-    Odoo::Error->throw( kind => 'config', message => 'params must be a map of key: value' ) if ref $spec ne 'HASH';
+    Odoo::Error->throw( kind => 'usage', message => 'params must be a map of key: value', fix => 'correct the parameter or the file the message names, then plan again' ) if ref $spec ne 'HASH';
     my @keys = sort keys %$spec;
     return 0 if !@keys;
     my $rows = $self->model('ir.config_parameter')->search_read( [ [ 'key', 'in', \@keys ] ], [qw(key value)] );
@@ -353,7 +384,7 @@ sub _plan_params ($self, $plan, $spec) {
 # --- settings (res.config.settings) ----------------------------------------
 
 sub _plan_settings ($self, $plan, $spec) {
-    Odoo::Error->throw( kind => 'config', message => 'settings must be a map of field: value' ) if ref $spec ne 'HASH';
+    Odoo::Error->throw( kind => 'usage', message => 'settings must be a map of field: value', fix => 'correct the parameter or the file the message names, then plan again' ) if ref $spec ne 'HASH';
     my @fields = sort keys %$spec;
     return 0 if !@fields;
     my $s       = $self->model('res.config.settings');
@@ -386,7 +417,7 @@ sub _settings_value ($type, $v) {
 my %COMPANY_PLAIN = map { $_ => 1 } qw(name email phone website vat street street2 city zip);
 
 sub _plan_company ($self, $plan, $spec) {
-    Odoo::Error->throw( kind => 'config', message => 'company must be a map' ) if ref $spec ne 'HASH';
+    Odoo::Error->throw( kind => 'usage', message => 'company must be a map', fix => 'correct the parameter or the file the message names, then plan again' ) if ref $spec ne 'HASH';
     my $client  = $self->client;
     my $cmp     = $client->model('res.users')->read_one( $client->uid, ['company_id'] )->{company_id};
     my $cid     = ref $cmp eq 'ARRAY' ? $cmp->[0] : $client->model('res.company')->search_read( [], ['id'], limit => 1 )->[0]{id};
@@ -460,19 +491,20 @@ sub _lookup ($self, $model, $field, $value, $what, %opts) {
     my @domain = ( [ $field, '=', $value ] );
     push @domain, [ 'active', 'in', [ JSON::PP::true, JSON::PP::false ] ] if $m->fields->{active};
     my $rows = $m->search_read( \@domain, ['id'] );
-    Odoo::Error->throw( kind => 'usage', message => "unknown $what '$value'" ) if @$rows != 1;
+    Odoo::Error->throw( kind => 'refused', code => 'unknown-record', message => "unknown $what '$value'", fix => "name a $what that exists on the instance" ) if !@$rows;
+    Odoo::Error->throw( kind => 'usage', message => "$what '$value' matches " . scalar(@$rows) . ' records; name it exactly' ) if @$rows > 1;
     return $rows->[0]{id};
 }
 
 # --- users ----------------------------------------------------------------
 
 sub _plan_users ($self, $plan, $spec) {
-    Odoo::Error->throw( kind => 'config', message => 'users must be a list' ) if ref $spec ne 'ARRAY';
+    Odoo::Error->throw( kind => 'usage', message => 'users must be a list', fix => 'correct the parameter or the file the message names, then plan again' ) if ref $spec ne 'ARRAY';
     return 0 if !@$spec;
     my $users  = $self->model('res.users');
     my $uf     = $users->fields;
     my $gfield = $uf->{group_ids} ? 'group_ids' : 'groups_id';
-    my @logins = map { $_->{login} // Odoo::Error->throw( kind => 'config', message => 'users: each entry needs a login' ) } @$spec;
+    my @logins = map { $_->{login} // Odoo::Error->throw( kind => 'usage', message => 'users: each entry needs a login', fix => 'add a login to each entry of users in the spec file' ) } @$spec;
     my $rows   = $users->search_read( [ [ 'login', 'in', \@logins ], [ 'active', 'in', [ JSON::PP::true, JSON::PP::false ] ] ],
         [ 'login', 'name', 'active', $gfield ] );
     my %u = map { $_->{login} => $_ } @$rows;
@@ -485,8 +517,8 @@ sub _plan_users ($self, $plan, $spec) {
                 $plan->add( bucket => 'unchanged', action => 'skip', key => $key, reason => 'absent and wanted inactive' );
                 next;
             }
-            Odoo::Error->throw( kind => 'config', message => "users: $w->{login} needs a name to be created" ) if !$w->{name};
-            $plan->add( bucket => 'user-create', action => 'create', model => 'res.users', key => $key, unique_by => 'login',
+            Odoo::Error->throw( kind => 'usage', message => "users: $w->{login} needs a name to be created", fix => 'correct the parameter or the file the message names, then plan again' ) if !$w->{name};
+            $plan->add( bucket => 'user-create', action => 'create', model => 'res.users', key => $key, unique_by => { field => 'login', fold => 1 },
                 vals => { login => $w->{login}, name => $w->{name}, ( @gids ? ( $gfield => [ x2m_set( \@gids ) ] ) : () ) },
                 context => { no_reset_password => JSON::PP::true },
                 readback => [ 'login', 'name' ] );
@@ -518,14 +550,14 @@ sub _group_id ($self, $xmlid) {
     Odoo::Error->throw( kind => 'usage', message => "group '$xmlid' is not an xml id (module.name)" ) if !$name;
     my $rows = $self->model('ir.model.data')->search_read(
         [ [ 'module', '=', $module ], [ 'name', '=', $name ], [ 'model', '=', 'res.groups' ] ], ['res_id'] );
-    Odoo::Error->throw( kind => 'usage', message => "unknown group '$xmlid'" ) if @$rows != 1;
+    Odoo::Error->throw( kind => 'refused', code => 'unknown-record', message => "unknown group '$xmlid'", fix => 'name a group that exists on the instance (module.name)' ) if @$rows != 1;
     return 0 + $rows->[0]{res_id};
 }
 
 # --- languages ------------------------------------------------------------
 
 sub _plan_languages ($self, $plan, $spec) {
-    Odoo::Error->throw( kind => 'config', message => 'languages must be a list of codes' ) if ref $spec ne 'ARRAY';
+    Odoo::Error->throw( kind => 'usage', message => 'languages must be a list of codes', fix => 'correct the parameter or the file the message names, then plan again' ) if ref $spec ne 'ARRAY';
     return 0 if !@$spec;
     my $rows = $self->model('res.lang')->search_read( [ [ 'code', 'in', $spec ], [ 'active', 'in', [ JSON::PP::true, JSON::PP::false ] ] ], [qw(code active)] );
     my %l = map { $_->{code} => $_ } @$rows;

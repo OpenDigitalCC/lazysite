@@ -1,0 +1,12 @@
+# hr.employee, Odoo 18 (hr). Read from the 18.0 source (addons/hr/models/hr_employee.py,
+# addons/hr/wizard/hr_departure_wizard.py). An employee is archived through core.archive and a login is made through
+# core.user, so the only thing listed here is the departure wizard.
+model: hr.employee
+series: 18
+module: hr
+wizards:
+- model: hr.departure.wizard
+  method: action_register_departure
+  values: [departure_reason_id, departure_date, departure_description]
+  note: writes departure_reason_id, departure_description and departure_date on the employee; with toggle_active in the context it also archives the employee (core.archive does that); writing the departure date made Odoo add an inactive hr.attendance record on hr18 (survey hrs-1016, 2026-10-16)
+  evidence: source 18.0 hr hr_departure_wizard.action_register_departure

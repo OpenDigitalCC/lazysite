@@ -89,6 +89,13 @@ sub load ($class, %args) {
             if $pick != $series;
         return $self;
     }
+    # no directory for the pack in any root: OOM has no such pack (a model of it is reached
+    # through the general operations). A directory whose files are all newer is a series gap.
+    Odoo::Error->throw(
+        kind    => 'usage',
+        message => "no $pack pack: OOM has no profile for $pack; core.read, core.import and core.action reach its models",
+        fix     => 'oom-ops describe core.read lists the parameters; the model is a physical name such as res.partner',
+    ) if !grep { -d File::Spec->catdir( $_, $pack ) } @dirs;
     Odoo::Error->throw(
         kind    => 'config',
         message => "no $pack profile at or below series $series in: " . join( ', ', @dirs ),
@@ -107,10 +114,15 @@ sub new ($class, %data) {
             if !defined $data{$req};
     }
     my %opts;
+    my $bad_module = sub ($v) { ref $v || !length( $v // '' ) };
+    Odoo::Error->throw( kind => 'config', message => 'profile module must be a module name' )
+        if exists $data{module} && $bad_module->( $data{module} );
     for my $lm ( keys %{ $data{models} } ) {
         my $m = $data{models}{$lm};
         Odoo::Error->throw( kind => 'config', message => "profile model '$lm' needs model and fields" )
             if ref $m ne 'HASH' || !$m->{model} || ref $m->{fields} ne 'HASH';
+        Odoo::Error->throw( kind => 'config', message => "profile model '$lm': module must be a module name" )
+            if exists $m->{module} && $bad_module->( $m->{module} );
         # a field may be written as the physical name, ~ (known-absent),
         # or a map { name: physical, portable_type: text } with options
         for my $lf ( keys %{ $m->{fields} } ) {
@@ -118,6 +130,8 @@ sub new ($class, %data) {
             next if ref $v ne 'HASH';
             Odoo::Error->throw( kind => 'config', message => "profile field $lm.$lf: map form needs 'name'" )
                 if !defined $v->{name};
+            Odoo::Error->throw( kind => 'config', message => "profile field $lm.$lf: module must be a module name" )
+                if exists $v->{module} && $bad_module->( $v->{module} );
             Odoo::Error->throw( kind => 'config',
                 message => "profile field $lm.$lf: portable_type '$v->{portable_type}' is not one of "
                     . join( ' ', Odoo::Portable::portable_types() ) )
@@ -128,13 +142,54 @@ sub new ($class, %data) {
     }
     return bless {
         pack             => $data{pack},
+        module           => $data{module},
         series           => 0 + $data{series},
         requested_series => 0 + $data{series},
         models           => $data{models},
+        actions          => $data{actions} // {},
+        states           => $data{states} // {},
         field_opts       => \%opts,
         path             => $data{_path},
         warnings         => [],
     }, $class;
+}
+
+=head2 action($name)
+
+The physical name a pack calls for a logical action or xml id (a method
+such as C<action_send_mail>, a cron's xml id), from the profile's
+C<actions> map. A profile that does not name it is a finding, not a
+guess: C<config>, naming the action and the profile. This is where a
+series that renames a method is a profile away.
+
+=cut
+
+sub action ($self, $name) {
+    my $v = $self->{actions}{$name};
+    return $v if defined $v;
+    Odoo::Error->throw(
+        kind    => 'config',
+        message => "profile $self->{pack}/$self->{series} names no action '$name'",
+    );
+}
+
+=head2 states($verb)
+
+The state rule a pack keeps beside its actions, for a state operation:
+C<< { from => [..], to => [..], context => {..}, hints => { state => text } } >>
+(C<from> the states Odoo's action works from, C<to> the states that count
+as done, C<hints> what to do from a state the action refuses). A profile
+that has none for the verb is a finding, not a guess: C<config>.
+
+=cut
+
+sub states ($self, $verb) {
+    my $v = $self->{states}{$verb};
+    return $v if ref $v eq 'HASH';
+    Odoo::Error->throw(
+        kind    => 'config',
+        message => "profile $self->{pack}/$self->{series} names no state rule '$verb'",
+    );
 }
 
 =head2 field_opts($lm, $lf)
@@ -166,13 +221,60 @@ sub model_name ($self, $lm) { $self->_model($lm)->{model} }
 
 sub has_field ($self, $lm, $lf) {
     my $f = $self->_model($lm)->{fields};
-    return exists $f->{$lf} && defined $f->{$lf};
+    return exists $f->{$lf} && defined $f->{$lf} && !$self->absent_here( $lm, $lf );
 }
+
+=head2 module / model_module($lm) / field_module($lm, $lf)
+
+The module a pack, a model or a field needs, when the profile names one
+(C<module:> beside C<pack:>, in a model, or in a field's map form), else
+undef. The pack's module is the one without which the pack has nothing to
+work on (C<mass_mailing> for the mailing pack). A model or field that comes
+from an optional module names it, so that a server without the module
+reports it as not applicable here and not as a mismatch:
+
+    lot:
+      model: stock.lot
+      fields:
+        expiration: { name: expiration_date, module: product_expiry }
+
+=cut
+
+sub module       ($self) { $self->{module} }
+sub model_module ($self, $lm) { $self->_model($lm)->{module} }
+sub field_module ($self, $lm, $lf) { $self->field_opts( $lm, $lf )->{module} }
+
+=head2 absent_here($lm, $lf)
+
+After L</validate> on a server whose installed modules were read: the module
+whose absence leaves the field out (the field itself, or its model), else
+undef. Such a field is read as known-absent: C<field> gives undef,
+C<fields> and C<has_field> leave it out.
+
+=cut
+
+sub absent_here ($self, $lm, $lf = undef) {
+    my $a = $self->{absent_here} or return undef;
+    return $a->{$lm}{''} if defined $a->{$lm}{''};
+    return defined $lf ? $a->{$lm}{$lf} : undef;
+}
+
+=head2 modules_from($code)
+
+A code ref that answers the installed modules as a hash ref (module name
+to true), or undef when they cannot be told. L</validate> calls it only
+when something is missing and the profile names a module for it; a profile
+with no such provider treats every missing field as a mismatch.
+
+=cut
+
+sub modules_from ($self, $code) { $self->{modules_from} = $code; return $self }
 
 =head2 field($lm, $lf)
 
 The physical field name; undef if the profile marks it absent on this
-series; dies if the logical name is not in the profile at all.
+series or its module is not installed here; dies if the logical name is not
+in the profile at all.
 
 =cut
 
@@ -182,12 +284,13 @@ sub field ($self, $lm, $lf) {
         kind    => 'usage',
         message => "profile model '$lm' has no field '$lf'",
     ) if !exists $f->{$lf};
+    return undef if $self->absent_here( $lm, $lf );
     return $f->{$lf};
 }
 
 sub fields ($self, $lm) {
     my $f = $self->_model($lm)->{fields};
-    return { map { defined $f->{$_} ? ( $_ => $f->{$_} ) : () } keys %$f };
+    return { map { defined $f->{$_} && !$self->absent_here( $lm, $_ ) ? ( $_ => $f->{$_} ) : () } keys %$f };
 }
 
 sub physical_fields ($self, $lm) {
@@ -198,27 +301,44 @@ sub physical_fields ($self, $lm) {
 =head2 validate($client)
 
 Checks every model and mapped field against the server. Returns
-C<< { ok => 0|1, missing => [..], models => n, fields => n } >>, where
-each C<missing> entry names the logical and physical side. A model the
+C<< { ok => 0|1, missing => [..], not_applicable => [..], models => n, fields => n } >>,
+where each C<missing> entry names the logical and physical side. A model the
 server cannot describe (not installed, or no access) is one entry.
+
+A missing model or field that the profile ties to a module (C<module:>) which
+the server does not have installed is not a mismatch: it is listed in
+C<not_applicable> (C<lot.expiration: not applicable here, module product_expiry
+is not installed>), left out of C<missing>, and read as known-absent from then
+on. A missing one whose module is installed, or that names none, or when the
+installed modules cannot be read, stays in C<missing>.
 
 =cut
 
 sub validate ($self, $client) {
-    my ( @missing, %desc, $nf );
+    my ( @missing, @na, %desc, %absent, $nf, $installed, $asked );
+    my $why_not = sub ($module) {
+        if ( !$asked++ ) { $installed = $self->{modules_from} ? $self->{modules_from}->() : undef }
+        return $installed && !$installed->{$module} ? $module : undef;
+    };
     for my $lm ( $self->models ) {
         my $pm = $self->model_name($lm);
         my $live = eval { $client->model($pm)->fields };
         if ( !$live ) {
             my $err = $@;
+            my $mod = $self->model_module($lm);
+            if ( defined $mod && $why_not->($mod) ) {
+                push @na, "$lm: not applicable here, module $mod is not installed";
+                $absent{$lm}{''} = $mod;
+                next;
+            }
             my $why = blessed($err) && $err->isa('Odoo::Error')
                 ? ( $err->fault_category // $err->kind )
                 : 'error';
             push @missing, "model $lm -> $pm ($why)";
             next;
         }
-        my $f = $self->fields($lm);
-        for my $lf ( sort keys %$f ) {
+        my $f = $self->{models}{$lm}{fields};
+        for my $lf ( sort grep { defined $f->{$_} } keys %$f ) {
             $nf++;
             if ( my $d = $live->{ $f->{$lf} } ) {
                 # the server's metadata, a portable reading of its type,
@@ -226,17 +346,25 @@ sub validate ($self, $client) {
                 $desc{$lm}{$lf} = { %$d, Odoo::Portable::describe($d), name => $f->{$lf}, %{ $self->field_opts( $lm, $lf ) } };
             }
             else {
+                my $mod = $self->field_module( $lm, $lf ) // $self->model_module($lm);
+                if ( defined $mod && $why_not->($mod) ) {
+                    push @na, "$lm.$lf: not applicable here, module $mod is not installed";
+                    $absent{$lm}{$lf} = $mod;
+                    next;
+                }
                 push @missing, "$lm.$lf -> $pm.$f->{$lf}";
             }
         }
     }
     $self->{descriptors} = \%desc;
     $self->{missing}     = \@missing;
+    $self->{absent_here} = \%absent;
     return {
-        ok      => @missing ? 0 : 1,
-        missing => \@missing,
-        models  => scalar( my @m = $self->models ),
-        fields  => $nf // 0,
+        ok             => @missing ? 0 : 1,
+        missing        => \@missing,
+        not_applicable => \@na,
+        models         => scalar( my @m = $self->models ),
+        fields         => $nf // 0,
     };
 }
 
@@ -264,10 +392,13 @@ sub to_physical ($self, $lm, $vals) {
     my %out;
     for my $lf ( keys %$vals ) {
         my $pf = $self->field( $lm, $lf );
-        Odoo::Error->throw(
-            kind    => 'usage',
-            message => "$lm.$lf is not available on series $self->{series}",
-        ) if !defined $pf;
+        if ( !defined $pf ) {
+            my $mod = $self->absent_here( $lm, $lf );
+            Odoo::Error->throw(
+                kind    => 'usage',
+                message => defined $mod ? "$lm.$lf is not applicable here: module $mod is not installed" : "$lm.$lf is not available on series $self->{series}",
+            );
+        }
         $out{$pf} = $vals->{$lf};
     }
     return \%out;

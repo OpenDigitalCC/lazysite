@@ -51,6 +51,25 @@ series, so every operation on that model inherits it:
     routes:
       log_note: { via: mail.message.create, why: message_post refuses an author without an email }
     probes: [acting_user_email]        # instance facts core.check reports for this model
+    state:                             # a state Odoo changes through its own actions
+      field: state
+      written_by: actions
+      also: [approval_state]            # other fields that carry the state, held the same way
+      operations: [sale.confirm, sale.cancel]
+    module: hr_holidays                # the module that provides the model
+    actions:                           # public methods core.action may call
+      - { method: action_approve, undo: action_refuse, evidence: "source 18.0 ..." }
+    wizards:                           # transient models core.wizard may drive for this model
+      - { model: hr.holidays.cancel.leave, method: action_cancel_leave, evidence: "..." }
+    volatile: [customer_rank, supplier_rank]   # Odoo bumps these itself; not a change of the record
+    unlink_requires:                   # Odoo deletes a record only from these states
+      state: [cancel]
+      noun: order
+    # a line has no state of its own: Odoo deletes it by its parent's state
+    unlink_requires:
+      parent: order_id                 # the many2one to the parent; its state is the one that counts
+      state: [draft, sent, cancel]
+      noun: order                      # what the parent is called
 
     invariants:                        # checked around every apply, see L<Odoo::Ops::Invariant>
       - name: probability-manual
@@ -100,7 +119,33 @@ sub load ($class, %args) {
     return bless { model => $model, series => 0 + $series, effects => [], routes => {}, probes => [], warnings => [], path => undef }, $class;
 }
 
+# the models that have a behaviour file in any root, sorted
+sub models ($class, @dirs) {
+    my %m;
+    for my $root ( $class->default_dirs(@dirs) ) {
+        opendir my $dh, $root or next;
+        $m{$_} = 1 for grep { !/^\./ && -d File::Spec->catdir( $root, $_ ) } readdir $dh;
+        closedir $dh;
+    }
+    return sort keys %m;
+}
+
+# the newest series a model has a file for (undef when none): what describe
+# reads when no server says which series is meant
+sub latest ($class, $model, @dirs) {
+    my $best;
+    for my $root ( $class->default_dirs(@dirs) ) {
+        my $dir = File::Spec->catdir( $root, $model );
+        next if !-d $dir;
+        opendir my $dh, $dir or next;
+        for ( map { /^(\d+)\.yaml\z/ ? $1 : () } readdir $dh ) { $best = $_ if !defined $best || $_ > $best }
+        closedir $dh;
+    }
+    return $best;
+}
+
 sub from_file ($class, $path) {
+
     my $d = eval { YAML::PP->new( schema => ['Core'], boolean => 'JSON::PP' )->load_file($path) }
         or Odoo::Error->throw( kind => 'config', message => "cannot load behaviour $path: $@" );
     Odoo::Error->throw( kind => 'config', message => "behaviour $path needs model and series" ) if !$d->{model} || !$d->{series};
@@ -113,9 +158,24 @@ sub from_file ($class, $path) {
         push @effects, { %$e, fields => $e->{fields} // [] };
     }
     Odoo::Ops::Invariant->check_definition( $path, $_ ) for @{ $d->{invariants} // [] };
+    if ( my $st = $d->{state} ) {
+        Odoo::Error->throw( kind => 'config', message => "behaviour $path: state needs a field and written_by (actions or write)" )
+            if ref $st ne 'HASH' || !$st->{field} || ( $st->{written_by} // '' ) !~ /\A(?:actions|write)\z/;
+        Odoo::Error->throw( kind => 'config', message => "behaviour $path: state also must be a list of field names" )
+            if exists $st->{also} && ( ref $st->{also} ne 'ARRAY' || grep { ref || !length } @{ $st->{also} } );
+    }
+    my ( $actions, $wizards ) = _check_actions( $path, $d );
+    if ( my $u = $d->{unlink_requires} ) {
+        Odoo::Error->throw( kind => 'config', message => "behaviour $path: unlink_requires needs a state list" )
+            if ref $u ne 'HASH' || ref $u->{state} ne 'ARRAY' || !@{ $u->{state} };
+        Odoo::Error->throw( kind => 'config', message => "behaviour $path: unlink_requires parent must be a field name" )
+            if exists $u->{parent} && ( ref $u->{parent} || !length( $u->{parent} // '' ) );
+    }
     return bless {
         model => $d->{model}, series => 0 + $d->{series}, effects => \@effects,
         routes => $d->{routes} // {}, probes => $d->{probes} // [], invariants => $d->{invariants} // [],
+        state => $d->{state}, unlink_requires => $d->{unlink_requires}, volatile => $d->{volatile} // [],
+        module => $d->{module}, actions => $actions, wizards => $wizards,
         warnings => [], path => $path,
     }, $class;
 }
@@ -130,6 +190,128 @@ sub routes   ($self) { $self->{routes} }
 sub route    ($self, $name) { $self->{routes}{$name} }
 sub invariants ($self) { $self->{invariants} // [] }
 sub known    ($self) { defined $self->{path} }
+
+=head2 state_rule / action_driven / unlink_requires
+
+C<state_rule> is the file's C<state> block when C<written_by> is C<actions>
+(Odoo changes the state through its own methods and a write of it is not how
+a state is changed), with the state C<field>, any C<also> fields Odoo computes
+from it, and C<operations>, the OOM operations that change it; undef when the
+file has no block or says C<written_by: write> (a status bar that is a plain
+write). C<state_info> returns the block either way. C<action_driven> is true
+when C<state_rule> is. C<unlink_requires> is C<< { state => [..], noun => '...' } >>, the
+states from which Odoo deletes a record and what the record is called in a
+sentence (C<noun>); undef when the file says nothing. A revert plan states
+it as a note when a record is in another state. The parent form
+(C<parent>: the many2one field to the parent record) is for a line model
+whose rule reads the parent's state: C<state> then lists the parent's states
+from which Odoo deletes a line and C<noun> names the parent.
+C<parent_field> returns the field, or undef.
+
+=cut
+
+sub state_rule      ($self) { $self->{state} && $self->{state}{written_by} eq 'actions' ? $self->{state} : undef }
+sub action_driven   ($self) { $self->state_rule ? 1 : 0 }
+sub unlink_requires ($self) { $self->{unlink_requires} }
+sub volatile        ($self) { @{ $self->{volatile} // [] } }
+sub parent_field    ($self) { $self->{unlink_requires} && $self->{unlink_requires}{parent} }
+
+=head2 state_fields
+
+The fields the file names as the record's state: C<state.field> and each of
+C<state.also> (a field Odoo computes from it, read beside it). The list is
+there whether the state is changed by an action (C<written_by: actions>) or by a
+plain write (C<written_by: write>, a status bar such as a contract's); only the
+first makes L<Odoo::Ops::Core::Import> hold a row that sets it.
+
+=head2 module / actions / wizards
+
+C<module> is the module that provides the model. C<actions> lists the public
+methods a caller may call on the model through C<core.action>, and
+C<wizards> the transient models and methods C<core.wizard> may drive for it:
+
+    module: hr_holidays
+    actions:
+    - method: action_approve
+      module: hr_holidays            # the module that adds the method, when not the model's own
+      from: [confirm]                # documentation: the states Odoo allows it from
+      to: [validate1, validate]      # documentation: the states it ends in
+      undo: action_refuse            # another listed action that takes it back
+      wizard: hr.holidays.cancel.leave   # a window answer means this wizard
+      note: needs the acting user to be an employee
+      evidence: source 18.0 hr_leave.action_approve; live 2026-10-16 t/97
+    wizards:
+    - model: hr.holidays.cancel.leave
+      method: action_cancel_leave
+      button: action_cancel          # the action method whose button opens it
+      values: [reason]               # what the wizard asks for
+      context_from_record: [default_leave_id]   # context keys the button sets to the record's id
+      context: { default_x: 1 }      # context keys the button always sets
+      undo: action_reset_confirm     # a listed action of the target model
+      evidence: ...
+
+A method never starts with C<_>, a method is listed once per model, C<undo>
+names a listed action, C<from> and C<to> are for the reader and for
+C<describe> (Odoo decides), and each entry carries its C<evidence>.
+C<action($method)> and C<wizard($model, $method)> return the entry or undef.
+
+=cut
+
+sub module  ($self) { $self->{module} }
+sub actions ($self) { $self->{actions} // [] }
+sub wizards ($self) { $self->{wizards} // [] }
+sub action  ($self, $method) { ( grep { $_->{method} eq $method } @{ $self->{actions} // [] } )[0] }
+sub wizard  ($self, $model, $method) { ( grep { $_->{model} eq $model && $_->{method} eq $method } @{ $self->{wizards} // [] } )[0] }
+sub state_info ($self) { $self->{state} }
+sub state_fields ($self) {
+    my $st = $self->{state} or return ();
+    return ( $st->{field}, @{ $st->{also} // [] } );
+}
+
+sub _check_actions ( $path, $d ) {
+    my $bad = sub ($m) { Odoo::Error->throw( kind => 'config', message => "behaviour $path: $m" ) };
+    $bad->('module must be a module name') if exists $d->{module} && ( ref $d->{module} || !length( $d->{module} // '' ) );
+    my ( %seen, @actions, @wizards );
+    for my $a ( @{ $d->{actions} // [] } ) {
+        $bad->('an action needs a method') if ref $a ne 'HASH' || !length( $a->{method} // '' ) || ref $a->{method};
+        $bad->("action $a->{method} is private: only public methods are listed") if $a->{method} =~ /\A_/;
+        $bad->("action $a->{method} is listed twice") if $seen{ $a->{method} }++;
+        $bad->("action $a->{method} needs evidence") if !length( $a->{evidence} // '' );
+        for my $k (qw(from to)) {
+            $bad->("action $a->{method}: $k must be a list of states") if exists $a->{$k} && ref $a->{$k} ne 'ARRAY';
+        }
+        push @actions, {%$a};
+    }
+    for my $a (@actions) {
+        $bad->("action $a->{method}: undo $a->{undo} is not a listed action") if defined $a->{undo} && !$seen{ $a->{undo} };
+    }
+    my %wseen;
+    for my $w ( @{ $d->{wizards} // [] } ) {
+        $bad->('a wizard needs a model and a method') if ref $w ne 'HASH' || !length( $w->{model} // '' ) || !length( $w->{method} // '' );
+        $bad->("wizard $w->{model} $w->{method} is private: only public methods are listed") if $w->{method} =~ /\A_/;
+        $bad->("wizard $w->{model} $w->{method} is listed twice") if $wseen{"$w->{model}\0$w->{method}"}++;
+        $bad->("wizard $w->{model} $w->{method} needs evidence") if !length( $w->{evidence} // '' );
+        $bad->("wizard $w->{model} $w->{method}: undo $w->{undo} is not a listed action") if defined $w->{undo} && !$seen{ $w->{undo} };
+        for my $k (qw(values context_from_record)) {
+            $bad->("wizard $w->{model} $w->{method}: $k must be a list") if exists $w->{$k} && ref $w->{$k} ne 'ARRAY';
+        }
+        $bad->("wizard $w->{model} $w->{method}: context must be a map of context keys") if exists $w->{context} && ref $w->{context} ne 'HASH';
+        push @wizards, {%$w};
+    }
+    my %wm = map { $_->{model} => 1 } @wizards;
+    for my $a (@actions) {
+        $bad->("action $a->{method}: wizard $a->{wizard} is not a listed wizard") if defined $a->{wizard} && !$wm{ $a->{wizard} };
+    }
+    return ( \@actions, \@wizards );
+}
+
+=head2 volatile
+
+The fields Odoo maintains itself on this model (C<volatile: [customer_rank,
+...]> in the file): counters and message bookkeeping that move when a document
+is confirmed or posted, not when somebody edits the record. L<Odoo::Ops::Runner>
+leaves them out when it asks whether a record changed since a run, so a
+partner's rank does not hold the revert of its creation.
 
 =head2 effects_for($on, $what)
 
@@ -172,9 +354,20 @@ sub annotate ($self, $c) {
     elsif ( $c->{action} eq 'write' )  { ( $on, $what ) = ( write  => [ keys %{ $c->{vals} // {} } ] ) }
     elsif ( $c->{action} eq 'call' )   { ( $on, $what ) = ( call   => $c->{method} ) }
     elsif ( $c->{action} eq 'custom' && ( $c->{kind} // '' ) eq 'transfer' ) { $on = 'validate' }
+    # a state change is a run of Odoo's own methods; each method's effects stand
+    elsif ( $c->{action} eq 'custom' && ( $c->{kind} // '' ) eq 'state' ) { ( $on, $what ) = ( call => [ map { $_->{method} } @{ $c->{vals}{steps} // [] } ] ) }
+    # an operation that deletes by a custom change (so a revert can recreate the record) is an unlink to the model
+    elsif ( $c->{action} eq 'custom' && ( $c->{kind} // '' ) =~ /^delete-/ ) { ( $on, $what ) = ( call => 'unlink' ) }
+    # core.action: Odoo's method on the record; the effects the file declares for that method stand
+    elsif ( $c->{action} eq 'custom' && ( $c->{kind} // '' ) eq 'action' ) { ( $on, $what ) = ( call => $c->{vals}{method} ) }
     else { return 0 }
-    my @effects = $self->effects_for( $on, $what );
-    return 0 if !@effects;
+    # effects the operation worked out for this very change (the traces that point at it) come first
+    my @own = $on eq 'call' && ( $c->{kind} // '' ) =~ /^delete-/ ? @{ $c->{effects} // [] } : ();
+    my @effects = ref $what eq 'ARRAY' && $on eq 'call' ? ( map { $self->effects_for( call => $_ ) } @$what ) : $self->effects_for( $on, $what );
+    if ( !@effects ) {
+        return scalar grep { !$_->{suppressed} } @own if @own;
+        return 0;
+    }
     my $standing = 0;
     my @ann;
     for my $e (@effects) {
@@ -185,8 +378,8 @@ sub annotate ($self, $c) {
         $standing++ if !$suppressed;
         push @ann, { effect => $e->{effect}, suppressed => $suppressed, ( $e->{requires} ? ( requires => $e->{requires} ) : () ), evidence => $e->{evidence} };
     }
-    $c->{effects} = \@ann;
-    return $standing;
+    $c->{effects} = [ @own, @ann ];
+    return $standing + scalar( grep { !$_->{suppressed} } @own );
 }
 
 1;

@@ -33,6 +33,23 @@ The read-back checks name, owner, size and checksum, not the content.
 sub op_name ($class) { 'crm.attach' }
 sub summary ($class) { 'Attach files to one selected lead' }
 sub pack    ($class) { 'crm' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'attach', meaning => 'a file is attached to the lead' },
+        { name => 'unchanged', meaning => 'a file of that name with that content is already on the lead' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'exists', meaning => 'a different file of that name is on the lead; this wrapper never replaces (core.attach replace=1 does)' },
+        { name => 'file-missing', meaning => 'the file cannot be read' },
+        { name => 'too-large', meaning => 'the file is over max_bytes' },
+        { name => 'duplicate-in-source', meaning => 'an earlier row names the same lead and file name' },
+    ];
+}
+
 sub params ($class) {
     +{  Odoo::Ops::CRM::Select->params,
         files => { type => 'list', required => 1, help => 'comma list of file paths' },

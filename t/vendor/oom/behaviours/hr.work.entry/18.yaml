@@ -1,0 +1,15 @@
+# hr.work.entry, Odoo 18 (hr_work_entry). Read from the 18.0 source (addons/hr_work_entry/models/hr_work_entry.py).
+model: hr.work.entry
+series: 18
+module: hr_work_entry
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+actions:
+- method: action_validate
+  from: [draft, conflict]
+  to: [validated]
+  note: Odoo checks the entries first; when one has no type or overlaps another it marks those entries conflict, validates nothing and answers false
+  evidence: source 18.0 hr_work_entry hr_work_entry.action_validate

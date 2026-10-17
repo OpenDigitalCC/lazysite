@@ -41,6 +41,21 @@ Buckets: C<update>, C<unchanged>, C<lead-gone> (id not readable).
 sub op_name ($class) { 'crm.update' }
 sub summary ($class) { 'Apply reviewed per-lead updates (fill / correct / tags / notes)' }
 sub pack    ($class) { 'crm' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'update', meaning => 'fill, correct, add_tags and append_notes are applied to the lead' },
+        { name => 'new-tag', meaning => 'a tag named in add_tags that does not exist is made first (a support row)' },
+        { name => 'unchanged', meaning => 'nothing in the row differs from the lead' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'lead-gone', meaning => 'the lead is not readable' },
+    ];
+}
+
 sub params ($class) {
     {   file   => { type => 'path', required => 1, help => 'JSON lines: {id, fill, correct, add_tags, append_notes, why}' },
         notify => { type => 'bool', default => 0, help => 'let Odoo send assignment notices' },
@@ -119,7 +134,7 @@ sub plan ($self) {
         }
         if ( my $n = $r->{append_notes} ) {
             my $old = $cur->{$notes_f};
-            my $old_s = defined $old && !ref $old && $old ne '0' ? $old : '';
+            my $old_s = defined $old && !ref $old ? $old : '';
             if ( index( _plain($old_s), _plain($n) ) < 0 ) {
                 $set{$notes_f}    = $old_s . $n;
                 $before{$notes_f} = $old;
@@ -142,13 +157,13 @@ sub plan ($self) {
 }
 
 sub _read_file ($self, $path) {
-    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'config', message => "cannot read $path: $!" );
+    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
     my @rows;
     while ( my $line = <$fh> ) {
         next if $line !~ /\S/;
         my $r = eval { Odoo::Ops::json()->decode($line) }
-            // Odoo::Error->throw( kind => 'config', message => "$path line $.: not JSON" );
-        Odoo::Error->throw( kind => 'config', message => "$path line $.: needs a numeric id" ) if ( $r->{id} // '' ) !~ /^\d+\z/;
+            // Odoo::Error->throw( kind => 'usage', message => "$path line $.: not JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
+        Odoo::Error->throw( kind => 'usage', message => "$path line $.: needs a numeric id", fix => 'correct the file; oom-ops describe <op> shows what it holds' ) if ( $r->{id} // '' ) !~ /^\d+\z/;
         push @rows, $r;
     }
     close $fh;
@@ -179,7 +194,7 @@ sub _tag_id ($self, $name) {
 sub _empty ($v, $type) {
     return 1 if !defined $v;
     return 0 if $type =~ /^(integer|float|monetary|boolean)\z/;
-    return 1 if !ref $v && ( $v eq '0' || $v eq '' );
+    return 1 if !ref $v && $v eq '';
     return 1 if $type eq 'html' && _plain($v) eq '';
     return 0;
 }

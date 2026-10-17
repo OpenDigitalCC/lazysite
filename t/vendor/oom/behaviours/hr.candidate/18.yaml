@@ -1,0 +1,8 @@
+# hr.candidate, Odoo 18 (hr_recruitment). Read from the 18.0 source (addons/hr_recruitment/models/hr_candidate.py).
+model: hr.candidate
+series: 18
+module: hr_recruitment
+actions:
+- method: create_employee_from_candidate
+  note: makes an hr.employee from the candidate, making the candidate's contact when it has none; the job fields are not copied (hr.applicant create_employee_from_applicant copies them); one candidate per call; answers with a window on the employee
+  evidence: source 18.0 hr_recruitment hr_candidate.create_employee_from_candidate

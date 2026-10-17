@@ -68,6 +68,28 @@ our %MIME = (
 sub op_name ($class) { 'core.attach' }
 sub summary ($class) { 'Attach files to records of any model' }
 sub pack    ($class) { undef }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'attach', meaning => 'a file is attached to the record' },
+        { name => 'replaced', meaning => 'the record holds a different file of that name and replace is on; the old one goes first' },
+        { name => 'unchanged', meaning => 'a file of that name with that content is already on the record' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'exists', meaning => 'a different file of that name is on the record and replace is off' },
+        { name => 'unknown-record', meaning => 'the model or the record is not found' },
+        { name => 'ambiguous-record', meaning => 'the record key matches more than one record' },
+        { name => 'file-missing', meaning => 'the file cannot be read' },
+        { name => 'too-large', meaning => 'the file is over max_bytes (default 25 MB)' },
+        { name => 'duplicate-in-source', meaning => 'an earlier row names the same record and file name' },
+        { name => 'invalid', meaning => 'the row is malformed' },
+        { name => 'held-flag', meaning => 'the source flagged the row as held' },
+    ];
+}
+
 sub params ($class) {
     {   records   => { type => 'json', help => 'in-process rows (a list) - for a program, not the command line' },
         rows      => { type => 'path', help => 'rows file: .jsonl, .json (a list) or .csv with model, record, file, name, mimetype, replace' },
@@ -182,7 +204,7 @@ sub _true ($v) {
 }
 
 sub _sha1_file ($path) {
-    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'config', message => "cannot read $path: $!" );
+    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
     my $d = Digest::SHA->new(1);
     $d->addfile($fh);
     close $fh;
@@ -223,6 +245,20 @@ sub apply_custom ($class, $client, $c) {
     # the read-back goes to the journal as returned: id, size and checksum, never the content
     return { id => $id, returned => { id => $id, file_size => $row->{file_size}, checksum => $row->{checksum} },
         after => ( $ok ? $row : undef ) };
+}
+
+=head2 undo_custom($class, $entry)
+
+None: the revert holds the row. OOM defines no inverse for an attachment, and
+Odoo deletes an attachment with the record it is on, so the hold says that.
+
+=cut
+
+sub undo_custom ($class, $entry) {
+    my $v  = $entry->{vals} // {};
+    my $on = defined $v->{res_model} && defined $v->{res_id} ? " on $v->{res_model} $v->{res_id}" : '';
+    my $id = defined $entry->{id} ? " $entry->{id}" : '';
+    return ( undef, "attachment$id$on is not undone by OOM: core.attach defines no inverse for it; Odoo deletes an attachment with the record it is on, so it goes when that record is deleted" );
 }
 
 1;

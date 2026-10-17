@@ -1,0 +1,43 @@
+# hr.payslip, Odoo 18 (payroll, OCA). Read from the OCA tree (payroll/models/hr_payslip.py,
+# payroll/wizard/hr_payslip_change_state.py) and run on hr18 by t/97-hr-actions-live.t.
+model: hr.payslip
+series: 18
+module: payroll
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+unlink_requires:
+  state:
+  - draft
+  - cancel
+  noun: payslip
+actions:
+- method: compute_sheet
+  to: [verify]
+  undo: action_payslip_draft
+  note: rebuilds the lines and takes a number from the salary.slip sequence when the payslip has none (a number taken stays taken)
+  evidence: source OCA payroll hr_payslip.compute_sheet; live 2026-10-16 t/97-hr-actions-live.t on hr18 (draft -> verify; Odoo took a number and made 6 lines)
+- method: action_payslip_done
+  to: [done]
+  undo: action_payslip_draft
+  note: computes the sheet first unless the company sets prevent_compute_on_confirm or the context carries without_compute_sheet
+  evidence: source OCA payroll hr_payslip.action_payslip_done; live 2026-10-16 t/97-hr-actions-live.t on hr18 (verify -> done)
+- method: action_payslip_cancel
+  to: [cancel]
+  undo: action_payslip_draft
+  note: Odoo refuses a done payslip unless the company allows cancelling payslips, and a payslip whose refund is not cancelled
+  evidence: 'source OCA payroll hr_payslip.action_payslip_cancel; live 2026-10-16 t/97-hr-actions-live.t on hr18 (verify -> cancel; Odoo refused a done payslip in its words: Cannot cancel a payslip that is done)'
+- method: action_payslip_draft
+  to: [draft]
+  evidence: source OCA payroll hr_payslip.action_payslip_draft; live 2026-10-16 t/97-hr-actions-live.t on hr18 (cancel -> draft, done -> draft)
+- method: refund_sheet
+  note: copies the payslip as a credit note, numbers it, confirms it and links it as the refund; answers with a window on the credit notes
+  evidence: source OCA payroll hr_payslip.refund_sheet
+wizards:
+- model: hr.payslip.change.state
+  method: change_state_confirm
+  values: [state]
+  note: sets the chosen state on the payslips through compute_sheet, action_payslip_done, action_payslip_cancel or action_payslip_draft, refusing the states those do not allow
+  evidence: source OCA payroll hr_payslip_change_state.change_state_confirm

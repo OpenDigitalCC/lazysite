@@ -62,6 +62,32 @@ touches the field.
 sub op_name ($class) { 'crm.import' }
 sub summary ($class) { 'Plan loading a mapped source into leads (match, fill, tag)' }
 sub pack    ($class) { 'crm' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'create', meaning => 'no existing lead shares a key; a lead is made' },
+        { name => 'create-no-key', meaning => 'the row has nothing to match on and no_key=create asked for it to be made anyway' },
+        { name => 'update', meaning => 'one active lead matched and the field policies leave something to write' },
+        { name => 'unchanged', meaning => 'one active lead matched and nothing differs' },
+        { name => 'new-source', meaning => 'a source, medium or campaign named by rows is made first (a support row)' },
+        { name => 'new-tag', meaning => 'a tag named by rows is made first (a support row)' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'no-key', meaning => 'nothing to match on (no email or phone); a created lead would be made again on every re-run' },
+        { name => 'matches-archived', meaning => 'the key matches an archived lead; a person decides' },
+        { name => 'ambiguous', meaning => 'the keys point at more than one lead' },
+        { name => 'duplicate-in-source', meaning => 'an earlier row of this source has the same key' },
+        { name => 'unresolved', meaning => 'a stage, team, salesperson or country name that does not exist and may not be made' },
+        { name => 'held-flag', meaning => 'the source flagged the row (a self-test, say)' },
+        { name => 'held-rule', meaning => 'a hold_when rule of the mapping matched' },
+        { name => 'held-override', meaning => 'a person decided in the source\'s overrides that it is held (spam, say), with the reason' },
+        { name => 'invalid', meaning => 'the mapping failed or the lead title is empty' },
+    ];
+}
+
 sub params ($class) {
     {   mapping        => { type => 'path', required => 1, help => 'mapping.yaml of the source' },
         match          => { type => 'list', help => 'match keys, default from the mapping or email,phone' },
@@ -105,11 +131,11 @@ sub plan ($self) {
     ) if !$v->{ok};
 
     my $src = Odoo::Ops::Source->load( $self->param('mapping') );
-    Odoo::Error->throw( kind => 'config', message => 'crm.import loads leads; mapping target is ' . $src->target )
+    Odoo::Error->throw( kind => 'usage', message => 'crm.import loads leads; mapping target is ' . $src->target, fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
         if $src->target ne 'lead';
     $self->_load_policies($src);
     for my $lf ( $src->fields ) {
-        Odoo::Error->throw( kind => 'config', message => "mapping field '$lf' is not a lead field in the crm profile" )
+        Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf' is not a lead field in the crm profile", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if !$p->has_field( lead => $lf );
     }
     my $mcfg = $src->mapping->{match} // {};
@@ -224,7 +250,7 @@ sub _decide ($self, $row, $match, $seen, $by_id) {
             bucket => $keyed ? 'create' : 'create-no-key',
             action => 'create', model => $p->model_name('lead'),
             key    => "src:$row->{key}", vals => \%phys,
-            ( defined $phys{$email_pf} && !ref $phys{$email_pf} ? ( unique_by => $email_pf ) : () ),
+            ( defined $phys{$email_pf} && !ref $phys{$email_pf} ? ( unique_by => { field => $email_pf, fold => 1 } ) : () ),
         };
     }
 
@@ -301,7 +327,7 @@ sub _resolve ($self, $lf, $relation, $name) {
         return $u ? $u->{id} : undef;
     }
     my ($lm) = grep { $p->model_name($_) eq $relation } $p->models;
-    Odoo::Error->throw( kind => 'config', message => "lead.$lf relates to $relation, which the crm profile does not map" )
+    Odoo::Error->throw( kind => 'usage', message => "lead.$lf relates to $relation, which the crm profile does not map", fix => 'correct the parameter or the file the message names, then plan again' )
         if !$lm;
     my $name_pf = $p->field( $lm => 'name' );
     my $index   = $self->{cache}{$lm} //= do {
@@ -327,7 +353,7 @@ sub _resolve ($self, $lf, $relation, $name) {
 sub _empty ($v, $type) {
     return 1 if !defined $v;
     return 0 if $type =~ /^(integer|float|monetary|boolean)\z/;
-    return 1 if !ref $v && ( $v eq '0' || $v eq '' );
+    return 1 if !ref $v && $v eq '';
     return 1 if $type eq 'html' && _text($v) eq '';
     return 0;
 }
@@ -351,7 +377,7 @@ my %POLICY = map { $_ => 1 } qw(fill add append overwrite ignore);
 sub _load_policies ($self, $src) {
     for my $lf ( $src->fields ) {
         my $pol = $src->field_policy($lf) // next;
-        Odoo::Error->throw( kind => 'config', message => "mapping field '$lf': unknown on_match '$pol'" )
+        Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': unknown on_match '$pol'", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if !$POLICY{$pol};
         $self->{source_policy}{$lf} = $pol;
     }

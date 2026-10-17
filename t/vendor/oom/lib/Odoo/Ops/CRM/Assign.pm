@@ -30,6 +30,17 @@ my @FIELDS    = qw(stage team salesperson source medium campaign);
 sub op_name ($class) { 'crm.assign' }
 sub summary ($class) { 'Set stage / team / salesperson / source on selected leads' }
 sub pack    ($class) { 'crm' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'assign', meaning => 'the lead\'s stage, team, salesperson, source, medium or campaign is written' },
+        { name => 'new-source', meaning => 'a source, medium or campaign that does not exist yet is made first (a support row)' },
+        { name => 'unchanged', meaning => 'the lead already has the value' },
+    ];
+}
+sub holds ($class) { [] }
+
 sub params ($class) {
     +{  Odoo::Ops::CRM::Select->params,
         stage       => { type => 'str', help => 'stage name (must exist)' },

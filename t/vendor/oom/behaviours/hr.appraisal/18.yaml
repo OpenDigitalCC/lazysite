@@ -1,0 +1,40 @@
+# hr.appraisal, Odoo 18 (hr_appraisal_oca, OCA). Read from the OCA tree (hr_appraisal_oca/models/hr_appraisal.py,
+# hr_appraisal_oca/wizard/hr_appraisal_wizard.py) and run on hr18 by t/97-hr-actions-live.t.
+model: hr.appraisal
+series: 18
+module: hr_appraisal_oca
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+actions:
+- method: action_confirm
+  from: ['1_new']
+  to: ['2_pending']
+  undo: action_back
+  note: sends mail to the employee (when the appraisal is visible to the employee and has a work email) and to the managers, and makes feedback activities for their users; one appraisal per call
+  evidence: source OCA hr_appraisal_oca hr_appraisal.action_confirm; live 2026-10-16 t/97-hr-actions-live.t on hr18 (1_new -> 2_pending; the employee had no work email, so no mail was sent)
+- method: action_done
+  to: ['3_done']
+  undo: action_back
+  note: publishes both feedbacks and sends the completion mail to the employee (when visible) and to the managers; one appraisal per call
+  evidence: source OCA hr_appraisal_oca hr_appraisal.action_done
+- method: action_back
+  to: ['1_new']
+  evidence: source OCA hr_appraisal_oca hr_appraisal.action_back; live 2026-10-16 t/97-hr-actions-live.t on hr18 (2_pending -> 1_new, as the revert of action_confirm)
+- method: action_publish_manager_feedback
+  note: toggles manager_feedback_published
+  evidence: source OCA hr_appraisal_oca hr_appraisal.action_publish_manager_feedback
+- method: action_send_appraisal_request
+  wizard: hr.appraisal.request.wizard
+  note: answers with the request wizard window and changes nothing
+  evidence: source OCA hr_appraisal_oca hr_appraisal.action_send_appraisal_request
+wizards:
+- model: hr.appraisal.request.wizard
+  method: send_button
+  button: action_send_appraisal_request
+  values: [appraisal_id, recipient_ids, subject, user_body]
+  context_from_record: [default_appraisal_id]
+  note: sends the appraisal request by mail to the recipients
+  evidence: source OCA hr_appraisal_oca hr_appraisal_wizard.HrAppraisalRequestWizard

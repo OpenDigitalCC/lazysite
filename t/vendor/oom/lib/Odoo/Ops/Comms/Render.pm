@@ -69,9 +69,9 @@ sub read_scope ($class) {
 
 sub load_template ($class, $path) {
     my $t = eval { YAML::PP->new( schema => ['Core'] )->load_file($path) }
-        or Odoo::Error->throw( kind => 'config', message => "cannot load template $path: $@" );
+        or Odoo::Error->throw( kind => 'usage', message => "cannot load template $path: $@", fix => 'check the path exists and this user can read it' );
     for my $k (qw(campaign subject body)) {
-        Odoo::Error->throw( kind => 'config', message => "template $path missing '$k'" ) if !$t->{$k};
+        Odoo::Error->throw( kind => 'usage', message => "template $path missing '$k'", fix => 'correct the parameter or the file the message names, then plan again' ) if !$t->{$k};
     }
     return $t;
 }
@@ -118,7 +118,7 @@ sub report ($self) {
         }
 
         my $file = File::Spec->catfile( $dir, "$row->{id}.html" );
-        open my $fh, '>:raw', $file or Odoo::Error->throw( kind => 'config', message => "cannot write $file: $!" );
+        open my $fh, '>:raw', $file or Odoo::Error->throw( kind => 'usage', message => "cannot write $file: $!", fix => 'give a path this user can write (dir, out or name), then plan again' );
         print {$fh} encode_utf8($body);
         close $fh;
         push @index, {
@@ -130,7 +130,7 @@ sub report ($self) {
     }
 
     my $jsonl = File::Spec->catfile( $self->ctx->run_dir( $self->op_name ), 'messages.jsonl' );
-    open my $ix, '>:raw', $jsonl or Odoo::Error->throw( kind => 'config', message => "cannot write $jsonl: $!" );
+    open my $ix, '>:raw', $jsonl or Odoo::Error->throw( kind => 'usage', message => "cannot write $jsonl: $!", fix => 'give a path this user can write (dir, out or name), then plan again' );
     print {$ix} Odoo::Ops::json()->encode($_), "\n" for @index;
     close $ix;
     my $preview = $self->_preview( \@index, $tpl );
@@ -168,7 +168,6 @@ sub _logical ($self, $row, $lf, $tags) {
         my $type = $p->descriptor( lead => $f )->{type} // '';
         if    ( $type eq 'many2one' )  { $v = ref $v eq 'ARRAY' ? { id => $v->[0], name => $v->[1] } : undef }
         elsif ( $f eq 'tags' )         { $v = [ map { $tags->{$_} // "#$_" } @{ $v // [] } ] }
-        elsif ( $type =~ /^(char|text|html|selection|date|datetime)\z/ && defined $v && $v eq '0' ) { $v = undef }
         $l{$f} = $v;
     }
     return \%l;
@@ -184,7 +183,7 @@ sub _tag_names ($self, $rows, $pf) {
 
 sub _preview ($self, $index, $tpl) {
     my $path = File::Spec->catfile( $self->ctx->run_dir( $self->op_name ), 'preview.html' );
-    open my $fh, '>:raw', $path or Odoo::Error->throw( kind => 'config', message => "cannot write $path: $!" );
+    open my $fh, '>:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot write $path: $!", fix => 'give a path this user can write (dir, out or name), then plan again' );
     my $esc = sub ($s) { ( $s // '' ) =~ s/&/&amp;/gr =~ s/</&lt;/gr =~ s/>/&gt;/gr };
     print {$fh} encode_utf8( "<!doctype html><meta charset=utf-8><title>"
             . $esc->( $tpl->{campaign} ) . " preview</title>\n<body style=\"max-width:50em;margin:auto;font-family:sans-serif\">\n"

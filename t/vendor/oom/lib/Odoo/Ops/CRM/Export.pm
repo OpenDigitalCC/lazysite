@@ -75,7 +75,7 @@ sub report ($self) {
     my $out = $self->param('out')
         // File::Spec->catfile( $self->ctx->run_dir( $self->op_name ), 'export.jsonl' );
     open my $fh, '>', $out
-        or Odoo::Error->throw( kind => 'config', message => "cannot write $out: $!" );
+        or Odoo::Error->throw( kind => 'usage', message => "cannot write $out: $!", fix => 'give a path this user can write (dir, out or name), then plan again' );
     my @inline;
     for my $row (@$rows) {
         my %rec = ( id => $row->{id} );
@@ -88,15 +88,12 @@ sub report ($self) {
             elsif ( $lf eq 'tags' ) {
                 $v = [ map { $tag_names->{$_} // "#$_" } @{ $v // [] } ];
             }
-            elsif ( $type ne 'boolean' && defined $v && !ref $v && $v eq '0' && $type !~ /^(integer|float|monetary)\z/ ) {
-                $v = undef;    # Odoo's false-for-empty
-            }
             $rec{$lf} = $v;
         }
         print {$fh} Odoo::Ops::json()->encode( \%rec ), "\n";
         push @inline, \%rec if $self->param('inline');
     }
-    close $fh or Odoo::Error->throw( kind => 'config', message => "cannot write $out: $!" );
+    close $fh or Odoo::Error->throw( kind => 'usage', message => "cannot write $out: $!", fix => 'give a path this user can write (dir, out or name), then plan again' );
     # the display shape: rows (when inline) beside their descriptors
     return {
         count             => scalar @$rows,

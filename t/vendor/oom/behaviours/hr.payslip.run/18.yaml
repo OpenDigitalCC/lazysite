@@ -1,0 +1,26 @@
+# hr.payslip.run (the payslip batch), Odoo 18 (payroll, OCA). Read from the OCA tree
+# (payroll/models/hr_payslip_run.py, payroll/wizard/hr_payroll_payslips_by_employees.py) and run on hr18 by
+# t/97-hr-actions-live.t.
+model: hr.payslip.run
+series: 18
+module: payroll
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+actions:
+- method: close_payslip_run
+  to: [close]
+  undo: draft_payslip_run
+  evidence: source OCA payroll hr_payslip_run.close_payslip_run; live 2026-10-16 t/97-hr-actions-live.t on hr18 (draft -> close)
+- method: draft_payslip_run
+  to: [draft]
+  undo: close_payslip_run
+  evidence: source OCA payroll hr_payslip_run.draft_payslip_run; live 2026-10-16 t/97-hr-actions-live.t on hr18 (close -> draft, as the revert of close_payslip_run)
+wizards:
+- model: hr.payslip.employees
+  method: compute_sheet
+  values: [employee_ids]
+  note: makes a payslip for each employee in the batch's period and structure and computes them, which takes a number from the salary.slip sequence for each; the batch comes from active_id
+  evidence: source OCA payroll hr_payroll_payslips_by_employees.compute_sheet; live 2026-10-16 t/97-hr-actions-live.t on hr18 (made one payslip for the employee in the batch)

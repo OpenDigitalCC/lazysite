@@ -1,0 +1,52 @@
+# hr.leave, Odoo 18 (hr_holidays). Read from the 18.0 source (addons/hr_holidays/models/hr_leave.py,
+# addons/hr_holidays/wizard/hr_holidays_cancel_leave.py) and run on hr18 by t/97-hr-actions-live.t.
+model: hr.leave
+series: 18
+module: hr_holidays
+state:
+  field: state
+  written_by: actions
+  operations:
+  - core.action
+unlink_requires:
+  state:
+  - confirm
+  - cancel
+  noun: time off
+actions:
+- method: action_approve
+  from: [confirm]
+  to: [validate1, validate]
+  undo: action_refuse
+  note: the acting user's employee is recorded as the approver; a type with two approvals moves to validate1 and calls action_validate after the second; Odoo posts to the employee's user when the leave is validated
+  evidence: 'source 18.0 hr_holidays hr_leave.action_approve; live 2026-10-16 t/97-hr-actions-live.t on hr18 (confirm -> validate; the meeting and the first approver were set; Odoo refused a second approve in its words: Time off request must be confirmed)'
+- method: action_validate
+  from: [confirm, validate1]
+  to: [validate]
+  undo: action_refuse
+  note: makes the resource leave and the calendar meeting; Odoo refuses a leave that falls on a public holiday; posts to the employee's user
+  evidence: source 18.0 hr_holidays hr_leave.action_validate
+- method: action_refuse
+  from: [confirm, validate1, validate]
+  to: [refuse]
+  undo: action_reset_confirm
+  note: archives the meeting, posts to the employee's user and notifies the leave manager by mail
+  evidence: source 18.0 hr_holidays hr_leave.action_refuse; live 2026-10-16 t/97-hr-actions-live.t on hr18 (validate -> refuse, as the revert of action_approve)
+- method: action_reset_confirm
+  from: [refuse, cancel]
+  to: [confirm]
+  note: clears the approvers
+  evidence: source 18.0 hr_holidays hr_leave.action_reset_confirm; live 2026-10-16 t/97-hr-actions-live.t on hr18 (refuse -> confirm)
+- method: action_cancel
+  wizard: hr.holidays.cancel.leave
+  note: answers with the cancel wizard window and changes nothing; the cancel is the wizard's
+  evidence: source 18.0 hr_holidays hr_leave.action_cancel; live 2026-10-16 t/97-hr-actions-live.t on hr18 (answered with the cancel wizard window; the state did not move)
+wizards:
+- model: hr.holidays.cancel.leave
+  method: action_cancel_leave
+  button: action_cancel
+  values: [reason]
+  context_from_record: [default_leave_id]
+  undo: action_reset_confirm
+  note: Odoo cancels only a leave of the acting user's own employee that is validated and starts today or later (can_cancel); it posts the reason and mails the leave manager
+  evidence: 'source 18.0 hr_holidays hr_holidays_cancel_leave.action_cancel_leave, hr_leave._action_user_cancel; live 2026-10-16 t/97-hr-actions-live.t on hr18 (core.wizard planned and called; Odoo refused: This time off cannot be cancelled, because the leave''s employee was not the acting user)'

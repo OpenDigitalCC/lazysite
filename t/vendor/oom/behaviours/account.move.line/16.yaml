@@ -1,0 +1,14 @@
+# account.move.line, Odoo 16 (account). Read from the 16.0 source (account/models/account_move_line.py); the parent hold is met live by t/49-documents-pack-live.t.
+model: account.move.line
+series: 16
+unlink_requires:
+  parent: move_id
+  state:
+  - draft
+  - cancel
+  noun: move
+effects:
+- 'on': call
+  method: unlink
+  effect: Odoo deletes a line while its move is draft or cancel; a line of a posted move is refused ("You cannot delete an item linked to a posted entry"; reset the move to draft first). Tax and payment-term lines are also refused unless the context carries dynamic_unlink, and a reconciled line is refused.
+  evidence: source 16.0 account_move_line._unlink_except_posted (any move in the lines is posted); live 2026-10-16 t/49-documents-pack-live.t on 16 (the refusal of a line of a posted move and the deletion after account.draft)

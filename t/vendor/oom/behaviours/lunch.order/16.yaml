@@ -1,0 +1,6 @@
+# lunch.order (module lunch). The file says which module provides the model, so a server without it
+# answers "not applicable here: module lunch is not installed". It lists no action and no effect:
+# nothing else is claimed about the model.
+model: lunch.order
+series: 16
+module: lunch

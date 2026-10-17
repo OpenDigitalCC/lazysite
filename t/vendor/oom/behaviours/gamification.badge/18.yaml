@@ -1,0 +1,13 @@
+# gamification.badge, Odoo 18 (gamification, with hr_gamification). Read from the 18.0 source
+# (addons/gamification/wizard/grant_badge.py, addons/hr_gamification/wizard/gamification_badge_user_wizard.py).
+# A badge is granted through the wizard on the badge form.
+model: gamification.badge
+series: 18
+module: gamification
+wizards:
+- model: gamification.badge.user.wizard
+  method: action_grant_badge
+  values: [user_id, employee_id, comment]
+  context_from_record: [default_badge_id]
+  note: makes the grant and mails the badge to the user; Odoo refuses a grant to the acting user. With hr_gamification the wizard also takes employee_id, from which it takes the user
+  evidence: source 18.0 gamification grant_badge.action_grant_badge, hr_gamification gamification_badge_user_wizard.action_grant_badge

@@ -7,6 +7,7 @@
 # arrive through Odoo's own convert flow, never from these tools.
 pack: crm
 series: 16
+module: crm
 models:
   lead:
     model: crm.lead

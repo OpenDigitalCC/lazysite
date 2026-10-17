@@ -213,6 +213,16 @@ sub _classify {
         return ( 'config', 'the Odoo connection is not configured correctly - see the event log' )
             if $k eq 'config';
         if ( $k eq 'fault' ) {
+            # SM1117: OOM 0.24 answered the ask - the "accepted, no session
+            # opened" fault has its own category (second_factor, is_no_session)
+            # and is no longer a credential fault, so the message test below never
+            # saw it and a two-factor account read as an internal error. The
+            # signal is read first; the message test stays for an OOM before it.
+            return ( 'two-factor',
+                'Odoo accepted that sign-in but opened no session. An account with two-factor '
+                    . 'authentication cannot sign in with a password alone here.' )
+                if ( $err->can('is_no_session') && $err->is_no_session )
+                || ( $err->can('fault_category') && ( $err->fault_category // '' ) eq 'second_factor' );
             if ( $err->is_invalid_credential ) {
                 return ( 'two-factor',
                     'Odoo accepted that sign-in but opened no session. An account with two-factor '

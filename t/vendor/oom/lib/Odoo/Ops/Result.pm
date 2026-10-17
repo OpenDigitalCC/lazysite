@@ -24,6 +24,15 @@ C<failed> can never mean "verified and none matched". C<verified>
 counts the done creates and writes whose rows were read
 back from the server afterwards.
 
+What was made is in the result so the next step needs no journal:
+C<created>, C<written> and C<unlinked> are C<< { model => [ids] } >> in
+the order the journal has them, and C<custom> is C<< [ { key, kind,
+returned } ] >> for every custom change that was done (what its handler
+returned: a mailing's send state, a user's new id). The journal holds the
+same facts line by line; the result gathers them. C<failed_changes> is
+C<< [ { seq, key, action, model, id, message } ] >> for every change that
+failed, with Odoo's message, so a screen can say why without the journal.
+
 =cut
 
 my @OUTCOMES = qw(done skipped held failed not_attempted);
@@ -49,6 +58,11 @@ sub new ($class, %args) {
         started          => $args{started},
         finished         => $args{finished},
         stopped_by       => $args{stopped_by},
+        created          => $args{created} // {},
+        written          => $args{written} // {},
+        unlinked         => $args{unlinked} // {},
+        custom           => $args{custom} // [],
+        failed_changes   => $args{failed_changes} // [],
         invariants       => $args{invariants} // [],
         invariants_failed => $args{invariants_failed} // 0,
     }, $class;
@@ -60,6 +74,10 @@ sub total      ($self) { $self->{total} }
 sub verified     ($self) { $self->{verified} }
 sub not_verified ($self) { $self->{not_verified} }
 sub stopped_by ($self) { $self->{stopped_by} }
+sub created    ($self) { $self->{created} }
+sub written    ($self) { $self->{written} }
+sub unlinked   ($self) { $self->{unlinked} }
+sub custom     ($self) { $self->{custom} }
 sub invariants        ($self) { $self->{invariants} }
 sub invariants_failed ($self) { $self->{invariants_failed} }
 sub ok         ($self) { !$self->{counts}{failed} && !$self->{counts}{not_attempted} && !$self->{invariants_failed} }

@@ -9,8 +9,9 @@ use Scalar::Util qw(blessed looks_like_number);
 
 use Odoo::Error;
 use Odoo::Model;
+use Odoo::Portable;
 
-our $VERSION = '0.09';
+our $VERSION = '0.24';
 
 =head1 NAME
 
@@ -66,7 +67,12 @@ login and display name of the authenticated user.
 
 =head2 execute_kw($model, $method, \@args, \%kwargs)
 
-The raw escape hatch every higher layer uses.
+The raw escape hatch every higher layer uses. The rows of C<read> and
+C<search_read> come back with every empty char, text, html, date,
+datetime, selection, binary, reference and many2one as undef: Odoo sends
+C<false> for them and the transports decode it as C<0>, so the field's
+C<fields_get> type decides, once, here. A string C<"0"> is a value; a
+number or a boolean is left as it is.
 
 =head2 model($name)
 
@@ -227,6 +233,41 @@ sub web_session ($self) {
     return Odoo::Transport::Session->new( url => $self->{url}, http => $t->http );
 }
 
+=head2 own_web_session
+
+A web session (see L</web_session>) already authenticated as this
+client's own login, with the client's secret given as the password. It
+serves the few actions that exist only over a web session as the
+connection's user (an administrator turning another user's two-factor
+off). It works where the secret is that user's password, as in the
+local cluster's configs; a real API key is refused by the web login
+(category C<credential>, read live on 16, 18 and 19, 2026-10-13). The
+caller C<destroy>s it. Dies as C<usage> for a client that holds no
+secret (a session client).
+
+=cut
+
+sub own_web_session ($self) {
+    Odoo::Error->throw( kind => 'usage', message => 'this client holds no login and key to open a web session with' )
+        if !defined $self->{login} || !defined $self->{key} || $self->{key} eq '';
+    my $web = $self->web_session;
+    $web->authenticate( $self->{db}, $self->{login}, $self->{key} );
+    return $web;
+}
+
+=head2 own_secret
+
+The client's own key, for the one place a second use of it is needed: the
+identity check Odoo asks for after C<own_web_session>. Never print it or
+write it anywhere.
+
+=cut
+
+sub own_secret ($self) {
+    Odoo::Error->throw( kind => 'usage', message => 'this client holds no key' ) if !defined $self->{key} || $self->{key} eq '';
+    return $self->{key};
+}
+
 =head2 session_identity
 
 For a client on a session transport: what authentication said about
@@ -282,6 +323,66 @@ sub verify_credentials ($self, $login, $secret, %opts) {
     return ( defined $uid && looks_like_number($uid) && $uid ) ? $uid : undef;
 }
 
+=head2 session_groups
+
+The groups of the user this client acts as (for a session transport,
+the person whose session is carried), as C<< [ { id, name, xmlid? } ] >>
+sorted by name; an empty list for a user with none. A page may show or
+hide a section by them; Odoo remains what refuses a call.
+
+The field is read from C<fields_get> (C<group_ids> from 19, C<groups_id>
+before), never guessed. The user's own row is read with C<res.users.read>
+(inside the L<Odoo::Ops::Guard> base scope); the names come from
+C<res.groups> (C<full_name>, else C<display_name>, else C<name>), a
+second read the Guard's base scope does not cover, so an operation that
+calls this declares C<res.groups> C<read> (C<core.whoami> does). C<xmlid>
+is present only when the user may read C<ir.model.data> (an
+administrator); a person's session is refused it and the key is left out.
+
+On 16 to 18 the field holds the groups with those they imply; from 19 it
+holds the groups assigned directly (read live 2026-10-13).
+
+=head2 session_groups_report
+
+The same read as a hash: C<groups> (as above), C<groups_readable> (1, or
+0 when Odoo refused the read of C<res.groups>: a portal user's session
+may be; then C<groups> is the empty list, not a fault) and C<field> (the
+physical field read). Other faults, and a transport failure, still die.
+
+=cut
+
+sub session_groups ($self, %opt) { $self->session_groups_report(%opt)->{groups} }
+
+sub session_groups_report ($self, %opt) {
+    my $users = $self->model('res.users');
+    my $field = $users->fields->{group_ids} ? 'group_ids' : 'groups_id';
+    my $row   = $users->read_one( $self->uid, [$field] );
+    my $ids   = ref $row->{$field} eq 'ARRAY' ? $row->{$field} : [];
+    return { groups => [], groups_readable => 1, field => $field } if !@$ids;
+
+    my $gm    = $self->model('res.groups');
+    my $gf    = $gm->fields;
+    my ($name_field) = grep { $gf->{$_} } qw(full_name display_name name);
+    my $rows = eval { $gm->call( 'read', [$ids], fields => [ $name_field // 'display_name' ] ) };
+    if ( my $err = $@ ) {
+        return { groups => [], groups_readable => 0, field => $field }
+            if blessed($err) && $err->isa('Odoo::Error') && $err->is_access_denied;
+        die $err;
+    }
+    my %xml;
+    if ( $opt{xmlids} // 1 ) {
+        my $x = eval {
+            $self->model('ir.model.data')->search_read(
+                [ [ 'model', '=', 'res.groups' ], [ 'res_id', 'in', $ids ] ], [qw(module name res_id)] );
+        };
+        if ( ref $x eq 'ARRAY' ) { $xml{ $_->{res_id} } = "$_->{module}.$_->{name}" for @$x }
+    }
+    my @groups = map { +{ id => $_->{id}, name => $_->{ $name_field // 'display_name' } // '',
+            ( $xml{ $_->{id} } ? ( xmlid => $xml{ $_->{id} } ) : () ) } } @$rows;
+    @groups = sort { lc $a->{name} cmp lc $b->{name} or $a->{id} <=> $b->{id} } @groups;
+    return { groups => \@groups, groups_readable => 1, field => $field };
+}
+
 sub whoami ($self) {
     my $rows = $self->execute_kw(
         'res.users', 'read',
@@ -295,11 +396,46 @@ sub execute_kw ($self, $model, $method, $args = [], $kwargs = {}) {
     my %kw  = %$kwargs;
     my %ctx = (%{ $self->{context} }, %{ delete($kw{context}) // {} });
     $kw{context} = \%ctx if %ctx;
-    return $self->_call(
+    my $result = $self->_call(
         'object', 'execute_kw',
         $self->{db}, $self->uid, $self->{key},
         $model, $method, $args, \%kw,
     );
+    return $self->_empty_groups( $model, $args->[2], $result ) if $method eq 'read_group';
+    return $result if $method ne 'read' && $method ne 'search_read';
+    return $self->_empties_as_undef( $model, $result );
+}
+
+# A read_group row names its group by the field (or field:granularity) it was grouped on, and
+# the group of records with nothing there is Odoo's false, decoded as 0. For a field of a type
+# that is empty as false (and a many2many or one2many, which group by false too) that group is
+# the empty value. A boolean or a number groups by its own value, 0 included.
+sub _empty_groups ($self, $model, $groupby, $rows) {
+    return $rows if ref $rows ne 'ARRAY' || !@$rows || ref $groupby ne 'ARRAY';
+    my $fields = eval { $self->model($model)->fields };
+    return $rows if ref $fields ne 'HASH';
+    for my $spec (@$groupby) {
+        my ($name) = split /:/, $spec;
+        my $type = $fields->{$name} && $fields->{$name}{type};
+        next if !defined $type || !( Odoo::Portable::empty_is_false($type) || $type =~ /\A(?:many2many|one2many)\z/ );
+        for my $row (@$rows) {
+            $row->{$spec} = undef if ref $row eq 'HASH' && exists $row->{$spec} && Odoo::Portable::is_false_value( $row->{$spec} );
+        }
+    }
+    return $rows;
+}
+
+# The one place Odoo's false becomes an empty value. The wire sends false
+# for an empty char, text, html, date, datetime, selection, binary,
+# reference and many2one, and the transports decode it as 0. Every read
+# funnels through here, so the field types from fields_get decide once
+# and every surface (Model, Record, operations) sees undef.
+sub _empties_as_undef ($self, $model, $rows) {
+    return $rows if ref $rows ne 'ARRAY' || !@$rows || ref $rows->[0] ne 'HASH';
+    my $fields = eval { $self->model($model)->fields };
+    return $rows if ref $fields ne 'HASH';
+    Odoo::Portable::empty_row( $fields, $_ ) for @$rows;
+    return $rows;
 }
 
 sub model ($self, $name) {

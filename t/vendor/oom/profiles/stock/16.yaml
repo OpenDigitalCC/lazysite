@@ -8,6 +8,7 @@
 # quantity and a picked flag (profiles/stock/17.yaml).
 pack: stock
 series: 16
+module: stock
 models:
   quant:
     model: stock.quant
@@ -39,7 +40,7 @@ models:
     fields:
       name: name
       product: product_id
-      expiration: expiration_date
+      expiration: { name: expiration_date, module: product_expiry }
       created: create_date
   picking:
     model: stock.picking
@@ -56,7 +57,7 @@ models:
       immediate: immediate_transfer
       moves: move_ids
       move_lines: move_line_ids
-      sale: sale_id
+      sale: { name: sale_id, module: sale_stock }
       note: note
       created: create_date
   picking_type:
@@ -81,7 +82,7 @@ models:
       picking: picking_id
       state: state
       date: date
-      sale_line: sale_line_id
+      sale_line: { name: sale_line_id, module: sale_stock }
       origin_moves: move_orig_ids
       dest_moves: move_dest_ids
       move_lines: move_line_ids
@@ -110,6 +111,7 @@ models:
       updater: write_uid
   sale_line:
     model: sale.order.line
+    module: sale
     fields:
       order: order_id
       product: product_id
@@ -118,6 +120,7 @@ models:
       invoiced: qty_invoiced
   order:
     model: sale.order
+    module: sale
     fields:
       name: name
       state: state

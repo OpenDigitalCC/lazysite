@@ -70,32 +70,32 @@ sub envelope ( $rec, $n, $who ) {
 }
 
 sub read_file ( $path, $who ) {
-    Odoo::Error->throw( kind => 'config', message => "$who: cannot read $path" ) if !-r $path;
+    Odoo::Error->throw( kind => 'usage', message => "$who: cannot read $path", fix => 'check the path exists and this user can read it' ) if !-r $path;
     if ( $path =~ /\.jsonl\z/i ) {
-        open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'config', message => "cannot read $path: $!" );
+        open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
         my @out;
         while ( my $line = <$fh> ) {
             next if $line !~ /\S/;
             my $doc = eval { Odoo::Ops::json()->decode($line) }
-                // Odoo::Error->throw( kind => 'config', message => "$path line $.: not JSON" );
+                // Odoo::Error->throw( kind => 'usage', message => "$path line $.: not JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
             push @out, envelope( $doc, $., $who );
         }
         close $fh;
         return \@out;
     }
     if ( $path =~ /\.json\z/i ) {
-        open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'config', message => "cannot read $path: $!" );
+        open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
         my $raw = do { local $/; <$fh> };
         close $fh;
         my $docs = eval { Odoo::Ops::json()->decode($raw) }
-            // Odoo::Error->throw( kind => 'config', message => "$path is not valid JSON" );
-        Odoo::Error->throw( kind => 'config', message => "$path must hold a list of records" ) if ref $docs ne 'ARRAY';
+            // Odoo::Error->throw( kind => 'usage', message => "$path is not valid JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
+        Odoo::Error->throw( kind => 'usage', message => "$path must hold a list of records", fix => 'correct the file; oom-ops describe <op> shows what it holds' ) if ref $docs ne 'ARRAY';
         return [ map { envelope( $docs->[$_], $_ + 1, $who ) } 0 .. $#$docs ];
     }
     if ( $path =~ /\.csv\z/i ) {
         my $csv = Text::CSV_XS->new( { binary => 1, auto_diag => 0 } );
-        open my $fh, '<:encoding(UTF-8)', $path or Odoo::Error->throw( kind => 'config', message => "cannot read $path: $!" );
-        my $head = $csv->getline($fh) or Odoo::Error->throw( kind => 'config', message => "$path has no header row" );
+        open my $fh, '<:encoding(UTF-8)', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
+        my $head = $csv->getline($fh) or Odoo::Error->throw( kind => 'usage', message => "$path has no header row", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
         s/^\x{FEFF}// for $head->[0];
         my ( @out, $n );
         while ( my $cells = $csv->getline($fh) ) {
@@ -105,11 +105,11 @@ sub read_file ( $path, $who ) {
             @rec{@$head} = @$cells;
             push @out, envelope( \%rec, $n, $who );
         }
-        Odoo::Error->throw( kind => 'config', message => "$path: " . ( $csv->error_diag )[1] ) if !$csv->eof;
+        Odoo::Error->throw( kind => 'usage', message => "$path: " . ( $csv->error_diag )[1], fix => 'correct the parameter or the file the message names, then plan again' ) if !$csv->eof;
         close $fh;
         return \@out;
     }
-    Odoo::Error->throw( kind => 'config', message => "$who: rows file must be .jsonl, .json or .csv, got $path" );
+    Odoo::Error->throw( kind => 'usage', message => "$who: rows file must be .jsonl, .json or .csv, got $path", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
 }
 
 1;

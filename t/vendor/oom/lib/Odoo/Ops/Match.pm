@@ -42,7 +42,7 @@ my %NORM = (
 sub new ($class, %args) {
     my $keys = $args{keys} // ['email'];
     for my $k (@$keys) {
-        Odoo::Error->throw( kind => 'config', message => "unknown match key '$k' (email, phone)" )
+        Odoo::Error->throw( kind => 'usage', message => "unknown match key '$k' (email, phone)", fix => 'correct the parameter or the file the message names, then plan again' )
             if !exists $NORM{$k};
     }
     return bless { keys => $keys, cc => $args{phone_cc}, index => {} }, $class;

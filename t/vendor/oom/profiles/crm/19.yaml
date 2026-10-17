@@ -4,6 +4,7 @@
 # Read profiles/crm/16.yaml for the comments on each name.
 pack: crm
 series: 19
+module: crm
 models:
   lead:
     model: crm.lead

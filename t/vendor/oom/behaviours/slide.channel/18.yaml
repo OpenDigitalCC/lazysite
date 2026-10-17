@@ -1,0 +1,22 @@
+# slide.channel (a course), Odoo 18 (website_slides). Read from the 18.0 source
+# (addons/website_slides/models/slide_channel.py, addons/website_slides/wizard/slide_channel_invite.py).
+model: slide.channel
+series: 18
+module: website_slides
+actions:
+- method: action_channel_enroll
+  wizard: slide.channel.invite
+  note: answers with the invite wizard window, in enrol mode, and changes nothing
+  evidence: source 18.0 website_slides slide_channel.action_channel_enroll
+- method: action_channel_invite
+  wizard: slide.channel.invite
+  note: answers with the invite wizard window and changes nothing
+  evidence: source 18.0 website_slides slide_channel.action_channel_invite
+wizards:
+- model: slide.channel.invite
+  method: action_invite
+  button: action_channel_invite
+  values: [partner_ids, send_email, enroll_mode, subject, body, template_id]
+  context_from_record: [default_channel_id]
+  note: sends the invitation (or enrolment) mail to the partners and makes or updates their attendee rows; the acting user needs an email address; enroll_mode is the enrol button's default and the invite button's is false
+  evidence: source 18.0 website_slides slide_channel_invite.action_invite

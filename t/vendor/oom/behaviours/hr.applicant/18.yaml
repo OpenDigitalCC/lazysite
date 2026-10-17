@@ -1,0 +1,27 @@
+# hr.applicant, Odoo 18 (hr_recruitment). Read from the 18.0 source (addons/hr_recruitment/models/hr_applicant.py,
+# addons/hr_recruitment/wizard/applicant_refuse_reason.py) and run on hr18 by t/97-hr-actions-live.t.
+# An application moves through its pipeline by a plain write of stage_id (hired is a flag on the stage), so it has no
+# state rule: core.import may write the stage.
+model: hr.applicant
+series: 18
+module: hr_recruitment
+actions:
+- method: create_employee_from_applicant
+  note: makes an hr.employee from the applicant's candidate (making the candidate's contact when it has none) and copies job, department and the company's email and phone to it; one applicant per call; answers with a window on the employee
+  evidence: source 18.0 hr_recruitment hr_applicant.create_employee_from_applicant, hr_candidate.create_employee_from_candidate; live 2026-10-16 t/97-hr-actions-live.t on hr18 (made an employee; the application stayed ongoing)
+- method: archive_applicant
+  wizard: applicant.get.refuse.reason
+  note: answers with the refuse-reason wizard window and changes nothing; the refusal is the wizard's
+  evidence: source 18.0 hr_recruitment hr_applicant.archive_applicant; live 2026-10-16 t/97-hr-actions-live.t on hr18 (answered with the refuse-reason wizard window)
+- method: reset_applicant
+  note: puts the application back in the first open stage of its job and clears the refuse reason
+  evidence: source 18.0 hr_recruitment hr_applicant.reset_applicant
+wizards:
+- model: applicant.get.refuse.reason
+  method: action_refuse_reason_apply
+  button: archive_applicant
+  values: [refuse_reason_id, applicant_ids, send_mail, template_id, duplicates]
+  context:
+    active_test: false
+  note: writes refuse_reason_id, active and refuse_date on the applications; with send_mail it mails the applicants from the template. applicant_ids is a command, [[6, 0, [id]]]
+  evidence: 'source 18.0 hr_recruitment applicant_refuse_reason.action_refuse_reason_apply; live 2026-10-16 t/97-hr-actions-live.t on hr18 (Odoo refused send_mail with no template in its words: Email template must be selected; with send_mail false the application was refused and archived)'

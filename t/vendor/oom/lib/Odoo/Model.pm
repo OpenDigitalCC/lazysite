@@ -46,7 +46,11 @@ Odoo yesterday is visible here today.
 
 All read results are plain hashrefs; typed record objects are a later
 milestone. Relational values arrive as Odoo sends them: many2one as
-C<[id, display_name]> or false, x2many as an arrayref of ids.
+C<[id, display_name]> or undef, x2many as an arrayref of ids. Odoo
+sends C<false> for an empty char, text, html, date, datetime, selection,
+binary or many2one; L<Odoo::Client/execute_kw> reads those by their
+C<fields_get> type and gives undef, so a string C<"0"> is a value and an
+empty field is not. A boolean is C<1> or C<0>, a number is a number.
 
 Every method accepts a trailing C<< context => \%ctx >> option which
 is merged over the client's default context.

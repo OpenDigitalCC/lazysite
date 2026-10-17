@@ -30,7 +30,7 @@ last-one-wins.
 
 =cut
 
-my @DEFAULT = qw(Odoo::Ops::Core Odoo::Ops::CRM Odoo::Ops::Comms Odoo::Ops::Stock);
+my @DEFAULT = qw(Odoo::Ops::Core Odoo::Ops::CRM Odoo::Ops::Comms Odoo::Ops::Stock Odoo::Ops::Mailing Odoo::Ops::Documents);
 
 sub new ($class, %args) {
     my @ns = @{ $args{namespaces} // [
@@ -70,6 +70,7 @@ sub class_for ($self, $name) {
     return $self->{ops}{$name} // Odoo::Error->throw(
         kind    => 'usage',
         message => "no operation '$name' (known: " . join( ', ', $self->names ) . ')',
+        fix     => 'oom-ops list names the operations',
     );
 }
 

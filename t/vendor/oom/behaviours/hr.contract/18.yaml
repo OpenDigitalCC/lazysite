@@ -1,0 +1,10 @@
+# hr.contract, Odoo 18 (hr_contract). Read from the 18.0 source (addons/hr_contract/models/hr_contract.py).
+# A contract has no action button: its state (draft, open, close, cancel) is a status bar, so it is written, and
+# core.import does not hold a row that sets it. The cron method update_state moves contracts by date; it is a model
+# method with no record, so core.action does not list it.
+model: hr.contract
+series: 18
+module: hr_contract
+state:
+  field: state
+  written_by: write

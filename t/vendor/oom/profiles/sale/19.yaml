@@ -1,0 +1,33 @@
+# Sale pack, Odoo 19: the state operations sale.confirm and sale.cancel on sale.order. Read from the master/19.0 source (sale/models/sale_order.py) and proved live by t/49-documents-pack-live.t.
+pack: sale
+series: 19
+module: sale
+actions:
+  confirm: action_confirm
+  cancel: action_cancel
+  draft: action_draft
+models:
+  order:
+    model: sale.order
+    fields:
+      name: name
+      state: state
+      partner: partner_id
+      locked: locked
+states:
+  confirm:
+    # action_confirm; 19 keeps the lock in the locked flag, the state stays sale
+    from: [draft, sent]
+    to: [sale]
+    hints:
+      cancel: "oom-ops run sale.cancel --set order={id} --set draft=1 makes it a draft again, then confirm it"
+  cancel:
+    # action_cancel refuses a locked order on 19
+    from: [draft, sent, sale]
+    to: [cancel]
+    context: { disable_cancel_warning: true }
+    refuses_locked: 1
+  draft:
+    # action_draft; only the way back after a cancel is used (sale.cancel draft=1)
+    from: [cancel, sent]
+    to: [draft]

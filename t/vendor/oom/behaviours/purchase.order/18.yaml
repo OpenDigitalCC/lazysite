@@ -1,0 +1,38 @@
+# purchase.order, Odoo 18 (purchase). Read from the 18.0 source (purchase/models/purchase_order.py, purchase_stock) and met live by t/49-documents-pack-live.t.
+model: purchase.order
+series: 18
+state:
+  field: state
+  written_by: actions
+  operations:
+  - purchase.confirm
+  - purchase.cancel
+unlink_requires:
+  state:
+  - cancel
+  noun: order
+effects:
+- 'on': call
+  method: button_confirm
+  effect: state becomes purchase (done where the company locks confirmed orders; to approve with double validation, where it stops until an approver acts in Odoo); date_approve is set
+  evidence: 'source 18.0 purchase_order.button_confirm, button_approve; live 2026-10-15 t/49-documents-pack-live.t on 18 (done, to approve and the lock are source only: the demo has one-step approval and no lock)'
+- 'on': call
+  method: button_confirm
+  effect: with stock installed a receipt is made for the goods lines; the vendor's price line (product.supplierinfo) is added to each product that has none from this vendor, and it stays after a cancel or an undo
+  evidence: source 18.0 purchase_order._add_supplier_to_product, purchase_stock; live 2026-10-15 t/49-documents-pack-live.t on 18
+- 'on': call
+  method: button_cancel
+  effect: state becomes cancel and its receipts are cancelled; Odoo refuses while a vendor bill that is neither draft nor cancelled points at the order
+  evidence: source 18.0 purchase_order.button_cancel; live 2026-10-15 t/49-documents-pack-live.t on 18 (the refusal for a bill is source only)
+- 'on': call
+  method: button_draft
+  effect: state becomes draft; receipts cancelled earlier stay cancelled
+  evidence: source 18.0 purchase_order.button_draft; live 2026-10-15 t/49-documents-pack-live.t on 18
+- 'on': call
+  method: unlink
+  effect: 'Odoo deletes an order from cancel only (a draft is refused too: cancel it first); its lines go with it; the receipts it made stay as cancelled rows with the order''s name as origin'
+  evidence: source 18.0 purchase_order._unlink_if_cancelled; live 2026-10-15 t/49-documents-pack-live.t on 18
+routes:
+  state:
+    via: button_confirm, button_cancel, button_draft
+    why: state is readonly and driven by the buttons; a write of it skips the receipt, the price line and the checks. purchase.confirm and purchase.cancel run them

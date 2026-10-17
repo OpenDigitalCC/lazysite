@@ -1,0 +1,6 @@
+# fleet.vehicle (module fleet). The file says which module provides the model, so a server without it
+# answers "not applicable here: module fleet is not installed". It lists no action and no effect:
+# nothing else is claimed about the model.
+model: fleet.vehicle
+series: 16
+module: fleet

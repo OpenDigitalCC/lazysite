@@ -25,6 +25,14 @@ Strategies:
 
     file     an API key in its own file, readable by the owner only.
              Shipped.
+    password a login and a password file: the context exchanges them once
+             for Odoo's web session (Odoo::Transport::Session) and every
+             call, RPC and report route alike, runs as that user over it.
+             The config carries `credential = password`, `login` and
+             `password_file` (the password alone on its first line,
+             owner-only, refused otherwise). An API key cannot open a web
+             session on any series: Odoo's web login takes the password,
+             which is why this strategy exists. Shipped (0.16).
     session  a web session id the CALLER holds at run time (never a
              file): the config carries it under `session`, built in
              memory with Odoo::Ops::Config->new. The context then
@@ -49,6 +57,7 @@ falling back to anything.
 
 my %STRATEGY = (
     file    => \&_file,
+    password => \&_password,
     session => \&_session,
     cookie  => sub ($c) { _reserved('cookie') },
 );
@@ -180,6 +189,18 @@ sub _owner_only_text ($path, $what) {
     my $text = do { local $/; <$fh> };
     close $fh;
     return $text // '';
+}
+
+# The password stays in memory only as long as the context needs it to open
+# the session; the file is named, never the value.
+sub _password ($config) {
+    my $path = $config->get('password_file')
+        or Odoo::Error->throw( kind => 'config', message => 'password credential needs password_file' );
+    my $login = $config->get('login');
+    Odoo::Error->throw( kind => 'config', message => 'password credential needs login' )
+        if !defined $login || $login eq '';
+    my $pw = __PACKAGE__->secret_file( $path, 'password_file' );
+    return ( login => $login, password => $pw, password_file => $path );
 }
 
 sub _session ($config) {

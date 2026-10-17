@@ -85,6 +85,23 @@ my %GRADE  = ( 16 => 'live', 17 => 'source', 18 => 'live', 19 => 'live' );
 sub op_name ($class) { 'comms.send' }
 sub summary ($class) { 'Plan sending rendered messages via Odoo mail (test first)' }
 sub pack    ($class) { 'crm' }
+# What a plan of this operation sorts rows into (oom-ops describe prints them;
+# t/99-declared-buckets.t checks them against what the tests plan).
+sub buckets ($class) {
+    return [
+        { name => 'send', meaning => 'one rendered message is sent from the lead through Odoo\'s mail composer' },
+        { name => 'test-send', meaning => 'test=1: the first message is sent to the connected user\'s own address; no lead is touched' },
+        { name => 'already-sent', meaning => 'a message with this subject has gone to the lead since rendering' },
+    ];
+}
+sub holds ($class) {
+    return [
+        { name => 'lead-gone', meaning => 'the lead is not readable' },
+        { name => 'email-changed', meaning => 'the lead\'s email differs from the one the message was rendered for' },
+        { name => 'no-sender', meaning => 'the lead has no salesperson, or the salesperson has no email address; never sent as someone else' },
+    ];
+}
+
 sub params ($class) {
     {   messages => { type => 'path', required => 1, help => 'messages.jsonl from comms.render' },
         test     => { type => 'bool', default => 0, help => 'send only the first message, to yourself' },
@@ -209,14 +226,14 @@ sub plan ($self) {
 }
 
 sub _read_index ($self, $path) {
-    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'config', message => "cannot read $path: $!" );
+    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
     my @m = map { Odoo::Ops::json()->decode($_) } grep {/\S/} <$fh>;
     close $fh;
     return @m;
 }
 
 sub _body ($self, $m) {
-    open my $fh, '<:raw', $m->{file} or Odoo::Error->throw( kind => 'config', message => "cannot read $m->{file}: $!" );
+    open my $fh, '<:raw', $m->{file} or Odoo::Error->throw( kind => 'usage', message => "cannot read $m->{file}: $!", fix => 'check the path exists and this user can read it' );
     my $raw = do { local $/; <$fh> };
     close $fh;
     return Encode::decode_utf8($raw);

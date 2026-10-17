@@ -26,6 +26,14 @@ before or instead of an answer: a redirect, an oversized response, a
 call outside an operation's declared scope - never retried), C<config>
 and C<usage> (caller mistakes, raised before any network traffic).
 
+=head2 fix
+
+An optional one-line statement of what to do about it (C<fix =E<gt> 'oom-ops
+list'>), beside C<kind>, C<code> and C<message>. A refusal that a person or a
+program can act on carries one, so the caller never has to parse the message
+to learn the next step; C<oom-ops> prints it on a line of its own and, with
+C<--json>, in the error object.
+
 =head2 Fault classes
 
 A fault carries C<fault_class>, the server's own exception name
@@ -37,6 +45,10 @@ it into the distinctions an application acts on:
     access      AccessError   - the user lacks rights; do not retry
     credential  AccessDenied  - login/key refused
     session     SessionExpiredException - re-authenticate
+    second_factor  the credentials were accepted and no session was opened
+                (two-factor is on for the user): fault_class 'oom.NoSession',
+                set only by Odoo::Transport::Session::authenticate; a wrong
+                password stays 'credential'
     validation  ValidationError, UserError - the data was refused
     missing     MissingError  - the record is gone
     lazysite    a lazysite manager API answered ok:false (fault_class
@@ -53,6 +65,7 @@ my %CATEGORY = (
     'odoo.exceptions.UserError'            => 'validation',
     'odoo.exceptions.MissingError'         => 'missing',
     'lazysite'                             => 'lazysite',
+    'oom.NoSession'                        => 'second_factor',
 );
 
 sub new ($class, %args) {
@@ -60,6 +73,7 @@ sub new ($class, %args) {
         kind        => $args{kind}    // 'error',
         message     => $args{message} // 'unknown error',
         code        => $args{code},
+        fix         => $args{fix},
         fault_class => $args{fault_class},
     }, $class;
 }
@@ -70,6 +84,60 @@ sub kind        ($self) { $self->{kind} }
 sub message     ($self) { $self->{message} }
 sub code        ($self) { $self->{code} }
 sub fault_class ($self) { $self->{fault_class} }
+
+=head2 fix, and the fix of an access fault
+
+C<fix> is the line a caller set, or, for an access fault
+(C<fault_category> C<access>) that has none, the one worded here for every
+pack: which model this user may not touch and what for, the groups Odoo's
+text names, what was being read when the guard knew it (C<reading>, set by
+L<Odoo::Ops::Guard>: C<model.method fields a,b,c>), and what to do. So an
+access fault never reads C<fix: null>.
+
+=cut
+
+sub fix ($self) {
+    return $self->{fix} if defined $self->{fix};
+    return undef if !$self->is_access_denied;
+    return $self->access_fix;
+}
+
+# The model Odoo's access text names ("... (account.move) records"), or undef.
+sub access_model ($self) {
+    my ($model) = ( $self->{message} // '' ) =~ /\(([a-z][\w.]*\.[\w.]+)\)/;
+    return $model;
+}
+
+# The groups Odoo lists as allowed, once each, in its order.
+sub access_groups ($self) {
+    my %seen;
+    return grep { !$seen{$_}++ } ( $self->{message} // '' ) =~ /^\s*-\s*(\S[^\n]*?)\s*$/mg;
+}
+
+# What was refused: read, create, write or delete (Odoo says access, create, modify, delete).
+sub access_verb ($self) {
+    my ($v) = ( $self->{message} // '' ) =~ /not allowed to (access|create|modify|delete)\b/;
+    return { access => 'read', modify => 'write' }->{ $v // 'access' } // $v;
+}
+
+=head2 reading
+
+What the call was when the guard saw this fault (C<mailing.mailing fields
+subject,state,total>), or undef.
+
+=cut
+
+sub reading ($self) { $self->{reading} }
+
+sub access_fix ($self) {
+    my $model  = $self->access_model;
+    my @groups = $self->access_groups;
+    my $what   = defined $model ? $model : 'a model this call reaches';
+    my $needs  = @groups ? ' (needs ' . join( ' or ', @groups[ 0 .. ( $#groups < 3 ? $#groups : 3 ) ] ) . ( @groups > 4 ? ' or others' : '' ) . ')' : '';
+    return 'this user may not ' . $self->access_verb . " $what$needs"
+        . ( defined $self->{reading} ? "; the call was $self->{reading}" : '' )
+        . '; ask the administrator for the group, or narrow the call to records and fields that do not reach it';
+}
 
 sub is_fault     ($self) { $self->{kind} eq 'fault' }
 sub is_transport ($self) { $self->{kind} eq 'transport' }
@@ -85,6 +153,18 @@ sub is_invalid_credential  ($self) { ( $self->fault_category // '' ) eq 'credent
 sub is_session_expired     ($self) { ( $self->fault_category // '' ) eq 'session' }
 sub is_validation          ($self) { ( $self->fault_category // '' ) eq 'validation' }
 sub is_missing             ($self) { ( $self->fault_category // '' ) eq 'missing' }
+sub is_no_session          ($self) { ( $self->fault_category // '' ) eq 'second_factor' }
+
+=head2 is_no_session
+
+True exactly for the error L<Odoo::Transport::Session/authenticate>
+throws when Odoo accepted the login and password and opened no session,
+which is what a user with two-factor authentication gets from the web
+login route. Its C<fault_category> is C<second_factor>; a refused
+password is C<credential> and is not this. The wording of the message is
+free to change: test this, not the text.
+
+=cut
 
 =head2 fault_class_from_text($text)
 

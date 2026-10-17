@@ -1,0 +1,39 @@
+# sale.order, Odoo 19 (sale). Read from the 19.0 source (sale/models/sale_order.py, sale_stock) and met live by t/49-documents-pack-live.t.
+model: sale.order
+series: 19
+state:
+  field: state
+  written_by: actions
+  operations:
+  - sale.confirm
+  - sale.cancel
+unlink_requires:
+  state:
+  - draft
+  - cancel
+  noun: order
+effects:
+- 'on': call
+  method: action_confirm
+  effect: state becomes sale; 19 keeps the lock in the locked flag, so the order stays sale and is locked only when the company setting says so; date_order is set to now and the customer is subscribed
+  evidence: 'source 19.0 sale_order.action_confirm; live 2026-10-15 t/49-documents-pack-live.t on 19 (the company setting that locks on confirmation is source only: it is off on the demo instances)'
+- 'on': call
+  method: action_confirm
+  effect: with stock installed a delivery is made for the goods lines, one picking per step of the warehouse route (one delivery on the 19 demo instance); a service line makes none; nothing is invoiced, the invoice comes from the invoicing wizard
+  evidence: source 19.0 sale_stock; live 2026-10-15 t/49-documents-pack-live.t on 19
+- 'on': call
+  method: action_cancel
+  effect: state becomes cancel; its deliveries are cancelled and its draft invoices cancelled; 19 refuses a locked order
+  evidence: source 19.0 sale_order.action_cancel, _action_cancel; live 2026-10-15 t/49-documents-pack-live.t on 19
+- 'on': call
+  method: action_draft
+  effect: state becomes draft and the signature is cleared; deliveries cancelled earlier stay cancelled, so a confirm after a cancel makes new ones
+  evidence: source 19.0 sale_order.action_draft; live 2026-10-15 t/49-documents-pack-live.t on 19
+- 'on': call
+  method: unlink
+  effect: 'Odoo deletes an order from draft or cancel only (a confirmed or sent one is refused: cancel it first); its lines go with it; the deliveries it made stay as cancelled rows with the order''s name as origin'
+  evidence: source 19.0 sale_order._unlink_except_draft_or_cancel; live 2026-10-15 t/49-documents-pack-live.t on 19
+routes:
+  state:
+    via: action_confirm, action_cancel, action_draft
+    why: state is readonly and driven by the actions; a write of it skips the delivery, the cancellations and the checks. sale.confirm and sale.cancel run the actions

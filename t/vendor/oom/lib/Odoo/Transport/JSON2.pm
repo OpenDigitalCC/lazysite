@@ -11,7 +11,7 @@ use JSON::PP ();
 use Odoo::Error;
 use Odoo::Transport;
 
-our $VERSION = '0.09';
+our $VERSION = '0.24';
 
 =head1 NAME
 

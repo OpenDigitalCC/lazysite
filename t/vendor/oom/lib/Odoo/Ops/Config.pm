@@ -25,6 +25,9 @@ line, C<#> comments, blank lines ignored. Recognised keys:
     url db login          the connection (required)
     credential            strategy name, default 'file' (Odoo::Ops::Credential)
     api_key_file          for the file strategy; mode must deny group/other
+    password_file         for the password strategy: a file holding the login's
+                          password alone, owner-only; the context opens a web
+                          session with it (needed by core.report's render)
     transport             jsonrpc (default), xmlrpc or json2 (19+; needs an API key)
     timeout               seconds per request
     max_response_bytes    cap on one answer
@@ -36,8 +39,18 @@ line, C<#> comments, blank lines ignored. Recognised keys:
     allow_writes          1 to permit apply on this instance; anything
                           else, or absent, means read-only
     approval              required (default): apply needs an approved run;
+                          self: the same gate, and a workflow tool (oom-mailshot)
+                          may record the approval of the plan it has just
+                          planned, as the actor, so one call plans, approves
+                          and applies; oom-ops itself treats it as required;
                           none: apply needs no approval (tests, trusted batch)
+    mailcatcher           optional URL of a mail catcher's JSON API (Mailpit,
+                          http://127.0.0.1:8025) that oom-mailshot reads to
+                          show a test mail; a development aid, never a target
     plan_ttl              seconds a plan stays applicable, default 86400
+    record_reads          1 (default): oom-ops run of a read leaves a run folder with
+                          its report.json; 0: it prints and leaves nothing, as
+                          --check does (a shared instance, an agent that reads a lot)
 
 An unknown key is refused, so a typo in C<allow_writes> can never
 silently read as "writes off" or "writes on".
@@ -48,10 +61,10 @@ outright - keys live in their own file.
 =cut
 
 my %KNOWN = map { $_ => 1 } qw(
-    url db login credential api_key_file transport timeout
+    url db login credential api_key_file password_file transport timeout
     max_response_bytes lang tz actor runs_dir profile_dir
     profile_series allow_writes name ssl_ca_file ssl_verify session
-    approval plan_ttl
+    approval plan_ttl mailcatcher record_reads
 );
 
 sub load ($class, $path) {
@@ -89,11 +102,21 @@ sub new ($class, %conf) {
         Odoo::Error->throw( kind => 'config', message => "config missing $req" )
             if !defined $conf{$req} || $conf{$req} eq '';
     }
-    Odoo::Error->throw( kind => q(config), message => "approval must be required or none, not '$conf{approval}'" )
-        if defined $conf{approval} && $conf{approval} !~ /^(?:required|none)\z/;
+    Odoo::Error->throw( kind => q(config), message => "approval must be required, self or none, not '$conf{approval}'" )
+        if defined $conf{approval} && $conf{approval} !~ /^(?:required|self|none)\z/;
+    Odoo::Error->throw( kind => q(config), message => "mailcatcher must be an http:// or https:// URL, not '$conf{mailcatcher}'" )
+        if defined $conf{mailcatcher} && $conf{mailcatcher} !~ m{^https?://[^\s/]+(?::\d+)?(?:/\S*)?\z};
     Odoo::Error->throw( kind => q(config), message => "plan_ttl must be a whole number of seconds, not '$conf{plan_ttl}'" )
         if defined $conf{plan_ttl} && $conf{plan_ttl} !~ /^[1-9]\d*\z/;
+    Odoo::Error->throw( kind => q(config), message => "record_reads must be 0 or 1, not '$conf{record_reads}'" )
+        if defined $conf{record_reads} && $conf{record_reads} !~ /^[01]\z/;
     return bless {%conf}, $class;
+}
+
+# One sentence, said by doctor and by oom-mailshot test, so an agent meets the
+# same words wherever the missing key shows (second try-out, item 1).
+sub no_catcher_sentence ($class) {
+    return 'no mailcatcher key: oom-mailshot test shows mailing.preview\'s rendering instead; on a development cluster add `mailcatcher = http://127.0.0.1:8025`';
 }
 
 sub get ($self, $key) { $self->{$key} }
@@ -105,6 +128,9 @@ sub allow_writes ($self) { ( $self->{allow_writes} // '' ) eq '1' }
 sub approval ($self) { $self->{approval} // q(required) }
 
 sub plan_ttl ($self) { $self->{plan_ttl} // 86400 }
+
+# whether a read leaves a run folder; a write always does
+sub record_reads ($self) { ( $self->{record_reads} // 1 ) eq '1' }
 
 # Stable identity of the target, for binding plans to an instance.
 sub instance ($self) {

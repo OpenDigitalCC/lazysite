@@ -1,0 +1,27 @@
+# mailing.contact, Odoo 16 (mass_mailing, mail.thread.blacklist). Read from
+# the 16.0 source and met live by t/85-mailing-live.t on demo16 (2026-10-15).
+model: mailing.contact
+series: 16
+effects:
+  - on: create
+    fields: [email]
+    effect: email_normalized (stored) is computed, lower-cased, and is empty when the text is not an address; is_blacklisted follows the active rows of mail.blacklist for that address. No check refuses a malformed address
+    evidence: source 16.0 mail_thread_blacklist._compute_email_normalized, _compute_is_blacklisted
+  - on: write
+    fields: [email]
+    effect: email_normalized recomputes; the contact is blacklisted or not by its new address
+    evidence: source 16.0 mail_thread_blacklist
+  - on: create
+    fields: [subscription_list_ids, list_ids]
+    effect: each list makes a mailing.contact.subscription row (opt_out false); giving both list_ids and subscription_list_ids is refused
+    evidence: source 16.0 mailing_contact.create
+  - on: write
+    fields: [subscription_list_ids]
+    effect: setting opt_out on a subscription stamps unsubscription_date; clearing it clears the date. A date alone sets opt_out
+    evidence: source 16.0 mailing.contact.subscription.create / write
+  - on: call
+    method: unlink
+    effect: the contact's subscriptions go with it (mailing.contact.subscription.contact_id is ondelete cascade) and the lists stay; mailing traces that point at the contact keep their email and lose the contact (trace.res_id is not a foreign key); the blacklist row for its address is not touched. mailing.delete carries the memberships in the change, so a revert recreates the contact on its lists (opted out where it was) with a new id
+    evidence: "source 16.0 mailing_contact.py (contact_id ondelete cascade); live 2026-10-15 (t/85 third pass, demo16, subscriptions counted before and after, traces kept, a revert putting the memberships back)"
+routes:
+  unsubscribe: { via: mailing.contact.subscription.write, why: opting out keeps the subscription row so the list still knows the contact and the send skips it }

@@ -119,13 +119,12 @@ sub report ($self) {
             my $type = $p->descriptor( lead => $f )->{type} // '';
             if    ( $type eq 'many2one' ) { $v = ref $v eq 'ARRAY' ? { id => $v->[0], name => $v->[1] } : undef }
             elsif ( $f eq 'tags' )        { $v = [ map { $tagname{$_} // "#$_" } @{ $v // [] } ] }
-            elsif ( $type !~ /^(boolean|integer|float|monetary)\z/ && defined $v && !ref $v && $v eq '0' ) { $v = undef }
             $l{$f} = $v;
         }
         $l{notes_text} = _text( $l{notes} );
         $by_stage{ ref $l{stage} ? $l{stage}{name} : '(none)' }++;
         my $file = File::Spec->catfile( $dir, "$row->{id}.json" );
-        open my $fh, '>:raw', $file or Odoo::Error->throw( kind => 'config', message => "cannot write $file: $!" );
+        open my $fh, '>:raw', $file or Odoo::Error->throw( kind => 'usage', message => "cannot write $file: $!", fix => 'give a path this user can write (dir, out or name), then plan again' );
         print {$fh} $json->encode( { lead => \%l, chatter => $msgs{ $row->{id} } // [], attachments => $att{ $row->{id} } // [] } );
         close $fh;
     }
@@ -133,7 +132,7 @@ sub report ($self) {
 }
 
 sub _text ($html) {
-    return undef if !defined $html || ref $html || $html eq '0';
+    return undef if !defined $html || ref $html;
     my $t = $html =~ s{<br\s*/?>}{\n}gir =~ s{</p>}{\n}gir =~ s/<[^>]*>//gr;
     $t =~ s/&nbsp;/ /g;
     $t =~ s/&amp;/&/g;

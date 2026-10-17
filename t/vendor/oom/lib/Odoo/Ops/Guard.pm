@@ -58,6 +58,9 @@ sub name  ($self) { 'guard(' . ( eval { $self->{inner}->name } // '?' ) . ')' }
 sub inner ($self) { $self->{inner} }
 sub set_audit ($self, $audit) { $self->{audit} = $audit }
 
+# the operation whose scope is in force (undef outside one)
+sub op ($self) { $self->{op} }
+
 =head2 with_scope(\%scope, $op_name, $code)
 
 Runs C<$code> with C<%scope> (physical model => [methods]) in force,
@@ -129,12 +132,14 @@ sub call ($self, $service, $method, @params) {
         );
     }
 
+    # the field list a read asked for: in the audit, and in the fix line of an access fault
+    my $asked = $mmethod && $mmethod =~ /^(?:read|search_read)\z/ ? _asked( $mmethod, @params[ 5, 6 ] ) : undef;
     my $t0 = Time::HiRes::time();
     my $result;
     my $ok = eval { $result = $self->{inner}->call( $service, $method, @params ); 1 };
     my $ms = int( ( Time::HiRes::time() - $t0 ) * 1000 );
     if ($ok) {
-        $self->_audit( $service, $model, $mmethod // $method, 'answered', undef, $ms );
+        $self->_audit( $service, $model, $mmethod // $method, 'answered', undef, $ms, $asked );
         return $result;
     }
     my $err = $@;
@@ -142,24 +147,80 @@ sub call ($self, $service, $method, @params) {
     if ( blessed($err) && $err->isa('Odoo::Error') ) {
         $outcome = $err->kind eq 'fault' ? 'fault' : $err->kind eq 'refused' ? 'refused' : 'transport';
         $cat     = $err->fault_category;
+        $err->{reading} //= "$model.$mmethod" . ( $asked && @$asked ? ' fields ' . join( ',', @$asked ) : '' )
+            if defined $cat && $cat eq 'access' && defined $model && defined $mmethod;
     }
-    $self->_audit( $service, $model, $mmethod // $method, $outcome, $cat, $ms );
+    $self->_audit( $service, $model, $mmethod // $method, $outcome, $cat, $ms, $asked );
     die $err;
 }
 
-sub _audit ($self, $service, $model, $method, $outcome, $cat, $ms) {
+# The field names of a read or search_read call: the second positional argument or the
+# fields keyword. undef when it named none (Odoo then chooses).
+sub _asked ($method, $args, $kw) {
+    my $f = ref $kw eq 'HASH' ? $kw->{fields} : undef;
+    $f //= $args->[1] if ref $args eq 'ARRAY' && $method eq 'read';
+    return ref $f eq 'ARRAY' && @$f ? [ map { "$_" } @$f ] : undef;
+}
+
+=head2 hold_access_fault, release_access_fault(%extra)
+
+For the tolerant read of the mailing pack: after C<hold_access_fault> the
+audit record of the next read refused for want of rights is kept back, and
+C<release_access_fault> writes it with the extra keys given
+(C<< refused_fields => [...] >>), so the record of the first, refused read
+says which fields were refused although the reads that found out were
+made after it. A record held is always written: by the release, and at the
+latest when the guard goes.
+
+=cut
+
+sub hold_access_fault ($self) { $self->{hold} = [] }
+
+sub release_access_fault ($self, %extra) {
+    my $held = delete $self->{hold};
+    $self->{audit}->record( %$_, %extra ) for $self->{audit} ? @{ $held // [] } : ();
+    return;
+}
+
+sub DESTROY ($self) { local $@; eval { $self->release_access_fault } }
+
+=head2 audit_web($label, $outcome, $ms)
+
+One audit record for a request that is not an RPC call (a report route
+fetched over the web session). It names the label and the outcome, never
+the content.
+
+=cut
+
+sub audit_web ($self, $label, $outcome, $ms) {
+    $self->_audit( 'web', undef, $label, $outcome, undef, $ms );
+    return;
+}
+
+sub _audit ($self, $service, $model, $method, $outcome, $cat, $ms, $asked = undef) {
     return if !$self->{audit};
-    $self->{audit}->record(
+    my $is_read = defined $model && defined $method && $method =~ /^(?:read|search_read)\z/ && $service eq 'object';
+    my %rec = (
         actor   => $self->{actor},
         login   => $self->{login},
+        ( defined $self->{for_login} ? ( for_login => $self->{for_login} ) : () ),
         service => $service,
         model   => $model,
         method  => $method,
         op      => $self->{op},
         outcome => $outcome,
         ( defined $cat ? ( fault_category => $cat ) : () ),
+        # null when the call named no fields: Odoo then chose them
+        ( $is_read ? ( fields => $asked ) : () ),
         ms => $ms,
     );
+    # the first refused read while the tolerant read waits to say which fields were refused
+    if ( $self->{hold} && !@{ $self->{hold} } && $is_read && defined $cat && $cat eq 'access' ) {
+        $rec{ts} = $self->{audit}->now;
+        push @{ $self->{hold} }, \%rec;
+        return;
+    }
+    $self->{audit}->record(%rec);
 }
 
 1;
