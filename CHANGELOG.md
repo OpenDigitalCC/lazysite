@@ -59,6 +59,12 @@ Archive
   empty result, failing its two focus assertions; it now reruns the browser until
   the page reports it finished and polls for the note up to a deadline. No CSS
   change. t/unit/manager/349.
+- SM1141 (PENDING) **a template can test the visitor's address.**
+  `visitor.in_list('name')` answers whether the address is in a list, never
+  the address itself, and a page using it is not cached. `lazysite check`
+  warns when address rules cannot work, and a list still in use is not
+  deleted without force (SM1134, slice D). t/unit/processor/133.
+
 - SM1140 (PENDING) **security: a group is limited by address.** A group may be
   limited to addresses; from outside, the group and everything it grants
   (capabilities, page access, operator status, domain reach) drop out for
