@@ -864,15 +864,28 @@ sub action_plugin_save {
         # config file, while the branch below writes lazysite.conf. They had the
         # same variable name, which reads as one thing written two ways.
         my $plugin_conf = "$DOCROOT/$config_file";
-        my $content     = _slurp_or_empty($plugin_conf);
+        my $dir         = dirname($plugin_conf);
+        make_path($dir) unless -d $dir;
+
+        # SM1172 (OOM Lab L-15, "saving odoo_packs while another app is
+        # installed left the other app's operations answering 404 'no operation
+        # installed'"): THE READ, THE CHANGE AND THE WRITE ARE ONE STEP. The write
+        # was already atomic (temp + rename), but the file was read before it with
+        # nothing held, so two overlapping saves both read the old file and the
+        # second rename dropped the first's keys - an app's odoo_packs namespace
+        # among them - until something saved it again. The lock is the one the
+        # other read-modify-write stores take (Util::store_lock); readers stay
+        # lock-free because the rename gives them a whole file either way.
+        my $lock = Lazysite::Util::store_lock($plugin_conf)
+            or return { ok => 0, error => "Cannot lock config: $!" };
+        my $content = _slurp_or_empty($plugin_conf);
 
         $apply->( \$content, $_ ) for keys %safe;
 
-        my $dir = dirname($plugin_conf);
-        make_path($dir) unless -d $dir;
         my ( $wok, $werr ) = write_file_checked( $plugin_conf, $content );
         return { ok => 0, error => "Cannot write config: $werr" }
             unless $wok;
+        close $lock;
 
         # A config carrying a password field must not be world-readable -
         # notify-xmpp.conf sits at the lazysite/ top level, outside the
