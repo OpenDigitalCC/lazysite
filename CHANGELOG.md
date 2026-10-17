@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM1129 (PENDING) **security: a proxy is believed only from its address.** With
+  `auth_proxy_trusted` on, any request carrying the identity headers was
+  believed (SM794's open gap; SM1128 phase 1). `auth_proxy_trusted_from` lists
+  the proxy's addresses, matched against the TCP peer only; from anywhere else
+  the headers are stripped, and an empty list believes nobody. One function
+  answers the question for every surface; `lazysite check` warns while the
+  flag is on. t/integration/264.
+- SM1130 (PENDING) **a trusted proxy's identity wins over a lazysite cookie.**
+  A stale local session replaced the directory's identity; under a trusted
+  proxy the proxy's user now wins, and with no proxy user the cookie works as
+  before. t/integration/263.
+
 - SM1127 (PENDING) **internal: a short PUT through Apache leaves nothing.** The
   0.15.9 walk could not reach the engine with a short body from outside. A test
   now drives one through a real Apache: a cut-off and a stalled body both leave
