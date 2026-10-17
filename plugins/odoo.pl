@@ -67,6 +67,13 @@ sub describe {
                 default => 'false',
                 note    => 'Off: write operations can plan but never apply. Odoo\'s own '
                     . 'rights for the connection user still decide what an apply may do.' },
+            { key => 'odoo_ca_file', label => 'CA bundle for the Odoo connection (file path)', type => 'text',
+                note => 'Leave blank unless your Odoo is behind a certificate from a private '
+                    . 'authority - the usual case for an internal Odoo reached over https:// to its '
+                    . 'private name. A full path to a PEM file holding that authority\'s certificate; '
+                    . 'it must be readable by the web server\'s user. It is used for the connection to '
+                    . 'Odoo only: the rest of the server, and every other site on it, keeps the system '
+                    . 'certificate store. Verification stays on.' },
             { key => 'odoo_identity_ttl', label => 'Identity cookie lifetime (seconds)', type => 'text',
                 default => '900',
                 note => 'How long a page may show who a signed-in person is in Odoo before it is '
@@ -82,7 +89,7 @@ sub describe {
 
         owns => {
             config_keys =>
-                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_identity_ttl odoo_packs)],
+                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_identity_ttl odoo_packs)],
 
             # NO `storage`, deliberately. lazysite/odoo/ holds the connection
             # user's key and plans carrying Odoo's own records; a site package

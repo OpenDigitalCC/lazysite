@@ -10,11 +10,16 @@
 #
 #   GET  ?csrf=1                 tokens for this browser: the visitor token
 #                                (minting the visitor cookie if there is none)
-#                                and, for a signed-in account, the session one
+#                                and, for a signed-in account, the session one;
+#                                for a person signed in to Odoo, who they are
+#                                (the display name - SM1145)
 #   GET  ?binding=ID&field=v...  run a READ binding
 #   POST {binding, params}       run a binding (a write plans, or applies when
 #                                the binding says immediate)
 #   POST {plan, confirm: true}   apply a plan this caller made
+#   POST {calls: [{binding, params}, ...]}
+#                                up to 10 of the above in one request, answered
+#                                in order, each its own status (SM1146)
 #   POST {signin: true, login, password, visitor_token}
 #                                sign a person in to Odoo (SM747 B): the password goes
 #                                to Odoo through OOM and nowhere else; the answer sets
@@ -32,6 +37,12 @@
 # public, as the form handler treats every poster (SM579: "the form handler
 # says public because anyone could have posted"). A signed-in account reaching
 # a public binding as public gains nothing an anonymous visitor lacks.
+#
+# THE COLD PATH IS LIGHT (SM1147). Lazysite::Odoo and the modules under it are
+# loaded by the branches that reach Odoo, and by no other: `?csrf=1` - the call
+# every page makes first - and a request refused before anything is run (the
+# wrong method, a body that is not JSON, a missing token on a sign-in) answer
+# from the visitor and session cookies alone.
 #
 # A STATE-CHANGING POST NEEDS ITS TOKEN (OA5, outcome 9, Q1): the session's
 # CSRF token for an authenticated call, the visitor-bound token for a public
@@ -77,8 +88,14 @@ sub reply {
 # A refusal's status comes from its kind, by the one map every surface uses.
 sub refuse {
     my ($r) = @_;
+    return reply( _refusal_pair($r) );
+}
+
+# ( status, data ): a refusal and the status its kind maps to.
+sub _refusal_pair {
+    my ($r) = @_;
     require Lazysite::Manager::Common;
-    return reply( Lazysite::Manager::Common::refusal_status( $r->{kind} ), $r );
+    return ( Lazysite::Manager::Common::refusal_status( $r->{kind} ), $r );
 }
 
 sub _query {
@@ -115,7 +132,9 @@ sub main {
             error => 'The Odoo extension is disabled. A sysop can enable it on the Extensions page.' } )
         unless Lazysite::Manager::Plugins::plugin_enabled('plugins/odoo.pl');
 
-    require Lazysite::Odoo;
+    # SM1147: the visitor cookie, the session cookie and the identity cookie are
+    # read by these small modules; Lazysite::Odoo (the engine, with Egress under
+    # it) is _engine()'s, called by the branches that reach Odoo.
     require Lazysite::Odoo::Visitor;
     local $Lazysite::Odoo::DOCROOT          = $docroot;
     local $Lazysite::Odoo::Visitor::DOCROOT = $docroot;
@@ -152,12 +171,36 @@ sub main {
             $visitor = $key;
             push @EXTRA, Lazysite::Odoo::Visitor::set_cookie_header( $cookie, secure => $ENV{HTTPS} ? 1 : 0 );
         }
+        my $who = $odoo_session ? _who_is_signed_in() : undef;
         return reply( '200 OK',
             { ok => 1, visitor_token => Lazysite::Odoo::Visitor::csrf_token($visitor),
                 odoo_signed_in => ( $odoo_session ? 1 : 0 ),
+                ( $who ? ( identity => $who ) : () ),
                 ( length $user ? ( token => Lazysite::Auth::Session::generate_csrf_token($user) ) : () ) } );
     }
 
+    my $len = $ENV{CONTENT_LENGTH} || 0;
+    my ( $req, $raw ) = ( undef, '' );
+    if ( $method eq 'POST' ) {
+        return reply( '413 Payload Too Large', { ok => 0, kind => 'too-large', error => 'body too large' } )
+            if $len > 64 * 1024;
+        read( STDIN, $raw, $len ) if $len;
+        $req = eval { JSON::PP->new->utf8->decode($raw) };
+        return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'the body must be a JSON object' } )
+            unless ref $req eq 'HASH';
+
+        # B: signing in and out. Neither names a binding, and both are a POST that
+        # needs the visitor token (bound to the visitor cookie, which SameSite=Strict
+        # keeps from a cross-site request): a forged form must not sign a victim in
+        # as somebody else.
+        if ( $req->{signin} || $req->{signout} ) {
+            my %ctx = ( mode => 'public', visitor_key => $visitor );
+            return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
+        }
+    }
+
+    # From here a request reaches the engine, and so Odoo.
+    _engine($docroot);
     require Lazysite::Util;
     my %who = ( user => $user, groups => \@groups, caps => $caps, visitor => $visitor, ip => $ip,
         host => Lazysite::Util::request_host(), odoo_session => $odoo_session );
@@ -170,41 +213,101 @@ sub main {
         return reply( '405 Method Not Allowed',
             { ok => 0, kind => 'method', error => 'this binding changes data - send it as a POST with its token' } )
             if _writes($b);
-        return _answer( Lazysite::Odoo::call( $b, $q, _ctx( $b, %who ), strict => 1 ) );
+        return _answer( Lazysite::Odoo::call( $b, $q, _ctx( $b, %who ), strict => 1 ), \%who );
     }
 
-    my $len = $ENV{CONTENT_LENGTH} || 0;
-    return reply( '413 Payload Too Large', { ok => 0, kind => 'too-large', error => 'body too large' } )
-        if $len > 64 * 1024;
-    my $raw = '';
-    read( STDIN, $raw, $len ) if $len;
-    my $req = eval { JSON::PP->new->utf8->decode($raw) };
-    return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'the body must be a JSON object' } )
-        unless ref $req eq 'HASH';
-
-    # B: signing in and out. Neither names a binding, and both are a POST that
-    # needs the visitor token (bound to the visitor cookie, which SameSite=Strict
-    # keeps from a cross-site request): a forged form must not sign a victim in
-    # as somebody else.
     return _signin( $req, %who )  if $req->{signin};
     return _signout( $req, %who ) if $req->{signout};
     $who{odoo_session} = _refresh_identity(%who);
+    return _batch( $req, \%who ) if exists $req->{calls};
+    return reply( _post_one( $req, \%who ) );
+}
 
+# SM1147: the engine, loaded by the branches that need it. DOCROOT is set after
+# the require because the module's own `our $DOCROOT = ''` runs at load.
+sub _engine {
+    my ($docroot) = @_;
+    require Lazysite::Odoo;
+    $Lazysite::Odoo::DOCROOT = $docroot;
+    return;
+}
+
+# SM1145: who is signed in, for a page to show - the display name
+# from the identity cookie this server signed, while it is inside its time, and
+# nothing else of the person. undef when there is nothing to trust: the cookie is
+# absent, ended or altered. Nothing is asked of Odoo here (the next call that
+# reaches Odoo freshens an ended cookie, OI3), so a page that only wants a name
+# costs no Odoo call. Presentation only (OI4): nothing is permitted by it.
+sub _who_is_signed_in {
+    require Lazysite::Odoo::Identity;
+    my $id = Lazysite::Odoo::Identity::identity_from_cookie( $ENV{HTTP_COOKIE} // '',
+        ttl => Lazysite::Odoo::Identity::configured_ttl() );
+    return Lazysite::Odoo::Identity::shown($id);
+}
+
+# One POST that names a binding, or confirms a plan: ( status, data ) for reply.
+# A single request and each call of a batch (SM1146) go through THIS function, so
+# a call in a batch is checked, authorised, rate-capped, recorded and audited
+# exactly as the same call sent alone: the same token check, the same engine
+# call. $who is mutated when Odoo ends the person's session, so a later call in
+# the same batch does not run on a session that has gone.
+sub _post_one {
+    my ( $req, $who ) = @_;
     if ( $req->{confirm} ) {
         # A confirm names no binding: which binding, and so which mode, is the
         # plan's. The caller's token must fit what the caller is.
-        my %ctx = _ctx( undef, %who );
-        return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
-        return _answer( Lazysite::Odoo::confirm( $req->{plan}, %ctx ) );
+        my %ctx = _ctx( undef, %$who );
+        return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req );
+        return _settle( Lazysite::Odoo::confirm( $req->{plan}, %ctx ), $who );
     }
 
     my ( $b, $why ) = Lazysite::Odoo::find_binding( $req->{binding} );
-    return refuse( { ok => 0, kind => 'not-found', error => $why } ) unless $b;
-    my %ctx = _ctx( $b, %who );
-    return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req, $b );
-    return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'params must be an object' } )
+    return _refusal_pair( { ok => 0, kind => 'not-found', error => $why } ) unless $b;
+    my %ctx = _ctx( $b, %$who );
+    return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req, $b );
+    return ( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'params must be an object' } )
         if defined $req->{params} && ref $req->{params} ne 'HASH';
-    return _answer( Lazysite::Odoo::call( $b, $req->{params} // {}, %ctx, strict => 1 ) );
+    return _settle( Lazysite::Odoo::call( $b, $req->{params} // {}, %ctx, strict => 1 ), $who );
+}
+
+# SM1146 (the OOM Lab's P2): SEVERAL CALLS IN ONE REQUEST. A page with N reads
+# paid this endpoint's start-up N times; a batch pays it once. The cap is
+# $MAX_BATCH calls, said in the refusal. The tokens are the request's - one visitor
+# token or one session token, sent once - and each call is checked against them
+# for what that call's binding needs. A call that fails does not stop the others:
+# each answer is the one the call alone would have had, with its own `status`.
+# Writes follow the same plan/apply rules as singly (a binding that plans returns
+# a plan to confirm; `apply: immediate` applies), because it is the same function.
+# A batch carries calls and confirms, never a sign-in or sign-out.
+our $MAX_BATCH = 10;
+
+sub _batch {
+    my ( $req, $who ) = @_;
+    my $calls = $req->{calls};
+    return reply( '400 Bad Request',
+        { ok => 0, kind => 'invalid', error => 'calls must be a list of {binding, params}' } )
+        unless ref $calls eq 'ARRAY';
+    return reply( '400 Bad Request',
+        { ok => 0, kind => 'invalid', error => "a batch holds 1 to $MAX_BATCH calls" } )
+        unless @$calls >= 1 && @$calls <= $MAX_BATCH;
+    my @results;
+    for my $item (@$calls) {
+        my ( $status, $data );
+        if ( ref $item ne 'HASH' || grep { exists $item->{$_} } qw(signin signout calls) ) {
+            ( $status, $data ) = ( '400 Bad Request',
+                { ok => 0, kind => 'invalid', error => 'a batch call is a {binding, params} or a {plan, confirm}' } );
+        }
+        else {
+            # the request's tokens, never one the call carries for itself
+            my %one = %$item;
+            delete @one{qw(visitor_token token)};
+            exists $req->{$_} and $one{$_} = $req->{$_} for qw(visitor_token token);
+            ( $status, $data ) = _post_one( \%one, $who );
+        }
+        my ($code) = $status =~ /\A(\d+)/;
+        push @results, { %$data, status => 0 + $code };
+    }
+    return reply( '200 OK', { ok => 1, results => \@results } );
 }
 
 # The call's context: authenticated where the account is verified and the
@@ -253,7 +356,12 @@ sub _csrf_ok {
 
 sub _csrf_refusal {
     my ($ctx) = @_;
-    return reply( '403 Forbidden',
+    return reply( _csrf_pair($ctx) );
+}
+
+sub _csrf_pair {
+    my ($ctx) = @_;
+    return ( '403 Forbidden',
         { ok => 0, kind => 'csrf',
             error => ( $ctx->{mode} eq 'public' && !$ctx->{visitor_key} )
             ? 'no visitor key on this request - fetch tokens from ?csrf=1 first'
@@ -261,13 +369,23 @@ sub _csrf_refusal {
 }
 
 sub _answer {
-    my ($r) = @_;
+    my ( $r, $who ) = @_;
+    return reply( _settle( $r, $who ) );
+}
+
+# ( status, data ) for an engine answer.
+sub _settle {
+    my ( $r, $who ) = @_;
 
     # B: Odoo ended the person's session (or no longer accepts it). The cookie goes,
-    # and the body says to sign in - nothing else was run in its place.
-    _clear_cookies() if delete $r->{clear_session};
-    return refuse($r) unless $r->{ok};
-    return reply( '200 OK', $r );
+    # and the body says to sign in - nothing else was run in its place. SM1146: and
+    # a later call of the same batch has no session to run on.
+    if ( delete $r->{clear_session} ) {
+        _clear_cookies();
+        $who->{odoo_session} = undef if $who;
+    }
+    return _refusal_pair($r) unless $r->{ok};
+    return ( '200 OK', $r );
 }
 
 # The credential cookie and the identity cookie go together: a person whose

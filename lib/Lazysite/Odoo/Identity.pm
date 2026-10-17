@@ -62,6 +62,35 @@ sub present {
     return \%o;
 }
 
+# SM1145/SM1147: the operator's `odoo_identity_ttl` (60 to 86400 seconds, else the
+# default), read from the extension's config for the docroot Visitor holds. It is
+# here, and not only in Lazysite::Odoo, so that `?csrf=1` can tell whether an
+# identity cookie is still inside its time without loading the engine; the
+# engine's identity_ttl asks this. Last line wins, as the config reader has it.
+sub configured_ttl {
+    require Lazysite::Odoo::Visitor;
+    require Lazysite::Paths;
+    no warnings 'once';
+    my $file = Lazysite::Paths::lazysite_dir($Lazysite::Odoo::Visitor::DOCROOT) . '/odoo.conf';
+    open my $fh, '<:utf8', $file or return $TTL;
+    my $v;
+    while ( my $l = <$fh> ) {
+        $v = $1 if $l =~ /\A\s*odoo_identity_ttl\s*:\s*(.*?)\s*\z/;
+    }
+    close $fh;
+    return ( defined $v && $v =~ /\A[0-9]+\z/ && $v >= 60 && $v <= 86400 ) ? 0 + $v : $TTL;
+}
+
+# SM1145: what `?csrf=1` tells a page about who is signed in - the display
+# name, and nothing else of the person. undef when the cookie is not this
+# server's, is ended, or says nothing to show.
+sub shown {
+    my ($id) = @_;
+    return undef unless ref $id eq 'HASH';
+    my %o = map { ( $_ => $id->{$_} ) } grep { defined $id->{$_} && length $id->{$_} } qw(name);
+    return %o ? \%o : undef;
+}
+
 sub _b64u {
     my ($raw) = @_;
     my $s = encode_base64( $raw, '' );

@@ -214,6 +214,23 @@ sub connection {
     return ( undef, 'odoo_max_kb must be 16 to 65536' )
         unless $c{max_kb} >= 16 && $c{max_kb} <= 65536;
 
+    # SM1149 (OOM Lab L-1): A PRIVATE CA FOR THIS CONNECTION, AND NO OTHER. An
+    # internal Odoo reached over https:// to its private name is signed by the
+    # operator's own authority. The lab got past that with SSL_CERT_FILE for the
+    # whole server, which replaces the system store for every connection the
+    # process makes. This is the connection's own setting: OOM's `ssl_ca_file`,
+    # which becomes HTTP::Tiny's SSL_ca_file for the Odoo client alone. Checked
+    # here, once, like every other value: an absolute path to a readable file, so a
+    # CGI's working directory cannot change what it names.
+    my $ca = $kv->{odoo_ca_file};
+    if ( defined $ca && length $ca ) {
+        return ( undef, 'odoo_ca_file must be one line, a full path to a PEM file' )
+            if $ca =~ /[\x00-\x1f\x7f]/ || $ca !~ m{\A/};
+        return ( undef, "odoo_ca_file '$ca' is not a file" ) unless -f $ca;
+        return ( undef, "odoo_ca_file '$ca' cannot be read by this process" ) unless -r _;
+        $c{ca_file} = $ca;
+    }
+
     # WRITES ARE OFF UNLESS SAID. OOM refuses to apply a plan without
     # allow_writes = 1, and this is the operator's one switch for it.
     $c{allow_writes} = ( ( $kv->{odoo_allow_writes} // '' ) =~ /\A\s*(?:1|true|yes|on)\s*\z/i ) ? 1 : 0;
@@ -628,6 +645,7 @@ sub context {
             max_response_bytes => $conn->{max_kb} * 1024,
             allow_writes       => ( $conn->{allow_writes} ? 1 : 0 ),
             runs_dir           => plans_dir(),
+            ( $conn->{ca_file} ? ( ssl_ca_file => $conn->{ca_file} ) : () ),    # SM1149
         );
         require Lazysite::Odoo::Session;
         my @t;
@@ -652,6 +670,7 @@ sub context {
         max_response_bytes => $conn->{max_kb} * 1024,
         allow_writes       => ( $conn->{allow_writes} ? 1 : 0 ),
         runs_dir           => plans_dir(),
+        ( $conn->{ca_file} ? ( ssl_ca_file => $conn->{ca_file} ) : () ),    # SM1149
     );
     return Odoo::Ops::Context->new(
         config  => $cfg,
@@ -1094,9 +1113,11 @@ sub sign_in {
 # 86400, default 900. Groups and companies change in Odoo and the cookie does not
 # know, so it is short, and refreshed from the session when it has ended.
 sub identity_ttl {
-    my $kv = read_conf() // {};
-    my $v  = $kv->{odoo_identity_ttl};
-    return ( defined $v && $v =~ /\A[0-9]+\z/ && $v >= 60 && $v <= 86400 ) ? 0 + $v : 900;
+    require Lazysite::Odoo::Identity;
+    require Lazysite::Odoo::Visitor;
+    no warnings 'once';
+    local $Lazysite::Odoo::Visitor::DOCROOT = $DOCROOT;
+    return Lazysite::Odoo::Identity::configured_ttl(); # SM1147: one reader, shared with ?csrf=1
 }
 
 sub _identity_cookie {

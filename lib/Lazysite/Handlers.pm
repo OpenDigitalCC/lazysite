@@ -1760,6 +1760,22 @@ sub _to_odoo {
         # there; the timer has no host and runs what the operator scheduled.
         ( ( $ctx->{origin} // '' ) eq 'timer' ? () : ( host => _odoo_host() ) ) );
     return { ok => 1 } if $r->{ok};
+
+    # SM1148 (OOM Lab L-3): APPLIED WITH A WARNING IS DELIVERED. OOM reports an
+    # apply as not ok when an invariant on the result failed after the change was
+    # made (its O-4: the record WAS made). That reached here as a failure, so a
+    # form sent the visitor to outcome=undelivered, they sent it again, and Odoo
+    # held a duplicate. It is delivered, with the warning in `note` - which the
+    # delivery's audit line carries as its detail and the event log as a WARN
+    # (deliver, above) - and the engine's call record already holds the kind. Only
+    # a result in which every change that was attempted is done counts: a change
+    # that failed, or was never attempted, is not a delivery and keeps its refusal.
+    if ( ( $r->{kind} // '' ) eq 'apply-incomplete' && $r->{applied} ) {
+        my $c = ( ref $r->{result} eq 'HASH' && ref $r->{result}{counts} eq 'HASH' ) ? $r->{result}{counts} : {};
+        return { ok => 1,
+            note => 'the change was applied in Odoo, and its checks afterwards reported apply-incomplete - see the Odoo call record' }
+            if ( $c->{done} // 0 ) > 0 && !( $c->{failed} // 0 ) && !( $c->{not_attempted} // 0 );
+    }
     return { ok => 0, why => 'the Odoo operation did not complete: ' . ( $r->{error} // $r->{kind} // 'failed' ) };
 }
 

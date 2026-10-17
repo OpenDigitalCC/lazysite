@@ -122,15 +122,7 @@ sub login_label {
 # (a credential check is the one place a message could carry what was typed).
 sub sign_in {
     my ( $conn, $login, $password ) = @_;
-    my $t = eval {
-        require Odoo::Transport::Session;
-        Odoo::Transport::Session->new(
-            url                => $conn->{url},
-            timeout            => $conn->{timeout},
-            max_response_bytes => $conn->{max_kb} * 1024,
-            ( $HTTP ? ( http => $HTTP ) : () ),
-        );
-    };
+    my $t = eval { _transport($conn) };
     return _fail( 'config', 'the Odoo connection is not configured correctly - see the event log' ) unless $t;
     my $identity = eval { $t->authenticate( $conn->{db}, $login, $password ) };
     my $err      = $@;
@@ -158,8 +150,27 @@ sub sign_in {
     };
 }
 
+# The one place a session transport is built, so that what is true of the
+# connection is true of every use of it. SM1149: the connection's own CA bundle
+# (`odoo_ca_file`) goes to OOM as ssl_ca_file, which OOM hands to HTTP::Tiny for
+# THIS client only - never SSL_CERT_FILE in %ENV, which would replace the system
+# store for the whole process.
+sub _transport {
+    my ( $conn, %o ) = @_;
+    require Odoo::Transport::Session;
+    return Odoo::Transport::Session->new(
+        url     => $conn->{url},
+        timeout => $conn->{timeout},
+        ( $conn->{max_kb}  ? ( max_response_bytes => $conn->{max_kb} * 1024 ) : () ),
+        ( $conn->{ca_file} ? ( ssl_ca_file        => $conn->{ca_file} )       : () ),
+        ( $HTTP            ? ( http               => $HTTP )                  : () ),
+        %o,
+    );
+}
+
 # What of an OOM identity a page may be shown (Lazysite::Odoo::Identity::present
-# keeps it to this and no more): a name, a language, a time zone and the companies.
+# keeps it to this and no more): a name, a language, a time
+# zone and the companies.
 sub _facts {
     my ($id) = @_;
     return { map { ( $_ => $id->{$_} ) } grep { defined $id->{$_} } qw(name lang tz company_id company_ids groups) };
@@ -176,14 +187,7 @@ sub identity_of {
     return _fail( 'signin-required', 'no Odoo sign-in' ) unless defined $sid && $sid =~ $ID;
     my $id = eval {
         require Odoo::Client;
-        require Odoo::Transport::Session;
-        my $t = Odoo::Transport::Session->new(
-            url                => $conn->{url},
-            timeout            => $conn->{timeout},
-            max_response_bytes => $conn->{max_kb} * 1024,
-            session            => $sid,
-            ( $HTTP ? ( http => $HTTP ) : () ),
-        );
+        my $t = _transport( $conn, session => $sid );
         Odoo::Client->new( url => $conn->{url}, db => $conn->{db}, transport => $t, retries => [0] )->session_identity;
     };
     my $err = $@;
@@ -242,16 +246,7 @@ sub _classify {
 sub sign_out {
     my ( $conn, $sid ) = @_;
     return 1 unless defined $sid && $sid =~ $ID;
-    eval {
-        require Odoo::Transport::Session;
-        my $t = Odoo::Transport::Session->new(
-            url     => $conn->{url},
-            timeout => $conn->{timeout},
-            session => $sid,
-            ( $HTTP ? ( http => $HTTP ) : () ),
-        );
-        $t->destroy;
-    };
+    eval { _transport( $conn, session => $sid )->destroy };
     return 1;
 }
 

@@ -96,6 +96,30 @@ Archive
 - SM1137 (PENDING) **the data endpoint honours a trusted proxy.** It used its
   own session even when a trusted proxy named the user; the proxy's identity
   now wins there too. t/integration/272.
+- SM1145 (PENDING) **a page shows who is signed in to Odoo without calling Odoo.**
+  `?csrf=1` answers `identity: {name}` from the identity cookie the
+  endpoint already verifies, and nothing else about the person; the helper fills
+  `data-ls-odoo-name` on load. The cookie stays HttpOnly and carries no
+  login. t/unit/odoo/41, 44.
+- SM1146 (PENDING) **a batch call on the Odoo endpoint.** `POST {calls: [...]}`
+  runs up to ten calls in one request and answers each in order with its own
+  status; each is checked, authorised, rate-counted, recorded and audited as a
+  single call, and one failing does not stop the others. The helper has `batch`.
+  t/unit/odoo/42, 44.
+- SM1147 (PENDING) **the Odoo endpoint's cold path loads only what it answers
+  with.** `?csrf=1` and requests refused before Odoo no longer load the engine or
+  OOM; measured about 4 ms of 86 ms CPU per `?csrf=1`, the rest being modules the
+  request needs. t/unit/odoo/43.
+- SM1148 (PENDING) **a form whose Odoo change applied with a warning is
+  delivered.** An apply OOM reports as `apply-incomplete` after the record was made
+  is no longer `outcome=undelivered`; the warning is in the call record and the
+  audit. t/unit/odoo/45.
+- SM1149 (PENDING) **the Odoo connection can trust its own CA.** `odoo_ca_file`
+  is the CA bundle for the connection to Odoo only, passed to OOM as `ssl_ca_file`
+  for every client lazysite builds for it, never `SSL_CERT_FILE`. t/unit/odoo/46.
+- SM1150 (PENDING) **`credential: session` is documented.** The Odoo guide
+  describes a person signing in and running bindings as themselves, as the code
+  does, and no longer lists it as not available. t/unit/odoo/47.
 
 - SM1131 (PENDING) **every reader honours the configured header names.** Only the
   page gate read `auth_header_*`; one reader, `Lazysite::Auth::Identity`, now

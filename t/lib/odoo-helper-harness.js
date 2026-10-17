@@ -9,7 +9,7 @@ const fs = require('fs');
 const vm = require('vm');
 const src = fs.readFileSync(process.argv[2], 'utf8');
 
-function world(script) {
+function world(script, document) {
   const log = [];
   const win = {
     fetch: async (u, o) => {
@@ -20,6 +20,7 @@ function world(script) {
       return { status: r.status, text: async () => (r.raw !== undefined ? r.raw : JSON.stringify(r.body)) };
     },
   };
+  if (document) win.document = document;
   vm.runInNewContext(src, { window: win, Promise, JSON, encodeURIComponent, Object, String });
   return { api: win.LazysiteOdoo, log };
 }
@@ -162,6 +163,69 @@ const facts = {};
     const slots2 = ['name', 'note'].map(mk);
     w.api.fill({ querySelectorAll: () => slots2 }, { name: 'a', note: 'b' }, null);
     facts.fill_all = Object.fromEntries(slots2.map(s => [s.getAttribute(), s.textContent]));
+  }
+
+  // SM1145: a page with a [data-ls-odoo-name] node is told who is signed in by the token
+  // fetch it makes at load, and the name goes in as text; a page without one asks for nothing
+  {
+    const node = { textContent: '' };
+    const d = { readyState: 'complete', querySelectorAll: (sel) => (sel === '[data-ls-odoo-name]' ? [node] : []) };
+    const w = world(() => ({ status: 200, body: { ok: true, visitor_token: 'VT', odoo_signed_in: 1,
+      identity: { name: '<b>Jane</b>' } } }), d);
+    await w.api.showName();
+    await new Promise((r) => setTimeout(r, 5));
+    facts.name = { text: node.textContent, requests: w.log.map(x => x.method + ' ' + x.url), who: await w.api.who() };
+    const w2 = world(() => ({ status: 200, body: { ok: true, visitor_token: 'VT' } }), d);
+    await w2.api.showName();
+    const n2 = { textContent: 'Guest' };
+    const d2 = { readyState: 'complete', querySelectorAll: (sel) => (sel === '[data-ls-odoo-name]' ? [n2] : []) };
+    const w3 = world(() => ({ status: 200, body: { ok: true, visitor_token: 'VT' } }), d2);
+    await w3.api.showName();
+    facts.name_nobody = { text: n2.textContent };
+    const d3 = { readyState: 'complete', querySelectorAll: () => [] };
+    const w4 = world(() => ({ status: 200, body: { ok: true } }), d3);
+    await w4.api.showName();
+    facts.name_no_node = { requests: w4.log.length };
+  }
+
+  // SM1146: a batch is ONE POST of the calls, with the request's token; a call refused for a stale
+  // token is sent again once, alone; one refused for want of a sign-in is sent again once after the
+  // person is asked once, alone; the answers stay in the order the calls were sent
+  {
+    let tok = 0;
+    const w = world((req) => {
+      if (req.method === 'GET') return { status: 200, body: { ok: true, visitor_token: 'T' + (++tok) } };
+      const calls = req.body.calls;
+      return { status: 200, body: { ok: true, results: calls.map((c) =>
+        (c.binding === 'stale' && req.body.visitor_token === 'T1') ? { ok: false, kind: 'csrf', status: 403 }
+          : { ok: true, status: 200, echo: c.binding, with_token: req.body.visitor_token }) } };
+    });
+    const r = await w.api.batch([{ binding: 'a', params: { x: 1 } }, { binding: 'stale' }, { binding: 'c' }]);
+    const posts = w.log.filter(x => x.method === 'POST');
+    facts.batch = { status: r.status, order: r.data.results.map(x => x.echo), statuses: r.data.results.map(x => x.status),
+      posts: posts.map(x => x.body.calls.map(c => c.binding)), tokens: posts.map(x => x.body.visitor_token),
+      token_fetches: w.log.filter(x => x.method === 'GET').length, first_params: posts[0].body.calls[0].params };
+  }
+  {
+    let asked = 0, n = 0;
+    const w = world((req) => {
+      if (req.method === 'GET') return { status: 200, body: { ok: true, visitor_token: 'T' } };
+      n++;
+      return { status: 200, body: { ok: true, results: req.body.calls.map((c) =>
+        c.binding === 'mine' ? { ok: false, kind: 'signin-required', status: 401, error: 'sign in' } : { ok: true, status: 200, echo: c.binding }) } };
+    });
+    w.api.prompt = async (why) => { asked++; facts.batch_prompt_why = why; return true; };
+    const r = await w.api.batch([{ binding: 'mine' }, { binding: 'shared' }, { binding: 'mine' }]);
+    facts.batch_signin = { asked, posts: n, second: w.log.filter(x => x.method === 'POST')[1].body.calls.map(c => c.binding),
+      statuses: r.data.results.map(x => x.status) };
+    const w2 = world((req) => req.method === 'GET' ? { status: 200, body: { ok: true, visitor_token: 'T' } }
+      : { status: 200, body: { ok: true, results: req.body.calls.map(() => ({ ok: false, kind: 'csrf', status: 403 })) } });
+    const r2 = await w2.api.batch([{ binding: 'a' }]);
+    facts.batch_csrf_twice = { posts: w2.log.filter(x => x.method === 'POST').length, status: r2.data.results[0].status };
+    const w3 = world((req) => req.method === 'GET' ? { status: 200, body: { ok: true, visitor_token: 'T' } }
+      : { status: 400, body: { ok: false, kind: 'invalid', error: 'a batch holds 1 to 10 calls' } });
+    const r3 = await w3.api.batch(Array.from({ length: 11 }, () => ({ binding: 'a' })));
+    facts.batch_refused = { status: r3.status, kind: r3.data.kind, posts: w3.log.filter(x => x.method === 'POST').length };
   }
 
   console.log(JSON.stringify(facts));

@@ -12,7 +12,9 @@
  *   3. on "sign in" (401, kind signin-required) asks the person to sign in and
  *      retries the call ONCE - never twice, so a wrong password cannot loop;
  *   4. signs a person in and out;
- *   5. fills regions of the page from a binding, as text.
+ *   5. fills regions of the page from a binding, as text;
+ *   6. runs several calls in one request (`batch`, SM1146);
+ *   7. shows who is signed in, from the tokens it already fetches (SM1145).
  *
  * THE PASSWORD. It is read from the box, sent in the body of one POST over
  * HTTPS to the page's own endpoint, and the box is cleared at once - before the
@@ -39,6 +41,13 @@
  *   <span data-ls-odoo-name></span>
  *
  * `data-ls-odoo-<name>="v"` on a region is the request field `<name>`.
+ *
+ * `<span data-ls-odoo-name>` is filled, as text, with the display name of the
+ * person signed in to Odoo when the page loads (SM1145): from the answer to the
+ * token fetch, which reads the identity cookie this script cannot read, so the
+ * page costs no Odoo call to say who is here. It is left as it is when nobody is
+ * signed in or the identity has lapsed (the next call that reaches Odoo
+ * freshens it).
  */
 (function (root) {
   'use strict';
@@ -47,7 +56,8 @@
     endpoint: '/cgi-bin/lazysite-odoo.pl',
     prompt: null            /* set below: asks the person to sign in */
   };
-  var tokens = null;        /* { visitor_token, token } for this page, in memory only */
+  var tokens = null;        /* { visitor_token, token, identity } for this page, in memory only */
+  var pending = null;       /* the token fetch in flight, so two askers share one request */
 
   function doc() { return root.document; }
 
@@ -92,10 +102,18 @@
    * account), fetched on demand and kept in memory only. */
   function getTokens(fresh) {
     if (tokens && !fresh) return Promise.resolve(tokens);
-    return send('GET', 'csrf=1').then(function (r) {
+    /* SM1145: the name fill and a first POST both ask at load; one request answers both */
+    if (pending && !fresh) return pending;
+    var p = send('GET', 'csrf=1').then(function (r) {
       tokens = (r.data && r.data.ok) ? r.data : {};
+      pending = null;
       return tokens;
+    }, function (e) {
+      pending = null;
+      throw e;
     });
+    pending = p;
+    return p;
   }
 
   function withTokens(body, t) {
@@ -166,6 +184,71 @@
 
   API.signOut = function () {
     return post({ signout: true });
+  };
+
+  /* SM1146: several calls in ONE request - POST {calls: [{binding, params}, ...]},
+   * at most ten (the endpoint says so beyond that). Each call is a {binding,
+   * params} or a {plan, confirm: true}, and each is answered in order with its own
+   * `status`: resolves { status: 200, data: { ok, results: [...] } }, a failing
+   * call leaving the others as they were. A call the endpoint refused for a stale
+   * token is sent again ONCE, with fresh tokens; one it refused for want of a
+   * sign-in, once more after the person has been asked ONCE - and only those
+   * calls, never the whole batch. */
+  function isCsrfResult(x) { return !!x && x.status === 403 && x.kind === 'csrf'; }
+  function isSigninResult(x) { return !!x && x.status === 401 && x.kind === 'signin-required'; }
+
+  API.batch = function (calls, opts) {
+    var list = (calls || []).slice();
+    function run(items) { return post({ calls: items }); }
+    return run(list).then(function (r) {
+      if (r.status !== 200 || !r.data || !r.data.results) return r;
+      var results = r.data.results.slice();
+      /* the calls `pred` picks are sent once more, if `before` says to */
+      function redo(pred, before) {
+        var idx = [];
+        results.forEach(function (x, i) { if (pred(x)) idx.push(i); });
+        if (!idx.length) return Promise.resolve();
+        return before(results[idx[0]]).then(function (go) {
+          if (!go) return;
+          return run(idx.map(function (i) { return list[i]; })).then(function (r2) {
+            if (r2.status !== 200 || !r2.data || !r2.data.results) return;
+            idx.forEach(function (i, k) { results[i] = r2.data.results[k]; });
+          });
+        });
+      }
+      return redo(isCsrfResult, function () {
+        return getTokens(true).then(function () { return true; });
+      }).then(function () {
+        return redo(isSigninResult, function (first) {
+          if ((opts && opts.prompt === false) || typeof API.prompt !== 'function') return Promise.resolve(false);
+          return API.prompt(first && first.error);
+        });
+      }).then(function () {
+        r.data.results = results;
+        return r;
+      });
+    });
+  };
+
+  /* SM1145: who is signed in to Odoo - { name } from the token fetch, or
+   * null. Asks Odoo nothing. */
+  API.who = function () {
+    return getTokens(false).then(function (t) {
+      return (t && t.identity) || null;
+    }, function () { return null; });
+  };
+
+  /* fills every [data-ls-odoo-name] with the display name, as text; a page with
+   * no such node makes no request for it */
+  API.showName = function () {
+    var d = doc();
+    if (!d) return Promise.resolve();
+    var nodes = d.querySelectorAll('[data-ls-odoo-name]');
+    if (!nodes.length) return Promise.resolve();
+    return API.who().then(function (id) {
+      if (!id || !id.name) return;
+      for (var i = 0; i < nodes.length; i++) nodes[i].textContent = String(id.name);
+    });
   };
 
   /* ---- the sign-in prompt -------------------------------------------------- */
@@ -305,6 +388,7 @@
   function start() {
     var d = doc();
     if (!d) return;
+    API.showName();
     [].slice.call(d.querySelectorAll('[data-ls-odoo]')).forEach(function (el_) { API.load(el_); });
     [].slice.call(d.querySelectorAll('[data-ls-odoo-signin]')).forEach(function (b) {
       b.addEventListener('click', function () {

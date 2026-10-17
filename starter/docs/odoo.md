@@ -60,6 +60,16 @@ page:
   Odoo, by whoever administers Odoo. Lazysite grants it nothing and narrows
   nothing Odoo allows it.
 
+`odoo_ca_file`
+: Optional. The full path of a PEM file holding the certificate authority that
+  signed your Odoo's certificate, for an Odoo behind a private authority - the usual
+  case for an internal Odoo reached over `https://` to its private name. It must
+  be a file this process can read, or the connection is refused by name. It is
+  the CA bundle for the connection to Odoo only: lazysite hands it to OOM for the
+  clients it builds for Odoo, and sets no variable in the server's environment, so
+  every other connection the server makes keeps the system certificate store.
+  Verification stays on.
+
 `odoo_identity_ttl`
 : Seconds a page may show who a signed-in person is in Odoo before it is
   asked of Odoo again. 60 to 86400, default 900. Presentation only.
@@ -163,6 +173,27 @@ The page endpoint, `/cgi-bin/lazysite-odoo.pl`
   A signed-in caller sends the session token (`X-CSRF-Token` or `token`)
   instead of `visitor_token`. Bodies over 64 KB are refused.
 
+  `GET ?csrf=1` also says who is signed in to Odoo. For a person with an Odoo
+  session and a current identity cookie the answer carries
+  `identity: {name}` - the display name, and nothing else
+  about the person - so a page need not call Odoo to show a name. It asks Odoo
+  nothing: it reads the signed identity cookie the endpoint already verifies, which
+  stays `HttpOnly`. When that cookie has ended (after `odoo_identity_ttl`) there is
+  no `identity` until the next call that reaches Odoo freshens it. Presentation
+  only: nothing is permitted by it.
+
+  `POST {calls: [{binding, params}, ...]}` runs several calls in one request, so a
+  page with several reads pays the endpoint's start-up once. At most **10** calls
+  (`invalid` beyond that, before any call is made). The answer is
+  `{ok: 1, results: [...]}`, one result per call in the order sent, each the answer
+  that call would have had alone plus its own `status`. Each call is checked,
+  authorised, rate-counted, recorded and audited exactly as a single call: a call
+  that fails does not stop the others, a write plans or applies as its binding says
+  (`{plan, confirm: true}` is a call too), and the request's one token is checked
+  for each call against what that call's binding needs. A call cannot carry a token
+  of its own, and a sign-in or sign-out is not a batch call. If Odoo ends the
+  person's session during a batch, the calls after it do not run on it.
+
 A page binding, `odoo:ID`
 : In `tt_page_var`, for example `stock: odoo:shop-list`, puts the report of a
   reading binding on the page. It runs as `public` with no request input. It
@@ -176,7 +207,12 @@ A page binding, `odoo:ID`
 A form
 : A form bound to the binding runs it as `public`, with the form's fields as
   the request. A binding with a `visitor_param`, or a write with
-  `apply: confirm`, is refused for a form.
+  `apply: confirm`, is refused for a form. A change that was applied in Odoo but
+  whose checks afterwards reported `apply-incomplete` was made, so the form is
+  delivered and the visitor is shown the ordinary acknowledgement; the warning is
+  in the call record (kind `apply-incomplete`), in the delivery's audit line and in
+  the event log, for the operator. A change that failed, or was not attempted, is
+  not a delivery and the form says so.
 
 The schedule
 : A schedule entry runs it as `scheduled`. The same two refusals apply.
@@ -189,6 +225,96 @@ The control API and MCP
   `report`. The caller is
   `authenticated`, under the binding's `callers`; it is never a visitor, so a
   binding with a `visitor_param` is not listed or run here.
+
+## A person's own Odoo account (`credential: session`)
+
+A binding with `credential: session` runs as the **person signed in to Odoo
+through the page**, with their own Odoo rights, instead of as the connection user.
+Odoo decides what that person may do; lazysite adds nothing to it and narrows
+nothing. It is what an app where each person works as themselves is built on.
+
+What the binding is, as saved:
+
+- authenticated mode only: `public` and `scheduled` in `modes` are refused, since
+  neither has such a person;
+- no `callers` and no `visitor_param` (Odoo decides who may, and the call runs as
+  a person, not a visitor key);
+- the connection user's API key is not read for the call (the connection itself -
+  URL, database, login - must still be configured). A call from someone with no
+  Odoo session is refused and never run as the connection user, whose account is
+  likely wider than the person's; a read says `signin-required` (`401`).
+
+How a person signs in, on the page endpoint:
+
+`POST {signin: true, login, password, visitor_token}`
+: The password goes to Odoo through OOM once and nowhere else: not a log, a record,
+  an error or a file. Needs the visitor token (bound to the visitor cookie, which
+  `SameSite=Strict` keeps off a cross-site request). Attempts are counted by the
+  site's own sign-in limiter, five in five minutes per address and per login
+  (`rate`, `429`). A refused sign-in is `signin-refused` (`401`); an account with
+  two-factor authentication, which Odoo accepts and opens no session for, is
+  `two-factor` (`403`) - it cannot sign in with a password alone here. The answer
+  is `{ok: 1, signed_in: 1, identity: {name, login, lang, tz}}` and two cookies.
+
+`POST {signout: true, visitor_token}`
+: Ends the session at Odoo and clears both cookies. A person with no session is told
+  `ok` all the same.
+
+The two cookies:
+
+`lzs_odoo_session`
+: The credential. The Odoo session id, signed with the extension's own secret,
+  dated inside the signature (twelve hours, whatever Odoo says), `HttpOnly`,
+  `SameSite=Strict`, `Secure` over HTTPS, and scoped to the path of the endpoint so
+  nothing else on the site receives it. The id is in no response body, log or
+  record; a record names a hash of it.
+
+`lzs_odoo_identity`
+: Who the person is, for a page to show: name, language, time zone, companies
+  and groups. Signed, `HttpOnly`, `SameSite=Lax`, valid for `odoo_identity_ttl`, and
+  refreshed from the session by the next call that reaches Odoo once it has ended.
+  Presentation only: nothing in the engine reads it to permit anything.
+
+A call, once signed in:
+
+- a `GET ?binding=ID&field=value` for a reading binding, or a `POST` for one that
+  writes, carries the **visitor token** (not the site's session token: a person
+  signed in to Odoo may have no account on this site);
+- a write with `apply: confirm` makes a plan owned by that session, and only that
+  session can confirm it, within the hour;
+- the call record's actor is `session:` and a hash, and the rate caps count per
+  session;
+- when Odoo says the session has ended, both cookies are cleared, the call is
+  refused `signin-required` (`401`) and nothing is run in its place. The browser
+  helper then asks the person to sign in and sends the call once more.
+
+Where it does not run: a page binding (`odoo:ID`), a form and the schedule refuse a
+session binding by name, and the control API and MCP neither list nor run one,
+because none of them carries a person's Odoo sign-in.
+
+An example, with a generic pack: an operation `pack.my_orders` that lists the
+orders of whoever asks, run as that person.
+
+```
+Handler (type: odoo)
+  id: my-orders
+  operation: pack.my_orders
+  credential: session
+  modes: authenticated
+```
+
+```
+<p>Signed in as <span data-ls-odoo-name></span></p>
+<button data-ls-odoo-signin>Sign in to Odoo</button>
+<button data-ls-odoo-signout>Sign out</button>
+<ul data-ls-odoo="my-orders" data-ls-odoo-limit="20">
+  <template><li><span data-ls-field="name"></span></li></template>
+  <p data-ls-empty>No orders.</p>
+</ul>
+```
+
+The region reads `my-orders` as the signed-in person; with no sign-in it asks for
+one and sends the read again once.
 
 ## The anonymous write path
 
@@ -245,6 +371,13 @@ is added to a page whose markup carries `data-ls-odoo`, `data-ls-odoo-signin` or
 <button data-ls-odoo-signout>Sign out</button>
 ```
 
+`<span data-ls-odoo-name>` is filled, as text, with the signed-in person's display
+name when the page loads, from the `?csrf=1` answer above - no Odoo call. A page with
+no such element asks for nothing. `LazysiteOdoo.who()` resolves `{name}` or
+`null`, and `LazysiteOdoo.batch([{binding, params}, ...])` sends several calls as one
+request: a call refused for a stale token, or for want of a sign-in, is sent again
+once - those calls only - and the person is asked once.
+
 A region runs the binding with the request fields named by its `data-ls-odoo-<name>`
 attributes and fills its `<template>` from the rows, as text, for the fields the server
 drew. The module fetches the tokens, sends a stale one again once, and when the
@@ -296,7 +429,4 @@ never returned. The kinds a caller meets most:
 
 ## Not available yet
 
-- A site user signing in to Odoo with their own credential is built
-  (`credential: session` on a binding, and `signin` and `signout` on the page
-  endpoint) and not yet documented here.
 - The parameter form (`x.form`) on the page binding.
