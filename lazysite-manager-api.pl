@@ -562,7 +562,9 @@ sub _refuse_unread_or_missing_path {
     return unless $qpath;
     my $jb;
     $jb = _json_body() unless $action eq 'file-upload';    # multipart, never JSON
-    if ( !exists $params{path} && ref $jb eq 'HASH' && exists $jb->{path} ) {
+    if ( !length( $params{path} // '' ) && ref $jb eq 'HASH' && exists $jb->{path} ) {
+        # SM1121: an EMPTY query path beside a body path is the same mistake as an
+        # absent one (a client that builds `?path=` from a field it left blank).
         my $bp = ( defined $jb->{path} && !ref $jb->{path} ) ? $jb->{path} : '';
         _refuse( { ok => 0, kind => 'missing-parameter', field => 'path',
                 error => "path was sent in the body; $action reads it from the query string"
@@ -574,7 +576,7 @@ sub _refuse_unread_or_missing_path {
         _refuse( { ok => 0, kind => 'missing-parameter', field => 'path',
                 error => "path is required (in the query). $action names the file or folder "
                     . 'it writes by a docroot-relative path, such as ?path=/about.md. Nothing was changed.' },
-            $origin, 'missing-parameter: path is required (in the query)', '' );
+            $origin, 'missing-parameter: path missing - path is required (in the query)', '' );
     }
     return;
 }
@@ -969,6 +971,15 @@ if ( !$token_auth ) {
         # This block is inside !_operator(), so an operator never reaches it and
         # stays unconfined, which is the distinction the flag exists to carry.
         $REQUEST_CONFINED = 1;
+    }
+    else {
+        # SM1121: the operator takes the same refusal. The call above sits in the
+        # block an operator never enters, so on edge (0.15.9) the operator's save
+        # with no query path was answered "'/' is a folder": the absent path had
+        # become '/' and the handler, not this refusal, was the first to look. The
+        # operator is also who writes by hand, so the one who most needs to be told
+        # that path goes in the query.
+        _refuse_unread_or_missing_path('ui');
     }
 }
 

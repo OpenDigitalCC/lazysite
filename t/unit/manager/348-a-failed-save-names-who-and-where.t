@@ -92,7 +92,7 @@ ok( !$n->{ok}, 'a save with no path is refused' ) or diag explain $n;
 is( $n->{kind}  // '', 'missing-parameter', '...as a missing parameter' );
 is( $n->{field} // '', 'path', '...about path' );
 like( $n->{error} // '', qr/path is required \(in the query\)/, '...named, with where it goes' );
-my @nrows = grep { /\| writer \| save \| +\|.*\| fail \| ui \| missing-parameter: path is required/ } audit_rows();
+my @nrows = grep { /\| writer \| save \| +\|.*\| fail \| ui \| missing-parameter: path missing - path is required/ } audit_rows();
 is( scalar @nrows, 1, '...and audited naming what was missing' ) or diag audit_rows();
 
 # The same for every content write, and empty is as missing as absent.
@@ -138,6 +138,51 @@ ok( -d $d && !-e "$d/elsewhere", '...and the site is where it was' );
     ok( !$ok, 'a write outside the site fails' );
     like( $err // '', qr/in a folder outside the site/, '...naming no host path' );
     unlike( $err // '', qr/check --fix/, '...and offers no fix that would not touch it' );
+}
+
+# --- 6. SM1121: THE SAME FOR THE OPERATOR. Sections 2-4 drive an account that is
+#        NOT the operator, and the operator never enters the capability block the
+#        refusal sat in, so on edge (0.15.9) a save with no query path, with or
+#        without a body path, reached the is-a-folder refusal for '/' instead.
+#        A test that drives only the confined account measures the confined
+#        door; the operator is who the field report was.
+$s->add_user('boss');
+$s->users( 'group-add', 'boss', 'ops' );
+$s->users( 'group-set', 'ops', 'manager', 'on' );
+{
+    my $np = $s->call( 'boss', 'save', query => 'action=save', body => { content => "x\n" } );
+    is( $np->{kind} // '', 'missing-parameter', 'the operator: a save with no path anywhere is a missing parameter' )
+        or diag explain $np;
+    like( $np->{error} // '', qr/path is required \(in the query\)/, '...saying where it goes' );
+    unlike( $np->{error} // '', qr/is a folder/, '...and not that the root is a folder' );
+
+    my $bp = $s->call( 'boss', 'save', query => 'action=save',
+        body => { path => '/zz-body.md', content => "x\n" } );
+    is( $bp->{kind} // '', 'missing-parameter', 'the operator: a path only in the body is a missing parameter' )
+        or diag explain $bp;
+    like( $bp->{error} // '', qr/path was sent in the body; save reads it from the query string.*'\/zz-body\.md'/,
+        '...naming the body path and the query string' );
+    ok( !-e "$d/zz-body.md", '...and nothing was written' );
+
+    my $eb = $s->call( 'boss', 'save', query => 'action=save&path=',
+        body => { path => '/zz-body.md', content => "x\n" } );
+    like( $eb->{error} // '', qr/path was sent in the body/, 'an empty query path beside a body path names the body path' )
+        or diag explain $eb;
+
+    my $fo = $s->call( 'boss', 'save', query => 'action=save&path=/locked/', body => { content => "x\n" } );
+    is( $fo->{kind} // '', 'is-a-folder', 'the operator: a folder in the query is still a folder' )
+        or diag explain $fo;
+
+    for my $a (qw(delete mkdir move copy lock)) {
+        my $m = $s->call( 'boss', $a, query => "action=$a", body => {} );
+        is( $m->{kind} // '', 'missing-parameter', "the operator: $a with no path is a missing parameter" )
+            or diag explain $m;
+    }
+    my @orows = grep { /\| boss \| save \| \/zz-body\.md \| .*\| fail \|/ } audit_rows();
+    ok( scalar @orows, '...and the body path is the audit target' ) or diag audit_rows();
+    my @nrows = grep { /\| boss \| save \|.*path missing/ } audit_rows();
+    ok( scalar @nrows, '...and a save with no path audits "path missing"' ) or diag audit_rows();
+    is_deeply( [ parent_strays() ], [], 'nothing was written beside the docroot' );
 }
 
 # What a successful save records is unchanged.
