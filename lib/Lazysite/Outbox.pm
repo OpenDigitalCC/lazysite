@@ -1165,13 +1165,22 @@ sub _write_status {
 # queued beside a rule row that said it had sent 3. An entry never retried was
 # handled whole in one pass, so a ledger row for it means it is not waiting.
 # Rows from before the event id was recorded say nothing here.
+#
+# SM1122 (0.15.9 walk, X3 / F-2): each event also carries what the ledger knows
+# of it - { state, rule, at (its latest decision), recipients => { channel => {
+# sent|refused|folded => n } } } - because the job removes an entry after a send,
+# which is the normal case, so the ledger is all that is left to list. It holds
+# a hash of each recipient, never an address (SM877), so the list can say how
+# many were reached and not who. The window is the ledger's: $LEDGER_DAYS.
 sub _ledger_events {
     my ($docroot) = @_;
     my %by_event;
     for my $l ( @{ _read_ledger($docroot) // [] } ) {
         next unless defined $l->{e};
-        $by_event{ $l->{e} } = 'sent' if ( $l->{s} // '' ) eq 'sent';
-        $by_event{ $l->{e} } //= 'handled';
+        my $v = $by_event{ $l->{e} } ||= { state => 'handled', rule => $l->{r} // '', at => 0, recipients => {} };
+        $v->{state} = 'sent'  if ( $l->{s} // '' ) eq 'sent';
+        $v->{at}    = $l->{t} if ( $l->{t} // 0 ) > $v->{at};
+        $v->{recipients}{ $l->{c} // '' }{ $l->{s} // '' }++;
     }
     return \%by_event;
 }
@@ -1182,7 +1191,8 @@ our $WAIT_AFTER = 180;    # three ticks of the job: past this, a queued event is
 # [...], job => {...} } or { ok => 0, error }. An entry carries its rule, so a
 # caller decides what it may show (outbox_list) - this reads, it does not filter.
 sub _outbox_read {
-    my ($docroot) = @_;
+    my ( $docroot, $now ) = @_;
+    $now //= time;
     my $files = _entry_files($docroot);
     return { ok => 0, error => 'the notification outbox could not be read; see the log' } unless defined $files;
     my $folds = _fold_files($docroot);
@@ -1203,7 +1213,7 @@ sub _outbox_read {
         my $e = _read_entry($p);
         next unless ref $e && !$e->{_torn};
         my $state = ( $e->{attempts} // 0 ) > 0 ? 'retrying' : 'queued';
-        $state = $by_event{ $e->{id} // '' } if $state eq 'queued' && $by_event{ $e->{id} // '' };
+        $state = $by_event{ $e->{id} // '' }{state} if $state eq 'queued' && $by_event{ $e->{id} // '' };
         push @entries, { %$e, state => $state };
     }
     for my $p (@$folds) {
@@ -1216,6 +1226,18 @@ sub _outbox_read {
         next unless ref $e && !$e->{_torn};
         if   ( ref $e->{events} eq 'ARRAY' ) { push @held,    { %$e, state => 'failed' } }
         else                                 { push @entries, { %$e, state => 'failed' } }
+    }
+    # SM1122: an event the ledger says went and whose file is gone (the job
+    # removes it after the send - the normal case) is listed from the ledger,
+    # newest first, so the list does not forget what it sent. One still in the
+    # outbox or failed has a file of its own and is not listed twice.
+    my %have = map { ( $_->{id} // '' ) => 1 } @entries;
+    for my $id ( sort { $by_event{$b}{at} <=> $by_event{$a}{at} || $a cmp $b } keys %by_event ) {
+        next if $have{$id};
+        my $v = $by_event{$id};
+        next if $v->{at} < $now - $LEDGER_DAYS * 86400; # the ledger's window; the prune only runs with work to do
+        push @entries, { id => $id, rule => $v->{rule}, state => $v->{state}, sent_at => $v->{at},
+            recipients => $v->{recipients}, from_ledger => 1 };
     }
     my $job = {};
     eval {
@@ -1249,7 +1271,7 @@ sub _waiting {
 sub rule_states {
     my ( $docroot, $now ) = @_;
     $now //= time;
-    my $o = _outbox_read($docroot);
+    my $o = _outbox_read( $docroot, $now );
     return undef unless $o->{ok};
     my $status = _read_status($docroot) // {};
     my %s;
@@ -1296,7 +1318,7 @@ sub outbox_list {
         if defined $a{rule} && length $a{rule} && $a{rule} !~ /\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\z/;
     return { ok => 0, kind => 'invalid', field => 'id', error => 'id must be an event id (16 hex characters)' }
         if defined $a{id} && length $a{id} && $a{id} !~ /\A[0-9a-f]{16}\z/;
-    my $o = _outbox_read($docroot);
+    my $o = _outbox_read( $docroot, $now );
     return $o unless $o->{ok};
     require Lazysite::Handlers;
     no warnings 'once';
@@ -1316,6 +1338,9 @@ sub outbox_list {
     if ( defined $a{id} && length $a{id} ) {
         my ($e) = grep { ( $_->{id} // '' ) eq $a{id} && $visible->( $_->{rule} ) } @{ $o->{entries} };
         return { ok => 0, kind => 'not-found', error => "no event '$a{id}' in the outbox you can see" } unless $e;
+        # SM1122: a sent entry's file is gone, so there is nothing to resolve a
+        # recipient list from; the ledger's counts (never addresses) are the answer.
+        return { ok => 1, entry => _entry_view($e), recipients => { counts => $e->{recipients} } } if $e->{from_ledger};
         return { ok => 1, entry => _entry_view($e), recipients => _recipients_view( $docroot, $handlers, $e ) };
     }
 
@@ -1423,6 +1448,25 @@ sub outbox_retry {
     return { ok => 1, %n, ids => \@ids };
 }
 
+# SM1123 (0.15.9 walk, F-4): "the retry audit row's target is `/`; it does not
+# record which rule or entry was retried." The control API and the MCP twin both
+# take their audit row's target and detail from here, so the two doors cannot
+# word it differently: the target is `notify:<rule>` - as the unsubscribe audit
+# names a rule - or, for a lookup by event id alone, the entry id; the detail is
+# what the retry did, in counts.
+sub retry_audit_target {
+    my ( $rule, $id ) = @_;
+    return "notify:$rule" if defined $rule && !ref $rule && length $rule;
+    return $id            if defined $id   && !ref $id   && length $id;
+    return '';
+}
+
+sub retry_audit_detail {
+    my ($r) = @_;
+    return '' unless ref $r eq 'HASH' && $r->{ok};
+    return join ' ', map { "$_=" . ( $r->{$_} // 0 ) } qw(retried sent already_due held failed);
+}
+
 sub _entry_view {
     my ($e) = @_;
     my $due = ( $e->{next_at} // 0 ) > ( $e->{created} // 0 ) ? $e->{next_at} : ( $e->{created} // 0 );
@@ -1430,6 +1474,7 @@ sub _entry_view {
         id       => $e->{id}   // '',
         rule     => $e->{rule} // '',
         state    => $e->{state},
+        ( $e->{from_ledger} ? ( sent_at => $e->{sent_at}, recipients => $e->{recipients} ) : () ),
         created  => $e->{created} // 0,
         due      => $due,
         attempts => $e->{attempts} // 0,

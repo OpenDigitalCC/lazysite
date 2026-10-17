@@ -59,14 +59,15 @@ is( $states->{'zz56-bell'}{queued}, 0, 'the rule\'s row counts none of them as q
 ok( !$states->{'zz56-bell'}{waiting}, 'and does not say it is waiting' );
 
 open my $lg, '<', $log or die;
-local $/;
-my $logged = <$lg>;
+my $logged = do { local $/; <$lg> };
 like( $logged, qr/could not remove a sent notification/, 'the failed removal is logged' );
 
 # A second run does not send them again, and removes them once it can.
 my $run2 = Lazysite::Outbox::run( docroot => $d, actor => 'jobs' );
 ok( $run2->{ok}, 'a second run' );
 my $final = Lazysite::Outbox::outbox_list( docroot => $d, rule => 'zz56-bell' );
-is( scalar @{ $final->{entries} }, 0, 'the sent entries are gone once the directory can be written' );
+ok( !glob("$out/*.json"), 'the entry files are gone once the directory can be written' );
+# SM1122: and what the ledger kept is still listed, as sent (t/unit/notify/09).
+is_deeply( [ map { $_->{state} } @{ $final->{entries} } ], [ ('sent') x 3 ], 'the list keeps them as sent' );
 
 done_testing();

@@ -176,7 +176,12 @@ subtest 'a holder retries one event by id' => sub {
     my @a = audit_rows();
     is( scalar @a, 1, 'and it is audited' );
     like( $a[0], qr/notifier/, '...naming who did it' );
+    # SM1123: the row names what was retried, not '/', and what came of it.
+    like( $a[0], qr/\| notify-outbox-retry \| \Q$ev{'r-mine'}\E \|/, '...the target is the entry id' );
+    like( $a[0], qr/\| retried=1 sent=0 already_due=0\b/, '...and the detail has the counts' );
 };
+
+sub audit_of { my ($act) = @_; open my $in, '<', "$d/lazysite/logs/audit.log" or return (); return grep { /\| \Q$act\E \|/ } <$in> }
 
 subtest 'it is manage_notifications\' alone' => sub {
     my $r = api( 'former', 'notify-outbox-retry', { rule => 'r-inst' } );
@@ -199,6 +204,9 @@ subtest 'a confined token reaches its own domain\'s rules only' => sub {
     $r = api( 'tks', 'notify-outbox-retry', { rule => 'r-mine' } );
     is( $r->{retried}, 1, 'its own rule retries' );
     is_deeply( due_now(), { 'r-inst' => 0, 'r-mine' => 1, 'r-other' => 0 }, 'only its own became due' );
+    my ($row) = reverse audit_of('notify-outbox-retry');
+    like( $row, qr/\| tks \| notify-outbox-retry \| notify:r-mine \|/, 'SM1123: a retry by rule is audited against notify:<rule>' );
+    like( $row, qr/\| retried=1 sent=0 already_due=0\b/, '...with the counts' );
 };
 
 subtest 'the MCP twin applies the same rule' => sub {
@@ -209,6 +217,9 @@ subtest 'the MCP twin applies the same rule' => sub {
     ok( $r->{ok}, 'its own rule' ) or diag explain $r;
     is( $r->{retried}, 1, 'made due' );
     is_deeply( due_now(), { 'r-inst' => 0, 'r-mine' => 1, 'r-other' => 0 }, 'only its own became due' );
+    my ($row) = reverse audit_of('retry_notify_outbox');
+    like( $row, qr/\| mcs \| retry_notify_outbox \| notify:r-mine \|/, 'SM1123: the twin audits against notify:<rule> too' );
+    like( $row, qr/\| mcp \| retried=1 sent=0 already_due=0\b/, '...with the counts' );
 };
 
 done_testing;

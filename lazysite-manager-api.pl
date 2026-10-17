@@ -2790,6 +2790,12 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
             $detail = "outbox_removed=$result->{outbox_removed}";
         }
 
+        # SM1123: a retry says what it did - how many entries it made due, and
+        # how many it left (already due, already sent, held, failed).
+        if ( $ok && $aud_action eq 'notify-outbox-retry' ) {
+            $detail = Lazysite::Outbox::retry_audit_detail($result);
+        }
+
         # SM858: an approval names the row and the account it became - who
         # approved is the trail's own `user` field, the store is the target.
         if ( $ok && $aud_action eq 'form-submission-approve' && ref $result eq 'HASH' ) {

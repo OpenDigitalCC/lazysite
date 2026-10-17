@@ -1792,7 +1792,7 @@ my %TOOLS = (
     # needs manage_notifications alone, and a grant sees only the rules of its
     # own domains.
     read_notify_outbox => {
-        description => 'Read the notification outbox: the events notify rules have queued and not yet sent (queued, or retrying after a transport failure, with the last error), the messages held back by a rule\'s per-recipient cap (held), and those given up (failed, with the reason) - plus `waiting` when the daemon\'s notify-outbox job is not taking them. With `id`, one event and the recipients it resolves to under the rule as it stands, with what was decided for each on each channel (sent, refused, held, pending). It shows who is written to, so it needs manage_notifications, and a grant confined to some domains sees only their rules.',
+        description => 'Read the notification outbox: the events notify rules have queued and not yet sent (queued, or retrying after a transport failure, with the last error), the messages held back by a rule\'s per-recipient cap (held), and those given up (failed, with the reason), and the events sent in the last 8 days (sent, with when and how many recipients on each channel, from the ledger) - plus `waiting` when the daemon\'s notify-outbox job is not taking them. With `id`, one event and the recipients it resolves to under the rule as it stands, with what was decided for each on each channel (sent, refused, held, pending). It shows who is written to, so it needs manage_notifications, and a grant confined to some domains sees only their rules.',
         cap         => 'manage_notifications',
         inputSchema => { type => 'object',
             properties => {
@@ -4654,8 +4654,17 @@ elsif ( $method eq 'tools/call' ) {
         # deleted notify rule took with it.
         $detail = "outbox_removed=$out->{outbox_removed}"
             if $aok && $name eq 'delete_handler' && defined $out->{outbox_removed};
+        # SM1123: the control API's twin - the rule or entry retried, and what
+        # the retry did, worded by the same Outbox helpers.
+        if ( $name eq 'retry_notify_outbox' ) {
+            require Lazysite::Outbox;
+            my $t = Lazysite::Outbox::retry_audit_target( $args->{rule}, $args->{id} );
+            $target = $t                                         if length $t;
+            $detail = Lazysite::Outbox::retry_audit_detail($out) if $aok;
+        }
         audit_log( $user, $act, $target, _request_ip(),
             ( $aok ? 'ok' : 'fail' ), 'mcp', $detail );
+
     }
 
     # SM101: tell the agent whether a retry could ever succeed, so it backs off on a

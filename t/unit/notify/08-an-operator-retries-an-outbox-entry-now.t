@@ -71,7 +71,7 @@ subtest 'a retrying entry becomes due now, and the next run sends it' => sub {
     is( $r->{retried}, 1, 'one entry made due' );
     run_at( $T + 11 );
     is( $SENT, 1, 'the next run sends it' );
-    is( scalar @{ listed( rule => 'zz57-a' )->{entries} }, 0, 'and it leaves the outbox' );
+    is_deeply( [ map { $_->{state} } @{ listed( rule => 'zz57-a' )->{entries} } ], ['sent'], 'and it is listed as sent, not queued (SM1122)' );
     is( scalar @{ listed( rule => 'zz57-b' )->{entries} }, 1, 'the other rule\'s entry was not touched' );
 };
 

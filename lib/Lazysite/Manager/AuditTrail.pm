@@ -208,6 +208,14 @@ sub _audit_implicit_target {
         }
     }
 
+    # SM1123 (0.15.9 walk, F-4): a retry names the rule (notify:<rule>) or the
+    # entry it retried, never the request path.
+    if ( $action eq 'notify-outbox-retry' ) {
+        require Lazysite::Outbox;
+        my $t = Lazysite::Outbox::retry_audit_target( $req->{rule}, $req->{id} );
+        return $t if length $t;
+    }
+
     # SM888 F4: HANDLERS AND FORM TARGETS - name the handler, not the path.
     #
     # The fourth family to need this, after data (SM503) and connectors plus
