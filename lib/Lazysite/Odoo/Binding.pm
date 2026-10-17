@@ -31,6 +31,22 @@ our @MODES = qw(scheduled authenticated public);
 
 my $FIELD = qr/\A[A-Za-z][A-Za-z0-9_.-]{0,127}\z/;
 my $PARAM = qr/\A[a-z][a-z0-9_]{0,63}\z/;
+
+# SM1164 D0: core.set and core.make take one `set.<field>` parameter per field
+# (OOM 0.29), the field part named as Odoo names fields. The operation declares
+# the family once, as 'set.<field>', so a name of this shape is checked against
+# that declaration. Only this shape: every other name keeps $PARAM.
+my $SET_PARAM = qr/\Aset\.[a-z][a-z0-9_]{0,63}\z/;
+my $ANY_PARAM = qr/\A(?:[a-z][a-z0-9_]{0,63}|set\.[a-z][a-z0-9_]{0,63})\z/;
+
+# The operation's declaration of a parameter name: its own, or for a set.<field>
+# the family's.
+sub param_decl {
+    my ( $spec, $p ) = @_;
+    return $spec->{$p}            if $spec->{$p};
+    return $spec->{'set.<field>'} if $p =~ $SET_PARAM;
+    return undef;
+}
 my $GROUP = qr/\A[a-z0-9][a-z0-9_-]{0,63}\z/;
 my $OP    = qr/\A[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+\z/;
 
@@ -75,11 +91,11 @@ sub parse {
         unless $op =~ $OP;
     $b{operation} = $op;
 
-    my ( $in, $why ) = _pairs( $h->{params}, 'params', 'a field name', [ $FIELD, $PARAM, 'a parameter name' ] );
+    my ( $in, $why ) = _pairs( $h->{params}, 'params', 'a field name', [ $FIELD, $ANY_PARAM, 'a parameter name' ] );
     return ( undef, $why, 'params' ) unless $in;
     $b{params} = $in;    # field => parameter
 
-    my ( $fixed, $fwhy ) = _pairs( $h->{fixed}, 'fixed', 'a parameter name', [ $PARAM, undef ] );
+    my ( $fixed, $fwhy ) = _pairs( $h->{fixed}, 'fixed', 'a parameter name', [ $ANY_PARAM, undef ] );
     return ( undef, $fwhy, 'fixed' ) unless $fixed;
     $b{fixed} = $fixed;    # parameter => value
 
@@ -185,14 +201,15 @@ sub check_against {
     for my $p ( sort( values %{ $b->{params} } ), sort( keys %{ $b->{fixed} } ),
         ( length $b->{visitor_param} ? $b->{visitor_param} : () ) )
     {
+        my $d = param_decl( $spec, $p );
         return "parameter '$p' is not one $b->{operation} declares (it takes: "
             . ( join( ', ', sort keys %$spec ) || 'none' ) . ')'
-            unless $spec->{$p};
+            unless $d;
         return "parameter '$p' names a file on this server; a binding cannot set one"
-            if ( $spec->{$p}{type} // 'str' ) eq 'path';
+            if ( $d->{type} // 'str' ) eq 'path';
     }
     for my $p ( sort values %{ $b->{params} } ) {
-        my $t = $spec->{$p}{type} // 'str';
+        my $t = param_decl( $spec, $p )->{type} // 'str';
         return "parameter '$p' is $t - a request may feed only a plain value (str, int, bool); "
             . 'fix it with fixed: instead'
             unless $FROM_INPUT{$t};
@@ -239,7 +256,7 @@ sub assemble {
         next unless exists $input->{$field};
         my $v = $input->{$field};
         my $p = $b->{params}{$field};
-        my $t = $spec->{$p}{type} // 'str';
+        my $t = ( param_decl( $spec, $p ) || {} )->{type} // 'str';
         return ( undef, "'$field' must be a single value" ) if ref $v;
         next unless defined $v;
         return ( undef, "'$field' is longer than $MAX_VALUE characters" ) if length $v > $MAX_VALUE;

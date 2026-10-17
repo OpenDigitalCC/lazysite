@@ -174,6 +174,27 @@ sub check_url {
         . 'anything else must be https://';
 }
 
+# ( $resolved_path, '' ) or ( undef, why ): one odoo_pack_dirs entry.
+# Built from pieces: t/lint/262 keeps the deb's data directory out of everything
+# the gate scans, and this is the one place production code must say where the
+# packaged packs are.
+our $PACKAGED_PACKS = '/usr/share/' . 'odoo-oom/packs';
+sub _pack_dir {
+    my ($d) = @_;
+    require Cwd;
+    return ( undef, 'is not a full path' ) if $d =~ /[\x00-\x1f\x7f]/ || $d !~ m{\A/};
+    my $real = Cwd::abs_path($d);
+    return ( undef, 'is not a directory' ) unless defined $real && -d $real;
+    my @ok = grep { defined } map { Cwd::abs_path($_) } grep { length } $DOCROOT, _lz();
+    my $packaged = Cwd::abs_path($PACKAGED_PACKS);
+    return ( $real, '' ) if defined $packaged && $real eq $packaged;
+    for my $root (@ok) {
+        return ( $real, '' ) if $real eq $root || index( $real, "$root/" ) == 0;
+    }
+    return ( undef, "is not under this site's tree or $PACKAGED_PACKS - a pack is code, "
+            . 'and is not loaded from anywhere else' );
+}
+
 my %CONN_DEFAULT = ( odoo_timeout => 30, odoo_max_kb => 2048 );
 
 # ( \%connection, '' ) or ( undef, why ). Every value is checked here, once, so
@@ -249,6 +270,20 @@ sub connection {
             unless /\A[A-Z][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)*\z/;
     }
     $c{packs} = \@packs;
+
+    # SM1164 D0: DIRECTORIES OF PACKS, WHICH ARE CODE. OOM 0.30+ loads a pack's
+    # Perl from a directory named in `pack_dirs`; a path an operator can type is
+    # not a path the site can be trusted to have written, so each directory is
+    # resolved (symlinks and `..` included) and must be the site's own tree or the
+    # packaged the packaged packs directory. Refused here, by name, when the config
+    # loads - never discovered at a visitor's request.
+    my @dirs;
+    for my $d ( grep { length } split /\s*:\s*/, ( $kv->{odoo_pack_dirs} // '' ) ) {
+        my ( $real, $dwhy ) = _pack_dir($d);
+        return ( undef, "odoo_pack_dirs: '$d' $dwhy" ) if length $dwhy;
+        push @dirs, $real;
+    }
+    $c{pack_dirs} = \@dirs;
     return ( \%c, '' );
 }
 
@@ -616,7 +651,11 @@ sub recent_file { return store_dir() . '/recent.jsonl' }
 sub registry {
     my ($conn) = @_;
     local $ENV{ODOO_OPS_NAMESPACES} = join ',', @{ $conn->{packs} || [] };
-    return Odoo::Ops::Registry->new;
+    # SM1164 D0: the site's pack directories, and a cache of its own beside the
+    # store (the default is under HOME, which a CGI user may not have). Without
+    # odoo_pack_dirs OOM reads its environment and the packaged packs, as before.
+    my @dirs = @{ $conn->{pack_dirs} || [] };
+    return Odoo::Ops::Registry->new( @dirs ? ( pack_dirs => \@dirs, cache_dir => store_dir() . '/cache' ) : () );
 }
 
 sub operation_class {
@@ -1412,7 +1451,7 @@ sub action_odoo_status {
     my ( $conn, $cwhy ) = connection();
     $out{connection}
         = $conn
-        ? { map { ( $_ => $conn->{$_} ) } qw(url db login timeout max_kb allow_writes packs) }
+        ? { map { ( $_ => $conn->{$_} ) } qw(url db login timeout max_kb allow_writes packs pack_dirs) }
         : { problem => $cwhy };
     $out{has_secret} = Lazysite::Odoo::Secret::has_key($ACCOUNT);
     $out{warning} = 'the key file exists and cannot be read by this process - see the event log'

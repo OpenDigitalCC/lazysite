@@ -31,6 +31,7 @@ package Lazysite::Odoo::Fields;
 use strict;
 use warnings;
 use Lazysite::Data::Descriptor qw(load_descriptor TYPES);
+use Lazysite::Odoo::Binding    ();
 
 our $TYPE_KEY = 'portable_type';
 
@@ -145,7 +146,7 @@ sub form_fields {
     my $spec = $class->params || {};
     my %fields;
     for my $field ( sort keys %{ $b->{params} || {} } ) {
-        my $p = $spec->{ $b->{params}{$field} }    or next;
+        my $p = Lazysite::Odoo::Binding::param_decl( $spec, $b->{params}{$field} ) or next;
         my $t = $PARAM_TYPE{ $p->{type} // 'str' } or next;
         $fields{$field} = {
             type => $t,

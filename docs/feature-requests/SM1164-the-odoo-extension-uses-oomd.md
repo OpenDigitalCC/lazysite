@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-10-18
 raised-by: OOM agent at the owner's request (inbox L7 and its addendum, 2026-10-18)
 area: odoo
-status-note: "CANDIDATE, planned 2026-10-18. OOM 0.31 built (04be130), Q1-Q4 answered. D0-D4 buildable now against a vendored 0.31; host tests need the owner's install. Supersedes SM1082 C3's Odoo part."
+status-note: "CANDIDATE, planned 2026-10-18. D0 shipped on n655 (t/unit/odoo/51); D1-D5 remain. OOM 0.31 built (04be130), Q1-Q4 answered. D0-D4 buildable now against a vendored 0.31; host tests need the owner's install. Supersedes SM1082 C3's Odoo part."
 ---
 
 # The request
@@ -140,3 +140,33 @@ took about the time of one.
 `core.credential` (change a password, turn two-factor on or off, as the
 person) is a feature of its own on L4's sign-in dialog; it is noted here and
 filed when L4's next slice is planned.
+
+# What shipped (D0)
+
+Branch n655, on OOM 0.32 as vendored by n648. Test:
+`t/unit/odoo/51-a-site-pack-binds-and-a-binding-sets-a-field.t`.
+
+- **`odoo_pack_dirs`.** A colon list of full paths in the extension's config
+  (`plugins/odoo.pl`: config list, `owns.config_keys`, a manager-form field with
+  its tooltip). `Lazysite::Odoo::connection` checks each entry once, when the
+  config loads: it is resolved (symlinks and `..` included) and must be an
+  existing directory under the site's docroot or lazysite tree, or
+  `/usr/share/odoo-oom/packs`. Anything else refuses the whole connection with
+  `odoo_pack_dirs: '<dir>' ...` naming it, because a pack is code. The resolved
+  list is `pack_dirs` on the connection (and in the status answer) and goes to
+  OOM's `Odoo::Ops::Registry->new( pack_dirs => ..., cache_dir => <store>/cache )`,
+  so `<pack>.<op>` binds, lists and runs like `core.read`. With none set OOM reads
+  its own environment and the packaged packs, as before.
+- **`set.<field>` parameters.** A binding may name `set.<field>` (field as Odoo
+  names fields: `[a-z][a-z0-9_]{0,63}`) in `params` or `fixed`;
+  `Lazysite::Odoo::Binding` checks it against the operation's `set.<field>`
+  declaration (`core.set`, `core.make`), so any other operation refuses it as a
+  parameter it does not declare. `set.Name`, `set.`, `set.a.b` and every other
+  name keep today's rule and are refused. A value fed from a request is still a
+  plain value (str, int, bool): the declaration is `str`.
+- **Test.** OOM's fake Odoo as transport: a site pack binds and runs; a pack
+  directory outside the tree (another tempdir, `/etc`, a relative path, a `..`
+  escape, a symlink out, a missing directory) is refused naming it; a
+  `core.set` binding with `title=set.name` changes the field in the fake.
+  Sabotage: with the base `Odoo.pm` the pack subtest fails, with the base
+  `Binding.pm` the `set.` subtests fail.

@@ -93,11 +93,19 @@ sub describe {
                     . 'OOM ships its own. Name each extra pack by its Perl namespace, comma '
                     . 'separated (for example Example::Odoo::Ops), and its operations become '
                     . 'callable by name from pages and agents beside OOM\'s.' },
+            { key => 'odoo_pack_dirs', label => 'Operation pack directories', type => 'text',
+                note => 'Leave blank unless this site carries its own OOM operation packs. A colon '
+                    . 'separated list of full paths, each a directory that holds pack directories '
+                    . '(each with a pack.yaml), for example /var/www/example/lazysite/odoo-packs. '
+                    . 'A pack is code that runs as this site, so a directory must exist and lie '
+                    . 'under this site\'s own tree, or be /usr/share/odoo-oom/packs; any other is '
+                    . 'refused by name. A pack\'s operations are named pack.operation and bind '
+                    . 'like any other.' },
         ],
 
         owns => {
             config_keys =>
-                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_remember_device odoo_identity_ttl odoo_packs)],
+                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_remember_device odoo_identity_ttl odoo_packs odoo_pack_dirs)],
 
             # NO `storage`, deliberately. lazysite/odoo/ holds the connection
             # user's key and plans carrying Odoo's own records; a site package
