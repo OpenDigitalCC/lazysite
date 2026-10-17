@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1121 (PENDING) **a missing path is named, for the operator too.** The 0.15.9
+  walk (X1) found a save with no path, or with the path in the body, refused
+  as "'/' is a folder". SM1103's refusal ran only for accounts below the
+  operator, and the tester was the operator. It now runs for every caller:
+  no path says it is required in the query, and a body path is named.
+  t/unit/manager/348.
+
 - SM1120 (PENDING) **an engine-served static says when it changed.** Every
   200, 206, 304 and 416 from a static carries `Last-Modified`,
   `If-Modified-Since` is answered with a 304 when no `If-None-Match` is sent,
