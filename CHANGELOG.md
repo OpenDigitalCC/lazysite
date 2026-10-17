@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1124 (PENDING) **security: a form's outcome is a code, not text.** The page
+  printed any text placed in the `outcome=` parameter, so a link could make a
+  site's own page show someone else's words (0.15.9 walk, F-3). The redirect
+  now carries a short code, and the page shows only the engine's sentence for
+  a known code; anything else gets one generic sentence. t/unit/forms/67.
+
 - SM1122 (PENDING) **the outbox list keeps what it sent.** A sent entry vanished
   from the list and the lookup by id (0.15.9 walk, X3): SM1105 covered only an
   entry whose file could not be removed. Sent entries are now listed from the
