@@ -266,12 +266,16 @@ sub resolve_user_scopes {
     my ( $docroot, $user ) = @_;
     require Lazysite::Auth::DomainAccess;
     my $domains = Lazysite::Auth::DomainAccess::read_domains( Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" );
-    my @scopes = Lazysite::Auth::DomainAccess::effective_scopes(
-        $domains, $user, [ _effective_groups($user) ] );
+    my ( undef, $req ) = _scopes_whole_and_request( $domains, $user );
+    my @scopes = @$req;
     my $all  = read_settings();
     my %seen = ( defined $user ? ( $user => 1 ) : () );
     my $self = $all->{ $user // '' } || {};
     my $anc  = $self->{scope_independent} ? undef : $self->{created_by};
+    # The ceiling is the creator's reach as GRANTED (SM1134 stack): an ancestor is not
+    # the one making this request, so its groups are not judged by this address, and
+    # an ancestor losing a group here could only lift the ceiling.
+    local $Lazysite::Auth::Settings::ADDRESS_RULES = 0;
     while ( defined $anc && length $anc && !$seen{$anc}++ ) {
         my @as = Lazysite::Auth::DomainAccess::effective_scopes(
             $domains, $anc, [ _effective_groups($anc) ] );
@@ -279,6 +283,35 @@ sub resolve_user_scopes {
         $anc    = ( $all->{$anc} || {} )->{created_by};
     }
     return @scopes;
+}
+
+# SM1140, finished when the slices were stacked (its filing left open:
+# "narrow_caps_to_request cuts capabilities only; the dav_scopes the users tool
+# reports for a cookie caller are the account's whole"): A DOMAIN A GROUP GRANTS
+# FOLLOWS THE GROUP'S ADDRESS LIMIT, AND LOSING IT NEVER WIDENS THE ACCOUNT.
+#
+# A domain's allowed_groups grants and CONFINES at once (SM165): an account whose
+# only domain comes from a group is held to that domain's content root. Leaving the
+# group out of the walk drops the domain, and with no allow-entry left the scope
+# list is empty - which means UNCONFINED. So from outside the group's addresses the
+# account would have reached every domain on the instance. Instead: the request's
+# scopes are what the request's groups reach, and when the account is confined by
+# what it is granted and nothing of that is left, it is confined to nothing
+# (DENY_ALL_SCOPE), never unconfined. The request's set is always within the whole
+# (fewer groups reach fewer domains; a lock is the account's own).
+#
+# Returns ( \@whole, \@request ). Equal, and nothing more read, when no group carries
+# an address rule or there is no request.
+sub _scopes_whole_and_request {
+    my ( $domains, $user ) = @_;
+    my @whole = do {
+        local $Lazysite::Auth::Settings::ADDRESS_RULES = 0;
+        Lazysite::Auth::DomainAccess::effective_scopes( $domains, $user, [ _effective_groups($user) ] );
+    };
+    return ( \@whole, \@whole ) unless %{ _address_blocked_groups( read_group_settings() ) };
+    my @req = Lazysite::Auth::DomainAccess::effective_scopes( $domains, $user, [ _effective_groups($user) ] );
+    @req = ( Lazysite::Auth::DomainAccess::DENY_ALL_SCOPE() ) if @whole && !@req;
+    return ( \@whole, \@req );
 }
 
 # SM165: the single domain a user's file browser roots at (host), or '' for
@@ -507,6 +540,26 @@ sub narrow_caps_to_request {
         $n{$k} = JSON::PP::false() if $n{$k} && !$c->{$k};
     }
     $n{manager_ui} = JSON::PP::false() if $n{manager_ui} && !$c->{ui};
+
+    # The domains, likewise (see _scopes_whole_and_request): the tool reported the
+    # account's whole reach; when this request's groups reach less, the scopes are
+    # cut to what both allow, and a home domain the request no longer reaches is
+    # dropped. Only ever narrower: intersect_scopes keeps the tighter of each pair
+    # and is deny-all when nothing overlaps.
+    if ( exists $s->{dav_scopes} && defined $AUTH_DIR ) {
+        require Lazysite::Auth::DomainAccess;
+        ( my $lz = $AUTH_DIR ) =~ s{/auth/?\z}{};
+        my $domains = Lazysite::Auth::DomainAccess::read_domains("$lz/lazysite.conf");
+        my ( $whole, $req ) = _scopes_whole_and_request( $domains, $user );
+        if ( join( "\0", sort @$whole ) ne join( "\0", sort @$req ) ) {
+            my @had = ref $s->{dav_scopes} eq 'ARRAY' ? @{ $s->{dav_scopes} } : ();
+            $n{dav_scopes} = [ Lazysite::Auth::DomainAccess::intersect_scopes( \@had, $req ) ];
+            my $hd = Lazysite::Auth::DomainAccess::effective_home_domain( $domains, $user,
+                [ _effective_groups($user) ] );
+            my $DA = Lazysite::Auth::DomainAccess::DENY_ALL_SCOPE();
+            $n{home_domain} = ( length $hd && !grep { $_ eq $DA } @{ $n{dav_scopes} } ) ? $hd : undef;
+        }
+    }
     return \%n;
 }
 

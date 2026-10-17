@@ -82,6 +82,18 @@ caller's settings back to what the request's address allows
 verification. WebDAV and the data endpoint call `caps_for` in process and need no
 narrowing.
 
+**The domains a group grants.** A domain's `allowed_groups` grants and confines at once
+(SM165): an account whose only domain comes from a group is held to that domain. From
+an address the group is refused for, the domain goes with the group, and the account
+is confined to what is left; when nothing is left it is confined to nothing, never
+unconfined (an empty scope list would mean every domain on the instance). Resolved in
+`Auth::Settings::resolve_user_scopes` (WebDAV, a token verified in process, the start
+page) and applied by `narrow_caps_to_request` to the `dav_scopes` and `home_domain` the
+users tool reports (the cookie manager, a nominated users tool, an OAuth connector):
+only ever narrower. The sub-user ceiling is the creator's reach as granted; the
+creator is not the one asking. t/integration/286, on MCP (in process and through the
+tool), WebDAV and the cookie manager.
+
 **Setting it.** `tools/lazysite-users.pl group-settings-set GROUP addresses|addresses_deny
 NAME,NAME` (`group-set GROUP addresses office` at a shell; an empty value clears).
 Operator only, on the same terms as `directory_grants` (SM1135, SM991): `local`, a
@@ -143,5 +155,7 @@ copy in t/unit/auth/64).
 
 # Open
 
-- `narrow_caps_to_request` cuts capabilities only; the `dav_scopes` the users tool
-  reports for a cookie caller are the account's whole, as before.
+- The processor's render copy of the domain scopes (`_domain_scopes`, the file
+  browser's rooting hint in the admin bar) walks the filtered groups without the
+  deny-all rule, so from outside it can offer a wider browser than the server then
+  serves. It is a hint only: every read and write is judged by the server-side scopes.
