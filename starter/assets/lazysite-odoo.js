@@ -5,16 +5,26 @@
  * write its own fetch, and each would get the same things wrong: fetch the
  * visitor token and forget to refresh it, loop on a refusal, show a sign-in box
  * that keeps the password in a variable or a URL, or put what Odoo returned into
- * the page as markup. It does five things:
+ * the page as markup. It does seven things:
  *
  *   1. fetches the tokens (GET ?csrf=1) and sends the right one on every POST;
  *   2. on a CSRF refusal fetches fresh tokens and retries ONCE - never twice;
  *   3. on "sign in" (401, kind signin-required) asks the person to sign in and
  *      retries the call ONCE - never twice, so a wrong password cannot loop;
- *   4. signs a person in and out;
+ *   4. signs a person in and out, including Odoo's own two-factor code step;
  *   5. fills regions of the page from a binding, as text;
  *   6. runs several calls in one request (`batch`, SM1146);
  *   7. shows who is signed in, from the tokens it already fetches (SM1145).
+ *
+ * THE SECOND FACTOR (SM1157). An Odoo account with two-factor authentication
+ * answers the password with { second_factor: 'totp' } and nothing else: the
+ * server holds the half-open sign-in in its own signed HttpOnly cookie, and the
+ * dialog changes to ask for the 6-digit code from the person's authenticator app.
+ * A wrong code says so and asks again (Odoo counts the tries); a sign-in that has
+ * run out sends the person back to the password. "Remember this device" is shown
+ * only when the site offers it, and what Odoo returns for it goes into a cookie
+ * this script cannot read. The code is handled as the password is: read from the
+ * box, the box cleared at once, sent in one POST, never kept.
  *
  * THE PASSWORD. It is read from the box, sent in the body of one POST over
  * HTTPS to the page's own endpoint, and the box is cleared at once - before the
@@ -182,6 +192,16 @@
     });
   };
 
+  /* the second request of a two-factor sign-in: the code for the half-open
+   * sign-in the server holds. Like the password, it is in this call's argument
+   * and the request body and nowhere else. */
+  API.signInCode = function (code, remember) {
+    return post({ signin_code: true, code: code, remember: remember ? true : false }).then(function (r) {
+      code = null;
+      return r;
+    });
+  };
+
   API.signOut = function () {
     return post({ signout: true });
   };
@@ -285,6 +305,66 @@
         resolve(result);
       }
 
+      function signedIn(r) {
+        close(true);
+        var who = doc().querySelectorAll('[data-ls-odoo-name]');
+        for (var i = 0; i < who.length; i++) {
+          who[i].textContent = (r.data.identity && r.data.identity.name) || '';
+        }
+      }
+
+      /* The dialog's second step: ask for Odoo's code. The password fields go;
+       * the sign-in itself is waiting at the server, not here. */
+      function askCode(offerRemember) {
+        var cform = el('form', { autocomplete: 'off' });
+        var cmsg = el('p', { role: 'alert' }, 'Enter the 6-digit code from your authenticator app.');
+        var code = el('input', { type: 'text', name: 'code', inputmode: 'numeric', autocomplete: 'one-time-code',
+          maxlength: '12', 'aria-label': 'Authenticator code', required: 'required' });
+        var remember = null;
+        var rlabel = null;
+        if (offerRemember) {
+          remember = el('input', { type: 'checkbox', name: 'remember', id: 'ls-odoo-remember' });
+          rlabel = el('label', { 'for': 'ls-odoo-remember' }, "Don't ask again on this device");
+        }
+        var verify = el('button', { type: 'submit' }, 'Verify');
+        var cancel = el('button', { type: 'button' }, 'Cancel');
+        [cmsg, code].concat(remember ? [remember, rlabel] : [], [verify, cancel]).forEach(function (n) { cform.appendChild(n); });
+        box.removeChild(form);
+        box.appendChild(cform);
+        code.focus();
+
+        cancel.addEventListener('click', function () {
+          code.value = '';
+          API.signOut().then(function () {}, function () {});   /* ends the half-open sign-in at Odoo */
+          close(false);
+        });
+        cform.addEventListener('submit', function (ev) {
+          ev.preventDefault();
+          var c = code.value, rem = remember ? remember.checked : false;
+          code.value = '';               /* gone from the page before the answer arrives */
+          verify.disabled = true;
+          API.signInCode(c, rem).then(function (r) {
+            c = null;
+            verify.disabled = false;
+            if (r.status === 200 && r.data && r.data.ok) { signedIn(r); return; }
+            if (r.data && r.data.kind === 'signin-required') {
+              /* the half-open sign-in has run out: back to the password */
+              box.removeChild(cform);
+              box.appendChild(form);
+              msg.textContent = r.data.error || 'The sign-in has run out. Sign in again.';
+              login.focus();
+              return;
+            }
+            cmsg.textContent = (r.data && r.data.error) || 'That code did not work.';
+            code.focus();
+          }, function () {
+            c = null;
+            verify.disabled = false;
+            cmsg.textContent = 'Odoo could not be reached. Try again.';
+          });
+        });
+      }
+
       no.addEventListener('click', function () { close(false); });
       form.addEventListener('submit', function (ev) {
         ev.preventDefault();
@@ -294,14 +374,11 @@
         API.signIn(l, p).then(function (r) {
           p = null;
           go.disabled = false;
-          if (r.status === 200 && r.data && r.data.ok) {
-            close(true);
-            var who = doc().querySelectorAll('[data-ls-odoo-name]');
-            for (var i = 0; i < who.length; i++) {
-              who[i].textContent = (r.data.identity && r.data.identity.name) || '';
-            }
+          if (r.status === 200 && r.data && r.data.ok && r.data.second_factor === 'totp') {
+            askCode(r.data.remember_offered === 1 || r.data.remember_offered === true);
             return;
           }
+          if (r.status === 200 && r.data && r.data.ok) { signedIn(r); return; }
           msg.textContent = (r.data && r.data.error) || 'That sign-in did not work.';
           login.focus();
         }, function () {

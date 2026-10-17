@@ -112,14 +112,37 @@ subtest 'a two-factor account is refused by name' => sub {
 };
 
 # SM1156: OOM 0.27 answers a two-factor account's right password with a true
-# `pending` result and a half-open session id (0.24 died). Taking it for a
-# sign-in would mint a cookie for a session that runs nothing.
+# `pending` result and a half-open session id (0.24 died). It is not a sign-in:
+# no session cookie may be minted for it. SM1157 carries it to the code step
+# (t/unit/odoo/41); here, that it is never taken for a session.
 subtest 'a pending two-factor answer is not a sign-in (OOM 0.27)' => sub {
     my ( $r, $log ) = signin( 'totp@example.com', $PW );
+    ok( $r->{ok}, 'the password step is answered' );
+    is( $r->{second_factor}, 'totp', 'as a step to take' );
+    ok( !$r->{cookie} && !$r->{session_id}, 'no session cookie, no session id' );
+    ok( $r->{pending_cookie}, 'the half-open sign-in is carried in its own cookie value' );
+    is( scalar( keys %{ $http->pending } ), 1, 'Odoo holds the half-open session until the code, or sign-out' );
+    my ($sid) = keys %{ $http->pending };
+    ok( !Lazysite::Odoo::Session::sid_from_cookie( 'lzs_odoo_session=' . $r->{pending_cookie} ),
+        'and it does not read as a session' );
+    unlike( encode_json( { %$r, pending_cookie => undef } ) . $log, qr/\Q$PW\E|\Q$sid\E/,
+        'the password and the session id are in nothing else the engine returns, and not in the log' );
+    Lazysite::Odoo::Session::sign_out( $conn, $sid );
+    is( scalar( keys %{ $http->pending } ), 0, 'signing out ends it' );
+};
+
+# An OOM that cannot finish the step refuses the account by name, and nothing is
+# carried (the floor stays at 0.03 because such an OOM never answers pending).
+subtest 'a pending answer an OOM cannot finish is refused by name' => sub {
+    my $r;
+    {
+        no warnings qw(once redefine);
+        local *Odoo::Transport::Session::complete_totp;
+        ( undef, $r ) = quiet( sub { Lazysite::Odoo::Session::sign_in( $conn, 'totp@example.com', $PW ) } );
+    }
     is( $r->{kind}, 'two-factor', 'refused by name' );
-    ok( !$r->{ok} && !$r->{cookie} && !$r->{session_id}, 'no cookie, no session id' );
+    ok( !$r->{ok} && !$r->{pending} && !$r->{session_id}, 'with nothing to carry' );
     is( scalar( keys %{ $http->pending } ), 0, 'and the half-open session was ended at Odoo' );
-    unlike( encode_json($r) . $log, qr/\Q$PW\E/, 'the password is in neither' );
 };
 
 subtest 'a transport that echoes the request into its error leaks nothing' => sub {

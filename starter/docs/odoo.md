@@ -74,6 +74,14 @@ page:
 : Seconds a page may show who a signed-in person is in Odoo before it is
   asked of Odoo again. 60 to 86400, default 900. Presentation only.
 
+`odoo_remember_device`
+: Off by default. On, a person whose Odoo account has two-factor authentication is
+  offered Odoo's own "don't ask again on this device" at the code step, over
+  `https://` only. Odoo issues the device value and decides how long it is
+  trusted; the browser keeps it in one cookie for this site (HttpOnly, Secure,
+  SameSite=Strict) and lazysite stores nothing. Leave it off where a browser is
+  shared: whoever is signed in is responsible for that device. Needs OOM 0.27.
+
 `odoo_timeout`
 : Seconds per call. Default 30. A call is made once; a failed call is not
   retried.
@@ -385,6 +393,15 @@ endpoint says to sign in, asks the person - and sends the call again once. The
 password goes in the body of one request to the page's own endpoint and the box is
 cleared before the answer arrives; nothing is stored in the browser.
 
+**Two-factor accounts (OOM 0.27 or later).** When the Odoo account has two-factor
+authentication, the password is answered with a second step and the dialog asks for
+the 6-digit code from the person's authenticator app; the code is handled like the
+password and sent in one request of its own. A wrong code says so and the person
+may try again, within Odoo's own limit on tries. The half-open sign-in is carried
+between the two requests in a signed, HttpOnly cookie that is good for five
+minutes and is not a session. With an older OOM such an account is refused by name
+(`two-factor`).
+
 ## Domains
 
 On an instance serving several domains, a binding with `domain:` runs:
@@ -420,6 +437,9 @@ never returned. The kinds a caller meets most:
 | `disabled` | 403 | the extension is disabled |
 | `csrf` | 403 | the token is missing, stale, or not this visitor's |
 | `read-only` | 403 | `odoo_allow_writes` is off |
+| `two-factor` | 403 | the account has two-factor authentication and the installed OOM cannot take the code (before 0.27) |
+| `signin-refused`, `signin-required` | 401 | the password was refused, or the sign-in (or its pending code step) has ended: sign in again |
+| `second-factor` | 401 | Odoo did not accept the code; the person may try again |
 | `invalid` | 400 | a parameter is unmapped, of the wrong type, or missing |
 | `rate` | 429 | a rate cap is reached |
 | `not-found` | 404 | no such binding, or no such plan for this caller |

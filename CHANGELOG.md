@@ -120,6 +120,17 @@ Archive
 - SM1150 (PENDING) **`credential: session` is documented.** The Odoo guide
   describes a person signing in and running bindings as themselves, as the code
   does, and no longer lists it as not available. t/unit/odoo/47.
+- SM1157 (PENDING) **Odoo's own two-factor code in the Odoo sign-in dialog.** A
+  person whose Odoo account has two-factor authentication was refused
+  (`two-factor`); with OOM 0.27 the dialog now asks for the 6-digit code after
+  the password. The half-open sign-in travels in its own signed, HttpOnly
+  cookie (five minutes, never a session); a wrong code can be tried again within
+  Odoo's own limit. "Remember this device" is a new setting, `odoo_remember_device`,
+  off unless said and offered only over HTTPS; Odoo's device value is kept in one
+  HttpOnly, Secure, SameSite=Strict cookie, never in a store. The code, the
+  password and the device value are in no record or log. An older OOM still
+  refuses the account by name. t/unit/odoo/41, 42.
+
 - SM1156 (PENDING) **lazysite adopts OOM 0.27.** The pinned snapshot moves from
   0.24 (`t/vendor/oom`, SM747's filed spec re-filed with it). 0.27 answers a
   two-factor account's right password as a pending sign-in rather than a

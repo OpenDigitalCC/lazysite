@@ -74,6 +74,14 @@ sub describe {
                     . 'it must be readable by the web server\'s user. It is used for the connection to '
                     . 'Odoo only: the rest of the server, and every other site on it, keeps the system '
                     . 'certificate store. Verification stays on.' },
+            { key => 'odoo_remember_device', label => 'Offer "remember this device" at the two-factor step', type => 'boolean',
+                default => 'false',
+                note => 'Off: a person with two-factor authentication in Odoo is asked for the '
+                    . 'code at every sign-in. On: the code step offers Odoo\'s own "don\'t ask '
+                    . 'again on this device", and the browser keeps Odoo\'s device cookie (HttpOnly, '
+                    . 'Secure, this site only) for as long as Odoo trusts it. Leave it off where a '
+                    . 'browser is shared: whoever is signed in is responsible for that device. '
+                    . 'Needs OOM 0.27 or later and an https:// site.' },
             { key => 'odoo_identity_ttl', label => 'Identity cookie lifetime (seconds)', type => 'text',
                 default => '900',
                 note => 'How long a page may show who a signed-in person is in Odoo before it is '
@@ -89,7 +97,7 @@ sub describe {
 
         owns => {
             config_keys =>
-                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_identity_ttl odoo_packs)],
+                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_remember_device odoo_identity_ttl odoo_packs)],
 
             # NO `storage`, deliberately. lazysite/odoo/ holds the connection
             # user's key and plans carrying Odoo's own records; a site package

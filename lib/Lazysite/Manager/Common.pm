@@ -1876,7 +1876,7 @@ our %REFUSAL_STATUS = (
     # conflict with the state it was made against; an expired one is gone.
     ( map { $_ => '403 Forbidden' } qw(mode scope-refused odoo-access-refused read-only no-owner wrong-domain two-factor) ),
     # B: a person signed in to Odoo has to sign in again (none, ended, or refused).
-    ( map { $_ => '401 Unauthorized' } qw(signin-required signin-refused) ),
+    ( map { $_ => '401 Unauthorized' } qw(signin-required signin-refused second-factor second-factor-required) ), # SM1157: Odoo refused the authenticator code / waits for it
     ( map { $_ => '404 Not Found' } qw(no-operation odoo-missing) ),
     ( map { $_ => '409 Conflict' } qw(stale applied edited binding instance) ),
     'expired' => '410 Gone',

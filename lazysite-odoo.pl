@@ -24,8 +24,14 @@
 #                                sign a person in to Odoo (SM747 B): the password goes
 #                                to Odoo through OOM and nowhere else; the answer sets
 #                                the Odoo session cookie
+#   POST {signin_code: true, code, remember, visitor_token}
+#                                the second request of a two-factor sign-in (SM1157): the
+#                                authenticator code, for the half-open session the password
+#                                request left in its own signed cookie; a wrong code leaves
+#                                that session open for another try
 #   POST {signout: true, visitor_token}
-#                                end that session at Odoo and clear the cookie
+#                                end that session at Odoo and clear the cookie (and a
+#                                half-open sign-in, if one is waiting)
 #
 # IT VERIFIES ITS OWN CALLER (SM411), as the data endpoint does: only the
 # processor and the manager API are wrapped, so X-Remote-User arrives here
@@ -161,6 +167,12 @@ sub main {
     my $odoo_session = Lazysite::Odoo::Session::sid_from_cookie( $ENV{HTTP_COOKIE} // '' );
     my $ip           = _ip($docroot);
 
+    # SM1157: a half-open two-factor sign-in, and the trusted-device cookie. Neither is a
+    # session: sid_from_cookie does not read the first, and the second is only ever
+    # handed back to Odoo.
+    my $pending = Lazysite::Odoo::Session::pending_from_cookie( $ENV{HTTP_COOKIE} // '' );
+    my $device  = Lazysite::Odoo::Session::device_from_cookie( $ENV{HTTP_COOKIE}  // '' );
+
     my $q = _query();
     if ( ( $q->{csrf} // '' ) eq '1' ) {
         unless ($visitor) {
@@ -203,7 +215,8 @@ sub main {
     _engine($docroot);
     require Lazysite::Util;
     my %who = ( user => $user, groups => \@groups, caps => $caps, visitor => $visitor, ip => $ip,
-        host => Lazysite::Util::request_host(), odoo_session => $odoo_session );
+        host    => Lazysite::Util::request_host(), odoo_session => $odoo_session,
+        pending => $pending,                       device       => $device );
 
     if ( $method eq 'GET' ) {
         $who{odoo_session} = _refresh_identity(%who);
@@ -217,6 +230,7 @@ sub main {
     }
 
     return _signin( $req, %who )  if $req->{signin};
+    return _signin_code( $req, %who ) if $req->{signin_code};
     return _signout( $req, %who ) if $req->{signout};
     $who{odoo_session} = _refresh_identity(%who);
     return _batch( $req, \%who ) if exists $req->{calls};
@@ -438,9 +452,48 @@ sub _signin {
     return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
     return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'a login and a password are both required' } )
         if ref $req->{login} || ref $req->{password};
-    my $r = Lazysite::Odoo::sign_in( login => $req->{login}, password => $req->{password}, ip => $who{ip} );
+    my $r = Lazysite::Odoo::sign_in( login => $req->{login}, password => $req->{password}, ip => $who{ip},
+        secure => ( $ENV{HTTPS} ? 1 : 0 ), trusted_device => $who{device} );
     return refuse($r) unless $r->{ok};
+    push @EXTRA, Lazysite::Odoo::Session::clear_device_header( _cookie_scope() ) if $r->{clear_device};
+
+    # SM1157: Odoo wants the authenticator code. The half-open session is carried to
+    # the next request in its own signed cookie; nothing here is a sign-in yet.
+    if ( $r->{second_factor} ) {
+        push @EXTRA, Lazysite::Odoo::Session::set_pending_header( $r->{pending_cookie}, _cookie_scope() );
+        return reply( '200 OK', { ok => 1, signed_in => 0, second_factor => $r->{second_factor},
+                remember_offered => ( $r->{remember_offered} ? 1 : 0 ) } );
+    }
     push @EXTRA, Lazysite::Odoo::Session::set_cookie_header( $r->{cookie}, _cookie_scope() );
+    _identity_cookie_out( $r->{identity_cookie} );
+    return reply( '200 OK', { ok => 1, signed_in => 1, identity => $r->{identity} } );
+}
+
+# SM1157: the second request of a two-factor sign-in. The code is the one thing in
+# the body that is never logged, echoed or stored, as the password is not; the
+# device value Odoo hands back for "remember this device" goes into its own cookie
+# (HttpOnly, Secure, SameSite=Strict, this endpoint's path) and into no body, store
+# or record. A wrong code leaves the pending cookie alone so the person can try
+# again; a pending sign-in that has lapsed clears it and asks for the password.
+sub _signin_code {
+    my ( $req, %who ) = @_;
+    my %ctx = ( mode => 'public', visitor_key => $who{visitor} );
+    return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
+    return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'a code is required' } )
+        if ref $req->{code};    # remember may be a JSON boolean
+    my $r = Lazysite::Odoo::sign_in_code( pending_session => $who{pending}, code => $req->{code},
+        remember => ( $req->{remember} ? 1 : 0 ), user_agent => $ENV{HTTP_USER_AGENT},
+        ip => $who{ip}, secure => ( $ENV{HTTPS} ? 1 : 0 ) );
+    unless ( $r->{ok} ) {
+        push @EXTRA, Lazysite::Odoo::Session::clear_pending_header( _cookie_scope() ) if $r->{clear_pending};
+        return refuse($r);
+    }
+    push @EXTRA, Lazysite::Odoo::Session::set_cookie_header( $r->{cookie}, _cookie_scope() );
+    push @EXTRA, Lazysite::Odoo::Session::clear_pending_header( _cookie_scope() );
+    if ( defined $r->{trusted_device} ) {
+        my $h = Lazysite::Odoo::Session::set_device_header( $r->{trusted_device}, _cookie_scope() );
+        push @EXTRA, $h if defined $h;
+    }
     _identity_cookie_out( $r->{identity_cookie} );
     return reply( '200 OK', { ok => 1, signed_in => 1, identity => $r->{identity} } );
 }
@@ -452,6 +505,12 @@ sub _signout {
     my %ctx = ( mode => 'public', visitor_key => $who{visitor} );
     return _csrf_refusal( \%ctx ) unless _csrf_ok( \%ctx, $req );
     Lazysite::Odoo::sign_out( session_id => $who{odoo_session}, ip => $who{ip} ) if $who{odoo_session};
+
+    # SM1157: and a half-open two-factor sign-in the person gave up on
+    if ( $who{pending} ) {
+        Lazysite::Odoo::sign_out( session_id => $who{pending}, ip => $who{ip} );
+        push @EXTRA, Lazysite::Odoo::Session::clear_pending_header( _cookie_scope() );
+    }
     _clear_cookies();
     return reply( '200 OK', { ok => 1, signed_in => 0 } );
 }

@@ -235,6 +235,12 @@ sub connection {
     # allow_writes = 1, and this is the operator's one switch for it.
     $c{allow_writes} = ( ( $kv->{odoo_allow_writes} // '' ) =~ /\A\s*(?:1|true|yes|on)\s*\z/i ) ? 1 : 0;
 
+    # "Remember this device" at the sign-in's code step (SM1157) is the SITE's
+    # decision and OFF unless said: on a shared tablet the person who is signed in
+    # is responsible for what that device can reach (L3), and a site that has
+    # not chosen to offer it does not.
+    $c{remember_device} = ( ( $kv->{odoo_remember_device} // '' ) =~ /\A\s*(?:1|true|yes|on)\s*\z/i ) ? 1 : 0;
+
     # The operation packs beyond OOM's own, by Perl namespace. Not Odoo
     # knowledge: a namespace names where the knowledge is, which is the point.
     my @packs = grep { length } split /\s*,\s*/, ( $kv->{odoo_packs} // '' );
@@ -1092,7 +1098,28 @@ sub sign_in {
     return ( _refusal( \%rec, 'rate', 'too many sign-in attempts - wait a few minutes and try again' ) )[1]
         unless $by_ip && $by_login;
 
-    my $r = Lazysite::Odoo::Session::sign_in( $conn, $login, $a{password} );
+    # The trusted-device cookie (SM1157) goes back to Odoo only where the site offers
+    # the choice; a site that has switched it off sends nothing, and the endpoint
+    # clears a cookie it no longer honours.
+    my $device = ( $conn->{remember_device} && $a{trusted_device} ) ? $a{trusted_device} : undef;
+    my $stale = ( $a{trusted_device} && !defined $device ) ? 1 : 0; # a cookie this site no longer honours
+    my $r = Lazysite::Odoo::Session::sign_in( $conn, $login, $a{password},
+        ( defined $device ? ( trusted_device => $device ) : () ) );
+    if ( $r->{pending} ) {
+        my $pc = Lazysite::Odoo::Session::mint_pending_cookie( $r->{session_id} );
+        unless ( defined $pc ) {
+            Lazysite::Odoo::Session::sign_out( $conn, $r->{session_id} );
+            return ( _refusal( \%rec, 'unavailable', 'a sign-in cookie cannot be made on this host - see the event log' ) )[1];
+        }
+        record_call( %rec, actor => Lazysite::Odoo::Session::session_label( $r->{session_id} ),
+            outcome => 'answered', kind => 'second-factor-required' );
+        return { ok => 1, second_factor => 'totp', pending_cookie => $pc,
+            remember_offered => ( $conn->{remember_device} && $a{secure} ? 1 : 0 ),
+
+            # Odoo did not honour the device cookie this request sent (or the site
+            # no longer offers the choice): the browser is told to drop it.
+            ( $stale || defined $device ? ( clear_device => 1 ) : () ) };
+    }
     unless ( $r->{ok} ) {
         record_call( %rec, outcome => outcome_of( $r->{kind} ), kind => $r->{kind} );
         return { ok => 0, kind => $r->{kind}, error => $r->{error} };
@@ -1104,7 +1131,59 @@ sub sign_in {
     }
     record_call( %rec, actor => Lazysite::Odoo::Session::session_label( $r->{session_id} ), outcome => 'answered' );
     return { ok => 1, cookie => $cookie, identity => $r->{identity},
-        identity_cookie => _identity_cookie( $r->{identity_all} ) };
+        identity_cookie => _identity_cookie( $r->{identity_all} ), ( $stale ? ( clear_device => 1 ) : () ) };
+}
+
+# sign_in_code( pending_session, code, remember, user_agent, ip, secure ) -> { ok, cookie, identity[, trusted_device] }
+#                                                             or { ok => 0, kind, error[, clear_pending] }
+#
+# The second request of a two-factor sign-in (SM1157, OOM 0.27). The pending
+# session is the one the first request left in its signed cookie; the code is an
+# argument that goes to Odoo through OOM and nowhere else. A wrong code answers
+# kind `second-factor` and changes nothing, so the person tries again (Odoo counts
+# the tries). `remember` is honoured only where the site offers it and the request
+# came over HTTPS; the device value comes back for the endpoint to put in its own
+# cookie and is in no record, log or store. The record names the pending session
+# by a hash, with the phase and the outcome and nothing typed.
+sub sign_in_code {
+    my (%a) = @_;
+    require Lazysite::Odoo::Session;
+    require Lazysite::Odoo::Visitor;
+    no warnings q{once};
+    local $Lazysite::Odoo::Visitor::DOCROOT = $DOCROOT;
+    my %rec = ( call_id => new_call_id(), actor => Lazysite::Odoo::Session::session_label( $a{pending_session} ),
+        ip => $a{ip} // '', mode => 'public', phase => 'signin-code', binding => '', operation => '' );
+    return ( _refusal( \%rec, 'disabled',
+            'the Odoo extension is switched off - a sysop can enable it on the Extensions page' ) )[1]
+        unless _extension_enabled();
+    my ( $have, $missing ) = oom_check();
+    return ( _refusal( \%rec, 'unavailable', $missing ) )[1] unless $have;
+    my ( $conn, $cwhy ) = connection();
+    return ( _refusal( \%rec, 'config', $cwhy ) )[1] unless $conn;
+    return { %{ ( _refusal( \%rec, 'signin-required', 'the sign-in has run out - enter the password again' ) )[1] }, clear_pending => 1 }
+        unless defined $a{pending_session} && length $a{pending_session};
+
+    my $code = ( defined $a{code} && !ref $a{code} && length $a{code} <= 32 ) ? $a{code} : '';
+    $code =~ s/\s+//g;    # an authenticator app shows "123 456"
+    return ( _refusal( \%rec, 'invalid', 'enter the 6-digit code from your authenticator app' ) )[1]
+        unless $code =~ /\A[0-9]{6}\z/;
+
+    my $remember = ( $a{remember} && $conn->{remember_device} && $a{secure} ) ? 1 : 0;
+    my $r = Lazysite::Odoo::Session::complete_totp( $conn, $a{pending_session}, $code,
+        remember => $remember, user_agent => $a{user_agent} );
+    unless ( $r->{ok} ) {
+        record_call( %rec, outcome => outcome_of( $r->{kind} ), kind => $r->{kind} );
+        return { ok => 0, kind => $r->{kind}, error => $r->{error}, ( $r->{clear_pending} ? ( clear_pending => 1 ) : () ) };
+    }
+    my $cookie = Lazysite::Odoo::Session::mint_cookie( $r->{session_id} );
+    unless ( defined $cookie ) {
+        Lazysite::Odoo::Session::sign_out( $conn, $r->{session_id} );
+        return { %{ ( _refusal( \%rec, 'unavailable', 'a sign-in cookie cannot be made on this host - see the event log' ) )[1] }, clear_pending => 1 };
+    }
+    record_call( %rec, actor => Lazysite::Odoo::Session::session_label( $r->{session_id} ), outcome => 'answered' );
+    return { ok => 1, cookie => $cookie, identity => $r->{identity},
+        identity_cookie => _identity_cookie( $r->{identity_all} ),
+        ( defined $r->{trusted_device} ? ( trusted_device => $r->{trusted_device} ) : () ) };
 }
 
 # --- C: the identity cookie ----------------------------------------------------
