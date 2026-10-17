@@ -56,6 +56,13 @@ Archive
 ## 0.15.9 - EDGE: mail sends from a real address, and video plays everywhere (2026-10-17)
 
 - SM1114 (e01b7471) **a failed WebDAV PUT leaves nothing behind.** A failed PUT
+- SM1116 (PENDING) **internal: everything a coverage run writes is classified.**
+  The overnight coverage run of 2026-10-17 stopped in its first group: the
+  manifest refused the run's own `cover_db-processor-suite.log`, which no
+  exclude rule named. Group suite logs are now excluded, and t/tools/169 checks
+  every name the coverage tools write.
+
+- SM1114 (PENDING) **a failed WebDAV PUT leaves nothing behind.** A failed PUT
   could leave its `.tmp` file in the tree (xisl.com, 2026-10-16), and a body
   shorter than its declared length was stored as the whole file. Every
   failure removes the temp file; a short body answers 400 and stores nothing;

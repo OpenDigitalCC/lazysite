@@ -210,7 +210,7 @@
     "^dist/",
     "^cover_db/",
     "^cover_db-[^/]+/",
-    "^cover_db-suite\\.log$",
+    "^cover_db(?:-[^/]+)?-suite\\.log$",
     "^tools/coverage-inputs\\.pl$",
     "^inbox/",
     "^docs/adr/",
