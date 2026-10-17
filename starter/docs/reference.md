@@ -69,6 +69,11 @@ Directory scan
   unrecognised value reads as), `enforce`, or `off`. The manager is never
   enforced.
 
+`app_name`, `app_short_name`, `app_scope`, `app_start_url`, `app_theme_colour`, `app_background_colour`, `app_icon_64`, `app_icon_192`, `app_icon_512`, `app_icon_maskable`, `app_shell`
+: Install the site, or the section under `app_scope`, as an app: the engine
+  generates the web app manifest and the service worker from these. Setting
+  `app_name` turns it on. See [Installing a site as an app](/docs/app).
+
 `csp_script_src`, `csp_connect_src`, `csp_img_src`, `csp_frame_src`
 : Hosts a page may load from beyond its own, each list appended to the
   default for that directive: `csp_script_src: https://ads.example.com,

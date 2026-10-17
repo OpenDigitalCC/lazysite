@@ -1385,6 +1385,7 @@ sub run_checks {
     report_uncompilable_form_patterns();
     report_unconverted_delivery();
     report_retired_conf_keys();
+    report_app_settings();              # SM1155
     report_shared_manager_account();    # N141D (SM864)
 
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
@@ -2604,6 +2605,60 @@ sub report_unconverted_delivery {
     else {
         report( 'OK', 'every form and schedule names a handler the engine reads' );
     }
+    return;
+}
+
+# SM1155: a site that sets app_name installs as an app, and the engine turns the
+# app OFF on a value it cannot honour rather than guessing (a scope of `portal`
+# repaired to `/portal/` would install the wrong section). So an operator who
+# typed one sees no manifest and no reason - this names the value. An icon the
+# settings name but the site does not serve is left out of the manifest; a
+# browser drops the install prompt for an icon that 404s, so it is said here.
+# Silent when app_name is not set.
+sub report_app_settings {
+    my $name = conf_value( $conf, 'app_name' );
+    return unless defined $name && length $name;
+    my $scope = conf_value( $conf, 'app_scope' )     // '/';
+    my $start = conf_value( $conf, 'app_start_url' ) // $scope;
+    my @bad;
+    push @bad, "app_scope ($scope) must start and end with / and name a directory"
+        unless $scope =~ m{\A/(?:[A-Za-z0-9._~-]+/)*\z} && $scope !~ m{(?:\A|/)\.\.?/};
+    ( my $sp = $start ) =~ s/\?.*\z//;
+    push @bad, "app_start_url ($start) must be a path inside app_scope ($scope)"
+        unless $sp =~ m{\A/[A-Za-z0-9._~/%-]*\z} && $sp !~ m{\.\.} && ( index( $sp, $scope ) == 0 || "$sp/" eq $scope );
+    for my $k (qw(app_theme_colour app_background_colour)) {
+        my $v = conf_value( $conf, $k );
+        push @bad, "$k ($v) must be #rgb or #rrggbb" if defined $v && length $v && $v !~ /\A#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})\z/;
+    }
+    my $root = $DOC;
+    my $cr   = conf_value( $conf, 'content_root' );
+    $root = "$DOC/$cr" if defined $cr && length $cr && $cr =~ m{\A[A-Za-z0-9._/-]+\z} && $cr !~ m{\.\.} && -d "$DOC/$cr";
+    my @missing;
+    my $icons = 0;
+    for my $k (qw(64 192 512 maskable)) {
+        my $p = conf_value( $conf, "app_icon_$k" );
+        next unless defined $p && length $p;
+        $icons++;
+        if ( $p !~ m{\A/[A-Za-z0-9._~/-]+\.(?:png|webp|svg|jpe?g)\z}i || $p =~ m{\.\.} ) {
+            push @bad, "app_icon_$k ($p) must be a site path to a png, webp, svg or jpg";
+        }
+        elsif ( !-f "$root$p" && !-f "$DOC$p" ) {
+            push @missing, "app_icon_$k ($p)";
+        }
+    }
+    if (@bad) {
+        report( 'WARN', 'lazysite.conf app_name is set but the app is OFF: ' . join( '; ', @bad ),
+            "correct it in '$LZ/lazysite.conf'; the engine does not guess a scope" );
+    }
+    if (@missing) {
+        report( 'WARN', 'the app manifest leaves out ' . scalar(@missing) . ' icon(s) the site does not serve: ' . join( ', ', @missing ),
+            'put the file at that path, or correct the setting' );
+    }
+    unless ($icons) {
+        report( 'WARN', 'the app names no icons (app_icon_192, app_icon_512), so the manifest has none and a browser may not offer to install it',
+            'add app_icon_192 and app_icon_512 (png files the site serves); app_icon_maskable and app_icon_64 are optional' );
+    }
+    report( 'OK', "app '$name' is declared at $scope with a valid scope, start page and icons" ) unless @bad || @missing || !$icons;
     return;
 }
 

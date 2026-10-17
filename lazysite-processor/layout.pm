@@ -10,7 +10,7 @@ package main;
 #         _section_indexes, _section_theme, _theme_version,
 #         _render_fallback_layout; generate_theme_css (the processor's theme
 #         token generator, lint 61); the injectors that edit the finished
-#         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_odoo_helper, _inject_meta,
+#         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_odoo_helper, _inject_app, _inject_meta,
 #         _inject_canonical, and the admin bar (_inject_admin_bar,
 #         _admin_bar_choice, _inject_admin_bar_live); _enabled_plugins,
 #         _manager_style, _asset_fingerprint; _engine_mtime and
@@ -546,6 +546,7 @@ sub render_template {
         $output = _inject_data_helper($output);
         $output = _inject_account_helper($output);    # SM1043
         $output = _inject_odoo_helper($output);       # SM747 D
+        $output = _inject_app( $output, $vars );      # SM1155
 
         # Admin bar injected per-request at output time, not cached (see note below).
         return $output;
@@ -675,6 +676,7 @@ sub render_template {
     $output = _inject_data_helper($output);
     $output = _inject_account_helper($output);    # SM1043
     $output = _inject_odoo_helper($output);       # SM747 D
+    $output = _inject_app( $output, $vars );      # SM1155
 
     # NOTE: the manager admin bar is deliberately NOT injected here. It is
     # per-viewer (manager-only) and this output is written to the shared page

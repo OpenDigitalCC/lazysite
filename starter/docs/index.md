@@ -66,6 +66,9 @@ and cache behaviour.
 [The Odoo extension](/docs/odoo)
 : Running named Odoo operations from pages, forms, the schedule and agents, and what bounds each.
 
+[Installing a site as an app](/docs/app)
+: Making a site, or one section of it, installable on a phone as a progressive web app, and what the device keeps.
+
 [Forms](/docs/forms)
 : Defining forms, field types, validation, limits, and reading what they collect.
 

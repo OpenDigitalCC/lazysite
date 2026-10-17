@@ -139,6 +139,14 @@ Archive
   name (`two-factor`) and the half-open session is ended at Odoo. The
   dependency floor is unchanged. t/unit/odoo/25.
 
+- SM1155 (PENDING) **a site, or a section of it, installs as an app.** Setting
+  `app_name` (with `app_scope`, `app_start_url`, colours and icon files) makes the
+  engine generate the web app manifest and a service worker; nothing is authored
+  under `/lazysite-assets/`. The worker keeps the app shell (stylesheets and
+  scripts stale-while-revalidate, images cache-first), never answers a page, the
+  Odoo endpoint, the manager or the auth paths, never stores a `no-store` or
+  `private` response, and updates on a deploy. `lazysite check` names a bad scope
+  or a missing icon. t/unit/processor/133, 134, t/unit/tools/82.
 - SM1131 (PENDING) **every reader honours the configured header names.** Only the
   page gate read `auth_header_*`; one reader, `Lazysite::Auth::Identity`, now
   serves the page gate, the file rules, the manager and the API, and takes its

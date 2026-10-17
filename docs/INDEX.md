@@ -204,6 +204,7 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 | [`ai-connector-setup.md`](ai-connector-setup.md) - Connect an AI assistant | This site exposes an MCP connector so an AI assistant can maintain it through tools (list, read, write, move, delete pages; set permissions; activate ... |
 | [`ai-connector-tools.md`](ai-connector-tools.md) - AI connector - tools reference | The full reference for the lazysite MCP connector: how it authenticates, the capability model, and every tool it exposes. |
 | [`api.md`](api.md) - API and raw mode | JSON endpoints, content fragments, and query string variables. |
+| [`app.md`](app.md) - Installing a site as an app | A site, or one section of it, installs on a phone or tablet as a progressive web app, from a few settings. |
 | [`auth-upgrade.md`](auth-upgrade.md) - Upgrading to external auth | Replace built-in auth with Authentik, Authelia, or another proxy. |
 | [`auth.md`](auth.md) - Authentication | Protect pages with built-in auth or an external proxy. |
 | [`authoring.md`](authoring.md) - Authoring | How to create and edit pages - the short version. |
@@ -230,4 +231,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*115 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*116 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*

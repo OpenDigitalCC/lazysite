@@ -28,7 +28,7 @@ use Socket       qw(inet_pton inet_ntop AF_INET AF_INET6);    # SM929: the reque
 # lib tree. A part is package main and loads nothing; a missing one fails here.
 BEGIN {
     my $parts = dirname( realpath(__FILE__) ) . '/lazysite-processor';
-    for my $part (qw(front-matter.pm oembed.pm remap.pm components.pm ct-cache.pm gates.pm access-log.pm front-door.pm include.pm forms.pm output.pm request.pm sources.pm registries.pm render.pm layout.pm pipeline.pm acl.pm auth.pm)) {
+    for my $part (qw(front-matter.pm oembed.pm remap.pm components.pm ct-cache.pm gates.pm access-log.pm front-door.pm include.pm forms.pm output.pm request.pm sources.pm registries.pm render.pm layout.pm pipeline.pm acl.pm auth.pm app.pm)) {
         my $file = "$parts/$part";
         require $file;
     }
@@ -391,7 +391,11 @@ our %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
     qw(site_name theme layout nav_file search_default content_root site_url
     lang lang_group      # SM179: per-host language + language-set membership
     # P16: per-domain CSP allow-lists
-    csp_script_src csp_connect_src csp_img_src csp_frame_src);
+    csp_script_src csp_connect_src csp_img_src csp_frame_src
+    # SM1155: a domain may be its own app (name, scope, icons, shell)
+    app_name app_short_name app_scope app_start_url app_theme_colour
+    app_background_colour app_icon_64 app_icon_192 app_icon_512 app_icon_maskable
+    app_shell);
 
 # SM151 P6: content-type by extension for per-domain static files served by the
 # processor (_serve_content_static). Kept small - the SEO artefacts
@@ -1587,6 +1591,9 @@ sub main {
     # alias lookup and the 404, because these are real URLs the site publishes -
     # and after the static handler, so a hand-authored sitemap.xml an operator
     # put in their content still wins.
+    # SM1155: the app manifest and worker are generated from settings, as a
+    # registry is, and like one lose to a file the site really has at that path.
+    return if _serve_app($uri);
     return if _serve_registry($uri);
 
     # SM134: alias redirects. A page may declare `aliases:` (old/alternate URLs);

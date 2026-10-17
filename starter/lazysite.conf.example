@@ -89,3 +89,16 @@ update_policy: manual
 # manager_upload_blocked_extensions: pl,cgi
 # manager_upload_rate_count: 60
 # manager_upload_rate_mb: 500
+
+# Install the site, or one section, as an app (SM1155). Setting app_name
+# turns it on; the engine generates the manifest and the service worker.
+# app_scope and app_start_url default to / ; icons are site files, none are
+# generated. See /docs/app.
+# app_name: Example Portal
+# app_short_name: Portal
+# app_theme_colour: #0a5c36
+# app_scope: /portal/
+# app_start_url: /portal/
+# app_icon_192: /icons/app-192.png
+# app_icon_512: /icons/app-512.png
+# app_icon_maskable: /icons/app-maskable.png

@@ -268,6 +268,7 @@ sub _is_engine_asset {
             || $uri eq '/assets/lazysite-chrome.js'
             || $uri eq '/assets/lazysite-data.js'
             || $uri eq '/assets/lazysite-account.js'    # SM1043: /account on every domain
+            || $uri eq '/assets/lazysite-app.js' # SM1155: registers the app worker, on every domain
             || $uri eq '/assets/lazysite-odoo.js' ) ? 1 : 0; # SM747 D: the Odoo helper, on every domain
 }
 
