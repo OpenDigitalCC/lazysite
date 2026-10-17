@@ -175,39 +175,38 @@ return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 # apply_trust_gate does - the manager-API (the most sensitive endpoint: user
 # management, config, file read/write) deletes any client-supplied X-Remote-*
 # unless the wrapper vouched for them (LAZYSITE_AUTH_TRUSTED=1) or the sysop
-# opted into a trusted reverse proxy (auth_proxy_trusted: true). A forged header
-# is thus ignored - and logged - rather than granting sysop access.
+# opted into a trusted reverse proxy (auth_proxy_trusted: true) AND the request
+# came from a peer in auth_proxy_trusted_from (SM1129). A forged header is thus
+# ignored - and logged - rather than granting sysop access.
 {
     my $trusted = ( $ENV{LAZYSITE_AUTH_TRUSTED} // '' ) eq '1';
-    my $proxy   = 'false';
 
-    # SM917: the open is inside the !$trusted branch rather than joined to it by
-    # &&, so the failure branch below belongs to the OPEN and not to the
-    # short-circuit. Joined, an `else` would also fire when the wrapper had
-    # already vouched for the caller and nothing had been read at all.
+    # SM1129: ONE ANSWER, from Lazysite::Util::proxy_identity (t/lint/265 holds
+    # every reader of the flag to it): the flag on AND the TCP peer listed. This
+    # fails CLOSED either way - an unreadable conf reads as the flag off (SM917:
+    # proxy_identity says why, with cannot_read) and an absent list believes
+    # nobody - so an unreadable conf costs nobody their session, only the
+    # explanation, which the log now carries.
     #
-    # This fails CLOSED either way - $proxy stays 'false' and the check below
-    # refuses - so an unreadable conf costs nobody their session. What it used to
-    # cost was the explanation: a sysop who set auth_proxy_trusted: true and whose
-    # conf lost its permissions saw proxy auth simply not work, with nothing said.
-    if ( !$trusted ) {
-        if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
-            while ( my $l = <$fh> ) {
-                if ( $l =~ /^auth_proxy_trusted\s*:\s*(\S+)/ ) { $proxy = lc $1; last }
+    # SM917: the read is inside the !$trusted branch, so nothing is read when the
+    # wrapper has already vouched for the caller.
+    unless ($trusted) {
+        my $pid = Lazysite::Util::proxy_identity($LAZYSITE_DIR);
+        unless ( $pid->{trusted} ) {
+            if ( length( $ENV{HTTP_X_REMOTE_USER} // '' ) ) {
+                log_event( 'WARN', 'manager-api',
+                    $pid->{flag}
+                    ? ( $pid->{state} eq 'no-list'
+                        ? 'untrusted auth header ignored - auth_proxy_trusted is on but auth_proxy_trusted_from lists no address'
+                        : 'untrusted auth header ignored - the peer is not in auth_proxy_trusted_from' )
+                    : 'untrusted auth header ignored - set auth_proxy_trusted: true to enable proxy auth',
+                    header => 'X-Remote-User',
+                    value  => substr( $ENV{HTTP_X_REMOTE_USER}, 0, 32 ),
+                    ( $pid->{flag} ? ( peer => $pid->{peer} ) : () ) );
             }
-            close $fh;
+            delete @ENV{
+                qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL)};
         }
-        else { Lazysite::Util::cannot_read( 'the site conf', "$LAZYSITE_DIR/lazysite.conf" ) }
-    }
-    unless ( $trusted || $proxy eq 'true' ) {
-        if ( length( $ENV{HTTP_X_REMOTE_USER} // '' ) ) {
-            log_event( 'WARN', 'manager-api',
-                'untrusted auth header ignored - set auth_proxy_trusted: true to enable proxy auth',
-                header => 'X-Remote-User',
-                value  => substr( $ENV{HTTP_X_REMOTE_USER}, 0, 32 ) );
-        }
-        delete @ENV{
-            qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL)};
     }
 }
 

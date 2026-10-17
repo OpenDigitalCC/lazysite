@@ -18,7 +18,7 @@ make_path("$d/lazysite/layouts/default");
 make_path("$d/lazysite/auth");
 
 open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $c "site_name: T\nlayout: default\nmanager: enabled\nauth_proxy_trusted: true\n";
+print $c "site_name: T\nlayout: default\nmanager: enabled\nauth_proxy_trusted: true\nauth_proxy_trusted_from: 127.0.0.1\n";
 close $c;
 
 open my $l, '>', "$d/lazysite/layouts/default/layout.tt" or die $!;

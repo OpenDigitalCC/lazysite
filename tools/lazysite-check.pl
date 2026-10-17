@@ -905,6 +905,48 @@ sub run_checks {
         }
     }
 
+    # SM1129: `auth_proxy_trusted: true` HANDS THE IDENTITY TO WHOEVER SITS IN FRONT.
+    #
+    # With the flag on, X-Remote-User and its siblings name the visitor, and the
+    # only thing between a client and "I am an operator" is that the request came
+    # from the proxy: auth_proxy_trusted_from, a list of addresses/CIDRs matched
+    # against the TCP peer. So the flag is always worth a line, and the list is
+    # named in it. No list believes nobody - the site's header sign-in is DOWN, and
+    # that is the same fault as a typo in the list, so both say so.
+    {
+        require Lazysite::Util;
+        my $pid = Lazysite::Util::proxy_identity($LZ);
+        if ( $pid->{flag} ) {
+            my $from = length $pid->{from} ? $pid->{from} : 'not set';
+            if ( $pid->{state} eq 'no-list' ) {
+                report( 'WARN',
+                    'lazysite.conf auth_proxy_trusted is on and auth_proxy_trusted_from lists '
+                        . "no usable address ($from), so NO request is believed to carry "
+                        . 'an identity header: proxy sign-in is refused for everyone',
+                    "set auth_proxy_trusted_from in '$LZ/lazysite.conf' to the address(es) "
+                        . 'of the proxy that sets the identity headers (192.0.2.1, 10.0.0.0/8), '
+                        . 'or turn auth_proxy_trusted off if no proxy signs visitors in' );
+            }
+            else {
+                report( 'WARN',
+                    'lazysite.conf auth_proxy_trusted is on: the identity headers are '
+                        . "believed from auth_proxy_trusted_from = $from and from nowhere else",
+                    'keep that list to the proxy itself and keep the proxy on a private network; '
+                        . 'a listed address that a visitor can reach directly can name itself '
+                        . 'any account' );
+            }
+            if ( @{ $pid->{rejected} } ) {
+                report( 'WARN',
+                    'lazysite.conf auth_proxy_trusted_from has '
+                        . scalar( @{ $pid->{rejected} } )
+                        . ' entry/entries that are not an address or range, and they are '
+                        . 'ignored: ' . join( ', ', @{ $pid->{rejected} } ),
+                    "correct or remove them in '$LZ/lazysite.conf' - an address (192.0.2.1) "
+                        . 'or a CIDR range (10.0.0.0/8); a /0 range is refused' );
+            }
+        }
+    }
+
     # SM1024 (ruled 2026-10-12, "Close all three"): the two session stores the
     # sign-in gate reads. One that exists and does not decode (an empty file
     # included) refuses every sign-in and every session until it is repaired,

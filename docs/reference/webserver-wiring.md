@@ -87,7 +87,8 @@ Whatever the server, a correct front end does exactly this:
    The control is in the engine: a trust header is honoured only when
    the auth wrapper vouched for the request
    (`LAZYSITE_AUTH_TRUSTED=1`) or the operator opted into a trusted
-   reverse proxy (`auth_proxy_trusted: true`). Otherwise every one of
+   reverse proxy (`auth_proxy_trusted: true`, from a peer in
+   `auth_proxy_trusted_from`). Otherwise every one of
    them is deleted from the environment and the attempt logged. A
    forged header therefore fails on a front end that strips nothing.
 

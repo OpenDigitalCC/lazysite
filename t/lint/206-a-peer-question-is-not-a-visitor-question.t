@@ -57,6 +57,9 @@ my %LEDGER = (
         [ qr/my \$peer\s+= \$ENV\{REMOTE_ADDR\}/,
             'the trust check inside the one definition - the peer is the trust basis'
         ],
+        [ qr/peer => \( \$ENV\{REMOTE_ADDR\}/,
+            'SM1129 _proxy_identity: whether the immediate peer may send identity headers - never a forwarded address'
+        ],
     ],
 );
 

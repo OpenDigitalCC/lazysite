@@ -1128,7 +1128,36 @@ sub handle_request {
     # This wrapper keeps its per-stage log lines - they are how auth failures
     # have always been diagnosed - and the success block keeps setting the
     # trusted headers the children consume.
-    my ( $ident, $why, %detail ) = verify_session_cookie();
+    #
+    # SM1130: UNDER PROXY TRUST THE PROXY'S IDENTITY WINS. With
+    # auth_proxy_trusted on, the peer listed in auth_proxy_trusted_from (SM1129,
+    # the same Lazysite::Util::proxy_identity every reader asks) and the request
+    # carrying a user, the directory has said who this is. The success block
+    # below used to overwrite X-Remote-User/Groups with a valid cookie's identity,
+    # so a stale local session - a day-old login of someone since removed from the
+    # directory, or of someone else on a shared browser - beat the directory. The
+    # cookie is not consulted at all: no merge, no fallback to it. A request with
+    # NO proxy user keeps today's cookie behaviour (a site may use both), and the
+    # processor and manager API believe the proxy's headers by the same function.
+    my $pid = Lazysite::Util::proxy_identity($LAZYSITE_DIR);
+    my $proxy_user
+        = $pid->{trusted}
+        ? ( $ENV{HTTP_X_REMOTE_USER} // '' )
+        : '';
+    if ( $pid->{trusted} && !length $proxy_user ) {
+        ( my $e = 'HTTP_' . uc $pid->{user_header} ) =~ s/-/_/g;
+        $proxy_user = $ENV{$e} // '';
+    }
+    my ( $ident, $why, %detail );
+    if ( length $proxy_user ) {
+        $why = 'proxy';
+        log_event( 'DEBUG', $uri, 'auth: proxy identity wins, cookie ignored',
+            proxy_user => $proxy_user )
+            if length( $ENV{HTTP_COOKIE} // '' );
+    }
+    else {
+        ( $ident, $why, %detail ) = verify_session_cookie();
+    }
 
     if ($ident) {
         # C-1: these headers come from our HMAC-verified cookie, not from the

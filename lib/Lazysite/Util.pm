@@ -15,7 +15,7 @@ use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies unsafe_link_scheme nav_unsafe_entries);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies proxy_identity unsafe_link_scheme nav_unsafe_entries);
 
 our $COMPONENT = 'lazysite';
 
@@ -510,6 +510,64 @@ sub request_address {
         return _text_address($packed) unless _address_in_set( $packed, $set );
     }
     return $peer;
+}
+
+# SM1129: THE ONE ANSWER TO "IS THIS REQUEST'S IDENTITY HEADER TRUSTWORTHY".
+#
+# `auth_proxy_trusted: true` used to be believed from ANY peer: a client that
+# reached the CGI directly and sent X-Remote-User: admin was an operator
+# (SM794 recorded the missing hop check and never built it; SM1128 P1-1 does).
+# The flag now means "the identity headers come from a proxy", and WHICH proxy is
+# `auth_proxy_trusted_from`: a comma/space list of addresses and CIDRs, matched
+# against REMOTE_ADDR - the TCP peer, never X-Forwarded-For, which is the very
+# thing a client sets. A SEPARATE setting from `trusted_proxies` (SM929): that one
+# says whose X-Forwarded-For to believe about a visitor's address, this one whose
+# identity headers to believe about a visitor's account, and the two sets need
+# not be the same hosts.
+#
+# FAILS CLOSED. Flag on with the list absent, empty, `none`, or holding nothing
+# parseable: nobody is trusted and the headers are stripped, as with the flag off
+# (SM794 left the contract of the flag to the release manager and ruled nothing on
+# an empty list; an unlisted proxy that is believed anyway is the defect). Unlike
+# `trusted_proxies`, an empty value does NOT mean a default range.
+#
+# Every reader of the flag goes through here (t/lint/265): the processor's gate
+# (its own pinned copy, ADR 0001), the manager API's gate, the auth wrapper.
+# Returns { flag, trusted, state, peer, from, rejected, user_header } where state
+# is off | no-list | not-listed | listed.
+sub proxy_identity {
+    my ($lazysite_dir) = @_;
+    my %r = (
+        flag => 0, trusted => 0, state => 'off', from => '', rejected => [],
+        peer => ( $ENV{REMOTE_ADDR} // '' ), user_header => 'X-Remote-User',
+    );
+    return \%r unless defined $lazysite_dir && length $lazysite_dir;
+    my $conf = "$lazysite_dir/lazysite.conf";
+    return \%r unless -f $conf;
+    # An unreadable conf is a flag that reads off: closed. cannot_read says why.
+    open my $fh, '<:utf8', $conf or do { cannot_read( 'the site conf', $conf ); return \%r };
+    my ( $flag, $from, $uh ) = ( '', '', '' );
+    while ( my $l = <$fh> ) {
+        # Last one wins, as the processor's own conf reader has it.
+        if    ( $l =~ /^auth_proxy_trusted\s*:\s*(.*?)\s*$/ )      { $flag = $1 }
+        elsif ( $l =~ /^auth_proxy_trusted_from\s*:\s*(.*?)\s*$/ ) { $from = $1 }
+        elsif ( $l =~ /^auth_header_user\s*:\s*(.*?)\s*$/ )        { $uh   = $1 }
+    }
+    close $fh;
+    $r{user_header} = $uh if length $uh;
+    $r{from}        = $from;
+    $r{flag}        = lc($flag) eq 'true' ? 1 : 0;
+    return \%r unless $r{flag};
+    my ( $set, $bad ) = ( [], [] );
+    ( $set, $bad ) = parse_trusted_proxies($from) if length $from && lc($from) ne 'none';
+    $r{rejected} = $bad;
+    if    ( !@{$set} ) { $r{state} = 'no-list' }
+    elsif ( _address_in_set( _packed_address( $r{peer} ), $set ) ) {
+        $r{state}   = 'listed';
+        $r{trusted} = 1;
+    }
+    else { $r{state} = 'not-listed' }
+    return \%r;
 }
 
 # The value an allowlisted ${VAR} expands to. Only SERVER_NAME is special, and it

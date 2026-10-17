@@ -318,9 +318,19 @@ Two trust paths are supported:
    trusts the headers because the sentinel is set.
 2. **External proxy** (mod_auth_mellon, Authelia, oauth2-proxy,
    nginx `auth_request`, HTTP Basic via Apache, etc.). The operator
-   opts in by setting `auth_proxy_trusted: true` in `lazysite.conf`.
-   The operator is responsible for ensuring the proxy strips any
-   client-supplied `X-Remote-*` headers before setting its own.
+   opts in by setting `auth_proxy_trusted: true` in `lazysite.conf`
+   **and** naming the proxy in `auth_proxy_trusted_from` (SM1129): a
+   comma-separated list of addresses and CIDR ranges, IPv4 or IPv6,
+   matched against the TCP peer (`REMOTE_ADDR`, never
+   `X-Forwarded-For`). The identity headers are believed only from a
+   listed peer; from any other they are stripped as if the flag were
+   off, and a WARN names the address. With the flag on and no list,
+   nobody is believed - the list fails closed. It is a separate
+   setting from `trusted_proxies`, which says whose `X-Forwarded-For`
+   to believe about a visitor's address. The proxy must still strip any
+   client-supplied `X-Remote-*` headers before setting its own, and when
+   the proxy sends a user its identity wins over a lazysite cookie
+   (SM1130); `lazysite check` warns while the flag is on.
 
 Default (`auth_proxy_trusted: false` or absent): if
 `HTTP_X_REMOTE_USER` arrives without the `LAZYSITE_AUTH_TRUSTED=1`
@@ -734,7 +744,7 @@ never an operator** (`_is_operator` returns 0 under token auth), so a publishing
 partner cannot escalate even if the strip is misconfigured; but the *cookie*
 operator distinction still relies on the strip. If you front lazysite with
 anything other than the shipped templates, replicate the unset directives, and
-prefer a trusted-proxy IP allowlist over `auth_proxy_trusted: true`.
+keep `auth_proxy_trusted_from` to the proxy's own address (SM1129).
 
 ## The request address (SM929)
 

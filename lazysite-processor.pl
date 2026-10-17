@@ -578,15 +578,21 @@ sub parse_query_string {
 # C-1 trust gate. Strip HTTP_X_REMOTE_* and HTTP_X_PAYMENT_*
 # headers from %ENV unless one of the trusted-source signals is
 # present: LAZYSITE_AUTH_TRUSTED=1 (set by lazysite-auth.pl after
-# cookie validation) or auth_proxy_trusted: true in lazysite.conf
+# cookie validation) or auth_proxy_trusted: true in lazysite.conf, from a peer in auth_proxy_trusted_from (SM1129)
 # (operator opt-in for upstream auth proxies). Logs a WARN if a
 # client attempted to set these directly.
 sub apply_trust_gate {
-    my ($uri)         = @_;
-    my %sv            = resolve_site_vars();
-    my $proxy_trusted = lc( $sv{auth_proxy_trusted} // 'false' );
-    my $auth_trusted  = $ENV{LAZYSITE_AUTH_TRUSTED} // '';
-    return if $proxy_trusted eq 'true';
+    my ($uri)        = @_;
+    my %sv           = resolve_site_vars();
+    my $auth_trusted = $ENV{LAZYSITE_AUTH_TRUSTED} // '';
+
+    # SM1129: the flag alone no longer vouches for a request. This is the ONE
+    # reader of auth_proxy_trusted on the render path (t/lint/265): the headers
+    # are believed only from a peer in auth_proxy_trusted_from, and from any other
+    # peer fall through to the strip below exactly as when the flag is off. With
+    # the flag on and no list, nobody is believed (the list fails closed).
+    my $pid = _proxy_identity();
+    return if $pid->{trusted};
 
     # SM960: THE HEADERS check_auth ACTUALLY READS. auth_header_user and its three
     # siblings rename the identity headers for a proxy (the docs' example is
@@ -594,7 +600,7 @@ sub apply_trust_gate {
     # with a custom name configured and no auth_proxy_trusted, a header any
     # visitor sends passed a page gate. The built-in auth wrapper vouches for
     # X-Remote-* alone, so a custom name is stripped behind it too: only a
-    # trusted proxy (auth_proxy_trusted: true) may supply one.
+    # trusted proxy (auth_proxy_trusted: true, from a listed peer) may supply one.
     my @custom;
     # SM972: and the two PAYMENT header names (payment_header_verified/_payer) -
     # the same shape: a custom name for a header the paid-content gate believes.
@@ -609,16 +615,34 @@ sub apply_trust_gate {
         push @custom, $e
             unless $e =~ /\AHTTP_X_(?:REMOTE_(?:USER|NAME|EMAIL|GROUPS)|PAYMENT_(?:VERIFIED|PAYER))\z/x;
     }
+
+    # SM1129: with the flag on and the peer not believed, ONE line per request
+    # names the address and what the operator must change; the per-header lines
+    # below say "set auth_proxy_trusted: true", which would be wrong advice here.
+    my $named = 0;
+    if ( $pid->{flag} ) {
+        my @sent = grep { defined $ENV{$_} && length $ENV{$_} } @custom,
+            ( $auth_trusted eq '1' ? () : qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS) );
+        if (@sent) {
+            log_event( 'WARN', $uri,
+                $pid->{state} eq 'no-list'
+                ? 'untrusted auth header ignored - auth_proxy_trusted is on but auth_proxy_trusted_from lists no address'
+                : 'untrusted auth header ignored - the peer is not in auth_proxy_trusted_from',
+                peer => $pid->{peer} );
+            $named = 1;
+        }
+    }
     for my $e (@custom) {
         next unless defined $ENV{$e};
         log_event( 'WARN', $uri,
             'untrusted header ignored - a custom auth_header_*/payment_header_* name needs auth_proxy_trusted: true',
-            header => $e );
+            header => $e )
+            unless $named;
         delete $ENV{$e};
     }
     return if $auth_trusted eq '1';
 
-    if ( $ENV{HTTP_X_REMOTE_USER} ) {
+    if ( $ENV{HTTP_X_REMOTE_USER} && !$named ) {
         log_event( 'WARN', $uri,
             'untrusted auth header ignored - set auth_proxy_trusted: true to enable proxy auth',
             header => 'X-Remote-User',

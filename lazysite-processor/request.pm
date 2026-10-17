@@ -183,6 +183,42 @@ sub _request_address {
     return $peer;
 }
 
+# SM1129: THE RENDER PATH'S COPY of Lazysite::Util::proxy_identity - the one answer
+# to "is this request's identity header trustworthy" (ADR 0001 keeps this file
+# module-free, so it carries its own, as for the request address above). Its
+# reasoning is written once, in the module: the flag says a proxy supplies the
+# identity, `auth_proxy_trusted_from` says which peer (REMOTE_ADDR, never
+# X-Forwarded-For) may, and an absent or empty list trusts nobody. t/unit/
+# processor/131 holds the two to the same answers; t/lint/265 holds every other
+# reader of the flag to calling this.
+sub _proxy_identity {
+    my %r = (
+        flag => 0, trusted => 0, state => 'off', from => '', rejected => [],
+        peer => ( $ENV{REMOTE_ADDR} // '' ),
+    );
+    return \%r unless -f $CONF_FILE;
+    open my $fh, '<:utf8', $CONF_FILE or return \%r;
+    my ( $flag, $from ) = ( '', '' );
+    while ( my $l = <$fh> ) {
+        if    ( $l =~ /^auth_proxy_trusted\s*:\s*(.*?)\s*$/ )      { $flag = $1 }
+        elsif ( $l =~ /^auth_proxy_trusted_from\s*:\s*(.*?)\s*$/ ) { $from = $1 }
+    }
+    close $fh;
+    $r{from} = $from;
+    $r{flag} = lc($flag) eq 'true' ? 1 : 0;
+    return \%r unless $r{flag};
+    my ( $set, $bad ) = ( [], [] );
+    ( $set, $bad ) = _parse_trusted_proxies($from) if length $from && lc($from) ne 'none';
+    $r{rejected} = $bad;
+    if    ( !@{$set} ) { $r{state} = 'no-list' }
+    elsif ( _address_in_set( _packed_address( $r{peer} ), $set ) ) {
+        $r{state}   = 'listed';
+        $r{trusted} = 1;
+    }
+    else { $r{state} = 'not-listed' }
+    return \%r;
+}
+
 # SM1030: A DRAFT RENDER - the page source comes from the request, not the disk.
 #
 # MCP preview_page with `content` renders an editor's draft against the site's

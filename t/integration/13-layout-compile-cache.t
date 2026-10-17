@@ -28,7 +28,7 @@ sub fresh_site {
     my $d = tempdir( CLEANUP => 1 );
     make_path( "$d/lazysite/manager", "$d/lazysite/auth", "$d/manager" );
     open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print $c "site_name: T\nmanager: enabled\nauth_proxy_trusted: true\n";
+    print $c "site_name: T\nmanager: enabled\nauth_proxy_trusted: true\nauth_proxy_trusted_from: 127.0.0.1\n";
     close $c;
     open my $g, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
     print $g '{"admins":{"label":"Admins","ui":1}}';

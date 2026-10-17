@@ -23,7 +23,7 @@ sub site {
     close $in;
     $t =~ s/^auth_proxy_trusted:.*\n//mg;
     $t .= "auth_header_user: Remote-User\nauth_header_groups: Remote-Groups\n";
-    $t .= "auth_proxy_trusted: true\n" if $o{proxy};
+    $t .= "auth_proxy_trusted: true\nauth_proxy_trusted_from: 127.0.0.1\n" if $o{proxy};
     open my $out, '>', $conf or die $!;
     print {$out} $t;
     close $out;

@@ -21,7 +21,7 @@ sub site {
     close $p;
     open my $c, '>>', "$d/lazysite/lazysite.conf" or die $!;
     print {$c} "\npayment_header_verified: Payment-Ok\n";
-    print {$c} "auth_proxy_trusted: true\n" if $o{proxy};
+    print {$c} "auth_proxy_trusted: true\nauth_proxy_trusted_from: 127.0.0.1\n" if $o{proxy};
     close $c;
     return $d;
 }

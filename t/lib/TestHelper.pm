@@ -549,7 +549,7 @@ sub setup_auth_site {
     # C-1 / D017: tests simulate an upstream auth proxy that sets
     # HTTP_X_REMOTE_* env vars. With auth_proxy_trusted: true the
     # processor trusts those without the LAZYSITE_AUTH_TRUSTED sentinel.
-    print $cf "auth_redirect: /login\nauth_proxy_trusted: true\n";
+    print $cf "auth_redirect: /login\nauth_proxy_trusted: true\nauth_proxy_trusted_from: 127.0.0.1\n";
     close $cf;
 }
 
@@ -587,6 +587,16 @@ sub run_processor {
     $ENV{REDIRECT_URL}   = $uri;
     $ENV{REQUEST_METHOD} = 'GET' unless defined $ENV{REQUEST_METHOD};
     $ENV{QUERY_STRING}   = ''    unless defined $ENV{QUERY_STRING};
+
+    # SM1129: a site that trusts a proxy's identity headers names WHICH peer in
+    # auth_proxy_trusted_from, and the tests stand in for that proxy on loopback.
+    # Only for such a site, so no other test's address changes under it.
+    if ( !defined $ENV{REMOTE_ADDR} && open my $cf, '<', "$docroot/lazysite/lazysite.conf" ) {
+        local $/;
+        $ENV{REMOTE_ADDR} = '127.0.0.1' if ( <$cf> // '' ) =~ /^auth_proxy_trusted_from\s*:/m;
+        close $cf;
+    }
+
     # User overrides last
     for my $k ( keys %override ) {
         if ( defined $override{$k} ) {
