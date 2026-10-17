@@ -64,6 +64,17 @@ my %CONF;         # process-lifetime memo of the conf flag, keyed on (mtime, siz
 
 sub _now { return Time::HiRes::time() }
 
+# A pool worker has just been forked from the parent (SM1169). The `load` phase
+# is "this file loaded to the first request begun", and a worker's first request
+# came AFTER a fork, not after the parent's start: without this, a worker the
+# pool respawns hours after the parent started reported its first request's
+# `load` as the parent's age - a figure of seconds that is nobody's load.
+sub worker_started {
+    $LOADED = _now();
+    $BEGUN  = 0;
+    return;
+}
+
 # Start a request. Resets everything, opens `config`, and picks up what an
 # earlier program in this request (the auth wrapper) handed across the exec.
 sub begin {

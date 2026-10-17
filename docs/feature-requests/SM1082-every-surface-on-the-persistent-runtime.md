@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-10-14
 raised-by: the release manager, 2026-10-14 ("we explored using forking process before ... both have happened. propose to me how we might now implement this, to improve performance")
 area: performance
-status-note: "PLAN revised 2026-10-17 with the Odoo endpoint measurement: T0 measure, Q1-Q5 quick wins, then C1 preload, C2 identity in-process (own review), C3 a process model per surface; R1-R4 ruled as proposed 2026-10-17; C3's Odoo part waits for OOM's resident design. Earlier a PROPOSAL: measure, preload, SM297, per-surface isolation, work out of the request."
+status-note: "C1 SHIPPED (SM1169); C2 not started. PLAN 2026-10-17: T0 measure, Q1-Q5 quick wins, C1 preload, C2 identity in-process (own review), C3 a process model per surface; R1-R4 ruled 2026-10-17; C3 Odoo part waits for OOM. Earlier a PROPOSAL: measure, preload, SM297, per-surface isolation, work out of the request."
 ---
 
 # The request
@@ -216,3 +216,7 @@ and all rulings accepted". R1-R4 are ruled as proposed. C3's Odoo read path
 waits for OOM's resident design (application libraries and a daemon on a socket)
 to be confirmed; the rest of C3 and all of T0, Q1-Q5, C1 and C2 stand. R5 stays
 the release manager's, per site, after T0.
+
+# What shipped
+
+C1 (preload before fork, with the file-scope lint): [[SM1169]]. T0 is [[SM1144]].

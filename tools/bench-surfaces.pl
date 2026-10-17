@@ -18,6 +18,10 @@
 #   tools/bench-surfaces.sh                    # N=3 against a throwaway site, CGI path
 #   tools/bench-surfaces.sh --n 20             # a figure to quote
 #   tools/bench-surfaces.sh --surface page,odoo
+#   tools/bench-surfaces.sh --with-pool --cold-workers
+#                                              # the pool recycles after ONE request, so every pooled
+#                                              # request is a fresh worker's first: the cost of a worker
+#                                              # start and respawn (SM1169, SM1082 C1), not of a warm one
 #   tools/bench-surfaces.sh --with-pool        # and through a one-worker pool of its own
 #   tools/bench-surfaces.sh --docroot D --socket S   # an existing pooled site: the
 #                                                    # surfaces that need no login
@@ -58,21 +62,24 @@ BEGIN {
 }
 use Lazysite::Paths ();
 
-my %opt = ( n => 3, surface => '', json => 0, docroot => '', socket => '', with_pool => 0 );
+my %opt = ( n => 3, surface => '', json => 0, docroot => '', socket => '', with_pool => 0, cold_workers => 0 );
 Getopt::Long::GetOptions(
-    'n=i'       => \$opt{n},
-    'surface=s' => \$opt{surface},
-    'json'      => \$opt{json},
-    'docroot=s' => \$opt{docroot},
-    'socket=s'  => \$opt{socket},
-    'with-pool' => \$opt{with_pool},
-    'help'      => sub { print "see the header of tools/bench-surfaces.pl\n"; exit 0 },
+    'n=i'          => \$opt{n},
+    'surface=s'    => \$opt{surface},
+    'json'         => \$opt{json},
+    'docroot=s'    => \$opt{docroot},
+    'socket=s'     => \$opt{socket},
+    'with-pool'    => \$opt{with_pool},
+    'cold-workers' => \$opt{cold_workers},
+    'help'         => sub { print "see the header of tools/bench-surfaces.pl\n"; exit 0 },
 ) or exit 2;
 
 die "bench-surfaces: run this through tools/bench-surfaces.sh, which pins it to one CPU at the "
     . "lowest priority. Run bare it would compete with the host's other work.\n"
     unless $ENV{BENCH_SURFACES_CONSTRAINED};
 die "bench-surfaces: --n must be 1 or more\n" unless $opt{n} >= 1;
+die "bench-surfaces: --cold-workers sets the pool --with-pool starts, so it needs --with-pool\n"
+    if $opt{cold_workers} && !$opt{with_pool};
 die "bench-surfaces: --socket needs --docroot (the site it belongs to)\n"
     if length $opt{socket} && !length $opt{docroot};
 
@@ -328,7 +335,7 @@ sub start_pool {
     my $pid  = fork() // die "fork: $!";
     if ( !$pid ) {
         my $user = getpwuid($<) // $ENV{USER} // 'nobody';
-        local %ENV = ( PATH => $ENV{PATH}, DOCROOT => $docroot, USER => $user, WORKERS => 1, MAX_REQUESTS => 500,
+        local %ENV = ( PATH => $ENV{PATH}, DOCROOT => $docroot, USER => $user, WORKERS => 1, MAX_REQUESTS => ( $opt{cold_workers} ? 1 : 500 ),
             FRONT_DOOR => 1, CGIBIN => $ROOT, SOCKET => $sock );
         open STDOUT, '>', '/dev/null' or exit 127;
         open STDERR, '>', '/dev/null' or exit 127;

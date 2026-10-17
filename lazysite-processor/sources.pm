@@ -973,6 +973,16 @@ sub peek_search_default {
         }
         return ( $_scan_user, \@_scan_groups );
     }
+
+    # SM1169: the identity above is the REQUEST's. It was computed once and kept,
+    # so under the pool every later `scan:` was filtered as the first visitor.
+    # Called from reset_request_state.
+    sub _reset_scan_identity {
+        $_scan_id_done = 0;
+        $_scan_user    = undef;
+        @_scan_groups  = ();
+        return;
+    }
 }
 
 # One conf key, read from the file without going through resolve_site_vars - the

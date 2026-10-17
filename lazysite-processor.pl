@@ -533,12 +533,20 @@ if ( $_fcgi && $_fcgi->IsFastCGI() ) {
     $RUNTIME = 'pool';
     my $workers = ( $ENV{LAZYSITE_FCGI_WORKERS} || 0 ) + 0;
     my $pm;
+    # SM1169: the engine modules are loaded HERE, in the parent, so the workers
+    # forked below inherit them rather than each loading them on a first request
+    # (and again on every respawn). After the privilege drop - the launcher has
+    # dropped before it execs this script - and before any request is read.
+    _pool_preload();
     if ( $workers > 0 && eval { require FCGI::ProcManager; 1 } ) {
         $pm = FCGI::ProcManager->new( { n_processes => $workers } );
         $pm->pm_manage();
     }
     my $max    = ( $ENV{LAZYSITE_FCGI_MAX_REQUESTS} || 500 ) + 0;
     my $served = 0;
+    # SM1169: past pm_manage this is a worker (the parent never returns from it),
+    # so its `load` phase starts now, not at the parent's start.
+    Lazysite::Timing::worker_started() if $TIMING;
     while ( $_fcgi->Accept() >= 0 ) {
         $pm->pm_pre_dispatch() if $pm;
         handle_one_request();
@@ -1922,6 +1930,14 @@ sub _lazy_lib {
         undef $DRAFT_BYTES;      # SM1030
         undef $DRAFT_MD;
         _reset_peek_cache();
+        # SM1169 (t/lint/269): three more a pooled worker kept from the last visitor.
+        # The payer and the paid flag of a payment-gated page fed the template
+        # stash of every later render; the language of the last page went out as
+        # the next response's Content-Language; and the scan's identity was the
+        # FIRST visitor's for the worker's life.
+        %PAYMENT_CONTEXT = ();
+        $RESPONSE_LANG   = 'en';
+        _reset_scan_identity();
     }
 }
 

@@ -8,9 +8,12 @@ package main;
 #         child; _front_route($req), the module-free copy of
 #         Lazysite::FrontDoor::route (t/lint/42 drives both); _front_relay and
 #         its helpers _front_cgibin, _read_request_body, _front_body_cap
-#         (SM389: the body is bounded before it is read) and _front_fail.
-# OWNS    which requests a pool worker answers itself and which it relays.
-# CALLS   _lazysite_dir_for, _conf_value, _security_headers, log_event
+#         (SM389: the body is bounded before it is read) and _front_fail; and
+#         @POOL_PRELOAD with _pool_preload (SM1169), the engine modules the
+#         pool's parent loads before it forks its workers.
+# OWNS    which requests a pool worker answers itself and which it relays; which
+#         modules the pool's parent loads for its workers.
+# CALLS   _lazysite_dir_for, _conf_value, _security_headers, log_event, _lazy_lib
 #         (lazysite-processor.pl); IO::Select and POSIX, required inside
 #         _front_relay at call time, as before.
 # READS   $DOCROOT, $FRONT_CGIBIN, $RELAY_TIMEOUT, %ACCESS_REC (the script's,
@@ -24,6 +27,64 @@ use strict;
 use warnings;
 
 our ( $DOCROOT, $FRONT_CGIBIN, $RELAY_TIMEOUT, %ACCESS_REC );
+
+# --- Preload before fork (SM1169, SM1082 C1) ---
+
+# THE ENGINE MODULES A POOLED REQUEST LOADS ON FIRST USE, named once. Each is
+# loaded by _lazy_lib at the point a request needs it (ADR 0001 keeps the CGI
+# render path free of them), so under the pool every worker paid for each on its
+# own first request - and again for every respawn, which is every
+# LAZYSITE_FCGI_MAX_REQUESTS requests. The pool PARENT loads them once, before
+# FCGI::ProcManager forks, and a worker inherits them copy-on-write.
+#
+# THE LIST IS THE LAZY LOADS, NOT A GUESS: t/lint/269 holds it to the modules the
+# processor and its parts name through _lazy_lib or `require Lazysite::...`, so a
+# module added to the request path and left off this list fails there. The `use`
+# closure of each comes with it, and t/lint/269 reads every file-scope variable of
+# that whole set (the SM973 class: a variable a worker keeps from one visitor to
+# the next).
+#
+# Only the pool's branch calls _pool_preload. A plain CGI request is a fresh
+# process and loads what it needs, as before.
+our @POOL_PRELOAD = qw(
+    Lazysite::Auth::Identity
+    Lazysite::Auth::AddressLists
+    Lazysite::Auth::AddressAudit
+    Lazysite::Auth::AddressScope
+    Lazysite::I18n
+    Lazysite::Fetch
+    Lazysite::Data::Tables
+    Lazysite::Odoo
+    Lazysite::Odoo::Fields
+    Lazysite::Odoo::Identity
+    Lazysite::Odoo::Visitor
+);
+
+# Load the modules, then compile one trivial template and one trivial page of
+# Markdown so Template's parser and Text::MultiMarkdown's rules are in the parent
+# too: they compile on first use, not on `use`, and are most of what a worker's
+# first page costs. Nothing is written (no compile directory, no cache) and
+# nothing a request owns is touched: no request has been read yet, so there is no
+# person in the process to carry.
+#
+# A module that will not load (an optional dependency absent, say) is logged and
+# skipped: the worker then loads it, or fails to, exactly as it did before.
+sub _pool_preload {
+    my @failed;
+    for my $m (@POOL_PRELOAD) {
+        eval { _lazy_lib($m); 1 } or push @failed, $m;
+    }
+    log_event( 'INFO', 'pool', 'preload skipped a module that did not load', modules => join( ',', @failed ) )
+        if @failed;
+    eval {
+        my $tt  = Template->new( {} );
+        my $out = '';
+        $tt->process( \'[% FOREACH i IN [1] %][% i | html %][% END %][% IF x %]y[% END %]', {}, \$out );
+        Text::MultiMarkdown->new->markdown("*a*\n\n| h |\n|---|\n| c |\n");
+        1;
+    };
+    return scalar(@POOL_PRELOAD) - scalar(@failed);
+}
 
 # --- The front door (SM294) ---
 
