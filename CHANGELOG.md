@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1171 (PENDING) **a write through the Odoo endpoint says why a change was
+  held.** A plan's changes carry `reason`, and an applied write answers
+  `result.changes`: each change's bucket, action, model, id and outcome, the
+  `reason` for one held or skipped, and a custom change's `returned` value
+  (capped at 4 KB, marked when cut), read from OOM's journal; no values or
+  before-images (OOM Lab L-13). t/unit/odoo/52.
 - SM1165 (PENDING) **a write through the Odoo endpoint says which records it
   made.** An immediate apply or a confirmed plan now answers `created` and
   `written` (model to ids, this plan's own changes) beside the counts, so a page
