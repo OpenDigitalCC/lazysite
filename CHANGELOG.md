@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1168 (PENDING) **a session binding with no Odoo session asks for sign-in,
+  not a token.** A POST for a `credential: session` binding from a visitor with
+  no Odoo session answered 403 `csrf`, so the helper never opened its sign-in
+  prompt; it now answers 401 `signin-required` before the token check, alone and
+  inside a batch. With a session the token is still required. t/unit/odoo/53, 42.
 - SM1171 (PENDING) **a write through the Odoo endpoint says why a change was
   held.** A plan's changes carry `reason`, and an applied write answers
   `result.changes`: each change's bucket, action, model, id and outcome, the
