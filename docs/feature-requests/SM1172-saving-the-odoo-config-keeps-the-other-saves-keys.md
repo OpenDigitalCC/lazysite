@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-18
 raised-by: lazysite-sites agent, OOM Lab (inbox, L-15)
 area: odoo
-status-note: "SHIPPED on branch n661. t/unit/odoo/51-saving-the-config-keeps-what-another-save-wrote.t. Open: a client that adds a namespace to odoo_packs by reading the list and saving it whole can still lose a concurrent client's namespace; that needs an add-to-list verb, which is a design question (see the end)."
+status-note: "SHIPPED on branch n661. t/unit/odoo/59-saving-the-config-keeps-what-another-save-wrote.t. Open: a client that adds a namespace to odoo_packs by reading the list and saving it whole can still lose a concurrent client's namespace; that needs an add-to-list verb, which is a design question (see the end)."
 ---
 
 # What happened
