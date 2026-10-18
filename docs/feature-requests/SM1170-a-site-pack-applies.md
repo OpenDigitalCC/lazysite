@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-18
 raised-by: OOM Lab stock and picking apps findings (inbox 2026-10-17-oom-lab-stock-and-picking-apps-findings.md, L-12)
 area: odoo
-status-note: "SHIPPED on n659 (base n655); t/unit/odoo/52-a-custom-change-of-a-site-pack-applies.t. Also closes the same flaw in SM1164 D0's odoo_pack_dirs."
+status-note: "SHIPPED on n659 (base n655); t/unit/odoo/56-a-custom-change-of-a-site-pack-applies.t. Also closes the same flaw in SM1164 D0's odoo_pack_dirs."
 ---
 
 # What happened
@@ -45,7 +45,7 @@ request from its plan, so nothing carried over.
   `apply: immediate`) run inside it, so plan and apply see the same operations.
   Nothing is set process-wide; the test checks the environment is bare before and
   after. The extension has no revert or resume call of its own to cover.
-- Test `t/unit/odoo/52-a-custom-change-of-a-site-pack-applies.t`, on OOM's fake
+- Test `t/unit/odoo/56-a-custom-change-of-a-site-pack-applies.t`, on OOM's fake
   Odoo with a fixture pack whose plan has a `custom` change: a pack from
   `odoo_packs` and one from `odoo_pack_dirs`, each planned in one call and
   confirmed in another, and each as an immediate binding. On the base all three
