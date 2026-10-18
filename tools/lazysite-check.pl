@@ -1384,6 +1384,9 @@ sub run_checks {
     # --- 8g5. the Odoo sign-in as the site sign-in (SM1160) --------------------
     report_odoo_site_signin();
 
+    # --- 8g6. read bindings still capped at the old form default (SM1173) -----
+    report_odoo_read_caps();
+
     # --- 8e. where is this site's engine tree, and is there only one? (SM293) ---
     report_engine_tree();
 
@@ -3361,6 +3364,43 @@ sub report_odoo_site_signin {
     for my $id ( @{ $r->{unknown} } ) {
         report( 'WARN', "odoo_group_map: Odoo has no group '$id' (named at the last sign-in or refresh), so it grants nothing",
             'correct the xml id (module.name) on the Odoo page' );
+    }
+    return;
+}
+
+# SM1173: READ BINDINGS SAVED WITH THE OLD FORM DEFAULT.
+#
+# Reads default to 2,000 per caller and 20,000 per binding, but the manager form
+# used to save 20 and 200 into every binding, so a read made there still holds
+# them as its OWN caps and keeps them. The operator may have meant it, so this is
+# a WARN that names the binding and changes nothing. Whether a binding reads is
+# the operation's own answer (Lazysite::Odoo::writes_of); when OOM or the
+# connection cannot be asked the binding is not named - nothing is guessed.
+sub report_odoo_read_caps {
+    my $list = eval {
+        require Lazysite::Handlers;
+        no warnings 'once';
+        local $Lazysite::Handlers::DOCROOT = $DOC;
+        Lazysite::Handlers::read_handlers();
+    };
+    return unless ref $list eq 'ARRAY';
+    my @old = grep {
+        ( $_->{type} // '' ) eq 'odoo'
+            && ( $_->{rate_per_visitor_hour} // '' ) eq '20'
+            && ( $_->{rate_per_hour}         // '' ) eq '200'
+    } @$list;
+    return unless @old;
+    my $ok = eval { require Lazysite::Odoo; 1 };
+    return unless $ok;
+    no warnings 'once';
+    local $Lazysite::Odoo::DOCROOT = $DOC;
+    for my $b ( sort { $a->{id} cmp $b->{id} } @old ) {
+        my $w = eval { Lazysite::Odoo::writes_of($b) };
+        next unless defined $w && !$w;
+        report( 'WARN',
+            "binding $b->{id} is a read capped at 20/200 per hour, the old form default; "
+                . 'clear its two Cap fields in the manager to take 2000/20000',
+            'the Handlers page: empty rate_per_visitor_hour and rate_per_hour on that binding' );
     }
     return;
 }

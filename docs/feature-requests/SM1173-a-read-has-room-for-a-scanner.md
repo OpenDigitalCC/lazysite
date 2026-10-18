@@ -49,6 +49,10 @@ Ruled by the release manager, 2026-10-18:
 - **Bindings saved before.** A binding saved earlier through the manager holds
   `rate_per_visitor_hour: 20` and `rate_per_hour: 200` as its own caps, and
   keeps them (it said them). Clear the two fields to take the read default.
+- **The check names them.** `lazysite check` warns for each read binding whose own
+  caps are exactly 20 and 200 ("binding <id> is a read capped at 20/200 per hour, the
+  old form default; clear its two Cap fields in the manager to take 2000/20000"). It
+  changes nothing; the operator may have meant them. Test t/tools/181.
 
 Test: t/unit/odoo/60-a-read-has-room-for-a-scanner.t drives the rolling record
 directly: a read allows the 21st call and refuses at 2,001 (caller) and 20,001
