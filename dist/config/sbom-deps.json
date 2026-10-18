@@ -237,6 +237,29 @@
       "debian_pkg": "libodoo-oom-perl",
       "used_by": "Odoo extension (SM747): a write operation's sealed plan, kept in the extension's private store until applied; lazy-required only when the extension runs"
     },
+    "Odoo::Ops::Client::Daemon": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM1164): the client of oomd, the resident OOM, through which every operation call goes when odoo_daemon is on; lazy-required only when the extension runs, and absent before OOM 0.31"
+    },
+    "Odoo::Ops::Daemon::Path": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM1164): asks oomd's health verb for Status and the version check; lazy-required only when the extension runs"
+    },
+    "Odoo::Ops::Version": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM1164): the installed OOM version, which the oomd service compares with the running daemon's; holds only $VERSION"
+    },
+    "IO::Handle": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "the oomd service (SM1164): a non-blocking read of oomd's standard output"
+    },
     "Odoo::Ops::Registry": {
       "core": false,
       "license": "Artistic-1.0-Perl",

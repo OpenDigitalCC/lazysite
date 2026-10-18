@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-10-18
 raised-by: OOM agent at the owner's request (inbox L7 and its addendum, 2026-10-18)
 area: odoo
-status-note: "CANDIDATE, planned 2026-10-18. D0 shipped on n655 (t/unit/odoo/55); D1-D5 remain. OOM 0.31 built (04be130), Q1-Q4 answered. D0-D4 buildable now against a vendored 0.31; host tests need the owner's install. Supersedes SM1082 C3's Odoo part."
+status-note: "CANDIDATE. D0 shipped on n655 (t/unit/odoo/55); D1-D4 shipped on n657 (t/unit/odoo/60-62, t/unit/daemon/14), on OOM 0.33 as vendored with bin/oomd (SM1175). D5 (the bench) waits for the owner's install of 0.31+ on the host, so the status stays candidate. Sign-in, sign-out and the two-factor step stay in-process: oomd has no verb for them (see What shipped). Supersedes SM1082 C3's Odoo part."
 ---
 
 # The request
@@ -170,3 +170,123 @@ Branch n655, on OOM 0.32 as vendored by n648. Test:
   `core.set` binding with `title=set.name` changes the field in the fake.
   Sabotage: with the base `Odoo.pm` the pack subtest fails, with the base
   `Binding.pm` the `set.` subtests fail.
+
+# What shipped (D1-D4)
+
+Branch n657, on OOM 0.33 as vendored by SM1175 (which also gave the snapshot
+`bin/oomd`, so the tests start the real daemon from the repository and never
+from the host, SM1081). Tests:
+`t/unit/odoo/60-the-odoo-config-writes-oomds-config.t` (D1),
+`t/unit/daemon/14-oomd-is-a-service-only-while-its-gates-hold.t` (D2),
+`t/unit/odoo/61-a-call-goes-through-oomd-and-says-which-path-it-took.t` (D3),
+`t/unit/odoo/62-the-odoo-status-shows-the-daemon-and-check-names-a-site-without-it.t`
+(D4). They use `t/lib/OdooDaemonTest.pm`: a configured site, the vendored
+`bin/oomd` started under the extension's service against OOM's fake Odoo
+(`Odoo::Test::CliFake`), `PERL5LIB` set to the vendored lib, the vendored test
+lib and this repository's lib (oomd's own `use lib` already puts the vendored
+lib first), and every process stopped by the pid the test started.
+
+- **The settings.** `odoo_daemon` is `off` (default), `on` or `required`; a
+  value that is none of them is refused by name when the config loads, so a typo
+  for `required` is never read as `off`. `odoo_daemon_workers` is 1-64, default
+  4. Both are in the extension's config form with tooltips and in
+  `owns.config_keys`.
+- **D1, the conf.** `Lazysite::Odoo::Daemon` writes `lazysite/odoo/oomd.conf`
+  0600 (a temporary file under umask 077, renamed over it), beside the keys:
+  `url`, `db`, `login`, `timeout`, `max_response_bytes`, `allow_writes`,
+  `ssl_ca_file`, `runs_dir` (`lazysite/odoo/runs`), `record_reads = 0`,
+  `cache_dir`, `cache_ttl_version = 300`, `pack_dirs`, `workers`, `socket`,
+  `log`, and `credentials` as labels: `conn:<key file>`,
+  `grant-<hash>:<login>:<key file>` for an MCP grant's own account and
+  `sched-<hash>:<login>:<key file>` for SM1161's scheduled keys (the label is the
+  key account's own name, which fits oomd's label rule). Only a key that exists is
+  named, because oomd refuses a config whose credential file it cannot read. No key
+  is ever in it. The extension has no OOM audit settings of its own, so none are
+  written; each run keeps OOM's audit beside its journal as before. It is
+  rewritten when the config is saved (a new `on_save` hook, a declared hidden
+  action of the extension, that `action_plugin_save` runs after the write the way
+  `on_enable` runs after the toggle) and when a key is set or cleared (a new label),
+  and the daemon is sent SIGHUP. With `odoo_daemon` off the file is removed.
+- **The socket.** `lazysite/run/oomd.sock` when that path is under 104 bytes;
+  otherwise `/tmp/oomd-<uid>/<name>.sock`, oomd's own default directory (stated
+  explicitly, so the service and the CGI agree whatever each one's environment
+  says). The name is the host instance's name (`/etc/lazysite/daemon/<domain>.conf`,
+  conventionally the domain) or, with none, the directory's name and a short hash
+  of its full path. The service creates the directory 0700; `lazysite check` says
+  which of the two a site uses.
+- **D2, the service.** `Lazysite::Daemon::Service::Oomd` is a thin parent over
+  `oomd --name <name> --config <conf> --foreground` that waits for
+  `oomd <name> ready <socket>`, forwards SIGTERM (oomd's own 30 s deadline) and
+  SIGHUP, and returns non-zero when oomd exits so the supervisor's backoff and
+  `failed` ceiling apply as they do to the scheduler. The supervisor lists it
+  (`services($root, oomd => 1)`) only while `Oomd::wanted` holds: the Odoo
+  extension enabled, a connection that loads, `odoo_daemon` on or required, oomd
+  installed (`/usr/bin/oomd`; a test points `$COMMAND` at the vendored front
+  door). The daemon extension itself is the supervisor's existing gate. The gate
+  is re-read every 5 s; when it closes the supervisor stops oomd without blocking
+  its other services and forgets its failures, and a later enable starts clean.
+  Nothing starts on a guess: with any gate closed no process exists. It restarts
+  oomd for a change of `odoo_packs` (OOM reads those from its environment, so a
+  SIGHUP does not carry it) and, once per installed version, when the health
+  verb's version is not the one `Odoo::Ops::Version` now says (read afresh each
+  time, so an upgrade under a running service is seen). A leftover oomd of the
+  same socket from a supervisor that died is told to stop before a new one starts.
+  The run user is whatever lazysited runs as (SM760); the filing's Q1 answer stands.
+- **D3, the call path.** With `odoo_daemon` on or required, `Lazysite::Odoo::_run`
+  and `confirm` send the request through `Odoo::Ops::Client::Daemon` (always
+  `fallback => 0`): the operation, the parameters assembled against its
+  declaration, `credential` as the connection's label (or a grant's or schedule's
+  own, or `{session => <id>}` for a session binding) and `actor` as the in-process
+  context gives OOM's audit. A write is planned by the daemon, its plan saved in the
+  plan store beside lazysite's own `meta.json`, which now also names the daemon's
+  run; an `apply: immediate` binding and a confirm send `approve` with the actor
+  (`binding:<id>`, or the plan's owner) and then `apply`. The person's session id
+  is in the request and in no file (the test greps the whole site). A plan made
+  in-process confirms in-process. `on` falls back in-process when the client or the
+  daemon is absent, and the page is slower, not refused; `required` refuses with
+  OOM's `daemon-down` code, said as the kind `daemon-down` and recorded
+  `unanswered`. The fallback is lazysite's own in-process path (its packs, its
+  session transport) rather than the client's `config` fallback, so there is one
+  implementation of it. The call record has a new fixed field `via` (`daemon` or
+  `in-process`), and `Lazysite::Timing::desc` gives SM1144's `call` phase
+  `desc="oomd"` or `desc="in-process"` (`call;desc="oomd";dur=12.00`). The daemon's
+  run folders (`lazysite/odoo/runs`) are pruned with the plans.
+- **D4, Status.** `odoo-status` carries `daemon`: mode, name, socket and whether it
+  is the site's own or the default directory, installed, running, and from the
+  health verb the name, OOM version, packs, workers and uptime; when the
+  supervisor has given up, `failed` and oomd's own last line of stderr as the reason
+  (also on the daemon extension's per-service Status, as `oomd said: ...`).
+  `lazysite check` names a site with `odoo_daemon` on whose daemon is not running
+  (a warning; a failure for `required`, since every call is refused) with why when
+  it knows, and says it is running when it is.
+
+## What did not go through the daemon, and why
+
+Sign-in, sign-out, the two-factor step and the identity refresh stay in-process.
+The filing lists them with the engine calls, but oomd's protocol has no verb for a
+sign-in: its requests are `run`, `check`, `apply`, `revert`, `resume` and `approve`
+of an operation, and `health`. A sign-in is Odoo's web login (`Odoo::Transport::Session`),
+not an operation, and `core.credential` is the person changing a password or
+two-factor, which the filing puts out of this slice. They keep the page's
+`call` phase `desc="in-process"`. If the owner wants them resident, OOM needs a
+sign-in verb first; that is a question for OOM, not a lazysite change.
+
+The binding, parameter and operation declarations a request is checked against
+(`operation_class`) are still read from OOM's registry in this process, because a
+binding is validated against what the operation declares before anything is sent.
+That is OOM's lazy registry loading one class, and is the remaining in-process
+cost of a daemon call; moving the declarations out of process would need OOM to
+serve them.
+
+## What could not be tested on this host
+
+- The `/usr/bin/oomd` of production: the tests run the vendored front door, so
+  that the host's package is never read. The service's production default
+  (`$COMMAND = ['/usr/bin/oomd']`) is a one-line constant.
+- A real Odoo: the fake Odoo (`CliFake`) answers; the daemon's behaviour against
+  Odoo's own latency is D5, which needs the owner's install.
+- Pool or Hestia deployments: the supervisor is run in-process, not under
+  `lazysited@<domain>` and systemd. The same-uid arrangement (SM760) is the
+  supervisor's, unchanged.
+- A site path long enough to force the default socket directory is covered for
+  the choice and the name (test 60), not by starting a daemon on it.

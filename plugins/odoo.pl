@@ -93,6 +93,18 @@ sub describe {
                     . 'OOM ships its own. Name each extra pack by its Perl namespace, comma '
                     . 'separated (for example Example::Odoo::Ops), and its operations become '
                     . 'callable by name from pages and agents beside OOM\'s.' },
+            { key => 'odoo_daemon', label => 'Resident OOM (oomd)', type => 'text',
+                default => 'off',
+                note => 'off, on or required. On: the Odoo daemon extension\'s companion, oomd, a resident OOM that keeps OOM, '
+                    . 'the operations, the sign-in and the TLS connection loaded, so a call takes tens of milliseconds '
+                    . 'instead of most of a second. It runs under lazysited, so the daemon extension must be enabled '
+                    . 'too, and needs the odoo-oom-tools package (oomd). If it is not running a call runs in-process '
+                    . 'as before, slower and recorded as such. Required: the same, but a call is refused when the '
+                    . 'daemon is not running, instead of falling back.' },
+            { key => 'odoo_daemon_workers', label => 'Resident OOM workers', type => 'text',
+                default => '4',
+                note => 'How many requests oomd serves at once (1 to 64). Set it to match the number of workers '
+                    . 'your Odoo runs, which lazysite cannot read from Odoo.' },
             { key => 'odoo_pack_dirs', label => 'Operation pack directories', type => 'text',
                 note => 'Leave blank unless this site carries its own OOM operation packs. A colon '
                     . 'separated list of full paths, each a directory that holds pack directories '
@@ -105,7 +117,7 @@ sub describe {
 
         owns => {
             config_keys =>
-                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_remember_device odoo_identity_ttl odoo_packs odoo_pack_dirs)],
+                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_remember_device odoo_identity_ttl odoo_packs odoo_pack_dirs odoo_daemon odoo_daemon_workers)],
 
             # NO `storage`, deliberately. lazysite/odoo/ holds the connection
             # user's key and plans carrying Odoo's own records; a site package
@@ -117,7 +129,12 @@ sub describe {
             deps => ['Odoo::Ops (libodoo-oom-perl >= 0.03)'],
         },
 
-        actions => [ { id => 'status', label => 'Status', run => 'action', read => 1 } ],
+        # SM1164 D1: a config save rewrites the daemon's config and tells the daemon.
+        on_save => 'daemon-refresh',
+        actions => [
+            { id => 'status', label => 'Status', run => 'action', read => 1 },
+            { id => 'daemon-refresh', label => 'Refresh the resident OOM', run => 'action', hidden => JSON::PP::true() },
+        ],
     };
 }
 
@@ -127,11 +144,16 @@ sub run {
     for my $i ( 0 .. $#argv ) {
         $opt{describe} = 1 if $argv[$i] eq '--describe';
         $opt{status} = 1 if $argv[$i] eq '--action' && ( $argv[ $i + 1 ] // '' ) eq 'status';
+        $opt{refresh} = 1 if $argv[$i] eq '--action' && ( $argv[ $i + 1 ] // '' ) eq 'daemon-refresh';
         $opt{status}  = 1                     if $argv[$i] eq '--scan';
         $opt{docroot} = $argv[ $i + 1 ] // '' if $argv[$i] eq '--docroot';
     }
     if ( $opt{describe} ) {
         print encode_json( describe() );
+        return 0;
+    }
+    if ( $opt{refresh} ) {
+        print encode_json( refresh( $opt{docroot} // $ENV{DOCUMENT_ROOT} // '' ) );
         return 0;
     }
     if ( $opt{status} ) {
@@ -140,6 +162,17 @@ sub run {
     }
     print encode_json( { ok => 0, error => 'usage: --describe | --action status --docroot DIR' } );
     return 1;
+}
+
+# SM1164 D1: the on_save hook. The daemon's config is written from the saved
+# config (or removed when odoo_daemon is off) and a running daemon is sent
+# SIGHUP. Reports; never fails the save.
+sub refresh {
+    my ($docroot) = @_;
+    my $have = eval { require Lazysite::Odoo::Daemon; 1 };
+    return { ok => 0, error => 'the lazysite modules could not be loaded' } unless $have;
+    my $r = Lazysite::Odoo::Daemon::refresh($docroot);
+    return { ok => $r->{ok} ? 1 : 0, ( $r->{ok} ? () : ( error => $r->{error} ) ), changed => $r->{changed} ? 1 : 0 };
 }
 
 # What an operator needs before trusting it: is OOM here and new enough, and is

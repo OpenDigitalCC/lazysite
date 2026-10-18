@@ -285,6 +285,18 @@ sub connection {
         push @dirs, $real;
     }
     $c{pack_dirs} = \@dirs;
+
+    # SM1164 D1/D3: the resident OOM. `odoo_daemon` is off (the default), on
+    # (used when it is running, the in-process path when it is not) or required
+    # (a down daemon refuses the call); `odoo_daemon_workers` is oomd's pool,
+    # default 4, which the operator sets to match Odoo's own workers.
+    require Lazysite::Odoo::Daemon;
+    my ( $dmode, $dwhy ) = Lazysite::Odoo::Daemon::mode_from( $kv->{odoo_daemon} );
+    return ( undef, $dwhy ) unless defined $dmode;
+    $c{daemon} = $dmode;
+    my ( $dw, $dwwhy ) = Lazysite::Odoo::Daemon::workers_from( $kv->{odoo_daemon_workers} );
+    return ( undef, $dwwhy ) unless defined $dw;
+    $c{daemon_workers} = $dw;
     return ( \%c, '' );
 }
 
@@ -329,6 +341,11 @@ sub fault {
         if ( $k eq 'fault' ) {
             ( $kind, $said ) = @{ $FAULT_KIND{ $err->fault_category // 'other' } // $FAULT_KIND{other} };
         }
+        elsif ( $k eq 'transport' && ( $err->code // '' ) eq 'daemon-down' ) {
+            # SM1164 D3: odoo_daemon: required and the daemon is not there. OOM's own
+            # code, said by name, so a page can tell it from Odoo being unreachable.
+            ( $kind, $said ) = ( 'daemon-down', 'the Odoo daemon is not running, and this site requires it (odoo_daemon: required)' );
+        }
         elsif ( $k eq 'transport' ) {
             ( $kind, $said ) = ( 'transport-failure', 'Odoo could not be reached, or did not answer in a usable way' );
         }
@@ -357,7 +374,7 @@ sub fault {
 sub outcome_of {
     my ($kind) = @_;
     return 'answered' unless defined $kind && length $kind;
-    return 'unanswered' if $kind eq 'transport-failure';
+    return 'unanswered' if $kind eq 'transport-failure' || $kind eq 'daemon-down';
     return 'odoo-fault'
         if $kind =~ /\A(?:odoo-|invalid-credential\z|session-expired\z)/;
     return 'refused';
@@ -371,7 +388,7 @@ sub outcome_of {
 # know. `visitor` is a HASH of the visitor's key, never the key, which is a
 # bearer secret.
 our @CALL_FIELDS = qw(at call_id actor visitor ip login binding operation mode phase
-    outcome kind ms);
+    outcome kind ms via);
 my %CALL_FIELD = map { $_ => 1 } @CALL_FIELDS;
 
 sub record_call {
@@ -644,6 +661,44 @@ our $PLAN_KEEP_DAYS = 7;
 our $CALLS_KEEP_DAYS = 90;
 our $CAP_WINDOW      = 3600;
 
+# SM1164 D3: WHICH PATH THE LAST ENGINE CALL TOOK - `daemon` (oomd answered) or
+# `in-process` - for the call record's `via` and SM1144's `call` phase, whose
+# Server-Timing description says which. Undef until a call reaches the engine.
+our $LAST_VIA;
+sub last_via  { return $LAST_VIA }
+sub reset_via { $LAST_VIA = undef; return }
+
+# The OOM client for this site's daemon, ( $client ) when the call should be
+# tried there, () when it should run in-process (odoo_daemon off, or on without
+# a client). With `required` and no client the call is refused with OOM's
+# daemon-down code.
+sub _daemon_for {
+    my ($conn) = @_;
+    my $mode = $conn->{daemon} // 'off';
+    return if $mode eq 'off';
+    require Lazysite::Odoo::Daemon;
+    my ( $cl, $why ) = Lazysite::Odoo::Daemon::client( $DOCROOT, $conn );
+    return $cl if $cl;
+    return     if $mode eq 'on';
+# The kind is OOM's own (Odoo::Error), not a refusal kind lazysite emits to a caller (t/lint/139):
+    my $oom_kind = 'transport';
+    die Odoo::Error->new( kind => $oom_kind, code => 'daemon-down', message => $why );
+}
+
+sub _daemon_down {
+    my ($e) = @_;
+    return ref $e && eval { $e->isa('Odoo::Error') } && ( $e->code // '' ) eq 'daemon-down' ? 1 : 0;
+}
+
+# Who the request is, as the daemon is told: the connection user's label (or the
+# grant's or schedule's own, named like its key account), or the person's session
+# id, which goes with the request and is stored nowhere new.
+sub _daemon_credential {
+    my ( $b, $conn, $c ) = @_;
+    return { session => $c->{odoo_session} } if session_binding($b);
+    return { label   => ( $conn->{key_account} // 'conn' ) };
+}
+
 sub plans_dir   { return store_dir() . '/plans' }
 sub recent_file { return store_dir() . '/recent.jsonl' }
 
@@ -821,6 +876,7 @@ sub _owner {
 # outcome is one record.
 sub call {
     my ( $b, $input, %ctx ) = @_;
+    $LAST_VIA = undef;    # SM1164: until a call reaches the engine it took no path
 
     # B: a sign-in is what a session binding runs on, and ONLY that: a connection
     # binding handed one anyway ignores it, so what runs as the connection user
@@ -881,6 +937,7 @@ sub call {
 # which plans there are.
 sub confirm {
     my ( $pid, %ctx ) = @_;
+    $LAST_VIA = undef;
 
     # B: a person's sign-in applies only to a plan made by a session binding, and
     # only that person's: the owner is the hash of the session.
@@ -927,6 +984,18 @@ sub confirm {
 
     my $t0  = _now_hires();
     my $res = eval {
+        $LAST_VIA = undef;
+        if ( $meta->{run_id} && $meta->{run_id} =~ /\A[A-Za-z0-9][\w.-]{0,127}\z/ ) {
+            if ( my $cl = _daemon_for($conn) ) {
+                my $r = eval { _confirm_daemon( $cl, $meta, $pid, $b, { %c, conn => $conn } ) };
+                if ( ref $r eq 'HASH' ) { $LAST_VIA = 'daemon'; return $r }
+                my $e = $@;
+                die $e unless _daemon_down($e) && ( $conn->{daemon} // '' ) eq 'on';
+                log_event( 'WARN', 'odoo', 'the Odoo daemon is not answering; this confirm runs in-process',
+                    binding => $b->{id} );
+            }
+        }
+        $LAST_VIA = 'in-process';
         my $plan = Odoo::Ops::Plan->load("$dir/plan.json");
         my $ctx  = context( $conn, actor => _actor_label(%c),
             ( session_binding($b) ? ( session => $c{odoo_session} ) : () ) );
@@ -1001,6 +1070,15 @@ sub _ready {
 # in the same request.
 sub _run {
     my ( $b, $class, $conn, $params, $c ) = @_;
+    if ( my $cl = _daemon_for($conn) ) {
+        my $r = eval { _run_daemon( $cl, $b, $class, $conn, $params, $c ) };
+        if ( ref $r eq 'HASH' ) { $LAST_VIA = 'daemon'; return $r }
+        my $e = $@;
+        die $e unless _daemon_down($e) && ( $conn->{daemon} // '' ) eq 'on';
+        log_event( 'WARN', 'odoo', 'the Odoo daemon is not answering; this call runs in-process',
+            binding => $b->{id}, operation => $b->{operation} );
+    }
+    $LAST_VIA = 'in-process';
     my $ctx = context( $conn, actor => _actor_label(%$c),
         ( session_binding($b) ? ( session => $c->{odoo_session} ) : () ) );
     my $op = $class->new( ctx => $ctx, params => $params );
@@ -1030,6 +1108,70 @@ sub _run {
     return { ok => 1, planned => 1, plan => $pid, preview => _preview($plan) };
 }
 
+# SM1164 D3: THE SAME CALL, ANSWERED BY oomd. Same arguments as in-process (the
+# operation, the parameters assembled against its declaration), the person's
+# session id or the account's label for the credential, and the ACTOR the
+# in-process context gives OOM's audit. A write is planned by the daemon; the
+# plan is saved in the plan store beside lazysite's own meta.json, which names
+# the daemon's run so a confirm can approve and apply it there. Nothing the
+# daemon answers is returned to a page beyond what the in-process path returns.
+sub _run_daemon {
+    my ( $cl, $b, $class, $conn, $params, $c ) = @_;
+    my %req = ( credential => _daemon_credential( $b, $conn, $c ), actor => _actor_label(%$c) );
+    my $r = $cl->run( $b->{operation}, $params, %req );
+    unless ( $class->writes ) {
+        my $report = $r->{report};
+        require Lazysite::Odoo::Fields;
+        my ( $fields, $refused ) = Lazysite::Odoo::Fields::present($report);
+        return { ok => 1, report => $report, ( $fields ? ( fields => $fields, refused => $refused ) : () ) };
+    }
+    my $plan = $r->{plan}
+        or die "the daemon answered a write without a plan\n";
+    my $run_id = $r->{run_id} // '';
+    my ( $pid, $dir ) = _new_plan_dir();
+    my $res = eval {
+        $plan->save("$dir/plan.json");
+        _write_json_file( "$dir/meta.json",
+            { binding => $b->{id}, operation => $b->{operation}, owner => _owner(%$c),
+                created => time, fingerprint => $plan->fingerprint,
+                ( length $run_id ? ( run_id => $run_id ) : () ) } );
+        if ( $b->{apply} eq 'immediate' ) {
+            $cl->approve( $run_id, %req, actor => "binding:$b->{id}", note => 'apply: immediate on the binding' );
+            my $ar = $cl->apply( $run_id, %req );
+            return _applied_answer( $pid, $ar );
+        }
+        { ok => 1, planned => 1, plan => $pid, preview => _preview($plan) };
+    };
+    unless ($res) {
+        my $e = $@;
+        require File::Path;
+        File::Path::remove_tree($dir);
+        die $e;
+    }
+    return $res;
+}
+
+# An apply's answer as the page is given it. A plan with nothing in it answers
+# `nothing` and no result.
+sub _applied_answer {
+    my ( $pid, $ar ) = @_;
+    return { ok => 1, applied => 1, plan => $pid,
+        result => { total => 0, counts => {}, by_bucket => {}, verified => 0, changes => [] } }
+        unless ref $ar eq 'HASH' && $ar->{result};
+    return { ok => ( $ar->{result}->ok ? 1 : 0 ), applied => 1, plan => $pid,
+        result => _result_summary( $ar->{result} ) };
+}
+
+# A confirm through the daemon: approve in the daemon's run (the actor on the
+# approval is the plan's owner, as the in-process approval records it), then apply.
+sub _confirm_daemon {
+    my ( $cl, $meta, $pid, $b, $c ) = @_;
+    my %req = ( credential => _daemon_credential( $b, $c->{conn}, $c ), actor => _actor_label(%$c) );
+    my $run = $meta->{run_id};
+    $cl->approve( $run, %req, actor => $meta->{owner}, note => 'confirmed in lazysite by its maker' );
+    return _applied_answer( $pid, $cl->apply( $run, %req ) );
+}
+
 sub _finish {
     my ( $rec, $res, $err, $t0, $phase ) = @_;
     my $ms = int( ( _now_hires() - $t0 ) * 1000 );
@@ -1037,10 +1179,11 @@ sub _finish {
         my $f = fault( $err, binding => $rec->{binding}, operation => $rec->{operation},
             mode => $rec->{mode} );
         record_call( %$rec, phase => $phase, outcome => outcome_of( $f->{kind} ),
-            kind => $f->{kind}, ms => $ms );
+            kind => $f->{kind}, ms => $ms, ( defined $LAST_VIA ? ( via => $LAST_VIA ) : () ) );
         return $f;
     }
     record_call( %$rec, phase => $phase, outcome => 'answered', ms => $ms,
+        ( defined $LAST_VIA ? ( via => $LAST_VIA ) : () ),
         ( $res->{ok} ? () : ( kind => 'apply-incomplete' ) ) );
     $res->{error} = 'the plan did not apply completely - see the counts' unless $res->{ok};
     $res->{kind}  = 'apply-incomplete' unless $res->{ok};
@@ -1418,11 +1561,28 @@ sub _new_plan_dir {
 
 sub _prune_plans {
     my $root = plans_dir();
+    _prune_runs();
     opendir my $dh, $root or return;
     my $cut = time - $PLAN_KEEP_DAYS * 86400;
     for my $e ( grep { /\A[0-9a-f]{32}\z/ } readdir $dh ) {
         my $m = _read_json_file("$root/$e/meta.json");
         next unless ref $m eq 'HASH' && ( $m->{created} // $cut ) < $cut;
+        require File::Path;
+        File::Path::remove_tree("$root/$e");
+    }
+    closedir $dh;
+    return;
+}
+
+# SM1164 D3: the daemon's run folders (plans it made, journals it kept) go on the
+# plans' schedule - a run older than the keep is removed.
+sub _prune_runs {
+    my $root = store_dir() . '/runs';
+    opendir my $dh, $root or return;
+    my $cut = time - $PLAN_KEEP_DAYS * 86400;
+    for my $e ( grep { !/\A\./ } readdir $dh ) {
+        my @st = stat "$root/$e" or next;
+        next unless $st[9] < $cut;
         require File::Path;
         File::Path::remove_tree("$root/$e");
     }
@@ -1482,6 +1642,9 @@ sub action_odoo_status {
             sort keys %$grants ]
         : undef;
     $out{scheduled} = _scheduled_status( $have && $conn ? $conn : undef );    # SM1161
+     # SM1164 D4: the resident OOM - name, health, version, packs, workers, uptime, and the supervisor's reason when it has given up.
+    require Lazysite::Odoo::Daemon;
+    $out{daemon} = Lazysite::Odoo::Daemon::status($DOCROOT);
     if ( $have && $conn ) {
         my $reg = eval { registry($conn) };
         $out{operations} = [
@@ -1502,6 +1665,21 @@ sub action_odoo_status {
 # grant acts as: the lazysite account the grant belongs to, the Odoo login, and
 # its key - stored as the connection user's is, in a file of its own.
 sub action_odoo_secret_set {
+    my $r = _secret_set(@_);
+    _daemon_refresh() if ref $r eq 'HASH' && $r->{ok};
+    return $r;
+}
+
+# SM1164 D1: a key set or cleared is a label that appears in, or leaves, the
+# daemon's config. Rewritten and the daemon told; nothing when the daemon is off.
+sub _daemon_refresh {
+    require Lazysite::Odoo::Daemon;
+    return unless -e Lazysite::Odoo::Daemon::conf_path($DOCROOT) || ( ( read_conf() || {} )->{odoo_daemon} // '' ) =~ /\S/;
+    eval { Lazysite::Odoo::Daemon::refresh($DOCROOT) };
+    return;
+}
+
+sub _secret_set {
     my ( $secret, %o ) = @_;
     require Lazysite::Odoo::Secret;
     no warnings 'once';
@@ -1519,6 +1697,12 @@ sub action_odoo_secret_set {
 }
 
 sub action_odoo_secret_clear {
+    my $r = _secret_clear(@_);
+    _daemon_refresh() if ref $r eq 'HASH' && $r->{ok};
+    return $r;
+}
+
+sub _secret_clear {
     my (%o) = @_;
     require Lazysite::Odoo::Secret;
     no warnings 'once';

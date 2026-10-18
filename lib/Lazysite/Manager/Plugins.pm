@@ -914,7 +914,12 @@ sub action_plugin_save {
             unless $wok;
     }
 
-    return { ok => 1, changed => [ sort @changed ] };
+    # SM1164: a plugin may name an action to run after its config is saved (the Odoo
+    # extension rewrites oomd's config and tells the daemon). Like on_enable it
+    # resolves against the descriptor's declared actions, and a failure never
+    # undoes the save.
+    my $hook = @changed ? _run_plugin_hook( $script, 'on_save', $full_script, $desc ) : undef;
+    return { ok => 1, changed => [ sort @changed ], ( $hook ? ( hook => $hook ) : () ) };
 }
 
 sub action_plugin_action {

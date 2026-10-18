@@ -129,7 +129,10 @@ sub _query {
 sub _timed {
     my ($code) = @_;
     Lazysite::Timing::to('call');
-    my @r = $code->();
+    Lazysite::Odoo::reset_via();    # SM1164: the phase says which path answered
+    my @r   = $code->();
+    my $via = Lazysite::Odoo::last_via();
+    Lazysite::Timing::desc( 'call', $via eq 'daemon' ? 'oomd' : 'in-process' ) if defined $via;
     Lazysite::Timing::to('render');
     return wantarray ? @r : $r[0];
 }
@@ -137,7 +140,7 @@ sub _timed {
 sub main {
     local @EXTRA = ();
     my $docroot = $ENV{DOCUMENT_ROOT} // '';
-    Lazysite::Timing::begin();    # SM1144: where this request's time goes
+    Lazysite::Timing::begin();      # SM1144: where this request's time goes
     return reply( '500 Internal Server Error', { ok => 0, error => 'no document root' } )
         unless length $docroot && -d $docroot;
     my $method = $ENV{REQUEST_METHOD} // 'GET';

@@ -452,7 +452,9 @@ my %T = (
     'lib/Lazysite/Odoo.pm' => {
         '%CALL_FIELD' => [ exempt => 'derived from a constant list' ],
         '$TRANSPORT'  => [ exempt => 'a test seam; unset in the product' ],
+        '$LAST_VIA'   => [ exempt => $STATUS ],
     },
+    'lib/Lazysite/Odoo/Daemon.pm' => { '%NAME' => [ exempt => 'the daemon\'s name, a function of the docroot and keyed on it' ] },
     'lib/Lazysite/Odoo/Session.pm' => { '$HTTP' => [ exempt => 'a test seam; unset in the product' ] },
     'lib/Lazysite/Timing.pm' => {
         '%KNOWN'    => [ exempt => 'derived from a constant list' ],
@@ -460,6 +462,7 @@ my %T = (
         '$BEGUN'    => [ exempt => 'whether a first request has begun, per process on purpose (the `load` phase)' ],
         '%CONF'     => [ exempt => $KEYED ],
         '%PH'       => [ reset  => 'begin' ],
+        '%DESC'     => [ reset  => 'begin' ],
         '$CURRENT'  => [ reset  => 'begin' ],
         '$LAST'     => [ reset  => 'begin' ],
         '$OPERATOR' => [ reset  => 'begin' ],

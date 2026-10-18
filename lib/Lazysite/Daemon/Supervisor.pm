@@ -110,8 +110,14 @@ sub should_run {
 # It is still loaded LAZILY, inside the coderef, because Scheduler uses this
 # module for conf_value: a top-level `use` in both directions is a circular
 # dependency at compile time.
+# SM1164 D2: the second service is oomd, the Odoo extension's resident OOM. It is
+# listed only when asked for (`oomd => 1`): the caller knows whether the gate
+# holds (Lazysite::Daemon::Service::Oomd::wanted), and a site that has no Odoo
+# extension, or has `odoo_daemon` off, has no such service to start, to report or
+# to find failed. The registry is still closed engine code.
 sub services {
-    return (
+    my ( $root, %o ) = @_;
+    my @s = (
         { name => 'scheduler',
             start => sub {
                 require Lazysite::Daemon::Service::Scheduler;
@@ -119,6 +125,55 @@ sub services {
             },
         },
     );
+    push @s, {
+        name  => 'oomd',
+        start => sub {
+            require Lazysite::Daemon::Service::Oomd;
+            return Lazysite::Daemon::Service::Oomd::run(@_);
+        },
+        }
+        if $o{oomd};
+    return @s;
+}
+
+# The pid of a service that is running under a supervisor, or undef. The proof
+# is the one every other check here uses: the pid AND its start time.
+sub service_pid {
+    my ( $docroot, $name ) = @_;
+    my $root = _docroot($docroot);
+    my $pid  = _read_pid( $root, $name );
+    return undef unless defined $pid;
+    return _is_ours( $pid, _read_state( $root, $name )->{start_ticks} ) ? $pid : undef;
+}
+
+sub service_state {
+    my ( $docroot, $name ) = @_;
+    return _read_state( _docroot($docroot), $name );
+}
+
+# SM1164 D2: is oomd to be a service of this docroot? The Odoo extension is
+# enabled, `odoo_daemon` is on or required, and oomd is installed. A failure to
+# find out is "no": nothing is started on a guess.
+our $SERVICE_GATE_EVERY = 5;
+
+sub _oomd_wanted {
+    my ($root) = @_;
+    require Lazysite::Daemon::Service::Oomd;
+    my $w = eval { Lazysite::Daemon::Service::Oomd::wanted($root) };
+    return $w ? 1 : 0;
+}
+
+# Listed in Status when wanted, or while a process of it remains.
+sub _oomd_listed {
+    my ($root) = @_;
+    return 1 if _oomd_wanted($root);
+    return defined service_pid( $root, 'oomd' ) ? 1 : 0;
+}
+
+sub _oomd_reason {
+    my ($root) = @_;
+    require Lazysite::Daemon::Service::Oomd;
+    return 'oomd said: ' . Lazysite::Daemon::Service::Oomd::failure_reason($root);
 }
 
 # --- state ---------------------------------------------------------------
@@ -333,10 +388,12 @@ sub status {
     # to that many seconds for the runtime to notice the gate ($GATE_EVERY)
     # and go, then reports "stopped" or "still stopping (pid N)". A wait
     # bounded by the gate interval, not a guess.
+    # SM1164: oomd is listed while it is wanted or a process of it is still there.
+    my @listed = services( $root, oomd => _oomd_listed($root) );
     if ( !$enabled && $a{settle} ) {
         my $deadline = time + $a{settle};
         while ( time < $deadline ) {
-            my $alive = grep { _is_ours( _read_pid( $root, $_->{name} ), _read_state( $root, $_->{name} )->{start_ticks} ) } services();
+            my $alive = grep { _is_ours( _read_pid( $root, $_->{name} ), _read_state( $root, $_->{name} )->{start_ticks} ) } @listed;
             last unless $alive;
             sleep 1;
         }
@@ -353,7 +410,7 @@ sub status {
     my $timer_armed = $enabled && $host->{conf} && ( $host->{timer} // '' ) eq 'enabled';
     my $any_waiting = 0;
 
-    for my $s ( services() ) {
+    for my $s (@listed) {
         my $pid   = _read_pid( $root, $s->{name} );
         my $st    = _read_state( $root, $s->{name} );
         my $alive = _is_ours( $pid, $st->{start_ticks} );
@@ -396,7 +453,8 @@ sub status {
             ( $verdict eq 'failed'
                 ? ( message => "$s->{name} kept dying and the supervisor has "
                         . "stopped restarting it ($st->{fails} consecutive "
-                        . 'failures)',
+                        . 'failures)'
+                        . ( $s->{name} eq 'oomd' ? '; ' . _oomd_reason($root) : '' ),
                     remedy => 'see the site log for why it dies; restart the '
                         . 'host service (systemctl restart lazysited@<domain>) '
                         . 'once the cause is fixed'
@@ -453,7 +511,7 @@ sub status {
         ( !$enabled
             ? ( message => $any_running
                 ? 'the daemon plugin is disabled and the runtime is still stopping (pid '
-                    . join( ', ', map { _read_pid( $root, $_->{name} ) // '?' } services() ) . ')'
+                    . join( ', ', map { _read_pid( $root, $_->{name} ) // '?' } @listed ) . ')'
                 : 'the daemon plugin is disabled and the runtime is stopped' )
             : ()
         ),
@@ -625,14 +683,14 @@ sub run {
     }
 
     log_event( 'INFO', 'daemon', 'supervisor starting',
-        services => scalar( () = services() ) );
+        services => scalar( () = services( $root, oomd => 1 ) ) );
 
     # ADOPT BY STOPPING. A service left over from a supervisor that died without
     # stopping its children (kill -9, OOM) is still ours - same docroot, same
     # jobs - and starting a fresh one beside it is the duplication above. It is
     # stopped, deliberately and with a log line, before a fresh one is started
     # under this supervisor's care.
-    for my $s ( services() ) {
+    for my $s ( services( $root, oomd => 1 ) ) {
         my $old = _read_pid( $root, $s->{name} );
         my $st  = _read_state( $root, $s->{name} );
 
@@ -674,6 +732,15 @@ sub run {
     my $backoff_base = _conf_number( $root, 'daemon_restart_backoff', 5 );
     my $gate_checked = time;
 
+    # SM1164 D2: oomd is wanted only while its own gate holds, which is read
+    # every $SERVICE_GATE_EVERY seconds (it opens two config files). A running
+    # oomd whose gate has closed is told to stop and waited for without blocking
+    # the other services; its failures and `failed` mark are forgotten, so a
+    # later enable starts clean.
+    my $oomd_wanted  = _oomd_wanted($root);
+    my $oomd_checked = time;
+    my %stopping;    # name => { pid, deadline }
+
     while ($running) {
 
         # 1. Reap. An exit is counted here and only here.
@@ -711,11 +778,35 @@ sub run {
             }
         }
 
+        # 2b. oomd's own gate (SM1164 D2).
+        if ( time - $oomd_checked >= $SERVICE_GATE_EVERY ) {
+            $oomd_checked = time;
+            $oomd_wanted  = _oomd_wanted($root);
+        }
+        if ( !$oomd_wanted && ( $child{oomd} || $failed{oomd} || $fails{oomd} ) ) {
+            if ( my $pid = delete $child{oomd} ) {
+                log_event( 'INFO', 'daemon', 'stopping oomd: its gate has closed', pid => $pid );
+                kill 'TERM', $pid;
+                $stopping{oomd} = { pid => $pid, deadline => time + $Lazysite::Daemon::Supervisor::STOP_DEADLINE + 5 };
+            }
+            delete $failed{oomd};
+            delete $fails{oomd};
+            delete $next_try{oomd};
+            unlink _pid_file( $root, 'oomd' ) unless $stopping{oomd};
+            unlink _state_file( $root, 'oomd' );
+        }
+        for my $n ( keys %stopping ) {
+            my $s = $stopping{$n};
+            if ( !kill( 0, $s->{pid} ) ) { delete $stopping{$n}; unlink _pid_file( $root, $n ); next }
+            if ( time > $s->{deadline} ) { kill 'KILL', $s->{pid} }
+        }
+
         # 3. Start what should be running and is not.
-        for my $s ( services() ) {
+        for my $s ( services( $root, oomd => $oomd_wanted ) ) {
             my $name = $s->{name};
             next if $child{$name};
             next if $failed{$name};
+            next if $stopping{$name};
 
             if ( ( $fails{$name} // 0 ) > $FAIL_CEILING ) {
                 # FAILED, and it stays failed. A service restarted forever is

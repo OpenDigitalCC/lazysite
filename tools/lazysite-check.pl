@@ -1378,6 +1378,9 @@ sub run_checks {
     # --- 8g3. do the Odoo keys scheduled bindings run on expire soon? (SM1161) ---
     report_odoo_scheduled_keys();
 
+# --- 8g4. is the Odoo extension's resident OOM running where the site asks for it? (SM1164 D4) ---
+    report_odoo_daemon();
+
     # --- 8e. where is this site's engine tree, and is there only one? (SM293) ---
     report_engine_tree();
 
@@ -3298,6 +3301,43 @@ sub report_odoo_scheduled_keys {
             report( 'OK', "$what expires $when ($left days left)" );
         }
     }
+    return;
+}
+
+# SM1164 D4: a site that sets odoo_daemon to on or required has asked for oomd.
+# When it is not running a call falls back to the slower in-process path (on) or
+# is refused (required), and nothing says so until a page is slow or fails: so
+# the check names the site, says which socket it should answer on (the site's own
+# or oomd's default directory, which a long path forces), and why it is not
+# there when the supervisor knows.
+sub report_odoo_daemon {
+    my $d = $opt{docroot};
+    return unless -r "$LZ/odoo.conf";
+    my $st = eval {
+        require Lazysite::Odoo::Daemon;
+        require Lazysite::Odoo;
+        no warnings 'once';
+        local $Lazysite::Odoo::DOCROOT = $d;
+        Lazysite::Odoo::Daemon::status($d);
+    };
+    return unless ref $st eq 'HASH' && $st->{mode} ne 'off';
+    my $where = $st->{socket_in} eq 'site'
+        ? "its socket is under the site ($st->{socket})"
+        : "the site path is too long for a socket, so it uses oomd's default directory ($st->{socket})";
+    if ( $st->{running} ) {
+        my $h = $st->{health} || {};
+        report( 'OK', "the Odoo extension's oomd is running ($st->{name}, OOM $h->{version}, $h->{workers} workers); $where" );
+        return;
+    }
+    my $level = $st->{mode} eq 'required' ? 'FAIL' : 'WARN';
+    my $why
+        = !$st->{installed} ? 'oomd is not installed (the odoo-oom-tools package)'
+        : $st->{failed}     ? "the supervisor stopped restarting it: $st->{reason}"
+        :   'the daemon extension is not running it - it must be enabled and its runtime running';
+    report( $level,
+        "the Odoo extension has odoo_daemon: $st->{mode} and oomd ($st->{name}) is not running; $why",
+        ( $st->{mode} eq 'required' ? 'every Odoo call is refused until it runs' : 'Odoo calls take the slower in-process path until it runs' )
+            . "; $where" );
     return;
 }
 

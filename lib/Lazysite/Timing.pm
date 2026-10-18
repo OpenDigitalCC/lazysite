@@ -58,7 +58,7 @@ my $LOADED = Time::HiRes::time();
 
 # Per-request state. begin() resets every one; none outlives a request (SM973's
 # class: a pooled worker must carry nothing from one request to the next).
-my ( %PH, $CURRENT, $LAST, $OPERATOR, $LZDIR );
+my ( %PH, %DESC, $CURRENT, $LAST, $OPERATOR, $LZDIR );
 my $BEGUN = 0;    # process-lifetime, on purpose: only the first begin() has a load phase
 my %CONF;         # process-lifetime memo of the conf flag, keyed on (mtime, size)
 
@@ -79,6 +79,7 @@ sub worker_started {
 # earlier program in this request (the auth wrapper) handed across the exec.
 sub begin {
     %PH       = ();
+    %DESC     = ();
     $OPERATOR = 0;
     $LZDIR    = undef;
     $LAST     = _now();
@@ -115,6 +116,18 @@ sub add {
     my ( $phase, $ms ) = @_;
     return unless $KNOWN{ $phase // '' } && defined $ms && $ms >= 0;
     $PH{$phase} += $ms;
+    return;
+}
+
+# SM1164: a phase may say WHAT it was, in the standard Server-Timing way:
+# `call;desc="oomd";dur=12.00`. The Odoo call phase says whether oomd or the
+# in-process path answered. A description is a short fixed word the caller
+# chose, never request data; anything else is dropped. Per request, like the
+# figures.
+sub desc {
+    my ( $phase, $text ) = @_;
+    return unless $KNOWN{ $phase // '' } && defined $text && $text =~ /\A[A-Za-z0-9._-]{1,32}\z/;
+    $DESC{$phase} = $text;
     return;
 }
 
@@ -159,7 +172,7 @@ sub header_line {
     return '' unless defined $LAST && enabled();
     finish();
     my @p = phases() or return '';
-    return 'Server-Timing: ' . join( ', ', map { sprintf '%s;dur=%.2f', @$_ } @p );
+    return 'Server-Timing: ' . join( ', ', map { defined $DESC{ $_->[0] } ? sprintf( '%s;desc="%s";dur=%.2f', $_->[0], $DESC{ $_->[0] }, $_->[1] ) : sprintf( '%s;dur=%.2f', @$_ ) } @p );
 }
 
 # The same figures for the access log: a JSON object body, "config":1.2,...

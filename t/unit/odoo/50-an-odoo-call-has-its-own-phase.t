@@ -49,7 +49,8 @@ sub hit {
     }
     my ($st) = $out =~ /Status:\s*(\d+)/;
     my ($tm) = $out =~ /^Server-Timing:\s*(.*?)\r?$/m;
-    my @names = defined $tm ? ( $tm =~ /([a-z]+);dur=/g ) : ();
+    # SM1164: the call phase carries a description, `call;desc="in-process";dur=...`.
+    my @names = defined $tm ? ( $tm =~ /([a-z]+);(?:desc="[^"]*";)?dur=/g ) : ();
     return ( $st, \@names );
 }
 
