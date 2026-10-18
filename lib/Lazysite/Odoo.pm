@@ -1032,10 +1032,37 @@ sub _applied_changes {
     for my $e (@$rows) {
         my %c = map { ( $_ => $e->{$_} ) } grep { defined $e->{$_} } qw(seq bucket action model id outcome);
         $c{reason} = $e->{reason} if defined $e->{reason} && ( $e->{outcome} // '' ) =~ /\A(?:held|skipped)\z/;
-        $c{returned} = _capped( $e->{returned} ) if ( $e->{action} // '' ) eq 'custom' && defined $e->{returned};
+        $c{returned} = _capped( _journal_value( $path, $e->{returned} ) )
+            if ( $e->{action} // '' ) eq 'custom' && defined $e->{returned};
         push @out, \%c;
     }
     return \@out;
+}
+
+# Since OOM 0.32 a journal keeps a value over `blob_min` (64 KiB by default) in
+# its folder's blobs/ and the line carries a reference ({blob, bytes, type})
+# in its place. A `returned` that large is read back so it is capped as the
+# value it is; a reference that cannot be read answers the marker alone, never
+# the reference.
+sub _journal_value {
+    my ( $path, $v ) = @_;
+    return $v unless ref $v;
+    return $v unless eval { require Odoo::Ops::Blob; 1 } && _holds_blob_ref($v); # before 0.32: no blobs
+    my $full = eval {
+        require File::Basename;
+        Odoo::Ops::Blob->source( dirs => [ File::Basename::dirname($path) ] )->resolve($v);
+    };
+    return $full if defined $full;
+    my $bytes = ref $v eq 'HASH' && defined $v->{bytes} ? $v->{bytes} : 0;
+    return "...[truncated, $bytes bytes]";
+}
+
+sub _holds_blob_ref {
+    my ($v) = @_;
+    return 1 if Odoo::Ops::Blob->is_ref($v);
+    return scalar grep { _holds_blob_ref($_) } values %$v if ref $v eq 'HASH';
+    return scalar grep { _holds_blob_ref($_) } @$v        if ref $v eq 'ARRAY';
+    return 0;
 }
 
 sub _with_visitor {

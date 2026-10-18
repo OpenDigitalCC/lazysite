@@ -45,6 +45,10 @@ reason.
 - `returned` is the handler's own answer and has no size of its own, so it is
   capped: past 4 KB (of its JSON) it is cut and ends `...[truncated, N
   bytes]`, so one change cannot make the answer as large as a handler chose.
+  On OOM 0.32 a value over `blob_min` (64 KiB) is in the journal as a blob
+  reference; it is read back from the journal's folder and capped the same
+  way, and one that cannot be read answers the marker alone (found stacking
+  on SM1167's 0.32 snapshot).
 - Documented in `starter/docs/odoo.md` beside SM1165's `created` and
   `written`.
 
