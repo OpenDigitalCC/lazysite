@@ -23,13 +23,17 @@ Odoo::Ops::Discuss::Delete - delete a channel message the way Odoo's client does
 
 =head1 DESCRIPTION
 
-C<discuss.delete>: removes what a channel message says. Odoo 16's own client does
+C<discuss.delete>: removes what a channel message says. Odoo's own client does
 not unlink the record: it empties the body and removes the attachments, at the
-web route C</mail/message/update_content> (the method behind it,
-C<_message_update_content>, is private, so apply runs over a web session as the
+web route C</mail/message/update_content> (the same on 16, 18 and 19; 19 takes
+the new content as C<update_data>, which the profile's C<empty_shape> names).
+The method behind it, C<_message_update_content>, is private, so apply runs over a web session as the
 login; see L<Odoo::Ops::Discuss::Common>). The message record stays on the
 channel, with its author, date and parent; its body reads empty and its
-attachments are deleted for good. Apply reads the message back and says that in
+attachments are deleted for good. On Odoo 18 and 19 the body is left holding
+Odoo's edited marker only (a span with no text), which counts as empty. Odoo
+19 also clears the message's parent link; apply reads the parent back and says
+so when a parent that was set is gone. Apply reads the message back and says that in
 Odoo's terms: C<body and attachments removed; the message record stays>.
 
 Odoo's own rule decides who may: the route answers 404 Not Found unless the
@@ -46,8 +50,8 @@ decision to Odoo.
     not-a-channel-message  the message is on a record's chatter, not on a channel - held
 
 It is irreversible: a revert holds it, saying the body and attachments are gone.
-The revert of C<discuss.post> uses this operation. Series: written for Odoo 16;
-another series is refused by name.
+The revert of C<discuss.post> uses this operation. Series: 16, 18 and 19
+(profiles C<profiles/discuss/>); 17 is refused by name as not probed.
 
 =cut
 
@@ -90,7 +94,7 @@ sub plan ($self) {
     return $hold->( 'not-a-channel-message', "message $mid is not on a channel; Discuss messages are channel messages" )
         if !defined $m->{channel};
     my @att = @{ $m->{attachments} };
-    my $empty = !( defined $m->{body} && length $m->{body} ) && !@att;
+    my $empty = Odoo::Ops::Discuss::Common::emptied( $m->{body} ) && !@att;
     if ($empty) {
         $plan->add( bucket => 'already-empty', action => 'skip', key => $key, id => $mid + 0, reason => "message $mid has no body and no attachment" );
         return $plan;
@@ -105,7 +109,7 @@ sub plan ($self) {
         bucket => 'delete', action => 'custom', handler => $self->op_name, kind => 'delete',
         model  => $p->model_name('message'), id => $mid + 0, key => $key,
         before => { $f->( message => 'body' ) => $m->{body}, $f->( message => 'attachments' ) => \@att },
-        vals   => { message => $mid + 0, channel => $m->{channel} + 0 },
+        vals   => { message => $mid + 0, channel => $m->{channel} + 0, parent => $m->{parent} },
         line   => "empty message $mid of channel $m->{channel}" . ( $ch ? " ($ch->{name})" : '' )
             . ( length $m->{author_name} ? ", written by $m->{author_name}" : '' ) . ", type $m->{type}: "
             . 'body' . ( @att ? ' and ' . scalar(@att) . ' attachment' . ( @att == 1 ? '' : 's' ) . " ($names)" : '' )
@@ -128,21 +132,29 @@ sub apply_custom ($class, $client, $c) {
     my $p = Odoo::Ops::Discuss::Common::profile_for( $client, 'discuss.delete' );
     my $f = sub ($lf) { $p->field( message => $lf ) };
     my $v = $c->{vals};
-    Odoo::Ops::Discuss::Common::web_call( $client, $p->action('empty_route'), { message_id => $v->{message}, body => '', attachment_ids => [] } );
-    my $left = $client->model( $p->model_name('message') )->read_one( $v->{message}, [ map { $f->($_) } qw(model res_id body attachments) ] );
+    my $empty = { body => '', attachment_ids => [] };
+    my $shape = $p->action('empty_shape');
+    my $args  = $shape eq 'update_data' ? { message_id => $v->{message}, update_data => $empty }
+        : $shape eq 'flat' ? { message_id => $v->{message}, %$empty }
+        : Odoo::Error->throw( kind => 'config', message => "profile discuss/" . $p->series . " names empty_shape '$shape'; expected flat or update_data" );
+    Odoo::Ops::Discuss::Common::web_call( $client, $p->action('empty_route'), $args );
+    my $left = $client->model( $p->model_name('message') )->read_one( $v->{message}, [ map { $f->($_) } qw(model res_id body attachments parent) ] );
     Odoo::Error->throw( kind => 'fault', message => "message $v->{message} is gone after the route answered; Odoo was expected to keep the record" ) if !$left;
     my %after = (
         id => $v->{message}, channel => $left->{ $f->('res_id') },
         $f->('body') => $left->{ $f->('body') } // '', $f->('attachments') => [ @{ $left->{ $f->('attachments') } // [] } ],
     );
-    my $ok = !( defined $left->{ $f->('body') } && length $left->{ $f->('body') } ) && !@{ $after{ $f->('attachments') } }
+    my $parent_now = Odoo::Ops::Discuss::Common::id_of( $left->{ $f->('parent') } );
+    my $parent_cleared = defined $v->{parent} && !defined $parent_now;
+    my $ok = Odoo::Ops::Discuss::Common::emptied( $left->{ $f->('body') } ) && !@{ $after{ $f->('attachments') } }
         && ( $left->{ $f->('res_id') } // 0 ) == $v->{channel};
     return {
         reported => 'write',
         returned => {
             method => 'update_content',
-            says   => "message $v->{message} of channel $v->{channel}: body and attachments removed; the message record stays",
-            left   => { body => '', attachments => 0, record => JSON::PP::true },
+            says   => "message $v->{message} of channel $v->{channel}: body and attachments removed; the message record stays"
+                . ( $parent_cleared ? "; Odoo also cleared its parent (message $v->{parent})" : '' ),
+            left   => { body => '', attachments => 0, record => JSON::PP::true, parent => $parent_now },
         },
         after => $ok ? \%after : undef,
     };

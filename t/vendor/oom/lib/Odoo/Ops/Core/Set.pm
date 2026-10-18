@@ -29,7 +29,8 @@ Odoo::Ops::Core::Set - write fields of one record, typed from fields_get
 C<core.set> writes some fields of one record. The parameters are C<model>,
 C<id> and one C<set.E<lt>fieldE<gt>> per field, every one a string or an
 integer, so a page binding can feed them from a request. Each value is typed
-from the model's C<fields_get>: integer, float and monetary (a number),
+from the model's C<fields_get>: integer and many2one_reference (a whole number),
+float and monetary (a number),
 boolean (C<1 0 true false yes no>), date (C<YYYY-MM-DD>), datetime
 (C<YYYY-MM-DD HH:MM:SS>), selection (the key), many2one (an id), char, text and
 html. An empty value clears a char, text, html, date, datetime, selection or

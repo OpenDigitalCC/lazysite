@@ -106,6 +106,7 @@ access fault never reads C<fix: null>.
 sub fix ($self) {
     return $self->{fix} if defined $self->{fix};
     return $self->credential_fix if $self->is_invalid_credential;
+    return 'Odoo found no row for an id it was sent: the id is not a record of that model, is gone, or was sent as text; ids are positive integers' if ( $self->{message} // '' ) =~ /Database fetch misses ids/;
     return undef if !$self->is_access_denied;
     return $self->access_fix;
 }
@@ -166,8 +167,12 @@ sub is_fault     ($self) { $self->{kind} eq 'fault' }
 sub is_transport ($self) { $self->{kind} eq 'transport' }
 sub is_refused   ($self) { $self->{kind} eq 'refused' }
 
+# Odoo words a fetch that found no row for an id it was sent as an access error
+# ("Database fetch misses ids"); it says nothing about rights, so it is not
+# one here.
 sub fault_category ($self) {
     return undef if !$self->is_fault;
+    return 'missing' if ( $self->{message} // '' ) =~ /Database fetch misses ids/;
     return $CATEGORY{ $self->{fault_class} // '' } // 'other';
 }
 

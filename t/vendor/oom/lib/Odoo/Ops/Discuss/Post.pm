@@ -64,7 +64,7 @@ back on apply.
 
 Revert: the post is undone by C<discuss.delete> of the message it made. Odoo
 keeps the message record, emptied, with its attachments removed; the revert plan
-says so. Series: written for Odoo 16; another series is refused by name.
+says so. Series: 16, 18 and 19; 17 is refused by name as not probed.
 
 =cut
 
@@ -236,12 +236,15 @@ sub apply_custom ($class, $client, $c) {
                 ( $file->{mimetype} ? ( $f->( attachment => 'mimetype' ) => $file->{mimetype} ) : () ),
             } );
         }
-        $client->execute_kw( $p->model_name('channel'), $p->action('post'), [ [$cid] ], {
-            body => $v->{body}, message_type => 'comment', subtype_xmlid => $p->action('comment_subtype'),
+        my $html_flag = $p->action('post_html_flag');
+        my $made_id = $client->execute_kw( $p->model_name('channel'), $p->action('post'), [ [$cid] ], {
+            body => $v->{body}, ( length $html_flag ? ( $html_flag => JSON::PP::true ) : () ), message_type => 'comment', subtype_xmlid => $p->action('comment_subtype'),
             ( defined $v->{reply_to} ? ( parent_id => $v->{reply_to} ) : () ),
             ( $v->{mentions} ? ( partner_ids => $v->{mentions} ) : () ),
             ( @made ? ( attachment_ids => \@made ) : () ),
         } );
+        # 16 to 18 answer the new message's id; 19 answers the recordset as a list of ids
+        ref $made_id eq 'ARRAY' ? $made_id->[0] : $made_id;
     };
     if ( my $e = $@ ) {
         eval { $att->unlink( \@made ) } if @made;

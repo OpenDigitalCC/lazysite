@@ -33,6 +33,10 @@ is there when the change made records as a side effect, see L<Odoo::Ops::Core::A
 same facts line by line; the result gathers them. C<failed_changes> is
 C<< [ { seq, key, action, model, id, message } ] >> for every change that
 failed, with Odoo's message, so a screen can say why without the journal.
+C<held_changes> is C<< [ { seq, key, bucket, hold, reason } ] >> for every change
+that apply held because it needed a choice only the caller can make (a validation
+that opened the backorder wizard with no C<backorder> chosen: C<hold> is
+C<backorder-choice>, the reason names the short moves).
 
 =cut
 
@@ -64,6 +68,7 @@ sub new ($class, %args) {
         unlinked         => $args{unlinked} // {},
         custom           => $args{custom} // [],
         failed_changes   => $args{failed_changes} // [],
+        held_changes     => $args{held_changes} // [],
         invariants       => $args{invariants} // [],
         invariants_failed => $args{invariants_failed} // 0,
     }, $class;

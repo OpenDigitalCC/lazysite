@@ -10,6 +10,8 @@ use Odoo::Ops;
 use Odoo::Ops::Plan;
 use Odoo::Ops::Invariant;
 use Odoo::Ops::Modules;
+use Odoo::Ops::Guard;
+use Odoo::Ops::Registry;
 
 =head1 NAME
 
@@ -81,6 +83,17 @@ sub buckets     ($class) { [] }
 sub holds       ($class) { [] }
 sub fields      ($class) { [] }
 sub buckets_from ($class) { undef }
+
+=head2 undo_custom($journal_entry)
+
+Optional class method of an operation that plans C<custom> changes: what
+C<oom-ops revert> calls for one done change of its handler. It returns the
+opposite change to plan (a C<custom> change of the same handler, or a plain
+write, create or unlink), or C<(undef, $reason)> for a change it cannot undo,
+which the revert plan then holds as C<irreversible> with that reason. An
+operation that defines no C<undo_custom> says so: the plan line of each of its
+custom changes ends C<revert: none>, and a revert holds the change as
+irreversible, naming the operation.
 
 =head2 models_touched($change)
 
@@ -347,10 +360,103 @@ sub _run ($self) {
         my $scope = $self->scope_for('apply');
         my @inv = Odoo::Ops::Invariant->for_plan( $self->{ctx}, $plan );
         Odoo::Ops::Invariant->add_scope( $scope, @inv );
+        $self->check_plan_scope( $plan, $scope );
+        $self->mark_irreversible($plan);
         $plan->note( 'invariants checked at apply: ' . join( ', ', map { "$_->{name} ($_->{model})" } @inv ) ) if @inv;
         $plan->set_scope($scope);
         return $plan->finalize;
     } );
+}
+
+=head2 plan_calls($plan)
+
+The (model, method) pairs the plan's changes will call at apply, as
+C<< { "model.method" => [seq, ...] } >> with the change numbers that need each,
+and the handlers of the C<custom> changes that declare no C<calls>. A create
+is C<create> and the C<read> of its read-back (and C<search_read> when it has a
+C<unique_by>); a write is C<write> and C<read> (the before-image check and the
+read-back); an unlink is C<unlink> and C<read>; a call is its method (and
+C<read> when it has a before-image, and on the model a C<verify> reads); a
+custom change is what it declares in C<calls> (C<< [[model, method], ...] >>).
+A hold or a skip calls nothing.
+
+=cut
+
+sub plan_calls ($class, $plan) {
+    my ( %need, %undeclared );
+    for my $c ( @{ $plan->changes } ) {
+        my $a = $c->{action};
+        next if $a eq 'hold' || $a eq 'skip' || !defined $c->{model};
+        my @pairs;
+        if    ( $a eq 'create' ) { @pairs = ( [ $c->{model}, 'create' ], [ $c->{model}, 'read' ], ( $c->{unique_by} ? [ $c->{model}, 'search_read' ] : () ) ) }
+        elsif ( $a eq 'write' )  { @pairs = ( [ $c->{model}, 'write' ], [ $c->{model}, 'read' ] ) }
+        elsif ( $a eq 'unlink' ) { @pairs = ( [ $c->{model}, 'unlink' ], [ $c->{model}, 'read' ] ) }
+        elsif ( $a eq 'call' ) {
+            @pairs = ( [ $c->{model}, $c->{method} ] );
+            push @pairs, [ $c->{model}, 'read' ] if ref $c->{before} eq 'HASH' && $c->{id};
+            push @pairs, [ $c->{verify}{model}, 'read' ] if ref $c->{verify} eq 'HASH' && defined $c->{verify}{model};
+        }
+        elsif ( $a eq 'custom' ) {
+            if ( ref $c->{calls} eq 'ARRAY' ) { @pairs = map { [ @$_ ] } @{ $c->{calls} } }
+            else                              { $undeclared{ $c->{handler} } = 1 }
+        }
+        push @{ $need{ "$_->[0].$_->[1]" } }, $c->{seq} for @pairs;
+    }
+    return ( \%need, [ sort keys %undeclared ] );
+}
+
+=head2 check_plan_scope($plan, \%scope)
+
+Refuses at plan time, as C<refused/scope>, a plan whose changes will call a
+(model, method) pair outside the scope apply will run under (the operation's
+declared scope, the reads of the invariants, and the calls every scope
+allows), naming each pair and the changes that need it. A C<custom> change that
+declares no C<calls> cannot be checked now; the plan says so in a note and the
+guard checks it at apply.
+
+=cut
+
+sub check_plan_scope ($self, $plan, $scope) {
+    my ( $need, $undeclared ) = $self->plan_calls($plan);
+    my @out;
+    for my $k ( sort keys %$need ) {
+        my ( $model, $method ) = $k =~ /\A(.+)\.([^.]+)\z/;
+        next if Odoo::Ops::Guard->base_allows( $model, $method );
+        next if grep { $_ eq $method } @{ $scope->{$model} // [] };
+        my @seq = @{ $need->{$k} };
+        push @out, "$k (change" . ( @seq > 1 ? 's' : '' ) . ' ' . join( ', ', @seq[ 0 .. ( $#seq < 4 ? $#seq : 4 ) ] ) . ( @seq > 5 ? ' and ' . ( @seq - 5 ) . ' more' : '' ) . ')';
+    }
+    Odoo::Error->throw(
+        kind    => 'refused',
+        code    => 'scope',
+        message => 'the plan of ' . $self->op_name . ' will call ' . join( '; ', @out ) . ', which the operation does not declare',
+        fix     => 'declare each call in the operation\'s read_scope or write_scope (a model it writes also gets read); a custom change lists its calls in calls => [[model, method], ...]',
+    ) if @out;
+    $plan->note( 'scope checked at apply for ' . join( ', ', @$undeclared ) . ' (a custom change that declares no calls)' ) if @$undeclared;
+    return;
+}
+
+=head2 mark_irreversible($plan)
+
+A C<custom> change is undone by what its operation's C<undo_custom> returns.
+The plan line of a custom change whose operation has none ends
+C<revert: none>, so a person approving the plan knows C<oom-ops revert> will
+hold it as C<irreversible>. A change with no line of its own gets one.
+
+=cut
+
+sub mark_irreversible ($self, $plan) {
+    my %can;
+    for my $c ( @{ $plan->changes } ) {
+        next if $c->{action} ne 'custom' || !$c->{handler};
+        $can{ $c->{handler} } //= do {
+            my $h = eval { Odoo::Ops::Registry->new->class_for( $c->{handler} ) };
+            $h && $h->can('undo_custom') ? 1 : 0;
+        };
+        next if $can{ $c->{handler} };
+        $c->{line} = ( defined $c->{line} && length $c->{line} ? "$c->{line}; " : ( $c->{kind} // 'custom' ) . ( defined $c->{key} ? " $c->{key}: " : ': ' ) ) . 'revert: none';
+    }
+    return;
 }
 
 =head2 annotate_effects($plan)

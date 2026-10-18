@@ -20,22 +20,23 @@ Odoo::Ops::Discuss::Common - what the discuss operations share
 Not an operation: plain functions the C<discuss.*> operations call, so that
 the series gate, the web routes and the text conversions are written once.
 
-Discuss is Odoo's messaging: a channel (C<mail.channel> on 16) holds
-messages (C<mail.message> with C<model> C<mail.channel> and C<res_id> the
-channel) and a member row per partner (C<mail.channel.member>) that holds what
+Discuss is Odoo's messaging: a channel (C<mail.channel> on 16, C<discuss.channel>
+on 18 and 19) holds messages (C<mail.message> with C<model> the channel model
+and C<res_id> the channel) and a member row per partner (C<mail.channel.member>
+on 16, C<discuss.channel.member> on 18 and 19) that holds what
 the member has read. The operations act as the login OOM runs as. Posting is
 Odoo's public C<message_post> on the channel. Marking read and emptying a
-message have no public method on 16 (C<_channel_seen> and
-C<_message_update_content> are private, which Odoo refuses over RPC), so they
-use the two web routes Odoo's own client uses, over a web session as the
+message have no public method (C<_channel_seen> on 16, C<_mark_as_read> on 18
+and 19, and C<_message_update_content> are private, which Odoo refuses over
+RPC), so they use the two web routes Odoo's own client uses on that series, over a web session as the
 login: the session the Context already holds, or one opened from the
 config's login and password.
 
 =head2 ready($op)
 
 The discuss profile for this server, or a refusal. A series with no profile
-of its own is refused by name (C<series>): 17 and later rename the channel
-models and none was probed. The profile is then checked against the live
+of its own is refused by name (C<series>): the pack is probed on 16, 18 and 19
+and 17 was not. The profile is then checked against the live
 C<fields_get> (C<profile> when a mapped model or field is missing).
 
 =cut
@@ -57,8 +58,7 @@ sub _series_gate ( $name, $series, $p ) {
     Odoo::Error->throw(
         kind    => 'refused',
         code    => 'series',
-        message => "$name is not probed on Odoo $series: the discuss pack has a profile for series "
-            . $p->series . ' only (17 and later call the channel models discuss.channel and discuss.channel.member)',
+        message => "$name is not probed on Odoo $series: the discuss pack is probed on Odoo 16, 18 and 19 only",
     ) if $p->series != $series;
     return;
 }
@@ -126,6 +126,19 @@ sub html_text ($h) {
     $t =~ s/\n{3,}/\n\n/g;
     $t =~ s/\A\s+|\s+\z//g;
     return $t;
+}
+
+=head2 emptied($html)
+
+True when a body holds nothing: an empty body, or only the marker Odoo 18 and
+19 leave on a message whose content was removed (C<< <span class="o-mail-Message-edited"> >>).
+
+=cut
+
+sub emptied ($h) {
+    return 1 if !defined $h || ref $h;
+    (my $t = $h) =~ s{<span\s+class=["']o-mail-Message-edited["']\s*(?:/>|>\s*</span>)}{}g;
+    return length($t) ? 0 : 1;
 }
 
 =head2 text_html($text)

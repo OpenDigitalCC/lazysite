@@ -5,6 +5,7 @@ use warnings;
 use feature qw(signatures);
 no warnings 'experimental::signatures';
 
+use Digest::SHA ();
 use File::Spec;
 use Time::HiRes ();
 use YAML::PP ();
@@ -100,6 +101,28 @@ sub read ($class, $op, $name, %params) {
     return $report;
 }
 
+=head2 file_stamp($path)
+
+What a kept answer about a file is checked against: size, modification time
+and a digest of the content. The time alone cannot tell two writes of the
+same size apart when they land in one tick of the filesystem's clock (a
+version bump of C<1.0.0> to C<1.1.0> made at once), so the content is read;
+a pack's files are few and small.
+
+=cut
+
+sub file_stamp ($class, $path) {
+    my @st = Time::HiRes::stat($path);
+    my $sha = '';
+    if ( open my $fh, '<:raw', $path ) {
+        my $d = Digest::SHA->new(1);
+        $d->addfile($fh);
+        $sha = substr( $d->hexdigest, 0, 12 );
+        close $fh;
+    }
+    return join ':', $st[7] // 0, $st[9] // 0, $sha;
+}
+
 =head2 version_cmp($a, $b)
 
 C<-1>, C<0> or C<1> comparing two dotted versions component by component
@@ -193,7 +216,7 @@ sub discover ($class, $dirs, %args) {
     # a registry is made often in one process (every custom change of a plan asks for one): the answer is
     # kept while the manifests it came from are unchanged
     my $memo_key = join "\0", @$dirs, '--', sort keys %only;
-    my $sig = join ';', map { my @st = Time::HiRes::stat( File::Spec->catfile( $_, 'pack.yaml' ) ); join ':', $_, $st[7] // 0, $st[9] // 0 } map { @{ $seen{$_} } } sort keys %seen;
+    my $sig = join ';', map { join ':', $_, $class->file_stamp( File::Spec->catfile( $_, 'pack.yaml' ) ) } map { @{ $seen{$_} } } sort keys %seen;
     return $MEMO{$memo_key}{result} if $MEMO{$memo_key} && $MEMO{$memo_key}{sig} eq $sig;
     my %packs;
     for my $n ( sort keys %seen ) {

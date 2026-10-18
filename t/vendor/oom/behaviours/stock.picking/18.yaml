@@ -43,3 +43,7 @@ routes:
   validate_loop: { via: button_validate, why: returns True or a wizard action (res_model, context); create the wizard with that context and call process, until done. The immediate-transfer wizard no longer appears; the backorder and expiry wizards still do (18.0) }
   backdate: { via: write date_done; stock.move.date; stock.move.line.date, why: inherited from 16 (SC6), not read in 18.0 }
 probes: [acting_user_email, "module:product_expiry", "module:stock_account"]
+state:
+  field: state
+  written_by: actions
+  also: []

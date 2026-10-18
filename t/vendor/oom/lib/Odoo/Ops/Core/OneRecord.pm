@@ -53,7 +53,7 @@ the field and carries a fix line:
     the field is one2many or many2many (a later piece), or binary, reference, json or properties (not typed here)
     the text is not a value of the field's type
 
-Types: integer, float and monetary (a number), boolean (C<1 0 true false yes no>),
+Types: integer and many2one_reference (a whole number), float and monetary (a number), boolean (C<1 0 true false yes no>),
 date (C<YYYY-MM-DD>), datetime (C<YYYY-MM-DD HH:MM:SS>), selection (the key),
 many2one (an id), char, text, and html (plain text is made into paragraphs;
 text that starts with a tag is kept as written). An empty value clears a
@@ -62,7 +62,7 @@ boolean it is refused.
 
 =cut
 
-my %TYPED = map { $_ => 1 } qw(integer float monetary boolean date datetime selection many2one char text html);
+my %TYPED = map { $_ => 1 } qw(integer many2one_reference float monetary boolean date datetime selection many2one char text html);
 
 sub typed_values ($class, $op, $model, $fields, $set) {
     my %vals;
@@ -92,6 +92,7 @@ C<(1, $value)> in the field's terms, or C<(0, $why)>.
 
 sub coerce ($class, $d, $v) {
     my $type = $d->{type};
+    $type = 'integer' if $type eq 'many2one_reference';    # a number on the wire, on every series
     if ( $v =~ /\A\s*\z/ ) {
         return ( 1, JSON::PP::false ) if $type =~ /\A(?:char|text|html|date|datetime|selection|many2one)\z/;
         return ( 0, "an empty value is not a $type value" );
@@ -125,7 +126,7 @@ How a value of the field is written, for a fix line.
 sub shape ($class, $d) {
     my $t = $d->{type} // '';
     return {
-        integer => 'a whole number', float => 'a number', monetary => 'a number', boolean => 'true or false',
+        integer => 'a whole number', many2one_reference => 'a whole number (the id)', float => 'a number', monetary => 'a number', boolean => 'true or false',
         date => 'YYYY-MM-DD', datetime => 'YYYY-MM-DD HH:MM:SS', many2one => 'the id of the record it points at',
         selection => 'one of ' . join( ', ', map { $_->[0] } @{ $d->{selection} // [] } ),
     }->{$t} // 'text';

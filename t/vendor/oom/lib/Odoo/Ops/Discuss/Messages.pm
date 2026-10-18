@@ -39,7 +39,7 @@ after the login's last seen message; false for a login with no membership row).
 A message emptied by C<discuss.delete> reads with an empty body.
 
 The channel is read as the login: a channel it cannot read is refused by name.
-Series: written for Odoo 16; another series is refused by name.
+Series: 16, 18 and 19; 17 is refused by name as not probed.
 
 =cut
 

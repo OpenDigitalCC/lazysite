@@ -47,7 +47,7 @@ names in C<pack_dirs> (or C<$ENV{ODOO_OOM_PACK_DIRS}>, else the installed
 C</usr/share/odoo-oom/packs>), limited by C<pack>. Each pack's operations are
 named C<E<lt>packE<gt>.E<lt>opE<gt>>; the scan of a pack is kept in
 C<pack-index.json> in the cache directory, checked on every start against the
-pack's version and its files' names, sizes and times, and the pack's C<lib/>
+pack's version and its files' names, sizes, times and content digests, and the pack's C<lib/>
 joins C<@INC> only when one of its operations loads. A pack that fails its
 checks is refused (L</refused>) and its operations are absent; asking for one
 says why. C<< Odoo::Ops::Registry->use_config($config) >> makes the registries
@@ -172,8 +172,7 @@ sub _pack_signature ($self, $m) {
     my @parts = ( $m->{version} );
     my $dir   = File::Spec->catdir( $m->{lib}, split /::/, $m->{namespace} );
     for my $f ( File::Spec->catfile( $m->{dir}, 'pack.yaml' ), $self->_pack_modules($dir) ) {
-        my @st = Time::HiRes::stat($f);
-        push @parts, join ':', File::Spec->abs2rel( $f, $m->{dir} ), $st[7] // 0, $st[9] // 0;
+        push @parts, join ':', File::Spec->abs2rel( $f, $m->{dir} ), Odoo::Ops::Pack->file_stamp($f);
     }
     return join ';', @parts;
 }

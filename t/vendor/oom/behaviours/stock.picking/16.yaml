@@ -39,3 +39,7 @@ routes:
   validate_loop: { via: button_validate, why: returns True or a wizard action (res_model, context); create the wizard with that context and call process, until done (SD3); a wizard create returns a list of ids - unwrap before process (SD2) }
   backdate: { via: write date_done; stock.move.date; stock.move.line.date, why: writable after validation, and what the reports read (SC6) }
 probes: [acting_user_email, "module:product_expiry", "module:stock_account"]
+state:
+  field: state
+  written_by: actions
+  also: []

@@ -7,7 +7,7 @@ use Scalar::Util ();
 use builtin qw(is_bool created_as_number);
 no warnings 'experimental::builtin';
 
-our $VERSION = '0.32';
+our $VERSION = '0.33';
 
 =head1 NAME
 
@@ -29,6 +29,9 @@ to hold Odoo's type names:
 
     text integer decimal boolean date datetime enum
 
+A C<many2one_reference> (the C<res_id> of a C<res_model>/C<res_id> pair) is
+C<integer>.
+
 The mapping is deliberately conservative. A type with more than one
 sensible reading gets none: C<many2one> (an id or a display name?),
 C<html>, C<binary>, the x2many types, C<reference>, C<json>,
@@ -46,6 +49,7 @@ my %TYPE = (
     char      => 'text',
     text      => 'text',
     integer   => 'integer',
+    many2one_reference => 'integer',    # the id half of a res_model/res_id pair
     float     => 'decimal',
     monetary  => 'decimal',
     boolean   => 'boolean',

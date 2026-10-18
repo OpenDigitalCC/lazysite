@@ -203,7 +203,7 @@ sub apply ($class, $ctx, $plan, %opts) {
         my $inv_before = Odoo::Ops::Invariant->measure_all( $client, \@invariants );
 
         my ( %counts, %by_bucket, %refs, $verified, $not_verified, $stopped );
-        my ( %created, %written, %unlinked, @custom, @failed );    # what the result reports back
+        my ( %created, %written, %unlinked, @custom, @failed, @held );    # what the result reports back
         my $record = sub ( $c, $entry, $outcome ) {
             $refs{ $c->{ref} } = $entry->{id} if $outcome eq 'done' && defined $c->{ref};
             if ( $outcome eq 'done' ) {
@@ -289,11 +289,22 @@ sub apply ($class, $ctx, $plan, %opts) {
                         my $resolved = { %$c, vals => _resolve_refs( $c->{vals}, \%refs ),
                             ( defined $c->{id_ref} ? ( id => _resolve_refs( { '$ref' => $c->{id_ref} }, \%refs ) ) : () ) };
                         $entry{vals} = $resolved->{vals} if exists $c->{vals};
-                        my $after = $class->_do_change( $client, $resolved, \%entry );
+                        my $after = $class->_do_change( $client, $resolved, \%entry, $ctx );
                         if ($after) { $verified++ } else { $not_verified++ }
                         1;
                     };
-                    if ( !$ok ) { $outcome = 'failed'; $fail->( $c, \%entry, $@ ) }
+                    if ( !$ok ) {
+                        my $err = $@;
+                        # Odoo asked which way a backorder goes and the change did not say: held, with the moves
+                        # short, for the caller to decide (the transfer stays staged)
+                        if ( blessed($err) && $err->isa('Odoo::Error') && $err->kind eq 'refused' && ( $err->code // '' ) eq 'backorder-choice' ) {
+                            $outcome = 'held';
+                            $entry{reason} = $err->message . '; fix: ' . $err->fix;
+                            $entry{hold}   = 'backorder-choice';
+                            push @held, { seq => $c->{seq}, key => $c->{key}, bucket => $c->{bucket}, hold => 'backorder-choice', reason => $entry{reason} };
+                        }
+                        else { $outcome = 'failed'; $fail->( $c, \%entry, $err ) }
+                    }
                 }
                 $record->( $c, \%entry, $outcome );
             }
@@ -324,6 +335,7 @@ sub apply ($class, $ctx, $plan, %opts) {
             unlinked         => \%unlinked,
             custom           => \@custom,
             failed_changes   => \@failed,
+            held_changes     => \@held,
             invariants       => \@inv_rows,
             invariants_failed => $inv_failed,
         );
@@ -535,7 +547,7 @@ sub _resolve_refs ($v, $refs) {
 }
 
 # Returns the after-image when the change was read back.
-sub _do_change ($class, $client, $c, $entry) {
+sub _do_change ($class, $client, $c, $entry, $ctx = undef) {
     my $model = $client->model( $c->{model} );
     my $action = $c->{action};
     my @ctx    = $c->{context} ? ( context => $c->{context} ) : ();
@@ -588,6 +600,8 @@ sub _do_change ($class, $client, $c, $entry) {
     }
     if ( $action eq 'call' ) {
         my $ids = $c->{ids} // ( $c->{id} ? [ $c->{id} ] : [] );
+        # no verify: the model's state, when its behaviour file names one, is read before and after
+        my ( $sfield, $sbefore, $swhy ) = $c->{verify} ? () : $class->_call_state( $ctx, $client, $c->{model}, $ids );
         my $ret = $client->execute_kw( $c->{model}, $c->{method},
             [ $ids, @{ $c->{args} // [] } ], $c->{kwargs} // {} );
         $entry->{returned} = $ret if !ref $ret || ( ref $ret eq 'ARRAY' && !grep { ref } @$ret );
@@ -607,9 +621,34 @@ sub _do_change ($class, $client, $c, $entry) {
             }
             return $entry->{after} = $ok ? { ids => \@made, %{ $v->{fields} } } : undef;
         }
+        if ( defined $sfield ) {
+            my $rows = $client->model( $c->{model} )->read( $ids, [$sfield] );
+            my %now = map { $_->{id} => $_->{$sfield} } @$rows;
+            if ( !@$rows || @$rows != @$ids ) {
+                $entry->{unverified} = "the call was made and $c->{model} " . ( @$rows ? 'some of ' : '' ) . "$c->{method}'s records no longer read ($sfield could not be read back)";
+                return undef;
+            }
+            $entry->{state_read} = join( '; ', map { (@$ids > 1 ? "$_: " : '') . "$sfield " . ($sbefore->{$_} // 'none') . ' -> ' . ($now{$_} // 'none') } @$ids );
+            return $entry->{after} = { ids => [@$ids], $sfield => ( @$ids == 1 ? $now{ $ids->[0] } : \%now ) };
+        }
+        $entry->{unverified} = $swhy if defined $swhy;
         return undef;
     }
     Odoo::Error->throw( kind => 'usage', message => "cannot apply action '$action'" );
+}
+
+# The state field a call is read back by: the one the model's behaviour file
+# names, read before the call. Returns (field, { id => state }) or, for a call
+# that stays not verified, (undef, undef, the reason, in words).
+sub _call_state ($class, $ctx, $client, $model, $ids) {
+    return ( undef, undef, undef ) if !@$ids;
+    my $st = $ctx ? $ctx->behaviour($model)->state_info : undef;
+    return ( undef, undef, "not verified: $model names no state field in its behaviour file, and the call named no verify" ) if !$st || !defined $st->{field};
+    my $field = $st->{field};
+    return ( undef, undef, "not verified: $model has no field '$field' on this server" ) if !$client->model($model)->fields->{$field};
+    return ( undef, undef, "not verified: the operation's scope does not read $model" ) if $ctx->guard->can('allows') && !$ctx->guard->allows( $model, 'read' );
+    my $rows = $client->model($model)->read( $ids, [$field] );
+    return ( $field, { map { $_->{id} => $_->{$field} } @$rows } );
 }
 
 sub _read_back ($class, $model, $id, $vals) {
@@ -1153,7 +1192,7 @@ sub _inbound_words ($r) {
 sub _undo_custom ($class, $entry) {
     my $h = eval { Odoo::Ops::Registry->new->class_for( $entry->{handler} ) };
     return ( undef, "$entry->{handler} is not a known operation here; its change has no known inverse", undef ) if !$h;
-    return ( undef, "$entry->{handler} has no inverse (e.g. a sent email)", $h ) if !$h->can('undo_custom');
+    return ( undef, "$entry->{handler} has no inverse: the operation defines no undo_custom, so oom-ops revert holds its change as irreversible (e.g. a sent email)", $h ) if !$h->can('undo_custom');
     my ( $undo, $why ) = $h->undo_custom($entry);
     return ( $undo, $why, $h );
 }

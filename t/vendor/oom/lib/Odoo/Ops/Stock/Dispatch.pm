@@ -416,7 +416,6 @@ sub _plan_row ($self, $plan, $env, $row) {
             pick => $pick ? { id => $pick->{id}, name => $pn, state => $pick->{$state} } : undef,
             delivery => { id => $del->{id}, name => $dn, state => $del->{$state}, pending => ( $pending ? JSON::PP::true : JSON::PP::false ) },
             moves => \@moves,
-            close_backorder => JSON::PP::true,
             allow_expired => ( $allow{expired} || $placeholder ? JSON::PP::true : JSON::PP::false ),
             reservations_released => \%res,
         },
@@ -610,7 +609,7 @@ sub _apply ($class, $client, $p, $v, $did) {
         my $pid = $v->{pick}{id};
         $class->_stage( $client, $p, $pid, [ map { +{ move => $_->{move}, product => $_->{product}, uom => $_->{uom}, destination => $_->{destination}, lines => $_->{portions} } } @moves ] );
         push @$did, "staged $v->{pick}{name}";
-        $wizards{$pid} = Odoo::Ops::Stock::Validate->run( $client, $p, $pid, close_backorder => 1, allow_expired => $v->{allow_expired} );
+        $wizards{$pid} = Odoo::Ops::Stock::Validate->run( $client, $p, $pid, backorder => 'cancel', allow_expired => $v->{allow_expired} );
         push @validated, $pid;
         push @$did, "validated $v->{pick}{name}";
     }
@@ -645,7 +644,7 @@ sub _apply ($class, $client, $p, $v, $did) {
     $class->_stage( $client, $p, $did_, [ map { +{ move => $_->{out_move}, product => $_->{product}, uom => $_->{out_uom}, destination => $_->{out_destination},
         lines => ( $v->{stage} eq 'pick' ? $_->{out_lines} : $_->{portions} ) } } @moves ] );
     push @$did, "staged $v->{delivery}{name}";
-    $wizards{$did_} = Odoo::Ops::Stock::Validate->run( $client, $p, $did_, close_backorder => 1, allow_expired => $v->{allow_expired} );
+    $wizards{$did_} = Odoo::Ops::Stock::Validate->run( $client, $p, $did_, backorder => 'cancel', allow_expired => $v->{allow_expired} );
     push @validated, $did_;
     push @$did, "validated $v->{delivery}{name}";
 

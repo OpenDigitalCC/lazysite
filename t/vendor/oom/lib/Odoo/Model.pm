@@ -52,6 +52,10 @@ binary or many2one; L<Odoo::Client/execute_kw> reads those by their
 C<fields_get> type and gives undef, so a string C<"0"> is a value and an
 empty field is not. A boolean is C<1> or C<0>, a number is a number.
 
+Record ids are positive integers. C<read>, C<browse>, C<write>, C<unlink> and
+C<copy> turn an id given as a numeric string (a Perl hash key, say) into a
+number before it is sent, and refuse any other value as C<usage>, naming it.
+
 Every method accepts a trailing C<< context => \%ctx >> option which
 is merged over the client's default context.
 
@@ -166,6 +170,7 @@ sub read ($self, $ids, $fields = undef, %opts) {
         message => 'read takes an arrayref of ids (see read_one)',
     ) if ref $ids ne 'ARRAY';
     return [] if !@$ids;
+    $ids = _id_list($ids);
     my $kw = _kwargs(\%opts);
     $kw->{fields} = $fields if $fields;
     my $rows = $self->{client}->execute_kw(
@@ -299,6 +304,7 @@ field.
 
 sub browse ($self, $ids, %opts) {
     if ( ref $ids eq 'ARRAY' ) {
+        $ids = _id_list($ids);
         return Odoo::RecordSet->new(
             model  => $self,
             ids    => $ids,
@@ -309,6 +315,7 @@ sub browse ($self, $ids, %opts) {
         kind    => 'usage',
         message => 'browse takes a record id or an arrayref of ids',
     ) if !defined $ids || ref $ids;
+    $ids = _id_list( [$ids] )->[0];
     return $self->record_class->new(
         model  => $self,
         id     => $ids,
@@ -549,12 +556,26 @@ sub copy ($self, $id, $defaults = undef, %opts) {
 }
 
 sub _ids ($ids) {
-    return $ids if ref $ids eq 'ARRAY';
+    return _id_list($ids) if ref $ids eq 'ARRAY';
     Odoo::Error->throw(
         kind    => 'usage',
         message => 'expected a record id or an arrayref of ids',
     ) if !defined $ids || ref $ids;
-    return [$ids];
+    return _id_list( [$ids] );
+}
+
+# Record ids reach Odoo as numbers. A Perl value that was used as a hash key
+# is a string and JSON-encodes as one, which Odoo answers with a fetch error
+# that names no cause; so a numeric string is made a number here, and anything
+# that is not a positive integer is refused by name.
+sub _id_list ($ids) {
+    return [
+        map {
+            Odoo::Error->throw( kind => 'usage', message => 'a record id must be a positive integer, got ' . ( !defined $_ ? 'undef' : ref $_ ? ref($_) . ' reference' : "'$_'" ) )
+                if !defined $_ || ref $_ || $_ !~ /\A[1-9][0-9]*\z/;
+            0 + $_;
+        } @$ids
+    ];
 }
 
 =head2 execute($method, \@args, \%kwargs)

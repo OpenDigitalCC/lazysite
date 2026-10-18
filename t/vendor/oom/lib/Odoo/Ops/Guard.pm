@@ -105,11 +105,17 @@ sub derive ($self, $inner, %args) {
     return $d;
 }
 
-sub allows ($self, $model, $method) {
+# The calls every scope allows (see the DESCRIPTION).
+sub base_allows ($class, $model, $method) {
     return 1 if $method eq 'fields_get';
     return 1 if $model eq 'res.users' && $method eq 'read';
     # the date a model's field definitions last changed: what a kept fields_get is checked against
     return 1 if $model eq 'ir.model.fields' && ($method eq 'search_read' || $method eq 'search_count');
+    return 0;
+}
+
+sub allows ($self, $model, $method) {
+    return 1 if $self->base_allows( $model, $method );
     return !!( $self->{scope} && $self->{scope}{$model} && $self->{scope}{$model}{$method} );
 }
 

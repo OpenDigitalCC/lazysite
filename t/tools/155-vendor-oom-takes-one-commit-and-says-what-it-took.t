@@ -34,6 +34,8 @@ my %FILE = (
     'profiles/crm/16.yaml'        => "b: 2\n",
     'docs/MAPPER-SPEC.md'         => "# Spec\n\n## Open\n\n- one\n",
     'debian/copyright'            => "Format: x\nLicense: Artistic-1.0-Perl\n",
+    'bin/oomd'                    => "#!/usr/bin/perl\nprint 1;\n",
+    'bin/oom-ops'                 => "#!/usr/bin/perl\nprint 2;\n",
     'lib/Odoo/NotVendoredFromHere.txt' => "x\n",
 );
 spit( "$repo/$_", $FILE{$_} ) for keys %FILE;
@@ -62,6 +64,8 @@ subtest 'a commit becomes a snapshot with a MANIFEST that says so' => sub {
         'docs/MAPPER-SPEC.md', 'COPYRIGHT-OOM', 'MANIFEST' ) {
         ok( -f "$dest/$f", "$f is in the snapshot" );
     }
+    ok( -x "$dest/bin/oomd", 'bin/oomd is in the snapshot and executable (SM1164)' );
+    ok( !-e "$dest/bin/oom-ops", 'and it is the only file taken from bin/' );
     my $m = do { open my $fh, '<', "$dest/MANIFEST" or die $!; local $/; <$fh> };
     like( $m, qr/^source-commit: \Q$commit\E$/m,    'the MANIFEST names the commit' );
     like( $m, qr/^source-subject: Package 9\.99$/m, 'and its subject' );

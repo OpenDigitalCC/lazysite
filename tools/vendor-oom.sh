@@ -19,6 +19,7 @@
 #   behaviours/ profiles/  OOM's data, found beside lib/ by OOM itself
 #   docs/MAPPER-SPEC.md  the specification SM747 files a copy of
 #   debian/copyright     the licence notice, kept as COPYRIGHT-OOM
+#   bin/oomd             the daemon's front door (SM1164), the only file taken from bin/
 # With --deb FILE it also checks that the deb's library and spec are byte-identical to
 # COMMIT's, so the snapshot is known to be what that release shipped; without it the
 # snapshot is "commit COMMIT" and says so.
@@ -52,7 +53,7 @@ mkdir -p "$TMP"
 
 git -C "$REPO" rev-parse --verify --quiet "$COMMIT^{commit}" >/dev/null || { echo "vendor-oom: no commit $COMMIT in $REPO" >&2; exit 1; }
 FULL="$(git -C "$REPO" rev-parse "$COMMIT^{commit}")"
-git -C "$REPO" archive "$FULL" lib t/lib behaviours profiles docs/MAPPER-SPEC.md debian/copyright | tar -x -C "$TMP"
+git -C "$REPO" archive "$FULL" lib t/lib bin/oomd behaviours profiles docs/MAPPER-SPEC.md debian/copyright | tar -x -C "$TMP"
 
 DEBVER=''
 if [ -n "$DEB" ]; then
@@ -65,18 +66,26 @@ if [ -n "$DEB" ]; then
         || { echo "vendor-oom: the deb's library is not commit $COMMIT's - it was built from another commit" >&2; exit 1; }
     zcat "$TMP/deb/usr/share/doc/libodoo-oom-perl/MAPPER-SPEC.md.gz" | cmp -s - "$TMP/docs/MAPPER-SPEC.md" \
         || { echo "vendor-oom: the deb's spec is not commit $COMMIT's" >&2; exit 1; }
+    # SM1164: the daemon's front door is in odoo-oom-tools; the tests run this copy, never the host's.
+    if [ -n "$EXTRA_DEB" ]; then
+        cmp -s "$TMP/bin/oomd" "$TMP/deb/usr/bin/oomd" \
+            || { echo "vendor-oom: the tools deb's /usr/bin/oomd is not commit $COMMIT's bin/oomd" >&2; exit 1; }
+    fi
 fi
 
 rm -rf "$DEST"
 mkdir -p "$DEST/docs" "$DEST/t"
 cp -R "$TMP/lib" "$DEST/lib"
 cp -R "$TMP/t/lib" "$DEST/t/lib"
+mkdir -p "$DEST/bin"
+cp "$TMP/bin/oomd" "$DEST/bin/oomd"
 cp -R "$TMP/behaviours" "$DEST/behaviours"
 cp -R "$TMP/profiles" "$DEST/profiles"
 cp "$TMP/docs/MAPPER-SPEC.md" "$DEST/docs/MAPPER-SPEC.md"
 cp "$TMP/debian/copyright" "$DEST/COPYRIGHT-OOM"
 find "$DEST" -type d -exec chmod 0755 {} +
 find "$DEST" -type f -exec chmod 0644 {} +
+chmod 0755 "$DEST/bin/oomd"
 
 {
     echo "# The pinned snapshot of OOM that lazysite's tests run on (SM1081). Refreshed only by"

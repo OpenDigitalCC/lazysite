@@ -1,0 +1,187 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use feature qw(say);
+
+use FindBin ();
+use lib "$FindBin::RealBin/../lib";
+
+use Getopt::Long qw(GetOptionsFromArray :config no_ignore_case bundling);
+
+use Odoo::Error;
+use Odoo::Ops;
+use Odoo::Ops::Daemon;
+use Odoo::Ops::Version;
+
+# Thin front door: parse, dispatch, print. The work is in Odoo::Ops::Daemon.
+# Exit: 0 ok, 1 refused or failed, 2 usage or config.
+
+sub usage {
+    return <<'EOT';
+usage: oomd --name NAME --config FILE [--foreground]    start a daemon
+       oomd --check (--name NAME | --socket PATH)       ask a running daemon's health; exit 0 or 1
+       oomd status [--name NAME]                        the running daemons of this user
+       oomd --version
+
+A daemon has a name, and the name keys its socket, pid file, log and cache directory.
+It serves the one Odoo instance its config names; any number of daemons, each with its
+own name, config and user, may serve the same instance.
+
+  --foreground   stay in the foreground (for a supervisor): print "oomd NAME ready SOCKET"
+                 when the socket accepts. SIGTERM finishes the requests in hand, removes
+                 the socket and exits 0; SIGHUP reloads the config and the packs.
+EOT
+}
+
+my @argv = @ARGV;
+my %o;
+my $cmd = '';
+$cmd = shift @argv if @argv && $argv[0] =~ /\A(?:status)\z/;
+GetOptionsFromArray( \@argv, \%o, qw(name|n=s config|c=s socket|s=s foreground|f check version help|h) )
+    or do { print STDERR usage(); exit 2 };
+
+if ( $o{help} )    { print usage(); exit 0 }
+if ( $o{version} ) { say "oomd $Odoo::Ops::Version::VERSION"; exit 0 }
+
+my $rc = eval {
+    if ( $cmd eq 'status' ) {
+        my @d = Odoo::Ops::Daemon->status;
+        @d = grep { $_->{name} eq $o{name} } @d if defined $o{name};
+        say 'no daemons running' if !@d && !defined $o{name};
+        for my $d (@d) {
+            my $h = $d->{health};
+            if ( $d->{ok} ) {
+                my $w = $h->{workers};
+                say join ' ', "$d->{name}", "pid=$h->{pid}", "ok", "version=$h->{version}", "workers=$w->{total}", "busy=$w->{busy}", "uptime=$h->{uptime}s", $d->{socket};
+            }
+            else { say join ' ', $d->{name}, 'pid=' . ( $d->{pid} // '-' ), 'not answering', $d->{socket} }
+        }
+        return defined $o{name} && !@d ? 1 : 0;
+    }
+    if ( $o{check} ) {
+        Odoo::Error->throw( kind => 'usage', message => '--check needs --name NAME or --socket PATH' ) if !defined $o{name} && !defined $o{socket};
+        my $who = defined $o{name} ? $o{name} : $o{socket};
+        my $h = eval { defined $o{socket} ? Odoo::Ops::Daemon->health( socket => $o{socket} ) : Odoo::Ops::Daemon->health( name => $o{name} ) };
+        if ( !$h ) {
+            print STDERR "oomd $who: not answering\n";
+            return 1;
+        }
+        say "oomd $who ok version=$h->{version} pid=$h->{pid} workers=$h->{workers}{total}";
+        return 0;
+    }
+    Odoo::Error->throw( kind => 'usage', message => 'oomd needs --name NAME and --config FILE', fix => 'oomd --help' ) if !defined $o{name} || !defined $o{config};
+    return Odoo::Ops::Daemon->start( name => $o{name}, config => $o{config}, foreground => $o{foreground} );
+};
+if ( !defined $rc ) {
+    my $e = $@;
+    if ( ref $e && $e->isa('Odoo::Error') ) {
+        print STDERR 'oomd: ', $e->kind, ( $e->code && $e->code ne $e->kind ? '/' . $e->code : '' ), ': ', $e->message, "\n";
+        print STDERR 'fix: ', $e->fix, "\n" if defined $e->fix && length $e->fix;
+        exit( $e->kind =~ /\A(?:usage|config)\z/ ? 2 : 1 );
+    }
+    print STDERR "oomd: $e";
+    exit 1;
+}
+exit $rc;
+
+__END__
+
+=head1 NAME
+
+oomd - a resident OOM: named, several to an Odoo instance, started by lazysite or systemd
+
+=head1 SYNOPSIS
+
+  oomd --name NAME --config FILE [--foreground]
+  oomd --check (--name NAME | --socket PATH)
+  oomd status [--name NAME]
+  oomd --version
+
+=head1 DESCRIPTION
+
+C<oomd> hosts the operations of L<oom-ops(1)> in a pool of worker processes and
+serves them over an owner-only unix socket, one JSON object per line. It adds
+no behaviour: a request produces the report, plan or result C<oom-ops> produces in
+its own process, through the same guard, plans, journals, audit and refusals. What
+it saves is the cost of starting: loading OOM and the operations, the sign-in, the
+TLS connection and the field definitions are paid once.
+
+Every daemon has a name, and the name keys everything it owns: the socket
+(F<$XDG_RUNTIME_DIR/oomd/NAME.sock>, else F</tmp/oomd-UID/NAME.sock>, in a
+directory only its owner can enter), the pid file, the log (F<$XDG_STATE_HOME/oomd/NAME.log>)
+and the cache directory (F<$XDG_CACHE_HOME/oomd/NAME>). Starting a name that is
+running is refused, naming its pid. A daemon serves one Odoo database and refuses a
+request for another. Any number of daemons may serve the same instance, each with its
+own name, config and user; none holds a lock or state another needs.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<--name> NAME
+
+The daemon's name: letters, digits, dot, dash and underscore.
+
+=item B<--config> FILE
+
+The daemon's config: an ops config (see L<oom-ops(1)>) with the keys C<workers>
+(default 4), C<max_requests> (a worker is replaced after this many, default 500),
+C<shutdown_deadline> (seconds, default 30), C<socket>, C<log> and C<credentials>
+(C<label:/path/to/key-file>, comma separated). An unknown key is refused, and so is a
+key written inline: a credential is a path.
+
+=item B<--foreground>
+
+Do not detach. For a supervisor: lazysite's, or a systemd user unit
+(F<oomd@.service> is shipped as a template; nothing enables it).
+
+=item B<--socket> PATH
+
+With C<--check>: ask the daemon at this socket, whatever its name or where the
+socket is. A daemon started with a C<socket> of its own in its config is also
+found by C<--name>.
+
+=item B<--check>
+
+Ask the named daemon's (or the socket's) health verb; exit 0 when it answers, 1 when it does not.
+
+=item B<status>
+
+List the running daemons of this user, with their health. Each running daemon keeps a
+small owner-only record (name, pid, socket) in the runtime directory and removes it
+when it exits, so a daemon whose socket is somewhere of its own is listed too. A record
+whose process is gone is removed.
+
+=back
+
+=head1 READY, SIGNALS
+
+When the socket accepts, C<oomd> prints one line on standard output, C<oomd NAME ready SOCKET>
+(detached, the parent prints it and exits 0). SIGTERM finishes the requests in hand (for at most
+C<shutdown_deadline> seconds), removes the socket and exits 0. SIGHUP reloads the config and the
+packs without dropping the socket. A pack whose version changed is loaded again by the next
+request that uses it.
+
+=head1 PROTOCOL
+
+One request and one response per line.
+
+  {"v":1,"op":"core.get","phase":"run","params":{...},"credential":{"label":"conn"},"actor":"...","id":"..."}
+  {"v":1,"verb":"health"}
+  {"id":"...","ok":true,"result":{...}}
+  {"id":"...","ok":false,"error":{"kind":"refused","code":"stale","message":"...","fix":"..."}}
+
+C<phase> is C<run>, C<check>, C<apply>, C<revert>, C<resume> or C<approve>. A key is never sent:
+the request names a label of the config's C<credentials> (C<conn> is the config's own key), or
+carries a person's session id, which is used for that request only and kept nowhere. The log
+holds the request id, the operation, the outcome and the milliseconds, and nothing else.
+
+=head1 EXIT STATUS
+
+0 ok; 1 refused or failed (a name already running, no answer); 2 usage or config.
+
+=head1 SEE ALSO
+
+L<oom-ops(1)>, L<Odoo::Ops::Daemon>, L<Odoo::Ops::Client::Daemon>.
+
+=cut

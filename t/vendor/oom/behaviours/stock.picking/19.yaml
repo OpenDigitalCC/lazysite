@@ -38,3 +38,7 @@ effects:
 routes:
   validate_loop: { via: button_validate, why: returns True or a wizard action; same loop as 16 }
 probes: [acting_user_email, "module:product_expiry", "module:stock_account"]
+state:
+  field: state
+  written_by: actions
+  also: []

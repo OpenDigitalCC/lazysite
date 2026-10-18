@@ -26,8 +26,9 @@ C<discuss.seen>: marks the channel read for the login the config runs as, up to
 C<message> (a message id in that channel) or, without it, the newest message.
 Odoo holds this on the member's row: C<seen_message_id> (the last message read),
 C<fetched_message_id> and the unread counter it computes. Its own client does it
-at the web route C</mail/channel/set_last_seen_message>, because the method
-behind it (C<_channel_seen>) is private and Odoo refuses private methods over
+at the web route C</mail/channel/set_last_seen_message> on 16 and
+C</discuss/channel/mark_as_read> on 18 and 19, because the method behind it
+(C<_channel_seen> on 16, C<_mark_as_read> on 18 and 19) is private and Odoo refuses private methods over
 RPC; so apply runs over a web session as the login (see
 L<Odoo::Ops::Discuss::Common>). Apply reads the member's seen message back.
 
@@ -43,8 +44,10 @@ and a revert is held C<irreversible>, saying so.
     no-messages      the channel has no message - held
 
 A login with no membership row in the channel is planned like any other and
-Odoo answers on apply (the route answers 404 Not Found to a non-member). Series:
-written for Odoo 16; another series is refused by name.
+Odoo answers on apply: 16 answers 404 Not Found to a non-member; 18 and 19
+return without a word and change nothing, which apply reads back and says
+(no membership row, nothing moved). Series: 16, 18 and 19; 17 is refused by
+name as not probed.
 
 =cut
 
@@ -142,7 +145,9 @@ sub apply_custom ($class, $client, $c) {
         reported => 'write',
         returned => {
             method => 'set_last_seen_message', previous => $v->{previous}, seen => $now,
-            says   => "channel $v->{channel} read up to message " . ( $now // 'none' ),
+            says   => ( @$rows
+                ? "channel $v->{channel} read up to message " . ( $now // 'none' )
+                : "channel $v->{channel}: this login has no membership row there; Odoo answered and moved nothing" ),
         },
         after => ( defined $now && $now >= $v->{message} ? \%after : undef ),
     };

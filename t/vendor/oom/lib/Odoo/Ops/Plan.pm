@@ -46,6 +46,12 @@ change that takes several calls, such as sending one email through the
 composer), C<skip> and C<hold> (nothing is sent; C<hold> means it needs
 a person's decision).
 
+A C<custom> change lists the calls its apply makes as C<< calls => [ [ model,
+method ], ... ] >> (physical model names, the C<read> of its read-backs
+included), so the operation's scope is checked when the plan is made
+(L<Odoo::Ops::Operation/check_plan_scope>); one that lists none is checked by
+the guard at apply.
+
 C<finalize> refuses a plan whose bucket counts do not sum to
 C<input_count>, when one is given: every input row is accounted for,
 in exactly one bucket. Changes marked C<< support => 1 >> - a tag or

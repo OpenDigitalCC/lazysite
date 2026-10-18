@@ -506,6 +506,7 @@ sub _is_bool ($v) { return JSON::PP::is_bool($v) || builtin::is_bool($v) ? 1 : 0
 # (ok, value) in the field's terms, or (0, why not)
 sub _coerce ($d, $v) {
     my $type = $d->{type};
+    $type = 'integer' if $type eq 'many2one_reference';    # the id half of res_model/res_id: a number on the wire, on every series
     if ( ref $v && !_is_bool($v) && $type ne 'binary' ) {
         return ( 0, ( ref $v eq 'HASH' ? 'an object' : 'a list' ) . " where one $type value is expected" );
     }
@@ -589,7 +590,7 @@ sub _resolve ($self, $fld, $relation, $name) {
 
 sub _empty ($v, $type) {
     return 1 if !defined $v;
-    return 0 if $type =~ /^(integer|float|monetary|boolean)\z/;
+    return 0 if $type =~ /^(integer|many2one_reference|float|monetary|boolean)\z/;
     return 1 if !ref $v && $v eq '';
     return 1 if $type eq 'html' && _text($v) eq '';
     return 0;
@@ -598,7 +599,7 @@ sub _empty ($v, $type) {
 sub _same ($old, $new, $type) {
     return ( $old ? 1 : 0 ) == ( $new ? 1 : 0 ) if $type eq 'boolean';
     return 0 if !defined $old;
-    return $old == $new if $type =~ /^(integer|float|monetary)\z/;
+    return $old == $new if $type =~ /^(integer|many2one_reference|float|monetary)\z/;
     return _text($old) eq _text($new) if $type eq 'html';
     return "$old" eq "$new";
 }

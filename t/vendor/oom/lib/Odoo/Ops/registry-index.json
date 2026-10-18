@@ -25,7 +25,7 @@
          }
       },
       "Odoo::Ops::Core" : {
-         "files" : "Access.pm,Action.pm,ActionCommon.pm,Archive.pm,Attach.pm,Check.pm,Configure.pm,Credential.pm,Doctor.pm,Fetch.pm,Get.pm,Import.pm,Make.pm,OneRecord.pm,Read.pm,Report.pm,Reports.pm,Rights.pm,Set.pm,Skeleton.pm,Unarchive.pm,User.pm,Whoami.pm,Wizard.pm",
+         "files" : "Access.pm,Action.pm,ActionCommon.pm,Archive.pm,Attach.pm,Check.pm,Configure.pm,Credential.pm,Doctor.pm,Fetch.pm,Get.pm,HasGroups.pm,Import.pm,Make.pm,OneRecord.pm,Read.pm,Report.pm,Reports.pm,Rights.pm,Set.pm,Skeleton.pm,Unarchive.pm,User.pm,Whoami.pm,Wizard.pm",
          "ops" : {
             "core.access" : "Odoo::Ops::Core::Access",
             "core.action" : "Odoo::Ops::Core::Action",
@@ -37,6 +37,7 @@
             "core.doctor" : "Odoo::Ops::Core::Doctor",
             "core.fetch" : "Odoo::Ops::Core::Fetch",
             "core.get" : "Odoo::Ops::Core::Get",
+            "core.has_groups" : "Odoo::Ops::Core::HasGroups",
             "core.import" : "Odoo::Ops::Core::Import",
             "core.make" : "Odoo::Ops::Core::Make",
             "core.read" : "Odoo::Ops::Core::Read",
@@ -99,7 +100,8 @@
             "stock.inspect" : "Odoo::Ops::Stock::Inspect",
             "stock.link-stranded" : "Odoo::Ops::Stock::LinkStranded",
             "stock.net" : "Odoo::Ops::Stock::Net",
-            "stock.relocate" : "Odoo::Ops::Stock::Relocate"
+            "stock.relocate" : "Odoo::Ops::Stock::Relocate",
+            "stock.transfer" : "Odoo::Ops::Stock::Transfer"
          }
       }
    }

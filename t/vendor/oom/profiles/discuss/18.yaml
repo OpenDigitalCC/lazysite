@@ -1,0 +1,71 @@
+# Discuss pack, Odoo 18 (mail). Logical names on the left are what the
+# operations speak; physical names on the right are checked against the live
+# fields_get by `oom-ops run core.check --set pack=discuss`. Read from the
+# 18.0 source (mail/models/discuss/discuss_channel.py, discuss_channel_member.py,
+# mail/controllers/discuss/channel.py, mail/controllers/thread.py) and proved
+# live (t/64-discuss-live.t). The channel models are discuss.channel and
+# discuss.channel.member.
+#
+# `seen_route` and `empty_route` are the web routes Odoo's own client uses
+# where 18 has no public method: a private method (_mark_as_read,
+# _message_update_content) cannot be called over RPC, so these two actions
+# run over a web session as the login. `empty_shape` is how the route takes
+# the new content: flat (message_id, body, attachment_ids) or update_data
+# (message_id, update_data: { body, attachment_ids }).
+pack: discuss
+series: 18
+module: mail
+actions:
+  post: message_post                            # on discuss.channel; public
+  post_html_flag: body_is_html   # 18 and 19 escape a str body unless this flag says it is HTML (the client sends Markup)
+  comment_subtype: mail.mt_comment              # subtype_xmlid of a message people write
+  seen_route: /discuss/channel/mark_as_read   # JSON-RPC; channel_id, last_message_id; moves the member's seen message forward, and its unread marker to just after it; ignores a non-member
+  empty_route: /mail/message/update_content         # JSON-RPC; the author or an administrator
+  empty_shape: flat
+models:
+  channel:
+    model: discuss.channel
+    fields:
+      name: name
+      type: channel_type              # channel | chat | group
+      members: member_count
+      active: active
+  member:
+    model: discuss.channel.member
+    fields:
+      channel: channel_id
+      partner: partner_id
+      seen: seen_message_id           # last message the member has read
+      fetched: fetched_message_id     # last message delivered to the member's client
+      unread: message_unread_counter  # computed by Odoo
+  message:
+    model: mail.message
+    fields:
+      model: model
+      res_id: res_id
+      author: author_id
+      date: date
+      body: body                      # HTML
+      parent: parent_id               # the message replied to
+      attachments: attachment_ids
+      mentions: partner_ids
+      type: message_type              # comment | notification | user_notification | email ...
+  attachment:
+    model: ir.attachment
+    fields:
+      name: name
+      res_model: res_model
+      res_id: res_id
+      mimetype: mimetype
+      datas: datas
+      size: file_size
+      checksum: checksum
+  user:
+    model: res.users
+    fields:
+      login: login
+      partner: partner_id
+  partner:
+    model: res.partner
+    fields:
+      name: name

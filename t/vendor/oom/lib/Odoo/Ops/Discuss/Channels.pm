@@ -31,9 +31,8 @@ as Odoo computes it), C<last_message> (the id of the newest message, or null),
 C<seen> (the id of the last message the login has read, or null). Archived
 channels are left out. C<type> keeps one channel type.
 
-The report is C<< { count, rows, fields } >> like the other reads. Series:
-written for Odoo 16; another series is refused by name until its profile is
-probed.
+The report is C<< { count, rows, fields } >> like the other reads. Series: 16, 18
+and 19; 17 is refused by name as not probed.
 
 =cut
 

@@ -3,9 +3,9 @@
 # fields_get by `oom-ops run core.check --set pack=discuss`. Read from the
 # 16.0 source (mail/models/mail_channel.py, mail_channel_member.py,
 # mail_message.py, mail_thread.py, mail/controllers/discuss.py) and proved
-# live on demo16 (t/64-discuss-live.t). 17 to 19 rename the channel models to
-# discuss.channel and discuss.channel.member: that is a profile and a probe
-# away, and the operations refuse those series by name until then.
+# live on demo16 (t/64-discuss-live.t). 17 is not probed, and the operations
+# refuse it by name. 18 and 19 have profiles of their own (the channel models
+# are discuss.channel and discuss.channel.member there).
 #
 # `seen_route` and `empty_route` are the web routes Odoo's own client uses
 # where 16 has no public method: a private method (_channel_seen,
@@ -16,9 +16,11 @@ series: 16
 module: mail
 actions:
   post: message_post                            # on mail.channel; public
+  post_html_flag: ''   # 16 reads a str body as HTML: no flag
   comment_subtype: mail.mt_comment              # subtype_xmlid of a message people write
   seen_route: /mail/channel/set_last_seen_message   # JSON-RPC; channel_id, last_message_id; moves the member's seen message forward
   empty_route: /mail/message/update_content         # JSON-RPC; message_id, body, attachment_ids; the author or an administrator
+  empty_shape: flat
 models:
   channel:
     model: mail.channel
