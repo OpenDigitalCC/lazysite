@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-10-18
 raised-by: OOM agent at the owner's request (inbox L7 and its addendum, 2026-10-18)
 area: odoo
-status-note: "CANDIDATE, planned 2026-10-18. D0 shipped on n655 (t/unit/odoo/51); D1-D5 remain. OOM 0.31 built (04be130), Q1-Q4 answered. D0-D4 buildable now against a vendored 0.31; host tests need the owner's install. Supersedes SM1082 C3's Odoo part."
+status-note: "CANDIDATE, planned 2026-10-18. D0 shipped on n655 (t/unit/odoo/55); D1-D5 remain. OOM 0.31 built (04be130), Q1-Q4 answered. D0-D4 buildable now against a vendored 0.31; host tests need the owner's install. Supersedes SM1082 C3's Odoo part."
 ---
 
 # The request
@@ -144,7 +144,7 @@ filed when L4's next slice is planned.
 # What shipped (D0)
 
 Branch n655, on OOM 0.32 as vendored by n648. Test:
-`t/unit/odoo/51-a-site-pack-binds-and-a-binding-sets-a-field.t`.
+`t/unit/odoo/55-a-site-pack-binds-and-a-binding-sets-a-field.t`.
 
 - **`odoo_pack_dirs`.** A colon list of full paths in the extension's config
   (`plugins/odoo.pl`: config list, `owns.config_keys`, a manager-form field with
