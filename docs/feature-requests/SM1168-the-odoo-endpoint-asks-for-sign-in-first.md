@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-18
 raised-by: release manager, from the lazysite-Odoo rig / OOM Lab findings (inbox 2026-10-17-oom-lab-findings-for-the-odoo-extension.md)
 area: odoo
-status-note: "SHIPPED on n650: lazysite-odoo.pl _post_one; t/unit/odoo/51; t/unit/odoo/42 follows."
+status-note: "SHIPPED on n650: lazysite-odoo.pl _post_one; t/unit/odoo/53; t/unit/odoo/42 follows."
 ---
 
 # What happened
@@ -52,7 +52,7 @@ call record like any gate refusal.
 - The helper needs no change: it already prompts on 401 `signin-required`
   (t/unit/odoo/31, 44). The new test shows the server's answer it reacts to.
 
-Tests: t/unit/odoo/51 (fails on the base at the two no-session cases, passes
+Tests: t/unit/odoo/53 (fails on the base at the two no-session cases, passes
 after; sabotage-checked by restoring the base endpoint). t/unit/odoo/42 had
 pinned the old behaviour (a second session call after the session ended
 answered 403); it now expects 401.
