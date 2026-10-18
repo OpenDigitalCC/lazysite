@@ -53,6 +53,10 @@ Archive
 
 ## Unreleased
 
+- SM1165 (PENDING) **a write through the Odoo endpoint says which records it
+  made.** An immediate apply or a confirmed plan now answers `created` and
+  `written` (model to ids, this plan's own changes) beside the counts, so a page
+  can learn the new record's id (OOM Lab L-10). t/unit/odoo/51.
 - SM1167 (PENDING) **internal: lazysite's vendored OOM is 0.32.** The pinned
   snapshot in `t/vendor/oom` moves from 0.27 to OOM 0.32 (bd9610e); no lazysite
   code needed to change, and nothing uses rows, inline reports, repeat-safe
