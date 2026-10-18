@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: lazysite-sites agent, OOM Lab quotation app (inbox, L-11)
 area: odoo
-status-note: "SHIPPED on n658 (base n648, OOM 0.32): Lazysite::Odoo::Binding feeds a declared rows parameter, checked by OOM's check_rows and the plain-value rule; test t/unit/odoo/51. R1 and R2 as ruled 2026-10-18."
+status-note: "SHIPPED on n658 (base n648, OOM 0.32): Lazysite::Odoo::Binding feeds a declared rows parameter, checked by OOM's check_rows and the plain-value rule; test t/unit/odoo/57. R1 and R2 as ruled 2026-10-18."
 ---
 
 # The finding
@@ -111,7 +111,7 @@ parameters"):
 
 # Evidence
 
-`t/unit/odoo/51-a-binding-takes-a-declared-list-of-rows.t`, on OOM's fake
+`t/unit/odoo/57-a-binding-takes-a-declared-list-of-rows.t`, on OOM's fake
 Odoo, with three new test operations (`t/lib/LazysiteTest/OdooOps/`: Order,
 a capped write; Nomax; Dyn). Before the change the first binding is refused at
 save ("a request may feed only a plain value"). Sabotage: the unchanged
