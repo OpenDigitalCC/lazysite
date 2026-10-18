@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: inbox/2026-10-17-L2-ip-limits-on-sign-in.md (the OOM agent, at the owner's request)
 area: auth
-status-note: "SHIPPED on n651 (builds on SM1134, SM1138, SM1140): AddressScope::signin_refused, lazysite-auth.pl, lazysite-odoo.pl, Odoo::Binding, Config page; t/unit/auth/67, t/unit/odoo/51. A binding's rule is held on its calls (sign-in names no binding). Open: list-delete guard does not read bindings."
+status-note: "SHIPPED on n651 (builds on SM1134, SM1138, SM1140): AddressScope::signin_refused, lazysite-auth.pl, lazysite-odoo.pl, Odoo::Binding, Config page; t/unit/auth/67, t/unit/odoo/54. A binding's rule is held on its calls (sign-in names no binding). Open: list-delete guard does not read bindings."
 ---
 
 # What happened
