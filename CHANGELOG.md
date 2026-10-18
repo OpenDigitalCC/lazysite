@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1159 (PENDING) **security: sign-in can be limited by address.**
+  `signin_addresses` and `signin_addresses_deny` name address lists that
+  lazysite's login and the Odoo endpoint's sign-in and code steps must admit; a
+  refusal comes before the token, the password and the rate counter, with its own
+  reason and audit row ("Sign-in is not available from your address."). A
+  session binding's own lists narrow the site's on that binding's calls, ahead of
+  its sign-in question (SM1168). t/unit/auth/67, t/unit/odoo/54.
 - SM1168 (PENDING) **a session binding with no Odoo session asks for sign-in,
   not a token.** A POST for a `credential: session` binding from a visitor with
   no Odoo session answered 403 `csrf`, so the helper never opened its sign-in
