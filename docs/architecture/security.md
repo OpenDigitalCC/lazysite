@@ -196,6 +196,16 @@ ends it as well. The manager API takes the session to keep from the verified
 cookie, and only when the account is the caller's own; a request body cannot
 name one. Writes to `revoked.json` are serialised by `revoked.json.lock`.
 
+An Odoo-minted session (SM1160, `odoo_site_signin: on`) is the same cookie and the
+same registry, with the user field `odoo=<login, percent-encoded>` and an empty
+group field; its groups, its freshness (`checked`, against `odoo_identity_ttl`) and
+its user live in the registry record, which the verifier's `odoo=` branch treats as
+the authority (no record, or one for another user, is no session). It is refused on
+an unsecured site, when the opt-in is off, and past the freshness bound until the
+Odoo endpoint's `?csrf=1` asks Odoo and renews the record. See
+docs/feature-requests/SM1160 for the full account, including what each credential
+gets.
+
 ### Localhost bypass
 
 When `$ENV{REMOTE_ADDR}` is exactly `127.0.0.1` or `::1`, a user

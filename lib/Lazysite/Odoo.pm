@@ -1428,9 +1428,13 @@ sub sign_in {
         Lazysite::Odoo::Session::sign_out( $conn, $r->{session_id} );
         return ( _refusal( \%rec, 'unavailable', 'a sign-in cookie cannot be made on this host - see the event log' ) )[1];
     }
+    # SM1160: on a site that opted in, the Odoo sign-in is the site sign-in
+    my ( $site, $sfail ) = site_session_start( $r, $conn, %a );
+    return { %{ ( _refusal( \%rec, 'unavailable', $sfail ) )[1] }, ( $stale ? ( clear_device => 1 ) : () ) } if defined $sfail;
     record_call( %rec, actor => Lazysite::Odoo::Session::session_label( $r->{session_id} ), outcome => 'answered' );
     return { ok => 1, cookie => $cookie, identity => $r->{identity},
-        identity_cookie => _identity_cookie( $r->{identity_all} ), ( $stale ? ( clear_device => 1 ) : () ) };
+        identity_cookie => _identity_cookie( $r->{identity_all} ), ( $stale ? ( clear_device => 1 ) : () ),
+        ( $site ? ( site_cookie => $site ) : () ) };
 }
 
 # sign_in_code( pending_session, code, remember, user_agent, ip, secure ) -> { ok, cookie, identity[, trusted_device] }
@@ -1479,10 +1483,14 @@ sub sign_in_code {
         Lazysite::Odoo::Session::sign_out( $conn, $r->{session_id} );
         return { %{ ( _refusal( \%rec, 'unavailable', 'a sign-in cookie cannot be made on this host - see the event log' ) )[1] }, clear_pending => 1 };
     }
+    # SM1160: the site session is minted only here, after Odoo accepted the code
+    my ( $site, $sfail ) = site_session_start( $r, $conn, %a );
+    return { %{ ( _refusal( \%rec, 'unavailable', $sfail ) )[1] }, clear_pending => 1 } if defined $sfail;
     record_call( %rec, actor => Lazysite::Odoo::Session::session_label( $r->{session_id} ), outcome => 'answered' );
     return { ok => 1, cookie => $cookie, identity => $r->{identity},
         identity_cookie => _identity_cookie( $r->{identity_all} ),
-        ( defined $r->{trusted_device} ? ( trusted_device => $r->{trusted_device} ) : () ) };
+        ( defined $r->{trusted_device} ? ( trusted_device => $r->{trusted_device} ) : () ),
+        ( $site                        ? ( site_cookie    => $site ) : () ) };
 }
 
 # --- C: the identity cookie ----------------------------------------------------
@@ -1522,7 +1530,7 @@ sub refresh_identity {
     return $r unless $r->{ok};
     my $c = _identity_cookie( $r->{identity} );
     return { ok => 0, kind => 'unavailable', error => 'an identity cookie cannot be made on this host' } unless defined $c;
-    return { ok => 1, identity_cookie => $c };
+    return { ok => 1, identity_cookie => $c, name => $r->{identity}{name} };
 }
 
 # sign_out( session_id, ip ) -> { ok }: ends the session at Odoo. Never an error.
@@ -1535,6 +1543,144 @@ sub sign_out {
         ip => $a{ip} // '', mode => 'authenticated', phase => 'signout', binding => '', operation => '',
         outcome => 'answered' );
     return { ok => 1 };
+}
+
+# --- SM1160: THE ODOO SIGN-IN AS THE SITE SIGN-IN ---------------------------------
+#
+# (inbox L3; rulings 2026-10-18; docs/feature-requests/SM1160.) Off unless the site's
+# Odoo config says `odoo_site_signin: on`. The configuration is Lazysite::Odoo::SiteSignin's,
+# the session is Lazysite::Auth::Session's (the identity is `odoo:<login>`, the groups are in
+# the server-side record), and this is the part that talks to Odoo: who the person is, which
+# of the mapped groups they hold (OOM core.has_groups, run on THEIR OWN session), and the
+# moments that start, renew and end the site session.
+
+sub site_signin_enabled {
+    require Lazysite::Odoo::SiteSignin;
+    return Lazysite::Odoo::SiteSignin::enabled( _lz() );
+}
+
+# site_groups( session_id ) -> { ok, groups => [lazysite groups], unknown => [xml ids] }
+#                           or { ok => 0, kind, error[, clear_session] }
+#
+# One question per mapped xml id, asked of Odoo AS THE PERSON: the answer is Odoo's own
+# has_group for the signed-in user, so no administrator right is used and nothing about
+# another user can be learned. An xml id Odoo does not know holds nothing and is kept for
+# status and `lazysite check` to name. With nothing mapped Odoo is not asked.
+sub site_groups {
+    my (%a) = @_;
+    require Lazysite::Odoo::SiteSignin;
+    require Lazysite::Odoo::Session;
+    my ($map) = Lazysite::Odoo::SiteSignin::group_map( _lz() );
+    return { ok => 1, groups => [], unknown => [] } unless %$map;
+    my ($have) = oom_check();
+    my ($conn) = $have ? connection() : ();
+    return { ok => 0, kind => 'config', error => 'the Odoo connection is not available' } unless $conn;
+    my ($class) = operation_class( $conn, 'core.has_groups' );
+    return { ok => 0, kind => 'unavailable', error => 'the Odoo extension needs OOM 0.33 or later to read a person\'s groups' }
+        unless $class;
+    my $report = eval {
+        my $ctx = context( $conn, actor => Lazysite::Odoo::Session::session_label( $a{session_id} ), session => $a{session_id} );
+        $class->new( ctx => $ctx, params => { groups => [ sort keys %$map ] } )->run;
+    };
+    my $err = $@;
+    unless ( ref $report eq 'HASH' && ref $report->{groups} eq 'HASH' ) {
+        return { ok => 0, kind => 'signin-required', clear_session => 1,
+            error => 'your Odoo sign-in has ended - sign in again' }
+            if ref $err && eval { $err->isa('Odoo::Error') } && $err->is_session_expired;
+        log_event( 'WARN', 'odoo', 'the person\'s groups could not be read', who => Lazysite::Odoo::Session::session_label( $a{session_id} ) );
+        return { ok => 0, kind => 'transport-failure', error => 'Odoo could not be asked which groups the person holds' };
+    }
+    my @unknown = ref $report->{unknown} eq 'ARRAY' ? grep { defined && !ref } @{ $report->{unknown} } : ();
+    Lazysite::Odoo::SiteSignin::note_unknown( _lz(), @unknown );
+    return { ok => 1, groups => Lazysite::Odoo::SiteSignin::groups_held( $report->{groups}, $map ), unknown => \@unknown };
+}
+
+# site_session_start( $signin_result, $conn, ip =>, user_agent => ) -> ( $cookie ) | () | ( undef, $refusal )
+# Nothing (off); the cookie value of the new site session; or why there is none - in which
+# case the Odoo session is ended too, so nobody is left signed in to half a login.
+sub site_session_start {
+    my ( $r, $conn, %a ) = @_;
+    return () unless site_signin_enabled();
+    require Lazysite::Auth::Session;
+    require Lazysite::Auth::Settings;
+    require Lazysite::Odoo::SiteSignin;
+    my $login = ref $r->{identity} eq 'HASH' ? $r->{identity}{login} : undef;
+    my $fail  = sub {
+        my ($why) = @_;
+        Lazysite::Odoo::Session::sign_out( $conn, $r->{session_id} );
+        log_event( 'WARN', 'odoo', 'site sign-in refused', why => $why );
+        return ( undef, $why );
+    };
+    return $fail->('Odoo did not say which login this is, so no site sign-in can be made')
+        unless Lazysite::Odoo::SiteSignin::login_ok($login);
+    {
+        no warnings 'once';
+        local $Lazysite::Auth::Settings::AUTH_DIR = _lz() . '/auth';
+        return $fail->( 'this site has no group that grants manager access, so it is unsecured; '
+                . 'the Odoo sign-in can be the site sign-in only on a secured site' )
+            unless Lazysite::Auth::Settings::site_grants_manager();
+    }
+    my $g = site_groups( session_id => $r->{session_id} );
+
+    # Groups that cannot be read are no groups, never a guess: the person is signed in and
+    # holds nothing a mapping would give. A session Odoo has already ended is no sign-in.
+    return $fail->('your Odoo sign-in has ended - sign in again') if $g->{clear_session};
+    no warnings 'once';
+    local $Lazysite::Auth::Session::LAZYSITE_DIR = _lz();
+    my ($cookie) = Lazysite::Auth::Session::mint_odoo_session(
+        login => $login, name => ( $r->{identity}{name} // '' ), groups => ( $g->{ok} ? $g->{groups} : [] ),
+        ip => $a{ip}, ua => $a{user_agent} );
+    return $fail->( 'a site session cannot be made on this host - the auth secret is missing or the session '
+            . 'registry cannot be written; see the event log' )
+        unless defined $cookie;
+    _site_audit( "odoo:$login", 'login', 'ok', $a{ip}, 'odoo sign-in' );
+    return ($cookie);
+}
+
+# site_session_renew( session_id =>, site_sid =>, login => ) -> { ok, identity_cookie, name, groups }
+#                                                            or { ok => 0, kind, error[, clear_session] }
+# The ?csrf=1 refresh (ruling 3): Odoo is asked ONCE whether the session is still the
+# person's and which mapped groups they hold; the record is renewed. Odoo having ended the
+# session is clear_session - the caller ends the site session.
+sub site_session_renew {
+    my (%a) = @_;
+    my $f = refresh_identity( session_id => $a{session_id} );
+    return $f unless $f->{ok};
+    my $g = site_groups( session_id => $a{session_id} );
+    return $g unless $g->{ok};
+    require Lazysite::Auth::Session;
+    no warnings 'once';
+    local $Lazysite::Auth::Session::LAZYSITE_DIR = _lz();
+    return { ok => 0, kind => 'unavailable', error => 'the site session record cannot be renewed' }
+        unless Lazysite::Auth::Session::renew_odoo_session( sid => $a{site_sid}, name => $f->{name}, groups => $g->{groups} );
+    return { ok => 1, identity_cookie => $f->{identity_cookie}, name => $f->{name}, groups => $g->{groups} };
+}
+
+# site_session_end( sid =>, user =>, ip => ): the site session is signed out - its sid
+# revoked by the mechanism the manager's Sessions page and the wrapper's logout use.
+sub site_session_end {
+    my (%a) = @_;
+    return 0 unless defined $a{sid} && $a{sid} =~ /\A[0-9a-f]{16}\z/;
+    require Lazysite::Manager::Sessions;
+    no warnings 'once';
+    local $Lazysite::Manager::Sessions::LAZYSITE_DIR = _lz();
+    local $Lazysite::Manager::Sessions::auth_user    = $a{user} // '';
+    my $r = Lazysite::Manager::Sessions::action_session_revoke( $a{sid} );
+    log_event( 'WARN', 'odoo', 'a site session could not be revoked', error => ( $r->{error} // '' ) ) unless $r->{ok};
+    _site_audit( $a{user}, 'logout', ( $r->{ok} ? 'ok' : 'fail' ), $a{ip}, $a{why} // 'odoo sign-out' );
+    return $r->{ok} ? 1 : 0;
+}
+
+# The audit trail's actor for these is `odoo:<login>`: the identity that acted.
+sub _site_audit {
+    my ( $user, $act, $status, $ip, $detail ) = @_;
+    require Lazysite::Audit;
+    no warnings 'once';
+    local $Lazysite::Audit::LAZYSITE_DIR = _lz();
+    ( my $host = lc( $ENV{HTTP_HOST} // '' ) ) =~ s/:\d+\z//;
+    $host =~ s/[^a-z0-9.-]//g;
+    Lazysite::Audit::audit_log( $user, $act, $host, $ip // '', $status, 'odoo', $detail );
+    return;
 }
 
 sub _cap_unknown {
@@ -1645,6 +1791,11 @@ sub action_odoo_status {
      # SM1164 D4: the resident OOM - name, health, version, packs, workers, uptime, and the supervisor's reason when it has given up.
     require Lazysite::Odoo::Daemon;
     $out{daemon} = Lazysite::Odoo::Daemon::status($DOCROOT);
+    # SM1160: the Odoo sign-in as the site sign-in - off, or the map as it loaded,
+    # the entries refused by name, and the xml ids Odoo did not know at the last
+    # sign-in or refresh
+    require Lazysite::Odoo::SiteSignin;
+    $out{site_signin} = Lazysite::Odoo::SiteSignin::report( _lz() );
     if ( $have && $conn ) {
         my $reg = eval { registry($conn) };
         $out{operations} = [

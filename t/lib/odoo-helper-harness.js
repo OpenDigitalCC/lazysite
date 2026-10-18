@@ -188,6 +188,23 @@ const facts = {};
     facts.name_no_node = { requests: w4.log.length };
   }
 
+  // SM1160: the page's "Signed in as <name>" banner (the engine's odoo_signin_banner): the
+  // signed-in part shows when the token fetch names someone, the sign-in link when it does not
+  {
+    const mk = (body) => {
+      const nameN = { textContent: '' }, inN = { hidden: true }, outN = { hidden: false };
+      const d = { readyState: 'complete', querySelectorAll: (sel) => ({ '[data-ls-odoo-name]': [nameN],
+        '[data-ls-odoo-in]': [inN], '[data-ls-odoo-out]': [outN] }[sel] || []) };
+      return { nameN, inN, outN, w: world(() => ({ status: 200, body }), d) };
+    };
+    const a = mk({ ok: true, visitor_token: 'VT', odoo_signed_in: 1, identity: { name: 'Jane' } });
+    await a.w.api.showName();
+    const b = mk({ ok: true, visitor_token: 'VT', odoo_signed_in: 0 });
+    await b.w.api.showName();
+    facts.banner = { in_name: a.nameN.textContent, in_hidden: a.inN.hidden, in_out_hidden: a.outN.hidden,
+      out_hidden_in: b.inN.hidden, out_hidden_out: b.outN.hidden };
+  }
+
   // SM1146: a batch is ONE POST of the calls, with the request's token; a call refused for a stale
   // token is sent again once, alone; one refused for want of a sign-in is sent again once after the
   // person is asked once, alone; the answers stay in the order the calls were sent

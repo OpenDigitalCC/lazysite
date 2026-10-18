@@ -317,9 +317,12 @@ our $FALLBACK_LAYOUT = <<'END_FALLBACK';
     <!-- SM099: client-toggled so the cached page shows the right control. Both
          start hidden; the injected auth-sync script reveals one from the lzs_session
          marker cookie. -->
-    <a href="/cgi-bin/lazysite-auth.pl?action=logout" data-ls-auth-out style="font-size:0.8rem;color:#888;font-weight:400;margin-left:auto;display:none;">Sign out</a>
+    [%# SM1160: on a site whose Odoo sign-in is the site sign-in, "Signed in as <name>" with a sign-out
+        that ends the Odoo session too replaces the account sign-in/out links. %]
+    [% IF odoo_signin_banner %][% odoo_signin_banner %]
+    [% ELSE %]<a href="/cgi-bin/lazysite-auth.pl?action=logout" data-ls-auth-out style="font-size:0.8rem;color:#888;font-weight:400;margin-left:auto;display:none;">Sign out</a>
     <a href="/login" data-ls-auth-in style="font-size:0.8rem;margin-left:auto;font-weight:400;display:none;">Sign in</a>
-    <noscript><a href="/login" style="font-size:0.8rem;margin-left:auto;font-weight:400;">Sign in</a></noscript>
+    <noscript><a href="/login" style="font-size:0.8rem;margin-left:auto;font-weight:400;">Sign in</a></noscript>[% END %]
     <form action="/search-results" method="get">
         <input type="search" name="q" placeholder="Search..." aria-label="Search">
         <button type="submit">Go</button>

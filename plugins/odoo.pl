@@ -87,6 +87,23 @@ sub describe {
                 note => 'How long a page may show who a signed-in person is in Odoo before it is '
                     . 'asked of Odoo again (60 to 86400). Presentation only: never what a person '
                     . 'may do.' },
+            { key => 'odoo_site_signin', label => 'The Odoo sign-in is the site sign-in', type => 'boolean',
+                default => 'false',
+                note => 'Off (the default): nothing changes. On: a person who signs in to Odoo through '
+                    . 'this site (password, and the authenticator code where Odoo asks) is signed in to the '
+                    . 'site as odoo:<their login>. No lazysite account is made or needed, and a person '
+                    . 'disabled in Odoo cannot sign in. Pages show "Signed in as" with a sign-out that ends '
+                    . 'the Odoo session too. Needs a secured site (a group that grants manager access) and '
+                    . 'OOM 0.33 or later for groups.' },
+            { key => 'odoo_group_map', label => 'Odoo groups that become site groups', type => 'text',
+                validate => 'Lazysite::Odoo::SiteSignin::validate_group_map',
+                note => 'Only with the Odoo sign-in as the site sign-in. Comma separated '
+                    . '<Odoo group xml id> = <site group>, for example '
+                    . 'sales_team.group_sale_salesman = sales, base.group_user = staff. Odoo is asked, as '
+                    . 'the person, whether they hold each (at most 50); the held ones become site groups '
+                    . 'that page access and file ACLs read. A site group that carries any capability '
+                    . '(the manager, the API, anything on the Groups page) is refused by name: a person '
+                    . 'signed in through Odoo is never given manager rights.' },
             { key => 'odoo_packs', label => 'Extra operation packs', type => 'text',
                 note => 'Leave blank unless you have installed an extra OOM operation pack. '
                     . 'An operation pack is a set of named Odoo operations (list, plan, apply); '
@@ -117,7 +134,7 @@ sub describe {
 
         owns => {
             config_keys =>
-                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_remember_device odoo_identity_ttl odoo_packs odoo_pack_dirs odoo_daemon odoo_daemon_workers)],
+                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_remember_device odoo_identity_ttl odoo_site_signin odoo_group_map odoo_packs odoo_pack_dirs odoo_daemon odoo_daemon_workers)],
 
             # NO `storage`, deliberately. lazysite/odoo/ holds the connection
             # user's key and plans carrying Odoo's own records; a site package

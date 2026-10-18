@@ -79,6 +79,9 @@ exit main() if !caller;
 # is minted. Reset at the top of every request.
 our @EXTRA;
 
+# SM1160: the Odoo-minted site session the request carries, if any (see main).
+our $SITE_SESSION;
+
 sub reply {
     my ( $status, $data ) = @_;
     my $body = JSON::PP->new->utf8->canonical->encode($data);
@@ -163,15 +166,22 @@ sub main {
     # read by these small modules; Lazysite::Odoo (the engine, with Egress under
     # it) is _engine()'s, called by the branches that reach Odoo.
     require Lazysite::Odoo::Visitor;
+    require Lazysite::Odoo::SiteSignin;    # SM1160: configuration only, loads no engine
     local $Lazysite::Odoo::DOCROOT          = $docroot;
     local $Lazysite::Odoo::Visitor::DOCROOT = $docroot;
 
     # THE IDENTITY, verified here.
-    Lazysite::Timing::to('identity');    # SM1144
+    Lazysite::Timing::to('identity');      # SM1144
     require Lazysite::Auth::Session;
     local $Lazysite::Auth::Session::LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($docroot);
-    my ($session) = Lazysite::Auth::Session::verify_session_cookie();
+    my ($session) = Lazysite::Auth::Session::verify_session_cookie( odoo_stale_ok => 1 );
     my $user = ( ref $session eq 'HASH' ) ? ( $session->{user} // '' ) : '';
+
+   # SM1160: a session the Odoo sign-in minted (identity `odoo:<login>`). One that is past
+   # its time without Odoo being asked is no identity here either - it holds nothing until
+   # the ?csrf=1 refresh below asks Odoo - but it is remembered, to be renewed or ended.
+    local $SITE_SESSION = ( ref $session eq 'HASH' && $session->{odoo} ) ? $session : undef;
+    $user = '' if $SITE_SESSION && $SITE_SESSION->{stale};
     my @groups;
     my $caps = {};
     if ( length $user ) {
@@ -179,7 +189,9 @@ sub main {
         @groups = grep { length } ( ref $g eq 'ARRAY' ? @$g : split /\s*,\s*/, ( $g // '' ) );
         require Lazysite::Auth::Settings;
         local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($docroot) . '/auth';
-        $caps = Lazysite::Auth::Settings::caps_for($user) || {};
+
+      # SM1160: an Odoo-minted identity holds no capability, whatever group a record names
+        $caps = $SITE_SESSION ? {} : ( Lazysite::Auth::Settings::caps_for($user) || {} );
         Lazysite::Timing::operator(1) if $caps->{ui}; # SM1144: an operator is shown the phases
     }
     Lazysite::Timing::to('render');
@@ -208,6 +220,9 @@ sub main {
             push @EXTRA, Lazysite::Odoo::Visitor::set_cookie_header( $cookie, secure => $ENV{HTTPS} ? 1 : 0 );
         }
         my $who = $odoo_session ? _who_is_signed_in() : undef;
+        if ( Lazysite::Odoo::SiteSignin::enabled( Lazysite::Paths::lazysite_dir($docroot) ) ) {
+            ( $user, $who, $odoo_session ) = _site_state( $docroot, $user, $who, $odoo_session );
+        }
         return reply( '200 OK',
             { ok => 1, visitor_token => Lazysite::Odoo::Visitor::csrf_token($visitor),
                 odoo_signed_in => ( $odoo_session ? 1 : 0 ),
@@ -481,7 +496,62 @@ sub _clear_cookies {
     push @EXTRA, Lazysite::Odoo::Session::clear_cookie_header( _cookie_scope() );
     require Lazysite::Odoo::Identity;
     push @EXTRA, Lazysite::Odoo::Identity::clear_cookie_header( secure => ( $ENV{HTTPS} ? 1 : 0 ) );
+    _end_site_session();
     return;
+}
+
+# SM1160 (ruling 3): the Odoo session ends and the site session goes with it - its sid is
+# revoked (so a copy of the cookie is dead too) and both site cookies are cleared. Every way
+# the Odoo session ends comes through _clear_cookies: signing out, Odoo answering
+# session-ended to a call, the identity refresh finding it gone.
+sub _end_site_session {
+    my ($why) = @_;
+    return unless $SITE_SESSION;
+    _engine( $ENV{DOCUMENT_ROOT} );
+    Lazysite::Odoo::site_session_end( sid => $SITE_SESSION->{sid}, user => $SITE_SESSION->{user},
+        ip => _ip( $ENV{DOCUMENT_ROOT} ), why => $why // 'odoo session ended' );
+    require Lazysite::Auth::Session;
+    push @EXTRA, Lazysite::Auth::Session::odoo_clear_headers( secure => ( $ENV{HTTPS} ? 1 : 0 ) );
+    $SITE_SESSION = undef;
+    return;
+}
+
+# SM1160 (ruling 3): what ?csrf=1 says about the site session on a site that opted in.
+# Free of Odoo calls (SM1145/SM1147) except the one the ruling allows: when the record
+# was last checked more than odoo_identity_ttl ago, Odoo is asked ONCE (is the session
+# still the person's, which mapped groups do they hold) and the record renewed - or, if
+# Odoo has ended the session, the site session ends with it. An Odoo session with NO site
+# session behind it is a site session that ended (signed out at the wrapper, revoked,
+# lapsed): the Odoo session is ended too, so one never outlives the other.
+# Returns ( $user, $who, $odoo_session ) as they now stand.
+sub _site_state {
+    my ( $docroot, $user, $who, $odoo_session ) = @_;
+    require Lazysite::Odoo::Identity;
+    if ($SITE_SESSION) {
+        if ( $SITE_SESSION->{stale} ) {
+            unless ($odoo_session) { _end_site_session('odoo session is gone'); return ( '', undef, undef ) }
+            _engine($docroot);
+            my $f = _timed( sub {
+                    Lazysite::Odoo::site_session_renew( session_id => $odoo_session, site_sid => $SITE_SESSION->{sid} );
+            } );
+            if ( $f->{ok} ) {
+                _identity_cookie_out( $f->{identity_cookie} );
+                $user = $SITE_SESSION->{user};
+                $who  = { name => $f->{name} } if defined $f->{name} && length $f->{name};
+            }
+            elsif ( $f->{clear_session} ) { _clear_cookies(); return ( '', undef, undef ) }
+            else { return ( '', undef, $odoo_session ) } # could not ask: holds nothing yet
+        }
+        $who //= Lazysite::Odoo::Identity::shown( { name => $SITE_SESSION->{name} } ) if length( $SITE_SESSION->{name} // '' );
+        return ( $user, $who, $odoo_session );
+    }
+    if ($odoo_session) {
+        _engine($docroot);
+        Lazysite::Odoo::sign_out( session_id => $odoo_session, ip => _ip($docroot) );
+        _clear_cookies();
+        return ( '', undef, undef );
+    }
+    return ( '', undef, undef );
 }
 
 sub _identity_cookie_out {
@@ -527,7 +597,8 @@ sub _signin {
         if ref $req->{login} || ref $req->{password};
     my $r = _timed( sub {
             Lazysite::Odoo::sign_in( login => $req->{login}, password => $req->{password}, ip => $who{ip},
-                secure => ( $ENV{HTTPS} ? 1 : 0 ), trusted_device => $who{device} );
+                secure     => ( $ENV{HTTPS} ? 1 : 0 ), trusted_device => $who{device},
+                user_agent => $ENV{HTTP_USER_AGENT} );
     } );
     return refuse($r) unless $r->{ok};
     push @EXTRA, Lazysite::Odoo::Session::clear_device_header( _cookie_scope() ) if $r->{clear_device};
@@ -541,7 +612,20 @@ sub _signin {
     }
     push @EXTRA, Lazysite::Odoo::Session::set_cookie_header( $r->{cookie}, _cookie_scope() );
     _identity_cookie_out( $r->{identity_cookie} );
+    _site_cookie_out($r);
     return reply( '200 OK', { ok => 1, signed_in => 1, identity => $r->{identity} } );
+}
+
+# SM1160: the site session's cookies, when the sign-in made one. A site session the browser
+# already held (another person's, a stale one) is ended first, so a sign-in never leaves two.
+sub _site_cookie_out {
+    my ($r) = @_;
+    return unless defined $r->{site_cookie};
+    _end_site_session('replaced by a new sign-in');
+    require Lazysite::Auth::Session;
+    push @EXTRA, Lazysite::Auth::Session::odoo_cookie_headers( $r->{site_cookie},
+        secure => ( $ENV{HTTPS} ? 1 : 0 ), dir => Lazysite::Paths::lazysite_dir( $ENV{DOCUMENT_ROOT} ) );
+    return;
 }
 
 # SM1157: the second request of a two-factor sign-in. The code is the one thing in
@@ -572,6 +656,7 @@ sub _signin_code {
         push @EXTRA, $h if defined $h;
     }
     _identity_cookie_out( $r->{identity_cookie} );
+    _site_cookie_out($r);
     return reply( '200 OK', { ok => 1, signed_in => 1, identity => $r->{identity} } );
 }
 

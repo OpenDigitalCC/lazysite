@@ -837,6 +837,23 @@ sub action_plugin_save {
             return { ok => 0, kind => 'invalid', field => $k, error => "'$k' is refused: $why" }
                 unless defined $one;
         }
+        # SM1160: a field may name a validator, which says why a value cannot be stored
+        # ('' when it can). Only a `validate_*` function of a Lazysite:: module is called,
+        # so a descriptor cannot name an arbitrary one. Refused at SAVE, by name, with the
+        # operator still on the form.
+        if ( defined $values->{$k} && !ref $values->{$k} && length $values->{$k} ) {
+            my ($fd) = grep { ( $_->{key} // '' ) eq $k } @{ $desc->{config_schema} // [] };
+            my $vf   = $fd ? ( $fd->{validate} // '' ) : '';
+            if ( my ( $mod, $fn ) = $vf =~ /\A(Lazysite(?:::\w+)+)::(validate_\w+)\z/ ) {
+                ( my $file = "$mod.pm" ) =~ s{::}{/}g;
+                my $code = eval { require $file; $mod->can($fn) };
+                if ($code) {
+                    my $why = $code->( $values->{$k}, _lz() );
+                    return { ok => 0, kind => 'invalid', field => $k, error => "'$k' is refused: $why" }
+                        if defined $why && length $why;
+                }
+            }
+        }
         $safe{$k} = $values->{$k};
     }
 

@@ -451,6 +451,42 @@ to have its date read.
 A person's own key, held behind their site sign-in, is not built: it is
 deferred.
 
+## The Odoo sign-in as the site sign-in
+
+On a site whose people are Odoo users, `odoo_site_signin: on` makes the Odoo
+sign-in the site sign-in: one login, the person's Odoo login. Off by default; a
+site without it behaves as it always did.
+
+- **Who they are.** A person who signs in to Odoo through the extension (the
+  password, and Odoo's authenticator code where Odoo asks) is signed in to the
+  site as `odoo:<their login>`. No lazysite account is made or needed, so there
+  is nothing to provision, and a person disabled in Odoo cannot sign in. The
+  site needs at least one group that grants manager access (a secured site); the
+  sign-in is refused on one that does not, since there every signed-in person
+  would be a manager.
+- **What they may see.** `odoo_group_map: sales.group_wholesale = wholesale,
+  base.group_user = staff` maps Odoo group xml ids to site groups (at most 50).
+  Odoo is asked, as the person, whether they hold each, at sign-in and again at
+  each refresh; the held ones become their site groups, which pages
+  (`auth_groups`) and file ACLs read like any other. An id Odoo does not know
+  grants nothing and is named on the Odoo status and by `lazysite check`. A site
+  group that carries any capability (the manager, the API, anything on the Groups
+  page) is refused by name when the map is saved or loaded: a person who signed in
+  through Odoo is never given manager rights.
+- **How long.** The site session is good until the person signs out, the Odoo
+  session ends, or `session_lifetime`, and it grants nothing once Odoo has not
+  been asked for `odoo_identity_ttl` seconds (default 900). The page's `?csrf=1`
+  call then asks Odoo once and renews it, or ends the site session if the Odoo
+  session is gone. A site whose people read for long on one page should raise
+  `odoo_identity_ttl`.
+- **Signing out** ends the Odoo session and the site session together, and so
+  does anything that ends the Odoo session. There is no idle time-out.
+- **"Signed in as".** The default layout renders `[% odoo_signin_banner %]` on
+  every page of such a site: "Signed in as <name>" with a sign-out link, or a
+  sign-in link. A layout of your own renders the variable, or carries
+  `data-ls-odoo-name`, `data-ls-odoo-signin` and `data-ls-odoo-signout` itself.
+  Set `auth_redirect` to a page that carries the sign-in link.
+
 ## The browser helper
 
 `/assets/lazysite-odoo.js` is the one module a page uses to talk to the endpoint. It

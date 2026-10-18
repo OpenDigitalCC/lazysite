@@ -290,6 +290,7 @@ sub action_sessions_list {
         while ( my $l = <$fh> ) {
             my $s = eval { decode_json($l) };
             next unless ref $s eq 'HASH' && defined $s->{sid} && defined $s->{user};
+            next if $s->{renew}; # SM1160: a renewal of an Odoo-minted session already listed by its first line
             my $t = ( $s->{t} || 0 ) + 0;
             next unless $now - $t < _cookie_max();       # expired cookie
             next if exists $rev->{sids}{ $s->{sid} };    # session signed out

@@ -266,10 +266,19 @@
     var nodes = d.querySelectorAll('[data-ls-odoo-name]');
     if (!nodes.length) return Promise.resolve();
     return API.who().then(function (id) {
-      if (!id || !id.name) return;
-      for (var i = 0; i < nodes.length; i++) nodes[i].textContent = String(id.name);
+      var named = !!(id && id.name);
+      if (named) for (var i = 0; i < nodes.length; i++) nodes[i].textContent = String(id.name);
+      banner(named);
     });
   };
+
+  /* SM1160: the page's "Signed in as <name>" (the engine's odoo_signin_banner): the signed-in
+   * part shows when there is a name, the sign-in link when there is not. Display only. */
+  function banner(signedIn) {
+    var d = doc();
+    [].slice.call(d.querySelectorAll('[data-ls-odoo-in]')).forEach(function (n) { n.hidden = !signedIn; });
+    [].slice.call(d.querySelectorAll('[data-ls-odoo-out]')).forEach(function (n) { n.hidden = !!signedIn; });
+  }
 
   /* ---- the sign-in prompt -------------------------------------------------- */
 
@@ -431,7 +440,7 @@
     var attrs = el_.attributes;
     for (var i = 0; i < attrs.length; i++) {
       var m = /^data-ls-odoo-(.+)$/.exec(attrs[i].name);
-      if (!m || /^(state|prompt|signin|signout|name)$/.test(m[1])) continue;
+      if (!m || /^(state|prompt|signin|signout|name|in|out|banner)$/.test(m[1])) continue;
       out[m[1]] = attrs[i].value;
     }
     return out;
@@ -468,14 +477,20 @@
     API.showName();
     [].slice.call(d.querySelectorAll('[data-ls-odoo]')).forEach(function (el_) { API.load(el_); });
     [].slice.call(d.querySelectorAll('[data-ls-odoo-signin]')).forEach(function (b) {
-      b.addEventListener('click', function () {
+      b.addEventListener('click', function (ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
         API.prompt().then(function (ok) {
-          if (ok) [].slice.call(d.querySelectorAll('[data-ls-odoo]')).forEach(function (r) { API.load(r); });
+          if (ok) {
+            tokens = null;                                   /* the sign-in changed who this is */
+            API.showName();
+            [].slice.call(d.querySelectorAll('[data-ls-odoo]')).forEach(function (r) { API.load(r); });
+          }
         });
       });
     });
     [].slice.call(d.querySelectorAll('[data-ls-odoo-signout]')).forEach(function (b) {
-      b.addEventListener('click', function () {
+      b.addEventListener('click', function (ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
         API.signOut().then(function () { root.location.reload(); });
       });
     });

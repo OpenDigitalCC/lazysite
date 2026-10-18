@@ -147,6 +147,11 @@ sub _actor_or_system {
     # itself to every entry it already writes.
     return ( $name, $detail ) if $name eq 'system';
 
+  # SM1160: `odoo:<login>` is the identity of a verified Odoo-minted session. A local name
+  # cannot hold a ':' (handle_login strips all but [a-zA-Z0-9_.-] before anything is
+  # audited), so an attempted name can never take this form.
+    return ( $name, $detail ) if $name =~ /\Aodoo:[^\x00-\x1f\x7f|]{1,254}\z/;
+
     return ( $name, $detail )
         if length $name
         && exists Lazysite::Auth::Settings::account_names()->{$name};
@@ -593,7 +598,8 @@ sub _mint_session {
 # now the unauthenticated no-op path (the cookie still clears), and a revoked
 # session cannot re-revoke itself. Neither loses anything a user could want.
 sub _session_identity {
-    my ($ident) = verify_session_cookie();
+    # SM1160: a signed-out Odoo-minted session is revoked even when it has gone stale
+    my ($ident) = verify_session_cookie( odoo_stale_ok => 1 );
     return ( '',             '' ) unless $ident;
     return ( $ident->{user}, $ident->{sid} );
 }
@@ -1230,6 +1236,14 @@ sub handle_request {
                 HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER)
         };
 
+  # SM1160: an Odoo-minted session is produced WITH a display name - the server-side
+  # record holds the one Odoo gave, and there is no account record to resolve one
+  # from. It is the verifier's value, never a client's: the line above cleared the header.
+        if ( $ident->{odoo} && length( $ident->{name} // '' ) ) {
+            ( my $n = $ident->{name} ) =~ s/[\x00-\x1f\x7f]//g;
+            $ENV{HTTP_X_REMOTE_NAME} = substr( $n, 0, 100 );
+        }
+
         # SM141: pass the caller's session id to the children (processor /
         # manager-api) so the Sessions page can mark "this session". A legacy
         # cookie has none.
@@ -1278,6 +1292,12 @@ sub handle_request {
         # session is disabled or signed out is unknown - refused, as no identity.
         log_event( 'WARN', $uri, 'auth: cannot tell - session refused until the store is repaired',
             user => $detail{user}, store => $detail{store} );
+    }
+    elsif ( $why =~ /\A(?:odoo-off|odoo-unsecured|odoo-stale|no-record)\z/ ) {
+     # SM1160: an Odoo-minted session that is not an identity: the opt-in is off, the site
+     # is unsecured, Odoo has not been asked within odoo_identity_ttl, or the server-side
+     # record is gone. No trusted headers are set; the request is unauthenticated.
+        log_event( 'DEBUG', $uri, "auth: odoo session not accepted ($why)", user => $detail{user} );
     }
     elsif ( $why eq 'revoked' ) {
         # SM141: an operator signed this session out (revoked sid) or signed

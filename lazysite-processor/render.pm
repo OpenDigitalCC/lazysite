@@ -477,6 +477,11 @@ sub _render_stash {
         auth_control =>
             '<a href="/login" data-ls-auth-in class="ls-auth ls-auth-in" style="display:none">Sign in</a>'
             . '<a href="/cgi-bin/lazysite-auth.pl?action=logout" data-ls-auth-out class="ls-auth ls-auth-out" style="display:none">Sign out</a>',
+  # SM1160: on a site that opted in to the Odoo sign-in as the site sign-in, the page's
+  # "signed in as <name>" with a sign-out link - the same markup for every visitor, filled
+  # in by the browser helper from the signed identity (so a cached page is never one
+  # person's). '' on any other site; a layout renders [% odoo_signin_banner %].
+        odoo_signin_banner => _odoo_signin_banner(),
         sections => $meta->{sections} || [],    # D035 Phase 3: data-driven pages
         editor   => $editor_flag,
         year     => sprintf( '%04d', (localtime)[5] + 1900 ),
@@ -648,6 +653,24 @@ sub render_content {
     my $processed_body = _tt_process_protected( $tt, $html_body, $vars );    # SM1012 S11
 
     return ( $processed_body, $vars );
+}
+
+
+# SM1160: is this an Odoo-sign-in site, and if so the banner. The processor loads no
+# Lazysite:: module (ADR 0001), so the one key is read here; t/unit/odoo holds this reader
+# and Lazysite::Odoo::SiteSignin::enabled to the same answer.
+sub _odoo_signin_banner {
+    my $en = _enabled_plugins();
+    return '' unless $en->{odoo};
+    open my $fh, '<:utf8', "$LAZYSITE_DIR/odoo.conf" or return '';
+    my $on = '';
+    while ( my $l = <$fh> ) { $on = lc $1 if $l =~ /\A\s*odoo_site_signin\s*:\s*(.*?)\s*\z/ }
+    close $fh;
+    return '' unless $on =~ /\A(?:on|yes|true|1)\z/;
+    return '<span class="ls-odoo-banner" data-ls-odoo-banner style="font-size:0.8rem;margin-left:auto;">'
+        . '<span data-ls-odoo-in hidden>Signed in as <strong data-ls-odoo-name></strong> '
+        . '<a href="#" data-ls-odoo-signout>Sign out</a></span>'
+        . '<a href="#" data-ls-odoo-signin data-ls-odoo-out>Sign in</a></span>';
 }
 
 1;
