@@ -175,10 +175,11 @@ sub check_url {
 }
 
 # ( $resolved_path, '' ) or ( undef, why ): one odoo_pack_dirs entry.
-# Built from pieces: t/lint/262 keeps the deb's data directory out of everything
-# the gate scans, and this is the one place production code must say where the
-# packaged packs are.
-our $PACKAGED_PACKS = '/usr/share/' . 'odoo-oom/packs';
+# The packaged packs (odoo-oom-packs): the one directory outside the site that
+# odoo_pack_dirs may name. t/lint/262 allows this declaration line, and only it,
+# to name the deb's data directory (release manager, 2026-10-18): production code
+# must say where the packs are, and no test may use it.
+our $PACKAGED_PACKS = '/usr/share/odoo-oom/packs';
 sub _pack_dir {
     my ($d) = @_;
     require Cwd;

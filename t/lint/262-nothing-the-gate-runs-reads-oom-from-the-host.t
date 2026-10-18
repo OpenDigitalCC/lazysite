@@ -38,6 +38,16 @@ my %ALLOWED = map { $_ => 1 } qw(
     t/lint/262-nothing-the-gate-runs-reads-oom-from-the-host.t
 );    # the last is this file, which has to say what it forbids
 
+# SM1164 D0 (release manager, 2026-10-18: "narrow exemption in lint 262"): ONE
+# LINE OF PRODUCTION CODE MAY NAME THE DEB'S DATA DIRECTORY. odoo_pack_dirs may
+# name the packaged packs, so Lazysite::Odoo must say where they are; that is a
+# path an operator configures, not something the gate reads. Only the
+# declaration line is exempt, matched whole, so a second mention in the file, or
+# any test naming the path, is still a finding.
+my %ALLOWED_LINE = (
+    'lib/Lazysite/Odoo.pm' => q{our $PACKAGED_PACKS = '} . '/usr/share/' . q{odoo-oom/packs';},
+);
+
 my @files;
 for my $top (qw(t lib tools)) {
     next unless -d "$root/$top";
@@ -62,6 +72,9 @@ for my $rel ( sort @files ) {
     local $/;
     my $t = <$fh>;
     next if $t =~ /\0/;
+    if ( defined( my $line = $ALLOWED_LINE{$rel} ) ) {
+        $t = join "\n", grep { $_ ne $line } split /\n/, $t;
+    }
     for my $n (@NAMES) {
         push @found, "$rel names $n" if index( $t, $n ) >= 0;
     }
