@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1166 (PENDING) **a binding takes a declared list of rows.** A parameter the
+  operation declares as `rows` (OOM 0.32, with a `max`) takes a JSON array of
+  flat objects from a request, such as a quotation's lines; each row is checked
+  against the declaration and the plain-value rule before Odoo is asked, and a
+  failure names the row and key. `rows_max` lowers the cap for one binding; a
+  `rows` parameter with no `max` or no known keys can only be fixed (OOM Lab
+  L-11; R1, R2 ruled 2026-10-18). t/unit/odoo/57.
 - SM1170 (PENDING) **a custom change of a site's own pack applies.** An apply
   of a site pack's `custom` change ended `apply-incomplete` ("no operation"),
   because OOM's apply looked the operation up without the site's namespaces;
