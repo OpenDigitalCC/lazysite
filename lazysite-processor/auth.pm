@@ -86,6 +86,12 @@ our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, %ACCESS_REC );
             elsif ( $line =~ /^api\s*:\s*true/i )     { $m{api}     = 1 }
             elsif ( $line =~ /^nocache\s*:\s*true/i ) { $m{nocache} = 1 }
             elsif ( $line =~ /^raw\s*:\s*true/i )     { $m{raw}     = 1 }
+            # SM1174 (L-16): `camera: self`, the ONE value that lets this page
+            # alone send camera=(self) on https. Exactly that and nothing else
+            # reads as a grant - `*`, a URL, `Self` or a typo leaves the page on
+            # camera=() - and only inside the front matter, so a body line that
+            # happens to read "camera: self" grants nothing.
+            elsif ( $has_fm && $line =~ /^camera[ \t]*:[ \t]*([\x22\x27]?)self\1[ \t]*\r?$/ ) { $m{camera} = 'self' }
             # SM656: the page says what KIND of page it is. The admin bar is
             # injected for anyone holding `ui`, which is a property of the
             # PERSON - and on an application page the bar's Edit link opens the

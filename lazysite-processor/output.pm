@@ -43,7 +43,10 @@ sub output_page {
     # SM381: $extra carries response headers only one caller has - the 402's
     # X-Payment-Response. Optional and last for the same reason $status was:
     # every existing caller is unchanged.
-    my ( $content, $content_type, $ttl, $auth_protected, $status, $extra ) = @_;
+    # SM1174: $camera is true when the page's own front matter says `camera: self`.
+    # Passed by the three paths that serve a page from its source (fresh render,
+    # cache hit, ttl hit) so a cached page keeps ITS policy and no other page's.
+    my ( $content, $content_type, $ttl, $auth_protected, $status, $extra, $camera ) = @_;
     $content_type //= 'text/html; charset=utf-8';
     $status       //= '200 OK';
 
@@ -81,8 +84,8 @@ sub output_page {
     # setting fits today. t/lint/56 holds that inventory - ten entries across
     # the engine - which is what a report-only collector would otherwise have
     # had to discover from live traffic, for a fact the source already states.
-    print "$_\n" for _security_headers( html => $content );          # SM352
-    print "$_\n" for @{ $extra || [] };                              # SM381
+    print "$_\n" for _security_headers( html => $content, camera => $camera ); # SM352, SM1174
+    print "$_\n" for @{ $extra || [] };                                        # SM381
     print "Content-Language: $RESPONSE_LANG\n" if $RESPONSE_LANG;    # SM179 (P1)
     if ($auth_protected) {
         print "Cache-Control: no-store, private\n";
@@ -254,7 +257,11 @@ sub _security_headers {
         'X-Content-Type-Options: nosniff',
         'X-Frame-Options: SAMEORIGIN',
         'Referrer-Policy: strict-origin-when-cross-origin',
-        'Permissions-Policy: accelerometer=(), browsing-topics=(), camera=(), '
+        'Permissions-Policy: accelerometer=(), browsing-topics=(), camera='
+            # SM1174: `camera: self` in the page's front matter, on https only.
+            # Per response and never stored with the render - the cache keeps
+            # HTML, and this is decided from the page's own source each time.
+            . ( ( $opt{camera} && $ENV{HTTPS} ) ? '(self)' : '()' ) . ', '
             . 'display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), '
             . 'microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()',
     );

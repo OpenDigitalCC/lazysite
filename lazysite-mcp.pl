@@ -2624,6 +2624,21 @@ sub _page_status {
             ( !$cached || ( $exists && ( stat $html )[9] < ( stat $full )[9] ) )
             ? JSON::PP::true : JSON::PP::false;
         $out{public_url} = _public_url($rel);
+
+        # SM1174 (L-16): a page that opens the camera says so in its status, with
+        # the condition, so "the camera does not start" is answerable from here.
+        if ($exists) {
+            my $src = '';
+            if ( open my $fh, '<:utf8', $full ) { local $/; $src = <$fh>; close $fh }
+            my ($fm) = Lazysite::Validate::split_front_matter( $src // '' );
+            my $cam = Lazysite::Validate::camera_value($fm);
+            if ( defined $cam && $cam eq 'self' ) {
+                $out{camera} = 'self';
+                $out{camera_note} = 'camera allowed on this page: it sends camera=(self) over https. '
+                    . 'Over plain http the setting is ignored and the page keeps camera=(), '
+                    . 'because browsers offer the camera on a secure connection only.';
+            }
+        }
     }
     return \%out;
 }

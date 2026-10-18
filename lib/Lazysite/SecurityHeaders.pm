@@ -107,8 +107,17 @@ sub _csp_mode {
     return ( grep { $_ eq $v } @CSP_MODES ) ? $v : 'report-only';
 }
 
+# SM1174 (L-16, ruled 2026-10-18 "Per page, opt-in"): ONE feature may be
+# relaxed, and only for one response - camera, to (self), when the page asked
+# for it in its front matter (`camera: self`) AND the request is https. A live
+# viewfinder (getUserMedia) is refused on a page under camera=(), and browsers
+# only offer the camera on a secure origin anyway, so the relaxation is not sent
+# where it could not work. Microphone, geolocation and every other directive
+# stay denied: this is not a general "allow" list (SM710 asks for that
+# separately), and a list built for one driver would be the thing it warns of.
 sub _permissions_policy {
-    return join ', ', map { "$_=()" } @DENIED_FEATURES;
+    my (%o) = @_;
+    return join ', ', map { ( $_ eq 'camera' && $o{camera} ) ? 'camera=(self)' : "$_=()" } @DENIED_FEATURES;
 }
 
 # THE POLICY, AND WHY EACH LOOSE DIRECTIVE IS LOOSE.
@@ -275,7 +284,9 @@ sub content_security_policy {
 
 # The header lines for one response.
 #
-#   https => truthy when the request arrived over TLS
+#   https  => truthy when the request arrived over TLS
+#   camera => truthy when the page asked for the camera (SM1174); honoured only
+#             with https, so the caller need not repeat that test
 #
 # The caller passes it rather than this module reading %ENV, so a test can ask
 # both questions without staging an environment.
@@ -297,7 +308,7 @@ sub security_headers {
         'X-Content-Type-Options: nosniff',
         'X-Frame-Options: SAMEORIGIN',
         'Referrer-Policy: strict-origin-when-cross-origin',
-        'Permissions-Policy: ' . _permissions_policy(),
+        'Permissions-Policy: ' . _permissions_policy( camera => ( $opt{camera} && $opt{https} ) ),
     );
     push @h, "Strict-Transport-Security: max-age=$HSTS_MAX_AGE" if $opt{https};
 

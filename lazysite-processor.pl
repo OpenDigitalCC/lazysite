@@ -875,7 +875,7 @@ sub try_serve_cache {
         my $ct  = read_ct($base);
         my $ttl = peek_ttl($md_path);
         output_page( _inject_admin_bar_live( read_file($html_path), $md_path ),
-            $ct, $ttl );
+            $ct, $ttl, undef, undef, undef, _peek_md($md_path)->{camera} );    # SM1174
         return 1;
     }
 
@@ -903,7 +903,7 @@ sub try_serve_cache {
     {
         my $ct = read_ct($base);
         output_page( _inject_admin_bar_live( read_file($html_path), $md_path ),
-            $ct, $ttl );
+            $ct, $ttl, undef, undef, undef, _peek_md($md_path)->{camera} );    # SM1174
         return 1;
     }
     return 0;
@@ -1535,7 +1535,8 @@ sub main {
         write_deps($base) unless $protected;
         log_event( 'INFO', $uri, 'page rendered' );
         # Admin bar added here (post-cache, per-viewer), not inside the cached page.
-        output_page( _inject_admin_bar_live( $page, $md_path ), $ct, $ttl, $protected );
+        output_page( _inject_admin_bar_live( $page, $md_path ), $ct, $ttl, $protected, undef, undef,
+            _peek_md($md_path)->{camera} );    # SM1174
         return;
     }
 

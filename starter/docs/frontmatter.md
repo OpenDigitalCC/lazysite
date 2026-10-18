@@ -84,6 +84,9 @@ Any other key
 `nocache`
 : `nocache: true` renders the page fresh on every request - never served from or written to the cache. Use it for genuinely per-request content, such as showing the visitor their own IP with `[% client_ip %]`. See [Showing the visitor's IP](/docs/features/authoring/visitor-ip).
 
+`camera`
+: `camera: self` lets this page alone open the visitor's camera - a live viewfinder for scanning a barcode or photographing a card. The page sends `Permissions-Policy: camera=(self)` over https; every other page, and this page over plain http, keeps `camera=()`. `self` is the one value that grants; `none` or leaving the key out keeps the camera closed, and any other value is reported by validate. Microphone, location and the other browser features stay closed on every page. The browser still asks the visitor before the camera starts.
+
 `query_params`
 : Accepted URL query-parameter names, exposed as `[% query.name %]`. Requests with matching parameters bypass the cache. See [API and raw mode](/docs/api).
 

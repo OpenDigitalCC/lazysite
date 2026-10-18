@@ -310,6 +310,43 @@ sub _check_access_keys {
     return;
 }
 
+# SM1174 (L-16): `camera:` takes `self` or `none` and nothing else. The engine
+# reads only `self` as a grant, so any other value leaves the page on camera=()
+# - the page works, the camera does not - and an author who wrote `*` or a URL
+# meaning "allow" is told so here rather than finding out on a phone. Returns
+# the value as the validator read it ('self', 'none', or undef when absent or
+# unreadable) so page_status can show it.
+sub camera_value {
+    my ($fm) = @_;
+    my ( $v, $bad );
+    my $seen = 0;
+    for my $line ( split /\r?\n/, ( $fm // '' ) ) {
+        next unless $line =~ /\Acamera[ \t]*:(.*)\z/;
+        my $raw = $1;
+        $raw =~ s/\s+#.*\z//;
+        $raw =~ s/\A\s+|\s+\z//g;
+        $raw =~ s/\A"(.*)"\z/$1/ or $raw =~ s/\A'(.*)'\z/$1/;
+        if ( $seen++ ) { $bad = "'camera' is given more than once"; next }
+        if ( $raw eq 'self' || $raw eq 'none' ) { $v = $raw }
+        else {
+            $bad = length $raw
+                ? "'camera: $raw' is not one of self, none"
+                : "'camera' has no value - write self (or none)";
+        }
+    }
+    return wantarray ? ( $v, $bad ) : $v;
+}
+
+sub _check_camera {
+    my ( $issues, $fm )  = @_;
+    my ( undef,   $bad ) = camera_value($fm);
+    push @$issues, { kind => 'camera-unreadable', key => 'camera',
+        message => "$bad, so the page keeps camera=() and cannot open the camera - "
+            . 'write camera: self to allow it on this page (https only)' }
+        if defined $bad;
+    return;
+}
+
 # SM993: where a page is, for read_access_keys - 'manager' for a page under the
 # manager path (lazysite.conf's manager_path, /manager by default), 'content'
 # for any other, undef when the caller named no path (validate_page given only
@@ -749,6 +786,7 @@ sub validate_content {
 
     _check_front_matter( \@issues, \@warnings, $content, $h );
     _check_access_keys( \@issues, $fm, _page_place( $o{path}, $docroot, $lz ) ); # SM980, SM993
+    _check_camera( \@issues, $fm );                                              # SM1174
     _check_fences( \@warnings, $fm, $body );
     # SM900: with the front-matter offset, as _check_fences has always done, so
     # the two checks on one page count from the same place - the top of the file.

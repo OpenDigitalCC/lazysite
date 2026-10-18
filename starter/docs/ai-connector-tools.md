@@ -161,7 +161,9 @@ list_pages
 
 page_status `{ path }`
 : Whether the source exists + last-modified, whether the render is pending (cache
-  dropped after an edit, re-renders next visit), and the public URL. Confirm an
+  dropped after an edit, re-renders next visit), and the public URL. A page whose
+  front matter says `camera: self` also reports `camera` and `camera_note`
+  ("camera allowed on this page", https only). Confirm an
   edit will reach visitors without a web fetch.
 
 search_files `{ query, path }`

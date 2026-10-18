@@ -318,4 +318,19 @@ subtest 'every response path emits the set' => sub {
             . 'fourth, invisibly to anyone probing the homepage.' );
 };
 
+subtest 'SM1174: the camera allowance is the same decision in both, and https-only' => sub {
+    for my $https ( 0, 1 ) {
+        for my $camera ( 0, 1 ) {
+            local $ENV{HTTPS} = $https ? 'on' : '';
+            my @module = Lazysite::SecurityHeaders::security_headers( https => $https, camera => $camera );
+            my @copy   = ProcessorHeadersUnderTest::_security_headers( camera => $camera );
+            is_deeply( \@copy, \@module, "https=$https camera=$camera: the same lines" );
+            my ($pp) = grep {/^Permissions-Policy:/} @copy;
+            my $want = ( $https && $camera ) ? 'camera=(self)' : 'camera=()';
+            like( $pp, qr/\Q$want\E,/, "...and the policy carries $want" );
+            is( scalar( () = $pp =~ /\(self\)/g ), ( $https && $camera ) ? 1 : 0, '...with no other directive relaxed' );
+        }
+    }
+};
+
 done_testing();
