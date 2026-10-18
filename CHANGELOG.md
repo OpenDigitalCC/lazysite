@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1170 (PENDING) **a custom change of a site's own pack applies.** An apply
+  of a site pack's `custom` change ended `apply-incomplete` ("no operation"),
+  because OOM's apply looked the operation up without the site's namespaces;
+  planning and both apply paths now run with the site's operations, packs and
+  cache set for that call only, never process-wide (OOM Lab L-12).
+  t/unit/odoo/56.
 - SM1161 (PENDING) **a scheduled binding may run as an Odoo login of its own.**
   `odoo-secret-set` / `odoo-secret-clear` (control API and MCP) take
   `scheduled` (a binding id); its run uses that login's key, is recorded and
