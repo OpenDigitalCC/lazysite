@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1167 (PENDING) **internal: lazysite's vendored OOM is 0.32.** The pinned
+  snapshot in `t/vendor/oom` moves from 0.27 to OOM 0.32 (bd9610e); no lazysite
+  code needed to change, and nothing uses rows, inline reports, repeat-safe
+  requests or oomd yet. `tools/vendor-oom.sh` takes a second `--deb`, since
+  `odoo-oom-tools` now ships `Odoo/Accounts.pm` and `Odoo/Tools/`. t/lint/207, 261.
 - SM1163 (PENDING) **internal: a rate test stays in one window.** The sign-in limiter
   counts in fixed windows, and a test whose guesses ran across a five-minute
   boundary saw the count restart (2026-10-17 integration). One helper,
