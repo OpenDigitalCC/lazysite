@@ -84,6 +84,22 @@ sub _pairs {
 #
 # The SHAPE only - no OOM needed. Whether the operation exists and declares the
 # parameters is check_against(), which needs the registry.
+# SM1173: the default caps, per hour. A scanning page is a read and needs
+# thousands an hour (OOM Lab L-14); a write keeps the small ceiling that
+# stands between a script and Odoo's data. Ruled 2026-10-18.
+our %WRITE_RATE = ( rate_per_visitor_hour => 20,   rate_per_hour => 200 );
+our %READ_RATE  = ( rate_per_visitor_hour => 2000, rate_per_hour => 20000 );
+
+# rate_limits( \%binding, $writes ) -> ( per_visitor_hour, per_hour )
+#
+# The binding's own number where it said one, else the default for a read or a
+# write. $writes is the operation's own answer ($class->writes).
+sub rate_limits {
+    my ( $b, $writes ) = @_;
+    my $d = $writes ? \%WRITE_RATE : \%READ_RATE;
+    return map { $b->{rate_set}{$_} ? $b->{$_} : $d->{$_} } qw(rate_per_visitor_hour rate_per_hour);
+}
+
 sub parse {
     my ($h) = @_;
     return ( undef, 'a binding is required', 'id' ) unless ref $h eq 'HASH';
@@ -189,11 +205,18 @@ sub parse {
         $b{rows_max} = 0 + $rm;
     }
 
+    # SM1173 (OOM Lab L-14): the caps. What the binding says stands, above or
+    # below the default, for a read as for a write (no ceiling). What it leaves
+    # out is the default for WHAT IT DOES - decided at the call, where the
+    # operation is known (rate_limits) - so `rate_set` records which were said,
+    # and rate_* holds the write default for a caller that does not ask.
     for my $k (qw(rate_per_visitor_hour rate_per_hour)) {
-        my $v = $h->{$k};
-        $v = $k eq 'rate_per_hour' ? 200 : 20 unless defined $v && length $v;
+        my $v    = $h->{$k};
+        my $said = defined $v && length $v;
+        $v = $WRITE_RATE{$k} unless $said;
         return ( undef, "$k must be a whole number", $k ) unless $v =~ /\A[0-9]+\z/;
         $b{$k} = 0 + $v;
+        $b{rate_set}{$k} = 1 if $said;
     }
 
     # A visitor key exists only where a visitor does: a scheduled run has none.

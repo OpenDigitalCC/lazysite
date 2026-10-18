@@ -917,7 +917,7 @@ sub call {
                     . 'nobody who could - a signed-in account or a visitor with a key' ) )[1];
     }
 
-    my ( $capok, $capwhy ) = _take_cap( $b, %c );
+    my ( $capok, $capwhy ) = _take_cap( $b, $class, %c );
     return ( _refusal( \%rec, 'rate', $capwhy ) )[1] unless $capok;
 
     my $t0  = _now_hires();
@@ -979,7 +979,7 @@ sub confirm {
 
     my ( $class, $refusal ) = _ready( $b, $conn, \%rec );
     return $refusal unless $class;
-    my ( $capok, $capwhy ) = _take_cap( $b, %c );
+    my ( $capok, $capwhy ) = _take_cap( $b, $class, %c );
     return ( _refusal( \%rec, 'rate', $capwhy ) )[1] unless $capok;
 
     my $t0  = _now_hires();
@@ -1316,7 +1316,7 @@ sub _with_visitor {
 # axis first. A record that cannot be opened refuses: a cap honoured only while
 # its counter is readable is not a cap.
 sub _take_cap {
-    my ( $b, %c ) = @_;
+    my ( $b, $class, %c ) = @_;
     require Fcntl;
     my $who = length( $c{visitor} // '' ) ? "visitor:$c{visitor}" : _actor_label(%c);
     my $dir = store_dir();
@@ -1339,13 +1339,18 @@ sub _take_cap {
         $n_all++;
         $n_who++ if ( $r->{who} // '' ) eq $who;
     }
+
+    # SM1173: the default is the operation's own - reads 2,000 / 20,000, writes 20 / 200.
+    require Lazysite::Odoo::Binding;
+    my ( $lim_who, $lim_all ) = Lazysite::Odoo::Binding::rate_limits( $b, $class->writes );
+
     my ( $ok, $why ) = Lazysite::Egress::within_caps(
         what => 'Odoo binding',
         axes => [
             { name => ( $who =~ /\Avisitor:/ ? 'per-visitor' : 'per-caller' ),
-                limit   => $b->{rate_per_visitor_hour}, used => $n_who,
+                limit   => $lim_who, used => $n_who,
                 setting => "rate_per_visitor_hour on the binding '$b->{id}'" },
-            { name => 'per-binding', limit => $b->{rate_per_hour}, used => $n_all,
+            { name => 'per-binding', limit => $lim_all, used => $n_all,
                 setting => "rate_per_hour on the binding '$b->{id}'" },
         ],
     );

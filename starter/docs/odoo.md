@@ -201,11 +201,35 @@ says what a request may set and who may cause it:
   on each change in `preview.changes`, so a page can warn before the confirm.
 
 `rate_per_visitor_hour`, `rate_per_hour`
-: The rate caps. Defaults 20 and 200.
+: The rate caps. **The default depends on what the binding does** - see
+  *Rate caps: reads and writes* below. Leave them out to take the default.
 
 `domain`
 : Optional. A binding with a `domain:` runs only for requests on that domain;
   one without runs for every domain the instance serves (see *Domains*).
+
+### Rate caps: reads and writes
+
+**The default caps depend on whether the binding reads or writes.**
+
+| The operation | Per visitor or account, per hour | Per binding, per hour |
+|---|---|---|
+| Reads (a look-up, a list, a header on every page) | **2,000** | **20,000** |
+| Writes (anything that changes Odoo) | **20** | **200** |
+
+A **scanning page is a read**: each scan of a shelf, lot, package or product is
+a look-up, and a warehouse page makes thousands an hour, so it takes the read
+defaults without any setting. The same page's writes (a confirmed pick) are
+held to the write defaults. A page that reads on every load, such as a shared
+header, counts against the read caps the same way.
+
+A binding can set its own caps, in either direction. Give `rate_per_visitor_hour`
+and `rate_per_hour` on the binding (in the manager, the two *Cap* fields; leave
+a field empty to take the default). A number you give **replaces** the default
+for that binding - lower to hold a read tighter, higher to give a write more
+room - and there is no ceiling on it. A cap of `0` refuses every call. The
+default is chosen at each call from the operation, so a binding that names
+no caps follows the operation if it is later pointed at one that writes.
 
 A parameter has exactly one source: a name in two of `params`, `fixed` and
 `visitor_param` is refused at save.
@@ -393,7 +417,8 @@ which OOM enforces before any call leaves. The engine adds:
   the account or visitor that made it can apply it, within an hour, through
   the binding as it stands then. Anyone else is told the plan was not found.
 - **Rate caps.** Per visitor (or account) per hour, `rate_per_visitor_hour`,
-  and per binding per hour, `rate_per_hour`. An attempt counts when it is
+  and per binding per hour, `rate_per_hour` (writes default to 20 and 200, reads to
+  2,000 and 20,000; see *Rate caps: reads and writes*). An attempt counts when it is
   admitted, whether Odoo then accepts it or not. When the count cannot be
   read, the call is refused. Over a cap the answer is `429` (`rate`).
 - **The record names a hash of the key**, never the key.

@@ -324,10 +324,15 @@ our %TYPES      = (
             { key => 'rows_max', label => 'Cap: rows in a list a request gives', type => 'number',
                 note => 'Optional. A parameter the operation declares as a list of rows has a cap '
                     . 'of its own; this can only lower it, for this binding.' },
+            # SM1173: NO schema default - a default here is saved into the binding
+            # and would pin a read to the write numbers. Empty stands for the
+            # default of what the binding does.
             { key => 'rate_per_visitor_hour', label => 'Cap: runs per visitor per hour',
-                type => 'number', default => '20' },
+                type => 'number',
+                note => 'Leave empty for the default: 2000 for a read, 20 for a write. A number here replaces it, higher or lower.' },
             { key => 'rate_per_hour', label => 'Cap: runs of this binding per hour',
-                type => 'number', default => '200' },
+                type => 'number',
+                note => 'Leave empty for the default: 20000 for a read, 200 for a write. A number here replaces it, higher or lower.' },
         ],
         note => 'Needs the Odoo extension enabled and configured, with the connection '
             . 'user\'s API key set.',
