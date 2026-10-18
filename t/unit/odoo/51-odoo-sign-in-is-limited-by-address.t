@@ -255,6 +255,18 @@ subtest 'a session binding may narrow the site\'s limit, on its calls' => sub {
     is( $j4->{kind}, 'address', '...kind address' );
     ok( audit_rows('signin desk') >= 1, 'with its own audit row' );
 
+    # SM1159 before SM1168: with no Odoo session, a call from an address the binding
+    # refuses is refused by address, not asked to sign in - a sign-in from there would
+    # be refused too. From the desk the same call is asked to sign in.
+    my ( $s5, undef, $j5 ) = request( 'POST', '', { binding => 'desk', visitor_token => $VT, params => {} },
+        HTTP_COOKIE => $VISITOR, HTTP_X_FORWARDED_FOR => '203.0.113.50' );
+    is( $s5, 403, 'no session, from an address the binding refuses: 403, not 401' ) or diag encode_json($j5);
+    is( $j5->{kind}, 'address', '...kind address' );
+    my ( $s6, undef, $j6 ) = request( 'POST', '', { binding => 'desk', visitor_token => $VT, params => {} },
+        HTTP_COOKIE => $VISITOR, HTTP_X_FORWARDED_FOR => $IN );
+    is( $s6, 401, 'no session, from the desk: asked to sign in' ) or diag encode_json($j6);
+    is( $j6->{kind}, 'signin-required', '...signin-required' );
+
     # never widening: the site's own sign-in limit still refuses an address the binding would admit
     bind( $d, id => 'wide', operation => 'shop.products', credential => 'session', modes => 'authenticated',
         signin_addresses => 'office' );

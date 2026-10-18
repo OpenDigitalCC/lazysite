@@ -341,7 +341,9 @@ sub _post_one {
     # one that refuses it (and records the refusal, SM771). This weakens no check:
     # nothing runs and nothing of the binding is told, only "you are not signed
     # in", which the caller already knows. A request WITH a session goes on to the
-    # token check below, unchanged.
+    # token check below, unchanged. The binding's address rule (SM1159) is held
+    # first, above: from an address it refuses, the call is refused, not asked to
+    # sign in, since a sign-in from there would be refused too.
     if ( ( $b->{credential} // '' ) eq 'session' && !length( $ctx{odoo_session} // '' ) ) {
         my ( undef, $refusal ) = Lazysite::Odoo::gate( $b, %ctx );
         return _refusal_pair($refusal);
