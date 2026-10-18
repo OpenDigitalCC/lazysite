@@ -143,6 +143,7 @@ details.mg-stack-section[open] > summary::before { transform: rotate(90deg); }
 <span id="ed-words">0 words</span>
 <span id="ed-dirty" class="mg-editor-dirty"></span>
 <span id="ed-saved" class="mg-editor-saved"></span>
+<span id="ed-camera" class="mg-editor-saved"></span>
 </div>
 
 </div>
@@ -853,6 +854,15 @@ function renderBinaryPanel(path) {
   if (statusbar) statusbar.style.display = 'none';
 }
 
+// SM1174: the server decides (camera / camera_issue on the read and save
+// answers); this only shows what it said.
+function edShowCamera(data) {
+  var el = document.getElementById('ed-camera');
+  if (!el) return;
+  el.textContent = data && data.camera === 'self' ? 'Camera allowed on this page (https only)'
+    : (data && data.camera_issue) || '';
+}
+
 function loadContent() {
   fetch(API + '?action=read&path=' + encodeURIComponent(filePath))
     .then(function(r) { return r.json(); })
@@ -866,6 +876,7 @@ function loadContent() {
         return;
       }
       fileMtime = data.mtime;
+      edShowCamera(data);
       if (isMdFile) {
         var parts = parseFrontMatter(data.content);
         populateFmFields(parts.yaml);
@@ -900,6 +911,7 @@ function savePage() {
     if (data.ok) {
       if (typeof mgClearWarning === 'function') mgClearWarning();
       fileMtime = data.mtime;
+      edShowCamera(data);
       clearDirty();
       if (isMdFile) refreshPreview();
       // Re-render the JSON/JSONL preview with the content that

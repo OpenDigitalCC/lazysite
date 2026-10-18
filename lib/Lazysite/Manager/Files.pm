@@ -435,6 +435,21 @@ sub action_list {
         address_lists => _address_list_choices() }; # SM1139: for the permissions editor's pickers
 }
 
+# SM1174: what the editor's status bar says about a page's camera, decided
+# here by the validator's own reader so the editor holds no copy of the rule.
+# `camera => 'self'` for a page that grants it, `camera_issue` carrying the
+# validator's sentence for a value it cannot read, nothing otherwise.
+sub _camera_fields {
+    my ( $rel, $content ) = @_;
+    return () unless defined $rel && $rel =~ /\.md\z/ && defined $content;
+    require Lazysite::Validate;
+    my ($fm) = Lazysite::Validate::split_front_matter($content);
+    my ( $v, $bad ) = Lazysite::Validate::camera_value($fm);
+    return ( camera_issue => $bad )   if defined $bad;
+    return ( camera       => 'self' ) if defined $v && $v eq 'self';
+    return ();
+}
+
 sub action_read {
     my ( $rel_path, $username ) = @_;
 
@@ -477,6 +492,7 @@ sub action_read {
         content => $content,
         mtime   => ( stat $full )[9],
         lock    => $lock_info,
+        _camera_fields( $result->{rel}, $content ),    # SM1174
     };
 }
 
@@ -1018,6 +1034,7 @@ sub action_save {
     my @st = stat($full);
     return { ok => 1, path => $rel_path, mtime => $st[9] // 0,
         created => $existed ? 0 : 1,
+        _camera_fields( $result->{rel}, $content ),    # SM1174
         @acl_note,
         ( $nav_change
             ? ( cache_rebuilt => 'all-pages', cache_cleared => $cleared )

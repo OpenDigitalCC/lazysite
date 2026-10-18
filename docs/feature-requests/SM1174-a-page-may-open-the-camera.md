@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-18
 raised-by: lazysite-sites agent, inbox/2026-10-17-oom-lab-stock-and-picking-apps-findings.md row L-16
 area: security
-status-note: "SHIPPED on n663 (claude/n663-a-page-may-open-the-camera): lib/Lazysite/SecurityHeaders.pm and its processor copy; t/unit/processor/143, t/unit/mcp/33, t/lint/55."
+status-note: "SHIPPED on n663 (claude/n663-a-page-may-open-the-camera): lib/Lazysite/SecurityHeaders.pm and its processor copy; t/unit/processor/143, t/unit/mcp/33, t/unit/manager/364, t/lint/55."
 ---
 
 # What happened
@@ -57,9 +57,12 @@ The ruling (release manager, 2026-10-18):
 - Who may set it: whoever may write the page's front matter today. Pages are
   files; the control API, the file editor and the MCP write tools all write the
   same front matter, and the one validator reads it. No new permission.
-- `page_status` (MCP; the manager's page status) reports `camera: "self"` and a
-  `camera_note` ("camera allowed on this page ... https only; over plain http the
-  page keeps camera=()") for such a page.
+- Shown in the operator's view of a page: the manager API's file read and file save
+  answer `camera: "self"` (or `camera_issue`, the validator's sentence, for a value it
+  cannot read) for such a page, decided on the server by the validator's reader, and
+  the editor's status bar (starter/manager/edit.md) shows "Camera allowed on this page
+  (https only)" or the issue. The MCP `page_status` reports `camera` and `camera_note`
+  alike. The manager has no page-status action of its own; the editor is that view.
 - Docs: one entry in starter/docs/frontmatter.md, one clause in
   starter/docs/ai-connector-tools.md.
 
