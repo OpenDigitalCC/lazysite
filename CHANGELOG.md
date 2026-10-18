@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1172 (PENDING) **saving the Odoo config keeps what an overlapping save
+  wrote.** Two saves of `lazysite/odoo.conf` that overlapped both read the old
+  file, so the second dropped the first's keys, an app's `odoo_packs`
+  namespace among them (its operations answered 404 for a few seconds); the
+  read, change and write now run under one lock (OOM Lab L-15). A client that
+  rewrites the whole list itself can still race. t/unit/odoo/59.
 - SM1166 (PENDING) **a binding takes a declared list of rows.** A parameter the
   operation declares as `rows` (OOM 0.32, with a `max`) takes a JSON array of
   flat objects from a request, such as a quotation's lines; each row is checked
