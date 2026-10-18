@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1169 (PENDING) **security: a pooled worker no longer carries one visitor's
+  data to the next.** A worker of the persistent pool kept a visitor's payment
+  context (the previous payer reached later pages' template stash), their scan
+  identity (the first visitor's user and groups filtered every later `scan:`)
+  and their response language into the next visitor's requests; all three are
+  now reset per request. The pool's parent also loads the engine modules before
+  it forks, so a respawned worker starts warm (a first-request page-cache miss
+  fell from about 110-120 ms to 38-51 ms on the shared host), and a lint reads
+  every file-scope variable of the resident code. t/lint/269,
+  t/integration/288.
 - SM1159 (PENDING) **security: sign-in can be limited by address.**
   `signin_addresses` and `signin_addresses_deny` name address lists that
   lazysite's login and the Odoo endpoint's sign-in and code steps must admit; a
