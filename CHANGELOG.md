@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1161 (PENDING) **a scheduled binding may run as an Odoo login of its own.**
+  `odoo-secret-set` / `odoo-secret-clear` (control API and MCP) take
+  `scheduled` (a binding id); its run uses that login's key, is recorded and
+  audited as `scheduled:<binding>` with the login it ran as, and a configured
+  binding without its key is refused rather than run as the connection user.
+  `odoo-status` lists each scheduled key and its expiry, and `lazysite check`
+  warns within 14 days of it. t/unit/odoo/58, t/tools/180.
 - SM1169 (PENDING) **security: a pooled worker no longer carries one visitor's
   data to the next.** A worker of the persistent pool kept a visitor's payment
   context (the previous payer reached later pages' template stash), their scan
