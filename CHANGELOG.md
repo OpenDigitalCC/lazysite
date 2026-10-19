@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1179 (PENDING) **the Odoo registry is built once.** Each Odoo call built
+  OOM's operation registry twice, loading every operation module each time
+  (about 450 ms of every request, OOM Lab); a process now keeps the registry it
+  built for a site configuration - the docroot, `odoo_packs`, `odoo_pack_dirs`,
+  the cache directory and OOM's version - so a config save or a second site
+  builds its own. A pack changed on disk under an unchanged configuration is read
+  by a new process. t/unit/odoo/72.
 - SM1178 (PENDING) **a binding may name a pack operation with a hyphen.** A
   binding to an operation of an OOM pack such as `crm-page` (`crm-page.leads`)
   was refused at save ("not an operation name"), so a pack could be installed
