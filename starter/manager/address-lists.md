@@ -5,6 +5,7 @@ search: false
 ---
 
 <div id="status" class="mg-status"></div>
+<div class="mg-note mg-note-warn" id="proxy-warning" hidden></div>
 
 <!-- SM1138 (slice A of SM1134, ruled 2026-10-17): named lists of addresses, each
      allowing or denying. This page keeps the lists; applying one to a page, a
@@ -58,6 +59,16 @@ function node(tag, cls, text) {
   if (cls) e.className = cls;
   if (text != null) e.textContent = text;    // names and notes are the operator's: text only
   return e;
+}
+
+// SM1192 (test plan 0.15.10, F-1): the server decides whether every visitor reaches
+// this site as the front proxy (proxy_warning); this only shows its sentence, as
+// text, where address rules are edited.
+function showProxyWarning(msg) {
+  var el = document.getElementById('proxy-warning');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.hidden = !msg;
 }
 
 function fail(msg) {
@@ -174,6 +185,7 @@ function loadLists() {
         box.appendChild(node('div', 'mg-empty', d.error || 'Could not list the address lists.'));
         return;
       }
+      showProxyWarning(d.proxy_warning);
       renderLists(d);
     })
     .catch(function(e) { fail('Could not list the address lists: ' + e.message); });

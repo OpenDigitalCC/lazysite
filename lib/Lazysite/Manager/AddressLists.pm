@@ -68,8 +68,11 @@ sub address_lists {
             ( defined $l->{updated}    ? ( updated => $l->{updated} + 0 )   : () ),
             ( $l->{rejected}           ? ( rejected => $l->{rejected} )     : () ) }
     } sort keys %{$all};
+    # SM1192: the server decides "every visitor is the front proxy"; the page shows it.
+    my $proxy = Lazysite::Auth::AddressLists::front_end_warning();
     return { ok => 1, lists => \@rows,
-        ( $who{confined} ? ( confined => JSON::PP::true() ) : () ),
+        ( defined $proxy ? ( proxy_warning => $proxy )           : () ),
+        ( $who{confined} ? ( confined      => JSON::PP::true() ) : () ),
         # The operator changes lists; anyone else is shown them and no controls.
         can_edit => ( $who{operator} ? JSON::PP::true() : JSON::PP::false() ),
         note => 'kind is allow or deny; an entry is a single address or a CIDR range (IPv4 or '

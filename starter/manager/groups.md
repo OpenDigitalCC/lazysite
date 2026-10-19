@@ -5,6 +5,7 @@ search: false
 ---
 
 <div id="status" class="mg-status"></div>
+<div class="mg-note mg-note-warn" id="proxy-warning" hidden></div>
 
 <div class="mg-note mg-note-info">
 A <b>group</b> (<code>@name</code>) is a role: its <b>capabilities</b> (content,
@@ -33,6 +34,16 @@ administration is the <b>Users &amp; groups</b> action.
 </div>
 
 <script>
+// SM1192 (test plan 0.15.10, F-1): the server decides whether every visitor reaches
+// this site as the front proxy (proxy_warning); this only shows its sentence, as
+// text, where address rules are edited.
+function showProxyWarning(msg) {
+  var el = document.getElementById('proxy-warning');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.hidden = !msg;
+}
+
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var allGroups = {};   // {group: {label, manager, assignable, caps:{}, members:[]}}
 var viewerOperator = false;   // SM1135: is the caller the operator? gates the directory_grants tick
@@ -160,7 +171,10 @@ function loadGroups() {
   // SM1140: the address lists, for the operator's chooser; a failure just offers none.
   var al = fetch(API + '?action=address-lists', { credentials: 'same-origin' })
     .then(function(r) { return r.json(); })
-    .then(function(d) { addressLists = (d.ok && d.lists) ? d.lists : []; })
+    .then(function(d) {
+      addressLists = (d.ok && d.lists) ? d.lists : [];
+      showProxyWarning(d.ok ? d.proxy_warning : '');    // SM1192
+    })
     .catch(function() { addressLists = []; });
   var up = apiCall({ action: 'list' })
     .then(function(d) { return (d.ok && d.users) ? d.users : []; })

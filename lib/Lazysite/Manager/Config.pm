@@ -76,7 +76,13 @@ sub action_config_read {
     # SM917: %out keeps its declared defaults when the conf will not open, so the
     # manager would show the DEFAULTS as though they were the site's settings.
     else { Lazysite::Util::cannot_read( 'the site conf', "$LAZYSITE_DIR/lazysite.conf" ) }
-    return { ok => 1, config => \%out };
+    # SM1192: the address fields on the Config page show this when every visitor would
+    # be the front proxy; decided here with the limiter's own address logic.
+    require Lazysite::Auth::AddressLists;
+    no warnings 'once';
+    local $Lazysite::Auth::AddressLists::AUTH_DIR = "$LAZYSITE_DIR/auth";
+    my $proxy = Lazysite::Auth::AddressLists::front_end_warning();
+    return { ok => 1, config => \%out, ( defined $proxy ? ( proxy_warning => $proxy ) : () ) };
 }
 
 # SM179 P6: translation-coverage status for a language set. Read-only. `group`

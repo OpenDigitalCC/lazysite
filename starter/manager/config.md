@@ -6,6 +6,7 @@ search: false
 
 [% IF manager_caps.manage_config %]
 <section class="mg-config-section">
+<div class="mg-note mg-note-warn" id="proxy-warning" hidden></div>
 <div id="site-settings">Loading...</div>
 <div id="site-status" class="mg-status"></div>
 </section>
@@ -36,6 +37,16 @@ search: false
 
 [% IF manager_caps.manage_config %]
 <script>
+// SM1192 (test plan 0.15.10, F-1): the server decides whether every visitor reaches
+// this site as the front proxy (proxy_warning); this only shows its sentence, as
+// text, where address rules are edited.
+function showProxyWarning(msg) {
+  var el = document.getElementById('proxy-warning');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.hidden = !msg;
+}
+
 var API = '/cgi-bin/lazysite-manager-api.pl';
 
 // SM042: SITE_SCHEMA is the SOLE source of truth for the site-settings form.
@@ -274,6 +285,7 @@ function loadSiteSettings() {
         return;
       }
       mgClearWarning();
+      showProxyWarning(data.proxy_warning);    // SM1192
 
       availableLayouts = (layoutsResp && layoutsResp.ok && layoutsResp.layouts)
         ? layoutsResp.layouts

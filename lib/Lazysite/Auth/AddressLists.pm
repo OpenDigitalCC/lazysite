@@ -89,7 +89,7 @@ use Fcntl                    qw(:flock);
 use Lazysite::Auth::Settings ();           # the AUTH_DIR the other stores are read from
 use JSON::PP                 ();
 use Lazysite::Util qw(log_event secure_write_perms cannot_read parse_trusted_proxies
-    request_address trusted_proxy_spec);
+    request_address trusted_proxy_spec unnamed_front_end);
 
 our $AUTH_DIR;    # set by the script; falls back to Auth::Settings::AUTH_DIR
 
@@ -310,6 +310,18 @@ sub client_address () {
     my $d = _dir();
     ( my $lz = defined $d              ? $d                      : '' ) =~ s{/auth/?\z}{};
     return request_address( length $lz ? trusted_proxy_spec($lz) : undef );
+}
+
+# SM1192: the manager's plain warning for the pages where address rules are edited,
+# or undef. Decided here, beside client_address, from the same trusted_proxies spec,
+# so a page only shows it.
+sub front_end_warning () {
+    my $d = _dir();
+    ( my $lz = defined $d ? $d : '' ) =~ s{/auth/?\z}{};
+    my $peer = unnamed_front_end( length $lz ? trusted_proxy_spec($lz) : undef );
+    return undef unless defined $peer;
+    return "Every visitor reaches this site from $peer, which is not named in trusted_proxies, "
+        . 'so an address rule here applies to every visitor at once. Name the front proxy in trusted_proxies.';
 }
 
 # THE ONLY WRITER. Atomic (temp, lock, rename) like the other auth JSON stores, at
