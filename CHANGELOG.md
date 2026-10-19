@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1174 (PENDING) **a page may open the camera.** Every page sent
+  `Permissions-Policy: camera=()`, so no page could open a live camera
+  viewfinder even on https (OOM Lab L-16). A page whose front matter says
+  `camera: self` now sends `camera=(self)` over https, decided per response on
+  the fresh and cached paths; every other page, and that page over http, keeps
+  `camera=()`, and no other directive moves. The validator names any other
+  value, `page_status` reports it, and the editor's status bar says the page
+  opens the camera. t/unit/processor/143, t/unit/mcp/33, t/unit/manager/364.
 - SM1173 (PENDING) **a read has room for a scanner.** An Odoo read binding's
   default caps were the write caps, 20 per caller and 200 per binding an hour,
   which stopped a scanning app within minutes (OOM Lab L-14); reads now default
