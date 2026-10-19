@@ -24,7 +24,7 @@ use Exporter 'import';
 use File::Path                 qw(make_path);
 use Digest::SHA                qw(hmac_sha256_hex);
 use JSON::PP                   ();
-use Lazysite::Util             qw(log_event);
+use Lazysite::Util             qw(log_event write_private_atomic);
 use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Common  qw($auth_user respond processor_path _emit_json);
 
@@ -74,12 +74,11 @@ sub _preview_secret {
     close $rand;
     die "Short read from /dev/urandom\n" unless $got == 32;
     my $s = unpack( 'H*', $raw );
-    open my $wfh, '>', $path or die "Cannot write $path: $!\n";
     # 0660: identity-shared secret (site-user CLI + www-data CGI via the
     # setgid auth dir group); owner-only minting locks the other side out.
-    chmod 0o660, $path;
-    print $wfh "$s\n";
-    close $wfh;
+    # SM1183: created 0660, never made under the umask and chmod'ed after.
+    my ( $wok, $werr ) = write_private_atomic( $path, "$s\n", 0660 );
+    die "$werr\n" unless $wok;
     return $s;
 }
 

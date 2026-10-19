@@ -11,6 +11,7 @@ use File::Basename            qw(dirname);
 use File::Path                qw(make_path);
 use Cwd                       qw(realpath);
 use Digest::SHA               qw(sha256_hex);
+use Encode                    ();
 use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(write_file_checked);
 use Exporter 'import';
@@ -899,17 +900,20 @@ sub action_plugin_save {
 
         $apply->( \$content, $_ ) for keys %safe;
 
-        my ( $wok, $werr ) = write_file_checked( $plugin_conf, $content );
+        # A config carrying a password field must not be world-readable -
+        # notify-xmpp.conf sits at the lazysite/ top level, outside the
+        # mode-checked directories (2026-07-10 review, D6). SM1183: such a file
+        # is CREATED 0660; it was written under the umask and chmod'ed after,
+        # with the password in it for the gap between.
+        my $has_secret = grep { ( $_->{type} // '' ) eq 'password' }
+            @{ $desc->{config_schema} // [] };
+        my ( $wok, $werr ) =
+            $has_secret
+            ? Lazysite::Util::write_private_atomic( $plugin_conf, Encode::encode( 'UTF-8', $content ), 0660 )
+            : write_file_checked( $plugin_conf, $content );
         return { ok => 0, error => "Cannot write config: $werr" }
             unless $wok;
         close $lock;
-
-        # A config carrying a password field must not be world-readable -
-        # notify-xmpp.conf sits at the lazysite/ top level, outside the
-        # mode-checked directories (2026-07-10 review, D6).
-        chmod 0660, $plugin_conf
-            if grep { ( $_->{type} // '' ) eq 'password' }
-            @{ $desc->{config_schema} // [] };
     }
     elsif ( $desc->{config_keys} ) {
         my %want      = map { $_ => 1 } @{ $desc->{config_keys} };

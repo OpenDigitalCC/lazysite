@@ -22,7 +22,7 @@ use strict;
 use warnings;
 use Fcntl          qw(:flock);
 use JSON::PP       qw(encode_json decode_json);
-use Lazysite::Util qw(log_event);
+use Lazysite::Util qw(log_event write_private_atomic);
 use Exporter       qw(import);
 our @EXPORT_OK = qw(action_sessions_list action_session_revoke action_user_revoke sweep_expired
     dispatch_sessions_keys revoke_account_sessions session_is_kept);
@@ -138,17 +138,8 @@ sub _write_revoked {
             unless ref $e eq 'HASH' && ( $e->{nb} || 0 ) >= $cutoff;
     }
     my $path = _revoked_path();
-    my $tmp  = "$path.tmp.$$";
-    open my $fh, '>:raw', $tmp or return ( 0, "Cannot write $tmp: $!" );
-    chmod 0o660, $tmp;
-    print {$fh} encode_json($data);
-    unless ( close $fh ) { my $e = $!; unlink $tmp; return ( 0, "Cannot finish $tmp: $e" ) }
-    unless ( rename $tmp, $path ) {
-        my $e = $!;
-        unlink $tmp;
-        return ( 0, "Cannot replace $path: $e" );
-    }
-    return ( 1, '' );
+    # SM1183: created 0660, not made under the umask and chmod'ed after the open.
+    return write_private_atomic( $path, encode_json($data), 0660 );
 }
 
 # SM944 S33, held branch (2) (approved 2026-10-11, "Approve all three"): the
@@ -437,21 +428,9 @@ sub sweep_expired {
     }
 
     if ($removed) {
-        my $tmp = "$path.tmp.$$";
-        open my $wfh, '>:raw', $tmp
-            or return { ok => 0, error => "Cannot write $tmp: $!" };
-        chmod 0o660, $tmp;
-        print {$wfh} @keep;
-        unless ( close $wfh ) {
-            my $e = $!;
-            unlink $tmp;
-            return { ok => 0, error => "Cannot finish $tmp: $e" };
-        }
-        unless ( rename $tmp, $path ) {
-            my $e = $!;
-            unlink $tmp;
-            return { ok => 0, error => "Cannot replace $path: $e" };
-        }
+        # SM1183: created 0660 (see _write_revoked).
+        my ( $wok, $werr ) = write_private_atomic( $path, join( '', @keep ), 0660 );
+        return { ok => 0, error => $werr } unless $wok;
     }
 
     # revoked.json prunes on write. Count what the write will drop so the

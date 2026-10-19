@@ -24,7 +24,7 @@ use Fcntl          ();
 use JSON::PP       ();
 use File::Path     qw(make_path);
 use File::Basename qw(dirname);
-use Lazysite::Util qw(const_eq log_event cannot_read);
+use Lazysite::Util qw(const_eq log_event cannot_read write_private_atomic);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
@@ -131,12 +131,11 @@ sub _csrf_secret {
     close $rand;
     die "Short read from /dev/urandom\n" unless $got == 32;
     my $s = unpack( 'H*', $raw );
-    open my $wfh, '>', $mpath or die "Cannot write $mpath: $!\n";
     # 0660: identity-shared secret (site-user CLI + www-data CGI) - see the
-    # auth-secret mint in lazysite-auth.pl. Never any world bits.
-    chmod 0o660, $mpath;
-    print {$wfh} "$s\n";
-    close $wfh;
+    # auth-secret mint in lazysite-auth.pl. Never any world bits (SM1183: not
+    # in the file's first instant either - it is created 0660).
+    my ( $wok, $werr ) = write_private_atomic( $mpath, "$s\n", 0660 );
+    die "$werr\n" unless $wok;
     return $s;
 }
 

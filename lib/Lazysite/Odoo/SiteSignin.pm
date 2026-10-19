@@ -24,7 +24,8 @@ package Lazysite::Odoo::SiteSignin;
 # request's group NAMES, and every capability key is a door of the manager or the API.
 use strict;
 use warnings;
-use JSON::PP ();
+use JSON::PP       ();
+use Lazysite::Util qw(write_private_atomic);
 
 our $TTL = 900;    # as Lazysite::Odoo::Identity: the identity cookie's default
 
@@ -143,12 +144,8 @@ sub note_unknown {
     my $old = read_unknown($dir);
     return if join( ',', sort keys %new ) eq join( ',', @$old );
     return unless -d "$dir/odoo";
-    my $tmp = "$f.tmp.$$";
-    open my $fh, '>:raw', $tmp or return;
-    chmod 0660, $tmp;
-    print {$fh} JSON::PP->new->canonical->encode( { unknown => [ sort keys %new ], at => time } );
-    close $fh or do { unlink $tmp; return };
-    rename $tmp, $f or unlink $tmp;
+    # SM1183: created 0660, not made under the umask and chmod'ed after the open.
+    write_private_atomic( $f, JSON::PP->new->canonical->encode( { unknown => [ sort keys %new ], at => time } ), 0660 );
     return;
 }
 

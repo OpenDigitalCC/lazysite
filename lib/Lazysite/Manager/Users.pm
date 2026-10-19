@@ -31,7 +31,7 @@ use File::Basename            qw(dirname);
 use File::Path                qw(make_path);
 use IPC::Open2                qw(open2);
 use JSON::PP                  qw(encode_json decode_json);
-use Lazysite::Util            qw(log_event);
+use Lazysite::Util            qw(log_event write_private_atomic);
 use Lazysite::Capabilities    qw(reachability);
 use Lazysite::Auth::Settings  ();
 use Lazysite::Auth::Acl       ();
@@ -583,19 +583,10 @@ sub action_rotate_auth_secret {
     # the original .secret keeps working - we never leave the file
     # empty or partial, which would lock everyone out without giving
     # them a way back in.
-    my $tmp = "$path.tmp.$$";
-    open my $wfh, '>', $tmp
-        or return { ok => 0, error => "Cannot write $tmp: $!" };
-    # 0660: identity-shared secret (see _preview_secret) - never world.
-    chmod 0o660, $tmp;
-    print $wfh "$new\n";
-    close $wfh;
-    unless ( rename $tmp, $path ) {
-        my $err = $!;
-        unlink $tmp;
-        return { ok => 0, error => "Cannot replace $path: $err" };
-    }
-    chmod 0o660, $path;
+    # 0660: identity-shared secret (see _preview_secret) - never world. SM1183:
+    # the temp is created 0660, not made under the umask and chmod'ed.
+    my ( $wok, $werr ) = write_private_atomic( $path, "$new\n", 0660 );
+    return { ok => 0, error => $werr } unless $wok;
 
     # Also clear the CSRF secret cache file (if dedicated one exists).
     # The CSRF helper falls back to .secret, so the new .secret

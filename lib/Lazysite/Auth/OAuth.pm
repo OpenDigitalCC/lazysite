@@ -6,12 +6,17 @@ package Lazysite::Auth::OAuth;
 # lazysite-oauth.pl (the endpoints) and lazysite-mcp.pl (token validation).
 # Records are keyed by sha256 of the high-entropy secret (no salt needed for
 # random tokens) so a presented secret can be looked up in O(1). Context:
-# $LAZYSITE_DIR. The store lives in the write-denied lazysite/auth/ tree, 0600.
+# $LAZYSITE_DIR. The store lives in the write-denied lazysite/auth/ tree, 0660 (SM1183
+# corrected the header, which said 0600): the CGI writes it as the web user and the
+# operator tool (revoke, keys-list) reads and rewrites it as the panel user, who
+# shares only the setgid auth dir's group (SM760), so 0600 would lock one of them
+# out and `lazysite check` fails an auth secret the CGI cannot read. Never world,
+# and never wider than 0660 even in the temp file (Lazysite::Util::write_private_atomic).
 
 use strict;
 use warnings;
 use JSON::PP                   ();
-use Lazysite::Util             qw(cannot_read);
+use Lazysite::Util             qw(cannot_read write_private_atomic);
 use File::Path                 qw(make_path);
 use File::Basename             qw(dirname);
 use Digest::SHA                qw(sha256_hex sha256);
@@ -67,14 +72,10 @@ sub save_store {
     my $p   = _path();
     my $dir = dirname($p);
     make_path($dir) unless -d $dir;
-    my $tmp = "$p.tmp.$$";
-    open my $fh, '>', $tmp or return 0;
-    print {$fh} JSON::PP->new->canonical->encode($m);
-    close $fh;
-    # 0660: token store shared between identities (CGI + CLI tooling) via
-    # the setgid auth dir group; never world.
-    chmod 0660, $tmp;
-    return rename $tmp, $p;
+    # SM1183: the temp is created 0660 from the start. This was open + print +
+    # chmod, so the tokens sat in a umask-mode (0664) file until the chmod.
+    my ($ok) = write_private_atomic( $p, JSON::PP->new->canonical->encode($m), 0660 );
+    return $ok ? 1 : 0;
 }
 
 # Drop expired codes/tokens whenever we write (cheap housekeeping).

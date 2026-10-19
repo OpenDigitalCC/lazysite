@@ -35,7 +35,7 @@ use Exporter 'import';
 use JSON::PP                  ();
 use File::Path                qw(make_path);
 use POSIX                     qw(strftime);
-use Lazysite::Util            qw(log_event);
+use Lazysite::Util            qw(log_event write_private_atomic);
 use Lazysite::Auth::Acl       ();
 use Lazysite::Auth::Settings  ();
 use Lazysite::Manager::Common ();
@@ -132,16 +132,12 @@ sub stage {
     my $dir = _dir();
     make_path($dir) unless -d $dir;
     my $file = "$dir/$id.json";
-    my $tmp  = "$file.tmp.$$";
-    open my $fh, '>:raw', $tmp
-        or return { ok => 0, error => 'the staging area cannot be written; nothing was staged' };
-    chmod 0o660, $tmp;
-    print {$fh} JSON::PP->new->canonical->pretty->encode( {
-            id       => $id,     staged_by => $who{actor}, staged_at => time,
-            accounts => \@clean, invalid   => \@bad } );
-    close $fh;
-    rename $tmp, $file
-        or return { ok => 0, error => 'the staging area cannot be written; nothing was staged' };
+    # SM1183: created 0660 (staged accounts), not made under the umask and chmod'ed.
+    my ($staged) = write_private_atomic( $file, JSON::PP->new->canonical->pretty->encode( {
+                id       => $id,     staged_by => $who{actor}, staged_at => time,
+                accounts => \@clean, invalid   => \@bad } ), 0660 );
+    return { ok => 0, error => 'the staging area cannot be written; nothing was staged' }
+        unless $staged;
     log_event( 'INFO', 'accounts-import', 'accounts staged', id => $id, user => $who{actor},
         accounts => scalar @clean, invalid => scalar @bad );
     return { ok => 1, id => $id, staged => scalar @clean, invalid => \@bad,

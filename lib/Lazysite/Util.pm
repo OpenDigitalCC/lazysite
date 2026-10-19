@@ -15,7 +15,7 @@ use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies proxy_identity unsafe_link_scheme nav_unsafe_entries);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies proxy_identity unsafe_link_scheme nav_unsafe_entries);
 
 our $COMPONENT = 'lazysite';
 
@@ -144,6 +144,40 @@ sub cannot_read {
     log_event( 'WARN', 'store', "cannot read $what - it exists and this process cannot open it",
         file => $path, error => $err, unix_user => ( $who // $> ) );
     return undef;
+}
+
+# SM1183: write a secret file so it is NEVER more permissive than its final mode,
+# not for an instant. The old shape was `open '>'` (mode = 0666 & ~umask, and the
+# umask is 0002 in the CGI and the dropped-privilege tools, so 0664), then print,
+# then chmod 0660 - for OAuth's token store the chmod came AFTER the tokens were
+# written, so the secret sat in a file any user the directory admitted could read.
+# Here the temp is created with sysopen O_EXCL and the FINAL mode, under a umask
+# that clears every bit the mode does not carry (a umask can only narrow, so the
+# file is exactly $mode), written, closed and renamed over the target. A rename
+# adopts the temp's mode, so an existing 0660 store becomes whatever $mode says
+# on its next save. Returns (1, '') or (0, the reason); the temp never outlives
+# a failure.
+sub write_private_atomic {
+    my ( $path, $content, $mode ) = @_;
+    $mode = 0600 unless defined $mode;
+    my $tmp = "$path.tmp.$$";
+    my $fh;
+    for my $try ( 1, 2 ) {
+        my $old = umask( 0777 & ~$mode );
+        my $ok = sysopen( $fh, $tmp, Fcntl::O_WRONLY() | Fcntl::O_CREAT() | Fcntl::O_EXCL(), $mode );
+        my $err    = "$!";
+        my $eexist = $!{EEXIST};
+        umask $old;
+        last if $ok;
+        # A temp left by an earlier crash of this same pid number is ours to clear.
+        if ( $try == 1 && $eexist ) { unlink $tmp; next }
+        return ( 0, "Cannot write $tmp: $err" );
+    }
+    binmode $fh;
+    unless ( print {$fh} $content ) { my $e = "$!"; close $fh; unlink $tmp; return ( 0, "Write failed: $e" ) }
+    unless ( close $fh ) { my $e = "$!"; unlink $tmp; return ( 0, "Cannot finish $tmp: $e" ) }
+    unless ( rename $tmp, $path ) { my $e = "$!"; unlink $tmp; return ( 0, "Cannot replace $path: $e" ) }
+    return ( 1, '' );
 }
 
 sub secure_write_perms {
