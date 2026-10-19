@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-19
 raised-by: the release manager, 2026-10-19 ("Yes, plan + review first"), on SM1082 track C2 and the lab's note lazysite/inbox/2026-10-19-what-lazysite-adds-to-an-odoo-call.md
 area: performance
-status-note: "PARTIAL: S1 (n675) request_session for the wrapper and the data endpoint (t/integration/290). S2 (n677) the reader takes a value; the pool never believes the sentinel (t/unit/auth/69, t/integration/291, 292). S3 (n684) the one-rule pool renders a wrapped page in the worker from the value, R4, R5 (t/integration/293, 294, t/unit/auth/70). S4 (n685) the manager API relayed without the wrapper, its child clearing the parameters and writing the contract from the value (t/integration/295, t/unit/auth/68). S5 remains (R6); C2 ships as one release (R7)."
+status-note: "PARTIAL: request_session (S1, n675, t/integration/290); the reader takes a value and the pool never believes the sentinel (S2, n677, 291, 292); signed-in pages in the worker (S3, n684, 293, 294); the manager API one program, its child writing the contract from the value (S4, n685, 295). S5 remains (R6); C2 ships as one release (R7)."
 ---
 
 # What was asked
