@@ -127,7 +127,12 @@ Handlers page), configured with `manage_connectors`. It names one operation and
 says what a request may set and who may cause it:
 
 `operation`
-: The OOM operation, such as `pack.action`. Saving checks the binding against
+: The OOM operation, such as `pack.action` or `crm-page.leads`. A name is
+  two or more parts joined by dots, in lower case: a letter first, then letters,
+  digits and underscores, and a hyphen only between characters (OOM names a pack
+  with letters, digits and hyphens, and an operation `<pack>.<operation>`).
+  A leading, trailing or doubled hyphen, a capital, a space or a name with no dot
+  is refused at save. Saving checks the binding against
   the operation's own declaration when OOM can be asked.
 
 `params`

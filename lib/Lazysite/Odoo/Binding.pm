@@ -58,7 +58,15 @@ sub param_decl {
     return undef;
 }
 my $GROUP = qr/\A[a-z0-9][a-z0-9_-]{0,63}\z/;
-my $OP    = qr/\A[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+\z/;
+# SM1178 (lazysite-sites agent, 2026-10-18): OOM names a pack with lower-case
+# letters, digits and hyphens (Odoo::Ops::Pack) and an operation <pack>.<op>
+# (Registry), so `crm-page.leads` is a name, as is core's `stock.link-stranded`.
+# A segment may hold a hyphen BETWEEN its characters; one that leads, trails or
+# doubles is not accepted (OOM's own pack-name pattern is looser at the end, and
+# nothing here needs the looser reading). Nothing here turns the name into a path
+# or a query key, so the hyphen touches no other rule.
+my $SEG = qr/[a-z][a-z0-9_]*(?:-[a-z0-9_]+)*/;
+my $OP  = qr/\A$SEG(?:\.$SEG)+\z/;
 
 # The types a request may feed. Everything else is the operator's to fix.
 our %FROM_INPUT = map { $_ => 1 } qw(str int bool);
@@ -127,7 +135,7 @@ sub parse {
     return ( undef, 'operation is required - the name of an OOM operation, such as pack.action',
         'operation' )
         unless length $op;
-    return ( undef, "operation '$op' is not an operation name (dotted, lower case)", 'operation' )
+    return ( undef, "operation '$op' is not an operation name (dotted, lower case, a hyphen only inside a part)", 'operation' )
         unless $op =~ $OP;
     $b{operation} = $op;
 
