@@ -778,13 +778,9 @@ sub _signout {
 
 sub _writes {
     my ($b) = @_;
-    my $w = eval {
-        my ($conn) = Lazysite::Odoo::connection();
-        # Cannot ask: let the call refuse, with the reason it has.
-        return 0 unless $conn && ( Lazysite::Odoo::oom_check() )[0];
-        my ($class) = Lazysite::Odoo::operation_class( $conn, $b->{operation} );
-        $class ? ( $class->writes ? 1 : 0 ) : 0;
-    };
+    # SM1180: the stored declaration with the daemon on. Cannot ask: let the call
+    # refuse, with the reason it has.
+    my $w = eval { Lazysite::Odoo::writes_of($b) };
     return $w // 0;
 }
 

@@ -85,7 +85,19 @@ sub conf_file { return _lz() . '/odoo.conf' }
 # (the mapper alone) is refused at the first call with this sentence rather
 # than failing halfway through an operation with Perl's.
 sub oom_check {
-    my $need   = "the Odoo extension needs $OOM_PACKAGE (>= $OOM_MIN)";
+    my (%o) = @_;
+    my $need = "the Odoo extension needs $OOM_PACKAGE (>= $OOM_MIN)";
+
+    # SM1180: `light` is the daemon path's question - is OOM installed, and new enough
+    # - answered from Odoo::Ops::Version, which loads nothing else, so a call that
+    # oomd answers never loads the registry, the runner or the plan. An OOM with no
+    # such module has no daemon either, and gets the full check below.
+    if ( $o{light} && eval { require Odoo::Ops::Version; 1 } ) {
+        require version;
+        my $have = $Odoo::Ops::Version::VERSION;
+        return ( 1, '' ) if defined $have && eval { version->parse($have) >= version->parse($OOM_MIN) };
+        return ( 0, "$need - this host has " . ( $have // 'unversioned' ) . ', which does not carry what the extension calls' );
+    }
     my $loaded = eval { require Odoo::Ops; 1 };
     return ( 0, "$need - it is not installed (Odoo::Ops cannot be loaded)" )
         unless $loaded;
@@ -388,7 +400,7 @@ sub outcome_of {
 # know. `visitor` is a HASH of the visitor's key, never the key, which is a
 # bearer secret.
 our @CALL_FIELDS = qw(at call_id actor visitor ip login binding operation mode phase
-    outcome kind ms via);
+    outcome kind ms via decl);
 my %CALL_FIELD = map { $_ => 1 } @CALL_FIELDS;
 
 sub record_call {
@@ -550,7 +562,9 @@ sub gate {
             'the Odoo extension is switched off - a sysop can enable it on the Extensions page' );
     }
 
-    my ( $have, $missing ) = oom_check();
+    # SM1180: with the daemon on, the call is oomd's and OOM is not loaded here
+    # unless a fallback or a stale declaration needs it (binding_class, _run).
+    my ( $have, $missing ) = oom_check( light => _daemon_wanted() );
     return _refusal( \%rec, 'unavailable', $missing ) unless $have;
 
     my ( $conn, $cwhy ) = connection();
@@ -753,6 +767,70 @@ sub with_site_ops {
     return $code->();
 }
 
+# SM1180: whether odoo_daemon is on or required, from the config file alone.
+sub _daemon_wanted {
+    my $kv = read_conf() or return 0;
+    require Lazysite::Odoo::Daemon;
+    my ($mode) = Lazysite::Odoo::Daemon::mode_from( $kv->{odoo_daemon} );
+    return ( $mode // 'off' ) ne 'off' ? 1 : 0;
+}
+
+# SM1180: THE OPERATION A BINDING NAMES, AS THE REQUEST PATH NEEDS IT.
+#
+# ( $class, $why, $how ). With odoo_daemon off it is operation_class, as it was,
+# and $how is undef. With the daemon on it is the declaration stored when the
+# binding was saved (Lazysite::Odoo::Decl) when its stamp - the OOM version and the
+# site's packs - still fits, and then OOM is not loaded at all ($how 'stored').
+# Otherwise (OOM upgraded, packs changed, a binding saved before this release) the
+# registry is read in-process ONCE, the declaration is stored again and the call
+# goes on ($how 'rechecked'); the call record's `decl` says which.
+sub binding_class {
+    my ( $b, $conn ) = @_;
+    return operation_class( $conn, $b->{operation} ) if ( $conn->{daemon} // 'off' ) eq 'off';
+    require Lazysite::Odoo::Decl;
+    my ( $d, $why ) = Lazysite::Odoo::Decl::fetch( store_dir(), $b, $conn );
+    return ( $d, '', 'stored' ) if $d;
+    my ( $have, $missing ) = oom_check();
+    return ( undef, $missing ) unless $have;
+    my ( $class, $cwhy ) = operation_class( $conn, $b->{operation} );
+    return ( undef, $cwhy ) unless $class;
+    log_event( 'INFO', 'odoo', 'a binding\'s operation declaration is read again',
+        binding => $b->{id}, because => $why );
+    my $new = Lazysite::Odoo::Decl::capture( $class, $b->{operation}, $conn );
+    Lazysite::Odoo::Decl::store( store_dir(), $b->{id}, $new ) if $new;
+    return ( $class, '', 'rechecked' );
+}
+
+# The declaration stored for a binding, at save: what binding_class will find.
+# Called where a binding is validated against the registry (Handlers).
+sub store_decl {
+    my ( $id, $class, $op, $conn ) = @_;
+    require Lazysite::Odoo::Decl;
+    my $d = Lazysite::Odoo::Decl::capture( $class, $op, $conn ) or return 0;
+    return Lazysite::Odoo::Decl::store( store_dir(), $id, $d );
+}
+
+sub forget_decl {
+    my ($id) = @_;
+    require Lazysite::Odoo::Decl;
+    return Lazysite::Odoo::Decl::forget( store_dir(), $id );
+}
+
+# OOM loaded in full, for the in-process path a daemon that is down falls back to.
+sub _load_oom {
+    my ( $have, $why ) = oom_check();
+    die "$why\n" unless $have;
+    return;
+}
+
+# The class that runs, from what binding_class gave: itself, or for a stored
+# declaration the registry's class, loading OOM now.
+sub _real_class {
+    my ($class) = @_;
+    require Lazysite::Odoo::Decl;
+    return Lazysite::Odoo::Decl::is_decl($class) ? $class->real : $class;
+}
+
 sub operation_class {
     my ( $conn, $name ) = @_;
     my $class = eval { registry($conn)->class_for($name) };
@@ -829,10 +907,10 @@ sub context {
 sub writes_of {
     my ($b) = @_;
     my $w = eval {
-        my ($have) = oom_check();
+        my ($have) = oom_check( light => _daemon_wanted() );
         my ($conn) = $have ? connection() : ();
         return undef unless $conn;
-        my ($class) = operation_class( $conn, $b->{operation} );
+        my ($class) = binding_class( $b, $conn ); # SM1180: the stored declaration, with the daemon on
         return undef unless $class;
         $class->writes ? 1 : 0;
     };
@@ -1072,6 +1150,7 @@ sub confirm {
             }
         }
         $LAST_VIA = 'in-process';
+        _load_oom();    # SM1180: the gate loaded only the version when the daemon was on
         my $plan = Odoo::Ops::Plan->load("$dir/plan.json");
         my $ctx  = context( $conn, actor => _actor_label(%c),
             ( session_binding($b) ? ( session => $c{odoo_session} ) : () ) );
@@ -1204,7 +1283,8 @@ sub _ready {
                         : 'the connection user has no API key set' ) . ' - a sysop sets it on the Odoo page' ) )[1] )
             unless $has;
     }
-    my ( $class, $why ) = operation_class( $conn, $b->{operation} );
+    my ( $class, $why, $how ) = binding_class( $b, $conn );
+    $rec->{decl} = $how if defined $how;  # SM1180: stored | rechecked, in the call record
     return ( undef, ( _refusal( $rec, 'no-operation', $why ) )[1] ) unless $class;
     my $cw = Lazysite::Odoo::Binding::check_against( $b, $class );
     return ( undef, ( _refusal( $rec, 'binding', "the binding does not fit its operation: $cw" ) )[1] )
@@ -1226,6 +1306,7 @@ sub _run {
             binding => $b->{id}, operation => $b->{operation} );
     }
     $LAST_VIA = 'in-process';
+    $class    = _real_class($class);    # SM1180: a stored declaration cannot run anything
     my $ctx = context( $conn, actor => _actor_label(%$c),
         ( session_binding($b) ? ( session => $c->{odoo_session} ) : () ) );
     my $op = $class->new( ctx => $ctx, params => $params );

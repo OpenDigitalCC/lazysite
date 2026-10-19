@@ -1145,7 +1145,12 @@ sub _destination_problem {
             my ( $class, $why ) = Lazysite::Odoo::operation_class( $conn, $b->{operation} );
             return "operation: $why" unless $class;
             my $w = Lazysite::Odoo::Binding::check_against( $b, $class );
-            return length $w ? "params: $w" : '';
+            return "params: $w" if length $w;
+
+            # SM1180: what the request path needs of the operation, kept beside the
+            # binding and stamped, so a call that oomd answers loads no OOM.
+            Lazysite::Odoo::store_decl( $b->{id}, $class, $b->{operation}, $conn );
+            return '';
         };
         return $problem if defined $problem && length $problem;
     }
@@ -1341,6 +1346,14 @@ sub action_handler_delete {
     }
     my ( $ok, $err ) = write_handlers( [ grep { $_->{id} ne $id } @$all ] );
     return { ok => 0, error => $err } unless $ok;
+    if ( ( $h->{type} // '' ) eq 'odoo' ) { # SM1180: its stored operation declaration goes with it
+        eval {
+            require Lazysite::Odoo;
+            no warnings 'once';
+            local $Lazysite::Odoo::DOCROOT = $DOCROOT;
+            Lazysite::Odoo::forget_decl($id);
+        };
+    }
     # SM1093: a notify rule's unsent events go with it (see Outbox::purge_rule).
     # The rule is already gone, so a failed read is said in the result and does
     # not undo the delete.
@@ -1818,12 +1831,7 @@ sub _odoo_host {
 # as a WRITE when it cannot be asked, so the refusal above errs closed.
 sub _odoo_writes {
     my ($b) = @_;
-    my $w = eval {
-        my ($conn) = Lazysite::Odoo::connection();
-        return 1 unless $conn && ( Lazysite::Odoo::oom_check() )[0];
-        my ($class) = Lazysite::Odoo::operation_class( $conn, $b->{operation} );
-        $class ? ( $class->writes ? 1 : 0 ) : 1;
-    };
+    my $w = eval { Lazysite::Odoo::writes_of($b) }; # SM1180: the stored declaration with the daemon on
     return defined $w ? $w : 1;
 }
 
