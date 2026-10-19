@@ -421,12 +421,18 @@ our %ENV_ALLOWLIST = map { $_ => 1 } qw(
 # its own canonical/absolute base URL for links, sitemap and feeds. Both are
 # still presentation/routing only - they move no auth, management or update
 # surface, so they stay safe to select via a declared Host.
+#
+# SM1200: NO COMMENT INSIDE THE qw(). A `#` there is not a comment, it is words:
+# each word of these three notes was a member of the whitelist (the all-word-
+# character ones, such as language, membership, CSP, domain, may, own, app, were
+# accepted alias keys) and perl warned on every compile. The notes live here:
+#   lang, lang_group   SM179: per-host language + language-set membership
+#   csp_*_src          P16 / SM1002: per-domain CSP allow-lists
+#   app_*              SM1155: a domain may be its own app (name, scope, icons, shell)
 our %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
     qw(site_name theme layout nav_file search_default content_root site_url
-    lang lang_group      # SM179: per-host language + language-set membership
-    # P16: per-domain CSP allow-lists
+    lang lang_group
     csp_script_src csp_connect_src csp_img_src csp_frame_src
-    # SM1155: a domain may be its own app (name, scope, icons, shell)
     app_name app_short_name app_scope app_start_url app_theme_colour
     app_background_colour app_icon_64 app_icon_192 app_icon_512 app_icon_maskable
     app_shell

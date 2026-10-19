@@ -88,6 +88,12 @@ Archive
   warns in the console with the reason when a registration fails or the origin is
   not secure. Docs: the app page says a phone on `http://<lan-ip>:port` never
   registers a worker.
+- SM1200 (PENDING) **engine: the alias override list holds only its keys.** Three
+  notes written as `#` comments inside the `qw()` of the per-host override whitelist
+  were read as keys (ten were accepted by the conf reader, among them `language`,
+  `domain` and `own`) and perl warned on every compile. The notes are out of the
+  list and `t/unit/processor/145` holds it to its 24 keys.
+
 - SM1199 (PENDING) **tools: the precheck's job count is settable.** `tools/precheck.sh`
   ran `prove -j8` whatever the host, against the shared-host rule that agents run at
   most `-j2`. `LAZYSITE_PROVE_JOBS=N` or `--jobs N` sets it (the flag wins); neither
