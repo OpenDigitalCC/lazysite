@@ -384,7 +384,7 @@ sub _plain_problem {
 }
 
 # SM1166: a request's list of rows for parameter $p, as ( \@rows, '' ) or
-# ( undef, why ). OOM's check_rows first (count, keys, types, nesting - and it
+# ( undef, why ). OOM's rows check first (count, keys, types, nesting - and it
 # names the row and the key), then the plain-value rule on every value OOM
 # passed, so a row value is held to what a single request value is. Any failure
 # refuses the whole call.
@@ -393,8 +393,13 @@ sub _rows {
     return ( undef, "'$field' must be a list of rows (a JSON array of objects)" ) unless ref $v eq 'ARRAY';
     my %d = %$decl;
     $d{max} = $b->{rows_max} if defined $b->{rows_max} && $b->{rows_max} < $d{max};
-    # Called on the operation's own class (an Odoo::Ops::Operation), as OOM documents it.
-    my $rows = eval { $class->check_rows( \%d, $v, "'$field'" ) };
+    # SM1198: OOM 0.36's Odoo::Ops::Rows->check, the same rules and errors as the
+    # operation class's check_rows but loading only Odoo::Error, Odoo::JSON and
+    # Odoo::Ops - so a request that feeds a rows parameter no longer loads the
+    # registry (SM1180 left it as the one thing the stored declaration could not
+    # answer). Before 0.36 the check lives on the operation's own class.
+    my $light = eval { require Odoo::Ops::Rows; 1 };
+    my $rows = eval { $light ? Odoo::Ops::Rows->check( \%d, $v, "'$field'" ) : $class->check_rows( \%d, $v, "'$field'" ) };
     unless ($rows) {
         my $e = $@;
         return ( undef, ref $e && $e->can('message') ? $e->message : "'$field' is not a valid list of rows" );

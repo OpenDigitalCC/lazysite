@@ -67,6 +67,13 @@ Archive
   FastCGI parameter, which only the web server's configuration can send, could make
   a page or the manager API believe a forged `X-Remote-User` or flag; in the pool
   both are now ignored. Plain CGI and the split FastCGI templates are unchanged.
+- SM1198 (PENDING) **a request with a list of rows loads no registry.** The
+  binding's rows check calls OOM 0.36's `Odoo::Ops::Rows->check` (loading only
+  `Odoo::Error`, `Odoo::JSON` and `Odoo::Ops`) instead of the operation class's
+  `check_rows`, so a call through oomd that feeds a rows parameter no longer loads
+  the registry, the service or the client (SM1180's last exception). OOM 0.36's
+  failed changes carry no `code` though its note says so; the test records it as a
+  TODO. t/unit/odoo/73, 77.
 - SM1185 (PENDING) **internal: lazysite's vendored OOM is 0.36.** The pinned
   snapshot in `t/vendor/oom` moves from 0.34 to OOM 0.36 (8e4f2c3). Two things
   in lazysite's tests broke and are fixed: the suite read the host's installed

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: inbox 2026-10-19-what-lazysite-adds-to-an-odoo-call.md (OOM Lab); ruled by the release manager 2026-10-19
 area: odoo
-status-note: "SHIPPED on n667 (base 4c4798a6c, SM1164 D1-D4): lib/Lazysite/Odoo/Decl.pm, Lazysite::Odoo::binding_class, t/unit/odoo/73 (the load), t/tools (the margin check). Rows parameters still load OOM for OOM's own check_rows (see What is left)."
+status-note: "SHIPPED on n667 (base 4c4798a6c, SM1164 D1-D4): lib/Lazysite/Odoo/Decl.pm, Lazysite::Odoo::binding_class, t/unit/odoo/73 (the load), t/tools (the margin check). Rows parameters loaded OOM for OOM's own check_rows when shipped; SM1198 (OOM 0.36's Odoo::Ops::Rows->check) closed that."
 ---
 
 # What happened
@@ -116,7 +116,7 @@ Branch n667. Test: `t/unit/odoo/73-a-call-to-oomd-loads-no-oom.t`.
 
 # What is left, and said plainly
 
-- **A rows parameter** (SM1166) loads OOM, for that one check: `check_rows` is an
+- **A rows parameter** (SM1166) loaded OOM, for that one check (CLOSED by SM1198, which calls OOM 0.36's `Odoo::Ops::Rows->check`; what follows is how it stood when this shipped): `check_rows` is an
   `Odoo::Ops::Operation` method and that module uses the registry. A request that
   feeds a list of rows pays the load; every other request does not. The fix is OOM's:
   `check_rows` as a function in a light module (to be filed with OOM).

@@ -28,12 +28,17 @@ use Lazysite::Daemon::Service::Oomd ();
 
 my $root  = repo_root();
 my $state = oomd_env();
-my $d     = oomd_site();
+$ENV{PERL5LIB} .= ':' . $root . '/t/lib';    # the daemon loads the rows test pack too (SM1198)
+my $d     = oomd_site( odoo_packs => 'Odoo::Test::OomdOps,LazysiteTest::OdooOps' );
 $Lazysite::Odoo::DOCROOT = $d;
 
 bind( $d, id => 'who', operation => 'oomd.pid', modes => 'public', params => 'e=echo' );
 bind( $d, id => 'later', operation => 'core.set', modes => 'authenticated', callers => 'staff',
     params => 'id=id,title=set.name', fixed => 'model=res.partner' );
+
+# SM1198: a binding with a declared list of rows (shop.order, capped at 3 by the operation).
+bind( $d, id => 'order', operation => 'shop.order', modes => 'authenticated', callers => 'staff',
+    params => 'lines=lines', fixed => 'basket_key=cart' );
 
 my $decl_file = "$d/lazysite/odoo/decl/who.json";
 sub read_decl { open my $fh, '<', $decl_file or return undef; local $/; return JSON::PP::decode_json(<$fh>) }
@@ -51,9 +56,11 @@ require Lazysite::Odoo;
 $Lazysite::Odoo::DOCROOT = $ENV{T_DOCROOT};
 if ( $ENV{T_FAKE} ) { unshift @INC, $ENV{T_TESTLIB}; require OdooTest; $Lazysite::Odoo::TRANSPORT = OdooTest::fake_shop() }
 my ($b) = Lazysite::Odoo::find_binding( $ENV{T_BINDING} );
-my $r = Lazysite::Odoo::call( $b, { e => 'hi' }, mode => 'public', ip => '192.0.2.7' );
+my $in  = $ENV{T_INPUT} ? decode_json( $ENV{T_INPUT} ) : { e => 'hi' };
+my @ctx = $ENV{T_INPUT} ? ( mode => 'authenticated', actor => 'sam', groups => ['staff'], caps => {}, ip => '192.0.2.7' ) : ( mode => 'public', ip => '192.0.2.7' );
+my $r = Lazysite::Odoo::call( $b, $in, @ctx );
 my @loaded = sort grep { m{\AOdoo/} } keys %INC;
-print encode_json( { ok => $r->{ok} ? 1 : 0, kind => $r->{kind}, error => $r->{error},
+print encode_json( { ok => $r->{ok} ? 1 : 0, planned => $r->{planned} ? 1 : 0, kind => $r->{kind}, error => $r->{error},
     pid => $r->{report}{rows}[0]{pid}, via => Lazysite::Odoo::last_via(),
     loaded => { map { $_ => 1 } @loaded } } ), "\n";
 PERL
@@ -65,6 +72,7 @@ sub child {
     local $ENV{T_DOCROOT} = $d;
     local $ENV{T_BINDING} = $o{binding} // 'who';
     local $ENV{T_FAKE}    = $o{fake} ? 1 : 0;
+    local $ENV{T_INPUT}   = $o{input} ? JSON::PP::encode_json( $o{input} ) : '';
     local $ENV{T_TESTLIB} = "$root/t/lib";
     open my $ph, '-|', $^X, $script or die $!;
     my $out = do { local $/; <$ph> };
@@ -81,7 +89,7 @@ subtest 'saving a binding stores its operation declaration, stamped' => sub {
     ok( $x, 'lazysite/odoo/decl/who.json exists' ) or return;
     require Odoo::Ops::Version;
     is( $x->{stamp}{oom}, $Odoo::Ops::Version::VERSION, 'stamped with the installed OOM version' );
-    is_deeply( $x->{stamp}{packs}, ['Odoo::Test::OomdOps'], 'and the site\'s packs' );
+    is_deeply( $x->{stamp}{packs}, ['Odoo::Test::OomdOps', 'LazysiteTest::OdooOps'], 'and the site\'s packs' );
     is( $x->{operation}, 'oomd.pid', 'naming the operation' );
     ok( exists $x->{params}{echo}, 'with its parameter declarations' ) or diag explain $x->{params};
     is( $x->{writes}, 0, 'and whether it writes' );
@@ -106,6 +114,30 @@ subtest 'a daemon-path call loads no registry, no service, no OOM client' => sub
     is( last_call()->{via},  'daemon', 'and the path' );
 };
 
+# SM1198: a request that feeds a rows parameter used to load OOM's tree, because
+# Odoo::Ops::Operation->check_rows lives with the registry (SM1180 recorded it as
+# the one thing the stored declaration could not answer). OOM 0.36 ships
+# Odoo::Ops::Rows->check, with the same rules and errors, loading only Odoo::Error,
+# Odoo::JSON and Odoo::Ops; the binding's rows check calls that.
+subtest 'a call with a list of rows loads no registry, no service, no OOM client' => sub {
+    my $row = sub { { product_id => 1, qty => 2 } };
+    my $r = child( binding => 'order', input => { lines => [ $row->(), $row->() ] } );
+    ok( $r->{planned}, 'the call is answered (a plan)' ) or diag explain $r;
+    is( $r->{via}, 'daemon', 'by the daemon' );
+    my @bad = loads_oom($r);
+    is_deeply( \@bad, [], 'none of Registry, Service, Odoo::Client is in %INC' ) or diag join ', ', sort keys %{ $r->{loaded} };
+    note 'Odoo modules loaded: ' . join( ', ', sort keys %{ $r->{loaded} } );
+    is( last_call()->{decl}, 'stored', 'on the stored declaration' );
+
+    # The check still runs, and still names the row: the light class applies the same rules.
+    my $bad = child( binding => 'order', input => { lines => [ $row->(), { product_id => 'x', qty => 2 } ] } );
+    ok( !$bad->{ok} && !$bad->{planned}, 'a bad row is refused' ) or diag explain $bad;
+    like( $bad->{error} // '', qr/row 2|product_id/, 'naming the row or key' );
+    is_deeply( [ loads_oom($bad) ], [], 'and the refusal loads no OOM either' );
+    my $many = child( binding => 'order', input => { lines => [ ( $row->() ) x 4 ] } );
+    like( $many->{error} // '', qr/4 rows; at most 3/, 'a list over the operation\'s max is refused with its count' );
+};
+
 subtest 'a stale stamp is re-checked once, stored again, and said' => sub {
     my $x = read_decl();
     $x->{stamp}{oom} = '0.01';
@@ -128,7 +160,7 @@ subtest 'a changed pack list is a stale stamp' => sub {
     write_decl($x);
     child();
     is( last_call()->{decl}, 'rechecked', 're-checked' );
-    is_deeply( read_decl()->{stamp}{packs}, ['Odoo::Test::OomdOps'], 'and stamped with the site\'s packs again' );
+    is_deeply( read_decl()->{stamp}{packs}, ['Odoo::Test::OomdOps', 'LazysiteTest::OdooOps'], 'and stamped with the site\'s packs again' );
 };
 
 subtest 'no stored declaration (a binding saved before this release) is re-checked once' => sub {

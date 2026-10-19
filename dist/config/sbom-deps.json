@@ -255,6 +255,12 @@
       "debian_pkg": "libodoo-oom-perl",
       "used_by": "Odoo extension (SM1162): reads a request file's type from its bytes and applies OOM's own check of a file value (a plain name, max_bytes) before it reaches an operation; lazy-required only when a binding maps a file, and absent before OOM 0.34"
     },
+    "Odoo::Ops::Rows": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM1198): OOM's check of a request's list of rows, which loads only Odoo::Error, Odoo::JSON and Odoo::Ops, so a call through oomd needs no registry; lazy-required when a binding maps a rows parameter, and absent before OOM 0.36"
+    },
     "Odoo::Ops::Version": {
       "core": false,
       "license": "Artistic-1.0-Perl",

@@ -25,10 +25,11 @@ package Lazysite::Odoo::Decl;
 # binding saved before this release), is re-checked ONCE in-process by the caller,
 # which stores the answer again; this module only reads, writes and answers.
 #
-# THE ONE THING IT CANNOT ANSWER is OOM's check of a request's list of rows
+# THE ONE THING IT COULD NOT ANSWER was OOM's check of a request's list of rows
 # (Odoo::Ops::Operation->check_rows), which lives in a class that loads the
-# registry. A request that feeds a rows parameter loads OOM for that check, and
-# only that request; every other call does not.
+# registry; a request that fed a rows parameter loaded OOM for that check. SM1198:
+# OOM 0.36's Odoo::Ops::Rows->check is the same check without the tree, and the
+# binding calls it, so no call needs the real class while the daemon is up.
 #
 # NO ODOO KNOWLEDGE (t/lint/240): the declaration is opaque data from OOM.
 use strict;
@@ -143,8 +144,8 @@ sub params  { return $_[0]{d}{params} }
 sub writes  { return $_[0]{d}{writes} ? 1 : 0 }
 sub summary { return $_[0]{d}{summary} // '' }
 
-# The real class, loading OOM, for the few things a declaration cannot answer
-# (check_rows) and for the in-process path when the daemon is down.
+# The real class, loading OOM, for what a declaration cannot answer (the rows
+# check before OOM 0.36) and for the in-process path when the daemon is down.
 sub real {
     my ($self) = @_;
     return $self->{real} //= do {
