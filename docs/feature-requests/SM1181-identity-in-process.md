@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-19
 raised-by: the release manager, 2026-10-19 ("Yes, plan + review first"), on SM1082 track C2 and the lab's note lazysite/inbox/2026-10-19-what-lazysite-adds-to-an-odoo-call.md
 area: performance
-status-note: "PARTIAL: S1 (n675) request_session decides the identity for the wrapper and the data endpoint (t/integration/290). S2 (n677) request_identity takes a held value and reads no %ENV; $REQUEST_IDENT reset at both ends; the pool never believes LAZYSITE_AUTH_TRUSTED (t/unit/auth/69, t/integration/291, 292). S3-S5 remain; C2 ships as one release after S4 (R7). R1-R8 ruled as proposed 2026-10-19."
+status-note: "PARTIAL: S1 (n675) request_session for the wrapper and the data endpoint (t/integration/290). S2 (n677) the reader takes a value; the pool never believes the sentinel (t/unit/auth/69, t/integration/291, 292). S3 (n684) the one-rule pool renders a wrapped page in the worker from the value, R4, R5 (t/integration/293, 294, t/unit/auth/70). S4, S5 remain; C2 ships as one release after S4 (R7)."
 ---
 
 # What was asked
@@ -473,6 +473,125 @@ sweep reads the front door's part and Session.pm, which is where the pool's iden
 will be decided. It also checks that the processor's gate and the accessor do not
 believe the sentinel in the pool, and that `_request_identity` passes
 `$REQUEST_IDENT` and the runtime. t/lint/269 classifies `$REQUEST_IDENT` as `reset`.
+
+## S3: a signed-in page is rendered in the worker (n684)
+
+Under `FRONT_DOOR` (the one-rule pool), a request `_front_route` marks `wrapped` with
+surface `processor` - a page with a session cookie, a `/manager/` page, a static or
+legacy page on a site with an ACL store - is no longer relayed through the auth
+wrapper. `_front_session` (lazysite-processor/front-door.pm) calls `request_session`
+once, with the request's Cookie header and the render path's `_proxy_identity()`, logs
+the outcome, and holds the value in `$REQUEST_IDENT`; `main()` then renders in the
+worker. No fork, no exec, no header written. A failure holds an anonymous value
+carrying the reason, so a wrapped request never falls back to its own headers.
+
+- **What stays relayed.** The manager API (S4), `/cgi-bin/lazysite-processor.pl`, every
+  other surface, and a wrapped request whose query names one of the wrapper's own
+  actions (`logout`, `unsubscribe`, and on POST `login`, `claim`, `exchange`, `rotate`,
+  `forgot`; `_front_wrapper_action` matches them as the wrapper does), so signing in
+  and out is the wrapper's as before.
+- **R4.** While a value is held, `apply_trust_gate` does not believe the sentinel on
+  either runtime: every fixed and custom identity and payment header a client sent is
+  stripped and logged. A listed proxy peer still returns before the strip (SM1129; its
+  headers are the proxy's, and a value it gave was read from them), so T4 is as it
+  was.
+- **R5.** The front door runs `Lazysite::BadUrl::guard` on every request it does not
+  hand to the wrapper (the wrapper guards those itself, so no probe counts twice),
+  with the wrapper's keys, the visitor address under `trusted_proxies` (SM929) and the
+  same block store and audit row; a blocked address gets a 403 from the worker. T13
+  is closed: an anonymous probe now counts, and a blocked address is refused on every
+  pooled request.
+- **T11.** The wrapper's log lines moved to
+  `Lazysite::Auth::Session::session_log_line`, which the wrapper and the front door
+  both call, so the two log the same line at the same level (SM1099). The front door
+  reads the site's `log_level` as the wrapper does. No cookie value is a field.
+- **R8.** The split `vhost-fcgi` templates are unchanged. Their carve-out sends a
+  signed-in request to the CGI wrapper and they run no front door, so S3 reaches only
+  the one-rule pool.
+- `Lazysite::Auth::Session` and `Lazysite::BadUrl` join `@POOL_PRELOAD`, so the parent
+  loads them and t/lint/269 reads their file-scope variables. The verifier's time is
+  the request's `identity` phase (SM1144).
+
+**T5: each check the wrapper made, and where it happens now in the pool**
+
+```datatable
+columns: Check | Before S3 (relayed) | S3 (in the worker)
+widths: 4.2cm | 4.6cm | X
+---
+Bad-URL guard (SM128) | the wrapper's top level | `_front_bad_url`, the same `Lazysite::BadUrl::guard`, on every request not handed to the wrapper (R5)
+A trusted proxy's user wins (SM1130, SM1131) | `request_session` in the wrapper | `request_session` in the front door, with `_proxy_identity()`
+Signature, shape, expiry | the verifier, through the wrapper | the verifier, through `request_session`
+Removed account (SM1070) | the verifier (`_account_state`) | the same
+Disabled account (SM071) | the verifier (`account_disabled`) | the same
+Revoked sid, sign-out everywhere, the kept session (SM141, SM1040) | the verifier (`session_revoked`) | the same
+A store that cannot be read (SM1024) | the verifier, failing closed | the same; `$STORE_FAULT` reset per request (S2)
+Fresh groups (SEC-2026-07 M5) | the verifier's `load_user_groups` | the same
+Groups refused for the address (SM1140) | `request_session` | the same
+Odoo site sign-in, its record and `odoo_identity_ttl` (SM1160) | the verifier, never stale-ok | the same (T8)
+SM794: name, email and payment cleared | `write_identity_env` | `apply_trust_gate` strips every client identity and payment header while a value is held (R4)
+Odoo display name, sid, passwordless flag | written as headers | read from the value (S2's readers)
+Self-exec refusal (SEC-2026-07 H7) | the wrapper | nothing is exec'd
+Log lines and their levels (SM1099) | the wrapper | `session_log_line`, for both
+Login rate limit (SM1043), sign-in by address (SM1159), account gates | the wrapper's sign-in | unchanged: sign-in is the wrapper's, and its `?action=` requests are relayed to it
+CSRF | the manager API and the verifier's token | unchanged (the API is still wrapped until S4)
+`refuse_manager` (SM1140), `ui` (SM1135) | the processor's manager entry, from headers | the same, from the value
+```
+
+**Found on the base tree.** A wrapped request with no cookie (an ACL static), sent
+with `LAZYSITE_AUTH_TRUSTED=1` as a FastCGI parameter and a forged `X-Remote-User`,
+was served to the forged user. The wrapper found no cookie and wrote nothing, and the
+processor it exec'd ran as plain CGI, where it believes the sentinel. S2 closed this in
+the worker but not in the relayed child. S3 closes it for pages. The manager API still
+has this shape through its relay until S4, whose child deletes the sentinel before it
+writes the contract. As T3 says, only the web server's configuration can send the
+parameter.
+
+Proved by t/integration/293, using one pool worker with the front door on. The
+cgi-bin's wrapper is a shim that records each run, so "in the worker" is read from
+what ran.
+
+- T1: alice, an anonymous visitor, bob and alice again each see only themselves, and
+  the wrapper never runs.
+- An ACL static is decided from the value.
+- T2: forged `X-Remote-User`, `X-Lazysite-*`, the sentinel and the sid sent as
+  parameters. With no cookie the request is anonymous, on a page miss and on an ACL
+  static. With bob's cookie it is bob, the forged header is stripped and logged, a
+  forged payment header does not open a paid page, and a forged groups header grants
+  nothing.
+- T5: a disabled, a removed and a revoked account, and a revocations store that
+  cannot be read, each stop at the next pooled request. A group-gated page is refused
+  to a non-member and served once he is added. The manager entry refuses an account
+  without `ui`.
+- T7: a request that dies after the value is held is answered 500, and the next
+  request is anonymous.
+- T11: no line at the default level, a WARN for a forged signature, the DEBUG lines
+  under `log_level: DEBUG`, and no cookie value in the log.
+- The wrapper's own `?action=logout` and the manager API still reach the wrapper, and
+  the API gets its contract.
+- R5: three signed-in probes block an address and its next signed-in page is refused.
+  Anonymous probes count too. Two probes handed to the wrapper are counted once each.
+- SM1160: an `odoo:` session sees its mapped group's page and grants nothing once its
+  record is older than `odoo_identity_ttl`.
+
+Against the S2 tree, 293 fails on the forged-parameter ACL static above and on every
+"in the worker", R4, T11 and anonymous-probe assertion. t/integration/294 shows R4 where the sentinel is believed (one process on
+the CGI path, 288's harness): with a value held, the sentinel and a forged
+`X-Remote-User` and `X-Payment-Verified` give the value's identity, a 402 and both log
+lines; with no value held the same request is the wrapper's contract. t/unit/auth/70
+pins `session_log_line` to the wrapper's lines from before the move. t/lint/38 asks
+its question of the wrapper's one-line write. t/lint/268 holds the front door to
+`request_session` and the gate to not believing the sentinel while a value is held.
+
+The bench, `tools/bench-surfaces.sh --n 10 --surface page,page-signed-in --with-pool`
+(one CPU, nice 19), with S2 and S3 run alternately, two rounds each, on the shared
+host at a load average of 9 to 11. `page-signed-in` through the pool took a median of
+201 and 276 ms on S2 and 42 and 27 ms on S3. Its `identity` phase went from 7.9-9.7 ms
+to 0.7 ms, and the `load` phase (the two programs' start-up, 131-175 ms) is gone. What
+remains is the render, 24-35 ms, as on CGI. The anonymous `page` through the pool was
+1.3-2.4 ms on S2 and 3.9-12.0 ms on S3; the two S3 rounds differ threefold, so at
+this load the bench cannot separate the two. Measured directly (2,000 calls, one CPU,
+nice 19, the same load), what R5 adds to it - reading a 41-line lazysite.conf and
+running the guard for a path that is not a probe - is 0.13 ms a request.
 
 # Related
 

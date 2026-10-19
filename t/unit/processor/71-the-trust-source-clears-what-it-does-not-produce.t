@@ -54,7 +54,9 @@ subtest 'the trust source clears every trusted field it does not produce' => sub
 
     # SM1181 S1: the success block's writes are Lazysite::Auth::Identity::
     # write_identity_env, the one writer of this contract, which the wrapper calls.
-    like( $auth, qr/elsif \(\$ident\) \{[^}]*?Lazysite::Auth::Identity::write_identity_env\(\$ident\)/s,
+    # SM1181 S3: the branch is one line now (the log lines are
+    # Session::session_log_line's), for every identity that is not a proxy's.
+    like( $auth, qr/Lazysite::Auth::Identity::write_identity_env\(\$ident\)\s+if\s+\$ident\s+&&\s+\$ident->\{source\}\s+ne\s+'proxy';/,
         'the success block writes through the one writer' );
     my ($block) = src('lib/Lazysite/Auth/Identity.pm') =~ /(sub write_identity_env \{.*?\n\})/s;
     ok( $block, 'the writer was found' ) or return;

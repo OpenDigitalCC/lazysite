@@ -147,8 +147,11 @@ subtest 'the trust source accounts for every trusted field' => sub {
         local $/;
         return scalar <$fh>;
     };
+    # SM1181 S3: the branch is one line now - the log lines moved to
+    # Session::session_log_line, shared with the pool's front door - and still
+    # writes for every identity that is not a proxy's.
     my $src = $slurp->('lazysite-auth.pl');
-    like( $src, qr/elsif \(\$ident\) \{[^}]*?Lazysite::Auth::Identity::write_identity_env\(\$ident\)/s,
+    like( $src, qr/Lazysite::Auth::Identity::write_identity_env\(\$ident\)\s+if\s+\$ident\s+&&\s+\$ident->\{source\}\s+ne\s+'proxy';/,
         'the wrapper\'s success branch writes the contract with the one writer' );
     my ($block) = $slurp->('lib/Lazysite/Auth/Identity.pm') =~ /(sub write_identity_env \{.*?\n\})/s;
     ok( $block, 'the writer was found' ) or return;

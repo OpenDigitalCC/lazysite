@@ -1163,71 +1163,21 @@ sub handle_request {
     my ( $ident, $why, %detail ) = Lazysite::Auth::Session::request_session(
         lazysite_dir => $LAZYSITE_DIR, proxy => $pid, cookie => $ENV{HTTP_COOKIE} // '' );
 
-    if ( $ident && $ident->{source} eq 'proxy' ) {
-        # The proxy's headers are the identity and reach the surface as sent; this
-        # sets nothing over them.
-        log_event( 'DEBUG', $uri, 'auth: proxy identity wins, cookie ignored',
-            proxy_user => $ident->{user} )
-            if length( $ENV{HTTP_COOKIE} // '' );
-    }
-    elsif ($ident) {
-        # C-1: these headers come from our HMAC-verified cookie, not from the
-        # client; the sentinel tells the processor so. SEC-2026-07 (M5): the groups
-        # are the verifier's FRESH resolution, never the set baked into the cookie
-        # at login. SM794: every trusted field is produced or cleared.
-        Lazysite::Auth::Identity::write_identity_env($ident);
+    # A cookie identity is written for the surface this execs. C-1: these headers
+    # come from our HMAC-verified cookie, not from the client; the sentinel tells
+    # the processor so. SEC-2026-07 (M5): the groups are the verifier's FRESH
+    # resolution, never the set baked into the cookie at login. SM794: every trusted
+    # field is produced or cleared. A proxy identity's headers are the identity and
+    # reach the surface as sent; this sets nothing over them.
+    Lazysite::Auth::Identity::write_identity_env($ident) if $ident && $ident->{source} ne 'proxy';
 
-        # SM1099: one line per request is DEBUG: a signed-in or signed-out
-        # visitor is the normal case, and at INFO these two filled the web
-        # server's error log at the rate of the site's traffic.
-        log_event( 'DEBUG', $uri, 'auth: cookie valid',
-            user => $ident->{user}, groups => join( ',', @{ $ident->{groups} } ) );
-    }
-    elsif ( $why eq 'no-cookie' ) {
-        log_event( 'DEBUG', $uri, 'auth: no cookie' );
-    }
-    elsif ( $why eq 'malformed' ) {
-        log_event( 'WARN', $uri, 'auth: cookie malformed' );
-    }
-    elsif ( $why eq 'signature' ) {
-        log_event( 'WARN', $uri, 'auth: signature mismatch' );
-    }
-    elsif ( $why eq 'expired' ) {
-        log_event( 'WARN', $uri, 'auth: cookie expired or malformed ts',
-            ts => $detail{ts} // 'undef' );
-    }
-    elsif ( $why eq 'no-account' ) {
-        # SM1070: the account was removed (or renamed) after this cookie was
-        # issued; no trusted headers are set, so the request is unauthenticated.
-        log_event( 'WARN', $uri, 'auth: account does not exist',
-            user => $detail{user} );
-    }
-    elsif ( $why eq 'disabled' ) {
-        # SM071: reject an existing cookie for a now-disabled account; no
-        # trusted headers are set, so the request is treated as
-        # unauthenticated.
-        log_event( 'WARN', $uri, 'auth: account disabled',
-            user => $detail{user} );
-    }
-    elsif ( $why eq 'cannot-tell' ) {
-        # SM1024: a session store cannot be read or decoded, so whether this
-        # session is disabled or signed out is unknown - refused, as no identity.
-        log_event( 'WARN', $uri, 'auth: cannot tell - session refused until the store is repaired',
-            user => $detail{user}, store => $detail{store} );
-    }
-    elsif ( $why =~ /\A(?:odoo-off|odoo-unsecured|odoo-stale|no-record)\z/ ) {
-     # SM1160: an Odoo-minted session that is not an identity: the opt-in is off, the site
-     # is unsecured, Odoo has not been asked within odoo_identity_ttl, or the server-side
-     # record is gone. No trusted headers are set; the request is unauthenticated.
-        log_event( 'DEBUG', $uri, "auth: odoo session not accepted ($why)", user => $detail{user} );
-    }
-    elsif ( $why eq 'revoked' ) {
-        # SM141: an operator signed this session out (revoked sid) or signed
-        # the user out everywhere (not_before). Legacy cookies carry no sid
-        # but do carry ts, so not_before kills them too.
-        log_event( 'WARN', $uri, 'auth: session revoked',
-            user => $detail{user} );
-    }
+    # SM1181 S3 (T11): the outcome's log line, at the level each has always had, is
+    # Lazysite::Auth::Session::session_log_line's - the pool's front door, which now
+    # decides a signed-in page in its worker, logs the same line from the same
+    # function.
+    my @line = Lazysite::Auth::Session::session_log_line( $ident, $why, \%detail,
+        cookie_sent => length( $ENV{HTTP_COOKIE} // '' ) ? 1 : 0 );
+    log_event( $line[0], $uri, @line[ 1 .. $#line ] ) if @line;
 
     # Exec processor. LAZYSITE_PROCESSOR names the real CGI target (the
     # dev server and the Apache cgi-bin->auth rewrite thread it through so

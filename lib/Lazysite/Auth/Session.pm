@@ -536,6 +536,56 @@ sub request_session {
         undef );
 }
 
+# SM1181 S3 (T11): THE LOG LINE FOR WHAT request_session DECIDED, one for each
+# outcome, at the level each has always had. The auth wrapper wrote these in its
+# handle_request; the pool's front door now decides a signed-in page in the worker
+# and must leave the same evidence, so both take the line from here and neither can
+# come to log differently.
+#
+#   session_log_line( $ident, $why, \%detail, cookie_sent => 0|1 )
+#     -> ( $level, $message, %fields ) or () when nothing is logged
+#
+# No cookie value is ever a field. SM1099: the ordinary cases (a valid session, no
+# cookie, an Odoo session not accepted) are DEBUG, so a site's traffic does not fill
+# the web server's error log; a cookie that should have worked and did not is WARN.
+sub session_log_line {
+    my ( $ident, $why, $detail, %o ) = @_;
+    my %d = %{ $detail || {} };
+    if ($ident) {
+        # SM1130: a trusted proxy's user wins; worth a line only when a cookie was
+        # set aside for it.
+        return () if $ident->{source} eq 'proxy' && !$o{cookie_sent};
+        return ( 'DEBUG', 'auth: proxy identity wins, cookie ignored', proxy_user => $ident->{user} )
+            if $ident->{source} eq 'proxy';
+        return ( 'DEBUG', 'auth: cookie valid',
+            user => $ident->{user}, groups => join( ',', @{ $ident->{groups} || [] } ) );
+    }
+    $why //= '';
+    return ( 'DEBUG', 'auth: no cookie' )          if $why eq 'no-cookie';
+    return ( 'WARN',  'auth: cookie malformed' )   if $why eq 'malformed';
+    return ( 'WARN',  'auth: signature mismatch' ) if $why eq 'signature';
+    return ( 'WARN', 'auth: cookie expired or malformed ts', ts => $d{ts} // 'undef' ) if $why eq 'expired';
+    # SM1070: the account was removed (or renamed) after this cookie was issued.
+    return ( 'WARN', 'auth: account does not exist', user => $d{user} ) if $why eq 'no-account';
+    # SM071: an existing cookie for a now-disabled account.
+    return ( 'WARN', 'auth: account disabled', user => $d{user} ) if $why eq 'disabled';
+    # SM1024: a session store cannot be read or decoded, so whether this session is
+    # disabled or signed out is unknown - refused, as no identity.
+    return ( 'WARN', 'auth: cannot tell - session refused until the store is repaired',
+        user => $d{user}, store => $d{store} )
+        if $why eq 'cannot-tell';
+    # SM1160: an Odoo-minted session that is not an identity: the opt-in is off, the
+    # site is unsecured, Odoo has not been asked within odoo_identity_ttl, or the
+    # server-side record is gone.
+    return ( 'DEBUG', "auth: odoo session not accepted ($why)", user => $d{user} )
+        if $why =~ /\A(?:odoo-off|odoo-unsecured|odoo-stale|no-record)\z/;
+    # SM141: an operator signed this session out (revoked sid) or signed the user out
+    # everywhere (not_before). Legacy cookies carry no sid but do carry ts, so
+    # not_before ends them too.
+    return ( 'WARN', 'auth: session revoked', user => $d{user} ) if $why eq 'revoked';
+    return ();
+}
+
 
 # =============================================================================
 # SM1160 (inbox L3, rulings 2026-10-18): A SESSION THE ODOO SIGN-IN MINTS.

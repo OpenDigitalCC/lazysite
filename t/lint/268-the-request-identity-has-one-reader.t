@@ -117,6 +117,11 @@ my %READER = (
     'lazysite-auth.pl'             => qr/Session::request_session\(\s*lazysite_dir\s*=>\s*\$LAZYSITE_DIR,\s*proxy\s*=>/,
     'lazysite-data.pl'             => qr/Session::request_session\(\s*lazysite_dir\s*=>\s*\$lz,\s*proxy\s*=>/,
     'lib/Lazysite/Auth/Session.pm' => qr/Identity::request_identity\(\s*lazysite_dir\s*=>\s*\$dir,\s*proxy\s*=>/,
+    # SM1181 S3: the pool's front door decides a wrapped page by the same function,
+    # with the render path's proxy answer (the gate's) and the request's own Cookie
+    # header.
+    'lazysite-processor/front-door.pm' =>
+        qr/Session::request_session\(\s*lazysite_dir\s*=>\s*\$LAZYSITE_DIR,\s*proxy\s*=>\s*_proxy_identity\(\),\s*cookie\s*=>\s*\$cookie\s*\)/,
 );
 for my $rel ( sort keys %READER ) {
     like( code_of( slurp("$root/$rel") ), $READER{$rel}, "$rel reads the identity through the accessor" );
@@ -154,9 +159,10 @@ subtest 'the sentinel is read only by the accessor and the trust gates, never be
     is_deeply( \@named, [], 'no code outside the accessor, the data endpoint and the trust gates names the sentinel' )
         or diag( join "\n", @named );
 
+    # SM1181 S3 (R4): nor while a value is held, on either runtime.
     my $proc = code_of( slurp("$root/lazysite-processor.pl") );
-    like( $proc, qr/_runtime\(\)\s*eq\s*'pool'\s*\?\s*''\s*:\s*\(\s*\$ENV\{LAZYSITE_AUTH_TRUSTED\}/,
-        'the processor\'s trust gate does not believe the sentinel in the pool' );
+    like( $proc, qr/\(\s*ref\s+\$REQUEST_IDENT\s+eq\s+'HASH'\s*\|\|\s*_runtime\(\)\s*eq\s*'pool'\s*\)\s*\?\s*''\s*:\s*\(\s*\$ENV\{LAZYSITE_AUTH_TRUSTED\}/,
+        'the processor\'s trust gate does not believe the sentinel in the pool, nor while a value is held' );
     like( code_of( slurp("$root/lib/Lazysite/Auth/Identity.pm") ), qr/!\$opt\{pool\}\s*&&\s*\(\s*\$ENV\{LAZYSITE_AUTH_TRUSTED\}/,
         'the accessor does not believe it when told it is in the pool' );
     my $auth = code_of( slurp("$root/lazysite-processor/auth.pm") );

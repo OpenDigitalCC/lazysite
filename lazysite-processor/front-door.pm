@@ -10,23 +10,34 @@ package main;
 #         its helpers _front_cgibin, _read_request_body, _front_body_cap
 #         (SM389: the body is bounded before it is read) and _front_fail; and
 #         @POOL_PRELOAD with _pool_preload (SM1169), the engine modules the
-#         pool's parent loads before it forks its workers.
+#         pool's parent loads before it forks its workers; SM1181 S3:
+#         _front_session (a wrapped page's identity decided in the worker, as a
+#         value), _front_bad_url (the SM128 guard, for every request it does not
+#         hand to the auth wrapper) and _front_wrapper_action (the ?action=
+#         requests that stay the wrapper's).
 # OWNS    which requests a pool worker answers itself and which it relays; which
-#         modules the pool's parent loads for its workers.
-# CALLS   _lazysite_dir_for, _conf_value, _security_headers, log_event, _lazy_lib
-#         (lazysite-processor.pl); IO::Select and POSIX, required inside
-#         _front_relay at call time, as before.
-# READS   $DOCROOT, $FRONT_CGIBIN, $RELAY_TIMEOUT, %ACCESS_REC (the script's,
-#         declared `our` there). Whether the front door is on ($FRONT_DOOR) is
-#         the script's own decision, read where it calls _front_door.
+#         modules the pool's parent loads for its workers; who a request the
+#         front door would have wrapped is, in the pool.
+# CALLS   _lazysite_dir_for, _conf_value, _security_headers, log_event, _lazy_lib,
+#         _proxy_identity, _request_address, _trusted_proxy_spec, _timing_to
+#         (lazysite-processor.pl and its parts); IO::Select and POSIX, required
+#         inside _front_relay at call time, as before; Lazysite::Auth::Session and
+#         Lazysite::BadUrl through _lazy_lib (SM1181 S3; preloaded by the pool's
+#         parent).
+# READS   $DOCROOT, $LAZYSITE_DIR, $FRONT_CGIBIN, $RELAY_TIMEOUT; SETS
+#         $REQUEST_IDENT and %ACCESS_REC (the script's, declared `our` there).
+#         Whether the front door is on ($FRONT_DOOR) is the script's own decision,
+#         read where it calls _front_door.
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S9). It is package main, required
 # by absolute path from lazysite-processor.pl's BEGIN and never through @INC, and
-# it loads nothing - ADR 0001 keeps the render path free of the Lazysite:: tree.
+# it loads nothing when it is compiled - ADR 0001 keeps the CGI render path free
+# of the Lazysite:: tree. The front door runs only when LAZYSITE_FRONT_DOOR is
+# set (the one-rule pool), where the two modules it asks are already resident.
 use strict;
 use warnings;
 
-our ( $DOCROOT, $FRONT_CGIBIN, $RELAY_TIMEOUT, %ACCESS_REC );
+our ( $DOCROOT, $LAZYSITE_DIR, $FRONT_CGIBIN, $RELAY_TIMEOUT, $REQUEST_IDENT, %ACCESS_REC );
 
 # --- Preload before fork (SM1169, SM1082 C1) ---
 
@@ -58,6 +69,8 @@ our @POOL_PRELOAD = qw(
     Lazysite::Odoo::Fields
     Lazysite::Odoo::Identity
     Lazysite::Odoo::Visitor
+    Lazysite::Auth::Session
+    Lazysite::BadUrl
 );
 
 # Load the modules, then compile one trivial template and one trivial page of
@@ -424,6 +437,93 @@ sub _front_relay {
     return 1;
 }
 
+# --- Identity in the worker (SM1181 S3, SM1082 C2) ---
+
+# THE AUTH WRAPPER'S OWN REQUESTS. lazysite-auth.pl answers a request whose query
+# names one of its actions itself - sign in, sign out, a claim, a token exchange or
+# rotation, a forgotten password, an unsubscribe - before it would run the page.
+# Matched exactly as it matches (the same unanchored `action=` in the query, the
+# same method for each), so a wrapped request that names one is still relayed to
+# it, and S3 moves only what the wrapper would have exec'd: the page.
+sub _front_wrapper_action {
+    my $q = $ENV{QUERY_STRING} // '';
+    return 0 unless $q =~ /action=([a-z][a-z-]*)/;
+    my $act  = $1;
+    my $post = ( $ENV{REQUEST_METHOD} // 'GET' ) eq 'POST';
+    return 1 if $act eq 'logout' || $act eq 'unsubscribe';
+    return 1 if $post && $act =~ /\A(?:login|claim|exchange|rotate|forgot)\z/;
+    return 0;
+}
+
+# SM128 / SM1181 S3 (ruling R5, threat T13): THE BAD-URL GUARD, ON EVERY REQUEST.
+#
+# The blocker ran only where the auth wrapper ran, and the pool's front door sent
+# the wrapper only the requests it wrapped, so an anonymous probe at a pooled site
+# was never counted and a blocked address was refused only when it carried a
+# cookie. Now the front door runs Lazysite::BadUrl::guard - the wrapper's own
+# decision, the same keys, the same visitor address (SM929), the same audit row -
+# for every request except one it hands to the wrapper, which runs the guard
+# itself (so no probe counts twice). Answers 403 as the wrapper does; a worker
+# must not exit.
+sub _front_bad_url {
+    my ($uri) = @_;
+    _lazy_lib('Lazysite::BadUrl');
+    my @lines;
+    if ( open my $fh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
+        @lines = <$fh>;
+        close $fh;
+    }
+    return 0
+        unless Lazysite::BadUrl::guard( docroot => $DOCROOT, path => $uri,
+        ip => _request_address( _trusted_proxy_spec() ), conf_lines => \@lines );
+    return _front_fail( '403 Forbidden', '403 Forbidden' );
+}
+
+# SM1181 S3: WHO A WRAPPED PAGE REQUEST IS, DECIDED IN THE WORKER.
+#
+# Under the one-rule pool a signed-in page, a /manager/ page and an ACL-protected
+# static were relayed: fork, exec the auth wrapper, which verified the cookie,
+# wrote the identity headers and exec'd the processor - two programs per request
+# for a page this worker could render itself. The wrapper's decision is
+# Lazysite::Auth::Session::request_session (S1), and the processor reads a held
+# value in place of the headers (S2), so the worker asks the one function ONCE,
+# with this request's Cookie header and the render path's proxy answer, and holds
+# what it returns in $REQUEST_IDENT for main(). No fork, no exec, no header
+# written: in the pool the value is the only trusted identity (R3), and
+# apply_trust_gate strips every identity header a client sent while it is held
+# (R4).
+#
+# A failure holds an ANONYMOUS value (no user, no groups) with the reason, so a
+# wrapped request is decided here either way and nothing below falls back to the
+# request's own headers. Every check the wrapper's verification made comes with
+# the function: the signature, the expiry, a removed, disabled or revoked account,
+# a store that cannot be read, the fresh groups and those the address is refused
+# for, the Odoo site sign-in's record and its odoo_identity_ttl (never stale-ok:
+# that is the Odoo endpoint's own question, T8). The line logged is the wrapper's,
+# from the same function (T11), under the site's log_level as the wrapper reads
+# it (SM1099). $REQUEST_IDENT is cleared at both ends of the request (T1, T7).
+sub _front_session {
+    my ($uri) = @_;
+    _lazy_lib('Lazysite::Auth::Session');
+    my $lvl = _conf_value('log_level');
+    $ENV{LAZYSITE_LOG_LEVEL} = $lvl if defined $lvl && length $lvl && !$ENV{LAZYSITE_LOG_LEVEL};
+
+    my $cookie = $ENV{HTTP_COOKIE} // '';
+    _timing_to('identity');    # SM1144: the wrapper's time was the page's `identity`
+    my ( $ident, $why, %detail ) = Lazysite::Auth::Session::request_session(
+        lazysite_dir => $LAZYSITE_DIR, proxy => _proxy_identity(), cookie => $cookie );
+    _timing_to('config');
+
+    my @line = Lazysite::Auth::Session::session_log_line( $ident, $why, \%detail,
+        cookie_sent => length $cookie ? 1 : 0 );
+    log_event( $line[0], $uri, @line[ 1 .. $#line ] ) if @line;
+
+    $REQUEST_IDENT = $ident || {
+        user => '', groups => [], name   => '', email => '', sid => '', no_password => 0,
+        odoo => 0,  stale  => 0,  source => 'anonymous', why => $why // '' };
+    return;
+}
+
 # Consult the front door. Returns true when the request has been answered here,
 # false to fall through to main() - which is the hot path and must stay cheap.
 sub _front_door {
@@ -435,6 +535,19 @@ sub _front_door {
             cookie => ( $ENV{HTTP_COOKIE}    // '' ),
         }
     );
+
+    # SM1181 S3: a page the front door would have wrapped is rendered HERE, its
+    # identity decided by _front_session; the manager API, /cgi-bin/ surfaces and
+    # the wrapper's own ?action= requests are relayed as before (S4 is the API).
+    # R8: the split vhost-fcgi templates never send a signed-in request to the pool
+    # (their carve-out runs the wrapper under fcgiwrap) and have no front door, so
+    # this reaches only the one-rule pool.
+    my $in_worker = $decision->{wrapped}
+        && $decision->{surface} eq 'processor'
+        && !_front_wrapper_action();
+    my $to_wrapper = !$in_worker
+        && ( $decision->{wrapped} || ( $decision->{target} // '' ) eq 'lazysite-auth.pl' );
+    return 1 if !$to_wrapper && _front_bad_url($uri);    # R5
 
     # 404 rather than 403, matching lazysite-front.pl: a 403 confirms the path
     # exists, and these are paths whose existence is not the visitor's business.
@@ -459,6 +572,11 @@ sub _front_door {
         if !$decision->{wrapped}
         && ( $decision->{surface} eq 'processor'
         || $decision->{surface} eq 'static' );
+
+    if ($in_worker) {
+        _front_session($uri);
+        return 0;
+    }
 
     return _front_relay($decision);
 }

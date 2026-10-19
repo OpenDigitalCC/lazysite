@@ -297,9 +297,11 @@ our $ACL_MAP_CACHE;    # SM268 H13: acls.json parsed at most once per request -
                        # store. reset_request_state clears it (SM973).
 our $REQUEST_IDENT;    # SM1181 S2 (SM1082 C2): the request's identity as a VALUE
                        # (Lazysite::Auth::Session::request_session), which the
-                       # pool's front door will hold (S3; nothing sets it yet).
-                       # When held, _request_identity and the no_password readers
-                       # take it and read no environment. Cleared at BOTH ends of
+                       # pool's front door holds for a page it would have wrapped
+                       # (S3, _front_session). When held, _request_identity and
+                       # the no_password readers take it and read no environment,
+                       # and apply_trust_gate strips every client identity header
+                       # (R4). Cleared at BOTH ends of
                        # handle_one_request (T1, T7; t/integration/292).
 
 # Built-in fallback template - used when no layout.tt is found
@@ -638,7 +640,15 @@ sub apply_trust_gate {
     # server's configuration passed, and believing it would keep the client's own
     # X-Remote-User. The only trusted identity in a worker is the value the front
     # door holds (S3). On plain CGI the wrapper set it, as always.
-    my $auth_trusted = _runtime() eq 'pool' ? '' : ( $ENV{LAZYSITE_AUTH_TRUSTED} // '' );
+    #
+    # SM1181 S3 (R4): and WHILE A VALUE IS HELD the sentinel is not believed
+    # anywhere, so every fixed and custom identity and payment header a client sent
+    # is stripped below and logged, whatever LAZYSITE_AUTH_TRUSTED says: the value is
+    # the request's identity, and nothing downstream can then read a client's header
+    # even by mistake. A listed proxy peer is still the proxy's (SM1129, T4), and
+    # returns before the strip as before - its headers are the proxy's, not a
+    # client's, and a value it gave was read from them.
+    my $auth_trusted = ( ref $REQUEST_IDENT eq 'HASH' || _runtime() eq 'pool' ) ? '' : ( $ENV{LAZYSITE_AUTH_TRUSTED} // '' );
 
     # SM1129: the flag alone no longer vouches for a request. This is the ONE
     # reader of auth_proxy_trusted on the render path (t/lint/267): the headers
