@@ -9,6 +9,7 @@ use File::Basename qw(basename);
 use File::Spec;
 use HTTP::Tiny;
 use JSON::PP ();
+use Odoo::JSON ();
 use Scalar::Util qw(blessed);
 use Time::HiRes ();
 
@@ -23,7 +24,7 @@ use Odoo::Ops::Registry;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.33';
+our $VERSION = '0.34';
 
 =head1 NAME
 
@@ -309,7 +310,7 @@ sub _finish ($self, $command, $res, $status) {
     $res->{steps}  = [ map { +{ %$_ } } @{ $self->{steps} } ];
     if ( $self->{json} ) {
         my $fh = $self->{out};
-        print {$fh} JSON::PP->new->utf8->canonical->pretty->encode($res);
+        print {$fh} Odoo::JSON->new( pretty => 1 )->encode($res);
     }
     else {
         $self->_p( 'then: ' . ( $res->{then}[0] ), map { '      ' . $_ } @{$res->{then}}[ 1 .. $#{ $res->{then} } ] ) if @{ $res->{then} // [] };
@@ -646,7 +647,7 @@ sub _caught ($self, $subject, $to) {
     for my $try ( 1 .. 8 ) {
         my $r = $self->_http->get( "$base/api/v1/search?query=" . _urlenc($q) );
         if ( $r->{success} ) {
-            my $d = eval { JSON::PP::decode_json( $r->{content} ) } // {};
+            my $d = eval { Odoo::JSON::decode( $r->{content} ) } // {};
             $hit = ( $d->{messages} // [] )->[0];
             last if $hit;
         }
@@ -655,7 +656,7 @@ sub _caught ($self, $subject, $to) {
     return undef if !$hit;
     my $r = $self->_http->get("$base/api/v1/message/$hit->{ID}");
     return undef if !$r->{success};
-    my $m = eval { JSON::PP::decode_json( $r->{content} ) } or return undef;
+    my $m = eval { Odoo::JSON::decode( $r->{content} ) } or return undef;
     my $html = $m->{HTML} // '';
     my ($unsub) = $html =~ m{href="([^"]*confirm_unsubscribe[^"]*)"};
     my ($track) = $html =~ m{src="(https?://[^"]*/mail/track/[^"]+/blank\.gif)"};
@@ -1094,7 +1095,7 @@ sub _catcher_mails ($self, $stamp) {
     for my $q ( qq(subject:"$stamp"), qq(to:"$stamp") ) {
         my $r = $self->_http->get( "$base/api/v1/search?query=" . _urlenc($q) . '&limit=500' );
         return { error => "the catcher at $base answered HTTP " . ( $r->{status} // 0 ) } if !$r->{success};
-        my $d = eval { JSON::PP::decode_json( $r->{content} ) } // {};
+        my $d = eval { Odoo::JSON::decode( $r->{content} ) } // {};
         for my $m ( @{ $d->{messages} // [] } ) {
             next if $seen{ $m->{ID} }++;
             push @mails, { id => $m->{ID}, subject => $m->{Subject} // '' };
@@ -1122,7 +1123,7 @@ sub _cleanup_catcher ($self, $stamp, %o) {
     if ($n) {
         my $base = $self->_catcher =~ s{/+\z}{}r;
         my $r = $self->_http->request( 'DELETE', "$base/api/v1/messages",
-            { headers => { 'Content-Type' => 'application/json' }, content => JSON::PP::encode_json( { IDs => [ map { $_->{id} } @{ $c->{mails} } ] } ) } );
+            { headers => { 'Content-Type' => 'application/json' }, content => Odoo::JSON::encode( { IDs => [ map { $_->{id} } @{ $c->{mails} } ] } ) } );
         if ( !$r->{success} ) { $self->_p( "catcher: kept $n (the delete answered HTTP " . ( $r->{status} // 0 ) . ')'); return { kept => $n, error => "HTTP " . ( $r->{status} // 0 ) } }
     }
     $self->_p("catcher: removed $n");

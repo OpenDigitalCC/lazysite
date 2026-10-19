@@ -119,6 +119,9 @@ sub allows ($self, $model, $method) {
     return !!( $self->{scope} && $self->{scope}{$model} && $self->{scope}{$model}{$method} );
 }
 
+# the calls the custom change being applied declared, as "model.method" => 1; set by the runner under OOM_STRICT_CALLS
+our $DECLARED;
+
 sub call ($self, $service, $method, @params) {
     # audit_required: once a line could not be written, no further call is made
     $self->{audit}->ready if $self->{audit} && !$self->{no_check};
@@ -142,6 +145,12 @@ sub call ($self, $service, $method, @params) {
             code    => 'scope',
             message => "service $service.$method is not permitted",
         );
+    }
+
+    # a custom change that declared its calls makes no other (OOM_STRICT_CALLS=1, which the offline suite sets)
+    if ( $DECLARED && defined $model && !$DECLARED->{"$model.$mmethod"} && !$self->base_allows( $model, $mmethod ) ) {
+        $self->_audit( $service, $model, $mmethod, 'refused', undef, 0 );
+        Odoo::Error->throw( kind => 'usage', message => "call $model.$mmethod is not among the calls the change declared (calls => [[model, method], ...])" );
     }
 
     # the field list a read asked for: in the audit, and in the fix line of an access fault

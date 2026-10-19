@@ -17,9 +17,11 @@ use Odoo::Error;
 use Odoo::Ops::Trail;
 use Odoo::Ops;
 use Odoo::Ops::Blob;
+use Odoo::Ops::File;
 use Odoo::Ops::Journal;
 use Odoo::Ops::Plan;
 use JSON::PP ();
+use Odoo::JSON ();
 
 =head1 NAME
 
@@ -248,7 +250,7 @@ sub idem_claim ($class, $root, %o) {
         -d $dir or Odoo::Error->throw( kind => 'config', message => "cannot make $dir: $!" );
     }
     my $inst = $o{instance} // {};
-    my $hex  = Digest::SHA::sha256_hex( Odoo::Ops::json()->encode( [ $inst->{url} // '', $inst->{db} // '', $o{owner} // '', $o{key} ] ) );
+    my $hex  = Digest::SHA::sha256_hex( Odoo::Ops::seal_json()->encode( [ $inst->{url} // '', $inst->{db} // '', $o{owner} // '', $o{key} ] ) );
     my $path = File::Spec->catfile( $dir, $hex );
     my $old  = umask 0077;
     my $ok   = sysopen( my $fh, $path, O_RDWR | O_CREAT, 0600 );
@@ -287,7 +289,9 @@ The digest that says two requests are the same: the operation and its checked pa
 =cut
 
 sub request_digest ($class, $op, $params) {
-    return Digest::SHA::sha256_hex( Odoo::Ops::json()->encode( [ $op, $params ] ) );
+    # a file value counts by its name, size, SHA-256 and type, never by its bytes;
+    # the digest is sealed canonically so every encoder gives the same key
+    return Digest::SHA::sha256_hex( Odoo::Ops::seal_json()->encode( [ $op, Odoo::Ops::File->slim_params($params) ] ) );
 }
 
 =head2 Odoo::Ops::Runs->refuse_closed($dir)
@@ -748,7 +752,7 @@ sub _write ($dir, $rec) {
     my $path = File::Spec->catfile( $dir, 'run.json' );
     my $tmp  = "$path.tmp$$";
     open my $fh, '>', $tmp or Odoo::Error->throw( kind => 'config', message => "cannot write $tmp: $!" );
-    print {$fh} JSON::PP->new->utf8->canonical->pretty->encode($rec);
+    print {$fh} Odoo::JSON->new( pretty => 1 )->encode($rec);
     close $fh or Odoo::Error->throw( kind => 'config', message => "cannot write $tmp: $!" );
     rename $tmp, $path or Odoo::Error->throw( kind => 'config', message => "cannot write $path: $!" );
     return $path;

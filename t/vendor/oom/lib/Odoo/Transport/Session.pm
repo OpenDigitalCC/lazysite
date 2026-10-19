@@ -7,10 +7,11 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use JSON::PP ();
+use Odoo::JSON ();
 use Odoo::Error;
 use Odoo::Transport;
 
-our $VERSION = '0.33';
+our $VERSION = '0.34';
 
 use constant TRUSTED_DEVICE_COOKIE => 'td_id';
  use constant DEVICE_AGENT => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 odoo-oom-perl';
@@ -80,7 +81,7 @@ sub new ($class, %args) {
     my $self = bless {
         url      => $url,
         id       => 0,
-        json     => JSON::PP->new->utf8->canonical->boolean_values( 0, 1 ),
+        json     => Odoo::JSON->new( plain_bools => 1 ),
         http     => $args{http} // Odoo::Transport::http_client(
             timeout            => $args{timeout},
             max_response_bytes => $args{max_response_bytes},

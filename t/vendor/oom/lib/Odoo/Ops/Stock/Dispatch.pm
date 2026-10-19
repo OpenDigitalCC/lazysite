@@ -132,6 +132,20 @@ sub write_scope ($class) {
 }
 
 my $EPS = 0.001;
+
+# What apply calls: the stage and the validation of the pick and the delivery (backorders cancelled; an expiry
+# confirmation only when an expired lot is allowed), the backdating, the notes and the read-backs.
+sub _apply_calls ($self, $expired) {
+    my $m = sub ($l) { $self->physical_model($l) };
+    return (
+        ( map { [ $m->('picking'), $_ ] } qw(read write action_assign button_validate message_post) ),
+        ( map { [ $m->('move'), $_ ] } qw(read search write) ),
+        ( map { [ $m->('move_line'), $_ ] } qw(search search_read create write unlink) ),
+        [ $m->('sale_line'), 'read' ],
+        ( map { [ $m->('backorder_wizard'), $_ ] } qw(create process_cancel_backorder) ),
+        ( $expired ? ( map { [ 'expiry.picking.confirmation', $_ ] } qw(create process) ) : () ),
+    );
+}
 my $STAFF_EDIT_GRACE = 120;    # seconds between a line being made and written that still count as the system
 my %ALLOW = map { $_ => 1 } qw(expired stage-out reserved);
 
@@ -408,6 +422,7 @@ sub _plan_row ($self, $plan, $env, $row) {
     $plan->add(
         bucket => 'dispatch', action => 'custom', handler => $self->op_name, kind => 'dispatch',
         model => $self->physical_model('picking'), id => ( $pending ? $pick->{id} : $del->{id} ), key => "dispatch:$key",
+        calls => [ $self->_apply_calls( $allow{expired} || $placeholder ) ],
         before => { $state => ( $pending ? $pick->{$state} : $del->{$state} ) },
         reason => $reason,
         vals => {

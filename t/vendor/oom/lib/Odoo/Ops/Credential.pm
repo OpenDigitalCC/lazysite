@@ -6,6 +6,7 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use JSON::PP ();
+use Odoo::JSON ();
 use Time::Local ();
 
 use Odoo::Error;
@@ -146,7 +147,7 @@ clock for tests. The token is never part of an error message.
 
 sub lazysite_token ($class, $path, %opts) {
     my $text = _owner_only_text( $path, 'lazysite_token credential' );
-    my $c = eval { JSON::PP->new->utf8->decode($text) };
+    my $c = eval { Odoo::JSON::decode($text) };
     Odoo::Error->throw( kind => 'config', message => "lazysite_token credential $path is not a JSON object" )
         if ref $c ne 'HASH';
     for my $k (qw(partner token)) {

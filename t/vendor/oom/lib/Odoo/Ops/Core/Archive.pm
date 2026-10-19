@@ -163,6 +163,7 @@ sub plan ($self) {
         $plan->add(
             bucket => $mode->{bucket}, action => 'custom', handler => $me, kind => $mode->{bucket}, key => $key, id => $id, model => $model,
             before => { active => $now },
+            calls  => [ [ $model, $mode->{method} ], [ $model, 'read' ] ],
             vals   => { method => $mode->{method}, to => $mode->{to}, name => ( $row->{display_name} // '' ) },
             line   => "$what: " . ( $now ? 'active' : 'archived' ) . ' -> ' . ( $mode->{to} ? 'active' : 'archived' ),
             reason => "$what goes from " . ( $now ? 'active' : 'archived' ) . ' to ' . ( $mode->{to} ? 'active' : 'archived' )
@@ -215,6 +216,7 @@ sub undo_custom ($class, $entry) {
         action => 'custom', handler => $back->{op}, kind => $back->{bucket}, bucket => 'undo-' . $back->{bucket},
         model => $entry->{model}, id => $entry->{id}, key => "undo:$entry->{model} $entry->{id}",
         before => { active => $now },
+        calls  => [ [ $entry->{model}, $back->{method} ], [ $entry->{model}, 'read' ] ],
         vals   => { method => $back->{method}, to => $to, name => $v->{name} // '' },
         line   => "$entry->{model} $entry->{id}" . ( length( $v->{name} // '' ) ? " ($v->{name})" : '' ) . ': ' . ( $now ? 'active' : 'archived' ) . ' -> ' . ( $to ? 'active' : 'archived' ),
         reason => "$entry->{model} $entry->{id} goes from " . ( $now ? 'active' : 'archived' ) . ' to ' . ( $to ? 'active' : 'archived' ) . " through $back->{method}",

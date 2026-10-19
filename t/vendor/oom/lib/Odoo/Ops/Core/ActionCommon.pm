@@ -8,6 +8,7 @@ no warnings 'experimental::signatures';
 use B ();
 use Cwd ();
 use JSON::PP ();
+use Odoo::JSON ();
 use Scalar::Util qw(blessed);
 
 use Odoo::Error;
@@ -38,7 +39,7 @@ JSON string is not an C<int>: the caller says what it means. Returns the list.
 
 sub _json_kind ($v) {
     return 'null' if !defined $v;
-    return 'bool' if blessed($v) && $v->isa('JSON::PP::Boolean');
+    return 'bool' if Odoo::JSON::is_bool($v);
     return ref $v eq 'ARRAY' ? 'list' : ref $v eq 'HASH' ? 'object' : 'other' if ref $v;
     my $f = B::svref_2object( \$v )->FLAGS;
     return 'str' if $f & B::SVp_POK();
@@ -72,7 +73,7 @@ The arguments as a plan line shows them: C<name=value> in order, a long value cu
 
 sub args_text ( $class, $params, $args ) {
     my @p = @{ $params // [] };
-    my $j = JSON::PP->new->canonical->allow_nonref;
+    my $j = Odoo::JSON->new( utf8 => 0 );
     return join ', ', map {
         my $v = $j->encode( $args->[$_] );
         $v = substr( $v, 0, 40 ) . '...' if length $v > 43;
@@ -208,6 +209,25 @@ sub creates_scope ( $class, $entry ) {
     my @m = map { $_->{model} } @{ $entry ? $entry->{creates} // [] : [] };
     return () if !@m;
     return ( 'ir.model' => ['search_read'], map { $_ => ['search_read'] } @m );
+}
+
+=head2 creates_calls($specs, $model)
+
+The (model, method) pairs apply makes to find what a call made, as C<[[model,
+method], ...]> for a change's C<calls>: C<search_read> on C<ir.model> and on each
+listed model, and a C<read> of C<$model> when an entry names a C<link>. Empty when
+the entry lists nothing.
+
+=cut
+
+sub creates_calls ( $class, $specs, $model ) {
+    return () if !@{ $specs // [] };
+    my %seen;
+    return (
+        [ 'ir.model', 'search_read' ],
+        ( map { [ $_, 'search_read' ] } grep { !$seen{$_}++ } map { $_->{model} } @$specs ),
+        ( grep( { defined $_->{link} } @$specs ) ? ( [ $model, 'read' ] ) : () ),
+    );
 }
 
 my $NO_ACTIVE = { active_test => JSON::PP::false };
@@ -387,7 +407,7 @@ A state as the plan prints it: the value, C<none> for an empty one.
 
 sub state_text ($class, $v) {
     return 'none' if !defined $v || ( !ref $v && ( $v eq '' || $v eq '0' ) ) || ( blessed($v) && !$v );
-    return ref $v eq 'ARRAY' ? ( defined $v->[1] ? $v->[1] : $v->[0] ) : ( ref $v ? JSON::PP->new->canonical->encode($v) : "$v" );
+    return ref $v eq 'ARRAY' ? ( defined $v->[1] ? $v->[1] : $v->[0] ) : ( ref $v ? Odoo::JSON->new( utf8 => 0 )->encode($v) : "$v" );
 }
 
 =head2 answer($returned, $wizard, $model, $wizard_method)
@@ -409,7 +429,7 @@ says to use C<core.wizard>. Returns C<< { says => TEXT, window => {...} } >>.
 sub answer ( $class, $ret, $wizard = undef, $model = undef, $wizard_method = undef ) {
     return { says => 'Odoo answered with nothing' } if !defined $ret;
     # the transports read a server boolean as 1 or 0, so those two words are what a boolean arrives as
-    if ( ( blessed($ret) && $ret->isa('JSON::PP::Boolean') ) || ( !ref $ret && $ret =~ /\A[01]\z/ ) ) {
+    if ( Odoo::JSON::is_bool($ret) || ( !ref $ret && $ret =~ /\A[01]\z/ ) ) {
         return { says => 'Odoo answered with ' . ( $ret ? 'true' : 'false' ) };
     }
     if ( ref $ret eq 'HASH' && ( $ret->{type} // '' ) eq 'ir.actions.act_window' ) {
@@ -427,7 +447,7 @@ sub answer ( $class, $ret, $wizard = undef, $model = undef, $wizard_method = und
         my $tag = defined $ret->{tag} && !ref $ret->{tag} ? " ($ret->{tag})" : '';
         return { says => "Odoo answered with an action: $ret->{type}$tag" };
     }
-    my $text = ref $ret ? JSON::PP->new->canonical->encode($ret) : "$ret";
+    my $text = ref $ret ? Odoo::JSON->new( utf8 => 0 )->encode($ret) : "$ret";
     $text = substr( $text, 0, 200 ) . '...' if length $text > 200;
     return { says => "Odoo answered: $text" };
 }

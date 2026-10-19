@@ -7,6 +7,7 @@ no warnings 'experimental::signatures';
 
 use JSON::PP ();
 
+use Odoo::Cache::Data;
 use Odoo::Error;
 use Odoo::Ops::Modules;
 use Odoo::Ops::Core::OneRecord;
@@ -45,6 +46,8 @@ sub params ($class) {
     {   model  => { type => 'str', required => 1, help => 'physical model, e.g. crm.lead' },
         id     => { type => 'int', required => 1, help => 'the record id' },
         fields => { type => 'str', help => 'comma-separated fields (default id,display_name and state when the model has one)' },
+        max_age => { type => 'int', help => 'seconds the answer may be old: with data_cache = 1 in the config it may come from the data cache while Odoo\'s signal for the model holds; 0 or absent: live' },
+        pricelist => { type => 'int', help => 'the pricelist (id) Odoo prices the read with; part of the data cache key' },
     };
 }
 sub read_scope ($class) { {} }    # built per run: the model's search_read
@@ -56,12 +59,18 @@ sub fields ($class) {
         { name => 'count',  meaning => 'Always 1: the record is rows[0]' },
         { name => 'rows',   meaning => 'One object: the fields asked; a many2one is its id under the field name and its label under <field>_name' },
         { name => 'fields', meaning => 'The fields asked: type, portable_type, string, and relation or values where they apply' },
+        { name => 'cached', meaning => '1 when the row came from the data cache, else 0' },
+        { name => 'age',    meaning => 'Present when cached: seconds since the cached row was read from Odoo' },
+        { name => 'checked', meaning => 'Present when cached: signal' },
+        { name => 'live',   meaning => 'required when the model or a field is never cached (stock, reservations, pickings, order state), whatever max_age says' },
     ];
 }
 
 sub scope_for ($self, $phase) {
     my $m = $self->param('model');
-    return defined $m ? { $m => ['search_read'] } : {};
+    return {} if !defined $m;
+    return { $m => ['search_read'] } if !$self->param('max_age');
+    return { $m => [ 'search_read', 'read_group' ], ( $self->param('pricelist') ? ( map { $_ => ['read_group'] } Odoo::Cache::Data->pricelist_models ) : () ) };
 }
 
 sub report ($self) {
@@ -81,12 +90,24 @@ sub report ($self) {
         fix => "fields_get of $model lists its fields (oom-ops run core.skeleton --conf <conf> --set model=$model shows the stored, writable ones)" ) if @unknown;
     unshift @want, 'id' if !grep { $_ eq 'id' } @want;
 
-    my $rows = $m->search_read( [ [ 'id', '=', $id ] ], [@want], limit => 1, context => { active_test => JSON::PP::false } );
+    my $ma = $self->param('max_age');
+    Odoo::Error->throw( kind => 'usage', message => 'core.get: max_age must be 0 or more seconds', fix => 'oom-ops describe core.get lists the parameters' )
+        if defined $ma && $ma < 0;
+    my $pl = $self->param('pricelist');
+    my $got = $self->ctx->data_cache->read(
+        model => $model, domain => [ [ 'id', '=', $id ] ], fields => \@want, limit => 1, archived => 1, pricelist => $pl, max_age => $ma,
+        ( $pl ? ( also => [ Odoo::Cache::Data->pricelist_models ] ) : () ),
+        fetch => sub {
+            $m->search_read( [ [ 'id', '=', $id ] ], [@want], limit => 1,
+                context => { active_test => JSON::PP::false, ( $pl ? ( pricelist => $pl ) : () ) } );
+        } );
+    my $rows = $got->{rows};
+    $self->{cache_note} = { Odoo::Cache::Data->says($got) };
     Odoo::Error->throw( kind => 'refused', code => 'missing', message => "core.get: $model has no record with id $id",
         fix => 'give the id of a record that exists; core.read finds records by a domain' ) if !@$rows;
 
     my ( $out, $schema ) = Odoo::Ops::Core::OneRecord->rows_and_schema( $f, \@want, $rows );
-    return { model => $model, id => $id, count => 1, rows => $out, fields => $schema };
+    return { model => $model, id => $id, count => 1, rows => $out, fields => $schema, Odoo::Cache::Data->says($got) };
 }
 
 1;

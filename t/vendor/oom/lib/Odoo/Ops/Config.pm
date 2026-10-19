@@ -66,6 +66,9 @@ line, C<#> comments, blank lines ignored. Recognised keys:
                           in the cache directory, so a new process does not ask Odoo again; 0: remember nothing
     cache_dir             where the cache lives, default $XDG_CACHE_HOME/oom or ~/.cache/oom (owner-only)
     cache_ttl_version     seconds a remembered server version is used, default 300 (0: always ask)
+    cache_ttl_fields_stamp seconds the state of ir.model.fields is shared between processes, default 5 (0: every process reads it)
+    data_cache            1: a read that names max_age may be answered from a file in the cache directory (default 0)
+    data_cache_max_mb     most megabytes of data cache kept per login, default 200; the oldest files go first
     pack_dirs             a colon list of directories that hold packs (docs/OPS.md, Packs); default
                           $ODOO_OOM_PACK_DIRS, else /usr/share/odoo-oom/packs when odoo-oom-packs is installed
     pack                  a comma list limiting which packs of those directories load; default all
@@ -84,7 +87,7 @@ my %KNOWN = map { $_ => 1 } qw(
     profile_series allow_writes name ssl_ca_file ssl_verify session
     approval plan_ttl mailcatcher record_reads blob_min
     audit_log audit_syslog audit_syslog_facility audit_level audit_required
-    cache cache_dir cache_ttl_version
+    cache cache_dir cache_ttl_version cache_ttl_fields_stamp data_cache data_cache_max_mb
     pack_dirs pack
 );
 
@@ -157,6 +160,12 @@ sub new ($class, %conf) {
         if defined $conf{cache} && $conf{cache} !~ /^[01]\z/;
     Odoo::Error->throw( kind => q(config), message => "cache_ttl_version must be a whole number of seconds, not '$conf{cache_ttl_version}'" )
         if defined $conf{cache_ttl_version} && $conf{cache_ttl_version} !~ /^\d+\z/;
+    Odoo::Error->throw( kind => q(config), message => "cache_ttl_fields_stamp must be a whole number of seconds, not '$conf{cache_ttl_fields_stamp}'" )
+        if defined $conf{cache_ttl_fields_stamp} && $conf{cache_ttl_fields_stamp} !~ /^\d+\z/;
+    Odoo::Error->throw( kind => q(config), message => "data_cache must be 0 or 1, not '$conf{data_cache}'" )
+        if defined $conf{data_cache} && $conf{data_cache} !~ /^[01]\z/;
+    Odoo::Error->throw( kind => q(config), message => "data_cache_max_mb must be a whole number of megabytes above 0, not '$conf{data_cache_max_mb}'" )
+        if defined $conf{data_cache_max_mb} && $conf{data_cache_max_mb} !~ /^[1-9]\d*\z/;
     Odoo::Error->throw( kind => q(config), message => 'pack_dirs must be a colon list of directories, not empty' )
         if defined $conf{pack_dirs} && $conf{pack_dirs} !~ /[^:\s]/;
     Odoo::Error->throw( kind => q(config), message => "pack must be a comma list of pack names, not '$conf{pack}'" )
@@ -214,6 +223,10 @@ sub record_reads ($self) { ( $self->{record_reads} // 1 ) eq '1' }
 sub cache_enabled     ($self) { ($self->{cache} // 1) eq '1' }
 sub cache_dir         ($self) { $self->{cache_dir} }
 sub cache_ttl_version ($self) { $self->{cache_ttl_version} // 300 }
+sub cache_ttl_fields_stamp ($self) { $self->{cache_ttl_fields_stamp} // 5 }
+# the data cache (docs/OPS.md, Data cache): off unless data_cache = 1
+sub data_cache        ($self) { ( $self->{data_cache} // 0 ) eq '1' }
+sub data_cache_max_mb ($self) { $self->{data_cache_max_mb} // 200 }
 
 # the directories that hold packs: this config's pack_dirs, else $ODOO_OOM_PACK_DIRS, else the installed ones
 sub pack_dirs ($self) {

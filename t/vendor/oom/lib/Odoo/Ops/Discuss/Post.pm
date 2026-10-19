@@ -13,6 +13,7 @@ use Digest::SHA ();
 use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Core::Attach;
+use Odoo::Ops::File;
 use Odoo::Ops::Discuss::Common;
 
 use parent 'Odoo::Ops::Operation';
@@ -27,6 +28,7 @@ Odoo::Ops::Discuss::Post - post a message to a channel, or reply to one
     oom-ops run discuss.post --conf ops.conf --set channel=7 --set body="Thanks" --set reply_to=120
     oom-ops run discuss.post --conf ops.conf --set channel=7 --set body="See the sheet" \
         --set mentions=ann@example.com,42 --set attachments=/data/count.pdf
+    oom-ops run discuss.post --conf ops.conf --set channel=7 --set body="Photo" --file files=./site.jpg
 
 =head1 DESCRIPTION
 
@@ -47,6 +49,10 @@ which for most is an email). C<attachments> lists files, put on the channel as
 C<core.attach> puts a file on a record: the plan holds each file's path, size
 and SHA-1 and never its bytes, apply refuses (C<changed-since-plan>) a file that
 changed, and C<max_bytes> (default 25 MB) holds a larger one (C<too-large>).
+C<files> lists files given as bytes (C<< { name, bytes, mimetype? } >>, at most
+10 with C<attachments>, see L<Odoo::Ops::File>) with no path on the host: the
+plan shows each as name, size, SHA-256 and type, the bytes wait in the run's blob
+store, and apply checks their digest before it puts them on the channel.
 
 A plan is one post and lands in one bucket:
 
@@ -92,6 +98,7 @@ sub params ($class) {
         reply_to    => { type => 'int',  help => 'a message id in the same channel' },
         mentions    => { type => 'list', help => 'partner ids and logins, comma separated' },
         attachments => { type => 'list', help => 'file paths, comma separated' },
+        files       => { type => 'files', max => 10, max_bytes => 25 * 1024 * 1024, help => 'files as bytes, at most 10 with attachments: --file files=PATH (repeatable) on the command line' },
         max_bytes   => { type => 'int',  default => 25 * 1024 * 1024, help => 'hold a file over this size (default 25 MB)' },
     };
 }
@@ -122,9 +129,12 @@ sub plan ($self) {
     my $hold = sub ( $bucket, $why ) { $plan->add( bucket => $bucket, action => 'hold', key => "channel:$cid", reason => $why ); return $plan };
 
     my @files_in = @{ $self->param('attachments') // [] };
+    my @given    = @{ $self->param('files') // [] };
+    Odoo::Error->throw( kind => 'usage', message => 'discuss.post: attachments and files together are ' . ( @files_in + @given ) . '; at most 10 are allowed' )
+        if @files_in + @given > 10;
     my $raw = $self->param('body');
-    Odoo::Error->throw( kind => 'usage', message => 'discuss.post: give a body or an attachment', fix => 'pass --set body=... or --set attachments=PATH' )
-        if ( !defined $raw || $raw !~ /\S/ ) && !@files_in;
+    Odoo::Error->throw( kind => 'usage', message => 'discuss.post: give a body or an attachment', fix => 'pass --set body=... or --set attachments=PATH or --file files=PATH' )
+        if ( !defined $raw || $raw !~ /\S/ ) && !@files_in && !@given;
     my $html = !defined $raw || $raw !~ /\S/ ? '' : $self->param('html') ? $raw : Odoo::Ops::Discuss::Common::text_html($raw);
 
     my $ch = Odoo::Ops::Discuss::Common::channel_row( $self, $cid )
@@ -180,6 +190,16 @@ sub plan ($self) {
         };
     }
 
+    for my $g (@given) {
+        my $size = length $g->{bytes};
+        return $hold->( 'too-large', "file $g->{name} is $size bytes; the limit is $max (max_bytes)" ) if $size > $max;
+        my $slim = Odoo::Ops::File->slim($g);
+        push @files, {
+            name => $g->{name}, size => $size + 0, checksum => Digest::SHA::sha1_hex( $g->{bytes} ), sha256 => $slim->{sha256},
+            mimetype => $g->{mimetype}, datas => $plan->blob_value( Odoo::Ops::File->base64($g) ),
+        };
+    }
+
     my $text = Odoo::Ops::Discuss::Common::html_text($html);
     (my $flat = $text) =~ s{\s*\n\s*}{ }g;
     my $shown = length $flat > 200 ? substr( $flat, 0, 200 ) . '... (' . length($flat) . ' characters)' : $flat;
@@ -191,6 +211,7 @@ sub plan ($self) {
     $plan->add(
         bucket => 'post', action => 'custom', handler => $self->op_name, kind => 'post',
         model  => $p->model_name('channel'), id => $cid + 0, key => "channel:$cid",
+        calls  => [ [ $p->model_name('channel'), $p->action('post') ], [ $p->model_name('message'), 'read' ], ( @files ? ( [ $p->model_name('attachment'), 'create' ], [ $p->model_name('attachment'), 'unlink' ] ) : () ) ],    # unlink: the attachments of a post that fails
         vals   => {
             channel => $cid + 0, channel_name => $ch->{name}, body => $html,
             ( defined $reply ? ( reply_to => $reply + 0 ) : () ),
@@ -221,13 +242,23 @@ sub apply_custom ($class, $client, $c) {
     my @made;
     my $mid = eval {
         for my $file ( @{ $v->{files} // [] } ) {
-            open my $fh, '<:raw', $file->{file}
-                or Odoo::Error->throw( kind => 'refused', code => 'changed-since-plan', message => "file $file->{file} cannot be read now: $!" );
-            my $bytes = do { local $/; <$fh> };
-            close $fh;
-            Odoo::Error->throw( kind => 'refused', code => 'changed-since-plan',
-                message => "file $file->{file} no longer has the checksum it had when planned; re-plan" )
-                if Digest::SHA::sha1_hex($bytes) ne $file->{checksum};
+            my $bytes;
+            if ( defined $file->{datas} ) {
+                # given as bytes: the runner read the blob back after checking its digest
+                $bytes = MIME::Base64::decode_base64( $file->{datas} );
+                Odoo::Error->throw( kind => 'refused', code => 'blob', message => "the bytes of '$file->{name}' are not the file that was planned (checksum differs)",
+                    fix => 'plan again with oom-ops run discuss.post' )
+                    if Digest::SHA::sha1_hex($bytes) ne $file->{checksum};
+            }
+            else {
+                open my $fh, '<:raw', $file->{file}
+                    or Odoo::Error->throw( kind => 'refused', code => 'changed-since-plan', message => "file $file->{file} cannot be read now: $!" );
+                $bytes = do { local $/; <$fh> };
+                close $fh;
+                Odoo::Error->throw( kind => 'refused', code => 'changed-since-plan',
+                    message => "file $file->{file} no longer has the checksum it had when planned; re-plan" )
+                    if Digest::SHA::sha1_hex($bytes) ne $file->{checksum};
+            }
             push @made, $att->create( {
                 $f->( attachment => 'name' ) => $file->{name},
                 $f->( attachment => 'res_model' ) => $p->model_name('channel'),
@@ -296,6 +327,7 @@ sub undo_custom ($class, $e) {
     return (
         {   bucket => 'undo-post', action => 'custom', handler => 'discuss.delete', kind => 'delete',
             model  => ( ref $e->{created} eq 'ARRAY' && $e->{created}[0] ? $e->{created}[0]{model} : 'mail.message' ), id => $mid, key => "undo:message:$mid", unmakes => 1,
+            calls  => [ [ ( ref $e->{created} eq 'ARRAY' && $e->{created}[0] ? $e->{created}[0]{model} : 'mail.message' ), 'read' ] ],
             vals   => { message => $mid, channel => $cid },
             line   => "empty message $mid of channel $cid: its body and attachments go, and Odoo keeps the message record",
             reason => "undo discuss.post: Odoo has no way to unsend a message; its own client empties it and removes its attachments, and the record stays",

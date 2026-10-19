@@ -6,12 +6,14 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use Odoo::Error;
+use Odoo::JSON ();
 use Odoo::Ops;
 use Odoo::Ops::Plan;
 use Odoo::Ops::Invariant;
 use Odoo::Ops::Modules;
 use Odoo::Ops::Guard;
 use Odoo::Ops::Registry;
+use Odoo::Ops::File;
 
 =head1 NAME
 
@@ -40,7 +42,8 @@ An operation declares, as class methods:
     pack         the profile pack it speaks (crm, comms, ...), or undef
     invariant_packs  the packs whose invariants judge its writes (default: its pack)
     params       { name => { type, required, default, help } }
-                 types: str int bool json list path rows (see check_rows)
+                 types: str int bool json list path rows file files (see check_rows,
+                 and Odoo::Ops::File for file and files)
     read_scope   { model => [methods] } used while reporting/planning
     write_scope  { model => [methods] } added while applying; declaring
                  one makes the operation a write operation
@@ -168,6 +171,8 @@ sub check_params ($class, $raw) {
 sub _typed ($op, $k, $type, $v, $spec = {}) {
     my $bad = sub { Odoo::Error->throw( kind => 'usage', message => "$op: parameter '$k' must be $type", fix => "oom-ops describe $op shows each parameter's type" ) };
     return Odoo::Ops::Operation->check_rows( $spec, $v, "$op: parameter '$k'" ) if $type eq 'rows';
+    return Odoo::Ops::File->check( $op, $k, $v, $spec ) if $type eq 'file';
+    return Odoo::Ops::File->check_list( $op, $k, $v, $spec ) if $type eq 'files';
     return $v if ref $v && $type =~ /^(json|list)\z/;
     if ( $type eq 'int' )  { $v =~ /^-?\d+\z/ or $bad->(); return 0 + $v }
     if ( $type eq 'bool' ) { $v =~ /^(1|0|yes|no|true|false)\z/i or $bad->(); return $v =~ /^(1|yes|true)\z/i ? 1 : 0 }
@@ -240,7 +245,7 @@ sub check_rows ($class, $decl, $value, $label = 'rows') {
             if ( ref $v ) {
                 # a JSON true or false is a bool; any other reference is nesting
                 $bad->( " row $n: key '$k' must be a plain $ty, not a nested value" )
-                    if $ty ne 'bool' || !eval { $v->isa('JSON::PP::Boolean') };
+                    if $ty ne 'bool' || !Odoo::JSON::is_bool($v);
                 $o{$k} = $v ? 1 : 0;
                 next;
             }
@@ -338,10 +343,19 @@ sub _audit_read ($self, $scope, $report) {
             models => [ sort keys %$scope ],
             ( ref $rows eq 'ARRAY' ? ( rows => scalar @$rows ) : () ),
             ( $self->can('audit_detail') ? $self->audit_detail($report) : () ),
+            # whether the answer came from the data cache and how old it was, never the data
+            ( $self->_cache_says($report) ),
             params => [ sort keys %{ $self->{params} // {} } ],
         );
     };
     return;
+}
+
+# cached and age of a read: its own report's, else those of the reads it composed (Odoo::Ops::Pack->read)
+sub _cache_says ($self, $report) {
+    my $s = ref $report eq 'HASH' && defined $report->{cached} ? $report : $self->{cache_note};
+    return () if !$s || !defined $s->{cached};
+    return ( cached => $s->{cached} ? 1 : 0, ( $s->{cached} && defined $s->{age} ? ( age => $s->{age} ) : () ) );
 }
 
 sub _run ($self) {
@@ -508,7 +522,7 @@ sub new_plan ($self, %args) {
     my $profile = $self->pack ? $self->profile : undef;
     return Odoo::Ops::Plan->new(
         op       => $self->op_name,
-        params   => $self->{params},
+        params   => Odoo::Ops::File->slim_params( $self->{params} ),
         instance => $self->{ctx}->instance,
         profile  => $profile ? { pack => $profile->pack, series => $profile->series } : undef,
         created  => Odoo::Ops::iso_time( $self->{ctx}->now ),

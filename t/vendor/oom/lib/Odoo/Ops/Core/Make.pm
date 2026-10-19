@@ -6,8 +6,10 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use Odoo::Error;
+use Odoo::JSON ();
 use Odoo::Ops::Modules;
 use Odoo::Ops::Core::OneRecord;
+use Odoo::Ops::File;
 
 use parent 'Odoo::Ops::Operation';
 
@@ -43,6 +45,13 @@ C<probability-manual> invariant judges the pack's own writes).
 A pair for a state field of a model whose state Odoo changes through its own
 action is held C<state-field>, as C<core.set> holds it.
 
+A binary field takes a file: C<set.E<lt>fieldE<gt>> is a file value (C<< { name,
+bytes, mimetype? } >>, see L<Odoo::Ops::File>) in a program, and
+C<--file set.E<lt>fieldE<gt>=PATH> on the command line. The plan shows the name,
+size, SHA-256 and type; the bytes wait in the run's blob store and are checked
+by digest at apply. The create's read-back leaves the file's content out, so the
+journal holds none.
+
 C<lines.E<lt>fieldE<gt>> creates the record with the lines of a one2many field
 in the same create: a JSON array of flat objects (at most 200 rows), or
 --rows lines.order_line=FILE. The field must be a one2many of the model and
@@ -60,7 +69,7 @@ sub summary ($class) { 'Plan creating one record, each set.<field> typed from fi
 sub pack    ($class) { undef }
 sub params ($class) {
     {   model         => { type => 'str', required => 1, help => 'physical model, e.g. crm.lead' },
-        'set.<field>' => { type => 'str', help => 'one per field of the new record: --set set.name=Acme --set set.type=opportunity (the value is typed from fields_get)' },
+        'set.<field>' => { type => 'str', help => 'one per field of the new record: --set set.name=Acme --set set.type=opportunity (the value is typed from fields_get); a binary field takes a file: --file set.image_1920=PATH' },
         'lines.<field>' => { type => 'rows', max => MAX_LINES, row => 'the fields of the one2many\'s comodel', help => 'one per one2many field: --set lines.order_line=\'[{"product_id":3,"product_uom_qty":2}]\' or --rows lines.order_line=FILE; a flat object per line, its keys fields of the comodel, typed from fields_get' },
     };
 }
@@ -85,7 +94,7 @@ sub _lines ($class, $k, $v) {
     my $rows = ref $v ? $v : eval { Odoo::Ops::json()->decode( $v // '' ) };
     my %keys;
     if ( ref $rows eq 'ARRAY' ) {
-        $rows = [ map { my $r = $_; ref $r eq 'HASH' ? { map { $_ => ( ref $r->{$_} && eval { $r->{$_}->isa('JSON::PP::Boolean') } ? ( $r->{$_} ? 1 : 0 ) : $r->{$_} ) } keys %$r } : $r } @$rows ];
+        $rows = [ map { my $r = $_; ref $r eq 'HASH' ? { map { $_ => ( Odoo::JSON::is_bool($r->{$_}) ? ( $r->{$_} ? 1 : 0 ) : $r->{$_} ) } keys %$r } : $r } @$rows ];
         for my $r (@$rows) {
             next if ref $r ne 'HASH';
             $keys{$_} = 'str?' for keys %$r;
@@ -160,6 +169,14 @@ sub plan ($self) {
         $plan->add( bucket => 'state-field', action => 'hold', key => $key, model => $model, reason => $why );
         return $plan;
     }
+    # a file's bytes are held in the plan's blob store; the plan shows its name, size, digest and type
+    my ( @file_fields, %file_shown );
+    for my $n ( sort grep { Odoo::Ops::File->is_value( $vals->{$_} ) } keys %$vals ) {
+        my $s = Odoo::Ops::File->slim( $vals->{$n} );
+        $file_shown{$n} = "$s->{name} ($s->{bytes} bytes, sha256 $s->{sha256}, $s->{mimetype})";
+        $vals->{$n} = $plan->blob_value( Odoo::Ops::File->base64( $vals->{$n} ) );
+        push @file_fields, $n;
+    }
     # a required, stored field that nothing gives a value: Odoo would refuse the create, and says which only one at a time
     my @required = grep { !$MAGIC{$_} && !exists $vals->{$_} && $f->{$_}{required} && ( $f->{$_}{store} // 1 ) && !$f->{$_}{readonly} } sort keys %$f;
     if (@required) {
@@ -177,9 +194,11 @@ sub plan ($self) {
         message => "core.make: $model needs " . join( ', ', @required ) . ' (required, and Odoo gives no default)',
         fix => 'add ' . join( ' ', map { "--set set.$_=..." } @required ) ) if @required;
 
-    my @line = ( ( map { "$_ " . Odoo::Ops::Core::OneRecord->shown( $vals->{$_} ) } grep { ref $vals->{$_} ne 'ARRAY' || !@{ $vals->{$_} } || ref $vals->{$_}[0] ne 'ARRAY' } sort keys %$vals ), @lines_shown );
+    my @line = ( ( map { "$_ " . ( $file_shown{$_} // Odoo::Ops::Core::OneRecord->shown( $vals->{$_} ) ) } grep { ref $vals->{$_} eq 'HASH' || ref $vals->{$_} ne 'ARRAY' || !@{ $vals->{$_} } || ref $vals->{$_}[0] ne 'ARRAY' } sort keys %$vals ), @lines_shown );
+    my %is_file = map { $_ => 1 } @file_fields;
     $plan->add(
         bucket => 'make', action => 'create', key => $key, model => $model, vals => $vals,
+        ( @file_fields ? ( readback => [ grep { !$is_file{$_} } sort keys %$vals ] ) : () ),
         line   => "$model new: " . join( '; ', @line ), reason => "creates one $model",
     );
     return $plan;

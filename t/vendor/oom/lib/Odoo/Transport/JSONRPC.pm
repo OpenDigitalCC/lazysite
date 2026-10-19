@@ -6,6 +6,7 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use JSON::PP ();
+use Odoo::JSON ();
 
 use Odoo::Error;
 use Odoo::Transport;
@@ -37,7 +38,7 @@ sub new ($class, %args) {
     return bless {
         url  => $url,
         id   => 0,
-        json => JSON::PP->new->utf8->canonical->boolean_values(0, 1),
+        json => Odoo::JSON->new( plain_bools => 1 ),
         http => Odoo::Transport::http_client(
             timeout            => $args{timeout},
             max_response_bytes => $args{max_response_bytes},

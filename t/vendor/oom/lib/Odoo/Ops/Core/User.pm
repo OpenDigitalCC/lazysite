@@ -351,7 +351,7 @@ sub _plan_row ($self, $plan, $row, $have) {
         return $plan->add( bucket => 'unchanged', action => 'skip', id => $cur->{id}, key => $key, reason => 'the password in the file already authenticates' )
             if _password_authenticates( $self->client, $login, $pw->{secret}, $cur->{id} );
         return $plan->add( bucket => 'password', action => 'custom', model => 'res.users', id => $cur->{id}, handler => $self->op_name,
-            kind => 'password', key => $key, login => $cur->{login}, password_file => $v->{password_file},
+            kind => 'password', key => $key, login => $cur->{login}, password_file => $v->{password_file}, calls => [ [ 'res.users', 'write' ] ],
             reason => 'sets the password from the file; the value is not in the plan' );
     }
     return $self->_plan_totp( $plan, $row, $v, $login, $cur ) if $action eq 'totp';
@@ -373,11 +373,17 @@ sub _plan_row ($self, $plan, $row, $have) {
     return _hold( $plan, 'invalid', $row, "duration '$dur' is not a number of days" ) if defined $dur && $dur ne '' && $dur !~ /^-?\d+\z/;
     return $plan->add( bucket => 'api-key', action => 'custom', model => 'res.users', id => $cur->{id}, handler => $self->op_name,
         kind => 'api-key', key => $key, login => $cur->{login}, password_file => $v->{password_file}, key_file => $kf,
+        calls => [ [ 'res.users.apikeys.description', 'create' ], [ 'res.users.apikeys.description', 'make_key' ], _identity_calls( $self->client->server_series ) ],
         description => _s( $v->{name} ) // 'oom', ( defined $dur && $dur ne '' ? ( duration => $dur ) : () ),
         reason => 'mints a key as the user over a web session; the key goes to key_file only' );
 }
 
 # --- api-key-revoke ----------------------------------------------------------
+
+# the identity check Odoo asks for before a key or two-factor change: 16 to 18 write the password to the wizard, 19 sends it in the context
+sub _identity_calls ($series) {
+    return ( [ 'res.users.identitycheck', 'run_check' ], ( $series < 19 ? ( [ 'res.users.identitycheck', 'write' ] ) : () ) );
+}
 
 sub _plan_revoke ($self, $plan, $row, $v, $login, $cur) {
     my $key  = "user:$login";
@@ -394,6 +400,7 @@ sub _plan_revoke ($self, $plan, $row, $v, $login, $cur) {
     pop @ids;    # the newest stays
     return $plan->add( bucket => 'api-key-revoke', action => 'custom', model => 'res.users', id => $cur->{id}, handler => $self->op_name,
         kind => 'api-key-revoke', key => $key, login => $cur->{login}, password_file => $v->{password_file}, key_ids => \@ids, description => $name,
+        calls => [ [ 'res.users.apikeys', 'remove' ], [ 'res.users.apikeys', 'search_read' ], _identity_calls( $self->client->server_series ) ],
         reason => "removes key(s) @ids named '$name' as the user; the newest stays" );
 }
 
@@ -413,6 +420,7 @@ sub _plan_totp ($self, $plan, $row, $v, $login, $cur) {
     if ( !$want ) {
         return $plan->add( bucket => 'totp', action => 'custom', model => 'res.users', id => $cur->{id}, handler => $self->op_name,
             kind => 'totp', two_factor => 'off', key => $key, login => $cur->{login},
+            calls => [ [ 'res.users', 'action_totp_disable' ], [ 'res.users', 'read' ], _identity_calls( $self->client->server_series ) ],
             reason => 'turns two-factor off through action_totp_disable over the connection\'s own web session' );
     }
     return _hold( $plan, 'inactive-user', $row, "user '$login' is inactive and cannot sign in to set two-factor up; activate it first" ) if !$cur->{active};
@@ -420,6 +428,8 @@ sub _plan_totp ($self, $plan, $row, $v, $login, $cur) {
     return _hold( $plan, 'password-file-missing', $row, $pw->{why} ) if !defined $pw->{secret};
     return $plan->add( bucket => 'totp', action => 'custom', model => 'res.users', id => $cur->{id}, handler => $self->op_name,
         kind => 'totp', two_factor => 'on', key => $key, login => $cur->{login}, password_file => $v->{password_file},
+        calls => [ [ 'res.users', 'action_totp_enable_wizard' ], [ 'res.users', 'read' ], [ 'auth_totp.wizard', 'read' ], [ 'auth_totp.wizard', 'enable' ],
+            ( $self->client->server_series < 19 ? ( [ 'auth_totp.wizard', 'write' ] ) : () ), _identity_calls( $self->client->server_series ) ],
         reason => 'turns two-factor on through auth_totp\'s own wizard as the user; the secret is not kept' );
 }
 
@@ -432,7 +442,7 @@ sub _plan_password_after_create ($self, $plan, $row, $v, $login) {
     my $pw = $self->_secret( $v->{password_file}, 'password_file' );
     return _hold( $plan, 'password-file-missing', $row, $pw->{why} ) if !defined $pw->{secret};
     return $plan->add( bucket => 'password', action => 'custom', model => 'res.users', id_ref => 'user:' . lc $login, handler => $self->op_name,
-        kind => 'password', key => "user:$login", login => $login, password_file => $v->{password_file},
+        kind => 'password', key => "user:$login", login => $login, password_file => $v->{password_file}, calls => [ [ 'res.users', 'write' ] ],
         reason => 'sets the password from the file once the create row above has made the user; the value is not in the plan' );
 }
 
@@ -522,6 +532,8 @@ sub _plan_portal ($self, $plan, $row, $v, $login, $name, $company, $extra) {
             readback => [ 'login', 'name', 'share', $self->{gfield} ] );
     }
     return $plan->add( bucket => 'create', action => 'custom', model => 'res.users', handler => $self->op_name, kind => 'portal', key => $key, ref => 'user:' . lc $login,
+        calls => [ ( map { [ 'res.users', $_ ] } qw(search write read) ), [ 'portal.wizard', 'create' ],
+            ( map { [ 'portal.wizard.user', $_ ] } qw(search_read write action_grant_access) ) ],
         vals => { login => $login, email => $email, partner_id => $partner, %$extra },
         reason => 'portal.wizard grant access; Odoo sends the invitation email' );
 }
@@ -586,6 +598,7 @@ sub _plan_reset_take ($self, $plan, $row, $v) {
 
     my $series = $self->client->server_series;
     return $plan->add( bucket => 'reset-take', action => 'custom', model => 'res.users', handler => $self->op_name, kind => 'reset-take',
+        calls => [],    # the reset page and a sign-in: no model call
         key => "reset-take:$page->{login}", login => $page->{login}, name => $page->{name}, db => $db, series => $series, login_from_row => $page->{from_row} ? 1 : 0,
         link => defined $link ? $link : undef, token => $tok, password_file => $pf,
         reason => "sets the password of '$page->{login}' ($page->{name}) on database $db (Odoo $series) through the reset page" . ( $page->{from_row} ? ' (the form does not name the user: the login is the row\'s)' : '' ) . ", token $p6; the password goes to $pf only and the link is consumed" );

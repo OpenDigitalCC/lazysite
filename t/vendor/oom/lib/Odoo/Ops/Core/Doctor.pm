@@ -7,6 +7,7 @@ no warnings 'experimental::signatures';
 
 use File::Spec;
 use JSON::PP ();
+use Odoo::JSON ();
 use Scalar::Util qw(blessed);
 use HTTP::Tiny;
 use Time::Local ();
@@ -79,6 +80,10 @@ Checks, in order, and what a failure in each one skips:
                    (C<warn> when the mode lets others in); C<cache = 0> says so.
                    The login and version checks ask Odoo for real, whatever is
                    remembered.
+    config.data_cache
+                   C<info>: whether the data cache is on, and when it is, its directory, how
+                   many files it holds, how many bytes, and the cap per login; C<warn> when
+                   its directory lets others in. Never contents.
     pack.*         one line for each pack the config's C<pack_dirs> hold (L<Odoo::Ops::Pack>):
                    C<ok> with its version, C<oom_min> and series; a pack that was refused
                    is C<warn> with the reason, C<fail> when the config's C<pack> names it.
@@ -227,6 +232,7 @@ sub report ($self) {
     my @c      = $self->_static_checks($config);
     push @c, $self->_catcher_check($config);
     push @c, $self->_cache_check($config);
+    push @c, $self->_data_cache_check($config);
     push @c, $self->_pack_dir_checks($config);
     push @c, $self->_tls_chain($config);
 
@@ -323,6 +329,23 @@ sub _cache_check ($self, $config) {
     return _check( 'config.cache', 'info', "$shown, mode $d->{mode}; holds $held" );
 }
 
+# The data cache (docs/OPS.md, Data cache): on or off, and when on where it is and how much it holds.
+# Counts and bytes only; a row is never read out.
+sub _data_cache_check ($self, $config) {
+    require Odoo::Cache::Data;
+    return _check( 'config.data_cache', 'info', 'data_cache = 0: a read is always live' ) if !$config->data_cache;
+    return _check( 'config.data_cache', 'info', 'data_cache = 1 needs cache = 1: a read is always live' ) if !$config->cache_enabled;
+    my $dir = $config->cache_dir // Odoo::Cache->default_dir;
+    my $d   = Odoo::Cache::Data->describe($dir);
+    my $shown = _scrub( $d->{dir} );
+    my $cap   = $config->data_cache_max_mb;
+    return _check( 'config.data_cache', 'info', "$shown does not exist yet; the first cached read makes it (mode 0700); cap $cap MB per login" ) if !$d->{exists};
+    my $mode = sprintf '%04o', ( stat $d->{dir} )[2] & 0777;
+    my $held = "$d->{files} files, $d->{bytes} bytes, $d->{logins} login" . ( $d->{logins} == 1 ? '' : 's' ) . "; cap $cap MB per login";
+    return _check( 'config.data_cache', 'warn', "$shown is mode $mode; it should be 0700 (chmod 700); $held" ) if $mode ne '0700';
+    return _check( 'config.data_cache', 'info', "$shown, mode $mode; $held" );
+}
+
 # The packs the config's pack_dirs hold: each loaded one with its version, each refused one with the reason
 sub _pack_dir_checks ($self, $config) {
     require Odoo::Ops::Registry;
@@ -385,6 +408,7 @@ sub _static_checks ($class, $config) {
         ? _check( 'config.transport', 'ok', $tr )
         : _check( 'config.transport', 'fail', "unknown transport '$tr' (jsonrpc, xmlrpc, json2)" );
 
+    push @c, _json_check();
     push @c, _runs_dir_check($config);
 
     my $w = $config->get('allow_writes');
@@ -397,6 +421,14 @@ sub _static_checks ($class, $config) {
     push @c, $class->_credential_checks($config);
     push @c, $class->_tls_ca_check($config);
     return @c;
+}
+
+# which JSON encoder decodes Odoo's answers: the fast one is a Recommends, so its absence is a note, not a fault
+sub _json_check () {
+    my $be = Odoo::JSON->backend;
+    return $be eq 'JSON::PP'
+        ? _check( 'config.json', 'ok', 'JSON::PP (pure Perl); libcpanel-json-xs-perl (Cpanel::JSON::XS) decodes the same answers about a hundred times faster' )
+        : _check( 'config.json', 'ok', "$be (" . ( $be->VERSION // '?' ) . ')' );
 }
 
 sub _runs_dir_check ($config) {
@@ -607,7 +639,7 @@ sub _db_list ($self, $config) {
     if ( !$res->{success} ) {
         return _check( 'db.list', 'ok', "db/list is not served here (HTTP $res->{status})" );
     }
-    my $d = eval { JSON::PP->new->decode( $res->{content} ) };
+    my $d = eval { Odoo::JSON->new( utf8 => 0 )->decode( $res->{content} ) };
     return _check( 'db.list', 'ok', 'db/list answered something unreadable; treated as closed' ) if ref $d ne 'HASH';
     if ( my $e = $d->{error} ) {
         my $name = ref $e->{data} eq 'HASH' ? ( $e->{data}{name} // '' ) : '';
@@ -949,7 +981,7 @@ sub _runs_check ($self, $config) {
 sub _json_file ($path) {
     open my $fh, '<', $path or return undef;
     my $t = do { local $/; <$fh> };
-    return eval { JSON::PP->new->decode($t) };
+    return eval { Odoo::JSON->new( utf8 => 0 )->decode($t) };
 }
 
 # --- report assembly and output ---------------------------------------------

@@ -82,6 +82,12 @@ holding a list, replaces it), and so is C<auto_delete_message>
 my %SENDER = ( 16 => \&_send_v16, 17 => \&_send_v17, 18 => \&_send_v17, 19 => \&_send_v17 );
 my %GRADE  = ( 16 => 'live', 17 => 'source', 18 => 'live', 19 => 'live' );
 
+# what a send calls: the composer made and sent, the message looked up; 17 and later also look up the queued mail
+sub _calls ($series) {
+    return ( [ 'mail.compose.message', 'create' ], [ 'mail.compose.message', 'action_send_mail' ], [ 'mail.message', 'search_read' ],
+        ( $series >= 17 ? ( [ 'mail.mail', 'search_read' ] ) : () ) );
+}
+
 sub op_name ($class) { 'comms.send' }
 sub summary ($class) { 'Plan sending rendered messages via Odoo mail (test first)' }
 sub pack    ($class) { 'crm' }
@@ -159,7 +165,7 @@ sub plan ($self) {
             bucket  => 'test-send', action => 'custom', handler => $self->op_name,
             model   => 'res.partner', id => $me->{partner_id}[0],
             subject => "[TEST] $m->{subject}", body => $self->_body($m), series => $series, composer_mode => $mode,
-            key     => "test:lead $m->{lead_id}",
+            key     => "test:lead $m->{lead_id}", calls => [ _calls($series) ],
         );
         return $plan;
     }
@@ -218,7 +224,7 @@ sub plan ($self) {
             subject => $m->{subject}, body => $body, series => $series, composer_mode => $mode,
             ( $email_from ? ( email_from => $email_from ) : () ),
             before  => { $email_f => $l->{$email_f}, $sp_f => $l->{$sp_f} },
-            key     => "lead:$m->{lead_id}",
+            key     => "lead:$m->{lead_id}", calls => [ _calls($series) ],
         );
     }
     $plan->note("$edited message file(s) edited after rendering; the plan carries the edited text") if $edited;

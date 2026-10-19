@@ -114,6 +114,7 @@ sub plan ($self) {
         bucket => 'seen', action => 'custom', handler => $self->op_name, kind => 'seen',
         model  => $p->model_name('member'), ( $mem ? ( id => $mem->{id}, before => { $p->field( member => 'seen' ) => $mem->{seen_raw} } ) : () ),
         key    => $key,
+        calls  => [ [ $p->model_name('member'), 'search_read' ] ],
         vals   => { channel => $cid + 0, channel_name => $ch->{name}, message => $target + 0, previous => $was },
         line   => "mark channel $cid ($ch->{name}) read up to message $target" . ( defined $was ? " (read up to $was now)" : '' )
             . ( $mem && $mem->{unread} ? "; $mem->{unread} unread" : '' ),

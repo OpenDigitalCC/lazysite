@@ -4,10 +4,11 @@ use v5.36;
 use strict;
 use warnings;
 use Scalar::Util ();
+use Odoo::JSON ();
 use builtin qw(is_bool created_as_number);
 no warnings 'experimental::builtin';
 
-our $VERSION = '0.33';
+our $VERSION = '0.34';
 
 =head1 NAME
 
@@ -111,7 +112,7 @@ object, or the number 0. The string C<"0"> is a value.
 sub is_false_value ($v) {
     return 1 if !defined $v;
     if ( ref $v ) {
-        return Scalar::Util::blessed($v) && $v->isa('JSON::PP::Boolean') && !$v ? 1 : 0;
+        return Odoo::JSON::is_bool($v) && !$v ? 1 : 0;
     }
     return 1 if builtin::is_bool($v) && !$v;
     return builtin::created_as_number($v) && $v == 0 ? 1 : 0;

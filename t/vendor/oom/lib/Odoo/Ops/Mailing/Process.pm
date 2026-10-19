@@ -112,9 +112,13 @@ sub plan ($self) {
         mail_mailing => $f->( mail => 'mailing' ),
         mail_state   => $f->( mail => 'state' ),
     );
+    # what apply reads back: the mailing, or the counts of queued mailings and outgoing mails
+    my @after = defined $id ? ( [ $p->model_name('mailing'), 'read' ] ) : ( [ $p->model_name('mailing'), 'search_read' ], [ $p->model_name('mail'), 'search_read' ] );
     $plan->add( %common, bucket => 'mass-queue', kind => 'mass-queue', model => $p->model_name('cron'), id => $cron, key => 'process:mass-queue',
+        calls => [ [ $p->model_name('cron'), $p->action('cron_trigger') ], @after ],
         vals => { %v, method => $p->action('cron_trigger') }, reason => "runs $xml now" );
     $plan->add( %common, bucket => 'mail-queue', kind => 'mail-queue', model => $p->model_name('mail'), key => 'process:mail-queue',
+        calls => [ [ $p->model_name('mail'), 'search_read' ], [ $p->model_name('mail'), $p->action('process_mail_queue') ], @after ],
         vals => { %v, method => $p->action('process_mail_queue') }, reason => 'sends ' . ( defined $id ? "mailing ${id}'s" : 'every' ) . ' outgoing mail now' );
     return $plan;
 }

@@ -14,7 +14,7 @@ use Odoo::Error;
 use Odoo::Model;
 use Odoo::Portable;
 
-our $VERSION = '0.33';
+our $VERSION = '0.34';
 
 =head1 NAME
 
@@ -93,7 +93,9 @@ no key, remembers no uid.
 =item * C<fields_get> (through L<Odoo::Model/fields>) is kept per url, db,
 model, login and language, and used while the state of the C<ir.model.fields>
 rows (the newest row, the number of rows and the newest C<write_date>) is the one it
-was kept at. That state is read once per process, with three calls for every model: a read per model would cost what the
+was kept at. That state is read once per process, shared between processes for
+C<cache_ttl_fields_stamp> seconds (default 5; 0 reads it in every process) in a small file of the
+cache directory, with three calls for every model: a read per model would cost what the
 C<fields_get> it saves costs. A module installed or upgraded, or a field made,
 moves it and each model's fields are read again when next used. A login that
 may not read C<ir.model.fields> keeps nothing.
@@ -162,6 +164,8 @@ sub new ($class, %args) {
         models  => {},
         cache   => $args{cache},
         ttl_version => $args{cache_ttl_version} // 300,
+        # how long the state of ir.model.fields is shared between processes through the cache directory
+        ttl_fields_stamp => $args{cache_ttl_fields_stamp} // 5,
         # a resident program lends the state of ir.model.fields from one client to the next (per login)
         stamp_memory => $args{stamp_memory},
         now     => $args{now} // sub { time },
@@ -572,7 +576,9 @@ Makes the next C<fields_cached> look at the date of C<ir.model.fields> again.
 
 =cut
 
-sub forget_fields ($self, $model) { delete $self->{fields_stamp}; delete $self->{stamp_memory}{ $self->{stamp_login} // $self->{login} // '' } if $self->{stamp_memory}; }
+sub forget_fields ($self, $model) {
+    $self->{cache}->forget( $self->_stamp_file( $self->{stamp_login} // $self->{login} // '' ) ) if $self->{cache};
+    delete $self->{fields_stamp}; delete $self->{stamp_memory}{ $self->{stamp_login} // $self->{login} // '' } if $self->{stamp_memory}; }
 
 sub fields_cached ($self, $model, $fetch) {
     my $cache = $self->{cache};
@@ -606,9 +612,27 @@ sub _stamp_for ($self, $login) {
     my $now = $self->{now}->();
     my $m   = $mem ? $mem->{$login} : undef;
     return $m->{stamp} if $m && $self->{ttl_version} > 0 && $now >= $m->{at} && $now - $m->{at} < $self->{ttl_version};
+    # a burst of short-lived processes shares one reading for cache_ttl_fields_stamp seconds
+    my $ttl  = $self->{ttl_fields_stamp};
+    my $name = $self->_stamp_file($login);
+    if ( $ttl > 0 && $self->{cache} ) {
+        my $kept = $self->{cache}->recall($name);
+        if ( ref $kept eq 'HASH' && defined $kept->{stamp} && !ref $kept->{stamp} && defined $kept->{at} && $kept->{at} =~ /\A\d+\z/
+            && $now >= $kept->{at} && $now - $kept->{at} < $ttl ) {
+            my $s = [ $kept->{stamp} ];
+            $mem->{$login} = { stamp => $s, at => $kept->{at} } if $mem;
+            return $s;
+        }
+    }
     my $s = [ $self->_fields_stamp ];
     $mem->{$login} = { stamp => $s, at => $now } if $mem;
+    $self->{cache}->keep( $name, { at => $now, stamp => $s->[0] } ) if $ttl > 0 && $self->{cache} && defined $s->[0];
     return $s;
+}
+
+# the shared file of the state of ir.model.fields, per url, db and login (a login's rights decide what it can read)
+sub _stamp_file ($self, $login) {
+    return 'fields-stamp-' . substr( Odoo::Cache->digest( 'stamp', $self->{url}, $self->{db}, $login ), 0, 16 ) . '.json';
 }
 
 # What changed in the field definitions of every model, as one string; undef when it cannot be

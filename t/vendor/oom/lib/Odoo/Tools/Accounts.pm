@@ -11,6 +11,7 @@ use File::Path qw(make_path);
 use File::Temp ();
 use File::Spec;
 use JSON::PP ();
+use Odoo::JSON ();
 use MIME::Base64 ();
 use Scalar::Util qw(blessed);
 use YAML::PP ();
@@ -29,7 +30,7 @@ use Odoo::Ops::ResetForm;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.33';
+our $VERSION = '0.34';
 
 =head1 NAME
 
@@ -731,7 +732,7 @@ sub probe ($self) {
         push @report, \%r;
     }
     my $path = File::Spec->catfile( $self->{spec}{secrets_dir}, 'probe.last.json' );
-    my $json = JSON::PP->new->utf8->canonical->pretty->encode( {
+    my $json = Odoo::JSON->new( pretty => 1 )->encode( {
         at => Odoo::Ops::iso_time( $self->{now}->() ), instance => { url => $client->url, db => $client->db }, accounts => \@report } );
     sysopen( my $fh, $path, O_WRONLY | O_CREAT | O_TRUNC, 0600 ) or Odoo::Error->throw( kind => 'config', message => "cannot write $path: $!" );
     print {$fh} $json;
@@ -1008,7 +1009,7 @@ sub handover ($self, %o) {
     if ( -e $last ) {
         open my $fh, '<', $last or Odoo::Error->throw( kind => 'config', message => "cannot read $last: $!" );
         local $/;
-        $probe = eval { JSON::PP->new->utf8->decode(<$fh>) };
+        $probe = eval { Odoo::JSON::decode(<$fh>) };
     }
     my %by = map { $_->{login} => $_ } @{ $probe ? $probe->{accounts} : [] };
     my @out = (

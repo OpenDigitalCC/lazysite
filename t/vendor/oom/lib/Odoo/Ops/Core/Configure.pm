@@ -6,6 +6,7 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use JSON::PP ();
+use Odoo::JSON ();
 use YAML::PP ();
 
 use Odoo::Error;
@@ -151,7 +152,7 @@ sub params ($class) {
     {   file => { type => 'path', required => 1, help => 'desired state, YAML or JSON' } };
 }
 sub read_scope ($class) {
-    {   'ir.module.module'    => [qw(search_read read update_list)],    # update_list: see "modules" above
+    {   'ir.module.module'    => [qw(search search_read read update_list)],    # update_list: see "modules" above
         'res.company.ldap'    => [qw(search search_read read)],
         'ir.config_parameter' => [qw(search_read read)],
         'res.company'         => [qw(search_read read)],
@@ -328,6 +329,7 @@ sub _plan_ldap ($self, $plan, $spec, $installing) {
         if ( !$cur ) {
             $plan->add( bucket => 'ldap-create', action => 'custom', model => 'res.company.ldap', handler => $self->op_name,
                 kind => 'ldap', key => $key, vals => \%want, password_file => $w->{bind_password_file},
+                calls => [ map { [ 'res.company.ldap', $_ ] } qw(search create write read) ],
                 reason => 'creates the server record; not revertable here (the password is read from its file at apply)' );
             next;
         }
@@ -340,7 +342,7 @@ sub _plan_ldap ($self, $plan, $spec, $installing) {
             next;
         }
         $plan->add( bucket => 'ldap-write', action => 'custom', model => 'res.company.ldap', id => $cur->{id}, handler => $self->op_name,
-            kind => 'ldap', key => $key, vals => \%set, before => \%before, password_file => ( $pw_differs ? $w->{bind_password_file} : undef ),
+            kind => 'ldap', key => $key, vals => \%set, before => \%before, calls => [ map { [ 'res.company.ldap', $_ ] } qw(write read) ], password_file => ( $pw_differs ? $w->{bind_password_file} : undef ),
             reason => 'changes the server record' . ( $pw_differs ? ' (the bind password differs from its file)' : '' ) . '; not revertable here' );
     }
     return $n;
@@ -404,6 +406,7 @@ sub _plan_settings ($self, $plan, $spec) {
     }
     $plan->add( bucket => 'settings', action => 'custom', model => 'res.config.settings', handler => $self->op_name,
         kind => 'settings', key => 'settings', vals => \%set, before => \%before,
+        calls => [ map { [ 'res.config.settings', $_ ] } qw(create execute default_get onchange) ],
         reason => 'applied as one settings record (Settings page semantics); not revertable here' );
     return 1;
 }
@@ -470,6 +473,7 @@ sub _plan_company ($self, $plan, $spec) {
             if ( !$have ) {
                 $plan->add( bucket => 'chart', action => 'custom', model => 'account.chart.template', handler => $self->op_name,
                     kind => 'chart', key => 'company:chart', vals => { chart => $v, company_id => $cid, field => ( $cf->{chart_template} ? 'chart_template' : 'chart_template_id' ) },
+                    calls => [ ( $cf->{chart_template} ? ( [ 'account.chart.template', 'try_loading' ] ) : ( [ 'ir.module.module', 'search' ], [ 'ir.module.module', 'button_immediate_install' ] ) ), [ 'res.company', 'read' ] ],
                     reason => 'loads the chart of accounts for a company without one; not revertable' );
             }
             else { $plan->add( bucket => 'unchanged', action => 'skip', id => $cid, key => 'company:chart' ) }
@@ -581,6 +585,7 @@ sub _plan_languages ($self, $plan, $spec) {
         else {
             $plan->add( bucket => 'language', action => 'custom', model => 'base.language.install', handler => $self->op_name,
                 kind => 'lang', key => $key, vals => { code => $code, lang_id => $l{$code}{id} },
+                calls => [ [ 'base.language.install', 'create' ], [ 'base.language.install', 'lang_install' ], [ 'res.lang', 'read' ] ],
                 reason => 'installs the language and loads its translations; not revertable here' );
         }
     }
@@ -652,7 +657,7 @@ sub apply_custom ($class, $client, $c) {
 sub _same ($got, $want) {
     $got = $got->[0] if ref $got eq 'ARRAY' && @$got == 2 && !ref $want;
     return 1 if !defined $got && !defined $want;
-    if ( JSON::PP::is_bool($want) || JSON::PP::is_bool($got) ) { return ( $got ? 1 : 0 ) == ( $want ? 1 : 0 ) }
+    if ( Odoo::JSON::is_bool($want) || Odoo::JSON::is_bool($got) ) { return ( $got ? 1 : 0 ) == ( $want ? 1 : 0 ) }
     return 1 if !defined $got && ( $want eq '' );
     return 0 if !defined $got || !defined $want;
     return "$got" eq "$want";

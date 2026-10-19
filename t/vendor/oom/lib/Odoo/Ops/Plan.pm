@@ -7,6 +7,7 @@ no warnings 'experimental::signatures';
 
 use Digest::SHA ();
 use JSON::PP ();
+use Odoo::JSON ();
 
 use File::Basename ();
 use File::Spec ();
@@ -131,9 +132,11 @@ Every blob reference in the plan's changes.
 our %OBSERVED;
 # and one hold's reason per bucket, under the key __hold_reasons, for t/99 to print the line as the screens do
 our %OBSERVED_REASON;
+# and the custom changes that declared no calls, by operation and kind, for t/99-undeclared-calls.t
+our %OBSERVED_NOCALLS;
 END {
     if ( $ENV{OOM_PLAN_OBSERVE} && %OBSERVED && open my $fh, '>>', $ENV{OOM_PLAN_OBSERVE} ) {
-        print {$fh} JSON::PP->new->canonical->encode( { %OBSERVED, __hold_reasons => \%OBSERVED_REASON } ), "\n";
+        print {$fh} Odoo::JSON->new( utf8 => 0 )->encode( { %OBSERVED, __hold_reasons => \%OBSERVED_REASON, __no_calls => \%OBSERVED_NOCALLS } ), "\n";
         close $fh;
     }
 }
@@ -204,6 +207,11 @@ sub add ($self, %c) {
     if ( $c{action} =~ /^(write|unlink)\z/ ) {
         Odoo::Error->throw( kind => 'usage', message => "$c{action} needs an id" ) if !$c{id};
     }
+    if ( $c{action} eq 'custom' ) {
+        Odoo::Error->throw( kind => 'usage', message => "the calls of the custom change '" . ( $c{key} // $c{handler} ) . "' are not a list of [model, method] pairs",
+            fix => 'write calls => [ [ model, method ], ... ], in physical model names, as the apply of the change makes them' )
+            if defined $c{calls} && ( ref $c{calls} ne 'ARRAY' || grep { ref $_ ne 'ARRAY' || @$_ != 2 || grep { !defined $_ || ref $_ || !length } @$_ } @{ $c{calls} } );
+    }
     Odoo::Error->throw( kind => 'usage', message => 'call needs a method' )
         if $c{action} eq 'call' && !$c{method};
     Odoo::Error->throw( kind => 'usage', message => 'custom needs a handler (the operation name)' )
@@ -227,6 +235,7 @@ sub add ($self, %c) {
             if !$known{$r};
     }
     $OBSERVED{ $self->{op} }{ $c{bucket} }{ $c{action} } = 1;
+    $OBSERVED_NOCALLS{ $c{handler} }{ $c{kind} // '' } = 1 if $c{action} eq 'custom' && !defined $c{calls};
     $OBSERVED_REASON{ $self->{op} }{ $c{bucket} } //= $c{reason} if $c{action} eq 'hold' && defined $c{reason};
     $c{seq} = @{ $self->{changes} } + 1;
     push @{ $self->{changes} }, \%c;
@@ -263,7 +272,7 @@ sub finalize ($self) {
     # fresh decoded copies from here on. Perl scalars change their JSON
     # type when merely used as strings, so a live structure could
     # otherwise encode differently at save time than at sealing time.
-    $self->{frozen}      = Odoo::Ops::json()->encode( $self->_sealed_part );
+    $self->{frozen}      = Odoo::Ops::seal_json()->encode( $self->_sealed_part );
     $self->{fingerprint} = Digest::SHA::sha256_hex( $self->{frozen} );
     my @refs = map { $_->{effects_ref} } @{ $self->{changes} };
     my $copy = Odoo::Ops::json()->decode( $self->{frozen} );
@@ -286,6 +295,18 @@ sub blob_dir ($self) { $self->{blob_dir} }
 
 sub blob_source ($self, @dirs) {
     return Odoo::Ops::Blob->source( dirs => [ @dirs, $self->{blob_dir} ], mem => $self->{blobs} );
+}
+
+=head2 blob_value($text)
+
+Holds $text as a blob whatever its size and returns its reference, for a value
+that is a file's bytes (see L<Odoo::Ops::File>): the plan carries the reference,
+C<plan.json> never the content. The value is written with the plan at save.
+
+=cut
+
+sub blob_value ($self, $text) {
+    return Odoo::Ops::Blob->externalise( $text, min => 0, store => ( $self->{blobs} //= {} ) );
 }
 
 sub blob_refs ($self) { return Odoo::Ops::Blob->refs( $self->{changes} ) }
@@ -360,7 +381,7 @@ sub save ($self, $path) {
     Odoo::Ops::Blob->write( ( File::Spec->splitpath($path) )[1] || '.', $self->{blobs} // {} ) if %{ $self->{blobs} // {} };
     open my $fh, '>', $path
         or Odoo::Error->throw( kind => 'config', message => "cannot write plan $path: $!" );
-    print {$fh} JSON::PP->new->utf8->canonical->pretty->encode( $self->to_hash );
+    print {$fh} Odoo::JSON->new( pretty => 1 )->encode( $self->to_hash );
     close $fh or Odoo::Error->throw( kind => 'config', message => "cannot write plan $path: $!" );
     return $path;
 }
@@ -382,7 +403,7 @@ sub from_hash ($class, $h) {
         fix => 'pass the plan.json of the run, not its result.json' )
         if $h->{applied};
     my $self   = bless { %$h, fingerprint => undef }, $class;
-    my $frozen = Odoo::Ops::json()->encode( $self->_sealed_part );
+    my $frozen = Odoo::Ops::seal_json()->encode( $self->_sealed_part );
     my $want   = Digest::SHA::sha256_hex($frozen);
     Odoo::Error->throw(
         kind    => 'refused',

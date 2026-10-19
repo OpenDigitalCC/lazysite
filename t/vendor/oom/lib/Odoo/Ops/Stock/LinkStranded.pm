@@ -236,6 +236,9 @@ sub _plan_order ($self, $plan, $o) {
         $plan->add(
             bucket => 'link', action => 'custom', handler => $self->op_name, kind => 'link',
             model => $self->physical_model('picking'), id => $d->{id}, key => $key,
+            calls => [ [ $self->physical_model('sale_line'), 'read' ], [ 'product.product', 'read' ],
+                ( map { [ $self->physical_model('move_line'), $_ ] } qw(create read write) ),
+                [ $self->physical_model('move'), 'write' ], [ $self->physical_model('picking'), 'message_post' ] ],
             before => { $state => 'done' },
             reason => "$name: $pname " . _g($qty) . " ("
                 . join( ', ', map { ( $_->{lot_name} // 'no lot' ) . '=' . _g( $_->{quantity} ) } @ln )

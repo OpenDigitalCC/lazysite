@@ -7,11 +7,12 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use JSON::PP ();
+use Odoo::JSON ();
 
 use Odoo::Error;
 use Odoo::Transport;
 
-our $VERSION = '0.33';
+our $VERSION = '0.34';
 
 =head1 NAME
 
@@ -104,7 +105,7 @@ sub new ($class, %args) {
         url        => $url,
         id         => 0,
         min_series => $args{min_series} // 19,
-        json       => JSON::PP->new->utf8->canonical->allow_nonref->boolean_values( 0, 1 ),
+        json       => Odoo::JSON->new( plain_bools => 1 ),
         http       => $args{http} // Odoo::Transport::http_client(
             timeout            => $args{timeout},
             max_response_bytes => $args{max_response_bytes},

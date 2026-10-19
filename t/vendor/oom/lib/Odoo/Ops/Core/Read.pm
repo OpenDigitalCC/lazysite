@@ -7,6 +7,7 @@ no warnings 'experimental::signatures';
 
 use JSON::PP ();
 
+use Odoo::Cache::Data;
 use Odoo::Error;
 use Odoo::Ops::Modules;
 use Odoo::Ops;
@@ -59,6 +60,8 @@ sub params ($class) {
         limit    => { type => 'int',  default => 80, help => 'most rows returned' },
         order    => { type => 'str',  help => 'Odoo order string, e.g. "id desc"' },
         archived => { type => 'bool', default => 0, help => 'include inactive (archived) records' },
+        max_age  => { type => 'int',  help => 'seconds the answer may be old: with data_cache = 1 in the config it may come from the data cache while Odoo\'s signal for the model holds; 0 or absent: live' },
+        pricelist => { type => 'int', help => 'the pricelist (id) Odoo prices the read with; part of the data cache key' },
     };
 }
 sub read_scope ($class) { {} }    # built per run: the model's search_read
@@ -70,12 +73,19 @@ sub fields ($class) {
         { name => 'limit_reached', meaning => 'Present when count equals limit: there may be more records' },
         { name => 'rows',          meaning => 'The records, one object each; a many2one is its id under the field name and its label under <field>_name' },
         { name => 'fields',        meaning => 'The fields asked: type, portable_type, string, and relation or values where they apply (--schema prints it)' },
+        { name => 'cached',        meaning => '1 when the rows came from the data cache, else 0' },
+        { name => 'age',           meaning => 'Present when cached: seconds since the cached rows were read from Odoo' },
+        { name => 'checked',       meaning => 'Present when cached: signal (the model\'s newest write_date and record count were the ones the rows were read under)' },
+        { name => 'live',          meaning => 'required when the model or a field is never cached (stock, reservations, pickings, order state), whatever max_age says' },
     ];
 }
 
 sub scope_for ($self, $phase) {
     my $m = $self->param('model');
-    return defined $m ? { $m => ['search_read'] } : {};
+    return {} if !defined $m;
+    return { $m => ['search_read'] } if !$self->param('max_age');
+    # the signal of the model (and, for a priced read, of the pricelist rules) is a read_group
+    return { $m => [ 'search_read', 'read_group' ], ( $self->param('pricelist') ? ( map { $_ => ['read_group'] } Odoo::Cache::Data->pricelist_models ) : () ) };
 }
 
 sub report ($self) {
@@ -107,14 +117,26 @@ sub report ($self) {
     my $limit = $self->param('limit');
     Odoo::Error->throw( kind => 'usage', message => 'core.read: limit must be a whole number above 0' ) if !defined $limit || $limit < 1;
 
-    my $rows = $m->search_read( \@domain, [@want], limit => $limit,
-        ( defined $self->param('order') ? ( order => $self->param('order') ) : () ),
-        ( $self->param('archived') ? ( context => { active_test => JSON::PP::false } ) : () ) );
+    my $ma = $self->param('max_age');
+    Odoo::Error->throw( kind => 'usage', message => 'core.read: max_age must be 0 or more seconds', fix => 'oom-ops describe core.read lists the parameters' )
+        if defined $ma && $ma < 0;
+    my $pl = $self->param('pricelist');
+    my $got = $self->ctx->data_cache->read(
+        model => $model, domain => \@domain, fields => \@want, order => $self->param('order'), limit => $limit,
+        archived => $self->param('archived'), pricelist => $pl, max_age => $ma,
+        ( $pl ? ( also => [ Odoo::Cache::Data->pricelist_models ] ) : () ),
+        fetch => sub {
+            $m->search_read( \@domain, [@want], limit => $limit,
+                ( defined $self->param('order') ? ( order => $self->param('order') ) : () ),
+                ( $self->param('archived') || $pl ? ( context => { ( $self->param('archived') ? ( active_test => JSON::PP::false ) : () ), ( $pl ? ( pricelist => $pl ) : () ) } ) : () ) );
+        } );
+    my $rows = $got->{rows};
+    $self->{cache_note} = { Odoo::Cache::Data->says($got) };
 
     my ( $out, $schema ) = Odoo::Ops::Core::OneRecord->rows_and_schema( $f, \@want, $rows );
     my @out = @$out;
     return {
-        model => $model, count => scalar @out, rows => \@out, fields => $schema,
+        model => $model, count => scalar @out, rows => \@out, fields => $schema, Odoo::Cache::Data->says($got),
         ( @out == $limit ? ( limit_reached => JSON::PP::true ) : () ),
     };
 }

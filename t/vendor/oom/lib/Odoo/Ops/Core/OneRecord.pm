@@ -6,10 +6,12 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use JSON::PP ();
+use Odoo::JSON ();
 
 use Odoo::Error;
 use Odoo::Portable;
 use Odoo::Ops::Core::Import;
+use Odoo::Ops::File;
 
 =head1 NAME
 
@@ -26,7 +28,9 @@ schema a read returns. It is not an operation.
 =head2 set_params(\%raw)
 
 The C<set.E<lt>fieldE<gt>> entries of a raw parameter hash, as C<< field => text >>;
-an entry with no field name, or a value that is not text, is a usage error.
+an entry with no field name, or a value that is not text, is a usage error. The
+value for a binary field is a file value (C<< { name, bytes, mimetype? } >>, see
+L<Odoo::Ops::File>), checked as a file parameter is: it stays a hash.
 
 =cut
 
@@ -37,6 +41,10 @@ sub set_params ($class, $op, $raw) {
         Odoo::Error->throw( kind => 'usage', message => "$op: parameter '$k' names no field",
             fix => "give set.<field>=<value>, e.g. --set set.name=Acme" ) if $f !~ /\A\w+\z/;
         my $v = $raw->{$k};
+        if ( ref $v eq 'HASH' ) {
+            $set{$f} = Odoo::Ops::File->check( $op, $k, $v );
+            next;
+        }
         Odoo::Error->throw( kind => 'usage', message => "$op: parameter '$k' must be one text value",
             fix => "oom-ops describe $op shows each parameter's type" ) if !defined $v || ref $v;
         $set{$f} = "$v";
@@ -46,11 +54,14 @@ sub set_params ($class, $op, $raw) {
 
 =head2 typed_values($op, $model, \%fields, \%set)
 
-The values to write, typed and checked against C<fields_get>. A usage error names
+The values to write, typed and checked against C<fields_get>. A file value is
+for a binary field and stays the file value; the operation holds its bytes in
+the plan's blob store. A usage error names
 the field and carries a fix line:
 
     the model has no such field
-    the field is one2many or many2many (a later piece), or binary, reference, json or properties (not typed here)
+    the field is one2many or many2many (a later piece), or reference, json or properties (not typed here)
+    the field is binary and the value is text (a binary field takes a file)
     the text is not a value of the field's type
 
 Types: integer and many2one_reference (a whole number), float and monetary (a number), boolean (C<1 0 true false yes no>),
@@ -71,6 +82,14 @@ sub typed_values ($class, $op, $model, $fields, $set) {
         Odoo::Error->throw( kind => 'usage', message => "$op: $model has no field '$f'",
             fix => "oom-ops run core.skeleton --conf <conf> --set model=$model lists the stored, writable fields" ) if !$d;
         my $type = $d->{type} // '';
+        if ( ref $set->{$f} eq 'HASH' ) {
+            Odoo::Error->throw( kind => 'usage', message => "$op: $model.$f is a $type field; a file is for a binary field",
+                fix => "give set.$f as text of its type" ) if $type ne 'binary';
+            $vals{$f} = $set->{$f};
+            next;
+        }
+        Odoo::Error->throw( kind => 'usage', message => "$op: $model.$f is a binary field; give it a file, not text",
+            fix => "pass --file set.$f=PATH on the command line, or a { name, bytes } value in a program" ) if $type eq 'binary';
         Odoo::Error->throw( kind => 'usage',
             message => "$op: $model.$f is a $type field; one record's $type fields are not set here",
             fix => $type =~ /^(?:one2many|many2many)\z/
@@ -157,7 +176,7 @@ A value as a plan line shows it: short, ids for a many2one, C<false> for empty.
 sub shown ($class, $v) {
     return 'false' if !defined $v || ( !ref $v && $v eq '' ) || Odoo::Portable::is_false_value($v);
     if ( ref $v eq 'ARRAY' ) { return @$v == 2 && !ref $v->[0] ? $v->[0] : '[' . join( ', ', grep { !ref } @$v ) . ']' }
-    return ( $v ? 'true' : 'false' ) if JSON::PP::is_bool($v);
+    return ( $v ? 'true' : 'false' ) if Odoo::JSON::is_bool($v);
     my $t = "$v" =~ s/\s+/ /gr;
     return length $t > 40 ? q(') . substr( $t, 0, 37 ) . q(...') : ( $t =~ /\A-?\d+(?:\.\d+)?\z/ ? $t : "'$t'" );
 }

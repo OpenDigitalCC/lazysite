@@ -169,6 +169,7 @@ sub plan_state ($op, $spec) {
     $plan->add(
         bucket => 'transition', action => 'custom', handler => $op->op_name, kind => 'state', %at,
         before => { $sf => $state },
+        calls  => [ ( map { [ $model, $_->{method} ] } @steps ), [ $model, 'read' ] ],
         vals   => { steps => \@steps, state_field => $sf, to => \@final, name_field => $f->('name'), undo => $undo },
         transition => { from => $state, to => $final[0], model => $model, id => $id, name => $name },
         line   => "$label: $state -> $final[0]",
@@ -257,6 +258,7 @@ sub undo_state ($class, $entry) {
         action => 'custom', handler => $entry->{handler}, kind => 'state', bucket => 'undo-state',
         model => $entry->{model}, id => $entry->{id}, key => "undo:$entry->{model} $entry->{id}",
         before => { $sf => $now },
+        calls  => [ ( map { [ $entry->{model}, $_->{method} ] } @{ $u->{steps} } ), [ $entry->{model}, 'read' ] ],
         vals   => { %$v, steps => $u->{steps}, to => $u->{to}, undo => { why => 'this is the undo; run the operation again to repeat it' } },
         line   => "$entry->{model} $entry->{id}: $now -> $u->{to}[0]",
         reason => "$entry->{model} $entry->{id} goes from $now back through " . join( ' then ', map { $_->{method} } @{ $u->{steps} } )

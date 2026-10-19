@@ -6,6 +6,7 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use JSON::PP ();
+use Odoo::JSON ();
 
 use Odoo::Error;
 
@@ -93,7 +94,7 @@ sub to_hash ($self) { return { %$self } }
 sub save ($self, $path) {
     open my $fh, '>', $path
         or Odoo::Error->throw( kind => 'config', message => "cannot write result $path: $!" );
-    print {$fh} JSON::PP->new->utf8->canonical->pretty->encode( $self->to_hash );
+    print {$fh} Odoo::JSON->new( pretty => 1 )->encode( $self->to_hash );
     close $fh;
     return $path;
 }

@@ -109,6 +109,7 @@ sub plan ($self) {
         bucket => 'delete', action => 'custom', handler => $self->op_name, kind => 'delete',
         model  => $p->model_name('message'), id => $mid + 0, key => $key,
         before => { $f->( message => 'body' ) => $m->{body}, $f->( message => 'attachments' ) => \@att },
+        calls  => [ [ $p->model_name('message'), 'read' ] ],
         vals   => { message => $mid + 0, channel => $m->{channel} + 0, parent => $m->{parent} },
         line   => "empty message $mid of channel $m->{channel}" . ( $ch ? " ($ch->{name})" : '' )
             . ( length $m->{author_name} ? ", written by $m->{author_name}" : '' ) . ", type $m->{type}: "

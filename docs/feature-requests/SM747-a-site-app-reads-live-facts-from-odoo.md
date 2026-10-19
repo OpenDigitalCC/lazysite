@@ -1015,7 +1015,7 @@ it, and the release manager directed on 2026-10-01 that it be filed here.
 | | |
 | --- | --- |
 | Source | `t/vendor/oom/docs/MAPPER-SPEC.md` |
-| Written | 2026-09-28, status DRAFT, "growing with use"; RE-FILED 2026-10-18 from OOM 0.33 (commit 4bca049, "Package 0.33"), the copy lazysite now vendors (SM1175); RE-FILED 2026-10-18 from OOM 0.32 (commit bd9610e, "Package 0.32", SM1167); RE-FILED 2026-10-17 from OOM 0.27 (commit 33136df, SM1156); RE-FILED earlier the same day from OOM 0.24 (commit fc3b3bb, SM1117); before that RE-FILED 2026-10-13 from OOM's working tree as of 6844779 (2026-10-13), after OOM's 0.02 to 0.09; that text is exactly the copy the 0.09 deb installs, and it is the copy lazysite now VENDORS (t/vendor/oom, OOM commit 2edc3db, SM1081) |
+| Written | 2026-09-28, status DRAFT, "growing with use"; RE-FILED 2026-10-19 from OOM 0.34 (commit 03b703e, the copy lazysite now vendors, SM1177; the specification text is byte-identical to 0.33's, so the hash below is unchanged); RE-FILED 2026-10-18 from OOM 0.33 (commit 4bca049, "Package 0.33"), the copy lazysite now vendors (SM1175); RE-FILED 2026-10-18 from OOM 0.32 (commit bd9610e, "Package 0.32", SM1167); RE-FILED 2026-10-17 from OOM 0.27 (commit 33136df, SM1156); RE-FILED earlier the same day from OOM 0.24 (commit fc3b3bb, SM1117); before that RE-FILED 2026-10-13 from OOM's working tree as of 6844779 (2026-10-13), after OOM's 0.02 to 0.09; that text is exactly the copy the 0.09 deb installs, and it is the copy lazysite now VENDORS (t/vendor/oom, OOM commit 2edc3db, SM1081) |
 | sha256 at filing | `4f1a211e6264ce07b551acfa4fb63c7bad85df6143ddeca39f9b0f3cb5e81caf` |
 | Living copy | stays in the OOM tree - that project owns it, and its working tree may be AHEAD of the vendored copy without any failure here |
 | Re-file when | a newer OOM is adopted: `tools/vendor-oom.sh` refreshes `t/vendor/oom` and this section is updated from it in the SAME commit (t/lint/207 enforces it, t/lint/261 holds the snapshot to its MANIFEST) |
@@ -1031,7 +1031,7 @@ lint first compared the filing with OOM's working tree, which moved three times 
 It now compares with the copy of the spec inside this repository,
 `t/vendor/oom/docs/MAPPER-SPEC.md`, which is always present, so the "source not
 readable" skip is gone. OOM's tree may be ahead of it; a newer OOM is adopted by a reviewable commit when the
-release manager decides (0.24 was adopted on 2026-10-17, SM1117, and 0.27 the same day, SM1156; 0.32 on 2026-10-18, SM1167; 0.33 the same day, SM1175). The gate
+release manager decides (0.24 was adopted on 2026-10-17, SM1117, and 0.27 the same day, SM1156; 0.32 on 2026-10-18, SM1167; 0.33 the same day, SM1175; 0.34 on 2026-10-19, SM1177). The gate
 follows the released spec. B, C and D's blockers, R-Q1 and the rest of this filing are
 unchanged by it.
 

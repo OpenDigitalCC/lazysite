@@ -12,6 +12,7 @@ use MIME::Base64 qw(decode_base64);
 use Scalar::Util qw(blessed);
 
 use Odoo::Error;
+use Odoo::JSON ();
 use Odoo::Transport;
 
 =head1 NAME
@@ -118,7 +119,7 @@ sub _value_node ($doc, $v) {
     if (my $ref = ref $v) {
         if (blessed($v)) {
             return _typed($doc, 'boolean', $v ? 1 : 0)
-                if $v->isa('JSON::PP::Boolean');
+                if Odoo::JSON::is_bool($v);
             Odoo::Error->throw(
                 kind    => 'usage',
                 message => 'cannot XML-RPC-encode a ' . ref($v) . ' object',

@@ -536,7 +536,7 @@ sub _plan_role ($self, $plan, $r) {
             $self->_count;
             my $mname = ref $row->{model_id} ? $row->{model_id}[1] : '';
             $plan->add( bucket => 'access-remove', action => 'custom', handler => $self->op_name, kind => 'remove', model => 'ir.model.access', id => $row->{id},
-                key => "access-remove:$role:$imd->{name}", before => _snap($row), vals => { xmlid => $imd->{name}, imd_id => $imd->{id} },
+                key => "access-remove:$role:$imd->{name}", before => _snap($row), calls => [ _remove_calls('ir.model.access') ], vals => { xmlid => $imd->{name}, imd_id => $imd->{id} },
                 reason => "the role file no longer lists this access row ($row->{name}); it is removed" );
         }
         my $rm = $self->model('ir.rule');
@@ -547,7 +547,7 @@ sub _plan_role ($self, $plan, $r) {
             next if $imd->{name} !~ /\Arule_/ || $want_rule{ $imd->{name} };
             $self->_count;
             $plan->add( bucket => 'rule-remove', action => 'custom', handler => $self->op_name, kind => 'remove', model => 'ir.rule', id => $row->{id},
-                key => "rule-remove:$role:$imd->{name}", before => _snap($row), vals => { xmlid => $imd->{name}, imd_id => $imd->{id} },
+                key => "rule-remove:$role:$imd->{name}", before => _snap($row), calls => [ _remove_calls('ir.rule') ], vals => { xmlid => $imd->{name}, imd_id => $imd->{id} },
                 reason => "the role file no longer lists this rule ($row->{name}); it is removed" );
         }
     }
@@ -611,6 +611,11 @@ sub domain_problem ($self, $domain, $model) {
 
 # --- apply of the custom changes ---------------------------------------------------
 
+# what apply calls: a removal unlinks the row and the xml id it leaves, and reads that the row is gone; a restore
+# creates the row and its xml id and reads the row back
+sub _remove_calls ($model) { return ( [ $model, 'unlink' ], [ $model, 'search_read' ], [ 'ir.model.data', 'search_read' ], [ 'ir.model.data', 'unlink' ] ) }
+sub _restore_calls ($model) { return ( [ $model, 'create' ], [ $model, 'read' ], [ 'ir.model.data', 'create' ] ) }
+
 # kind remove: unlink the row (and what is left of its xml id); kind restore: recreate it
 sub apply_custom ($class, $client, $c) {
     my $kind = $c->{kind} // '';
@@ -644,11 +649,11 @@ sub undo_custom ($class, $entry) {
         $v{groups} = [ [ 6, 0, [ @{ $b{groups} } ] ] ] if ref $b{groups} eq 'ARRAY';
         for my $f (qw(model_id group_id)) { $v{$f} = $v{$f}[0] if ref $v{$f} eq 'ARRAY' }
         return ( { action => 'custom', handler => 'core.access', kind => 'restore', bucket => 'undo-remove', model => $entry->{model},
-                key => $entry->{key}, vals => \%v, reason => 'recreates the row the run removed, from its before-image' } );
+                key => $entry->{key}, calls => [ _restore_calls( $entry->{model} ) ], vals => \%v, reason => 'recreates the row the run removed, from its before-image' } );
     }
     if ( $kind eq 'restore' ) {
         return ( { action => 'custom', handler => 'core.access', kind => 'remove', bucket => 'undo-restore', model => $entry->{model}, id => $entry->{id},
-                key => $entry->{key}, vals => { xmlid => $entry->{vals}{xmlid} }, reason => 'removes the row the revert recreated' } );
+                key => $entry->{key}, calls => [ _remove_calls( $entry->{model} ) ], vals => { xmlid => $entry->{vals}{xmlid} }, reason => 'removes the row the revert recreated' } );
     }
     return ( undef, "core.access cannot undo kind '$kind'" );
 }

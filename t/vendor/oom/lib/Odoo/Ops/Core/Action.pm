@@ -165,6 +165,7 @@ sub plan ($self) {
         my $shown = $AC->args_text( \@params, \@pass );
         $plan->add(
             bucket => 'call', action => 'custom', handler => $me, kind => 'action', key => "$model:$method", model => $model,
+            calls => [ [ $model, $method ], $AC->creates_calls( $creates, $model ) ],
             vals => {
                 on => 'model', method => $method, args => \@pass, kwargs => {}, context => $ctx_in, params => [ map { $_->{name} } @params ],
                 ( defined $entry->{undo} ? ( undo => $entry->{undo} ) : () ),
@@ -200,6 +201,7 @@ sub plan ($self) {
         my ($wiz) = defined $entry->{wizard} ? grep { $_->{model} eq $entry->{wizard} } @{ $beh->wizards } : ();
         $plan->add(
             bucket => 'call', action => 'custom', handler => $me, kind => 'action', key => $key, id => $id, model => $model,
+            calls => [ [ $model, $method ], [ $model, 'read' ], $AC->creates_calls( $creates, $model ) ],
             ( @state ? ( before => \%before ) : () ),
             vals => {
                 method => $method, args => $args, kwargs => $kwargs, context => $ctx_in, state_fields => \@state,
@@ -320,7 +322,7 @@ sub undo_custom ( $class, $entry ) {
         $AC->add_undo_scope( $entry->{model}, $v->{undo} );
         return {
             action => 'custom', handler => 'core.action', kind => 'action', bucket => 'undo-action',
-            model => $entry->{model}, key => "undo:$entry->{model}:$v->{undo}",
+            model => $entry->{model}, key => "undo:$entry->{model}:$v->{undo}", calls => [ [ $entry->{model}, $v->{undo} ] ],
             vals => { on => 'model', method => $v->{undo}, args => $v->{args} // [], kwargs => {}, context => $v->{context} // {}, params => $v->{params} // [] },
             line   => "$entry->{model}: $v->{undo}(" . scalar( @{ $v->{args} // [] } ) . ' argument' . ( @{ $v->{args} // [] } == 1 ? '' : 's' ) . ' as for ' . $v->{method} . ')',
             reason => "$entry->{model}: $v->{undo} is called with the arguments of $v->{method} (its undo)",
@@ -334,7 +336,7 @@ sub undo_custom ( $class, $entry ) {
     my $name = length( $v->{name} // '' ) ? " ($v->{name})" : '';
     return {
         action => 'custom', handler => 'core.action', kind => 'action', bucket => 'undo-action',
-        model => $entry->{model}, id => $entry->{id}, key => "undo:$entry->{model} $entry->{id}",
+        model => $entry->{model}, id => $entry->{id}, key => "undo:$entry->{model} $entry->{id}", calls => [ [ $entry->{model}, $v->{undo} ], [ $entry->{model}, 'read' ] ],
         ( ref $now eq 'HASH' && %$now ? ( before => $now ) : () ),
         vals => {
             method => $v->{undo}, args => [], kwargs => {}, context => $v->{context} // {},

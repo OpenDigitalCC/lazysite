@@ -10,6 +10,7 @@ use File::Spec;
 use IO::Select;
 use IO::Socket::UNIX;
 use JSON::PP ();
+use Odoo::JSON ();
 use Socket qw(SOCK_STREAM);
 use Time::HiRes ();
 
@@ -48,7 +49,7 @@ with a C<socket> of its own is found by its name.
 
 =cut
 
-my $JSON = JSON::PP->new->utf8->canonical->allow_nonref;
+my $JSON = Odoo::JSON->new;
 
 sub valid_name ($class, $name) {
     return defined $name && $name =~ /\A[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\z/ ? 1 : 0;

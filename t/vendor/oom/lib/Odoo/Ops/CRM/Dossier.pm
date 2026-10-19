@@ -8,6 +8,7 @@ no warnings 'experimental::signatures';
 use File::Path qw(make_path);
 use File::Spec;
 use JSON::PP ();
+use Odoo::JSON ();
 
 use Odoo::Error;
 use Odoo::Ops;
@@ -110,7 +111,7 @@ sub report ($self) {
 
     my $dir = $self->param('out') // File::Spec->catdir( $self->ctx->run_dir( $self->op_name ), 'dossier' );
     make_path($dir);
-    my $json = JSON::PP->new->utf8->canonical->pretty;
+    my $json = Odoo::JSON->new( pretty => 1 );
     my %by_stage;
     for my $row (@$leads) {
         my %l = ( id => $row->{id} );

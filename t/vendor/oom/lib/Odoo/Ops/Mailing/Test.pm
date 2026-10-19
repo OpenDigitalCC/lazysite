@@ -105,6 +105,7 @@ sub plan ($self) {
     $plan->add(
         bucket => 'test-send', action => 'custom', handler => $self->op_name, kind => 'test-send',
         model => $p->model_name('mailing'), id => $id, key => "test:mailing $id",
+        calls => [ [ $p->model_name('message'), 'search_read' ], [ $p->model_name('test_wizard'), 'create' ], [ $p->model_name('test_wizard'), $p->action('test_send') ] ],
         before => { $f->('state') => $state },
         vals => {
             wizard      => $p->model_name('test_wizard'),

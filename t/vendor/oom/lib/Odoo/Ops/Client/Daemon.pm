@@ -10,6 +10,7 @@ use File::Spec;
 use Odoo::Error;
 use Odoo::Ops::Calls;
 use Odoo::Ops::Daemon::Path;
+use Odoo::Ops::File;
 use Odoo::Ops::Wire;
 
 our @ISA = ('Odoo::Ops::Calls');
@@ -38,8 +39,12 @@ The daemon is named by C<name> (its socket is found from the name, or from the
 record a running daemon keeps) or by a C<socket> path, which may be anywhere;
 nothing is scanned for.
 
+A file parameter (see L<Odoo::Ops::File>) is given as C<< { name, bytes, mimetype? } >>
+and travels as C<< { name, base64, mimetype } >>; the daemon decodes it before the
+operation sees it, and its log never holds it.
+
 The module loads only what talking to a socket needs: JSON, C<IO::Socket::UNIX>,
-L<Odoo::Error> and the small L<Odoo::Ops::Daemon::Path>, L<Odoo::Ops::Wire> and
+L<Odoo::Error> and the small L<Odoo::Ops::Daemon::Path>, L<Odoo::Ops::File>, L<Odoo::Ops::Wire> and
 L<Odoo::Ops::Calls>. The in-process tree (L<Odoo::Ops::Service> and the registry,
 the client, the context) is loaded only when a call falls back.
 
@@ -123,6 +128,8 @@ sub call ($self, $req) {
         my $res = $self->_local->execute( \%r );
         return { %$res, via => 'in-process' };
     }
+    # a file's bytes travel as base64 (the daemon decodes them before the operation sees them)
+    $r{params} = Odoo::Ops::File->to_wire( $r{params} ) if ref $r{params} eq 'HASH';
     my $sock = $self->socket;
     my $resp = eval { Odoo::Ops::Daemon::Path->ask( $sock, \%r, timeout => $self->{timeout} ) };
     if ( !$resp ) {

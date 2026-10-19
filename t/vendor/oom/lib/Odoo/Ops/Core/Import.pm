@@ -7,6 +7,7 @@ no warnings 'experimental::signatures';
 no warnings 'experimental::builtin';
 
 use JSON::PP ();
+use Odoo::JSON ();
 
 use Odoo::Error;
 use Odoo::Ops::Modules;
@@ -501,7 +502,7 @@ sub _decide ($self, $model, $f, $keys, $row, $index, $by_id, $seen, $on_match, $
 }
 
 # a JSON true or false (an object), or a native Perl boolean
-sub _is_bool ($v) { return JSON::PP::is_bool($v) || builtin::is_bool($v) ? 1 : 0 }
+sub _is_bool ($v) { return Odoo::JSON::is_bool($v) || builtin::is_bool($v) ? 1 : 0 }
 
 # (ok, value) in the field's terms, or (0, why not)
 sub _coerce ($d, $v) {

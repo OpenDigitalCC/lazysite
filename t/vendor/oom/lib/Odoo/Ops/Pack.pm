@@ -81,7 +81,10 @@ report. The operation C<$op> declares in its C<read_scope> the models the
 composed read touches. A write operation is refused: a pack's writes are its
 own plans, applied by the runner like any other.
 
-A read that names its own audit detail (C<core.report> says the report and the
+A pack read that opts in to the data cache (L<Odoo::Cache::Data>) declares C<max_age> among its
+parameters and passes it on, C<< max_age => $self->param('max_age') >>, with C<pricelist> where it prices; its
+read scope then holds the C<read_group> of the model. The reads the core operation made are
+summed into the pack operation's audit line (C<cached>, and the greatest C<age>). A read that names its own audit detail (C<core.report> says the report and the
 bytes, never the content) is written to the audit trail as a read of its own.
 C<core.report> with C<inline =E<gt> 1> returns each document as C<content_base64>
 in its rows, so a pack hands a rendered pdf on without a render of its own. The
@@ -97,6 +100,12 @@ sub read ($class, $op, $name, %params) {
         if $cls->writes || $cls->immediate;
     my $inner  = $cls->new( ctx => $op->ctx, params => \%params );
     my $report = $inner->report;
+    # the composing operation's audit line says whether any of its reads came from the data cache
+    if ( ref $report eq 'HASH' && defined $report->{cached} ) {
+        my $n = $op->{cache_note} //= { cached => 0 };
+        $n->{cached} = 1 if $report->{cached};
+        $n->{age} = $report->{age} if $report->{cached} && ( !defined $n->{age} || $report->{age} > $n->{age} );
+    }
     $inner->_audit_read( $inner->scope_for('read'), $report ) if $inner->can('audit_detail');
     return $report;
 }

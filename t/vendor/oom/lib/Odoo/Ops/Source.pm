@@ -8,6 +8,7 @@ no warnings 'experimental::signatures';
 use File::Basename qw(dirname);
 use File::Spec;
 use JSON::PP ();
+use Odoo::JSON ();
 use Math::BigFloat;
 use Template;
 use Text::CSV_XS;
@@ -286,7 +287,7 @@ my %TRANSFORM = (
     json        => sub ($v) {
         return $v if !defined $v || ref $v;
         return undef if $v !~ /\S/;
-        my $d = eval { JSON::PP->new->decode($v) };
+        my $d = eval { Odoo::JSON->new( utf8 => 0 )->decode($v) };
         die 'transform json: not valid JSON (' . ( $@ =~ s/\s+at \S+ line \d+.*//sr ) . ")\n" if $@;
         return $d;
     },

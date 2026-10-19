@@ -9,6 +9,7 @@ use Digest::SHA ();
 use File::Path qw(make_path);
 use File::Spec;
 use JSON::PP ();
+use Odoo::JSON ();
 
 =head1 NAME
 
@@ -89,7 +90,7 @@ sub recall ($self, $name) {
     open my $fh, '<:raw', $path or return undef;
     my $raw = do { local $/; <$fh> };
     close $fh;
-    my $data = eval { JSON::PP->new->utf8->decode( $raw // '' ) };
+    my $data = eval { Odoo::JSON::decode( $raw // '' ) };
     return $data;
 }
 
@@ -113,7 +114,7 @@ sub keep ($self, $name, $data) {
         umask $old;
         die "cannot write\n" if !$opened;
         chmod 0600, $tmp;
-        print {$fh} JSON::PP->new->utf8->canonical->encode($data);
+        print {$fh} Odoo::JSON->new->encode($data);
         close $fh or die "cannot write\n";
         rename $tmp, $path or do { unlink $tmp; die "cannot write\n" };
         1;

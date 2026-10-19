@@ -13,6 +13,7 @@ use Scalar::Util qw(blessed);
 use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Invariant;
+use Odoo::Ops::Guard ();
 use Odoo::Ops::Journal;
 use Odoo::Ops::Blob;
 use Odoo::Ops::Plan;
@@ -159,6 +160,8 @@ sub apply ($class, $ctx, $plan, %opts) {
         $blobs->verify($_) for @refs;
     }
     my $resolve = sub ($c) { $has_blob{ $c->{seq} } ? $blobs->resolve($c) : $c };
+    # the journal keeps a blob's reference, as the plan does, whatever its size: a file's bytes are never in it
+    my %orig = map { $_->{seq} => $_ } grep { $has_blob{ $_->{seq} } } @{ $plan->changes };
 
     my $client  = $ctx->client;
     my $started = $ctx->now;
@@ -269,6 +272,7 @@ sub apply ($class, $ctx, $plan, %opts) {
             for my $c (@run) {
                 if ($stopped) { $counts{not_attempted}++; next }
                 my %entry = _entry($c);
+                if ( my $o = $orig{ $c->{seq} } ) { $entry{$_} = $o->{$_} for grep { exists $o->{$_} } qw(before vals) }
                 my $outcome = 'done';
                 if ( $c->{action} eq 'skip' || $c->{action} eq 'hold' ) {
                     $outcome = $c->{action} eq 'skip' ? 'skipped' : 'held';
@@ -288,7 +292,7 @@ sub apply ($class, $ctx, $plan, %opts) {
                         # id_ref: a custom change on a record an earlier change makes; its id is known now
                         my $resolved = { %$c, vals => _resolve_refs( $c->{vals}, \%refs ),
                             ( defined $c->{id_ref} ? ( id => _resolve_refs( { '$ref' => $c->{id_ref} }, \%refs ) ) : () ) };
-                        $entry{vals} = $resolved->{vals} if exists $c->{vals};
+                        $entry{vals} = $orig{ $c->{seq} } ? _resolve_refs( $orig{ $c->{seq} }{vals}, \%refs ) : $resolved->{vals} if exists $c->{vals};
                         my $after = $class->_do_change( $client, $resolved, \%entry, $ctx );
                         if ($after) { $verified++ } else { $not_verified++ }
                         1;
@@ -590,6 +594,8 @@ sub _do_change ($class, $client, $c, $entry, $ctx = undef) {
     if ( $action eq 'custom' ) {
         # The operation that planned it knows how to carry it out.
         my $class = Odoo::Ops::Registry->new->class_for( $c->{handler} );
+        # OOM_STRICT_CALLS=1 (the offline suite sets it): the apply may make only the calls the change declared
+        local $Odoo::Ops::Guard::DECLARED = $ENV{OOM_STRICT_CALLS} && ref $c->{calls} eq 'ARRAY' ? { map { ( "$_->[0].$_->[1]" => 1 ) } @{ $c->{calls} } } : undef;
         my $out = $class->apply_custom( $client, $c );
         $entry->{id}       = $out->{id} if defined $out->{id};
         $entry->{returned} = $out->{returned} if exists $out->{returned};

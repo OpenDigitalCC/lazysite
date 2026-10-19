@@ -125,7 +125,7 @@ sub new ($class, %args) {
         url       => $config->get('url'),
         db        => $config->get('db'),
         %cred,
-        ( $cache ? ( cache => $cache, cache_ttl_version => $config->cache_ttl_version, ( $args{stamp_memory} ? ( stamp_memory => $args{stamp_memory} ) : () ) ) : () ),
+        ( $cache ? ( cache => $cache, cache_ttl_version => $config->cache_ttl_version, cache_ttl_fields_stamp => $config->cache_ttl_fields_stamp, ( $args{stamp_memory} ? ( stamp_memory => $args{stamp_memory} ) : () ) ) : () ),
         transport => $guard,
         context   => \%ctx,
         ( $args{retries} ? ( retries => $args{retries} ) : () ),
@@ -224,6 +224,41 @@ was given a transport without a C<cache_dir>.
 =cut
 
 sub cache ($self) { $self->{cache} }
+
+=head2 data_cache
+
+The L<Odoo::Cache::Data> of this context: it answers a read that names
+C<max_age> from a file while Odoo's signal for the model holds, when the
+config says C<data_cache = 1> and the cache directory is in use. Always an
+object; when the data cache is off every C<read> through it is live. It keeps
+files for the login the context runs as; a context on a web session asks Odoo
+who the session is first, and keeps none when that is not known.
+
+=cut
+
+sub data_cache ($self) {
+    return $self->{data_cache} //= do {
+        require Odoo::Cache::Data;
+        my $on = $self->{cache} && $self->{config}->data_cache;
+        my $login = $self->{login};
+        if ( $on && $self->{credential_kind} eq 'session' ) {
+            $login = undef;
+            if ( my $st = $self->session_transport ) {
+                eval { $self->{client}->uid; 1 };
+                $login = $st->identity->{login} if $st->identity;
+            }
+        }
+        my $client = $self->{client};
+        Odoo::Cache::Data->new(
+            ( $on ? ( dir => $self->{cache}->dir, login => $login ) : () ),
+            url => $self->{config}->get('url'), db => $self->{config}->get('db'),
+            lang   => $self->{config}->get('lang'),
+            max_mb => $self->{config}->data_cache_max_mb,
+            now    => $self->{now},
+            rpc    => sub ( $model, $method, $args, $kw ) { $client->execute_kw( $model, $method, $args, $kw ) },
+        );
+    };
+}
 
 =head2 session_transport
 

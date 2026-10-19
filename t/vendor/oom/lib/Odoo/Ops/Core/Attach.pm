@@ -7,12 +7,14 @@ no warnings 'experimental::signatures';
 
 use Digest::SHA ();
 use JSON::PP ();
+use Odoo::JSON ();
 use File::Basename qw(basename);
-use MIME::Base64 qw(encode_base64);
+use MIME::Base64 qw(encode_base64 decode_base64);
 
 use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Rows;
+use Odoo::Ops::File;
 
 use parent 'Odoo::Ops::Operation';
 
@@ -27,6 +29,11 @@ Odoo::Ops::Core::Attach - put files on any record
     # one row per file
     { "model": "res.partner", "record": "ref=C001", "file": "/data/contract.pdf", "replace": true }
 
+    # one file given as bytes, with no path on the host (a program, or the daemon)
+    $client->run( 'core.attach', { model => 'res.partner', record => 7,
+        file => { name => 'receipt.jpg', bytes => $raw, mimetype => 'image/jpeg' } } );
+    oom-ops run core.attach --conf C --set model=res.partner --set record=7 --file file=./receipt.jpg
+
 =head1 DESCRIPTION
 
 C<core.attach>: rows of C<< { model, record, file, name?, mimetype?,
@@ -35,6 +42,15 @@ L<Odoo::Ops::Core::Import>) become C<ir.attachment> records on the
 named records. C<record> is an id or C<field=value> (C<ref=C001>). The
 name is the file's base name unless C<name> says otherwise; the
 mimetype comes from the extension unless given.
+
+C<file> as a parameter is the other way in: one file given as bytes (a hash
+C<< { name, bytes, mimetype? } >>, see L<Odoo::Ops::File>) with C<model>,
+C<record> and optionally C<name>, C<mimetype> and C<replace>, in place of
+C<records> and C<rows>; exactly one of the three is given. The bytes go once to
+the run's blob store and the plan shows C<< { name, bytes, sha256, mimetype } >>
+only; apply checks the blob's digest and the SHA-1 and reads the attachment
+back by size and checksum. A row of C<records> may also hold a file value as
+its C<file>.
 
 The plan never carries a file's bytes: it carries the path, the size and
 the SHA-1 computed at planning. Apply reads the file again and refuses
@@ -93,6 +109,12 @@ sub holds ($class) {
 sub params ($class) {
     {   records   => { type => 'json', help => 'in-process rows (a list) - for a program, not the command line' },
         rows      => { type => 'path', help => 'rows file: .jsonl, .json (a list) or .csv with model, record, file, name, mimetype, replace' },
+        file      => { type => 'file', max_bytes => $MAX_DEFAULT, help => 'one file as bytes, in place of records and rows: --file file=PATH on the command line; with model and record' },
+        model     => { type => 'str',  help => 'with file: the physical model of the record (res.partner)' },
+        record    => { type => 'str',  help => 'with file: the record, an id or field=value (ref=C001)' },
+        name      => { type => 'str',  help => 'with file: the attachment name (default: the file name)' },
+        mimetype  => { type => 'str',  help => 'with file: the type (default: the file\'s own, else read from its first bytes)' },
+        replace   => { type => 'bool', help => 'with file: swap an attachment of that name that holds other content' },
         max_bytes => { type => 'int',  default => $MAX_DEFAULT, help => 'refuse a file over this size (default 25 MB)' },
     };
 }
@@ -111,10 +133,23 @@ sub scope_for ($self, $phase) {
 }
 
 sub plan ($self) {
-    my @in = grep { defined $self->param($_) } qw(records rows);
-    Odoo::Error->throw( kind => 'usage', message => 'core.attach: give exactly one of records, rows (got ' . ( @in ? "@in" : 'none' ) . ')' )
+    my @in = grep { defined $self->param($_) } qw(records rows file);
+    Odoo::Error->throw( kind => 'usage', message => 'core.attach: give exactly one of records, rows, file (got ' . ( @in ? "@in" : 'none' ) . ')' )
         if @in != 1;
-    my $rows = Odoo::Ops::Rows->load( 'core.attach', map { $_ => $self->param($_) } @in );
+    my $rows;
+    if ( $in[0] eq 'file' ) {
+        for my $need (qw(model record)) {
+            Odoo::Error->throw( kind => 'usage', message => "core.attach: file needs $need", fix => "pass --set $need=... with --file file=PATH" ) if !defined $self->param($need);
+        }
+        my $f = $self->param('file');
+        $rows = [ { key => $f->{name}, values => { model => $self->param('model'), record => $self->param('record'), file => $f,
+            map { defined $self->param($_) ? ( $_ => $self->param($_) ) : () } qw(name mimetype replace) } } ];
+    }
+    else {
+        Odoo::Error->throw( kind => 'usage', message => 'core.attach: ' . join( ', ', grep { defined $self->param($_) } qw(model record name mimetype replace) ) . ' go with file; a row of records or rows names its own' )
+            if grep { defined $self->param($_) } qw(model record name mimetype replace);
+        $rows = Odoo::Ops::Rows->load( 'core.attach', map { $_ => $self->param($_) } @in );
+    }
     my @items;
     for my $r (@$rows) {
         my $v = $r->{values};
@@ -150,21 +185,31 @@ sub plan_items ($self, $items, %opt) {
         my $hold = sub ($bucket, $why) { $plan->add( bucket => $bucket, action => 'hold', key => "src:$row->{key}", reason => $why ) };
         next if defined $it->{error} && $hold->( 'invalid', $it->{error} );
         next if $it->{held} && $hold->( 'held-flag', $it->{held} );
+        my $given = Odoo::Ops::File->is_value( $it->{file} ) ? $it->{file} : undef;
         my ( $model, $rec, $file ) = map { ref $_ ? undef : ( defined $_ ? $_ =~ s/^\s+|\s+\z//gr : undef ) } @$it{qw(model record file)};
+        $file = '' if $given;
         next if ( !defined $model || $model !~ /\./ ) && $hold->( 'invalid', 'row needs model (a physical name such as res.partner)' );
         next if ( !defined $rec  || $rec eq '' )  && $hold->( 'invalid', 'row needs record (an id, or field=value such as ref=C001)' );
-        next if ( !defined $file || $file eq '' ) && $hold->( 'invalid', 'row needs file' );
+        next if ( !defined $file || ( $file eq '' && !$given ) ) && $hold->( 'invalid', 'row needs file' );
 
         my $id = $self->_find_record( $model, $rec, $hold );
         next if !defined $id;
 
         my ( $size, $sha );
-        if ( !-f $file || !-r _ ) { $hold->( 'file-missing', "cannot read file $file" ); next }
-        $size = -s _;
-        if ( $size > $max ) { $hold->( 'too-large', "file $file is $size bytes; the limit is $max (max_bytes)" ); next }
-        $sha = _sha1_file($file);
+        if ($given) {
+            $given = Odoo::Ops::File->check( 'core.attach', 'file', $given, { max_bytes => $max } ) if length( $given->{bytes} ) <= $max;
+            $size = length $given->{bytes};
+            if ( $size > $max ) { $hold->( 'too-large', "file $given->{name} is $size bytes; the limit is $max (max_bytes)" ); next }
+            $sha = Digest::SHA::sha1_hex( $given->{bytes} );
+        }
+        else {
+            if ( !-f $file || !-r _ ) { $hold->( 'file-missing', "cannot read file $file" ); next }
+            $size = -s _;
+            if ( $size > $max ) { $hold->( 'too-large', "file $file is $size bytes; the limit is $max (max_bytes)" ); next }
+            $sha = _sha1_file($file);
+        }
 
-        my $name = defined $it->{name} && $it->{name} ne '' ? $it->{name} : basename($file);
+        my $name = defined $it->{name} && $it->{name} ne '' ? $it->{name} : $given ? $given->{name} : basename($file);
         my $dup  = "$model\0$id\0" . lc $name;
         if ( $seen{$dup}++ ) { $hold->( 'duplicate-in-source', "an earlier row attaches '$name' to the same record" ); next }
 
@@ -180,13 +225,25 @@ sub plan_items ($self, $items, %opt) {
             $hold->( 'exists', "'$name' is on the record with different content; pass replace to swap it" );
             next;
         }
-        my $mime = defined $it->{mimetype} && $it->{mimetype} ne '' ? $it->{mimetype} : do { my ($e) = lc($name) =~ /\.(\w+)\z/; $e ? $MIME{$e} : undef };
+        my $mime = defined $it->{mimetype} && $it->{mimetype} ne '' ? $it->{mimetype} : $given ? $given->{mimetype} : do { my ($e) = lc($name) =~ /\.(\w+)\z/; $e ? $MIME{$e} : undef };
+        if ($given) {
+            my $slim = Odoo::Ops::File->slim($given);
+            $plan->add(
+                bucket => 'attach', action => 'custom', model => 'ir.attachment', handler => 'core.attach', kind => 'attach',
+                key => "src:$row->{key}", size => $size + 0, checksum => $sha, sha256 => $slim->{sha256}, calls => [ [ 'ir.attachment', 'create' ], [ 'ir.attachment', 'read' ] ],
+                vals => { name => $name, res_model => $model, res_id => $id + 0, mimetype => $mime, datas => $plan->blob_value( Odoo::Ops::File->base64($given) ) },
+                line => "attach $name ($size bytes, sha256 $slim->{sha256}, $mime) to $model $id",
+                reason => 'the bytes are held once in the run folder (blobs/) and checked by digest at apply; the plan shows the name, size and digests',
+            );
+        }
+        else {
         $plan->add(
             bucket => 'attach', action => 'custom', model => 'ir.attachment', handler => 'core.attach', kind => 'attach',
-            key => "src:$row->{key}", file => $file, size => $size + 0, checksum => $sha,
+            key => "src:$row->{key}", file => $file, size => $size + 0, checksum => $sha, calls => [ [ 'ir.attachment', 'create' ], [ 'ir.attachment', 'read' ] ],
             vals => { name => $name, res_model => $model, res_id => $id + 0, ( defined $mime ? ( mimetype => $mime ) : () ) },
             reason => 'the file is read again at apply; the plan holds its path and checksum, not its bytes',
         );
+        }
         # the old one goes after the new one exists: a changed file cannot lose the original
         for my $old (@same) {
             $plan->add( bucket => 'replaced', action => 'unlink', model => 'ir.attachment', id => $old->{id}, support => 1,
@@ -199,7 +256,7 @@ sub plan_items ($self, $items, %opt) {
 
 sub _true ($v) {
     return 0 if !defined $v;
-    return $v ? 1 : 0 if JSON::PP::is_bool($v);
+    return $v ? 1 : 0 if Odoo::JSON::is_bool($v);
     return $v =~ /^(1|true|yes|y)\z/i ? 1 : 0;
 }
 
@@ -231,15 +288,26 @@ sub _find_record ($self, $model, $rec, $hold) {
 sub apply_custom ($class, $client, $c) {
     my $kind = $c->{kind} // '';
     Odoo::Error->throw( kind => 'usage', message => "core.attach cannot apply kind '$kind'" ) if $kind ne 'attach';
-    open my $fh, '<:raw', $c->{file}
-        or Odoo::Error->throw( kind => 'refused', code => 'changed-since-plan', message => "file $c->{file} cannot be read now: $!" );
-    my $bytes = do { local $/; <$fh> };
-    close $fh;
-    Odoo::Error->throw( kind => 'refused', code => 'changed-since-plan',
-        message => "file $c->{file} no longer has the checksum it had when planned; re-plan" )
-        if Digest::SHA::sha1_hex($bytes) ne $c->{checksum};
     my $att = $client->model('ir.attachment');
-    my $id  = $att->create( { %{ $c->{vals} }, datas => encode_base64( $bytes, '' ) } );
+    my $vals;
+    if ( defined $c->{vals}{datas} ) {
+        # bytes given by the caller: the runner has read the blob back after checking its digest; the file's own SHA-1 is checked too
+        Odoo::Error->throw( kind => 'refused', code => 'blob', message => "the bytes of attachment '$c->{vals}{name}' are not the file that was planned (checksum differs)",
+            fix => 'plan again with oom-ops run core.attach' )
+            if Digest::SHA::sha1_hex( decode_base64( $c->{vals}{datas} ) ) ne $c->{checksum};
+        $vals = { %{ $c->{vals} } };
+    }
+    else {
+        open my $fh, '<:raw', $c->{file}
+            or Odoo::Error->throw( kind => 'refused', code => 'changed-since-plan', message => "file $c->{file} cannot be read now: $!" );
+        my $bytes = do { local $/; <$fh> };
+        close $fh;
+        Odoo::Error->throw( kind => 'refused', code => 'changed-since-plan',
+            message => "file $c->{file} no longer has the checksum it had when planned; re-plan" )
+            if Digest::SHA::sha1_hex($bytes) ne $c->{checksum};
+        $vals = { %{ $c->{vals} }, datas => encode_base64( $bytes, '' ) };
+    }
+    my $id  = $att->create($vals);
     my $row = $att->read_one( $id, [qw(name res_model res_id file_size checksum)] );
     my $ok  = $row && ( $row->{checksum} // '' ) eq $c->{checksum} && ( $row->{file_size} // -1 ) == $c->{size};
     # the read-back goes to the journal as returned: id, size and checksum, never the content

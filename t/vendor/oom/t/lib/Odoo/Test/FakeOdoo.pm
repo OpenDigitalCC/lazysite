@@ -225,6 +225,15 @@ sub call ($self, $service, $method, @args) {
         return \@ids if $m eq 'search';
         return [ map { $self->_read_row( $model, $_, $kw->{fields} ) } @ids ];
     }
+    # a write of any kind moves the model's newest write_date (to the second, as Odoo reports it) off the fake's clock
+    $self->{wd}{$model} = _wd_stamp( $self->{clock} // 1_800_000_000 )
+        if $m =~ /\A(?:create|write|unlink|action_archive|action_unarchive)\z/;
+    # the data cache's signal: no grouping, the newest write_date and every record, archived ones too
+    if ( $m eq 'read_group' && ref $margs->[2] eq 'ARRAY' && !@{ $margs->[2] } ) {
+        my @all = $self->_search( $model, [], { active_test => 0 } );
+        my $n = scalar @all;
+        return [ { __count => $n, write_date => $self->{wd}{$model} // JSON::PP::false } ];
+    }
     if ( $m eq 'read_group' ) {
         # 16-series row shape: <field>_count; many2many groups per member.
         my ( $domain, undef, $groupby ) = @$margs;
@@ -392,6 +401,11 @@ sub _read_row ($self, $model, $id, $fields) {
         }
     }
     return \%row;
+}
+
+sub _wd_stamp ($t) {
+    my @g = gmtime $t;
+    return sprintf '%04d-%02d-%02d %02d:%02d:%02d', $g[5] + 1900, $g[4] + 1, @g[ 3, 2, 1, 0 ];
 }
 
 sub _search ($self, $model, $domain, $context = undef) {

@@ -170,6 +170,7 @@ sub _plan_mailing ($self, $p) {
     $plan->add(
         bucket => 'delete', action => 'custom', handler => $self->op_name, kind => 'delete',
         model => $p->model_name('mailing'), id => $id, key => $key,
+        calls  => [ map { [ $p->model_name('mailing'), $_ ] } qw(unlink search_count) ],
         before => { $f->('state') => 'draft', $f->('subject') => $subject },
         vals   => { recreate => \%recreate, state_field => $f->('state') },
         reason => "mailing $id ('$subject') is a draft and is deleted",
@@ -263,6 +264,7 @@ sub _plan_contacts ($self, $p) {
         $plan->add(
             bucket => 'delete', action => 'custom', handler => $self->op_name, kind => 'delete-contact',
             model => $p->model_name('contact'), id => $id, key => $ch->{key},
+            calls => [ map { [ $p->model_name('contact'), $_ ] } qw(unlink search_count) ],
             before => { $f->( contact => 'name' ) => $name, $f->( contact => 'email' ) => $email, $f->( contact => 'subscriptions' ) => [ map { $_->{id} } @subs ] },
             vals   => { recreate => \%recreate },
             ( @effects ? ( effects => \@effects ) : () ),
@@ -332,6 +334,7 @@ sub _plan_lists ($self, $p) {
         $plan->add(
             bucket => 'delete', action => 'custom', handler => $self->op_name, kind => 'delete-list',
             model => $p->model_name('list'), id => $id, key => $ch->{key},
+            calls => [ map { [ $p->model_name('list'), $_ ] } qw(unlink search_count) ],
             before => { $f->( list => 'name' ) => $name, $f->( list => 'subscriptions' ) => [ map { $_->{id} } @subs ] },
             vals   => { recreate => \%recreate },
             effects => \@effects,

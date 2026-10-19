@@ -170,6 +170,12 @@ sub plan ($self) {
     $plan->add(
         bucket => 'send', action => 'custom', handler => $self->op_name, kind => 'send',
         model => $p->model_name('mailing'), id => $id, key => "send:mailing $id",
+        calls => [
+            [ $p->model_name('mailing'), 'read' ],
+            ( $self->param('now')
+                ? ( [ $p->model_name('mailing'), $p->action('send_mail') ], [ $p->model_name('mail'), 'search_read' ], [ $p->model_name('mail'), $p->action('process_mail_queue') ] )
+                : ( [ $p->model_name('mailing'), $p->action('put_in_queue') ] ) ),
+        ],
         before => { $f->('state') => $state, ( $info->{unreadable}{$id}{ $f->('total') } ? () : ( $f->('total') => $m->{ $f->('total') } ) ) },
         vals => {
             now            => $self->param('now') ? JSON::PP::true : JSON::PP::false,

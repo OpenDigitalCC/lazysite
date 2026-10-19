@@ -6,9 +6,10 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use JSON::PP ();
+use Odoo::JSON ();
 use Digest::SHA qw(sha256_hex);
 
-our $VERSION = '0.33';
+our $VERSION = '0.34';
 
 =head1 NAME
 
@@ -45,7 +46,8 @@ applied as a separate step against the same instance.
 
 =head2 json
 
-A shared canonical UTF-8 JSON codec, so fingerprints are stable.
+A shared canonical UTF-8 JSON codec, so fingerprints are stable: the one
+L<Odoo::JSON> picks (L<Cpanel::JSON::XS> when installed, else L<JSON::PP>).
 
 =head2 fingerprint($data)
 
@@ -53,11 +55,19 @@ SHA-256 of the canonical JSON of C<$data>.
 
 =cut
 
-my $JSON = JSON::PP->new->utf8->canonical->allow_nonref;
+sub json () { Odoo::JSON->json }
 
-sub json () { $JSON }
+=head2 seal_json
 
-sub fingerprint ($data) { sha256_hex( $JSON->encode($data) ) }
+The encoder every digest is taken over (a plan's fingerprint, a run's key):
+L<JSON::PP>, canonical, whichever encoder reads the files, so a seal holds
+under every encoder and across releases. See L<Odoo::JSON/sealer>.
+
+=cut
+
+sub seal_json () { Odoo::JSON->sealer }
+
+sub fingerprint ($data) { sha256_hex( seal_json()->encode($data) ) }
 
 =head2 iso_time($epoch)
 

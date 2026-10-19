@@ -122,15 +122,19 @@ sub plan ($self) {
         $seen{$e} = $n;
         my $r = $have{$e};
         my $live = $r && $r->{ $f->('active') };
-        my %c = ( action => 'custom', handler => $self->op_name, model => $p->model_name('blacklist'), key => $key );
+        my $bl = $p->model_name('blacklist');
+        my @post = defined $self->param('reason') && length $self->param('reason') ? ( [ $bl, 'message_post' ] ) : ();
+        my %c = ( action => 'custom', handler => $self->op_name, model => $bl, key => $key );
         if ( $mode eq 'add' ) {
             if ($live) { $skip->( 'already-listed', "$e is on the blacklist", id => $r->{id} ); next }
             $plan->add( %c, bucket => 'add', kind => 'blacklist-add', ( $r ? ( id => $r->{id}, before => { $f->('active') => 0 } ) : () ),
+                calls => [ ( $r ? () : ( [ $bl, 'create' ] ) ), [ $bl, 'write' ], [ $bl, 'read' ], @post ],
                 vals => $self->_vals($e), reason => $r ? "$e was unblacklisted; brought back" : "$e is not on the blacklist" );
         }
         else {
             if ( !$live ) { $skip->( 'not-listed', "$e is not on the blacklist" ); next }
             $plan->add( %c, bucket => 'remove', kind => 'blacklist-remove', id => $r->{id}, before => { $f->('active') => 1 },
+                calls => [ [ $bl, 'write' ], [ $bl, 'read' ], @post ],
                 vals => $self->_vals($e), reason => "$e comes off the blacklist (the row is archived)" );
         }
     }
@@ -191,6 +195,7 @@ sub undo_custom ($class, $entry) {
         kind   => $was_add ? 'blacklist-remove' : 'blacklist-add',
         bucket => $was_add ? 'undo-add' : 'undo-remove',
         before => { $v->{active_field} => $was_add ? 1 : 0 },
+        calls  => [ map { [ $entry->{model}, $_ ] } qw(write read) ],
         vals   => $v,
     };
 }

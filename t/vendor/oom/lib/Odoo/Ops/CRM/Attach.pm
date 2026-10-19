@@ -26,6 +26,11 @@ the same content is C<unchanged>, so re-runs add nothing; the same name
 with other content is held C<exists> (this wrapper never replaces; use
 C<core.attach> with C<replace>). The plan holds the path and checksum of
 each file, not its bytes, and apply refuses a file that changed since.
+
+C<file> is the other way in: one file given as bytes (C<< { name, bytes,
+mimetype? } >>, see L<Odoo::Ops::File>) in place of C<files>, with no path on the
+host. The plan shows C<< { name, bytes, sha256, mimetype } >> and the bytes wait
+in the run's blob store, as for L<Odoo::Ops::Core::Attach>.
 The read-back checks name, owner, size and checksum, not the content.
 
 =cut
@@ -52,7 +57,8 @@ sub holds ($class) {
 
 sub params ($class) {
     +{  Odoo::Ops::CRM::Select->params,
-        files => { type => 'list', required => 1, help => 'comma list of file paths' },
+        files => { type => 'list', help => 'comma list of file paths (give files or file)' },
+        file  => { type => 'file', max_bytes => 25 * 1024 * 1024, help => 'one file as bytes, in place of files: --file file=PATH on the command line' },
     };
 }
 sub read_scope  ($class) { { lead => ['search_read'], tag => ['search_read'], 'ir.attachment' => ['search_read'] } }
@@ -64,7 +70,12 @@ sub plan ($self) {
     Odoo::Error->throw( kind => 'usage', message => 'crm.attach needs exactly one lead; the selector matches ' . scalar(@$leads) )
         if @$leads != 1;
     my $id = $leads->[0]{id};
-    my @items = map { { key => basename($_), model => $model, record => $id, file => $_ } } @{ $self->param('files') };
+    my @paths = @{ $self->param('files') // [] };
+    my $given = $self->param('file');
+    Odoo::Error->throw( kind => 'usage', message => 'crm.attach: give files or file, not both', fix => 'files takes paths on this host; file takes bytes' ) if @paths && $given;
+    Odoo::Error->throw( kind => 'usage', message => 'crm.attach: give files or file', fix => 'oom-ops describe crm.attach lists the parameters' ) if !@paths && !$given;
+    my @items = $given ? ( { key => $given->{name}, model => $model, record => $id, file => $given } )
+        : map { { key => basename($_), model => $model, record => $id, file => $_ } } @paths;
     $self->{models} = { $model => 1 };
     return $self->plan_items( \@items, replace => 0 );
 }

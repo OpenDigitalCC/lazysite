@@ -8,6 +8,7 @@ no warnings 'experimental::signatures';
 use File::Basename ();
 use File::Spec;
 use JSON::PP ();
+use Odoo::JSON ();
 use Time::HiRes ();
 
 use Odoo::Cache;
@@ -203,7 +204,7 @@ sub _shipped_index ($class) {
     return $SHIPPED //= do {
         my $path = $class->_shipped_path;
         my $raw  = do { open my $fh, '<:raw', $path or return {}; local $/; <$fh> };
-        my $idx  = eval { JSON::PP->new->utf8->decode($raw) };
+        my $idx  = eval { Odoo::JSON::decode($raw) };
         ref $idx eq 'HASH' && ref $idx->{namespaces} eq 'HASH' ? $idx->{namespaces} : {};
     };
 }

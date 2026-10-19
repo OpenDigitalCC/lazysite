@@ -6,6 +6,7 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use JSON::PP ();
+use Odoo::JSON ();
 use Scalar::Util qw(blessed);
 
 use Odoo::Error;
@@ -145,10 +146,10 @@ sub plan ($self) {
         $plan->note("$for $model $method: $entry->{note}") if length( $entry->{note} // '' );
         my %context = ( %{ $entry->{context} // {} }, %$extra );
         my $creates = $AC->creates_specs( $self->ctx, $entry );
-        my $json    = JSON::PP->new->canonical;
+        my $json    = Odoo::JSON->new( utf8 => 0 );
         $plan->add(
             bucket => 'wizard', action => 'custom', handler => $me, kind => 'wizard', key => "$model:",
-            model => $model,
+            model => $model, calls => [ [ $model, 'create' ], [ $model, $method ], $AC->creates_calls( $creates, $for ) ],
             vals => {
                 for => $for, method => $method, values => $values, context => \%context, ids => [], state_fields => [], states_before => {},
                 ( @$creates ? ( creates => $creates ) : () ), names => {},
@@ -189,11 +190,11 @@ sub plan ($self) {
     $plan->note("$for $model $method: $entry->{note}") if length( $entry->{note} // '' );
     my $creates = $AC->creates_specs( $self->ctx, $entry );
     my $names = join ', ', map { "$for $_->{id}" . $AC->name_of($_) } @found;
-    my $json  = JSON::PP->new->canonical;
+    my $json  = Odoo::JSON->new( utf8 => 0 );
     my $sline = @state ? '; ' . join( '; ', map { my $r = $_; "$r->{id}: " . join( ', ', map { "$_ " . $AC->state_text( $r->{$_} ) } @state ) } @found ) : '';
     $plan->add(
         bucket => 'wizard', action => 'custom', handler => $me, kind => 'wizard', key => "$model:" . join( ',', @rids ),
-        model => $model,
+        model => $model, calls => [ [ $model, 'create' ], [ $model, $method ], [ $for, 'read' ], $AC->creates_calls( $creates, $for ) ],
         vals => {
             for => $for, method => $method, values => $values, context => \%context, ids => \@rids, state_fields => \@state,
             states_before => \%before,
@@ -294,7 +295,7 @@ sub undo_custom ( $class, $entry ) {
     $AC->add_undo_scope( $v->{for}, $v->{undo} );
     return {
         action => 'custom', handler => 'core.action', kind => 'action', bucket => 'undo-action',
-        model => $v->{for}, id => $id, key => "undo:$v->{for} $id",
+        model => $v->{for}, id => $id, key => "undo:$v->{for} $id", calls => [ [ $v->{for}, $v->{undo} ], [ $v->{for}, 'read' ] ],
         ( ref $now eq 'HASH' && %$now ? ( before => $now ) : () ),
         vals => {
             method => $v->{undo}, args => [], kwargs => {}, context => {},

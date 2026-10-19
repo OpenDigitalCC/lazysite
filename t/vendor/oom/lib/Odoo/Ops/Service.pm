@@ -9,6 +9,7 @@ use Cwd ();
 use File::Basename qw(basename dirname);
 use File::Spec;
 use JSON::PP ();
+use Odoo::JSON ();
 use Scalar::Util qw(blessed);
 use Time::HiRes ();
 
@@ -19,6 +20,7 @@ use Odoo::Ops::Config;
 use Odoo::Ops::Context;
 use Odoo::Ops::Credential;
 use Odoo::Ops::Plan;
+use Odoo::Ops::File;
 use Odoo::Ops::Wire;
 use Odoo::Ops::Calls;
 use Odoo::Ops::Registry;
@@ -81,7 +83,7 @@ another instance than the config's is refused.
 
 =cut
 
-my $PRETTY = JSON::PP->new->utf8->canonical->pretty;
+my $PRETTY = Odoo::JSON->new( pretty => 1 );
 
 sub new ($class, %a) {
     my $config = $a{config} or Odoo::Error->throw( kind => 'config', message => 'service needs a config' );
@@ -381,6 +383,8 @@ sub _run ($self, $req, %o) {
     Odoo::Error->throw( kind => 'usage', message => 'run needs an operation name', fix => 'oom-ops list names the operations' )
         if !defined $name || ref $name || !length $name;
     my $params = ref $req->{params} eq 'HASH' ? { %{ $req->{params} } } : {};
+    # a file arrives from the daemon's wire as base64: decoded here, before the operation or any check sees it
+    $params = Odoo::Ops::File->from_wire($params);
     my $class  = Odoo::Ops::Registry->new->class_for($name);
     # 'fields' asks a read to show its descriptor block; an operation with a parameter of that name keeps it
     my $schema = $req->{schema} ? 1 : 0;
