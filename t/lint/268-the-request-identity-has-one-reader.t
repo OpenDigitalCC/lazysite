@@ -110,7 +110,13 @@ my %READER = (
     # SM1130: the wrapper's "does a trusted proxy name a user" is the reader's
     # answer too (it is a producer of the fixed names, so the sweep above allows
     # the file; this holds its read of the PROXY's user to the accessor).
-    'lazysite-auth.pl'              => qr/Identity::request_identity\(\s*lazysite_dir\s*=>\s*\$LAZYSITE_DIR,\s*proxy\s*=>/,
+    #
+    # SM1181 S1: that read is Lazysite::Auth::Session::request_session's now, the one
+    # decision the wrapper and the data endpoint both ask; each passes the proxy
+    # answer it holds, and the function reads the proxy's user through the accessor.
+    'lazysite-auth.pl'             => qr/Session::request_session\(\s*lazysite_dir\s*=>\s*\$LAZYSITE_DIR,\s*proxy\s*=>/,
+    'lazysite-data.pl'             => qr/Session::request_session\(\s*lazysite_dir\s*=>\s*\$lz,\s*proxy\s*=>/,
+    'lib/Lazysite/Auth/Session.pm' => qr/Identity::request_identity\(\s*lazysite_dir\s*=>\s*\$dir,\s*proxy\s*=>/,
 );
 for my $rel ( sort keys %READER ) {
     like( code_of( slurp("$root/$rel") ), $READER{$rel}, "$rel reads the identity through the accessor" );

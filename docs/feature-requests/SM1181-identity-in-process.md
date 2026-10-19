@@ -4,11 +4,11 @@ title: "SM1181: the pool decides who is signed in, and hands the answer to the p
 subtitle: "SM1082 track C2, planned and reviewed before any code. The pool's front door verifies the session with the verifier the auth wrapper calls and renders a signed-in page in the worker, with no exec and no identity header; the manager API loses the wrapper's program; the rest waits for C3."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-10-19
 raised-by: the release manager, 2026-10-19 ("Yes, plan + review first"), on SM1082 track C2 and the lab's note lazysite/inbox/2026-10-19-what-lazysite-adds-to-an-odoo-call.md
 area: performance
-status-note: "CANDIDATE: plan and security review for SM1082 C2, no code. Slices S1-S5, one release of its own; R1-R8 ruled as proposed 2026-10-19. A signed-in page renders in the pool worker from a verified identity value; the manager API is exec'd without the wrapper; the Odoo endpoint's floor needs C3."
+status-note: "PARTIAL: S1 built on n675: request_session decides the identity for the auth wrapper and the data endpoint; BadUrl::guard shared; $STORE_FAULT reset per call; write_identity_env writes the wrapper's contract (t/integration/290, t/unit/auth/68). S2-S5 remain; C2 ships as one release after S4 (R7). R1-R8 ruled as proposed 2026-10-19."
 ---
 
 # What was asked
@@ -372,6 +372,52 @@ From the recorded figures only; nothing was measured for this filing.
   wraps it: S5 (R6) removes one, about 200 ms on SM1144's loaded host. The other,
   and the owner's 10-20 ms target, needs C3's `pool` surface for the endpoint
   and oomd's light client (61 ms against 250 ms for OOM, the lab's note).
+
+# What shipped
+
+## S1: one function decides, the CGI path unchanged (n675)
+
+`Lazysite::Auth::Session::request_session( lazysite_dir, cookie, proxy )` is
+`handle_request`'s steps 1 and 2: a listed proxy peer with a user wins (read by
+`request_identity`, unchanged); otherwise `verify_session_cookie`, given the Cookie
+header as its new `cookie` argument rather than reading `%ENV`. The `cookie` argument
+is required: a caller that omits it is refused, so nothing falls back to the
+environment. A cookie identity's groups are the verifier's fresh set, de-duplicated
+and passed through `Lazysite::Auth::Identity::address_allowed_groups` (the reader's
+SM1140 filter). The value is `{ user, groups => [...], name, email, sid,
+no_password, odoo, stale, source }`; a failure is the verifier's `( undef, $why,
+%detail )`. `odoo_stale_ok` is not passed through (T8).
+
+- **The wrapper** asks `Lazysite::Util::proxy_identity` once, passes it in, and keeps
+  every log line at its level. A cookie value is written for the surface it execs by
+  `Lazysite::Auth::Identity::write_identity_env`, the one writer of the wrapper's
+  contract (user, groups, the sentinel, the SM794 clears, the SM1160 Odoo name,
+  `LAZYSITE_AUTH_SID`, `LAZYSITE_AUTH_NO_PASSWORD`); S4's relay child will call it
+  too. A proxy value writes nothing, as before.
+- **The data endpoint** asks `request_session` with the same arguments; what it then
+  writes to its environment is unchanged.
+- **`Lazysite::BadUrl::guard`** is the wrapper's `_bad_url_guard` (same keys, last
+  match wins, same visitor address, same audit row and log line) and returns a
+  verdict; the wrapper keeps the 403 and the exit. S3's front door calls it.
+- **`$STORE_FAULT`** is cleared at the start of `verify_session_cookie` and of
+  `request_session`, so a fault on one call no longer stands after a later call that
+  returns before the stages that cleared it (a no-cookie request, a proxy request).
+
+Two differences on the CGI path, both in the header text and neither in any
+decision: the groups header now carries the address-filtered set (the reader
+filtered the same set downstream, so every reader's answer is unchanged), and a
+group listed twice in the groups file appears once.
+
+Proved by t/integration/290: fourteen requests (no cookie; a member cookie; disabled,
+removed and revoked accounts; a broken session store; a trusted proxy user with and
+without a cookie; a trusted peer naming nobody; forged `X-Remote-User` from a trusted
+and an untrusted peer, with and without a cookie; an untrusted peer sending the
+proxy's headers; an address-limited group) through the real wrapper and the real
+data endpoint give one identity, equal to the base tree's recorded answers, each by
+one call to `request_session`. t/unit/auth/68 pins the function, the helper and the
+`$STORE_FAULT` reset. t/unit/processor/71 and t/lint/38 ask their produce-or-clear
+question of `write_identity_env`, and t/lint/268 holds the wrapper, the data endpoint
+and `request_session` to the accessor.
 
 # Related
 

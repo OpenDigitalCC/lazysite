@@ -69,10 +69,12 @@ use Exporter 'import';
 use Lazysite::Util ();
 use JSON::PP       ();
 
-our @EXPORT_OK = qw(request_identity normalise_group_name parse_group_map);
+our @EXPORT_OK = qw(request_identity normalise_group_name parse_group_map
+    address_allowed_groups write_identity_env);
 
-# The fixed names, and the one place that spells them. The wrapper
-# (lazysite-auth.pl) and the trust gates name them too; nothing else may.
+# The fixed names, and the one place that spells them. The trust gates and the
+# data endpoint name them too, and write_identity_env below writes the wrapper's
+# (SM1181); nothing else may.
 my %FIXED = (
     user   => 'HTTP_X_REMOTE_USER',
     name   => 'HTTP_X_REMOTE_NAME',
@@ -246,6 +248,55 @@ sub request_identity {
     }
     $id{groups} = _drop_address_blocked( [ _dedupe(@groups) ], \%opt );
     return \%id;
+}
+
+# SM1181 S1: the filter below, for Lazysite::Auth::Session::request_session, which
+# makes a cookie identity's groups as this reader would read them back.
+sub address_allowed_groups {
+    my ( $groups, %opt ) = @_;
+    return _drop_address_blocked( [ @{ $groups || [] } ], \%opt );
+}
+
+# SM1181 S1 (T10): THE WRAPPER'S HEADER CONTRACT, WRITTEN FROM THE VALUE.
+#
+# lazysite-auth.pl hands a verified cookie identity to the surface it execs in the
+# environment: the fixed names, the sentinel and the two session flags. This writes
+# exactly that from request_session's value, in one place, so the wrapper and the
+# pool's relay to the manager API (S4) cannot write two contracts. It lives here
+# because this file is the one that spells the fixed names (t/lint/268).
+#
+# SM794: PRODUCE OR CLEAR EVERY TRUSTED FIELD. The sentinel makes the processor's
+# trust gate return early, so any of the six it covers that this did not write
+# would be the client's, passed on as ours - X-Payment-Verified was a 402 turned
+# into a 200. User and groups are produced; name and email are cleared (the
+# processor resolves a display name from the account), as are both payment
+# headers. An Odoo-minted session (SM1160) is produced WITH a name: the
+# server-side record holds the one Odoo gave and there is no account to ask.
+# LAZYSITE_AUTH_SID (SM141) marks "this session" on the Sessions page;
+# LAZYSITE_AUTH_NO_PASSWORD (SM1070) lets the admin bar warn.
+#
+# Only a cookie session is written. A proxy identity arrives in the proxy's own
+# headers, which the surface reads under proxy_identity (SM1130); no value writes
+# nothing. Returns 1 when it wrote, 0 when it did not.
+sub write_identity_env {
+    my ($ident) = @_;
+    return 0 unless ref $ident eq 'HASH' && ( $ident->{source} // '' ) eq 'cookie';
+    # The six named in full, as the trust gate names them, so a reader (and
+    # t/unit/processor/71) can see each one is produced or cleared.
+    $ENV{HTTP_X_REMOTE_USER}    = $ident->{user};
+    $ENV{HTTP_X_REMOTE_GROUPS}  = join ',', @{ $ident->{groups} || [] };
+    $ENV{LAZYSITE_AUTH_TRUSTED} = '1';
+    delete @ENV{
+        qw(HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
+            HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER)
+    };
+    if ( $ident->{odoo} && length( $ident->{name} // '' ) ) {
+        ( my $n = $ident->{name} ) =~ s/[\x00-\x1f\x7f]//g;
+        $ENV{HTTP_X_REMOTE_NAME} = substr( $n, 0, 100 );
+    }
+    $ENV{LAZYSITE_AUTH_SID}         = $ident->{sid} if length( $ident->{sid} // '' );
+    $ENV{LAZYSITE_AUTH_NO_PASSWORD} = '1'           if $ident->{no_password};
+    return 1;
 }
 
 # SM1140 (slice C of SM1134): THE GROUP NAMES A REQUEST HOLDS, LESS THOSE ITS ADDRESS

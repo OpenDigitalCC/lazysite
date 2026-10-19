@@ -115,14 +115,22 @@ subtest 'the gate removes the headers rather than only noting them' => sub {
 # handed on as ours. One of them is the payment proof.
 #
 # Produce or clear. Both are fine; silence is not.
+#
+# SM1181 S1: the block is Lazysite::Auth::Identity::write_identity_env now, the one
+# writer of the wrapper's contract (the pool's relay writes it too, S4), and the
+# wrapper's success branch calls it. The question is the same; it is asked of the
+# writer, and the wrapper is held to calling it.
 subtest 'the trust source accounts for every trusted field' => sub {
-    my $src = do {
-        open my $fh, '<', "$root/lazysite-auth.pl" or die $!;
+    my $slurp = sub {
+        open my $fh, '<', "$root/$_[0]" or die "$_[0]: $!";
         local $/;
-        <$fh>;
+        return scalar <$fh>;
     };
-    my ($block) = $src =~ /(if \(\$ident\).{0,4000})/s;
-    ok( $block, 'the success block was found' ) or return;
+    my $src = $slurp->('lazysite-auth.pl');
+    like( $src, qr/elsif \(\$ident\) \{[^}]*?Lazysite::Auth::Identity::write_identity_env\(\$ident\)/s,
+        'the wrapper\'s success branch writes the contract with the one writer' );
+    my ($block) = $slurp->('lib/Lazysite/Auth/Identity.pm') =~ /(sub write_identity_env \{.*?\n\})/s;
+    ok( $block, 'the writer was found' ) or return;
     for my $h (
         qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS
         HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
@@ -130,7 +138,7 @@ subtest 'the trust source accounts for every trusted field' => sub {
         )
     {
         ok( $block =~ /\$ENV\{\Q$h\E\}\s*=/ || $block =~ /delete \@ENV\{[^}]*\Q$h\E/s,
-            "lazysite-auth.pl produces or clears $h" )
+            "the wrapper's contract produces or clears $h" )
             or diag( 'The C-1 gate returns early when this file sets its '
                 . 'sentinel, so a trusted header this block neither sets nor '
                 . 'deletes reaches the processor as the CLIENT sent it.' );

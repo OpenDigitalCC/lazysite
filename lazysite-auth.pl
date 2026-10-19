@@ -209,39 +209,17 @@ sub _audit_auth {
     }
 }
 
-# SM128: the bad-URL auto-blocker enforcement. One pass over lazysite.conf for
-# the bad_url_* settings (enabled by default); a blocked IP is refused, and a
-# probe path counts toward a block. The module is loaded lazily and only when
-# enabled, so a site with the blocker off pays nothing.
+# SM128: the bad-URL auto-blocker enforcement - a blocked IP is refused, and a
+# probe path counts toward a block. SM1181 S1: the decision is
+# Lazysite::BadUrl::guard, shared with the pool's front door (S3); this keeps the
+# CGI's half, which is the 403 and the exit. Given this request's conf lines and
+# THE visitor address (SM929), as it always used.
 sub _bad_url_guard {
     my ($path) = @_;
-    my %c;
-    for my $line ( @{ _conf_lines() } ) {
-        if ( $line =~ /^\s*(bad_url_\w+)\s*:\s*(.+?)\s*$/ ) { $c{$1} = $2 }
-    }
-    return if ( $c{bad_url_block} // 'enabled' ) eq 'disabled';
-    # SM929: THE AVAILABILITY FAULT THIS CLOSES. Keyed on REMOTE_ADDR, ten bad URLs
-    # from anywhere in an hour wrote the front proxy's address into
-    # bad-url-blocked.json - and is_blocked then denied every request from every
-    # visitor to the site, because they all presented that same address.
-    my $ip = _request_ip();
-    return unless length $ip;
-
     require Lazysite::BadUrl;
-    _bad_url_deny() if Lazysite::BadUrl::is_blocked( $DOCROOT, $ip );
-
-    my @extra = grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $c{bad_url_extra} // '' );
-    return unless Lazysite::BadUrl::is_bad_url( $path, \@extra );
-
-    my $threshold = ( $c{bad_url_threshold} || 10 ) + 0;
-    my $window    = ( $c{bad_url_window}    || 3600 ) + 0;
-    if ( Lazysite::BadUrl::record_and_check( $DOCROOT, $ip, $path,
-            threshold => $threshold, window => $window ) ) {
-        _audit_auth( 'system', 'ip-auto-blocked', 'ok',
-            'path=' . substr( $path, 0, 120 ), 'auth' );
-        log_event( 'WARN', '-', 'IP auto-blocked (bad-url scanner)', ip => $ip );
-        _bad_url_deny();
-    }
+    _bad_url_deny()
+        if Lazysite::BadUrl::guard( docroot => $DOCROOT, path => $path,
+        ip => _request_ip(), conf_lines => _conf_lines() );
     return;
 }
 
@@ -1172,94 +1150,38 @@ sub handle_request {
     # user no reader would then see. With no proxy user the cookie path below sets
     # the FIXED names and LAZYSITE_AUTH_TRUSTED, which the reader reads as the
     # cookie's identity: the two rules are one rule.
-    my $pid        = Lazysite::Util::proxy_identity($LAZYSITE_DIR);
-    my $proxy_user = '';
-    if ( $pid->{trusted} ) {
-        my $pi = Lazysite::Auth::Identity::request_identity(
-            lazysite_dir => $LAZYSITE_DIR, proxy => $pid );
-        $proxy_user = $pi->{user} if $pi->{source} eq 'proxy';
-    }
-    my ( $ident, $why, %detail );
-    if ( length $proxy_user ) {
-        $why = 'proxy';
+    #
+    # SM1181 S1 (SM1082 C2, R2): the rule is Lazysite::Auth::Session::request_session
+    # now - this wrapper, the data endpoint and the pool's front door ask the one
+    # function, so none of them can come to decide differently (T10,
+    # t/integration/290). The proxy answer is asked here, once, and passed in; the
+    # cookie is passed as the header it is. What this wrapper writes for the surface
+    # it execs is Lazysite::Auth::Identity::write_identity_env's contract, made
+    # from the value: user, groups, the sentinel, the SM794 clears, the Odoo name,
+    # the sid and the passwordless flag.
+    my $pid = Lazysite::Util::proxy_identity($LAZYSITE_DIR);
+    my ( $ident, $why, %detail ) = Lazysite::Auth::Session::request_session(
+        lazysite_dir => $LAZYSITE_DIR, proxy => $pid, cookie => $ENV{HTTP_COOKIE} // '' );
+
+    if ( $ident && $ident->{source} eq 'proxy' ) {
+        # The proxy's headers are the identity and reach the surface as sent; this
+        # sets nothing over them.
         log_event( 'DEBUG', $uri, 'auth: proxy identity wins, cookie ignored',
-            proxy_user => $proxy_user )
+            proxy_user => $ident->{user} )
             if length( $ENV{HTTP_COOKIE} // '' );
     }
-    else {
-        ( $ident, $why, %detail ) = verify_session_cookie();
-    }
-
-    if ($ident) {
+    elsif ($ident) {
         # C-1: these headers come from our HMAC-verified cookie, not from the
-        # client. Set LAZYSITE_AUTH_TRUSTED=1 so the processor accepts them.
-        $ENV{HTTP_X_REMOTE_USER} = $ident->{user};
-
-        # SEC-2026-07 (M5): groups are the module's FRESH resolution from the
-        # groups file, never the (HMAC-signed but possibly stale) set baked
-        # into the cookie at login - a demoted admin must not keep privileged
-        # groups until the cookie expires. (The log line used to show the
-        # cookie-baked set while the header carried the fresh one; it now
-        # logs what is actually granted.)
-        $ENV{HTTP_X_REMOTE_GROUPS}  = $ident->{groups};
-        $ENV{LAZYSITE_AUTH_TRUSTED} = '1';
-
-        # SM794: PRODUCE OR CLEAR EVERY TRUSTED FIELD, NOT JUST THE TWO WE SET.
-        #
-        # The sentinel above tells the processor's C-1 gate that the trusted
-        # headers came from us. The gate then returns EARLY - it does not
-        # examine them one by one - so every header in its list survives, and
-        # this block only ever wrote two of the six. The other four arrived
-        # from the client and were passed on as ours.
-        #
-        # The consequence was not theoretical: the payment gate reads
-        # X-Payment-Verified, so an ordinary logged-in visitor could add
-        # `X-Payment-Verified: 1` and be served payment-gated content. A
-        # correctly-shipped vhost strips all six at the edge, which is what
-        # kept this off a deployed site - but this gate exists precisely to
-        # backstop an edge that does not, and for these four it did not.
-        #
-        # CLEARED RATHER THAN PRODUCED, for name and email, deliberately. We
-        # could resolve both from the account record; the processor already
-        # does, falling back to the account's display name when no header
-        # carries one. Setting them here would be a second answer to the same
-        # question AND a settings read on every authenticated request - the
-        # read whose cost read_settings' own comment tracks through the
-        # verify_token_ms drift. So the producer stays where it is, and the
-        # header stops carrying a forgery.
-        #
-        # A header-auth deployment is unaffected: it does not come through
-        # here at all, it comes through auth_proxy_trusted, where the upstream
-        # is the producer of all six.
-        delete @ENV{
-            qw(HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
-                HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER)
-        };
-
-  # SM1160: an Odoo-minted session is produced WITH a display name - the server-side
-  # record holds the one Odoo gave, and there is no account record to resolve one
-  # from. It is the verifier's value, never a client's: the line above cleared the header.
-        if ( $ident->{odoo} && length( $ident->{name} // '' ) ) {
-            ( my $n = $ident->{name} ) =~ s/[\x00-\x1f\x7f]//g;
-            $ENV{HTTP_X_REMOTE_NAME} = substr( $n, 0, 100 );
-        }
-
-        # SM141: pass the caller's session id to the children (processor /
-        # manager-api) so the Sessions page can mark "this session". A legacy
-        # cookie has none.
-        $ENV{LAZYSITE_AUTH_SID} = $ident->{sid} if length $ident->{sid};
-
-        # Flag passwordless accounts so the admin bar can warn.
-        # Checked per-request so setting a password clears it immediately.
-        # SM1070: from the verifier's own read of the account store, which it
-        # now makes to refuse a removed account - one read, not two.
-        $ENV{LAZYSITE_AUTH_NO_PASSWORD} = '1' if $ident->{no_password};
+        # client; the sentinel tells the processor so. SEC-2026-07 (M5): the groups
+        # are the verifier's FRESH resolution, never the set baked into the cookie
+        # at login. SM794: every trusted field is produced or cleared.
+        Lazysite::Auth::Identity::write_identity_env($ident);
 
         # SM1099: one line per request is DEBUG: a signed-in or signed-out
         # visitor is the normal case, and at INFO these two filled the web
         # server's error log at the rate of the site's traffic.
         log_event( 'DEBUG', $uri, 'auth: cookie valid',
-            user => $ident->{user}, groups => $ident->{groups} );
+            user => $ident->{user}, groups => join( ',', @{ $ident->{groups} } ) );
     }
     elsif ( $why eq 'no-cookie' ) {
         log_event( 'DEBUG', $uri, 'auth: no cookie' );

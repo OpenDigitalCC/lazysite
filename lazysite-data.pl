@@ -171,14 +171,19 @@ sub main {
     require Lazysite::Util;
     require Lazysite::Auth::Identity;
     my $lz    = Lazysite::Paths::lazysite_dir($docroot);
-    my $pid   = Lazysite::Util::proxy_identity($lz);
-    my $proxy = $pid->{trusted}
-        ? Lazysite::Auth::Identity::request_identity( lazysite_dir => $lz, proxy => $pid )
-        : undef;
-    my $via_proxy = ( $proxy && $proxy->{source} eq 'proxy' && length $proxy->{user} ) ? 1 : 0;
+    #
+    # SM1181 S1 (SM1082 C2, R2): that rule is Lazysite::Auth::Session::request_session,
+    # the function the auth wrapper asks too, so the two cannot come to decide
+    # differently (T10, t/integration/290). The proxy answer is asked here, once, and
+    # passed in, because the write path below asks the same question of it.
+    my $pid = Lazysite::Util::proxy_identity($lz);
+    my ($session) = Lazysite::Auth::Session::request_session(
+        lazysite_dir => $lz, proxy => $pid, cookie => $ENV{HTTP_COOKIE} // '' );
+    my $user = $session ? $session->{user} : '';
 
-    my ($session) = $via_proxy ? () : Lazysite::Auth::Session::verify_session_cookie();
-    my $user = $via_proxy ? $proxy->{user} : ( ref $session eq 'HASH' ) ? ( $session->{user} // '' ) : '';
+    # A proxy identity is presented as one, never as a cookie session (see the
+    # sentinel below).
+    my $via_proxy = ( $session && $session->{source} eq 'proxy' ) ? 1 : 0;
 
     # SM1144: a verified account that holds `ui` is an operator and is shown the
     # phases - whether the account was established by the session cookie or by a
@@ -234,12 +239,13 @@ sub main {
     require Lazysite::Auth::Identity;
     #
     # SM1188: a trusted proxy's groups come from the identity read BEFORE the strip
-    # above ($proxy). Read now, under the DEFAULT names (X-Remote-Groups), they were
-    # deleted a few lines up and a proxy user's groups never reached the checks
-    # (SM1181 S1). The strip stays for every other request; this only keeps what the
-    # one reader already returned for the request the proxy vouched for.
+    # above (the proxy session request_session returned, source `proxy`, groups as
+    # the one reader gave them). Read now, under the DEFAULT names (X-Remote-Groups),
+    # they were deleted a few lines up and a proxy user's groups never reached the
+    # checks (SM1181 S1). The strip stays for every other request; this only keeps
+    # what the one decision already returned for the request the proxy vouched for.
     my @groups = $via_proxy
-        ? @{ $proxy->{groups} }
+        ? @{ $session->{groups} }
         : @{ Lazysite::Auth::Identity::request_identity(
             lazysite_dir => Lazysite::Paths::lazysite_dir($docroot) )->{groups} };
 
@@ -312,9 +318,10 @@ sub main {
         # unmarked directory group adds none. A cookie session adds nothing.
         if ($via_proxy) {
             $caps = { %$caps,
-                # SM1188: the identity read before the strip, not a second read
-                # of headers the strip has deleted.
-                %{ Lazysite::Auth::Settings::request_group_caps($proxy) } };
+                # SM1188: the identity read before the strip (the proxy session
+                # request_session returned), not a second read of headers the
+                # strip has deleted.
+                %{ Lazysite::Auth::Settings::request_group_caps($session) } };
         }
         # SM682: manage_data OR write_data reaches a row write. They differ in
         # what `writable_by` then means - see below - so the check is here and

@@ -17,7 +17,55 @@ use Lazysite::Paths ();
 use JSON::PP        ();
 use Fcntl           qw(:flock);
 use Exporter 'import';
-our @EXPORT_OK = qw(is_bad_url is_blocked record_and_check list_blocks block unblock);
+our @EXPORT_OK = qw(guard is_bad_url is_blocked record_and_check list_blocks block unblock);
+
+# SM128 / SM1181 S1: THE GUARD, one function for every caller in the request path.
+#
+# It was lazysite-auth.pl's _bad_url_guard; the pool's front door runs the same
+# guard in its worker (SM1181 S3), so it moved here and the wrapper calls it.
+#
+#   guard( docroot => $d, path => $request_path, ip => $visitor,
+#          conf_lines => \@lazysite_conf_lines )  -> 1 refuse, 0 carry on
+#
+# conf_lines are lazysite.conf's lines as the caller already holds them; the
+# bad_url_* keys are LAST match wins (FDO-2: the wrapper's rule, kept). The
+# blocker is on unless bad_url_block says disabled. `ip` is THE visitor address
+# (SM929: request_address under trusted_proxies, never the front proxy's), and no
+# address is never refused. A refused request is the caller's to answer (the CGI
+# prints a 403 and exits; a worker must not exit): this decides, and writes the
+# audit row and the log line when THIS request is the one that trips a block.
+sub guard {
+    my (%o) = @_;
+    my %c;
+    for my $line ( @{ $o{conf_lines} || [] } ) {
+        if ( $line =~ /^\s*(bad_url_\w+)\s*:\s*(.+?)\s*$/ ) { $c{$1} = $2 }
+    }
+    return 0 if ( $c{bad_url_block} // 'enabled' ) eq 'disabled';
+    my $ip = $o{ip};
+    return 0 unless defined $ip && length $ip;
+    my ( $docroot, $path ) = ( $o{docroot}, $o{path} );
+
+    return 1 if is_blocked( $docroot, $ip );
+
+    my @extra = grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $c{bad_url_extra} // '' );
+    return 0 unless is_bad_url( $path, \@extra );
+
+    my $threshold = ( $c{bad_url_threshold} || 10 ) + 0;
+    my $window    = ( $c{bad_url_window}    || 3600 ) + 0;
+    return 0 unless record_and_check( $docroot, $ip, $path, threshold => $threshold, window => $window );
+
+    # The row the wrapper has always written: the pseudo-actor `system`, the site's
+    # Host as the target, origin `auth`.
+    require Lazysite::Audit;
+    require Lazysite::Util;
+    my $host = lc( $ENV{HTTP_HOST} // '' );
+    $host =~ s/:\d+\z//;
+    $host =~ s/[^a-z0-9.-]//g;
+    Lazysite::Audit::audit_log( 'system', 'ip-auto-blocked', $host, $ip, 'ok', 'auth',
+        'path=' . substr( $path, 0, 120 ) );
+    Lazysite::Util::log_event( 'WARN', '-', 'IP auto-blocked (bad-url scanner)', ip => $ip );
+    return 1;
+}
 
 # Built-in probe patterns. A lazysite site serves no PHP, so any .php is a probe.
 # Mirrors the stats plugin's noise set (kept in sync by t/unit/lib/12-bad-url.t).

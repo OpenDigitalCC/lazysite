@@ -28,7 +28,7 @@ use Lazysite::Util qw(const_eq log_event cannot_read write_private_atomic);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
-    verify_session_cookie account_disabled load_user_groups session_revoked session_store_fault
+    verify_session_cookie request_session account_disabled load_user_groups session_revoked session_store_fault
     mint_odoo_session renew_odoo_session odoo_cookie_headers odoo_clear_headers odoo_login_of
     SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
 
@@ -175,9 +175,11 @@ sub _auth_secret_read {
     return $s;
 }
 
+# SM1181: the Cookie header may be passed in (request_session's `cookie`); the
+# environment is read only when it is not.
 sub _read_cookie {
-    my ($name) = @_;
-    my $cookies = $ENV{HTTP_COOKIE} // '';
+    my ( $name, $header ) = @_;
+    my $cookies = ( @_ > 1 ? $header : $ENV{HTTP_COOKIE} ) // '';
     for my $pair ( split /;\s*/, $cookies ) {
         my ( $k, $v ) = split /=/, $pair, 2;
         $k =~ s/^\s+|\s+$//g if defined $k;
@@ -359,7 +361,18 @@ sub load_user_groups {
 # valid until natural expiry, revocable only via not_before.
 sub verify_session_cookie {
     my (%opt) = @_; # SM1160: odoo_stale_ok => 1 - the Odoo endpoint's own refresh asks about a session that needs one
-    my $cookie = _read_cookie(SESSION_COOKIE_NAME);
+
+    # SM1181: $STORE_FAULT is this call's answer, cleared before anything else. The
+    # stages below clear it before they set it, but a call that returned before them
+    # (no cookie, a bad signature) left the LAST call's fault standing - harmless in
+    # a CGI that verifies once, not in a process that verifies request after request.
+    $STORE_FAULT = '';
+
+    # SM1181: `cookie => $header` is the request's Cookie header, given by a caller
+    # that holds it (request_session); without it the environment's.
+    my $cookie = exists $opt{cookie}
+        ? _read_cookie( SESSION_COOKIE_NAME, $opt{cookie} )
+        : _read_cookie(SESSION_COOKIE_NAME);
     return ( undef, 'no-cookie' ) unless $cookie;
 
     my ( $payload, $sig ) = $cookie =~ /^(.+):([a-f0-9]{64})$/;
@@ -453,6 +466,73 @@ sub verify_session_cookie {
     return (
         { user => $user, sid => $sid, groups => load_user_groups($user),
             no_password => $no_password },
+        undef );
+}
+
+# SM1181 S1 (SM1082 C2, ruled 2026-10-19 R2): WHO THIS REQUEST IS, DECIDED ONCE, AS A
+# VALUE.
+#
+# The auth wrapper's handle_request and the data endpoint each held SM1130's rule in
+# a copy of their own - a trusted proxy's user wins and the cookie is not consulted;
+# otherwise the session cookie, through the verifier above - and the pool's front
+# door would have been a third copy. This is the rule, and every caller asks it, so
+# the CGI path and the pool cannot come to decide differently (SM1181 T10,
+# t/integration/290).
+#
+#   request_session( lazysite_dir => $lz, cookie => $header [, proxy => $pid ] )
+#     -> ( $ident, undef ) or ( undef, $why, %detail )
+#
+#   $ident = { user, groups => [ ... ], name, email, sid, no_password, odoo, stale,
+#              source => 'cookie' | 'proxy' }
+#
+# `cookie` is the request's Cookie header and is REQUIRED: a worker serving many
+# requests holds the header, not an environment it may trust, so the caller says
+# which header it means ('' for none) and nothing here falls back to %ENV.
+# `proxy` is Lazysite::Util::proxy_identity's answer for this request when the
+# caller already holds it (SM1129: the request is judged once); else it is asked.
+#
+# A proxy identity is the identity reader's (SM1131: the configured header names,
+# the group map). A cookie identity is the verifier's, groups FRESH (SEC-2026-07 M5)
+# and then less any group this address is refused for (SM1140) - the filter the
+# reader applies to every answer, so a value and the headers made from it give one
+# answer. $why and %detail are the verifier's, for the caller's log lines.
+#
+# odoo_stale_ok is NOT passed through: a stale Odoo session is the Odoo endpoint's
+# own question (SM1160), and it asks the verifier directly (SM1181 T8).
+sub request_session {
+    my (%opt) = @_;
+    $STORE_FAULT = '';
+    for my $k (qw(lazysite_dir cookie)) {
+        die "request_session: `$k` is required (the request's "
+            . ( $k eq 'cookie' ? "Cookie header, '' for none" : 'lazysite directory' ) . ")\n"
+            unless exists $opt{$k};
+    }
+    my $dir = $opt{lazysite_dir};
+    local $LAZYSITE_DIR = $dir;
+    require Lazysite::Auth::Identity;
+
+    my $pid = ref $opt{proxy} eq 'HASH' ? $opt{proxy} : Lazysite::Util::proxy_identity($dir);
+    if ( $pid->{trusted} ) {
+        my $pi = Lazysite::Auth::Identity::request_identity( lazysite_dir => $dir, proxy => $pid );
+        if ( $pi->{source} eq 'proxy' && length $pi->{user} ) {
+            return (
+                { user => $pi->{user}, groups => [ @{ $pi->{groups} } ],
+                    name => $pi->{name} // '', email => $pi->{email} // '',
+                    sid => '', no_password => 0, odoo => 0, stale => 0, source => 'proxy' },
+                undef );
+        }
+    }
+
+    my ( $s, $why, %detail ) = verify_session_cookie( cookie => $opt{cookie} // '' );
+    return ( undef, $why, %detail ) unless $s;
+
+    my %seen;
+    my @groups = grep { length && !$seen{$_}++ } split /,/, ( $s->{groups} // '' );
+    my $allowed = Lazysite::Auth::Identity::address_allowed_groups( \@groups, lazysite_dir => $dir );
+    return (
+        { user => $s->{user}, groups => $allowed, name => $s->{name} // '', email => '',
+            sid => $s->{sid} // '', no_password => $s->{no_password} ? 1 : 0,
+            odoo => $s->{odoo} ? 1 : 0, stale => $s->{stale} ? 1 : 0, source => 'cookie' },
         undef );
 }
 

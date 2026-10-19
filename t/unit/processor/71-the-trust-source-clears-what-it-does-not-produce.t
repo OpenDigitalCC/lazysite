@@ -52,8 +52,12 @@ subtest 'the trust source clears every trusted field it does not produce' => sub
     is( scalar keys %covered, 6, 'the gate covers six headers' )
         or diag( join ', ', sort keys %covered );
 
-    my ($block) = $auth =~ /(if \(\$ident\).{0,4000})/s;
-    ok( $block, 'the success block was found' ) or return;
+    # SM1181 S1: the success block's writes are Lazysite::Auth::Identity::
+    # write_identity_env, the one writer of this contract, which the wrapper calls.
+    like( $auth, qr/elsif \(\$ident\) \{[^}]*?Lazysite::Auth::Identity::write_identity_env\(\$ident\)/s,
+        'the success block writes through the one writer' );
+    my ($block) = src('lib/Lazysite/Auth/Identity.pm') =~ /(sub write_identity_env \{.*?\n\})/s;
+    ok( $block, 'the writer was found' ) or return;
     for my $h ( sort keys %covered ) {
         my $produced = $block =~ /\$ENV\{\Q$h\E\}\s*=/;
         my $cleared  = $block =~ /delete \@ENV\{[^}]*\Q$h\E/s;
