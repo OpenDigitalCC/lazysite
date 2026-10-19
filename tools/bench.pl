@@ -56,8 +56,8 @@ my $BASELINE  = "$ROOT/dist/config/bench-baseline.json";
 # from the source alone () - as JSON, and exits. They are about the
 # code, not the host and not a run, so a branch that changes one updates the
 # baseline in the same commit (t/lint/216 holds it), instead of the gate finding
-# it after landing. The log-reading counters depend on what the timing runs
-# wrote and warmed first, so they stay with the full bench and the gate.
+# it after landing. The log-reading counters need the fixture site, so they
+# stay with the full bench and the gate; they read the fixture alone (SM1184).
 my @STATIC_WORK = qw(work_users_tool_statements);
 my $WORK_ONLY   = ( grep { $_ eq '--work' } @ARGV )     ? 1 : 0;
 my $mode      = ( grep { $_ eq '--baseline' } @ARGV ) ? 'baseline'
@@ -103,6 +103,10 @@ close $ix;
 # log volume: the defect was that every call re-ingested all of it, so a
 # single-day fixture would have shown almost nothing wrong.
 make_path("$d/lazysite/logs");
+# SM1184: the cache directory an installed site has. The stats export keeps its
+# read offsets there and writes nothing when the directory is missing, so before
+# the counts moved ahead of the renders (which made it) a warm run re-read all.
+make_path("$d/lazysite/cache");
 {
     my $now = time();
     for my $back ( 0 .. 29 ) {
@@ -154,6 +158,18 @@ die "bench setup failed (no token)\n" unless $token;
 # pipeline. render_miss_ms deletes the cache before each iteration to time the
 # real render; render_cache_hit_ms times the serve-from-cache path (the one
 # most visitors hit).
+# SM1184: THE STATS WORK IS COUNTED BEFORE ANY TIMED RUN, on the fixture alone.
+# It was counted after the renders, so the cold count also read the access-log
+# lines the bench's own 40 page requests had appended to today's file. Since
+# SM1144 each of those lines carries the request's phase timings, whose length
+# changes from run to run, so a count that must be host-independent moved by
+# +3,138 bytes and stopped the 0.15.10 gate (release manager, 2026-10-19:
+# "Count the fixture only"). Counted here it reads the 30 days of 150 lines
+# written above and nothing a timing run wrote.
+unlink "$d/lazysite/cache/stats-export.json";
+my $cold = $WORK_ONLY ? {} : work_of();
+my $warm = $WORK_ONLY ? {} : work_of();
+
 local %ENV = %ENV;
 $ENV{DOCUMENT_ROOT} = $d; $ENV{REQUEST_METHOD} = 'GET'; $ENV{QUERY_STRING} = '';
 my %result = $WORK_ONLY ? () : (
@@ -255,9 +271,6 @@ sub work_of {
     my $r    = eval { decode_json($json) };
     return ( $r && ref $r->{work} eq 'HASH' ) ? $r->{work} : {};
 }
-unlink "$d/lazysite/cache/stats-export.json";
-my $cold = $WORK_ONLY ? {} : work_of();
-my $warm = $WORK_ONLY ? {} : work_of();
 
 %result = (
     %result,

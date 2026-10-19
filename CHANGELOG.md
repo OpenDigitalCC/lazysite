@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1184 (PENDING) **internal: the bench counts the stats work on its fixture
+  alone.** The cold count was taken after the timed renders and so read their
+  access-log lines too, whose length has varied since SM1144's timings; it
+  stopped the 0.15.10 gate at +3,138 bytes. The counts are now taken first, on
+  the 30-day fixture, with the cache directory an installed site has; the
+  baseline is 494010, the same on every run.
 - SM1183 (PENDING) **security: a secret file is never wider than its final
   mode.** The OAuth token store was written under the umask and narrowed to 0660
   only afterwards, and the auth and CSRF secret mints, `revoked.json`, the Odoo
