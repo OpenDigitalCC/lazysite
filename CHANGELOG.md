@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1183 (PENDING) **security: a secret file is never wider than its final
+  mode.** The OAuth token store was written under the umask and narrowed to 0660
+  only afterwards, and the auth and CSRF secret mints, `revoked.json`, the Odoo
+  unknown-groups file, staged account imports and plugin configs that hold a
+  password were each created at the umask's mode first; latent while
+  `lazysite/auth/` is 02770, an exposure the day a directory mode drifts. They
+  are now written to a temp file created with its final mode and renamed. The
+  token store stays 0660 (the CGI and the operator tool share it, SM760), and
+  its module header, which said 0600, now says so. t/unit/oauth/05.
 - SM1182 (PENDING) **under the one-rule templates a form POST reaches the form
   handler.** The front door sent only `lazysite-*.pl` scripts to their own
   program, so a native form's POST to `/cgi-bin/form-handler.pl` (and
