@@ -265,7 +265,7 @@ sub read_access_keys {
             else {
       # SM1094: quote the value as read and show the forms on their own - splicing it into
       # the example read garbled for `[` ("write [[] or a '- [' line").
-                $why = "has the value '$inline', which could not be read as a list - write "
+                $why = "has the value '$inline', which could not be read as a list - write it as a list: "
                     . ( $key eq 'auth_groups'
                     ? q{auth_groups: [editors], or one "- editors" line per group below it}
                     : qq{$key: [office], or one "- office" line per list below it} );
@@ -306,6 +306,40 @@ sub _check_access_keys {
                 : $k =~ /\Aaddresses/ ? 'a list of address list names - [office], or one "- name" line each'
                 : $u->{$k} =~ /auth: manager/ ? 'changed as it says'
                 :                               'one of the values listed' ) };
+    }
+    return;
+}
+
+# SM1189 (0.15.10 walk, F-3): A PAGE THAT NAMES A LIST OF THE WRONG KIND. A deny
+# list under `addresses:` admits nobody and an allow list under `addresses_deny:`
+# blocks nobody, and the second used to be ignored in silence - the page stayed
+# open to the address its author meant to shut out. The engine refuses the page
+# now (Lazysite::Auth::AddressLists::decide, 'wrong-kind'); this says why before
+# a visitor finds out. A name the store does not hold is another matter (a list
+# may be created later) and is not reported here. No store, or one that will not
+# read, says nothing: `lazysite check` reports the store.
+sub _check_address_kinds {
+    my ( $issues, $fm, $lz ) = @_;
+    return unless defined $lz && length $lz;
+    my $keys = read_access_keys($fm);
+    return unless ref $keys->{addresses} eq 'ARRAY' || ref $keys->{addresses_deny} eq 'ARRAY';
+    require Lazysite::Auth::AddressLists;
+    no warnings 'once';
+    local $Lazysite::Auth::AddressLists::AUTH_DIR = "$lz/auth";
+    my $lists = Lazysite::Auth::AddressLists::lists();
+    return if Lazysite::Auth::AddressLists::store_fault();
+    for my $k (qw(addresses addresses_deny)) {
+        my $want = $k eq 'addresses' ? 'allow' : 'deny';
+        for my $n ( @{ $keys->{$k} || [] } ) {
+            my $l = $lists->{$n} or next;
+            next if $l->{kind} eq $want;
+            push @$issues, { kind => 'address-list-wrong-kind', key => $k, list => $n,
+                message => "'$k' names '$n', which is " . ( $l->{kind} eq 'allow' ? 'an allow' : 'a deny' )
+                    . " list, and $k takes $want lists - the page is refused to everyone (403) until "
+                    . ( $k eq 'addresses'
+                    ? "the rule names an allow list (or '$n' moves to addresses_deny)"
+                    : "the rule names a deny list (or '$n' moves to addresses)" ) };
+        }
     }
     return;
 }
@@ -786,6 +820,7 @@ sub validate_content {
 
     _check_front_matter( \@issues, \@warnings, $content, $h );
     _check_access_keys( \@issues, $fm, _page_place( $o{path}, $docroot, $lz ) ); # SM980, SM993
+    _check_address_kinds( \@issues, $fm, $lz );                                  # SM1189
     _check_camera( \@issues, $fm );                                              # SM1174
     _check_fences( \@warnings, $fm, $body );
     # SM900: with the front-matter offset, as _check_fences has always done, so

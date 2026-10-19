@@ -5290,6 +5290,22 @@ sub cmd_group_settings_set {
                 unless Lazysite::Auth::AddressLists::valid_name($n);
             push @names, $n unless $seen{$n}++;
         }
+        # SM1189 (0.15.10 walk, F-3): a list of the other kind is refused here, as
+        # Config refuses it for the manager's and sign-in's keys. An allow list under
+        # addresses_deny blocked nobody and said nothing; the engine refuses the rule
+        # at request time now (decide: 'wrong-kind'), which would withdraw every grant
+        # of the group. A name the store does not hold stays accepted (SM1138).
+        my $want  = $key eq 'addresses' ? 'allow' : 'deny';
+        my $lists = Lazysite::Auth::AddressLists::lists();
+        my @wrong = grep { $lists->{$_} && $lists->{$_}{kind} ne $want } @names;
+        return { ok => 0, kind => 'invalid', field => $key,
+            error => join( ', ', map { "'$_'" } @wrong ) . (
+                @wrong == 1
+                ? ' is ' . ( $want eq 'allow' ? 'a deny' : 'an allow' ) . ' list'
+                : ' are lists of the other kind'
+                )
+                . ", and $key takes $want lists. Nothing was changed." }
+            if @wrong;
         my $gs = read_group_settings();
         $gs->{$group} ||= _new_group_record($group);
         my $was = join ',', @{ ref $gs->{$group}{$key} eq 'ARRAY' ? $gs->{$group}{$key} : [] };

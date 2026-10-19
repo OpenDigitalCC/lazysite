@@ -85,6 +85,15 @@ Archive
   `X-Forwarded-For` (rebuild its vhost, and set `trusted_proxies: none` until
   then - removing the line restores the default trust, SM1194). A public
   peer, or a proxy that forwards the visitor, shows nothing.
+- SM1189 (PENDING) **access: an address rule that cannot work is refused and
+  named.** On edge, `addresses: zz60-mine` (a bare value) refused the page with
+  "You need to sign in", to a signed-in member too, and `addresses_deny:
+  [zz60-mine]` naming an allow list left the page open in silence. A rule the
+  engine cannot read now refuses with the address sentence; a list of the wrong
+  kind refuses in either slot (it was skipped under a deny slot); the validator
+  says "write it as a list" and names a wrong-kind list; saves of a folder or
+  file rule and of a group's limit refuse it, and `lazysite check` names every
+  existing rule that does it.
 - SM1186 (PENDING) **odoo: a usage refusal says what to fix.** A read whose
   operation refused its input answered 400 with one sentence that said nothing
   of the input, so a page could not tell the person what to change. The

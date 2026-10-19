@@ -2648,6 +2648,33 @@ sub _address_list_names {
     return ( \@names, undef );
 }
 
+# SM1189 (0.15.10 walk, F-3): A RULE NAMING A LIST OF THE WRONG KIND IS REFUSED AT
+# SAVE. An allow list under addresses_deny blocked nobody and said nothing (the
+# page stayed open to the address its author meant to shut out), and a deny list
+# under addresses is an allow list with nothing in it. It was a warning here; the
+# engine refuses such a rule at request time now (decide: 'wrong-kind'), so a
+# saved one would shut the path to everyone, and the save says so instead. A name
+# the store does not hold is still accepted (a list may be created later). A store
+# that will not read cannot be checked: the names are accepted, as an unknown one
+# is, and `lazysite check` names the store. Returns the error text or undef.
+sub _address_list_kind_refusal {
+    my ($pairs) = @_;
+    return undef unless @$pairs;
+    require Lazysite::Auth::AddressLists;
+    no warnings 'once';
+    local $Lazysite::Auth::AddressLists::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
+    my $lists = Lazysite::Auth::AddressLists::lists();
+    my @wrong;
+    for my $p (@$pairs) {
+        my ( $f, $n ) = @$p;
+        my $want = $f eq 'addresses' ? 'allow' : 'deny';
+        push @wrong, "'$n' is " . ( $lists->{$n}{kind} eq 'allow' ? 'an allow' : 'a deny' ) . " list and is named in $f, which takes $want lists"
+            if $lists->{$n} && $lists->{$n}{kind} ne $want;
+    }
+    return undef unless @wrong;
+    return join( '; ', @wrong ) . '. Nothing was changed. Name a list of the kind the field takes (Access, Address lists shows each list\'s kind).';
+}
+
 # The warnings for a rule's address lists: [ field, name ] pairs.
 sub _address_list_warnings {
     my ($pairs) = @_;
@@ -2656,12 +2683,11 @@ sub _address_list_warnings {
     no warnings 'once';
     local $Lazysite::Auth::AddressLists::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
     my $lists = Lazysite::Auth::AddressLists::lists();
-    my ( @unknown, @wrong );
+    my @unknown;
     for my $p (@$pairs) {
         my ( $f, $n ) = @$p;
-        my $want = $f eq 'addresses' ? 'allow' : 'deny';
-        if ( !$lists->{$n} ) { push @unknown, "$n ($f)" }
-        elsif ( $lists->{$n}{kind} ne $want ) { push @wrong, "$n is a $lists->{$n}{kind} list and is named in $f" }
+        # the wrong kind never gets here: _address_list_kind_refusal
+        push @unknown, "$n ($f)" unless $lists->{$n};
     }
     my @w;
     push @w, 'this rule names address lists the store does not hold yet: ' . join( ', ', @unknown )
@@ -2669,10 +2695,6 @@ sub _address_list_warnings {
         . 'that is missing admits NO address (the path is refused to everyone) and a deny list that '
         . 'is missing blocks none.'
         if @unknown;
-    push @w, 'this rule names a list of the wrong kind - ' . join( '; ', @wrong )
-        . '. It contributes no addresses; an allow list named under addresses_deny blocks nobody, '
-        . 'and a deny list named under addresses is an allow list with nothing in it.'
-        if @wrong;
     return @w;
 }
 
@@ -2749,6 +2771,9 @@ sub action_acl_set {
         elsif ( $existing && ref $existing->{$f} eq 'ARRAY' && @{ $existing->{$f} } ) {
             $rec{$f} = [ @{ $existing->{$f} } ];
         }
+    }
+    if ( my $wrong = _address_list_kind_refusal( \@addr_names ) ) {
+        return { ok => 0, kind => 'invalid', field => 'addresses', error => $wrong };
     }
 
     # SM901: EVERY NAME IN A LIST IS CHECKED AGAINST THE STORE.

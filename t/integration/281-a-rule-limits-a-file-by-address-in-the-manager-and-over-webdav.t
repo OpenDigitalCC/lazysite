@@ -87,8 +87,10 @@ subtest 'a name is validated; an unknown list is accepted with a warning that sa
     like( $w // '', qr/may be created later/, 'that says a list may be created later' );
     like( $w // '', qr/admits NO address/,    'and what the rule does until it is' );
     my $wrong = boss( 'acl-set', { owner => 'boss', addresses => ['blocked'] }, 'action=acl-set&path=wrong/' );
-    ok( $wrong->{ok}, 'a deny list under addresses is accepted' );
-    ok( ( grep { /wrong kind/ } @{ $wrong->{warnings} || [] } ), 'and said to be of the wrong kind' );
+    # SM1189: it was accepted with a warning; a rule the engine now refuses is not saved.
+    ok( !$wrong->{ok}, 'a deny list under addresses is refused' );
+    like( $wrong->{error} // '', qr/'blocked' is a deny list and is named in addresses/, 'saying which list is the wrong kind' );
+    ok( !exists acls()->{wrong}, 'and nothing was written' );
 };
 
 subtest 'the manager API refuses a file under the rule to an address outside it' => sub {

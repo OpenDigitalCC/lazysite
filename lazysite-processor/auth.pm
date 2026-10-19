@@ -255,11 +255,19 @@ sub check_auth {
             log_event( 'WARN', $uri, 'access key unreadable - page refused to everyone',
                 key => $k, why => $u->{$k} );
         }
+        # SM1189 (0.15.10 walk, F-2): `addresses: zz60-mine` (a bare value) was
+        # refused with "sign in", to a member who was signed in. When the only
+        # keys the engine cannot read are address rules, the refusal is the one
+        # SM1139 ruled for every refusal by address - this page is not available
+        # from your address - which sends nobody to a sign-in that cannot help and,
+        # like those, names no list and no key (the author is told by the validator
+        # and `lazysite check`, the visitor is not). Still a refusal to everyone.
+        my $only_address = !grep { !/\Aaddresses(?:_deny)?\z/ } keys %$u;
         return {
             forbidden          => 1,
             auth_user          => $auth_user,
             auth_name          => $auth_name,
-            auth_denied_reason => 'unreadable_access_key',
+            auth_denied_reason => $only_address ? 'address' : 'unreadable_access_key',
         };
     }
 

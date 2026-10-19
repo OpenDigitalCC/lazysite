@@ -70,12 +70,16 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     mine_needs_timestamps db-mine-no-owner
 
     access-key-unreadable
+    address-list-wrong-kind
     camera-unreadable
 );
 
 # SM980: `access-key-unreadable` is GROUP 2 - a Lazysite::Validate issue about a
 # page's auth / auth_groups / payment value, reported to whoever asked. The gate's
 # own refusal of such a page is the processor's 403, which carries no kind.
+
+# SM1189: `address-list-wrong-kind` is GROUP 2 like `access-key-unreadable` - a
+# Lazysite::Validate issue about a page naming an address list of the other kind.
 
 # SM1174: `camera-unreadable` is GROUP 2 like `access-key-unreadable` - a
 # Lazysite::Validate issue about a page's `camera:` value, reported to whoever

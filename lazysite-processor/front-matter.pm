@@ -276,7 +276,7 @@ sub _access_keys_read {
             else {
       # SM1094: quote the value as read and show the forms on their own - splicing it into
       # the example read garbled for `[` ("write [[] or a '- [' line").
-                $why = "has the value '$inline', which could not be read as a list - write "
+                $why = "has the value '$inline', which could not be read as a list - write it as a list: "
                     . ( $key eq 'auth_groups'
                     ? q{auth_groups: [editors], or one "- editors" line per group below it}
                     : qq{$key: [office], or one "- office" line per list below it} );

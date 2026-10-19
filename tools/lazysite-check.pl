@@ -1950,6 +1950,29 @@ sub report_address_rules {
         else {
             report( 'OK', 'every address list a rule names is in the store' );
         }
+
+        # SM1189 (0.15.10 walk, F-3): a list of the wrong kind. The engine refuses
+        # the path such a rule governs (an allow list under a deny slot used to be
+        # skipped, so the rule blocked nobody and said nothing); this names each
+        # rule, since the author is not told at a request. Saves refuse the
+        # combination now, so what is found here was written before that, by hand,
+        # or by a list made again as the other kind.
+        my @wrong = grep { $have{ $_->{name} } && $lists->{ $_->{name} }{kind} ne $_->{slot} } @rules;
+        if (@wrong) {
+            my ( %u, @say );
+            for my $r (@wrong) {
+                my $slot = $r->{slot} eq 'allow' ? 'addresses' : 'addresses_deny';
+                $slot = $r->{ref} if $r->{where} eq 'conf';
+                my $one = "$r->{name} is " . ( $lists->{ $r->{name} }{kind} eq 'allow' ? 'an allow' : 'a deny' )
+                    . " list named in $slot (" . Lazysite::Auth::AddressRefs::describe($r) . ')';
+                push @say, $one unless $u{$one}++;
+            }
+            report( 'WARN',
+                'address rules name lists of the wrong kind: ' . join( '; ', @say )
+                    . ' - the path, group, sign-in or manager such a rule governs is refused to everyone until it is corrected',
+                'name an allow list under addresses (and manager_addresses, signin_addresses) and a deny list under '
+                    . 'addresses_deny (and the _deny keys), or make the list the kind the rule needs' );
+        }
     }
     return;
 }

@@ -34,6 +34,7 @@ package Lazysite::Auth::AddressLists;
 #                                 ( 'allow' | 'deny', $reason ). Rules, in order:
 #                                   no list named at all          -> allow, 'no-rules'
 #                                   store unreadable/undecodable  -> deny,  'store-fault'
+#                                   a name of the wrong kind      -> deny,  'wrong-kind' (SM1189)
 #                                   no usable address             -> deny,  'no-address'
 #                                   address in any deny list      -> deny,  'deny-list'  (DENY WINS)
 #                                   an allow list named, address
@@ -285,6 +286,20 @@ sub decide ( $address, %o ) {
     return ( 'allow', 'no-rules' ) unless @allow || @deny;
     my ( $lists, $sets ) = _load();
     return ( 'deny', 'store-fault' ) if $FAULT;
+    # SM1189 (0.15.10 walk, F-3): A RULE NAMING A LIST OF THE WRONG KIND IS REFUSED, in
+    # either slot. An allow list under `deny` used to be skipped, so a rule written
+    # to shut an address out blocked nobody and said nothing; the author's intent is
+    # unknowable and the safe answer to a rule the engine cannot apply is no, as for
+    # an unreadable access key (SM980). An unknown name is not this: it may be
+    # created later (SM1138). Saves refuse the combination; this is for a rule that
+    # reached the store another way (a hand edit, a list re-made as the other kind).
+    for my $pair ( [ deny => \@deny ], [ allow => \@allow ] ) {
+        my ( $slot, $names ) = @$pair;
+        for my $name (@$names) {
+            my $l = $lists->{$name} or next;
+            if ( $l->{kind} ne $slot ) { _warn_unknown( $name, 'is named as ' . ( $slot eq 'allow' ? 'an allow' : 'a deny' ) . ' list and is not one; the rule is refused' ); return ( 'deny', 'wrong-kind' ) }
+        }
+    }
     my $p = _packed($address);
     return ( 'deny', 'no-address' ) unless length $p;
 
@@ -416,15 +431,16 @@ does not care whether the list is allow or deny.
 
 Returns C<( 'allow' | 'deny', $reason )>. In order: nothing named is
 C<allow, no-rules>; a faulted store is C<deny, store-fault>; no usable address
-is C<deny, no-address>; in a deny list is C<deny, deny-list> (DENY WINS, even
+is C<deny, no-address>; a name of the wrong kind is C<deny, wrong-kind>; in a deny list is C<deny, deny-list> (DENY WINS, even
 over an allow list that also matches); an allow list named and the address in
 none of them is C<deny, not-allowed>; in an allow list is C<allow, allow-list>;
 only deny lists named and no match is C<allow, not-denied>.
 
-An unknown name, and a list named in the wrong slot (a deny-kind list under
-C<allow>), contribute no addresses and are logged once. Under C<allow> they still
-count as "an allow list is present", so a rule naming only a deleted allow list
-admits nobody; under C<deny> they block nobody.
+A list named in the wrong slot (a deny-kind list under C<allow>, or an allow-kind
+list under C<deny>) is C<deny, wrong-kind> (SM1189): a rule the engine cannot apply
+refuses, it is not skipped. An unknown name contributes no addresses and is logged once. Under C<allow> it still
+counts as "an allow list is present", so a rule naming only a deleted allow list
+admits nobody; under C<deny> it blocks nobody.
 
 =item client_address()
 

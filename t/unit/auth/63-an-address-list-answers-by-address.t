@@ -141,7 +141,7 @@ subtest 'decide: deny wins, an allow list present means outside it is denied' =>
     is_deeply( [ $d->('garbage') ], [ 'allow', 'no-rules' ], 'but with nothing named the address is not asked' );
 };
 
-subtest 'an unknown name is false and logged once; a name in the wrong slot contributes nothing' => sub {
+subtest 'an unknown name is false and logged once; a name in the wrong slot refuses' => sub {
     site($STORE);
     my @log;
     no warnings 'redefine';
@@ -155,10 +155,14 @@ subtest 'an unknown name is false and logged once; a name in the wrong slot cont
         'only an unknown allow list: nobody is admitted (not public)' );
     is_deeply( [ $d->( '203.0.113.5', deny => ['nosuch'] ) ], [ 'allow', 'not-denied' ],
         'an unknown deny list blocks nobody' );
-    is_deeply( [ $d->( '203.0.113.66', allow => ['blocked'] ) ], [ 'deny', 'not-allowed' ],
-        'a deny-kind list named as an allow list admits nobody' );
-    is_deeply( [ $d->( '203.0.113.5', deny => ['office'] ) ], [ 'allow', 'not-denied' ],
-        'an allow-kind list named as a deny list blocks nobody' );
+    # SM1189 (0.15.10 walk, F-3): a list of the wrong kind refuses; it was skipped,
+    # which let an allow list under `deny` leave the path open in silence.
+    is_deeply( [ $d->( '203.0.113.66', allow => ['blocked'] ) ], [ 'deny', 'wrong-kind' ],
+        'a deny-kind list named as an allow list refuses' );
+    is_deeply( [ $d->( '203.0.113.5', deny => ['office'] ) ], [ 'deny', 'wrong-kind' ],
+        'an allow-kind list named as a deny list refuses' );
+    is_deeply( [ $d->( '203.0.113.5', allow => ['office'], deny => ['office'] ) ], [ 'deny', 'wrong-kind' ],
+        'and beside a good name, the rule still refuses' );
     is_deeply( [ $d->( '203.0.113.5', allow => [ 'nosuch', 'office' ] ) ], [ 'allow', 'allow-list' ],
         'an unknown name beside a good one does not spoil it' );
 };
@@ -220,8 +224,8 @@ JSON
     ok( !$AL->can('in_list')->( '8.8.8.8', 'mixed' ), 'a rejected /0 entry did not become match-everything' );
     ok( $AL->can('in_list')->( '10.9.9.9', 'mixed' ), 'the good entry matches' );
     is( $l->{nokind}{kind}, '', 'a list with no kind has none' );
-    is_deeply( [ $AL->can('decide')->( '10.1.1.1', allow => ['nokind'] ) ], [ 'deny', 'not-allowed' ],
-        'and is usable in neither slot' );
+    is_deeply( [ $AL->can('decide')->( '10.1.1.1', allow => ['nokind'] ) ], [ 'deny', 'wrong-kind' ],
+        'and refuses in either slot (SM1189: it was skipped)' );
     $l->{mixed}{entries}[0]{cidr} = 'changed';
     is( $AL->can('lists')->()->{mixed}{entries}[0]{cidr}, '10.0.0.0/8', 'a caller cannot change the next caller\'s answer' );
     is_deeply( [ $AL->can('list_names')->() ], [ 'mixed', 'nokind' ], 'list_names is sorted' );
