@@ -4,11 +4,11 @@ title: "SM1181: the pool decides who is signed in, and hands the answer to the p
 subtitle: "SM1082 track C2, planned and reviewed before any code. The pool's front door verifies the session with the verifier the auth wrapper calls and renders a signed-in page in the worker, with no exec and no identity header; the manager API loses the wrapper's program; the rest waits for C3."
 brand: plain
 standard-margins: true
-status: partial
+status: shipped
 raised: 2026-10-19
 raised-by: the release manager, 2026-10-19 ("Yes, plan + review first"), on SM1082 track C2 and the lab's note lazysite/inbox/2026-10-19-what-lazysite-adds-to-an-odoo-call.md
 area: performance
-status-note: "BUILT S1-S5, not yet released: request_session (n675, t/integration/290); the pool never believes the sentinel (n677, 291, 292, 297); signed-in pages in the worker (n684, 293, 294); the manager API one program (n685, 295); the dev server runs Odoo, data, MCP and OAuth direct (n688, 296). Remains: C2's own release with its edge rows (R7)."
+status-note: "SHIPPED, a release of its own (R7): S1 request_session (n675, t/integration/290); S2 the pool never believes the sentinel (n677, 291, 292, 297); S3 signed-in pages in the worker (n684, 293, 294); S4 the manager API one program (n685, 295); S5 the dev server runs Odoo, data, MCP and OAuth direct (n688, 296)."
 ---
 
 # What was asked
