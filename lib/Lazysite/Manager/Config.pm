@@ -109,7 +109,7 @@ sub action_lang_status {
 # SM1191: why an app_* value cannot be saved, or undef when it can. The rules are
 # those of lazysite-processor/app.pm (_app_settings) and `lazysite check`
 # (report_app_settings): app.pm loads nothing from Lazysite:: (ADR 0001), so the
-# patterns are restated here and t/unit/manager/365 runs the same values through
+# patterns are restated here and t/unit/manager/367 runs the same values through
 # both so they cannot drift. Cross-key rules read the stored conf: a start page must
 # sit inside the stored scope, and a scope must not strand the stored start page.
 sub _app_setting_fault {

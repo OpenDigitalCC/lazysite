@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: inbox/2026-10-19-test-plan-01510-results.md (F-5)
 area: manager
-status-note: "SHIPPED (PENDING) on n680: lib/Lazysite/Manager/Config.pm _app_setting_fault, starter/manager/config.md; t/unit/manager/365."
+status-note: "SHIPPED (PENDING) on n680: lib/Lazysite/Manager/Config.pm _app_setting_fault, starter/manager/config.md; t/unit/manager/367."
 ---
 
 # What happened
@@ -43,7 +43,7 @@ Each is checked as the engine reads it, and a refusal names the key:
 - offline files: site paths, no `..`.
 
 The engine (`lazysite-processor/app.pm`) loads nothing from `Lazysite::` (ADR
-0001), so the patterns are restated in the manager and t/unit/manager/365 runs
+0001), so the patterns are restated in the manager and t/unit/manager/367 runs
 the same values through both, so they cannot drift.
 
 Authority: like other site settings these need `manage_config`, over a cookie
