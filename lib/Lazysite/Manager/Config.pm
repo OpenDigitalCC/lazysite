@@ -65,6 +65,9 @@ sub action_config_read {
         asset_max_age manager_style backup_retention trusted_proxies
         manager_addresses manager_addresses_deny
         signin_addresses signin_addresses_deny
+        app_name app_short_name app_scope app_start_url
+        app_theme_colour app_background_colour
+        app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
@@ -101,6 +104,61 @@ sub action_lang_status {
     }
     my $status = lang_status( docroot => $DOCROOT, conf_text => $conf, group => $group );
     return { ok => 1, %$status };
+}
+
+# SM1191: why an app_* value cannot be saved, or undef when it can. The rules are
+# those of lazysite-processor/app.pm (_app_settings) and `lazysite check`
+# (report_app_settings): app.pm loads nothing from Lazysite:: (ADR 0001), so the
+# patterns are restated here and t/unit/manager/365 runs the same values through
+# both so they cannot drift. Cross-key rules read the stored conf: a start page must
+# sit inside the stored scope, and a scope must not strand the stored start page.
+sub _app_setting_fault {
+    my ( $key, $value ) = @_;
+    ( my $v = $value ) =~ s/\A\s+|\s+\z//g;
+    my $conf = _conf_text() // '';
+    my $stored = sub { my ($k) = @_; my ($x) = $conf =~ /^\Q$k\E\s*:\s*(.*?)\s*$/m; return $x };
+    my $in_scope = sub {
+        my ( $start, $scope ) = @_;
+        ( my $p = $start ) =~ s/\?.*\z//;
+        return index( $p, $scope ) == 0 || "$p/" eq $scope;
+    };
+
+    if ( $key eq 'app_scope' ) {
+        return "app_scope ($v) must start and end with / and name a directory, e.g. /portal/"
+            unless $v =~ m{\A/(?:[A-Za-z0-9._~-]+/)*\z} && $v !~ m{(?:\A|/)\.\.?/};
+        my $start = $stored->('app_start_url');
+        return "app_scope ($v) would leave app_start_url ($start) outside it; change or clear app_start_url first"
+            if defined $start && length $start && !$in_scope->( $start, $v );
+    }
+    elsif ( $key eq 'app_start_url' ) {
+        return "app_start_url ($v) must be a path starting with /, optionally with a ?query"
+            unless $v =~ m{\A/[A-Za-z0-9._~/%-]*(?:\?[A-Za-z0-9._~%&=/-]*)?\z} && $v !~ m{(?:\A|/)\.\.(?:/|\z)};
+        my $scope = $stored->('app_scope');
+        $scope = '/' unless defined $scope && length $scope;
+        return "app_start_url ($v) must be inside app_scope ($scope)"
+            unless $in_scope->( $v, $scope );
+    }
+    elsif ( $key =~ /\Aapp_(?:theme|background)_colour\z/ ) {
+        return "$key ($v) must be #rgb or #rrggbb" unless $v =~ /\A#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})\z/;
+    }
+    elsif ( $key =~ /\Aapp_icon_(?:64|192|512|maskable)\z/ ) {
+        return "$key ($v) must be a site path to a png, webp, svg or jpg"
+            unless $v =~ m{\A/[A-Za-z0-9._~/-]+\.(?:png|webp|svg|jpe?g)\z}i && $v !~ m{\.\.};
+        my $docroot = $DOCROOT // '';
+        my $root    = $docroot;
+        my $cr      = $stored->('content_root');
+        $root = "$docroot/$cr"
+            if defined $cr && length $cr && $cr =~ m{\A[A-Za-z0-9._/-]+\z} && $cr !~ m{\.\.} && -d "$docroot/$cr";
+        return "$key ($v) is not a file this site serves; put the file there first"
+            unless -f "$root$v" || -f "$docroot$v";
+    }
+    elsif ( $key eq 'app_shell' ) {
+        for my $p ( grep { length } map { s/\A\s+|\s+\z//gr } split /,/, $v ) {
+            return "app_shell ($p) must be a site path starting with / and holding no .. or spaces"
+                unless $p =~ m{\A/[A-Za-z0-9._~/%?&=-]*\z} && $p !~ m{\.\.} && $p !~ m{\A//};
+        }
+    }
+    return undef;
 }
 
 # SM072 §13 / control API: set an allowlisted site-config key in
@@ -159,6 +217,9 @@ sub action_config_set {
         manager_style backup_retention trusted_proxies
         manager_addresses manager_addresses_deny
         signin_addresses signin_addresses_deny
+        app_name app_short_name app_scope app_start_url
+        app_theme_colour app_background_colour
+        app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
 
     # SM612: settable, but NOT BY A TOKEN CLIENT. The operator toggles the
@@ -313,7 +374,9 @@ sub action_config_set {
     # default, and "A value is required" made the shipped state unreachable
     # through the API. Every other key needs a value.
     my %clearable = map { $_ => 1 } qw(canonical_ip asset_max_age backup_retention
-        manager_addresses manager_addresses_deny signin_addresses signin_addresses_deny);
+        manager_addresses manager_addresses_deny signin_addresses signin_addresses_deny
+        app_name app_short_name app_scope app_start_url app_theme_colour app_background_colour
+        app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell);
     return { ok => 0,
         error => "A value is required: '$key' has no default to fall back to, so it "
             . 'cannot be cleared (the keys that can are '
@@ -322,6 +385,14 @@ sub action_config_set {
     $value = '' unless defined $value;
     return { ok => 0, error => "Value must be a single line" }
         if $value =~ /[\r\n]/;
+    # SM1191 (test plan 0.15.10 F-5): the app_* keys SM1155 reads. The engine turns the
+    # app OFF on a value it cannot honour and says nothing while serving, so the save
+    # refuses what the engine would refuse, naming the key.
+    if ( $key =~ /\Aapp_/ && length $value ) {
+        my $fault = _app_setting_fault( $key, $value );
+        return { ok => 0, kind => 'invalid', field => $key, error => $fault } if defined $fault;
+        $value =~ s/\A\s+|\s+\z//g;
+    }
     my ( $wok, $werr ) = _write_conf_key( $key, $value );
     return { ok => 0,
         error => 'Could not write lazysite.conf' . ( defined $werr ? ": $werr" : '' ) }

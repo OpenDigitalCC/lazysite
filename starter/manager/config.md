@@ -114,6 +114,42 @@ var SITE_SCHEMA = [
   { key: 'signin_addresses_deny', placeholder: 'no address refused', label: 'Sign-in never from (address lists)', type: 'text',
     default: '', group: 'Manager user interface',
     note: 'Names of DENY address lists, comma separated. A sign-in attempt from one of these addresses is refused even if it is in an allow list above.' },
+  // SM1191 (test plan 0.15.10 F-5): the settings SM1155 reads, so a site becomes an app
+  // without shell access. The server refuses what the engine would turn the app off for
+  // (config-set, _app_setting_fault) and names the key; setting a name turns the app on.
+  { key: 'app_name', placeholder: 'not an app', label: 'App name', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'Setting a name makes this site (or the section named below) installable as an app: the engine then serves its manifest and service worker. Empty means the site is not an app. The name appears under the icon on the device.' },
+  { key: 'app_short_name', placeholder: 'the app name', label: 'Short name', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'The label under the icon where space is short. Empty uses the app name.' },
+  { key: 'app_scope', placeholder: '/ - the whole site', label: 'Scope', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'The part of the site the app covers: a directory path that starts and ends with a slash, such as /portal/. Empty means the whole site. A scope that is not written this way is refused rather than repaired, because an app installed over the wrong section is worse than none. It must also hold the start page.' },
+  { key: 'app_start_url', placeholder: 'the scope', label: 'Start page', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'The page the app opens on. It must be a path inside the scope, such as /portal/home. Empty means the scope itself.' },
+  { key: 'app_theme_colour', placeholder: 'no colour', label: 'Theme colour', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'The colour of the app\'s title bar, as #rgb or #rrggbb (for example #0a5c36). Anything else is refused.' },
+  { key: 'app_background_colour', placeholder: 'no colour', label: 'Background colour', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'The colour shown while the app starts, as #rgb or #rrggbb.' },
+  { key: 'app_icon_192', placeholder: 'no icon', label: 'Icon, 192 pixels', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'The path of an image this site serves, such as /icons/app-192.png (png, webp, svg or jpg). The file must already be there: a browser drops the install prompt for an icon that cannot be fetched, so a path to a missing file is refused. Upload it on Files first. Browsers want 192 and 512 pixel icons to offer the install.' },
+  { key: 'app_icon_512', placeholder: 'no icon', label: 'Icon, 512 pixels', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'As above, for the 512 pixel icon.' },
+  { key: 'app_icon_maskable', placeholder: 'no icon', label: 'Icon, maskable (optional)', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'An optional 512 pixel icon drawn to the edge, which the device may crop to its own shape. The file must exist.' },
+  { key: 'app_icon_64', placeholder: 'no icon', label: 'Icon, 64 pixels (optional)', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'An optional small icon. The file must exist.' },
+  { key: 'app_shell', placeholder: 'only what the start page links', label: 'Extra files kept for offline (optional)', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'Site paths, comma separated, that the app keeps beside the start page\'s own stylesheets and scripts so it opens without a network, such as /assets/extra.css. Each must start with a slash.' },
   // SM623: the service toggles are grouped BY WHAT A CLIENT NEEDS, not by the
   // order they were added. They were interleaved - WebDAV, MCP, OAuth, control
   // API, token exchange - so an operator setting up one kind of connection had
@@ -656,19 +692,43 @@ function saveSiteSettings_go(values) {
   SITE_SCHEMA.forEach(function(f) { if (f.type !== 'readonly_with_link') settable[f.key] = true; });
 
   var writes = [];
+  function writeKey(k, v) {
+    return fetch(API + '?action=config-set', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: k, value: v })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { return { key: k, ok: !!d.ok, error: d.error }; });
+  }
   Object.keys(values).forEach(function(k) {
     if (!settable[k]) return;
     var was = (loadedValues[k] == null ? '' : String(loadedValues[k]));
     if (String(values[k]) === was) return;   // unchanged - skip
-    writes.push(
-      fetch(API + '?action=config-set', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: k, value: values[k] })
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(d) { return { key: k, ok: !!d.ok, error: d.error }; })
-    );
+    // SM1191: the scope and the start page are checked against each other, so
+    // they are written one after the other - never in parallel, where each would
+    // be judged against the other's OLD value. A start page that would be left
+    // outside a moved scope is cleared first and written back after it.
+    if (k === 'app_scope' || k === 'app_start_url') return;
+    writes.push(writeKey(k, values[k]));
   });
+  var scopeNew = values.app_scope !== undefined && String(values.app_scope) !== String(loadedValues.app_scope == null ? '' : loadedValues.app_scope);
+  var startNew = values.app_start_url !== undefined && String(values.app_start_url) !== String(loadedValues.app_start_url == null ? '' : loadedValues.app_start_url);
+  if (scopeNew || startNew) {
+    var hadStart = String(loadedValues.app_start_url == null ? '' : loadedValues.app_start_url) !== '';
+    writes.push((function() {
+      var seq = [];
+      if (scopeNew && startNew && hadStart) seq.push(['app_start_url', '']);
+      if (scopeNew) seq.push(['app_scope', values.app_scope]);
+      if (startNew) seq.push(['app_start_url', values.app_start_url]);
+      var last = {};
+      return seq.reduce(function(p, step) {
+        return p.then(function(prev) {
+          if (prev && !prev.ok) return prev;   // stop at the first refusal
+          return writeKey(step[0], step[1]).then(function(r) { last = r; return r; });
+        });
+      }, Promise.resolve(null));
+    })());
+  }
 
   if (!writes.length) {
     clearSiteDirty();

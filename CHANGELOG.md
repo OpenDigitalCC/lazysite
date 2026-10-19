@@ -101,6 +101,16 @@ Archive
   `| html` escaped it twice. `request_uri` is now the path alone, and a new
   `page_url` is the page's address from the configured site address and the
   path, escaped once. The query is also no longer baked into the cached page.
+- SM1191 (PENDING) **an operator without shell can make a site an app.** The
+  0.15.10 walk found the `app_*` settings of SM1155 in neither the Config page
+  nor the config-set allow list, so only a host edit of `lazysite.conf` could
+  install a site as an app. The Config page has an "Install as an app" section
+  (name, short name, scope, start page, two colours, four icons, offline
+  files), and config-set takes the same keys. A value the engine would turn
+  the app off for, or leave out of the manifest, is refused at save and names
+  the key: a scope that is not a `/dir/` path, a start page outside the scope
+  (or a scope that would strand the stored start page), a colour that is not
+  `#rgb` or `#rrggbb`, an icon that is not a file the site serves.
 - SM1186 (PENDING) **odoo: a usage refusal says what to fix.** A read whose
   operation refused its input answered 400 with one sentence that said nothing
   of the input, so a page could not tell the person what to change. The

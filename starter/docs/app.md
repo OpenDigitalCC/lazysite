@@ -34,6 +34,11 @@ app_icon_512: /icons/app-512.png
 app_icon_maskable: /icons/app-maskable.png
 ```
 
+These can also be set without shell access, on the manager's Config page under
+"Install as an app" (or by config-set). A value the app would be turned off
+for, or an icon the site does not serve, is refused when you save, naming the
+setting.
+
 `app_name`
 : The name under the icon and in the install prompt. Setting it turns the app
   on.
