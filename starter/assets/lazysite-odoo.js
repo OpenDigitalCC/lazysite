@@ -5,7 +5,7 @@
  * write its own fetch, and each would get the same things wrong: fetch the
  * visitor token and forget to refresh it, loop on a refusal, show a sign-in box
  * that keeps the password in a variable or a URL, or put what Odoo returned into
- * the page as markup. It does seven things:
+ * the page as markup. It does eight things:
  *
  *   1. fetches the tokens (GET ?csrf=1) and sends the right one on every POST;
  *   2. on a CSRF refusal fetches fresh tokens and retries ONCE - never twice;
@@ -14,7 +14,9 @@
  *   4. signs a person in and out, including Odoo's own two-factor code step;
  *   5. fills regions of the page from a binding, as text;
  *   6. runs several calls in one request (`batch`, SM1146);
- *   7. shows who is signed in, from the tokens it already fetches (SM1145).
+ *   7. shows who is signed in, from the tokens it already fetches (SM1145);
+ *   8. sends a File (or Blob, or a list of them) in a binding call's params as
+ *      multipart/form-data (SM1162), see `write` below.
  *
  * THE SECOND FACTOR (SM1157). An Odoo account with two-factor authentication
  * answers the password with { second_factor: 'totp' } and nothing else: the
@@ -88,14 +90,17 @@
   /* One request. Resolves { status, data } - never rejects on an HTTP status,
    * so a caller reads what the endpoint said; rejects only when it could not
    * ask at all. */
-  function send(method, query, body) {
+  function send(method, query, body, form) {
     var opts = {
       method: method,
       credentials: 'same-origin',
       cache: 'no-store',
       headers: { 'Accept': 'application/json' }
     };
-    if (body !== undefined) {
+    if (form) {
+      /* SM1162: a FormData. No Content-Type here: the browser writes it, with the boundary. */
+      opts.body = form;
+    } else if (body !== undefined) {
       opts.headers['Content-Type'] = 'application/json';
       opts.body = JSON.stringify(body);
     }
@@ -152,6 +157,47 @@
 
   function get(params) { return send('GET', encodeQuery(params)); }
 
+  /* SM1162: FILES. A File is a Blob. A value that is one (or a non-empty list of
+   * them) is a file, and goes as a part of a multipart request; everything else
+   * goes in the JSON part, as it always has. */
+  function isBlob(v) { return !!root.Blob && v instanceof root.Blob; }
+  function isFiles(v) {
+    return isBlob(v) || (Array.isArray(v) && v.length > 0 && v.every(isBlob));
+  }
+  function splitFiles(params) {
+    var plain = {}, files = {}, any = false;
+    Object.keys(params || {}).forEach(function (k) {
+      if (isFiles(params[k])) { files[k] = [].concat(params[k]); any = true; }
+      else plain[k] = params[k];
+    });
+    return { plain: plain, files: any ? files : null };
+  }
+
+  /* One multipart POST: the JSON body (params and the token) as the part named
+   * `json`, each file as a part named for its field. The binding is in the query
+   * so the server knows its size cap before it reads the body. The FormData is
+   * built afresh for each send, so a retry never reuses a spent one. */
+  function formFor(binding, split, t) {
+    var fd = new root.FormData();
+    fd.append('json', JSON.stringify(withTokens({ binding: binding, params: split.plain }, t)));
+    Object.keys(split.files).forEach(function (field) {
+      split.files[field].forEach(function (b) { fd.append(field, b, b.name || 'file'); });
+    });
+    return fd;
+  }
+
+  function postFiles(binding, split) {
+    var q = 'binding=' + encodeURIComponent(binding);
+    return getTokens(false).then(function (t) {
+      return send('POST', q, undefined, formFor(binding, split, t)).then(function (r) {
+        if (!isCsrf(r)) return r;
+        return getTokens(true).then(function (t2) {
+          return send('POST', q, undefined, formFor(binding, split, t2));
+        });
+      });
+    });
+  }
+
   /* The sign-in step of a call: if the endpoint says to sign in, ask the person
    * - once - and send the same call again - once. A cancelled or refused
    * sign-in ends it with the answer the endpoint gave. */
@@ -173,7 +219,15 @@
 
   /* run a binding that may WRITE: POST {binding, params}. A write returns a
    * plan to confirm, or applies, as the binding says. */
+  /* SM1162: a File, a Blob or a list of them among the params is sent as
+   * multipart/form-data, the rest in its JSON part; the binding names which
+   * request field is a file (file_params) and how large one may be. A binding
+   * call with no file goes exactly as before. */
   API.write = function (binding, params, opts) {
+    var split = splitFiles(params);
+    if (split.files) {
+      return withSignin(function () { return postFiles(binding, split); }, opts);
+    }
     return withSignin(function () { return post({ binding: binding, params: params || {} }); }, opts);
   };
 
@@ -219,6 +273,11 @@
 
   API.batch = function (calls, opts) {
     var list = (calls || []).slice();
+    /* SM1162: a batch carries no files; each file goes in a write() of its own */
+    var withFile = list.some(function (c) {
+      return c && c.params && Object.keys(c.params).some(function (k) { return isFiles(c.params[k]); });
+    });
+    if (withFile) return Promise.reject(new Error('a batch carries no files: send each call with a file as its own write()'));
     function run(items) { return post({ calls: items }); }
     return run(list).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.results) return r;

@@ -159,6 +159,40 @@ says what a request may set and who may cause it:
 : Optional. A whole number that lowers the cap on a `rows` parameter for this
   binding; it cannot raise the operation's own `max`.
 
+`file_params`
+: `field=parameter`, comma separated - **the request's files** (OOM 0.34 file
+  parameters). Each request file field goes into a parameter the operation
+  declares as `file` (one file) or `files` (a list, at most the operation's own
+  `max`, never more than 10), or into a `set.<field>` of a binary field
+  (`core.make`, `core.set`; OOM checks at plan that the field is binary).
+  The operations that take one: `core.attach` (`file`), `crm.attach` (`file`),
+  `discuss.post` (`files`), `core.make` and `core.set` (`set.<field>`). A file is
+  a different source from `params`, `fixed` and `visitor_param`, and a parameter
+  has one of them. A plain `params` mapping into a file parameter is refused at
+  save. The request carries a file only as a part of a multipart request (see
+  *Where a binding runs*).
+
+`file_max_kb`
+: **Required when `file_params` maps a file**; a binding that maps one without it
+  is refused when it is saved. The most one file may be, in KB. It cannot exceed
+  the operation's own `max_bytes` for that parameter (OOM's default is 25 MB) or
+  the endpoint's ceiling of **20 MB** (20480) for one file, and saving says which
+  it was over. A request whose declared `Content-Length` is more than the binding's
+  files can weigh (this cap for each file it can be given, the 64 KB JSON part and
+  the multipart framing) is refused `413 too-large`, naming the cap, **before its
+  body is read**. A file over the cap inside a body that passed is refused the same
+  way.
+
+`file_types`
+: Optional: `type/subtype` names, comma separated (`image/jpeg,image/png,application/pdf`;
+  no wildcard). The type of a file is **read from its bytes** (OOM's reading of the
+  first bytes: JPEG, PNG, GIF, WebP and PDF; any other content is
+  `application/octet-stream`), never taken from the browser's `Content-Type` or the
+  file's name. With `file_types`, a file whose bytes are of another type is refused
+  (`invalid`, naming the type found and those accepted). A type the browser claimed
+  that the bytes contradict (a PDF sent as `image/jpeg`) is refused with or without
+  `file_types`. Empty: any type, and the operation is told what the bytes are.
+
 `fixed`
 : `parameter=value`, comma separated. Set by the operator; nothing a request
   sends overrides one. A `json` or `list` parameter can only be fixed (a
@@ -265,6 +299,25 @@ The page endpoint, `/cgi-bin/lazysite-odoo.pl`
   for each call against what that call's binding needs. A call cannot carry a token
   of its own, and a sign-in or sign-out is not a batch call. If Odoo ends the
   person's session during a batch, the calls after it do not run on it.
+
+  `POST` with `Content-Type: multipart/form-data` and **`?binding=ID`** in the query
+  runs a binding with files (a receipt photo, a delivery photo, a signed document).
+  The part named `json` is the JSON body above - `params` and the token, at most
+  64 KB - and each file is a part named for the binding's file field, with a file
+  name (a list repeats the name). The binding is in the query because its
+  `file_max_kb` is what the request's `Content-Length` is held to before the body is
+  read. It runs through the same checks as a JSON call, unchanged: the token, the
+  mode and callers, the address rules, the sign-in-first answer of a session binding,
+  the rate caps. **A batch carries no files**, and a confirm, a sign-in and a
+  sign-out are JSON requests: a multipart request with any of them is refused by
+  name. The operation is given `{name, bytes, mimetype}` per file, in the process or
+  through the daemon alike. The bytes are held in memory only: no temporary file is
+  made, and nothing is written to the served tree. They are never in an answer, the
+  call record, the audit trail or the log: a line of the log says the binding, the
+  file's name, size, SHA-256 and type, and that is all. Where the operation keeps the
+  file in its plan (OOM keeps an attachment's bytes once, in the plan's `blobs/`
+  folder, so that a confirm can apply them), they are in that plan's folder of the
+  private store (`lazysite/odoo/plans/`, 0600), which is removed with the plan.
 
 A page binding, `odoo:ID`
 : In `tt_page_var`, for example `stock: odoo:shop-list`, puts the report of a
@@ -534,6 +587,20 @@ no such element asks for nothing. `LazysiteOdoo.who()` resolves `{name}` or
 request: a call refused for a stale token, or for want of a sign-in, is sent again
 once - those calls only - and the person is asked once.
 
+`LazysiteOdoo.write(binding, params)` sends a binding call whose params hold a
+`File` or `Blob`, or a list of them, as `multipart/form-data` (the binding must map
+that field with `file_params`): the plain params and the token go in the JSON part,
+each file in a part named for its field, and the binding in the query. The browser
+writes the `Content-Type` and its boundary. A stale token is retried once and a
+sign-in asked for once, as for any call, with the whole body built again. A call
+with no file goes as the JSON request it always was. `batch` refuses a call that
+carries a file, by name, before sending anything.
+
+```
+const photo = input.files[0];                 // a <input type="file">
+LazysiteOdoo.write('expense-receipt', { amount: '12.50', receipt: photo });
+```
+
 A region runs the binding with the request fields named by its `data-ls-odoo-<name>`
 attributes and fills its `<template>` from the rows, as text, for the fields the server
 drew. The module fetches the tokens, sends a stale one again once, and when the
@@ -588,7 +655,8 @@ never returned. The kinds a caller meets most:
 | `two-factor` | 403 | the account has two-factor authentication and the installed OOM cannot take the code (before 0.27) |
 | `signin-refused`, `signin-required` | 401 | the password was refused, or the sign-in (or its pending code step) has ended: sign in again |
 | `second-factor` | 401 | Odoo did not accept the code; the person may try again |
-| `invalid` | 400 | a parameter is unmapped, of the wrong type, or missing |
+| `invalid` | 400 | a parameter is unmapped, of the wrong type, or missing; for a file, of a type the binding does not accept, a name that is not a plain name, or too many files |
+| `too-large` | 413 | a multipart request is larger than the binding's `file_max_kb` allows (refused before its body is read), or one file is over the cap |
 | `rate` | 429 | a rate cap is reached |
 | `not-found` | 404 | no such binding, or no such plan for this caller |
 | `stale`, `edited`, `applied` | 409 | the plan no longer fits Odoo, or was already applied |

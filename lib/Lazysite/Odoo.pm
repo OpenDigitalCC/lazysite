@@ -882,6 +882,11 @@ sub call {
     # binding handed one anyway ignores it, so what runs as the connection user
     # is never labelled, owned or recorded as a person.
     delete $ctx{odoo_session} unless session_binding($b);
+
+    # SM1162: the files of a multipart request, taken out of the context at once:
+    # the bytes go to assemble() and to the operation and to nothing that copies
+    # the context (the gate, the record, a log line).
+    my $files = delete $ctx{files};
     my %c = _with_visitor(%ctx);
     my ( $ok, $conn ) = gate( $b, %c );
     return $conn unless $ok;
@@ -907,9 +912,9 @@ sub call {
     return $refusal unless $class;
 
     require Lazysite::Odoo::Binding;
-    my ( $params, $pwhy ) = Lazysite::Odoo::Binding::assemble( $b, $class, $input,
-        visitor => $ctx{visitor_key}, strict => $ctx{strict} );
-    return ( _refusal( \%rec, 'invalid', $pwhy ) )[1] unless $params;
+    my ( $params, $pwhy, $pkind ) = Lazysite::Odoo::Binding::assemble( $b, $class, $input,
+        visitor => $ctx{visitor_key}, strict => $ctx{strict}, ( $files ? ( files => $files ) : () ) );
+    return ( _refusal( \%rec, $pkind // 'invalid', $pwhy ) )[1] unless $params;
 
     if ( $class->writes && $b->{apply} ne 'immediate' && !length _owner(%c) ) {
         return ( _refusal( \%rec, 'no-owner',
@@ -920,10 +925,60 @@ sub call {
     my ( $capok, $capwhy ) = _take_cap( $b, $class, %c );
     return ( _refusal( \%rec, 'rate', $capwhy ) )[1] unless $capok;
 
+    _log_files( \%rec, $params ) if $files;
+
     my $t0  = _now_hires();
     my $res = eval { _run( $b, $class, $conn, $params, \%c ) };
     return _session_end( $b,
         _finish( \%rec, $res, $@, $t0, $class->writes ? ( $b->{apply} eq 'immediate' ? 'apply' : 'plan' ) : 'run' ) );
+}
+
+# SM1162: what a binding's files weigh at the endpoint, BEFORE the body is read.
+# ( the cap on one file in bytes, the most files the binding can be given ). The
+# count comes from the operation's own declaration where the registry can be read
+# (a `file` parameter takes one, a `files` parameter its `max`), else OOM's
+# ten-per-list rule is assumed, which can only be too generous, never too tight.
+sub upload_budget {
+    my ($b) = @_;
+    require Lazysite::Odoo::Binding;
+    my $cap    = ( $b->{file_max_kb} // 0 ) * 1024;
+    my ($conn) = eval { connection() };
+    my $class = $conn ? eval { ( operation_class( $conn, $b->{operation} ) )[0] } : undef;
+    my $spec  = $class ? ( eval { $class->params } || {} ) : {};
+    my $n     = 0;
+    for my $p ( values %{ $b->{file_params} || {} } ) {
+        my $d = Lazysite::Odoo::Binding::param_decl( $spec, $p ) || {};
+        my $t = $d->{type} // ( $class ? 'file' : 'files' );
+        if ( $t eq 'files' ) {
+            my $m = defined $d->{max} && $d->{max} =~ /\A[0-9]+\z/ ? $d->{max} : $Lazysite::Odoo::Binding::MAX_FILES;
+            $n += $m > $Lazysite::Odoo::Binding::MAX_FILES ? $Lazysite::Odoo::Binding::MAX_FILES : $m;
+        }
+        else { $n += 1 }
+    }
+    return ( $cap, $n || 1 );
+}
+
+# SM1162: one log line per file an operation is given - name, size, sha256 and
+# type, and never the bytes, which are in the call and nowhere else. The call_id
+# ties the line to the call record.
+sub _log_files {
+    my ( $rec, $params ) = @_;
+    require Digest::SHA;
+    my @files;
+    my $walk;
+    $walk = sub {
+        my ($v) = @_;
+        if ( ref $v eq 'HASH' && defined $v->{bytes} && !ref $v->{bytes} && defined $v->{name} ) { push @files, $v; return }
+        $walk->($_) for ref $v eq 'HASH' ? values %$v : ref $v eq 'ARRAY' ? @$v : ();
+    };
+    $walk->($params);
+    for my $f (@files) {
+        log_event( 'INFO', 'odoo', 'a file was given to an operation',
+            call_id => $rec->{call_id}, binding => $rec->{binding}, operation => $rec->{operation},
+            name => $f->{name}, bytes => length $f->{bytes}, sha256 => Digest::SHA::sha256_hex( $f->{bytes} ),
+            mimetype => $f->{mimetype} // '' );
+    }
+    return;
 }
 
 # confirm( $plan_id, %ctx ) -> { ok, ... }

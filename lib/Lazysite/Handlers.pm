@@ -324,6 +324,20 @@ our %TYPES      = (
             { key => 'rows_max', label => 'Cap: rows in a list a request gives', type => 'number',
                 note => 'Optional. A parameter the operation declares as a list of rows has a cap '
                     . 'of its own; this can only lower it, for this binding.' },
+            # SM1162: a binding that takes a file from a multipart request.
+            { key => 'file_params', label => 'Files from the request', type => 'text',
+                max_len => 4000,
+                note => 'field=parameter, comma separated: a request file field mapped to a '
+                    . 'parameter the operation declares as a file or a list of files (or to a '
+                    . 'set.<field> of a binary field). Needs file_max_kb.' },
+            { key => 'file_max_kb', label => 'Cap: size of one file (KB)', type => 'number',
+                note => 'Required when files are mapped. A whole number, at most the operation\'s '
+                    . 'own max_bytes and the endpoint\'s ceiling. A request larger than this is '
+                    . 'refused before it is read.' },
+            { key => 'file_types', label => 'Types of file accepted', type => 'text',
+                note => 'Optional: type/subtype names, comma separated, such as '
+                    . 'image/jpeg,image/png,application/pdf. The type is read from the file\'s '
+                    . 'bytes, never taken from the browser. Empty: any type.' },
             # SM1173: NO schema default - a default here is saved into the binding
             # and would pin a read to the write numbers. Empty stands for the
             # default of what the binding does.

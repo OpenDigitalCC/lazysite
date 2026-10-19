@@ -17,6 +17,14 @@
 #   POST {binding, params}       run a binding (a write plans, or applies when
 #                                the binding says immediate)
 #   POST {plan, confirm: true}   apply a plan this caller made
+#   POST multipart/form-data, ?binding=ID
+#                                a binding call that carries FILES (SM1162): the part
+#                                named json is the JSON body above (params, tokens), a
+#                                part per file is named for the binding's file field.
+#                                The binding is named in the query so its cap
+#                                (file_max_kb) can refuse the body at its declared
+#                                CONTENT_LENGTH before a byte of it is read. A batch
+#                                carries no files.
 #   POST {calls: [{binding, params}, ...]}
 #                                up to 10 of the above in one request, answered
 #                                in order, each its own status (SM1146)
@@ -232,7 +240,17 @@ sub main {
 
     my $len = $ENV{CONTENT_LENGTH} || 0;
     my ( $req, $raw ) = ( undef, '' );
-    if ( $method eq 'POST' ) {
+
+    # SM1162: a request that carries files is read by its own branch, which knows
+    # the binding (and so the cap) before it reads the body.
+    my $multipart = $method eq 'POST' && ( $ENV{CONTENT_TYPE} // '' ) =~ m{\Amultipart/form-data\b}i;
+    my $files;
+    if ($multipart) {
+        my $refused;
+        ( $req, $files, $refused ) = _read_multipart( $docroot, $q, $len );
+        return reply(@$refused) if $refused;
+    }
+    if ( $method eq 'POST' && !$multipart ) {
         return reply( '413 Payload Too Large', { ok => 0, kind => 'too-large', error => 'body too large' } )
             if $len > 64 * 1024;
         read( STDIN, $raw, $len ) if $len;
@@ -282,6 +300,10 @@ sub main {
         return _answer( _timed( sub { Lazysite::Odoo::call( $b, $q, _ctx( $b, %who ), strict => 1 ) } ), \%who );
     }
 
+    if ($files) {    # SM1162: the checks of a call are _post_one's, unchanged
+        $who{odoo_session} = _refresh_identity(%who);
+        return reply( _post_one( $req, \%who, files => $files ) );
+    }
     return _signin( $req, %who )  if $req->{signin};
     return _signin_code( $req, %who ) if $req->{signin_code};
     return _signout( $req, %who ) if $req->{signout};
@@ -337,7 +359,7 @@ sub _who_is_signed_in {
 # call. $who is mutated when Odoo ends the person's session, so a later call in
 # the same batch does not run on a session that has gone.
 sub _post_one {
-    my ( $req, $who ) = @_;
+    my ( $req, $who, %o ) = @_;
     if ( $req->{confirm} ) {
         # A confirm names no binding: which binding, and so which mode, is the
         # plan's. The caller's token must fit what the caller is.
@@ -369,7 +391,74 @@ sub _post_one {
     return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req, $b );
     return ( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'params must be an object' } )
         if defined $req->{params} && ref $req->{params} ne 'HASH';
-    return _settle( _timed( sub { Lazysite::Odoo::call( $b, $req->{params} // {}, %ctx, strict => 1 ) } ), $who );
+    return _settle( _timed( sub { Lazysite::Odoo::call( $b, $req->{params} // {}, %ctx, strict => 1, ( $o{files} ? ( files => $o{files} ) : () ) ) } ), $who );
+}
+
+# SM1162: THE BODY OF A MULTIPART CALL -> ( $req, \%files ) or ( undef, undef, [ status, data ] ).
+#
+# Every refusal that can be made WITHOUT the body is made first, in this order:
+# the binding must be named in the query, must exist, must be reachable from this
+# address, must map a file; then the declared CONTENT_LENGTH is held to what the
+# binding's files can weigh (file_max_kb for each file it can be given, the 64 KB
+# JSON part and the framing) and to the endpoint's ceiling - over it, 413 and the
+# body is never read. Only then is it read, parsed, and its json part checked
+# for what a multipart request is not: a batch, a confirm, a sign-in.
+# The tokens, the mode, the callers and the sign-in-first rule (SM1168) are
+# _post_one's and run unchanged on the request this returns.
+sub _read_multipart {
+    my ( $docroot, $q, $len ) = @_;
+    my $no = sub {
+        my ( $kind, $error ) = @_;
+        return ( undef, undef, [ _refusal_pair( { ok => 0, kind => $kind, error => $error } ) ] );
+    };
+    require Lazysite::Odoo::Upload;
+    my $bnd = Lazysite::Odoo::Upload::boundary( $ENV{CONTENT_TYPE} );
+    return $no->( 'invalid', 'the multipart request has no boundary in its Content-Type' ) unless defined $bnd;
+    my $id = $q->{binding};
+    return $no->( 'invalid',
+        'a multipart request names its binding in the query string (?binding=ID): its size cap must be '
+            . 'known before the body is read' )
+        unless defined $id && length $id;
+    _engine($docroot);
+    my ( $b, $why ) = Lazysite::Odoo::find_binding($id);
+    return $no->( 'not-found', $why ) unless $b;
+    if ( my $r = _address_refusal($b) ) { return ( undef, undef, [ _refusal_pair($r) ] ) }
+    return $no->( 'invalid', "the binding '$id' takes no file" ) unless %{ $b->{file_params} || {} };
+
+    my ( $cap, $n ) = Lazysite::Odoo::upload_budget($b);
+    my $allow = Lazysite::Odoo::Upload::allowance( $cap, $n );
+    return $no->( 'too-large',
+        "the request is $len bytes; this binding takes at most $b->{file_max_kb} KB for one file "
+            . "(file_max_kb) and $allow bytes in all" )
+        if $len > $allow;
+    return $no->( 'invalid', 'the multipart request has no body' ) unless $len > 0;
+
+    my $body = '';
+    my $got  = 0;
+    binmode STDIN;
+    while ( $got < $len ) {
+        my $r = read( STDIN, $body, $len - $got, $got );
+        last unless $r;
+        $got += $r;
+    }
+    return $no->( 'invalid', "the body is $got bytes where Content-Length said $len" ) unless $got == $len;
+
+    my ( $parts, $perr ) = Lazysite::Odoo::Upload::parse( $body, $bnd );
+    undef $body;
+    return $no->( 'invalid', $perr ) unless $parts;
+    my $req = {};
+    if ( defined $parts->{json} && length $parts->{json} ) {
+        $req = eval { JSON::PP->new->utf8->decode( $parts->{json} ) };
+        return $no->( 'invalid', 'the json part must be a JSON object' ) unless ref $req eq 'HASH';
+    }
+    return $no->( 'invalid', 'a batch carries no files: send each call with files as its own multipart request' )
+        if exists $req->{calls};
+    return $no->( 'invalid', 'a multipart request runs one binding with its files; a confirm, a sign-in and a sign-out are JSON requests' )
+        if grep { exists $req->{$_} } qw(plan confirm signin signin_code signout);
+    return $no->( 'invalid', "the json part names the binding '$req->{binding}' and the query '$id'" )
+        if defined $req->{binding} && $req->{binding} ne $id;
+    $req->{binding} = $id;
+    return ( $req, $parts->{files} || {}, undef );
 }
 
 # SM1146 (the OOM Lab's P2): SEVERAL CALLS IN ONE REQUEST. A page with N reads

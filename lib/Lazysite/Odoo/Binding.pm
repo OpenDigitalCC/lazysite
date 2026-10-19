@@ -19,6 +19,13 @@ package Lazysite::Odoo::Binding;
 #                  may be fed (SM1166): `rows`, OOM 0.32's declared list of
 #                  small rows of plain values with a cap - no row value is
 #                  anything but a plain value, so it cannot hold a domain.
+#   file_params    `field=parameter` (SM1162) - a request FILE field, from a
+#                  multipart request, into a parameter the operation declares as
+#                  a file (OOM 0.34: `file`, or `files` for a list) or into a
+#                  `set.<field>` (a binary field, which OOM checks at plan). The
+#                  bytes are not a request value: they are never a plain value,
+#                  never in `params`, and the binding must say how large one may
+#                  be (`file_max_kb`) and may say which types (`file_types`).
 #   fixed          `parameter=value` - the operator's, and the request cannot
 #                  override one.
 #   visitor_param  the parameter that receives the visitor's key - minted by
@@ -58,6 +65,17 @@ our %FROM_INPUT = map { $_ => 1 } qw(str int bool);
 
 # SM1166: the type a request may feed as a LIST, checked row by row.
 our $ROWS = 'rows';
+
+# SM1162: the types a request file feeds, and the hard ceiling on one file
+# whatever a binding or an operation allows. A request is held in memory while it
+# is parsed, so the ceiling is the endpoint's, not the operation's (OOM's own
+# default is 25 MB).
+our %FILE_TYPE         = ( file => 1, files => 1 );
+our $FILE_CEILING_KB   = 20 * 1024;
+our $MAX_FILES         = 10;    # OOM's own cap on a list of files (Odoo::Ops::File)
+our $DEFAULT_MAX_BYTES = 25 * 1024 * 1024;
+my $MIME = qr{\A[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*\z};
+
 
 # How long a plain value from a request may be. A basket line is a few
 # characters; this bounds what a script can push through one parameter.
@@ -121,6 +139,12 @@ sub parse {
     return ( undef, $fwhy, 'fixed' ) unless $fixed;
     $b{fixed} = $fixed;    # parameter => value
 
+    # SM1162: files from a multipart request, each into a file parameter.
+    my ( $fin, $fiwhy ) = _pairs( $h->{file_params}, 'file_params', 'a request file field',
+        [ $FIELD, $ANY_PARAM, 'a parameter name' ] );
+    return ( undef, $fiwhy, 'file_params' ) unless $fin;
+    $b{file_params} = $fin;    # field => parameter
+
     my $vp = $h->{visitor_param} // '';
     return ( undef, "visitor_param '$vp' is not a parameter name", 'visitor_param' )
         if length $vp && $vp !~ $PARAM;
@@ -131,8 +155,9 @@ sub parse {
 
     # ONE SOURCE PER PARAMETER.
     my %src;
-    push @{ $src{$_} },  'params' for values %$in;
-    push @{ $src{$_} },  'fixed'  for keys %$fixed;
+    push @{ $src{$_} },  'params'      for values %$in;
+    push @{ $src{$_} },  'fixed'       for keys %$fixed;
+    push @{ $src{$_} },  'file_params' for values %$fin;
     push @{ $src{$vp} }, 'visitor_param' if length $vp;
     for my $p ( sort keys %src ) {
         return ( undef, "parameter '$p' is set by " . join( ' and ', @{ $src{$p} } )
@@ -205,6 +230,36 @@ sub parse {
         $b{rows_max} = 0 + $rm;
     }
 
+    # SM1162: the cap on one file, REQUIRED when a file is mapped (as SM1166's R2
+    # asks a rows parameter for its max): nothing else bounds what a visitor may
+    # push at the endpoint. Never above the ceiling; never above the operation's
+    # own max_bytes (that one is checked against the registry, check_against).
+    my $fk      = $h->{file_max_kb};
+    my $fk_said = defined $fk && length $fk;
+    if (%$fin) {
+        return ( undef, 'file_max_kb is required when file_params maps a file: a whole number of '
+                . "KB, at most $FILE_CEILING_KB (the endpoint's ceiling)", 'file_max_kb' )
+            unless $fk_said;
+        return ( undef, 'file_max_kb must be a whole number of at least 1', 'file_max_kb' )
+            unless $fk =~ /\A[1-9][0-9]{0,8}\z/;
+        return ( undef, "file_max_kb $fk is above the endpoint's ceiling of $FILE_CEILING_KB KB for one file",
+            'file_max_kb' )
+            if $fk > $FILE_CEILING_KB;
+        $b{file_max_kb} = 0 + $fk;
+    }
+    elsif ($fk_said) {
+        return ( undef, 'file_max_kb caps a file the binding maps with file_params; it maps none', 'file_max_kb' );
+    }
+    my @ft = grep { length } map { s/\A\s+|\s+\z//gr } split /,/, ( $h->{file_types} // '' );
+    if (@ft) {
+        return ( undef, 'file_types limits the files file_params maps; it maps none', 'file_types' ) unless %$fin;
+        for (@ft) {
+            return ( undef, "file_types: '$_' is not a type/subtype name (such as image/png; no wildcard)", 'file_types' )
+                unless $_ eq lc $_ && $_ =~ $MIME;
+        }
+        $b{file_types} = \@ft;
+    }
+
     # SM1173 (OOM Lab L-14): the caps. What the binding says stands, above or
     # below the default, for a read as for a write (no ceiling). What it leaves
     # out is the default for WHAT IT DOES - decided at the call, where the
@@ -236,7 +291,7 @@ sub parse {
 sub check_against {
     my ( $b, $class ) = @_;
     my $spec = $class->params || {};
-    for my $p ( sort( values %{ $b->{params} } ), sort( keys %{ $b->{fixed} } ),
+    for my $p ( sort( values %{ $b->{params} } ), sort( keys %{ $b->{fixed} } ), sort( values %{ $b->{file_params} || {} } ),
         ( length $b->{visitor_param} ? $b->{visitor_param} : () ) )
     {
         my $d = param_decl( $spec, $p );
@@ -262,11 +317,29 @@ sub check_against {
                 unless ref $d->{row} eq 'HASH' && %{ $d->{row} };
             next;
         }
+        return "parameter '$p' is a file - a request file field reaches it through file_params "
+            . '(a multipart request), never through params'
+            if $FILE_TYPE{$t};
         return "parameter '$p' is $t - a request may feed only a plain value (str, int, bool) "
             . 'or a declared list of rows; fix it with fixed: instead'
             unless $FROM_INPUT{$t};
     }
-    my %covered = map { $_ => 1 } values %{ $b->{params} }, keys %{ $b->{fixed} },
+    # SM1162: a request file field goes only into a file (or files) parameter, or a
+    # set.<field> (a binary field: OOM refuses a field that is not one, at plan),
+    # and the binding's cap on one file cannot exceed what the operation allows.
+    for my $p ( sort values %{ $b->{file_params} || {} } ) {
+        my $d   = param_decl( $spec, $p );
+        my $t   = $d->{type} // 'str';
+        my $set = $p =~ $SET_PARAM && !$spec->{$p};
+        return "parameter '$p' is $t, not a file - file_params maps a request file field only to a "
+            . 'file or files parameter (or a set.<field> of a binary field)'
+            unless $FILE_TYPE{$t} || $set;
+        my $max = $d->{max_bytes} // $DEFAULT_MAX_BYTES;
+        return "file_max_kb $b->{file_max_kb} is above the $max bytes parameter '$p' of $b->{operation} "
+            . 'declares (max_bytes)'
+            if $b->{file_max_kb} * 1024 > $max;
+    }
+    my %covered = map { $_ => 1 } values %{ $b->{params} }, keys %{ $b->{fixed} }, values %{ $b->{file_params} || {} },
         ( length $b->{visitor_param} ? $b->{visitor_param} : () );
     for my $p ( sort keys %$spec ) {
         return "$b->{operation} requires '$p' and the binding gives it no source"
@@ -330,6 +403,79 @@ sub _rows {
     return ( $rows, '' );
 }
 
+# SM1162: ONE FILE OF A REQUEST, as the value the operation takes - { name, bytes,
+# mimetype } - or ( undef, why, kind ). `kind` is set where it is not plain
+# `invalid` (too-large). In this order, each step refusing the whole call:
+#   1. the file is not empty and is within THIS binding's cap (file_max_kb);
+#   2. its type is read from its BYTES (OOM's sniff), never from the browser;
+#   3. the binding's file_types, when it names any, hold that type;
+#   4. a type the browser claimed that the bytes contradict is refused (a PDF
+#      sent as image/jpeg), a claim the bytes cannot confirm is ignored;
+#   5. OOM's own rule for a file value (a plain name, the operation's max_bytes).
+# `$f` = { name, bytes, claimed }. Nothing here returns or logs the bytes.
+my %SNIFFED = map { $_ => 1 } qw(image/jpeg image/png image/gif image/webp application/pdf);
+
+sub _file_value {
+    my ( $b, $class, $decl, $field, $f, $label ) = @_;
+    my $bytes = $f->{bytes};
+    return ( undef, "$label is empty" ) unless defined $bytes && length $bytes;
+    my $cap = ( $b->{file_max_kb} // 0 ) * 1024;
+    return ( undef, "$label is " . length($bytes) . " bytes; this binding takes at most $b->{file_max_kb} KB "
+            . 'for one file (file_max_kb)', 'too-large' )
+        if length $bytes > $cap;
+
+    return ( undef, 'this OOM has no file parameters (0.34 or later)' ) unless eval { require Odoo::Ops::File; 1 };
+    my $sniffed = Odoo::Ops::File->sniff($bytes);
+    my @types   = @{ $b->{file_types} || [] };
+    return ( undef, "$label is $sniffed (read from its bytes); this binding accepts " . join( ', ', @types ) )
+        if @types && !grep { $_ eq $sniffed } @types;
+    my $claimed = lc( $f->{claimed} // '' );
+    $claimed =~ s/\s*;.*//s;
+    $claimed = 'image/jpeg' if $claimed =~ m{\Aimage/(?:jpg|pjpeg)\z};
+    return ( undef, "$label claims $claimed but its bytes are $sniffed" )
+        if $SNIFFED{$claimed} && $claimed ne $sniffed;
+
+    my $name = defined $f->{name} ? $f->{name} : '';
+    $name =~ s{.*[/\\]}{};
+    $name =~ s/[\x00-\x1f\x7f]//g;
+    my %d = %$decl;
+    $d{max_bytes} = $DEFAULT_MAX_BYTES unless defined $d{max_bytes};
+    ( my $plain = $label ) =~ s/'//g;
+    my $v = eval { Odoo::Ops::File->check( $b->{operation}, $plain, { name => $name, bytes => $bytes, mimetype => $sniffed }, \%d ) };
+    unless ($v) {
+        my $e = $@;
+        return ( undef, ( ref $e && $e->can('message') ? $e->message : "$label is not a usable file" ),
+            ( ref $e && $e->can('code') && ( $e->code // '' ) eq 'too-large' ? 'too-large' : () ) );
+    }
+    return ($v);
+}
+
+# SM1162: the request's files for field $field -> ( value, '' ) or ( undef, why, kind ).
+# A `file` parameter takes one; a `files` parameter takes a list of at most the
+# operation's own `max` (and OOM's ten); a set.<field> takes one.
+sub _files {
+    my ( $b, $class, $decl, $field, $list ) = @_;
+    my $t = $decl->{type} // 'str';
+    if ( $t ne 'files' ) {
+        return ( undef, "'$field' takes one file, and the request sent " . scalar(@$list) ) if @$list > 1;
+        my ( $v, $why, $kind ) = _file_value( $b, $class, $decl, $field, $list->[0], "'$field'" );
+        return ( undef, $why, $kind ) unless $v;
+        return ( $v, '' );
+    }
+    my $max = defined $decl->{max} && $decl->{max} =~ /\A[0-9]+\z/ ? $decl->{max} : $MAX_FILES;
+    $max = $MAX_FILES if $max > $MAX_FILES;
+    return ( undef, "'$field' takes at most $max files, and the request sent " . scalar(@$list) ) if @$list > $max;
+    my @out;
+    my $n = 0;
+    for my $f (@$list) {
+        $n++;
+        my ( $v, $why, $kind ) = _file_value( $b, $class, $decl, $field, $f, "'$field' file $n" );
+        return ( undef, $why, $kind ) unless $v;
+        push @out, $v;
+    }
+    return ( \@out, '' );
+}
+
 sub assemble {
     my ( $b, $class, $input, %o ) = @_;
     $input = {} unless ref $input eq 'HASH';
@@ -366,6 +512,22 @@ sub assemble {
         return ( undef, "'$field' cannot be given by a request" ) unless $FROM_INPUT{$t};
         $out{$p} = "$v";
     }
+    # SM1162: the files of a multipart request. A file the binding does not map, or a
+    # request with files to a binding that maps none, is refused by name.
+    if ( my $files = $o{files} ) {
+        my @loose = sort grep { !exists $b->{file_params}{$_} } keys %$files;
+        return ( undef, "this binding takes no file named '$loose[0]'" . ( %{ $b->{file_params} }
+                ? '. It takes: ' . join( ', ', sort keys %{ $b->{file_params} } ) : ' - it takes no file at all' ) )
+            if @loose;
+        for my $field ( sort keys %{ $b->{file_params} } ) {
+            next unless $files->{$field} && @{ $files->{$field} };
+            my $p    = $b->{file_params}{$field};
+            my $decl = param_decl( $spec, $p ) || {};
+            my ( $v, $why, $kind ) = _files( $b, $class, $decl, $field, $files->{$field} );
+            return ( undef, $why, $kind ) unless defined $v;
+            $out{$p} = $v;
+        }
+    }
     $out{$_} = $b->{fixed}{$_} for keys %{ $b->{fixed} };
     if ( length $b->{visitor_param} ) {
         return ( undef, 'this binding works for a visitor, and the request carries no visitor '
@@ -376,6 +538,7 @@ sub assemble {
     for my $p ( sort keys %$spec ) {
         next if exists $out{$p} || defined $spec->{$p}{default};
         my ($field) = grep { $b->{params}{$_} eq $p } keys %{ $b->{params} };
+        ($field) = grep { $b->{file_params}{$_} eq $p } keys %{ $b->{file_params} } unless defined $field;
         return ( undef, ( defined $field ? "'$field' is required" : "the operation's '$p' is required" ) )
             if $spec->{$p}{required};
     }

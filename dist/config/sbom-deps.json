@@ -249,6 +249,12 @@
       "debian_pkg": "libodoo-oom-perl",
       "used_by": "Odoo extension (SM1164): asks oomd's health verb for Status and the version check; lazy-required only when the extension runs"
     },
+    "Odoo::Ops::File": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libodoo-oom-perl",
+      "used_by": "Odoo extension (SM1162): reads a request file's type from its bytes and applies OOM's own check of a file value (a plain name, max_bytes) before it reaches an operation; lazy-required only when a binding maps a file, and absent before OOM 0.34"
+    },
     "Odoo::Ops::Version": {
       "core": false,
       "license": "Artistic-1.0-Perl",
