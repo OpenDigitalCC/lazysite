@@ -1490,7 +1490,40 @@ sub _result_summary {
     my $h   = $r->to_hash;
     my %out = map { ( $_ => $h->{$_} ) } qw(total counts by_bucket verified stopped_by created written);
     $out{changes} = _applied_changes( $h->{journal} );
+    _add_failures( $out{changes}, $h->{failed_changes} );
     return \%out;
+}
+
+# SM1193 (OOM Lab L-19: "A failed apply reaches the page as `apply-incomplete`, with
+# counts and no message. Odoo's refusal is in the journal only"; OOM's answer, inbox
+# 2026-10-20: the result carries `failed_changes`, each with key, model, action and
+# Odoo's `message`, and from 0.36 a `code`). ONE SHAPE: the failed change's entry in
+# `changes` (SM1171, outcome `failed`) gains `key`, `message` and `code`; there is
+# no second list. Odoo's message is validation text for the person's own action, so
+# it is shown, through SM1186's _usage_text (cap, control characters; a path, a
+# trace or a secret's name withholds it whole). A withheld message is replaced by a
+# plain sentence and `withheld => 1`, so a page can tell. A failure whose journal
+# could not be read still gets its entry.
+my $WITHHELD = 'Odoo refused this change; its reason is kept for the operator';
+
+sub _add_failures {
+    my ( $changes, $failed ) = @_;
+    return unless ref $failed eq 'ARRAY' && ref $changes eq 'ARRAY';
+    for my $f (@$failed) {
+        next unless ref $f eq 'HASH';
+        my ($c) = grep { defined $f->{seq} && ( $_->{seq} // '' ) eq $f->{seq} } @$changes;
+        unless ($c) {
+            $c = { map { ( $_ => $f->{$_} ) } grep { defined $f->{$_} } qw(seq action model id) };
+            $c->{outcome} = 'failed';
+            push @$changes, $c;
+        }
+        $c->{key}  = $f->{key}  if defined $f->{key}  && !ref $f->{key};
+        $c->{code} = $f->{code} if defined $f->{code} && !ref $f->{code};
+        my $m = _usage_text( $f->{message} );
+        $c->{message}  = defined $m ? $m : $WITHHELD;
+        $c->{withheld} = 1 unless defined $m;
+    }
+    return;
 }
 
 # A change as a page may see it: where it sits and why it was held. NOT its

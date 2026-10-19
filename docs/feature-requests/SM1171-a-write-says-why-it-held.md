@@ -39,8 +39,8 @@ reason.
   skipped change, and `returned` for a custom change. It is built from the
   journal OOM kept (read inside the engine; the journal's path is not
   passed), and nothing else of the entry is: no values, no before-image, no
-  handler, no host path. A failed change carries no reason, since Odoo's
-  message stays in the log. A journal that cannot be read gives an empty
+  handler, no host path. A failed change carried no reason here; SM1193 later added its key and Odoo's
+  message, through the usage-text filter. A journal that cannot be read gives an empty
   list; the counts still stand.
 - `returned` is the handler's own answer and has no size of its own, so it is
   capped: past 4 KB (of its JSON) it is cut and ends `...[truncated, N

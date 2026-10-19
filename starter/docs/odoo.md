@@ -239,6 +239,14 @@ says what a request may set and who may cause it:
   `...[truncated, N bytes]`. A plan not yet confirmed shows the same `reason`
   on each change in `preview.changes`, so a page can warn before the confirm.
 
+  A change that failed (apply ends `apply-incomplete`) also carries `key`
+  (the plan's name for the change), `message` (Odoo's own words, such as "You
+  can not enter an attendance in a submitted timesheet") and, from OOM 0.36,
+  `code`. The message is cleaned and capped at 300 characters; one that holds a
+  host path, a traceback or the name of a secret is withheld whole, and the
+  entry then says `withheld: 1` with a plain sentence in its place. The changes
+  that did apply beside it stay `done`.
+
 `rate_per_visitor_hour`, `rate_per_hour`
 : The rate caps. **The default depends on what the binding does** - see
   *Rate caps: reads and writes* below. Leave them out to take the default.

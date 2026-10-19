@@ -111,6 +111,13 @@ Archive
   the key: a scope that is not a `/dir/` path, a start page outside the scope
   (or a scope that would strand the stored start page), a colour that is not
   `#rgb` or `#rrggbb`, an icon that is not a file the site serves.
+- SM1193 (PENDING) **odoo: a failed apply says why.** An apply Odoo refused
+  answered `apply-incomplete` with counts and no message. The failed change's
+  entry in `result.changes` now carries its `key` and Odoo's own `message` (and
+  OOM's `code` when it sends one), for an immediate apply and a confirm, in-process
+  and through oomd; the message goes through the usage-text filter (cleaned, 300
+  characters, withheld whole with `withheld: 1` if it holds a path, trace or
+  secret), and changes that applied beside it stay `done` (OOM Lab L-19). t/unit/odoo/76, 77.
 - SM1186 (PENDING) **odoo: a usage refusal says what to fix.** A read whose
   operation refused its input answered 400 with one sentence that said nothing
   of the input, so a page could not tell the person what to change. The
