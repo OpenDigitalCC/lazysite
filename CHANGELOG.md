@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1175 (PENDING) **internal: lazysite's vendored OOM is 0.33, with oomd.** The
+  pinned snapshot in `t/vendor/oom` moves from 0.32 to OOM 0.33 (4bca049),
+  which adds `core.has_groups`, and now carries `bin/oomd`, the one file taken
+  from OOM's `bin/`, so SM1164's tests start the real daemon from the
+  repository, never from the host (lint 262). `tools/vendor-oom.sh` checks
+  `bin/oomd` against the `odoo-oom-tools` deb. t/lint/207, 261, t/tools/155.
 - SM1172 (PENDING) **saving the Odoo config keeps what an overlapping save
   wrote.** Two saves of `lazysite/odoo.conf` that overlapped both read the old
   file, so the second dropped the first's keys, an app's `odoo_packs`
