@@ -263,11 +263,19 @@ sub check_auth {
         # like those, names no list and no key (the author is told by the validator
         # and `lazysite check`, the visitor is not). Still a refusal to everyone.
         my $only_address = !grep { !/\Aaddresses(?:_deny)?\z/ } keys %$u;
+        # SM1201 (SM1189's open note): a bare `auth_groups: staff` said "sign in" the
+        # same way, to a member who was signed in. When the keys the engine cannot
+        # read are only address and group rules, no sign-in can help either, and
+        # the refusal is a plain sentence naming no key and no group (the author is
+        # told by the validator and `lazysite check`). A page whose unreadable keys
+        # include `auth` or `payment` keeps its existing refusal: there a sign-in
+        # or a payment is what the page was asking for.
+        my $only_rules = !grep { !/\A(?:addresses(?:_deny)?|auth_groups)\z/ } keys %$u;
         return {
             forbidden          => 1,
             auth_user          => $auth_user,
             auth_name          => $auth_name,
-            auth_denied_reason => $only_address ? 'address' : 'unreadable_access_key',
+            auth_denied_reason => $only_address ? 'address' : $only_rules ? 'unreadable_rule' : 'unreadable_access_key',
         };
     }
 
@@ -463,6 +471,11 @@ HTML
     return output_page( $body, 'text/html; charset=utf-8', undef, 1, '403 Forbidden' );
 }
 
+# SM1201: the refusal for an access rule the engine cannot read and no sign-in can
+# mend (a bare auth_groups, as SM1189 did for addresses). Plain: it names no key and
+# no group, and it does not send the reader to sign in.
+sub _unreadable_rule_sentence { return 'This page is not available.' }
+
 sub serve_403 {
     my ($auth_result) = @_;
 
@@ -501,8 +514,10 @@ sub serve_403 {
         # page has a branch for it; a site's own copy of the page may not, and
         # would say "sign in" to a visitor no sign-in can admit. So the sentence
         # is put after the first heading when the page did not carry it.
-        if ( ( $auth_result->{auth_denied_reason} // '' ) eq 'address' ) {
-            my $said = _address_refusal_sentence();
+        # SM1201: and the same for the sentence of a rule that cannot be read.
+        my $reason = $auth_result->{auth_denied_reason} // '';
+        if ( $reason eq 'address' || $reason eq 'unreadable_rule' ) {
+            my $said = $reason eq 'address' ? _address_refusal_sentence() : _unreadable_rule_sentence();
             unless ( index( $page, $said ) >= 0 ) {
                 my $p = "<p>$said</p>";
                 $page =~ s{(</h1>)}{$1$p}i or $page =~ s{(<body[^>]*>)}{$1$p}i or $page = $p . $page;
@@ -529,6 +544,8 @@ sub serve_403 {
         . (
         ( ( $auth_result->{auth_denied_reason} // '' ) eq 'address' )
         ? _address_refusal_sentence()    # SM1139
+        : ( ( $auth_result->{auth_denied_reason} // '' ) eq 'unreadable_rule' )
+        ? _unreadable_rule_sentence()    # SM1201
         : ( ( $auth_result->{auth_denied_reason} // '' ) eq 'insufficient_groups' )
         ? _chrome('forbidden.insufficient')
         : _chrome('auth.required')

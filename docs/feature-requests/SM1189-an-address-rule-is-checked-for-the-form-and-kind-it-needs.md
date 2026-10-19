@@ -74,5 +74,5 @@ F-3.
   manager) is the SM980 rule: a restriction the engine cannot apply refuses. The
   audit row's reason is `wrong-kind`.
 
-Left open: a bare `auth_groups` still refuses with the sign-in sentence; that
-refusal is not an address one and was not part of the finding.
+Left open at the time, and done in SM1201: a bare `auth_groups` refused with the
+sign-in sentence; that refusal is not an address one and was not part of the finding.

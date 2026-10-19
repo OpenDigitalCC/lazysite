@@ -88,6 +88,13 @@ Archive
   warns in the console with the reason when a registration fails or the origin is
   not secure. Docs: the app page says a phone on `http://<lan-ip>:port` never
   registers a worker.
+- SM1201 (PENDING) **access: a group rule that cannot be read does not say sign
+  in.** A bare `auth_groups: staff` was refused to everyone with "You need to sign in
+  to view this page", to a signed-in member too. As SM1189 did for addresses, the
+  refusal is now the plain sentence "This page is not available.", naming no key and
+  no group, and still refused to everyone; a page whose unreadable key is `auth` or
+  `payment` keeps its sign-in refusal. `t/integration/290`.
+
 - SM1200 (PENDING) **engine: the alias override list holds only its keys.** Three
   notes written as `#` comments inside the `qw()` of the per-host override whitelist
   were read as keys (ten were accepted by the conf reader, among them `language`,
