@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-18
 raised-by: lazysite-sites agent (inbox 2026-10-18-a-binding-refuses-oom-pack-operation-names.md)
 area: odoo
-status-note: "SHIPPED on n665 (base 4c4798a6c): Lazysite::Odoo::Binding's operation pattern admits a hyphen between characters; test t/unit/odoo/66."
+status-note: "SHIPPED on n665 (base 4c4798a6c): Lazysite::Odoo::Binding's operation pattern admits a hyphen between characters; test t/unit/odoo/71."
 ---
 
 # What happened
@@ -39,7 +39,7 @@ because no shipped name needs more, and widening later is a one-line change.
   `[a-z][a-z0-9_]*(?:-[a-z0-9_]+)*`, joined by dots (two parts or more). The
   refusal message says a hyphen is allowed only inside a part.
 - `starter/docs/odoo.md` states the rule under `operation`.
-- Test t/unit/odoo/66: a site pack named `shop-page` (under `odoo_pack_dirs`, as
+- Test t/unit/odoo/71: a site pack named `shop-page` (under `odoo_pack_dirs`, as
   t/unit/odoo/55 builds one) is bound as `shop-page.names`, saves, and runs on
   OOM's fake Odoo; `-crm.x`, `crm-.x`, `crm.x-`, `crm.-x`, `crm--page.x`,
   `CRM-page.x`, `crm page.x` and a name with no dot are refused.
