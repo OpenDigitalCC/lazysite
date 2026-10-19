@@ -684,6 +684,62 @@ fails closed: an anonymous value, or the cookie's own account. Only the web serv
 configuration can send the parameter (T3). Seen while writing 295's T4 case, which
 sends no sentinel.
 
+## S5: the dev server runs the self-verifying surfaces direct (n688, R6)
+
+On a site with accounts, `tools/lazysite-server.pl` ran every `/cgi-bin/lazysite-*.pl`
+except the wrapper itself behind `lazysite-auth.pl`. That included the Odoo, data,
+MCP and OAuth endpoints, which no shipped front end wraps. Each verifies its own
+caller: the Odoo and data endpoints check the session cookie (SM411), MCP its bearer
+(SM076), and OAuth its client and grant. None reads what the wrapper writes, because
+the data endpoint clears and rewrites it and MCP strips it. So the lab's `?csrf=1`
+through the dev server ran two programs where production runs one.
+
+- **`self_verifying`** names the four scripts. `handle_request` runs them direct, as
+  it already ran DAV and the form handler. The processor, the manager API and the
+  wrapper's own requests are routed as before.
+- **The guard.** The wrapper ran `Lazysite::BadUrl::guard` (SM128) for these
+  requests before it exec'd them. The dev server now runs the same function itself
+  (`dev_bad_url`), under the same condition: a site with accounts, where the wrapper
+  ran at all. It takes the wrapper's inputs, which are the request's
+  `lazysite.conf` lines and the visitor address under `trusted_proxies` (SM929). A
+  blocked address gets a 403 before the endpoint runs. Each request is guarded once,
+  by the wrapper or by the dev server, never by both.
+- A `?action=` sent to one of the four (`logout`, say) is now the endpoint's, not
+  the wrapper's, as on an installed site.
+
+Proved by t/integration/296. The dev server runs from a copy of `tools/` in a
+scratch tree whose `lazysite-*.pl` are shims: each records its own name and execs the
+real script.
+
+- Each of the four is reached with no wrapper run.
+- Each still decides who its caller is. A forged `X-Remote-User` is nobody to the
+  Odoo and data endpoints. A session cookie is the account, by the endpoint's own
+  check, and a cookie with a bad signature is nobody. The Odoo endpoint refuses a
+  sign-out without its visitor token (`kind: csrf`). MCP refuses a tool call
+  without a bearer with 401, and an operator's cookie is not a bearer either. OAuth
+  refuses an unknown code as `invalid_grant`.
+- The page and the manager API still run behind the wrapper.
+- Probes sent to these surfaces are each counted once in the shared store. The
+  third blocks the address, and later requests from that address to the Odoo and
+  OAuth endpoints are refused before the endpoint runs.
+
+Against the S4 tree, 296 fails on every "the wrapper did not run" assertion and on
+the guard's "before the endpoint runs". Every assertion about what a surface decides
+passes there too, so the surfaces' answers are unchanged. With the guard call
+removed, the guard subtest fails. t/integration/59 (all four), 272, 43, t/unit/odoo/63
+and t/unit/tools/01-04, 80 and 83 are unchanged and green.
+
+**The bench.** `tools/bench-surfaces.sh` cannot target the dev server: it runs each
+CGI itself, and its `odoo` surface stands in for the dev server by running the
+wrapper first. So `?csrf=1` was timed through the dev server: the S4 server against
+this one, alternated, N=10 a round, server and client pinned together with
+`taskset -c 0 nice -n 19`. In the first run (load average 6.5-8.1) the wall-clock
+medians were 134 and 307 ms on S4 and 225 and 126 ms on S5, so at this load the
+wall clock cannot separate the two. The second run also recorded the CPU used by the
+dev server's children. Over three rounds each at a load average of 9.2-9.8, S4 used
+157-170 ms of CPU per request and S5 99-106 ms, about 60 ms less: one program's
+start-up. The anonymous wall-clock median was 178-244 ms on S4 and 115-145 ms on S5.
+
 # Related
 
 [[SM1082]] (the plan; C2 is this), [[SM1169]] (C1), [[SM1144]] (T0), [[SM297]]

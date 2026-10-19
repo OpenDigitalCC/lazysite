@@ -435,6 +435,11 @@ my $server = IO::Socket::INET->new(
 my $MAX_CONN = $ENV{LAZYSITE_DEV_MAX_CONN} || 8;
 my %kids;
 
+# SM1181 S5: the guard dev_bad_url runs, loaded once here so each connection's
+# child inherits it rather than compiling it per request.
+require Lazysite::BadUrl;
+require Lazysite::Util;
+
 sub reap_children {
     my ($block) = @_;
     while ( ( my $pid = waitpid( -1, $block ? 0 : POSIX::WNOHANG() ) ) > 0 ) {
@@ -523,6 +528,48 @@ sub cgi_target_for {
         return ( $cgi, $rel, 1 ) if $cgi && -f $cgi;
     }
     return ( $processor, undef, 0 );
+}
+
+# SM1181 S5 (SM1082 C2, R6 ruled yes): THE SURFACES THAT VERIFY THEIR OWN CALLERS.
+#
+# The Odoo and data endpoints verify the session cookie themselves (SM411), MCP
+# its bearer (SM076) and OAuth its client and grant, and none reads what the auth
+# wrapper writes (the data endpoint clears and rewrites it; MCP strips it). No
+# shipped front end wraps them - every template wraps the processor and the
+# manager API only - but this server wrapped every lazysite-*.pl on a site with
+# accounts, so here the four ran as two programs where production runs one: the
+# lab's ~210 ms `?csrf=1` floor (lazysite/inbox/2026-10-19-what-lazysite-adds-
+# to-an-odoo-call.md). They now run direct, as installed. (The list is in the
+# sub, not a file-scope hash, so a test that require()s this file - stopping at
+# the modulino guard - asks the same question.)
+sub self_verifying {
+    my ($rel) = @_;
+    return ( defined $rel && $rel =~ /\Alazysite-(?:odoo|data|mcp|oauth)\.pl\z/ ) ? 1 : 0;
+}
+
+# SM1181 S5: the bad-URL guard (SM128) for a request this server runs without the
+# wrapper - the wrapper's guard, Lazysite::BadUrl::guard (S1), with the wrapper's
+# inputs: this request's lazysite.conf lines and THE visitor address under
+# trusted_proxies (SM929; absent is the default range, empty trusts nothing).
+# Called inside the request's environment, which holds REMOTE_ADDR and HTTP_HOST.
+# 1 = refuse.
+sub dev_bad_url {
+    my ($uri) = @_;
+    require Lazysite::BadUrl;
+    require Lazysite::Util;
+    my @lines;
+    if ( open my $fh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
+        @lines = <$fh>;
+        close $fh;
+    }
+    my $spec;
+    for (@lines) {
+        if (/^trusted_proxies\s*:\s*(.*?)\s*$/) { $spec = $1; last }
+    }
+    no warnings 'once';
+    local $Lazysite::Util::COMPONENT = $LOG_COMPONENT;
+    return Lazysite::BadUrl::guard( docroot => $DOCROOT, path => $uri,
+        ip => Lazysite::Util::request_address($spec), conf_lines => \@lines );
 }
 
 sub handle_request {
@@ -660,8 +707,13 @@ sub handle_request {
     #
     # Exception: requests *to* lazysite-auth.pl itself (login/logout
     # endpoints) must go direct, or we'd exec ourselves recursively.
+    #
+    # SM1181 S5 (R6): and the surfaces that verify their own callers run direct
+    # too (self_verifying below). Wrapping them made this server wider than any
+    # production front end and cost the lab's Odoo call a second program.
     my $script = $target;
-    if ( $use_auth && !$is_dav && !$direct ) {
+    my $self_verifying = $target ne $PROCESSOR && self_verifying($target_rel);
+    if ( $use_auth && !$is_dav && !$direct && !$self_verifying ) {
         my $target_is_auth = defined $target_rel && $target_rel eq 'lazysite-auth.pl';
         $script = $auth_script unless $target_is_auth;
     }
@@ -706,6 +758,20 @@ sub handle_request {
     }
 
     local @ENV{ keys %env } = values %env;
+
+    # SM1181 S5: the wrapper ran the bad-URL guard (SM128) for these requests
+    # before it exec'd them; with no wrapper, this server runs the same guard, on
+    # the same condition (a site with accounts, where the wrapper ran at all).
+    if ( $use_auth && $self_verifying && dev_bad_url($uri) ) {
+        print $client "HTTP/1.0 403 Forbidden\r\n"
+            . "Content-Type: text/plain; charset=utf-8\r\n"
+            . "Content-Length: 14\r\n"
+            . "Connection: close\r\n\r\n"
+            . "403 Forbidden\n";
+        log_event( 'INFO', $uri, 'request', method => $method, status => '403 Forbidden',
+            ms => $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0 );
+        return;
+    }
 
     my $output;
     if ( length $post_body ) {
