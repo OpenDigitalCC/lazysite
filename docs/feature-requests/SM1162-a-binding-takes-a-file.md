@@ -131,8 +131,9 @@ Release manager, 2026-10-19, asked when a plan's blobs should go: "When the plan
   missing from the run folder`, and plans nothing. `core.attach`'s undo needs no bytes (it needs
   the attachment id; OOM defines no inverse for an attachment and the revert would only have held
   the row), so nothing is lost; the revert of an attachment is a plain refusal, not a held row.
-- Not tested: the purge of a daemon-made plan's run folder (the code path is the same call on the
-  second folder).
+- A daemon-made plan (test 70, the real oomd): the bytes sit in the daemon's run folder
+  (`lazysite/odoo/runs/<run_id>/blobs/`), not in lazysite's copy of the plan, and that folder
+  is purged on a confirm and on a withdraw; the sabotage (no run-folder purge) fails the test.
 
 # Evidence
 
