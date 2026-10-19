@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-10-19
 raised-by: the release manager, 2026-10-19 ("Yes, plan + review first"), on SM1082 track C2 and the lab's note lazysite/inbox/2026-10-19-what-lazysite-adds-to-an-odoo-call.md
 area: performance
-status-note: "CANDIDATE: plan and security review for SM1082 C2, no code. Slices S1-S5, one release of its own; rulings R1-R8 open. A signed-in page renders in the pool worker from a verified identity value; the manager API is exec'd without the wrapper; the Odoo endpoint's floor needs C3."
+status-note: "CANDIDATE: plan and security review for SM1082 C2, no code. Slices S1-S5, one release of its own; R1-R8 ruled as proposed 2026-10-19. A signed-in page renders in the pool worker from a verified identity value; the manager API is exec'd without the wrapper; the Odoo endpoint's floor needs C3."
 ---
 
 # What was asked
@@ -340,7 +340,9 @@ MCP, DAV, data, forms | unchanged: each signs in and works as before
 
 # 5. Rulings needed
 
-| Ref | Question | Proposed |
+Release manager, 2026-10-19: "All as proposed". The Proposed column is the ruling.
+
+| Ref | Question | Proposed (ruled 2026-10-19) |
 |---|---|---|
 | R1 | C2's scope: signed-in pages in the pool worker, the manager API without the wrapper's program, everything else unchanged until C3 | Yes |
 | R2 | The value is produced by one new function, `request_session`, called by the wrapper and the front door alike | Yes |
