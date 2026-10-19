@@ -67,6 +67,9 @@ Archive
   FastCGI parameter, which only the web server's configuration can send, could make
   a page or the manager API believe a forged `X-Remote-User` or flag; in the pool
   both are now ignored. Plain CGI and the split FastCGI templates are unchanged.
+- SM1202 (PENDING) **internal: the gate holds that OOM's behaviours and profiles come from
+  the snapshot.** OOM cannot be told to leave the host's data directory out of its
+  search; t/unit/odoo/78 holds that the host's copy never answers.
 - SM1198 (PENDING) **a request with a list of rows loads no registry.** The
   binding's rows check calls OOM 0.36's `Odoo::Ops::Rows->check` (loading only
   `Odoo::Error`, `Odoo::JSON` and `Odoo::Ops`) instead of the operation class's
