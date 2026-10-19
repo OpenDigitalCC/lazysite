@@ -21,8 +21,8 @@ package main;
 #         _rewrite_if_changed, _chrome_lang, _chrome, _draft_is, _draft_stat,
 #         log_event (the script and its parts); JSON::PP::decode_json by its
 #         full name (loaded by the script's `use`, before its parts load).
-# READS   $DOCROOT, $LAZYSITE_DIR, $CONF_FILE and $DRAFT_BYTES (SM1030: the peek reads a
-#         draft from memory); SETS %ACCESS_REC (the script's, declared `our`
+# READS   $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES (SM1030: the peek reads a
+#         draft from memory) and $REQUEST_IDENT (SM1181: the held identity value); SETS %ACCESS_REC (the script's, declared `our`
 #         there).
 #
 # The trust gate is NOT here: apply_trust_gate stays in the script's request
@@ -35,7 +35,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, %ACCESS_REC );
+our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, $REQUEST_IDENT, %ACCESS_REC );
 
 # --- Auth ---
 
@@ -335,6 +335,12 @@ sub check_auth {
 # trusted for this request" - _proxy_identity, the pinned copy the trust gate
 # asked (SM1129) - so the reader decides which header names count by the same
 # answer that decided which headers survived the gate, and never by the flag.
+#
+# SM1181 S2 (SM1082 C2): `identity` is the request's identity value when one is
+# held ($REQUEST_IDENT; the pool's front door sets it from S3), and the reader
+# then returns it and reads no environment. `pool` says this is a FastCGI worker,
+# where the reader never believes LAZYSITE_AUTH_TRUSTED from %ENV (R3, T3), as the
+# trust gate does not.
 sub _request_identity {
     my (%o) = @_;
     _lazy_lib('Lazysite::Auth::Identity');
@@ -342,7 +348,18 @@ sub _request_identity {
         ( ref $o{conf} eq 'HASH' ? () : ( conf_file => $CONF_FILE ) ),
         lazysite_dir => $LAZYSITE_DIR,
         proxy        => _proxy_identity(),
+        identity     => $REQUEST_IDENT,
+        pool         => ( _runtime() eq 'pool' ? 1 : 0 ),
         %o );
+}
+
+# SM1070: the account has no password, so the admin bar warns. SM1181 S2: from the
+# held identity value when there is one; otherwise the wrapper's
+# LAZYSITE_AUTH_NO_PASSWORD on plain CGI. In the pool that flag is a FastCGI
+# parameter like the sentinel and is not read (R3): only a value says it.
+sub _request_no_password {
+    if ( ref $REQUEST_IDENT eq 'HASH' ) { return $REQUEST_IDENT->{no_password} ? 1 : 0 }
+    return _runtime() eq 'pool' ? 0 : ( $ENV{LAZYSITE_AUTH_NO_PASSWORD} ? 1 : 0 );
 }
 
 # SM138: does ANY group grant manager access (ui / manage_users / the manager

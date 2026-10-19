@@ -124,4 +124,46 @@ for my $rel ( sort keys %READER ) {
 like( code_of( slurp("$root/lazysite-processor/auth.pm") ), qr/Lazysite::Auth::Identity::request_identity/,
     'and the processor reaches the accessor itself' );
 
+# SM1181 S2 (SM1082 C2, T14, R3): THE SENTINEL, TOO.
+#
+# LAZYSITE_AUTH_TRUSTED is what makes the fixed names count, so a reader of it is
+# a reader of identity. In a pooled worker it is a FastCGI parameter and is never
+# believed (R3): the only trusted producer there is the value the front door holds
+# (S3). This holds that every file - the front door's part and Session.pm among
+# them, which is where the pool's identity will be decided - names the sentinel
+# only where it is produced (the accessor's writer, the data endpoint) or judged
+# (the accessor, the two trust gates); and that the processor's two judgements of
+# it ask the runtime, and the processor hands the accessor its held value.
+subtest 'the sentinel is read only by the accessor and the trust gates, never believed in the pool' => sub {
+    my %SENTINEL_ALLOW = (
+        'lib/Lazysite/Auth/Identity.pm' => 'the accessor (and write_identity_env, the wrapper\'s contract)',
+        'lazysite-data.pl'              => 'producer: sets it for what it calls, from its own verified session',
+    );
+    my @named;
+    for my $f ( sort @files ) {
+        ( my $rel = $f ) =~ s{^\Q$root\E/}{};
+        next if $SENTINEL_ALLOW{$rel};
+        my $raw = slurp($f);
+        if ( my $g = $GATE{$rel} ) {
+            my $i = index( $raw, $g->[0] );
+            my $j = index( $raw, $g->[1], $i + 1 );
+            $raw = substr( $raw, 0, $i ) . substr( $raw, $j );
+        }
+        push @named, $rel if code_of($raw) =~ /\bLAZYSITE_AUTH_TRUSTED\b/;
+    }
+    is_deeply( \@named, [], 'no code outside the accessor, the data endpoint and the trust gates names the sentinel' )
+        or diag( join "\n", @named );
+
+    my $proc = code_of( slurp("$root/lazysite-processor.pl") );
+    like( $proc, qr/_runtime\(\)\s*eq\s*'pool'\s*\?\s*''\s*:\s*\(\s*\$ENV\{LAZYSITE_AUTH_TRUSTED\}/,
+        'the processor\'s trust gate does not believe the sentinel in the pool' );
+    like( code_of( slurp("$root/lib/Lazysite/Auth/Identity.pm") ), qr/!\$opt\{pool\}\s*&&\s*\(\s*\$ENV\{LAZYSITE_AUTH_TRUSTED\}/,
+        'the accessor does not believe it when told it is in the pool' );
+    my $auth = code_of( slurp("$root/lazysite-processor/auth.pm") );
+    like( $auth, qr/request_identity\([^;]*\bidentity\s*=>\s*\$REQUEST_IDENT\b/s,
+        'the processor hands the accessor the request\'s held identity value' );
+    like( $auth, qr/request_identity\([^;]*\bpool\s*=>\s*\(\s*_runtime\(\)\s*eq\s*'pool'/s,
+        'and tells it when it is a pooled worker' );
+};
+
 done_testing();

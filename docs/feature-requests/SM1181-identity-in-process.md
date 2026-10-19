@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-19
 raised-by: the release manager, 2026-10-19 ("Yes, plan + review first"), on SM1082 track C2 and the lab's note lazysite/inbox/2026-10-19-what-lazysite-adds-to-an-odoo-call.md
 area: performance
-status-note: "PARTIAL: S1 built on n675: request_session decides the identity for the auth wrapper and the data endpoint; BadUrl::guard shared; $STORE_FAULT reset per call; write_identity_env writes the wrapper's contract (t/integration/290, t/unit/auth/68). S2-S5 remain; C2 ships as one release after S4 (R7). R1-R8 ruled as proposed 2026-10-19."
+status-note: "PARTIAL: S1 (n675) request_session decides the identity for the wrapper and the data endpoint (t/integration/290). S2 (n677) request_identity takes a held value and reads no %ENV; $REQUEST_IDENT reset at both ends; the pool never believes LAZYSITE_AUTH_TRUSTED (t/unit/auth/69, t/integration/291, 292). S3-S5 remain; C2 ships as one release after S4 (R7). R1-R8 ruled as proposed 2026-10-19."
 ---
 
 # What was asked
@@ -418,6 +418,61 @@ one call to `request_session`. t/unit/auth/68 pins the function, the helper and 
 `$STORE_FAULT` reset. t/unit/processor/71 and t/lint/38 ask their produce-or-clear
 question of `write_identity_env`, and t/lint/268 holds the wrapper, the data endpoint
 and `request_session` to the accessor.
+
+## S2: the reader takes a value, and the pool stops believing the sentinel (n677)
+
+- **`Lazysite::Auth::Identity::request_identity( identity => $value )`** returns that
+  identity (`user`, `name`, `email`, a copy of `groups`, and `source` - the value's
+  `cookie` or `proxy`, otherwise `direct`) and reads nothing from `%ENV`: no header,
+  no sentinel, no address. The groups are returned as held; `request_session` already
+  filtered them for the address. An undefined `identity` is the reader as before.
+- **`pool => 1`** (R3): the caller is a FastCGI worker. The sentinel from `%ENV` is
+  never believed there, and the fixed names are not read either, since in a worker
+  only a client produces them. A listed proxy peer is still read under its configured
+  names (T4 unchanged).
+- **The processor's `our $REQUEST_IDENT`** is declared and set by nothing yet (S3's
+  front door will set it). `reset_request_state` clears it at the start of every
+  request and `handle_one_request` clears it again after the access record.
+  `_request_identity` passes it as `identity` and passes `pool` from the runtime.
+  The three `no_password` readers (the 403 and page auth contexts, the admin bar)
+  go through `_request_no_password`: the held value's flag; in the pool, nothing
+  else; on CGI, `LAZYSITE_AUTH_NO_PASSWORD` as before.
+- **`apply_trust_gate`** does not believe `LAZYSITE_AUTH_TRUSTED` in the pool, so a
+  forged `X-Remote-User` arriving with the sentinel as a FastCGI parameter is
+  stripped and logged as any untrusted header is. On plain CGI nothing changes.
+  R4 (a held value strips every identity header) arrives with the value, in S3.
+- **`$Lazysite::Auth::Session::STORE_FAULT`** is also cleared by
+  `reset_request_state` (t/lint/269 now lists it as `reset`), beside the verifier's
+  own clearing from S1.
+
+A deployment whose web server passed `LAZYSITE_AUTH_TRUSTED` to the pool as a
+FastCGI parameter, so that its workers took the proxy's or the client's
+`X-Remote-*` as a session, now serves those requests as anonymous. No shipped
+template does this; a site that wants a proxy's identity in the pool uses
+`auth_proxy_trusted` and `auth_proxy_trusted_from` (SM1129).
+
+Proved by t/unit/auth/69: with `%ENV` tied, every key looked at is recorded and a
+forged operator is planted in it. A held cookie, proxy or anonymous value, and one
+made by `request_session`, are returned with no key read. A bare request in the pool
+with the sentinel is nobody, and a proxy peer is still read. t/integration/291 sends
+`LAZYSITE_AUTH_TRUSTED=1` and `X-Remote-User: operator` to a page that needs a
+sign-in. Through a pool worker, front door on and off, twice per worker, the request
+is sent to sign in and the header is logged as ignored. The same request on plain
+CGI still opens the page. t/integration/292 (288's harness) holds a value in one
+request and checks it is gone afterwards: the next request is anonymous, another
+account sees only itself, a request that died leaves nothing behind, and a value
+still held when a request starts is cleared before `main()` runs.
+
+The lints (T14). t/lint/38 reads every root `*.pl` and every module under `lib/` and
+`plugins/` by glob, with the processor's parts as before, instead of its fixed six
+scripts. `lazysite-data.pl` joins the wrapper as a producer. The identity reader is
+held to gating but not to deleting, since it hands nothing on. The proxy gate may be
+spelled `proxy_identity` (SM1129). t/lint/268 adds a sweep of every file for the
+sentinel: only the accessor, the data endpoint and the two trust gates name it. That
+sweep reads the front door's part and Session.pm, which is where the pool's identity
+will be decided. It also checks that the processor's gate and the accessor do not
+believe the sentinel in the pool, and that `_request_identity` passes
+`$REQUEST_IDENT` and the runtime. t/lint/269 classifies `$REQUEST_IDENT` as `reset`.
 
 # Related
 

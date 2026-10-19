@@ -1020,7 +1020,7 @@ sub _inject_admin_bar {
                 . '" style="color:#6db3f2;text-decoration:none;">Edit</a>';
         }
 
-        if ( $ENV{LAZYSITE_AUTH_NO_PASSWORD} ) {
+        if ( _request_no_password() ) {    # SM1181 S2: the held value's, when one is held
             $manager_tools .= '<span style="color:#f5a623;">&#9888; No password set for your account.</span>';
             $manager_tools .= '<a href="/manager/users" style="color:#f5a623;text-decoration:underline;">Set one</a>';
         }

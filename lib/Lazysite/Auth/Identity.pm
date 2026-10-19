@@ -192,11 +192,31 @@ sub _dedupe {
     return grep { !$seen{$_}++ } @_;
 }
 
+# SM1181 S2 (SM1082 C2): TWO MORE STATES, FOR A POOLED WORKER.
+#
+#   identity => $value   the request's identity was already decided, as a value
+#                        (Lazysite::Auth::Session::request_session; the pool's
+#                        front door holds it, S3). It is returned as held and
+#                        NOTHING is read from %ENV - no header, no sentinel, no
+#                        address: its groups were filtered for the address when
+#                        it was made. Source is the value's 'cookie' or 'proxy';
+#                        a value naming neither (an anonymous one) is 'direct'.
+#                        Undefined means no value is held: the states above.
+#   pool => 1            the caller is a FastCGI worker, whose %ENV is the
+#                        request's parameters and nothing lazysite wrote. R3
+#                        (ruled 2026-10-19): there LAZYSITE_AUTH_TRUSTED is never
+#                        believed (T3: the web server's configuration could pass
+#                        it), and the fixed names are not read either - in a
+#                        worker nothing produces them but a client. A listed proxy
+#                        peer is read as before (SM1130, T4).
 sub request_identity {
     my (%opt) = @_;
+
+    return _identity_of_value( $opt{identity} ) if ref $opt{identity} eq 'HASH';
+
     my $conf = _conf( \%opt );
 
-    my $wrapper = ( $ENV{LAZYSITE_AUTH_TRUSTED} // '' ) eq '1';
+    my $wrapper = !$opt{pool} && ( $ENV{LAZYSITE_AUTH_TRUSTED} // '' ) eq '1';
 
     # SM1129 / SM1131: "is the proxy trusted for THIS request" has one answer,
     # Lazysite::Util::proxy_identity (the flag on AND the TCP peer listed in
@@ -216,6 +236,11 @@ sub request_identity {
     }
 
     my %id = ( user => '', name => '', email => '', groups => [] );
+
+    if ( !$proxy && $opt{pool} ) {
+        $id{source} = 'direct';
+        return \%id;
+    }
 
     if ( $wrapper || !$proxy ) {
         $id{source} = $wrapper ? 'cookie' : 'direct';
@@ -248,6 +273,21 @@ sub request_identity {
     }
     $id{groups} = _drop_address_blocked( [ _dedupe(@groups) ], \%opt );
     return \%id;
+}
+
+# SM1181 S2: the reader's answer from a held value. A copy, so a caller that
+# changes what it was given (a groups list it extends) cannot change the value the
+# rest of the request reads.
+sub _identity_of_value {
+    my ($v) = @_;
+    my $source = $v->{source} // '';
+    return {
+        user   => $v->{user}  // '',
+        name   => $v->{name}  // '',
+        email  => $v->{email} // '',
+        groups => [ @{ ref $v->{groups} eq 'ARRAY' ? $v->{groups} : [] } ],
+        source => ( $source eq 'cookie' || $source eq 'proxy' ) ? $source : 'direct',
+    };
 }
 
 # SM1181 S1: the filter below, for Lazysite::Auth::Session::request_session, which

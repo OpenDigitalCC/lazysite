@@ -360,6 +360,9 @@ my %T = (
         '$DRAFT_BYTES'           => [ reset  => 'reset_request_state' ],
         '$DRAFT_MD'              => [ reset  => 'reset_request_state' ],
         '$ACL_MAP_CACHE'         => [ reset  => 'reset_request_state' ],
+        # SM1181 S2: the request's identity value; handle_one_request clears it at
+        # its end as well (t/integration/292 holds both ends).
+        '$REQUEST_IDENT'         => [ reset  => 'reset_request_state' ],
         '%PAYMENT_CONTEXT'       => [ reset  => 'reset_request_state' ],
         '%PREVIEW_CONTEXT'       => [ reset  => 'main' ],
         '$FALLBACK_LAYOUT'       => [ exempt => 'constant text (a heredoc)' ],
@@ -433,7 +436,9 @@ my %T = (
     'lib/Lazysite/Auth/Identity.pm' => { '%conf_cache' => [ exempt => $KEYED ] },
     'lib/Lazysite/Auth/Session.pm' => {
         '%LIFETIME_CACHE' => [ exempt => 'the session lifetime setting, keyed on the site directory' ],
-        '$STORE_FAULT'    => [ exempt => $STATUS ],
+        # SM1181 S2: cleared per request by the processor too, not only by the
+        # verifier's own stages.
+        '$STORE_FAULT'    => [ reset  => 'reset_request_state' ],
     },
     'lib/Lazysite/Auth/Settings.pm' => {
         '@CAP_KEYS'                    => [ exempt => 'the list of capability names, constant' ],

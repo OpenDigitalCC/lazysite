@@ -295,6 +295,12 @@ our $ACL_MAP_CACHE;    # SM268 H13: acls.json parsed at most once per request -
                       # a scan asks the read decision up to 200 times. undef =
                       # not loaded, 0 = load failed (fail closed), hashref = the
                        # store. reset_request_state clears it (SM973).
+our $REQUEST_IDENT;    # SM1181 S2 (SM1082 C2): the request's identity as a VALUE
+                       # (Lazysite::Auth::Session::request_session), which the
+                       # pool's front door will hold (S3; nothing sets it yet).
+                       # When held, _request_identity and the no_password readers
+                       # take it and read no environment. Cleared at BOTH ends of
+                       # handle_one_request (T1, T7; t/integration/292).
 
 # Built-in fallback template - used when no layout.tt is found
 our $FALLBACK_LAYOUT = <<'END_FALLBACK';
@@ -509,6 +515,9 @@ sub handle_one_request {
         }
     }
     _access_record();
+    # SM1181 S2: and the identity value at this end too, so a worker holds no
+    # person between requests at all (reset_request_state clears it at the start).
+    undef $REQUEST_IDENT;
     return;
 }
 
@@ -623,7 +632,13 @@ sub parse_query_string {
 sub apply_trust_gate {
     my ($uri)        = @_;
     my %sv           = resolve_site_vars();
-    my $auth_trusted = $ENV{LAZYSITE_AUTH_TRUSTED} // '';
+    # SM1181 S2 (R3, T3): in the pool the sentinel is never believed. A worker is
+    # not exec'd by the auth wrapper; FCGI.pm hands it the request's FastCGI
+    # parameters as %ENV, so LAZYSITE_AUTH_TRUSTED there is whatever the web
+    # server's configuration passed, and believing it would keep the client's own
+    # X-Remote-User. The only trusted identity in a worker is the value the front
+    # door holds (S3). On plain CGI the wrapper set it, as always.
+    my $auth_trusted = _runtime() eq 'pool' ? '' : ( $ENV{LAZYSITE_AUTH_TRUSTED} // '' );
 
     # SM1129: the flag alone no longer vouches for a request. This is the ONE
     # reader of auth_proxy_trusted on the render path (t/lint/267): the headers
@@ -1282,7 +1297,7 @@ sub main {
                 auth_name            => $auth_result->{auth_name}            // '',
                 auth_denied_reason   => $auth_result->{auth_denied_reason}   // '',
                 auth_required_groups => $auth_result->{auth_required_groups} // [],
-                no_password          => $ENV{LAZYSITE_AUTH_NO_PASSWORD} ? 1 : 0,
+                no_password          => _request_no_password(),
             );
             serve_403($auth_result);
             return;
@@ -1321,7 +1336,7 @@ sub main {
             auth_name     => $native_name                  // '',
             auth_email    => $auth_result->{auth_email}    // '',
             auth_groups   => $auth_result->{auth_groups}   // [],
-            no_password   => $ENV{LAZYSITE_AUTH_NO_PASSWORD} ? 1 : 0,
+            no_password   => _request_no_password(),
         );
 
         # Mark as protected if the page requires ANY auth (not just 'required')
@@ -1942,6 +1957,16 @@ sub _lazy_lib {
         %PAYMENT_CONTEXT = ();
         $RESPONSE_LANG   = 'en';
         _reset_scan_identity();
+        # SM1181 S2 (T1, T7): the identity value, at the START, so a request that
+        # died before its end leaves nothing the next one reads; and the session
+        # store's fault flag (SM1024), which the verifier sets and a later call
+        # that returns early would otherwise still see. The module may not be
+        # loaded (ADR 0001): clearing an unloaded package's variable is harmless.
+        undef $REQUEST_IDENT;
+        {
+            no warnings 'once';
+            $Lazysite::Auth::Session::STORE_FAULT = '';
+        }
     }
 }
 

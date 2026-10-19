@@ -25,6 +25,7 @@
 use strict;
 use warnings;
 use Test::More;
+use File::Find ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
@@ -33,13 +34,28 @@ my $root = repo_root();
 
 # lazysite-auth.pl is the wrapper: it SETS these headers after validating the
 # session cookie, and sets LAZYSITE_AUTH_TRUSTED to say so. It is the source of
-# the trust, so it is the one file that must not gate itself.
-my %SETS_TRUST = map { $_ => 1 } qw(lazysite-auth.pl);
+# the trust, so it must not gate itself. lazysite-data.pl is the same for what it
+# calls: it deletes every HTTP_X_REMOTE_* and sets them from its own verified
+# session (t/lint/268 names both as the producers).
+my %SETS_TRUST = map { $_ => 1 } qw(lazysite-auth.pl lazysite-data.pl);
 
-my @cgis = qw(
-    lazysite-processor.pl lazysite-auth.pl lazysite-manager-api.pl
-    lazysite-dav.pl lazysite-mcp.pl lazysite-oauth.pl
-);
+# The accessor (Lazysite::Auth::Identity, t/lint/268) reads the headers and hands
+# nothing on in the environment, so it has nothing to delete: the gates strip. It
+# must still gate - on the sentinel, or a peer proxy_identity trusts.
+my %ACCESSOR = map { $_ => 1 } qw(lib/Lazysite/Auth/Identity.pm);
+
+# SM1181 S2 (T14): EVERY root script and every module, found by glob, not a fixed
+# list. The list was six scripts and no module, so the data endpoint (a root
+# script) and the identity reader (a module) were never read, and neither would a
+# new surface be - which is the case this lint exists for (see its head). The
+# processor's parts are read with the script, below.
+my @cgis = map { m{([^/]+)\z} } sort glob("$root/*.pl");
+{
+    my @mods;
+    File::Find::find( { no_chdir => 1, wanted => sub { push @mods, $File::Find::name if /\.pm\z/ } },
+        grep { -d } "$root/lib", "$root/plugins" );
+    push @cgis, map { s{^\Q$root\E/}{}r } sort @mods;
+}
 
 my ( @reads, @unguarded );
 for my $rel (@cgis) {
@@ -71,12 +87,17 @@ for my $rel (@cgis) {
     push @reads, $rel;
 
     next if $SETS_TRUST{$rel};
+    # SM1129: a proxy is trusted by Lazysite::Util::proxy_identity's answer (the
+    # flag AND a listed peer); a reader may gate by asking it rather than naming
+    # the flag.
     push @unguarded, $rel
-        unless $code =~ /LAZYSITE_AUTH_TRUSTED/ && $code =~ /auth_proxy_trusted/;
+        unless $code =~ /LAZYSITE_AUTH_TRUSTED/ && $code =~ /auth_proxy_trusted|proxy_identity/;
 }
 
 ok( @reads, 'at least one surface reads a trust header (the check is live)' )
     or diag('no surface matched - the header names may have been renamed');
+ok( ( grep { $_ eq 'lib/Lazysite/Auth/Identity.pm' } @reads ), 'the glob reaches the modules: the identity reader is read' );
+ok( ( grep { $_ eq 'lazysite-data.pl' } @reads ), 'and the root scripts past the old six: the data endpoint is read' );
 
 is_deeply( \@unguarded, [],
     'every surface that reads a trust header also gates it on the auth '
@@ -88,7 +109,7 @@ is_deeply( \@unguarded, [],
 # header while leaving it in %ENV for the next reader is the shape of fix that
 # looks right in review and changes nothing.
 subtest 'the gate removes the headers rather than only noting them' => sub {
-    for my $rel ( grep { !$SETS_TRUST{$_} } @reads ) {
+    for my $rel ( grep { !$SETS_TRUST{$_} && !$ACCESSOR{$_} } @reads ) {
         open my $fh, '<', "$root/$rel" or die;
         my $src = do { local $/; <$fh> };
         close $fh;
