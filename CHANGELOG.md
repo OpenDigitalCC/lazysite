@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1182 (PENDING) **under the one-rule templates a form POST reaches the form
+  handler.** The front door sent only `lazysite-*.pl` scripts to their own
+  program, so a native form's POST to `/cgi-bin/form-handler.pl` (and
+  `/cgi-bin/payment-demo.pl`) fell to the processor and answered "Page not
+  found"; the form was never delivered. Both copies of the routing table now
+  name those two scripts, the ones `install.pl` links into cgi-bin, and the list
+  stays an allow-list: any other `.pl` still runs nothing. t/integration/289,
+  t/lint/42.
 - SM1180 (PENDING) **the endpoint calls oomd without loading OOM.** With
   `odoo_daemon` on, an Odoo call still read OOM's registry in the endpoint for the
   binding's operation before sending the call to oomd; a binding's operation
