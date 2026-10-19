@@ -317,7 +317,11 @@ The page endpoint, `/cgi-bin/lazysite-odoo.pl`
   file's name, size, SHA-256 and type, and that is all. Where the operation keeps the
   file in its plan (OOM keeps an attachment's bytes once, in the plan's `blobs/`
   folder, so that a confirm can apply them), they are in that plan's folder of the
-  private store (`lazysite/odoo/plans/`, 0600), which is removed with the plan.
+  private store (`lazysite/odoo/plans/`, 0600) until the plan is spent: applied (whole or in part),
+  withdrawn (`POST {plan, withdraw: true}` with the token, by its maker), or refused as no longer
+  applicable. Then the bytes are removed (OOM's own purge) and the plan record keeps the file's name,
+  size and sha256. An unconfirmed plan loses its folder when it expires. A revert of an applied
+  attachment after that is refused plainly by OOM, which has no inverse for an attachment.
 
 A page binding, `odoo:ID`
 : In `tt_page_var`, for example `stock: odoo:shop-list`, puts the report of a

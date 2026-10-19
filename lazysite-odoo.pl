@@ -17,6 +17,8 @@
 #   POST {binding, params}       run a binding (a write plans, or applies when
 #                                the binding says immediate)
 #   POST {plan, confirm: true}   apply a plan this caller made
+#   POST {plan, withdraw: true}  give up a plan this caller made (SM1162): its file
+#                                bytes are removed and it can no longer be confirmed
 #   POST multipart/form-data, ?binding=ID
 #                                a binding call that carries FILES (SM1162): the part
 #                                named json is the JSON body above (params, tokens), a
@@ -366,6 +368,14 @@ sub _post_one {
         my %ctx = _ctx( undef, %$who );
         return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req );
         return _settle( _timed( sub { Lazysite::Odoo::confirm( $req->{plan}, %ctx ) } ), $who );
+    }
+
+    # SM1162: the maker of a plan gives it up: {plan, withdraw: true}. Like a confirm it
+    # names no binding, and the caller's token must fit what the caller is.
+    if ( $req->{withdraw} ) {
+        my %ctx = _ctx( undef, %$who );
+        return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req );
+        return _settle( _timed( sub { Lazysite::Odoo::withdraw( $req->{plan}, %ctx ) } ), $who );
     }
 
     my ( $b, $why ) = Lazysite::Odoo::find_binding( $req->{binding} );

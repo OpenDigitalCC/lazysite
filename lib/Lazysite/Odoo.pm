@@ -1010,7 +1010,7 @@ sub confirm {
     my $meta = _read_json_file("$dir/meta.json");
     my $who  = _owner(%c);
     return ( _refusal( \%base, 'not-found', $not_found->{error} ) )[1]
-        unless ref $meta eq 'HASH'
+        unless ref $meta eq 'HASH' && !$meta->{withdrawn}
         && ( ( length $who && ( $meta->{owner} // '' ) eq $who )
         || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) );
     return ( _refusal( { %base, binding => $meta->{binding} // '' }, 'expired',
@@ -1059,7 +1059,78 @@ sub confirm {
         my $result = with_site_ops( $conn, sub { Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir ) } );
         { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $pid, result => _result_summary($result) };
     };
-    return _session_end( $b, _finish( \%rec, $res, $@, $t0, 'apply' ) );
+    my $err = $@;
+
+    # SM1162 (release manager, 2026-10-19: "When the plan is applied or withdrawn"): a
+    # plan that has been applied (fully or partly) or refused as no longer
+    # applicable will never run again, so the file bytes it holds go now.
+    purge_plan_blobs( $pid, $meta ) if _plan_spent( $res, $err );
+    return _session_end( $b, _finish( \%rec, $res, $err, $t0, 'apply' ) );
+}
+
+# Is the plan SPENT after this confirm: it was applied (the result says so, whole or
+# partial), or OOM refused it for a reason that does not pass (the data moved on, the
+# plan was edited, it was already applied, it is another Odoo's). A refusal that can
+# be tried again (a rate cap, a sign-in) leaves it waiting.
+sub _plan_spent {
+    my ( $res, $err ) = @_;
+    return 1 if ref $res eq 'HASH' && $res->{applied};
+    return 0 unless ref $err && eval { $err->isa('Odoo::Error') } && ( $err->kind // '' ) eq 'refused';
+    return ( ( $err->code // '' ) =~ /\A(?:stale|fingerprint|applied|instance)\z/ ) ? 1 : 0;
+}
+
+# SM1162: remove the bytes of the files a plan holds - OOM keeps a file once, in the
+# plan's blobs/ folder, so a confirm can apply it - from the plan's folder here and,
+# for a plan the daemon made, from the daemon's run folder. By OOM's own
+# Odoo::Ops::Blob->purge (it removes the blobs/ folder and nothing else); the plan
+# record, the journal and the meta stay, and the record names each file by name,
+# size and sha256. Returns how many blobs went.
+sub purge_plan_blobs {
+    my ( $pid, $meta ) = @_;
+    return 0 unless defined $pid && $pid =~ /\A[0-9a-f]{32}\z/;
+    return 0 unless eval { require Odoo::Ops::Blob; Odoo::Ops::Blob->can('purge') };
+    my $n    = 0;
+    my @dirs = ( plans_dir() . "/$pid" );
+    my $run  = ref $meta eq 'HASH' ? ( $meta->{run_id} // '' ) : '';
+    push @dirs, store_dir() . "/runs/$run" if $run =~ /\A[A-Za-z0-9][\w.-]{0,127}\z/;
+    for my $dir (@dirs) {
+        next unless -d "$dir/blobs";
+        $n += eval { Odoo::Ops::Blob->purge($dir) } // 0;
+    }
+    log_event( 'INFO', 'odoo', 'the file bytes of a spent plan were removed', plan => $pid, blobs => $n ) if $n;
+    return $n;
+}
+
+# withdraw( $plan_id, %ctx ) -> { ok, withdrawn } or a refusal
+#
+# SM1162: the maker of an unapplied plan gives it up. Its file bytes go at once, it
+# can no longer be confirmed (a confirm answers as for a plan that does not exist),
+# and the record stays until the plan's days are out. A plan that is not yours does
+# not exist here either; one already applied cannot be withdrawn.
+sub withdraw {
+    my ( $pid, %ctx ) = @_;
+    my $sess = delete $ctx{odoo_session};
+    my $swho = length( $sess // '' ) ? do { require Lazysite::Odoo::Session; Lazysite::Odoo::Session::session_label($sess) } : '';
+    my %c    = _with_visitor(%ctx);
+    my %base = ( call_id => new_call_id(), actor => $c{actor} // '',
+        ( length( $c{visitor} // '' ) ? ( visitor => $c{visitor} ) : () ),
+        ip => $c{ip} // '', mode => $c{mode} // '', phase => 'withdraw' );
+    my $nf = 'no such plan, or not yours to withdraw';
+    return ( _refusal( \%base, 'not-found', $nf ) )[1] unless defined $pid && $pid =~ /\A[0-9a-f]{32}\z/;
+    my $dir  = plans_dir() . "/$pid";
+    my $meta = _read_json_file("$dir/meta.json");
+    my $who  = _owner(%c);
+    return ( _refusal( \%base, 'not-found', $nf ) )[1]
+        unless ref $meta eq 'HASH' && !$meta->{withdrawn}
+        && ( ( length $who && ( $meta->{owner} // '' ) eq $who ) || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) );
+    return ( _refusal( { %base, binding => $meta->{binding} // '' }, 'applied', 'this plan has already been applied' ) )[1]
+        if -e "$dir/journal.jsonl";
+    $meta->{withdrawn} = time;
+    _write_json_file( "$dir/meta.json", $meta );
+    my $n = purge_plan_blobs( $pid, $meta );
+    record_call( %base, binding => $meta->{binding} // '', operation => $meta->{operation} // '',
+        outcome => 'answered' );
+    return { ok => 1, withdrawn => 1, plan => $pid };
 }
 
 # B: a session that has ended - Odoo forgot it, or no longer accepts it - is said as

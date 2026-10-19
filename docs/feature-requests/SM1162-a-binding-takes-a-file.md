@@ -98,8 +98,7 @@ into the tree by SM1177:
   the SHA-256 and the type. Where an operation puts a file in its plan (OOM keeps an
   attachment's bytes once in the plan's `blobs/` folder so that a confirm can apply
   them), they sit in that plan's own folder in the private store
-  (`lazysite/odoo/plans/<id>/`, 0600, base64), which is removed with the plan
-  after its days.
+  (`lazysite/odoo/plans/<id>/`, 0600, base64), which is removed when the plan is spent (see the ruling below).
 - **The helper** (`starter/assets/lazysite-odoo.js`): `LazysiteOdoo.write(binding,
   params)` with a `File`, a `Blob` or a list of them among the params sends a
   `FormData` (the plain params and the token as the part `json`, a part per file, the
@@ -109,11 +108,31 @@ into the tree by SM1177:
 - `starter/docs/odoo.md` documents the three keys, the multipart request, the
   helper's use of it and the `too-large` kind.
 
-# Not decided here
+# Ruling: a planned write's file bytes go when the plan is spent
 
-Whether a plan's blobs should be removed as soon as the plan is applied rather than
-with the plan's days (OOM's journal may still read them for a rollback). Nothing in
-this change touches that.
+Release manager, 2026-10-19, asked when a plan's blobs should go: "When the plan is applied or withdrawn".
+
+- **Removed as soon as the plan is spent**: applied (fully or partly), withdrawn, or refused as
+  no longer applicable (`stale`, `edited`, `applied`, `instance`). A refusal that can be tried
+  again (a rate cap, a sign-in) leaves it waiting. An unconfirmed plan loses them when it
+  expires, with the rest of its folder, as before.
+- **By OOM's own call**, `Odoo::Ops::Blob->purge($dir)` (it removes a folder's `blobs/` and
+  nothing else; `runs close --purge` uses it), on the plan's folder (`lazysite/odoo/plans/<id>/`)
+  and, for a plan the daemon made, on its run folder (`lazysite/odoo/runs/<run_id>/`). The plan
+  record, the journal and the meta stay; the record keeps each file's name, size, sha256 and
+  type. `Lazysite::Odoo::purge_plan_blobs` is the one place; one log line says how many went.
+- **Withdraw is new**: `Lazysite::Odoo::withdraw($plan, %ctx)` and, on the endpoint, `POST
+  {plan, withdraw: true}` with the caller's token (as a confirm). The maker only; a plan already
+  applied is refused; a withdrawn plan answers a confirm as a plan that does not exist. The helper
+  has no call for it yet.
+- **A revert after the purge** (found, test 69): lazysite offers no revert; OOM's
+  `Runner->revert_plan` reads the journal's blob back for a custom change before it asks the
+  operation for the undo, so after the purge it refuses plainly, `blob sha256:... (N bytes) is
+  missing from the run folder`, and plans nothing. `core.attach`'s undo needs no bytes (it needs
+  the attachment id; OOM defines no inverse for an attachment and the revert would only have held
+  the row), so nothing is lost; the revert of an attachment is a plain refusal, not a held row.
+- Not tested: the purge of a daemon-made plan's run folder (the code path is the same call on the
+  second folder).
 
 # Evidence
 
@@ -127,6 +146,6 @@ claim, JPEG bytes claimed as PNG and text claimed as an image are refused; the w
 site tree and the log are searched for a marker in the bytes and hold none; no
 temporary file appears after a success, a refusal and an operation that dies; the
 token, mode and sign-in-first checks answer as before; a multipart batch is refused.
-`t/unit/odoo/67` runs the real oomd. `t/unit/odoo/68` runs the helper in node.
+`t/unit/odoo/67` runs the real oomd. `t/unit/odoo/68` runs the helper in node. `t/unit/odoo/69` holds the purge: after a confirm the blobs/ folder is gone and the plan record still names the sha256; after a withdraw, gone; an edited plan, gone; an expired one, gone as before; a revert after the purge refuses plainly; the endpoint withdraws. Sabotage: dropping the purge, the applied test, the refused codes, the withdraw's own purge or the endpoint branch each fails it.
 Before the change the first test fails at the first binding (`file_params` is not a
 key of an Odoo binding). Sabotage: see the commit message.
