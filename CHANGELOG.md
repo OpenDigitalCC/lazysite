@@ -53,6 +53,24 @@ Archive
 
 ## Unreleased
 
+- SM1162 (PENDING) **a binding takes a file.** An Odoo binding may map a request
+  file field to a parameter the operation declares as a file or a list of files
+  (or a `set.<field>` of a binary field) with `file_params`; `file_max_kb` is
+  required with it (never above the operation's `max_bytes` or the endpoint's
+  20 MB ceiling) and `file_types` may limit the types. The endpoint takes
+  `multipart/form-data` with `?binding=ID`, refuses a body larger than the
+  binding allows with `413 too-large` before reading it, reads the type from the
+  file's bytes and refuses one the binding does not accept or the browser
+  misclaims; the operation is given the file in the process and through oomd,
+  and the bytes are in no answer, record or log (OOM Lab L-9). The browser
+  helper sends a `File` as form data. A planned write's file bytes are removed
+  once the plan is applied, withdrawn or refused as no longer applicable, and the
+  maker of an unapplied plan can now withdraw it (`{plan, withdraw: true}`).
+  t/unit/odoo/66, 67, 68, 69, 70.
+- SM1177 (PENDING) **internal: lazysite's vendored OOM is 0.34.** The pinned
+  snapshot in `t/vendor/oom` moves from 0.33 to OOM 0.34 (03b703e), which adds
+  file parameters; lazysite uses those (SM1162), not 0.34's data cache or fast
+  JSON. t/lint/207, 261, 262.
 - SM1174 (PENDING) **a page may open the camera.** Every page sent
   `Permissions-Policy: camera=()`, so no page could open a live camera
   viewfinder even on https (OOM Lab L-16). A page whose front matter says
