@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-18
 raised-by: lazysite-sites agent, OOM Lab stock and picking apps (inbox, L-14)
 area: odoo
-status-note: "SHIPPED on n662 (base n661): Lazysite::Odoo::Binding::rate_limits picks the default from the operation; the manager form no longer saves a default into the binding; guide: starter/docs/odoo.md, Rate caps: reads and writes; test t/unit/odoo/60."
+status-note: "SHIPPED on n662 (base n661): Lazysite::Odoo::Binding::rate_limits picks the default from the operation; the manager form no longer saves a default into the binding; guide: starter/docs/odoo.md, Rate caps: reads and writes; test t/unit/odoo/65."
 ---
 
 # What happened
@@ -54,7 +54,7 @@ Ruled by the release manager, 2026-10-18:
   old form default; clear its two Cap fields in the manager to take 2000/20000"). It
   changes nothing; the operator may have meant them. Test t/tools/181.
 
-Test: t/unit/odoo/60-a-read-has-room-for-a-scanner.t drives the rolling record
+Test: t/unit/odoo/65-a-read-has-room-for-a-scanner.t drives the rolling record
 directly: a read allows the 21st call and refuses at 2,001 (caller) and 20,001
 (binding); a write refuses the 21st and the 201st; a binding's own caps win for
 both, above and below the defaults; the saved binding stores no caps.
