@@ -939,6 +939,33 @@ sub _inject_meta {
 # is the request's own clean URL (extension stripped, /index collapsed to /).
 # No-ops when: the head is absent, site_url is unset, or the layout already
 # emitted a canonical (the engine defers to an explicit one).
+# SM1190: the request's path with no query or fragment, as the front end gave it.
+# One definition for request_uri, the canonical link and page_url.
+sub _request_path {
+    my $path = $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '';
+    $path =~ s/[?#].*$//s;
+    return $path;
+}
+
+# SM1190: THE PAGE'S ADDRESS - the canonical domain's address (canonical_url, else
+# site_url: the configured host, never the request's Host header) plus the
+# cleaned path. NO QUERY: a query names a view of the page, not the page, and
+# repeating whatever a link carried made the canonical wrong for every page
+# opened with one. '' when no base is configured. RAW: the caller escapes, once.
+sub _canonical_page_url {
+    my ($vars) = @_;
+    my $base = length( $vars->{canonical_url} // '' ) ? $vars->{canonical_url} : ( $vars->{site_url} // '' );
+    return '' unless length $base;
+    $base =~ s{/+$}{};
+
+    my $path = _request_path();
+    $path = "/$path" unless $path =~ m{^/};
+    $path =~ s{\.(?:html|md|url)$}{};    # clean serving extension
+    $path =~ s{/index$}{/};              # /foo/index -> /foo/
+    $path = '/' if $path eq q{} || $path eq '/index';
+    return $base . $path;
+}
+
 sub _inject_canonical {
     my ( $html, $vars ) = @_;
     return $html unless $html =~ /<head[^>]*>/i;
@@ -949,18 +976,7 @@ sub _inject_canonical {
     return $html unless defined $base && length $base;
     $base =~ s{/+$}{};
 
-    my $path = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '/';
-    $path =~ s/[?#].*$//;                # drop query / fragment
-    $path = "/$path" unless $path =~ m{^/};
-    $path =~ s{\.(?:html|md|url)$}{};    # clean serving extension
-    $path =~ s{/index$}{/};              # /foo/index -> /foo/
-    $path = '/' if $path eq q{} || $path eq '/index';
-
-    my $href = $base . $path;
-    $href =~ s/&/&amp;/g;
-    $href =~ s/</&lt;/g;
-    $href =~ s/>/&gt;/g;
-    $href =~ s/"/&quot;/g;
+    my $href = _esc_html( _canonical_page_url($vars) );
 
     my $tag = qq{\n    <link rel="canonical" href="$href">};
     $html =~ s/(<head[^>]*>)/$1$tag/i;

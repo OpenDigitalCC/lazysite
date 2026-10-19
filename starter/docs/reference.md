@@ -172,7 +172,12 @@ See [Configuration](/docs/configuration) for full details.
 
 `request_uri`
 : Current request path, e.g. `/about`. Set from `REDIRECT_URL` or
-  `REQUEST_URI`.
+  `REQUEST_URI`, without any query string or fragment.
+
+`page_url`
+: The page's own address: the canonical domain's `site_url` plus the path,
+  never the query. Already escaped, so write it as `[% page_url %]` in
+  `og:url` and `<link rel="canonical">`. Empty when `site_url` is not set.
 
 `page_source`
 : Docroot-relative path of the source `.md` file, e.g. `/about.md`.

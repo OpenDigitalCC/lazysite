@@ -402,7 +402,20 @@ sub _render_stash {
         # breakout characters undecoded, which the shipped stacks do not - but
         # an invariant with one exception is not an invariant, and the next
         # reader of this block cannot tell the exception was considered.
-        request_uri => _esc_html( $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '' ),
+        #
+        # SM1190 (edge test plan 0.15.10, F-4): THE PATH, NEVER THE QUERY. This was
+        # REDIRECT_URL or the raw REQUEST_URI, and a front end that sets only the
+        # latter hands over `/page?form=f&outcome=x`. A layout building og:url and
+        # the canonical link from it (every catalogue layout does) then named the
+        # visitor's query as the page's address - and, being already escaped here,
+        # got `&amp;amp;` from its own `| html`. The documented meaning is "current
+        # request path"; it is baked into the cached page, so a query here was also
+        # the first visitor's query served to the next.
+        request_uri => _esc_html( _request_path() ),
+        # SM1190: the page's own address - the canonical domain's address (never the
+        # request's Host) and the path, no query - escaped ONCE, so a layout writes
+        # `[% page_url %]` for og:url and the canonical link without `| html`.
+        page_url => _esc_html( _canonical_page_url( \%site_vars ) ),
         # The visitor's address, via SM929's one definition: the direct peer unless
         # it is a trusted proxy, and then the rightmost hop of X-Forwarded-For that
         # a trusted peer did not contribute. Per-request, so only correct on a

@@ -94,6 +94,13 @@ Archive
   says "write it as a list" and names a wrong-kind list; saves of a folder or
   file rule and of a group's limit refuse it, and `lazysite check` names every
   existing rule that does it.
+- SM1190 (PENDING) **the canonical address is the page.** A page opened with a
+  query (`/form?form=f&outcome=x`) rendered `og:url` and the canonical link as
+  `...&amp;amp;outcome=...`: `request_uri` carried the query when the front end
+  sets only `REQUEST_URI`, and it is escaped already, so a layout's own
+  `| html` escaped it twice. `request_uri` is now the path alone, and a new
+  `page_url` is the page's address from the configured site address and the
+  path, escaped once. The query is also no longer baked into the cached page.
 - SM1186 (PENDING) **odoo: a usage refusal says what to fix.** A read whose
   operation refused its input answered 400 with one sentence that said nothing
   of the input, so a page could not tell the person what to change. The

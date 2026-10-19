@@ -157,7 +157,9 @@ Always available:
   below - getting this wrong is silent.
 - `site_name` - from `lazysite.conf`
 - `nav` - array parsed from `nav.conf`
-- `request_uri` - current URL path
+- `request_uri` - current URL path (no query string)
+- `page_url` - the page's full address with no query, already escaped: use it
+  for `og:url` and the canonical link, as `[% page_url %]`
 
 D013 additions:
 
