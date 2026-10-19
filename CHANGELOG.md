@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1160 (PENDING) **on an Odoo app site, the person's Odoo login is the site
+  sign-in.** With `odoo_site_signin: on` (default off) a successful Odoo
+  sign-in, two-factor step included, also signs the person in to the site as
+  `odoo:<login>`: one login. `odoo_group_map` maps Odoo groups to site groups,
+  asked as the person through OOM 0.33's `core.has_groups`, held server-side in
+  the session record and refreshed by `?csrf=1` at most every
+  `odoo_identity_ttl`; a site group that carries a capability is refused by
+  name, so an Odoo group never gives manager rights. Sign-out, or any end of
+  the Odoo session, ends both; the default layout shows "Signed in as" and a
+  sign-out (`odoo_signin_banner`), and `lazysite check` names a refused or
+  unknown mapping. t/unit/odoo/63, 64.
 - SM1175 (PENDING) **internal: lazysite's vendored OOM is 0.33, with oomd.** The
   pinned snapshot in `t/vendor/oom` moves from 0.32 to OOM 0.33 (4bca049),
   which adds `core.has_groups`, and now carries `bin/oomd`, the one file taken
