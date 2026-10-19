@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: edge test plan 0.15.10 results, finding F-4 (inbox/2026-10-19-test-plan-01510-results.md)
 area: render
-status-note: "SHIPPED (PENDING) on n679: request_uri is the path alone; page_url added; lazysite-processor/layout.pm _request_path, _canonical_page_url; t/unit/processor/144."
+status-note: "SHIPPED (0.15.11) on n679: request_uri is the path alone; page_url added; lazysite-processor/layout.pm _request_path, _canonical_page_url; t/unit/processor/144."
 ---
 
 # What happened

@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.10"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.11"
 brand: plain
 ---
 
@@ -2023,6 +2023,14 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.11** (2026-10-19, edge) - **A visitor's address can be trusted again,
+  and the tools say what they could not do.** Hestia's lazysite templates
+  follow the release, and an old front end with a trusted proxy fails the
+  rollout (SM1196, SM1194); address rules that cannot work are refused
+  (SM1189); a cached page no longer carries the first visitor's query (SM1190);
+  the manager says when every visitor is the proxy (SM1192); app settings in
+  the Config page (SM1191); a failed Odoo apply and a usage refusal say why
+  (SM1193, SM1186); check --fix says when a change did not take (SM1195)
 - **0.15.10** (2026-10-19, edge) - **Odoo apps that sign in, scan and attach,
   and a pool that forgets each visitor.** The Odoo login can be the site
   sign-in (SM1160); a binding takes a file (SM1162) and a list of rows

@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1196 (PENDING) **security: Hestia's proxy template follows the release.** Edge's
+## 0.15.11 - EDGE: a visitor's address can be trusted again, and the tools say what they could not do (2026-10-19)
+
+- SM1196 (9c378905) **security: Hestia's proxy template follows the release.** Edge's
   vhost still passed the client's `X-Forwarded-For` through after a rebuild, because
   Hestia renders from its own copy of `lazysite-proxy`, copied by hand once before
   SM929, and nothing refreshed it on upgrade. `lazysite-hestia-update-all.sh` now
@@ -64,7 +66,7 @@ Archive
   `lazysite-hestia-domain` reports a stale copy, not only a missing one. The debs
   still do not write into `/usr/local/hestia`: repeat the copy after an upgrade
   (README.Debian, INSTALL-RUNBOOK.md, UPGRADE.md).
-- SM1195 (PENDING) **`lazysite check --fix` says when a change did not take.** Run by a
+- SM1195 (ab75fc99) **`lazysite check --fix` says when a change did not take.** Run by a
   user outside the web-server group, `chmod 2770` on `lazysite/git` returned success
   while Linux dropped the setgid bit, so edge's `--fix` printed "fixed" three times
   for a change that never happened and then reported the same FAIL. Every chmod and
@@ -72,7 +74,7 @@ Archive
   `not fixed` with the reason (setgid dropped because the caller is not in the
   group, or refused) and the `sudo` command, is tried once per run, and the count
   line gives applied and not taken separately.
-- SM1194 (PENDING) **security: an old front end with a trusted proxy is a failure.** Edge's
+- SM1194 (95d38d36) **security: an old front end with a trusted proxy is a failure.** Edge's
   vhost was rendered before SM929, so nginx passed the client's own
   `X-Forwarded-For` through; with `trusted_proxies` set, a request sent with
   `X-Forwarded-For: 192.0.2.55` was seen as 192.0.2.55 and every address-keyed
@@ -84,14 +86,14 @@ Archive
   none`, not remove the line). `lazysite check` warns whenever the trust set is
   not empty, the default included, with the probe to run. Documented in the
   configuration reference.
-- SM1188 (PENDING) **data: a proxy user's groups reach the data endpoint.** On a site
+- SM1188 (36ffdb30) **data: a proxy user's groups reach the data endpoint.** On a site
   whose trusted proxy uses the default `X-Remote-*` header names, the data endpoint
   deleted the headers before reading groups, so a proxy user was refused a table
   restricted to a group they were in, and a marked directory group's write
   capability never applied. The groups are now taken from the identity read before
   the strip. Headers from an untrusted peer are still removed.
 
-- SM1192 (PENDING) **the manager says when every visitor is the front proxy.**
+- SM1192 (14422a3c) **the manager says when every visitor is the front proxy.**
   Behind a front proxy every visitor can arrive as the proxy's private address,
   so an address rule on a page, group, sign-in or the manager applies to
   everyone at once; `lazysite check` warned, but the operator cannot run it from
@@ -104,7 +106,7 @@ Archive
   `X-Forwarded-For` (rebuild its vhost, and set `trusted_proxies: none` until
   then - removing the line restores the default trust, SM1194). A public
   peer, or a proxy that forwards the visitor, shows nothing.
-- SM1189 (PENDING) **access: an address rule that cannot work is refused and
+- SM1189 (c60c7606) **access: an address rule that cannot work is refused and
   named.** On edge, `addresses: zz60-mine` (a bare value) refused the page with
   "You need to sign in", to a signed-in member too, and `addresses_deny:
   [zz60-mine]` naming an allow list left the page open in silence. A rule the
@@ -113,14 +115,14 @@ Archive
   says "write it as a list" and names a wrong-kind list; saves of a folder or
   file rule and of a group's limit refuse it, and `lazysite check` names every
   existing rule that does it.
-- SM1190 (PENDING) **the canonical address is the page.** A page opened with a
+- SM1190 (0b1ba547) **the canonical address is the page.** A page opened with a
   query (`/form?form=f&outcome=x`) rendered `og:url` and the canonical link as
   `...&amp;amp;outcome=...`: `request_uri` carried the query when the front end
   sets only `REQUEST_URI`, and it is escaped already, so a layout's own
   `| html` escaped it twice. `request_uri` is now the path alone, and a new
   `page_url` is the page's address from the configured site address and the
   path, escaped once. The query is also no longer baked into the cached page.
-- SM1191 (PENDING) **an operator without shell can make a site an app.** The
+- SM1191 (2b352580) **an operator without shell can make a site an app.** The
   0.15.10 walk found the `app_*` settings of SM1155 in neither the Config page
   nor the config-set allow list, so only a host edit of `lazysite.conf` could
   install a site as an app. The Config page has an "Install as an app" section
@@ -130,21 +132,21 @@ Archive
   the key: a scope that is not a `/dir/` path, a start page outside the scope
   (or a scope that would strand the stored start page), a colour that is not
   `#rgb` or `#rrggbb`, an icon that is not a file the site serves.
-- SM1193 (PENDING) **odoo: a failed apply says why.** An apply Odoo refused
+- SM1193 (9c0c02b2) **odoo: a failed apply says why.** An apply Odoo refused
   answered `apply-incomplete` with counts and no message. The failed change's
   entry in `result.changes` now carries its `key` and Odoo's own `message` (and
   OOM's `code` when it sends one), for an immediate apply and a confirm, in-process
   and through oomd; the message goes through the usage-text filter (cleaned, 300
   characters, withheld whole with `withheld: 1` if it holds a path, trace or
   secret), and changes that applied beside it stay `done` (OOM Lab L-19). t/unit/odoo/76, 77.
-- SM1186 (PENDING) **odoo: a usage refusal says what to fix.** A read whose
+- SM1186 (cfde1e2c) **odoo: a usage refusal says what to fix.** A read whose
   operation refused its input answered 400 with one sentence that said nothing
   of the input, so a page could not tell the person what to change. The
   operation's own message and its fix line now reach the page for OOM's `usage`
   errors alone, with control characters cleaned, 300 characters at most, and
   withheld whole when they carry a host path, a token or a traceback. Every
   other kind keeps its sentence, and the event log line is unchanged.
-- SM1187 (PENDING) **internal: a stage another user cannot remove no longer
+- SM1187 (4fea1116) **internal: a stage another user cannot remove no longer
   stops a release run.** The 0.15.10 gate, run by the release manager after the
   developer agent's gate failed and kept its stage, died in 0 s on
   `rm: cannot remove ... Permission denied`: the next run's start-up clear ran

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: release manager, from the 0.15.10 cut (n674)
 area: release
-status-note: "SHIPPED (PENDING) on n674: tools/release.sh (prune_dead_stages, stage_disposition, writable stage dir), tools/stage-default.sh (per-user root); t/tools/184."
+status-note: "SHIPPED (0.15.11) on n674: tools/release.sh (prune_dead_stages, stage_disposition, writable stage dir), tools/stage-default.sh (per-user root); t/tools/184."
 ---
 
 # What happened

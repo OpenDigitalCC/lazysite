@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: inbox/2026-10-19-test-plan-01510-results.md, finding F-6 re-test (edge's host)
 area: security
-status-note: "SHIPPED (PENDING) on n687: installers/hestia/lazysite-hestia-update-all.sh (refresh_template, domains_on_template), tools/lazysite-hestia-domain.pl (template_state, template_hint, proxy_template_hint); t/tools/186."
+status-note: "SHIPPED (0.15.11) on n687: installers/hestia/lazysite-hestia-update-all.sh (refresh_template, domains_on_template), tools/lazysite-hestia-domain.pl (template_state, template_hint, proxy_template_hint); t/tools/186."
 ---
 
 # What happened

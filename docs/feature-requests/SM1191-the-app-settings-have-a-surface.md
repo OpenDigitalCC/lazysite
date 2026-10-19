@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: inbox/2026-10-19-test-plan-01510-results.md (F-5)
 area: manager
-status-note: "SHIPPED (PENDING) on n680: lib/Lazysite/Manager/Config.pm _app_setting_fault, starter/manager/config.md; t/unit/manager/367."
+status-note: "SHIPPED (0.15.11) on n680: lib/Lazysite/Manager/Config.pm _app_setting_fault, starter/manager/config.md; t/unit/manager/367."
 ---
 
 # What happened

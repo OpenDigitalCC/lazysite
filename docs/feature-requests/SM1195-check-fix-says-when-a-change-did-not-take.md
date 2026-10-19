@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: release manager, edge run of `lazysite check --fix` as ispadmin, 2026-10-19
 area: tools
-status-note: "SHIPPED (PENDING) on n686: tools/lazysite-check.pl set_mode, set_owner, report_not_taken; t/unit/tools/86."
+status-note: "SHIPPED (0.15.11) on n686: tools/lazysite-check.pl set_mode, set_owner, report_not_taken; t/unit/tools/86."
 ---
 
 # What happened

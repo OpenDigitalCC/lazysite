@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: lazysite-sites agent, HR apps findings (inbox 2026-10-19-odoo-extension-findings-from-the-hr-apps.md, L-19); OOM agent (inbox 2026-10-20-oom-failed-apply-message-is-there.md)
 area: odoo
-status-note: "SHIPPED (PENDING) on n682: Lazysite::Odoo::_result_summary, _add_failures; t/unit/odoo/76, 77."
+status-note: "SHIPPED (0.15.11) on n682: Lazysite::Odoo::_result_summary, _add_failures; t/unit/odoo/76, 77."
 ---
 
 # What happened
