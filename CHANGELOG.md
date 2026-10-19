@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1173 (PENDING) **a read has room for a scanner.** An Odoo read binding's
+  default caps were the write caps, 20 per caller and 200 per binding an hour,
+  which stopped a scanning app within minutes (OOM Lab L-14); reads now default
+  to 2,000 per caller and 20,000 per binding, writes keep 20 / 200, and a
+  binding may still set its own caps either way. The manager form no longer
+  saves 20 / 200 into a binding, and `lazysite check` names a read binding
+  that a save there left at exactly those numbers, changing nothing.
+  t/unit/odoo/65, t/tools/181.
 - SM1160 (PENDING) **on an Odoo app site, the person's Odoo login is the site
   sign-in.** With `odoo_site_signin: on` (default off) a successful Odoo
   sign-in, two-factor step included, also signs the person in to the site as
