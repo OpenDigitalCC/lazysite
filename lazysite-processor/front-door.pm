@@ -528,9 +528,12 @@ sub _front_session {
     $ENV{LAZYSITE_LOG_LEVEL} = $lvl if defined $lvl && length $lvl && !$ENV{LAZYSITE_LOG_LEVEL};
 
     my $cookie = $ENV{HTTP_COOKIE} // '';
+
+    # SM1181 S5: `pool`, as the front door is only ever a worker - the sentinel is
+    # never consulted here, so a listed proxy's user wins over a cookie (R3, SM1130).
     _timing_to('identity');    # SM1144: the wrapper's time was the page's `identity`
     my ( $ident, $why, %detail ) = Lazysite::Auth::Session::request_session(
-        lazysite_dir => $LAZYSITE_DIR, proxy => _proxy_identity(), cookie => $cookie );
+        lazysite_dir => $LAZYSITE_DIR, proxy => _proxy_identity(), cookie => $cookie, pool => 1 );
     _timing_to('config');
 
     my @line = Lazysite::Auth::Session::session_log_line( $ident, $why, \%detail,

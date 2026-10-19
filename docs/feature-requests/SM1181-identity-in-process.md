@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-19
 raised-by: the release manager, 2026-10-19 ("Yes, plan + review first"), on SM1082 track C2 and the lab's note lazysite/inbox/2026-10-19-what-lazysite-adds-to-an-odoo-call.md
 area: performance
-status-note: "PARTIAL: request_session (S1, n675, t/integration/290); the reader takes a value and the pool never believes the sentinel (S2, n677, 291, 292); signed-in pages in the worker (S3, n684, 293, 294); the manager API one program, its child writing the contract from the value (S4, n685, 295). S5 remains (R6); C2 ships as one release (R7)."
+status-note: "BUILT S1-S5, not yet released: request_session (n675, t/integration/290); the pool never believes the sentinel (n677, 291, 292, 297); signed-in pages in the worker (n684, 293, 294); the manager API one program (n685, 295); the dev server runs Odoo, data, MCP and OAuth direct (n688, 296). Remains: C2's own release with its edge rows (R7)."
 ---
 
 # What was asked
@@ -682,7 +682,7 @@ trusted proxy names a user without `pool => 1`, so in a worker a
 identity. A listed proxy's user is then passed over and the cookie decides. This
 fails closed: an anonymous value, or the cookie's own account. Only the web server's
 configuration can send the parameter (T3). Seen while writing 295's T4 case, which
-sends no sentinel.
+sends no sentinel. Closed in S5.
 
 ## S5: the dev server runs the self-verifying surfaces direct (n688, R6)
 
@@ -739,6 +739,26 @@ wall clock cannot separate the two. The second run also recorded the CPU used by
 dev server's children. Over three rounds each at a load average of 9.2-9.8, S4 used
 157-170 ms of CPU per request and S5 99-106 ms, about 60 ms less: one program's
 start-up. The anonymous wall-clock median was 178-244 ms on S4 and 115-145 ms on S5.
+
+**S4's open point, closed.** In a pool worker `request_session` asked
+`request_identity` without `pool => 1`, so a `LAZYSITE_AUTH_TRUSTED` FastCGI
+parameter made the reader take the fixed names as a wrapper-vouched identity. A
+listed proxy's user was then passed over and the cookie decided. That failed closed,
+but it broke R3 (the pool never believes the sentinel from `%ENV`) and SM1130's
+order. `request_session` now takes `pool => 1` and passes it to `request_identity`.
+The front door's `_front_session`, which decides both a page rendered in the worker
+(S3) and the manager API it relays (S4), always passes it, so in a worker the
+sentinel is never consulted. Plain CGI (the wrapper, the data endpoint) passes
+nothing and is unchanged.
+
+Proved by t/integration/297, using one pool worker with the front door on and a site
+that lists a proxy. The proxy names `ed`, the cookie is `boss`'s, and the sentinel
+arrives as a FastCGI parameter. The page shows `ed`. The real manager API answers
+`whoami` as `ed` and is handed the proxy's own header and no sentinel. Without the
+parameter (the control) both were already `ed`. Against the S4 tree the page and the
+API are both `boss`. Removing the flag from `request_session`, or from the front
+door's call, fails the same four assertions. t/lint/268 now holds the front door's
+call to `pool => 1` and `request_session` to passing it on.
 
 # Related
 

@@ -116,12 +116,15 @@ my %READER = (
     # answer it holds, and the function reads the proxy's user through the accessor.
     'lazysite-auth.pl'             => qr/Session::request_session\(\s*lazysite_dir\s*=>\s*\$LAZYSITE_DIR,\s*proxy\s*=>/,
     'lazysite-data.pl'             => qr/Session::request_session\(\s*lazysite_dir\s*=>\s*\$lz,\s*proxy\s*=>/,
-    'lib/Lazysite/Auth/Session.pm' => qr/Identity::request_identity\(\s*lazysite_dir\s*=>\s*\$dir,\s*proxy\s*=>/,
+    # SM1181 S5: and passes the caller's `pool` on, so a worker's ask never
+    # believes the sentinel (R3).
+    'lib/Lazysite/Auth/Session.pm' =>
+        qr/Identity::request_identity\(\s*lazysite_dir\s*=>\s*\$dir,\s*proxy\s*=>\s*\$pid,\s*pool\s*=>\s*\$opt\{pool\}/,
     # SM1181 S3: the pool's front door decides a wrapped page by the same function,
     # with the render path's proxy answer (the gate's) and the request's own Cookie
-    # header.
+    # header. S5: as a worker (`pool => 1`).
     'lazysite-processor/front-door.pm' =>
-        qr/Session::request_session\(\s*lazysite_dir\s*=>\s*\$LAZYSITE_DIR,\s*proxy\s*=>\s*_proxy_identity\(\),\s*cookie\s*=>\s*\$cookie\s*\)/,
+        qr/Session::request_session\(\s*lazysite_dir\s*=>\s*\$LAZYSITE_DIR,\s*proxy\s*=>\s*_proxy_identity\(\),\s*cookie\s*=>\s*\$cookie,\s*pool\s*=>\s*1\s*\)/,
 );
 for my $rel ( sort keys %READER ) {
     like( code_of( slurp("$root/$rel") ), $READER{$rel}, "$rel reads the identity through the accessor" );

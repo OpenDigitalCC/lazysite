@@ -479,7 +479,8 @@ sub verify_session_cookie {
 # the CGI path and the pool cannot come to decide differently (SM1181 T10,
 # t/integration/290).
 #
-#   request_session( lazysite_dir => $lz, cookie => $header [, proxy => $pid ] )
+#   request_session( lazysite_dir => $lz, cookie => $header [, proxy => $pid ]
+#                    [, pool => 1 ] )
 #     -> ( $ident, undef ) or ( undef, $why, %detail )
 #
 #   $ident = { user, groups => [ ... ], name, email, sid, no_password, odoo, stale,
@@ -490,6 +491,12 @@ sub verify_session_cookie {
 # which header it means ('' for none) and nothing here falls back to %ENV.
 # `proxy` is Lazysite::Util::proxy_identity's answer for this request when the
 # caller already holds it (SM1129: the request is judged once); else it is asked.
+# `pool => 1` says the caller is a FastCGI worker (the pool's front door), and is
+# passed to the identity reader. SM1181 S5, the open point S4 found: without it a
+# LAZYSITE_AUTH_TRUSTED FastCGI parameter made the reader take the fixed names as a
+# wrapper-vouched identity, so a listed proxy's user was passed over and the
+# cookie decided. That failed closed, but broke R3 (the pool never believes the
+# sentinel from %ENV) and SM1130's order. Plain CGI passes nothing, as before.
 #
 # A proxy identity is the identity reader's (SM1131: the configured header names,
 # the group map). A cookie identity is the verifier's, groups FRESH (SEC-2026-07 M5)
@@ -513,7 +520,8 @@ sub request_session {
 
     my $pid = ref $opt{proxy} eq 'HASH' ? $opt{proxy} : Lazysite::Util::proxy_identity($dir);
     if ( $pid->{trusted} ) {
-        my $pi = Lazysite::Auth::Identity::request_identity( lazysite_dir => $dir, proxy => $pid );
+        my $pi = Lazysite::Auth::Identity::request_identity( lazysite_dir => $dir, proxy => $pid,
+            pool => $opt{pool} ? 1 : 0 );
         if ( $pi->{source} eq 'proxy' && length $pi->{user} ) {
             return (
                 { user => $pi->{user}, groups => [ @{ $pi->{groups} } ],
