@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1178 (PENDING) **a binding may name a pack operation with a hyphen.** A
+  binding to an operation of an OOM pack such as `crm-page` (`crm-page.leads`)
+  was refused at save ("not an operation name"), so a pack could be installed
+  and listed but never bound; an operation name's parts may now hold a hyphen
+  between characters, as OOM names packs, and a leading, trailing or doubled
+  hyphen is still refused. t/unit/odoo/71.
 - SM1162 (PENDING) **a binding takes a file.** An Odoo binding may map a request
   file field to a parameter the operation declares as a file or a list of files
   (or a `set.<field>` of a binary field) with `file_params`; `file_max_kb` is
