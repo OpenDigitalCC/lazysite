@@ -29,6 +29,8 @@ use Lazysite::Util              qw(log_event);
 use Lazysite::Lang              qw(lang_status sole_group);
 use Lazysite::Manager::Common   qw($auth_user $token_auth _user_caps _write_conf_key);
 use Lazysite::Manager::Describe qw(_json_bool);
+use Lazysite::Validate          ();
+use Lazysite::Auth::Acl         ();
 
 our @EXPORT_OK = qw(action_config_read action_config_set action_lang_status _language_context);
 
@@ -68,6 +70,7 @@ sub action_config_read {
         app_name app_short_name app_scope app_start_url
         app_theme_colour app_background_colour
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
+        app_offline_pages app_update
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
@@ -129,6 +132,12 @@ sub _app_setting_fault {
         my $start = $stored->('app_start_url');
         return "app_scope ($v) would leave app_start_url ($start) outside it; change or clear app_start_url first"
             if defined $start && length $start && !$in_scope->( $start, $v );
+        # SM1197: and the pages kept for offline, each of which must sit inside it.
+        my $pages = $stored->('app_offline_pages');
+        for my $pg ( grep { length } map { s/\A\s+|\s+\z//gr } split /,/, ( $pages // '' ) ) {
+            return "app_scope ($v) would leave the offline page $pg outside it; change or clear app_offline_pages first"
+                unless $in_scope->( $pg, $v );
+        }
     }
     elsif ( $key eq 'app_start_url' ) {
         return "app_start_url ($v) must be a path starting with /, optionally with a ?query"
@@ -152,11 +161,95 @@ sub _app_setting_fault {
         return "$key ($v) is not a file this site serves; put the file there first"
             unless -f "$root$v" || -f "$docroot$v";
     }
+    elsif ( $key eq 'app_update' ) {
+        return "app_update ($v) must be now or wait" unless $v eq 'now' || $v eq 'wait';
+    }
+    elsif ( $key eq 'app_offline_pages' ) {
+        my $scope = $stored->('app_scope');
+        $scope = '/' unless defined $scope && length $scope;
+        for my $pg ( grep { length } map { s/\A\s+|\s+\z//gr } split /,/, $v ) {
+            my $why = _app_offline_page_fault( $pg, $scope, $conf, $stored );
+            return "app_offline_pages: $pg $why" if defined $why;
+        }
+    }
     elsif ( $key eq 'app_shell' ) {
         for my $p ( grep { length } map { s/\A\s+|\s+\z//gr } split /,/, $v ) {
             return "app_shell ($p) must be a site path starting with / and holding no .. or spaces"
                 unless $p =~ m{\A/[A-Za-z0-9._~/%?&=-]*\z} && $p !~ m{\.\.} && $p !~ m{\A//};
         }
+    }
+    return undef;
+}
+
+# SM1197 (inbox 2026-10-19): WHY THIS PAGE MAY NOT BE KEPT ON A DEVICE FOR OFFLINE
+# USE, or undef when it may. The worker keeps a listed page network-first and serves
+# it with no signal, so a listed page must be the same for every visitor. This
+# restates lazysite-processor/app.pm (_app_page_fault), which loads nothing from
+# Lazysite:: (ADR 0001) and which DROPS what this refuses; t/unit/manager/368 runs
+# the same pages through both. The sources of "not the same for everyone" are the
+# ones the gate and the renderer use: the access keys (read by the validator's
+# marked copy of the gate's reader), auth_default, the ACL store (read and address
+# rules), and the front-matter bindings that make main mark a page per viewer
+# (odoo-identity:, db:...(mine)). An `odoo:` binding is NOT one: a render runs only
+# a binding that permits public and takes no visitor key and no Odoo session, so the
+# page HTML is the same for everyone and the personal data comes from the Odoo
+# endpoint at run time, which the worker never touches.
+sub _app_offline_page_fault {
+    my ( $p, $scope, $conf, $stored ) = @_;
+    return 'is not a plain site path (a / path, no query, no ..)'
+        unless $p =~ m{\A/(?:[A-Za-z0-9._~-]+/)*[A-Za-z0-9._~-]*\z} && $p !~ m{(?:\A|/)\.\.?(?:/|\z)};
+
+    my $manager = $stored->('manager_path')  || '/manager';
+    my $login   = $stored->('auth_redirect') || '/login';
+    ( my $logout = $login ) =~ s{/login\b}{/logout};
+    my %seen;
+    for my $n ( grep { !$seen{$_}++ } ( '/cgi-bin/', '/lazysite/', $manager, $login, $logout ) ) {
+        return 'is an endpoint, the manager, a sign-in path or the engine tree, which the app never keeps'
+            if $p eq $n || index( $p, $n =~ m{/\z} ? $n : "$n/" ) == 0;
+    }
+    return 'is an endpoint, which the app never keeps' if $p =~ m{/lazysite-[a-z0-9-]+\.pl(?:/|\z)};
+    # After the never-list, so an endpoint is named as one rather than as out of scope.
+    return "is outside the app scope ($scope)" unless index( $p, $scope ) == 0 || "$p/" eq $scope;
+
+    my $docroot = $DOCROOT // '';
+    my $root    = $docroot;
+    my $cr      = $stored->('content_root');
+    $root = "$docroot/$cr"
+        if defined $cr && length $cr && $cr =~ m{\A[A-Za-z0-9._/-]+\z} && $cr !~ m{\.\.} && -d "$docroot/$cr";
+    ( my $base = $p ) =~ s{\A/}{};
+    $base .= 'index' if $base eq '' || $base =~ m{/\z};
+    my $file = "$root/$base.md";
+    open my $fh, '<:utf8', $file or return 'is not a page this site has';
+    my $text = do { local $/; <$fh> };
+    close $fh;
+
+    my ($fm) = Lazysite::Validate::split_front_matter( $text // '' );
+    $fm = '' unless ( $text // '' ) =~ /\A\x{FEFF}?---/;
+    my $ak = Lazysite::Validate::read_access_keys( $fm, 'content' );
+    return 'has an access rule the engine cannot read, so the page is refused to everyone'
+        if %{ $ak->{unreadable} };
+    my $auth = $ak->{auth} || $stored->('auth_default') || 'none';
+    return "needs sign-in (auth: $auth), so it is not the same for every visitor" if $auth ne 'none';
+    return 'is limited to groups, so it is not the same for every visitor' if ref $ak->{auth_groups} eq 'ARRAY' && @{ $ak->{auth_groups} };
+    return 'is a paid page, so it is not the same for every visitor' if ( $ak->{payment} // 'none' ) ne 'none';
+    return 'is limited by address, so it is not the same for every visitor'
+        if ( ref $ak->{addresses} eq 'ARRAY' && @{ $ak->{addresses} } ) || ( ref $ak->{addresses_deny} eq 'ARRAY' && @{ $ak->{addresses_deny} } );
+    for my $line ( split /\r?\n/, $fm ) {
+        return 'shows who the viewer is in Odoo (odoo-identity:), so it is different for each visitor' if $line =~ /\bodoo-identity:/;
+        return 'binds the viewer\'s own rows (db:...(mine)), so it is different for each visitor'
+            if $line =~ /\bdb:/i && $line =~ /\bmine\b/;
+        return 'is rendered fresh for each request (nocache: true)' if $line =~ /^nocache\s*:\s*true/i;
+        return 'is a data page (api: or raw: true), not a page' if $line =~ /^(?:api|raw)\s*:\s*true/i;
+    }
+
+    # The ACL store: a read list, an address list, or a draft section that governs the
+    # page. A store that will not read refuses the page - the worker would keep an
+    # answer the engine is refusing.
+    ( my $rel = "$base.md" ) =~ s{\A/+}{};
+    return 'is under an access rule whose store cannot be read' if Lazysite::Auth::Acl::gating_for( $docroot, $rel ) eq 'unknown';
+    for my $mode (qw(read addresses addresses_deny)) {
+        return 'is under an access rule (a read list or an address list), so it is not the same for every visitor'
+            if defined Lazysite::Auth::Acl::governing_key( $docroot, $rel, $mode );
     }
     return undef;
 }
@@ -220,6 +313,7 @@ sub action_config_set {
         app_name app_short_name app_scope app_start_url
         app_theme_colour app_background_colour
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
+        app_offline_pages app_update
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
 
     # SM612: settable, but NOT BY A TOKEN CLIENT. The operator toggles the
@@ -376,7 +470,8 @@ sub action_config_set {
     my %clearable = map { $_ => 1 } qw(canonical_ip asset_max_age backup_retention
         manager_addresses manager_addresses_deny signin_addresses signin_addresses_deny
         app_name app_short_name app_scope app_start_url app_theme_colour app_background_colour
-        app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell);
+        app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
+        app_offline_pages app_update);
     return { ok => 0,
         error => "A value is required: '$key' has no default to fall back to, so it "
             . 'cannot be cleared (the keys that can are '

@@ -150,6 +150,12 @@ var SITE_SCHEMA = [
   { key: 'app_shell', placeholder: 'only what the start page links', label: 'Extra files kept for offline (optional)', type: 'text', default: '',
     group: 'Install as an app',
     note: 'Site paths, comma separated, that the app keeps beside the start page\'s own stylesheets and scripts so it opens without a network, such as /assets/extra.css. Each must start with a slash.' },
+  { key: 'app_offline_pages', placeholder: 'no page is kept for offline', label: 'Pages kept for offline (optional)', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'Site paths of pages, comma separated, that the app keeps so it opens with no connection, such as /portal/, /portal/new. Each must be a page inside the scope that is the same for every visitor: a page that needs sign-in, is limited to a group, an address or a payment, shows who the viewer is, or is under an access rule is refused when you save, naming the page. A page with an Odoo binding is fine when the person\'s own data comes from the Odoo endpoint as the page runs. The copy kept is the page as a signed-out visitor sees it.' },
+  { key: 'app_update', placeholder: 'now', label: 'When a new version takes over', type: 'text', default: '',
+    group: 'Install as an app',
+    note: 'now (the default): an installed app switches to a new version at once. wait: it switches only when the page asks, so a form being filled in is not swapped under the person. Write now or wait. With wait the page needs a few lines of script to offer a Reload (see the app documentation).' },
   // SM623: the service toggles are grouped BY WHAT A CLIENT NEEDS, not by the
   // order they were added. They were interleaved - WebDAV, MCP, OAuth, control
   // API, token exchange - so an operator setting up one kind of connection had

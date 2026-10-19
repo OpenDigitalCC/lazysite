@@ -70,6 +70,24 @@ Archive
   the tests now name no pack directory by default; and a fixture pack named with
   a hyphen, which OOM has refused since 0.35 (`crm_page`, `stock.link_stranded`).
   t/unit/odoo/56, 71, 72, t/lint/207, 261, 262.
+- SM1197 (PENDING) **an installed app opens with no connection, and an update can wait
+  for the page.** The generated worker kept the app shell and never a page, so an
+  app started with no signal showed the browser's error; the OOM Lab wrote its own
+  worker to get round it. `app_offline_pages` names the pages the worker keeps,
+  network first with the last good copy used offline, under the rules it already
+  held: nothing sent `no-store` or `private`, nothing but a plain 200 with no
+  redirect, never the Odoo endpoint, `/cgi-bin/`, the manager, `lazysite/` or
+  WebDAV. The copy is fetched by the worker without credentials, so a signed-in
+  visit cannot put anything personal in it. The engine lists only pages that are
+  the same for every visitor, and the Config page and config-set refuse any other
+  at save, naming the page and the reason (sign-in, a group, a payment, an
+  address, `odoo-identity:`, an access rule). A page with an `odoo:` binding
+  qualifies. `app_update: wait` holds a new worker until the page asks:
+  `lazysite-app.js` fires a `lazysite-app-update` event and `apply()` posts
+  `skip-waiting`; the default stays "take over at once". `lazysite-app.js` now
+  warns in the console with the reason when a registration fails or the origin is
+  not secure. Docs: the app page says a phone on `http://<lan-ip>:port` never
+  registers a worker.
 
 ## 0.15.12 - EDGE: who a request is, decided once, in the worker (2026-10-20)
 

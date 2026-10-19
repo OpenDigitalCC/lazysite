@@ -102,3 +102,8 @@ update_policy: manual
 # app_icon_192: /icons/app-192.png
 # app_icon_512: /icons/app-512.png
 # app_icon_maskable: /icons/app-maskable.png
+# Pages the app keeps so it opens with no connection (SM1197): site paths inside
+# the scope, each the same for every visitor. A protected page is refused.
+# app_offline_pages: /portal/, /portal/new
+# A new version takes over at once (now, the default) or when the page asks (wait).
+# app_update: now

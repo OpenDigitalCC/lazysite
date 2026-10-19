@@ -69,7 +69,7 @@ Directory scan
   unrecognised value reads as), `enforce`, or `off`. The manager is never
   enforced.
 
-`app_name`, `app_short_name`, `app_scope`, `app_start_url`, `app_theme_colour`, `app_background_colour`, `app_icon_64`, `app_icon_192`, `app_icon_512`, `app_icon_maskable`, `app_shell`
+`app_name`, `app_short_name`, `app_scope`, `app_start_url`, `app_theme_colour`, `app_background_colour`, `app_icon_64`, `app_icon_192`, `app_icon_512`, `app_icon_maskable`, `app_shell`, `app_offline_pages`, `app_update`
 : Install the site, or the section under `app_scope`, as an app: the engine
   generates the web app manifest and the service worker from these. Setting
   `app_name` turns it on. See [Installing a site as an app](/docs/app).

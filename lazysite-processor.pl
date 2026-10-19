@@ -429,7 +429,8 @@ our %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
     # SM1155: a domain may be its own app (name, scope, icons, shell)
     app_name app_short_name app_scope app_start_url app_theme_colour
     app_background_colour app_icon_64 app_icon_192 app_icon_512 app_icon_maskable
-    app_shell);
+    app_shell
+    app_offline_pages app_update);    # SM1197
 
 # SM151 P6: content-type by extension for per-domain static files served by the
 # processor (_serve_content_static). Kept small - the SEO artefacts
