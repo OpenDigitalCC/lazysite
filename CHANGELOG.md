@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1196 (PENDING) **security: Hestia's proxy template follows the release.** Edge's
+  vhost still passed the client's `X-Forwarded-For` through after a rebuild, because
+  Hestia renders from its own copy of `lazysite-proxy`, copied by hand once before
+  SM929, and nothing refreshed it on upgrade. `lazysite-hestia-update-all.sh` now
+  compares every lazysite template Hestia has installed (proxy, app, cgi, fcgi) with
+  the release's on every run, replaces one that differs (the old copy kept beside it
+  as `NAME.EXT.bak-TIMESTAMP`), names the domains on it and rebuilds them with
+  `--rebuild`; a refresh that cannot write is a FAILURE and exit status 1.
+  `lazysite-hestia-domain` reports a stale copy, not only a missing one. The debs
+  still do not write into `/usr/local/hestia`: repeat the copy after an upgrade
+  (README.Debian, INSTALL-RUNBOOK.md, UPGRADE.md).
 - SM1195 (PENDING) **`lazysite check --fix` says when a change did not take.** Run by a
   user outside the web-server group, `chmod 2770` on `lazysite/git` returned success
   while Linux dropped the setgid bit, so edge's `--fix` printed "fixed" three times

@@ -30,6 +30,7 @@ use strict;
 use warnings;
 use Cwd            qw(abs_path);
 use File::Basename qw(dirname);
+use File::Compare  ();
 use File::Find     ();
 use Getopt::Long   ();
 
@@ -51,6 +52,14 @@ my $DAEMON_DIR = length( $ENV{LAZYSITE_DAEMON_DIR} // '' )
     : '/etc/lazysite/daemon';
 # SM760: the web server's CGI user, which is the runtime's user on the plain
 # CGI flow (see `add --daemon`).
+# SM1196: where Hestia keeps its template trees, and where this release's own
+# copies are. Overridable so the hints below can be tested on fixtures.
+my $TPL_BASE = length( $ENV{LAZYSITE_HESTIA_TEMPLATES} // '' )
+    ? $ENV{LAZYSITE_HESTIA_TEMPLATES}
+    : '/usr/local/hestia/data/templates/web';
+my $TPL_SRC_DIR = length( $ENV{LAZYSITE_TEMPLATE_SRC} // '' )
+    ? $ENV{LAZYSITE_TEMPLATE_SRC}
+    : '/usr/share/lazysite-hestia/templates';
 my $WEB_USER = length( $ENV{LAZYSITE_WEB_USER} // '' ) ? $ENV{LAZYSITE_WEB_USER} : 'www-data';
 my $WEB_GROUP = length( $ENV{LAZYSITE_WEB_GROUP} // '' )
     ? $ENV{LAZYSITE_WEB_GROUP}
@@ -117,6 +126,10 @@ Environment (host-layout overrides):
   LAZYSITE_REGISTRY_DIR   site registry (default /etc/lazysite/sites.d)
   LAZYSITE_POOLS_DIR      pool configs (default /etc/lazysite/pools)
   LAZYSITE_DAEMON_DIR     daemon configs (default /etc/lazysite/daemon)
+  LAZYSITE_HESTIA_TEMPLATES  Hestia web template root (default
+                          /usr/local/hestia/data/templates/web)
+  LAZYSITE_TEMPLATE_SRC   this release's template copies (default
+                          /usr/share/lazysite-hestia/templates)
   LAZYSITE_WEB_GROUP      web-server group (default www-data)
   LAZYSITE_WEB_USER       web-server CGI user (default www-data) - the runtime's
                           user for `add --daemon` without --fcgi
@@ -463,13 +476,41 @@ sub first_existing {
     return undef;
 }
 
+# SM1196: is Hestia's copy of template NAME in DIR missing, stale or current?
+# Hestia renders a vhost from ITS copy, which is put there once by hand, so an
+# upgrade that refreshes /usr/share/lazysite-hestia/templates leaves it old and
+# every rebuild re-renders the old template (edge, 2026-10-19: no X-Forwarded-For
+# in the installed lazysite-proxy, so the vhost passed the client's through).
+# 'stale' = either file of the pair differs from this release's copy; with no
+# release copy to compare, an installed .tpl is called current (the old test).
+sub template_state {
+    my ( $dir, $name ) = @_;
+    return 'missing' unless -f "$dir/$name.tpl";
+    for my $ext (qw(tpl stpl)) {
+        my $shipped = "$TPL_SRC_DIR/$name.$ext";
+        next unless -f $shipped;
+        return 'stale' unless -f "$dir/$name.$ext" && File::Compare::compare( $shipped, "$dir/$name.$ext" ) == 0;
+    }
+    return 'current';
+}
+
 # Point the operator at the shipped template copies if Hestia does not have
-# them yet (the one-off host step from README.Debian). Advisory only.
+# them yet (the one-off host step from README.Debian), or has an OLD copy of
+# them (SM1196). Advisory only.
 sub template_hint {
     my ($tpl) = @_;
-    my $hestia_tpl = '/usr/local/hestia/data/templates/web/apache2/php-fpm';
+    my $hestia_tpl = "$TPL_BASE/apache2/php-fpm";
     return unless -d $hestia_tpl;    # no Hestia here (tests) - stay quiet
-    return if -f "$hestia_tpl/$tpl.tpl";
+    my $state = template_state( $hestia_tpl, $tpl );
+    return if $state eq 'current';
+    if ( $state eq 'stale' ) {
+        print "NOTE: $tpl in $hestia_tpl is STALE: it differs from this release's copy,\n"
+            . "      so Hestia renders the OLD vhost on every rebuild. Refresh it, then\n"
+            . "      rebuild every domain on it (the updater does both: --rebuild):\n"
+            . "    cp /usr/share/lazysite-hestia/templates/$tpl.* $hestia_tpl/\n"
+            . "    v-rebuild-web-domain USER DOMAIN\n";
+        return;
+    }
     print "NOTE: $tpl is not installed in $hestia_tpl yet; copy it first:\n"
         . "    cp /usr/share/lazysite-hestia/templates/$tpl.* $hestia_tpl/\n";
     return;
@@ -478,9 +519,19 @@ sub template_hint {
 # The same hint for the nginx proxy layer (SM283), which lives in a DIFFERENT
 # Hestia template directory - copying the web templates does not put it there.
 sub proxy_template_hint {
-    my $hestia_tpl = '/usr/local/hestia/data/templates/web/nginx';
+    my $hestia_tpl = "$TPL_BASE/nginx";
     return unless -d $hestia_tpl;    # no Hestia here (tests) - stay quiet
-    return if -f "$hestia_tpl/lazysite-proxy.tpl";
+    my $state = template_state( $hestia_tpl, 'lazysite-proxy' );
+    return if $state eq 'current';
+    if ( $state eq 'stale' ) {
+        print "NOTE: lazysite-proxy in $hestia_tpl is STALE: it differs from this\n"
+            . "      release's copy (an old one passes a visitor's X-Forwarded-For\n"
+            . "      through, SM929). Refresh it, then rebuild every domain on it\n"
+            . "      (the updater does both: --rebuild):\n"
+            . "    cp /usr/share/lazysite-hestia/templates/lazysite-proxy.* $hestia_tpl/\n"
+            . "    v-rebuild-web-domain USER DOMAIN\n";
+        return;
+    }
     print "NOTE: lazysite-proxy is not installed in $hestia_tpl yet; copy it\n"
         . "      first, or the front end serves gated static files directly:\n"
         . "    cp /usr/share/lazysite-hestia/templates/lazysite-proxy.* $hestia_tpl/\n";

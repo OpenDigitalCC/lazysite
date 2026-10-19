@@ -131,6 +131,30 @@ domain cannot route `/cgi-bin/` or `/dav`.
    and a template install all produced byte-identical responses,
    because none of them touched this layer.
 
+5. **After every upgrade, Hestia's copies of the templates must follow
+   the release** (SM1196). Hestia renders a vhost from its own copy of
+   a template, and the copy in steps 2 and 3 is a one-off: upgrading
+   the package refreshes `/usr/share/lazysite-hestia/templates` and
+   nothing else, so every rebuild re-renders the old template (edge,
+   2026-10-19: the installed `lazysite-proxy` predated SM929 and the
+   vhost still passed the client's `X-Forwarded-For` through). The
+   packages deliberately do not write into `/usr/local/hestia`. Either
+   run `lazysite-hestia-update-all.sh --rebuild` from the release (it
+   compares every lazysite template in Hestia's directories with the
+   release's, replaces one that differs, keeps the old copy beside it
+   as `NAME.EXT.bak-TIMESTAMP`, rebuilds the domains on it, and fails
+   loudly when it cannot write), or repeat the `cp` of steps 2 and 3
+   and `v-rebuild-web-domain <user> <domain>` by hand.
+   `lazysite-hestia-domain` reports a copy that differs as STALE. Probe:
+
+   ```bash
+   grep -n "X-Forwarded-For" /usr/local/hestia/data/templates/web/nginx/lazysite-proxy.*tpl
+   # must match in lazysite-proxy.tpl and lazysite-proxy.stpl
+   ```
+
+   and a request sent with `X-Forwarded-For: 192.0.2.55` must not be
+   seen by the site as 192.0.2.55.
+
 First-run site steps (unchanged from the tarball era):
 
 - Set the manager password:

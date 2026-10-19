@@ -64,6 +64,23 @@ auto-blocker and the daily visitor count:
    site only when Hestia rebuilds that site's vhost, so the rollout table's VHOST
    column reads `rebuild` until it has been - that column is how you tell which
    sites are still on the old template.
+
+   **Hestia renders a vhost from its OWN copy of the template, not from the
+   package's** (SM1196). That copy is put there by hand once, so an upgrade used
+   to leave it old and every `v-rebuild-web-domain` re-rendered the old template:
+   edge's installed `lazysite-proxy` predated SM929 and kept passing the client's
+   `X-Forwarded-For` through after a rebuild. `lazysite-hestia-update-all.sh` now
+   compares each lazysite template in Hestia's directories (the nginx
+   `lazysite-proxy`, and `lazysite-app`, `lazysite-cgi`, `lazysite-fcgi` where
+   installed) with the release's on EVERY run, replaces one that differs (the old
+   copy kept beside it as `NAME.EXT.bak-TIMESTAMP`, which Hestia does not offer as
+   a template), names the domains that render it until rebuilt, and rebuilds them
+   with `--rebuild`. A refresh that fails is a FAILURE line and exit status 1. On a
+   host that only has the packages, copy the templates again after every upgrade
+   (`lazysite-hestia-domain` says when its copy is STALE). To check the result:
+   `grep -n "X-Forwarded-For" /usr/local/hestia/data/templates/web/nginx/lazysite-proxy.*tpl`
+   must match in both files, and a request sent with `X-Forwarded-For: 192.0.2.55`
+   must not be seen as 192.0.2.55.
 2. **The engine must be told the proxy is trustworthy.** `trusted_proxies` on the
    Config page, or in `lazysite.conf`. Absent or empty means the private ranges
    `10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16`, which covers a proxy on a

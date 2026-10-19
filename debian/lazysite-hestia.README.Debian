@@ -48,6 +48,24 @@ One-off host setup
    and leaves a site with no ACLs serving statics directly at full
    speed as before.
 
+   Hestia renders a vhost from ITS copy of a template, not from the
+   package's, and nothing updates that copy when the package is
+   upgraded (this package does not write into /usr/local/hestia, which
+   is not package territory). SM1196: after EVERY upgrade of this
+   package, repeat steps 2 and 3, then rebuild each domain
+   (v-rebuild-web-domain USER DOMAIN). lazysite-hestia-domain says
+   "STALE" when the copy in Hestia differs from the package's, and
+   lazysite-hestia-update-all.sh (tarball hosts) does the refresh, the
+   backup and the rebuild itself. Probe the result:
+
+       grep -n "X-Forwarded-For" \
+           /usr/local/hestia/data/templates/web/nginx/lazysite-proxy.*tpl
+
+   must match in both files (an old copy sets none, and the vhost then
+   passes a visitor's own X-Forwarded-For through); and a request sent
+   with X-Forwarded-For: 192.0.2.55 must not be seen by the site as
+   192.0.2.55.
+
 4. Enable the Apache modules the templates use, then restart Apache:
 
        a2enmod headers rewrite          # both patterns

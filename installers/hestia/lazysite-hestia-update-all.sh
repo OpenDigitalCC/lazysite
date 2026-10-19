@@ -25,6 +25,14 @@
 #                 signal, not the transcript. A site that FAILS still prints its
 #                 whole captured output regardless of this flag, because the
 #                 detail of a failure is the one thing never worth suppressing.
+#   (always)      SM1196: before anything is rebuilt, every lazysite template
+#                 Hestia has installed (lazysite-proxy in nginx/, lazysite-app,
+#                 lazysite-cgi, lazysite-fcgi in apache2/php-fpm/) is compared
+#                 with the release's copy and replaced when it differs, the old
+#                 one kept beside it as NAME.EXT.bak-TIMESTAMP; the domains on
+#                 it are named, and --rebuild rebuilds them. Hestia renders from
+#                 ITS copy, so a rebuild cannot help while that copy is old. A
+#                 refresh that cannot write is a FAILURE line and exit status 1.
 #   --templates   ALSO refresh the shared lazysite-app Hestia web template FILES
 #                 from STAGE before deploying, so a later vhost change (e.g. the
 #                 SSI options) is staged. This only updates the shared template
@@ -131,6 +139,9 @@ TPLDIR="$HESTIA/data/templates/web/apache2/php-fpm"
 # up from the web templates above (nginx as PROXY, not as web server).
 PROXYTPLDIR="$HESTIA/data/templates/web/nginx"
 PROXY_TPL='lazysite-proxy'
+# Hestia's per-user registry (web.conf: one TPL=/PROXY_TPL= line per domain) -
+# the lister's knob again, so the scripts agree on one host layout.
+USERS_DIR="${LAZYSITE_HESTIA_USERS:-$HESTIA/data/users}"
 
 # SM324: defined HERE, above every caller.
 #
@@ -286,6 +297,97 @@ xff_exposure() {
     kind=$(site_trust_kind "$3")
     [ "$kind" != none ] || return 0
     printf 'FAILURE: %s: %s\n' "$2" "$(xff_reason "$kind")"
+}
+
+# SM1196: HESTIA'S INSTALLED COPY OF A TEMPLATE FOLLOWS THE RELEASE.
+#
+# Edge, 2026-10-19 (F-6 re-test): after v-rebuild-web-domain the vhost still
+# passed the client's X-Forwarded-For through, and `grep -n X-Forwarded-For
+# /usr/local/hestia/data/templates/web/nginx/lazysite-proxy.*tpl` found nothing.
+# Hestia renders a vhost from ITS copy of the template, and that copy was put
+# there once, by hand (cp, README.Debian step 3), before SM929 (0.15.2) - so
+# every rebuild re-rendered the old one and nothing said so. This script knew a
+# vhost was old (the VHOST column) but could not help: a rebuild reads the very
+# template that is old.
+#
+# The copy is now compared on EVERY run, with or without --templates, and an
+# installed lazysite template that differs from the release's is replaced. The
+# release's copy is $STAGE/installers/hestia (the unpacked tarball) or, on a
+# host with only the debs, /usr/share/lazysite-hestia/templates.
+#   TPL_SRC       the release's copy (set from the above, or by a test)
+#   TPL_NEW       1 = also install a template Hestia does not have yet
+#                 (--templates / --proxy / --rebuild, as before); 0 = refresh
+#                 only what is installed, so a host that never copied the
+#                 cgi/fcgi templates is not given them by a rollout
+#   TPL_STAMP     the timestamp the backups carry
+#   TPL_FAILURES  refreshes that did not take; the exit status reads it
+#   TPL_CHANGED   the template names that were replaced
+# The backup is NAME.EXT.bak-STAMP beside the original: Hestia lists a template
+# by its .tpl/.stpl name, so a backup with another ending is not offered as one.
+refresh_template() {
+    local dir="$1" name="$2" ext s t bak tmp mode
+    shift 2
+    for ext in "$@"; do
+        s="$TPL_SRC/$name.$ext"; t="$dir/$name.$ext"
+        [ -f "$s" ] || continue
+        if [ ! -f "$t" ]; then
+            [ "${TPL_NEW:-0}" = 1 ] || continue
+        elif cmp -s "$s" "$t"; then
+            continue
+        fi
+        tmp="$t.tmp-$$"
+        mode=644; [ "$ext" = sh ] && mode=755
+        bak=''
+        if [ -f "$t" ]; then
+            bak="$t.bak-$TPL_STAMP"
+            if ! cp -p "$t" "$bak" 2>/dev/null; then
+                printf 'FAILURE: could not back up %s to %s - the template was NOT refreshed; copy %s over it by hand, then rebuild the domains on it\n' "$t" "$bak" "$s"
+                TPL_FAILURES=$(( TPL_FAILURES + 1 )); continue
+            fi
+        fi
+        if cp "$s" "$tmp" 2>/dev/null && chmod "$mode" "$tmp" 2>/dev/null && mv -f "$tmp" "$t" 2>/dev/null; then
+            if [ -n "$bak" ]; then
+                printf '    refreshed: %s (differed from the release; old copy kept as %s)\n' "$t" "$bak"
+            else
+                printf '    installed: %s\n' "$t"
+            fi
+            in_list "$name" "${TPL_CHANGED[@]:-}" || TPL_CHANGED+=( "$name" )
+        else
+            rm -f "$tmp" 2>/dev/null
+            [ -z "$bak" ] || rm -f "$bak" 2>/dev/null
+            printf 'FAILURE: could not write %s - the template was NOT refreshed, so a rebuild renders the old one; copy %s over it by hand, then rebuild the domains on it\n' "$t" "$s"
+            TPL_FAILURES=$(( TPL_FAILURES + 1 ))
+        fi
+    done
+}
+
+# domain_uses_template USER DOMAIN NAME - succeeds when Hestia's registry has
+# the domain on web template NAME or on proxy template NAME.
+domain_uses_template() {
+    local line
+    [ -f "$USERS_DIR/$1/web.conf" ] || return 1
+    while IFS= read -r line; do
+        case "$line" in
+            *"DOMAIN='$2'"*"TPL='$3'"*) return 0 ;;
+        esac
+    done < "$USERS_DIR/$1/web.conf"
+    return 1
+}
+
+# domains_on_template NAME - every "user/domain" on this host that Hestia
+# records as using template NAME (web or proxy), whatever its channel: a
+# refreshed template reaches all of them at their next rebuild.
+domains_on_template() {
+    local wc u line d
+    for wc in "$USERS_DIR"/*/web.conf; do
+        u="${wc%/web.conf}"; u="${u##*/}"
+        while IFS= read -r line; do
+            case "$line" in *"TPL='$1'"*) ;; *) continue ;; esac
+            d="${line#*DOMAIN=\'}"; d="${d%%\'*}"
+            [ -n "$d" ] && printf '%s/%s\n' "$u" "$d"
+        done < "$wc"
+    done
+    return 0
 }
 
 # The CHECK column: `lazysite check` for one site, after the rollout's repair -
@@ -661,8 +763,22 @@ fi
 echo
 printf '==> IN SCOPE: %d site(s)\n' "$n"
 
-# --- refresh the shared Hestia web template (so vhost changes propagate) -----
-if [ "$DO_TPL" = 1 ] && [ -d "$TPLDIR" ]; then
+# --- refresh Hestia's copies of the lazysite templates (SM1196) -------------
+# Before ANY rebuild: a rebuild reads Hestia's copy, so the copy has to be the
+# release's first. Order: refresh, then rebuild (below), then the rendered-file
+# X-Forwarded-For check in the summary (SM1194).
+if [ -f "$STAGE/installers/hestia/$PROXY_TPL.tpl" ]; then
+    TPL_SRC="$STAGE/installers/hestia"
+else
+    TPL_SRC="${LAZYSITE_TEMPLATE_SRC:-/usr/share/lazysite-hestia/templates}"
+fi
+TPL_STAMP=$(date +%Y%m%d%H%M%S)
+TPL_FAILURES=0
+TPL_CHANGED=()
+TPL_NEW=$DO_TPL
+echo
+echo "==> comparing Hestia's lazysite templates with the release's ($TPL_SRC)"
+if [ -d "$TPLDIR" ]; then
     # SM345: this one CANNOT be scoped, and that is worth saying out loud rather
     # than leaving to be discovered. The web template is a SHARED file in
     # Hestia's template directory; every domain assigned to it renders from
@@ -673,34 +789,44 @@ if [ "$DO_TPL" = 1 ] && [ -d "$TPLDIR" ]; then
     # time anything rebuilds their vhost, which may be an unrelated Hestia
     # operation weeks later. That is the "partial update on an older version"
     # hazard, arriving late and detached from the release that caused it.
-    #
-    # It stays opt-in (--templates / --rebuild / --proxy) and it now says who
-    # else it reaches.
-    echo "==> refreshing the lazysite-app web template in $TPLDIR"
     if [ "${#OUT_OF_SCOPE[@]}" -gt 0 ]; then
-        echo "    NOTE: this template is SHARED and cannot be scoped to a channel."
-        printf '    %d out-of-scope site(s) also use it and will render the new\n' \
+        echo "    NOTE: these templates are SHARED and cannot be scoped to a channel."
+        printf '    %d out-of-scope site(s) also use them and will render the new\n' \
             "${#OUT_OF_SCOPE[@]}"
         echo "    version the next time their vhost is rebuilt, by anything."
-        echo "    Refresh the template on the channel you are promoting TO."
+        echo "    Refresh the templates on the channel you are promoting TO."
     fi
-    cp "$STAGE/installers/hestia/lazysite-app.tpl"  "$TPLDIR/lazysite-app.tpl"
-    cp "$STAGE/installers/hestia/lazysite-app.stpl" "$TPLDIR/lazysite-app.stpl"
-    cp "$STAGE/installers/hestia/lazysite-app.sh"   "$TPLDIR/lazysite-app.sh"
-    chmod 755 "$TPLDIR/lazysite-app.sh"
+    refresh_template "$TPLDIR" lazysite-app tpl stpl sh
+    # The Apache cgi/fcgi templates (the deb flow) are refreshed where they were
+    # copied and never installed by a rollout.
+    TPL_NEW=0 refresh_template "$TPLDIR" lazysite-cgi  tpl stpl
+    TPL_NEW=0 refresh_template "$TPLDIR" lazysite-fcgi tpl stpl
 fi
 
-# --- stage the nginx PROXY templates (SM283) ---------------------------------
-# Separate from the block above because it is a different layer, in a different
-# directory, and getting it wrong is a disclosure rather than a cosmetic drift.
-if [ "$DO_TPL" = 1 ] && [ -d "$PROXYTPLDIR" ]; then
-    if [ -f "$STAGE/installers/hestia/$PROXY_TPL.tpl" ]; then
-        echo "==> staging the $PROXY_TPL nginx proxy template in $PROXYTPLDIR"
-        cp "$STAGE/installers/hestia/$PROXY_TPL.tpl"  "$PROXYTPLDIR/$PROXY_TPL.tpl"
-        cp "$STAGE/installers/hestia/$PROXY_TPL.stpl" "$PROXYTPLDIR/$PROXY_TPL.stpl"
+# SM283: the nginx PROXY template. Separate because it is a different layer, in
+# a different directory, and getting it wrong is a disclosure (SM283 statics,
+# SM929 X-Forwarded-For) rather than a cosmetic drift.
+if [ -d "$PROXYTPLDIR" ]; then
+    if [ -f "$TPL_SRC/$PROXY_TPL.tpl" ]; then
+        refresh_template "$PROXYTPLDIR" "$PROXY_TPL" tpl stpl
     else
         echo "    NOTE: STAGE has no $PROXY_TPL template (pre-SM283 release)" >&2
     fi
+fi
+[ "${#TPL_CHANGED[@]}" -gt 0 ] || [ "$TPL_FAILURES" -gt 0 ] || echo "    all current - nothing to refresh."
+
+# Every domain on a replaced template renders the old one until it is rebuilt.
+NEED_REBUILD=()
+for _t in "${TPL_CHANGED[@]:-}"; do
+    [ -n "$_t" ] || continue
+    while IFS= read -r _k; do
+        in_list "$_k" "${NEED_REBUILD[@]:-}" || NEED_REBUILD+=( "$_k" )
+    done < <(domains_on_template "$_t")
+done
+if [ "${#NEED_REBUILD[@]}" -gt 0 ]; then
+    echo "    these domains render the replaced template until their vhost is rebuilt:"
+    printf '      %s\n' "${NEED_REBUILD[@]}"
+    [ "$DO_REBUILD" = 1 ] || echo "    rebuild them: --rebuild, or v-rebuild-web-domain USER DOMAIN"
 fi
 
 # --- move each domain onto the proxy template (SM283) ------------------------
@@ -739,6 +865,17 @@ if [ "$DO_REBUILD" = 1 ]; then
             echo "    rebuilt: $d"
         else
             echo "    REBUILD FAILED: $d (user $u) - deploy will still run" >&2
+        fi
+    done
+    # SM1196: a domain on a refreshed template that this run does not manage
+    # (the cgi/fcgi flow) renders the old one just the same.
+    for _k in "${NEED_REBUILD[@]:-}"; do
+        [ -n "$_k" ] || continue
+        in_list "${_k#*/}" "${DOMAINS[@]}" && continue
+        if "$HESTIA/bin/v-rebuild-web-domain" "${_k%%/*}" "${_k#*/}" >/dev/null 2>&1; then
+            echo "    rebuilt: ${_k#*/}"
+        else
+            echo "    REBUILD FAILED: ${_k#*/} (user ${_k%%/*})" >&2
         fi
     done
 fi
@@ -973,9 +1110,9 @@ report_findings
 # SM317's requirement is kept exactly: an exposure is still non-zero, so a caller
 # reading only $? cannot miss it. What changes is that the caller can now tell
 # which kind of non-zero it has.
-if [ "${#FAILED[@]}" -gt 0 ] || [ "${#PROXY_FAILED[@]}" -gt 0 ]; then
+if [ "${#FAILED[@]}" -gt 0 ] || [ "${#PROXY_FAILED[@]}" -gt 0 ] || [ "${TPL_FAILURES:-0}" -gt 0 ]; then
     echo
-    echo "ROLLOUT FAILED: ${#FAILED[@]} site(s) failed to install, ${#PROXY_FAILED[@]} proxy move(s) failed."
+    echo "ROLLOUT FAILED: ${#FAILED[@]} site(s) failed to install, ${#PROXY_FAILED[@]} proxy move(s) failed, ${TPL_FAILURES:-0} template refresh(es) failed."
     echo "  A retry is meaningful - the operation that failed is the one being retried."
     exit 1
 fi
