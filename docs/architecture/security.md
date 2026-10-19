@@ -804,7 +804,7 @@ produce-or-clear requirement above does not apply to it.
 **A site behind a proxy needs the proxy to send the header.** The shipped nginx
 proxy templates do (`lazysite-proxy.tpl` / `.stpl`, template revision
 `2026-10-01`); an older installed template does not, and until it is reinstalled
-such a site keeps recording the proxy's address. `lazysite-check` reports a
+such a site keeps recording the proxy's address. With `trusted_proxies` set it is worse than that: the client's own header is passed through, so the visitor chooses their address (SM1194). The Hestia rollout reports that combination as a failure and `lazysite-check` warns whenever `trusted_proxies` is set. `lazysite-check` reports a
 `trusted_proxies` entry it could not parse, because a trust list with a typo in it
 is a declaration the code ignores.
 

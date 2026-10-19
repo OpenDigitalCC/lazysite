@@ -216,6 +216,67 @@ vhost_state() {
     fi
 }
 
+# SM1194: DOES THE RENDERED NGINX VHOST APPEND TO, OR PASS THROUGH, THE CLIENT'S
+# X-Forwarded-For? The revision marker says a vhost is OLD; it does not say why
+# that matters. Before SM929 (d93390469) lazysite-proxy.tpl/.stpl set no
+# X-Forwarded-For, so nginx handed the client's own header to the engine
+# unchanged; since SM929 they set `$proxy_add_x_forwarded_for`, which APPENDS the
+# real peer. The engine reads the chain from the right, so an appended header is
+# safe and a passed-through one is whatever the visitor typed (test plan 0.15.10,
+# F-6: "a request sent with X-Forwarded-For: 192.0.2.55 is seen as 192.0.2.55").
+#   appends  every lazysite-rendered nginx file sets it from the peer
+#   passes   one has no (uncommented) X-Forwarded-For line, or sets it to the
+#            client's own header
+#   -        no lazysite-rendered nginx file (Apache appends it itself)
+# A file counts only when it carries the lazysite marker, as in vhost_state.
+vhost_xff_state() {
+    local u="$1" d="$2" dir f line seen=0 bad=0 ok
+    dir="$HOME_BASE/$u/conf/web/$d"
+    for f in "$dir/nginx.ssl.conf" "$dir/nginx.conf"; do
+        [ -f "$f" ] || continue
+        [ -n "$(template_rev "$f")" ] || continue
+        seen=1; ok=0
+        while IFS= read -r line; do
+            case "$line" in
+                *'$http_x_forwarded_for'*) ok=0; break ;;
+                *'$proxy_add_x_forwarded_for'*|*'$remote_addr'*) ok=1 ;;
+            esac
+        done < <(grep -E '^[[:space:]]*proxy_set_header[[:space:]]+X-Forwarded-For[[:space:]]' "$f")
+        [ "$ok" = 1 ] || bad=1
+    done
+    if [ "$seen" = 0 ]; then echo '-'
+    elif [ "$bad" = 1 ]; then echo passes
+    else echo appends
+    fi
+}
+
+# Does the site's lazysite.conf trust a front end's X-Forwarded-For? An explicit
+# trusted_proxies that is not `none`. (Absent means the private ranges, which a
+# front end on the same host is not in: loopback must be named.) Argument: the
+# site's docroot.
+site_trusts_forwarded() {
+    local conf v
+    conf="$(lazysite_dir "$1")/lazysite.conf"
+    [ -f "$conf" ] || return 1
+    v=$(sed -n 's/^trusted_proxies[[:space:]]*:[[:space:]]*\(.*[^[:space:]]\)[[:space:]]*$/\1/p' "$conf" | tail -1)
+    [ -n "$v" ] && [ "$v" != none ]
+}
+
+# The words of the failure, without the site (the findings report groups by
+# message and lists the sites itself).
+xff_reason() {
+    printf '%s\n' "the front end passes the client's X-Forwarded-For through, so trusted_proxies lets any visitor choose their address; fix: rebuild the vhost (--rebuild, or v-rebuild-web-domain USER DOMAIN), then probe: a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55"
+}
+
+# xff_exposure USER DOMAIN DOCROOT - prints the FAILURE line when this site
+# trusts forwarded addresses behind a front end that passes them through, and
+# nothing otherwise.
+xff_exposure() {
+    [ "$(vhost_xff_state "$1" "$2")" = passes ] || return 0
+    site_trusts_forwarded "$3" || return 0
+    printf 'FAILURE: %s: %s\n' "$2" "$(xff_reason)"
+}
+
 # The CHECK column: `lazysite check` for one site, after the rollout's repair -
 # read-only - as clean, or its warning and failure counts. The lines behind the
 # counts are the check's own report, one command away.
@@ -357,6 +418,25 @@ report_findings() {
     echo
     echo '==> findings (one line per distinct message, with the sites it affects)'
     group_findings < "$FINDINGS_FILE"
+}
+
+# SM1194: record_xff_exposure USER DOMAIN DOCROOT - add the exposure, if any, to
+# the findings (label = the site, message = the reason) and succeed when it was
+# one, so the caller can count it and fail the rollout's exit status.
+record_xff_exposure() {
+    [ -n "$(xff_exposure "$1" "$2" "$3")" ] || return 1
+    if [ -n "$FINDINGS_FILE" ]; then
+        printf '%s\t%s\n' "$2" "FAILURE: $(xff_reason)" >> "$FINDINGS_FILE"
+    else
+        xff_exposure "$1" "$2" "$3"
+    fi
+    return 0
+}
+
+# The summary line for N exposed sites; silent for none.
+xff_summary_line() {
+    [ "${1:-0}" -gt 0 ] || return 0
+    printf '  vhost:  %d site(s) FAILURE: trusted_proxies behind a front end that passes the client'"'"'s X-Forwarded-For through - any visitor can choose their address (see findings)\n' "$1"
 }
 
 # run_quiet LABEL COMMAND...
@@ -818,6 +898,7 @@ sum_head
 # runs once per in-scope site that installed; the vhost is re-read, because
 # --rebuild and --proxy render it again on the way.
 _chk_clean=0; _chk_warn=0; _vh_rebuild=0
+_xff_bad=0
 for i in "${!DOMAINS[@]}"; do
     _chk='-'
     # Q16f: a site that installed and is not serviceable is checked too - it
@@ -830,6 +911,7 @@ for i in "${!DOMAINS[@]}"; do
     fi
     _vh=$(vhost_state "${USERS[$i]}" "${DOMAINS[$i]}" "$STAGED_REV")
     [ "$_vh" = rebuild ] && _vh_rebuild=$(( _vh_rebuild + 1 ))
+    record_xff_exposure "${USERS[$i]}" "${DOMAINS[$i]}" "${DOCS[$i]:-}" && _xff_bad=$(( _xff_bad + 1 ))
     sum_row "${DOMAINS[$i]}" "${VERS[$i]:-?}" "$NEWVER" "$_chk" "$_vh" "${RESULTS[$i]:-?}"
 done
 for i in "${!OUT_OF_SCOPE[@]}"; do
@@ -852,6 +934,7 @@ printf '  %d updated, %d failed, %d not serviceable, %d skipped, %d out of scope
 [ "$_vh_rebuild" -gt 0 ] && \
     printf '  vhost:  %d site(s) render an older template - rebuild them to take this release'"'"'s front-end rules (--rebuild, or v-rebuild-web-domain USER DOMAIN)\n' \
         "$_vh_rebuild"
+xff_summary_line "$_xff_bad"
 report_findings
 
 [ "$VERBOSE" = 0 ] && \
@@ -898,7 +981,7 @@ if [ "${#UNSERVICEABLE[@]}" -gt 0 ]; then
     exit 2
 fi
 
-if [ "${REPAIR_RC:-0}" != 0 ] || [ "${ACL_PROBE_RC:-0}" != 0 ]; then
+if [ "${REPAIR_RC:-0}" != 0 ] || [ "${ACL_PROBE_RC:-0}" != 0 ] || [ "${_xff_bad:-0}" != 0 ]; then
     echo
     echo "ROLLOUT SUCCEEDED, FLEET HAS FINDINGS: every site that accepted this"
     echo "  release installed and verified. The findings above are conditions the"

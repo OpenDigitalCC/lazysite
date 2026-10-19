@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1194 (PENDING) **security: an old front end with a trusted proxy is a failure.** Edge's
+  vhost was rendered before SM929, so nginx passed the client's own
+  `X-Forwarded-For` through; with `trusted_proxies` set, a request sent with
+  `X-Forwarded-For: 192.0.2.55` was seen as 192.0.2.55 and every address-keyed
+  control took the visitor's word. The Hestia rollout now reports a site with
+  `trusted_proxies` behind such a vhost as a FAILURE (findings, summary, exit 2),
+  naming the reason and the fix (rebuild the vhost, then probe); without
+  `trusted_proxies` the old note stands. `lazysite check` warns whenever
+  `trusted_proxies` is set, with the probe to run. Documented in the
+  configuration reference.
 - SM1188 (PENDING) **data: a proxy user's groups reach the data endpoint.** On a site
   whose trusted proxy uses the default `X-Remote-*` header names, the data endpoint
   deleted the headers before reading groups, so a proxy user was refused a table

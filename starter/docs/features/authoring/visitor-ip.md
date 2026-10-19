@@ -68,6 +68,15 @@ visitor choosing their own: a proxy *appends* to the header rather than replacin
 it, so a caller who sends `X-Forwarded-For: 203.0.113.7` ends up with their own
 value in front of the one the proxy added, and the engine reads the proxy's.
 
+That holds only if the front end really appends. A front end that passes the
+client's header through unchanged (lazysite's nginx templates did before SM929,
+first shipped in 0.15.2; a vhost rendered earlier keeps the old behaviour until it
+is rebuilt) makes the visitor's own value the address, so `trusted_proxies` then
+lets any visitor choose theirs. Probe it after setting `trusted_proxies`: send a
+request with `X-Forwarded-For: 192.0.2.55`; it must not be seen as
+`192.0.2.55`. `lazysite check` warns whenever `trusted_proxies` is set, and the
+Hestia rollout fails a site that has it behind an older vhost.
+
 Three consequences worth knowing:
 
 - a site served **directly** needs no configuration, and a visitor who sends the

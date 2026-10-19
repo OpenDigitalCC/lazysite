@@ -117,6 +117,21 @@ works on staging and production.
   in `auth_proxy_trusted_from`; behind the built-in
   cookie login the identity is the login's, whatever these are set to.
 
+`trusted_proxies`
+: The front ends whose `X-Forwarded-For` the engine believes about a visitor's
+  address: addresses or CIDR ranges, comma separated; empty or absent means the
+  private ranges, `none` ignores the header. It is safe only when the front end
+  **appends** the client's address to the header (lazysite's nginx templates do
+  since 0.15.2, SM929: `proxy_set_header X-Forwarded-For
+  $proxy_add_x_forwarded_for;`). A front end that passes the client's own header
+  through - a vhost rendered from an older template - lets any visitor choose
+  their address, and every control keyed on it (sign-in limit, bad-URL blocker,
+  form limit, address rules) takes their word. Probe it: a request with
+  `X-Forwarded-For: 192.0.2.55` must not be seen as `192.0.2.55`. `lazysite
+  check` warns whenever the setting is set, and the Hestia rollout reports a site
+  with the setting behind an older vhost as a failure; the fix is to rebuild the
+  vhost.
+
 `manager_addresses`, `manager_addresses_deny`
 : Names of address lists (Access, Address lists) that limit who may reach the
   manager and its API by the address they come from, for everyone and apart from

@@ -889,6 +889,25 @@ sub run_checks {
                         . 'word none. A range of /0 is refused because it would trust '
                         . 'every caller, which is the same as having no check at all' );
             }
+            if ( @{$set} ) {
+                # SM1194 (test plan 0.15.10, F-6): a trust list is only half of
+                # it. The engine believes the chain from the RIGHT, which is safe
+                # only when the front end APPENDS the real peer; a front end that
+                # passes the client's own header through (lazysite's nginx
+                # templates before SM929, first shipped in v0.15.2) makes
+                # "X-Forwarded-For: 192.0.2.55" the visitor's address, and every
+                # address-keyed control - the sign-in limit, the bad-URL blocker,
+                # the form limit, the address rules - takes their word. This runs
+                # as the site user and cannot read the nginx config, so it cannot
+                # tell; it says what to probe instead.
+                report( 'WARN',
+                    "trusted_proxies is only safe when the front end appends the client's address "
+                        . "to X-Forwarded-For (lazysite's templates since 0.15.2/SM929); probe it: "
+                        . 'a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55',
+                    'if it is seen as 192.0.2.55, rebuild the site\'s vhost from the current '
+                        . 'template (lazysite-hestia-update-all.sh --rebuild, or '
+                        . 'v-rebuild-web-domain USER DOMAIN), or take trusted_proxies off' );
+            }
             if ( !@{$set} && lc($spec) ne 'none' ) {
                 report( 'WARN',
                     'lazysite.conf trusted_proxies is set but resolves to NO trusted '
