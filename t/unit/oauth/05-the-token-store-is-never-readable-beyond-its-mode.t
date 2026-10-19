@@ -35,14 +35,18 @@ BEGIN {
     };
 }
 
-my $root = repo_root();
+my $root;
+BEGIN { $root = repo_root() }    # `use lib` below runs at compile time
 use lib "$root/lib";
 require Lazysite::Auth::OAuth;
 require Lazysite::Util;
 
 my $d = site_tempdir();
 make_path("$d/lazysite/auth");
-$Lazysite::Auth::OAuth::LAZYSITE_DIR = "$d/lazysite";
+{
+    no warnings 'once';    # the module is require'd above, so this is its only mention here
+    $Lazysite::Auth::OAuth::LAZYSITE_DIR = "$d/lazysite";
+}
 my $store = "$d/lazysite/auth/oauth.json";
 
 sub mode_of { return ( stat $_[0] )[2] & 07777 }
