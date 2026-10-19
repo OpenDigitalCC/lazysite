@@ -26,7 +26,7 @@ my @intended = qw(
     csp_script_src csp_connect_src csp_img_src csp_frame_src
     app_name app_short_name app_scope app_start_url app_theme_colour
     app_background_colour app_icon_64 app_icon_192 app_icon_512 app_icon_maskable
-    app_shell
+    app_shell app_offline_pages app_update
 );
 my @have = sort keys %main::ALIAS_OVERRIDE_KEYS;
 is_deeply( \@have, [ sort @intended ], 'the alias override list holds exactly its intended keys' )
