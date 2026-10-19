@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: inbox/2026-10-19-test-plan-01510-results.md F-1
 area: manager
-status-note: "SHIPPED (PENDING) on n681: Lazysite::Util::unnamed_front_end, Auth::AddressLists::front_end_warning, the address-lists and config-read answers, three pages; t/unit/manager/365 and 366."
+status-note: "SHIPPED (PENDING) on n681: Lazysite::Util::front_end_is_every_visitor, Auth::AddressLists::front_end_warning, the address-lists and config-read answers, three pages; t/unit/manager/365 and 366."
 ---
 
 # What happened
