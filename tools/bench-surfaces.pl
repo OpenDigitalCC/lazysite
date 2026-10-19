@@ -26,6 +26,8 @@
 #   tools/bench-surfaces.sh --docroot D --socket S   # an existing pooled site: the
 #                                                    # surfaces that need no login
 #   tools/bench-surfaces.sh --json             # machine-readable
+#   tools/bench-surfaces.sh --odoo-margin --margin-docroot D --margin-binding ID [--margin-query q=v] [--margin-ms 20]
+#                                              # SM1180, advisory: the endpoint against a direct oomd call; WARN above the margin
 #
 # A throwaway site is built under a temporary directory and removed at the end:
 # server_timing is on in it, an operator, a connector and a WebDAV account exist
@@ -62,16 +64,22 @@ BEGIN {
 }
 use Lazysite::Paths ();
 
-my %opt = ( n => 3, surface => '', json => 0, docroot => '', socket => '', with_pool => 0, cold_workers => 0 );
+my %opt = ( n => 3, surface => '', json => 0, docroot => '', socket => '', with_pool => 0, cold_workers => 0,
+    odoo_margin => 0, margin_ms => 20, margin_docroot => '', margin_binding => '', margin_query => '' );
 Getopt::Long::GetOptions(
-    'n=i'          => \$opt{n},
-    'surface=s'    => \$opt{surface},
-    'json'         => \$opt{json},
-    'docroot=s'    => \$opt{docroot},
-    'socket=s'     => \$opt{socket},
-    'with-pool'    => \$opt{with_pool},
-    'cold-workers' => \$opt{cold_workers},
-    'help'         => sub { print "see the header of tools/bench-surfaces.pl\n"; exit 0 },
+    'n=i'              => \$opt{n},
+    'surface=s'        => \$opt{surface},
+    'json'             => \$opt{json},
+    'docroot=s'        => \$opt{docroot},
+    'socket=s'         => \$opt{socket},
+    'with-pool'        => \$opt{with_pool},
+    'cold-workers'     => \$opt{cold_workers},
+    'odoo-margin'      => \$opt{odoo_margin},
+    'margin-ms=f'      => \$opt{margin_ms},
+    'margin-docroot=s' => \$opt{margin_docroot},
+    'margin-binding=s' => \$opt{margin_binding},
+    'margin-query=s'   => \$opt{margin_query},
+    'help' => sub { print "see the header of tools/bench-surfaces.pl\n"; exit 0 },
 ) or exit 2;
 
 die "bench-surfaces: run this through tools/bench-surfaces.sh, which pins it to one CPU at the "
@@ -180,6 +188,71 @@ sub build_site {
     return;
 }
 
+# --- the oomd margin check (SM1180) ---------------------------------------------------
+# ADVISORY, never in the suite. The inbox (2026-10-19) asked that lazysite add at most
+# ~10-20 ms to what oomd takes: "a timing check for the endpoint against oomd for one
+# fixed operation, failing above a set margin". For one public read binding on an
+# existing site whose oomd is running, this times the endpoint (one CGI request of
+# lazysite-odoo.pl) against a direct oomd client call (a fresh perl that loads the
+# light client and asks, as the lab's 61 ms), and prints a WARN line - exit 0 - when the
+# endpoint adds more than the margin. BENCH_MARGIN_STUB="endpoint_ms,direct_ms" replaces
+# the two measurements, so a test can drive the verdict without timing anything.
+sub margin_check {
+    my ( $e, $d );
+    if ( defined $ENV{BENCH_MARGIN_STUB} ) {
+        ( $e, $d ) = split /,/, $ENV{BENCH_MARGIN_STUB};
+    }
+    else {
+        die "bench-surfaces: --odoo-margin needs --margin-docroot (a site with a running oomd) and "
+            . "--margin-binding (a public read binding on it)\n"
+            unless length $opt{margin_docroot} && length $opt{margin_binding};
+        $docroot = $opt{margin_docroot};
+        require Lazysite::Odoo;
+        require Lazysite::Odoo::Daemon;
+        no warnings 'once';
+        $Lazysite::Odoo::DOCROOT = $docroot;
+        my ( $b, $why ) = Lazysite::Odoo::find_binding( $opt{margin_binding} );
+        die "bench-surfaces: $why\n" unless $b;
+        my %q = map { split /=/, $_, 2 } grep { length } split /&/, $opt{margin_query};
+        my %params = %{ $b->{fixed} };
+        $params{ $b->{params}{$_} } = $q{$_} for grep { exists $b->{params}{$_} } keys %q;
+        my ($sock) = Lazysite::Odoo::Daemon::socket_for($docroot);
+        my %e      = base_env();
+        my $s      = { script => 'lazysite-odoo.pl', pass_env => 1, anon => 1,
+            env => { %e, QUERY_STRING => "binding=$opt{margin_binding}&$opt{margin_query}",
+                REQUEST_URI => '/cgi-bin/lazysite-odoo.pl' } };
+        my $code = 'use strict; use warnings; require Odoo::Ops::Client::Daemon; require JSON::PP; '
+            . 'my ($sock,$op,$p)=@ARGV; Odoo::Ops::Client::Daemon->new(socket=>$sock,fallback=>0)'
+            . '->run($op,JSON::PP::decode_json($p),credential=>{label=>"conn"},actor=>"bench"); 1';
+        my $direct = sub {
+            my $t0 = time();
+            system( $^X, '-e', $code, $sock, $b->{operation}, JSON::PP::encode_json( \%params ) ) == 0
+                or die "bench-surfaces: the direct oomd call failed (is oomd running at $sock?)\n";
+            return ( time() - $t0 ) * 1000;
+        };
+        run_cgi($s);
+        $direct->();    # warm
+        my ( @ev, @dv );
+        for ( 1 .. $opt{n} ) {
+            my $r = run_cgi($s);
+            die "bench-surfaces: the endpoint did not answer 200 for the binding (status $r->{status})\n"
+                unless $r->{status} == 200;
+            push @ev, $r->{total};
+            push @dv, $direct->();
+        }
+        ( $e, $d ) = ( median(@ev), median(@dv) );
+    }
+    my $add = $e - $d;
+    printf "bench-margin: endpoint %.1f ms, direct oomd client %.1f ms, the endpoint adds %.1f ms (margin %g ms)\n",
+        $e, $d, $add, $opt{margin_ms};
+    printf "bench-margin: WARN the endpoint adds %.1f ms to what oomd takes, more than the %g ms margin\n",
+        $add, $opt{margin_ms}
+        if $add > $opt{margin_ms};
+    return;
+}
+
+if ( $opt{odoo_margin} ) { margin_check(); exit 0 }
+
 if ($own_site) { build_site() }
 else {
     $docroot = $opt{docroot};
@@ -258,6 +331,7 @@ sub run_cgi {
     }
     $env{CONTENT_LENGTH} = length $s->{stdin} if defined $s->{stdin};
     $env{PATH}           = $ENV{PATH};
+    $env{PERL5LIB} = $ENV{PERL5LIB} if $s->{pass_env} && defined $ENV{PERL5LIB}; # SM1180: OOM may live on PERL5LIB
     local %ENV = %env;
     my $t0  = time();
     my $err = Symbol::gensym();

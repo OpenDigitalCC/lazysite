@@ -124,3 +124,29 @@ times the endpoint (one CGI request, as the bench makes them) against a direct o
 client call (a fresh perl loading the light client, as the lab's 61 ms), and prints a
 `WARN` line, with exit 0, when the endpoint adds more than the margin (default 20 ms,
 `--margin-ms N`). It is never in the suite.
+
+Tested in `t/tools/183-the-bench-warns-when-the-endpoint-adds-more-than-a-margin-to-oomd.t`
+with `BENCH_MARGIN_STUB` standing in for the two timings: the WARN line appears above
+the margin and not at or below it, `--margin-ms` moves it, the exit is 0 either way.
+Run for real it needs `--margin-docroot` (a site with a running oomd) and
+`--margin-binding` (a public read binding), optionally `--margin-query q=v`.
+
+# Measured
+
+Through `tools/bench-surfaces.sh --odoo-margin --n 8` (pinned to one CPU, nice 19) on
+a throwaway site with `odoo_daemon: on`, the real vendored oomd under the supervisor,
+one `oomd.pid` read binding, base 4c4798a6c against this branch, two runs each, the
+host at load 29 (very busy, and the pinned CPU shared with it, so the figures are
+high and noisy; the direction is the point):
+
+| | endpoint (median ms) | direct oomd client (ms) | endpoint adds (ms) |
+|---|---|---|---|
+| base 4c4798a6c, run 1 | 941 | 164 | 777 |
+| base 4c4798a6c, run 2 | 1435 | 184 | 1251 |
+| n667, run 1 | 847 | 244 | 603 |
+| n667, run 2 | 501 | 204 | 298 |
+
+The module count is the exact figure: 33 Odoo modules loaded per call before, 6 after.
+The remaining ~300 ms here is the endpoint's own start (the lab's ~210 ms floor of two
+programs, on a busy host) and the other loads in the endpoint; the ~20 ms target needs
+the resident endpoint (L-4, SM1082), and the check will keep saying WARN until then.
