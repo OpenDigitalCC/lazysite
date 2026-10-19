@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # SM1160 (ruling 4), the browser half: the "Signed in as <name>" banner the default layout
-# renders on a site whose Odoo sign-in is the site sign-in (t/unit/odoo/60 holds the layout
+# renders on a site whose Odoo sign-in is the site sign-in (t/unit/odoo/63 holds the layout
 # and the server). The helper shows the signed-in part, with its name and sign-out link,
 # when the token fetch every page makes names someone, and the sign-in link when it does
 # not - from the same fetch, so the banner costs no Odoo call.
