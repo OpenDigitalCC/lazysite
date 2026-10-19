@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.9"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.10"
 brand: plain
 ---
 
@@ -2023,6 +2023,14 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.10** (2026-10-19, edge) - **Odoo apps that sign in, scan and attach,
+  and a pool that forgets each visitor.** The Odoo login can be the site
+  sign-in (SM1160); a binding takes a file (SM1162) and a list of rows
+  (SM1166); reads have room for a scanner (SM1173); the Odoo extension can run
+  a resident OOM, oomd (SM1164), and calls it without loading OOM (SM1180);
+  sign-in, pages and groups can be limited by address (SM1159, SM1138-SM1141);
+  a site installs as an app (SM1155); a pooled worker no longer carries one
+  visitor's data to the next (SM1169)
 - **0.15.9** (2026-10-17, edge) - **Mail sends from a real address, and video
   plays everywhere.** Form SMTP has a From address, defaulting to no-reply at
   the site's host (SM1109); a blank password keeps the stored one (SM1108);

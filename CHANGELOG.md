@@ -53,13 +53,15 @@ Archive
 
 ## Unreleased
 
-- SM1184 (PENDING) **internal: the bench counts the stats work on its fixture
+## 0.15.10 - EDGE: Odoo apps that sign in, scan and attach, and a pool that forgets each visitor (2026-10-19)
+
+- SM1184 (ca31a940) **internal: the bench counts the stats work on its fixture
   alone.** The cold count was taken after the timed renders and so read their
   access-log lines too, whose length has varied since SM1144's timings; it
   stopped the 0.15.10 gate at +3,138 bytes. The counts are now taken first, on
   the 30-day fixture, with the cache directory an installed site has; the
   baseline is 494010, the same on every run.
-- SM1183 (PENDING) **security: a secret file is never wider than its final
+- SM1183 (aa8d9322) **security: a secret file is never wider than its final
   mode.** The OAuth token store was written under the umask and narrowed to 0660
   only afterwards, and the auth and CSRF secret mints, `revoked.json`, the Odoo
   unknown-groups file, staged account imports and plugin configs that hold a
@@ -68,7 +70,7 @@ Archive
   are now written to a temp file created with its final mode and renamed. The
   token store stays 0660 (the CGI and the operator tool share it, SM760), and
   its module header, which said 0600, now says so. t/unit/oauth/05.
-- SM1182 (PENDING) **under the one-rule templates a form POST reaches the form
+- SM1182 (89d1aecc) **under the one-rule templates a form POST reaches the form
   handler.** The front door sent only `lazysite-*.pl` scripts to their own
   program, so a native form's POST to `/cgi-bin/form-handler.pl` (and
   `/cgi-bin/payment-demo.pl`) fell to the processor and answered "Page not
@@ -76,7 +78,7 @@ Archive
   name those two scripts, the ones `install.pl` links into cgi-bin, and the list
   stays an allow-list: any other `.pl` still runs nothing. t/integration/289,
   t/lint/42.
-- SM1180 (PENDING) **the endpoint calls oomd without loading OOM.** With
+- SM1180 (767ae674) **the endpoint calls oomd without loading OOM.** With
   `odoo_daemon` on, an Odoo call still read OOM's registry in the endpoint for the
   binding's operation before sending the call to oomd; a binding's operation
   declaration (its parameters, whether it writes, its summary) is now stored when
@@ -89,20 +91,20 @@ Archive
   OOM for its check. `tools/bench-surfaces.sh --odoo-margin` warns, advisory,
   when the endpoint adds more than a margin to a direct oomd call.
   t/unit/odoo/73, 74, t/tools/183.
-- SM1179 (PENDING) **the Odoo registry is built once.** Each Odoo call built
+- SM1179 (9deaefad) **the Odoo registry is built once.** Each Odoo call built
   OOM's operation registry twice, loading every operation module each time
   (about 450 ms of every request, OOM Lab); a process now keeps the registry it
   built for a site configuration - the docroot, `odoo_packs`, `odoo_pack_dirs`,
   the cache directory and OOM's version - so a config save or a second site
   builds its own. A pack changed on disk under an unchanged configuration is read
   by a new process. t/unit/odoo/72.
-- SM1178 (PENDING) **a binding may name a pack operation with a hyphen.** A
+- SM1178 (af0be006) **a binding may name a pack operation with a hyphen.** A
   binding to an operation of an OOM pack such as `crm-page` (`crm-page.leads`)
   was refused at save ("not an operation name"), so a pack could be installed
   and listed but never bound; an operation name's parts may now hold a hyphen
   between characters, as OOM names packs, and a leading, trailing or doubled
   hyphen is still refused. t/unit/odoo/71.
-- SM1162 (PENDING) **a binding takes a file.** An Odoo binding may map a request
+- SM1162 (6f2cc817) **a binding takes a file.** An Odoo binding may map a request
   file field to a parameter the operation declares as a file or a list of files
   (or a `set.<field>` of a binary field) with `file_params`; `file_max_kb` is
   required with it (never above the operation's `max_bytes` or the endpoint's
@@ -116,11 +118,11 @@ Archive
   once the plan is applied, withdrawn or refused as no longer applicable, and the
   maker of an unapplied plan can now withdraw it (`{plan, withdraw: true}`).
   t/unit/odoo/66, 67, 68, 69, 70.
-- SM1177 (PENDING) **internal: lazysite's vendored OOM is 0.34.** The pinned
+- SM1177 (6f2cc817) **internal: lazysite's vendored OOM is 0.34.** The pinned
   snapshot in `t/vendor/oom` moves from 0.33 to OOM 0.34 (03b703e), which adds
   file parameters; lazysite uses those (SM1162), not 0.34's data cache or fast
   JSON. t/lint/207, 261, 262.
-- SM1174 (PENDING) **a page may open the camera.** Every page sent
+- SM1174 (cfc25ca6) **a page may open the camera.** Every page sent
   `Permissions-Policy: camera=()`, so no page could open a live camera
   viewfinder even on https (OOM Lab L-16). A page whose front matter says
   `camera: self` now sends `camera=(self)` over https, decided per response on
@@ -128,7 +130,7 @@ Archive
   `camera=()`, and no other directive moves. The validator names any other
   value, `page_status` reports it, and the editor's status bar says the page
   opens the camera. t/unit/processor/143, t/unit/mcp/33, t/unit/manager/364.
-- SM1173 (PENDING) **a read has room for a scanner.** An Odoo read binding's
+- SM1173 (430e3886) **a read has room for a scanner.** An Odoo read binding's
   default caps were the write caps, 20 per caller and 200 per binding an hour,
   which stopped a scanning app within minutes (OOM Lab L-14); reads now default
   to 2,000 per caller and 20,000 per binding, writes keep 20 / 200, and a
@@ -136,7 +138,7 @@ Archive
   saves 20 / 200 into a binding, and `lazysite check` names a read binding
   that a save there left at exactly those numbers, changing nothing.
   t/unit/odoo/65, t/tools/181.
-- SM1160 (PENDING) **on an Odoo app site, the person's Odoo login is the site
+- SM1160 (091588d4) **on an Odoo app site, the person's Odoo login is the site
   sign-in.** With `odoo_site_signin: on` (default off) a successful Odoo
   sign-in, two-factor step included, also signs the person in to the site as
   `odoo:<login>`: one login. `odoo_group_map` maps Odoo groups to site groups,
@@ -147,43 +149,43 @@ Archive
   the Odoo session, ends both; the default layout shows "Signed in as" and a
   sign-out (`odoo_signin_banner`), and `lazysite check` names a refused or
   unknown mapping. t/unit/odoo/63, 64.
-- SM1175 (PENDING) **internal: lazysite's vendored OOM is 0.33, with oomd.** The
+- SM1175 (617c56a2) **internal: lazysite's vendored OOM is 0.33, with oomd.** The
   pinned snapshot in `t/vendor/oom` moves from 0.32 to OOM 0.33 (4bca049),
   which adds `core.has_groups`, and now carries `bin/oomd`, the one file taken
   from OOM's `bin/`, so SM1164's tests start the real daemon from the
   repository, never from the host (lint 262). `tools/vendor-oom.sh` checks
   `bin/oomd` against the `odoo-oom-tools` deb. t/lint/207, 261, t/tools/155.
-- SM1176 (PENDING) **a coverage run no longer refuses itself.** The group's
+- SM1176 (96d42367) **a coverage run no longer refuses itself.** The group's
   `cover_db-<group>-cover-stderr.txt`, left at the tree root, made the next
   group's manifest build refuse an unclassified file (2026-10-18 run); every
   root file named `cover_db-*` is now excluded. t/tools/182.
-- SM1172 (PENDING) **saving the Odoo config keeps what an overlapping save
+- SM1172 (3fc0e9ab) **saving the Odoo config keeps what an overlapping save
   wrote.** Two saves of `lazysite/odoo.conf` that overlapped both read the old
   file, so the second dropped the first's keys, an app's `odoo_packs`
   namespace among them (its operations answered 404 for a few seconds); the
   read, change and write now run under one lock (OOM Lab L-15). A client that
   rewrites the whole list itself can still race. t/unit/odoo/59.
-- SM1166 (PENDING) **a binding takes a declared list of rows.** A parameter the
+- SM1166 (14958864) **a binding takes a declared list of rows.** A parameter the
   operation declares as `rows` (OOM 0.32, with a `max`) takes a JSON array of
   flat objects from a request, such as a quotation's lines; each row is checked
   against the declaration and the plain-value rule before Odoo is asked, and a
   failure names the row and key. `rows_max` lowers the cap for one binding; a
   `rows` parameter with no `max` or no known keys can only be fixed (OOM Lab
   L-11; R1, R2 ruled 2026-10-18). t/unit/odoo/57.
-- SM1170 (PENDING) **a custom change of a site's own pack applies.** An apply
+- SM1170 (66a47ba6) **a custom change of a site's own pack applies.** An apply
   of a site pack's `custom` change ended `apply-incomplete` ("no operation"),
   because OOM's apply looked the operation up without the site's namespaces;
   planning and both apply paths now run with the site's operations, packs and
   cache set for that call only, never process-wide (OOM Lab L-12).
   t/unit/odoo/56.
-- SM1161 (PENDING) **a scheduled binding may run as an Odoo login of its own.**
+- SM1161 (471ebeda) **a scheduled binding may run as an Odoo login of its own.**
   `odoo-secret-set` / `odoo-secret-clear` (control API and MCP) take
   `scheduled` (a binding id); its run uses that login's key, is recorded and
   audited as `scheduled:<binding>` with the login it ran as, and a configured
   binding without its key is refused rather than run as the connection user.
   `odoo-status` lists each scheduled key and its expiry, and `lazysite check`
   warns within 14 days of it. t/unit/odoo/58, t/tools/180.
-- SM1169 (PENDING) **security: a pooled worker no longer carries one visitor's
+- SM1169 (49deac36) **security: a pooled worker no longer carries one visitor's
   data to the next.** A worker of the persistent pool kept a visitor's payment
   context (the previous payer reached later pages' template stash), their scan
   identity (the first visitor's user and groups filtered every later `scan:`)
@@ -193,106 +195,106 @@ Archive
   fell from about 110-120 ms to 38-51 ms on the shared host), and a lint reads
   every file-scope variable of the resident code. t/lint/269,
   t/integration/288.
-- SM1159 (PENDING) **security: sign-in can be limited by address.**
+- SM1159 (06bc96b2) **security: sign-in can be limited by address.**
   `signin_addresses` and `signin_addresses_deny` name address lists that
   lazysite's login and the Odoo endpoint's sign-in and code steps must admit; a
   refusal comes before the token, the password and the rate counter, with its own
   reason and audit row ("Sign-in is not available from your address."). A
   session binding's own lists narrow the site's on that binding's calls, ahead of
   its sign-in question (SM1168). t/unit/auth/67, t/unit/odoo/54.
-- SM1168 (PENDING) **a session binding with no Odoo session asks for sign-in,
+- SM1168 (a7520b00) **a session binding with no Odoo session asks for sign-in,
   not a token.** A POST for a `credential: session` binding from a visitor with
   no Odoo session answered 403 `csrf`, so the helper never opened its sign-in
   prompt; it now answers 401 `signin-required` before the token check, alone and
   inside a batch. With a session the token is still required. t/unit/odoo/53, 42.
-- SM1171 (PENDING) **a write through the Odoo endpoint says why a change was
+- SM1171 (21d155d0) **a write through the Odoo endpoint says why a change was
   held.** A plan's changes carry `reason`, and an applied write answers
   `result.changes`: each change's bucket, action, model, id and outcome, the
   `reason` for one held or skipped, and a custom change's `returned` value
   (capped at 4 KB, marked when cut), read from OOM's journal; no values or
   before-images (OOM Lab L-13). t/unit/odoo/52.
-- SM1165 (PENDING) **a write through the Odoo endpoint says which records it
+- SM1165 (a023a6ea) **a write through the Odoo endpoint says which records it
   made.** An immediate apply or a confirmed plan now answers `created` and
   `written` (model to ids, this plan's own changes) beside the counts, so a page
   can learn the new record's id (OOM Lab L-10). t/unit/odoo/51.
-- SM1167 (PENDING) **internal: lazysite's vendored OOM is 0.32.** The pinned
+- SM1167 (72b85bbf) **internal: lazysite's vendored OOM is 0.32.** The pinned
   snapshot in `t/vendor/oom` moves from 0.27 to OOM 0.32 (bd9610e); no lazysite
   code needed to change, and nothing uses rows, inline reports, repeat-safe
   requests or oomd yet. `tools/vendor-oom.sh` takes a second `--deb`, since
   `odoo-oom-tools` now ships `Odoo/Accounts.pm` and `Odoo/Tools/`. t/lint/207, 261.
-- SM1163 (PENDING) **internal: a rate test stays in one window.** The sign-in limiter
+- SM1163 (d97c9952) **internal: a rate test stays in one window.** The sign-in limiter
   counts in fixed windows, and a test whose guesses ran across a five-minute
   boundary saw the count restart (2026-10-17 integration). One helper,
   `t/lib/RateWindow.pm`, now begins the counted attempts where they fit one
   window; the limiter itself is unchanged.
-- SM1143 (PENDING) **internal: the note-on-focus test waits for what it checks.**
+- SM1143 (e3c2d15d) **internal: the note-on-focus test waits for what it checks.**
   Under heavy parallel load
   the browser in the SM1104 test could return no document and the test read an
   empty result, failing its two focus assertions; it now reruns the browser until
   the page reports it finished and polls for the note up to a deadline. No CSS
   change. t/unit/manager/349.
-- SM1141 (PENDING) **a template can test the visitor's address.**
+- SM1141 (0289608e) **a template can test the visitor's address.**
   `visitor.in_list('name')` answers whether the address is in a list, never
   the address itself, and a page using it is not cached. `lazysite check`
   warns when address rules cannot work, and a list still in use is not
   deleted without force (SM1134, slice D). t/unit/processor/133.
 
-- SM1140 (PENDING) **security: a group is limited by address.** A group may be
+- SM1140 (5fb6867c) **security: a group is limited by address.** A group may be
   limited to addresses; from outside, the group and everything it grants
   (capabilities, page access, operator status, domain reach) drop out for
   that request, for cookies and tokens. An account confined by its grants is
   confined to nothing when none apply, never unconfined. `manager_addresses`
   limits the manager and its API (SM1134, slice C). t/integration/285, 286.
 
-- SM1139 (PENDING) **a page or folder is limited by address.** Front matter and
+- SM1139 (dbf7506b) **a page or folder is limited by address.** Front matter and
   per-file rules take `addresses` and `addresses_deny`; every layer must
   admit the visitor's address and deny wins, on pages, statics, WebDAV and
   the manager. A refused visitor sees "This page is not available from your
   address."; ruled pages are never cached (SM1134, slice B).
   t/integration/280, 281.
 
-- SM1138 (PENDING) **address lists are a store.** Named allow and deny lists
+- SM1138 (3394e9da) **address lists are a store.** Named allow and deny lists
   of addresses and ranges, managed on Access -> Address lists by the operator
   and audited, with one module that answers whether an address is allowed
   (SM1134, slice A). t/unit/auth/63, t/integration/266.
 
-- SM1135 (PENDING) **a directory group grants capabilities only when marked.**
+- SM1135 (8004896f) **a directory group grants capabilities only when marked.**
   Under a trusted proxy, header groups gave page and file access, and only
   some gates also read them for capabilities. One rule now serves every gate:
   a group's capabilities, and operator status, come from the directory only
   for a group the operator marks `directory_grants` (release manager,
   2026-10-17, R1). t/integration/271.
-- SM1136 (PENDING) **a guide to running behind an identity provider.** A docs
+- SM1136 (8004896f) **a guide to running behind an identity provider.** A docs
   page covers the trusted-header settings, the security conditions and a
   worked Caddy and Authentik example.
-- SM1137 (PENDING) **the data endpoint honours a trusted proxy.** It used its
+- SM1137 (8004896f) **the data endpoint honours a trusted proxy.** It used its
   own session even when a trusted proxy named the user; the proxy's identity
   now wins there too. t/integration/272.
-- SM1145 (PENDING) **a page shows who is signed in to Odoo without calling Odoo.**
+- SM1145 (cc4dd0ee) **a page shows who is signed in to Odoo without calling Odoo.**
   `?csrf=1` answers `identity: {name}` from the identity cookie the
   endpoint already verifies, and nothing else about the person; the helper fills
   `data-ls-odoo-name` on load. The cookie stays HttpOnly and carries no
   login. t/unit/odoo/41, 44.
-- SM1146 (PENDING) **a batch call on the Odoo endpoint.** `POST {calls: [...]}`
+- SM1146 (cc4dd0ee) **a batch call on the Odoo endpoint.** `POST {calls: [...]}`
   runs up to ten calls in one request and answers each in order with its own
   status; each is checked, authorised, rate-counted, recorded and audited as a
   single call, and one failing does not stop the others. The helper has `batch`.
   t/unit/odoo/42, 44.
-- SM1147 (PENDING) **the Odoo endpoint's cold path loads only what it answers
+- SM1147 (cc4dd0ee) **the Odoo endpoint's cold path loads only what it answers
   with.** `?csrf=1` and requests refused before Odoo no longer load the engine or
   OOM; measured about 4 ms of 86 ms CPU per `?csrf=1`, the rest being modules the
   request needs. t/unit/odoo/43.
-- SM1148 (PENDING) **a form whose Odoo change applied with a warning is
+- SM1148 (cc4dd0ee) **a form whose Odoo change applied with a warning is
   delivered.** An apply OOM reports as `apply-incomplete` after the record was made
   is no longer `outcome=undelivered`; the warning is in the call record and the
   audit. t/unit/odoo/45.
-- SM1149 (PENDING) **the Odoo connection can trust its own CA.** `odoo_ca_file`
+- SM1149 (cc4dd0ee) **the Odoo connection can trust its own CA.** `odoo_ca_file`
   is the CA bundle for the connection to Odoo only, passed to OOM as `ssl_ca_file`
   for every client lazysite builds for it, never `SSL_CERT_FILE`. t/unit/odoo/46.
-- SM1150 (PENDING) **`credential: session` is documented.** The Odoo guide
+- SM1150 (cc4dd0ee) **`credential: session` is documented.** The Odoo guide
   describes a person signing in and running bindings as themselves, as the code
   does, and no longer lists it as not available. t/unit/odoo/47.
-- SM1157 (PENDING) **Odoo's own two-factor code in the Odoo sign-in dialog.** A
+- SM1157 (e77ea5cf) **Odoo's own two-factor code in the Odoo sign-in dialog.** A
   person whose Odoo account has two-factor authentication was refused
   (`two-factor`); with OOM 0.27 the dialog now asks for the 6-digit code after
   the password. The half-open sign-in travels in its own signed, HttpOnly
@@ -303,7 +305,7 @@ Archive
   password and the device value are in no record or log. An older OOM still
   refuses the account by name. t/unit/odoo/48, 49.
 
-- SM1156 (PENDING) **lazysite adopts OOM 0.27.** The pinned snapshot moves from
+- SM1156 (03e09bcb) **lazysite adopts OOM 0.27.** The pinned snapshot moves from
   0.24 (`t/vendor/oom`, SM747's filed spec re-filed with it). 0.27 answers a
   two-factor account's right password as a pending sign-in rather than a
   fault, and renames its category; lazysite took that answer for a sign-in and
@@ -311,7 +313,7 @@ Archive
   name (`two-factor`) and the half-open session is ended at Odoo. The
   dependency floor is unchanged. t/unit/odoo/25.
 
-- SM1155 (PENDING) **a site, or a section of it, installs as an app.** Setting
+- SM1155 (97fe3407) **a site, or a section of it, installs as an app.** Setting
   `app_name` (with `app_scope`, `app_start_url`, colours and icon files) makes the
   engine generate the web app manifest and a service worker; nothing is authored
   under `/lazysite-assets/`. The worker keeps the app shell (stylesheets and
@@ -319,7 +321,7 @@ Archive
   Odoo endpoint, the manager or the auth paths, never stores a `no-store` or
   `private` response, and updates on a deploy. `lazysite check` names a bad scope
   or a missing icon. t/unit/processor/134, 142, t/unit/tools/84.
-- SM1144 (PENDING) **internal: a request says where its time went.** SM1082 track T0.
+- SM1144 (4922ad35) **internal: a request says where its time went.** SM1082 track T0.
   Every surface the engine answers (pages and statics, the manager API, MCP, the
   data and Odoo endpoints, WebDAV, and the auth wrapper's hand-over) reports its
   phases - config, identity, load, render, call, write, only those that happened -
@@ -330,98 +332,98 @@ Archive
   pool, pinned to one CPU at nice 19 and never parallel. `lazysite check` reports
   `pool: yes, N workers` or `pool: no (plain CGI)`. t/unit/lib/204,
   t/integration/287, t/unit/odoo/50, t/tools/170, t/tools/171.
-- SM1131 (PENDING) **every reader honours the configured header names.** Only the
+- SM1131 (b9611fe5) **every reader honours the configured header names.** Only the
   page gate read `auth_header_*`; one reader, `Lazysite::Auth::Identity`, now
   serves the page gate, the file rules, the manager and the API, and takes its
   trust decision from SM1129's check. t/integration/265.
-- SM1132 (PENDING) **one rule splits a groups header.** The page gate split on
+- SM1132 (b9611fe5) **one rule splits a groups header.** The page gate split on
   commas and the manager on commas or spaces; `auth_header_groups_separator`
   (default comma; Authentik sends `|`) is now the one rule. t/unit/auth/62.
-- SM1133 (PENDING) **a directory group name is mapped.** A directory's group
+- SM1133 (b9611fe5) **a directory group name is mapped.** A directory's group
   names (spaces, capitals) are normalised to lazysite names, with an optional
   `auth_group_map` that wins (release manager, 2026-10-17). t/unit/auth/62.
-- SM1151 (PENDING) **the dev server answers connections side by side.** One
+- SM1151 (308ed651) **the dev server answers connections side by side.** One
   accept loop made a page's parallel requests queue, so the lab's timings
   measured the queue; each connection is now a forked child, up to eight at
   once. Dev only. t/unit/tools/83.
-- SM1152 (PENDING) **a stale registry is rebuilt after the request, not inside
+- SM1152 (8f9a9b37) **a stale registry is rebuilt after the request, not inside
   it.** A request that finds a registry stale serves the one it has and starts a
   detached rebuild under one lock (1.5-3 s on an 1,800-rule fixture); a content
   write starts it when its request is over; a missing registry is still built on
   first need. t/unit/processor/141, t/unit/manager/363.
-- SM1153 (PENDING) **the extension-list cache follows the extensions
+- SM1153 (ba8f1050) **the extension-list cache follows the extensions
   directory.** The cached list kept an empty answer after `plugins/` appeared
   (oom-lab L-5); it now records what it was built from, and an empty list for a
   missing directory is not kept. t/unit/lib/203.
-- SM1154 (PENDING) **the add path names setup-sysop on a site with no
+- SM1154 (f546402b) **the add path names setup-sysop on a site with no
   operator.** `add` (first account) and `group-add` (a non-operator group)
   print a note naming `setup-sysop` and the manager's Users page; the help and
   the manager guide say it too (oom-lab L-8). t/unit/users/55.
 
-- SM1129 (PENDING) **security: a proxy is believed only from its address.** With
+- SM1129 (c4acf76a) **security: a proxy is believed only from its address.** With
   `auth_proxy_trusted` on, any request carrying the identity headers was
   believed (SM794's open gap; SM1128 phase 1). `auth_proxy_trusted_from` lists
   the proxy's addresses, matched against the TCP peer only; from anywhere else
   the headers are stripped, and an empty list believes nobody. One function
   answers the question for every surface; `lazysite check` warns while the
   flag is on. t/integration/264.
-- SM1130 (PENDING) **a trusted proxy's identity wins over a lazysite cookie.**
+- SM1130 (c4acf76a) **a trusted proxy's identity wins over a lazysite cookie.**
   A stale local session replaced the directory's identity; under a trusted
   proxy the proxy's user now wins, and with no proxy user the cookie works as
   before. t/integration/263.
 
-- SM1127 (PENDING) **internal: a short PUT through Apache leaves nothing.** The
+- SM1127 (4ea28931) **internal: a short PUT through Apache leaves nothing.** The
   0.15.9 walk could not reach the engine with a short body from outside. A test
   now drives one through a real Apache: a cut-off and a stalled body both leave
   no file and no temp. t/integration/262.
 
-- SM1125 (PENDING) **internal: nothing shipped calls a deprecated action name.**
+- SM1125 (0bcbf279) **internal: nothing shipped calls a deprecated action name.**
   Three manager comments still named `plugin-*` actions; they name the
   `extension-*` ones, and t/lint/266 keeps shipped pages, assets and skills on
   the current names. The old names still work.
 
-- SM1124 (PENDING) **security: a form's outcome is a code, not text.** The page
+- SM1124 (3ccead0b) **security: a form's outcome is a code, not text.** The page
   printed any text placed in the `outcome=` parameter, so a link could make a
   site's own page show someone else's words (0.15.9 walk, F-3). The redirect
   now carries a short code, and the page shows only the engine's sentence for
   a known code; anything else gets one generic sentence. t/unit/forms/67.
 
-- SM1122 (PENDING) **the outbox list keeps what it sent.** A sent entry vanished
+- SM1122 (eb132542) **the outbox list keeps what it sent.** A sent entry vanished
   from the list and the lookup by id (0.15.9 walk, X3): SM1105 covered only an
   entry whose file could not be removed. Sent entries are now listed from the
   ledger for its 8 days, with recipient counts per channel and no addresses
   (release manager, 2026-10-17). t/unit/notify/09.
-- SM1123 (PENDING) **a retry names what it retried.** The retry audit row's
+- SM1123 (eb132542) **a retry names what it retried.** The retry audit row's
   target was "/"; it is now the rule or entry id, with the counts.
   t/integration/260.
 
-- SM1121 (PENDING) **a missing path is named, for the operator too.** The 0.15.9
+- SM1121 (422b5c34) **a missing path is named, for the operator too.** The 0.15.9
   walk (X1) found a save with no path, or with the path in the body, refused
   as "'/' is a folder". SM1103's refusal ran only for accounts below the
   operator, and the tester was the operator. It now runs for every caller:
   no path says it is required in the query, and a body path is named.
   t/unit/manager/348.
 
-- SM1120 (PENDING) **an engine-served static says when it changed.** Every
+- SM1120 (bf4bfc39) **an engine-served static says when it changed.** Every
   200, 206, 304 and 416 from a static carries `Last-Modified`,
   `If-Modified-Since` is answered with a 304 when no `If-None-Match` is sent,
   and an `If-Range` carrying the exact date of a file at least a second old is
   honoured as a range. t/unit/processor/131.
 
-- SM1116 (PENDING) **internal: everything a coverage run writes is classified.**
+- SM1116 (e8891e17) **internal: everything a coverage run writes is classified.**
   The overnight coverage run of 2026-10-17 stopped in its first group: the
   manifest refused the run's own `cover_db-processor-suite.log`, which no
   exclude rule named. Group suite logs are now excluded, and t/tools/169 checks
   every name the coverage tools write.
 
-- SM1117 (PENDING) **lazysite adopts OOM 0.24.** The pinned snapshot moves from
+- SM1117 (60ef225e) **lazysite adopts OOM 0.24.** The pinned snapshot moves from
   0.09 to 0.24, the version the host's deb carries. The one gap was a
   two-factor Odoo account refused as an internal error: OOM 0.24 gives it its
   own category (`second_factor`, `is_no_session`), which lazysite now reads,
   keeping the message test for an older OOM. SM747's filed spec is re-filed.
   t/unit/odoo/25, 27.
 
-- SM1119 (PENDING) **internal: a required argument agrees across the two
+- SM1119 (e3cfffd3) **internal: a required argument agrees across the two
   surfaces.** t/lint/23 pinned that the control API and MCP expose the same
   actions and nothing compared what each requires. Thirty-odd paired actions
   marked an argument required on one side only; the API side now requires them
