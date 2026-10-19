@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-18
 raised-by: lazysite developer agent, from the 2026-10-18 overnight coverage run (n664)
 area: release
-status-note: "SHIPPED on n664: dist/config/classification.json, .gitignore; t/tools/181."
+status-note: "SHIPPED on n664: dist/config/classification.json, .gitignore; t/tools/182."
 ---
 
 # What happened
@@ -33,7 +33,7 @@ suite log by name; this was the next name the same tools write.
 - The files stay at the root (the exclude, not a move): the run's closing
   message tells the operator where cover's stderr was kept, and that path is
   the one people open. Nothing else reads them elsewhere.
-- t/tools/181 builds every name as the tools do (whole suite and each group, log
+- t/tools/182 builds every name as the tools do (whole suite and each group, log
   and stderr file, DB folders) in a scratch tree and runs the real
   `build-manifest.pl --staged` over it: it must accept all and still refuse an
   unrelated file. It also checks that the two scripts build no path under
