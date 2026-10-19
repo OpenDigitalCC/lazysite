@@ -87,6 +87,19 @@ Branch n667. Test: `t/unit/odoo/73-a-call-to-oomd-loads-no-oom.t`.
   (it was read again). `via` keeps saying `daemon` or `in-process`; the two are
   independent. The event log says why (`OOM 0.31 -> 0.33`, `odoo_packs changed`,
   `none`). A call with `odoo_daemon` off carries no `decl`.
+- **A binding that takes a file** (SM1162, stacked below). The stored declaration
+  is the operation's whole parameter set, so its `file` / `files` declarations
+  (`max`, `max_bytes`) are in it, and the binding's own `file_params`,
+  `file_max_kb` and `file_types` stay on the binding. The endpoint's budget for a
+  multipart body (`upload_budget`, before the body is read) now reads the
+  operation through `binding_class` as `_ready` does: with the daemon on it read
+  the registry in-process, and in a fresh process with no OOM loaded fell back to
+  ten files a parameter. `t/unit/odoo/74`: a file call through the real oomd runs
+  on the stored declaration (`decl: stored`), the daemon's operation sees the
+  bytes, the budget is the declaration's (one file and a list of ten: 11), none of
+  Registry, Service or `Odoo::Client` is loaded, a stored `max_bytes` is believed
+  while its stamp holds, and an operation named with a hyphen (SM1178) is found by
+  its stored declaration. Before the change the budget test fails (20, not 11).
 - **The fallback.** With `odoo_daemon: on` and the daemon down, the call runs
   in-process as SM1164 made it; OOM is loaded at that point (`_real_class`,
   `_load_oom`), because a stored declaration cannot run an operation.

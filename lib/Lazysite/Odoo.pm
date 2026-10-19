@@ -1040,10 +1040,12 @@ sub call {
 sub upload_budget {
     my ($b) = @_;
     require Lazysite::Odoo::Binding;
-    my $cap    = ( $b->{file_max_kb} // 0 ) * 1024;
+    my $cap = ( $b->{file_max_kb} // 0 ) * 1024;
     my ($conn) = eval { connection() };
-    my $class = $conn ? eval { ( operation_class( $conn, $b->{operation} ) )[0] } : undef;
-    my $spec  = $class ? ( eval { $class->params } || {} ) : {};
+    # SM1180: with the daemon on, the declaration stored at save, so a file call that
+    # oomd answers is weighed without loading OOM (binding_class).
+    my $class = $conn  ? eval { ( binding_class( $b, $conn ) )[0] } : undef;
+    my $spec  = $class ? ( eval { $class->params } || {} )          : {};
     my $n     = 0;
     for my $p ( values %{ $b->{file_params} || {} } ) {
         my $d = Lazysite::Odoo::Binding::param_decl( $spec, $p ) || {};
