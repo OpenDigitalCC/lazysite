@@ -53,6 +53,19 @@ Archive
 
 ## Unreleased
 
+- SM1180 (PENDING) **the endpoint calls oomd without loading OOM.** With
+  `odoo_daemon` on, an Odoo call still read OOM's registry in the endpoint for the
+  binding's operation before sending the call to oomd; a binding's operation
+  declaration (its parameters, whether it writes, its summary) is now stored when
+  the binding is saved, stamped with the OOM version, `odoo_packs` and
+  `odoo_pack_dirs`, and a call whose stamp still fits loads six OOM modules, not
+  33. A binding that takes a file runs on it too, the endpoint's allowance for
+  the body included. A stale or missing declaration is read again once and
+  stored, the call record's new `decl` field says `stored` or `rechecked`, and
+  `odoo_daemon` off is unchanged; a request that feeds a list of rows still loads
+  OOM for its check. `tools/bench-surfaces.sh --odoo-margin` warns, advisory,
+  when the endpoint adds more than a margin to a direct oomd call.
+  t/unit/odoo/73, 74, t/tools/183.
 - SM1179 (PENDING) **the Odoo registry is built once.** Each Odoo call built
   OOM's operation registry twice, loading every operation module each time
   (about 450 ms of every request, OOM Lab); a process now keeps the registry it
