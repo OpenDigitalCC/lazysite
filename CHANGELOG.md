@@ -86,6 +86,10 @@ Archive
   from OOM's `bin/`, so SM1164's tests start the real daemon from the
   repository, never from the host (lint 262). `tools/vendor-oom.sh` checks
   `bin/oomd` against the `odoo-oom-tools` deb. t/lint/207, 261, t/tools/155.
+- SM1176 (PENDING) **a coverage run no longer refuses itself.** The group's
+  `cover_db-<group>-cover-stderr.txt`, left at the tree root, made the next
+  group's manifest build refuse an unclassified file (2026-10-18 run); every
+  root file named `cover_db-*` is now excluded. t/tools/181.
 - SM1172 (PENDING) **saving the Odoo config keeps what an overlapping save
   wrote.** Two saves of `lazysite/odoo.conf` that overlapped both read the old
   file, so the second dropped the first's keys, an app's `odoo_packs`
