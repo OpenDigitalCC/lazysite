@@ -127,7 +127,7 @@ subtest 'check --fix repairs a store that exists in the wrong shape' => sub {
 
     like( $chk, qr/\$store_repair_needed/,
         'an unwritable existing store is queued for repair' );
-    like( $chk, qr/chmod 02770, \$s/, 'repaired to 2770' );
+    like( $chk, qr/set_mode\( 02770, \$s \)/, 'repaired to 2770' );
     like( $chk, qr/File::Find::find/,
         'and its CONTENTS too - a store populated by a sweep running as the '
             . 'site user holds files the CGI cannot rewrite either, and '

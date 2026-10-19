@@ -1580,6 +1580,70 @@ sub handover_mode {
     return $mode | ( ( $mode & 0700 ) >> 3 );
 }
 
+# SM1195: A FIX IS "FIXED" WHEN THE PATH NOW CARRIES THE MODE, NOT WHEN chmod
+# RETURNED TRUE.
+#
+# Field report (edge, 2026-10-19, run as ispadmin): --fix printed "fixed: chmod
+# 2770 .../lazysite/git (was 0770)" three times in one run and then reported the
+# same path as a FAIL with no setgid. Linux clears S_ISGID on chmod when the
+# caller is not root and not a member of the file's group (ispadmin is not in
+# www-data); chmod still returns success. The tool believed the return value,
+# so the report said "fixed" for a change that had not happened, and the loop
+# applied it again every pass. Every chmod/chown the fix path makes now goes
+# through here and is checked by stat; a change that did not take is reported
+# as such, with the reason when it can tell and the command for someone who can.
+my %attempted;    # "path\0mode" -> 1: a change is tried once per run
+my $not_taken = 0;
+
+# The caller's groups. LAZYSITE_CHECK_GROUPS (a space-separated gid list) stands
+# in for them in the regression test, which has no second user to be "outside"
+# a group with.
+sub in_group {
+    my ($gid) = @_;
+    my @g = split ' ', ( $ENV{LAZYSITE_CHECK_GROUPS} // $) );
+    return scalar grep { $_ == $gid } @g;
+}
+
+# ( $mode, $path ) -> ( 1 ) when the path now carries $mode, else
+# ( 0, $why, $now ) with the reason in words.
+sub set_mode {
+    my ( $mode, $path ) = @_;
+    my $ok  = chmod $mode, $path;
+    my $err = "$!";
+    my @s   = stat $path;
+    my $now = @s ? ( $s[2] & 07777 ) : undef;
+    return (1) if $ok && defined $now && $now == $mode;
+    return ( 0, "refused: $err",     $now )  unless $ok;
+    return ( 0, 'the path vanished', undef ) unless defined $now;
+    if ( ( $mode & 02000 ) && !( $now & 02000 ) ) {
+        my $who = ( getpwuid $> )[0]    // $>;
+        my $grp = ( getgrgid $s[5] )[0] // $s[5];
+        return ( 0, "the setgid bit was dropped because $who is not in group $grp "
+                . "(the system clears it for a non-root caller outside the file's group)", $now )
+            if $> != 0 && !in_group( $s[5] );
+        return ( 0, 'the setgid bit was dropped by the system', $now );
+    }
+    return ( 0, 'the system left a different mode', $now );
+}
+
+# Report a chmod that did not take, once, with the root command.
+sub report_not_taken {
+    my ( $mode, $path, $cur, $now, $why ) = @_;
+    printf "not fixed: chmod %04o %s (was %04o, now %s) - %s\n"
+        . "  as root: sudo chmod %04o '%s'\n",
+        $mode, $path, $cur, ( defined $now ? sprintf( '%04o', $now ) : 'gone' ),
+        $why,  $mode, $path;
+    $not_taken++;
+}
+
+# ( $uid, $gid, $path ) -> true only when the owner/group are now as asked.
+sub set_owner {
+    my ( $uid, $gid, $path ) = @_;
+    my $ok = chown $uid, $gid, $path;
+    my @s  = lstat $path or return 0;
+    return $ok && $s[4] == $uid && $s[5] == $gid ? 1 : 0;
+}
+
 sub apply_fixes {
     my $fixed = 0;
 
@@ -1645,6 +1709,7 @@ sub apply_fixes {
         # dirs; per-path "fixed:" lines would drown the report.
         my $gd = $git_fix_root;
         my $n  = 0;
+        my @git_failed;
         find_noting( '--fix',
             { no_chdir => 1, wanted => sub {
                     my $p = $File::Find::name;
@@ -1652,22 +1717,46 @@ sub apply_fixes {
                     return if -l _;
                     my $bits = git_want_bits( $gd, $p, ( -d _ ? 1 : 0 ), @s );
                     return unless $bits;
-                    $n++ if chmod( ( $s[2] & 07777 ) | $bits, $p );
+                    my $want = ( $s[2] & 07777 ) | $bits;
+                    return if $attempted{"$p\0$want"}++;
+                    my ($took) = set_mode( $want, $p );
+                    if   ($took) { $n++ }
+                    else         { push @git_failed, $p }
             } }, $gd );
         if ($n) {
             print "fixed: restored group access on $n path(s) under lazysite/git "
                 . "(version recording works again on the next save)\n";
             $fixed++;
         }
+        if (@git_failed) {
+            my $first = $git_failed[0];
+            printf "not fixed: %d path(s) under lazysite/git did not take the group access "
+                . "(first: %s) - a non-root caller outside the group cannot keep the setgid "
+                . "bit\n  as root: sudo chmod -R g+rwXs '%s'\n",
+                scalar @git_failed, $first, $gd;
+            $not_taken += @git_failed;
+        }
     }
     if ($git_shared_fix) {
-        if ( system( 'git', "--git-dir=$git_shared_fix", 'config',
-                'core.sharedRepository', 'group' ) == 0 ) {
+        my $set = system( 'git', "--git-dir=$git_shared_fix", 'config',
+            'core.sharedRepository', 'group' ) == 0;
+        my $val = '';
+        if ( $set && open my $ph, '-|', 'git', "--git-dir=$git_shared_fix", 'config',
+            '--get', 'core.sharedRepository' ) {
+            local $/; $val = <$ph> // ''; close $ph;
+        }
+        $val =~ s/\s+//g;
+        if ( $set && $val eq 'group' ) {
             print "fixed: git config core.sharedRepository group "
                 . "(git keeps future repo paths group-accessible, umask-independent)\n";
             $fixed++;
         }
-        else { warn "could not set core.sharedRepository on $git_shared_fix\n" }
+        else {
+            print "not fixed: git config core.sharedRepository group on $git_shared_fix "
+                . "did not take\n  as the repo's owner: git --git-dir='$git_shared_fix' "
+                . "config core.sharedRepository group\n";
+            $not_taken++;
+        }
     }
     for my $f (@chmod_fixes) {
         my ( $mode, $path, $how ) = @{$f};
@@ -1680,11 +1769,13 @@ sub apply_fixes {
             # operator who runs --fix is often the one who has to explain afterwards
             # what was wrong, and "chmod 2775" alone does not say whether anything
             # was. The prior mode is already in hand from the stat above.
-        if ( chmod $mode, $path ) {
+        next if $attempted{"$path\0$mode"}++;    # SM1195: once per run, not once per pass
+        my ( $took, $why, $now ) = set_mode( $mode, $path );
+        if ($took) {
             printf "fixed: chmod %04o %s (was %04o)\n", $mode, $path, $cur;
             $fixed++;
         }
-        else { warn "could not chmod $path: $!\n" }
+        else { report_not_taken( $mode, $path, $cur, $now, $why ) }
     }
     # SM313: create the private store, so protecting content can actually move it.
     if ($store_create_needed) {
@@ -1701,11 +1792,19 @@ sub apply_fixes {
                 # Owned by the site user, setgid so content moved in keeps the
                 # group. The engine then writes into a directory it owns, and
                 # never needs write permission on the parent.
-                chown $exp_uid, $exp_gid, $s;
-                chmod 02770, $s;
-                printf "fixed: created the private store %s (%s:%s, mode 2770)\n",
-                    $s, $exp_user, $exp_grp;
-                $fixed++;
+                my $own = set_owner( $exp_uid, $exp_gid, $s );
+                my ($took) = set_mode( 02770, $s );
+                if ( $own && $took ) {
+                    printf "fixed: created the private store %s (%s:%s, mode 2770)\n",
+                        $s, $exp_user, $exp_grp;
+                    $fixed++;
+                }
+                else {
+                    printf "not fixed: the private store %s was created but is not "
+                        . "%s:%s mode 2770\n  as root: sudo chown %s:%s '%s' && sudo chmod 2770 '%s'\n",
+                        $s, $exp_user, $exp_grp, $exp_user, $exp_grp, $s, $s;
+                    $not_taken++;
+                }
             }
             else { warn "could not create the private store $s\n" }
         }
@@ -1724,8 +1823,9 @@ sub apply_fixes {
         if ( $> == 0 ) {
             # Same shape --fix creates: owned by the site user, group the CGI
             # identity, setgid so content moved in keeps the group.
-            chown $exp_uid, $exp_gid, $s;
-            chmod 02770, $s;
+            my $bad = 0;
+            set_owner( $exp_uid, $exp_gid, $s ) or $bad++;
+            ( set_mode( 02770, $s ) )[0]        or $bad++;
             # The contents too - a store populated by a sweep running as the site
             # user holds files the CGI cannot rewrite either, and un-protecting
             # has to move them back OUT.
@@ -1735,13 +1835,21 @@ sub apply_fixes {
                         my $p  = $File::Find::name;
                         my @st = lstat $p or return;
                         return if -l _;
-                        chown $exp_uid, $exp_gid, $p;
-                        chmod( ( -d _ ? 02770 : 0660 ), $p );
+                        set_owner( $exp_uid, $exp_gid, $p )            or $bad++;
+                        ( set_mode( ( -d _ ? 02770 : 0660 ), $p ) )[0] or $bad++;
                         $n++;
                 } }, $s );
-            printf "fixed: private store %s now %s:%s mode 2770 (%d path(s))\n",
-                $s, $exp_user, $exp_grp, $n;
-            $fixed++;
+            if ($bad) {
+                printf "not fixed: private store %s: %d change(s) did not take\n"
+                    . "  as root: sudo chown -R %s:%s '%s' && sudo chmod 2770 '%s'\n",
+                    $s, $bad, $exp_user, $exp_grp, $s, $s;
+                $not_taken += $bad;
+            }
+            else {
+                printf "fixed: private store %s now %s:%s mode 2770 (%d path(s))\n",
+                    $s, $exp_user, $exp_grp, $n;
+                $fixed++;
+            }
         }
         else {
             print "skip: repairing the private store needs root - run:\n"
@@ -1751,6 +1859,7 @@ sub apply_fixes {
     }
     if ($chown_needed) {
         if ( $> == 0 ) {
+            my $chown_bad = 0;
             # Recursive chown to the expected owner:group. Handing a path the
             # CGI currently OWNS to the site user must not strip the CGI's
             # access - replicate the owner bits onto the group first (see
@@ -1761,12 +1870,20 @@ sub apply_fixes {
                         return if -l _;
                         if ( defined $cgi_uid && $s[4] == $cgi_uid ) {
                             my $want = handover_mode( $s[2] );
-                            chmod $want, $p if $want != ( $s[2] & 07777 );
+                            ( set_mode( $want, $p ) )[0] or $chown_bad++
+                                if $want != ( $s[2] & 07777 );
                         }
-                        chown $exp_uid, $exp_gid, $p;
+                        set_owner( $exp_uid, $exp_gid, $p ) or $chown_bad++;
             } }, $LZ );
-            print "fixed: chown -R $exp_user:$exp_grp $LZ\n";
-            $fixed++;
+            if ($chown_bad) {
+                print "not fixed: chown -R $exp_user:$exp_grp $LZ - $chown_bad change(s) "
+                    . "did not take\n  as root: sudo chown -R $exp_user:$exp_grp '$LZ'\n";
+                $not_taken += $chown_bad;
+            }
+            else {
+                print "fixed: chown -R $exp_user:$exp_grp $LZ\n";
+                $fixed++;
+            }
         }
         else {
             print "skip: ownership fix needs root - run:\n"
@@ -1802,8 +1919,10 @@ report_diagnostic_sinks() if $opt{sinks};    # SM932 (2), after any --fix re-run
 my %icon = ( OK => '  ok  ', WARN => ' warn ', FAIL => ' FAIL ' );
 my ( $fails, $warns ) = ( 0, 0 );
 print "\nlazysite-check  docroot=$DOC  expect-owner=$exp_user:$exp_grp\n";
-print "(--fix applied $fixes_applied change(s); this report reflects the post-fix state)\n"
-    if $fixes_applied;
+print "(--fix applied $fixes_applied change(s)"
+    . ( $not_taken ? ", $not_taken not taken - see the \"not fixed\" lines above" : '' )
+    . "; this report reflects the post-fix state)\n"
+    if $fixes_applied || $not_taken;
 print "\n";
 for my $r (@results) {
     $fails++ if $r->{level} eq 'FAIL';

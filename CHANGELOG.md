@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1195 (PENDING) **`lazysite check --fix` says when a change did not take.** Run by a
+  user outside the web-server group, `chmod 2770` on `lazysite/git` returned success
+  while Linux dropped the setgid bit, so edge's `--fix` printed "fixed" three times
+  for a change that never happened and then reported the same FAIL. Every chmod and
+  chown is now checked by reading the path back; one that did not take is reported
+  `not fixed` with the reason (setgid dropped because the caller is not in the
+  group, or refused) and the `sudo` command, is tried once per run, and the count
+  line gives applied and not taken separately.
 - SM1194 (PENDING) **security: an old front end with a trusted proxy is a failure.** Edge's
   vhost was rendered before SM929, so nginx passed the client's own
   `X-Forwarded-For` through; with `trusted_proxies` set, a request sent with

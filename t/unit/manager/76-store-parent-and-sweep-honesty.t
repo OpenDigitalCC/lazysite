@@ -172,9 +172,9 @@ subtest 'check --fix creates the store rather than widening its parent' => sub {
 
     like( $src, qr/\$store_create_needed/,
         'the check queues the store for creation' );
-    like( $src, qr/chmod 02770, \$s/,
+    like( $src, qr/set_mode\( 02770, \$s \)/,
         'created setgid, so content moved in keeps the group' );
-    like( $src, qr/chown \$exp_uid, \$exp_gid, \$s/,
+    like( $src, qr/set_owner\( \$exp_uid, \$exp_gid, \$s \)/,
         'and owned by the site user, so the engine can write into it' );
 
     # The guard on the guard: the repair must NOT be a chmod of the parent.
