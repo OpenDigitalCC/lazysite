@@ -88,6 +88,12 @@ Archive
   warns in the console with the reason when a registration fails or the origin is
   not secure. Docs: the app page says a phone on `http://<lan-ip>:port` never
   registers a worker.
+- SM1199 (PENDING) **tools: the precheck's job count is settable.** `tools/precheck.sh`
+  ran `prove -j8` whatever the host, against the shared-host rule that agents run at
+  most `-j2`. `LAZYSITE_PROVE_JOBS=N` or `--jobs N` sets it (the flag wins); neither
+  given, it is `-j8` as before, so the release manager's runs and the integration
+  are unchanged. A value that is not a positive whole number stops the tool.
+  `t/tools/187`.
 
 ## 0.15.12 - EDGE: who a request is, decided once, in the worker (2026-10-20)
 

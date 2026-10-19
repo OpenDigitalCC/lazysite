@@ -10,12 +10,27 @@
 #   4. the tests that cover each area the change touches (SM1061,
 #      tools/precheck-areas.pl) - since SM1061 this is the handoff's test run;
 #      the whole suite is on demand (tools/suite.sh), for a release, and nightly
-# Usage: tools/precheck.sh [BASE]   (default main). Exit non-zero on any failure.
+# Usage: tools/precheck.sh [--jobs N] [BASE]   (default main). Exit non-zero on any failure.
+# The test run is `prove -j8` unless told otherwise (SM1199): --jobs N, or
+# LAZYSITE_PROVE_JOBS=N, sets it; the flag wins. On the shared host an agent
+# runs it at 2; the release manager's runs and the integration keep 8.
 set -u
 cd "$(dirname "$0")/.." || exit 2
 # The log goes to tmp/, which is ignored: a fresh worktree has none, and the
 # redirect below failed there before prove ran (t/tools/150).
 mkdir -p tmp
+JOBS=${LAZYSITE_PROVE_JOBS:-8}
+if [ "${1:-}" = "--jobs" ]; then
+  JOBS=${2:-}
+  shift
+  [ $# -gt 0 ] && shift
+fi
+case "$JOBS" in
+  '' | *[!0-9]* | 0)
+    echo "precheck: --jobs / LAZYSITE_PROVE_JOBS wants a positive whole number, not '$JOBS'" >&2
+    exit 2
+    ;;
+esac
 BASE=${1:-main}
 RC=0
 CHANGED=$(git diff --name-only "$BASE"...HEAD; git diff --name-only HEAD)
@@ -78,7 +93,7 @@ fi
 export LAZYSITE_LINT_FILES
 LAZYSITE_LINT_FILES=$(printf '%s\n' $PERL | grep -v '^t/' | tr '\n' ' ')
 # shellcheck disable=SC2086
-if ! prove -l -j8 $LINTS $RELATED > tmp/precheck.log 2>&1; then
+if ! prove -l -j"$JOBS" $LINTS $RELATED > tmp/precheck.log 2>&1; then
   echo "precheck: FAIL - tmp/precheck.log"
   grep -E "^#   Failed test|\(Wstat|^# TIDY" tmp/precheck.log | head -15
   RC=1
