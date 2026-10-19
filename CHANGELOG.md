@@ -73,14 +73,16 @@ Archive
   the strip. Headers from an untrusted peer are still removed.
 
 - SM1192 (PENDING) **the manager says when every visitor is the front proxy.**
-  Behind a front proxy that `trusted_proxies` does not name, every visitor
-  arrives as the proxy's private address, so an address rule on a page, group,
-  sign-in or the manager applies to everyone at once; `lazysite check` warned,
-  but the operator cannot run it from the manager. The Address lists page, the
-  Config page and the Groups page now show a plain warning, decided by the
-  server with the address logic the limiter uses, when the request's own peer
-  is a private or loopback address that `trusted_proxies` does not name. A
-  public peer, or a `trusted_proxies` that names the peer, shows nothing.
+  Behind a front proxy every visitor can arrive as the proxy's private address,
+  so an address rule on a page, group, sign-in or the manager applies to
+  everyone at once; `lazysite check` warned, but the operator cannot run it from
+  the manager. The Address lists, Config and Groups pages now show a plain
+  warning, decided by the server the way the engine reads the address
+  (`request_address`), when the request's peer is a private or loopback address
+  and no forwarded visitor address is believed. It names the cause: the peer is
+  not in the trusted set (naming the set; name the proxy in `trusted_proxies`),
+  or it is trusted but sends no `X-Forwarded-For` (rebuild its vhost). A public
+  peer, or a proxy that forwards the visitor, shows nothing.
 - SM1186 (PENDING) **odoo: a usage refusal says what to fix.** A read whose
   operation refused its input answered 400 with one sentence that said nothing
   of the input, so a page could not tell the person what to change. The

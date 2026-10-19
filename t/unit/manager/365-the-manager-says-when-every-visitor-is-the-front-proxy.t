@@ -5,13 +5,15 @@
 # rule on edge (pages, groups, sign-in, manager) applies to everyone at once ...
 # `lazysite check` warns, but the operator cannot run it from the manager."
 #
-# The server decides; the page only shows it. Both answers the address pages call
-# (address-lists, which the Address lists and group editor pages read, and
-# config-read, which the Config page reads) carry `proxy_warning` when
-#   - the request's own peer address (REMOTE_ADDR, before any proxy rule) is private
-#     or loopback, AND
-#   - trusted_proxies is empty/absent or does not include that peer.
-# Silent for a public peer, and silent when trusted_proxies names the peer.
+# The server decides; the page only shows it, and it decides as the ENGINE does
+# (request_address): absent and empty trusted_proxies mean the private-range default,
+# only `none` trusts nothing. Both answers the address pages call (address-lists, and
+# config-read) carry `proxy_warning` when the peer (REMOTE_ADDR, before any proxy
+# rule) is private or loopback AND no forwarded visitor address is being believed:
+#   (a) the peer is not in the effective trust set -> name the set, "Name the front
+#       proxy in trusted_proxies"
+#   (b) the peer IS trusted but no X-Forwarded-For arrives -> "rebuild its vhost"
+# Silent for a public peer, and when a trusted peer forwards a visitor address.
 use strict;
 use warnings;
 use Test::More;
@@ -40,46 +42,60 @@ sub site {
 
 # Both doors, as the manager API runs them for one request.
 sub answers {
-    my ( $conf, $peer ) = @_;
+    my ( $conf, $peer, $xff ) = @_;
     my $d = site($conf);
     local $ENV{REMOTE_ADDR} = $peer;
-    delete local $ENV{HTTP_X_FORWARDED_FOR};
-    local $Lazysite::Auth::Acl::DOCROOT         = $d;
+    local $ENV{HTTP_X_FORWARDED_FOR};
+    $ENV{HTTP_X_FORWARDED_FOR} = $xff if defined $xff;
+    local $Lazysite::Auth::Acl::DOCROOT            = $d;
     local $Lazysite::Manager::Config::LAZYSITE_DIR = "$d/lazysite";
     my $al = Lazysite::Manager::AddressLists::address_lists( actor => 'sjm', operator => 1 );
     my $cr = Lazysite::Manager::Config::action_config_read();
     return ( $al, $cr );
 }
 
-my $TEXT = qr/Every visitor reaches this site from 10\.2\.30\.177, which is not named in trusted_proxies, so an address rule here applies to every visitor at once\. Name the front proxy in trusted_proxies\./;
+my $FIRST = qr/\AEvery visitor reaches this site from 10\.2\.30\.177,/;
+my $A     = qr/$FIRST which is not named in trusted_proxies \((.+?)\), so an address rule here applies to every visitor at once\. Name the front proxy in trusted_proxies\.\z/;
+my $B     = qr/$FIRST a trusted proxy, but no visitor address arrives in X-Forwarded-For, so an address rule here applies to every visitor at once\. The front end does not send the visitor's address in X-Forwarded-For: rebuild its vhost \(lazysite templates since 0\.15\.2, SM929\)\.\z/;
 
+# (b) edge as found: no trusted_proxies line (the private-range default trusts the
+# front end) and the front end sends no X-Forwarded-For.
 for my $case ( [ 'trusted_proxies absent', '' ], [ 'trusted_proxies empty', "trusted_proxies:\n" ],
-    [ 'trusted_proxies another range', "trusted_proxies: 192.0.2.0/24\n" ], [ 'trusted_proxies none', "trusted_proxies: none\n" ] )
+    [ 'trusted_proxies naming the proxy, no header', "trusted_proxies: 10.2.30.177\n" ] )
 {
     my ( $name, $conf ) = @{$case};
     my ( $al, $cr ) = answers( $conf, '10.2.30.177' );
     ok( $al->{ok}, "$name: address-lists answers" );
-    like( $al->{proxy_warning} // '', $TEXT, "$name: address-lists carries the warning" );
-    like( $cr->{proxy_warning} // '', $TEXT, "$name: config-read carries the warning" );
+    like( $al->{proxy_warning} // '', $B, "$name: address-lists names cause (b)" );
+    like( $cr->{proxy_warning} // '', $B, "$name: config-read names cause (b)" );
 }
 
+# (a) the peer is not in what the engine trusts.
+for my $case ( [ 'trusted_proxies none', "trusted_proxies: none\n", 'none' ],
+    [ 'trusted_proxies another range', "trusted_proxies: 192.0.2.0/24\n", '192.0.2.0/24' ] )
 {
-    my ( $al, $cr ) = answers( "trusted_proxies: 10.2.30.177\n", '10.2.30.177' );
-    ok( !exists $al->{proxy_warning}, 'trusted_proxies naming the peer: address-lists says nothing' );
-    ok( !exists $cr->{proxy_warning}, 'trusted_proxies naming the peer: config-read says nothing' );
-    ( $al, $cr ) = answers( "trusted_proxies: 10.0.0.0/8, 192.0.2.1\n", '10.2.30.177' );
-    ok( !exists $al->{proxy_warning} && !exists $cr->{proxy_warning}, 'a range that holds the peer: silent' );
+    my ( $name, $conf, $set ) = @{$case};
+    my ( $al, $cr ) = answers( $conf, '10.2.30.177' );
+    like( $al->{proxy_warning} // '', $A, "$name: address-lists names cause (a)" );
+    like( $cr->{proxy_warning} // '', $A, "$name: config-read names cause (a)" );
+    my ($got) = ( $al->{proxy_warning} // '' ) =~ $A;
+    is( $got, $set, "$name: and names the set" );
+}
+{
+    my ($al) = answers( "trusted_proxies: 192.0.2.1\n", '127.0.0.1' );
+    like( $al->{proxy_warning} // '', qr/from 127\.0\.0\.1, which is not named/, 'a loopback peer is named too' );
 }
 
+# silent: the engine believes a forwarded visitor, or the peer is public/absent.
 {
-    my ( $al, $cr ) = answers( '', '203.0.113.9' );
-    ok( !exists $al->{proxy_warning}, 'a public peer: address-lists says nothing' );
-    ok( !exists $cr->{proxy_warning}, 'a public peer: config-read says nothing' );
-}
-
-{
-    my ( $al, $cr ) = answers( '', '127.0.0.1' );
-    like( $al->{proxy_warning} // '', qr/from 127\.0\.0\.1,/, 'a loopback peer is named too' );
+    my ( $al, $cr ) = answers( "trusted_proxies: 10.2.30.177\n", '10.2.30.177', '198.51.100.7' );
+    ok( !exists $al->{proxy_warning} && !exists $cr->{proxy_warning}, 'a list naming the proxy plus X-Forwarded-For: silent' );
+    ( $al, $cr ) = answers( '', '10.2.30.177', '198.51.100.7' );
+    ok( !exists $al->{proxy_warning} && !exists $cr->{proxy_warning}, 'the default trust plus X-Forwarded-For: silent' );
+    ( $al, $cr ) = answers( '', '203.0.113.9' );
+    ok( !exists $al->{proxy_warning} && !exists $cr->{proxy_warning}, 'a public peer: silent' );
+    ( $al, $cr ) = answers( "trusted_proxies: none\n", '203.0.113.9' );
+    ok( !exists $al->{proxy_warning} && !exists $cr->{proxy_warning}, 'a public peer, nothing trusted: silent' );
     ( $al, $cr ) = answers( '', '' );
     ok( !exists $al->{proxy_warning} && !exists $cr->{proxy_warning}, 'no peer (a command line): silent' );
 }

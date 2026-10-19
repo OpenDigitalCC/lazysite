@@ -15,7 +15,7 @@ use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies unnamed_front_end proxy_identity unsafe_link_scheme nav_unsafe_entries);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries);
 
 our $COMPONENT = 'lazysite';
 
@@ -523,28 +523,32 @@ sub _address_in_set {
     return 0;
 }
 
-# SM1192 (test plan 0.15.10, F-1): THE PEER THAT IS A FRONT END NOBODY NAMED.
-# Behind a front proxy every request connects from the proxy's private or loopback
-# address, and unless trusted_proxies names it the engine reads that as the visitor:
-# an address rule then applies to everyone at once. Returns the peer's text when
-# REMOTE_ADDR is a private or loopback address and the trusted_proxies spec does not
-# name it (an absent or empty spec names nothing: the private-range default is a
-# fallback, not a statement that this proxy was meant); undef for a public peer, no
-# peer, or a named one. Matching is parse_trusted_proxies and _address_in_set, the
-# code the limiter and request_address use, never a second parser.
-sub unnamed_front_end {
+# SM1192 (test plan 0.15.10, F-1): EVERY VISITOR IS THE FRONT END. Behind a front
+# proxy every request connects from the proxy's private or loopback address; unless
+# the engine believes a forwarded address, an address rule applies to everyone at
+# once. The decision is the engine's own: the peer is private, loopback or
+# link-local AND request_address($spec) gives back the peer itself (no forwarded
+# visitor is being believed). absent and empty mean the private-range default (only
+# `none` trusts nothing), exactly as parse_trusted_proxies reads them. Returns
+# ($peer, $cause, $set) or an empty list:
+#   cause 'untrusted'  the peer is not in the effective trust set
+#   cause 'no-forward' the peer IS trusted and no usable X-Forwarded-For arrives
+# $set names the effective set for the sentence. Matching is parse_trusted_proxies
+# and _address_in_set, the code the limiter uses, never a second parser.
+sub front_end_is_every_visitor {
     my ($spec) = @_;
     my $peer   = $ENV{REMOTE_ADDR} // '';
     my $packed = _packed_address($peer);
-    return undef unless length $packed;
+    return () unless length $packed;
     my ($local) = parse_trusted_proxies(
         '10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 127.0.0.0/8 169.254.0.0/16 ::1 fc00::/7 fe80::/10');
-    return undef unless _address_in_set( $packed, $local );
-    if ( defined $spec && length $spec && lc($spec) ne 'none' ) {
-        my ($named) = parse_trusted_proxies($spec);
-        return undef if _address_in_set( $packed, $named );
-    }
-    return $peer;
+    return () unless _address_in_set( $packed, $local );
+    return () unless request_address($spec) eq $peer;
+    my ($set) = parse_trusted_proxies($spec);
+    my $s = defined $spec ? $spec : '';
+    $s =~ s/\A\s+|\s+\z//g;
+    my $named = lc($s) eq 'none' ? 'none' : length $s ? $s : 'the private-range default';
+    return ( $peer, _address_in_set( $packed, $set ) ? 'no-forward' : 'untrusted', $named );
 }
 
 # THE one answer to "who is this request from". Give it the `trusted_proxies` spec

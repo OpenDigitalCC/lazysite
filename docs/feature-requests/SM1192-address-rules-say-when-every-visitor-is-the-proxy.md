@@ -29,15 +29,20 @@ the manager half: say so where the rules are edited.
 
 # What shipped
 
-- `Lazysite::Util::unnamed_front_end($spec)` answers the peer's text when
-  `REMOTE_ADDR` (before any proxy rule) is a private or loopback address and the
-  `trusted_proxies` spec is absent, empty or does not hold it. It matches with
-  `parse_trusted_proxies` and `_address_in_set`, the code `request_address` and
-  the limiter use; there is no second parser.
-- `Lazysite::Auth::AddressLists::front_end_warning` makes the sentence: "Every
-  visitor reaches this site from ADDR, which is not named in trusted_proxies, so
-  an address rule here applies to every visitor at once. Name the front proxy in
-  trusted_proxies."
+- `Lazysite::Util::front_end_is_every_visitor($spec)` decides as the engine does:
+  the peer (`REMOTE_ADDR`, before any proxy rule) is private, loopback or
+  link-local AND `request_address($spec)` gives back the peer itself, so no
+  forwarded visitor is believed. Absent and empty `trusted_proxies` mean the
+  private-range default (only `none` trusts nothing), as `parse_trusted_proxies`
+  reads them. It names the cause: (a) the peer is not in the effective trust set,
+  or (b) it is trusted and no usable `X-Forwarded-For` arrives. No second parser.
+  (A first version treated absent/empty as "names nothing" and so would have
+  warned falsely on edge, where the default already trusts the front end.)
+- `Lazysite::Auth::AddressLists::front_end_warning` makes the sentence, "Every
+  visitor reaches this site from ADDR, ..." then, for (a), "which is not named in
+  trusted_proxies (SET) ... Name the front proxy in trusted_proxies.", or for (b),
+  "a trusted proxy, but no visitor address arrives in X-Forwarded-For ... rebuild
+  its vhost (lazysite templates since 0.15.2, SM929)."
 - The server carries it as `proxy_warning` in two answers the pages already call:
   `address-lists` (the Address lists page and the Groups page's address
   pickers) and `config-read` (the Config page, with the sign-in and manager
@@ -46,7 +51,4 @@ the manager half: say so where the rules are edited.
 - Status surface: the manager has no check summary or health page, and
   `lazysite check` is not reachable from it, so none was built; the three
   pages above are where the fact is visible without a shell.
-- Tests: t/unit/manager/365 (the answers: warning for a private or loopback peer
-  with trusted_proxies absent, empty, `none` or naming another range; none for a
-  named peer, a range holding it, a public peer or no peer) and 366 (the pages
-  show it as text and hide it when absent). Both fail on the base.
+- Tests: t/unit/manager/365 (absent, empty or a naming list with no header: cause (b); `none` or another range: cause (a) naming the set; a list naming the peer with X-Forwarded-For, the default with the header, a public peer, no peer: silent) and 366 (the pages show it as text and hide it when absent). Both fail on the base.
