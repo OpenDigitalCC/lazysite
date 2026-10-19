@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-18
 raised-by: lazysite-sites agent (inbox 2026-10-18-odoo-endpoint-builds-the-oom-registry-twice-per-request.md)
 area: odoo
-status-note: "SHIPPED on n666 (base 4c4798a6c); t/unit/odoo/66-the-operation-registry-is-built-once.t."
+status-note: "SHIPPED on n666 (base 4c4798a6c); t/unit/odoo/72-the-operation-registry-is-built-once.t."
 ---
 
 # What happened
