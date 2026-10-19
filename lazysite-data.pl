@@ -232,7 +232,15 @@ sub main {
     # question and got the same answer.
     # SM1131: the one identity reader, not a re-read of the header.
     require Lazysite::Auth::Identity;
-    my @groups = @{ Lazysite::Auth::Identity::request_identity(
+    #
+    # SM1188: a trusted proxy's groups come from the identity read BEFORE the strip
+    # above ($proxy). Read now, under the DEFAULT names (X-Remote-Groups), they were
+    # deleted a few lines up and a proxy user's groups never reached the checks
+    # (SM1181 S1). The strip stays for every other request; this only keeps what the
+    # one reader already returned for the request the proxy vouched for.
+    my @groups = $via_proxy
+        ? @{ $proxy->{groups} }
+        : @{ Lazysite::Auth::Identity::request_identity(
             lazysite_dir => Lazysite::Paths::lazysite_dir($docroot) )->{groups} };
 
     # A token for this session, so a page's JavaScript can write. Minted only
@@ -304,8 +312,9 @@ sub main {
         # unmarked directory group adds none. A cookie session adds nothing.
         if ($via_proxy) {
             $caps = { %$caps,
-                %{ Lazysite::Auth::Settings::request_group_caps(
-                        Lazysite::Auth::Identity::request_identity( lazysite_dir => $lz, proxy => $pid ) ) } };
+                # SM1188: the identity read before the strip, not a second read
+                # of headers the strip has deleted.
+                %{ Lazysite::Auth::Settings::request_group_caps($proxy) } };
         }
         # SM682: manage_data OR write_data reaches a row write. They differ in
         # what `writable_by` then means - see below - so the check is here and

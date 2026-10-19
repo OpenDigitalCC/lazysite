@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1188 (PENDING) **data: a proxy user's groups reach the data endpoint.** On a site
+  whose trusted proxy uses the default `X-Remote-*` header names, the data endpoint
+  deleted the headers before reading groups, so a proxy user was refused a table
+  restricted to a group they were in, and a marked directory group's write
+  capability never applied. The groups are now taken from the identity read before
+  the strip. Headers from an untrusted peer are still removed.
+
 - SM1186 (PENDING) **odoo: a usage refusal says what to fix.** A read whose
   operation refused its input answered 400 with one sentence that said nothing
   of the input, so a page could not tell the person what to change. The
