@@ -28,8 +28,8 @@ sub spit { my ( $p, $b ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh}
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; my $s = <$fh>; close $fh; return $s }
 
 my $src   = slurp($UPD);
-my @names = qw(lazysite_dir template_rev vhost_xff_state site_trusts_forwarded xff_exposure
-    xff_reason record_xff_exposure xff_summary_line group_findings report_findings);
+my @names = qw(lazysite_dir template_rev vhost_xff_state site_trust_kind xff_reason xff_exposure
+    record_xff_exposure xff_summary_line group_findings report_findings);
 my %fn;
 for my $n (@names) {
     ( $fn{$n} ) = $src =~ /^(\Q$n\E\(\) \{\n.*?^\}\n)/ms;
@@ -66,6 +66,8 @@ my %doc = (
     'old-trust.example'  => site( 'old-trust.example',  $OLD,  $TRUST ),
     'pass-trust.example' => site( 'pass-trust.example', $PASS, $TRUST ),
     'old-plain.example'  => site( 'old-plain.example',  $OLD,  "site_name: T\n" ),
+    'old-empty.example'  => site( 'old-empty.example',  $OLD,  "trusted_proxies:\n" ),
+    'new-plain.example'  => site( 'new-plain.example',  $NEW,  "site_name: T\n" ),
     'old-none.example'   => site( 'old-none.example',   $OLD,  "trusted_proxies: none\n" ),
     'new-trust.example'  => site( 'new-trust.example',  $NEW,  $TRUST ),
 );
@@ -76,6 +78,7 @@ subtest 'a pre-SM929 rendering with trusted_proxies set is a FAILURE, with the r
     like( $out, qr/old-trust\.example/, 'naming the site' );
     like( $out, qr/passes the client's X-Forwarded-For through, so trusted_proxies lets any visitor choose their address/,
         'with the reason' );
+    like( $out, qr/trusted_proxies is set to a list/, 'naming the explicit list' );
     like( $out, qr/rebuild the vhost.*probe/s, 'and the fix: rebuild, then probe' );
 };
 
@@ -84,9 +87,17 @@ subtest 'a rendering that passes the client header through is the same failure' 
         qr/FAILURE.*pass-trust\.example/s, 'set to $http_x_forwarded_for is not an append' );
 };
 
-subtest 'without trusted_proxies, or with none, nothing is a failure' => sub {
-    is( run_bash("xff_exposure u old-plain.example '$doc{'old-plain.example'}'\n"), '', 'unset' );
-    is( run_bash("xff_exposure u old-none.example '$doc{'old-none.example'}'\n"),   '', 'none' );
+subtest 'absent or empty trusted_proxies trusts the private ranges, so it is a FAILURE naming the default' => sub {
+    for my $d (qw(old-plain.example old-empty.example)) {
+        my $out = run_bash("xff_exposure u $d '$doc{$d}'\n");
+        like( $out, qr/FAILURE: $d: .*trusted_proxies is not set, so the private ranges are trusted by default/, "$d names the default" ) or diag $out;
+        like( $out, qr/set trusted_proxies: none \(do not remove the line - removing it restores the default trust\)/, 'and says to set none, not remove the line' );
+    }
+};
+
+subtest 'only none trusts nothing' => sub {
+    is( run_bash("xff_exposure u old-none.example '$doc{'old-none.example'}'\n"), '', 'none: no failure' );
+    is( run_bash("xff_exposure u new-plain.example '$doc{'new-plain.example'}'\n"), '', 'a current rendering with the default: no failure' );
 };
 
 subtest 'a current rendering with trusted_proxies says nothing' => sub {
@@ -108,13 +119,18 @@ subtest 'the findings and the summary carry it' => sub {
 subtest 'lazysite check warns whenever trusted_proxies is set, and says how to probe' => sub {
     my $doc = site_tempdir();
     make_path("$doc/lazysite/$_") for qw(auth cache logs manager);
-    spit( "$doc/lazysite/lazysite.conf", $TRUST );
-    my $out = qx($^X \Q$CHK\E --docroot \Q$doc\E 2>&1);
-    $out =~ s/\s+/ /g;
-    like( $out, qr/trusted_proxies is only safe when the front end appends the client's address to X-Forwarded-For \(lazysite's templates since 0\.15\.2\/SM929\); probe it: a request with X-Forwarded-For: 192\.0\.2\.55 must not be seen as 192\.0\.2\.55/,
-        'the warning' ) or diag $out;
+    my $probe = qr/trusted_proxies is only safe when the front end appends the client's address to X-Forwarded-For \(lazysite's templates since 0\.15\.2\/SM929\); probe it: a request with X-Forwarded-For: 192\.0\.2\.55 must not be seen as 192\.0\.2\.55/;
+    my %conf = ( list => $TRUST, absent => "site_name: T\n", empty => "trusted_proxies:\n" );
+    for my $k (sort keys %conf) {
+        spit( "$doc/lazysite/lazysite.conf", $conf{$k} );
+        my $out = qx($^X \Q$CHK\E --docroot \Q$doc\E 2>&1);
+        $out =~ s/\s+/ /g;
+        like( $out, $probe, "warned for $k" ) or diag $out;
+        if ($k ne 'list') { like( $out, qr/\(the private-range default\)/, "$k says it is the default" ) }
+        like( $out, qr/set trusted_proxies: none until it is rebuilt/, "$k says set none, not remove" );
+    }
     spit( "$doc/lazysite/lazysite.conf", "trusted_proxies: none\n" );
-    $out = qx($^X \Q$CHK\E --docroot \Q$doc\E 2>&1);
+    my $out = qx($^X \Q$CHK\E --docroot \Q$doc\E 2>&1);
     unlike( $out, qr/only safe when the front end appends/, 'not for none' );
 };
 

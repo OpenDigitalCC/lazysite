@@ -250,31 +250,42 @@ vhost_xff_state() {
     fi
 }
 
-# Does the site's lazysite.conf trust a front end's X-Forwarded-For? An explicit
-# trusted_proxies that is not `none`. (Absent means the private ranges, which a
-# front end on the same host is not in: loopback must be named.) Argument: the
+# How does the site's lazysite.conf trust a front end's X-Forwarded-For?
+# none | default (absent or empty: the private ranges) | list. Argument: the
 # site's docroot.
-site_trusts_forwarded() {
+site_trust_kind() {
     local conf v
     conf="$(lazysite_dir "$1")/lazysite.conf"
-    [ -f "$conf" ] || return 1
+    [ -f "$conf" ] || { echo default; return 0; }
     v=$(sed -n 's/^trusted_proxies[[:space:]]*:[[:space:]]*\(.*[^[:space:]]\)[[:space:]]*$/\1/p' "$conf" | tail -1)
-    [ -n "$v" ] && [ "$v" != none ]
+    if [ -z "$v" ]; then echo default
+    elif [ "$v" = none ]; then echo none
+    else echo list
+    fi
 }
 
 # The words of the failure, without the site (the findings report groups by
-# message and lists the sites itself).
+# message and lists the sites itself). Argument: the trust kind.
 xff_reason() {
-    printf '%s\n' "the front end passes the client's X-Forwarded-For through, so trusted_proxies lets any visitor choose their address; fix: rebuild the vhost (--rebuild, or v-rebuild-web-domain USER DOMAIN), then probe: a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55"
+    local why
+    case "$1" in
+        default) why='trusted_proxies is not set, so the private ranges are trusted by default' ;;
+        *)       why='trusted_proxies is set to a list' ;;
+    esac
+    printf '%s\n' "the front end passes the client's X-Forwarded-For through, so trusted_proxies lets any visitor choose their address ($why); fix: rebuild the vhost (--rebuild, or v-rebuild-web-domain USER DOMAIN), then probe: a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55; until then set trusted_proxies: none (do not remove the line - removing it restores the default trust)"
 }
 
 # xff_exposure USER DOMAIN DOCROOT - prints the FAILURE line when this site
 # trusts forwarded addresses behind a front end that passes them through, and
-# nothing otherwise.
+# nothing otherwise. Only `none` trusts nothing; absent and empty mean the
+# private ranges (Lazysite::Util parse_trusted_proxies), which include the
+# address of an ordinary front end - edge's 10.2.30.177 is in 10/8.
 xff_exposure() {
+    local kind
     [ "$(vhost_xff_state "$1" "$2")" = passes ] || return 0
-    site_trusts_forwarded "$3" || return 0
-    printf 'FAILURE: %s: %s\n' "$2" "$(xff_reason)"
+    kind=$(site_trust_kind "$3")
+    [ "$kind" != none ] || return 0
+    printf 'FAILURE: %s: %s\n' "$2" "$(xff_reason "$kind")"
 }
 
 # The CHECK column: `lazysite check` for one site, after the rollout's repair -
@@ -424,11 +435,13 @@ report_findings() {
 # the findings (label = the site, message = the reason) and succeed when it was
 # one, so the caller can count it and fail the rollout's exit status.
 record_xff_exposure() {
-    [ -n "$(xff_exposure "$1" "$2" "$3")" ] || return 1
+    local out
+    out=$(xff_exposure "$1" "$2" "$3")
+    [ -n "$out" ] || return 1
     if [ -n "$FINDINGS_FILE" ]; then
-        printf '%s\t%s\n' "$2" "FAILURE: $(xff_reason)" >> "$FINDINGS_FILE"
+        printf '%s\t%s\n' "$2" "FAILURE: ${out#FAILURE: $2: }" >> "$FINDINGS_FILE"
     else
-        xff_exposure "$1" "$2" "$3"
+        printf '%s\n' "$out"
     fi
     return 0
 }
@@ -436,7 +449,7 @@ record_xff_exposure() {
 # The summary line for N exposed sites; silent for none.
 xff_summary_line() {
     [ "${1:-0}" -gt 0 ] || return 0
-    printf '  vhost:  %d site(s) FAILURE: trusted_proxies behind a front end that passes the client'"'"'s X-Forwarded-For through - any visitor can choose their address (see findings)\n' "$1"
+    printf '  vhost:  %d site(s) FAILURE: a front end that passes the client'"'"'s X-Forwarded-For through trusts it by default (trusted_proxies is not "none") - any visitor can choose their address (see findings)\n' "$1"
 }
 
 # run_quiet LABEL COMMAND...

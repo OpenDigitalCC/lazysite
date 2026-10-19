@@ -32,18 +32,29 @@ nginx passed the client's header through. Since SM929 both proxy templates set
 said only "1 site(s) render an older template". `auth_proxy_trusted_from` is not
 affected: it matches the TCP peer, never the forwarded address (SM1129).
 
+# The wider finding
+
+The release manager, after the first build: "edge's front end 10.2.30.177 is in
+10/8, so absent trusted_proxies already trusted it." `parse_trusted_proxies`
+treats an absent AND an empty key as the private-range default; only `none`
+trusts nothing. So an old (pass-through) vhost is spoofable on every site not set
+to `none`, with no `trusted_proxies` line at all. Removing the line is not a fix:
+it restores the default.
+
 # What shipped
 
 - The Hestia rollout tells a pre-SM929 rendering from the revision marker: it
   reads the rendered nginx file for an uncommented `X-Forwarded-For` line that
   appends (`$proxy_add_x_forwarded_for`) or sets the peer (`$remote_addr`); none,
-  or `$http_x_forwarded_for`, is a pass-through. When the site's `lazysite.conf`
-  also sets `trusted_proxies` (not `none`) it is a FAILURE: a findings line naming
+  or `$http_x_forwarded_for`, is a pass-through. When the site's `trusted_proxies` is anything but `none` (absent,
+  empty or a list) it is a FAILURE: a findings line naming
   the site, the reason ("the front end passes the client's X-Forwarded-For
-  through, so trusted_proxies lets any visitor choose their address") and the fix
-  (rebuild the vhost, then probe), a summary line counting them, and exit status 2.
-  Without `trusted_proxies` the existing note stands.
-- `lazysite check` cannot read the nginx config, so it warns whenever
-  `trusted_proxies` is set, with the probe to run.
+  through, so trusted_proxies lets any visitor choose their address") (naming whether it is the default or a list)
+  and the fix (rebuild the vhost, then probe; until then set `trusted_proxies:
+  none`, not remove the line), a summary line counting them, and exit status 2.
+  A site set to `none` keeps the existing note only.
+- `lazysite check` cannot read the nginx config, so it warns whenever the trust set
+  is not empty, the private-range default included ("(the private-range
+  default)"), with the probe to run.
 - Documented in the configuration reference, the visitor-address page and the
   security architecture note.

@@ -889,25 +889,7 @@ sub run_checks {
                         . 'word none. A range of /0 is refused because it would trust '
                         . 'every caller, which is the same as having no check at all' );
             }
-            if ( @{$set} ) {
-                # SM1194 (test plan 0.15.10, F-6): a trust list is only half of
-                # it. The engine believes the chain from the RIGHT, which is safe
-                # only when the front end APPENDS the real peer; a front end that
-                # passes the client's own header through (lazysite's nginx
-                # templates before SM929, first shipped in v0.15.2) makes
-                # "X-Forwarded-For: 192.0.2.55" the visitor's address, and every
-                # address-keyed control - the sign-in limit, the bad-URL blocker,
-                # the form limit, the address rules - takes their word. This runs
-                # as the site user and cannot read the nginx config, so it cannot
-                # tell; it says what to probe instead.
-                report( 'WARN',
-                    "trusted_proxies is only safe when the front end appends the client's address "
-                        . "to X-Forwarded-For (lazysite's templates since 0.15.2/SM929); probe it: "
-                        . 'a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55',
-                    'if it is seen as 192.0.2.55, rebuild the site\'s vhost from the current '
-                        . 'template (lazysite-hestia-update-all.sh --rebuild, or '
-                        . 'v-rebuild-web-domain USER DOMAIN), or take trusted_proxies off' );
-            }
+            _report_forwarded_trust( $set, 0 );
             if ( !@{$set} && lc($spec) ne 'none' ) {
                 report( 'WARN',
                     'lazysite.conf trusted_proxies is set but resolves to NO trusted '
@@ -922,6 +904,13 @@ sub run_checks {
                         . scalar( @{$set} )
                         . ' trusted address/range(s) for the visitor address' );
             }
+        }
+        else {
+            # Absent or empty is the private-range default (parse_trusted_proxies), not
+            # "trust nothing": only `none` is.
+            require Lazysite::Util;
+            my ($dset) = Lazysite::Util::parse_trusted_proxies('');
+            _report_forwarded_trust( $dset, 1 );
         }
     }
 
@@ -1828,6 +1817,31 @@ printf "\n%d ok, %d warning(s), %d failure(s)%s\n",
 exit( $fails ? 1 : 0 );
 
 # --- helpers -----------------------------------------------------------------
+
+# SM1194 (test plan 0.15.10, F-6): a trust set is only half of it. The engine
+# believes the chain from the RIGHT, which is safe only when the front end
+# APPENDS the real peer; a front end that passes the client's own header through
+# (lazysite's nginx templates before SM929, first shipped in v0.15.2) makes
+# "X-Forwarded-For: 192.0.2.55" the visitor's address, and every address-keyed
+# control takes their word. The DEFAULT (key absent or empty) trusts the private
+# ranges, which hold an ordinary front end's address, so it is exposed too; only
+# `none` is not. This runs as the site user and cannot read the nginx config, so
+# it cannot tell; it says what to probe instead.
+sub _report_forwarded_trust {
+    my ( $set, $default ) = @_;
+    return unless @{$set};
+    report( 'WARN',
+        "trusted_proxies is only safe when the front end appends the client's address "
+            . "to X-Forwarded-For (lazysite's templates since 0.15.2/SM929); probe it: "
+            . 'a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55'
+            . ( $default ? ' (the private-range default)' : '' ),
+        'if it is seen as 192.0.2.55, rebuild the site\'s vhost from the current '
+            . 'template (lazysite-hestia-update-all.sh --rebuild, or '
+            . 'v-rebuild-web-domain USER DOMAIN); set trusted_proxies: none until it is rebuilt '
+            . '(do not remove the line - removing it restores the default trust)' );
+    return;
+}
+
 sub conf_value {
     my ( $file, $key ) = @_;
     open my $fh, '<', $file or return undef;

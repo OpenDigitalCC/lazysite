@@ -74,8 +74,12 @@ first shipped in 0.15.2; a vhost rendered earlier keeps the old behaviour until 
 is rebuilt) makes the visitor's own value the address, so `trusted_proxies` then
 lets any visitor choose theirs. Probe it after setting `trusted_proxies`: send a
 request with `X-Forwarded-For: 192.0.2.55`; it must not be seen as
-`192.0.2.55`. `lazysite check` warns whenever `trusted_proxies` is set, and the
-Hestia rollout fails a site that has it behind an older vhost.
+`192.0.2.55`. This applies to the default too: with no `trusted_proxies` line the private
+ranges are trusted, and a front end in one of them is believed. Only
+`trusted_proxies: none` trusts nothing, and removing the line restores the
+default. `lazysite check` warns whenever the trust set is not empty, and the
+Hestia rollout fails a site behind an older vhost unless it says `none`; until
+the vhost is rebuilt, set `trusted_proxies: none`.
 
 Three consequences worth knowing:
 

@@ -119,18 +119,22 @@ works on staging and production.
 
 `trusted_proxies`
 : The front ends whose `X-Forwarded-For` the engine believes about a visitor's
-  address: addresses or CIDR ranges, comma separated; empty or absent means the
-  private ranges, `none` ignores the header. It is safe only when the front end
-  **appends** the client's address to the header (lazysite's nginx templates do
-  since 0.15.2, SM929: `proxy_set_header X-Forwarded-For
-  $proxy_add_x_forwarded_for;`). A front end that passes the client's own header
-  through - a vhost rendered from an older template - lets any visitor choose
-  their address, and every control keyed on it (sign-in limit, bad-URL blocker,
-  form limit, address rules) takes their word. Probe it: a request with
-  `X-Forwarded-For: 192.0.2.55` must not be seen as `192.0.2.55`. `lazysite
-  check` warns whenever the setting is set, and the Hestia rollout reports a site
-  with the setting behind an older vhost as a failure; the fix is to rebuild the
-  vhost.
+  address. Four states: absent and empty both mean the private ranges
+  (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`); `none` trusts nothing and
+  ignores the header; a list of addresses or CIDR ranges trusts only those. Only
+  `none` trusts nothing - removing the line restores the default trust. The
+  setting is safe only when the front end **appends** the client's address to the
+  header (lazysite's nginx templates do since 0.15.2, SM929: `proxy_set_header
+  X-Forwarded-For $proxy_add_x_forwarded_for;`). A front end that passes the
+  client's own header through - a vhost rendered from an older template - lets any
+  visitor choose their address, and every control keyed on it (sign-in limit,
+  bad-URL blocker, form limit, address rules) takes their word. That includes a
+  site with no `trusted_proxies` line at all when its front end is in a private
+  range. Probe it: a request with `X-Forwarded-For: 192.0.2.55` must not be seen
+  as `192.0.2.55`. `lazysite check` warns whenever the trust set is not empty
+  (the default included), and the Hestia rollout reports an older vhost on any
+  site not set to `none` as a failure. The fix is to rebuild the vhost; until
+  then set `trusted_proxies: none`.
 
 `manager_addresses`, `manager_addresses_deny`
 : Names of address lists (Access, Address lists) that limit who may reach the
