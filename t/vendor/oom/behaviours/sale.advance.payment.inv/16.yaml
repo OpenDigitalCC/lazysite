@@ -1,0 +1,9 @@
+# sale.advance.payment.inv, Odoo 16 (sale). Read from the 16.0 source (sale/wizard/sale_make_invoice_advance.py) and run on shop16 (docs/reviews/ecommerce-survey-16-2026-10.md, probe 9).
+model: sale.advance.payment.inv
+series: 16
+module: sale
+effects:
+- 'on': call
+  method: create_invoices
+  effect: 'with advance_payment_method delivered it makes one draft customer invoice for what is invoiceable on the order (goods lines of the ordered-quantity policy at once, the delivery line included) and answers ir.actions.act_window_close, so the invoice''s id is not in the answer; it is found from the order''s invoice_ids, or by the made lines the core.wizard apply names. The order''s invoice_status becomes invoiced. The invoice is a draft: account.post posts it'
+  evidence: source 16.0 sale_make_invoice_advance.create_invoices, sale_order._create_invoices; live 2026-10-19 shop16 (S00001 gave account.move 1 and S00002 account.move 3, each in draft)

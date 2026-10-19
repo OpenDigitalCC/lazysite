@@ -61,7 +61,9 @@ my $SYSLOG_CAP = 4000;
 my $TOUCHED_CAP = 200;
 
 my @WHO = qw(actor actor_from os_user login uid host pid instance db);
-my @COMMON = ( qw(ts event op run outcome), @WHO );
+# via and acts_for stand on every line of a run that acts for a person (Odoo::Ops::Acting): login and uid are
+# the person's, via the service login that made the writes
+my @COMMON = ( qw(ts event op run outcome), @WHO, qw(via acts_for) );
 
 my %EVENT = (
     command  => [qw(command code exit ms calls params idem repeat)],
@@ -76,7 +78,7 @@ my %EVENT = (
     action   => [qw(model ids method args_count state_before state_after answer created)],
     refused  => [qw(code)],
     credential => [qw(action fault_category)],
-    call     => [qw(service model method fault_category ms fields refused_fields for_login second_factor)],
+    call     => [qw(service model method fault_category ms fields refused_fields for_login second_factor client)],
 );
 my %ALLOWED = map { my $e = $_; $e => { map { $_ => 1 } @COMMON, @{ $EVENT{$e} } } } keys %EVENT;
 
@@ -213,6 +215,39 @@ sub for_config ($class, $config, %opt) {
 
 sub current ($class) { $CURRENT }
 
+# Odoo::Ops::Trail->as_acting(\%who, \&code): the lines code writes are those of the person a plan acts for
+# (a plan indexed after its run's acting window has closed, Odoo::Ops::Runs->index_plan)
+sub as_acting ($class, $who, $code) {
+    return $code->() if !$CURRENT || !$who;
+    my $was = $CURRENT->{acting};
+    $CURRENT->{acting} = $who;
+    my @r   = eval { $code->() };
+    my $err = $@;
+    $CURRENT->{acting} = $was;
+    die $err if $err;
+    return @r;
+}
+
+=head2 Odoo::Ops::Trail->aside(\&code)
+
+Runs C<code> and leaves the current trail and its source of the uid as they were
+before it. A second context built in the middle of a request (the daemon's own
+connection, which reads what a person may not) would otherwise speak for the
+request in the audit.
+
+=cut
+
+sub aside ($class, $code) {
+    my $was = $CURRENT;
+    my $us  = $was ? $was->{uid_source} : undef;
+    my @r   = eval { wantarray ? $code->() : scalar $code->() };
+    my $err = $@;
+    $CURRENT = $was;
+    $was->{uid_source} = $us if $was;
+    die $err if $err;
+    return wantarray ? @r : $r[0];
+}
+
 =head2 Odoo::Ops::Trail->begin(\@argv)
 
 Starts the trail of the config the command line names (C<--conf F> or C<-c F>),
@@ -254,7 +289,34 @@ sub set_uid_source ($self, $client) {
 
 sub calls ($self) { $self->{calls} }
 sub level ($self) { $self->{level} }
-sub who   ($self) { my %w = %{ $self->{who} }; my $u = $self->_uid; $w{uid} = $u if defined $u; \%w }
+sub who   ($self) {
+    my %w = %{ $self->{who} };
+    my $u = $self->_uid;
+    $w{uid} = $u if defined $u;
+    # a run that acts for a person: the line is theirs, made through the service login
+    if ( my $a = $self->{acting} ) {
+        $w{login} = $a->{login} if defined $a->{login};
+        $w{uid}   = $a->{uid}   if defined $a->{uid};
+        $w{via}   = $a->{via}   if defined $a->{via};
+        $w{acts_for} = 1;
+    }
+    \%w;
+}
+
+# $trail->acting(\%who) says whose lines follow (undef ends it); see Odoo::Ops::Acting
+sub acting ($self, $who = undef) { $self->{acting} = $who; return }
+
+# the command's closing lines (command, refused) are written as the run was: for the person it acted for
+sub _as_acting ($self, $code) {
+    my $a = $CMD{acting} or return $code->();
+    my $was = $self->{acting};
+    $self->{acting} = $a;
+    my @r = eval { $code->() };
+    my $err = $@;
+    $self->{acting} = $was;
+    die $err if $err;
+    return @r;
+}
 
 sub _uid ($self) {
     my $u = $self->{uid_source} ? $self->{uid_source}->() : undef;
@@ -453,8 +515,9 @@ Keeps the error a command ended with; a refusal is also a C<refused> line.
 sub command_error ($class, $err) {
     $CMD{error} = $err;
     my $e = Scalar::Util::blessed($err) && $err->isa('Odoo::Error') ? $err : undef;
+    $CMD{acting} //= $e->{acting} if $e && ref $e->{acting} eq 'HASH';
     if ( $CURRENT && $e && $e->kind eq 'refused' ) {
-        eval { $CURRENT->event( refused => outcome => 'refused', code => $e->code // 'refused', ( map { defined $CMD{$_} ? ( $_ => $CMD{$_} ) : () } qw(op run) ) ) };
+        eval { $CURRENT->_as_acting( sub { $CURRENT->event( refused => outcome => 'refused', code => $e->code // 'refused', ( map { defined $CMD{$_} ? ( $_ => $CMD{$_} ) : () } qw(op run) ) ) } ) };
     }
     return;
 }
@@ -487,6 +550,7 @@ sub finish_command ($class, $status) {
     my $out = _outcome_of( $err, $status, $CMD{name} );
     my $e   = Scalar::Util::blessed($err) && $err->isa('Odoo::Error') ? $err : undef;
     eval {
+        $t->_as_acting( sub {
         $t->event(
             command => command => $CMD{name}, outcome => $out, exit => $status // 0,
             ms => int( ( Time::HiRes::time() - ( $CMD{t0} // Time::HiRes::time() ) ) * 1000 ),
@@ -498,6 +562,7 @@ sub finish_command ($class, $status) {
             ( defined $CMD{idem}   ? ( idem   => $CMD{idem} )   : () ),
             ( $CMD{repeat}         ? ( repeat => 1 )             : () ),
         );
+        } );
     };
     if ( my $why = $t->broken ) {
         print STDERR "oom: refused/audit-unavailable: $why\n";

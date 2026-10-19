@@ -25,7 +25,7 @@
          }
       },
       "Odoo::Ops::Core" : {
-         "files" : "Access.pm,Action.pm,ActionCommon.pm,Archive.pm,Attach.pm,Check.pm,Configure.pm,Credential.pm,Doctor.pm,Fetch.pm,Get.pm,HasGroups.pm,Import.pm,Make.pm,OneRecord.pm,Read.pm,Report.pm,Reports.pm,Rights.pm,Set.pm,Skeleton.pm,Unarchive.pm,User.pm,Whoami.pm,Wizard.pm",
+         "files" : "Access.pm,Action.pm,ActionCommon.pm,Archive.pm,Attach.pm,Check.pm,Configure.pm,Credential.pm,Doctor.pm,Fetch.pm,Get.pm,HasGroups.pm,Import.pm,Make.pm,OneRecord.pm,Read.pm,ReadContext.pm,Report.pm,Reports.pm,Rights.pm,Set.pm,Skeleton.pm,Unarchive.pm,User.pm,Whoami.pm,Wizard.pm",
          "ops" : {
             "core.access" : "Odoo::Ops::Core::Access",
             "core.action" : "Odoo::Ops::Core::Action",
@@ -94,11 +94,12 @@
          }
       },
       "Odoo::Ops::Stock" : {
-         "files" : "Dispatch.pm,Inspect.pm,LinkStranded.pm,Net.pm,Relocate.pm,Transfer.pm,Validate.pm",
+         "files" : "Adjust.pm,Dispatch.pm,Inspect.pm,LinkStranded.pm,Net.pm,Relocate.pm,Transfer.pm,Validate.pm",
          "ops" : {
+            "stock.adjust" : "Odoo::Ops::Stock::Adjust",
             "stock.dispatch" : "Odoo::Ops::Stock::Dispatch",
             "stock.inspect" : "Odoo::Ops::Stock::Inspect",
-            "stock.link-stranded" : "Odoo::Ops::Stock::LinkStranded",
+            "stock.link_stranded" : "Odoo::Ops::Stock::LinkStranded",
             "stock.net" : "Odoo::Ops::Stock::Net",
             "stock.relocate" : "Odoo::Ops::Stock::Relocate",
             "stock.transfer" : "Odoo::Ops::Stock::Transfer"

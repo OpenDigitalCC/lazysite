@@ -56,6 +56,16 @@ Record ids are positive integers. C<read>, C<browse>, C<write>, C<unlink> and
 C<copy> turn an id given as a numeric string (a Perl hash key, say) into a
 number before it is sent, and refuse any other value as C<usage>, naming it.
 
+A domain given to C<search>, C<count> (also C<search_count>, Odoo's own name for it),
+C<search_read>, C<all>, C<find>, C<search_rs> and C<read_group> is sent with the ids in
+it as numbers: in a leaf on C<id> (or a path ending C<.id>) or on a
+many2one, one2many or many2many field (the type is read from C<fields_get>), a
+value that is a string of digits, alone or in a list, goes as an integer. A
+string that is not digits in a list for such a field, or in any value for
+C<id>, is refused C<usage>, naming the field and the value; a many2one compared
+with C<=> or C<!=> to a string that is not digits is left as the name Odoo
+matches.
+
 Every method accepts a trailing C<< context => \%ctx >> option which
 is merged over the client's default context.
 
@@ -138,28 +148,68 @@ sub required_fields ($self) {
 
 #--- read path ----------------------------------------------------------------
 
+# The ids in a domain reach Odoo as numbers (an id used as a Perl hash key is a
+# string, and Odoo answers a string id with no rows and no error). A leaf on 'id'
+# (or a path ending .id) or on a relational field has its digit strings made
+# numbers; a string that is not digits where an id must be is refused by name.
+# The field's type comes from fields_get, read only when a leaf holds a string.
+sub _domain ($self, $domain) {
+    return $domain if ref $domain ne 'ARRAY';
+    my ( $fields, @out );
+    for my $leaf (@$domain) {
+        if ( ref $leaf ne 'ARRAY' || @$leaf != 3 || ref $leaf->[0] || ref $leaf->[1] || $leaf->[1] !~ /\A(?:=|!=|in|not in)\z/i ) { push @out, $leaf; next }
+        my ( $f, $op, $v ) = @$leaf;
+        my $listed = ref $v eq 'ARRAY';
+        if ( !grep { defined && !ref && length } $listed ? @$v : ($v) ) { push @out, $leaf; next }
+        my $is_id = $f eq 'id' || $f =~ /\.id\z/;
+        if ( !$is_id ) {
+            $fields //= eval { $self->fields } || {};
+            if ( $f =~ /\./ || ( $fields->{$f}{type} // '' ) !~ /\A(?:many2one|one2many|many2many)\z/ ) { push @out, $leaf; next }
+        }
+        my $conv = sub ($x) {
+            return $x if !defined $x || ref $x || !length $x;
+            return 0 + $x if $x =~ /\A[0-9]+\z/;
+            return $x if !$is_id && !$listed;    # a many2one matched by name, as Odoo does
+            Odoo::Error->throw( kind => 'usage', message => "the domain's value for '$f' must be a record id (a whole number), got '$x'",
+                fix => "give the id as a number: [ '$f', '$op', 12 ]" );
+        };
+        push @out, [ $f, $op, $listed ? [ map { $conv->($_) } @$v ] : $conv->($v) ];
+    }
+    return \@out;
+}
+
+
 sub search ($self, $domain = [], %opts) {
     return $self->{client}->execute_kw(
         $self->{name}, 'search',
-        [$domain],
+        [ $self->_domain($domain) ],
         _kwargs(\%opts, qw(offset limit order)),
     );
 }
 
+=head2 count(\@domain, %opts) / search_count(\@domain, %opts)
+
+How many records match. C<search_count> is Odoo's own name for it; both are
+the same call.
+
+=cut
+
 sub count ($self, $domain = [], %opts) {
     return $self->{client}->execute_kw(
         $self->{name}, 'search_count',
-        [$domain],
+        [ $self->_domain($domain) ],
         _kwargs(\%opts),
     );
 }
+
+sub search_count { shift->count(@_) }
 
 sub search_read ($self, $domain = [], $fields = undef, %opts) {
     my $kw = _kwargs(\%opts, qw(offset limit order));
     $kw->{fields} = $fields if $fields;
     return $self->{client}->execute_kw(
         $self->{name}, 'search_read',
-        [$domain],
+        [ $self->_domain($domain) ],
         $kw,
     );
 }
@@ -286,7 +336,7 @@ sub defaults ($self, $fields = undef, %opts) {
 sub read_group ($self, $domain, $fields, $groupby, %opts) {
     return $self->{client}->execute_kw(
         $self->{name}, 'read_group',
-        [ $domain, $fields, $groupby ],
+        [ $self->_domain($domain), $fields, $groupby ],
         _kwargs(\%opts, qw(offset limit orderby lazy)),
     );
 }

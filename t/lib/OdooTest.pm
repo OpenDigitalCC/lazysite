@@ -95,6 +95,18 @@ sub vendor_dir {
     return Cwd::abs_path( File::Basename::dirname( Cwd::abs_path(__FILE__) ) . '/../vendor/oom' );
 }
 
+# SM1185: NO TEST READS THE HOST'S INSTALLED PACKS. OOM's registry, with no
+# pack_dirs and no ODOO_OOM_PACK_DIRS, loads whatever sits in the deb's pack
+# directory. The day the owner installed odoo-oom-packs 0.36 on this host, its
+# `shop` pack claimed `shop.basket` beside this suite's test operation of the same
+# name and 40 tests failed with "operation 'shop.basket' claimed by both" - a gate
+# that depends on what is installed, which t/lint/262 exists to prevent. Naming a
+# directory that does not exist gives the registry no packs; a test that wants
+# one passes pack_dirs itself (71), and the oomd processes inherit this.
+# tools/ext-compat.sh (LAZYSITE_OOM_LIB set) is the one tier that means the host's.
+$ENV{ODOO_OOM_PACK_DIRS} = vendor_dir() . '/no-packs-here'
+    unless defined $ENV{ODOO_OOM_PACK_DIRS} || defined $ENV{LAZYSITE_OOM_LIB};
+
 sub oom_lib { return $ENV{LAZYSITE_OOM_LIB} // vendor_dir() . '/lib' }
 
 

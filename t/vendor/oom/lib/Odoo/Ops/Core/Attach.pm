@@ -158,7 +158,7 @@ sub plan ($self) {
             map { $_ => ( ref $v eq 'HASH' ? $v->{$_} : undef ) } qw(model record file name mimetype replace),
         };
     }
-    $self->{models} = { map { defined $_->{model} && $_->{model} =~ /\./ ? ( $_->{model} => 1 ) : () } @items };
+    $self->{models} = { map { defined $_->{model} && $self->is_model_name( $_->{model} ) ? ( $_->{model} => 1 ) : () } @items };
     $self->ctx->guard->with_scope( $self->scope_for('read'), $self->op_name, sub {
         return $self->plan_items( \@items, max_bytes => $self->param('max_bytes') );
     } );
@@ -188,7 +188,7 @@ sub plan_items ($self, $items, %opt) {
         my $given = Odoo::Ops::File->is_value( $it->{file} ) ? $it->{file} : undef;
         my ( $model, $rec, $file ) = map { ref $_ ? undef : ( defined $_ ? $_ =~ s/^\s+|\s+\z//gr : undef ) } @$it{qw(model record file)};
         $file = '' if $given;
-        next if ( !defined $model || $model !~ /\./ ) && $hold->( 'invalid', 'row needs model (a physical name such as res.partner)' );
+        next if !$self->is_model_name($model) && $hold->( 'invalid', 'row needs model (a model name such as res.partner)' );
         next if ( !defined $rec  || $rec eq '' )  && $hold->( 'invalid', 'row needs record (an id, or field=value such as ref=C001)' );
         next if ( !defined $file || ( $file eq '' && !$given ) ) && $hold->( 'invalid', 'row needs file' );
 

@@ -33,7 +33,12 @@ returned: a mailing's send state, a user's new id; C<created>, C<< [ { model, id
 is there when the change made records as a side effect, see L<Odoo::Ops::Core::Action>). The journal holds the
 same facts line by line; the result gathers them. C<failed_changes> is
 C<< [ { seq, key, action, model, id, message } ] >> for every change that
-failed, with Odoo's message, so a screen can say why without the journal.
+failed, with Odoo's message, so a screen can say why without the journal. An apply
+that stops on a failed change carries them in every form of its answer: this
+object (C<failed_changes>), the C<--json> of C<oom-ops apply>, and the result an
+C<oomd> request answers. C<message> is Odoo's own text, as the journal holds it
+(the journal's C<error> carries its C<kind>, C<category> and, for a refusal, its
+C<code> as well).
 C<held_changes> is C<< [ { seq, key, bucket, hold, reason } ] >> for every change
 that apply held because it needed a choice only the caller can make (a validation
 that opened the backorder wizard with no C<backorder> chosen: C<hold> is
@@ -86,6 +91,7 @@ sub written    ($self) { $self->{written} }
 sub unlinked   ($self) { $self->{unlinked} }
 sub custom     ($self) { $self->{custom} }
 sub invariants        ($self) { $self->{invariants} }
+sub failed_changes    ($self) { $self->{failed_changes} }
 sub invariants_failed ($self) { $self->{invariants_failed} }
 sub ok         ($self) { !$self->{counts}{failed} && !$self->{counts}{not_attempted} && !$self->{invariants_failed} }
 

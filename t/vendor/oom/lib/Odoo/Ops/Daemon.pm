@@ -89,10 +89,12 @@ is refused.
     credentials        label:/path/to/key-file, ... (label:login:/path when the key
                        is another login's); the label C<conn> without an entry is the
                        config's own api_key_file
+    act_as             the label of one of those credentials (or conn): the service credential an
+                       operation that declares acts_for writes with (docs/OPS.md, Acting for a person)
 
 =cut
 
-my %KEYS = map { $_ => 1 } qw(workers max_requests shutdown_deadline socket log credentials);
+my %KEYS = map { $_ => 1 } qw(workers max_requests shutdown_deadline socket log credentials act_as);
 my $MAX_LINE   = 64 * 1024 * 1024;
 my $MAX_QUEUE  = 1024;
 my $CLIENT_IDLE = 120;
@@ -161,6 +163,13 @@ sub load_config ($class, $name, $path) {
                 if $st[2] & 077;
             $c{credentials}{$label} = { path => $file, ( defined $login ? ( login => $login ) : () ) };
         }
+    }
+    if ( defined $x->{act_as} ) {
+        my $l = $x->{act_as};
+        Odoo::Error->throw( kind => 'config', message => "act_as must be a credential label, not '$l'" ) if $l !~ /\A[A-Za-z][\w.-]{0,31}\z/;
+        Odoo::Error->throw( kind => 'config', message => "act_as names '$l', which is not a label this config holds (conn or one of credentials)" )
+            if $l ne 'conn' && !$c{credentials}{$l};
+        $c{act_as} = $l;
     }
     $config->{cache_dir} //= $class->cache_dir($name);
     return \%c;
@@ -556,7 +565,7 @@ sub _worker_main ($self, $sock) {
     open STDERR, '>',  '/dev/null';
     srand();
     require Odoo::Ops::Service;
-    my $svc = Odoo::Ops::Service->new( config => $self->{conf}{config}, mode => 'daemon', credentials => $self->{conf}{credentials}, name => $self->{name} );
+    my $svc = Odoo::Ops::Service->new( config => $self->{conf}{config}, mode => 'daemon', credentials => $self->{conf}{credentials}, name => $self->{name}, act_as => $self->{conf}{act_as} );
     $sock->autoflush(1);
     my $served = 0;
     my $max    = $self->{conf}{max_requests};

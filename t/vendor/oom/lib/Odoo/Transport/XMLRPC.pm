@@ -45,7 +45,7 @@ sub new ($class, %args) {
     $url =~ s{/+\z}{};
     return bless {
         url  => $url,
-        http => Odoo::Transport::http_client(
+        http => $args{http} // Odoo::Transport::http_client(
             timeout            => $args{timeout},
             max_response_bytes => $args{max_response_bytes},
             ssl_ca_file        => $args{ssl_ca_file},
@@ -62,12 +62,14 @@ sub http ($self) { $self->{http} }
 
 sub call ($self, $service, $method, @params) {
     my $body = encode_request($method, @params);
-    my $res  = $self->{http}->post(
+    my $res  = Odoo::Transport::post(
+        $self->{http},
         "$self->{url}/xmlrpc/2/$service",
         {
             content => $body,
             headers => { 'content-type' => 'text/xml; charset=utf-8' },
         },
+        idempotent => ( $service eq 'object' && $method eq 'execute_kw' ? Odoo::Transport::is_read_method($params[4]) : $service eq 'common' ),
     );
     Odoo::Transport::refuse_by_policy($res, "xmlrpc $service.$method");
     if (!$res->{success}) {

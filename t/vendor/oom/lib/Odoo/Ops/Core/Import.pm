@@ -182,8 +182,8 @@ sub _model_name ($self) {
         }
         Odoo::Error->throw( kind => 'usage', message => 'core.import: parameter model is required (or a mapping naming its target)' )
             if !defined $m;
-        Odoo::Error->throw( kind => 'usage', message => "core.import: model must be a physical model name, got '$m'" )
-            if $m !~ /\./;
+        Odoo::Error->throw( kind => 'usage', message => "core.import: model must be a model name such as res.partner or website, got '$m'" )
+            if !$self->is_model_name($m);
         $m;
     };
 }

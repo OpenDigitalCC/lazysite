@@ -11,7 +11,7 @@ use Odoo::JSON ();
 use Odoo::Error;
 use Odoo::Transport;
 
-our $VERSION = '0.34';
+our $VERSION = '0.36';
 
 use constant TRUSTED_DEVICE_COOKIE => 'td_id';
  use constant DEVICE_AGENT => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 odoo-oom-perl';
@@ -89,7 +89,7 @@ sub new ($class, %args) {
             ssl_verify         => $args{ssl_verify},
         ),
         session  => $args{session},
-        identity => undef,
+        identity => $args{identity},
         cookies  => {},
     }, $class;
     $self->{cookies}{session_id} = $self->{session} if defined $self->{session};
@@ -314,6 +314,7 @@ sub call ($self, $service, $method, @params) {
                 "/web/dataset/call_kw/$model/$mmethod",
                 { model => $model, method => $mmethod, args => $args // [], kwargs => $kwargs // {} },
                 "call_kw $model.$mmethod",
+                idempotent => Odoo::Transport::is_read_method($mmethod),
             );
             return $result;
         };
@@ -338,7 +339,7 @@ sub call ($self, $service, $method, @params) {
     if ( $service eq 'common' && $method eq 'authenticate' ) {
         $self->_need_session('authenticate');
         if ( !$self->{identity} ) {
-            my ($info) = $self->_rpc( '/web/session/get_session_info', {}, 'session.get_session_info' );
+            my ($info) = $self->_rpc( '/web/session/get_session_info', {}, 'session.get_session_info', idempotent => 1 );
             $self->{identity} = _identity( $info, $params[0] );
         }
         return $self->{identity}{uid};
@@ -561,12 +562,12 @@ sub _need_session ($self, $what) {
 }
 
 # one JSON-RPC post to a web route; returns (result, raw response)
-sub _rpc ($self, $path, $params, $label) {
+sub _rpc ($self, $path, $params, $label, %opt) {
     my $body = $self->{json}->encode( { jsonrpc => '2.0', method => 'call', params => $params, id => ++$self->{id} } );
     my %headers = ( 'content-type' => 'application/json' );
     my $cookie = $self->_cookie_header;
     $headers{cookie} = $cookie if length $cookie;
-    my $res = $self->{http}->post( "$self->{url}$path", { content => $body, headers => \%headers } );
+    my $res = Odoo::Transport::post( $self->{http}, "$self->{url}$path", { content => $body, headers => \%headers }, idempotent => $opt{idempotent} );
     $self->_absorb_cookies($res);
     Odoo::Transport::refuse_by_policy( $res, $label );
     if ( !$res->{success} ) {

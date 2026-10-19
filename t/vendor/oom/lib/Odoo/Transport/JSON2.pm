@@ -12,7 +12,7 @@ use Odoo::JSON ();
 use Odoo::Error;
 use Odoo::Transport;
 
-our $VERSION = '0.34';
+our $VERSION = '0.36';
 
 =head1 NAME
 
@@ -231,8 +231,9 @@ sub _post ($self, $db, $key, $model, $method, $body) {
     my $label = "json2 $model.$method";
     my %headers = ( 'content-type' => 'application/json', authorization => "Bearer $key" );
     $headers{'x-odoo-database'} = $db if defined $db && length $db;
-    my $res = $self->{http}->post( "$self->{url}/json/2/$model/$method",
-        { content => $self->{json}->encode($body), headers => \%headers } );
+    my $res = Odoo::Transport::post( $self->{http}, "$self->{url}/json/2/$model/$method",
+        { content => $self->{json}->encode($body), headers => \%headers },
+        idempotent => Odoo::Transport::is_read_method($method) );
     $self->_check_http( $res, $label );
     return $self->_decode( $res, $label );
 }

@@ -87,7 +87,7 @@ sub scope_for ($self, $phase) {
         my $prof = eval { $self->ctx->profile( $self->param('pack') ) };
         $physical = $prof && eval { $prof->model_name($given) } // $given;
     }
-    return $physical =~ /\./ ? { $physical => ['default_get'] } : {};
+    return $self->is_model_name($physical) ? { $physical => ['default_get'] } : {};
 }
 
 my %MAGIC = map { $_ => 1 } qw(id create_uid create_date write_uid write_date display_name __last_update);
@@ -108,8 +108,8 @@ sub report ($self) {
         $names    = { reverse %{ $prof->fields($lm) } };
     }
     else {
-        Odoo::Error->throw( kind => 'usage', message => "core.skeleton: model must be a physical model name (with a dot), got '$given'" )
-            if $given !~ /\./;
+        Odoo::Error->throw( kind => 'usage', message => "core.skeleton: model must be a model name such as res.partner or website, got '$given'" )
+            if !$self->is_model_name($given);
         ( $physical, $target ) = ( $given, $given );
     }
     my $f = eval { $self->client->model($physical)->fields }

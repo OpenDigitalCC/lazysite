@@ -14,8 +14,10 @@ use Odoo::Cache;
 use Odoo::Client;
 use Odoo::Error;
 use Odoo::Ops;
+use Odoo::Ops::Acting;
 use Odoo::Ops::Audit;
 use Odoo::Ops::Credential;
+use Odoo::Ops::Config;
 use Odoo::Ops::Guard;
 use Odoo::Ops::Profile;
 use Odoo::Ops::Trail;
@@ -92,7 +94,9 @@ sub new ($class, %args) {
     my $by_login  = defined $password;
     # a session credential selects the session transport
     my $inner = $args{transport} // $class->build_transport(
-        $config, ( $cred{session} || $by_login ? 'session' : undef ), ( $cred{session} ? ( session => $cred{session} ) : () ) );
+        $config, ( $cred{session} || $by_login ? 'session' : undef ),
+        ( $cred{session} ? ( session => $cred{session}, ( $args{session_identity} ? ( identity => $args{session_identity} ) : () ) ) : () ),
+        ( $args{http} ? ( http => $args{http} ) : () ) );
     delete $cred{session};
     if ($by_login) {
         # the session answers who is calling; no login or key rides the calls
@@ -101,14 +105,18 @@ sub new ($class, %args) {
 
     my ( $actor, $actor_from ) = defined $args{actor} ? ( $args{actor}, 'option' ) : Odoo::Ops::Trail->resolve_actor($config);
     # the shared audit of the config, opened (and, when required, proved writable) before any call
-    my $trail = Odoo::Ops::Trail->for_config( $config, now => $now, actor => $actor, actor_from => $actor_from, login => $login );
-    my $audit = Odoo::Ops::Audit->new( now => $now, trail => $trail );
+    # the service context of a run that acts for a person (Odoo::Ops::Acting) is given the person's trail and audit
+    # sink, so its calls and its events are one record of one run
+    my $trail = exists $args{trail} ? $args{trail} : Odoo::Ops::Trail->for_config( $config, now => $now, actor => $actor, actor_from => $actor_from, login => $login );
+    my $audit = $args{audit} // Odoo::Ops::Audit->new( now => $now, trail => $trail );
     my $guard = Odoo::Ops::Guard->new(
         inner => $inner,
         audit => $audit,
         actor => $actor,
         login => $login,
     );
+    # the service context of a run that acts for a person says so from its first call (a password sign-in is made below)
+    $guard->acting( @{ $args{acting} } ) if $args{acting};
 
     my %ctx;
     $ctx{lang} = $config->get('lang') if $config->get('lang');
@@ -121,16 +129,18 @@ sub new ($class, %args) {
     $cache = undef if !$args{cache_dir} && $args{transport};
     $cache = undef if defined $args{cache} && !$args{cache};
 
+    # who reads the state of ir.model.fields for this login, when it may not (docs/OPS.md, Speed)
+    my %stamp = $class->_stamp_source( $config, \%args );
     my $client = Odoo::Client->new(
         url       => $config->get('url'),
         db        => $config->get('db'),
         %cred,
-        ( $cache ? ( cache => $cache, cache_ttl_version => $config->cache_ttl_version, cache_ttl_fields_stamp => $config->cache_ttl_fields_stamp, ( $args{stamp_memory} ? ( stamp_memory => $args{stamp_memory} ) : () ) ) : () ),
+        ( $cache ? ( cache => $cache, cache_ttl_version => $config->cache_ttl_version, cache_ttl_fields_stamp => $config->cache_ttl_fields_stamp, ( $args{stamp_memory} ? ( stamp_memory => $args{stamp_memory} ) : () ), %stamp ) : () ),
         transport => $guard,
         context   => \%ctx,
         ( $args{retries} ? ( retries => $args{retries} ) : () ),
     );
-    $trail->set_uid_source($client) if $trail;
+    $trail->set_uid_source($client) if $trail && !exists $args{trail};
 
     my $self = bless {
         config   => $config,
@@ -146,6 +156,9 @@ sub new ($class, %args) {
         login         => $login,
         credential_kind => $kind,
         cache           => $cache,
+        stamp_source    => $stamp{stamp_source},
+        stamp_via       => $stamp{stamp_source_name},
+        service_args    => $args{service_args},
     }, $class;
     # a session that expires mid-run is opened again, once, for the call that met it
     if ( $by_login && $inner->can('set_reauth') ) {
@@ -158,6 +171,42 @@ sub new ($class, %args) {
         if $by_login && !$args{defer_login} && !( $inner->can('session_id') && defined $inner->session_id );
     return $self;
 }
+
+=head2 Acting for a person
+
+An operation that declares C<acts_for> (L<Odoo::Ops::Operation>) runs on this context as
+L<Odoo::Ops::Acting> describes. The context holds what it needs:
+
+=over 4
+
+=item person
+
+The verified identity of the one this context's credential belongs to: C<uid>, C<login>, C<name>,
+C<partner_id>, C<commercial_partner_id>, as Odoo says them. Refused C<refused/no-person> when Odoo does
+not know the credential. Never taken from anything a caller passes.
+
+=item service_context
+
+The context of the service credential, built when first needed: from the config's C<act_as_conf> (an ops
+config of the same server), or from the builder a program gave with C<set_service_builder> (oomd gives
+the credential of its C<act_as> label). It carries this context's trail and audit sink.
+
+=item set_service_builder(\&build, name =E<gt> N, via =E<gt> LOGIN)
+
+C<&build(%extra)> returns a L<Odoo::Ops::Context> for the service credential, passing C<%extra>
+(C<trail>, C<audit>) to its constructor. C<name> says what the doctor reports, C<via> the login it
+signs in as.
+
+=back
+
+C<service_args> given to C<new> are passed to the service context's constructor (a test double
+transport).
+
+=cut
+
+sub person ($self) { Odoo::Ops::Acting->person($self) }
+sub service_context ($self) { Odoo::Ops::Acting->service($self) }
+sub set_service_builder ($self, $code, %o) { $self->{service_builder} = { code => $code, %o }; return }
 
 =head2 build_transport($config, $name, %opts)
 
@@ -185,8 +234,51 @@ sub build_transport ($class, $config, $name = undef, %opts) {
         max_response_bytes => $config->get('max_response_bytes'),
         ssl_ca_file        => $config->get('ssl_ca_file'),
         ssl_verify         => $config->get('ssl_verify'),
+        ( $opts{http} ? ( http => $opts{http} ) : () ),
+        ( $opts{identity} ? ( identity => $opts{identity} ) : () ),
         ( $opts{session} ? ( session => $opts{session} ) : () ),
     );
+}
+
+=head2 stamp_via
+
+The name of the login the state of C<ir.model.fields> is read through for this context's login
+(C<daemon>: oomd's own connection credential; C<conf:NAME>: the config C<cache_stamp_conf> names), or
+undef when this login reads it for itself. Never a credential.
+
+=head2 stamp_state
+
+The state of C<ir.model.fields> as that other login reads it, or undef when none is named or it
+cannot be read.
+
+=cut
+
+sub stamp_via   ($self) { $self->{stamp_via} }
+sub stamp_state ($self) { my $s = $self->{stamp_source}; return $s ? $s->() : undef }
+
+=head2 _stamp_source
+
+C<( stamp_source =E<gt> CODE, stamp_source_name =E<gt> NAME )> for a client: the state of
+C<ir.model.fields> read through a login that may read it. A program that has one gives it as
+C<stamp_source> (and C<stamp_source_name>); else the config's C<cache_stamp_conf> names an ops config
+whose login is used, opened on first need and never for anything else. A config that names
+none gives nothing, and a login that may not read the state keeps no field definitions.
+
+=cut
+
+sub _stamp_source ($class, $config, $args) {
+    return ( stamp_source => $args->{stamp_source}, stamp_source_name => $args->{stamp_source_name} // 'source' ) if $args->{stamp_source};
+    my $path = $config->cache_stamp_conf or return ();
+    my $ctx;
+    my $src = sub {
+        $ctx //= do {
+            my $c = Odoo::Ops::Config->load($path);
+            Odoo::Ops::Context->new( config => $c, cache => 0 );
+        };
+        return $ctx->client->fields_stamp;
+    };
+    my $name = 'conf:' . ( $path =~ s{.*/}{}r );
+    return ( stamp_source => sub { my $s = eval { $src->() }; return $s }, stamp_source_name => $name );
 }
 
 sub config ($self) { $self->{config} }
@@ -427,6 +519,7 @@ sub use_run_dir ($self, $dir) {
     $self->{audit} = $file;
     $self->{guard}->set_audit($file);
     $self->{run_dir} = $dir;
+    Odoo::Ops::Acting->adopt($self) if $self->{act};
     return $dir;
 }
 

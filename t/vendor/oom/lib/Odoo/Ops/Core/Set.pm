@@ -111,7 +111,7 @@ sub _sets ($self) {
 
 sub plan ($self) {
     my ( $model, $id ) = ( $self->param('model'), $self->param('id') );
-    Odoo::Error->throw( kind => 'usage', message => "core.set: model must be a physical model name (with a dot), got '$model'" ) if $model !~ /\./;
+    Odoo::Error->throw( kind => 'usage', message => "core.set: model must be a model name such as res.partner or website, got '$model'" ) if !$self->is_model_name($model);
     Odoo::Error->throw( kind => 'usage', message => 'core.set: id must be a whole number above 0' ) if $id < 1;
     my $set = $self->_sets;
     Odoo::Error->throw( kind => 'usage', message => 'core.set: no field to set', fix => 'give one or more --set set.<field>=<value>' ) if !%$set;

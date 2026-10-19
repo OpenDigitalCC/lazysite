@@ -52,7 +52,7 @@ filled again on the next read.
 =item * B<Per login.> The files are in a directory per (url, db, login) under
 C<data/> of the cache directory (mode 0700; files 0600), and the key of an
 answer holds the url, db, login, model, domain, fields, order, limit, the
-language, the pricelist and whether archived records are in. One login never
+language, the pricelist, whether archived records are in and the context the read sent. One login never
 reads another's files.
 
 =item * B<Never cached.> The models and fields of L</never_list> (stock
@@ -237,7 +237,7 @@ sub _signal ( $self, $model, $max_age ) {
 =head2 read(%args)
 
 C<model>, C<domain>, C<fields>, C<fetch> (a coderef that reads the rows
-live) and, optional, C<order>, C<limit>, C<archived>, C<pricelist>,
+live) and, optional, C<order>, C<limit>, C<archived>, C<pricelist>, C<context> (the other context keys the read sends, part of the key),
 C<max_age>, C<also> (more models whose signal the answer depends on, as the
 pricelist rules are for a priced read). Returns C<< { rows, cached, age,
 checked, live } >>; see L</DESCRIPTION>.
@@ -257,7 +257,9 @@ sub read ( $self, %a ) {
     my @models = ( $model, @{ $a{also} // [] } );
     my $key = $self->_digest( 'rd', $self->{url}, $self->{db}, $self->{login}, $model,
         Odoo::Ops::json()->encode( [ $a{domain} // [], $fields // [] ] ), $a{order} // '', $a{limit} // 0,
-        $self->{lang}, $a{pricelist} // '', $a{archived} ? 1 : 0 );
+        $self->{lang}, $a{pricelist} // '', $a{archived} ? 1 : 0,
+        # the context the read sent (C<warehouse>, C<location>, ...): a figure for one warehouse is not the figure for another
+        ( ref $a{context} eq 'HASH' && %{ $a{context} } ? join( ',', map { "$_=$a{context}{$_}" } sort keys %{ $a{context} } ) : () ) );
     my $path = File::Spec->catfile( $self->_ldir, 'rd-' . substr( $key, 0, 40 ) . '.json' );
 
     # the signal first: a write between it and the rows makes the next read fill again, never serve old rows as new

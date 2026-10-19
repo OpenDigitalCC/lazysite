@@ -135,7 +135,7 @@ sub plan ($self) {
     my $me     = $self->op_name;
     my $model  = $self->param('model');
     my $method = $self->param('method');
-    Odoo::Error->throw( kind => 'usage', message => "$me: model must be a physical model name (with a dot), got '$model'" ) if $model !~ /\./;
+    Odoo::Error->throw( kind => 'usage', message => "$me: model must be a model name such as res.partner or website, got '$model'" ) if !$self->is_model_name($model);
     Odoo::Error->throw( kind => 'usage', message => "$me: method must be a method name, got '$method'" ) if $method !~ /\A\w+\z/;
     my $ctx_in = $self->param('context') // {};
     Odoo::Error->throw( kind => 'usage', message => "$me: context must be a JSON object" ) if ref $ctx_in ne 'HASH';

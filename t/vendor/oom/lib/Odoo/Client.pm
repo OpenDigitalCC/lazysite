@@ -14,7 +14,7 @@ use Odoo::Error;
 use Odoo::Model;
 use Odoo::Portable;
 
-our $VERSION = '0.34';
+our $VERSION = '0.36';
 
 =head1 NAME
 
@@ -98,7 +98,10 @@ C<cache_ttl_fields_stamp> seconds (default 5; 0 reads it in every process) in a 
 cache directory, with three calls for every model: a read per model would cost what the
 C<fields_get> it saves costs. A module installed or upgraded, or a field made,
 moves it and each model's fields are read again when next used. A login that
-may not read C<ir.model.fields> keeps nothing.
+may not read C<ir.model.fields> keeps nothing, unless the program that made the client names a login that
+may (C<stamp_source>, a coderef answering the state as C<fields_stamp> reads it, with C<stamp_source_name> naming that
+login for the shared record): the state is a fact about the server, so it is read there once and checked for
+every login, while each login's definitions stay in its own files and are never read for another.
 
 =back
 
@@ -168,6 +171,9 @@ sub new ($class, %args) {
         ttl_fields_stamp => $args{cache_ttl_fields_stamp} // 5,
         # a resident program lends the state of ir.model.fields from one client to the next (per login)
         stamp_memory => $args{stamp_memory},
+        # a program that holds a login which may read ir.model.fields reads the state for every other login
+        stamp_source => $args{stamp_source},
+        stamp_source_name => $args{stamp_source_name},
         now     => $args{now} // sub { time },
         # a remembered uid or field list is for a key that says who is calling
         keyed   => ( defined $key && $key ne '' && !$sessioned ) ? 1 : 0,
@@ -577,8 +583,12 @@ Makes the next C<fields_cached> look at the date of C<ir.model.fields> again.
 =cut
 
 sub forget_fields ($self, $model) {
-    $self->{cache}->forget( $self->_stamp_file( $self->{stamp_login} // $self->{login} // '' ) ) if $self->{cache};
-    delete $self->{fields_stamp}; delete $self->{stamp_memory}{ $self->{stamp_login} // $self->{login} // '' } if $self->{stamp_memory}; }
+    my $login = $self->{stamp_login} // $self->{login} // '';
+    my @keys = ( $login, ( $self->{stamp_source} ? $self->_via_key : () ) );
+    if ( $self->{cache} ) { $self->{cache}->forget( $self->_stamp_file($_) ) for @keys }
+    delete $self->{fields_stamp};
+    delete $self->{stamp_memory}{$_} for grep { $self->{stamp_memory} } @keys;
+}
 
 sub fields_cached ($self, $model, $fetch) {
     my $cache = $self->{cache};
@@ -608,24 +618,37 @@ sub fields_cached ($self, $model, $fetch) {
 # The state of ir.model.fields for this login: read, or, for a resident program that lends its memory to each client
 # (C<stamp_memory>, a hash it keeps), the one it read less than cache_ttl_version seconds ago for the same login.
 sub _stamp_for ($self, $login) {
+    # The state is a fact about the server, not about the person: where a source for it is given (a login that may
+    # read ir.model.fields) it is read there and shared by every login; a person's definitions stay their own.
+    if ( my $source = $self->{stamp_source} ) {
+        my $s = $self->_stamp_via( $self->_via_key, $source );
+        return $s if $s && defined $s->[0];
+    }
+    return $self->_stamp_via( $login, sub { $self->_fields_stamp } );
+}
+
+# The key under which the shared state of ir.model.fields is kept when a source reads it: not a login's.
+sub _via_key ($self) { return "\0via\0" . ( $self->{stamp_source_name} // 'source' ) }
+
+sub _stamp_via ($self, $key, $read) {
     my $mem = $self->{stamp_memory};
     my $now = $self->{now}->();
-    my $m   = $mem ? $mem->{$login} : undef;
+    my $m   = $mem ? $mem->{$key} : undef;
     return $m->{stamp} if $m && $self->{ttl_version} > 0 && $now >= $m->{at} && $now - $m->{at} < $self->{ttl_version};
     # a burst of short-lived processes shares one reading for cache_ttl_fields_stamp seconds
     my $ttl  = $self->{ttl_fields_stamp};
-    my $name = $self->_stamp_file($login);
+    my $name = $self->_stamp_file($key);
     if ( $ttl > 0 && $self->{cache} ) {
         my $kept = $self->{cache}->recall($name);
         if ( ref $kept eq 'HASH' && defined $kept->{stamp} && !ref $kept->{stamp} && defined $kept->{at} && $kept->{at} =~ /\A\d+\z/
             && $now >= $kept->{at} && $now - $kept->{at} < $ttl ) {
             my $s = [ $kept->{stamp} ];
-            $mem->{$login} = { stamp => $s, at => $kept->{at} } if $mem;
+            $mem->{$key} = { stamp => $s, at => $kept->{at} } if $mem;
             return $s;
         }
     }
-    my $s = [ $self->_fields_stamp ];
-    $mem->{$login} = { stamp => $s, at => $now } if $mem;
+    my $s = [ $read->() ];
+    $mem->{$key} = { stamp => $s, at => $now } if $mem;
     $self->{cache}->keep( $name, { at => $now, stamp => $s->[0] } ) if $ttl > 0 && $self->{cache} && defined $s->[0];
     return $s;
 }
@@ -642,6 +665,17 @@ sub _stamp_file ($self, $login) {
 # (probed on 16, 18 and 19), and a descending order puts those first. A refusal here (a login
 # that may not read ir.model.fields) is no sign of a stale uid, so it does not go through the
 # authenticate-once path.
+=head2 fields_stamp
+
+The state of C<ir.model.fields> as one string (the newest row, the number of
+rows and the newest C<write_date>: three cheap reads), or undef when this
+login may not read it. It is what a kept C<fields_get> is checked against, and
+what a C<stamp_source> hands to the clients of other logins.
+
+=cut
+
+sub fields_stamp ($self) { return $self->_fields_stamp }
+
 sub _fields_stamp ($self) {
     my $ask = sub ( $method, $domain, $kw ) {
         $self->_call( 'object', 'execute_kw', $self->{db}, $self->uid, $self->{key}, 'ir.model.fields', $method, [$domain], $kw );

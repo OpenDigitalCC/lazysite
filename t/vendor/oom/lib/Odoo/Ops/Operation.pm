@@ -7,6 +7,7 @@ no warnings 'experimental::signatures';
 
 use Odoo::Error;
 use Odoo::JSON ();
+use Odoo::Ops::Acting;
 use Odoo::Ops;
 use Odoo::Ops::Plan;
 use Odoo::Ops::Invariant;
@@ -14,6 +15,7 @@ use Odoo::Ops::Modules;
 use Odoo::Ops::Guard;
 use Odoo::Ops::Registry;
 use Odoo::Ops::File;
+use Odoo::Ops::Rows;
 
 =head1 NAME
 
@@ -47,6 +49,9 @@ An operation declares, as class methods:
     read_scope   { model => [methods] } used while reporting/planning
     write_scope  { model => [methods] } added while applying; declaring
                  one makes the operation a write operation
+    routes       [ '/web/path', ... ] the web routes its C<route> changes may call
+                 (the guard holds apply to them); declaring one makes the
+                 operation a write operation too
     buckets      [ { name, meaning } ] the buckets a plan of this operation
                  sorts rows into that are written or skipped (a write
                  operation declares it)
@@ -58,6 +63,9 @@ An operation declares, as class methods:
                  plan, run folder or journal; core.credential), else false
     buckets_from 'dynamic' with a reason, for an operation whose bucket
                  names cannot be listed; no shipped operation needs it
+    acts_for     true for an operation that acts for a person: its writes are made
+                 with a service credential, scoped to the person the request's own
+                 credential proves (see Odoo::Ops::Acting); else false
 
 Scope keys are logical profile models (C<lead>) or, where a key
 contains a dot, physical Odoo models (C<ir.module.module>). The guard
@@ -80,12 +88,14 @@ sub invariant_packs ($class) { defined $class->pack ? ( $class->pack ) : () }
 sub params      ($class) { {} }
 sub read_scope  ($class) { {} }
 sub write_scope ($class) { {} }
-sub writes      ($class) { !!%{ $class->write_scope } }
+sub routes       ($class) { [] }
+sub writes      ($class) { !!( %{ $class->write_scope } || @{ $class->routes } ) }
 sub immediate   ($class) { 0 }
 sub buckets     ($class) { [] }
 sub holds       ($class) { [] }
 sub fields      ($class) { [] }
 sub buckets_from ($class) { undef }
+sub acts_for    ($class) { 0 }
 
 =head2 undo_custom($journal_entry)
 
@@ -120,6 +130,33 @@ sub client ($self) { $self->{ctx}->client }
 sub param  ($self, $name) { $self->{params}{$name} }
 sub all_params ($self) { $self->{params} }
 
+=head2 person, service_client, own
+
+For an operation that declares C<acts_for> only (any other dies C<usage>; the pack lint refuses the
+words in a file that declares no C<acts_for>). L<Odoo::Ops::Acting> says how each is made.
+
+C<< $self->person >> is the verified identity of the one the request is for, C<< { uid, login, name,
+partner_id, commercial_partner_id } >>. It has no source but Odoo's answer to the request's own credential.
+
+C<< $self->service_client >> is the client of the service credential, for the writes and for the reads the
+person may not make; C<< $self->client >> stays the person's own.
+
+C<< $self->own( model =E<gt> M, ids =E<gt> [...], field =E<gt> 'partner_id' ) >> returns the ids when every record's
+C<field> is the person's partner or commercial partner, else dies C<refused/not-yours> naming the model and
+ids (and nothing of another customer). A pack calls it before any write to a record the person names.
+
+=cut
+
+sub _need_acts_for ($self, $what) {
+    Odoo::Error->throw( kind => 'usage', message => $self->op_name . " does not declare acts_for, so it has no $what",
+        fix => 'an operation that acts for a person declares sub acts_for { 1 }' ) if !$self->acts_for;
+    return;
+}
+
+sub person ($self) { $self->_need_acts_for('person'); return $self->{ctx}->person }
+sub service_client ($self) { $self->_need_acts_for('service client'); return $self->{ctx}->service_context->client }
+sub own ($self, %a) { $self->_need_acts_for('own'); return Odoo::Ops::Acting->own( $self, %a ) }
+
 sub profile ($self) {
     my $pack = $self->pack
         or Odoo::Error->throw( kind => 'usage', message => $self->op_name . ' has no profile pack' );
@@ -131,8 +168,20 @@ sub model ($self, $name) {
     return $self->client->model( $self->physical_model($name) );
 }
 
+=head2 is_model_name($name)
+
+True when C<$name> has the shape of an Odoo model name: lower case letters, digits and C<_>, in segments
+joined by dots, the first starting with a letter. A model without a dot (C<website>) is a model; whether
+this server has it is Odoo's answer (C<fields_get>, then L<Odoo::Ops::Modules/absent_model>), as for any other.
+
+=cut
+
+sub is_model_name ($class, $name) { return defined $name && !ref $name && $name =~ /\A[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*\z/ ? 1 : 0 }
+
+# a logical (profile) name has no dot, so for an operation of a pack a name without a dot is a profile's; an
+# operation of no pack has no profile, and every name it is given is a physical model
 sub physical_model ($self, $name) {
-    return $name if $name =~ /\./;
+    return $name if $name =~ /\./ || !defined $self->pack;
     return $self->profile->model_name($name);
 }
 
@@ -184,88 +233,15 @@ sub _typed ($op, $k, $type, $v, $spec = {}) {
 
 =head2 check_rows($decl, $value, $label)
 
-Class method: the value of a C<rows> parameter checked against its
-declaration, as C<check_params> checks it, so a caller can run the same rule
-before it sends. C<$decl> is the parameter's declaration:
-
-    lines => { type => 'rows', max => 50, required => 1,
-               row => { product_id => 'int', qty => 'int', discount => 'int?' } }
-
-Each row field is C<str>, C<int> or C<bool>, with C<?> for an optional key;
-C<max> is required. C<$value> is an array of hashes, or the text of a JSON
-array of flat objects. It must hold at most C<max> rows, each a hash with
-only the declared keys, every required key present and each value of its
-type with no nesting: an C<int> is a whole number (JSON number or digits), a
-C<bool> is true or false (C<1 0 yes no true false>), a C<str> is a plain
-value of at most 4096 characters holding no control character. A C<null>
-leaves an optional key out. Returns the rows (a new array of new hashes,
-values typed). A breach is C<usage>, naming the row number (from 1) and the
-key; C<$label> (default C<rows>) leads the message.
+Class method: the rule of a C<rows> parameter, kept in L<Odoo::Ops::Rows>
+(C<< Odoo::Ops::Rows->check >>), which loads no other part of OOM, so a caller
+can run it before it sends without the cost of the registry. See there for the
+declaration and the rules.
 
 =cut
 
 sub check_rows ($class, $decl, $value, $label = 'rows') {
-    my $bad = sub ($why, $kind = 'usage') {
-        Odoo::Error->throw( kind => $kind, message => "$label$why", fix => 'oom-ops describe <op> shows the rows each parameter takes' );
-    };
-    ref $decl eq 'HASH' && ( $decl->{type} // '' ) eq 'rows' or $bad->( ' is not declared as rows', 'config' );
-    my $max = $decl->{max};
-    defined $max && !ref $max && $max =~ /\A[1-9]\d*\z/ or $bad->( ' declares no max (a whole number of at least 1)', 'config' );
-    my $row = $decl->{row};
-    ref $row eq 'HASH' && %$row or $bad->( ' declares no row fields', 'config' );
-    my ( %type, %optional );
-    for my $k ( sort keys %$row ) {
-        my ( $ty, $q ) = ( $row->{$k} // '' ) =~ /\A(str|int|bool)(\?)?\z/
-            or $bad->( " declares row key '$k' as '" . ( $row->{$k} // '' ) . "' (str, int or bool, with ? for optional)", 'config' );
-        $type{$k}     = $ty;
-        $optional{$k} = 1 if $q;
-    }
-
-    my $rows = $value;
-    $rows = eval { Odoo::Ops::json()->decode( $value // '' ) } if !ref $rows;
-    ref $rows eq 'ARRAY' or $bad->( " must be a list of at most $max rows (a JSON array of objects)" );
-    $bad->( ' has ' . scalar(@$rows) . " rows; at most $max are allowed" ) if @$rows > $max;
-
-    my @out;
-    my $n = 0;
-    for my $r (@$rows) {
-        $n++;
-        ref $r eq 'HASH' or $bad->( " row $n must be an object of " . join( ', ', sort keys %type ) );
-        for my $k ( sort keys %$r ) {
-            $bad->( " row $n: key '$k' is not declared (the row takes " . join( ', ', sort keys %type ) . ')' ) if !$type{$k};
-        }
-        my %o;
-        for my $k ( sort keys %type ) {
-            my $v = $r->{$k};
-            if ( !defined $v ) {
-                $bad->( " row $n: key '$k' is required" ) if !$optional{$k};
-                next;
-            }
-            my $ty = $type{$k};
-            if ( ref $v ) {
-                # a JSON true or false is a bool; any other reference is nesting
-                $bad->( " row $n: key '$k' must be a plain $ty, not a nested value" )
-                    if $ty ne 'bool' || !Odoo::JSON::is_bool($v);
-                $o{$k} = $v ? 1 : 0;
-                next;
-            }
-            if ( $ty eq 'int' ) {
-                $v =~ /\A-?\d+\z/ or $bad->( " row $n: key '$k' must be int" );
-                $o{$k} = 0 + $v;
-            }
-            elsif ( $ty eq 'bool' ) {
-                $v =~ /\A(?:1|0|yes|no|true|false)\z/i or $bad->( " row $n: key '$k' must be bool" );
-                $o{$k} = $v =~ /\A(?:1|yes|true)\z/i ? 1 : 0;
-            }
-            else {
-                $bad->( " row $n: key '$k' must be at most 4096 characters" ) if length $v > 4096;
-                $bad->( " row $n: key '$k' must not hold a control character" ) if $v =~ /[\x00-\x1f\x7f]/;
-                $o{$k} = "$v";
-            }
-        }
-        push @out, \%o;
-    }
-    return \@out;
+    return Odoo::Ops::Rows->check( $decl, $value, $label );
 }
 
 =head2 scope_for($phase)
@@ -287,6 +263,7 @@ sub scope_for ($self, $phase) {
     if ( $phase eq 'apply' ) {
         $add->( $self->write_scope );
         $s{ $self->physical_model($_) }{read} = 1 for keys %{ $self->write_scope };
+        $s{'web.route'}{$_} = 1 for @{ $self->routes };
     }
     return { map { $_ => [ sort keys %{ $s{$_} } ] } keys %s };
 }
@@ -359,6 +336,11 @@ sub _cache_says ($self, $report) {
 }
 
 sub _run ($self) {
+    return Odoo::Ops::Acting->around( $self, sub { $self->_run_scoped } ) if $self->acts_for;
+    return $self->_run_scoped;
+}
+
+sub _run_scoped ($self) {
     my $scope = $self->scope_for('read');
     return $self->{ctx}->guard->with_scope( $scope, $self->op_name, sub {
         # an operation of a pack whose module this server lacks is not applicable here; that is said before anything else
@@ -377,6 +359,9 @@ sub _run ($self) {
         $self->check_plan_scope( $plan, $scope );
         $self->mark_irreversible($plan);
         $plan->note( 'invariants checked at apply: ' . join( ', ', map { "$_->{name} ($_->{model})" } @inv ) ) if @inv;
+        if ( my $a = $plan->acts_for ) {
+            $plan->note( "acts for $a->{login} (uid $a->{uid}); the service login $a->{via} applies it, and only $a->{login} may apply it" );
+        }
         $plan->set_scope($scope);
         return $plan->finalize;
     } );
@@ -410,6 +395,10 @@ sub plan_calls ($class, $plan) {
             push @pairs, [ $c->{model}, 'read' ] if ref $c->{before} eq 'HASH' && $c->{id};
             push @pairs, [ $c->{verify}{model}, 'read' ] if ref $c->{verify} eq 'HASH' && defined $c->{verify}{model};
         }
+        elsif ( $a eq 'route' ) {
+            # the path is held to the declared routes in check_plan_scope; a precondition and a verify are reads
+            @pairs = map { [ $_->{model}, 'read' ] } grep { ref $_ eq 'HASH' && defined $_->{model} } @{$c}{qw(precondition verify)};
+        }
         elsif ( $a eq 'custom' ) {
             if ( ref $c->{calls} eq 'ARRAY' ) { @pairs = map { [ @$_ ] } @{ $c->{calls} } }
             else                              { $undeclared{ $c->{handler} } = 1 }
@@ -433,6 +422,10 @@ guard checks it at apply.
 sub check_plan_scope ($self, $plan, $scope) {
     my ( $need, $undeclared ) = $self->plan_calls($plan);
     my @out;
+    for my $c ( grep { $_->{action} eq 'route' } @{ $plan->changes } ) {
+        next if grep { $_ eq $c->{path} } @{ $scope->{'web.route'} // [] };
+        push @out, "route $c->{path} (change $c->{seq})";
+    }
     for my $k ( sort keys %$need ) {
         my ( $model, $method ) = $k =~ /\A(.+)\.([^.]+)\z/;
         next if Odoo::Ops::Guard->base_allows( $model, $method );
@@ -444,7 +437,7 @@ sub check_plan_scope ($self, $plan, $scope) {
         kind    => 'refused',
         code    => 'scope',
         message => 'the plan of ' . $self->op_name . ' will call ' . join( '; ', @out ) . ', which the operation does not declare',
-        fix     => 'declare each call in the operation\'s read_scope or write_scope (a model it writes also gets read); a custom change lists its calls in calls => [[model, method], ...]',
+        fix     => 'declare each call in the operation\'s read_scope or write_scope (a model it writes also gets read); a custom change lists its calls in calls => [[model, method], ...]; a route change\'s path goes in routes => [...]',
     ) if @out;
     $plan->note( 'scope checked at apply for ' . join( ', ', @$undeclared ) . ' (a custom change that declares no calls)' ) if @$undeclared;
     return;
@@ -464,7 +457,7 @@ sub mark_irreversible ($self, $plan) {
     for my $c ( @{ $plan->changes } ) {
         next if $c->{action} ne 'custom' || !$c->{handler};
         $can{ $c->{handler} } //= do {
-            my $h = eval { Odoo::Ops::Registry->new->class_for( $c->{handler} ) };
+            my $h = eval { Odoo::Ops::Registry->new->class_for_handler( $c->{handler} ) };
             $h && $h->can('undo_custom') ? 1 : 0;
         };
         next if $can{ $c->{handler} };
@@ -528,6 +521,7 @@ sub new_plan ($self, %args) {
         created  => Odoo::Ops::iso_time( $self->{ctx}->now ),
         actor    => $self->{ctx}->actor,
         blob_min => $self->{ctx}->config->blob_min,
+        ( $self->acts_for ? ( acts_for => Odoo::Ops::Acting->plan_stamp($self) ) : () ),
         %args,
     );
 }

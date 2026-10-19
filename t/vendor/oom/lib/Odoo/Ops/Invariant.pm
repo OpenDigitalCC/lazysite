@@ -146,7 +146,7 @@ sub for_plan ($class, $ctx, $plan) {
         next if $c->{action} eq 'skip' || $c->{action} eq 'hold';
         if ( $c->{action} eq 'custom' && $c->{handler} ) {
             $reg //= Odoo::Ops::Registry->new;
-            my $h = eval { $reg->class_for( $c->{handler} ) };
+            my $h = eval { $reg->class_for_handler( $c->{handler} ) };
             $models{$_} = 1 for $h ? $h->models_touched($c) : ( $c->{model} // () );
         }
         elsif ( $c->{model} ) { $models{ $c->{model} } = 1 }
@@ -169,9 +169,9 @@ sub for_plan ($class, $ctx, $plan) {
 # The packs an operation answers for, as a set: none for a name the registry
 # does not know (a revert, a resume), which no pack's rules judge.
 sub _packs_of ($class, $reg, $op) {
-    # every operation name has a dot (core.read, crm-page.lead); a revert or resume plan's does not, and asking the registry for it would scan every namespace
+    # every operation name has a dot (core.read, crm_page.lead); a revert or resume plan's does not, and asking the registry for it would scan every namespace
     return {} if !defined $op || $op !~ /\./;
-    my $cls = eval { $reg->class_for($op) } or return {};
+    my $cls = eval { $reg->class_for_handler($op) } or return {};
     return { map { $_ => 1 } $cls->invariant_packs };
 }
 

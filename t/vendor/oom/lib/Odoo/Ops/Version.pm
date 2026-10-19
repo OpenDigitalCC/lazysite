@@ -3,7 +3,7 @@ package Odoo::Ops::Version;
 use strict;
 use warnings;
 
-our $VERSION = '0.34';
+our $VERSION = '0.36';
 
 =head1 NAME
 

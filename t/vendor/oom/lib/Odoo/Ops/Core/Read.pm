@@ -13,6 +13,7 @@ use Odoo::Ops::Modules;
 use Odoo::Ops;
 use Odoo::Portable;
 use Odoo::Ops::Core::OneRecord;
+use Odoo::Ops::Core::ReadContext;
 
 use parent 'Odoo::Ops::Operation';
 
@@ -41,7 +42,9 @@ the id under the field's name and the label under C<E<lt>fieldE<gt>_name>
 is a JSON domain (default C<[]>), C<ids> narrows to those ids, C<limit>
 defaults to 80 (C<limit_reached> says the rows ran out of limit, not of
 records), C<order> is Odoo's order string, and C<archived> includes
-inactive records. The report's C<fields> block (C<--schema>) describes the
+inactive records. C<context> is a JSON object of Odoo context keys from a short
+list (L<Odoo::Ops::Core::ReadContext>): C<warehouse>, C<location> and C<lot_id> make
+the stock quantities (C<free_qty>, C<qty_available>) those of one warehouse, location or lot. The report's C<fields> block (C<--schema>) describes the
 fields asked: type, portable type, label, comodel, selection values.
 
 An unknown model or field is a usage error naming it. The read scope is the
@@ -61,7 +64,8 @@ sub params ($class) {
         order    => { type => 'str',  help => 'Odoo order string, e.g. "id desc"' },
         archived => { type => 'bool', default => 0, help => 'include inactive (archived) records' },
         max_age  => { type => 'int',  help => 'seconds the answer may be old: with data_cache = 1 in the config it may come from the data cache while Odoo\'s signal for the model holds; 0 or absent: live' },
-        pricelist => { type => 'int', help => 'the pricelist (id) Odoo prices the read with; part of the data cache key' },
+        pricelist => { type => 'int', help => 'the pricelist (id) Odoo prices the read with; part of the data cache key; the same as context.pricelist' },
+        context  => { type => 'json', help => 'Odoo context keys for the read (warehouse, location, lot_id, pricelist, partner_id, quantity, lang, tz, active_test, to_date, from_date), e.g. {"warehouse": 2}; part of the data cache key' },
     };
 }
 sub read_scope ($class) { {} }    # built per run: the model's search_read
@@ -90,8 +94,8 @@ sub scope_for ($self, $phase) {
 
 sub report ($self) {
     my $model = $self->param('model');
-    Odoo::Error->throw( kind => 'usage', message => "core.read: model must be a physical model name (with a dot), got '$model'",
-        fix => 'oom-ops describe core.read lists the parameters' ) if $model !~ /\./;
+    Odoo::Error->throw( kind => 'usage', message => "core.read: model must be a model name such as res.partner or website, got '$model'",
+        fix => 'oom-ops describe core.read lists the parameters' ) if !$self->is_model_name($model);
     my $m = $self->client->model($model);
     my $f = eval { $m->fields } || Odoo::Ops::Modules->absent_model( $self->ctx, 'core.read', $model, $@ );
 
@@ -120,15 +124,15 @@ sub report ($self) {
     my $ma = $self->param('max_age');
     Odoo::Error->throw( kind => 'usage', message => 'core.read: max_age must be 0 or more seconds', fix => 'oom-ops describe core.read lists the parameters' )
         if defined $ma && $ma < 0;
-    my $pl = $self->param('pricelist');
+    my ( $send, $pl, $keyed ) = Odoo::Ops::Core::ReadContext->resolve( 'core.read', context => $self->param('context'), pricelist => $self->param('pricelist'), archived => $self->param('archived') );
     my $got = $self->ctx->data_cache->read(
         model => $model, domain => \@domain, fields => \@want, order => $self->param('order'), limit => $limit,
-        archived => $self->param('archived'), pricelist => $pl, max_age => $ma,
+        archived => $self->param('archived'), pricelist => $pl, context => $keyed, max_age => $ma,
         ( $pl ? ( also => [ Odoo::Cache::Data->pricelist_models ] ) : () ),
         fetch => sub {
             $m->search_read( \@domain, [@want], limit => $limit,
                 ( defined $self->param('order') ? ( order => $self->param('order') ) : () ),
-                ( $self->param('archived') || $pl ? ( context => { ( $self->param('archived') ? ( active_test => JSON::PP::false ) : () ), ( $pl ? ( pricelist => $pl ) : () ) } ) : () ) );
+                ( %$send ? ( context => $send ) : () ) );
         } );
     my $rows = $got->{rows};
     $self->{cache_note} = { Odoo::Cache::Data->says($got) };

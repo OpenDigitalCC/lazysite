@@ -154,7 +154,7 @@ Adds a row for each operation of the packs the registry loaded (L<Odoo::Ops::Pac
 The matrix file grades what OOM proved; a pack's operations are not in it, so
 each row is C<not-probed> on every series, its evidence on the series the pack
 declares saying so and naming the pack and its version. The row's pack is the
-pack's name, so C<select(pack =E<gt> 'crm-page')> finds them.
+pack's name, so C<select(pack =E<gt> 'crm_page')> finds them.
 
 =cut
 

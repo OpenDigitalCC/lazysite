@@ -13,3 +13,7 @@ effects:
   method: unlink
   effect: Odoo deletes a line while its order is in draft, sent or cancel; once the order is sale or done it is refused ("You can not remove an order line once the sales order is confirmed", set the quantity to 0 instead). Sections and notes (display_type set) are always deleted; a down payment line that was never invoiced is too. The revert holds every line of a confirmed order, section and note lines included
   evidence: source 16.0 sale_order_line._unlink_except_confirmed, _check_line_unlink (state in sale, done); live 2026-10-16 t/49-documents-pack-live.t on 16 (the refusal of a line of a confirmed order and the deletion after sale.cancel)
+actions:
+- method: unlink
+  note: removes the line while its order is in draft, sent or cancel; Odoo refuses once the order is confirmed (set the quantity to 0 there). The delivery line goes the same way, and the order's total follows at once
+  evidence: source 16.0 sale_order_line._unlink_except_confirmed; live 2026-10-19 shop16 (core.action unlink of draft lines, the delivery line included; the order total followed each time)

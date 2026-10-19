@@ -60,7 +60,7 @@ sub read_scope ($class) { { 'ir.attachment' => [ 'search_read', 'read' ] } }
 sub scope_for ($self, $phase) {
     my $s = $self->SUPER::scope_for($phase);
     if ( defined( my $m = $self->param('model') ) ) {
-        $s->{$m} = [ sort keys %{ { ( map { $_ => 1 } @{ $s->{$m} // [] } ), search_read => 1 } } ] if $m =~ /\./;
+        $s->{$m} = [ sort keys %{ { ( map { $_ => 1 } @{ $s->{$m} // [] } ), search_read => 1 } } ] if $self->is_model_name($m);
     }
     return $s;
 }
@@ -74,7 +74,7 @@ sub report ($self) {
         my ( $model, $rec ) = ( $self->param('model'), $self->param('record') );
         Odoo::Error->throw( kind => 'usage', message => 'core.fetch: give attachment, or model and record' )
             if !defined $model || !defined $rec;
-        Odoo::Error->throw( kind => 'usage', message => "core.fetch: model must be a physical model name, got '$model'" ) if $model !~ /\./;
+        Odoo::Error->throw( kind => 'usage', message => "core.fetch: model must be a model name such as res.partner or website, got '$model'" ) if !$self->is_model_name($model);
         my $id = $self->_record_id( $model, $rec );
         my @dom = ( [ 'res_model', '=', $model ], [ 'res_id', '=', $id ] );
         push @dom, [ 'name', '=', $self->param('name') ] if defined $self->param('name');

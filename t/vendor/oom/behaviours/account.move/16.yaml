@@ -34,3 +34,13 @@ routes:
   state:
     via: action_post, button_draft, button_cancel
     why: state is readonly and driven by the actions; a write of it posts nothing, takes no number and skips the checks. account.post, account.cancel and account.draft run them
+wizards:
+- model: account.payment.register
+  module: account
+  method: action_create_payments
+  button: action_create_payments
+  values: [journal_id, amount, payment_date, payment_method_line_id]
+  creates:
+  - model: account.payment
+  creates_evidence: source 16.0 account account_payment_register._create_payments; live 2026-10-19 shop16 (made account.payment 1; its entry is account.move 2)
+  evidence: 'source 16.0 account account_payment_register.action_create_payments; live 2026-10-19 shop16 (a posted 41.75 invoice and the bank journal: the payment posted, the invoice read paid, the payment is_reconciled 1 and is_matched 0)'

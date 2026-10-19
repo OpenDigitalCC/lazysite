@@ -491,8 +491,12 @@ sub index_plan ($class, $dir, $plan, %o) {
     if ( !$o{nowrite} ) {
         my $ps = $plan->summary;
         my %models = map { $_->{model} => 1 } grep { defined $_->{model} && $_->{action} !~ /^(?:skip|hold)\z/ } @{ $plan->changes };
-        Odoo::Ops::Trail->emit( plan => run => $r{id}, op => $r{op}, outcome => 'ok', buckets => $ps->{buckets}, input_count => $ps->{input_count},
-            models => [ sort keys %models ], params => [ sort keys %{ $h->{params} // {} } ] );
+        # a plan that acts for a person is the person's line, made through the service login (as the run's own)
+        my $acting = $plan->can('acts_for') ? $plan->acts_for : undef;
+        Odoo::Ops::Trail->as_acting( $acting, sub {
+            Odoo::Ops::Trail->emit( plan => run => $r{id}, op => $r{op}, outcome => 'ok', buckets => $ps->{buckets}, input_count => $ps->{input_count},
+                models => [ sort keys %models ], params => [ sort keys %{ $h->{params} // {} } ] );
+        } );
     }
     return \%r;
 }

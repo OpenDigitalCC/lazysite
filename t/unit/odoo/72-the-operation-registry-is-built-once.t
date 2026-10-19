@@ -20,6 +20,7 @@ use lib "$FindBin::Bin/../../../lib";
 use OdooTest qw(oom_or_skip shop_ready write_conf quiet);
 
 BEGIN { oom_or_skip() }
+my $NO_PACKS = $ENV{ODOO_OOM_PACK_DIRS};
 use Lazysite::Odoo ();
 
 my $builds = 0;
@@ -85,7 +86,9 @@ subtest 'two docroots in one process each get their own registry' => sub {
 };
 
 subtest 'the environment is back as it was' => sub {
-    ok( !grep { exists $ENV{$_} } qw(ODOO_OPS_NAMESPACES ODOO_OOM_PACK_DIRS XDG_CACHE_HOME), 'no pack variable left set' );
+    ok( !grep { exists $ENV{$_} } qw(ODOO_OPS_NAMESPACES XDG_CACHE_HOME), 'no pack variable left set' );
+    # SM1185: OdooTest sets this one (no packs, so the host's are never read); it is back to that.
+    is( $ENV{ODOO_OOM_PACK_DIRS}, $NO_PACKS, 'and the pack directories are what OdooTest set' );
 };
 
 done_testing;

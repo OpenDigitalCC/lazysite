@@ -44,8 +44,22 @@ Actions: C<create> (vals), C<write> (id, vals, before), C<unlink> (id,
 before), C<call> (a model method on ids: method, ids, args, kwargs),
 C<custom> (carried out by the named operation's C<apply_custom> - for a
 change that takes several calls, such as sending one email through the
-composer), C<skip> and C<hold> (nothing is sent; C<hold> means it needs
-a person's decision).
+composer), C<route> (a call of an Odoo web route, below), C<skip> and C<hold>
+(nothing is sent; C<hold> means it needs a person's decision).
+
+A C<route> change calls a web route of Odoo as the login, for what Odoo's own
+client does over the web because the method behind it is private or its record
+rule refuses a plain write. It carries C<path> (starting with C</>), C<params>
+(a map, the JSON the route takes), an optional C<< precondition => { model, ids,
+fields => { field => value } } >> (a read the apply makes first: the fields of
+those records must hold those values, or the change is refused C<stale> and
+nothing is sent) and an optional C<< verify => { model, ids, fields => { field =>
+value } } >> (read back after the route; the change is verified when they
+hold) and an optional C<fault_note>, words that follow Odoo's own message when the route
+faults. The operation declares the paths it may call in C<routes>
+(L<Odoo::Ops::Operation>), and the guard refuses any other at apply. A C<model>,
+when given, names the model the route changes (for its invariants and
+behaviours). A route has no inverse: a revert holds it C<irreversible>.
 
 A C<custom> change lists the calls its apply makes as C<< calls => [ [ model,
 method ], ... ] >> (physical model names, the C<read> of its read-backs
@@ -141,7 +155,7 @@ END {
     }
 }
 
-my %ACTION = map { $_ => 1 } qw(create write unlink call custom skip hold);
+my %ACTION = map { $_ => 1 } qw(create write unlink call custom route skip hold);
 
 sub new ($class, %args) {
     for my $req (qw(op instance)) {
@@ -160,6 +174,7 @@ sub new ($class, %args) {
         actor       => $args{actor},
         changes     => [],
         blob_min    => $args{blob_min},
+        ( $args{acts_for} ? ( acts_for => $args{acts_for} ) : () ),
         blobs       => {},
         notes       => [],
         effects     => undef,
@@ -175,6 +190,16 @@ sub applied     ($self) { 0 }
 sub effects     ($self) { $self->{effects} // {} }
 sub notes       ($self) { $self->{notes} }
 sub input_count ($self) { $self->{input_count} }
+
+=head2 acts_for
+
+C<< { uid, login, name, partner_id, commercial_partner_id, via } >> for a plan an operation that acts for a person
+made (L<Odoo::Ops::Acting>): the person the writes are for and the service login that applies them, or undef.
+The seal covers it, so an edited person is an edited plan; the runner applies the plan only for that person.
+
+=cut
+
+sub acts_for ($self) { $self->{acts_for} }
 
 # not sealed: see the DESCRIPTION
 sub set_effects ($self, $effects) {
@@ -206,6 +231,37 @@ sub add ($self, %c) {
     }
     if ( $c{action} =~ /^(write|unlink)\z/ ) {
         Odoo::Error->throw( kind => 'usage', message => "$c{action} needs an id" ) if !$c{id};
+    }
+    # ids that were Perl hash keys are strings; Odoo takes numbers, and a value that is no id is refused by name
+    for my $k (qw(id ids)) {
+        next if !defined $c{$k} || $c{action} !~ /^(?:write|unlink|call)\z/;
+        my @v = ref $c{$k} eq 'ARRAY' ? @{ $c{$k} } : ( $c{$k} );
+        for (@v) {
+            Odoo::Error->throw( kind => 'usage', message => "$c{action} of '" . ( $c{key} // $c{model} ) . "': $k must be record ids (whole numbers), got '" . ( ref $_ ? ref($_) . ' reference' : $_ ) . "'" )
+                if ref $_ || !defined $_ || !/\A[0-9]+\z/;
+            $_ = 0 + $_;
+        }
+        $c{$k} = ref $c{$k} eq 'ARRAY' ? \@v : $v[0];
+    }
+    if ( $c{action} eq 'route' ) {
+        my $me = 'route change' . ( defined $c{key} ? " '$c{key}'" : '' );
+        Odoo::Error->throw( kind => 'usage', message => "$me needs a path starting with /" )
+            if !defined $c{path} || ref $c{path} || $c{path} !~ m{\A/\S*\z};
+        $c{params} //= {};
+        Odoo::Error->throw( kind => 'usage', message => "$me: fault_note must be text" ) if ref $c{fault_note};
+        Odoo::Error->throw( kind => 'usage', message => "$me: params must be a map" ) if ref $c{params} ne 'HASH';
+        for my $k (qw(precondition verify)) {
+            next if !defined $c{$k};
+            my $r = $c{$k};
+            Odoo::Error->throw( kind => 'usage', message => "$me: $k is { model, ids => [...], fields => { field => value } }" )
+                if ref $r ne 'HASH' || !length( $r->{model} // '' ) || ref $r->{ids} ne 'ARRAY' || !@{ $r->{ids} } || ref $r->{fields} ne 'HASH' || !%{ $r->{fields} };
+            my @ids = map {
+                Odoo::Error->throw( kind => 'usage', message => "$me: $k ids must be record ids (whole numbers), got '" . ( ref $_ ? ref($_) . ' reference' : $_ // 'undef' ) . "'" )
+                    if ref $_ || !defined $_ || !/\A[0-9]+\z/;
+                0 + $_;
+            } @{ $r->{ids} };
+            $c{$k} = { %$r, ids => \@ids };
+        }
     }
     if ( $c{action} eq 'custom' ) {
         Odoo::Error->throw( kind => 'usage', message => "the calls of the custom change '" . ( $c{key} // $c{handler} ) . "' are not a list of [model, method] pairs",
@@ -316,6 +372,8 @@ sub write_blobs ($self, $dir) { return Odoo::Ops::Blob->write( $dir, $self->{blo
 
 sub _sealed_part ($self) {
     my $part = { map { $_ => $self->{$_} } qw(format op params instance profile scope input_count changes) };
+    # present only on a plan made for a person, so the seal of every other plan is what it was
+    $part->{acts_for} = $self->{acts_for} if $self->{acts_for};
     $part->{changes} = [ map { my %c = %$_; delete $c{effects_ref}; \%c } @{ $part->{changes} } ];
     return $part;
 }

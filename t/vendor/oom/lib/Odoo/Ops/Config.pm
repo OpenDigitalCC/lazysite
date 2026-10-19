@@ -67,11 +67,17 @@ line, C<#> comments, blank lines ignored. Recognised keys:
     cache_dir             where the cache lives, default $XDG_CACHE_HOME/oom or ~/.cache/oom (owner-only)
     cache_ttl_version     seconds a remembered server version is used, default 300 (0: always ask)
     cache_ttl_fields_stamp seconds the state of ir.model.fields is shared between processes, default 5 (0: every process reads it)
+    cache_stamp_conf      path of an ops config whose login may read ir.model.fields: the state is read through it for every
+                          login, so a person who may not read it still keeps field definitions (default: none)
+    cache_ttl_session     oomd only: seconds a session's identity is remembered in a worker's memory, default 60 (0: ask every time)
     data_cache            1: a read that names max_age may be answered from a file in the cache directory (default 0)
     data_cache_max_mb     most megabytes of data cache kept per login, default 200; the oldest files go first
     pack_dirs             a colon list of directories that hold packs (docs/OPS.md, Packs); default
                           $ODOO_OOM_PACK_DIRS, else /usr/share/odoo-oom/packs when odoo-oom-packs is installed
     pack                  a comma list limiting which packs of those directories load; default all
+    act_as_conf           path of an ops config whose login is the service credential an operation that
+                          declares acts_for writes with (docs/OPS.md, Acting for a person); it names the
+                          same url and db as this config. oomd names it with act_as, a label (default: none)
 
 An unknown key is refused, so a typo in C<allow_writes> can never
 silently read as "writes off" or "writes on".
@@ -87,8 +93,8 @@ my %KNOWN = map { $_ => 1 } qw(
     profile_series allow_writes name ssl_ca_file ssl_verify session
     approval plan_ttl mailcatcher record_reads blob_min
     audit_log audit_syslog audit_syslog_facility audit_level audit_required
-    cache cache_dir cache_ttl_version cache_ttl_fields_stamp data_cache data_cache_max_mb
-    pack_dirs pack
+    cache cache_dir cache_ttl_version cache_ttl_fields_stamp cache_stamp_conf cache_ttl_session data_cache data_cache_max_mb
+    pack_dirs pack act_as_conf
 );
 
 sub load ($class, $path) {
@@ -160,6 +166,8 @@ sub new ($class, %conf) {
         if defined $conf{cache} && $conf{cache} !~ /^[01]\z/;
     Odoo::Error->throw( kind => q(config), message => "cache_ttl_version must be a whole number of seconds, not '$conf{cache_ttl_version}'" )
         if defined $conf{cache_ttl_version} && $conf{cache_ttl_version} !~ /^\d+\z/;
+    Odoo::Error->throw( kind => q(config), message => "cache_ttl_session must be a whole number of seconds, not '$conf{cache_ttl_session}'" )
+        if defined $conf{cache_ttl_session} && $conf{cache_ttl_session} !~ /^\d+\z/;
     Odoo::Error->throw( kind => q(config), message => "cache_ttl_fields_stamp must be a whole number of seconds, not '$conf{cache_ttl_fields_stamp}'" )
         if defined $conf{cache_ttl_fields_stamp} && $conf{cache_ttl_fields_stamp} !~ /^\d+\z/;
     Odoo::Error->throw( kind => q(config), message => "data_cache must be 0 or 1, not '$conf{data_cache}'" )
@@ -169,7 +177,9 @@ sub new ($class, %conf) {
     Odoo::Error->throw( kind => q(config), message => 'pack_dirs must be a colon list of directories, not empty' )
         if defined $conf{pack_dirs} && $conf{pack_dirs} !~ /[^:\s]/;
     Odoo::Error->throw( kind => q(config), message => "pack must be a comma list of pack names, not '$conf{pack}'" )
-        if defined $conf{pack} && $conf{pack} !~ /\A\s*[a-z][a-z0-9-]*(?:\s*,\s*[a-z][a-z0-9-]*)*\s*\z/;
+        if defined $conf{pack} && $conf{pack} !~ /\A\s*[a-z][a-z0-9_-]*(?:\s*,\s*[a-z][a-z0-9_-]*)*\s*\z/;
+    Odoo::Error->throw( kind => q(config), message => 'act_as_conf must be a path to an ops config, not empty' )
+        if defined $conf{act_as_conf} && $conf{act_as_conf} eq '';
     Odoo::Error->throw( kind => q(config), message => 'cache_dir must be a path, not empty' )
         if defined $conf{cache_dir} && $conf{cache_dir} eq '';
     Odoo::Error->throw( kind => q(config), message => "audit_syslog must be 0 or 1, not '$conf{audit_syslog}'" )
@@ -224,6 +234,9 @@ sub cache_enabled     ($self) { ($self->{cache} // 1) eq '1' }
 sub cache_dir         ($self) { $self->{cache_dir} }
 sub cache_ttl_version ($self) { $self->{cache_ttl_version} // 300 }
 sub cache_ttl_fields_stamp ($self) { $self->{cache_ttl_fields_stamp} // 5 }
+sub cache_stamp_conf ($self) { $self->{cache_stamp_conf} }
+sub cache_ttl_session ($self) { $self->{cache_ttl_session} // 60 }
+sub act_as_conf       ($self) { $self->{act_as_conf} }
 # the data cache (docs/OPS.md, Data cache): off unless data_cache = 1
 sub data_cache        ($self) { ( $self->{data_cache} // 0 ) eq '1' }
 sub data_cache_max_mb ($self) { $self->{data_cache_max_mb} // 200 }

@@ -1,0 +1,17 @@
+# choose.delivery.carrier, Odoo 16 (delivery). Read from the 16.0 source (delivery/wizard/choose_delivery_carrier.py) and run on shop16 (docs/reviews/ecommerce-survey-16-2026-10.md, probe 6).
+model: choose.delivery.carrier
+series: 16
+module: delivery
+effects:
+- 'on': create
+  fields: [carrier_id]
+  effect: 'a wizard made through the API is not given the price the form''s onchange gives: delivery_price reads 0 until update_price is called on that record, so button_confirm on a freshly made wizard adds the delivery line at 0.00 and Odoo says nothing'
+  evidence: source 16.0 choose_delivery_carrier._onchange_carrier_id (onchange only); live 2026-10-19 shop16 (core.wizard button_confirm with no delivery_price added a delivery line at 0.00)
+- 'on': call
+  method: update_price
+  effect: fills delivery_price and display_price from the carrier's rate for the order (fixed price, or the weight, volume or amount rule that matches) and answers with a window on the wizard itself; the wizard's id is res_id of that window, and core.read of choose.delivery.carrier reads the price from it
+  evidence: source 16.0 choose_delivery_carrier.update_price, delivery_carrier.rate_shipment; live 2026-10-19 shop16 (the fixed carrier read 4.95; the weight carrier 3.95 at 1.85 kg, 11.49 at 13.85 kg and 16.53 at 26.45 kg)
+- 'on': call
+  method: button_confirm
+  effect: removes the order's earlier delivery line and adds one at the wizard's delivery_price (the order's carrier_id is set); the delivery product's own taxes apply, and the default delivery product has none, so the line is untaxed
+  evidence: source 16.0 choose_delivery_carrier.button_confirm, sale_order.set_delivery_line; live 2026-10-19 shop16

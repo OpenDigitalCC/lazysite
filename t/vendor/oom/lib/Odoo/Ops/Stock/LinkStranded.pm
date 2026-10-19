@@ -19,7 +19,7 @@ Odoo::Ops::Stock::LinkStranded - put stranded pick stock through to the order's 
 
 =head1 SYNOPSIS
 
-    oom-ops run stock.link-stranded --conf ops.conf --set orders=S02591,S02577
+    oom-ops run stock.link_stranded --conf ops.conf --set orders=S02591,S02577
     oom-ops apply --conf ops.conf --plan plan.json
 
 =head1 DESCRIPTION
@@ -56,7 +56,7 @@ C<qty_delivered>. It is irreversible.
 
 =cut
 
-sub op_name ($class) { 'stock.link-stranded' }
+sub op_name ($class) { 'stock.link_stranded' }
 sub summary ($class) { 'Plan the linking of stranded pick stock (a line added to a done pick) to the order\'s done delivery' }
 sub pack    ($class) { 'stock' }
 # What a plan of this operation sorts rows into (oom-ops describe prints them;
@@ -113,9 +113,9 @@ sub plan ($self) {
     my $v = $p->validate( $self->client );
     Odoo::Error->throw( kind => 'refused', code => 'profile', message => 'stock profile does not match this server: ' . join( '; ', @{ $v->{missing} } ) ) if !$v->{ok};
     my @in = grep { defined $self->param($_) } qw(orders rows);
-    Odoo::Error->throw( kind => 'usage', message => 'stock.link-stranded: give exactly one of orders, rows (got ' . ( @in ? "@in" : 'none' ) . ')' ) if @in != 1;
+    Odoo::Error->throw( kind => 'usage', message => 'stock.link_stranded: give exactly one of orders, rows (got ' . ( @in ? "@in" : 'none' ) . ')' ) if @in != 1;
     my $date = $self->param('date');
-    Odoo::Error->throw( kind => 'usage', message => "stock.link-stranded: date '$date' is not YYYY-MM-DD" ) if defined $date && $date !~ /^\d{4}-\d\d-\d\d\z/;
+    Odoo::Error->throw( kind => 'usage', message => "stock.link_stranded: date '$date' is not YYYY-MM-DD" ) if defined $date && $date !~ /^\d{4}-\d\d-\d\d\z/;
     my @orders = $self->_orders;
     my $plan = $self->new_plan;    # input_count is set once the stranded moves are counted
     my $count = 0;
@@ -128,7 +128,7 @@ sub plan ($self) {
 sub _orders ($self) {
     return map { +{ key => $_, order => $_ } } @{ $self->param('orders') } if defined $self->param('orders');
     my $path = $self->param('rows');
-    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "stock.link-stranded: cannot read $path: $!", fix => 'check the path exists and this user can read it' );
+    open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "stock.link_stranded: cannot read $path: $!", fix => 'check the path exists and this user can read it' );
     my @out;
     while ( my $line = <$fh> ) {
         next if $line !~ /\S/;
@@ -253,7 +253,7 @@ sub _plan_order ($self, $plan, $o) {
                 delivered_before => 0 + _g($before), delivered_after => 0 + _g($after),
                 date => $stamp, note => $self->param('note'),
             },
-            irreversible => 'a done move is undone by a return, a separate write (stock.link-stranded has no inverse)',
+            irreversible => 'a done move is undone by a return, a separate write (stock.link_stranded has no inverse)',
         );
     }
     return $n;
@@ -266,7 +266,7 @@ sub undo_custom ($class, $entry) {
 }
 
 sub apply_custom ($class, $client, $c) {
-    Odoo::Error->throw( kind => 'usage', message => "stock.link-stranded cannot apply kind '$c->{kind}'" ) if ( $c->{kind} // '' ) ne 'link';
+    Odoo::Error->throw( kind => 'usage', message => "stock.link_stranded cannot apply kind '$c->{kind}'" ) if ( $c->{kind} // '' ) ne 'link';
     my $p = Odoo::Ops::Profile->load( pack => 'stock', series => $client->server_series );
     my @did;
     my $out = eval { $class->_apply( $client, $p, $c->{vals}, \@did ) };
@@ -326,7 +326,7 @@ sub _apply ($class, $client, $p, $v, $did) {
         . $h->( "$v->{product_name} " . _g( $v->{delivered_after} - $v->{delivered_before} ) . ' (' . join( ', ', map { ( $_->{lot} // 'no lot' ) . '=' . _g( $_->{quantity} ) } @new )
             . ") from $v->{stranded_picking} move $stranded (left in $v->{from_name}), now delivered on sale line $v->{sale_line}" )
         . '</li>' . ( defined $v->{note} && length $v->{note} ? '<li>' . $h->( $v->{note} ) . '</li>' : '' )
-        . '</ul><p>These lines were added to the pick after it was done, so Odoo left the goods in output and off the order. Recorded by stock.link-stranded.</p>';
+        . '</ul><p>These lines were added to the pick after it was done, so Odoo left the goods in output and off the order. Recorded by stock.link_stranded.</p>';
     $picking->call( 'message_post', [ [ $v->{delivery}{id} ] ], body => $body, message_type => 'comment', subtype_xmlid => 'mail.mt_note',
         ( ref $u->{partner_id} ? ( author_id => $u->{partner_id}[0] ) : () ), email_from => ( $u->{email} || 'noreply@oom.invalid' ) );
     push @$did, 'noted';

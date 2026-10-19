@@ -35,24 +35,25 @@ sub put {
     close $fh;
 }
 
-# A pack whose NAME has a hyphen, in the shape OOM's packs/README.md gives
-# (namespace Odoo::Pack::ShopPage for the pack shop-page).
+# A pack whose NAME has an underscore (OOM 0.35 renamed crm-page to crm_page and stock.link-stranded to
+# stock.link_stranded: a pack name is lower case letters, digits and _; SM1185), in the shape OOM's packs/README.md gives
+# (namespace Odoo::Pack::ShopPage for the pack shop_page).
 sub make_pack {
     my ($root) = @_;
-    put( "$root/shop-page/pack.yaml", <<'YAML' );
-name: shop-page
+    put( "$root/shop_page/pack.yaml", <<'YAML' );
+name: shop_page
 version: 1.0.0
 oom_min: "0.30"
 namespace: Odoo::Pack::ShopPage
 series: [16, 17, 18]
-summary: A fixture pack with a hyphen in its name
+summary: A fixture pack with an underscore in its name
 YAML
-    put( "$root/shop-page/lib/Odoo/Pack/ShopPage/Names.pm", <<'PM' );
+    put( "$root/shop_page/lib/Odoo/Pack/ShopPage/Names.pm", <<'PM' );
 package Odoo::Pack::ShopPage::Names;
 use strict;
 use warnings;
 use parent 'Odoo::Ops::Operation';
-sub op_name    { 'shop-page.names' }
+sub op_name    { 'shop_page.names' }
 sub summary    { 'The product names' }
 sub params     { return { limit => { type => 'int', default => 20 } } }
 sub read_scope { return { 'x.product' => ['search_read'] } }
@@ -69,12 +70,12 @@ my ( $d, $fake ) = shop_ready();
 my $packs = "$d/lazysite/odoo-packs";
 make_pack($packs);
 
-subtest 'a binding to a hyphenated pack saves and runs' => sub {
+subtest 'a binding to an underscored pack saves and runs' => sub {
     write_conf( $d, odoo_url => 'https://odoo.example', odoo_db => 'shopdb', odoo_login => 'site-connection',
         odoo_allow_writes => 'true', odoo_packs => OdooTest::shop_namespace(), odoo_pack_dirs => $packs );
-    bind( $d, id => 'names', operation => 'shop-page.names', modes => 'public', params => 'n=limit' );
+    bind( $d, id => 'names', operation => 'shop_page.names', modes => 'public', params => 'n=limit' );
     my ($b) = Lazysite::Odoo::find_binding('names');
-    ok( $b, 'the shop-page.names binding is saved and found' );
+    ok( $b, 'the shop_page.names binding is saved and found' );
     my ( undef, $r ) = quiet( sub { Lazysite::Odoo::call( $b, { n => 1 }, mode => 'public', strict => 1 ) } );
     ok( $r->{ok}, 'and runs' ) or diag explain $r;
     is( $r->{report}{rows}[0]{name}, 'Tea', 'with the pack operation\'s answer' );

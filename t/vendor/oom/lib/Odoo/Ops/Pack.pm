@@ -8,6 +8,7 @@ no warnings 'experimental::signatures';
 use Digest::SHA ();
 use File::Spec;
 use Time::HiRes ();
+use JSON::PP ();
 use YAML::PP ();
 
 use Odoo::Error;
@@ -23,7 +24,7 @@ Odoo::Ops::Pack - the contract a pack stands on, and the loading of packs
     use Odoo::Error;
     use Odoo::Ops::Pack;
 
-    sub op_name ($class) { 'crm-page.lead' }
+    sub op_name ($class) { 'crm_page.lead' }
     sub report  ($self)  {
         return Odoo::Ops::Pack->read( $self, 'core.get', model => 'crm.lead', id => $self->param('id'), fields => 'name' );
     }
@@ -46,7 +47,9 @@ break a pack. The pack's C<oom_min> names the contract's version.
 methods C<op_name>, C<summary>, C<pack>, C<invariant_packs>, C<params>,
 C<read_scope>, C<write_scope>, C<buckets>, C<holds>, C<fields>,
 C<models_touched>, and on an instance C<ctx>, C<client>, C<param>,
-C<all_params>, C<model>, C<new_plan>, C<fields_for>, C<report> and C<plan>.
+C<all_params>, C<model>, C<new_plan>, C<fields_for>, C<report> and C<plan>; and for an
+operation that declares C<acts_for> (see L<Odoo::Ops::Acting>) the class method C<acts_for> and, on an instance,
+C<person>, C<service_client> and C<own>.
 
 =item * The change kinds of L<Odoo::Ops::Plan>: C<create>, C<write>,
 C<unlink>, C<call>, C<custom>, C<skip> and C<hold>, with the keys the
@@ -62,6 +65,10 @@ C<refused> errors.
 
 =item * This module's C<read>, the composition helper below: a pack calls a
 core read operation through it, never by loading the core module.
+
+=item * This module's C<wizard> and C<action> (the changes of C<core.wizard> and
+C<core.action> in a pack's plan), C<has_groups> and C<may> (what the login may
+do), below.
 
 =item * Its own namespace, C<Odoo::Pack::E<lt>NameE<gt>>.
 
@@ -93,12 +100,14 @@ calling operation declares in its C<read_scope> the models the report reads
 
 =cut
 
-sub read ($class, $op, $name, %params) {
+sub read ($class, $op, $name, %params) { return $class->_read( $op, $op->ctx, $name, %params ) }
+
+sub _read ($class, $op, $ctx, $name, %params) {
     require Odoo::Ops::Registry;
     my $cls = Odoo::Ops::Registry->new->class_for($name);
     Odoo::Error->throw( kind => 'usage', message => "pack operation " . $op->op_name . " composes $name, which is not a read" )
         if $cls->writes || $cls->immediate;
-    my $inner  = $cls->new( ctx => $op->ctx, params => \%params );
+    my $inner  = $cls->new( ctx => $ctx, params => \%params );
     my $report = $inner->report;
     # the composing operation's audit line says whether any of its reads came from the data cache
     if ( ref $report eq 'HASH' && defined $report->{cached} ) {
@@ -108,6 +117,117 @@ sub read ($class, $op, $name, %params) {
     }
     $inner->_audit_read( $inner->scope_for('read'), $report ) if $inner->can('audit_detail');
     return $report;
+}
+
+=head2 wizard($op, $plan, %params) / action($op, $plan, %params)
+
+Adds to the plan C<$plan> of the pack operation C<$op> the changes
+C<core.wizard> or C<core.action> would plan for C<%params> (their own
+parameters: C<model>, C<for>, C<records>, C<values>, C<method>, C<context> for a
+wizard; C<model>, C<record> or C<records>, C<method>, C<context>, C<args> for an
+action), and answers how many changes it added (the rows to count in the
+plan's C<input_count>). The change is the one the core operation plans: a wizard
+is created and a method called on it, an action is a public method called on
+the records or on the model, and the same checks apply (the method and the
+wizard must be listed in the model's behaviour file, the module installed). So
+the apply journals it, reads it back and names what Odoo made, and
+C<oom-ops revert> takes it back by the behaviour file's C<undo>, exactly as for
+C<core.wizard> and C<core.action>. The plan's notes are carried over.
+
+    my $n = Odoo::Ops::Pack->wizard( $self, $plan,
+        model => 'hr.holidays.cancel.leave', for => 'hr.leave', records => $id,
+        values => { reason => 'booked in error' }, method => 'action_cancel_leave' );
+
+The pack operation declares what the change calls, as for any plan: in
+C<read_scope> the model acted on (C<search_read>, C<read>) and
+C<ir.module.module> (C<search_read>); in C<write_scope> the wizard model
+(C<create> and the method) and, for an action, the model and the method; and
+the C<buckets> the change lands in (C<wizard>, C<call>, C<unknown-record>; the
+option C<bucket =E<gt> NAME> puts every change of this call in the named
+bucket instead). A call outside the scope is refused C<scope> at plan time,
+naming it.
+
+=cut
+
+sub wizard ($class, $op, $plan, %params) { return $class->_compose( $op, $plan, 'core.wizard', %params ) }
+sub action ($class, $op, $plan, %params) { return $class->_compose( $op, $plan, 'core.action', %params ) }
+
+sub _compose ($class, $op, $plan, $name, %params) {
+    require Odoo::Ops::Registry;
+    my $bucket = delete $params{bucket};
+    my $cls    = Odoo::Ops::Registry->new->class_for($name);
+    my $inner  = $cls->new( ctx => $op->ctx, params => \%params )->plan;
+    my $n = 0;
+    for my $c ( @{ $inner->changes } ) {
+        my %c = %$c;
+        delete $c{seq};
+        $c{bucket} = $bucket if defined $bucket;
+        $plan->add(%c);
+        $n++;
+    }
+    $plan->note($_) for @{ $inner->notes };
+    return $inner->input_count;
+}
+
+=head2 has_groups($op, @xmlids)
+
+Whether the person the operation runs as holds each group: C<core.has_groups>
+as a library call, answering C<< { groups => { XMLID => 1|0 }, unknown => [ XMLID ... ] } >>
+(see L<Odoo::Ops::Core::HasGroups>). The operation declares C<res.users>
+C<has_group> and C<ir.model.data> C<check_object_reference> in its C<read_scope>.
+
+=cut
+
+sub has_groups ($class, $op, @groups) {
+    return $class->read( $op, 'core.has_groups', groups => [@groups] );
+}
+
+=head2 may($op, $model, $operation)
+
+Whether the person the operation runs as may C<read>, C<write>, C<create> or
+C<unlink> the physical model C<$model>: 1 or 0, as Odoo's own access check
+answers for that login, never a guess. The question is Odoo's public one
+and differs by series: on 16 and 17 C<check_access_rights(operation,
+raise_exception=False)> on the model, from 18 C<has_access(operation)> on the
+empty recordset (which replaces it; 18 and 19 keep the old name as a deprecated
+alias, and it is not used there). It answers for the model's access list, the
+groups of the login; a record rule restricts which records of the model, and
+C<may> does not say which. A model the server does not have is Odoo's own fault,
+raised as C<fault>.
+
+The operation declares the call in its C<read_scope>, both names, since the
+series is the server's: C<< 'hr.leave' =E<gt> [ 'check_access_rights', 'has_access' ] >>.
+
+=cut
+
+my %ACCESS_OP = map { $_ => 1 } qw(read write create unlink);
+
+sub may ($class, $op, $model, $operation) {
+    Odoo::Error->throw( kind => 'usage', message => 'may: the model must be a physical model name (with a dot), got ' . ( defined $model ? "'$model'" : 'undef' ) )
+        if !defined $model || ref $model || $model !~ /\A[a-z0-9_]+(?:\.[a-z0-9_]+)+\z/;
+    Odoo::Error->throw( kind => 'usage', message => 'may: the operation must be one of read, write, create, unlink, got ' . ( defined $operation ? "'$operation'" : 'undef' ),
+        fix => "ask may( \$op, '$model', 'read' )" )
+        if !defined $operation || !$ACCESS_OP{$operation};
+    my $client = $op->client;
+    my $answer = $client->server_series >= 18
+        ? $client->execute_kw( $model, 'has_access', [ [], $operation ], {} )
+        : $client->execute_kw( $model, 'check_access_rights', [$operation], { raise_exception => JSON::PP::false } );
+    return $answer ? 1 : 0;
+}
+
+=head2 service_read($op, $name, %params)
+
+As C<read>, for an operation that declares C<acts_for>: the core read runs as the service credential, on its
+client and inside the operation's scope (the guard of the service credential is held to the same scope). For
+the reads the person may not make (prices, taxes, stock). The data cache keeps the files of the service login.
+The caller scopes what it reads to the person.
+
+=cut
+
+sub service_read ($class, $op, $name, %params) {
+    Odoo::Error->throw( kind => 'usage', message => 'pack operation ' . $op->op_name . ' reads as the service credential and does not declare acts_for' )
+        if !$op->acts_for;
+    return $class->_read( $op, $op->ctx->service_context, $name, %params );
 }
 
 =head2 file_stamp($path)
@@ -160,7 +280,7 @@ The checked C<pack.yaml> of the pack directory C<$dir>, as a hash with
 C<name version oom_min namespace series summary dir lib>. A config error
 names the pack and the line that is wrong: the name is the directory's, the
 version dotted numbers, C<oom_min> not newer than the running OOM
-(C<pack crm-page needs OOM 0.31, this is 0.30>), the namespace
+(C<pack crm_page needs OOM 0.31, this is 0.30>), the namespace
 C<Odoo::Pack::E<lt>NameE<gt>> and the series a list.
 
 =cut
@@ -176,12 +296,15 @@ sub manifest ($class, $dir) {
     for my $k (qw(name version oom_min namespace series summary)) {
         $bad->("pack.yaml has no $k") if !defined $m->{$k} || ( ref $m->{$k} eq '' && !length $m->{$k} );
     }
+    if ( $name !~ /\A[a-z][a-z0-9_]*\z/ ) {
+        ( my $fix = lc $name ) =~ s/-/_/g;
+        $bad->("a pack name is lower case letters, digits and _, starting with a letter (rename it $fix)");
+    }
     $bad->("pack.yaml name '$m->{name}' is not the directory name '$name'") if $m->{name} ne $name;
-    $bad->( "the name must be lower-case letters, digits and hyphens, starting with a letter" ) if $name !~ /\A[a-z][a-z0-9-]*\z/;
     for my $k (qw(version oom_min)) {
         $bad->("pack.yaml $k '$m->{$k}' is not dotted numbers (such as 0.30)") if $m->{$k} !~ /\A\d+(?:\.\d+)*\z/;
     }
-    ( my $camel = join '', map { ucfirst } split /-/, $name );
+    ( my $camel = join '', map { ucfirst } split /_/, $name );
     $bad->("pack.yaml namespace must be Odoo::Pack::$camel, not '$m->{namespace}'") if $m->{namespace} ne "Odoo::Pack::$camel";
     $bad->('pack.yaml series must be a list') if ref $m->{series} ne 'ARRAY' || !@{ $m->{series} };
     my $running = _running();
@@ -321,11 +444,46 @@ sub lint_pack ($class, $dir) {
         for my $e ( sort grep { !/^\./ } readdir $dh ) {
             my $p = File::Spec->catfile( $d, $e );
             if    ( -d $p )        { $walk->($p) }
-            elsif ( $e =~ /\.pm\z/ ) { push @bad, $class->lint_file( $p, $own ) }
+            elsif ( $e =~ /\.pm\z/ ) {
+                push @bad, $class->lint_file( $p, $own );
+                push @bad, $class->_lint_op_name( $p, $m->{name} );
+            }
         }
         closedir $dh;
     };
     $walk->( $m->{lib} );
+    return @bad;
+}
+
+=head2 op_name_violations($pack, $op_name)
+
+The rule for the name of an operation of the pack C<$pack>: C<E<lt>packE<gt>.E<lt>segmentE<gt>>,
+the pack's own name first, each dotted segment lower case letters, digits and
+C<_> starting with a letter (C<[a-z][a-z0-9_]*>, the rule a binding applies to an
+operation name). Answers the reason, or nothing when the name fits.
+
+=cut
+
+sub op_name_violations ($class, $pack, $op_name) {
+    return "operation name '$op_name' must start with '$pack.'" if index( $op_name, "$pack." ) != 0;
+    for my $seg ( split /\./, $op_name, -1 ) {
+        return "operation name '$op_name' has a segment '$seg' that is not lower case letters, digits and _, starting with a letter"
+            if $seg !~ /\A[a-z][a-z0-9_]*\z/;
+    }
+    return;
+}
+
+sub _lint_op_name ($class, $path, $pack) {
+    open my $fh, '<', $path or return;
+    my ( @bad, $pod );
+    while ( my $line = <$fh> ) {
+        if ( $line =~ /\A=(\w+)/ ) { $pod = $1 ne 'cut'; next }
+        next if $pod;
+        next if $line !~ /\bsub\s+op_name\b[^{]*\{\s*['"]([^'"]*)['"]/;
+        my $why = $class->op_name_violations( $pack, $1 ) or next;
+        push @bad, "$path:$.: $why";
+    }
+    close $fh;
     return @bad;
 }
 
@@ -337,7 +495,7 @@ The violations (see L</lint_pack>) of one file.
 
 sub lint_file ($class, $path, $own) {
     open my $fh, '<', $path or return ("$path:0: cannot read");
-    my ( @bad, $pod );
+    my ( @bad, $pod, $acting, $declares );
     while ( my $line = <$fh> ) {
         if ( $line =~ /\A=(\w+)/ ) { $pod = $1 ne 'cut'; next }
         next if $pod;
@@ -356,8 +514,13 @@ sub lint_file ($class, $path, $own) {
             push @bad, "$path:$.: calls $mod\::$sub, a private sub of core";
         }
         push @bad, "$path:$.: calls SUPER::$1, a private sub of core" if $code =~ /\bSUPER::(_\w+)/;
+        $acting //= $.  if $code =~ /->\s*(?:service_client|person|own|service_read)\b|\bservice_read\b/;
+        $declares = 1  if $code =~ /\bsub\s+acts_for\b[^{]*\{\s*(?:return\s+)?[1-9]/;
     }
     close $fh;
+    # a service credential's client and the person's identity are for an operation that declares acts_for
+    push @bad, "$path:$acting: uses person, service_client, own or service_read, and the file declares no acts_for (sub acts_for { 1 })"
+        if defined $acting && !$declares;
     my %seen;
     return grep { !$seen{$_}++ } @bad;
 }

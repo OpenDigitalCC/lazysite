@@ -464,9 +464,9 @@ sub _judge ($res, $fmt) {
 }
 
 # Odoo's error page carries the message of the exception ("Error message:" then
-# a pre): the reason a person acts on, as Odoo worded it, on one line
+# a pre; the website module puts data-oe attributes on both tags): the reason a person acts on, as Odoo worded it, on one line
 sub _odoo_message ($body) {
-    my ($m) = $body =~ m{<strong>Error message:</strong>\s*<pre>(.*?)</pre>}s or return '';
+    my ($m) = $body =~ m{<strong[^>]*>Error message:</strong>\s*<pre[^>]*>(.*?)</pre>}s or return '';
     my %ent = ( amp => '&', lt => '<', gt => '>', quot => '"', '#39' => "'" );
     $m =~ s/&(amp|lt|gt|quot|#39);/$ent{$1}/g;
     $m =~ s/\s+/ /g;

@@ -81,12 +81,17 @@ my ( $d, $fake ) = shop_ready();
 my $packs = "$d/lazysite/odoo-packs";
 make_pack($packs);
 
+# SM1185: OdooTest points ODOO_OOM_PACK_DIRS at a directory with no packs so no test reads the
+# host's installed packs; "bare" means that value is still the one it set.
+my $NO_PACKS = $ENV{ODOO_OOM_PACK_DIRS};
+
 my %STAFF = ( mode => 'authenticated', actor => 'sam', groups => ['staff'] );
 my %CONN  = ( odoo_url => 'https://odoo.example', odoo_db => 'shopdb', odoo_login => 'site-connection',
     odoo_allow_writes => 'true' );
 
 sub env_bare {
-    return !grep { exists $ENV{$_} } qw(ODOO_OPS_NAMESPACES ODOO_OOM_PACK_DIRS XDG_CACHE_HOME);
+    return ( !grep { exists $ENV{$_} } qw(ODOO_OPS_NAMESPACES XDG_CACHE_HOME) )
+        && ( $ENV{ODOO_OOM_PACK_DIRS} // '' ) eq ( $NO_PACKS // '' );
 }
 
 sub name_of { return $fake->record( 'x.product', 1 )->{name} }

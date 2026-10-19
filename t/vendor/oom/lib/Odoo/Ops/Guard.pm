@@ -74,9 +74,46 @@ sub with_scope ($self, $scope, $op, $code) {
     for my $model ( keys %$scope ) {
         $norm{$model}{$_} = 1 for @{ $scope->{$model} };
     }
-    local $self->{scope} = \%norm;
-    local $self->{op}    = $op;
-    return $code->();
+    my ( $was_scope, $was_op ) = ( $self->{scope}, $self->{op} );
+    $self->{scope} = \%norm;
+    $self->{op}    = $op;
+    # the guard of the service credential a run acting for a person holds stands under the same scope
+    $_->{scope} = \%norm, $_->{op} = $op for $self->_twins;
+    my ( @r, $want );
+    $want = wantarray;    # wantarray inside the eval is the eval's own context
+    my $ok  = eval { @r = $want ? $code->() : scalar $code->(); 1 };
+    my $err = $@;
+    ( $self->{scope}, $self->{op} ) = ( $was_scope, $was_op );
+    ( $_->{scope}, $_->{op} ) = ( $was_scope, $was_op ) for $self->_twins;
+    die $err if !$ok;
+    return $want ? @r : $r[0];
+}
+
+=head2 attach_twin($guard)
+
+Makes $guard follow this guard's scope and operation, now and under every
+C<with_scope> from here on: the guard of the service credential of a run that acts
+for a person is held to the scope the operation declared, as the person's is.
+
+=head2 acting(\%who, $client)
+
+C<< $guard->acting( { login, via }, 'person' ) >> makes every audit record of this guard
+say whose run it is: C<login> the person's, C<via> the service login, C<acts_for 1>
+and C<client> (C<person> or C<service>) the connection that made the call. Undef ends it.
+
+=cut
+
+sub attach_twin ($self, $twin) {
+    push @{ $self->{twins} }, $twin;
+    ( $twin->{scope}, $twin->{op} ) = ( $self->{scope}, $self->{op} );
+    return;
+}
+
+sub _twins ($self) { return @{ $self->{twins} // [] } }
+
+sub acting ($self, $who = undef, $client = undef) {
+    ( $self->{acting}, $self->{acting_client} ) = ( $who, $client );
+    return;
 }
 
 # the transport this guard wraps (a client may need to ask it about
@@ -219,12 +256,48 @@ sub audit_web ($self, $label, $outcome, $ms, %extra) {
     return;
 }
 
+=head2 route($path, $code)
+
+Runs C<$code>, the call of the web route C<$path>, when the operation in
+force declared that path (C<routes> of L<Odoo::Ops::Operation>; the scope holds
+them under C<web.route>). Any other path is refused C<scope> before a byte
+leaves, and the refusal is audited as every other. The call is audited as
+C<route PATH> with its outcome, never its parameters or its answer.
+
+=cut
+
+sub route ($self, $path, $code) {
+    if ( !$self->allows( 'web.route', $path ) ) {
+        $self->_audit( 'web', undef, "route $path", 'refused', undef, 0 );
+        Odoo::Error->throw(
+            kind    => 'refused',
+            code    => 'scope',
+            message => "route $path is outside the scope of " . ( $self->{op} // 'any operation' ),
+            fix     => "declare the path in the operation's routes => [ '$path' ]",
+        );
+    }
+    $self->{audit}->ready if $self->{audit} && !$self->{no_check};
+    my $t0 = Time::HiRes::time();
+    my @r  = eval { $code->() };
+    my $err = $@;
+    my $ms  = int( ( Time::HiRes::time() - $t0 ) * 1000 );
+    if ($err) {
+        my $cat = blessed($err) && $err->isa('Odoo::Error') && $err->kind eq 'fault' ? $err->fault_category : undef;
+        $self->_audit( 'web', undef, "route $path", ( blessed($err) && $err->isa('Odoo::Error') && $err->kind eq 'fault' ? 'fault' : 'transport' ), $cat, $ms );
+        die $err;
+    }
+    $self->_audit( 'web', undef, "route $path", 'answered', undef, $ms );
+    return $r[0];
+}
+
 sub _audit ($self, $service, $model, $method, $outcome, $cat, $ms, $asked = undef, $second_factor = undef) {
     return if !$self->{audit};
     my $is_read = defined $model && defined $method && $method =~ /^(?:read|search_read)\z/ && $service eq 'object';
+    my $acting = $self->{acting};
     my %rec = (
         actor   => $self->{actor},
-        login   => $self->{login},
+        login   => ( $acting && defined $acting->{login} ? $acting->{login} : $self->{login} ),
+        ( $acting ? ( via => $acting->{via}, acts_for => 1, client => $self->{acting_client} ) : () ),
         ( defined $self->{for_login} ? ( for_login => $self->{for_login} ) : () ),
         service => $service,
         model   => $model,

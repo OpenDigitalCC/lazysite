@@ -38,6 +38,15 @@ The steps, the states each works from and the context come from
 F<profiles/sale/E<lt>seriesE<gt>.yaml>, so a series without a profile
 is refused by name (C<series>).
 
+After the action, in the same run, the result's change reports what the confirm reserved
+(C<< returned.reservation >>), read through the operation's own client and only where the server has
+the moves of a sale (C<sale_stock>): per order line C<product_id>, C<demand> (the product's unit of measure), C<reserved>
+(what its moves have reserved), C<state> (of its moves; C<mixed> when they differ) and C<lines> (C<lot>, C<location>,
+C<quantity> of its move lines), and per order C<fully_reserved> (C<1> or C<0>) and C<moves>. An order with no move
+reads C<fully_reserved> 0 and C<moves> 0. A confirm that left a line short is still a confirm: the report says it, and
+what to do with a short order is the caller's. If the read fails it is said (C<returned.reservation_not_read>) and the
+confirm stands.
+
 Series: 16, 18 and 19 have a profile; another series is refused by name
 until it is probed.
 
@@ -46,6 +55,7 @@ until it is probed.
 my $SPEC = {
     pack => 'sale', model => 'order', param => 'order', verb => 'confirm',
     uses => [qw(confirm cancel draft)],
+    reservation => 1,
     undo => { confirm => [qw(cancel draft)] },
 };
 

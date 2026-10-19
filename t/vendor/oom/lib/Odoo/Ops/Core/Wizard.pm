@@ -116,8 +116,8 @@ sub scope_for ( $self, $phase ) {
 sub plan ($self) {
     my $me     = $self->op_name;
     my ( $model, $for, $method ) = map { $self->param($_) } qw(model for method);
-    Odoo::Error->throw( kind => 'usage', message => "$me: model and for must be physical model names (with a dot), got '$model' and '$for'" )
-        if $model !~ /\./ || $for !~ /\./;
+    Odoo::Error->throw( kind => 'usage', message => "$me: model and for must be model names such as res.partner or website, got '$model' and '$for'" )
+        if !$self->is_model_name($model) || !$self->is_model_name($for);
     Odoo::Error->throw( kind => 'usage', message => "$me: method must be a method name, got '$method'" ) if $method !~ /\A\w+\z/;
     my $values = $self->param('values') // {};
     my $extra  = $self->param('context') // {};

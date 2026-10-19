@@ -11,6 +11,7 @@ use Odoo::Cache::Data;
 use Odoo::Error;
 use Odoo::Ops::Modules;
 use Odoo::Ops::Core::OneRecord;
+use Odoo::Ops::Core::ReadContext;
 
 use parent 'Odoo::Ops::Operation';
 
@@ -35,6 +36,8 @@ C<fields> is a comma-separated list; the default is C<id,display_name> and the
 model's C<state> when it has one. An archived record is read too. An id no
 record has is C<refused/missing>, naming the model and the id.
 
+C<context> is the same JSON object of Odoo context keys as core.read takes (L<Odoo::Ops::Core::ReadContext>).
+
 Nothing is written. C<core.read> reads many records by domain.
 
 =cut
@@ -47,7 +50,8 @@ sub params ($class) {
         id     => { type => 'int', required => 1, help => 'the record id' },
         fields => { type => 'str', help => 'comma-separated fields (default id,display_name and state when the model has one)' },
         max_age => { type => 'int', help => 'seconds the answer may be old: with data_cache = 1 in the config it may come from the data cache while Odoo\'s signal for the model holds; 0 or absent: live' },
-        pricelist => { type => 'int', help => 'the pricelist (id) Odoo prices the read with; part of the data cache key' },
+        pricelist => { type => 'int', help => 'the pricelist (id) Odoo prices the read with; part of the data cache key; the same as context.pricelist' },
+        context => { type => 'json', help => 'Odoo context keys for the read (warehouse, location, lot_id, pricelist, partner_id, quantity, lang, tz, active_test, to_date, from_date), e.g. {"warehouse": 2}; part of the data cache key' },
     };
 }
 sub read_scope ($class) { {} }    # built per run: the model's search_read
@@ -75,8 +79,8 @@ sub scope_for ($self, $phase) {
 
 sub report ($self) {
     my ( $model, $id ) = ( $self->param('model'), $self->param('id') );
-    Odoo::Error->throw( kind => 'usage', message => "core.get: model must be a physical model name (with a dot), got '$model'",
-        fix => 'oom-ops describe core.get lists the parameters' ) if $model !~ /\./;
+    Odoo::Error->throw( kind => 'usage', message => "core.get: model must be a model name such as res.partner or website, got '$model'",
+        fix => 'oom-ops describe core.get lists the parameters' ) if !$self->is_model_name($model);
     Odoo::Error->throw( kind => 'usage', message => 'core.get: id must be a whole number above 0',
         fix => 'oom-ops describe core.get lists the parameters' ) if $id < 1;
     my $m = $self->client->model($model);
@@ -93,13 +97,12 @@ sub report ($self) {
     my $ma = $self->param('max_age');
     Odoo::Error->throw( kind => 'usage', message => 'core.get: max_age must be 0 or more seconds', fix => 'oom-ops describe core.get lists the parameters' )
         if defined $ma && $ma < 0;
-    my $pl = $self->param('pricelist');
+    my ( $send, $pl, $keyed ) = Odoo::Ops::Core::ReadContext->resolve( 'core.get', context => $self->param('context'), pricelist => $self->param('pricelist'), archived => 1 );
     my $got = $self->ctx->data_cache->read(
-        model => $model, domain => [ [ 'id', '=', $id ] ], fields => \@want, limit => 1, archived => 1, pricelist => $pl, max_age => $ma,
+        model => $model, domain => [ [ 'id', '=', $id ] ], fields => \@want, limit => 1, archived => 1, pricelist => $pl, context => $keyed, max_age => $ma,
         ( $pl ? ( also => [ Odoo::Cache::Data->pricelist_models ] ) : () ),
         fetch => sub {
-            $m->search_read( [ [ 'id', '=', $id ] ], [@want], limit => 1,
-                context => { active_test => JSON::PP::false, ( $pl ? ( pricelist => $pl ) : () ) } );
+            $m->search_read( [ [ 'id', '=', $id ] ], [@want], limit => 1, context => $send );
         } );
     my $rows = $got->{rows};
     $self->{cache_note} = { Odoo::Cache::Data->says($got) };

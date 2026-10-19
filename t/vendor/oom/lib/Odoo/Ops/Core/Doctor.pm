@@ -80,10 +80,19 @@ Checks, in order, and what a failure in each one skips:
                    (C<warn> when the mode lets others in); C<cache = 0> says so.
                    The login and version checks ask Odoo for real, whatever is
                    remembered.
+    config.fields_cache
+                   C<info>: whether this login's field definitions are kept and through which
+                   login the state of C<ir.model.fields> is read (C<the daemon's own connection
+                   login>, a C<cache_stamp_conf> config's name, or the login itself); C<warn>
+                   when the named login cannot read it either. Never a credential.
     config.data_cache
                    C<info>: whether the data cache is on, and when it is, its directory, how
                    many files it holds, how many bytes, and the cap per login; C<warn> when
                    its directory lets others in. Never contents.
+    act_as         C<info>: the service credential an operation that acts for a person writes with
+                   (L<Odoo::Ops::Acting>): the label of oomd's C<act_as> or the config named by
+                   C<act_as_conf>, and the login it signs in as; C<fail> when it does not sign in
+                   (Odoo's words). Nothing is reported when the config names none. Never a credential.
     pack.*         one line for each pack the config's C<pack_dirs> hold (L<Odoo::Ops::Pack>):
                    C<ok> with its version, C<oom_min> and series; a pack that was refused
                    is C<warn> with the reason, C<fail> when the config's C<pack> names it.
@@ -309,6 +318,8 @@ sub report ($self) {
         push @c, $self->_write_checks($config) if $config->allow_writes;
     }
 
+    push @c, $self->_fields_cache_check( $config, $uid );
+    push @c, $self->_act_as_check;
     push @c, $self->_runs_check($config);
     return _finish( \@c, $series, $uid, $config );
 }
@@ -327,6 +338,34 @@ sub _cache_check ($self, $config) {
     my @loose = grep { $_->{mode} ne '0600' } @{ $d->{files} };
     return _check( 'config.cache', 'warn', "$shown holds files that are not 0600: " . join( ', ', map { $_->{name} } @loose ) . '; they are not read' ) if @loose;
     return _check( 'config.cache', 'info', "$shown, mode $d->{mode}; holds $held" );
+}
+
+# Whether this login's field definitions are kept, and through which login the state of ir.model.fields is read
+# (a config name or the daemon, never a credential).
+sub _fields_cache_check ($self, $config, $uid) {
+    return _check( 'config.fields_cache', 'info', 'cache = 0: field definitions are read from Odoo every time' ) if !$config->cache_enabled;
+    return _check( 'config.fields_cache', 'skipped', 'the login did not authenticate' ) if !defined $uid;
+    my $ctx = $self->ctx;
+    if ( my $via = $ctx->stamp_via ) {
+        my $what = $via eq 'daemon' ? "the daemon's own connection login" : "the login of config " . ( $via =~ s{\Aconf:}{}r ) . ' (cache_stamp_conf)';
+        return _check( 'config.fields_cache', 'info', "field definitions are kept for this login; the state of ir.model.fields is read through $what" )
+            if defined $ctx->stamp_state;
+        return _check( 'config.fields_cache', 'warn', "field definitions are not kept for this login: $what may not read ir.model.fields either; name a login that may" );
+    }
+    return _check( 'config.fields_cache', 'info', 'field definitions are kept for this login; it reads ir.model.fields itself' )
+        if defined eval { $self->client->fields_stamp };
+    return _check( 'config.fields_cache', 'info', 'field definitions are not kept for this login: it may not read ir.model.fields and no login is named to read it; set cache_stamp_conf to an ops config whose login may (oomd uses its own connection credential)' );
+}
+
+# The service credential of an operation that acts for a person: its name, whether it signs in and the login.
+sub _act_as_check ($self) {
+    require Odoo::Ops::Acting;
+    my $d = Odoo::Ops::Acting->describe( $self->ctx );
+    return () if !$d->{configured};
+    my $what = ( $d->{kind} // '' ) eq 'act_as' ? "label '$d->{name}' (act_as)" : "config $d->{name} (act_as_conf)";
+    return _check( 'act_as', 'fail', "$what: " . _scrub( $d->{error} // 'cannot be read' ) ) if !defined $d->{signs_in};
+    return _check( 'act_as', 'fail', "$what does not sign in: " . _scrub( $d->{error} // '' ) ) if !$d->{signs_in};
+    return _check( 'act_as', 'info', "$what signs in as $d->{login}" );
 }
 
 # The data cache (docs/OPS.md, Data cache): on or off, and when on where it is and how much it holds.

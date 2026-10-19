@@ -12,6 +12,7 @@ use Scalar::Util qw(blessed);
 
 use Odoo::Error;
 use Odoo::Ops;
+use Odoo::Ops::Acting;
 use Odoo::Ops::Invariant;
 use Odoo::Ops::Guard ();
 use Odoo::Ops::Journal;
@@ -20,6 +21,7 @@ use Odoo::Ops::Plan;
 use Odoo::Ops::PlanPrint;
 use Odoo::Ops::Registry;
 use Odoo::Ops::Result;
+use Odoo::Ops::Route;
 use Odoo::Ops::Runs;
 use Odoo::Portable;
 
@@ -134,6 +136,10 @@ sub apply ($class, $ctx, $plan, %opts) {
         fix     => 'apply with the config of the instance the plan was made for, or plan again with this one: oom-ops run ' . $plan->op . ' ...',
     ) if Odoo::Ops::json()->encode( $plan->instance ) ne Odoo::Ops::json()->encode( $ctx->instance );
 
+    # a plan made for a person is applied with the service credential, by that person only (Odoo::Ops::Acting)
+    return Odoo::Ops::Acting->as_service( $ctx, $plan->acts_for, sub ($svc) { $class->apply( $svc, $plan, %opts, acting => 1 ) }, op => $plan->op )
+        if $plan->acts_for && !$opts{acting};
+
     my $dir = $opts{dir}
         or Odoo::Error->throw( kind => 'usage', message => 'apply needs a dir for its journal' );
     # a run the caller closed is not applied, whatever else is true of it
@@ -197,6 +203,7 @@ sub apply ($class, $ctx, $plan, %opts) {
             instance         => $plan->instance,
             actor            => $ctx->actor,
             started          => Odoo::Ops::iso_time($started),
+            ( $plan->acts_for ? ( acts_for => $plan->acts_for ) : () ),
         );
 
         # what must hold around the apply: read now, and again after the last change
@@ -220,7 +227,7 @@ sub apply ($class, $ctx, $plan, %opts) {
             }
             $entry->{outcome} = $outcome;
             # the audit trail names every button pressed, and what Odoo answered
-            $class->_audit_action( $ctx, $c, $entry ) if $c->{action} eq 'custom' && ( $c->{handler} // '' ) =~ /\A(?:core\.(?:action|wizard)|discuss\.\w+)\z/;
+            $class->_audit_action( $ctx, $c, $entry ) if $c->{action} eq 'route' || $c->{action} eq 'custom' && ( $c->{handler} // '' ) =~ /\A(?:core\.(?:action|wizard)|discuss\.\w+)\z/;
             $journal->change(%$entry);
             $counts{$outcome}++;
             $by_bucket{ $c->{bucket} }{$outcome}++;
@@ -233,7 +240,7 @@ sub apply ($class, $ctx, $plan, %opts) {
         my $fail = sub ( $c, $entry, $err ) {
             my $is_err = blessed($err) && $err->isa('Odoo::Error');
             $entry->{error} = $is_err
-                ? { kind => $err->kind, category => $err->fault_category, message => $err->message }
+                ? { kind => $err->kind, category => $err->fault_category, message => $err->message, ( defined $err->code && $err->code ne $err->kind ? ( code => $err->code ) : () ) }
                 : { kind => 'perl', message => "$err" };
             # the screen says why too, not only the journal
             push @failed, { seq => $c->{seq}, key => $c->{key}, action => $c->{action}, model => $c->{model},
@@ -357,9 +364,10 @@ sub _audit_action ($class, $ctx, $c, $entry) {
     my $r = ref $entry->{returned} eq 'HASH' ? $entry->{returned} : {};
     my $v = ref $c->{vals} eq 'HASH' ? $c->{vals} : {};
     my @ids = ref $v->{ids} eq 'ARRAY' && @{ $v->{ids} } ? @{ $v->{ids} } : ( defined $c->{id} ? ( $c->{id} ) : () );
+    @ids = @{ ( $c->{precondition} // $c->{verify} )->{ids} } if $c->{action} eq 'route' && ( $c->{precondition} || $c->{verify} );
     eval {
         $ctx->trail->event( action =>
-            op => $c->{handler}, outcome => 'applied', model => $c->{model}, ids => \@ids,
+            op => $c->{handler} // $ctx->guard->op, outcome => 'applied', model => $c->{model}, ids => \@ids,
             method => $r->{method} // $v->{method},
             ( ( $v->{on} // "" ) eq "model" ? ( args_count => scalar @{ $v->{args} // [] } ) : () ),
             ( exists $r->{state_before} ? ( state_before => $r->{state_before} ) : () ),
@@ -405,7 +413,7 @@ sub _scope_reads ($plan, $model) {
 sub _entry ($c) {
 
     return map { $_ => $c->{$_} } grep { exists $c->{$_} }
-        qw(seq bucket action kind model id method handler before vals key ref support context reason);
+        qw(seq bucket action kind model id method handler before vals key ref support context reason path params precondition fault_note);
 }
 
 # a plain create: no reference to an earlier change's id, nothing narrowing the read-back
@@ -550,8 +558,56 @@ sub _resolve_refs ($v, $refs) {
     return $v;
 }
 
+# A web route as a change: the guard holds the path to the operation's declared routes; the precondition,
+# a read, must hold at apply or the change is refused stale and nothing is sent; the verify is read back.
+sub _do_route ($class, $client, $c, $entry, $ctx) {
+    my $read = sub ($r) {
+        my $rows = $client->model( $r->{model} )->read( $r->{ids}, [ sort keys %{ $r->{fields} } ] );
+        return { map { $_->{id} => $_ } @$rows };
+    };
+    my $holds = sub ( $got, $want ) { return !defined $want ? !defined $got : _same( $got, $want ) };
+    if ( my $p = $c->{precondition} ) {
+        my $now = $read->($p);
+        my @off;
+        for my $id ( @{ $p->{ids} } ) {
+            my $row = $now->{$id};
+            if ( !$row ) { push @off, "$p->{model} $id is gone"; next }
+            for my $f ( sort keys %{ $p->{fields} } ) {
+                my ( $want, $got ) = ( $p->{fields}{$f}, $row->{$f} );
+                next if $holds->( $got, $want );
+                push @off, "$p->{model} $id: $f was planned as " . ( $want // 'empty' ) . ' and reads ' . ( ref $got eq 'ARRAY' ? $got->[0] : ( $got // 'empty' ) );
+            }
+        }
+        Odoo::Error->throw( kind => 'refused', code => 'stale',
+            message => "the web route $c->{path} was planned for records that have changed since: " . join( '; ', @off ) . '; nothing was sent',
+            fix => 'plan again' ) if @off;
+    }
+    my $send = sub {
+        my $r = eval { Odoo::Ops::Route->send( $client, $c->{path}, $c->{params} // {} ) };
+        my $err = $@;
+        return $r if !$err;
+        # the change's own words about a fault of the route follow Odoo's (a route that answers 404 for a reason it knows)
+        if ( length( $c->{fault_note} // '' ) && blessed($err) && $err->isa('Odoo::Error') && $err->kind eq 'fault' ) {
+            die Odoo::Error->new( kind => 'fault', message => $err->message . "\n$c->{fault_note}", fault_class => $err->fault_class, code => $err->code );
+        }
+        die $err;
+    };
+    my $ret  = $ctx ? $ctx->guard->route( $c->{path}, $send ) : $send->();
+    $entry->{returned} = { method => 'route', path => $c->{path}, ( !ref $ret && defined $ret ? ( value => $ret ) : () ), says => "web route $c->{path} answered" };
+    my $v = $c->{verify} or return undef;
+    my $now = $read->($v);
+    my $ok  = 1;
+    for my $id ( @{ $v->{ids} } ) {
+        my $row = $now->{$id} or do { $ok = 0; next };
+        $holds->( $row->{$_}, $v->{fields}{$_} ) or $ok = 0 for keys %{ $v->{fields} };
+    }
+    $entry->{returned}{says} .= $ok ? '; read back as planned' : '; the read-back differs from the plan';
+    return $entry->{after} = $ok ? { ids => [ @{ $v->{ids} } ], %{ $v->{fields} } } : undef;
+}
+
 # Returns the after-image when the change was read back.
 sub _do_change ($class, $client, $c, $entry, $ctx = undef) {
+    return $class->_do_route( $client, $c, $entry, $ctx ) if $c->{action} eq 'route';
     my $model = $client->model( $c->{model} );
     my $action = $c->{action};
     my @ctx    = $c->{context} ? ( context => $c->{context} ) : ();
@@ -593,7 +649,7 @@ sub _do_change ($class, $client, $c, $entry, $ctx = undef) {
     }
     if ( $action eq 'custom' ) {
         # The operation that planned it knows how to carry it out.
-        my $class = Odoo::Ops::Registry->new->class_for( $c->{handler} );
+        my $class = Odoo::Ops::Registry->new->class_for_handler( $c->{handler} );
         # OOM_STRICT_CALLS=1 (the offline suite sets it): the apply may make only the calls the change declared
         local $Odoo::Ops::Guard::DECLARED = $ENV{OOM_STRICT_CALLS} && ref $c->{calls} eq 'ARRAY' ? { map { ( "$_->[0].$_->[1]" => 1 ) } @{ $c->{calls} } } : undef;
         my $out = $class->apply_custom( $client, $c );
@@ -812,9 +868,12 @@ first.
 
 =cut
 
-sub revert_plan ($class, $ctx, $journal_path) {
+sub revert_plan ($class, $ctx, $journal_path, %o) {
     Odoo::Ops::Runs->refuse_closed( _dir_of($journal_path) );
     my ( $header, $changes ) = Odoo::Ops::Journal->read($journal_path);
+    # a run made for a person is undone by that person, planned through the service credential
+    return Odoo::Ops::Acting->as_service( $ctx, $header->{acts_for}, sub ($svc) { $class->revert_plan( $svc, $journal_path, acting => 1 ) }, op => 'revert' )
+        if $header->{acts_for} && !$o{acting};
     my $other = $class->_journal_owner( $ctx, $header, 'revert' );
 
     my @done = reverse grep { $_->{outcome} eq 'done' } @$changes;
@@ -838,6 +897,7 @@ sub revert_plan ($class, $ctx, $journal_path) {
         input_count => scalar @done,
         created     => Odoo::Ops::iso_time( $ctx->now ),
         actor       => $ctx->actor,
+        ( $header->{acts_for} ? ( acts_for => $header->{acts_for} ) : () ),
     );
     my %scope;
 
@@ -945,6 +1005,7 @@ sub revert_plan ($class, $ctx, $journal_path) {
                 bucket => 'irreversible', action => 'hold', model => $c->{model},
                 of_seq => $c->{seq}, undoes => $c->{seq},
                 reason => $c->{action} eq 'unlink' ? 'a deleted record cannot be recreated faithfully'
+                    : $c->{action} eq 'route'  ? "the web route $c->{path} has no inverse" . ( length( $c->{reason} // '' ) ? ": $c->{reason}" : '' )
                     :                                "method $c->{method} has no inverse",
             );
         }
@@ -1196,7 +1257,7 @@ sub _inbound_words ($r) {
 # What the handler of a done custom entry says about undoing it:
 # (change) or (undef, reason, class).
 sub _undo_custom ($class, $entry) {
-    my $h = eval { Odoo::Ops::Registry->new->class_for( $entry->{handler} ) };
+    my $h = eval { Odoo::Ops::Registry->new->class_for_handler( $entry->{handler} ) };
     return ( undef, "$entry->{handler} is not a known operation here; its change has no known inverse", undef ) if !$h;
     return ( undef, "$entry->{handler} has no inverse: the operation defines no undo_custom, so oom-ops revert holds its change as irreversible (e.g. a sent email)", $h ) if !$h->can('undo_custom');
     my ( $undo, $why ) = $h->undo_custom($entry);
@@ -1220,9 +1281,11 @@ resumes.
 
 =cut
 
-sub resume_plan ($class, $ctx, $journal_path) {
+sub resume_plan ($class, $ctx, $journal_path, %o) {
     Odoo::Ops::Runs->refuse_closed( _dir_of($journal_path) );
     my ( $header, $entries ) = Odoo::Ops::Journal->read($journal_path);
+    return Odoo::Ops::Acting->as_service( $ctx, $header->{acts_for}, sub ($svc) { $class->resume_plan( $svc, $journal_path, acting => 1 ) }, op => $header->{op} )
+        if $header->{acts_for} && !$o{acting};
     # an administrator may finish another login's revert (undoing is theirs to do); another login's apply stays that login's
     my $other = $class->_journal_owner( $ctx, $header, 'resume', never => ( ( $header->{op} // '' ) ne 'revert' ) );
     my ( $vol, $dirs ) = File::Spec->splitpath($journal_path);
@@ -1260,6 +1323,7 @@ sub resume_plan ($class, $ctx, $journal_path) {
         input_count => $n,
         created     => Odoo::Ops::iso_time( $ctx->now ),
         actor       => $ctx->actor,
+        ( $header->{acts_for} ? ( acts_for => $header->{acts_for} ) : () ),
     );
 
     # the before-images, read again now; the reads are declared in the scope

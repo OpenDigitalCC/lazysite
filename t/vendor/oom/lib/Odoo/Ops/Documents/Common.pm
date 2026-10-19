@@ -9,6 +9,7 @@ use JSON::PP ();
 
 use Odoo::Error;
 use Odoo::Ops;
+use Odoo::Ops::Modules;
 
 =head1 NAME
 
@@ -81,7 +82,9 @@ read and search on the model, and the actions in C<uses>.
 
 =cut
 
-sub read_scope  ($spec) { return { $spec->{model} => [qw(read search_read)] } }
+sub read_scope  ($spec) {
+    return { $spec->{model} => [qw(read search_read)], ( $spec->{reservation} ? ( 'stock.move' => ['search_read'], 'stock.move.line' => ['search_read'] ) : () ) };
+}
 sub write_scope ($spec) { return { $spec->{model} => [ 'read', map { "&$_" } @{ $spec->{uses} } ] } }
 
 =head2 plan_state($op, $spec)
@@ -166,17 +169,36 @@ sub plan_state ($op, $spec) {
 
     my @final = @{ $p->states( $steps[-1]{verb} )->{to} };
     my $undo  = _undo( $p, $spec, $state, [ map { $_->{verb} } @steps ] );
+    # what the confirm reserved is read after it, when the server has the moves of a sale (sale_stock)
+    my ( $resv, $why_not ) = $spec->{reservation} && $verb eq 'confirm' && !$want_draft ? _reservation_spec($op) : ();
+    $plan->note("what the confirm reserved is not read: $why_not") if defined $why_not;
     $plan->add(
         bucket => 'transition', action => 'custom', handler => $op->op_name, kind => 'state', %at,
         before => { $sf => $state },
-        calls  => [ ( map { [ $model, $_->{method} ] } @steps ), [ $model, 'read' ] ],
-        vals   => { steps => \@steps, state_field => $sf, to => \@final, name_field => $f->('name'), undo => $undo },
+        calls  => [ ( map { [ $model, $_->{method} ] } @steps ), [ $model, 'read' ], ( $resv ? ( [ $resv->{move_model}, 'search_read' ], [ $resv->{line_model}, 'search_read' ] ) : () ) ],
+        vals   => { steps => \@steps, state_field => $sf, to => \@final, name_field => $f->('name'), undo => $undo, ( $resv ? ( reservation => $resv ) : () ) },
         transition => { from => $state, to => $final[0], model => $model, id => $id, name => $name },
         line   => "$label: $state -> $final[0]",
         reason => "$label goes from $state to $final[0] through " . join( ' then ', map { $_->{method} } @steps ),
     );
     $plan->note('the number Odoo assigns is read back after apply') if $spec->{numbered};
     return $plan;
+}
+
+# the models and fields a confirm's reservation is read with, from the sale_stock profile; nothing where the server has no
+# moves of a sale (the module is not installed), and why not where its profile does not match the server
+sub _reservation_spec ($op) {
+    my $installed = Odoo::Ops::Modules->installed( $op->ctx );
+    return () if !$installed || !$installed->{sale_stock};
+    my $p = eval { $op->ctx->profile('sale_stock') };
+    return ( undef, 'the sale_stock profile cannot be loaded for this series' ) if !$p;
+    my $v = $p->validate( $op->client );
+    return ( undef, 'the sale_stock profile does not match this server: ' . join( '; ', @{ $v->{missing} } ) ) if !$v->{ok};
+    return ( {
+        move_model => $p->model_name('move'), line_model => $p->model_name('move_line'),
+        move => { map { $_ => $p->field( move => $_ ) } qw(sale_line product demand state) },
+        line => { map { $_ => $p->field( move_line => $_ ) } qw(move lot location reserved) },
+    } );
 }
 
 sub _step ($p, $verb, $rule) {
@@ -231,7 +253,71 @@ sub apply_state ($class, $client, $c) {
     my $state = $row->{ $v->{state_field} };
     my %ret   = ( state => $state, ran => \@ran, ( $v->{name_field} ? ( name => _text( $row->{ $v->{name_field} } ) ) : () ) );
     my $ok    = grep { $_ eq $state } @{ $v->{to} };
+    # what the confirm reserved: read through this client, in this run, only when the order is now confirmed; a failed read
+    # does not undo the confirm, it is said
+    if ( $ok && ref $v->{reservation} eq 'HASH' ) {
+        my $r = eval { reservation( $client, $v->{reservation}, $c->{id} ) };
+        if ( ref $r eq 'HASH' ) { $ret{reservation} = $r }
+        else {
+            my $e = $@;
+            $ret{reservation_not_read} = ( ref $e && $e->can('message') ? $e->message : "$e" ) =~ s/\s+\z//r;
+        }
+    }
     return { id => $c->{id}, returned => \%ret, after => $ok ? { $v->{state_field} => $state } : undef };
+}
+
+=head2 reservation($client, \%spec, $order_id)
+
+What a confirm reserved, read from Odoo through C<$client>: the moves of the order's lines (C<stock.move> with C<sale_line_id>
+in the order, those not cancelled counted) and their move lines. Answers
+
+    { fully_reserved => 1|0, moves => N,
+      order_lines => [ { order_line, product_id, demand, reserved, state, moves => [ { id, state, demand, reserved } ],
+                         lines => [ { lot, lot_name, location, location_name, quantity } ] } ] }
+
+C<demand> and C<reserved> are in the product's unit of measure: the sum of the moves' C<product_qty> and of their
+move lines' reserved quantity. C<state> is the state the line's moves share, or C<mixed>. C<fully_reserved> is C<1> when the
+order has at least one move and every line's C<reserved> reaches its C<demand>, else C<0>; with no move at all it is C<0> and
+C<moves> is C<0>, so a caller can tell an order that has nothing to deliver from one that is short. Read only: it decides nothing.
+
+=cut
+
+sub reservation ($client, $s, $order_id) {
+    my ( $m, $l ) = ( $s->{move}, $s->{line} );
+    my $moves = $client->model( $s->{move_model} )->search_read( [ [ "$m->{sale_line}.order_id", '=', $order_id ] ],
+        [ 'id', $m->{sale_line}, $m->{product}, $m->{demand}, $m->{state} ], order => 'id', context => { active_test => JSON::PP::false } );
+    my $mls = @$moves ? $client->model( $s->{line_model} )->search_read( [ [ $l->{move}, 'in', [ map { $_->{id} } @$moves ] ] ],
+        [ 'id', $l->{move}, $l->{lot}, $l->{location}, $l->{reserved} ], order => 'id' ) : [];
+    my $one = sub ($v) { ref $v eq 'ARRAY' ? $v->[0] : ( defined $v && $v ne '' && $v ne '0' ? $v : undef ) };
+    my $nm  = sub ($v) { ref $v eq 'ARRAY' ? $v->[1] : undef };
+    my ( %by_move, @order_lines, %line );
+    push @{ $by_move{ $one->( $_->{ $l->{move} } ) } }, $_ for @$mls;
+    for my $mv (@$moves) {
+        my $lid = $one->( $mv->{ $m->{sale_line} } );
+        my $ml  = $by_move{ $mv->{id} } // [];
+        my $got = 0;
+        $got += $_->{ $l->{reserved} } || 0 for @$ml;
+        my $row = $line{$lid} //= do { my $r = { order_line => $lid, product_id => $one->( $mv->{ $m->{product} } ), demand => 0, reserved => 0, moves => [], lines => [], _states => {} }; push @order_lines, $r; $r };
+        push @{ $row->{moves} }, { id => $mv->{id}, state => $mv->{ $m->{state} }, demand => 0 + ( $mv->{ $m->{demand} } || 0 ), reserved => 0 + $got };
+        next if ( $mv->{ $m->{state} } // '' ) eq 'cancel';
+        $row->{demand}   += $mv->{ $m->{demand} } || 0;
+        $row->{reserved} += $got;
+        $row->{_states}{ $mv->{ $m->{state} } // '' } = 1;
+        push @{ $row->{lines} }, map { { lot => $one->( $_->{ $l->{lot} } ), lot_name => $nm->( $_->{ $l->{lot} } ), location => $one->( $_->{ $l->{location} } ),
+            location_name => $nm->( $_->{ $l->{location} } ), quantity => 0 + ( $_->{ $l->{reserved} } || 0 ) } } @$ml;
+    }
+    for my $r (@order_lines) {
+        my @st = sort keys %{ delete $r->{_states} };
+        $r->{state} = @st == 1 ? $st[0] : @st ? 'mixed' : 'cancel';
+        $r->{demand} += 0;
+        $r->{reserved} += 0;
+    }
+    my @live = grep { $_->{state} ne 'cancel' } @order_lines;
+    my $short = grep { $_->{reserved} + 1e-7 < $_->{demand} } @live;
+    my $full  = @live && !$short ? 1 : 0;
+    my $n_moves = 0;
+    for my $r (@order_lines) { $n_moves += grep { ( $_->{state} // '' ) ne 'cancel' } @{ $r->{moves} } }
+    return { fully_reserved => $full, moves => $n_moves, order_lines => \@order_lines };
 }
 
 =head2 undo_state($class, $entry)

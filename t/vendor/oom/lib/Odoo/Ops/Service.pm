@@ -6,6 +6,7 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use Cwd ();
+use Digest::SHA ();
 use File::Basename qw(basename dirname);
 use File::Spec;
 use JSON::PP ();
@@ -27,6 +28,7 @@ use Odoo::Ops::Registry;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 use Odoo::Ops::Trail;
+use Odoo::Transport;
 
 =head1 NAME
 
@@ -92,8 +94,11 @@ sub new ($class, %a) {
         mode        => $a{mode} // 'local',
         credentials => $a{credentials} // {},
         name        => $a{name},
+        act_as      => $a{act_as},
         transports  => {},
         stamp_memory => {},
+        http_store  => {},
+        sessions    => {},
         pack_sig    => {},
         served      => 0,
     }, $class;
@@ -228,6 +233,16 @@ sub from_wire ($class, $res) { return Odoo::Ops::Wire->from_wire($res) }
 my %PHASE = map { $_ => 1 } qw(run check apply revert resume approve);
 
 sub execute ($self, $req) {
+    local $self->{live_session};
+    my $res;
+    my $ok = eval { $res = $self->_execute($req); 1 };
+    my $err = $@;
+    $self->_settle_session( $ok ? undef : $err );
+    die $err if !$ok;
+    return $res;
+}
+
+sub _execute ($self, $req) {
     Odoo::Error->throw( kind => 'usage', message => 'the request is not a hash' ) if ref $req ne 'HASH';
     Odoo::Error->throw( kind => 'usage', message => "request version $req->{v} is not understood; this daemon speaks v1", fix => 'send "v":1' )
         if defined $req->{v} && $req->{v} ne '1';
@@ -285,7 +300,21 @@ sub _test_args ($self, %o) {
     return $pkg->context_args(%o);
 }
 
-sub context ($self, $req = {}) {
+# The context a request runs in. With act_as (a daemon's label), an operation that acts for a person
+# finds its service credential there, built when it first needs it (Odoo::Ops::Acting).
+sub context ($self, $req = {}, %extra) {
+    my $ctx = $self->_context( $req, %extra );
+    if ( defined $self->{act_as} && $self->{mode} ne 'local' ) {
+        my $label = $self->{act_as};
+        my $held  = $self->{credentials}{$label};
+        my $via   = ( $held ? $held->{login} : undef ) // $self->{config}->get('login');
+        $ctx->set_service_builder( sub (%more) { $self->_context( { credential => { label => $label }, actor => $ctx->actor }, %more ) },
+            name => $label, via => $via );
+    }
+    return $ctx;
+}
+
+sub _context ($self, $req = {}, %extra) {
     my $config = $self->{config};
     my $sess = ref $req->{credential} eq 'HASH' && defined $req->{credential}{session};
     my @test   = $self->_test_args( $sess ? ( session => 1 ) : () );
@@ -301,8 +330,13 @@ sub context ($self, $req = {}) {
     if ( defined $c->{session} ) {
         Odoo::Error->throw( kind => 'usage', message => 'a session credential is a session id string' )
             if ref $c->{session} || !length $c->{session};
-        # the session is for this request only: no transport is kept for it
-        return Odoo::Ops::Context->new( config => $config, @actor, @test, credential => { session => $c->{session} }, stamp_memory => $self->{stamp_memory} );
+        # the session is for this request only: no transport is kept for it. What is remembered of it is who it is, for a short
+        # time, under a digest of the id (never the id), in this worker's memory; its connection is the worker's shared one.
+        my $digest = Digest::SHA::sha256_hex( $c->{session} );
+        my $ctx = Odoo::Ops::Context->new( config => $config, @actor, @test, credential => { session => $c->{session} },
+            stamp_memory => $self->{stamp_memory}, $self->_shared_args, $self->_remembered_identity($digest), $self->_stamp_source );
+        $self->{live_session} = { digest => $digest, ctx => $ctx } if $self->{mode} eq 'daemon';
+        return $ctx;
     }
     my $label = $c->{label};
     Odoo::Error->throw( kind => 'usage', message => 'credential names neither a label nor a session',
@@ -327,20 +361,75 @@ sub context ($self, $req = {}) {
         # the connection's own login and password: its web session is opened once and kept, as a key's connection is
         my @session;
         if ( !@test && ( $config->get('credential') // '' ) eq 'password' ) {
-            @session = ( transport => ( $self->{transports}{'conn.session'} //= Odoo::Ops::Context->build_transport( $config, 'session' ) ) );
+            @session = ( transport => ( $self->{transports}{'conn.session'} //= Odoo::Ops::Context->build_transport( $config, 'session', $self->_shared_args ) ) );
             push @session, cache_dir => ( $config->cache_dir // Odoo::Cache->default_dir ) if $config->cache_enabled;
         }
-        return Odoo::Ops::Context->new( config => $config, @actor, @test, @session, stamp_memory => $self->{stamp_memory} );
+        return Odoo::Ops::Context->new( config => $config, @actor, @test, %extra, @session, stamp_memory => $self->{stamp_memory}, $self->_stamp_source( $req ) );
     }
     my @transport;
     if ( !@test ) {
         my $t = $config->get('transport') // 'jsonrpc';
         # one open connection per label for a key: the next request does not open another
-        @transport = ( transport => ( $self->{transports}{$label} //= Odoo::Ops::Context->build_transport($config) ) )
+        @transport = ( transport => ( $self->{transports}{$label} //= Odoo::Ops::Context->build_transport( $config, undef, $self->_shared_args ) ) )
             if $t =~ /\A(?:jsonrpc|xmlrpc|json2)\z/;
     }
     my @cache = @transport && $config->cache_enabled ? ( cache_dir => $config->cache_dir // Odoo::Cache->default_dir ) : ();
-    return Odoo::Ops::Context->new( config => $config, @actor, @test, ( %cred ? ( credential => {%cred} ) : () ), @transport, @cache, stamp_memory => $self->{stamp_memory} );
+    return Odoo::Ops::Context->new( config => $config, @actor, @test, %extra, ( %cred ? ( credential => {%cred} ) : () ), @transport, @cache, stamp_memory => $self->{stamp_memory}, $self->_stamp_source( $req ) );
+}
+
+# ---- what a worker keeps between requests -----------------------------------------------------------
+
+# The one HTTP client (so one kept-alive connection) this worker uses for the Odoo URL and TLS settings of its config,
+# whoever the request runs as. It holds no cookie jar and no credential: each request's own transport sends its own
+# cookies and keys, so nothing one person sends can ride on another's request. Only a daemon shares it.
+sub _shared_args ($self) {
+    return () if $self->{mode} ne 'daemon';
+    my $c = $self->{config};
+    return ( http => Odoo::Transport::shared_http( $self->{http_store},
+        url => $c->get('url'), timeout => $c->get('timeout') // 120, ssl_verify => $c->get('ssl_verify'),
+        ssl_ca_file => $c->get('ssl_ca_file'), max_response_bytes => $c->get('max_response_bytes') ) );
+}
+
+# Who a session is, for cache_ttl_session seconds, by a digest of the session id; hands the transport the identity
+# (without the server's whole answer) so the first query is not preceded by asking Odoo who this is.
+sub _remembered_identity ($self, $digest) {
+    return () if $self->{mode} ne 'daemon';
+    my $ttl = $self->{config}->cache_ttl_session;
+    my $e   = $self->{sessions}{$digest};
+    return () if !$e || $ttl <= 0;
+    if ( time - $e->{at} >= $ttl ) { delete $self->{sessions}{$digest}; return () }
+    return ( session_identity => { %{ $e->{identity} }, company_ids => [ @{ $e->{identity}{company_ids} // [] } ] } );
+}
+
+# After a request: remember what its session transport learned of who the session is, or forget the entry when
+# Odoo no longer knows the session. The call that met the fault is answered as it was, never repeated here.
+sub _settle_session ($self, $err) {
+    my $live = delete $self->{live_session} or return;
+    my $digest = $live->{digest};
+    my $st = eval { $live->{ctx}->session_transport };
+    my $expired = blessed($err) && $err->isa('Odoo::Error') && $err->is_session_expired;
+    if ( $expired || !$st || !$st->has_session ) { delete $self->{sessions}{$digest}; return }
+    my $id  = $st->identity or return;
+    my $ttl = $self->{config}->cache_ttl_session;
+    return if $ttl <= 0;
+    my $s = $self->{sessions};
+    if ( keys %$s > 1000 ) { for my $k ( keys %$s ) { delete $s->{$k} if time - $s->{$k}{at} >= $ttl } }
+    my %kept = map { $_ => $id->{$_} } grep { $_ ne 'raw' } keys %$id;
+    $s->{$digest} = { at => time, identity => \%kept } if !$s->{$digest};
+    return;
+}
+
+# The state of ir.model.fields is a fact about the server: a daemon reads it through its own connection credential
+# (which may read it) for every login, and each login's definitions stay under its own name. A config that names
+# a login of its own (cache_stamp_conf) is left to Odoo::Ops::Context.
+sub _stamp_source ($self, $req = undef) {
+    return () if $self->{mode} ne 'daemon' || $self->{config}->cache_stamp_conf || !$self->{config}->cache_enabled;
+    my $src = sub {
+        my $ctx = $self->{stamp_ctx} //= Odoo::Ops::Trail->aside( sub {
+            $self->context( { credential => { label => 'conn' } }, cache => 0 ) } );
+        return Odoo::Ops::Trail->aside( sub { $ctx->client->fields_stamp } );
+    };
+    return ( stamp_source => sub { my $s = eval { $src->() }; return $s }, stamp_source_name => 'daemon' );
 }
 
 # ---- packs --------------------------------------------------------------------------------------

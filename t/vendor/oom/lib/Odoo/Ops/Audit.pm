@@ -27,6 +27,9 @@ this user may not compute, the first, refused call's record carries
 C<refused_fields>: the names only, never a value. A write an administrator
 makes undoing another login's run also carries C<for_login>, that login
 (the other is C<login>, the one the calls are made as).
+A call made in a run that acts for a person (L<Odoo::Ops::Acting>) carries the person's C<login>,
+C<via> (the service login) and C<acts_for: 1>, and C<client> (C<person> or C<service>: whose connection made
+the call).
 A sign-in that needs the second factor and the code step that follows it are
 recorded as C<web> calls (C<session.authenticate>, C<session.totp>) carrying
 C<second_factor: totp>; the code, the password and the trusted-device value
@@ -48,7 +51,7 @@ kept in memory (C<records>) - which is what the tests use.
 
 =cut
 
-my @FIELDS = qw(ts actor login for_login service model method op outcome fault_category ms fields refused_fields second_factor);
+my @FIELDS = qw(ts actor login for_login service model method op outcome fault_category ms fields refused_fields second_factor via acts_for client);
 my %FIELD  = map { $_ => 1 } @FIELDS;
 
 sub new ($class, %args) {

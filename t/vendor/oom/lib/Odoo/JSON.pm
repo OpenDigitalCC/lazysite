@@ -8,7 +8,7 @@ no warnings 'experimental::builtin';
 use Scalar::Util qw(blessed);
 use JSON::PP ();
 
-our $VERSION = '0.34';
+our $VERSION = '0.36';
 
 =head1 NAME
 

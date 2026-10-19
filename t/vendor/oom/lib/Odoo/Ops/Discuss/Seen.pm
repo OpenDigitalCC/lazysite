@@ -29,8 +29,10 @@ C<fetched_message_id> and the unread counter it computes. Its own client does it
 at the web route C</mail/channel/set_last_seen_message> on 16 and
 C</discuss/channel/mark_as_read> on 18 and 19, because the method behind it
 (C<_channel_seen> on 16, C<_mark_as_read> on 18 and 19) is private and Odoo refuses private methods over
-RPC; so apply runs over a web session as the login (see
-L<Odoo::Ops::Discuss::Common>). Apply reads the member's seen message back.
+RPC. The plan holds one C<route> change (L<Odoo::Ops::Plan>) that calls the route over a
+web session as the login (see L<Odoo::Ops::Route>); the member's seen message is its
+C<precondition> (read again at apply, so a plan made before another client marked the
+channel read is refused C<stale>) and its C<verify> (read back after).
 
 The route moves the seen message forward only: a message at or before the
 member's seen message changes nothing, so the plan skips it (C<already-seen>)
@@ -75,11 +77,12 @@ sub params ($class) {
     };
 }
 sub read_scope ($class) {
-    { channel => ['search_read'], member => ['search_read'], message => ['search_read'] };
+    { channel => ['search_read'], member => [ 'search_read', 'read' ], message => ['search_read'] };
 }
-# The write is a web route, not an RPC call, so there is no method to name for it:
-# the scope holds the read-back of the member's row, which makes this a write operation.
-sub write_scope ($class) { { member => ['read'] } }
+# The write is a web route, not an RPC call: Odoo's own client uses one per series, and the apply is
+# held to them. The member's row is read before (the precondition) and after (the verify).
+sub routes ($class) { [ '/mail/channel/set_last_seen_message', '/discuss/channel/mark_as_read' ] }
+sub write_scope ($class) { {} }
 
 sub plan ($self) {
     my $p = Odoo::Ops::Discuss::Common::ready($self);
@@ -110,62 +113,18 @@ sub plan ($self) {
         return $plan;
     }
     $plan->note("this login has no membership row in channel $cid; Odoo answers on apply") if !$mem;
+    my $mf = $p->field( member => 'seen' );
     $plan->add(
-        bucket => 'seen', action => 'custom', handler => $self->op_name, kind => 'seen',
-        model  => $p->model_name('member'), ( $mem ? ( id => $mem->{id}, before => { $p->field( member => 'seen' ) => $mem->{seen_raw} } ) : () ),
-        key    => $key,
-        calls  => [ [ $p->model_name('member'), 'search_read' ] ],
-        vals   => { channel => $cid + 0, channel_name => $ch->{name}, message => $target + 0, previous => $was },
+        bucket => 'seen', action => 'route', key => $key, model => $p->model_name('member'),
+        path   => $p->action('seen_route'), params => { channel_id => $cid + 0, last_message_id => $target + 0 },
+        ( $mem ? ( precondition => { model => $p->model_name('member'), ids => [ $mem->{id} ], fields => { $mf => $was } } ) : () ),
+        ( $mem ? ( verify => { model => $p->model_name('member'), ids => [ $mem->{id} ], fields => { $mf => $target + 0 } } ) : () ),
         line   => "mark channel $cid ($ch->{name}) read up to message $target" . ( defined $was ? " (read up to $was now)" : '' )
             . ( $mem && $mem->{unread} ? "; $mem->{unread} unread" : '' ),
+        fault_note => "Odoo's route answers 404 Not Found when the login is no member of the channel",
         reason => 'Odoo moves the seen message forward only, so this cannot be taken back',
     );
     return $plan;
-}
-
-=head2 apply_custom($class, $client, $change)
-
-Called by the runner: the web route as the login, then the member's row read
-back. The read-back holds when the seen message is the planned one or later.
-
-=cut
-
-sub apply_custom ($class, $client, $c) {
-    Odoo::Error->throw( kind => 'usage', message => "discuss.seen cannot apply kind '" . ( $c->{kind} // '' ) . "'" ) if ( $c->{kind} // '' ) ne 'seen';
-    my $p = Odoo::Ops::Discuss::Common::profile_for( $client, 'discuss.seen' );
-    my $f = sub ($lf) { $p->field( member => $lf ) };
-    my $v = $c->{vals};
-    Odoo::Ops::Discuss::Common::web_call( $client, $p->action('seen_route'), { channel_id => $v->{channel}, last_message_id => $v->{message} } );
-    my $me   = Odoo::Ops::Discuss::Common::my_partner($client);
-    my $rows = $client->model( $p->model_name('member') )->search_read(
-        [ [ $f->('channel'), '=', $v->{channel} ], [ $f->('partner'), '=', $me ] ], [ $f->('seen'), $f->('unread') ], limit => 1 );
-    my $now = @$rows ? Odoo::Ops::Discuss::Common::id_of( $rows->[0]{ $f->('seen') } ) : undef;
-    my %after = @$rows ? ( id => $rows->[0]{id}, $f->('seen') => $now, $f->('unread') => $rows->[0]{ $f->('unread') } ) : ();
-    return {
-        ( @$rows ? ( id => $rows->[0]{id} ) : () ),
-        reported => 'write',
-        returned => {
-            method => 'set_last_seen_message', previous => $v->{previous}, seen => $now,
-            says   => ( @$rows
-                ? "channel $v->{channel} read up to message " . ( $now // 'none' )
-                : "channel $v->{channel}: this login has no membership row there; Odoo answered and moved nothing" ),
-        },
-        after => ( defined $now && $now >= $v->{message} ? \%after : undef ),
-    };
-}
-
-=head2 undo_custom($class, $entry)
-
-None: the revert holds the row. Odoo's route moves the seen message forward only
-(a message at or before the current one changes nothing, proved live on 16), so
-there is no way back to the earlier one.
-
-=cut
-
-sub undo_custom ($class, $e) {
-    my $v = ref $e->{vals} eq 'HASH' ? $e->{vals} : {};
-    my $was = defined $v->{previous} ? "message $v->{previous}" : 'no message';
-    return ( undef, "Odoo moves a member's seen message forward only (its route ignores an earlier message), so the channel cannot be marked unread again; it was read up to $was before" );
 }
 
 1;

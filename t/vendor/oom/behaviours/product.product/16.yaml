@@ -1,0 +1,8 @@
+# product.product, Odoo 16 (product). Read from the 16.0 source (product/models/product_product.py, product_template.py, product_pricelist.py) and run on shop16 by tmp/probe2.pl (docs/reviews/ecommerce-survey-16-2026-10.md).
+model: product.product
+series: 16
+module: product
+actions:
+- method: get_contextual_price
+  note: answers the price of the product under the pricelist the context names (context keys pricelist, quantity, uom, date), in that pricelist's currency, from the pricelist's rules and the product's list price as the product states it; it takes no partner, applies no fiscal position and no tax (a price-included product price is returned as it is, tax inside), and answers 0.0 without a pricelist in the context. The price on a draft order line of a customer with a fiscal position that maps the tax can differ for that reason
+  evidence: source 16.0 product_product.get_contextual_price, product_template._get_contextual_price, product_pricelist._get_product_price; live 2026-10-19 shop16 (core.action with context pricelist and quantity answered 5.9, 14.4, 4.8 for the consumer pricelist and 12.96 and 3.84 for the business one; docs/reviews/ecommerce-survey-16-2026-10.md probe 2)

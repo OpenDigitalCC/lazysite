@@ -1,0 +1,9 @@
+# account.payment.register, Odoo 16 (account). Read from the 16.0 source (account/wizard/account_payment_register.py) and run on shop16 (docs/reviews/ecommerce-survey-16-2026-10.md, probe 9).
+model: account.payment.register
+series: 16
+module: account
+effects:
+- 'on': call
+  method: action_create_payments
+  effect: takes the invoice from the context (active_model account.move, active_ids), makes and posts one account.payment on the journal named in values, in the invoice's currency for the amount left, and its journal entry, and reconciles the payment's receivable line with the invoice's, so the invoice reads payment_state paid and amount_residual 0; it answers with a window on the payment. The payment reads is_reconciled 1 (against the invoice) and is_matched 0 until a bank statement line matches it. The journal's outstanding receipts account takes the debit
+  evidence: 'source 16.0 account_payment_register._create_payments; live 2026-10-19 shop16 (INV/2026/00001: account.payment 1 PBNK1/2026/00001, entry account.move 2, account.partial.reconcile 1, the bank journal Bank)'

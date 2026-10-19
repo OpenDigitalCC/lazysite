@@ -126,7 +126,7 @@ my %MAGIC = map { $_ => 1 } qw(id create_uid create_date write_uid write_date di
 
 sub plan ($self) {
     my $model = $self->param('model');
-    Odoo::Error->throw( kind => 'usage', message => "core.make: model must be a physical model name (with a dot), got '$model'" ) if $model !~ /\./;
+    Odoo::Error->throw( kind => 'usage', message => "core.make: model must be a model name such as res.partner or website, got '$model'" ) if !$self->is_model_name($model);
     my $all = $self->all_params;
     my $set = { map { substr( $_, 4 ) => $all->{$_} } grep { /\Aset\./ } keys %$all };
     my @line_keys = sort grep { /\Alines\./ } keys %$all;

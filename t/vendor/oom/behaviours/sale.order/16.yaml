@@ -33,7 +33,53 @@ effects:
   method: unlink
   effect: 'Odoo deletes an order from draft or cancel only (a confirmed or sent one is refused: cancel it first); its lines go with it; the deliveries it made stay as cancelled rows with the order''s name as origin'
   evidence: source 16.0 sale_order._unlink_except_draft_or_cancel; live 2026-10-15 t/49-documents-pack-live.t on 16
+- 'on': call
+  method: action_confirm
+  effect: 'reserves the free stock of each goods line in the order''s warehouse (the delivery''s source location, by the location''s removal strategy: first in first out unless the location or the product category names FEFO, which product_expiry offers); it never refuses for stock - a line with less free than ordered is confirmed with the move partially_available and the picking assigned (policy direct), a line with none free with the move and picking confirmed (waiting); free_qty falls in the same call. allow_out_of_stock_order does not stop it (it is a website cart rule)'
+  evidence: 'source 16.0 sale_stock sale_order_line._action_launch_stock_rule, stock_move._action_assign; live 2026-10-19 shop16 (docs/reviews/ecommerce-survey-16-2026-10.md, probe 7: S00001 to S00006)'
+- 'on': call
+  method: action_confirm
+  effect: 'no credit-limit check: partner_credit_warning is a text computed for a draft or sent order when the company uses credit limits and the partner''s credit plus the order passes the limit, and it reads empty once the order is confirmed; nothing is blocked'
+  evidence: 'source 16.0 sale_order._compute_partner_credit_warning; live 2026-10-19 shop16 (probe 8: S00007 for a partner with a 1,500 limit, 1,944 gross)'
+- 'on': create
+  fields: [partner_id]
+  effect: pricelist_id, fiscal_position_id, partner_invoice_id, partner_shipping_id and payment_term_id are filled from the partner at once, warehouse_id from the first warehouse by sequence; the lines of the same create are priced under that pricelist and fiscal position (a price-included tax mapped to a price-excluded one is taken out of the price, rounded to the Product Price precision before it is multiplied by the quantity)
+  evidence: 'source 16.0 sale_order._compute_pricelist_id, _compute_fiscal_position_id, sale_order_line._compute_price_unit; live 2026-10-19 shop16 (probes 2 and 6)'
 routes:
   state:
     via: action_confirm, action_cancel, action_draft
     why: state is readonly and driven by the actions; a write of it skips the delivery, the cancellations and the checks. sale.confirm and sale.cancel run the actions
+actions:
+- method: message_subscribe
+  module: mail
+  note: makes the partners followers of the order; a portal user reads an order only while the partner is a follower (or the commercial partner of one), and a quotation made through the API has none until it is sent, confirmed or subscribed
+  evidence: 'source 16.0 mail mail_thread.message_subscribe, sale security rule sale_order_portal_rule (message_partner_ids child_of the user''s commercial partner); live 2026-10-19 shop16 (probe 1: S00001 and S00002 were invisible to their portal users until subscribed)'
+wizards:
+- model: choose.delivery.carrier
+  module: delivery
+  method: update_price
+  button: update_price
+  values: [carrier_id]
+  context_from_record: [default_order_id]
+  note: fills the wizard's delivery_price from the carrier's rate for this order and answers with the wizard's own window (res_id); nothing on the order changes
+  evidence: 'source 16.0 delivery choose_delivery_carrier.update_price; live 2026-10-19 shop16 (probe 6: wizard 1 read delivery_price 4.95)'
+- model: choose.delivery.carrier
+  module: delivery
+  method: button_confirm
+  button: button_confirm
+  values: [carrier_id, delivery_price]
+  context_from_record: [default_order_id]
+  creates:
+  - model: sale.order.line
+  creates_evidence: source 16.0 delivery sale_order.set_delivery_line; live 2026-10-19 shop16 (made sale.order.line 7, 8 and 9 named by the apply)
+  note: adds the delivery line at the wizard's delivery_price, which a wizard made through the API does not fill (the form's onchange does); give it in values, or read it from a wizard on which update_price was called
+  evidence: source 16.0 delivery choose_delivery_carrier.button_confirm, sale_order.set_delivery_line; live 2026-10-19 shop16 (without delivery_price the line was added at 0.00; with it at the carrier's price, replacing the earlier delivery line)
+- model: sale.advance.payment.inv
+  module: sale
+  method: create_invoices
+  button: create_invoices
+  values: [advance_payment_method]
+  creates:
+  - model: account.move
+  creates_evidence: source 16.0 sale sale_make_invoice_advance._create_invoices; live 2026-10-19 shop16 (made account.move 1 and 3)
+  evidence: source 16.0 sale sale_make_invoice_advance.create_invoices; live 2026-10-19 shop16 (advance_payment_method delivered invoiced the ordered quantities of S00001 and S00002; the draft invoice is posted with account.post)

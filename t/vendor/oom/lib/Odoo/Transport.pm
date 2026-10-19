@@ -7,7 +7,7 @@ no warnings 'experimental::signatures';
 
 use HTTP::Tiny;
 
-our $VERSION = '0.34';
+our $VERSION = '0.36';
 
 use Odoo::Error;
 
@@ -53,6 +53,53 @@ sub http_client (%args) {
             : () ),
     );
 }
+
+=head2 shared_http(\%store, %args)
+
+One kept-alive HTTP client per Odoo URL and TLS setting, for a resident
+program (a C<oomd> worker) whose every request reuses the same connection.
+C<%store> is the hash the program keeps; C<%args> are those of
+C<http_client> plus C<url>. The handle holds no cookie jar and no credential:
+a request carries its own cookies and keys in its own headers, so whoever the
+request runs as, the connection carries nothing of anyone else's.
+
+=cut
+
+sub shared_http ($store, %args) {
+    my $key = join "\0", map { $_ // '' } @args{qw(url timeout ssl_verify ssl_ca_file max_response_bytes)};
+    return $store->{$key} //= http_client(%args);
+}
+
+=head2 post($http, $url, \%args, idempotent =E<gt> 0|1)
+
+A POST through C<$http>. When the kept-alive connection was closed by Odoo or
+a proxy between two requests (HTTP::Tiny says C<Socket closed>, C<Unexpected
+end> or C<SSL read error>), a call that C<idempotent> marks as a read is made
+once more on a new connection. Anything else, and every write, is made once
+and the failure is the caller's answer: whether a write happened is for the
+journal to say.
+
+=cut
+
+sub post ($http, $url, $args, %opt) {
+    my $res = $http->post( $url, $args );
+    return $res if !$opt{idempotent};
+    return $res if ( $res->{status} // 0 ) != 599;
+    return $res if ( $res->{content} // '' ) !~ /\A(?:Socket closed|Unexpected end|SSL read error)/;
+    return $http->post( $url, $args );
+}
+
+=head2 is_read_method($method)
+
+True for an Odoo method that only reads, so a call of it may be made again
+after a closed connection.
+
+=cut
+
+my %READ = map { $_ => 1 } qw(search_read read search search_count fields_get read_group name_search name_get
+    default_get check_access_rights check_access_rule version_info);
+
+sub is_read_method ($method) { return $READ{ $method // '' } ? 1 : 0 }
 
 =head2 refuse_by_policy($response, $label)
 

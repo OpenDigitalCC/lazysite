@@ -98,8 +98,8 @@ sub plan ($self) {
     my $mode  = $self->_mode;
     my $model = $self->param('model');
     my $me    = $self->op_name;
-    Odoo::Error->throw( kind => 'usage', message => "$me: model must be a physical model name (with a dot), got '$model'" )
-        if $model !~ /\./;
+    Odoo::Error->throw( kind => 'usage', message => "$me: model must be a model name such as res.partner or website, got '$model'" )
+        if !$self->is_model_name($model);
     my ( $rec, $ids ) = ( $self->param('record'), $self->param('ids') );
     my $have_ids = $ids && @$ids;
     Odoo::Error->throw( kind => 'usage', message => "$me: give exactly one of record and ids" )

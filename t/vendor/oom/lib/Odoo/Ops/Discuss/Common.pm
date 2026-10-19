@@ -9,6 +9,7 @@ use Digest::SHA ();
 use Scalar::Util qw(blessed);
 
 use Odoo::Error;
+use Odoo::Ops::Route;
 use Odoo::Ops::Profile;
 
 =head1 NAME
@@ -201,23 +202,7 @@ sub web_call ( $client, $path, $params ) {
 }
 
 sub _web ($client) {
-    my $t = $client->transport;
-    while ( blessed($t) ) {
-        return ( $t, 0 ) if $t->can('route') && $t->can('session_id') && defined $t->session_id;
-        last if !$t->can('inner_transport');
-        $t = $t->inner_transport;
-    }
-    my $web = eval { $client->own_web_session };
-    if ( !$web ) {
-        my $e = $@;
-        my $why = blessed($e) && $e->can('message') ? ( $e->message =~ s/\s+/ /gr ) : "$e";
-        Odoo::Error->throw(
-            kind    => 'config',
-            message => "Odoo's own client marks a channel read and empties a message over a web route, which needs a web session as the login, and none could be opened: $why",
-            fix     => 'use a config with credential = password (a session as the login), or a login whose key is its password',
-        );
-    }
-    return ( $web, 1 );
+    return Odoo::Ops::Route->session( $client, "Odoo's own client marks a channel read and empties a message over a web route, which" );
 }
 
 =head2 member_row($op, $channel_id, $partner_id)

@@ -67,6 +67,13 @@ Archive
   FastCGI parameter, which only the web server's configuration can send, could make
   a page or the manager API believe a forged `X-Remote-User` or flag; in the pool
   both are now ignored. Plain CGI and the split FastCGI templates are unchanged.
+- SM1185 (PENDING) **internal: lazysite's vendored OOM is 0.36.** The pinned
+  snapshot in `t/vendor/oom` moves from 0.34 to OOM 0.36 (8e4f2c3). Two things
+  in lazysite's tests broke and are fixed: the suite read the host's installed
+  packs (OOM's 0.36 `shop` pack claimed `shop.basket` beside the test pack's), so
+  the tests now name no pack directory by default; and a fixture pack named with
+  a hyphen, which OOM has refused since 0.35 (`crm_page`, `stock.link_stranded`).
+  t/unit/odoo/56, 71, 72, t/lint/207, 261, 262.
 
 ## 0.15.11 - EDGE: a visitor's address can be trusted again, and the tools say what they could not do (2026-10-19)
 

@@ -55,7 +55,9 @@ says why. C<< Odoo::Ops::Registry->use_config($config) >> makes the registries
 a process makes without arguments read that config's packs (a context does so
 when it is made).
 
-C<names> needs no module loaded. C<list>, C<describe> and C<matrix> load every
+C<class_for_handler> is C<class_for> for a name read from a journal or a plan (a
+revert, a resume): it also takes the names an earlier release recorded for an
+operation since renamed. C<names> needs no module loaded. C<list>, C<describe> and C<matrix> load every
 operation by asking C<class_for> for each name. A name the index does not hold
 is looked for by scanning every namespace, and that is said once on standard
 error.
@@ -310,10 +312,25 @@ sub _scan_all ($self) {
 sub class_for ($self, $name) {
     my $pkg = $self->_load($name);
     # an operation of a pack that was refused says why, by the pack's name, before any scan
-    if ( !$pkg && $name =~ /\A([a-z][a-z0-9-]*)\./ ) {
+    if ( !$pkg && $name =~ /\A([a-z][a-z0-9_-]*)\./ ) {
         my $n = $1;
         my ($r) = grep { $_->{name} eq $n } $self->refused;
         Odoo::Error->throw( kind => 'config', message => $r->{reason}, fix => 'oom-ops doctor --conf <conf> lists the packs and why one was refused' ) if $r;
+    }
+    # an operation of a loaded pack that its folder does not hold: the pack, the folder and the file are named,
+    # and no scan of the other namespaces is made (they cannot hold it)
+    if ( !$pkg && $name =~ /\A([a-z][a-z0-9_]*)\.(?:[a-z][a-z0-9_.]*)\z/ && ( my $m = $self->{packs}{$1} ) ) {
+        my $pack = $1;
+        my $dir  = File::Spec->catdir( $m->{lib}, split /::/, $m->{namespace} );
+        my @have = map { File::Basename::basename($_) } $self->_pack_modules($dir);
+        ( my $seg = ( split /\./, $name )[-1] ) =~ s/(?:\A|_)([a-z0-9])/\U$1/g;
+        Odoo::Error->throw(
+            kind    => 'usage',
+            message => "pack $pack has no operation '$name': it looked in $dir/, which "
+                . ( @have ? 'holds ' . join( ', ', @have ) : 'holds no module' )
+                . ", and expected a module there (such as $seg.pm) whose op_name is '$name'",
+            fix     => "put the operation's module in $dir/ (the namespace $m->{namespace} names the folder) and check its op_name; oom-ops list names the operations",
+        );
     }
     if ( !$pkg ) {
         $self->_scan_all;
@@ -324,6 +341,15 @@ sub class_for ($self, $name) {
         message => "no operation '$name' (known: " . join( ', ', $self->names ) . ')',
         fix     => 'oom-ops list names the operations',
     );
+}
+
+# A handler named by a journal or a plan is looked up here, never by class_for: journals and plans written before the
+# rename of stock.link-stranded name it so, and a revert or resume of one must still find its class. Only the
+# lookup of a recorded name maps it; run, list and describe know the current name alone.
+my %RECORDED_AS = ( 'stock.link-stranded' => 'stock.link_stranded' );
+
+sub class_for_handler ($self, $name) {
+    return $self->class_for( defined $name && exists $RECORDED_AS{$name} ? $RECORDED_AS{$name} : $name );
 }
 
 1;
