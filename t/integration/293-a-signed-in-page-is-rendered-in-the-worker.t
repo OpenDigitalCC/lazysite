@@ -30,7 +30,8 @@
 #       request, a signed-in one included, and counts a probe once
 #   SM1160 an Odoo site sign-in sees its pages and grants nothing past
 #       odoo_identity_ttl
-#   and what stays the wrapper's: its own ?action= requests and the manager API.
+#   and what stays the wrapper's: its own ?action= requests (the manager API is
+#   relayed without it since S4, t/integration/295).
 use strict;
 use warnings;
 use Test::More;
@@ -289,8 +290,10 @@ subtest 'T11: the wrapper\'s lines, at its levels, under the site\'s log_level' 
 };
 
 subtest 'what stays the wrapper\'s is still relayed to it' => sub {
+    # SM1181 S4: the manager API is relayed WITHOUT the wrapper now (one program;
+    # t/integration/295), its child writing the same contract from the value.
     my ( $api, undef, $aran ) = as( 'alice', '/cgi-bin/lazysite-manager-api.pl' );
-    like( $aran, qr{lazysite-manager-api}, 'the manager API is still wrapped (S4)' );
+    is( $aran, '', 'the manager API is relayed without the wrapper (S4)' );
     like( $api, qr/API USER=alice TRUSTED=1/, 'and gets the wrapper\'s contract' );
 
     # Last: signing out revokes alice's session.

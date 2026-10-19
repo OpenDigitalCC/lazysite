@@ -70,7 +70,7 @@ use Lazysite::Util ();
 use JSON::PP       ();
 
 our @EXPORT_OK = qw(request_identity normalise_group_name parse_group_map
-    address_allowed_groups write_identity_env);
+    address_allowed_groups write_identity_env clear_identity_env);
 
 # The fixed names, and the one place that spells them. The trust gates and the
 # data endpoint name them too, and write_identity_env below writes the wrapper's
@@ -337,6 +337,31 @@ sub write_identity_env {
     $ENV{LAZYSITE_AUTH_SID}         = $ident->{sid} if length( $ident->{sid} // '' );
     $ENV{LAZYSITE_AUTH_NO_PASSWORD} = '1'           if $ident->{no_password};
     return 1;
+}
+
+# SM1181 S4 (SM1082 C2): WHAT THE POOL'S RELAY CHILD CLEARS BEFORE IT WRITES.
+#
+# The pool's front door relays the manager API without the auth wrapper: its
+# forked child calls this and then write_identity_env with the value the worker
+# decided, and execs the API. A worker's %ENV is the request's FastCGI parameters,
+# so anything here could have come from the web server's configuration (T3: the
+# sentinel, the sid, the passwordless flag) or from the client (the six headers).
+# The wrapper ran after nothing and wrote over the user and groups only when it had
+# a cookie session; a sentinel passed as a parameter with no cookie reached the API
+# untouched and made a forged X-Remote-User the caller (the S3 report). So the
+# three flags go whatever the value is, and the six fixed headers go unless the
+# value is a trusted proxy's: those are the proxy's own headers, which the API
+# reads under proxy_identity exactly as the wrapper passed them on (SM1130, T4).
+# An anonymous value leaves nothing behind.
+sub clear_identity_env {
+    my ($ident) = @_;
+    delete @ENV{qw(LAZYSITE_AUTH_TRUSTED LAZYSITE_AUTH_SID LAZYSITE_AUTH_NO_PASSWORD)};
+    return if ref $ident eq 'HASH' && ( $ident->{source} // '' ) eq 'proxy';
+    delete @ENV{
+        qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
+            HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER)
+    };
+    return;
 }
 
 # SM1140 (slice C of SM1134): THE GROUP NAMES A REQUEST HOLDS, LESS THOSE ITS ADDRESS

@@ -8,7 +8,7 @@ status: partial
 raised: 2026-10-19
 raised-by: the release manager, 2026-10-19 ("Yes, plan + review first"), on SM1082 track C2 and the lab's note lazysite/inbox/2026-10-19-what-lazysite-adds-to-an-odoo-call.md
 area: performance
-status-note: "PARTIAL: S1 (n675) request_session for the wrapper and the data endpoint (t/integration/290). S2 (n677) the reader takes a value; the pool never believes the sentinel (t/unit/auth/69, t/integration/291, 292). S3 (n684) the one-rule pool renders a wrapped page in the worker from the value, R4, R5 (t/integration/293, 294, t/unit/auth/70). S4, S5 remain; C2 ships as one release after S4 (R7)."
+status-note: "PARTIAL: S1 (n675) request_session for the wrapper and the data endpoint (t/integration/290). S2 (n677) the reader takes a value; the pool never believes the sentinel (t/unit/auth/69, t/integration/291, 292). S3 (n684) the one-rule pool renders a wrapped page in the worker from the value, R4, R5 (t/integration/293, 294, t/unit/auth/70). S4 (n685) the manager API relayed without the wrapper, its child clearing the parameters and writing the contract from the value (t/integration/295, t/unit/auth/68). S5 remains (R6); C2 ships as one release (R7)."
 ---
 
 # What was asked
@@ -592,6 +592,97 @@ remains is the render, 24-35 ms, as on CGI. The anonymous `page` through the poo
 this load the bench cannot separate the two. Measured directly (2,000 calls, one CPU,
 nice 19, the same load), what R5 adds to it - reading a 41-line lazysite.conf and
 running the guard for a path that is not a probe - is 0.13 ms a request.
+
+## S4: the manager API is one program (n685)
+
+Under `FRONT_DOOR` (the one-rule pool), a request for
+`/cgi-bin/lazysite-manager-api.pl` was relayed through the auth wrapper: fork, exec
+`lazysite-auth.pl`, which verified the cookie, wrote the identity headers and exec'd
+the API. The front door now decides the request as S3 does for a page:
+`_front_session` calls `request_session` once, logs the wrapper's line and holds the
+value. It then relays to the API directly. In the forked child, never in the worker,
+`Lazysite::Auth::Identity::clear_identity_env` deletes what the FastCGI parameters
+carried (the sentinel, `LAZYSITE_AUTH_SID`, `LAZYSITE_AUTH_NO_PASSWORD` and the six
+trust headers). `write_identity_env`, the writer the wrapper calls (S1), then writes
+the contract from the value, and the child execs the API. The worker's time so far is
+handed across the exec as the wrapper handed its own (`Lazysite::Timing::handover`,
+SM1144). One program instead of two.
+
+- **What the API checks stays in the API**: its trust gate, CSRF, the `ui` channel
+  gate, the capability gates, `refuse_manager` and the token path. They run as they
+  did behind the wrapper, on the same contract.
+- **A trusted proxy's value** (SM1130) keeps the proxy's headers. The wrapper passed
+  them on as sent and the API reads them under `proxy_identity`, so the child clears
+  only the three flags for it (T4). The filing's design names the six headers
+  without that case, and this follows T4 ("t/integration/263 ... unchanged").
+- **Still the wrapper's**: a request on the API's address that names one of the
+  wrapper's own `?action=` requests (`_front_wrapper_action`, as in S3), and
+  `/cgi-bin/lazysite-processor.pl`.
+- **R5**: the wrapper no longer guards the API's requests, so the front door's
+  `_front_bad_url` now guards them.
+- Plain CGI and the split `vhost-fcgi` templates are unchanged (R8).
+
+**The gap S3 found is closed.** On the S3 tree, a manager API request sent
+`LAZYSITE_AUTH_TRUSTED=1` as a FastCGI parameter with `X-Remote-User: boss` and no
+cookie was answered as `boss`. With a member's cookie, the forged
+`LAZYSITE_AUTH_NO_PASSWORD` reached the API. Both now reach the API as nothing: the
+anonymous refusal in the first case, and the member's own contract in the second.
+
+Proved by t/integration/295, using one pool worker with the front door on. The
+cgi-bin's wrapper is a shim that records each run it serves, and its
+`lazysite-manager-api.pl` is a shim that records what it was handed and execs the
+real API. So every answer is the real API's, and "one program" is read from what
+ran.
+
+- An operator's `whoami`: the wrapper does not run, the API runs once, and it is
+  handed the sentinel, the user, the fresh groups and the session's sid.
+- An account without `ui` is refused. Disabled, removed and revoked accounts are each
+  refused at the next call.
+- The forged sentinel, groups, sid, flag and payment header with no cookie get the
+  API's anonymous refusal, and the API is handed nothing. With a `ui` member's cookie
+  the call is the member's. With an account that has no `ui`, it is refused for
+  `ui`. From an unlisted peer the same headers are nobody's.
+- CSRF: a cookie POST without the token is a 403 naming CSRF. With the token it is
+  served, and another account's token is refused.
+- Sessions marks the cookie's sid as "this session". A sid sent as a parameter is
+  not marked.
+- The wrapper's `?action=logout` on the API's address still reaches the wrapper.
+- T4: a listed proxy's `X-Remote-User` reaches the API as the proxy sent it, without
+  the wrapper.
+
+Against the S3 tree, 295 fails on every "without the wrapper" assertion, on the
+forged-parameter cases and on the unlisted peer. With the child's clear removed, the
+forged cases and T4 fail. With `write_identity_env` removed, the operator's call and
+every signed-in case after it fail. When the proxy's headers are cleared too, T4
+fails. t/unit/auth/68 pins `clear_identity_env`: for no value, an anonymous value or
+a cookie value it leaves no identity variable or header. For a proxy value it clears
+only the flags. Clearing and then writing gives exactly the value's contract.
+t/lint/268 holds the relay child to clearing, then writing from the value, before it
+execs. t/integration/293's relay assertion now expects the API to run without the
+wrapper.
+
+The suites the filing names (t/unit/manager/09, 10, 13, 16, 18, 24, 29, 39, 40, 43,
+45, 48, 51, 138, 159, 220, 226-228) stand in for the wrapper on the CGI path and are
+unchanged and green. Their pool-side behaviours (sign-in, `ui`, the account checks,
+CSRF, Sessions, a forged identity) are what 295 repeats through the pool.
+
+The bench, `tools/bench-surfaces.sh --with-pool --surface manager` (one CPU, nice 19),
+with S3 and S4 run alternately, two rounds at `--n 10` and two at `--n 20`, on the
+shared host at a load average of 3.6 to 15. Each run measures the CGI path (wrapped,
+two programs) and the pool in the same minute. On S3 the pool's median was 0.98 to
+1.07 times the CGI path's (447-1190 ms). On S4 it was 0.67 to 0.92 times (332-910
+ms). The `load` and `other` phases account for the drop (at `--n 20`: 180-228 ms and
+67-83 ms on S3, 126-159 ms and 39-47 ms on S4). The absolute figures varied twofold
+between rounds with the host's load, so the ratio within a run is the figure to
+quote.
+
+**Found in passing, not S4's.** `request_session` asks `request_identity` whether a
+trusted proxy names a user without `pool => 1`, so in a worker a
+`LAZYSITE_AUTH_TRUSTED` FastCGI parameter makes it read the fixed names as a cookie
+identity. A listed proxy's user is then passed over and the cookie decides. This
+fails closed: an anonymous value, or the cookie's own account. Only the web server's
+configuration can send the parameter (T3). Seen while writing 295's T4 case, which
+sends no sentinel.
 
 # Related
 

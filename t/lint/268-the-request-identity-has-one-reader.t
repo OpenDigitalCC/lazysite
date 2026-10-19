@@ -170,6 +170,15 @@ subtest 'the sentinel is read only by the accessor and the trust gates, never be
         'the processor hands the accessor the request\'s held identity value' );
     like( $auth, qr/request_identity\([^;]*\bpool\s*=>\s*\(\s*_runtime\(\)\s*eq\s*'pool'/s,
         'and tells it when it is a pooled worker' );
+
+    # SM1181 S4: the manager API relayed without the wrapper. Its child, and only
+    # its child, clears what the parameters carried and writes the contract from
+    # the value, in that order, through the accessor's two helpers.
+    my $door = code_of( slurp("$root/lazysite-processor/front-door.pm") );
+    like( $door, qr/if\s*\(\s*\$kid\s*==\s*0\s*\)\s*\{.*?Identity::clear_identity_env\(\s*\$decision->\{identity\}\s*\);\s*Lazysite::Auth::Identity::write_identity_env\(\s*\$decision->\{identity\}\s*\);.*?exec\b/s,
+        'the front door\'s relay child clears, then writes the contract from the value, before it execs' );
+    like( $door, qr/_front_relay\(\s*\{\s*%\$decision,\s*wrapped\s*=>\s*0,\s*identity\s*=>\s*\$REQUEST_IDENT\s*\}\s*\)/,
+        'and the manager API is relayed unwrapped with the value the worker decided' );
 };
 
 done_testing();

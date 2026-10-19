@@ -167,4 +167,35 @@ subtest 'write_identity_env writes the wrapper\'s contract from a cookie value' 
     ok( !Lazysite::Auth::Identity::write_identity_env(undef), 'no value writes nothing' );
 };
 
+# SM1181 S4: what the pool's relay child clears before it writes the contract for
+# the manager API. Whatever the FastCGI parameters carried.
+subtest 'clear_identity_env clears what a pooled request\'s parameters could carry' => sub {
+    my %forged = (
+        LAZYSITE_AUTH_TRUSTED => '1', LAZYSITE_AUTH_SID => 'feedfacefeedface', LAZYSITE_AUTH_NO_PASSWORD => '1',
+        HTTP_X_REMOTE_USER => 'mallory', HTTP_X_REMOTE_GROUPS => 'admins', HTTP_X_REMOTE_NAME => 'Forged',
+        HTTP_X_REMOTE_EMAIL => 'f@example.invalid', HTTP_X_PAYMENT_VERIFIED => '1', HTTP_X_PAYMENT_PAYER => 'f',
+        HTTP_COOKIE => 'kept', REMOTE_ADDR => '198.51.100.1',
+    );
+    for my $v ( undef, { user => '', groups => [], source => 'anonymous' }, { user => 'alice', groups => [], source => 'cookie' } ) {
+        local %ENV = %forged;
+        Lazysite::Auth::Identity::clear_identity_env($v);
+        is_deeply( \%ENV, { HTTP_COOKIE => 'kept', REMOTE_ADDR => '198.51.100.1' },
+            ( $v ? "a $v->{source} value" : 'no value' ) . ': every identity variable and header is gone, nothing else' );
+    }
+
+    local %ENV = %forged;
+    Lazysite::Auth::Identity::clear_identity_env( { user => 'mallory', groups => [], source => 'proxy' } );
+    ok( !exists $ENV{$_}, "a proxy value: $_ cleared" ) for qw(LAZYSITE_AUTH_TRUSTED LAZYSITE_AUTH_SID LAZYSITE_AUTH_NO_PASSWORD);
+    is( $ENV{HTTP_X_REMOTE_USER}, 'mallory', 'and the proxy\'s own headers kept, for the surface to read under proxy_identity (T4)' );
+
+    local %ENV = %forged;
+    my $v = { user => 'alice', groups => ['staff'], sid => 'abcdef0123456789', source => 'cookie' };
+    Lazysite::Auth::Identity::clear_identity_env($v);
+    Lazysite::Auth::Identity::write_identity_env($v);
+    is_deeply( \%ENV,
+        { HTTP_COOKIE => 'kept', REMOTE_ADDR => '198.51.100.1', HTTP_X_REMOTE_USER => 'alice',
+            HTTP_X_REMOTE_GROUPS => 'staff', LAZYSITE_AUTH_TRUSTED => '1', LAZYSITE_AUTH_SID => 'abcdef0123456789' },
+        'cleared then written: exactly the value\'s contract' );
+};
+
 done_testing();

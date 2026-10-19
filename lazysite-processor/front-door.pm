@@ -14,7 +14,8 @@ package main;
 #         _front_session (a wrapped page's identity decided in the worker, as a
 #         value), _front_bad_url (the SM128 guard, for every request it does not
 #         hand to the auth wrapper) and _front_wrapper_action (the ?action=
-#         requests that stay the wrapper's).
+#         requests that stay the wrapper's); SM1181 S4: the manager API relayed
+#         without the wrapper, its child writing the contract from the value.
 # OWNS    which requests a pool worker answers itself and which it relays; which
 #         modules the pool's parent loads for its workers; who a request the
 #         front door would have wrapped is, in the pool.
@@ -23,8 +24,10 @@ package main;
 #         (lazysite-processor.pl and its parts); IO::Select and POSIX, required
 #         inside _front_relay at call time, as before; Lazysite::Auth::Session and
 #         Lazysite::BadUrl through _lazy_lib (SM1181 S3; preloaded by the pool's
-#         parent).
-# READS   $DOCROOT, $LAZYSITE_DIR, $FRONT_CGIBIN, $RELAY_TIMEOUT; SETS
+#         parent); Lazysite::Auth::Identity's clear_identity_env and
+#         write_identity_env, and Lazysite::Timing::handover, in the relay's
+#         child (S4).
+# READS   $DOCROOT, $LAZYSITE_DIR, $FRONT_CGIBIN, $RELAY_TIMEOUT, $TIMING; SETS
 #         $REQUEST_IDENT and %ACCESS_REC (the script's, declared `our` there).
 #         Whether the front door is on ($FRONT_DOOR) is the script's own decision,
 #         read where it calls _front_door.
@@ -37,7 +40,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $FRONT_CGIBIN, $RELAY_TIMEOUT, $REQUEST_IDENT, %ACCESS_REC );
+our ( $DOCROOT, $LAZYSITE_DIR, $FRONT_CGIBIN, $RELAY_TIMEOUT, $REQUEST_IDENT, $TIMING, %ACCESS_REC );
 
 # --- Preload before fork (SM1169, SM1082 C1) ---
 
@@ -322,6 +325,9 @@ sub _front_relay {
     # so the trust design and the t/lint/38 gate are untouched. Folding the
     # wrapper in-process means replacing those headers with an identity value,
     # which is an auth-spine change and has its own filing.
+    #
+    # SM1181 S4: that filing's manager API arrives here unwrapped, carrying the
+    # worker's value as `identity`; the child below writes the same contract from it.
     my $program = $target;
     if ( $decision->{wrapped} ) {
         my $wrapper = "$cgibin/lazysite-auth.pl";
@@ -365,6 +371,19 @@ sub _front_relay {
         POSIX::dup2( fileno($kid_out), 1 );
         close $kid_in;
         close $kid_out;
+        # SM1181 S4: THE MANAGER API WITHOUT THE WRAPPER. The worker decided who this
+        # request is (_front_session, request_session once); here, in the child and
+        # never in the worker, the identity variables the parameters carried are
+        # cleared - the sentinel, the sid, the passwordless flag and the six trust
+        # headers - and the wrapper's contract is written from the value by the one
+        # writer the wrapper itself calls. The API's own gate and checks then run as
+        # they did behind the wrapper. SM1144: the worker's time so far is handed
+        # across the exec as the wrapper handed its own.
+        if ( ref $decision->{identity} eq 'HASH' ) {
+            Lazysite::Auth::Identity::clear_identity_env( $decision->{identity} );
+            Lazysite::Auth::Identity::write_identity_env( $decision->{identity} );
+            Lazysite::Timing::handover() if $TIMING;
+        }
         # _exit, not exit: this child is a fork of a FastCGI worker and must not
         # run its parent's END blocks or flush its parent's buffers on the way
         # out. The parent sees empty output and answers 500.
@@ -545,7 +564,15 @@ sub _front_door {
     my $in_worker = $decision->{wrapped}
         && $decision->{surface} eq 'processor'
         && !_front_wrapper_action();
-    my $to_wrapper = !$in_worker
+    # SM1181 S4: the manager API is decided here the same way, then relayed to the
+    # API directly - one program, not two. It cannot run in the worker: it is a
+    # top-level script that answers by `exit` in dozens of places (C3 gives it
+    # warm-fork). Its own gate, CSRF and capability checks run in it unchanged.
+    my $api_direct = $decision->{wrapped}
+        && $decision->{surface} eq 'cgi'
+        && ( $decision->{target} // '' ) eq 'lazysite-manager-api.pl'
+        && !_front_wrapper_action();
+    my $to_wrapper = !$in_worker && !$api_direct
         && ( $decision->{wrapped} || ( $decision->{target} // '' ) eq 'lazysite-auth.pl' );
     return 1 if !$to_wrapper && _front_bad_url($uri);    # R5
 
@@ -576,6 +603,12 @@ sub _front_door {
     if ($in_worker) {
         _front_session($uri);
         return 0;
+    }
+
+    if ($api_direct) {
+        _front_session($uri);
+        _lazy_lib('Lazysite::Auth::Identity');
+        return _front_relay( { %$decision, wrapped => 0, identity => $REQUEST_IDENT } );
     }
 
     return _front_relay($decision);
