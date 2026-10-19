@@ -60,6 +60,16 @@ Archive
   errors alone, with control characters cleaned, 300 characters at most, and
   withheld whole when they carry a host path, a token or a traceback. Every
   other kind keeps its sentence, and the event log line is unchanged.
+- SM1187 (PENDING) **internal: a stage another user cannot remove no longer
+  stops a release run.** The 0.15.10 gate, run by the release manager after the
+  developer agent's gate failed and kept its stage, died in 0 s on
+  `rm: cannot remove ... Permission denied`: the next run's start-up clear ran
+  `rm -rf` under `set -e` on a stage owned by another user. A run now clears the
+  stages it can, whole or not at all, and names one it cannot (owner, age, the
+  command to remove it) as a warning; a kept stage's message says who can remove
+  it; the default stage root falls back to `/var/tmp/lazysite-stage-USER` when
+  the shared one is not writable, and an explicit `--stage-dir` that is not
+  writable is refused with the way out.
 
 ## 0.15.10 - EDGE: Odoo apps that sign in, scan and attach, and a pool that forgets each visitor (2026-10-19)
 

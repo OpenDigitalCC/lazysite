@@ -455,6 +455,10 @@ stage_disposition() {
     echo "release.sh: staging dir retained: $STAGE" >&2
     echo "release.sh:   (a failed stage is kept for inspection and removed at the start" >&2
     echo "release.sh:   of the next run; --keep-stage keeps a successful one too)" >&2
+    # SM1187: the stage is the running user's, mode 0664/0775, and is not made
+    # wider; so only that user (or root) can remove it, and the 0.15.10 cut found
+    # out the hard way. Say so, with the command, where the stage is named.
+    echo "release.sh:   only $(id -un) (or root) can remove it: rm -rf $STAGE" >&2
 }
 
 # SM895 G3: the other half of keeping a failed stage - the next run removes it.
@@ -467,7 +471,7 @@ stage_disposition() {
 # BESIDE its stage (PID-coverage-*.txt) are files, not directories, and stay:
 # they are the evidence that outlives the clone by design (SM736b, SM895 G1).
 prune_dead_stages() {
-    local d pid
+    local d pid owner age
     for d in "$STAGE_BASE"/lazysite-release-*; do
         [ -d "$d" ] || continue
         pid="${d##*-}"
@@ -477,8 +481,26 @@ prune_dead_stages() {
             echo "release.sh: stage $d belongs to a live process ($pid); left alone." >&2
             continue
         fi
-        echo "release.sh: removing the stage a previous run left behind: $d" >&2
-        rm -rf "$d"
+        # SM1187: a leftover another user kept (0664/0775, their own) cannot be
+        # removed by this one, and `rm -rf` failing here stopped the whole run
+        # under `set -e` - the 0.15.10 release manager's gate died in 0 s on the
+        # developer agent's kept stage. A run clears what it can, and a stage it
+        # cannot is NAMED (owner, age, the command) and left whole: it is another
+        # user's evidence, so it is not half-removed, and not this run's problem.
+        # Clearable = write+search on the base and on every directory in the tree
+        # (unlinking needs the directory's mode, not the file's), asked first so
+        # a stage goes whole or not at all.
+        if [ -w "$STAGE_BASE" ] \
+            && [ -z "$(find "$d" -type d \( ! -readable -o ! -writable -o ! -executable \) -print -quit 2>&1)" ] \
+            && rm -rf "$d" 2>/dev/null; then
+            echo "release.sh: removing the stage a previous run left behind: $d" >&2
+        else
+            owner=$(stat -c %U "$d" 2>/dev/null || echo unknown)
+            age=$(( ( $(date +%s) - $(stat -c %Y "$d" 2>/dev/null || date +%s) ) / 86400 ))
+            echo "release.sh: WARNING: could not remove the stage $d" >&2
+            echo "release.sh:   owned by $owner, $age days old; this run ($(id -un)) cannot clear it." >&2
+            echo "release.sh:   Left in place; $owner (or root) removes it with: rm -rf $d" >&2
+        fi
     done
     git -C "$ORIGIN" worktree prune 2>/dev/null || true
 }
@@ -518,7 +540,15 @@ abort_build() {
 # type and there is nothing wrong with it until the cd. `mkdir -p` first so the
 # path exists to be resolved; `cd -P ... && pwd` rather than realpath, which is
 # not everywhere.
-mkdir -p "$STAGE_BASE"
+# SM1187: a stage dir this user cannot write is named, with the way out, rather
+# than left to a bare mkdir/clone error (tools/stage-default.sh already chooses a
+# per-user root for the default; this is for an explicit --stage-dir).
+if ! mkdir -p "$STAGE_BASE" 2>/dev/null || [ ! -w "$STAGE_BASE" ]; then
+    echo "release.sh: the stage dir $STAGE_BASE is not writable by $(id -un); not releasing." >&2
+    echo "release.sh:   Use --stage-dir DIR (or LAZYSITE_STAGE_DIR) for a directory you own," >&2
+    echo "release.sh:   e.g. $STAGE_BASE-$(id -un)." >&2
+    exit 1
+fi
 case "$STAGE_BASE" in
     /*) ;;
     *)
