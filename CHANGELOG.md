@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1186 (PENDING) **odoo: a usage refusal says what to fix.** A read whose
+  operation refused its input answered 400 with one sentence that said nothing
+  of the input, so a page could not tell the person what to change. The
+  operation's own message and its fix line now reach the page for OOM's `usage`
+  errors alone, with control characters cleaned, 300 characters at most, and
+  withheld whole when they carry a host path, a token or a traceback. Every
+  other kind keeps its sentence, and the event log line is unchanged.
+
 ## 0.15.10 - EDGE: Odoo apps that sign in, scan and attach, and a pool that forgets each visitor (2026-10-19)
 
 - SM1184 (ca31a940) **internal: the bench counts the stats work on its fixture

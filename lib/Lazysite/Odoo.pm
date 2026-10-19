@@ -338,6 +338,40 @@ my %REFUSED_KIND = (
     'not-a-plan' => [ 'invalid', 'that is a result, not a plan' ],
 );
 
+# SM1186: the text of an OOM `usage` error, as far as a page may have it, or undef
+# (the caller then says the generic sentence). OOM's usage messages are written
+# for the caller, but a few carry what a page must never receive: "cannot read
+# $path: $!" and "cannot load mapping $path: $@ at FILE line N" (a host path),
+# "no run '$id' in $dir" (the runs directory), "dbi reader: key column ... (columns:
+# ...)" (another database's columns), and a message quoting a token or a
+# credential the caller was sent. So: control characters become spaces and runs of
+# space one space; a message with a path, a perl "at X line N", a long token (a key,
+# a session id, a hash), a traceback or the word of a secret is WITHHELD whole, not
+# redacted, because a redacted path still says a file exists; and what is left is
+# cut at $USAGE_TEXT_MAX characters. A caller's own input echoed in the message
+# (a bad date) is in the JSON answer as a string, as every error is; a page puts
+# it in text, never markup.
+our $USAGE_TEXT_MAX = 300;
+
+sub _usage_text {
+    my ($t) = @_;
+    return undef unless defined $t && !ref $t;
+    $t =~ s/[\x00-\x1f\x7f]+/ /g;
+    $t =~ s/\s+/ /g;
+    $t =~ s/\A | \z//g;
+    return undef unless length $t;
+    # A path, perl's own location, a long key-like token, a traceback or a secret's
+    # name: any of them and the message is withheld.
+    for my $re ( qr{(?:\A|[\s'"(=:,\[])~?/[^\s'"]*[\w.-]}, qr{[A-Za-z]:\\},
+        qr{\b[\w.-]+(?:/[\w.-]+)+\.\w{1,6}\b}, qr/\bat \S+ line \d+/, qr{[A-Za-z0-9_+/=-]{25,}},
+        qr/traceback | api[_ -]?key | passw | secret | token | session[_ -]?id | cookie | authorization | bearer/ix )
+    {
+        return undef if $t =~ $re;
+    }
+    $t = substr( $t, 0, $USAGE_TEXT_MAX - 3 ) . '...' if length $t > $USAGE_TEXT_MAX;
+    return $t;
+}
+
 # fault( $err, %ctx ) -> { ok => 0, kind, error }
 #
 # THE TEXT IS LOGGED, NEVER RETURNED. Odoo's own message can carry a traceback,
@@ -345,7 +379,7 @@ my %REFUSED_KIND = (
 # OOM's carries the URL. What goes back is one of the sentences above.
 sub fault {
     my ( $err, %ctx ) = @_;
-    my ( $kind, $said, %why );
+    my ( $kind, $said, %why, %extra );
     if ( ref $err && eval { $err->isa('Odoo::Error') } ) {
         my $k = $err->kind // '';
         %why = ( oom_kind => $k, code => ( $err->code // '' ),
@@ -370,6 +404,18 @@ sub fault {
         }
         else {
             ( $kind, $said ) = ( 'invalid', 'the operation refused what it was given - see the event log' );
+            # SM1186 (OOM Lab L-18): only OOM's `usage` kind is the operation's own
+            # statement about the caller's input ("date 'x' is not a date"), written
+            # for the caller. Nothing else comes this way: an unknown kind keeps the
+            # sentence.
+            if ( $k eq 'usage' ) {
+                my $m = _usage_text( $err->message );
+                if ( defined $m ) {
+                    $said = $m;
+                    my $x = _usage_text( $err->fix );
+                    $extra{fix} = $x if defined $x;
+                }
+            }
         }
         $why{detail} = $err->message // '';
     }
@@ -379,7 +425,7 @@ sub fault {
     }
     log_event( 'WARN', 'odoo', 'odoo call failed', kind => $kind, %why,
         map { ( $_ => $ctx{$_} ) } grep { defined $ctx{$_} } qw(binding operation mode) );
-    return { ok => 0, kind => $kind, error => $said };
+    return { ok => 0, kind => $kind, error => $said, %extra };
 }
 
 # What a fault kind means for the call record's outcome (OB8's four states).
