@@ -80,8 +80,10 @@ Archive
   warning, decided by the server the way the engine reads the address
   (`request_address`), when the request's peer is a private or loopback address
   and no forwarded visitor address is believed. It names the cause: the peer is
-  not in the trusted set (naming the set; name the proxy in `trusted_proxies`),
-  or it is trusted but sends no `X-Forwarded-For` (rebuild its vhost). A public
+  not in the trusted set (naming the set; name the proxy in `trusted_proxies`
+  once its vhost appends the visitor's address), or it is trusted but sends no
+  `X-Forwarded-For` (rebuild its vhost, and set `trusted_proxies: none` until
+  then - removing the line restores the default trust, SM1194). A public
   peer, or a proxy that forwards the visitor, shows nothing.
 - SM1186 (PENDING) **odoo: a usage refusal says what to fix.** A read whose
   operation refused its input answered 400 with one sentence that said nothing

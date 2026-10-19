@@ -11,8 +11,9 @@
 # config-read) carry `proxy_warning` when the peer (REMOTE_ADDR, before any proxy
 # rule) is private or loopback AND no forwarded visitor address is being believed:
 #   (a) the peer is not in the effective trust set -> name the set, "Name the front
-#       proxy in trusted_proxies"
-#   (b) the peer IS trusted but no X-Forwarded-For arrives -> "rebuild its vhost"
+#       proxy in trusted_proxies once its vhost appends ... keep trusted_proxies: none"
+#   (b) the peer IS trusted but no X-Forwarded-For arrives -> "rebuild its vhost ...
+#       Until it is rebuilt set trusted_proxies: none" (SM1194: one account)
 # Silent for a public peer, and when a trusted peer forwards a visitor address.
 use strict;
 use warnings;
@@ -55,8 +56,8 @@ sub answers {
 }
 
 my $FIRST = qr/\AEvery visitor reaches this site from 10\.2\.30\.177,/;
-my $A     = qr/$FIRST which is not named in trusted_proxies \((.+?)\), so an address rule here applies to every visitor at once\. Name the front proxy in trusted_proxies\.\z/;
-my $B     = qr/$FIRST a trusted proxy, but no visitor address arrives in X-Forwarded-For, so an address rule here applies to every visitor at once\. The front end does not send the visitor's address in X-Forwarded-For: rebuild its vhost \(lazysite templates since 0\.15\.2, SM929\)\.\z/;
+my $A     = qr/$FIRST which is not named in trusted_proxies \((.+?)\), so an address rule here applies to every visitor at once\. Name the front proxy in trusted_proxies once its vhost appends the visitor's address to X-Forwarded-For \(lazysite templates since 0\.15\.2, SM929\); while it is older keep trusted_proxies: none, because an older front end passes a visitor's own X-Forwarded-For through and trusting it lets any visitor choose their address \(SM1194\)\.\z/;
+my $B     = qr/$FIRST a trusted proxy, but no visitor address arrives in X-Forwarded-For, so an address rule here applies to every visitor at once\. The front end does not send the visitor's address in X-Forwarded-For: rebuild its vhost \(lazysite templates since 0\.15\.2, SM929\)\. Until it is rebuilt set trusted_proxies: none \(removing the line restores the default trust\): an older front end passes a visitor's own X-Forwarded-For through, so any visitor can choose their address \(SM1194\)\.\z/;
 
 # (b) edge as found: no trusted_proxies line (the private-range default trusts the
 # front end) and the front end sends no X-Forwarded-For.

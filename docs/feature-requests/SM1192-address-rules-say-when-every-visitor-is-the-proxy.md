@@ -40,9 +40,13 @@ the manager half: say so where the rules are edited.
   warned falsely on edge, where the default already trusts the front end.)
 - `Lazysite::Auth::AddressLists::front_end_warning` makes the sentence, "Every
   visitor reaches this site from ADDR, ..." then, for (a), "which is not named in
-  trusted_proxies (SET) ... Name the front proxy in trusted_proxies.", or for (b),
-  "a trusted proxy, but no visitor address arrives in X-Forwarded-For ... rebuild
-  its vhost (lazysite templates since 0.15.2, SM929)."
+  trusted_proxies (SET) ... Name the front proxy in trusted_proxies once its vhost
+  appends the visitor's address ...; while it is older keep trusted_proxies: none",
+  or for (b), "a trusted proxy, but no visitor address arrives in X-Forwarded-For
+  ... rebuild its vhost (lazysite templates since 0.15.2, SM929). Until it is
+  rebuilt set trusted_proxies: none (removing the line restores the default
+  trust)". Both carry SM1194's account: an older front end passes a visitor's own
+  header through, so the interim fix is `none`, never removing the line.
 - The server carries it as `proxy_warning` in two answers the pages already call:
   `address-lists` (the Address lists page and the Groups page's address
   pickers) and `config-read` (the Config page, with the sign-in and manager

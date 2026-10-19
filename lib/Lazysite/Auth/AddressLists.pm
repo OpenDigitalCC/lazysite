@@ -321,11 +321,19 @@ sub front_end_warning () {
     my ( $peer, $cause, $set ) = front_end_is_every_visitor( length $lz ? trusted_proxy_spec($lz) : undef );
     return undef unless defined $peer;
     return "Every visitor reaches this site from $peer, which is not named in trusted_proxies ($set), "
-        . 'so an address rule here applies to every visitor at once. Name the front proxy in trusted_proxies.'
+        . 'so an address rule here applies to every visitor at once. Name the front proxy in trusted_proxies '
+        . "once its vhost appends the visitor's address to X-Forwarded-For (lazysite templates since 0.15.2, SM929); "
+        . 'while it is older keep trusted_proxies: none, because an older front end passes a visitor\'s own '
+        . 'X-Forwarded-For through and trusting it lets any visitor choose their address (SM1194).'
         if $cause eq 'untrusted';
+    # SM1194: (b) is how an older front end looks with no header sent, and the same
+    # front end passes a sent one through, so the interim fix is `none`, never
+    # removing the line (absent is the private-range default, which trusts it).
     return "Every visitor reaches this site from $peer, a trusted proxy, but no visitor address arrives in "
         . 'X-Forwarded-For, so an address rule here applies to every visitor at once. The front end does not '
-        . "send the visitor's address in X-Forwarded-For: rebuild its vhost (lazysite templates since 0.15.2, SM929).";
+        . "send the visitor's address in X-Forwarded-For: rebuild its vhost (lazysite templates since 0.15.2, SM929). "
+        . 'Until it is rebuilt set trusted_proxies: none (removing the line restores the default trust): an older '
+        . "front end passes a visitor's own X-Forwarded-For through, so any visitor can choose their address (SM1194).";
 }
 
 # THE ONLY WRITER. Atomic (temp, lock, rename) like the other auth JSON stores, at
