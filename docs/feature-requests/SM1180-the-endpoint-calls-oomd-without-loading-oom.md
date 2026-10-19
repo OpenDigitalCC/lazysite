@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: inbox 2026-10-19-what-lazysite-adds-to-an-odoo-call.md (OOM Lab); ruled by the release manager 2026-10-19
 area: odoo
-status-note: "SHIPPED on n667 (base 4c4798a6c, SM1164 D1-D4): lib/Lazysite/Odoo/Decl.pm, Lazysite::Odoo::binding_class, t/unit/odoo/70 (the load), t/tools (the margin check). Rows parameters still load OOM for OOM's own check_rows (see What is left)."
+status-note: "SHIPPED on n667 (base 4c4798a6c, SM1164 D1-D4): lib/Lazysite/Odoo/Decl.pm, Lazysite::Odoo::binding_class, t/unit/odoo/73 (the load), t/tools (the margin check). Rows parameters still load OOM for OOM's own check_rows (see What is left)."
 ---
 
 # What happened
@@ -61,7 +61,7 @@ Every place, on the base:
 
 # What shipped
 
-Branch n667. Test: `t/unit/odoo/70-a-call-to-oomd-loads-no-oom.t`.
+Branch n667. Test: `t/unit/odoo/73-a-call-to-oomd-loads-no-oom.t`.
 
 - **The declaration, stored at save.** `Lazysite::Handlers` validates an odoo
   binding against the registry when it is saved (`_destination_problem`); it now
@@ -90,7 +90,7 @@ Branch n667. Test: `t/unit/odoo/70-a-call-to-oomd-loads-no-oom.t`.
 - **The fallback.** With `odoo_daemon: on` and the daemon down, the call runs
   in-process as SM1164 made it; OOM is loaded at that point (`_real_class`,
   `_load_oom`), because a stored declaration cannot run an operation.
-- **Measured by `%INC`** in a fresh process (t/unit/odoo/70, the real vendored oomd
+- **Measured by `%INC`** in a fresh process (t/unit/odoo/73, the real vendored oomd
   under the real supervisor): a daemon-path call loads `Odoo::Error`, `Ops::Calls`,
   `Ops::Client::Daemon`, `Ops::Daemon::Path`, `Ops::Version`, `Ops::Wire` - six, and
   none of `Registry`, `Service`, `Odoo::Client` - against 33 in-process. The same file
