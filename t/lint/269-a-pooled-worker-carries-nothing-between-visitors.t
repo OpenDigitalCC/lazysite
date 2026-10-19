@@ -453,6 +453,7 @@ my %T = (
         '%CALL_FIELD' => [ exempt => 'derived from a constant list' ],
         '$TRANSPORT'  => [ exempt => 'a test seam; unset in the product' ],
         '$LAST_VIA'   => [ exempt => $STATUS ],
+        '%REGISTRY'    => [ exempt => 'OOM\'s operation classes for one site configuration, keyed on the docroot, namespaces, pack directories, cache directory and OOM version (SM1179); it holds no person' ],
     },
     'lib/Lazysite/Odoo/Daemon.pm' => { '%NAME' => [ exempt => 'the daemon\'s name, a function of the docroot and keyed on it' ] },
     'lib/Lazysite/Odoo/Session.pm' => { '$HTTP' => [ exempt => 'a test seam; unset in the product' ] },

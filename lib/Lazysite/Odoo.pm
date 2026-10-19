@@ -704,7 +704,28 @@ sub recent_file { return store_dir() . '/recent.jsonl' }
 
 # The operations OOM offers: its own packs plus the site's (odoo_packs). The
 # registry is OOM's, and so is every name in it.
+#
+# SM1179 (inbox 2026-10-18-odoo-endpoint-builds-the-oom-registry-twice-per-request.md):
+# "operation_class is called twice per request and each call ... builds a new
+# Odoo::Ops::Registry (loading every operation module of every namespace) ...
+# 210-240 ms per build". Built once per process for one site configuration and
+# held in %REGISTRY, keyed on everything that changes what it contains: the
+# docroot, the namespaces (odoo_packs), the pack directories, the cache directory
+# and OOM's version. A config save changes the key, so it reads afresh; a second
+# site in the same process (the pool, the dev server, lazysited) has its own key.
+# The value is OOM's operation classes and nothing about a person (t/lint/269).
+# OOM's Runner->apply still builds its own registry from the environment
+# (with_site_ops, SM1170); that is OOM's, and is left.
+my %REGISTRY;
+
 sub registry {
+    my ($conn) = @_;
+    my $key = join "\0", $DOCROOT, store_dir() . '/cache', ( Odoo::Ops->VERSION // '' ),
+        join( ',', @{ $conn->{packs} || [] } ), join( ':', @{ $conn->{pack_dirs} || [] } );
+    return $REGISTRY{$key} //= _build_registry($conn);
+}
+
+sub _build_registry {
     my ($conn) = @_;
     return with_site_ops( $conn, sub {
             # SM1164 D0: the site's pack directories, and a cache of its own beside the
