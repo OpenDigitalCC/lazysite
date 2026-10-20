@@ -70,13 +70,14 @@ BEGIN {
 
 # P15: --host NAME (repeatable; "(default)" is the primary) and --by-host are
 # taken out of the arguments first, so the option table below keeps its shape.
-my ( %HOSTS_ARG, $BY_HOST_ARG );
+my ( %HOSTS_ARG, $BY_HOST_ARG, $BY_ACCOUNT_ARG );
 {
     my @rest;
     while (@ARGV) {
         my $a = shift @ARGV;
         if    ( $a eq '--host' )    { $HOSTS_ARG{ shift(@ARGV) // '' } = 1 }
         elsif ( $a eq '--by-host' ) { $BY_HOST_ARG = 1 }
+        elsif ( $a eq '--by-account' ) { $BY_ACCOUNT_ARG = 1 }                    # SM1219
         else                        { push @rest, $a }
     }
     @ARGV = @rest;
@@ -106,6 +107,7 @@ while (@ARGV) {
 }
 $arg{hosts}   = \%HOSTS_ARG if %HOSTS_ARG;
 $arg{by_host} = 1           if $BY_HOST_ARG;
+$arg{by_account} = 1           if $BY_ACCOUNT_ARG;
 my $DOCROOT = $arg{docroot} || $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '.';
 
 # --- classification patterns (log-only heuristics) -----------------------
@@ -858,11 +860,14 @@ if ( $arg{export} ) {
                 . 'domain - ask for a window with host instead' }
             : export_stats_hosts( $arg{window}, \@want );
         $hv->{by_host} = _by_host_summary( $arg{window}, \@want ) if $arg{by_host} && $hv->{ok};
+        $hv->{by_account} = _by_account_summary( $arg{window}, \@want ) if $arg{by_account} && $hv->{ok};
         print encode_json($hv);
         exit 0;
     }
     $view->{by_host} = _by_host_summary( $arg{window} )
         if $arg{by_host} && ref $view eq 'HASH' && $view->{ok};
+    $view->{by_account} = _by_account_summary( $arg{window} )
+        if $arg{by_account} && ref $view eq 'HASH' && $view->{ok};
     my $out =
         $arg{index}            ? _read_stats_index()
         : defined $arg{day}    ? _read_daily( $arg{day} )
@@ -3146,6 +3151,60 @@ sub _by_host_summary {
             . "domain over the last $window days of the raw first-party log, every class of "
             . 'visitor included; ask with host for one domain\'s own breakdown.',
         domains => { map { ( $_ => { requests => $req{$_}, visitor_days => scalar keys %{ $vis{$_} } } ) } keys %req },
+    };
+}
+
+# SM1219 (#339, ruled 2026-10-20): VISITS PER SIGNED-IN ACCOUNT over the window,
+# from the raw first-party log - the accounts the processor recorded as `u` (the
+# verified identity only; an anonymous visit has none). Asked for, never part of
+# the default view: it is personal data, so the capability that reads it is the
+# one that may (`analytics`), and it is read with the same scope as the traffic -
+# $want is the domains a confined caller reaches, and an event served by any other
+# domain contributes nothing, so a confined caller sees only its own domains'
+# accounts. Page-channel events only (a visit is a page request, as everywhere
+# else here); every class counts, because an agent's token account is recorded
+# too and `agent_visits` says how many of an account's were declared agents
+# (lazysite-agent/<partner-id>). `days` is the distinct UTC days it visited, and
+# `last` the latest visit. Kept exactly as long as the log (retention_days).
+sub _by_account_summary {
+    my ( $window, $want ) = @_;
+    $window = ( $window || 30 ) + 0;
+    $window = 30  if $window < 1;
+    $window = 365 if $window > 365;
+    my $from   = time() - $window * 86400;
+    my $served = _served_domain_fn();
+    my %want   = $want ? ( map { ( $_ => 1 ) } @$want ) : ();
+    my %acct;
+    my @fd        = gmtime( $from - 86400 );
+    my $from_file = sprintf 'access-%04d%02d%02d', $fd[5] + 1900, $fd[4] + 1, $fd[3];
+    for my $f ( first_party_files() ) {
+        next if ( $f =~ m{([^/]+)\.jsonl\z} )[0] lt $from_file;
+        open my $fh, '<', $f or do { _cannot_read( 'a visitor log', $f ); next };
+        while ( my $line = <$fh> ) {
+            my $r = eval { JSON::PP::decode_json($line) } or next;
+            next unless ref $r eq 'HASH' && ( $r->{t} // 0 ) >= $from;
+            next if ( $r->{ch} // 'page' ) ne 'page';
+            my $u = $r->{u};
+            next unless defined $u && !ref $u && length $u;
+            next if $want && !$want{ $served->( $r->{h} ) };
+            my $a = $acct{$u} ||= { visits => 0, agent_visits => 0, days => {}, last => 0 };
+            $a->{visits}++;
+            $a->{agent_visits}++ if ( $r->{ua} // '' ) =~ /lazysite-agent\//i;
+            my @g = gmtime( $r->{t} );
+            $a->{days}{ sprintf( '%04d-%02d-%02d', $g[5] + 1900, $g[4] + 1, $g[3] ) } = 1;
+            $a->{last} = $r->{t} if $r->{t} > $a->{last};
+        }
+        close $fh;
+    }
+    my @rows = map {
+        { account => $_, visits => $acct{$_}{visits}, agent_visits => $acct{$_}{agent_visits},
+            days => scalar keys %{ $acct{$_}{days} }, last => _day_str( $acct{$_}{last} ) }
+    } sort { $acct{$b}{visits} <=> $acct{$a}{visits} || $a cmp $b } keys %acct;
+    return {
+        basis => "Page requests made while signed in, per account, over the last $window days of the "
+            . 'raw first-party log' . ( $want ? ', for the domains this caller reaches' : '' )
+            . '. An anonymous visit is not counted here. These are account names: personal data.',
+        accounts => \@rows,
     };
 }
 

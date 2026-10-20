@@ -222,7 +222,7 @@ __DATA__
    "cap-analytics" : {
       "analytics" : 1,
       "assignable" : 0,
-      "description" : "Sanitised, IP-anonymised visitor analytics.",
+      "description" : "IP-anonymised visitor analytics, including which signed-in accounts visited (account names are personal data).",
       "label" : "Capability: analytics",
       "seeded" : 1
    },

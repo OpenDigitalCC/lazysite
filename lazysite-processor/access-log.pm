@@ -11,7 +11,7 @@ package main;
 #         the `plugins:` registry read, memoised per request in a bare block.
 # OWNS    what a request leaves in the access log; whether a unit is listed.
 # CALLS   _request_address, _trusted_proxy_spec, _request_host, _cannot_read,
-#         _draft_requested,
+#         _draft_requested, _request_identity (auth.pm, the one identity reader),
 #         _json_str, log_event (lazysite-processor.pl); make_path,
 #         hmac_sha256_hex and the Fcntl O_* constants (imported by the script's
 #         `use`, before its parts load).
@@ -217,6 +217,27 @@ sub _access_channel {
     return $ch;
 }
 
+# SM1219 (#339, ruled 2026-10-20): THE ACCOUNT A VISIT IS RECORDED AGAINST.
+#
+# The release manager asked for "visitor log to record user if user is logged in";
+# the ruling is the account name, kept as long as the rest of the log. The name is
+# the VERIFIED identity only: the one reader (_request_identity) answers it, and
+# its source says how it knew. 'cookie' is the wrapper's verified session (on CGI)
+# or the pool front door's held value; 'proxy' is a listed proxy peer's header.
+# 'direct' is a request nothing verified, whose headers are whatever the client
+# sent, so it records nobody - that is the whole of the forged-header guard, and
+# the raw X-Remote-User is never read here. It is asked here, at the end, and not
+# taken from %AUTH_CONTEXT, because a cache hit is served before the page gate
+# fills that and a signed-in visitor on one is still a signed-in visit. Anonymous
+# is simply omitted. The preview and draft doors have returned before this.
+sub _access_account {
+    my $id = eval { _request_identity() } or return '';
+    return '' unless ref $id eq 'HASH';
+    my $src = $id->{source} // '';
+    return '' unless $src eq 'cookie' || $src eq 'proxy';
+    return $id->{user} // '';
+}
+
 # Record the request outcome. No-op when no emitter ran (redirects), when the
 # stats unit is switched off (SM222 L0), when first_party: off, or on any
 # internal failure - recording must never break serving. One O_APPEND write; lines are far below PIPE_BUF, so concurrent
@@ -288,6 +309,9 @@ sub _access_record {
         # capped; empty (primary / malformed Host) is simply omitted.
         my $host = _request_host();
         $line .= ',"h":"' . _access_field( $host, 253 ) . '"' if length $host;
+        # SM1219 (#339): the signed-in account, when the engine has verified one.
+        my $acct = _access_account();
+        $line .= ',"u":"' . _access_field( $acct, 64 ) . '"' if length $acct;
         # SM1144: where the time went, appended so a reader of the older fields
         # sees the line it always saw. The phase in progress is closed first.
         if ($TIMING) {

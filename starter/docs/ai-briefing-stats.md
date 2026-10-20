@@ -18,7 +18,8 @@ Call `analyse_visitors` with an optional `window` (days, 1-365, default 30). It
 returns a sanitised JSON summary built from lazysite's first-party access log
 (recorded by the site itself, anonymised at write; the web-server access log
 is the fallback source when no first-party data exists). You never
-see the raw log, any filesystem path, or a visitor's IP address: the tool
+see the raw log, any filesystem path, or a visitor's IP address (a signed-in
+visitor's account name is the one identity in the data - see below): the tool
 aggregates and anonymises before anything reaches you. Repeated calls are cheap -
 the data is cached and only new log lines are processed each time.
 
@@ -41,6 +42,23 @@ form nobody registered) was served the default site and counts as the primary,
 - A grant confined to some domains sees only their traffic, whether or not it
   asks for a `host`, and is refused `index`, `day`, `month` and `trails`. One
   that reaches no domain is refused. On a one-domain instance nothing changes.
+
+### Signed-in accounts
+
+A visit made while signed in is recorded with the account name; an anonymous
+visit has none. The account is the one the engine verified, never a header a
+visitor sent, and an agent signed in with a token is recorded under its own
+account beside its `lazysite-agent/<partner-id>` marking. It is kept as long as
+the rest of the log (`retention_days`).
+
+- `by_account: true` - adds `by_account`: `basis`, and `accounts`, one row per
+  account that visited in the window, most visits first: `account`, `visits`
+  (page requests), `agent_visits` (of those, from a declared agent), `days`
+  (distinct days) and `last` (the latest day). The default reply carries none of
+  it.
+- A grant confined to some domains sees only the accounts that visited those
+  domains. Account names are personal data: report them only as far as the
+  operator asked for, and do not copy them beyond the question.
 
 ## What the data means
 

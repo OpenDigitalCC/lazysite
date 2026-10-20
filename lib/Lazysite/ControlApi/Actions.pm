@@ -438,7 +438,7 @@ our %ACTION = (
     'address-list-set' => { mutates => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address lists are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'kind', in => 'body' }, { name => 'entries', in => 'body' } ] },
     'address-lists' => { mcp => 'list_address_lists', cookie_cap => 'manage_users', params => [] },
     'aliases-list' => { params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },
-    'analyse_visitors' => { mcp => 'analyse_visitors', cookie_cap => 'analytics', params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' }, { name => 'host', in => 'query' }, { name => 'by_host', in => 'query' } ] },
+    'analyse_visitors' => { mcp => 'analyse_visitors', cookie_cap => 'analytics', params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' }, { name => 'host', in => 'query' }, { name => 'by_host', in => 'query' }, { name => 'by_account', in => 'query' } ] },
     # [cookie_cap] SM591: no copy survives
     'artifact-backups-delete' => { instance_wide => 1, mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'path', in => 'query' } ] },
     'artifact-manifest'       => { params => [] },

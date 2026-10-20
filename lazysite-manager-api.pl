@@ -2329,7 +2329,9 @@ elsif ( $action eq 'analyse_visitors' ) {
         trails => $params{trails},
         # P15: one domain's traffic, and the requests per domain
         host    => $params{host},
-        by_host => ( ( $params{by_host} // q{} ) =~ /\A(?:1|true|yes)\z/i ? 1 : 0 ) );
+        by_host => ( ( $params{by_host} // q{} ) =~ /\A(?:1|true|yes)\z/i ? 1 : 0 ),
+        # SM1219: the signed-in accounts and their visits, for an analytics holder
+        by_account => ( ( $params{by_account} // q{} ) =~ /\A(?:1|true|yes)\z/i ? 1 : 0 ) );
 }
 elsif ( $action eq 'whoami' ) { $result = action_whoami( $auth_user, $params{plugins} ) }
 elsif ( $action eq 'start-page' ) { $result = action_start_page( $params{username} ) }

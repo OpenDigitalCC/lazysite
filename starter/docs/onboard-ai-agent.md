@@ -50,7 +50,7 @@ Once connected, just ask. Depending on the permissions you granted, your AI can:
 - **Create or edit content** - "draft a page about X and publish it".
 - **Change the appearance** - "install the *clarity* theme" (a theme).
 - **Change the structure** - "switch to a layout with a sidebar" (a layout).
-- **Analyse visitor trends** - "how is traffic trending; which pages are growing; is AI-assistant traffic rising" (needs the *analytics* permission; the AI only ever sees aggregated, IP-anonymised figures, never the raw log).
+- **Analyse visitor trends** - "how is traffic trending; which pages are growing; is AI-assistant traffic rising" (needs the *analytics* permission; the AI sees aggregated, IP-anonymised figures and the visits per signed-in account name, never the raw log).
 - **Build from a design** - connect the Figma MCP server alongside and see [/docs/integrations/figma](/docs/integrations/figma).
 
 ## 5. Time-box it (optional)

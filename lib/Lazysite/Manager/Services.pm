@@ -164,6 +164,7 @@ sub visitor_scope_args {
     }
     my @args = map { ( '--host', ( length $_ ? $_ : '(default)' ) ) } @hosts;
     push @args, '--by-host' if $opt->{by_host};
+    push @args, '--by-account' if $opt->{by_account};    # SM1219
     return ( \@args );
 }
 

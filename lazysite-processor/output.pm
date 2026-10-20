@@ -465,7 +465,7 @@ sub _ai_partner_doc {
             control_api =>
                 'config keys, theme/layout activation, HTML-cache clear (manage_config / manage_themes / manage_layouts)',
             analytics =>
-                'read-only visitor-log analysis via the analyse_visitors MCP tool - sanitised + IP-anonymised, never the raw log or a path. Off by default; explicit grant. Raw logs under lazysite/logs/ stay denied.',
+                'read-only visitor-log analysis via the analyse_visitors MCP tool - sanitised + IP-anonymised, never the raw log or a path; it also shows which signed-in accounts visited (account names, SM1219). Off by default; explicit grant. Raw logs under lazysite/logs/ stay denied.',
             audit =>
                 'read the audit trail (in-page Audit view + control-API audit action). A separate capability from analytics; off by default.',
             deny => [

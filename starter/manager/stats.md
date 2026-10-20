@@ -29,6 +29,13 @@ search: false
 </div>
 </div>
 
+<div class="mg-card" id="accounts-card" hidden>
+<div class="mg-card-header">
+<span class="mg-card-title">Visits by account</span>
+</div>
+<div class="mg-card-body" id="accounts-body">Loading&hellip;</div>
+</div>
+
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var statsScript = null;
@@ -708,7 +715,37 @@ function renderTrails(d) {
   body.innerHTML = h;
 }
 
+// SM1219: the signed-in accounts that visited, from analyse_visitors (by_account).
+// The card is shown to a holder of the analytics capability and stays hidden for
+// anyone else, whose request is refused; a caller confined to some domains is
+// answered for those domains only, by the same call.
+function loadAccounts() {
+  var card = document.getElementById('accounts-card');
+  var body = document.getElementById('accounts-body');
+  if (!card || !body) return;
+  fetch(API + '?action=analyse_visitors&window=30&by_account=1')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok || !d.by_account) return;
+      var rows = d.by_account.accounts || [];
+      card.hidden = false;
+      if (!rows.length) {
+        body.innerHTML = '<p class="mg-muted">No signed-in visits recorded in the last 30 days.</p>';
+        return;
+      }
+      var h = '<table class="mg-table"><thead><tr><th>Account</th><th>Visits</th>'
+            + '<th>Days</th><th>Last visit</th></tr></thead><tbody>';
+      rows.forEach(function (r) {
+        h += '<tr><td>' + sesc(r.account) + '</td><td>' + fmtNum(r.visits) + '</td><td>'
+           + fmtNum(r.days) + '</td><td>' + sesc(r.last) + '</td></tr>';
+      });
+      body.innerHTML = h + '</tbody></table>';
+    })
+    .catch(function () { /* best-effort: the card stays hidden */ });
+}
+
 loadStats();
+loadAccounts();
 // The trails card honours what this viewer last chose and does not fetch until
 // it is actually open. (The blocked-address card moved to Plugin Config in
 // SM703 - it is an access control, not a statistic.)

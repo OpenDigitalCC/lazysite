@@ -357,7 +357,7 @@ Provided by the opt-in
 extension: the nav item appears only when the extension is enabled - enable it on Extension
 Manager (recording and retention are tunable under Extensions -> Configure). An AI connector granted
 the **Analytics** permission can analyse the same data for trends via the
-`analyse_visitors` tool, getting only the aggregated, IP-anonymised figures (see
+`analyse_visitors` tool, getting the aggregated, IP-anonymised figures and, on request, the visits per signed-in account (see
 [AI connector tools](/docs/ai-connector-tools) and
 [AI briefing - visitor analytics](/docs/ai-briefing-stats)).
 

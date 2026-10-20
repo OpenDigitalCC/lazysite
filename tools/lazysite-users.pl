@@ -4105,13 +4105,14 @@ sub _default_group_seed {
             manage_users               => 1, create_sub_users => 1,
             delegate_sub_user_creation => 1, notifications    => 1 },
         # SM631: SPLIT, because these are not the same size of grant. Analytics
-        # is sanitised and IP-anonymised; the audit trail is INSTANCE-WIDE and
-        # carries raw source IPs and the sysop's own sessions (SM618). An AI
+        # is IP-anonymised (SM1219: and names signed-in accounts); the audit
+        # trail is INSTANCE-WIDE and carries raw source IPs and the sysop's own
+        # sessions (SM618). An AI
         # agent wants the first routinely and must never acquire the second as a
         # side effect of a job title - which is what one bundle would have done.
         'cap-analytics' => {
             label       => 'Capability: analytics', assignable => 0,
-            description => 'Sanitised, IP-anonymised visitor analytics.',
+            description => 'IP-anonymised visitor analytics, including which signed-in accounts visited (account names are personal data).',
             analytics   => 1 },
         'cap-audit' => {
             label       => 'Capability: audit trail', assignable => 0,

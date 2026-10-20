@@ -2125,6 +2125,7 @@ my %TOOLS = (
                 month => { type => 'string', description => 'A specific month (YYYY-MM) - returns that month\'s durable rollup.' },
                 host => { type => 'string', description => 'One domain\'s traffic only - a configured domain, or (default) for the primary. Counted from the raw visitor log by the domain that served each request; not with index, day, month or trails. A grant confined to some domains sees only theirs, with or without this.' },
                 by_host => { type => 'boolean', description => 'Add by_host: page requests and visitor-days per serving domain over the window (only the domains this grant reaches).' },
+                by_account => { type => 'boolean', description => 'Add by_account: the signed-in accounts that visited over the window and how many page requests each made (account names are personal data; only the domains this grant reaches). An anonymous visit has no account.' },
                 trails => { type => 'string', description => 'A specific day (YYYY-MM-DD) - returns that day\'s recorded VISIT TRAILS: the ordered page sequence per visit, with entry, exit, distinct-page depth, the gap after each step and the visitor class at the time. Use index to see which days have trails; they expire (30 days by default) where the rollups do not.' },
             },
             additionalProperties => JSON::PP::false },

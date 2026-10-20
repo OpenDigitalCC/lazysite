@@ -322,6 +322,25 @@ systemctl restart lazysited@<domain>
   whatever the setting says. `tools/bench-surfaces.sh` reads them per surface, one
   request at a time, pinned to one CPU at the lowest priority (a development tool, in the source tree, not installed on a site).
 
+### The visitor log names signed-in accounts (SM1219)
+
+From this release the first-party visitor log (`lazysite/logs/access-*.jsonl`) records the
+account name (`u`) on a visit made while signed in. It is the account the engine verified -
+the session the auth wrapper checked, or a listed proxy's user - and never a header a client
+sent; an anonymous visit has no `u`. A token or MCP caller that fetches pages signed in is
+recorded under its own account. The name is kept for `retention_days` (default 90), the same
+as the rest of the log, and read through the `analytics` capability (the `by_account` view
+and the manager Stats page); a caller confined to some domains sees only the accounts that
+visited those domains.
+
+An account name is personal data, and the engine provides the mechanism only. **Telling the
+people who sign in that their visits are recorded under their account, what it is used for
+and how long it is kept, is the operator's duty** - put it in the site's privacy notice
+(this is the SM1010 principle: the engine does not publish a notice on the operator's
+behalf, and nothing on a screen or page says it for you). If the site should not keep it,
+turn the visitor log off (`first_party: off` in `lazysite/stats.conf`) or shorten
+`retention_days`; granting `analytics` grants sight of the names.
+
 ## Routine tasks
 
 - **Users/credentials:** the manager Users page, or

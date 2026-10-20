@@ -1279,6 +1279,13 @@ within a salt period - the accepted cost). The scope of the assurance is precise
 lazysite ships nothing that instruments a visitor; a site owner remains free to add
 their own scripts to their own pages, which lazysite cannot and does not control.
 
+**Signed-in accounts (SM1219).** The first-party visitor log records the account name against a
+visit made while signed in - the identity the engine verified, never a header a client sent,
+and never for an anonymous visit - and keeps it as long as the rest of the log. It is read
+with the `analytics` capability (`by_account`), a domain-confined caller seeing only its own
+domains' accounts, and shown on the manager Stats page. It is personal data; see the
+operator guide for what that asks of the operator.
+
 ## Backups and overlay install
 
 The manager Backups page (and the installer) take `tar.gz` snapshots of served

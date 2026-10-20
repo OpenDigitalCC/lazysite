@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1219 (PENDING) **the visitor log names the signed-in account.** A visit made while signed in is
+  recorded with the account the engine verified (never a header a client sent; an anonymous
+  visit has none), kept as long as the rest of the log. analyse_visitors takes `by_account`
+  (analytics; a domain-confined caller sees only its own domains' accounts) and the manager
+  Stats page lists the visits per account. The analytics capability's text no longer says it
+  cannot identify a visitor. Account names are personal data: telling members is the operator's
+  duty (operator guide).
+
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 
 - SM1230 (902e2784) **coverage fits around the night's other work.** The 01:30 cover-once was refused on

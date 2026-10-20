@@ -41,7 +41,7 @@ ok( $tools, 'the tool table was found' )
 # somebody decided it. The path-shaped names (path, to, from, slug, old, new,
 # file) are deliberately absent: whether they are a path is a per-tool fact.
 my %NOT_A_PATH = map { $_ => 1 } qw(
-    inputSchema accept activate add_alias adopt_identity all apply bad body by_host caps clean
+    inputSchema accept activate add_alias adopt_identity all apply bad body by_account by_host caps clean
     config confirm confirm_lost content content_base64 context css day description
     descriptor draft enabled entry every fields form good group handler handlers host id
     index items key layout limit logins max_files max_kb month name new_name notify
