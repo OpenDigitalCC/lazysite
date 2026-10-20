@@ -4,11 +4,11 @@ title: "SM1164: the Odoo extension starts and uses oomd, a resident OOM"
 subtitle: "lazysited supervises one oomd per site, the extension writes its config, every Odoo call goes through the daemon client with the in-process path as the fallback, and Status shows the daemon."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-18
 raised-by: OOM agent at the owner's request (inbox L7 and its addendum, 2026-10-18)
 area: odoo
-status-note: "CANDIDATE. D0 shipped on n655 (t/unit/odoo/55); D1-D4 shipped on n657 (t/unit/odoo/60-62, t/unit/daemon/14), on OOM 0.33 as vendored with bin/oomd (SM1175). D5 (the bench) waits for the owner's install of 0.31+ on the host, so the status stays candidate. Sign-in, sign-out and the two-factor step stay in-process: oomd has no verb for them (see What shipped). Supersedes SM1082 C3's Odoo part."
+status-note: "SHIPPED (PENDING) on n711: D5, the bench's odoo-oomd surface (an endpoint call end to end, the vendored oomd against OOM's fake Odoo): 116 ms through the pool before SM1226's warm-fork and 17 after. D0 shipped on n655, D1-D4 on n657. Sign-in, sign-out and the two-factor step stay in-process: oomd has no verb for them."
 ---
 
 # The request
@@ -290,3 +290,35 @@ serve them.
   supervisor's, unchanged.
 - A site path long enough to force the default socket directory is covered for
   the choice and the name (test 60), not by starting a daemon on it.
+
+# What shipped (D5)
+
+Branch n711, with [[SM1226]] (the endpoint warm-forked, ruled the same day: "D5 - yes").
+`tools/bench-surfaces.sh --surface odoo-oomd` measures an Odoo endpoint call end to end:
+a public read binding (`core.read` of `res.partner`) answered by the REAL oomd, started
+by the extension's own service from the vendored OOM (t/vendor/oom, never the host's),
+against OOM's fake Odoo (`Odoo::Test::CliFake`). The plan named the lab's local Odoo; the
+brief of 2026-10-20 said never a real Odoo, so the fake answers and the figure is lazysite's
+and oomd's, not Odoo's. The surface is measured only when named, since it starts a daemon,
+and `odoo_daemon: required` means a call that did not go through oomd is refused rather than
+timed. Each request is split into what starting the program costs (`load` and what no phase
+accounts for), the endpoint's own work (config, identity, render, write) and the call
+(`call;desc="oomd"`). `--with-warm-fork` adds SM1226's parent, measured through the pool and
+straight to its socket (`fork`).
+
+One CPU, nice 19, 20 sequential calls, the shared host at a load average of 0.7 to 2.1,
+medians in ms:
+
+```datatable
+columns: Path | Total | Start | Endpoint | Call (oomd)
+widths: 5cm | 2.6cm | 2.4cm | 2.4cm | 2.4cm
+---
+CGI | 110.9-116.0 | 64-67 | 27-28 | 20-21
+One-rule pool, before SM1226 (fork and exec) | 116.0-125.3 | 67-71 | 28-30 | 21-23
+One-rule pool, SM1226's warm-fork parent | 17.0-17.9 | 4.9-5.3 | 4.3-4.4 | 7.5-7.9
+The parent's socket directly | 15.6-16.6 | 3.7-4.0 | 4.2-4.3 | 7.8-8.6
+```
+
+The rounds are in SM1226 (D5). On this host a program start is about 65 ms and the engine's
+compile inside the endpoint about 23 more, against the lab's 200 ms on its own host.
+

@@ -100,6 +100,10 @@ Archive
   no-store`, and a size cap (`download_max_kb`, default 10 MB) over which it is refused, never
   cut short. The binding's gate, callers, rate caps and both paths (in-process, oomd) are the
   call's own; a binding without the option answers JSON as before.
+- SM1164 (PENDING) **internal: the surface bench measures an Odoo call through oomd.**
+  `tools/bench-surfaces.sh --surface odoo-oomd` (D5) times a read binding end to end
+  against the vendored oomd and OOM's fake Odoo. It splits each call into the program
+  start, the endpoint's own work and the call. `--with-warm-fork` adds SM1226's parent.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

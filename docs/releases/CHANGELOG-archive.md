@@ -374,6 +374,13 @@ standard-margins: true
   from OOM's `bin/`, so SM1164's tests start the real daemon from the
   repository, never from the host (lint 262). `tools/vendor-oom.sh` checks
   `bin/oomd` against the `odoo-oom-tools` deb. t/lint/207, 261, t/tools/155.
+- SM1164 (1c204e21) **the Odoo extension runs oomd and sends its calls through it.**
+  With `odoo_daemon: on` or `required`, lazysited runs one oomd per site as a
+  service, the extension writes its `oomd.conf` (0600, labels and no key), and every
+  binding call and confirm goes through OOM's daemon client. `on` falls back
+  in-process when the daemon is down, and `required` refuses. Each call records
+  `via`, and Status shows the daemon. `odoo_pack_dirs` and `set.<field>` binding
+  parameters (D0) came in the same release. t/unit/odoo/55, 60-62, t/unit/daemon/14.
 - SM1176 (96d42367) **a coverage run no longer refuses itself.** The group's
   `cover_db-<group>-cover-stderr.txt`, left at the tree root, made the next
   group's manifest build refuse an unclassified file (2026-10-18 run); every
