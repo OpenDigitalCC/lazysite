@@ -11,18 +11,17 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP   qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root site_tempdir);
 
 my $root   = repo_root();
 my $plugin = "$root/plugins/stats.pl";
 plan skip_all => "no $plugin" unless -f $plugin;
 
-my $d = tempdir( 'lazysite-app-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
+my $d = site_tempdir();
 make_path( "$d/lazysite/logs", "$d/lazysite/stats", "$d/lazysite/cache" );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_url: https://d.example.io\n";
