@@ -47,6 +47,7 @@ package Lazysite::Odoo;
 use strict;
 use warnings;
 use JSON::PP         ();
+use Digest::SHA      ();
 use File::Path       qw(make_path);
 use Lazysite::Util   qw(log_event cannot_read secure_write_perms);
 use Lazysite::Paths  ();
@@ -336,6 +337,8 @@ my %REFUSED_KIND = (
     stale => [ 'stale', 'the plan is stale: the data in Odoo changed after it was made - make it again' ],
     fingerprint => [ 'edited', 'the plan was changed after it was made, so it cannot be applied' ],
     'not-a-plan' => [ 'invalid', 'that is a result, not a plan' ],
+    'idem-mismatch' => [ 'refused', 'that Idempotency-Key was used for a different request - give this request a key of its own' ],
+    'idem-withdrawn' => [ 'refused', 'the plan made with that Idempotency-Key was withdrawn - give the request a new key' ],
 );
 
 # SM1186: the text of an OOM `usage` error, as far as a page may have it, or undef
@@ -448,8 +451,10 @@ sub outcome_of {
 # added to the trail by accident if the trail will not take a key it does not
 # know. `visitor` is a HASH of the visitor's key, never the key, which is a
 # bearer secret.
+# SM1223: `idem` is the key OOM holds for the call (derived, never the caller's own),
+# `repeat` that the answer was the first one again.
 our @CALL_FIELDS = qw(at call_id actor visitor ip login binding operation mode phase
-    outcome kind ms via decl);
+    outcome kind ms via decl idem repeat);
 my %CALL_FIELD = map { $_ => 1 } @CALL_FIELDS;
 
 sub record_call {
@@ -1008,6 +1013,70 @@ sub _owner {
     return ( $c{mode} // '' ) eq 'scheduled' ? 'scheduled' : '';
 }
 
+# --- SM1223: the caller's idempotency key ------------------------------------------
+#
+# RULING (2026-10-20, "OOM Lab questions"): "build the pass-through (page-chosen key
+# -> OOM idem, scoped to binding and person, format-checked, recorded)". An offline
+# queue that flushes on reconnect sends one key per queued item; a repeat of the
+# key answers as OOM answers a repeat (the first result, nothing sent to Odoo
+# again) instead of writing twice.
+#
+# THE CALLER'S KEY NEVER REACHES OOM AS IT IS. It is checked (8 to 128 characters,
+# letters, digits and . _ : -), then hashed with the binding and WHO sent it into the
+# key OOM holds, so the same key from another person or to another binding is
+# another key. For a session binding the person is the Odoo user, which OOM adds to
+# its own scope (the uid), so a person who signs in again is still the same person.
+our $IDEM_RE = qr/\A[A-Za-z0-9][A-Za-z0-9._:-]{7,127}\z/;
+
+sub idem_problem {
+    my ($k) = @_;
+    return 'the Idempotency-Key must be text' if !defined $k || ref $k;
+    return ''                                 if $k =~ $IDEM_RE;
+    return 'the Idempotency-Key must be 8 to 128 characters - letters, digits and . _ : - (a UUID is one) - and start '
+        . 'with a letter or digit';
+}
+
+# The key OOM is given, or ( undef, why ) when nobody can own it. The owner is the
+# account or the visitor key's hash; a request with neither has nobody a key could
+# be scoped to, and a key shared by every such caller would let one replay another.
+sub idem_derive {
+    my ( $b, $caller, %c ) = @_;
+    my $who = session_binding($b) ? 'session' : _owner(%c);
+    return ( undef, 'an Idempotency-Key is scoped to who sent it, and this request is from nobody - sign in, or '
+            . 'fetch a visitor token first' )
+        unless length $who;
+    return ( 'lz1-' . Digest::SHA::sha256_hex( join "\x1f", 'lazysite-odoo-idem', $b->{id}, $who, $caller ), '' );
+}
+
+# The plan folder a key makes: the same key, the same folder, so a repeat finds the
+# plan it made. 128 bits of a hash of a hash of the caller's key - not a name anyone
+# else can reach, and the owner check on a confirm is unchanged.
+sub _idem_pid { return substr( Digest::SHA::sha256_hex( 'plan|' . $_[0] ), 0, 32 ) }
+
+# Whose key OOM counts it as in the registry of an in-process run (the daemon's side
+# is OOM's own _owner): the person's Odoo user for a session, else the login.
+sub _idem_owner {
+    my ( $ctx, $b, $c ) = @_;
+    return eval { 'uid:' . $ctx->client->uid } // ( $c->{actor} // '' ) if session_binding($b);
+    return $ctx->login;
+}
+
+# A result kept in a plan folder, as OOM's own repeat answers it.
+sub _idem_result {
+    my ( $dir, $run ) = @_;
+    my $h = _read_json_file("$dir/result.json");
+    $h ||= { applied => 1, op => $run->{op}, plan_fingerprint => $run->{fingerprint}, total => $run->{changes},
+        counts => $run->{result}{counts} // {}, by_bucket => {}, verified => 0, not_verified => 0,
+        journal => $run->{result}{journal}, created => {}, written => {}, unlinked => {}, custom => [],
+        failed_changes => [], unknown_changes => [], invariants => [], invariants_failed => 0 };
+    return bless( {%$h}, 'Odoo::Ops::Result' );
+}
+
+sub _idem_error {
+    my ( $code, $msg ) = @_;
+    return Odoo::Error->new( kind => 'refused', code => $code, message => $msg );
+}
+
 # call( \%binding, \%input, %ctx ) -> { ok, ... }
 #
 #   mode         what the caller IS (scheduled | authenticated | public)
@@ -1035,6 +1104,7 @@ sub call {
     # the bytes go to assemble() and to the operation and to nothing that copies
     # the context (the gate, the record, a log line).
     my $files = delete $ctx{files};
+    my $idem_in = delete $ctx{idem_key};    # SM1223: the caller's own key
     my %c = _with_visitor(%ctx);
     my ( $ok, $conn ) = gate( $b, %c );
     return $conn unless $ok;
@@ -1058,6 +1128,17 @@ sub call {
 
     my ( $class, $refusal ) = _ready( $b, $conn, \%rec );
     return $refusal unless $class;
+
+    # SM1223: the caller's key, checked and made OOM's before anything else is read
+    # of the request, so a bad key is refused whole and names itself.
+    if ( defined $idem_in ) {
+        my $bad = idem_problem($idem_in);
+        $bad = 'an Idempotency-Key is for a binding that writes; this one reads' if !length $bad && !$class->writes;
+        return ( _refusal( \%rec, 'invalid', $bad ) )[1] if length $bad;
+        my ( $dk, $dwhy ) = idem_derive( $b, $idem_in, %c );
+        return ( _refusal( \%rec, 'invalid', $dwhy ) )[1] unless defined $dk;
+        $c{idem} = $rec{idem} = $dk;
+    }
 
     require Lazysite::Odoo::Binding;
     my ( $params, $pwhy, $pkind ) = Lazysite::Odoo::Binding::assemble( $b, $class, $input,
@@ -1160,6 +1241,7 @@ sub confirm {
     # B: a person's sign-in applies only to a plan made by a session binding, and
     # only that person's: the owner is the hash of the session.
     my $sess = delete $ctx{odoo_session};
+    my $idem_in = delete $ctx{idem_key};       # SM1223
     my $swho = length( $sess // '' ) ? do { require Lazysite::Odoo::Session; Lazysite::Odoo::Session::session_label($sess) } : '';
     my %c = _with_visitor(%ctx);
     my $not_found = { ok => 0, kind => 'not-found', error => 'no such plan, or not yours to confirm' };
@@ -1197,6 +1279,22 @@ sub confirm {
 
     my ( $class, $refusal ) = _ready( $b, $conn, \%rec );
     return $refusal unless $class;
+
+    # SM1223: the plan keeps the key it was made with, and the confirm uses it, so a
+    # confirm sent twice (a queue that flushed again) answers with the first result.
+    # A key on the confirm itself is for a plan made without one; against a plan
+    # made with another it is refused.
+    my $idem = $meta->{idem};
+    if ( defined $idem_in ) {
+        my $bad = idem_problem($idem_in);
+        return ( _refusal( \%rec, 'invalid', $bad ) )[1] if length $bad;
+        my ( $k2, $kwhy ) = idem_derive( $b, $idem_in, %c );
+        return ( _refusal( \%rec, 'invalid', $kwhy ) )[1] unless defined $k2;
+        return ( _refusal( \%rec, 'invalid', 'this plan was made with another Idempotency-Key' ) )[1]
+            if defined $idem && $idem ne $k2;
+        $idem = $k2;
+    }
+    $c{idem} = $rec{idem} = $idem if defined $idem;
     my ( $capok, $capwhy ) = _take_cap( $b, $class, %c );
     return ( _refusal( \%rec, 'rate', $capwhy ) )[1] unless $capok;
 
@@ -1219,8 +1317,21 @@ sub confirm {
         my $ctx  = context( $conn, actor => _actor_label(%c),
             ( session_binding($b) ? ( session => $c{odoo_session} ) : () ) );
         $ctx->use_run_dir($dir);
+        my $claim;
+        if ( defined $idem ) {
+            require Odoo::Ops::Runs;
+            $claim = Odoo::Ops::Runs->idem_claim( plans_dir(), instance => $ctx->instance,
+                owner => _idem_owner( $ctx, $b, \%c ), key => $idem );
+            if ( -e "$dir/result.json" ) { # already applied under this key: the first result
+                my $first = _idem_result( $dir, $claim->run || {} );
+                return { ok => ( $first->ok ? 1 : 0 ), applied => 1, plan => $pid, repeat => 1,
+                    result => _result_summary($first) };
+            }
+            $claim->bind( $pid, undef ) unless $claim->run;
+        }
         _approve( $dir, $plan, $meta->{owner}, 'confirmed in lazysite by its maker' );
         my $result = with_site_ops( $conn, sub { Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir ) } );
+        $result->save("$dir/result.json") if $claim;
         { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $pid, result => _result_summary($result) };
     };
     my $err = $@;
@@ -1384,16 +1495,54 @@ sub _run {
         return { ok => 1, report => $report, ( $fields ? ( fields => $fields, refused => $refused ) : () ) };
     }
 
+    # SM1223: a key already used answers from its run, before the operation is
+    # planned again (no read of Odoo, nothing written). The claim holds the key's
+    # lock until this call ends, so two requests with one key go one after the other.
+    my $idem = $c->{idem};
+    my ( $claim, $digest );
+    if ( defined $idem ) {
+        require Odoo::Ops::Runs;
+        $digest = Odoo::Ops::Runs->request_digest( $b->{operation}, $params );
+        $claim  = Odoo::Ops::Runs->idem_claim( plans_dir(), instance => $ctx->instance,
+            owner => _idem_owner( $ctx, $b, $c ), key => $idem );
+        if ( my $run = $claim->run ) {
+            die _idem_error( 'idem-mismatch', "idem belongs to run $run->{id}, which was a different request" )
+                if ( $claim->request // '' ) ne $digest;
+            my $dir0 = plans_dir() . "/$run->{id}";
+            my $meta = _read_json_file("$dir0/meta.json");
+            die _idem_error( 'idem-withdrawn', "the plan of run $run->{id} was withdrawn" )
+                if ref $meta eq 'HASH' && $meta->{withdrawn};
+            if ( -e "$dir0/result.json" || -e "$dir0/journal.jsonl" ) {
+                my $result = _idem_result( $dir0, $run );
+                return { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $run->{id}, repeat => 1,
+                    result => _result_summary($result) };
+            }
+            my $again = Odoo::Ops::Plan->load("$dir0/plan.json");
+            return { ok => 1, planned => 1, plan => $run->{id}, preview => _preview($again), repeat => 1 }
+                if $b->{apply} ne 'immediate';
+
+            # an immediate apply that was planned and not finished: finish it
+            $ctx->use_run_dir($dir0);
+            _approve( $dir0, $again, "binding:$b->{id}", 'apply: immediate on the binding' );
+            my $result = with_site_ops( $conn, sub { Odoo::Ops::Runner->apply( $ctx, $again, dir => $dir0 ) } );
+            $result->save("$dir0/result.json");
+            return { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $run->{id}, repeat => 1,
+                result => _result_summary($result) };
+        }
+    }
+
     my $plan = $op->run;
-    my ( $pid, $dir ) = _new_plan_dir();
+    my ( $pid, $dir ) = _new_plan_dir( defined $idem ? _idem_pid($idem) : undef );
     $ctx->use_run_dir($dir);
     $plan->save("$dir/plan.json");
     _write_json_file( "$dir/meta.json",
         { binding => $b->{id}, operation => $b->{operation}, owner => _owner(%$c),
-            created => time, fingerprint => $plan->fingerprint } );
+            created => time, fingerprint => $plan->fingerprint, ( defined $idem ? ( idem => $idem ) : () ) } );
+    $claim->bind( $pid, $digest ) if $claim;
     if ( $b->{apply} eq 'immediate' ) {
         _approve( $dir, $plan, "binding:$b->{id}", 'apply: immediate on the binding' );
         my $result = with_site_ops( $conn, sub { Odoo::Ops::Runner->apply( $ctx, $plan, dir => $dir ) } );
+        $result->save("$dir/result.json") if $claim;
         return { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $pid,
             result => _result_summary($result) };
     }
@@ -1410,34 +1559,61 @@ sub _run {
 sub _run_daemon {
     my ( $cl, $b, $class, $conn, $params, $c ) = @_;
     my %req = ( credential => _daemon_credential( $b, $conn, $c ), actor => _actor_label(%$c) );
-    my $r = $cl->run( $b->{operation}, $params, %req );
+
+    # SM1223: the key OOM holds is sent on the run and, for an immediate apply, on
+    # the approve and the apply of the same run, which OOM binds to the one key.
+    my $idem = $class->writes ? $c->{idem}        : undef;
+    my %ik   = defined $idem  ? ( idem => $idem ) : ();
+    my $r    = $cl->run( $b->{operation}, $params, %req, %ik );
     unless ( $class->writes ) {
         my $report = $r->{report};
         require Lazysite::Odoo::Fields;
         my ( $fields, $refused ) = Lazysite::Odoo::Fields::present($report);
         return { ok => 1, report => $report, ( $fields ? ( fields => $fields, refused => $refused ) : () ) };
     }
+    my $again = $r->{repeat} ? 1 : 0;
+    if ( $again && ref $r->{result} ) { # applied already: the first result, nothing sent to Odoo
+        my $m = _read_json_file( plans_dir() . '/' . _idem_pid($idem) . '/meta.json' );
+        die _idem_error( 'idem-withdrawn', 'the plan of this key was withdrawn' ) if ref $m eq 'HASH' && $m->{withdrawn};
+        return _applied_answer( _idem_pid($idem), $r );
+    }
     my $plan = $r->{plan}
         or die "the daemon answered a write without a plan\n";
     my $run_id = $r->{run_id} // '';
-    my ( $pid, $dir ) = _new_plan_dir();
-    my $res = eval {
-        $plan->save("$dir/plan.json");
-        _write_json_file( "$dir/meta.json",
-            { binding => $b->{id}, operation => $b->{operation}, owner => _owner(%$c),
-                created => time, fingerprint => $plan->fingerprint,
-                ( length $run_id ? ( run_id => $run_id ) : () ) } );
-        if ( $b->{apply} eq 'immediate' ) {
-            $cl->approve( $run_id, %req, actor => "binding:$b->{id}", note => 'apply: immediate on the binding' );
-            my $ar = $cl->apply( $run_id, %req );
-            return _applied_answer( $pid, $ar );
+    my ( $pid, $dir, $reuse );
+    if ( defined $idem ) {
+        ( $pid, $dir ) = ( _idem_pid($idem), plans_dir() . '/' . _idem_pid($idem) );
+        my $m = _read_json_file("$dir/meta.json");
+        if ( ref $m eq 'HASH' && length $run_id && ( $m->{run_id} // '' ) eq $run_id ) {
+            die _idem_error( 'idem-withdrawn', 'the plan of this key was withdrawn' ) if $m->{withdrawn};
+            $reuse = 1;    # the plan it made is still here, with its age
         }
-        { ok => 1, planned => 1, plan => $pid, preview => _preview($plan) };
+        else { ( $pid, $dir ) = _new_plan_dir($pid) }
+    }
+    else { ( $pid, $dir ) = _new_plan_dir() }
+    my $res = eval {
+        unless ($reuse) {
+            $plan->save("$dir/plan.json");
+            _write_json_file( "$dir/meta.json",
+                { binding => $b->{id}, operation => $b->{operation}, owner => _owner(%$c),
+                    created => time, fingerprint => $plan->fingerprint,
+                    ( length $run_id ? ( run_id => $run_id ) : () ), ( defined $idem ? ( idem => $idem ) : () ) } );
+        }
+        if ( $b->{apply} eq 'immediate' ) {
+            $cl->approve( $run_id, %req, %ik, actor => "binding:$b->{id}", note => 'apply: immediate on the binding' );
+            my $ar = $cl->apply( $run_id, %req, %ik );
+            my $a  = _applied_answer( $pid, $ar );
+            $a->{repeat} = 1 if $again;
+            return $a;
+        }
+        { ok => 1, planned => 1, plan => $pid, preview => _preview($plan), ( $again ? ( repeat => 1 ) : () ) };
     };
     unless ($res) {
         my $e = $@;
-        require File::Path;
-        File::Path::remove_tree($dir);
+        unless ($reuse) {
+            require File::Path;
+            File::Path::remove_tree($dir);
+        }
         die $e;
     }
     return $res;
@@ -1451,7 +1627,7 @@ sub _applied_answer {
         result => { total => 0, counts => {}, by_bucket => {}, verified => 0, changes => [] } }
         unless ref $ar eq 'HASH' && $ar->{result};
     return { ok => ( $ar->{result}->ok ? 1 : 0 ), applied => 1, plan => $pid,
-        result => _result_summary( $ar->{result} ) };
+        ( $ar->{repeat} ? ( repeat => 1 ) : () ), result => _result_summary( $ar->{result} ) };
 }
 
 # A confirm through the daemon: approve in the daemon's run (the actor on the
@@ -1460,8 +1636,9 @@ sub _confirm_daemon {
     my ( $cl, $meta, $pid, $b, $c ) = @_;
     my %req = ( credential => _daemon_credential( $b, $c->{conn}, $c ), actor => _actor_label(%$c) );
     my $run = $meta->{run_id};
-    $cl->approve( $run, %req, actor => $meta->{owner}, note => 'confirmed in lazysite by its maker' );
-    return _applied_answer( $pid, $cl->apply( $run, %req ) );
+    my %ik = defined $c->{idem} ? ( idem => $c->{idem} ) : (); # SM1223: the plan's key, or the confirm's own
+    $cl->approve( $run, %req, %ik, actor => $meta->{owner}, note => 'confirmed in lazysite by its maker' );
+    return _applied_answer( $pid, $cl->apply( $run, %req, %ik ) );
 }
 
 sub _finish {
@@ -1474,7 +1651,7 @@ sub _finish {
             kind => $f->{kind}, ms => $ms, ( defined $LAST_VIA ? ( via => $LAST_VIA ) : () ) );
         return $f;
     }
-    record_call( %$rec, phase => $phase, outcome => 'answered', ms => $ms,
+    record_call( %$rec, phase => $phase, outcome => 'answered', ms => $ms, ( $res->{repeat} ? ( repeat => 1 ) : () ),
         ( defined $LAST_VIA ? ( via => $LAST_VIA ) : () ),
         ( $res->{ok} ? () : ( kind => 'apply-incomplete' ) ) );
     unless ( $res->{ok} ) {
@@ -2069,10 +2246,18 @@ sub _cap_unknown {
 # door never serves. The id is 128 random bits, never a timestamp or a counter,
 # so a plan cannot be found by counting. Pruned by age on each new plan.
 sub _new_plan_dir {
+    my ($given) = @_;    # SM1223: the folder an idempotency key makes, else a random one
     require Lazysite::Odoo::Visitor;
-    my $pid = Lazysite::Odoo::Visitor::random_hex(16)
+    my $pid = $given // Lazysite::Odoo::Visitor::random_hex(16)
         or die Odoo::Error->new( kind => 'config', message => 'no CSPRNG for a plan id' );
     my $dir = plans_dir() . "/$pid";
+
+    # a key's folder that is here while its key is free is a run that was closed:
+    # it is replaced, not mixed with the new plan
+    if ( defined $given && -d $dir ) {
+        require File::Path;
+        File::Path::remove_tree($dir);
+    }
     make_path( $dir, { mode => 0770 } );
     _prune_plans();
     return ( $pid, $dir );

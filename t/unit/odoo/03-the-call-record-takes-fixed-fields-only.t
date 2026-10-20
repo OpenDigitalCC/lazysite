@@ -47,8 +47,8 @@ is_deeply( [ sort keys %{ $l[0] } ],
     [ sort qw(at call_id actor visitor ip login binding operation mode phase outcome ms) ],
     'exactly the fields given, plus the time' );
 is_deeply( [ sort @Lazysite::Odoo::CALL_FIELDS ],
-    [ sort qw(at call_id actor visitor ip login binding operation mode phase outcome kind ms via decl) ],
-    'the field list is the one the filing names (SM1164 adds `via`: daemon or in-process; SM1180 adds `decl`: stored or rechecked), and nothing to carry a payload' );
+    [ sort qw(at call_id actor visitor ip login binding operation mode phase outcome kind ms via decl idem repeat) ],
+    'the field list is the one the filing names (SM1164 adds `via`: daemon or in-process; SM1180 adds `decl`: stored or rechecked; SM1223 adds `idem`, the key OOM holds, and `repeat`), and nothing to carry a payload' );
 
 my $mode = ( stat Lazysite::Odoo::calls_file() )[2] & 07777;
 ok( !( $mode & 07 ), sprintf( 'the record is not world-readable (%04o)', $mode ) );

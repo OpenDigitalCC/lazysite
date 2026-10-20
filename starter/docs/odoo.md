@@ -405,6 +405,65 @@ The control API and MCP
   `authenticated`, under the binding's `callers`; it is never a visitor, so a
   binding with a `visitor_param` is not listed or run here.
 
+## A write sent twice (`Idempotency-Key`)
+
+A page that queues its writes while the device is offline and sends them when the
+connection returns cannot know whether the request that was cut off reached Odoo.
+Sending it again must not write twice. **An offline queue should send one key per
+queued item**, made when the item is queued (a UUID will do) and sent again,
+unchanged, with every retry of that item:
+
+```
+POST /cgi-bin/lazysite-odoo.pl
+Idempotency-Key: 6f1c9e0a-2b7d-4c1e-9a53-0d5f1e8b7a42
+{"binding": "expense", "params": {...}, "visitor_token": "..."}
+```
+
+With the browser helper: `LazysiteOdoo.write('expense', params, { idempotencyKey: key })`
+(and `LazysiteOdoo.confirm(plan, { idempotencyKey: key })`). The helper sends the
+header on the call and on its retry for a stale token or a sign-in.
+
+The key is the **`Idempotency-Key` request header** (not a body field), on one call
+of a POST, a multipart POST or a confirm. A batch takes none: it is refused `400
+invalid` ("an Idempotency-Key is for one call"), so each queued item is its own
+request.
+
+Format
+: 8 to 128 characters, letters, digits and `. _ : -`, starting with a letter or a
+  digit. Anything else is refused `400 invalid` before anything is sent, naming the
+  rule. A key sent to a binding that only reads is refused too, and so is a key from
+  a caller who is nobody (no signed-in account and no visitor key: there is no one to
+  scope it to).
+
+Scope
+: The key OOM is given is made from **the binding, who sent the request and your
+  key**, hashed (`lz1-` and 64 hex digits); your key itself never reaches OOM or the
+  call record. The same key from another person, another visitor or to another binding
+  is another key: nobody can collide with or replay anyone else's. "Who" is the
+  signed-in account, or the visitor key (as its hash). For a `credential: session`
+  binding it is the Odoo user, which OOM adds to its own scope, so a person who
+  signs in again is still the same person and their retry is a repeat.
+
+A repeat
+: A request with a key that already made a run is answered **as OOM answers a
+  repeat**: the first answer again, with `repeat: true` beside it, and nothing sent
+  to Odoo again. The plan, while it is unconfirmed (the same `plan` id, not a second
+  plan); the result, once it was applied (a failed or partly applied result is the
+  first result too: to try the change again, give it a new key). A confirm of that
+  plan carries the key with it (the plan keeps it), so a confirm sent twice answers
+  the first result instead of `applied`. A plan made without a key takes one at its
+  confirm. The same key with other parameters is refused `refused` ("that
+  Idempotency-Key was used for a different request"); the key of a withdrawn plan is
+  refused too.
+
+How long
+: A key lives as long as its run is kept: the plans and runs lazysite keeps for seven days. After
+  that the key is free again.
+
+Both paths do this the same way: in-process and through oomd, for an immediate
+apply and for a plan with a confirm. The call record has the key OOM holds as `idem`
+(never your key) and `repeat` for an answer that was a repeat.
+
 ## A person's own Odoo account (`credential: session`)
 
 A binding with `credential: session` runs as the **person signed in to Odoo
@@ -691,7 +750,8 @@ Anywhere else the call is refused as `wrong-domain` (`403`) and recorded, and
 One line per call in `lazysite/odoo/calls.jsonl`, with fixed fields only: when,
 the call id, the actor, the visitor hash, the IP, the Odoo login, the binding,
 the operation, the mode, the phase (`run`, `plan`, `apply`), the outcome, the
-refusal kind and the duration. Never a parameter value, a report or a key.
+refusal kind, the duration, and, for a call that carried an `Idempotency-Key`, the
+key OOM holds (`idem`) and whether the answer was a repeat (`repeat`). Never a parameter value, a report or a key.
 Kept 90 days. `odoo-calls` / `odoo_calls` (`manage_connectors`) reads it,
 optionally for one `binding`. Each call is also one `odoo-call` line in the
 audit trail.
@@ -713,6 +773,7 @@ never returned. The kinds a caller meets most:
 | `second-factor` | 401 | Odoo did not accept the code; the person may try again |
 | `invalid` | 400 | a parameter is unmapped, of the wrong type, or missing; for a file, of a type the binding does not accept, a name that is not a plain name, or too many files |
 | `too-large` | 413 | a multipart request is larger than the binding's `file_max_kb` allows (refused before its body is read), or one file is over the cap; or a JSON body is over 64 KB (or the budget a declared rows `max` gives its binding) |
+| `refused` | 400 | OOM refused it before Odoo answered; with an `Idempotency-Key`, that the key was used for a different request, or its plan was withdrawn |
 | `rate` | 429 | a rate cap is reached |
 | `not-found` | 404 | no such binding, or no such plan for this caller |
 | `stale`, `edited`, `applied` | 409 | the plan no longer fits Odoo, or was already applied |

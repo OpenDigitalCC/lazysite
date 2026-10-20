@@ -82,6 +82,12 @@ Archive
   status for a malformed request. It answers 401 with the same body, now with kind
   `unauthenticated`, and no `WWW-Authenticate` (the session is a cookie). A site with no
   manager account yet answers 503 (`not-set-up`) in its own wording: nothing to sign in to.
+- SM1223 (PENDING) **a binding passes the caller's idempotency key to OOM.** A page that queues its
+  writes offline sends an `Idempotency-Key` header per item (8 to 128 characters); it is hashed with the
+  binding and who sent it into OOM's `idem`, so nobody collides with or replays another person, and a
+  repeat answers the first plan or result (`repeat: true`) instead of writing twice, in process and
+  through oomd, for an immediate apply and for plan and confirm. The call record has `idem` and `repeat`.
+  The browser helper takes `{ idempotencyKey }`.
 - SM1224 (PENDING) **a rows key's declared max raises its cap.** lazysite held every request value to
   1,000 characters, so a rows key an operation declares with its own `max` (OOM 0.38, up to
   1,048,576) was refused past 1,000 though OOM accepts it. That `max` is now the key's cap;

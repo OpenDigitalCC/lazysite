@@ -90,13 +90,15 @@
   /* One request. Resolves { status, data } - never rejects on an HTTP status,
    * so a caller reads what the endpoint said; rejects only when it could not
    * ask at all. */
-  function send(method, query, body, form) {
+  function send(method, query, body, form, extra) {
     var opts = {
       method: method,
       credentials: 'same-origin',
       cache: 'no-store',
       headers: { 'Accept': 'application/json' }
     };
+    /* SM1223: the caller's Idempotency-Key, when the page gave one */
+    if (extra) Object.keys(extra).forEach(function (k) { opts.headers[k] = extra[k]; });
     if (form) {
       /* SM1162: a FormData. No Content-Type here: the browser writes it, with the boundary. */
       opts.body = form;
@@ -144,15 +146,24 @@
 
   /* A POST with its token. A token the server calls stale is fetched again and
    * the POST sent once more - ONCE. */
-  function post(body) {
+  function post(body, hdr) {
     return getTokens(false).then(function (t) {
-      return send('POST', '', withTokens(body, t)).then(function (r) {
+      return send('POST', '', withTokens(body, t), undefined, hdr).then(function (r) {
         if (!isCsrf(r)) return r;
         return getTokens(true).then(function (t2) {
-          return send('POST', '', withTokens(body, t2));
+          return send('POST', '', withTokens(body, t2), undefined, hdr);
         });
       });
     });
+  }
+
+  /* SM1223: opts.idempotencyKey is sent as the Idempotency-Key header of the one
+   * call. A call sent again (a stale token, a sign-in) keeps it, so does a call the
+   * page sends again after a failure: a repeat with the same key does not write
+   * twice. The server checks its format (8 to 128 of letters, digits and . _ : -). */
+  function keyHeader(opts) {
+    return opts && opts.idempotencyKey !== undefined && opts.idempotencyKey !== null
+      ? { 'Idempotency-Key': String(opts.idempotencyKey) } : undefined;
   }
 
   function get(params) { return send('GET', encodeQuery(params)); }
@@ -186,13 +197,13 @@
     return fd;
   }
 
-  function postFiles(binding, split) {
+  function postFiles(binding, split, hdr) {
     var q = 'binding=' + encodeURIComponent(binding);
     return getTokens(false).then(function (t) {
-      return send('POST', q, undefined, formFor(binding, split, t)).then(function (r) {
+      return send('POST', q, undefined, formFor(binding, split, t), hdr).then(function (r) {
         if (!isCsrf(r)) return r;
         return getTokens(true).then(function (t2) {
-          return send('POST', q, undefined, formFor(binding, split, t2));
+          return send('POST', q, undefined, formFor(binding, split, t2), hdr);
         });
       });
     });
@@ -226,14 +237,14 @@
   API.write = function (binding, params, opts) {
     var split = splitFiles(params);
     if (split.files) {
-      return withSignin(function () { return postFiles(binding, split); }, opts);
+      return withSignin(function () { return postFiles(binding, split, keyHeader(opts)); }, opts);
     }
-    return withSignin(function () { return post({ binding: binding, params: params || {} }); }, opts);
+    return withSignin(function () { return post({ binding: binding, params: params || {} }, keyHeader(opts)); }, opts);
   };
 
   /* apply a plan this person made */
   API.confirm = function (plan, opts) {
-    return withSignin(function () { return post({ plan: plan, confirm: true }); }, opts);
+    return withSignin(function () { return post({ plan: plan, confirm: true }, keyHeader(opts)); }, opts);
   };
 
   /* sign a person in. The password is in this call's argument and the request

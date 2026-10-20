@@ -320,14 +320,21 @@ sub main {
 
     if ($files) {    # SM1162: the checks of a call are _post_one's, unchanged
         $who{odoo_session} = _refresh_identity(%who);
-        return reply( _post_one( $req, \%who, files => $files ) );
+        return reply( _post_one( $req, \%who, files => $files,
+                ( exists $ENV{HTTP_IDEMPOTENCY_KEY} ? ( idem => $ENV{HTTP_IDEMPOTENCY_KEY} ) : () ) ) );
     }
     return _signin( $req, %who )  if $req->{signin};
     return _signin_code( $req, %who ) if $req->{signin_code};
     return _signout( $req, %who ) if $req->{signout};
     $who{odoo_session} = _refresh_identity(%who);
-    return _batch( $req, \%who ) if exists $req->{calls};
-    return reply( _post_one( $req, \%who ) );
+    if ( exists $req->{calls} ) {
+        return reply( '400 Bad Request',
+            { ok => 0, kind => 'invalid',
+                error => 'an Idempotency-Key is for one call: send each call of a queue as its own request' } )
+            if exists $ENV{HTTP_IDEMPOTENCY_KEY};
+        return _batch( $req, \%who );
+    }
+    return reply( _post_one( $req, \%who, ( exists $ENV{HTTP_IDEMPOTENCY_KEY} ? ( idem => $ENV{HTTP_IDEMPOTENCY_KEY} ) : () ) ) );
 }
 
 # SM1147: the engine, loaded by the branches that need it. DOCROOT is set after
@@ -383,7 +390,7 @@ sub _post_one {
         # plan's. The caller's token must fit what the caller is.
         my %ctx = _ctx( undef, %$who );
         return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req );
-        return _settle( _timed( sub { Lazysite::Odoo::confirm( $req->{plan}, %ctx ) } ), $who );
+        return _settle( _timed( sub { Lazysite::Odoo::confirm( $req->{plan}, %ctx, _idem_ctx( \%o ) ) } ), $who );
     }
 
     # SM1162: the maker of a plan gives it up: {plan, withdraw: true}. Like a confirm it
@@ -417,7 +424,14 @@ sub _post_one {
     return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req, $b );
     return ( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'params must be an object' } )
         if defined $req->{params} && ref $req->{params} ne 'HASH';
-    return _settle( _timed( sub { Lazysite::Odoo::call( $b, $req->{params} // {}, %ctx, strict => 1, ( $o{files} ? ( files => $o{files} ) : () ) ) } ), $who );
+    return _settle( _timed( sub { Lazysite::Odoo::call( $b, $req->{params} // {}, %ctx, strict => 1, _idem_ctx( \%o ), ( $o{files} ? ( files => $o{files} ) : () ) ) } ), $who );
+}
+
+# SM1223: the caller's Idempotency-Key, from the request header of ONE call (a
+# batch carries none: see main). The engine checks its format and scopes it.
+sub _idem_ctx {
+    my ($o) = @_;
+    return defined $o->{idem} ? ( idem_key => $o->{idem} ) : ();
 }
 
 # SM1162: THE BODY OF A MULTIPART CALL -> ( $req, \%files ) or ( undef, undef, [ status, data ] ).
