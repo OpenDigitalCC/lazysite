@@ -22,7 +22,7 @@ use Test::More;
 use JSON::PP qw(encode_json decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper     qw(repo_root);
+use TestHelper     qw(repo_root run_cmd);
 use MaintenanceRig qw(build_site cookie_for conf_set via_wrapper slurp spit);
 
 my $root = repo_root();
@@ -30,8 +30,7 @@ my $tool = "$root/tools/lazysite-users.pl";
 
 sub users_cli {
     my ( $d, @a ) = @_;
-    my $out = qx($^X \Q$tool\E --docroot \Q$d\E @a 2>&1);
-    return $out;
+    return run_cmd( $^X, $tool, '--docroot', $d, @a );    # list form (t/lint/40)
 }
 # What the manager's own reads do first (users-page): the trigger an existing site
 # adopts a release on.
