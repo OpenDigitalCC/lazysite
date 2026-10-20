@@ -87,6 +87,7 @@ my @LINTS = qw(
     t/lint/03- t/lint/08- t/lint/09- t/lint/26- t/lint/27- t/lint/36- t/lint/53-
     t/lint/62- t/lint/63- t/lint/65- t/lint/75- t/lint/89- t/lint/110-
     t/lint/113- t/lint/138- t/lint/145- t/lint/149- t/lint/199- t/lint/207- t/lint/210- t/lint/244-
+    t/lint/270-
     t/unit/tools/71-
 );
 
