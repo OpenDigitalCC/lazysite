@@ -42,7 +42,7 @@ use File::Basename qw(dirname basename);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(lazysite_dir external_lazysite_dir internal_lazysite_dir site_path
-    stray_lazysite canonical_docroot processor_candidates find_processor);
+    stray_lazysite canonical_docroot processor_candidates find_processor dev_extension_dirs);
 
 our $DIRNAME = 'lazysite';
 
@@ -265,6 +265,30 @@ sub processor_candidates {
     push @c, "$docroot/../cgi-bin/lazysite-processor.pl" if defined $docroot && length $docroot;
     return @c;
 }
+
+# SM1222 (ruled 2026-10-20, "an extensions dir, yes, that allows multiple"): THE
+# DEV SERVER'S EXTRA EXTENSION DIRECTORIES. tools/lazysite-server.pl --extensions
+# DIR (repeatable) hands them to the CGIs it runs as LAZYSITE_EXTENSION_DIRS,
+# colon separated, in the order given - and sets LAZYSITE_DEV_SERVER, which is
+# what this honours. An installed engine is never started by that server, so for
+# it both are unset and this returns (): the lookup beside the docroot is the only
+# one, as before. A directory that is not a real directory (missing, or itself a
+# symlink) is dropped here again, so a hand-set variable cannot widen the lookup
+# past what the server accepts. Each is searched BEFORE the docroot's own
+# plugins/: an explicit choice outranks the implicit default, and a development
+# copy can stand in for a shipped one. A name in two directories: the first wins.
+sub dev_extension_dirs {
+    return () unless $ENV{LAZYSITE_DEV_SERVER};
+    my $list = $ENV{LAZYSITE_EXTENSION_DIRS};
+    return () unless defined $list && length $list;
+    my @dirs;
+    for my $d ( split /:/, $list ) {
+        next unless length $d && $d =~ m{\A/} && -d $d && !-l $d;
+        push @dirs, $d;
+    }
+    return @dirs;
+}
+
 
 sub find_processor {
     my ( $docroot, $script ) = @_;

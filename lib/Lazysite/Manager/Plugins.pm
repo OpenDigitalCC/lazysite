@@ -82,12 +82,17 @@ sub plugin_registry {
 
     # Installed plugins: plugins/<name>.pl. Name restricted to a plain filename
     # (no path separators), so a symlink/entry cannot smuggle a traversal key.
-    if ( opendir my $pd, "$base/plugins" ) {
-        for my $f ( sort grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
-            my $p = "$base/plugins/$f";
-            $reg{"plugins/$f"} = $p if -f $p && -r $p && !-l $p;
+    # SM1222: under the dev server, its --extensions directories come first and
+    # the first directory holding a name wins; on an installed engine
+    # dev_extension_dirs() is empty and this is the one directory it always was.
+    for my $dir ( Lazysite::Paths::dev_extension_dirs(), "$base/plugins" ) {
+        if ( opendir my $pd, $dir ) {
+            for my $f ( sort grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
+                my $p = "$dir/$f";
+                $reg{"plugins/$f"} //= $p if -f $p && -r $p && !-l $p;
+            }
+            closedir $pd;
         }
-        closedir $pd;
     }
     return \%reg;
 }
@@ -245,6 +250,10 @@ sub _plugin_list_state {
     my $base  = Cwd::realpath("$DOCROOT/..") // '';
     my @dir   = stat("$base/plugins");
     my @bits  = ( @dir ? "dir:$dir[9]" : 'dir:none' );
+    for my $xd ( Lazysite::Paths::dev_extension_dirs() ) {
+        my @xs = stat($xd);
+        push @bits, "xdir:$xd:" . ( @xs ? $xs[9] : 'none' );
+    }
     for my $rel ( sort keys %{$reg} ) {
         my @st = stat( $reg->{$rel} );
         push @bits, join( ':', $rel, $st[7] // '-', $st[9] // '-' );
@@ -339,7 +348,7 @@ sub action_plugin_list {
     # for good; it answers this request and no later one.
     my $base      = Cwd::realpath("$DOCROOT/..") // '';
     my $cache_dir = dirname($cache_file);
-    if ( -d "$base/plugins" ) {
+    if ( -d "$base/plugins" || Lazysite::Paths::dev_extension_dirs() ) {
         make_path($cache_dir) unless -d $cache_dir;
         if ( open my $fh, '>', $cache_file ) {
             print $fh encode_json( { ok => 1, state => $state, plugins => \@plugins } );

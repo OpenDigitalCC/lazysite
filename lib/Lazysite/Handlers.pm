@@ -2328,6 +2328,11 @@ sub _find_script {
     my ($name) = @_;
     require Cwd;
     my $here = dirname( Cwd::abs_path(__FILE__) // __FILE__ );
+    # SM1222: the dev server's --extensions directories first (real files only).
+    for my $d ( Lazysite::Paths::dev_extension_dirs() ) {
+        my $p = "$d/$name";
+        return $p if -f $p && !-l $p;
+    }
     for my $p ( "$here/../../plugins/$name", "$DOCROOT/../plugins/$name",
         "$DOCROOT/../cgi-bin/$name", '/usr/share/lazysite/plugins/' . $name )
     {

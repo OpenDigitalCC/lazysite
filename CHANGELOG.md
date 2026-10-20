@@ -71,6 +71,12 @@ Archive
   account without it. The check is in the processor, so it holds behind the wrapper, on the
   split templates and in the one-rule pool. `lazysite check` warns while it is on.
 - SM1220 (PENDING) **the Hestia deploy no longer lists four "could not read ... Permission denied" warnings.** They came from install.pl's own health check, which the deploy runs as the site user, who cannot open the web server group's private store. The deploy passes install.pl `--health-check-by-caller`; its final check already runs as root, after the permission pass, and is the one verdict. No group change.
+- SM1222 (PENDING) **the dev server takes extension directories.** `tools/lazysite-server.pl
+  --extensions DIR` (repeatable) adds directories to look for extensions in, so an app's
+  extensions need not be copied beside the docroot. They are searched in the order given,
+  before the docroot's `plugins/`; a name in two is served from the first, and the startup
+  lines say so. A symlinked directory stops the server; a symlinked script is skipped. The
+  dev server only: an installed engine's lookup is unchanged.
 - SM1221 (PENDING) **a signed-out call to the manager API answers 401, not 400.**
   A request with no sign-in answered `400 {ok:false, error:"Authentication required"}`, the
   status for a malformed request. It answers 401 with the same body, now with kind

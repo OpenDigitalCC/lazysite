@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use IO::Socket::INET;
-use File::Basename qw(dirname);
+use File::Basename qw(dirname basename);
 use Cwd            qw(abs_path);
 use Encode;
 use POSIX ();
@@ -136,6 +136,7 @@ my $seed         = 1;     # seed scaffolding into a lazysite docroot (off for br
 my $ERR_FILE     = "/tmp/lazysite-server-$$.err";
 my $LOG_FILE     = '';
 my $BROWSE_CACHE = '';    # SM091: off-docroot cache base, set in --auto-index mode
+my @EXTENSION_DIRS;       # SM1222: --extensions DIR, repeatable, in the order given
 
 END {
     unlink $ERR_FILE if -f $ERR_FILE;
@@ -155,6 +156,7 @@ while (@ARGV) {
     elsif ( $arg eq '--host' )       { $BIND       = shift @ARGV; }
     elsif ( $arg eq '--docroot' )    { $DOCROOT    = abs_path( shift @ARGV ); }
     elsif ( $arg eq '--processor' )  { $PROCESSOR  = abs_path( shift @ARGV ); }
+    elsif ( $arg eq '--extensions' ) { push @EXTENSION_DIRS, shift(@ARGV) // ''; }
     elsif ( $arg eq '--cache' )      { $nocache    = 0; }
     elsif ( $arg eq '--auto-index' ) { $auto_index = 1; }
     elsif ( $arg eq '--no-seed' )    { $seed       = 0; }
@@ -179,6 +181,11 @@ Options:
                       pass 0.0.0.0 to expose on the LAN for a demo)
   --docroot   PATH    Document root (default: ../starter)
   --processor PATH    Processor path (default: ../lazysite-processor.pl)
+  --extensions DIR    Also look for extensions in DIR; repeat for several. Searched
+                      in the order given, before the docroot's plugins/; a name
+                      in two directories is served from the first. Each must be a
+                      real directory (a symlink is refused), and a symlinked
+                      script inside is skipped. Dev server only.
   --cache             Respect cache files (default: always regenerate)
   --auto-index        Generate a directory index + breadcrumb nav for any tree
                       that has no index.md (writes nothing to the docroot)
@@ -232,6 +239,31 @@ my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);
 unless ( -f $PROCESSOR ) {
     print STDERR "lazysite-server: processor not found: $PROCESSOR\n";
     exit 1;
+}
+
+# SM1222: each --extensions directory is checked before anything starts.
+my @EXT_REPORT;
+if (@EXTENSION_DIRS) {
+    my @real;
+    for my $given (@EXTENSION_DIRS) {
+        my ( $dir, $err ) = check_extension_dir($given);
+        if ( defined $err ) {
+            print STDERR "lazysite-server: --extensions $given: $err\n";
+            exit 1;
+        }
+        push @real, $dir;
+    }
+    @EXTENSION_DIRS = @real;
+    @EXT_REPORT     = extension_report( \@EXTENSION_DIRS, "$DOCROOT/../plugins" );
+
+    # The CGIs this server runs read these; an installed engine is never started
+    # here, so for it neither is set and its lookup is unchanged. PERL5LIB gives
+    # a script that lives outside the tree the engine's lib/ it cannot find itself.
+    $ENV{LAZYSITE_DEV_SERVER}     = 1;
+    $ENV{LAZYSITE_EXTENSION_DIRS} = join ':', @EXTENSION_DIRS;
+    my @libs = ( abs_path("$SCRIPT_DIR/../lib") );
+    push @libs, $ENV{PERL5LIB} if length( $ENV{PERL5LIB} // '' );
+    $ENV{PERL5LIB} = join ':', @libs;
 }
 
 # --- MIME types ---
@@ -396,12 +428,15 @@ if ( open my $cfh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
     close $cfh;
 }
 
+# SM1222: a supervisor or test reading the startup lines through a pipe sees them at once.
+$| = 1;
 print "lazysite dev server\n";
 print "  processor: $PROCESSOR\n";
 print "  docroot:   $DOCROOT\n";
 print "  url:       http://localhost:$PORT/\n";
 print "  cache:     $cache_label\n";
 print "  auto-index: " . ( $auto_index ? "on (generated index + breadcrumb nav)" : "off" ) . "\n";
+print "  extensions: $_\n" for @EXT_REPORT;
 print "  seeding:   " .  ( $do_seed ? "on" : "off (docroot left untouched)" ) . "\n";
 print "  manager:   " .  ( $manager_enabled ? "enabled" : "disabled" ) . "\n";
 print "  log level: " .  ( $ENV{LAZYSITE_LOG_LEVEL}  // 'INFO' ) . "\n";
@@ -507,6 +542,53 @@ sub parse_cgi_headers {
     return ( $status, $content_type, \@extra );
 }
 
+# SM1222: one --extensions argument -> ( absolute path, undef ) or ( undef,
+# reason ). The directory must exist and be a real directory: a symlink in the
+# last place is refused (the same rule the registry applies to the scripts in
+# it, and for the same reason - what is served is what is on disk where it was
+# named). A colon cannot be carried in the list the CGIs read.
+sub check_extension_dir {
+    my ($given) = @_;
+    return ( undef, 'a directory is required' ) unless length $given;
+    return ( undef, 'a colon cannot be in the path' ) if $given =~ /:/;
+    ( my $trim = $given ) =~ s{(?<=.)/+\z}{};
+    my $parent = abs_path( dirname($trim) );
+    return ( undef, 'not found' ) unless defined $parent;
+    my $abs = ( $parent eq '/' ? '' : $parent ) . '/' . basename($trim);
+    return ( undef, 'is a symlink, which is refused (name the real directory)' ) if -l $abs;
+    return ( undef, 'not found' ) unless -d $abs;
+    return ( $abs,  undef );
+}
+
+# SM1222: the startup lines for the directories (already checked), in the order
+# searched: what each holds, a symlinked script skipped, and any name held by
+# more than one directory with the one that wins. $beside is the docroot's own
+# plugins/, searched after them.
+sub extension_report {
+    my ( $dirs, $beside ) = @_;
+    my ( @lines, %first );
+    for my $d ( @{$dirs}, ( defined $beside && -d $beside ? ( abs_path($beside) // $beside ) : () ) ) {
+        my ( @names, @links );
+        if ( opendir my $dh, $d ) {
+            for my $f ( sort grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $dh ) {
+                if    ( -l "$d/$f" ) { push @links, $f }
+                elsif ( -f "$d/$f" ) { push @names, $f }
+            }
+            closedir $dh;
+        }
+        my $tag = ( $d eq ( abs_path($beside) // '' ) ) ? "$d (beside the docroot, last)" : $d;
+        push @lines, "$tag: " . ( @names ? join( ', ', @names ) : 'no scripts' );
+        push @lines, "$d: skipped, a symlink: " . join( ', ', @links ) if @links;
+        for my $n (@names) {
+            if ( defined $first{$n} ) {
+                push @lines, "$n is in $first{$n} and $d: $first{$n} wins (first searched)";
+            }
+            else { $first{$n} = $d }
+        }
+    }
+    return @lines;
+}
+
 # The CGI a /cgi-bin/ request runs: ($path, $name, $direct). The default is the
 # processor, with no name. /cgi-bin/lazysite-*.pl names a script beside the
 # tools/ directory, run behind the auth wrapper when the site has accounts.
@@ -524,6 +606,10 @@ sub cgi_target_for {
     }
     if ( $uri =~ m{\A/cgi-bin/(form-handler\.pl)\z} ) {
         my $rel = $1;
+        # SM1222: the --extensions directories first (a real file, no symlink).
+        for my $d ( Lazysite::Paths::dev_extension_dirs() ) {
+            return ( "$d/$rel", $rel, 1 ) if -f "$d/$rel" && !-l "$d/$rel";
+        }
         my $cgi = abs_path("$script_dir/../plugins/$rel");
         return ( $cgi, $rel, 1 ) if $cgi && -f $cgi;
     }

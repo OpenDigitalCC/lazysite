@@ -17,6 +17,7 @@ Options:
     --port PORT       Port to listen on (default: 8080)
     --docroot PATH    Document root (default: ../starter)
     --processor PATH  Processor path (default: ../lazysite-processor.pl)
+    --extensions DIR  Also look for extensions in DIR (repeatable; see below)
     --cache           Respect cache files (default: always regenerate)
     --auto-index      Generate an index + breadcrumb nav for a tree with no
                       index.md (writes nothing to the docroot)
@@ -31,6 +32,26 @@ To serve your own site:
 The server always regenerates pages by default (equivalent to
 `LAZYSITE_NOCACHE=1`) so edits are visible immediately without deleting
 cache files.
+
+### Extensions kept outside the tree
+
+Run from the tree, the server finds extensions in the `plugins/` directory beside
+the docroot. An extension kept elsewhere (an app's own, in its own repository)
+is named with `--extensions`, once for each directory:
+
+    perl tools/lazysite-server.pl --docroot /path/to/public_html \
+        --extensions /work/crm/extensions --extensions /work/shop/extensions
+
+- The directories are searched in the order given, then the docroot's `plugins/`.
+  A name found in two of them is served from the first, and the startup lines say
+  so (`shared.pl is in A and B: A wins`).
+- Each must be a real directory: one that is itself a symlink stops the server
+  with a message. A symlinked script inside is skipped, as in `plugins/`, and
+  named at startup.
+- The option exists in the dev server only. An installed engine finds extensions
+  where it always did; nothing set in its environment widens that. The server
+  also puts the engine's `lib/` on `PERL5LIB` for the scripts it runs, so an
+  extension outside the tree finds the engine's modules.
 
 ### Browse an arbitrary tree of Markdown
 
