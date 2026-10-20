@@ -2232,7 +2232,7 @@ elsif ( $action eq 'plugin-read' ) {
 }
 elsif ( $action eq 'plugin-save' ) {
     my $req = _json_body();
-    $result = action_plugin_save( $params{plugin}, $req->{script}, $req->{values} // {} );
+    $result = action_plugin_save( $params{plugin}, $req->{script}, $req->{values} // {}, $req->{add} );
 }
 elsif ( $action eq 'page-pdf' ) {
     # SM732: THE RENDER, WIRED. SM706 built convert() and shipped it with no

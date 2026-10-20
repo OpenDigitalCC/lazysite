@@ -63,6 +63,11 @@ Archive
   any test reading VERSION could see it under prove -j. It now works on a scratch
   tree; t/lint/270 fails any test that writes VERSION, NEXT_VERSION, CHANGELOG.md or
   MANIFEST of the checkout.
+- SM1211 (PENDING) **installing an app keeps the other apps' operations answering.**
+  An installer that saved the whole `odoo_packs` list from its own view dropped the
+  other apps' namespaces when two installs overlapped, and their operations answered
+  "no operation installed". `plugin-save` takes an `add` field that puts a namespace
+  into a list setting (`odoo_packs`, `odoo_pack_dirs`) under the lock, keeping the rest.
 
 ## 0.15.14 - EDGE: the deploy says what the final check found (2026-10-20)
 

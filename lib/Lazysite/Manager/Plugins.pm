@@ -629,9 +629,9 @@ sub _update_plugins_conf {
     for my $line (@lines) {
         if ( $line =~ /^(extensions|plugins)\s*:\s*$/ ) {
             $headers_seen{$1} = 1;
-            $in_plugins  = 1;
-            $found_block = 1;
-            $phase       = 'plugins';
+            $in_plugins       = 1;
+            $found_block      = 1;
+            $phase            = 'plugins';
             next;
         }
         if ($in_plugins) {
@@ -776,7 +776,7 @@ sub action_plugin_read {
 }
 
 sub action_plugin_save {
-    my ( $plugin_id, $script, $values ) = @_;
+    my ( $plugin_id, $script, $values, $add ) = @_;
 
     my ( $full_script, $why ) = _resolve_plugin_or_why( $plugin_id, $script );
     return { ok => 0, kind => 'invalid', field => 'plugin', error => $why }
@@ -785,7 +785,7 @@ sub action_plugin_save {
     my $desc = _describe($full_script)
         or return { ok => 0, error => 'Cannot describe plugin' };
 
-    my %allowed = map { $_->{key} => 1 } @{ $desc->{config_schema} // [] };
+    my %allowed     = map { $_->{key} => 1 } @{ $desc->{config_schema} // [] };
     my %is_password = map { $_->{key} => 1 }
         grep { ( $_->{type} // '' ) eq 'password' } @{ $desc->{config_schema} // [] };
     my %is_email = map { $_->{key} => 1 }
@@ -858,6 +858,34 @@ sub action_plugin_save {
         $safe{$k} = $values->{$k};
     }
 
+    # n699 (OOM Lab L-4): `add` ADDS TO A LIST KEY, under the same lock as the save.
+    #
+    # { odoo_packs => 'Lab::Picking::Ops' } puts the namespace into the list the file
+    # holds NOW and leaves the others in it. A client that installs an app by reading
+    # `odoo_packs`, appending its own namespace and saving the whole value is a
+    # read-modify-write across two requests: two of them drop each other's namespace,
+    # and the dropped app's operations answer "no operation installed" until something
+    # saves them again. Only a key the descriptor declares as a list (`list` is its
+    # separator) takes it; an item is one plain token on one line.
+    my %add;
+    if ( ref $add eq 'HASH' && %$add ) {
+        my %sep = map { $_->{key} => $_->{list} } grep { length( $_->{list} // '' ) } @{ $desc->{config_schema} // [] };
+        for my $k ( sort keys %$add ) {
+            return { ok => 0, kind => 'invalid', field => $k, error => "'$k' is not a list setting of this extension, so nothing can be added to it." }
+                unless $sep{$k};
+            my $sp = quotemeta $sep{$k};
+            my @items = ref $add->{$k} eq 'ARRAY' ? @{ $add->{$k} } : split /\s*$sp\s*/, ( $add->{$k} // '' );
+            @items = grep { defined && length } @items;
+            for my $i (@items) {
+                return { ok => 0, kind => 'invalid', field => $k, error => "an item to add to '$k' must be one plain value on one line." }
+                    if ref $i || $i =~ /[\r\n]/ || $i =~ /$sp/ || $i =~ /\A\s|\s\z/;
+            }
+            $add{$k} = { sep => $sep{$k}, items => \@items } if @items;
+        }
+        return { ok => 0, kind => 'invalid', field => 'add', error => 'add is for an extension with its own config file' }
+            if %add && !$desc->{config_file};
+    }
+
     my $config_file = $desc->{config_file} // '';
 
     # Track which keys ACTUALLY changed - the UI posts the whole form, so
@@ -897,6 +925,16 @@ sub action_plugin_save {
         my $lock = Lazysite::Util::store_lock($plugin_conf)
             or return { ok => 0, error => "Cannot lock config: $!" };
         my $content = _slurp_or_empty($plugin_conf);
+
+        # The list keys are merged into what the file holds NOW, inside the lock.
+        for my $k ( sort keys %add ) {
+            my $sp = quotemeta $add{$k}{sep};
+            my $src = exists $safe{$k} ? $safe{$k} : ( $content =~ /^$k\s*:[ \t]*(.*)$/m ? $1 : '' );
+            my @have = grep { length } split /\s*$sp\s*/, $src;
+            my %seen = map  { $_ => 1 } @have;
+            push @have, grep { !$seen{$_}++ } @{ $add{$k}{items} };
+            $safe{$k} = join $add{$k}{sep}, @have;
+        }
 
         $apply->( \$content, $_ ) for keys %safe;
 
@@ -1216,7 +1254,7 @@ sub _submissions_path {
         || ( defined $privr && ( $real eq $privr || index( $real, "$privr/" ) == 0 ) ) );
 
     return ( undef, undef, 'Invalid submissions file' ) unless $inside;
-    return ( $abs, $rel, undef );
+    return ( $abs,  $rel,  undef );
 }
 
 # A stable per-row id: a short hash of the raw JSONL line, so the UI can ask to

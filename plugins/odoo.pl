@@ -104,7 +104,7 @@ sub describe {
                     . 'that page access and file ACLs read. A site group that carries any capability '
                     . '(the manager, the API, anything on the Groups page) is refused by name: a person '
                     . 'signed in through Odoo is never given manager rights.' },
-            { key => 'odoo_packs', label => 'Extra operation packs', type => 'text',
+            { key => 'odoo_packs', label => 'Extra operation packs', type => 'text', list => ',',
                 note => 'Leave blank unless you have installed an extra OOM operation pack. '
                     . 'An operation pack is a set of named Odoo operations (list, plan, apply); '
                     . 'OOM ships its own. Name each extra pack by its Perl namespace, comma '
@@ -122,7 +122,7 @@ sub describe {
                 default => '4',
                 note => 'How many requests oomd serves at once (1 to 64). Set it to match the number of workers '
                     . 'your Odoo runs, which lazysite cannot read from Odoo.' },
-            { key => 'odoo_pack_dirs', label => 'Operation pack directories', type => 'text',
+            { key => 'odoo_pack_dirs', label => 'Operation pack directories', type => 'text', list => ':',
                 note => 'Leave blank unless this site carries its own OOM operation packs. A colon '
                     . 'separated list of full paths, each a directory that holds pack directories '
                     . '(each with a pack.yaml), for example /var/www/example/lazysite/odoo-packs. '
