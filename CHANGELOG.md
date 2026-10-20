@@ -67,6 +67,10 @@ Archive
   already starts with the site's packs, so its Runner finds the class. t/unit/odoo/79
   applies a pack's custom change through the real oomd, by namespace and by pack
   directory. No code change; the lab can drop its workaround.
+- SM1208 (PENDING) **internal: the fleet test waits for what it checks.**
+  t/tools/29-cli-fleet.t compared its installs with the VERSION file while
+  t/tools/52 held VERSION at 99.0.0, so the nightly failed it under prove -j. It now
+  takes the VERSION lock 52 takes; t/tools/188 holds that lock and requires 29 to wait.
 
 ## 0.15.13 - EDGE: an installed app opens with no connection (2026-10-20)
 

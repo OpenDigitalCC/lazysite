@@ -14,10 +14,17 @@ use File::Temp qw(tempdir);
 use JSON::PP   ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root repo_manifest_guard);
+use TestHelper qw(repo_root repo_manifest_guard preserve_tracked);
 
 my $ROOT     = repo_root();
 my $CLI      = "$ROOT/tools/lazysite-cli.pl";
+# SM1208: this suite compares each install with the VERSION file, and
+# t/tools/52 rewrites VERSION to 99.0.0 while it runs. Under prove -j the two
+# overlapped: VERSION read 99.0.0 here, the manifest was then built after 52
+# put it back, and the install said 0.15.12 where 99.0.0 was expected. Take
+# the same lock 52 takes (first, before anything reads VERSION) and keep it to
+# the end; the file is left as it was found.
+my $VERSION_LOCK = preserve_tracked("$ROOT/VERSION");
 # SM269 phase 1: the guard OWNS the shared repo-root manifest - it locks,
 # builds if absent, and removes at scope end only if it built it. Six tests
 # used to carry their own copy of that lifecycle, which is what kept racing.
