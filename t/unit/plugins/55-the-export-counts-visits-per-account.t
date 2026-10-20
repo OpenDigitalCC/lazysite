@@ -54,7 +54,12 @@ close $lf;
 
 sub run_export {
     my (@args) = @_;
-    my $out = `DOCUMENT_ROOT=\Q$d\E $^X \Q$plugin\E --export --docroot \Q$d\E --window 7 @args 2>/dev/null`;
+    # Argument list, never a shell string (t/lint/40); stdout only, as it is JSON.
+    local $ENV{DOCUMENT_ROOT} = $d;
+    open my $ph, '-|', $^X, $plugin, '--export', '--docroot', $d, '--window', 7, @args
+        or die "cannot run $plugin: $!";
+    my $out = do { local $/; <$ph> };
+    close $ph;
     return eval { decode_json($out) } || {};
 }
 

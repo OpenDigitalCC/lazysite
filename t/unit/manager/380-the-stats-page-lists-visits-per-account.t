@@ -32,8 +32,8 @@ plan skip_all => 'node not installed' unless length $node && -x $node;
 my $page = do { open my $fh, '<', $pagef or die $!; local $/; <$fh> };
 
 my ($fn)   = $page =~ /(function loadAccounts\(\) \{.*?\n\}\n)/s;
-my ($sesc) = $page =~ /(function sesc\(s\) \{[^\n]*\})/;
-my ($num)  = $page =~ /(function fmtNum\(n\) \{[^\n]*\})/;
+my ($sesc) = $page =~ /(function sesc\([^)]*\) \{[^\n]*\})/;
+my ($num)  = $page =~ /(function fmtNum\([^)]*\) \{[^\n]*\})/;
 ok( $fn && $sesc && $num, 'the card\'s function and the helpers it uses are in the page' )
     or BAIL_OUT('nothing to run');
 
