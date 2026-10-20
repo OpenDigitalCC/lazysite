@@ -642,7 +642,10 @@ account through a site in maintenance (the `maintenance` setting; see the
 maintenance page, a posted form is refused, and MCP, the control API, WebDAV and
 the data endpoint answer `503` - unless the request's verified identity holds
 this capability. It is assigned to a group on the Groups page like any other and
-the operator group holds it by default, on an upgraded site as on a new one. You
+the operator group and the `site-admins` role hold it by default, on an upgraded
+site as on a new one (`site-admins` through the `cap-maintenance` bundle, which
+an upgrade adds to an existing site once; take the role out of the bundle on the
+Groups page to withhold it). You
 need it yourself to switch maintenance on, so the account that closes the site is
 one the closed site lets back in. It does nothing while the site is not in
 maintenance.

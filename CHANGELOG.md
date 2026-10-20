@@ -65,7 +65,8 @@ Archive
   all) sends every page request by 302 to `maintenance_page` (default `/maintenance`, a shipped
   system page); the page answers 503 with Retry-After (`maintenance_until`, UTC). A new
   capability, `maintenance_access` (Access during maintenance), is what gets an account through:
-  the operator group holds it, on upgrade too, and any group can be given it. A posted form is
+  the operator group and the site-admins role hold it, on upgrade too (an upgrade adds the
+  `cap-maintenance` bundle to an existing site), and any group can be given it. A posted form is
   refused and not stored, and MCP, the control API, WebDAV and the data endpoint answer 503 to an
   account without it. The check is in the processor, so it holds behind the wrapper, on the
   split templates and in the one-rule pool. `lazysite check` warns while it is on.

@@ -76,9 +76,12 @@ like( $json, qr/Use the site while it is in maintenance/, '...with its title' );
     my $sys = groups_file($d)->{sysops} || {};
     is( $sys->{maintenance_access}, 1, 'a fresh operator group holds it' );
     ok( ( grep { $_ eq 'maintenance_access' } @{ $sys->{grantable} || [] } ), '...and may confer it' );
-    for my $g ( grep { $_ ne 'sysops' } keys %{ groups_file($d) } ) {
+    for my $g ( grep { $_ ne 'sysops' && $_ ne 'cap-maintenance' } keys %{ groups_file($d) } ) {
         ok( !groups_file($d)->{$g}{maintenance_access}, "the shipped group '$g' does not hold it" );
     }
+    # SM1118 (ruled 2026-10-20): the one bundle that carries it, drawn on by site-admins
+    # (t/integration/321); no other shipped group holds it.
+    is( groups_file($d)->{'cap-maintenance'}{maintenance_access}, 1, 'the cap-maintenance bundle holds it' );
 }
 
 # --- an upgraded site, a declined decision, a delegate -----------------------

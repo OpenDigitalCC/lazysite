@@ -4126,6 +4126,15 @@ sub _default_group_seed {
                 . 'deliberately NOT here: destroying the last copy is a separate '
                 . 'decision (SM587/SM591).',
             housekeeping => 1 },
+        # SM1118 (ruled 2026-10-20, 0.15.16 open point 1): the administrators
+        # get through a site in maintenance, as the operator group does. A
+        # bundle of its own so a site can take it from site-admins on the Groups
+        # page without touching anything else site-admins draws on.
+        'cap-maintenance' => {
+            label       => 'Capability: access during maintenance', assignable => 0,
+            description => 'Use the site while it is in maintenance. Without it a '
+                . 'request is sent to the maintenance page.',
+            maintenance_access => 1 },
 
         # --- channel bundles: which door ----------------------------------
         # SM631: SPLIT. The manager UI and file access are different doors: a
@@ -4233,6 +4242,7 @@ sub _default_group_nesting {
         'cap-analytics'    => [qw(analysts agent-ai mcp-ai)],
         'cap-audit'        => [qw(analysts)],
         'cap-tidy'         => [qw(site-admins)],
+        'cap-maintenance'  => [qw(site-admins)],
         'cap-audit-switch' => [],    # N13-04: nobody, until an administrator decides
         'ch-ui' => [qw(content-editors design-team site-admins user-managers analysts)],
         'ch-files'  => [qw(content-editors design-team site-admins)],
@@ -4241,6 +4251,50 @@ sub _default_group_nesting {
     };
 }
 
+
+# SM1118: A BUNDLE ADDED AFTER A SITE WAS SEEDED REACHES IT HERE.
+#
+# The cap-* bundles and their nesting are written once, where the settings file
+# was absent (_ensure_groups_seeded, below). cap-tidy and cap-services were added
+# that way and only ever reached new installs; no step added a bundle to a site
+# that already had its roles. A capability given to a ROLE by a new bundle needs
+# one, or it exists on new sites and not on the fleet.
+#
+# SCOPE, deliberately narrow:
+#   - only the bundles listed here, by name - not "whatever the seed has that the
+#     site lacks", which would re-create a bundle an operator removed and would
+#     invent role groups on a site that never had the role layer;
+#   - only when the roles that draw on the bundle exist as shipped groups on this
+#     site (the `seeded` mark), so a pre-roles site is left as it is;
+#   - only when the bundle is ABSENT. A bundle that exists, edited or not, is never
+#     rewritten, and the nesting is written only with the record, so a site that
+#     later took the role out of the bundle stays that way.
+sub _adopt_added_bundles {
+    my $gs = Lazysite::Auth::Settings::read_group_settings();
+    return unless ref $gs eq 'HASH';
+    my $seed    = _default_group_seed();
+    my $nesting = _default_group_nesting();
+    my @added;
+    for my $bundle (qw(cap-maintenance)) {
+        next if $gs->{$bundle};
+        next unless ref $seed->{$bundle} eq 'HASH';
+        my @roles = grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{seeded} } @{ $nesting->{$bundle} || [] };
+        next unless @roles;
+        $gs->{$bundle} = { %{ $seed->{$bundle} }, seeded => 1 };
+        push @added, [ $bundle, \@roles ];
+    }
+    return unless @added;
+    write_group_settings($gs);
+    my %groups = read_groups();
+    for my $item (@added) {
+        my ( $bundle, $roles ) = @{$item};
+        my %have = map { $_ => 1 } @{ $groups{$bundle} || [] };
+        push @{ $groups{$bundle} }, grep { !$have{$_}++ } @{$roles};
+    }
+    write_groups(%groups);
+    log_event( 'INFO', $_->[0], 'bundle added for this release (SM1118)' ) for @added;
+    return;
+}
 
 # Raw manager_groups from lazysite.conf - the seed/fallback source. Kept separate
 # from the effective lookup so the seeder never recurses through itself.
@@ -4276,6 +4330,7 @@ sub _ensure_groups_seeded {
         # twice. Every manager group is topped up, not only the one setup-manager
         # happened to name: an operator may have made a second one.
         _migrate_admins_to_sysops();
+        _adopt_added_bundles();
         my $gs = Lazysite::Auth::Settings::read_group_settings();
         for my $g ( sort keys %{ $gs || {} } ) {
             next unless ref $gs->{$g} eq 'HASH' && $gs->{$g}{manager};

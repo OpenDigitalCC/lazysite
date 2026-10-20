@@ -84,7 +84,8 @@ Directory scan
   form posted meanwhile is refused with the maintenance message and not stored,
   and MCP, the control API, WebDAV and the data endpoint answer `503`. The
   exception is an account holding the `maintenance_access` capability (Access
-  during maintenance), which the operator group holds and any group can be given:
+  during maintenance), which the operator group and the `site-admins` role hold and
+  any group can be given:
   it browses the site as normal, under a banner. The sign-in pages, the
   maintenance page and the assets they need stay reachable. On an instance
   serving several domains `alias.<host>.maintenance: on` puts one declared

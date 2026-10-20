@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: release manager, 2026-10-17
 area: core
-status-note: "SHIPPED (PENDING) on n706: maintenance / maintenance_page / maintenance_until, per domain or for the instance, in the processor gate (wrapper, split templates and pool); new capability maintenance_access; MCP, control API, WebDAV, data and forms follow it."
+status-note: "SHIPPED (PENDING) on n706: maintenance / maintenance_page / maintenance_until, per domain or instance, in the processor gate; capability maintenance_access (operator group and site-admins, upgrade adds the bundle); MCP, API, WebDAV, data, forms follow it."
 ---
 
 # The request
@@ -43,7 +43,10 @@ The release manager ruled on 2026-10-20 (rulings-2026-10-20, "#338"):
 >   Without it a request is sent to the maintenance page. The machine doors (MCP,
 >   control API, WebDAV) were NOT ticked to stay open: they follow the same
 >   capability (a caller without it is refused 503), unless the RM says otherwise.
-> - Q4/Q5 **Per domain (an instance switch covers all); a form posted during
+> - 0.15.16 open point 1 (rulings-2026-10-20): **"site-admins also gets the maintenance
+  capability: yes"** - so the role holds it as well as the operator group; see the
+  capability bullet below.
+- Q4/Q5 **Per domain (an instance switch covers all); a form posted during
 >   maintenance is refused** with the maintenance message, not stored.
 
 # What shipped
@@ -67,6 +70,19 @@ The release manager ruled on 2026-10-20 (rulings-2026-10-20, "#338"):
   check`'s list. A manager (operator) group is topped up with every capability, so
   the operator group holds it on a new site and, by the SM645 top-up, on an
   upgraded one; an explicit decline (0) stays declined. Any group can be given it.
+  **Who holds it by default** (ruled 2026-10-20, 0.15.16 open point 1: "site-admins
+  also gets the maintenance capability: yes"): the operator group, and the
+  `site-admins` role through a `cap-maintenance` bundle (assignable 0,
+  `maintenance_access` 1) that site-admins draws on, as it draws on `cap-tidy`; no
+  other shipped role. A fresh site is seeded with the bundle. Bundles were written
+  only when a site's group settings were first created, so a bundle added later
+  reached new installs only; `_adopt_added_bundles` (tools/lazysite-users.pl, run by
+  `_ensure_groups_seeded`, i.e. the next ordinary use of the users tool or a manager
+  read) now adds `cap-maintenance` and its nesting to an existing site that has
+  site-admins as a shipped group. It adds only when the bundle is absent, never
+  rewrites a group, and writes the nesting only with the record, so an operator who
+  takes site-admins out of the bundle keeps it out. A site with no shipped
+  site-admins gets no bundle.
   A request that holds it browses as normal under a banner saying the site is in
   maintenance (injected per request, never cached).
 - **The machine doors follow it** (ruling): MCP answers HTTP 503 with Retry-After
@@ -121,7 +137,11 @@ declined, assignable), t/integration/315 (page requests through the real wrapper
 and straight to the processor), 316 (a real FastCGI worker with the front door
 on), 317 (control API, cookie and token), 318 (MCP), 319 (WebDAV), 320 (a posted
 form, the data endpoint), t/unit/manager/385 (Config and Domains pages and the
-lockout guard), t/unit/tools/87 (the health check).
+lockout guard), t/unit/tools/87 (the health check), t/integration/321 (a site-admins
+member gets through and a content-editors member does not, on a fresh site and on an
+existing one after the upgrade step; an edited group and an operator's removal are
+kept; a site without the role layer gets no bundle), t/integration/128 (the upgraded
+fixture gains the bundle).
 
 # Not done
 
@@ -129,9 +149,6 @@ lockout guard), t/unit/tools/87 (the health check).
   `.html` name, a legacy static page) is not a page request and never reaches the
   engine; it is not redirected. The same limit every access rule outside an ACL
   store has.
-- The `site-admins` role does not carry the capability (the ruling names the
-  operator group); a site that wants its administrators through grants it to the
-  group on the Groups page.
 - The OAuth endpoints and the Odoo endpoint are not gated; they are sign-in
   flows and a connector's own transport, not content doors.
 - A site with no accounts has nobody who can hold the capability: maintenance

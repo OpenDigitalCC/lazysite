@@ -196,6 +196,18 @@ subtest 'group-reach names the operator group and what manage_users grants' => s
     unlike( $out, qr/this group is the OPERATOR/, 'approvers is not it' );
 };
 
+# SM1118 (ruled 2026-10-20): the fixture below is deliberately the store as the
+# bootstrap wrote it, with no cap-maintenance bundle - it is the upgrade being
+# tested, so it is not rewritten. What the upgrade did to it is read back here.
+subtest 'the upgrade brought access during maintenance to the operator and site-admins' => sub {
+    my $gs = JSON::PP::decode_json( slurp("$d/lazysite/auth/groups-settings.json") );
+    is( $gs->{sysops}{maintenance_access}, 1, 'the operator group was topped up with it' );
+    ok( $gs->{'cap-maintenance'} && $gs->{'cap-maintenance'}{maintenance_access},
+        'the cap-maintenance bundle was added to the existing site' );
+    my %g = map { /^([^:]+):\s*(.*)$/ ? ( $1 => $2 ) : () } split /\n/, slurp("$d/lazysite/auth/groups");
+    is( $g{'cap-maintenance'}, 'site-admins', 'and site-admins draws on it' );
+};
+
 done_testing();
 
 __DATA__

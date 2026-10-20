@@ -554,7 +554,7 @@ my %ACTION_INFO = (
         title   => 'Use the site while it is in maintenance. Without this, a page '
             . 'request is sent to the maintenance page and the remote doors '
             . '(MCP, control API, WebDAV) answer 503 until maintenance is switched off.',
-        grants => 'Browse the site, and use MCP, the control API and WebDAV, while the site is in maintenance (the `maintenance` setting, per domain or for the whole instance). Held by the operator group by default. Has no effect while the site is not in maintenance.',
+        grants => 'Browse the site, and use MCP, the control API and WebDAV, while the site is in maintenance (the `maintenance` setting, per domain or for the whole instance). Held by the operator group and the site-admins role by default. Has no effect while the site is not in maintenance.',
         unlocks => {},
     },
     audit => {
