@@ -74,6 +74,12 @@ Archive
   (`totals`, the control API and MCP `analyse_visitors`) and each month carry
   `app_hits`, summed over the days beside `pageviews`; a site with no app fetches
   gets no new field.
+- SM1213 (PENDING) **security: an empty front-matter key reads as empty, and a raw page
+  serves no HTML type in any spelling.** The page scalar reader's `\s*` ran over the
+  newline, so `title:` took the next line and that key was lost. No gated page opened:
+  the gate reads each line itself. But the ADR 0006 downgrade read api:/raw: apart from
+  the render, so `api:` above `true`, `api: "true"` and a quoted "text/html" were served
+  verbatim as text/html. One reading now, in the renderer, the manager and the peek.
 
 ## 0.15.14 - EDGE: the deploy says what the final check found (2026-10-20)
 

@@ -21,8 +21,8 @@
 #   W3 a trailing comment (its words join the name) W6 a no-break space on a fence
 # Narrows inside scope - a page of the caller's the walker counted, on which the
 # processor renders no form (or another one), no longer makes the form its own:
-#   R1 the first of two form: lines                  R4 an empty value swallowing it
-#   R2 a later form: '' (the last wins, and is none) R5 a non-ASCII key swallowing it
+#   R1 the first of two form: lines                  R4 an empty value above it (SM1213: binds)
+#   R2 a later form: '' (the last wins, and is none) R5 a non-ASCII empty key above it (binds)
 #   R3 the closing fence with no newline after it
 # The validator and the audit read the same way (V1).
 use strict;
@@ -72,7 +72,8 @@ spit( 'sites/mine/w5.md', "---\n" . ( "pad: " . ( 'y' x 80 ) . "\n" ) x 250 . "f
 spit( 'sites/mine/w6.md', "---\x{A0}\nform: w6\n---\n" );
 
 # R1-R5: a page in mine the walker counted as binding the form, on which the
-# processor renders none of it.
+# processor renders none of it. SM1213: R4 and R5 bind now - an empty key no
+# longer takes the `form:` line below it, in the processor or the walker.
 spit( 'sites/mine/r1.md', "---\nform: r1\nform: r1other\n---\n" );
 spit( 'sites/mine/r2.md', "---\nform: r2\nform: ''\n---\n" );
 spit( 'sites/mine/r3.md', "---\nform: r3\n---" );
@@ -95,8 +96,8 @@ my %CASE = (
     r1other => [ ['sites/mine/r1.md'], 'reaches', 'refused', 'R1 (the last line)' ],
     r2      => [ [],                   'refused', 'reaches', 'R2' ],
     r3      => [ [],                   'refused', 'reaches', 'R3' ],
-    r4      => [ [],                   'refused', 'reaches', 'R4' ],
-    r5      => [ [],                   'refused', 'reaches', 'R5' ],
+    r4      => [ ['sites/mine/r4.md'], 'reaches', 'reaches', 'R4 (SM1213: the next key is read)' ],
+    r5      => [ ['sites/mine/r5.md'], 'reaches', 'reaches', 'R5 (SM1213: the next key is read)' ],
 );
 for my $f ( sort keys %CASE ) {
     my ( $pages, $now, $was, $label ) = @{ $CASE{$f} };

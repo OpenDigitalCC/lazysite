@@ -300,6 +300,45 @@ sub _access_keys_read {
     return \%out;
 }
 
+# SM1213 (n697's audit, SM1209): THE SCALAR `key: value` LINES, as the render
+# reads them, in order: ( [ key, value ], ... ). A value never comes from a key
+# line below it: a key with nothing after the colon is undef - no value - unless
+# the next non-blank line is INDENTED, which YAML reads as its continuation. It
+# was `^(\w+)\s*:\s*([^\n]+)$`, whose `\s*` ran over the newline into a column-0
+# line too: `title:` took `subtitle: Hello` as its title and the subtitle was lost.
+#
+# Each value has its TT directives stripped, trailing blanks (and a CR) trimmed,
+# and one pair of surrounding quotes removed - YAML quoting is syntax, so
+# `title: "Welcome"` is Welcome. A quoted empty value ("") is an empty string.
+#
+# The gate's peek (auth.pm, _peek_md) asks this for api: and raw:, so whether a
+# page is served verbatim and whether its content type is downgraded (ADR 0006)
+# are decided from the one reading.
+sub _front_matter_scalars {
+    my ($yaml) = @_;
+    my @out;
+    my @l = split /\n/, ( $yaml // q{} ), -1;
+    for my $i ( 0 .. $#l ) {
+        next unless $l[$i] =~ /\A(\w+)\h*:\h*(.*)\z/;
+        my ( $k, $v ) = ( $1, $2 );
+        $v =~ s/\s+\z//;
+        # An INDENTED line below an empty key (past blank lines) is the value's
+        # continuation in YAML - `form:` / `  leads` binds leads (SM976 Q15f).
+        # A line at column 0 is a key of its own, never this one's value.
+        if ( !length $v ) {
+            my $j = $i + 1;
+            $j++ while $j <= $#l && $l[$j] =~ /\A\s*\z/;
+            ( $v = $1 ) =~ s/\s+\z// if $j <= $#l && $l[$j] =~ /\A\h+(\S.*)\z/;
+        }
+        if ( !length $v ) { push @out, [ $k, undef ]; next }
+        $v = strip_tt_directives($v);
+        $v =~ s/\s+\z//;
+        $v =~ s/\A"(.*)"\z/$1/s or $v =~ s/\A'(.*)'\z/$1/s;
+        push @out, [ $k, $v ];
+    }
+    return @out;
+}
+
 sub parse_yaml_front_matter {
     my ($text) = @_;
     my %meta;
@@ -378,22 +417,19 @@ sub parse_yaml_front_matter {
             $meta{sections} = $parsed if @$parsed;
         }
 
-        # Parse scalar key: value pairs (skip tt_page_var, register, query_params blocks)
-        while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
-            next if $1 eq 'tt_page_var';
-            next if $1 eq 'register';
-            next if $1 eq 'query_params';
-            next if $1 eq 'sections'; # nested block; parsed above (and \s* here would eat its first line)
-            next if $1 eq 'tags' && ref $meta{tags} eq 'ARRAY';
-            next if $1 eq 'auth_groups';    # SM980: a list, read above, or none
-                # Strip TT directives from all scalar values including title and subtitle
-            my ( $k, $v ) = ( $1, strip_tt_directives($2) );
-            # YAML quoting: a matched pair of surrounding quotes is syntax, not
-            # content - strip one level so `title: "Welcome"` yields Welcome (not
-            # a literal "Welcome" that a template then double-quotes).
-            $v =~ s/\s+\z//;
-            $v =~ s/\A"(.*)"\z/$1/s or $v =~ s/\A'(.*)'\z/$1/s;
-            $meta{$k} = $v;
+        # Parse scalar key: value pairs (skip tt_page_var, register, query_params blocks).
+        # SM1213: a key with no value is no value - and a later one clears an
+        # earlier, as YAML's null does - so `meta_desc:` still falls back.
+        for my $kv ( _front_matter_scalars($yaml) ) {
+            my ( $k, $v ) = @$kv;
+            next if $k eq 'tt_page_var';
+            next if $k eq 'register';
+            next if $k eq 'query_params';
+            next if $k eq 'sections';       # nested block; parsed above
+            next if $k eq 'tags' && ref $meta{tags} eq 'ARRAY';
+            next if $k eq 'auth_groups';    # SM980: a list, read above, or none
+            if ( defined $v ) { $meta{$k} = $v }
+            else              { delete $meta{$k} }
         }
 
         # P12/P13: any other key whose value is a YAML list is a list.

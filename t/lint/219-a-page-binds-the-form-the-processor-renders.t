@@ -49,7 +49,7 @@ my @TEXTS = (
     "---\nform: leads\n---\n",
     "---\nform: \"leads\"\n---\n",
     "---\nform: 'Leads'\n---\n",
-    "---\nform:\n  leads\n---\n",                 # the value on the next line
+    "---\nform:\n  leads\n---\n",                 # the value on the next line, indented: YAML continuation
     "---\nform:\n\n  leads\n---\n",               # past a blank line
     "---\nform: decoy\nform: leads\n---\n",       # the last key wins
     "---\nform: leads\nform: ''\n---\n",          # ...even when it is empty
@@ -62,7 +62,7 @@ my @TEXTS = (
     "---   \nform: leads  \n---  \n",             # trailing blanks on the fences
     "---\n\n\nform: leads\n---\n",                # blank lines after the fence
     "---\nform :\tleads\n---\n",
-    "---\ntitle:\nform: leads\n---\n",            # an empty value swallows the next line
+    "---\ntitle:\nform: leads\n---\n",            # SM1213: an empty value is none; the next key is read
     "---\nfoo: \nform: leads\n---\n",
     "---\nform: leads\n---",                      # no newline after the closing fence
     "---\nform: leads\n---\nbody\n",
@@ -79,7 +79,7 @@ my @TEXTS = (
     "\x{FEFF}---\nform: leads\n---\n",            # a byte-order mark
     "---\x{A0}\nform: leads\n---\n",              # a no-break space on the fence
     "---\nform:\x{A0}leads\n---\n",
-    "---\ntitre\x{E9}:\nform: leads\n---\n",      # a non-ASCII key swallows the next line
+    "---\ntitre\x{E9}:\nform: leads\n---\n",      # a non-ASCII key, empty: the next key is read
     "---\nform: l\x{E9}ads\n---\n",
     "---\nform:\n---\n",
     "---\nform: \"\"\n---\n",

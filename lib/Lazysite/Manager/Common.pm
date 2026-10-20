@@ -1109,8 +1109,9 @@ sub page_form_or_none {
 #
 # A MARKED COPY of the processor's reading: lazysite-processor/front-matter.pm,
 # parse_yaml_front_matter - the front matter block, the scalar `key: value`
-# loop (the last column-0 `form:` wins, and its `\s*` reads a value on the next
-# line), strip_tt_directives, one pair of quotes, then the form sanitiser. The
+# loop (the last column-0 `form:` wins; SM1213: its value is on its own line, and
+# an empty one is no form), strip_tt_directives, one pair of quotes, then the
+# form sanitiser. The
 # render path loads no modules (ADR 0001), so it cannot call this; t/lint/219
 # runs both over the same texts and fails when they differ.
 #
@@ -1126,9 +1127,21 @@ sub page_form {
     utf8::upgrade($t);
     return undef unless $t =~ /\A---\s*\n(.*?)\n---\s*\n/s;
     my ( $yaml, $form ) = ($1);
-    while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
-        next unless $1 eq 'form';
+    # SM1213: as the processor's _front_matter_scalars reads it - a value never
+    # comes from a key line below; an empty `form:` takes an INDENTED next
+    # non-blank line (YAML's continuation), else it is no form and clears an
+    # earlier one.
+    my @l = split /\n/, $yaml, -1;
+    for my $i ( 0 .. $#l ) {
+        next unless $l[$i] =~ /\A(\w+)\h*:\h*(.*)\z/ && $1 eq 'form';
         my $v = $2;
+        $v =~ s/\s+\z//;
+        if ( !length $v ) {
+            my $j = $i + 1;
+            $j++ while $j <= $#l && $l[$j] =~ /\A\s*\z/;
+            ( $v = $1 ) =~ s/\s+\z// if $j <= $#l && $l[$j] =~ /\A\h+(\S.*)\z/;
+        }
+        if ( !length $v ) { $form = undef; next }
         $v =~ s/\[%//g;
         $v =~ s/%\]//g;
         $v =~ s/\s+\z//;
@@ -2284,13 +2297,20 @@ sub raw_html_page_refusal {
     return unless defined $content;
     return unless $content =~ /\A---\s*\n(.*?)\n---\s*\n/s;    # front-matter block
     my $fm = $1;
+    # SM1213: each value read on its own line (`\s*` ran over the newline, so
+    # `content_type:` above `content_type: text/html` hid it), with one pair of
+    # quotes stripped as the engine strips it - the processor serves
+    # `api: "true"` verbatim and downgrades a quoted "text/html" (peek_content_type),
+    # so the refusal at write time names the same pages. The last content_type
+    # wins, as in the processor's peek.
+    my $TRUE = qr/\h*:\h*(["']?)true\g{-1}(?:\h|\r?$)/mi;
+    my ($key) = grep { $fm =~ /^$_$TRUE/mi } qw(api raw);
+    return unless defined $key;
+    my ($ct) = ( $fm =~ /^content_type\h*:\h*(\S.*?)\s*$/mgi )[-1];
+    return unless defined $ct;
+    $ct =~ s/\A"(.*)"\z/$1/ or $ct =~ s/\A'(.*)'\z/$1/;
     return
-        unless $fm =~ /^api\s*:\s*true\b/mi || $fm =~ /^raw\s*:\s*true\b/mi;
-    my ($ct) = $fm =~ /^content_type\s*:\s*(.+?)\s*$/mi;
-    return
-        unless defined $ct
-        && $ct =~ m{^\s*(?:text/html|application/xhtml\+xml|image/svg\+xml)\b}i;
-    my $key = ( $fm =~ /^api\s*:\s*true\b/mi ) ? 'api' : 'raw';
+        unless $ct =~ m{^\s*(?:text/html|application/xhtml\+xml|image/svg\+xml)\b}i;
     # SM228: name the alternative, not only the prohibition. The reader here is
     # usually someone who wants a self-contained HTML file served unchanged, and
     # `raw:` is the front-matter key whose name invites exactly that. The answer -

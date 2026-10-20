@@ -105,6 +105,10 @@ our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, $REQUEST_IDENT, %ACCESS
             elsif ( $line =~ /^theme\s*:\s*["']?([A-Za-z0-9_-]+)["']?\s*$/ ) { $m{theme} = $1 }
             elsif ( $line =~ /^content_type\s*:\s*(.+)/ ) {
                 ( my $v = $1 ) =~ s/^\s+|\s+$//g;
+                # SM1213: one pair of quotes is YAML syntax, as everywhere else
+                # in the front matter - `"text/html"` kept its quotes, so the
+                # ADR 0006 downgrade did not match it and it was sent as written.
+                $v =~ s/\A"(.*)"\z/$1/ or $v =~ s/\A'(.*)'\z/$1/;
                 $m{content_type} = $v;
             }
 
@@ -160,6 +164,27 @@ our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, $REQUEST_IDENT, %ACCESS
             }
         }
         close $fh;
+
+        # SM1213: api: and raw: AS THE RENDER READS THEM, too. The render serves
+        # a page verbatim on its own reading (_front_matter_scalars: the last
+        # one, one pair of quotes stripped) and the downgrade of a script-capable
+        # content type (peek_content_type, ADR 0006) read only the line test
+        # above - so `api: "true"` was served verbatim as the text/html it
+        # declared. Either reading marks the page; the line test stays, because
+        # wider is the safe direction here.
+        # A text whose reading dies (bytes that are not UTF-8, SM976 Q15h) leaves the
+        # peek with what the line test found, as before; one such page in a scan
+        # must not fail the scan.
+        if ($has_fm) {
+            my %rs;
+            eval {
+                for my $kv ( _front_matter_scalars($fm_text) ) {
+                    $rs{ $kv->[0] } = $kv->[1] if $kv->[0] eq 'api' || $kv->[0] eq 'raw';
+                }
+                1;
+            };
+            for my $k (qw(api raw)) { $m{$k} = 1 if ( $rs{$k} // '' ) =~ /\Atrue\z/i }
+        }
 
         # SM980: auth, auth_groups and payment, read by the one reader.
         # `groups` keeps its contract (present only when the page names
