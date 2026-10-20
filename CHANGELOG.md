@@ -62,6 +62,11 @@ Archive
   printed as a `WARN:` and the batch updater listed it, cut to its first line, on
   every site whose final check then passed. It is a progress line now; a failure the
   repair leaves is still exit 5 and named.
+- SM1207 (PENDING) **internal: a custom change of a site pack applies through oomd (verified).**
+  The OOM Lab's L-1 ("no operation" at apply) was fixed in process by SM1170; oomd
+  already starts with the site's packs, so its Runner finds the class. t/unit/odoo/79
+  applies a pack's custom change through the real oomd, by namespace and by pack
+  directory. No code change; the lab can drop its workaround.
 
 ## 0.15.13 - EDGE: an installed app opens with no connection (2026-10-20)
 
