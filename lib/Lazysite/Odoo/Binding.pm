@@ -89,6 +89,48 @@ my $MIME = qr{\A[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*\z};
 # characters; this bounds what a script can push through one parameter.
 our $MAX_VALUE = 1000;
 
+# SM1224: a rows key an operation declares with its own `max` (OOM 0.38,
+# `note => { type => 'str?', max => 5000 }`, up to 1,048,576) raises the cap for
+# THAT key and no other; every other value keeps $MAX_VALUE.
+our $MAX_KEY = 1_048_576;
+
+# The most characters a rows key may hold: its declared `max`, never less than the
+# plain-value cap. $row is the operation's `row` declaration, $k the key.
+sub key_limit {
+    my ( $row, $k ) = @_;
+    my $d = ref $row eq 'HASH' ? $row->{$k} : undef;
+    return $MAX_VALUE
+        unless ref $d eq 'HASH' && defined $d->{max} && !ref $d->{max} && $d->{max} =~ /\A[1-9][0-9]*\z/;
+    return $d->{max} > $MAX_KEY ? $MAX_KEY : $d->{max} > $MAX_VALUE ? 0 + $d->{max} : $MAX_VALUE;
+}
+
+# SM1224: the most bytes a JSON request for this binding may weigh. A request is
+# held to 64 KB ($JSON_BASE) unless one of its rows parameters declares a key with
+# a larger `max`; then the budget is the base plus the most the list can hold: its
+# rows (the operation's max, lowered by the binding's rows_max) times the bytes of
+# one row at each key's limit, a character costing at most six bytes (a \uXXXX
+# escape) and a key's name and quotes counting too. Never above the endpoint's own
+# ceiling for a request ($FILE_CEILING_KB). $spec is the operation's parameters.
+our $JSON_BASE = 64 * 1024;
+
+sub json_budget {
+    my ( $b, $spec ) = @_;
+    my $need = 0;
+    for my $field ( keys %{ $b->{params} || {} } ) {
+        my $decl = param_decl( $spec, $b->{params}{$field} ) or next;
+        next unless ( $decl->{type} // '' ) eq $ROWS && ref $decl->{row} eq 'HASH' && defined $decl->{max};
+        next unless grep { key_limit( $decl->{row}, $_ ) > $MAX_VALUE } keys %{ $decl->{row} };
+        my $rows = $decl->{max};
+        $rows = $b->{rows_max} if defined $b->{rows_max} && $b->{rows_max} < $rows;
+        my $one = 0;
+        $one += 6 * key_limit( $decl->{row}, $_ ) + length($_) + 8 for keys %{ $decl->{row} };
+        $need += $rows * $one;
+    }
+    my $budget  = $JSON_BASE + $need;
+    my $ceiling = $FILE_CEILING_KB * 1024;
+    return $budget > $ceiling ? $ceiling : $budget;
+}
+
 sub _pairs {
     my ( $text, $what, $left, $right ) = @_;
     my %m;
@@ -377,8 +419,9 @@ sub check_against {
 # The plain-value rule, once: the length limit and no control character. Returns
 # the complaint without the field's name, or ''.
 sub _plain_problem {
-    my ($v) = @_;
-    return "is longer than $MAX_VALUE characters" if length $v > $MAX_VALUE;
+    my ( $v, $max ) = @_;
+    $max = $MAX_VALUE unless defined $max && $max > $MAX_VALUE; # SM1224: a key's declared max raises it
+    return "is longer than $max characters" if length $v > $max;
     return 'contains a control character' if $v =~ /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
     return '';
 }
@@ -409,7 +452,7 @@ sub _rows {
         $n++;
         for my $k ( sort keys %$r ) {
             next if !defined $r->{$k} || ref $r->{$k};
-            my $why = _plain_problem( $r->{$k} );
+            my $why = _plain_problem( $r->{$k}, key_limit( $d{row}, $k ) );
             return ( undef, "'$field' row $n: '$k' $why" ) if length $why;
         }
     }

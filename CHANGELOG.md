@@ -82,6 +82,12 @@ Archive
   status for a malformed request. It answers 401 with the same body, now with kind
   `unauthenticated`, and no `WWW-Authenticate` (the session is a cookie). A site with no
   manager account yet answers 503 (`not-set-up`) in its own wording: nothing to sign in to.
+- SM1224 (PENDING) **a rows key's declared max raises its cap.** lazysite held every request value to
+  1,000 characters, so a rows key an operation declares with its own `max` (OOM 0.38, up to
+  1,048,576) was refused past 1,000 though OOM accepts it. That `max` is now the key's cap;
+  an undeclared key keeps 1,000. A JSON body over 64 KB names its binding in the query and is
+  held to that binding's budget (20 MB at most), so a declared large value is not refused
+  by the body cap first.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

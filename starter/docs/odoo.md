@@ -150,7 +150,10 @@ says what a request may set and who may cause it:
   Before anything is sent to Odoo each row is checked against the operation's
   declaration (no more than `max` rows, only the declared keys, every required
   key present, each value of its type, no nesting) and each value passes the
-  plain-value rule above. Any failure refuses the whole call as `invalid`,
+  plain-value rule above, **except that a row key the operation declares with its own
+  `max`** (OOM 0.38: `note => { type => 'str?', max => 5000 }`, up to 1,048,576
+  characters) **may hold that many characters instead of 1,000**; a key that declares
+  none keeps 1,000. Any failure refuses the whole call as `invalid`,
   naming the row number and the key (`'lines' row 2: key 'qty' must be int`).
   A form or a query string cannot carry one, since they post text.
 
@@ -318,7 +321,13 @@ The page endpoint, `/cgi-bin/lazysite-odoo.pl`
   is refused (`405`). `POST {binding, params, visitor_token}` runs a binding;
   `POST {plan, confirm: true, visitor_token}` applies a plan this caller made.
   A signed-in caller sends the session token (`X-CSRF-Token` or `token`)
-  instead of `visitor_token`. Bodies over 64 KB are refused.
+  instead of `visitor_token`. Bodies over 64 KB are refused, **unless the request names
+  its binding in the query (`?binding=ID`, as a multipart request does) and that
+  binding's operation declares a rows key with a `max` above 1,000**: the body may then
+  weigh what the binding's lists can hold - its rows times each key at its declared
+  `max`, at six bytes a character, to a ceiling of 20 MB - and a larger one is refused
+  `413` before it is read. The body's `binding` must be the query's. A batch is always
+  held to 64 KB.
 
   `GET ?csrf=1` also says who is signed in to Odoo. For a person with an Odoo
   session and a current identity cookie the answer carries
@@ -703,7 +712,7 @@ never returned. The kinds a caller meets most:
 | `signin-refused`, `signin-required` | 401 | the password was refused, or the sign-in (or its pending code step) has ended: sign in again |
 | `second-factor` | 401 | Odoo did not accept the code; the person may try again |
 | `invalid` | 400 | a parameter is unmapped, of the wrong type, or missing; for a file, of a type the binding does not accept, a name that is not a plain name, or too many files |
-| `too-large` | 413 | a multipart request is larger than the binding's `file_max_kb` allows (refused before its body is read), or one file is over the cap |
+| `too-large` | 413 | a multipart request is larger than the binding's `file_max_kb` allows (refused before its body is read), or one file is over the cap; or a JSON body is over 64 KB (or the budget a declared rows `max` gives its binding) |
 | `rate` | 429 | a rate cap is reached |
 | `not-found` | 404 | no such binding, or no such plan for this caller |
 | `stale`, `edited`, `applied` | 409 | the plan no longer fits Odoo, or was already applied |

@@ -253,12 +253,28 @@ sub main {
         return reply(@$refused) if $refused;
     }
     if ( $method eq 'POST' && !$multipart ) {
-        return reply( '413 Payload Too Large', { ok => 0, kind => 'too-large', error => 'body too large' } )
-            if $len > 64 * 1024;
+        # SM1224: 64 KB, unless the request names (in the query, as a multipart one
+        # does) a binding whose rows declare a key with a larger `max`: that
+        # binding's own budget, known before the body is read.
+        my $budget = 64 * 1024;
+        if ( $len > $budget && defined $q->{binding} && length $q->{binding} ) {
+            _engine($docroot);
+            my ($qb) = Lazysite::Odoo::find_binding( $q->{binding} );
+            $budget = Lazysite::Odoo::json_budget($qb) if $qb;
+        }
+        return reply( '413 Payload Too Large',
+            { ok => 0, kind => 'too-large',
+                error => $len > 64 * 1024 && $budget == 64 * 1024
+                ? 'body too large'
+                : "the request is $len bytes; this binding takes at most $budget bytes" } )
+            if $len > $budget;
         read( STDIN, $raw, $len ) if $len;
         $req = eval { JSON::PP->new->utf8->decode($raw) };
         return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'the body must be a JSON object' } )
             unless ref $req eq 'HASH';
+        return reply( '413 Payload Too Large', { ok => 0, kind => 'too-large', error => 'body too large' } )
+            if $len > 64 * 1024
+            && ( exists $req->{calls} || !defined $req->{binding} || ( $req->{binding} // '' ) ne ( $q->{binding} // '' ) );
 
         # B: signing in and out. Neither names a binding, and both are a POST that
         # needs the visitor token (bound to the visitor cookie, which SameSite=Strict

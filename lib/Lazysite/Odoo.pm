@@ -1108,6 +1108,19 @@ sub upload_budget {
     return ( $cap, $n || 1 );
 }
 
+# SM1224: what a JSON request for this binding may weigh, in bytes - 64 KB, or
+# more when a rows key of its operation declares a larger `max` (see
+# Binding::json_budget). Known before the body is read; the binding is named in
+# the query for a request over 64 KB.
+sub json_budget {
+    my ($b) = @_;
+    require Lazysite::Odoo::Binding;
+    my ($conn) = eval { connection() };
+    my $class  = $conn  ? eval { ( binding_class( $b, $conn ) )[0] } : undef;
+    my $spec   = $class ? ( eval { $class->params } || {} ) : {};
+    return Lazysite::Odoo::Binding::json_budget( $b, $spec );
+}
+
 # SM1162: one log line per file an operation is given - name, size, sha256 and
 # type, and never the bytes, which are in the call and nowhere else. The call_id
 # ties the line to the call record.
