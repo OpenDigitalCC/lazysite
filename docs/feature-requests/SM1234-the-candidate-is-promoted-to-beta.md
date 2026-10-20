@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the release manager, 2026-10-20 (\"Yes, beta.\"), after the 0.15.15 walk (lazysite/inbox, test-plan-01515-results)"
 area: release
-status-note: "SHIPPED (PENDING) on n716: no code change. The beta 0.15.16 carries 0.15.15's code; PATH-TO-STABLE step 4 (no material findings, promote to beta)."
+status-note: "SHIPPED (0.15.16) on n716: no code change. The beta 0.15.16 carries 0.15.15's code; PATH-TO-STABLE step 4 (no material findings, promote to beta)."
 ---
 
 # What was asked

@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.15"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.16"
 brand: plain
 ---
 
@@ -2023,6 +2023,12 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.16** (2026-10-20, beta) - **0.15.15 promoted to beta.** the 0.15.15
+  stable candidate, unchanged, on the beta channel after a clean walk (V1-V9
+  PASS, 20 October 2026): the raw-page downgrade and empty front-matter keys
+  (SM1213), empty app settings (SM1209), app installs that keep the others
+  answering (SM1211), a write with no answer is "not known" (SM1218), OOM 0.38
+  (SM1216, SM1217)
 - **0.15.15** (2026-10-20, edge) - **The stable candidate: raw pages stay
   downgraded, and an empty setting is empty.** an empty front-matter key no
   longer reads the next line and a quoted or next-line api/raw/content_type no

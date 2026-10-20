@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1234 (PENDING) **release: the 0.15.15 stable candidate is promoted to beta.** Its
+## 0.15.16 - BETA: 0.15.15 promoted to beta (2026-10-20)
+
+- SM1234 (75348147) **release: the 0.15.15 stable candidate is promoted to beta.** Its
   walk on edge found nothing material (V1-V9 PASS, 2026-10-20), so its code ships
   unchanged on the beta channel as this version (PATH-TO-STABLE step 4). No code
   change.
