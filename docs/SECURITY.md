@@ -1181,11 +1181,10 @@ residual risk
   in the request's process. Idle time-out for a person's Odoo session is not built.
 
 verdict
-: accepted (proposed), contingent on the first third-party engagement required by ADR
-  0007 before 2026-12-31 taking the Odoo endpoint and its public write path in scope. The
-  triggers fired and the engine controls are specific, tested and sabotaged; the open
-  question for the release manager is whether that assessment, without a third party,
-  holds until the engagement.
+: accepted, contingent on the first third-party engagement required by ADR 0007 before
+  2026-12-31 taking the Odoo endpoint and its public write path in scope. The triggers
+  fired and the engine controls are specific, tested and sabotaged. Accepted by the
+  release manager on 2026-10-20 ("accept").
 
 ### 2026-10-20 - SM1160 (0.15.10): the person's Odoo login is the site sign-in
 
