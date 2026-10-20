@@ -11,7 +11,9 @@ vulnerability-disclosure policy in the repo-root `SECURITY.md`.
 
 Assets: account credentials (hashed passwords, `lzs_` tokens, TOTP seeds),
 session cookies, site content, form submissions, the per-install HMAC secret,
-the audit trail.
+the audit trail, the Odoo connection user's key and a person's Odoo session
+(0.15.5), and, once the visitor log names the signed-in account (held for
+0.15.16, SM1219), account names in the log.
 
 Trust boundaries (each is where an attacker's input crosses into trusted code):
 
@@ -48,6 +50,35 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
    set is engine code; no configuration can add one. `daemon_job_user` is a
    delegation - a `manage_config` holder names which `run_jobs` account acts -
    bounded by that closed set.
+9. **The pool worker's identity** (SM1181, 0.15.12) -> on the one-rule pool a
+   signed-in request is no longer passed between two programs by headers; the
+   front door calls `Lazysite::Auth::Session::request_session` and the worker
+   holds the answer as a value for that request only. The worker never believes
+   `LAZYSITE_AUTH_TRUSTED` from its environment, strips every identity and
+   payment header when it holds a value, and clears the value at both ends of the
+   request. See `architecture/security.md` - "Who a request is, decided once".
+10. **The trusted proxy and the forwarded address** (SM1129-SM1131, 0.15.10;
+    SM929, SM1189, SM1194, SM1196, 0.15.11) -> two lists, kept apart:
+    `auth_proxy_trusted_from` (whose identity headers are believed, matched
+    against the TCP peer) and `trusted_proxies` (whose `X-Forwarded-For` is
+    believed about a visitor's address). A front end that passes the client's
+    `X-Forwarded-For` through lets any visitor choose their address, so the rollout
+    and `lazysite check` name that as a failure. Every address-keyed control and
+    every address rule sits behind this boundary.
+11. **The address rule** (SM1134, 0.15.10) -> named allow and deny lists that pages,
+    folders and groups apply; it narrows what other rules grant and never widens it.
+12. **The Odoo extension** (SM747, 0.15.5; SM1160, 0.15.10) -> an outbound
+    connection to an ERP on the operator's URL, a connection user's key, a person's
+    own Odoo session, an anonymous visitor's bounded write path, and (opt-in) the
+    person's Odoo login as the site sign-in under an `odoo:<login>` identity.
+13. **oomd, the resident OOM** (SM1164, 0.15.10) -> one long-lived process per
+    site, opt-in (`odoo_daemon`), supervised by lazysited as the same user, reached
+    by a Unix socket in a 0700 directory, holding the connection's key files by label.
+
+Not yet code, so not yet boundaries: SM1128's native OIDC relying party and directory
+groups (phases 2-3). Held for 0.15.16 and not in the 0.15.15 candidate: the visitor
+log's signed-in account (SM1219) and the maintenance capability (SM1118); see
+`architecture/security.md` and the last register entry.
 
 ## STRIDE assessment
 
@@ -64,6 +95,12 @@ Repudiation | An action taken with no attributable record | Append-only audit tr
 Information disclosure | Protected content served by a front end that never consults the engine (SM248, SM268 H17, SM283 - three incidents, one cause); auth secrets or raw logs readable off the docroot; visitor PII in stats | **Protecting content MOVES it out of the document root** (SM286), so this is structural rather than configurational; the front door makes the routing decisions inside the engine (SM293); secrets under `lazysite/auth/` (Apache-denied, 0660); stats export is aggregated + IP-anonymised; raw-log download removed (0.5.29); error surface synthesised | Sections protected BEFORE 0.10.8 stay in the document root until re-applied - an operator action no upgrade performs. TOTP seeds are stored recoverable (documented at-rest note, security.md) - accepted at L1, an L2 gap to close with an at-rest key
 Denial of service | A flood of CGI forks, or an unbounded upload / render, exhausting the host; vulnerability-scanner probe floods | Login rate limiting (per-IP window; an extension, on by default - switched off or unable to run it says NOT in force in the log and in lazysite check, SM798); upload size gate; PUT streamed in bounded chunks; checked writes fail closed on ENOSPC (review D5). SM128: the bad-URL auto-blocker (on by default) refuses an IP after it hits too many scanner-probe paths in a window, enforced in the auth wrapper | No global concurrency cap (relies on the web server / MPM); capacity test is a held pre-launch item; the auto-blocker covers auth-wrapped sites
 Elevation of privilege | A token/WebDAV partner reaching manager-only actions or another account's files; a manager account driven remotely | Token clients are confined to the control-API subset + `%need` capability map; never operators; per-file ACLs bind them (SM074); manager bypass is cookie-only. SM127: an account with group-granted manager access (`ui`) is refused outright on the api/mcp transports, and a group may not combine `ui` with `api`/`mcp` - manager access is interactive-only, so a leaked/misissued token on a manager account cannot drive the site | ASVS V4 met; the capability model is groups-only + explicit (ADR 0003), removing implicit manager status
+Spoofing | A request's identity decided in a long-lived pool worker: a client's own `X-Remote-User`, or `LAZYSITE_AUTH_TRUSTED` sent as a FastCGI parameter, read as a verified identity; one visitor's identity served to the next (SM1181) | `request_session` is the one function behind the wrapper and the pool; in the pool the sentinel is never believed and a held value makes `apply_trust_gate` strip every identity and payment header; the value is cleared at the start and the end of each request (t/lint/269); `auth/.secret` is read per call and never cached | The split FastCGI templates keep the CGI wrapper for signed-in requests by decision; the security review in the SM1181 filing lists fourteen threats with the test that holds each
+Spoofing | A client naming its own address or account through a proxy: identity headers from an unlisted peer; `X-Forwarded-For` passed through by an old front end (SM1129-SM1131, SM1189, SM1194, SM1196) | Identity headers are believed only from `auth_proxy_trusted_from`, which fails closed; one reader honours the configured header names; the proxy's user wins over a cookie; the Hestia rollout compares and replaces an old template and reports a pass-through vhost as a failure; `lazysite check` warns while the trust set is not empty | The private-range default for `trusted_proxies` is believed behind a front end that passes the header through until the vhost is rebuilt; verified by the rollout and by a probe request
+Elevation of privilege | Odoo sign-in granting site rights, or an anonymous visitor reaching an ERP through a page (SM747, SM1160) | The Odoo-minted site session grants only the mapped groups, held server-side, and a mapping to any group carrying a capability is refused at save and at load; a public or scheduled write needs `apply: immediate` and is bounded by the connection user's Odoo rights, the bound operation, hourly caps and a visitor-bound token; a session binding never falls back to the connection user; OOM's approval gate stays on | A site session lives at most `odoo_identity_ttl` past the last Odoo check; the connection user's rights are set in Odoo by whoever administers it
+Elevation of privilege | A process that outlives a request taking calls without the request's gates (oomd, SM1164) | Opt-in and off by default; started only while every gate holds; the socket directory is 0700 and the config 0600 with credentials as labels; `required` refuses with `daemon-down` where `on` falls back in-process | oomd has no sign-in verb, so sign-in stays in-process
+Tampering | A raw or `api:` page served as `text/html` past the ADR 0006 downgrade through a front-matter spelling the renderer read and the downgrade did not (SM1213) | One reading of `api:` and `raw:` in the renderer, the manager and the downgrade's peek; an empty key takes its own line only | Closed in 0.15.15; no gated page opened (t/integration/305)
+Information disclosure | A page or a group's rights reaching an address the operator excluded (SM1134) | Named lists decided by one module; deny wins; an unreadable store, an unparseable address and a wrong-kind name each deny; every layer must admit; groups drop out for a refused address | Only as good as the request address: see the trusted-proxy row
 ```
 
 ## Five priority entries (from the review)
@@ -1013,3 +1050,406 @@ verdict
   unchanged default and an encrypted transport. The new actions sit behind
   existing, narrower-than-admin capabilities with the table's confinement. No
   ahead-of-schedule third-party engagement required.
+
+### 2026-10-20 - SM1042/SM1043 (0.15.5): a member changes their own password and sets up their own two-factor
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: **SM1043**: `/account`, a system page in the site's own layout (`account_page:
+  disabled` withdraws it), and the `me-*` actions - a member reads and changes only
+  their own account, ends their own sessions, and signs out everywhere. **SM1042**:
+  a member enrols, confirms, disables and regenerates recovery codes for their own
+  two-factor (`me-2fa-enrol`, `-confirm`, `-disable`, `me-recovery-codes`); manager
+  enrolment is removed in the same release, so a manager can only reset a member's
+  two-factor and never sees a secret or a recovery code. Ruled by the release manager
+  2026-10-12 ("Self-enrol only"; "Accept, build phase 1").
+
+threat delta
+: A new interface that changes credentials, so Spoofing and Elevation of privilege
+  are the questions: a stolen session that holds the password could swap the
+  authenticator, and a manager door that enrols two-factor can read the secret.
+  Repudiation moves too: a credential change needs an attributable record.
+
+controls
+: The actions are declared `self`, cookie-only and CSRF-gated; an access key or a
+  token is refused. Each sensitive request re-authenticates with the current password
+  and counts against the sign-in rate limiter, by address and by account (five in five
+  minutes, "share the sign-in limit"); six guesses from six addresses close the
+  account's bucket. `me-2fa-enrol` is refused while two-factor is on; disabling needs
+  the password and a current code or one recovery code; a changed credential ends the
+  account's other sessions (SM1040). A body naming another account changes nothing; another
+  account's session id is indistinguishable from a made-up one. The audit trail records
+  every change, wrong-password attempts included, and carries no password. The manager
+  API refuses `mfa-enroll`, `-confirm`, `-recovery-regenerate`, `-verify` and
+  `totp-code`, and the users tool refuses the enrolment verbs to any actor that is not
+  the account. t/unit/account/01-05, sabotaged one control at a time.
+
+residual risk
+: The TOTP seed is still stored at rest (the L2 gap in the STRIDE table). The
+  `me-sign-out-everywhere` action ends the current session too, as ruled.
+
+verdict
+: accepted (proposed). The new interface only reaches the caller's own account, behind
+  re-authentication, the shared rate limit and an audit row; the manager lost a
+  capability rather than gaining one. No ahead-of-schedule third-party engagement
+  required.
+
+### 2026-10-20 - SM1019/SM1020 (0.15.5): a notification rule over a form event
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: A `notify` handler type queues a rule over a form event, and the engine job
+  `notify-outbox` sends each recipient once, by email and the per-member bell.
+  Recipients may be addresses stored in a table, owners' accounts, fixed addresses or
+  the submitter (ruled in SM1010, 2026-10-12). Authoring needs a new capability,
+  `manage_notifications`.
+
+threat delta
+: Information disclosure: the event's visible fields reach recipients the submitter
+  did not name, which is new processing of restricted data. Denial of service: a rule
+  can mail many people.
+
+controls
+: `manage_notifications` is off by default, held by the manager groups only. The
+  grammar is checked at save (every fixed address is exactly one address, SM1017; every
+  table declared and every column present). The queue entry carries the event's
+  visible fields, bounded, and never files. A quarantined submission queues nothing.
+  Sending is once per recipient under a hashed ledger, capped per recipient
+  (`per_recipient_hour`, default 3), leaves the actor out unless `notify_actor`, and
+  writes one audit row per recipient; messages carry an unsubscribe link and a
+  `List-Unsubscribe` header unless the rule turns it off. t/unit/notify/01-05.
+
+residual risk
+: The handler actions' door (`manage_forms`, `manage_data` or `manage_connectors`) is
+  unchanged, so a group holding `manage_notifications` alone cannot reach the handler
+  page; whether to widen it is an open question in the SM1019 filing.
+
+verdict
+: accepted (proposed). Recipients and their sources were ruled by the release manager;
+  authoring is capability-gated and off by default; the data flow is the one a form
+  mail handler has always had, with a per-recipient cap and an unsubscribe. No
+  ahead-of-schedule third-party engagement required.
+
+### 2026-10-20 - SM747 (0.15.5 onward): the Odoo extension
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: `plugins/odoo.pl` (born disabled) and the page endpoint `lazysite-odoo.pl`. A
+  connection user (a site Odoo account, its key stored like a connector secret) runs
+  named operations for pages, MCP and backend work; a public or scheduled binding may
+  apply a write unattended when it declares `apply: immediate` (ruled Q1, 2026-10-12;
+  an e-commerce basket becomes a quotation); a person may sign in to Odoo through a
+  page and run `credential: session` bindings as themselves (slices B, C, D, 0.15.5);
+  MCP uses the connection user or a per-grant account (slice E). Ruled X4: the
+  extension's outbound HTTP is mode 2 inside SM579's policy.
+
+threat delta
+: Four of ADR 0007's triggers fire. A new external interface (an outbound connection
+  to an ERP on the operator's URL, a page endpoint, MCP tools); a new authentication
+  method (a person's own Odoo session, kept in a signed cookie); a new dependency with
+  authentication logic (OOM, delivered as `libodoo-oom-perl` and vendored as a pinned
+  snapshot for the tests, whose session transport takes the password); and new
+  processing of restricted data (ERP records rendered into pages). Spoofing, Tampering,
+  Elevation of privilege and Information disclosure are all in play: an anonymous
+  write path into an ERP is the sharpest thing the extension adds.
+
+controls
+: The filing's engine controls on every public apply: the mode gate
+  (`Lazysite::Egress::may_invoke`: who, the extension switch, OOM's presence and
+  version, the connection); per-visitor and per-binding hourly caps taken before the call,
+  where a count that cannot be taken refuses; a CSRF token bound to a 256-bit
+  server-minted visitor key (`HttpOnly; SameSite=Strict`, signed); input checked against
+  the operation's declared parameters, with `fixed:` and the visitor parameter
+  unoverridable; a plan owned by the key or account that made it and confirmed only by
+  it; an audit record naming a hash of the visitor key and the IP. Transport: `https://`
+  to any host, `http://` to loopback only, no credentials in the URL; the key is a 0600
+  file never returned or logged. The person's password is in one POST to OOM's session
+  transport and in no URL, cookie, log or record; the cookies are signed under the
+  extension's own secret, `lzs_odoo_session` is `HttpOnly; SameSite=Strict` and scoped to
+  the endpoint, and the identity cookie authorises nothing. A session binding never
+  falls back to the connection user. OOM's approval gate stays on. A page render never
+  runs a write and never renders a visitor's binding. t/lint/240 keeps Odoo knowledge out
+  of lazysite; every guard was broken on purpose and its test went red (t/unit/odoo/01-31).
+
+residual risk
+: The connection user's rights are set in Odoo by whoever administers Odoo; lazysite
+  narrows nothing Odoo allows. No third-party test has covered the endpoint or its public
+  write path. The binding and operation declarations are still read from OOM's registry
+  in the request's process. Idle time-out for a person's Odoo session is not built.
+
+verdict
+: accepted (proposed), contingent on the first third-party engagement required by ADR
+  0007 before 2026-12-31 taking the Odoo endpoint and its public write path in scope. The
+  triggers fired and the engine controls are specific, tested and sabotaged; the open
+  question for the release manager is whether that assessment, without a third party,
+  holds until the engagement.
+
+### 2026-10-20 - SM1160 (0.15.10): the person's Odoo login is the site sign-in
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: On a site that sets `odoo_site_signin: on` (default off), a successful Odoo sign-in
+  (the password and, where Odoo asks, the authenticator code) is the site sign-in. The
+  identity is `odoo:<login>`; no lazysite account is made. Ruled 2026-10-18; SM1157
+  put Odoo's own two-factor code in the dialog.
+
+threat delta
+: A new authentication method. Spoofing and Elevation of privilege: a forged or stolen
+  cookie, a forged header, a group mapping that grants manager rights, and a site
+  session that outlives the Odoo session.
+
+controls
+: The session is the wrapper's own cookie and registry (`auth/sessions.jsonl`), so the
+  one verifier chain every surface calls applies. The cookie's user field is
+  `odoo=<login>` percent-encoded and its group field is empty and ignored (SEC-2026-07
+  M5); the mapped groups are held in the server-side record, which is the authority: no
+  record, or one for another user, is no session. A local account name cannot contain `=`
+  or `:`, so `odoo:<login>` cannot be shadowed. `odoo_group_map` is asked of Odoo as the
+  person (`core.has_groups`, no administrator right) and a target that carries any
+  capability is refused at save and at load, by name. A record older than
+  `odoo_identity_ttl` (default 900 s) grants nothing until `?csrf=1` asks Odoo once and
+  renews it; sign-out ends both sessions and each ends the other. An unsecured site
+  refuses the session. A forged `X-Remote-User: odoo:x` is stripped by the existing
+  gates. Attempts share the site's limiter. t/unit/odoo/63, 64, sabotaged.
+
+residual risk
+: A site session keeps what it had for at most `odoo_identity_ttl` after Odoo changes
+  (the operator-set bound the ruling asks for). A reader idle on one page past that is
+  sent to the sign-in page by the next restricted link. The wrapper's own logout ends the
+  site session and leaves the Odoo session cookie until the next `?csrf=1`. Idle time-out
+  is not built, as ruled.
+
+verdict
+: accepted (proposed). The trigger fired and is contained: no capability can be reached
+  through the door, the cookie carries no authority of its own, and the bound on a stale
+  session is stated and operator-set. No ahead-of-schedule third-party engagement required
+  beyond the one ADR 0007 already requires.
+
+### 2026-10-20 - SM1164/SM1207 (0.15.10, 0.15.14): oomd, a resident OOM
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: With `odoo_daemon` set to `on` or `required` (default `off`), lazysited supervises one
+  `oomd` per site and the Odoo extension sends its calls through it over a Unix socket,
+  falling back to the in-process path on `on`. SM1207 verified that a pack's custom
+  change applies through it. Sign-in, sign-out and the two-factor step stay in-process.
+
+threat delta
+: A new long-lived process and a new local interface (the 2026-09-05 entry marked a
+  local socket as a new interface). Elevation of privilege: a process that acts without
+  the request's gates; Information disclosure: a socket that carries the person's
+  session id and a config that names key files.
+
+controls
+: Off by default; the supervisor lists oomd only while the Odoo extension is enabled, a
+  connection loads, `odoo_daemon` is on and oomd is installed, re-read every 5 s, so with
+  any gate closed no process exists. It runs as the user lazysited runs as (SM760). The
+  config `lazysite/odoo/oomd.conf` is written 0600 through a temporary file under umask
+  077, names credentials only as labels of key files and carries no key. The socket is
+  `lazysite/run/oomd.sock` when that path is under 104 bytes, otherwise under
+  `/tmp/oomd-<uid>/`, a directory the service creates 0700. The person's session id is in
+  the request to the daemon and in no file (the test greps the whole site). The client
+  is always `fallback => 0`; `required` refuses with `daemon-down`. A leftover oomd of the
+  same socket is told to stop before a new one starts. t/unit/odoo/60-62, 79,
+  t/unit/daemon/14.
+
+residual risk
+: Not yet exercised on a real host: the tests run the vendored `bin/oomd` against OOM's
+  fake Odoo, not `/usr/bin/oomd`, a real Odoo's latency (D5) or the supervisor under
+  `lazysited@<domain>` and systemd; the same-user arrangement is the supervisor's,
+  unchanged.
+
+verdict
+: accepted (proposed). Opt-in, off by default, the same user and privilege drop as the
+  scheduler, no key in any file it reads, and every gate closing stops it. Trigger review
+  of the production unit when a host first runs it.
+
+### 2026-10-20 - SM1129-SM1131, SM929, SM1189, SM1194, SM1196 (0.15.10-0.15.11): a proxy is believed only from its address
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: SM1129: `auth_proxy_trusted_from` (a CIDR list matched against the TCP peer,
+  failing closed) gates the identity headers. SM1130: a proxy's user wins over a cookie.
+  SM1131: one reader honours the configured header names everywhere. SM1189: an address
+  rule of the wrong form or kind is named and denies. SM1194 and SM1196: the 0.15.10
+  edge walk (F-6) found a pre-SM929 vhost passing the client's `X-Forwarded-For`
+  through, so Hestia's template is refreshed on rollout and a pass-through vhost is a
+  failure. `auth_proxy_trusted` was enabled on no site (release manager, 2026-10-17).
+  SM1128's phases 2-3 (a native OIDC relying party, directory groups) have no code.
+
+threat delta
+: No trigger of ADR 0007's four fired: no new interface, method, dependency or data. The
+  trust contract of an existing flag changed, which is a Spoofing question, and F-6 was a
+  Spoofing finding: every address-keyed control (the sign-in rate limit, the bad-URL
+  blocker, the form handler's limit, every address rule) took the visitor's word behind an
+  old front end.
+
+controls
+: The identity headers are believed only from a listed peer and from any other are
+  stripped as with the flag off; an empty or unparseable list believes nobody; the reader
+  asks `proxy_identity` and a client can never make a configured name count; t/lint/267
+  and 268 hold the arrangement. The rollout reports a pass-through vhost as a failure
+  (exit 2) on every site not set to `trusted_proxies: none`, refreshes Hestia's copy of
+  each template (keeping a `.bak-TIMESTAMP`), and names the domains to rebuild; `lazysite
+  check` warns whenever the trust set is not empty. t/integration/263-265, t/tools/185,
+  186, t/unit/lib/205.
+
+residual risk
+: A site behind an old front end is spoofable until its vhost is rebuilt from the
+  refreshed template; the private-range default for `trusted_proxies` stays and only
+  `none` trusts nothing. The `.deb` does not install the templates into Hestia's tree, so
+  the copy after an upgrade is a documented step the domain tool checks.
+
+verdict
+: accepted (proposed). No trigger fired; recorded because identity and address trust
+  changed. The F-6 exposure is closed by the rollout where the rollout is run. When SM1128
+  phase 2 is built it fires the new-authentication-method trigger and, with its JWT
+  verifier, the new-dependency one, and is assessed then.
+
+### 2026-10-20 - SM1134 (SM1138-SM1141, 0.15.10): access limited by the visitor's address
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: Named allow and deny address lists in `lazysite/auth/address-lists.json`, applied to
+  pages and folders (`addresses`, `addresses_deny` in front matter and `acls.json`), to
+  groups (a group does not count from a refused address), and to sign-in (SM1159); a
+  template test `visitor.in_list` that exposes membership only. Ruled in full 2026-10-17.
+
+threat delta
+: No trigger fired. Information disclosure and Elevation of privilege are the
+  questions a new access rule raises: a rule that fails open, an inner rule that opens
+  what an outer one limits, and a group's rights reaching an address the operator
+  excluded.
+
+controls
+: One module answers (`Lazysite::Auth::AddressLists::decide`): deny wins; an unreadable
+  store, an unparseable address and a wrong-kind name deny; a name the store does not
+  hold in an allow slot admits nobody. Every layer that names a list must admit, so an
+  inner rule cannot open an outer limit, and the address is asked before the who-may-read
+  rule, so `auth: none` cannot lift it. Enforced in the processor, WebDAV, the manager
+  API and MCP. A group dropped for an address loses its capabilities, page access and
+  operator status and everything reached through it by nesting. The template test
+  exposes no address, and a render that asked is never cached. A list a rule names cannot
+  be deleted without `--force`. t/unit/auth/63-64, t/integration/266, 280, 281, 285.
+
+residual risk
+: A page limited only by its front matter binds where it is served; the manager's and
+  WebDAV's file reads decide from `acls.json` alone, so the rule goes in `acls.json`
+  (`acl-set`) to cover every door. The address is only as good as `trusted_proxies`
+  (see the entry above). An IPv4-mapped address is an IPv6 address to the matcher. A
+  layout changed from a shell, outside the engine, is seen only when something else
+  stales the page.
+
+verdict
+: accepted (proposed). Nothing in it widens access; the failure direction of every
+  fault is a refusal.
+
+### 2026-10-20 - SM1181 (0.15.12): who a request is, decided once
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: On the one-rule pool a signed-in request is rendered in the pool worker with the
+  identity as a value (`request_session`), where it used to cross two programs by
+  identity headers; the manager API is one program; the dev server runs the four
+  surfaces that verify their own caller direct. Ruled 2026-10-19 ("Yes, plan + review
+  first"; "All as proposed"); the review ran before any code.
+
+threat delta
+: No trigger fired. Spoofing and Information disclosure are the questions: a long-lived
+  worker that decides identity can hand one visitor's identity to the next, and a
+  header or a FastCGI parameter must never be read as one.
+
+controls
+: The security review in the filing (T1-T14) names the threat, the protection and the
+  test for each. In the pool the sentinel is never believed from the environment and a
+  held value makes `apply_trust_gate` strip every identity and payment header; the value
+  is cleared at both ends of a request and a die leaves nothing for the next
+  (t/integration/290-297, two requests through one worker among them); `auth/.secret`
+  is read per call and never cached; the front door runs the bad-URL guard on every
+  request, closing T13; t/lint/38, 13, 267, 268 and 269 are extended, not relaxed.
+
+residual risk
+: The split FastCGI templates keep signed-in requests on the CGI wrapper by decision
+  (R8), so they gain nothing and lose nothing. MCP, DAV, OAuth and the wrapper's own
+  actions keep their own credentials and are not moved.
+
+verdict
+: accepted (proposed). No new interface, method, dependency or data; the review preceded
+  the code and every threat has a test that was broken on purpose.
+
+### 2026-10-20 - SM1213 (0.15.15): an empty front-matter key reads as empty
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: The page front matter's scalar reader ran over the newline after an empty key, so
+  `title:` took the next line and that key was lost. The same readers in the renderer,
+  the manager's `page_form` and `raw_html_page_refusal` now read a value from its own
+  line, and the ADR 0006 downgrade reads `api:` and `raw:` as the render does.
+
+threat delta
+: Tampering. No gated page opened: every reader that decides who gets a page reads the
+  front matter line by line (t/integration/305, before and after). The reader did let a
+  raw page be served as `text/html` past the downgrade in four spellings (`api:` above
+  `true`, `api: "true"`, `raw: 'true'`, a quoted `"text/html"`), each measured before the
+  fix. A Markdown page's `<script>` already reaches the browser through the layout; the
+  bypass added a whole response with no layout around it.
+
+controls
+: One reading of the keys in the renderer, the manager and the downgrade's peek. The
+  downgrade stays the mechanical enforcement of ADR 0006 recorded in the 2026-07-18
+  entry above.
+
+residual risk
+: None identified beyond the 2026-07-18 entry's.
+
+verdict
+: accepted (proposed). No trigger fired; recorded because it closed a bypass of a boundary
+  this register names.
+
+### 2026-10-20 - SM1219, SM1118 (held for 0.15.16; not in 0.15.15): the visitor log's accounts and the maintenance capability
+
+Assessment drafted by the developer agent; the release manager confirms. Both are
+shipped on held branches (n705, n706), written here ahead of their release so the entry
+exists when they land. They are in 0.15.16 if they land, and not in the 0.15.15
+candidate.
+
+what changed
+: **SM1219** (ruled #339, 2026-10-20): the access record gains `u`, the account the engine
+  verified, read with the `analytics` capability, a domain-confined caller seeing only its
+  own domains' accounts, kept as long as the rest of the log, shown per account in the
+  manager. **SM1118** (ruled #338, 2026-10-20): a switch sends page requests by 302 to a
+  page that answers 503; the new capability `maintenance_access`, held by the operator
+  group and assignable, gets through; MCP, the control API, WebDAV, the data endpoint and
+  posted forms follow the same capability.
+
+threat delta
+: SM1219 fires new-processing-of-restricted-data: account names in a log are personal
+  data. SM1118 fires none: it adds a capability and a way to refuse requests.
+
+controls
+: SM1219 reads the account from the one identity reader at the end of the request, only
+  for source `cookie` (including the pool's held value) or `proxy`, never the raw
+  `X-Remote-User`, so a forged header records nobody; the default analytics reply carries
+  no account name; the capability text now says visits per signed-in account are shown to
+  it. SM1118 sits in the processor's `main()`, so it holds on CGI, the split templates and
+  the pool; a switch-on needs the capability on the account doing it (no self-lockout); a
+  form posted during maintenance stores nothing. t/integration/310-312, 315-320.
+
+residual risk
+: SM1219: per-account figures are read from the raw log, so they reach back
+  `retention_days`, and telling the people who sign in is the operator's duty (SM1010
+  principle). SM1118: a file the web server serves by name never reaches the engine and is
+  not redirected; the OAuth and Odoo endpoints are not gated; a site with no accounts is
+  closed to everyone while the switch is on.
+
+verdict
+: accepted (proposed), to be re-read at the release that carries them.

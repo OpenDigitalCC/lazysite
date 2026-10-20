@@ -28,8 +28,8 @@ rises monotonically.
 :::
 
 ```yaml
-status:              index - complete in coverage, not yet reviewed as a whole
-covers_version:      0.10.9
+status:              index - complete in coverage, walked row by row to 0.15.15 on 2026-10-20; a person confirms
+covers_version:      0.15.15
 content_sha:         78dc3c473aac2118
 ce_marking_due:      2027-12-11
 owner:               release manager
@@ -44,17 +44,17 @@ bold: 1
 tone: medium
 text: 2
 ---
-General description: intended purpose, versions, product form | docs/FEATURES.md; README.md; CHANGELOG.md | current to 0.9.14 - see review D7 F7.1
+General description: intended purpose, versions, product form | docs/FEATURES.md; README.md; CHANGELOG.md | current - checked at each release by tools/lazysite-compliance.pl
 Design and development: architecture, components | docs/architecture/*.md; docs/adr/*.md (ADRs record decision AND cause) | current
 Production and monitoring processes | docs/development.md; tools/release.sh; docs/RELIABILITY.md | current
-Cybersecurity risk assessment | docs/SECURITY.md (STRIDE, ASVS L1); docs/architecture/security.md | current to 0.10.8
+Cybersecurity risk assessment | docs/SECURITY.md (STRIDE, ASVS L1, thirteen-boundary model and the significant-change register); docs/architecture/security.md | current to 0.15.15 - the 0.11-0.15 trust changes added 20 Oct 2026, the new register entries drafts awaiting the release manager
 Applicable harmonised standards | docs/POLICY.md | current
 Vulnerability handling processes | SECURITY.md (CVD intake); docs/adr/0007-pentest-deferral.md (SLAs, triggers) | PARTIAL - no dated remediation record
 Support-period statement | docs/POLICY.md; docs/compliance/OBLIGATIONS.md (absolute date) | current
 SBOM | dist/config/sbom-deps.json; generated per release, CycloneDX, shipped in the tarball | current, strict gate
-Conformity assessment records | docs/review/*-eight-dimension/ (four full reviews) | current to 0.10.8
-Declaration of Conformity | docs/DECLARATION-OF-CONFORMITY.md | OPEN - stamped 0.8.0, unsigned
-Test evidence | t/ (356 files); coverage floors in dist/config/coverage-floor; bench baseline | current
+Conformity assessment records | docs/review/*-eight-dimension/ (four full reviews, the last of 0.10.9); docs/review/0.13.1-daemon/; docs/review/2026-10-07-sm869-adversarial-review.md; the SM1181 security review in docs/feature-requests | the last full review is of 0.10.9
+Declaration of Conformity | docs/DECLARATION-OF-CONFORMITY.md | OPEN - draft restamped 0.15.15, unsigned; signed at the certified cut
+Test evidence | t/ (1,484 test files at 0.15.15); coverage floors in dist/config/coverage-floor and coverage-floor-groups; bench baseline | the per-group coverage re-baseline and the bench re-capture are due at the stable cut
 ```
 
 # Known gaps
@@ -63,17 +63,17 @@ Recorded here rather than left for a later reader to discover:
 
 Vulnerability remediation record
 : ADR 0007 declares remediation SLAs (critical 72h, high 30d, medium 90d, low
-  180d) and nothing records whether any has been met. A dated register is
-  tracked in `docs/compliance/OBLIGATIONS.md`.
+  180d); the dated register that evidences them is tracked in
+  `docs/compliance/OBLIGATIONS.md` and stays for the certified release.
 
 Declaration of Conformity
-: unsigned and stamped 0.8.0 while three later stable releases have shipped.
-
-General description currency
-: `docs/FEATURES.md` stops at 0.9.14.
+: restamped to 0.15.15 and unsigned; the release manager signs it at the certified cut.
 
 Signed releases
-: not applied, and cannot be applied retroactively.
+: not applied, and cannot be applied retroactively; stays for the certified release.
+
+Review of the current line
+: the last full eight-dimension review is of 0.10.9; 0.11 to 0.15 are covered by the 0.13.1 daemon review, the 2026-10-07 adversarial review and the security reviews inside feature filings. Whether the certified cut wants a fresh full review is for the release manager.
 
 # Maintenance
 

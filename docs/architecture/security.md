@@ -808,6 +808,249 @@ such a site keeps recording the proxy's address. Where the key is absent (the pr
 `trusted_proxies` entry it could not parse, because a trust list with a typo in it
 is a declaration the code ignores.
 
+## Who a request is, decided once (SM1181, 0.15.12)
+
+Until 0.15.12 a signed-in request met two programs on the one-rule pool: the auth
+wrapper verified the cookie and set the identity headers, and a second program
+read them. The identity is now a value produced in one place and handed to the
+surface that needs it.
+
+- **One function.** `Lazysite::Auth::Session::request_session` returns the
+  identity (`user`, `groups`, `name`, `email`, `sid`, `no_password`, `odoo`,
+  `stale`, `source` of `cookie` or `proxy`) or the reason there is none. The
+  wrapper and the pool's front door both call it, so the CGI path and the pool
+  give one answer. A listed proxy's user still wins over a cookie (SM1130); the
+  groups pass through the same address filter the reader applies (SM1140).
+- **The pool renders a signed-in page in the worker.** The front door runs the
+  bad-URL guard (`Lazysite::BadUrl::guard`, SM128) for every request it does not
+  hand to the wrapper, calls `request_session` once, holds the value in
+  `$REQUEST_IDENT` and returns to `main()`. No `exec`, no identity header.
+  `request_identity` takes the value (`identity =>`) and reads no environment.
+- **The sentinel is never believed in the pool.** In a worker
+  `LAZYSITE_AUTH_TRUSTED` and `LAZYSITE_AUTH_SID` from `%ENV` count for nothing;
+  the held value is the only trusted producer of an identity. When a value is
+  held, `apply_trust_gate` deletes every fixed and custom identity and payment
+  header whatever the sentinel says, so a client's `X-Remote-User` cannot be read
+  even by mistake. t/lint/38, 13 and 268 still hold the gates and the single
+  reader (268 now reads the front door and `Session.pm` as well).
+- **The manager API is one program.** The front door relays to it directly and
+  writes the wrapper's exact header contract from the value, after deleting the
+  sentinel, `LAZYSITE_AUTH_SID`, `LAZYSITE_AUTH_NO_PASSWORD` and the six trust
+  headers from what the parameters carried. The worker's own `%ENV` is never
+  written.
+- **A pooled worker carries nothing about a person between requests.**
+  `$REQUEST_IDENT` and `$Lazysite::Auth::Session::STORE_FAULT` are cleared by
+  `reset_request_state` at the start of a request and `$REQUEST_IDENT` again at
+  its end, so a request that dies leaves nothing for the next one. `auth/.secret`
+  is read per call into a lexical and never cached. t/lint/269 classifies every
+  file-scope variable of the resident modules.
+- **The dev server** (`tools/lazysite-server.pl`) runs the four surfaces that verify
+  their own caller (Odoo, data, MCP, OAuth) direct, as every shipped front end
+  does, and runs the same bad-URL guard for them.
+- **Unchanged by decision (R8).** The split FastCGI templates (`vhost-fcgi`) keep
+  their session carve-out to the CGI wrapper, so SM1181 is the one-rule pool's.
+  Credential-bearing surfaces (MCP, DAV, OAuth, the wrapper's own actions) are not
+  moved: no worker reads their stores.
+
+The filing (docs/feature-requests/SM1181-identity-in-process.md, section 3) holds
+the fourteen threats and the test that holds each: identity served to the next
+visitor (T1, T7), a forged header or parameter read as identity (T2, T3), proxy
+and cookie disagreeing (T4), a check the wrapper made and a surface lost (T5), the
+worker's privilege and secrets (T6), the Odoo session record (T8), tokens reaching
+the worker (T9), the two paths deciding differently (T10), logging (T11), caches
+keyed on identity (T12), the bad-URL blocker missing unwrapped requests (T13, closed
+by running the guard on every request) and a new reader slipping past the lints
+(T14).
+
+## Trusted proxies, forwarded addresses and the front end's template (SM1129-SM1131, SM1189, SM1194, SM1196)
+
+Two settings decide what a proxy is believed about, and they are kept apart.
+`auth_proxy_trusted_from` names the peers whose identity headers are believed
+(matched against the TCP peer, SM1129, see "Auth proxy trust model").
+`trusted_proxies` names the peers whose `X-Forwarded-For` is believed about a
+visitor's address (SM929, "The request address"). The 0.15.10 and 0.15.11 changes:
+
+- **The configured header names are read by every reader** (SM1131).
+  `Lazysite::Auth::Identity::request_identity` is the only code that reads identity
+  out of the environment; the processor, the manager API, the ACL code, the layout
+  and both `sources.pm` readers call it. A client can never make a configured name
+  count: unless `proxy_identity` trusts the request's peer, the names are not read.
+  t/lint/268 holds the arrangement and t/lint/267 holds the reader to asking
+  `proxy_identity`.
+- **A trusted proxy's user wins over a cookie** (SM1130); the cookie is not consulted
+  for identity at all when the proxy names a user.
+- **An old front end with a trusted proxy is a failure** (SM1194). A vhost rendered
+  from the pre-SM929 proxy template passes the client's `X-Forwarded-For` through,
+  so every address-keyed control (the sign-in rate limit, the bad-URL blocker, the
+  form handler's rate limit, every address rule) takes the visitor's word. Because
+  an absent or empty `trusted_proxies` means the private ranges, such a vhost is
+  spoofable on every site not set to `none`. The Hestia rollout reports it as a
+  failure and exits 2; `lazysite check` warns whenever the trust set is not empty.
+- **Hestia's copy of the template follows the release** (SM1196). Hestia renders a
+  vhost from its own copy of lazysite's templates, and nothing refreshed that copy.
+  The rollout now compares each installed template with the release's, replaces one
+  that differs (keeping the old as `NAME.EXT.bak-TIMESTAMP`), names the domains that
+  need a rebuild, and the domain tool reports a stale copy.
+- **An address rule is checked for the form and kind it needs** (SM1189). A value
+  that is not a list, or a list of the wrong kind in either slot, is named by the
+  validator, refused on save and warned by `lazysite check`; at request time it
+  denies (`wrong-kind`), where a wrong-kind name in the deny slot used to be skipped
+  and so failed open.
+
+## Address rules (SM1134, 0.15.10)
+
+Access can be limited by the visitor's address. It narrows what the existing rules
+grant and never widens it.
+
+- **Lists** (SM1138): named allow or deny lists of addresses and CIDR ranges in
+  `lazysite/auth/address-lists.json`, written only by the users tool and audited.
+  `Lazysite::Auth::AddressLists::decide` is the one module that answers: deny wins,
+  an allow list means only those addresses, an unreadable store denies whenever a
+  rule names a list (SM1024's rule), an address that cannot be worked out denies,
+  and a name the store does not hold in an allow slot admits nobody. Matching is
+  `trusted_proxies`' matcher, so an address means the same everywhere; a prefix of 0
+  is refused; an IPv4-mapped IPv6 address is an IPv6 address.
+- **Pages, files and folders** (SM1139): `addresses` and `addresses_deny` in front
+  matter and in `acls.json`. Every layer that names a list must admit (AND across
+  layers, OR within one), so an inner rule cannot open what an outer one limits. The
+  address is asked first, before the who-may-read rule, so `auth: none` on a page
+  cannot lift it. Enforced in the processor, WebDAV, the manager API and MCP.
+  The refusal says the page is not available from this address and names no list.
+- **Groups** (SM1140): a group carrying a list does not count for a request from a
+  refused address - not its capabilities, page access or operator status, nor
+  anything reached through it by nesting. The account stays signed in with its other
+  groups. The limit is applied in `Auth::Settings::_group_closure`, the processor's
+  marked copy, and `request_identity`; machine doors cut the caller's settings back
+  with `narrow_caps_to_request`, which only removes. Outside a web request (the users
+  tool, scheduler) the rules do not apply.
+- **The template test** (SM1141): `visitor.in_list` and `visitor.in_any` expose list
+  membership only, never the address; a render that asked is the visitor's own and
+  never cached. `lazysite check` warns when rules exist and `trusted_proxies` trusts
+  no front end, or leaves the default behind a front end it does not cover.
+- **Depends on the address being right.** Every address rule is only as good as
+  `Lazysite::Util::request_address`; see SM1194 above.
+
+## The Odoo extension (SM747, 0.15.5; SM1160, 0.15.10)
+
+The Odoo extension (`plugins/odoo.pl`, born disabled) lets a lazysite page use an
+Odoo as a connection user or as the signed-in person. The Odoo URL is the
+operator's, so the SSRF guard that governs content-chosen URLs is not the rule that
+applies; SM579's invocation-mode policy is (ruled X4, 2026-09-28).
+
+- **Connection and transport.** `https://` to any host, `http://` to loopback only;
+  a user or password in the URL is refused. The connection user's key is one file
+  per account under `lazysite/odoo/keys/`, written under a 077 umask and renamed into
+  place, never returned or logged. The Odoo kinds map to `{ok:0, kind, error}`; the
+  text is logged, never returned.
+- **Who may cause a call.** `Lazysite::Egress::may_invoke` gates every call by mode
+  (public, authenticated, scheduled), the extension switch, OOM's presence and
+  version, and the connection. A public or scheduled binding may apply a write
+  unattended only when it declares `apply: immediate` (ruled Q1, 2026-10-12), and is
+  bounded by the connection user's Odoo rights and the operations the page binds.
+  Controls on every public apply: per-visitor and per-binding hourly caps (a count
+  that cannot be taken refuses), a CSRF token bound to the visitor key, input checked
+  against the operation's declared parameters (only the parameters the binding maps
+  can come from input; `fixed:` and the visitor parameter cannot be overridden), a
+  256-bit server-minted visitor key (`HttpOnly; SameSite=Strict`, signed) through
+  which a plan belongs to the visitor that made it, and an audit record naming a hash
+  of the visitor key and the IP.
+- **A person's own Odoo session** (slices B, C, D). The password goes to OOM's
+  session transport in one POST and is in no URL, cookie, log or record. The
+  credential cookie `lzs_odoo_session` is a signed session id (HttpOnly,
+  SameSite=Strict, scoped to the endpoint's path, 12 hours); the identity cookie
+  `lzs_odoo_identity` is for presentation only, signed under a label of its own, and
+  authorises nothing. A session binding never falls back to the connection user. Sign-in
+  attempts share the site's limiter (five in five minutes, per address and per login).
+  Two-factor accounts were refused until SM1157 added Odoo's own code to the dialog.
+- **Odoo sign-in as the site sign-in** (SM1160, `odoo_site_signin: on`, default off).
+  The identity is `odoo:<login>`; no lazysite account exists. The session is the
+  wrapper's own cookie and registry (`auth/sessions.jsonl`), with the user field
+  `odoo=<login>` percent-encoded, an empty groups field, and the mapped groups held in
+  the server-side record, never in the cookie (SEC-2026-07 M5). `odoo_group_map` maps
+  Odoo groups, asked of Odoo as the person (`core.has_groups`), to lazysite groups; a
+  target that carries any capability is refused at save and at load, by name, so this
+  door never grants manager rights. The record is the authority: no record, or one for
+  another user, is no session; it grants nothing once `checked` is `odoo_identity_ttl`
+  old (default 900 s) until the Odoo endpoint's `?csrf=1` asks Odoo and renews it.
+  Sign-out ends both sessions and each ends the other. An unsecured site refuses it.
+  Idle time-out is not built (as ruled).
+- **Plans and approval.** Plans live in `lazysite/odoo/plans/<128-bit id>/`; a plan is
+  confirmed only by the account or visitor that made it, within an hour. OOM's
+  approval gate stays on: a confirm is the approval of the plan's owner and
+  `apply: immediate` is the operator's standing approval, recorded with
+  `approve_plan`; lazysite never sets `approval = none`.
+- **Rendering.** A page render never runs a write, never renders a binding that works
+  on a visitor's key (the render is shared and cached), and escapes every scalar.
+  A page that binds `odoo-identity:` is per-viewer and never cached.
+  `starter/assets/lazysite-odoo.js` fills regions as text only.
+- **The boundary.** t/lint/240 keeps all Odoo knowledge (RPC methods, models, field
+  types) out of lazysite; the mapper is OOM's, vendored as a pinned snapshot checked
+  by t/lint/261.
+
+### oomd, the resident OOM (SM1164, SM1207, 0.15.10 and 0.15.14)
+
+With `odoo_daemon` set to `on` or `required` (default `off`), lazysited supervises
+one `oomd` per site and the extension sends its calls through it.
+
+- **Nothing starts on a guess.** The supervisor lists oomd only while the Odoo
+  extension is enabled, a connection loads, `odoo_daemon` is on, and oomd is
+  installed; with any gate closed no process exists. A leftover oomd of the same
+  socket is told to stop before a new one starts.
+- **The config and the socket.** `lazysite/odoo/oomd.conf` is written 0600 through a
+  temporary file under umask 077; credentials appear as labels naming key files, and
+  no key is ever in it. The socket is `lazysite/run/oomd.sock` when that path is under
+  104 bytes, otherwise under `/tmp/oomd-<uid>/`, the directory created 0700. The
+  daemon runs as the user lazysited runs as (SM760), the supervisor's unchanged
+  arrangement.
+- **The call path.** The person's session id is in the request to the daemon and in
+  no file. The daemon's client is always `fallback => 0`; `on` falls back to
+  lazysite's own in-process path when the daemon is absent, `required` refuses with
+  `daemon-down`. Each call record carries `via` (`daemon` or `in-process`).
+- **Sign-in stays in-process**: oomd's protocol has no sign-in verb.
+- **Site packs** (SM1207): oomd starts with `ODOO_OPS_NAMESPACES` from the site's
+  `odoo_packs` and `pack_dirs` in its config, so a pack's custom change applies
+  through it; t/unit/odoo/79 holds it.
+
+## Raw pages and the ADR 0006 downgrade (SM1213, 0.15.15)
+
+A page that declares `api:` or `raw:` is served verbatim, and ADR 0006's mechanical
+boundary downgrades a declared `text/html`, XHTML or SVG content type to `text/plain`.
+The render parse and the downgrade's peek read the front matter differently, so
+`api:` above `true`, `api: "true"`, and a quoted `"text/html"` were served verbatim
+as `text/html` past the downgrade. The empty-key reading shared by both is fixed:
+the renderer, the manager's `page_form` and `raw_html_page_refusal` read a value from
+its own line, and the downgrade reads `api:` and `raw:` as the render does. No gated
+page opened: every reader that decides who gets a page reads the front matter line by
+line (t/integration/305).
+
+## Planned, not built: sign-in through an identity provider (SM1128)
+
+Phase 1 of SM1128 (the trusted-header route made safe: SM1129, SM1130, SM1131 above)
+shipped in 0.15.10. Phases 2 and 3 - a native OIDC relying party (a JWT/JWKS verifier,
+authorisation code with PKCE, `state` and `nonce`, an `id_token` checked against the
+issuer's keys) and directory groups as a source - have no code. Phase 2 fires the
+new-authentication-method trigger and, with its JWT verifier (ruling R5, a packaged
+`Crypt::JWT`), the new-dependency one; it is assessed in the significant-change
+register when it is built.
+
+## Held for 0.15.16 (on branches n705 and n706; not in the 0.15.15 candidate)
+
+Two filings are shipped on held branches and describe changes that join the model
+when they land.
+
+- **The visitor log names the signed-in account** (SM1219, n705). The access record
+  gains `u`, the account the engine verified (source `cookie`, including the pool
+  front door's value, or `proxy`), never the raw `X-Remote-User`; an anonymous visit
+  has none. It is read with the `analytics` capability, a domain-confined caller sees
+  only its own domains' accounts, and the log keeps it for `retention_days`. The log
+  is personal data once it holds account names.
+- **A site can be put into maintenance** (SM1118, n706). `maintenance: on` sends page
+  requests by 302 to a page that answers 503; the new capability `maintenance_access`
+  (held by the operator group, assignable to any group) gets through. MCP, the
+  control API, WebDAV, the data endpoint and posted forms follow the same capability
+  and are refused 503 without it; the check sits in the processor's `main()`
+  (`_maintenance_gate`) so it holds on CGI, the split templates and the pool.
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a
