@@ -119,6 +119,7 @@ my %T       = (
     'lib/Lazysite/Notify.pm' => { '$XMPP_SENDER' => $SEAM, '$MAIL_SENDER' => $SEAM, '$SRV_RESOLVER' => $SEAM },
     'lib/Lazysite/Odoo.pm' => { '%PRIVATE4' => 'a constant table of code references (private address ranges)', '%CALL_FIELD' => $DERIVED },
     'lib/Lazysite/Odoo/Binding.pm' => { '%FROM_INPUT' => $DERIVED, '%SNIFFED' => $DERIVED },
+    'lib/Lazysite/Odoo/Download.pm' => { '%INLINE_OK' => $DERIVED },
     'lib/Lazysite/Odoo/Fields.pm' => { '%TYPE' => 'derived at load from the module\'s constant TYPES()' },
     'lib/Lazysite/Outbox.pm' => { '$MAIL_SENDER' => $SEAM },
     'lib/Lazysite/Timing.pm' => {
