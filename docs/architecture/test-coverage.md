@@ -305,6 +305,21 @@ CGI reports "not measured" - this was why `lazysite-auth.pl` (and the
 `Manager::Plugins`/`Upload` handlers) looked uncovered for weeks while being
 tested all along.
 
+### Coverage fits around the other work (SM1230)
+
+Run alone (`tools/coverage.sh --check`, as the overnight cover-once does), coverage
+is gentle: it re-executes itself under `nice -n 19 ionice -c3` with
+`LAZYSITE_COVER_JOBS` defaulting to 2 (set it to override), so it takes longer and
+leaves the host to the work that is awake. Swap in use does not refuse it: a shared
+host carries several GB all day, and `tools/preflight.sh` prints it as a note. It
+refuses (exit 3, "not now") only when MemAvailable is under 5 GB, or the stage disk,
+inodes or heavy lock say no. There is no time limit. Each group's pass is recorded
+as it ends under `tmp/release-gate/coverage-passes/GROUP/`, so a run that is still
+going when the morning starts carries on, and a later run reuses the finished groups
+and measures only the rest. A second start while one runs exits 2 at once, naming the
+holder (`.run.lock` in the pass store); it does not queue. Test:
+`t/tools/205-coverage-fits-around-the-night.t`.
+
 ### Measured baseline
 
 Full suite, subprocess-instrumented (2026-07-02, after the eight-dimension

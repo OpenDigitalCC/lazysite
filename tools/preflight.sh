@@ -3,29 +3,28 @@
 #   HEAVY  refuse to START a heavy job on a host that cannot hold it. One line,
 #          naming the failed condition, exit 3 = "not now": a caller treats it
 #          as a SKIP, never a failure. Exit 0 = go.
-#   SUITE  as HEAVY without the swap rule: a gate that runs no coverage stage
-#          (SM1088). The swap rule is for the job that grows to fill memory -
-#          the coverage merge that was killed twice - and refused the 0.15.6
-#          edge gate on 2,521 MB of stale swap with 6,665 MB available, while
-#          the same suite had just run twice on that host at that level.
+#   SUITE  as HEAVY, for a gate that runs no coverage stage (SM1088). Swap in
+#          use no longer refuses either job (SM1230), so the two now differ in
+#          name only.
 #   JOBS   print the guarded LAZYSITE_COVER_JOBS: 4 when MemAvailable >= 8 GB, else 2.
 # THRESHOLDS LIVE HERE, overridable by env (tests): LAZYSITE_PF_MIN_MEM_KB,
 # LAZYSITE_PF_MAX_SWAP_KB, LAZYSITE_PF_MIN_DISK_KB, LAZYSITE_PF_MIN_INODES,
-# LAZYSITE_PF_SWAP_SLACK_KB, LAZYSITE_PF_JOBS_MEM_KB; LAZYSITE_PF_MEMINFO names
+# LAZYSITE_PF_JOBS_MEM_KB; LAZYSITE_PF_MEMINFO names
 # another meminfo file.
 #
-# SWAP IN USE IS A LAGGING INDICATOR. Pages the last two-hour coverage run
-# pushed out stay in swap until something reads them back, so the figure says
-# what happened, not what the host can hold now: the 0.15.5 gate was refused
-# on 2,493 MB of swap with 8,096 MB available. The swap rule therefore refuses
-# only when MemAvailable is ALSO under the memory threshold plus 2 GB of slack;
-# otherwise swap in use is printed as a note and the job goes.
+# SWAP IN USE IS A LAGGING INDICATOR AND NEVER REFUSES (SM1230). Pages an
+# earlier run pushed out stay in swap until something reads them back, and a
+# host shared with other agents carries several GB of it all day: the 01:30
+# cover-once of 2026-10-20 was refused on 2,904 MB of swap with 7,075 MB
+# available. Swap in use is printed as a note, as the gate does; the job is
+# refused only when MemAvailable is under LAZYSITE_PF_MIN_MEM_KB (5 GB, the
+# figure SM1083 chose for one coverage worker; no per-group peak is recorded in
+# the repo, so it is not lowered), or the disk, inodes or heavy lock say no.
 set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 . "$ROOT/tools/heavy-lock.sh"
 MIN_MEM_KB=${LAZYSITE_PF_MIN_MEM_KB:-5242880}
 MAX_SWAP_KB=${LAZYSITE_PF_MAX_SWAP_KB:-1048576}
-SWAP_SLACK_KB=${LAZYSITE_PF_SWAP_SLACK_KB:-2097152}
 MIN_DISK_KB=${LAZYSITE_PF_MIN_DISK_KB:-3145728}
 MIN_INODES=${LAZYSITE_PF_MIN_INODES:-600000}
 JOBS_MEM_KB=${LAZYSITE_PF_JOBS_MEM_KB:-8388608}
@@ -52,14 +51,7 @@ swf=$(awk '/^SwapFree:/{print $2}' "$MEMINFO")
 swap=$((${swt:-0} - ${swf:-0}))
 [ "$mem" -ge "$MIN_MEM_KB" ] || notnow "MemAvailable $((mem / 1024)) MB is under $((MIN_MEM_KB / 1024)) MB"
 if [ "$swap" -gt "$MAX_SWAP_KB" ]; then
-    if [ "$1" = HEAVY ] && [ "$mem" -lt $((MIN_MEM_KB + SWAP_SLACK_KB)) ]; then
-        notnow "swap in use $((swap / 1024)) MB is over $((MAX_SWAP_KB / 1024)) MB and MemAvailable $((mem / 1024)) MB is under $(((MIN_MEM_KB + SWAP_SLACK_KB) / 1024)) MB"
-    fi
-    if [ "$1" = SUITE ]; then
-        echo "preflight: note - swap in use $((swap / 1024)) MB is over $((MAX_SWAP_KB / 1024)) MB; not refusing (no coverage stage; swap in use lags)" >&2
-    else
-        echo "preflight: note - swap in use $((swap / 1024)) MB is over $((MAX_SWAP_KB / 1024)) MB, but MemAvailable $((mem / 1024)) MB is ample; not refusing (swap in use lags)" >&2
-    fi
+    echo "preflight: note - swap in use $((swap / 1024)) MB is over $((MAX_SWAP_KB / 1024)) MB; not refusing (swap in use lags; MemAvailable $((mem / 1024)) MB is what counts)" >&2
 fi
 base=${2:-${LAZYSITE_STAGE_DIR:-/var/tmp/lazysite-stage}}
 while [ ! -d "$base" ] && [ "$base" != / ]; do base=$(dirname "$base"); done

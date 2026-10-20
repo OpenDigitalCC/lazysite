@@ -46,22 +46,14 @@ is( $rc, 3, 'low MemAvailable is "not now" (3)' );
 like( $o, qr/^preflight: not now - MemAvailable/, 'and names memory' );
 is( scalar( () = $o =~ /\n/g ), 1, 'in one line' );
 
-# Swap in use lags (pages a finished run pushed out stay there), so it refuses
-# only when memory is ALSO short: under the memory threshold (5 GB) plus 2 GB.
+# SM1230: swap in use lags and never refuses; only MemAvailable under 5 GB does.
 ( $rc, $o ) = pf( %ok, LAZYSITE_PF_MEMINFO => meminfo( 6_000_000, 4_000_000, 1_000_000 ) );
-is( $rc, 3, 'swap in use over 1 GB with MemAvailable under 7 GB is "not now"' );
-like( $o, qr/^preflight: not now - swap in use 2929 MB is over 1024 MB and MemAvailable 5859 MB is under 7168 MB$/m, 'naming both' );
-( $rc, $o ) = pf( %ok, LAZYSITE_PF_MEMINFO => meminfo( 16_000_000, 4_000_000, 1_000_000 ) );
-is( $rc, 0, 'the same swap with 16 GB available goes' );
-like( $o, qr/^preflight: note - swap in use 2929 MB is over 1024 MB, but MemAvailable 15625 MB is ample; not refusing/m, 'with a note, not a refusal' );
-( $rc, $o ) = pf( %ok, LAZYSITE_PF_MEMINFO => meminfo( 16_000_000, 4_000_000, 1_000_000 ), LAZYSITE_PF_SWAP_SLACK_KB => 20_000_000 );
-is( $rc, 3, 'the slack is a threshold of its own' );
+is( $rc, 0, 'swap in use over 1 GB with MemAvailable 5.8 GB goes' );
+like( $o, qr/^preflight: note - swap in use 2929 MB is over 1024 MB; not refusing/m, 'with a note, not a refusal' );
 
-# SM1088: SUITE, for a gate that runs no coverage stage, has no swap rule - the
-# 0.15.6 edge gate was refused on stale swap with 6,665 MB available.
+# SM1088: SUITE has no coverage stage; it goes on the same swap too.
 ( $rc, $o ) = pf( %ok, MODE => q(SUITE), LAZYSITE_PF_MEMINFO => meminfo( 6_000_000, 4_000_000, 1_000_000 ) );
-is( $rc, 0, q(SUITE goes on the swap HEAVY refuses) );
-like( $o, qr/^preflight: note - swap in use 2929 MB is over 1024 MB; not refusing \(no coverage stage/m, q(with a note saying why) );
+is( $rc, 0, q(SUITE goes on the swap) );
 ( $rc, $o ) = pf( %ok, MODE => q(SUITE), LAZYSITE_PF_MEMINFO => meminfo( 1_000_000, 4_000_000, 4_000_000 ) );
 is( $rc, 3, q(SUITE still refuses memory under the threshold) );
 

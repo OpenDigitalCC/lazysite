@@ -16,6 +16,16 @@
 # which knows which tests to run, which files to floor-check and what to record.
 # A group with no floor-checked file has nothing to measure and is so marked.
 #
+# SM1230 FITS AROUND THE NIGHT. Run alone (not inside the gate) the whole run
+# re-executes itself under `nice -n 19 ionice -c3` with LAZYSITE_COVER_JOBS
+# defaulting to 2 (set it to override): longer, gentler, other agents' work
+# first. There is no time limit: a run still going when the next one starts or
+# the morning's work begins carries on. Each group's pass is recorded the moment
+# it ends, so a later run reuses the finished groups and measures only the rest.
+# ONE RUN AT A TIME: a second start while one runs exits 2 at once (it does not
+# queue) naming the holder; the lock is $STORE/.run.lock. Swap in use does not
+# refuse the run (tools/preflight.sh); too little MemAvailable still does.
+#
 # One guard and one lock for the whole run (tools/preflight.sh HEAVY, the heavy
 # lock), taken here unless the gate already holds them (LAZYSITE_HEAVY_HELD=1).
 # Exit 3 from the guard is "not now" - a skip, not a failure.
@@ -70,6 +80,21 @@ if [ "$LIST" = 1 ]; then
 fi
 
 if [ "${LAZYSITE_HEAVY_HELD:-}" != 1 ]; then
+    if [ "${LAZYSITE_COVER_NICED:-}" != 1 ]; then
+        export LAZYSITE_COVER_NICED=1
+        export LAZYSITE_COVER_JOBS="${LAZYSITE_COVER_JOBS:-2}"
+        _gentle=""
+        command -v nice >/dev/null 2>&1 && _gentle="nice -n 19"
+        command -v ionice >/dev/null 2>&1 && _gentle="$_gentle ionice -c3"
+        # shellcheck disable=SC2086
+        [ -n "$_gentle" ] && exec $_gentle bash "$0" "$@"
+    fi
+    exec 8>>"$STORE/.run.lock"
+    if ! flock -n 8; then
+        echo "coverage: another coverage run is in progress ($STORE/.run.lock: $(cat "$STORE/.run.lock.holder" 2>/dev/null || echo unknown)); refusing a second run." >&2
+        exit 2
+    fi
+    printf 'pid %s, since %s\n' "$$" "$(date '+%F %T')" >"$STORE/.run.lock.holder"
     heavy_lock "$ROOT" "coverage.sh" wait || exit 2
     PF_RC=0
     PF_MSG=$(bash "$ROOT/tools/preflight.sh" HEAVY) || PF_RC=$?
@@ -127,7 +152,7 @@ while IFS="$(printf '\t')" read -r name digest state note; do
         LAZYSITE_COVER_FLOOR_FILE="$SCRATCH/$name.floor" \
         LAZYSITE_COVER_SUITE_LOG="${LAZYSITE_COVER_SUITE_LOG:-$ROOT/cover_db}-$name-suite.log" \
         LAZYSITE_COVER_FORCE=1 LAZYSITE_HEAVY_HELD=1 \
-        bash "$ROOT/tools/coverage.sh" --check || GRC=$?
+        bash "${LAZYSITE_COVER_RUNNER:-$ROOT/tools/coverage.sh}" --check 8>&- || GRC=$?
     if [ "$GRC" -ne 0 ]; then
         echo "coverage: group $name: FAILED (coverage.sh exit $GRC); no pass recorded for ${digest:0:12}" >&2
         FAIL="$name"
