@@ -193,7 +193,7 @@ tone: medium
 `plugin-enable` | cookie only | script (body)
 `plugin-list` | cookie only |  
 `plugin-read` | cookie only | plugin (query), script (body)
-`plugin-save` | cookie only | plugin (query), script (body), values (body), add (body, optional: items added to a list setting)
+`plugin-save` | cookie only | plugin (query), script (body), values (body), add (body)
 `preview` | cookie only | path (query)
 `preview-clear` | cookie only |  
 `preview-grant` | manage_themes / manage_layouts |  
