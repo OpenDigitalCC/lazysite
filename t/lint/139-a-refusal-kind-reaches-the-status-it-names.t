@@ -72,6 +72,7 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     access-key-unreadable
     address-list-wrong-kind
     camera-unreadable
+    odoo-binding-is-a-download
 );
 
 # SM980: `access-key-unreadable` is GROUP 2 - a Lazysite::Validate issue about a
@@ -80,6 +81,10 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
 
 # SM1189: `address-list-wrong-kind` is GROUP 2 like `access-key-unreadable` - a
 # Lazysite::Validate issue about a page naming an address list of the other kind.
+
+# SM1225: `odoo-binding-is-a-download` is GROUP 2 like `access-key-unreadable` - a
+# Lazysite::Validate issue about a page binding a download binding. The render
+# leaves that variable empty and logs why; it carries no kind.
 
 # SM1174: `camera-unreadable` is GROUP 2 like `access-key-unreadable` - a
 # Lazysite::Validate issue about a page's `camera:` value, reported to whoever
