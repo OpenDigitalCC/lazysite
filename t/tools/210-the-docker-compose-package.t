@@ -161,7 +161,7 @@ STUB
     like( $c->[0], qr{--cgibin \Q$site\E/cgi-bin}, 'first start: with the engine\'s cgi-bin beside it' );
     like( $c->[0], qr/--domain site\.example\.test/, 'first start: seeded with the domain' );
     unlike( $c->[0], qr/--force/, 'first start: no force' );
-    like( $out, qr/setup-sysop --user NAME/, 'first start: it says how to make the first account' );
+    like( $out, qr/setup-sysop --user\s+NAME/, 'first start: it says how to make the first account' );
 
     # a later start: nothing
     ( $rc, $out ) = $run_install->();
@@ -317,7 +317,7 @@ STUB
 # --- the docs ------------------------------------------------------------------
 {
     my $readme = slurp("$pkg/README.md");
-    like( $readme, qr/setup-sysop --user NAME/, 'the README documents the first account' );
+    like( $readme, qr/setup-sysop --user\s+NAME/, 'the README documents the first account' );
     like( $readme, qr/docker compose build/,    'and the local build' );
     like( $readme, qr/lazysite-docroot.*lazysite-settings.*lazysite-private/s, 'and the three volumes' );
     like( slurp("$root/docs/IMPLEMENTOR.md"), qr/Deploying with Docker Compose/, 'the implementor guide has a section' );
