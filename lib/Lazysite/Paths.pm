@@ -42,7 +42,8 @@ use File::Basename qw(dirname basename);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(lazysite_dir external_lazysite_dir internal_lazysite_dir site_path
-    stray_lazysite canonical_docroot processor_candidates find_processor dev_extension_dirs);
+    stray_lazysite canonical_docroot processor_candidates find_processor dev_extension_dirs
+    pool_conf_for);
 
 our $DIRNAME = 'lazysite';
 
@@ -294,6 +295,37 @@ sub find_processor {
     my ( $docroot, $script ) = @_;
     for my $c ( processor_candidates( $docroot, $script ) ) {
         return $c if -f $c && -r _;
+    }
+    return undef;
+}
+
+# SM1226 (ruled 2026-10-20: the warm-fork parent runs "only where a front end
+# uses it"): THE HOST'S POOL CONF FOR THIS DOCROOT. Every front end that hands
+# the Odoo endpoint to its warm-fork parent does it through the site's pool (the
+# one-rule pool's front door; the split templates' location for the endpoint),
+# and a pool is /etc/lazysite/pools/<instance>.conf, the conf lazysite@.service
+# reads. A plain-CGI site has none. Matched on DOCROOT= (the instance name is
+# only conventionally the domain), as `lazysite check` matches it
+# (find_pool_conf); LAZYSITE_POOLS_DIR moves the directory, as there, so a test
+# stands in for the host. Returns the conf's path, or undef.
+sub pool_conf_for {
+    my ($docroot) = @_;
+    return undef unless defined $docroot && length $docroot;
+    my $dir = $ENV{LAZYSITE_POOLS_DIR} || '/etc/lazysite/pools';
+    opendir my $dh, $dir or return undef;
+    my @confs = sort grep { /\.conf\z/ } readdir $dh;
+    closedir $dh;
+    require Cwd;
+    my $want = Cwd::abs_path($docroot) // $docroot;
+    for my $c (@confs) {
+        open my $fh, '<', "$dir/$c" or next;
+        my $root;
+        while ( my $l = <$fh> ) {
+            $root = $1 if $l =~ /^\s*DOCROOT\s*=\s*"?([^"\s]+)"?/;
+        }
+        close $fh;
+        next unless defined $root;
+        return "$dir/$c" if ( Cwd::abs_path($root) // $root ) eq $want;
     }
     return undef;
 }

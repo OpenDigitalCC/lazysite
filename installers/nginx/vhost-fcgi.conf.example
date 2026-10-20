@@ -136,6 +136,25 @@ server {
         fastcgi_pass unix:/run/fcgiwrap.socket;
     }
 
+    # SM1226 (ruled 2026-10-20, option a): the Odoo endpoint goes to the pool,
+    # which hands it to the site's warm-fork parent (a fresh child of an
+    # already-compiled endpoint for each call) or, when no parent is listening,
+    # runs the CGI itself. Exact match, so it beats the /cgi-bin/ regex below.
+    location = /cgi-bin/lazysite-odoo.pl {
+        include fastcgi_params;
+        # Same trust-header strip as above.
+        fastcgi_param HTTP_X_REMOTE_USER      "";
+        fastcgi_param HTTP_X_REMOTE_GROUPS    "";
+        fastcgi_param HTTP_X_REMOTE_NAME      "";
+        fastcgi_param HTTP_X_REMOTE_EMAIL     "";
+        fastcgi_param HTTP_X_PAYMENT_VERIFIED "";
+        fastcgi_param HTTP_X_PAYMENT_PAYER    "";
+        fastcgi_param REDIRECT_URL $lazysite_request_path;
+        fastcgi_pass unix:/run/lazysite/__DOMAIN__.sock;
+        # Above the pool's RELAY_TIMEOUT (default 120s), as in the one-rule pool.
+        fastcgi_read_timeout 150s;
+    }
+
     # Any other /cgi-bin script (lazysite-auth.pl itself - the login
     # endpoint - and plugin endpoints installed as cgi-bin symlinks)
     # runs as plain CGI via fcgiwrap: Apache's ScriptAlias equivalent.

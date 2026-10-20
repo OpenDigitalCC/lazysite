@@ -1,4 +1,4 @@
-# lazysite-template-rev: 2026-10-01
+# lazysite-template-rev: 2026-10-20
 #=========================================================================#
 # lazysite-fcgi Web Domain Template (FastCGI pool pattern)                #
 # Shipped by the lazysite-hestia package (SM139 increment 4); copy to     #
@@ -158,6 +158,14 @@
         # unit file and tools/lazysite-pool.pl). Needs mod_proxy +
         # mod_proxy_fcgi. A direct client request for /lazysite-pool just
         # reaches the processor as an unknown page (404) - harmless.
+        SetHandler "proxy:unix:/run/lazysite/%domain%.sock|fcgi://localhost/"
+    </Location>
+    # SM1226 (ruled 2026-10-20, option a): the Odoo endpoint goes to the pool, which
+    # hands it to the site's warm-fork parent (a fresh child of an already-compiled
+    # endpoint for each call) or, when no parent is listening, runs the CGI itself.
+    # This <Location> replaces the cgi-bin's CGI handler for this one script; the
+    # trust headers are unset above, as for every request.
+    <Location "/cgi-bin/lazysite-odoo.pl">
         SetHandler "proxy:unix:/run/lazysite/%domain%.sock|fcgi://localhost/"
     </Location>
     <Location /lazysite/>

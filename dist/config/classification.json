@@ -656,6 +656,11 @@
       "why": "as ../lib - one module per daemon service"
     },
     {
+      "path": "{DOCROOT}/../lib/Lazysite/WarmFork",
+      "mode": "0755",
+      "why": "as ../lib - SM1226, the Odoo endpoint's warm-fork wire. Code, not state: the parent's socket is {LAZYSITE}/run"
+    },
+    {
       "path": "{DOCROOT}/../lib/Lazysite/Manager",
       "mode": "0755",
       "why": "as ../lib"

@@ -190,19 +190,20 @@ $ENV{LAZYSITE_FCGI_MAX_REQUESTS} = length( $ENV{MAX_REQUESTS} // '' ) ? $ENV{MAX
 # replaces %ENV on every request with that request's parameters. t/lint/43 pins
 # that, and it is why these are pool settings rather than per-request ones.
 # SM309: the value was validated with the rest of the configuration, above.
-if ($front_door) {
-    $ENV{LAZYSITE_FRONT_DOOR} = 1;
-    # Where the other surfaces live, for the requests the worker cannot answer
-    # as itself (another surface, or anything needing the auth wrapper). The
-    # conventional layout is cgi-bin beside the docroot, which is what every
-    # shipped installer produces; CGIBIN= overrides it.
-    $ENV{LAZYSITE_CGIBIN} =
-        length( $ENV{CGIBIN} // '' )
-        ? $ENV{CGIBIN}
-        : dirname($docroot) . '/cgi-bin';
-    $ENV{LAZYSITE_RELAY_TIMEOUT} = $ENV{RELAY_TIMEOUT}
-        if length( $ENV{RELAY_TIMEOUT} // '' );
-}
+$ENV{LAZYSITE_FRONT_DOOR} = 1 if $front_door;
+
+# Where the other surfaces live, for the requests the worker cannot answer as
+# itself (another surface, or anything needing the auth wrapper). The
+# conventional layout is cgi-bin beside the docroot, which is what every shipped
+# installer produces; CGIBIN= overrides it. SM1226: in both modes, because the
+# split templates send the Odoo endpoint to the pool too, and a worker with no
+# warm-fork parent to hand it to runs it from here.
+$ENV{LAZYSITE_CGIBIN} =
+    length( $ENV{CGIBIN} // '' )
+    ? $ENV{CGIBIN}
+    : dirname($docroot) . '/cgi-bin';
+$ENV{LAZYSITE_RELAY_TIMEOUT} = $ENV{RELAY_TIMEOUT}
+    if length( $ENV{RELAY_TIMEOUT} // '' );
 
 # --- fd 0 = listen socket (spawn-fcgi convention), exec the processor ---
 my $processor = dirname( dirname( abs_path($0) ) ) . '/lazysite-processor.pl';

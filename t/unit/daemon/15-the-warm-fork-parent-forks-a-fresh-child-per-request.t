@@ -99,10 +99,15 @@ ok( defined $sock, 'the site has a socket path' ) or BAIL_OUT('no socket path');
 like( $sock, qr{\A\Q$LZ\E/run/odoo-endpoint\.sock\z}, 'in the site\'s own lazysite/run' );
 
 # --- the gate ------------------------------------------------------------------
-subtest 'the service is wanted only while the Odoo extension is enabled' => sub {
+subtest 'the service is wanted only behind a pool, while the Odoo extension is enabled' => sub {
+    make_path("$base/pools");
+    local $ENV{LAZYSITE_POOLS_DIR} = "$base/pools";    # the host's /etc/lazysite/pools, stood in
+    spit( "$base/pools/t.conf", "DOCROOT=$d\nUSER=nobody\n" );
     ok( !Lazysite::Daemon::Service::OdooEndpoint::wanted($d), 'the extension off: no process' );
     spit( "$LZ/lazysite.conf", "site_name: T\nplugins:\n  - plugins/odoo.pl\n" );
-    ok( Lazysite::Daemon::Service::OdooEndpoint::wanted($d), 'the extension on: wanted' );
+    ok( Lazysite::Daemon::Service::OdooEndpoint::wanted($d), 'the extension on, a pool conf for this docroot: wanted' );
+    unlink "$base/pools/t.conf";
+    ok( !Lazysite::Daemon::Service::OdooEndpoint::wanted($d), 'no pool conf (plain CGI): no process' );
     my ( $long, $why ) = Lazysite::WarmFork::Wire::socket_for( '/x' . ( 'y' x 120 ) );
     ok( !defined $long, 'a socket path past the Unix limit is no socket' );
     like( $why, qr/at most 103/, '...and says why' );

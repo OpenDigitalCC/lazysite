@@ -6,7 +6,8 @@ package Lazysite::Daemon::Service::OdooEndpoint;
 # Lazysite::Daemon::Service::Oomd is over oomd:
 #
 #   * it runs while the daemon extension (the supervisor's own gate) AND the Odoo
-#     extension are enabled and the endpoint and a socket path are found. wanted()
+#     extension are enabled, the site runs behind a pool (the only front end that
+#     hands the parent a call) and the endpoint and a socket path are found. wanted()
 #     is the one place that says so; with any missing NO PROCESS EXISTS and the
 #     pool's front door runs the endpoint as a CGI, as before.
 #   * the program starts in a FRESH perl (exec), never as a fork of the
@@ -61,10 +62,15 @@ sub script_for {
     return undef;
 }
 
-# The gate. The Odoo extension enabled, the endpoint found, a socket path that
-# fits. Reads only; asked every few seconds by the supervisor.
+# The gate. The site runs behind a pool (ruled 2026-10-20: the parent runs only
+# where a front end uses it, and every front end that hands it a call does so
+# through the pool - Lazysite::Paths::pool_conf_for), the Odoo extension is
+# enabled, the endpoint is found, and the socket path fits. A plain-CGI site
+# has no pool conf, so no parent. Reads only; asked every few seconds by the
+# supervisor.
 sub wanted {
     my ($root) = @_;
+    return 0 unless defined Lazysite::Paths::pool_conf_for($root);
     require Lazysite::Manager::Plugins;
     no warnings 'once';
     local $Lazysite::Manager::Plugins::DOCROOT = $root;

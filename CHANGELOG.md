@@ -102,12 +102,15 @@ Archive
   call's own; a binding without the option answers JSON as before.
 - SM1226 (PENDING) **security, performance: the Odoo endpoint runs warm-forked.** Every
   Odoo call used to start a perl and compile the endpoint. A parent per site, supervised
-  by lazysited (the `odoo-endpoint` service, while the Odoo extension is on), now holds
-  the compiled endpoint and nothing else: no configuration, no key, no request. It forks
-  a fresh child for each request, and the child runs the endpoint as the CGI does and
-  exits. The one-rule pool hands it the endpoint, and runs the CGI when no parent is
-  listening. It restarts when the engine changes on disk. An Odoo read through the pool
-  went from 116 ms to 17 ms on the dev host.
+  by lazysited (the `odoo-endpoint` service, on a site with a pool conf and the Odoo
+  extension on; never on a plain-CGI site), now holds the compiled endpoint and nothing
+  else: no configuration, no key, no request. It forks a fresh child for each request,
+  and the child runs the endpoint as the CGI does and exits. The one-rule pool hands it
+  the endpoint; the split FastCGI templates (nginx and Apache `vhost-fcgi`, Hestia's
+  fcgi templates) now send `/cgi-bin/lazysite-odoo.pl` to the pool, which hands it on.
+  With no parent listening the pool runs the CGI. It restarts when the engine changes on
+  disk. An Odoo read through the pool went from 116 ms to 17 ms on the dev host.
+  Regenerate a split-template vhost to take the new location.
 - SM1164 (PENDING) **internal: the surface bench measures an Odoo call through oomd.**
   `tools/bench-surfaces.sh --surface odoo-oomd` (D5) times a read binding end to end
   against the vendored oomd and OOM's fake Odoo. It splits each call into the program

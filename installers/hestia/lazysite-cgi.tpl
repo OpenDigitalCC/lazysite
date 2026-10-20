@@ -1,4 +1,4 @@
-# lazysite-template-rev: 2026-10-01
+# lazysite-template-rev: 2026-10-20
 #=========================================================================#
 # lazysite-cgi Web Domain Template (plain-CGI pattern)                    #
 # Shipped by the lazysite-hestia package (SM139 increment 4); copy to     #

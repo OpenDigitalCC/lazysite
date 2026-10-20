@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the release manager, 2026-10-20 (tmp/rulings-2026-10-20.md, Odoo endpoint: \"D5 - yes - i cant see why we would not want to save 200ms\"), on SM1082 R3"
 area: performance
-status-note: "SHIPPED (PENDING) on n711: Lazysite::WarmFork, a parent holding code only that forks a fresh child per request, runs as lazysited's odoo-endpoint service; the one-rule pool hands it the endpoint, with the CGI as fallback. Tests t/unit/daemon/15, t/integration/325, t/lint/272. D5: 116 to 17 ms. The split templates are S2, with a question."
+status-note: "SHIPPED (PENDING) on n711: Lazysite::WarmFork, a parent holding code only that forks a fresh child per request, runs as lazysited's odoo-endpoint service on a pooled site only; the one-rule pool and the split templates (through the pool) hand it the endpoint, the CGI the fallback. Tests t/unit/daemon/15, 16, t/integration/325, 326, t/lint/272. 116 to 17 ms."
 ---
 
 # The ruling
@@ -98,7 +98,8 @@ server could connect to it as it connects to the pool. The module holds:
 
 A thin parent over the program, as `Service::Oomd` is over oomd:
 
-- `wanted` is the gate: the Odoo extension is enabled, the endpoint is found, and
+- `wanted` is the gate: the site runs behind a pool (below, "Only where a front end
+  uses it"), the Odoo extension is enabled, the endpoint is found, and
   the socket path fits. The daemon extension is the supervisor's own gate. With any
   of these missing, no process exists.
 - The program starts in a fresh perl (exec), never as a fork of the supervisor, so
@@ -124,8 +125,48 @@ in one loop; until now the loop was oomd's alone.
   - No template line changes: the pool templates' comments now say what happens.
 - **Plain CGI and the dev server** are unchanged. They are the default and the
   fallback.
-- **The split FastCGI templates** (nginx and Apache `vhost-fcgi`, Hestia's fcgi
-  templates) are not changed by this branch: see S2 below.
+- **The split FastCGI templates (S2, ruled 2026-10-20: option a).** nginx
+  `vhost-fcgi` gains `location = /cgi-bin/lazysite-odoo.pl` to the pool's socket
+  (the trust headers blanked as everywhere, `fastcgi_read_timeout 150s` above the
+  relay's 120 s). Apache `vhost-fcgi` and Hestia's `lazysite-fcgi.tpl` and
+  `.stpl` gain `<Location "/cgi-bin/lazysite-odoo.pl">` with the pool's
+  `SetHandler`, which replaces the cgi-bin's CGI handler for that one script.
+  - The split templates' pool runs no front door, so the worker matches the
+    endpoint by path alone (`_odoo_endpoint_request`: REDIRECT_URL, which nginx
+    sets, else REQUEST_URI less its query, as Apache's proxy handler sends it) and
+    `_front_odoo` treats it as the front door does: the bad-URL guard, then
+    `_front_relay`, which hands it to the parent or runs the CGI. Every other
+    request renders as before.
+  - `tools/lazysite-pool.pl` sets `LAZYSITE_CGIBIN` (and `RELAY_TIMEOUT`) in both
+    modes now, not only under `FRONT_DOOR`, so that fallback runs the site's own
+    cgi-bin and honours `CGIBIN=`.
+  - The web server reaches the pool's socket as before, so the parent's socket
+    stays the request-path user's alone (SM760).
+  - Every Hestia template's `# lazysite-template-rev:` moves to 2026-10-20 (t/lint/135),
+    so the rollout sees the fcgi templates as changed.
+- **The installer** creates `lib/Lazysite/WarmFork` (dist/config/classification.json,
+  0755 as the rest of `../lib`). The first commit of this branch lacked the entry, so a
+  fresh install refused to create the directory (t/tools/28, 31, t/integration/259
+  failed on it); this commit adds it.
+
+## Only where a front end uses it
+
+Ruled 2026-10-20: the parent runs only where a front end hands it a call, decided
+from what the site's front end is, with no setting unless no such fact exists. The
+fact exists: every front end that hands the parent a call does it through the
+site's pool (the one-rule pool's front door, and the split templates' endpoint
+location), and a pool is `/etc/lazysite/pools/<instance>.conf` naming the docroot -
+the conf `lazysite@.service` reads and `lazysite check` reports as `pool: yes`. A
+plain-CGI site has none. `Lazysite::Paths::pool_conf_for` finds it, matched on
+`DOCROOT=` as `lazysite check`'s `find_pool_conf` matches it (`LAZYSITE_POOLS_DIR`
+moves the directory there and here, for a test), and the service's `wanted` asks
+it first. So a plain-CGI site with the Odoo extension and lazysited has no parent;
+a pooled one does; removing the pool conf stops the parent at the supervisor's next
+gate reading. No setting was added.
+
+A pool conf whose site still uses a pre-SM1226 split template (with no endpoint
+location) gets a parent that is never called, until its vhost is regenerated from
+the shipped template.
 
 # What holds it
 
@@ -228,6 +269,20 @@ pool line); the alternated rounds were at 15:07-15:08.
   - a cgi-bin shim that records every CGI run.
 
   It covers W1, W2, W3, W4 and W7, and the Server-Timing `call;desc="oomd"`.
+- **t/integration/326-a-split-templates-odoo-call-reaches-the-parent-through-the-pool.t.**
+  325's arrangement with the front door off, as a split template's pool runs, and
+  requests in nginx's shape and Apache's. Each shipped split template routes the
+  endpoint to the pool's socket; a request reaches the parent with no CGI run, in
+  both shapes, a binding call included; forged X-Remote-User, groups, sentinel,
+  sid and flag as parameters are nobody, bob's cookie is bob, alice's is alice and
+  the next anonymous visitor is nobody; a page through the same worker still
+  renders; with the parent stopped the worker runs the CGI and it answers, in both
+  shapes.
+- **t/unit/daemon/16-the-odoo-endpoint-parent-runs-only-behind-a-pool.t.** Through
+  the real supervisor with the daemon and Odoo extensions on: with no pool conf for
+  the docroot (or one for another docroot) no odoo-endpoint service starts and
+  Status lists none; a pool conf naming the docroot starts one whose parent
+  answers; removing it stops the parent.
 - **t/lint/272-the-warm-fork-parent-holds-code-only.t**, as above.
 - **t/lint/269** now takes its scan from t/lib/FileScope.pm, unchanged, and reads
   `Lazysite::WarmFork::Wire` as part of the pool's resident set.
@@ -247,35 +302,26 @@ t/unit/odoo/61, 63, 64, t/tools/170, 183, and lints 13, 14, 31, 38, 42, 43, 59, 
 | `preload` reads the Odoo key and the session secret into a package variable | 325: "does not hold the Odoo connection key" and "the site's session secret"; 272: "reads no file itself" |
 | the parent peeks at each connection before forking (`recv` with `MSG_PEEK`) | 325: "a parameter a visitor sent", "alice's cookie signature" |
 | the front door stops handing the endpoint to the parent | 325: every "no CGI ran" |
+| the split-template worker no longer hands the endpoint on (the `_odoo_endpoint_request` branch removed) | 326 |
 | a module computes a value from `%ENV` at file scope | 272 names the file, the line and the variable |
+| the service's gate no longer asks for a pool | 16: a plain-CGI site's supervisor starts the parent |
+
+On the previous commit's code (the slice before S2 and the gate), 326 fails on the
+templates, both request shapes, the identity subtest and the fallback (5 of 8;
+the page control passes), and 16 fails at its first subtest.
 
 # Left open
 
-- **S2: the split FastCGI templates.** These are nginx and Apache `vhost-fcgi` and
-  Hestia's `lazysite-fcgi` templates. They run the endpoint under fcgiwrap, so they do
-  not yet benefit, and wiring them needs a decision. The parent's socket is the
-  request-path user's alone: 0600 in a 0700 directory, as oomd's is (SM760). On a
-  pooled site that user is the pool's `USER`, and the web server cannot connect.
-  There are three ways:
-  - **(a)** the split templates send `/cgi-bin/lazysite-odoo.pl` to the pool's
-    socket, which the web server already reaches, and the pool hands it on.
-    Proposed.
-  - **(b)** a group-readable socket for the web server's group, which loosens the run
-    directory.
-  - **(c)** leave them on CGI.
 - **S3: the rest of SM1082 C3's warm-fork surfaces**, the manager API and the
   wrapper's own actions, with the same runner.
 - Sign-in, sign-out, the two-factor step and the identity refresh still run in the
   child in-process, as they did in the CGI (SM1164: oomd has no verb for them).
 
-# Decisions for the release manager
+# Rulings (2026-10-20, "SM1226 warm-fork (n711)")
 
-1. **S2's question**, above.
-2. **On by default.** Every site with the Odoo extension and lazysited running gets a
-   parent, about 54 MB resident, whether or not its front end is the one-rule pool.
-   On a plain-CGI site it idles. No setting turns it off: disabling the Odoo
-   extension or the daemon extension stops it. An `odoo_warm_fork` setting would be
-   small to add if it is wanted.
+1. **The split templates: option (a)**, built above (S2).
+2. **The parent runs only where a front end uses it**, built above: the fact is the
+   site's pool conf, and no setting was added.
 
 # Related
 

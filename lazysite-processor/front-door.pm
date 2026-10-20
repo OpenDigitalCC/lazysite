@@ -16,7 +16,9 @@ package main;
 #         hand to the auth wrapper) and _front_wrapper_action (the ?action=
 #         requests that stay the wrapper's); SM1181 S4: the manager API relayed
 #         without the wrapper, its child writing the contract from the value;
-#         SM1226: _front_warm, the Odoo endpoint handed to its warm-fork parent.
+#         SM1226: _front_warm, the Odoo endpoint handed to its warm-fork parent,
+#         and _odoo_endpoint_request / _front_odoo, the same for the split
+#         templates' pool, which runs no front door.
 # OWNS    which requests a pool worker answers itself and which it relays; which
 #         modules the pool's parent loads for its workers; who a request the
 #         front door would have wrapped is, in the pool.
@@ -505,6 +507,29 @@ sub _front_warm {
     $ACCESS_REC{s}  = $st // 200 unless defined $ACCESS_REC{s};
     $ACCESS_REC{ch} = 'front';
     return 1;
+}
+
+# SM1226 (ruled 2026-10-20, option a): THE SPLIT TEMPLATES' ODOO ENDPOINT. The
+# split FastCGI templates (nginx and Apache vhost-fcgi, Hestia's fcgi templates)
+# send /cgi-bin/lazysite-odoo.pl to the pool, whose worker runs no front door
+# there. The worker hands it to the warm-fork parent as the front door does, or
+# runs the CGI when no parent is listening (_front_relay). Matched by the path
+# alone: REDIRECT_URL is the web server's (nginx sets it to the path), else the
+# request's REQUEST_URI less its query (Apache's proxy handler). A client cannot
+# reach this with another path, and every other request renders as before.
+sub _odoo_endpoint_request {
+    my $uri = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '';
+    $uri =~ s/\?.*\z//s;
+    return $uri eq '/cgi-bin/lazysite-odoo.pl' ? 1 : 0;
+}
+
+# As the front door treats it: the bad-URL guard (SM1181 R5), then the relay,
+# warm-forked when it can be.
+sub _front_odoo {
+    my $uri = '/cgi-bin/lazysite-odoo.pl';
+    return 1 if _front_bad_url($uri);
+    return _front_relay( { surface => 'cgi', target => 'lazysite-odoo.pl', wrapped => 0,
+            why => 'odoo endpoint (split template)' } );
 }
 
 # --- Identity in the worker (SM1181 S3, SM1082 C2) ---

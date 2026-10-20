@@ -510,6 +510,9 @@ sub handle_one_request {
         if ( $FRONT_DOOR && _front_door() ) {
             1;    # answered at the door; main() must not also run
         }
+        elsif ( !$FRONT_DOOR && _odoo_endpoint_request() ) {
+            _front_odoo();    # SM1226: the split templates send the Odoo endpoint here
+        }
         else {
             main();
             1;
