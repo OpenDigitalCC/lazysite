@@ -36,15 +36,48 @@ plan skip_all => 'no SIGNOFF.md' unless -f $switch;
 # checks staleness is caught failed because nothing was stale. A test that
 # needs the project to be broken cannot be run on a healthy project.
 my $reliab      = "$root/docs/RELIABILITY.md";
-my $kept        = preserve_tracked( $switch, $reliab );
+my $oblig       = "$root/docs/compliance/OBLIGATIONS.md";
+my $techfile    = "$root/docs/compliance/TECHNICAL-FILE.md";
+my $kept        = preserve_tracked( $switch, $reliab, $oblig, $techfile );
 my $orig        = $kept->original($switch);
 my $reliab_orig = $kept->original($reliab);
+my $oblig_orig  = $kept->original($oblig);
+my $tech_orig   = $kept->original($techfile);
 
 sub age_rehearsals {
     ( my $t = $reliab_orig ) =~ s/^(\s*)20\d\d-\d\d-\d\d(\s*\|)/${1}2001-01-01${2}/mg;
     open my $fh, '>', $reliab or die $!;
     print {$fh} $t;
     close $fh;
+    return;
+}
+
+# The same for the two registers' version stamps: a person-only finding is
+# constructed, not borrowed from a register that happens to be unwalked. Once
+# the registers are walked to the version being cut nothing is left for the
+# switch to block on, and the subtest that measures the switch would fail on a
+# healthy project.
+sub age_registers {
+    for my $r (
+        [ $oblig,    $oblig_orig, 'reviewed_at_version' ],
+        [ $techfile, $tech_orig,  'covers_version' ]
+        )
+    {
+        my ( $path, $text, $key ) = @{$r};
+        ( my $t = $text ) =~ s/^($key:\s*)\S+/${1}0.0.1/m;
+        open my $fh, '>', $path or die $!;
+        print {$fh} $t;
+        close $fh;
+    }
+    return;
+}
+
+sub restore_registers {
+    for my $r ( [ $oblig, $oblig_orig ], [ $techfile, $tech_orig ] ) {
+        open my $fh, '>', $r->[0] or die $!;
+        print {$fh} $r->[1];
+        close $fh;
+    }
     return;
 }
 
@@ -104,7 +137,9 @@ subtest 'the switch keeps its voluntary meaning below certified' => sub {
     # An operator may still demand the records on any cut. ADR 0010 moved the
     # channel that FORCES them; it did not weaken the switch.
     set_switch('yes');
+    age_registers();    # construct the unwalked registers rather than depend on them
     my ( $rc, $out ) = run_check('stable');
+    restore_registers();
     isnt( $rc, 0, 'stable with signoff_required: yes still blocks' );
     like( $out, qr/reviewed_at_version|covers_version/,
         'on the person-only records, as before' );
