@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.16.0
+     engine-version: 0.16.1
      imported: 2026-10-22
      agent: the lazysite site agent (Claude Code)
      source: docs/practice/authoring-practice.md sha256=b519875859b5ed7681abbdc511c5cf5da3ebff747b11a0fd7178140a8ac87377 modified=2026-10-01
-     source: docs/practice/app-practice.md sha256=a6475e0c96e9f7a2b9fdefb59caca8464b47e372ae66c67def4481ac58dbb38b modified=2026-10-07
-     body-sha256: ff8346a46a084cc5b4a0268d736b259be53abf2acc26b1c5b7725f4775c98357
+     source: docs/practice/app-practice.md sha256=f2b13dde1d3ff242c6dcdf4804e385d91b04b6309a7a548eb3f8f8a6b9f81c52 modified=2026-10-07
+     body-sha256: 57c7f9e5441629d49bf4272735b2fbe4f4c6c2c96b34d29568b2ffe0d6952e9b
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.16.0**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.16.1**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -729,23 +729,23 @@ reads `true`, the action appears in the `actions` map, and the call answers
 this account been granted X**, never **can this surface reach X**.
 
 Confirmed manager-UI-only on 0.10.32: `form-targets-*`, the `handler-*` family,
-`plugin-list` / `plugin-enable`, `users`, `principals`, `keys-list`,
+`extension-list` / `extension-enable`, `users`, `principals`, `keys-list`,
 `protected-sections`, `preview`, `cache-invalidate`. `auth_default` is refused
 by `config-set` as not settable. `acl-set` refuses `lazysite/db/tables` as a
 blocked path.
 
-**A PLUGIN'S OWN ACTIONS COME FROM `plugin-list`, and nowhere else** (SM809).
-`describe-capabilities` names `plugin-action` but cannot name what any
+**A PLUGIN'S OWN ACTIONS COME FROM `extension-list`, and nowhere else** (SM809).
+`describe-capabilities` names `extension-action` but cannot name what any
 particular plugin offers, because that is the plugin's own declaration.
-`plugin-list` returns each plugin's `id`, its `script`, its `config_file` and
+`extension-list` returns each plugin's `id`, its `script`, its `config_file` and
 an `actions` array - `[{"id":"status","label":"Status"}]` and the like - and
 that array is the contract. Call it as:
 
-    ?action=plugin-action&plugin=<id>
+    ?action=extension-action&plugin=<id>
     body {"action_id": "<id from the actions array>", "params": {...}}
 
 **Is the persistent runtime running?** That is the daemon, and its plugin id is
-`daemon`: `plugin-action` with `action_id: "status"` answers with each
+`daemon`: `extension-action` with `action_id: "status"` answers with each
 scheduled job, its actor, its outcome and a detail. It is cookie-only, like
 every plugin action, so it is a manager-session call rather than a token one -
 which is why no amount of reading `actions-list` will find it.
@@ -1386,7 +1386,7 @@ the mechanism for forms that are open but protected another way.
 
 **Wiring a native form needs a one-time operator step.** A token holding
 `manage_forms` still cannot create the delivery handler: `handler-save` (and
-`plugin-read`/`plugin-save`) are manager-UI / cookie-session only, and
+`extension-read`/`extension-save`) are manager-UI / cookie-session only, and
 `lazysite/forms/handlers.conf` is protected against WebDAV writes even with
 `manage_config`. An agent CAN write the form config `lazysite/forms/<name>.conf`
 (with `manage_config`) and create the target data table (`manage_data`) in

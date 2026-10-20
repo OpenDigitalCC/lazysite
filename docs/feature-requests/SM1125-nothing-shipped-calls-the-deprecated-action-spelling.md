@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-16
 raised-by: 0.15.9 test-plan walk, finding F-5
 area: manager
-status-note: "SHIPPED on n627: starter/manager/config.md; t/lint/266. The generated field-practice briefing still teaches the old name and is exempt until its source is changed."
+status-note: "SHIPPED on n627: starter/manager/config.md; t/lint/266. The briefing's exemption was lifted on n712 (SM1228): its source and the import carry extension-*."
 ---
 
 # What happened
@@ -46,6 +46,4 @@ here.
 
 # Open
 
-The site agent's APP-PRACTICE.md source needs `plugin-list`, `plugin-action`,
-`plugin-read` and `plugin-save` changed to the extension-* names; the next
-import then carries it, and the two exemptions in t/lint/266 can go.
+Nothing. Done in SM1228: docs/practice/app-practice.md names the extension-* actions, tools/import-field-practice.pl was re-run, and t/lint/266 no longer exempts the generated briefing.

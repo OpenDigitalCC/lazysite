@@ -127,23 +127,23 @@ reads `true`, the action appears in the `actions` map, and the call answers
 this account been granted X**, never **can this surface reach X**.
 
 Confirmed manager-UI-only on 0.10.32: `form-targets-*`, the `handler-*` family,
-`plugin-list` / `plugin-enable`, `users`, `principals`, `keys-list`,
+`extension-list` / `extension-enable`, `users`, `principals`, `keys-list`,
 `protected-sections`, `preview`, `cache-invalidate`. `auth_default` is refused
 by `config-set` as not settable. `acl-set` refuses `lazysite/db/tables` as a
 blocked path.
 
-**A PLUGIN'S OWN ACTIONS COME FROM `plugin-list`, and nowhere else** (SM809).
-`describe-capabilities` names `plugin-action` but cannot name what any
+**A PLUGIN'S OWN ACTIONS COME FROM `extension-list`, and nowhere else** (SM809).
+`describe-capabilities` names `extension-action` but cannot name what any
 particular plugin offers, because that is the plugin's own declaration.
-`plugin-list` returns each plugin's `id`, its `script`, its `config_file` and
+`extension-list` returns each plugin's `id`, its `script`, its `config_file` and
 an `actions` array - `[{"id":"status","label":"Status"}]` and the like - and
 that array is the contract. Call it as:
 
-    ?action=plugin-action&plugin=<id>
+    ?action=extension-action&plugin=<id>
     body {"action_id": "<id from the actions array>", "params": {...}}
 
 **Is the persistent runtime running?** That is the daemon, and its plugin id is
-`daemon`: `plugin-action` with `action_id: "status"` answers with each
+`daemon`: `extension-action` with `action_id: "status"` answers with each
 scheduled job, its actor, its outcome and a detail. It is cookie-only, like
 every plugin action, so it is a manager-session call rather than a token one -
 which is why no amount of reading `actions-list` will find it.
@@ -805,7 +805,7 @@ the mechanism for forms that are open but protected another way.
 
 **Wiring a native form needs a one-time operator step.** A token holding
 `manage_forms` still cannot create the delivery handler: `handler-save` (and
-`plugin-read`/`plugin-save`) are manager-UI / cookie-session only, and
+`extension-read`/`extension-save`) are manager-UI / cookie-session only, and
 `lazysite/forms/handlers.conf` is protected against WebDAV writes even with
 `manage_config`. An agent CAN write the form config `lazysite/forms/<name>.conf`
 (with `manage_config`) and create the target data table (`manage_data`) in

@@ -115,6 +115,10 @@ Archive
   `tools/bench-surfaces.sh --surface odoo-oomd` (D5) times a read binding end to end
   against the vendored oomd and OOM's fake Odoo. It splits each call into the program
   start, the endpoint's own work and the call. `--with-warm-fork` adds SM1226's parent.
+- SM1228 (PENDING) **the practice copies take the extension-* action names.** The served
+  field-practice briefing and its source docs/practice/app-practice.md taught `plugin-list`,
+  `plugin-action`, `plugin-read` and `plugin-save`; they name the `extension-*` actions now (the
+  old names are still served, audited as deprecated). t/lint/266 scans the briefing too.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 
