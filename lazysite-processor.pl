@@ -1769,7 +1769,7 @@ sub main {
         if ( -f $CONF_FILE ) {
             my $text = read_file($CONF_FILE);
             if ( defined $text ) {
-                while ( $text =~ /^(?:alias\.\S+\.)?content_root\s*:\s*(.+?)\s*$/mg ) {
+                while ( $text =~ /^(?:alias\.\S+\.)?content_root\h*:\h*(.+?)\h*$/mg ) {
                     ( my $rel = $1 ) =~ s{^/+|/+$}{}g;
                     next unless length $rel;
                     next if $rel =~ m{(?:^|/)\.\.(?:/|$)};    # ignore traversal shapes

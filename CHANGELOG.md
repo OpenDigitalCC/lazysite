@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1209 (PENDING) **an empty app setting no longer blocks saving the others.** The manager's
+  save check read a key whose line was present but empty (`app_scope:`, how a cleared key
+  is left) as the whole next line, so with every app_* line empty no app_scope or
+  app_offline_pages could be saved. A value is read from its own line now, in the check
+  and in the other conf readers that had the same shape (content_root, the form conf).
+
 ## 0.15.14 - EDGE: the deploy says what the final check found (2026-10-20)
 
 - SM1206 (23c24535) **internal: vendor-oom.sh leaves the snapshot group-writable.** It left

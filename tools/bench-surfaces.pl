@@ -261,7 +261,7 @@ else {
     my $conf = do { open my $fh, '<', "$LZ/lazysite.conf" or die "$LZ/lazysite.conf: $!\n"; local $/; <$fh> };
     die "bench-surfaces: $LZ/lazysite.conf does not say `server_timing: on`, so an anonymous request "
         . "is sent no Server-Timing header and there is nothing to read. Turn it on for the measurement and off after.\n"
-        unless $conf =~ /^server_timing\s*:\s*(?:on|true|yes|1|enabled)\s*$/mi;
+        unless $conf =~ /^server_timing\h*:\h*(?:on|true|yes|1|enabled)\h*$/mi;
 }
 
 # --- requests ----------------------------------------------------------------

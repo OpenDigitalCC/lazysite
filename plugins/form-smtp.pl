@@ -214,7 +214,7 @@ sub load_smtp_conf_from {
     close($fh);
 
     my %conf;
-    while ( $text =~ /^([a-z_]+)\s*:\s*(.+)$/mg ) {
+    while ( $text =~ /^([a-z_]+)\h*:\h*(.+)$/mg ) {
         my ( $k, $v ) = ( $1, $2 );
         $v =~ s/^\s+|\s+$//g;
         next if $v =~ /^#/;

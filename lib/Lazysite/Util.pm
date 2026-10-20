@@ -15,7 +15,7 @@ use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries conf_text_value);
 
 our $COMPONENT = 'lazysite';
 
@@ -130,6 +130,24 @@ sub backup_retention {
         last;
     }
     close $fh;
+    return $val;
+}
+
+# SM1209: ONE VALUE OUT OF CONF TEXT, as the engine reads it. A value is confined
+# to its own line: the separator is [ \t]*:[ \t]*, never \s*, which would run on
+# over the newline and read a key whose line is present but empty (`app_scope:`,
+# how config-set leaves a cleared key) as the whole next line. Like the engine
+# (resolve_site_vars: ^(\w+)\h*:\h*(.+)$ /mg) a line with nothing after the colon is
+# no occurrence at all, and the LAST occurrence of a repeated key wins. undef when
+# the key has no occurrence; '' when the last one is blank (spaces only); the value
+# is trimmed.
+sub conf_text_value {
+    my ( $text, $key ) = @_;
+    return undef unless defined $text && defined $key;
+    my $val;
+    while ( $text =~ /^\Q$key\E[ \t]*:[ \t]*(.+)$/mg ) { $val = $1 }
+    return undef unless defined $val;
+    $val =~ s/\A\s+|\s+\z//g;
     return $val;
 }
 

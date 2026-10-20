@@ -25,7 +25,7 @@ package Lazysite::Manager::Config;
 use strict;
 use warnings;
 use Exporter 'import';
-use Lazysite::Util              qw(log_event);
+use Lazysite::Util              qw(log_event conf_text_value);
 use Lazysite::Lang              qw(lang_status sole_group);
 use Lazysite::Manager::Common   qw($auth_user $token_auth _user_caps _write_conf_key);
 use Lazysite::Manager::Describe qw(_json_bool);
@@ -118,8 +118,8 @@ sub action_lang_status {
 sub _app_setting_fault {
     my ( $key, $value ) = @_;
     ( my $v = $value ) =~ s/\A\s+|\s+\z//g;
-    my $conf = _conf_text() // '';
-    my $stored = sub { my ($k) = @_; my ($x) = $conf =~ /^\Q$k\E\s*:\s*(.*?)\s*$/m; return $x };
+    my $conf     = _conf_text() // '';
+    my $stored   = sub { conf_text_value( $conf, $_[0] ) };
     my $in_scope = sub {
         my ( $start, $scope ) = @_;
         ( my $p = $start ) =~ s/\?.*\z//;
@@ -419,7 +419,7 @@ sub action_config_set {
         require Lazysite::Auth::AddressScope;
         my $conf  = _conf_text() // '';
         my $other = ( $key =~ s/_deny\z//r ) . ( $key =~ /_deny\z/ ? "" : "_deny" );
-        my ($ov)  = $conf =~ /^\Q$other\E\s*:\s*(.*?)\s*$/m;
+        my $ov    = conf_text_value( $conf, $other );
         my @mine  = Lazysite::Auth::AddressScope::names($value);
         my @their = Lazysite::Auth::AddressScope::names($ov);
         my ( $allow, $deny ) = $key !~ /_deny\z/ ? ( \@mine, \@their ) : ( \@their, \@mine );

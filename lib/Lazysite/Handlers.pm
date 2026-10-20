@@ -1167,10 +1167,10 @@ sub _destination_problem {
 sub form_quarantine_state {
     my ($text) = @_;
     $text = '' unless defined $text;
-    my ($q)  = $text            =~ /^\s*quarantine\s*:\s*(\S+)/m;
-    my ($kw) = $text            =~ /^\s*spam_keywords\s*:\s*(.+?)\s*$/m;
-    my ($ut) = $text            =~ /^\s*spam_url_threshold\s*:\s*(\d+)/m;
-    my ($od) = $text            =~ /^\s*spam_own_domain\s*:\s*(\S+)/m;
+    my ($q)  = $text            =~ /^\s*quarantine\h*:\h*(\S+)/m;
+    my ($kw) = $text            =~ /^\s*spam_keywords\h*:\h*(.+?)\h*$/m;
+    my ($ut) = $text            =~ /^\s*spam_url_threshold\h*:\h*(\d+)/m;
+    my ($od) = $text            =~ /^\s*spam_own_domain\h*:\h*(\S+)/m;
     my $on   = lc( $q // 'on' ) =~ /^(?:0|off|no|false|disabled)$/ ? 0 : 1;
     my @kw   = grep { length } split /\s*,\s*/, ( $kw // '' );
     return {
@@ -1199,7 +1199,7 @@ sub form_quarantine_state {
 sub form_account_email {
     my ($text) = @_;
     return '' unless defined $text;
-    my ($f) = $text =~ /^\s*account_email\s*:\s*(\S+)\s*$/m;
+    my ($f) = $text =~ /^\s*account_email\h*:\h*(\S+)\h*$/m;
     return '' unless defined $f && $f =~ /\A[A-Za-z][A-Za-z0-9_-]*\z/;
     return $f;
 }

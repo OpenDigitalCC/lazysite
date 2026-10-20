@@ -451,9 +451,9 @@ sub _conf_notify_mode {
 sub _upload_rules {
     my ($text) = @_;
     return undef unless $text =~ /^\s*upload_(?:max_kb|max_files|accept)\s*:/m;
-    my ($kb)   = $text =~ /^\s*upload_max_kb\s*:\s*(\d+)/m;
-    my ($maxn) = $text =~ /^\s*upload_max_files\s*:\s*(\d+)/m;
-    my ($acc)  = $text =~ /^\s*upload_accept\s*:\s*(.+?)\s*$/m;
+    my ($kb)   = $text =~ /^\s*upload_max_kb\h*:\h*(\d+)/m;
+    my ($maxn) = $text =~ /^\s*upload_max_files\h*:\h*(\d+)/m;
+    my ($acc)  = $text =~ /^\s*upload_accept\h*:\h*(.+?)\h*$/m;
     my @accept = grep { length }
         map { my $x = lc $_; $x =~ s/^\s+|\s+$//g; $x =~ s/^\.//; $x }
         split /[,\s|]+/, ( $acc // '' );
@@ -491,7 +491,7 @@ sub load_form_conf {
     # Absent leaves the shipped default of 5; `off` (or 0) removes the limit for
     # a form whose access is already controlled another way.
     my $rate_limit;
-    if ( my ($rl) = $text =~ /^\s*rate_limit\s*:\s*(\S+)/m ) {
+    if ( my ($rl) = $text =~ /^\s*rate_limit\h*:\h*(\S+)/m ) {
         $rate_limit = ( lc $rl eq 'off' || lc $rl eq 'none' ) ? 0
             : ( $rl =~ /^\d+$/ ) ? $rl + 0
             :                      undef;
@@ -505,7 +505,7 @@ sub load_form_conf {
     # too-fast floor are unaffected either way, so this relaxes staleness and
     # nothing else.
     my $ts_window;
-    if ( my ($tw) = $text =~ /^\s*timestamp_window\s*:\s*(\S+)/m ) {
+    if ( my ($tw) = $text =~ /^\s*timestamp_window\h*:\h*(\S+)/m ) {
         $ts_window = ( lc $tw eq 'off' || lc $tw eq 'none' ) ? 0
             : ( $tw =~ /^\d+$/ ) ? $tw + 0
             :                      undef;
@@ -515,15 +515,15 @@ sub load_form_conf {
     # positive still arrives (just unannounced, under the Quarantine filter), so
     # cheap heuristics are safe on by default. spam_keywords is a comma-separated
     # operator list; spam_url_threshold is the min URL count that flags (default 2).
-    my ($q)  = $text =~ /^\s*quarantine\s*:\s*(\S+)/m;
-    my ($kw) = $text =~ /^\s*spam_keywords\s*:\s*(.+?)\s*$/m;
-    my ($ut) = $text =~ /^\s*spam_url_threshold\s*:\s*(\d+)/m;
+    my ($q)  = $text =~ /^\s*quarantine\h*:\h*(\S+)/m;
+    my ($kw) = $text =~ /^\s*spam_keywords\h*:\h*(.+?)\h*$/m;
+    my ($ut) = $text =~ /^\s*spam_url_threshold\h*:\h*(\d+)/m;
     # SM930: OFF BY DEFAULT, unlike the other three. They are content heuristics
     # about what a message says; this one is about WHO IT CLAIMS TO BE FROM, and a
     # form that genuinely is for internal use would start quarantining its real
     # traffic the day it was upgraded. The engine does not change what a site
     # already does without being asked.
-    my ($od) = $text =~ /^\s*spam_own_domain\s*:\s*(\S+)/m;
+    my ($od) = $text =~ /^\s*spam_own_domain\h*:\h*(\S+)/m;
 
     return {
         targets            => \@targets,
