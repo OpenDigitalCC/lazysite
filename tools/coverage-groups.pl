@@ -42,7 +42,7 @@ our @GROUPS = (
     [ front  => qw(lazysite-dav.pl lazysite-mcp.pl lazysite-front.pl) ],
     [ daemon => qw(lib/Lazysite/Daemon/) ],
     [ odoo => qw(lib/Lazysite/Odoo/ lib/Lazysite/Odoo.pm lazysite-odoo.pl lib/Lazysite/Plugins/ plugins/) ],
-    [ lib   => qw(lib/Lazysite/) ],
+    [ lib   => qw(lib/Lazysite/ lib/Lazysite/WarmFork.pm lib/Lazysite/WarmFork/) ],
     [ tools => qw(tools/ tools/lazysite-bundle-apply.pl) ],
 );
 
