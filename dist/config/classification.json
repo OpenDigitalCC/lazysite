@@ -177,6 +177,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM1233: the Docker Compose package - Dockerfile, compose.yaml, entrypoint, nginx.conf, README. Released with the tarball (the Dockerfile builds FROM the unpacked tarball), never installed into a site tree. It was an export-excluded placeholder; a path the classification neither matched nor excluded stops a fresh install (SM1226).",
+      "pattern": "^installers/docker/(.+)$",
+      "install_to": null,
+      "bucket": "code"
+    },
+    {
       "_comment": "SM139 glue-deb vhost templates (lazysite-apache / lazysite-nginx): released with the tarball, never installed into a site tree.",
       "pattern": "^installers/(apache|nginx)/(.+)$",
       "install_to": null,
@@ -247,7 +253,6 @@
     "^starter/feed\\.(atom|rss)$",
     "^starter/llms\\.txt$",
     "^starter/sitemap\\.xml$",
-    "^installers/docker/",
     "^release-manifest\\.json$",
     "^sbom\\.json$",
     "^tools/commit\\.sh$",

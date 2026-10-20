@@ -66,6 +66,30 @@ procedure, including the one-time template copy and `a2enmod` lines, is the
 runbook. The tarball-era `lazysite-hestia-deploy.sh` script is superseded
 and kept only for existing deployments (runbook appendix).
 
+## Deploying with Docker Compose (since 0.15.16)
+
+`installers/docker/` in the release tarball is a Docker Compose package: nginx,
+the one-rule FastCGI pool and the persistent runtime in one container, the
+engine in the image and the site in three volumes (the docroot, `lazysite/` with
+the settings and accounts, and the private store). It is built on your machine
+from the unpacked tarball and nothing is pushed to a registry. Odoo is not in
+it.
+
+```bash
+tar xzf lazysite-X.Y.Z.tar.gz
+cd lazysite-X.Y.Z/installers/docker
+docker compose build
+docker compose up -d
+docker compose exec lazysite perl /srv/lazysite/tools/lazysite-users.pl \
+    --docroot /srv/lazysite/html setup-sysop --user NAME
+```
+
+The first start runs `install.pl --mode provision` into the empty volumes; later
+starts leave the volumes' data alone, and a new image upgrades the site in
+place. The first account is created with `setup-sysop`, as at the end of any
+install: a fresh site has none. [installers/docker/README.md](../installers/docker/README.md)
+covers the variables, the volumes, upgrades, health and logs.
+
 ## First-run configuration
 
 In `lazysite/lazysite.conf` (or the manager Config page):

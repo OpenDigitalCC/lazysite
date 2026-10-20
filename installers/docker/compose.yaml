@@ -1,0 +1,51 @@
+# lazysite in Docker Compose (SM1233): nginx, the one-rule FastCGI pool and the
+# persistent runtime in one container, the site in three volumes. Built locally
+# from the unpacked release tarball; nothing is pulled from or pushed to a
+# registry (the base image, debian:trixie-slim, is the one pull).
+#
+#   docker compose build
+#   docker compose up -d
+#   docker compose exec lazysite perl /srv/lazysite/tools/lazysite-users.pl \
+#       --docroot /srv/lazysite/html setup-sysop --user NAME
+#
+# See README.md in this directory.
+name: lazysite
+
+services:
+  lazysite:
+    build:
+      # The unpacked tarball: this file is installers/docker/compose.yaml in it.
+      context: ../..
+      dockerfile: installers/docker/Dockerfile
+    image: ${LAZYSITE_IMAGE:-lazysite:local}
+    restart: unless-stopped
+    environment:
+      # The domain a fresh site is seeded with (site_url). Used at the first
+      # start only; afterwards lazysite.conf in the volume is the setting.
+      SITE_DOMAIN: ${LAZYSITE_DOMAIN:-localhost}
+    ports:
+      # Loopback by default: TLS and the public name belong to the front end
+      # (a reverse proxy, a load balancer). LAZYSITE_BIND=0.0.0.0 to expose it.
+      - "${LAZYSITE_BIND:-127.0.0.1}:${LAZYSITE_PORT:-8080}:8080"
+    volumes:
+      # The three volumes are the site. The engine is in the image.
+      - lazysite-docroot:/srv/lazysite/html
+      - lazysite-settings:/srv/lazysite/html/lazysite
+      - lazysite-private:/srv/lazysite/html-lazysite-private
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # The processes run as www-data and need nothing from root.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+
+volumes:
+  lazysite-docroot:
+  lazysite-settings:
+  lazysite-private:

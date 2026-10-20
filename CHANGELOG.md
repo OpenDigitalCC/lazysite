@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1233 (PENDING) **a Docker Compose package.** `installers/docker/` is no longer a
+  placeholder: nginx, the one-rule FastCGI pool and `lazysited` in one container,
+  the engine in the image and the site in three volumes (the docroot, `lazysite/`,
+  the private store), built locally from the unpacked release tarball with
+  `docker compose build` - no registry image, and no Odoo. The first start runs
+  `install.pl` into the empty volumes; later starts leave their data alone and a new
+  image upgrades the site in place. The first account is `setup-sysop`, as at the end
+  of any install. The package ships in the tarball (the placeholder's export
+  exclusion is gone and the manifest lists it), documented in
+  `installers/docker/README.md` and `docs/IMPLEMENTOR.md`; t/tools/210 holds it
+  without Docker.
 - SM1219 (PENDING) **the visitor log names the signed-in account.** A visit made while signed in is
   recorded with the account the engine verified (never a header a client sent; an anonymous
   visit has none), kept as long as the rest of the log. analyse_visitors takes `by_account`

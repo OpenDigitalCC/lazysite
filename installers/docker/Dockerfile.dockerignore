@@ -1,0 +1,5 @@
+# The build context is the unpacked release tarball. A checkout has more.
+.git
+tmp
+download
+cover_db*
