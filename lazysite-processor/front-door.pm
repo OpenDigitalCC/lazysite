@@ -15,7 +15,8 @@ package main;
 #         value), _front_bad_url (the SM128 guard, for every request it does not
 #         hand to the auth wrapper) and _front_wrapper_action (the ?action=
 #         requests that stay the wrapper's); SM1181 S4: the manager API relayed
-#         without the wrapper, its child writing the contract from the value.
+#         without the wrapper, its child writing the contract from the value;
+#         SM1226: _front_warm, the Odoo endpoint handed to its warm-fork parent.
 # OWNS    which requests a pool worker answers itself and which it relays; which
 #         modules the pool's parent loads for its workers; who a request the
 #         front door would have wrapped is, in the pool.
@@ -26,7 +27,8 @@ package main;
 #         Lazysite::BadUrl through _lazy_lib (SM1181 S3; preloaded by the pool's
 #         parent); Lazysite::Auth::Identity's clear_identity_env and
 #         write_identity_env, and Lazysite::Timing::handover, in the relay's
-#         child (S4).
+#         child (S4); Lazysite::WarmFork::Wire (socket_for, request) through
+#         _lazy_lib, preloaded by the pool's parent (SM1226).
 # READS   $DOCROOT, $LAZYSITE_DIR, $FRONT_CGIBIN, $RELAY_TIMEOUT, $TIMING; SETS
 #         $REQUEST_IDENT and %ACCESS_REC (the script's, declared `our` there).
 #         Whether the front door is on ($FRONT_DOOR) is the script's own decision,
@@ -75,6 +77,7 @@ our @POOL_PRELOAD = qw(
     Lazysite::Auth::Session
     Lazysite::BadUrl
     Lazysite::Maintenance
+    Lazysite::WarmFork::Wire
 );
 
 # Load the modules, then compile one trivial template and one trivial page of
@@ -351,6 +354,14 @@ sub _front_relay {
     return _front_fail( '413 Payload Too Large', 'lazysite: request body too large' )
         if $too_big;
 
+    # SM1226: the Odoo endpoint is answered by its warm-fork parent when one is
+    # listening; when none is (no lazysited, the extension just enabled, a restart
+    # in progress), the CGI runs below exactly as before.
+    if ( !$decision->{wrapped} && ( $decision->{target} // '' ) eq 'lazysite-odoo.pl' ) {
+        my $done = _front_warm($body);
+        return $done if defined $done;
+    }
+
     pipe my $from_kid, my $kid_out or
         return _front_fail( '500 Internal Server Error', 'lazysite: pipe' );
     pipe my $kid_in, my $to_kid or
@@ -453,6 +464,45 @@ sub _front_relay {
     # The child emitted its own CGI status line; record what we can for the
     # access log without re-parsing its headers.
     $ACCESS_REC{s}  = 200 unless defined $ACCESS_REC{s};
+    $ACCESS_REC{ch} = 'front';
+    return 1;
+}
+
+# --- The Odoo endpoint, warm-forked (SM1226, SM1082 C3) ---
+
+# THE ODOO ENDPOINT WITHOUT A PROGRAM START. Relayed, it was a fork of this worker
+# and an exec of lazysite-odoo.pl - a perl and the endpoint's modules compiled on
+# every call (SM1164 D5 measured it). Its warm-fork parent (Lazysite::WarmFork,
+# a lazysited service) has compiled them once and forks a fresh child per request,
+# so nothing of one visitor reaches the next; this worker hands it the request -
+# the same parameters and body the CGI would have been given - over the site's
+# socket and passes the answer through.
+#
+# Returns 1 when answered, undef when nothing reached the parent (no socket, a
+# refused connection): the caller then runs the CGI. Once the parent has taken
+# the request it is never re-run, whatever happens - a write may have been made -
+# so a failure after that point is answered here, as the relay answers one.
+sub _front_warm {
+    my ($body) = @_;
+    _lazy_lib('Lazysite::WarmFork::Wire');
+    my ($sock) = Lazysite::WarmFork::Wire::socket_for($LAZYSITE_DIR);
+    return undef unless defined $sock && -S $sock;
+    my $r = Lazysite::WarmFork::Wire::request( $sock, {%ENV}, $body, timeout => $RELAY_TIMEOUT );
+    return undef unless $r->{connected};
+    my $out = $r->{out} // '';
+    if ( $r->{timed_out} ) {
+        log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'warm-fork relay timed out',
+            surface => 'lazysite-odoo.pl', seconds => $RELAY_TIMEOUT );
+        return _front_fail( '504 Gateway Timeout', 'lazysite: surface timed out' ) unless length $out;
+    }
+    unless ( length $out ) {
+        log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'warm-fork relay produced nothing',
+            surface => 'lazysite-odoo.pl', why => $r->{why} // '' );
+        return _front_fail( '500 Internal Server Error', 'lazysite: surface produced no response' );
+    }
+    print $out;
+    my ($st) = $out =~ /\AStatus:\s*(\d{3})/;
+    $ACCESS_REC{s}  = $st // 200 unless defined $ACCESS_REC{s};
     $ACCESS_REC{ch} = 'front';
     return 1;
 }

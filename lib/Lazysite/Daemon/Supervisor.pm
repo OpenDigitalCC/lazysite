@@ -133,6 +133,17 @@ sub services {
         },
         }
         if $o{oomd};
+    # SM1226: the third is the Odoo endpoint's warm-fork parent, listed the same way
+    # (`odoo_endpoint => 1`) while its own gate holds
+    # (Lazysite::Daemon::Service::OdooEndpoint::wanted).
+    push @s, {
+        name  => 'odoo-endpoint',
+        start => sub {
+            require Lazysite::Daemon::Service::OdooEndpoint;
+            return Lazysite::Daemon::Service::OdooEndpoint::run(@_);
+        },
+        }
+        if $o{odoo_endpoint};
     return @s;
 }
 
@@ -163,11 +174,27 @@ sub _oomd_wanted {
     return $w ? 1 : 0;
 }
 
-# Listed in Status when wanted, or while a process of it remains.
-sub _oomd_listed {
+# SM1226: the services that have a gate of their own, by name, each with what the
+# services() call names it; the scheduler has none (the daemon extension is its gate).
+sub _gated { return ( oomd => 'oomd', 'odoo-endpoint' => 'odoo_endpoint' ) }
+
+sub _odoo_endpoint_wanted {
     my ($root) = @_;
-    return 1 if _oomd_wanted($root);
-    return defined service_pid( $root, 'oomd' ) ? 1 : 0;
+    require Lazysite::Daemon::Service::OdooEndpoint;
+    my $w = eval { Lazysite::Daemon::Service::OdooEndpoint::wanted($root) };
+    return $w ? 1 : 0;
+}
+
+sub _wanted {
+    my ( $root, $name ) = @_;
+    return $name eq 'oomd' ? _oomd_wanted($root) : _odoo_endpoint_wanted($root);
+}
+
+# Listed in Status when wanted, or while a process of it remains.
+sub _listed {
+    my ( $root, $name ) = @_;
+    return 1 if _wanted( $root, $name );
+    return defined service_pid( $root, $name ) ? 1 : 0;
 }
 
 sub _oomd_reason {
@@ -389,7 +416,8 @@ sub status {
     # and go, then reports "stopped" or "still stopping (pid N)". A wait
     # bounded by the gate interval, not a guess.
     # SM1164: oomd is listed while it is wanted or a process of it is still there.
-    my @listed = services( $root, oomd => _oomd_listed($root) );
+    my %gated  = _gated();
+    my @listed = services( $root, map { $gated{$_} => _listed( $root, $_ ) } keys %gated );
     if ( !$enabled && $a{settle} ) {
         my $deadline = time + $a{settle};
         while ( time < $deadline ) {
@@ -683,14 +711,14 @@ sub run {
     }
 
     log_event( 'INFO', 'daemon', 'supervisor starting',
-        services => scalar( () = services( $root, oomd => 1 ) ) );
+        services => scalar( () = services( $root, oomd => 1, odoo_endpoint => 1 ) ) );
 
     # ADOPT BY STOPPING. A service left over from a supervisor that died without
     # stopping its children (kill -9, OOM) is still ours - same docroot, same
     # jobs - and starting a fresh one beside it is the duplication above. It is
     # stopped, deliberately and with a log line, before a fresh one is started
     # under this supervisor's care.
-    for my $s ( services( $root, oomd => 1 ) ) {
+    for my $s ( services( $root, oomd => 1, odoo_endpoint => 1 ) ) {
         my $old = _read_pid( $root, $s->{name} );
         my $st  = _read_state( $root, $s->{name} );
 
@@ -737,8 +765,10 @@ sub run {
     # oomd whose gate has closed is told to stop and waited for without blocking
     # the other services; its failures and `failed` mark are forgotten, so a
     # later enable starts clean.
-    my $oomd_wanted  = _oomd_wanted($root);
-    my $oomd_checked = time;
+    # SM1226: the Odoo endpoint's warm-fork parent the same way, by name.
+    my %gated        = _gated();
+    my %wanted       = map { $_ => _wanted( $root, $_ ) } keys %gated;
+    my $gate_read_at = time;
     my %stopping;    # name => { pid, deadline }
 
     while ($running) {
@@ -778,22 +808,24 @@ sub run {
             }
         }
 
-        # 2b. oomd's own gate (SM1164 D2).
-        if ( time - $oomd_checked >= $SERVICE_GATE_EVERY ) {
-            $oomd_checked = time;
-            $oomd_wanted  = _oomd_wanted($root);
+        # 2b. each gated service's own gate (SM1164 D2: oomd; SM1226: the Odoo
+        # endpoint's warm-fork parent).
+        if ( time - $gate_read_at >= $SERVICE_GATE_EVERY ) {
+            $gate_read_at = time;
+            $wanted{$_} = _wanted( $root, $_ ) for keys %gated;
         }
-        if ( !$oomd_wanted && ( $child{oomd} || $failed{oomd} || $fails{oomd} ) ) {
-            if ( my $pid = delete $child{oomd} ) {
-                log_event( 'INFO', 'daemon', 'stopping oomd: its gate has closed', pid => $pid );
+        for my $g ( sort keys %gated ) {
+            next if $wanted{$g} || !( $child{$g} || $failed{$g} || $fails{$g} );
+            if ( my $pid = delete $child{$g} ) {
+                log_event( 'INFO', 'daemon', "stopping $g: its gate has closed", pid => $pid );
                 kill 'TERM', $pid;
-                $stopping{oomd} = { pid => $pid, deadline => time + $Lazysite::Daemon::Supervisor::STOP_DEADLINE + 5 };
+                $stopping{$g} = { pid => $pid, deadline => time + $Lazysite::Daemon::Supervisor::STOP_DEADLINE + 5 };
             }
-            delete $failed{oomd};
-            delete $fails{oomd};
-            delete $next_try{oomd};
-            unlink _pid_file( $root, 'oomd' ) unless $stopping{oomd};
-            unlink _state_file( $root, 'oomd' );
+            delete $failed{$g};
+            delete $fails{$g};
+            delete $next_try{$g};
+            unlink _pid_file( $root, $g ) unless $stopping{$g};
+            unlink _state_file( $root, $g );
         }
         for my $n ( keys %stopping ) {
             my $s = $stopping{$n};
@@ -802,7 +834,7 @@ sub run {
         }
 
         # 3. Start what should be running and is not.
-        for my $s ( services( $root, oomd => $oomd_wanted ) ) {
+        for my $s ( services( $root, map { $gated{$_} => $wanted{$_} } keys %gated ) ) {
             my $name = $s->{name};
             next if $child{$name};
             next if $failed{$name};

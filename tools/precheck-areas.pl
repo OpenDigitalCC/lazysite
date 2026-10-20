@@ -45,8 +45,11 @@ my @MAP = (
     [ 'lib/Lazysite/Odoo/'   => qw(t/unit/odoo/) ],
     # SM747: the engine file beside that directory, and the page endpoint.
     [ 'lib/Lazysite/Odoo.pm' => qw(t/unit/odoo/ integration:lazysite-odoo integration:OdooTest) ],
-    [ 'lazysite-odoo.pl'               => qw(t/unit/odoo/ integration:lazysite-odoo) ],
-    [ 'lib/Lazysite/Plugins/'          => qw(t/unit/plugins/ t/unit/odoo/) ],
+    [ 'lazysite-odoo.pl'      => qw(t/unit/odoo/ integration:lazysite-odoo) ],
+    [ 'lib/Lazysite/Plugins/' => qw(t/unit/plugins/ t/unit/odoo/) ],
+    # SM1226: the Odoo endpoint's warm-fork parent, its wire and its service.
+    [ 'lib/Lazysite/WarmFork.pm'       => qw(t/unit/daemon/ integration:WarmFork) ],
+    [ 'lib/Lazysite/WarmFork/'         => qw(t/unit/daemon/ integration:WarmFork) ],
     [ 'lib/Lazysite/'                  => qw(t/unit/lib/) ],
     [ 'plugins/'                       => qw(t/unit/plugins/) ],
     [ 'tools/lazysite-users.pl'        => qw(t/unit/users/) ],

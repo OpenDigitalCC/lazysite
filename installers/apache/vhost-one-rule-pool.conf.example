@@ -20,6 +20,10 @@
 #     wrapper (a signed-in visitor, or a static file on a site that has an
 #     ACL store): one forked process, the same cost those requests already
 #     pay under CGI.
+#   - the Odoo endpoint (SM1226): handed to its warm-fork parent when the
+#     site's lazysited runs one (the Odoo extension enabled), a fresh child
+#     of an already-compiled endpoint per request; otherwise one forked
+#     process, as above. Nothing here changes for it.
 #
 # On a site with an ACL store, SM223 routes static files through the auth
 # wrapper and each one forks. That is the honest limit of this step;

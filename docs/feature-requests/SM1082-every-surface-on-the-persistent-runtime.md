@@ -221,3 +221,4 @@ the release manager's, per site, after T0.
 
 C1 (preload before fork, with the file-scope lint): [[SM1169]]. T0 is [[SM1144]].
 C2's plan and security review: [[SM1181]].
+C3's Odoo endpoint on `warm-fork` (R3; the release manager, 2026-10-20: "D5 - yes"): [[SM1226]].
