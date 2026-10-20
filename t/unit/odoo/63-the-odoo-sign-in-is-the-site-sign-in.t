@@ -11,7 +11,9 @@
 #     are the MAPPED lazysite groups the person holds in Odoo (asked as the person); a page
 #     restricted to a mapped group is served, one restricted to an unmapped group is refused;
 #   * the groups are in the server-side record and NOT in the cookie; a mapping removed, or
-#     an unknown xml id, grants nothing and is named;
+#     an xml id Odoo does not know, grants nothing. SM1217: from OOM 0.37 core.has_groups
+#     answers an unknown id 0, like one not held, so it can no longer be named; status says
+#     so instead of carrying an empty list (t/unit/odoo/90 holds the report and check);
 #   * A MAPPING TO A GROUP THAT CARRIES ANY CAPABILITY IS REFUSED BY NAME - at save and again
 #     at load - so manager rights are never given by an Odoo group;
 #   * two-factor: the site session is minted only after the code;
@@ -66,9 +68,10 @@ grant_caps( $d, 'opsuser', 'api' );
 
 my $PW = 'Quite-a-long-password-for-Jane-1';
 
-# What each person holds in Odoo, by uid; and the groups Odoo knows at all.
-my %HELD  = ( 7 => { 'sales.group_wholesale' => 1, 'base.group_user' => 1, 'sales.group_admin' => 1 } );
-my %KNOWN = map { ( $_ => 1 ) } qw(sales.group_wholesale base.group_user sales.group_admin sales.group_vip);
+# What each person holds in Odoo, by uid. SM1217: OOM 0.37 dropped core.has_groups'
+# ir.model.data check_object_reference call, so this fake no longer answers it: Odoo is
+# asked has_group and nothing else, and an id it has no group for answers 0.
+my %HELD = ( 7 => { 'sales.group_wholesale' => 1, 'base.group_user' => 1, 'sales.group_admin' => 1 } );
 my @ASKED;    # [ uid, xmlid ] for every has_group Odoo answered
 my $person_fake = fake_shop( fake => { methods => {
             'res.users.has_group' => sub {
@@ -76,13 +79,6 @@ my $person_fake = fake_shop( fake => { methods => {
                 my $id = ref $args->[0] eq 'ARRAY' ? $args->[1] : $args->[0];
                 push @ASKED, [ $fk->{caller_uid}, $id ];
                 return $HELD{ $fk->{caller_uid} }{$id} ? 1 : 0;
-            },
-            'ir.model.data.check_object_reference' => sub {
-                my ( $fk, $args ) = @_;
-                my $id = "$args->[0].$args->[1]";
-                return [ 'res.groups', 1 ] if $KNOWN{$id};
-                Odoo::Error->throw( kind => 'fault', fault_class => 'builtins.ValueError',
-                    message => 'External ID not found in the system: ' . $id );
             },
 } } );
 my $http = OdooSessionHTTP->new( fake => $person_fake, people => {
@@ -315,7 +311,7 @@ subtest 'opt-in ON: the Odoo sign-in is the site sign-in, with the mapped groups
     is_deeply( [ sort keys %asked ], [qw(base.group_user no.such_group sales.group_wholesale)],
         'Odoo was asked about exactly the mapped ids (the refused one is never asked)' );
     is_deeply( [ values %asked ], [ (7) x 3 ], 'as the person (uid 7), through her own session' );
-    is_deeply( Lazysite::Odoo::SiteSignin::read_unknown($LZ), ['no.such_group'], 'and the id Odoo does not know is kept to be named' );
+    ok( !-e "$LZ/odoo/unknown-groups.json", 'and no list of unknown ids is written: Odoo answered the unknown one 0' );
 
     # the cookie carries no group
     my $raw = $JAR{lazysite_auth};
@@ -363,11 +359,13 @@ subtest 'opt-in ON: the Odoo sign-in is the site sign-in, with the mapped groups
     close $af;
     like( $audit, qr/\| odoo:jane\@example\.com \| login \|[^\n]*\| ok \| odoo/, 'the audit trail names odoo:<login> as the actor' );
 
-    # status names the refused entry and the unknown id
+    # status names the refused entry, and says an unknown id cannot be named (SM1217)
     my $stt = Lazysite::Odoo::action_odoo_status();
     is( $stt->{site_signin}{enabled}, 1, 'status: on' );
     is( $stt->{site_signin}{refused}[0]{xmlid}, 'sales.group_admin', 'status names the refused mapping' );
-    is_deeply( $stt->{site_signin}{unknown}, ['no.such_group'], 'and the id Odoo does not know' );
+    ok( !exists $stt->{site_signin}{unknown}, 'status carries no list of unknown ids, which would read as "none"' );
+    is( $stt->{site_signin}{unknown_named}, 0, 'it says unknown ids are not named' );
+    like( $stt->{site_signin}{unknown_note} // '', qr/does not know .* not named/, 'and why, in words' );
 };
 
 # ================================================================================

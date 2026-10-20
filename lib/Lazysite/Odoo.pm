@@ -1873,19 +1873,20 @@ sub site_signin_enabled {
     return Lazysite::Odoo::SiteSignin::enabled( _lz() );
 }
 
-# site_groups( session_id ) -> { ok, groups => [lazysite groups], unknown => [xml ids] }
+# site_groups( session_id ) -> { ok, groups => [lazysite groups] }
 #                           or { ok => 0, kind, error[, clear_session] }
 #
 # One question per mapped xml id, asked of Odoo AS THE PERSON: the answer is Odoo's own
 # has_group for the signed-in user, so no administrator right is used and nothing about
-# another user can be learned. An xml id Odoo does not know holds nothing and is kept for
-# status and `lazysite check` to name. With nothing mapped Odoo is not asked.
+# another user can be learned. An xml id Odoo does not know holds nothing; from OOM 0.37
+# it is answered 0 like one not held, and is not named (SM1217, SiteSignin::report says
+# so). With nothing mapped Odoo is not asked.
 sub site_groups {
     my (%a) = @_;
     require Lazysite::Odoo::SiteSignin;
     require Lazysite::Odoo::Session;
     my ($map) = Lazysite::Odoo::SiteSignin::group_map( _lz() );
-    return { ok => 1, groups => [], unknown => [] } unless %$map;
+    return { ok => 1, groups => [] } unless %$map;
     my ($have) = oom_check();
     my ($conn) = $have ? connection() : ();
     return { ok => 0, kind => 'config', error => 'the Odoo connection is not available' } unless $conn;
@@ -1904,9 +1905,7 @@ sub site_groups {
         log_event( 'WARN', 'odoo', 'the person\'s groups could not be read', who => Lazysite::Odoo::Session::session_label( $a{session_id} ) );
         return { ok => 0, kind => 'transport-failure', error => 'Odoo could not be asked which groups the person holds' };
     }
-    my @unknown = ref $report->{unknown} eq 'ARRAY' ? grep { defined && !ref } @{ $report->{unknown} } : ();
-    Lazysite::Odoo::SiteSignin::note_unknown( _lz(), @unknown );
-    return { ok => 1, groups => Lazysite::Odoo::SiteSignin::groups_held( $report->{groups}, $map ), unknown => \@unknown };
+    return { ok => 1, groups => Lazysite::Odoo::SiteSignin::groups_held( $report->{groups}, $map ) };
 }
 
 # site_session_start( $signin_result, $conn, ip =>, user_agent => ) -> ( $cookie ) | () | ( undef, $refusal )
@@ -2105,9 +2104,9 @@ sub action_odoo_status {
      # SM1164 D4: the resident OOM - name, health, version, packs, workers, uptime, and the supervisor's reason when it has given up.
     require Lazysite::Odoo::Daemon;
     $out{daemon} = Lazysite::Odoo::Daemon::status($DOCROOT);
-    # SM1160: the Odoo sign-in as the site sign-in - off, or the map as it loaded,
-    # the entries refused by name, and the xml ids Odoo did not know at the last
-    # sign-in or refresh
+    # SM1160: the Odoo sign-in as the site sign-in - off, or the map as it loaded and
+    # the entries refused by name; SM1217: an xml id Odoo does not know is not named,
+    # and the report says so (unknown_named, unknown_note)
     require Lazysite::Odoo::SiteSignin;
     $out{site_signin} = Lazysite::Odoo::SiteSignin::report( _lz() );
     if ( $have && $conn ) {

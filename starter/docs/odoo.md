@@ -573,7 +573,9 @@ site without it behaves as it always did.
   Odoo is asked, as the person, whether they hold each, at sign-in and again at
   each refresh; the held ones become their site groups, which pages
   (`auth_groups`) and file ACLs read like any other. An id Odoo does not know
-  grants nothing and is named on the Odoo status and by `lazysite check`. A site
+  grants nothing. Odoo answers it as a group the person does not hold, so it is
+  not named anywhere: the Odoo status and `lazysite check` say so, and a
+  mistyped id is found by checking each one against Odoo. A site
   group that carries any capability (the manager, the API, anything on the Groups
   page) is refused by name when the map is saved or loaded: a person who signed in
   through Odoo is never given manager rights.

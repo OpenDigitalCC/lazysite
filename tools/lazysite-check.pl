@@ -3524,21 +3524,18 @@ sub report_odoo_daemon {
 
 # SM1160: on a site that opted in (odoo_site_signin: on) the mapping of Odoo groups to site
 # groups is part of who can see what. Each entry refused (a target that carries a capability, a
-# malformed id or name) is named, and so is each xml id Odoo said it does not know at the last
-# sign-in or refresh: neither grants anything, and both are the operator's to correct. Reads
-# the config and the last answer; makes no call to Odoo.
+# malformed id or name) is named: it grants nothing and is the operator's to correct. An xml id
+# Odoo does not know cannot be named since OOM 0.37 (SM1217), and the line says so rather than
+# reading as "all known". Reads the config; makes no call to Odoo.
 sub report_odoo_site_signin {
     require Lazysite::Odoo::SiteSignin;
     my $r = Lazysite::Odoo::SiteSignin::report($LZ);
     return unless $r->{enabled};
-    report( 'OK', "the Odoo sign-in is the site sign-in; $r->{mapped} Odoo group" . ( $r->{mapped} == 1 ? '' : 's' ) . ' mapped' );
+    report( 'OK', "the Odoo sign-in is the site sign-in; $r->{mapped} Odoo group" . ( $r->{mapped} == 1 ? '' : 's' ) . ' mapped'
+            . ( defined $r->{unknown_note} ? " ($r->{unknown_note})" : '' ) );
     for my $x ( @{ $r->{refused} } ) {
         report( 'WARN', "odoo_group_map: '$x->{xmlid} = $x->{group}' is refused and grants nothing - $x->{why}",
             'correct the entry on the Odoo page; a site group that carries a capability cannot be given by an Odoo group' );
-    }
-    for my $id ( @{ $r->{unknown} } ) {
-        report( 'WARN', "odoo_group_map: Odoo has no group '$id' (named at the last sign-in or refresh), so it grants nothing",
-            'correct the xml id (module.name) on the Odoo page' );
     }
     return;
 }

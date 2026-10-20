@@ -24,8 +24,6 @@ package Lazysite::Odoo::SiteSignin;
 # request's group NAMES, and every capability key is a door of the manager or the API.
 use strict;
 use warnings;
-use JSON::PP       ();
-use Lazysite::Util qw(write_private_atomic);
 
 our $TTL = 900;    # as Lazysite::Odoo::Identity: the identity cookie's default
 
@@ -130,34 +128,16 @@ sub login_ok {
         && $login !~ /[\x00-\x1f\x7f|]/ ? 1 : 0;
 }
 
-# --- xml ids Odoo did not know (core.has_groups' `unknown`) --------------------------
+# --- xml ids Odoo does not know: NOT NAMED (SM1217) -----------------------------------
 #
-# Named for the operator to fix the map; they grant nothing. Kept in a small file the
-# status action and `lazysite check` read, and rewritten by each answer, so a corrected
-# map clears it at the next sign-in.
-sub unknown_file { my ($dir) = @_; return "$dir/odoo/unknown-groups.json" }
-
-sub note_unknown {
-    my ( $dir, @ids ) = @_;
-    my $f   = unknown_file($dir);
-    my %new = map { ( $_ => 1 ) } grep { /$XMLID/ } @ids;
-    my $old = read_unknown($dir);
-    return if join( ',', sort keys %new ) eq join( ',', @$old );
-    return unless -d "$dir/odoo";
-    # SM1183: created 0660, not made under the umask and chmod'ed after the open.
-    write_private_atomic( $f, JSON::PP->new->canonical->encode( { unknown => [ sort keys %new ], at => time } ), 0660 );
-    return;
-}
-
-sub read_unknown {
-    my ($dir) = @_;
-    open my $fh, '<:raw', unknown_file($dir) or return [];
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    my $d = eval { JSON::PP::decode_json( $raw // '' ) };
-    return [] unless ref $d eq 'HASH' && ref $d->{unknown} eq 'ARRAY';
-    return [ sort grep { defined && !ref && /$XMLID/ } @{ $d->{unknown} } ];
-}
+# SM1160 named them from core.has_groups' `unknown` list, kept in odoo/unknown-groups.json.
+# OOM 0.37 (fixes-37 R-1) answers `{ groups => { XMLID => 1|0 } }` only: an id Odoo has
+# no group for answers 0, like a group the person does not hold. No OOM operation tells,
+# as the person, whether a group exists, so lazysite cannot name them. Saying nothing
+# would read as "every id is known", so the report says they are not named, and why. A
+# file an older lazysite wrote is not read: nothing would ever correct it.
+our $UNKNOWN_NOTE = 'an xml id Odoo does not know is answered as not held, so it grants nothing'
+    . ' and is not named here: check each id against Odoo';
 
 # What status and `lazysite check` show about the feature: nothing on a site that has not
 # opted in.
@@ -165,8 +145,8 @@ sub report {
     my ($dir) = @_;
     return { enabled => 0 } unless enabled($dir);
     my ( $map, $refused ) = group_map($dir);
-    return { enabled => 1, mapped => scalar( keys %$map ), refused => $refused, unknown => read_unknown($dir),
-        ttl => identity_ttl($dir) };
+    return { enabled => 1, mapped => scalar( keys %$map ), refused => $refused, unknown_named => 0,
+        unknown_note => $UNKNOWN_NOTE, ttl => identity_ttl($dir) };
 }
 
 1;
