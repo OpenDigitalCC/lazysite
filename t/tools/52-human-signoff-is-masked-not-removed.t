@@ -19,28 +19,61 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Copy qw(move);
+use File::Copy     qw(move copy);
+use File::Path     qw(make_path);
+use File::Basename qw(dirname);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root preserve_tracked);
+use TestHelper qw(repo_root site_tempdir);
 
-my $root = repo_root();
-my $tool = "$root/tools/lazysite-compliance.pl";
-plan skip_all => "no $tool" unless -f $tool;
+my $repo = repo_root();
+plan skip_all => "no $repo/tools/lazysite-compliance.pl"
+    unless -f "$repo/tools/lazysite-compliance.pl";
+plan skip_all => 'no SIGNOFF.md'
+    unless -f "$repo/docs/compliance/SIGNOFF.md";
 
-my $switch = "$root/docs/compliance/SIGNOFF.md";
-plan skip_all => 'no SIGNOFF.md' unless -f $switch;
+# SM1210: THIS TEST NEVER WRITES THE CHECKOUT. Until then it wrote 99.0.0 into
+# the tracked VERSION (and edited SIGNOFF.md) for the length of its run, behind
+# preserve_tracked's lock. Every test that reads VERSION without that lock
+# could see 99.0.0 when run beside it under prove -j. The tool takes its root
+# from its own location (dirname of FindBin::Bin), so a scratch tree holding a
+# copy of the tool and of the few files it reads is a real run of the same code
+# with nothing shared.
+my $scratch = dirname( site_tempdir() );                 # a scratch tree, removed at exit
+my $tool    = "$scratch/tools/lazysite-compliance.pl";
+my $switch  = "$scratch/docs/compliance/SIGNOFF.md";
+
+my @needs = (
+    'tools/lazysite-compliance.pl',
+    'CHANGELOG.md',
+    'docs/releases/CHANGELOG-archive.md',
+    'docs/DECLARATION-OF-CONFORMITY.md',
+    'docs/SECURITY.md',
+    'docs/FEATURES.md',
+    'docs/RELIABILITY.md',
+    'dist/config/bench-baseline.json',
+    'docs/compliance/OBLIGATIONS.md',
+    'docs/compliance/TECHNICAL-FILE.md',
+    'docs/compliance/SIGNOFF.md',
+);
+for my $rel (@needs) {
+    next unless -f "$repo/$rel";
+    make_path( dirname("$scratch/$rel") );
+    copy( "$repo/$rel", "$scratch/$rel" ) or die "copy $rel: $!";
+}
 
 # The findings only appear when a record is BEHIND the version being cut, so the
 # fixture forces that rather than depending on whatever today's VERSION says -
 # a test that only works while the tree happens to be stale would pass by
 # accident and stop testing the moment somebody walked the registers.
-#
-# SM894: both files are TRACKED, and the tool really reads them, so they are
-# edited for real and put back by the one owner of that lifecycle - which
-# also covers a signal, where the END block this used to carry did not.
-my $vf   = "$root/VERSION";
-my $kept = preserve_tracked( $vf, $switch );
+my $vf = "$scratch/VERSION";
+
+sub read_file {
+    my ($path) = @_;
+    open my $fh, '<', $path or die "$path: $!";
+    local $/;
+    return <$fh>;
+}
 
 sub write_file {
     my ( $path, $body ) = @_;
@@ -52,14 +85,14 @@ sub write_file {
 
 sub set_switch {
     my ($value) = @_;
-    my $text = $kept->original($switch);
+    my $text = read_file($switch);
     $text =~ s/^signoff_required:.*$/signoff_required: $value/m;
     write_file( $switch, $text );
     return;
 }
 
 sub run_check {
-    my $out = `cd \Q$root\E && perl \Q$tool\E --check --channel edge 2>&1`;
+    my $out = `cd \Q$scratch\E && perl \Q$tool\E --check --channel edge 2>&1`;
     return ( $? >> 8, $out );
 }
 
@@ -119,5 +152,4 @@ subtest 'the same findings appear either way' => sub {
             . 'decision the release manager can make honestly.' );
 };
 
-$kept->restore;
 done_testing();

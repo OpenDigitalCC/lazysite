@@ -58,6 +58,11 @@ Archive
   is left) as the whole next line, so with every app_* line empty no app_scope or
   app_offline_pages could be saved. A value is read from its own line now, in the check
   and in the other conf readers that had the same shape (content_root, the form conf).
+- SM1210 (PENDING) **internal: a test never writes the tracked VERSION.**
+  t/tools/52 wrote 99.0.0 into the checkout's VERSION for the length of its run, so
+  any test reading VERSION could see it under prove -j. It now works on a scratch
+  tree; t/lint/270 fails any test that writes VERSION, NEXT_VERSION, CHANGELOG.md or
+  MANIFEST of the checkout.
 
 ## 0.15.14 - EDGE: the deploy says what the final check found (2026-10-20)
 
