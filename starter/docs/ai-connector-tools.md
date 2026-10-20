@@ -406,8 +406,9 @@ connector) vs `credential-invalid` (expired/revoked - reconnect).
 also answers with an HTTP status taken from its `kind` (SM670): `forbidden`,
 `permission`, `blocked`, `disabled` 403; `not-found` 404 (an unknown action too);
 `exists`, `in-use`, `confirm` 409; `too-large` 413; `rate` 429; a failure on the
-server 500; `partial` - part of the write happened - 207; `cannot-tell` 503;
-anything else, and a refusal with no kind, 400. The body keeps `ok: false` either
+server 500; `partial` - part of the write happened - 207; `cannot-tell` 503; `unauthenticated` (no sign-in at all) 401, with no
+`WWW-Authenticate` header because the session is a cookie and not an HTTP scheme;
+`not-set-up` (the site has no manager account yet) 503; anything else, and a refusal with no kind, 400. The body keeps `ok: false` either
 way, so a client may key on either. MCP tool results are JSON-RPC and stay 200.
 
 **`cannot-tell` is not a refusal of your account.** It means an auth store the

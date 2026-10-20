@@ -174,7 +174,7 @@ sub audit_names {
 
     for my $act (qw(whoami me me-sessions me-notices)) {
         my ( $st, $b ) = manager( $d, $c, $act );
-        is( $st, 400, "removed: manager $act is refused" );
+        is( $st, 401, "removed: manager $act is refused" );
         like( $b, qr/Authentication required/, "removed: $act - as no identity at all" );
     }
     my ( $st, $b ) = page( $d, $c, '/members' );
@@ -195,11 +195,11 @@ sub audit_names {
     # revocation it wrote would have refused every request after it.
     ( $st, $b ) = manager( $d, $c, 'save', qs => 'action=save&path=/x.md',
         body => encode_json( { content => "# x\n" } ) );
-    is( $st, 400, 'removed: a save is refused' );
+    is( $st, 401, 'removed: a save is refused' );
     ok( !-e "$d/x.md", 'removed: and nothing is written' );
     for my $act (qw(me-notices-seen me-sign-out-everywhere)) {
         ( $st, $b ) = manager( $d, $c, $act, body => '{}' );
-        is( $st, 400, "removed: manager $act (a write) is refused" );
+        is( $st, 401, "removed: manager $act (a write) is refused" );
     }
 
     is( audit_names( $d, 'gone' ), $audit_before, 'removed: the audit trail gains no entry in the removed name' );
@@ -216,7 +216,7 @@ sub audit_names {
     users( $d, 'account-disable', 'gone' );
     for my $act (qw(whoami me me-notices)) {
         my ($st) = manager( $d, $c, $act );
-        is( $st, 400, "disabled: manager $act is refused" );
+        is( $st, 401, "disabled: manager $act is refused" );
     }
     my ( $st, $b ) = page( $d, $c, '/members' );
     is( $st, 302, 'disabled: the members page sends the visitor to sign in' );

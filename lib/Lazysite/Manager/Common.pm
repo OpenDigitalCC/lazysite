@@ -1883,6 +1883,22 @@ our %REFUSAL_STATUS = (
     # file to repair. 503 is "cannot serve this now", which is the truth.
     'cannot-tell' => '503 Service Unavailable',
 
+    # SM1221 (ruled 2026-10-20, "401 for signed-out"): a request with no identity
+    # at all. It answered 400, which says "your request is malformed" about a
+    # well-formed request that only lacked a sign-in, so a client keying on the
+    # status could not tell it from a mistake of its own. 401 is the sign-in
+    # status, and the manager pages already read it (the layout's noteExpiry).
+    # No WWW-Authenticate header: that header names an HTTP authentication
+    # scheme, and the cookie session this answers for is not one - Basic would
+    # make a browser raise its own password prompt over the manager, and a scheme
+    # invented here would be a name no client knows. The body carries the cause.
+    'unauthenticated' => '401 Unauthorized',
+    # The same request on a site that has no manager account at all: nothing
+    # can be signed in to, so 401 would send the caller to a form that cannot
+    # work. The operator must run setup-sysop first - the service is not yet
+    # available, which is what 503 says.
+    'not-set-up' => '503 Service Unavailable',
+
     # SM747: the Odoo extension's kinds (Lazysite::Odoo::fault and its gate).
     # Odoo answering badly is a BAD GATEWAY - the request was fine and the
     # upstream was not - except where Odoo refused this caller's operation

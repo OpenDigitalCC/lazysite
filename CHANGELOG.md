@@ -71,6 +71,11 @@ Archive
   account without it. The check is in the processor, so it holds behind the wrapper, on the
   split templates and in the one-rule pool. `lazysite check` warns while it is on.
 - SM1220 (PENDING) **the Hestia deploy no longer lists four "could not read ... Permission denied" warnings.** They came from install.pl's own health check, which the deploy runs as the site user, who cannot open the web server group's private store. The deploy passes install.pl `--health-check-by-caller`; its final check already runs as root, after the permission pass, and is the one verdict. No group change.
+- SM1221 (PENDING) **a signed-out call to the manager API answers 401, not 400.**
+  A request with no sign-in answered `400 {ok:false, error:"Authentication required"}`, the
+  status for a malformed request. It answers 401 with the same body, now with kind
+  `unauthenticated`, and no `WWW-Authenticate` (the session is a cookie). A site with no
+  manager account yet answers 503 (`not-set-up`) in its own wording: nothing to sign in to.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

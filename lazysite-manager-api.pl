@@ -395,8 +395,11 @@ unless ($token_auth) {
     # function - it is the accurate answer. `local` remains the CLI's identity
     # and is unaffected; it never arrives over HTTP.
     unless ( length $auth_user ) {
+        # SM1221: 401 when there is someone to sign in as, 503 when there is
+        # not (kind -> status in Manager::Common's %REFUSAL_STATUS).
         _bail(
             { ok => 0,
+                kind  => $site_secured ? 'unauthenticated' : 'not-set-up',
                 error => $site_secured
                 ? 'Authentication required'
                 # SM872: this named `setup-manager`, deleted by SM659 with no
