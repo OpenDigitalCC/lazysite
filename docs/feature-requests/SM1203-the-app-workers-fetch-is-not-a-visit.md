@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: the release manager (follow-up to SM1197)
 area: front end
-status-note: "SHIPPED (PENDING) on n692: lazysite-processor/app.pm (refreshPage), lazysite-processor/access-log.pm, plugins/stats.pl, starter/docs/app.md; t/integration/299, t/unit/plugins/50, t/unit/processor/145."
+status-note: "SHIPPED (0.15.13) on n692: lazysite-processor/app.pm (refreshPage), lazysite-processor/access-log.pm, plugins/stats.pl, starter/docs/app.md; t/integration/299, t/unit/plugins/50, t/unit/processor/145."
 ---
 
 # What happened

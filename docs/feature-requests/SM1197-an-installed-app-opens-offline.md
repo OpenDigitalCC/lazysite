@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: inbox/2026-10-19-an-installed-app-cannot-open-offline.md (OOM Lab agent)
 area: front end
-status-note: "SHIPPED (PENDING) on n689: lazysite-processor/app.pm, starter/assets/lazysite-app.js, lib/Lazysite/Manager/Config.pm, starter/manager/config.md, starter/docs/app.md; t/unit/processor/145, t/unit/manager/368."
+status-note: "SHIPPED (0.15.13) on n689: lazysite-processor/app.pm, starter/assets/lazysite-app.js, lib/Lazysite/Manager/Config.pm, starter/manager/config.md, starter/docs/app.md; t/unit/processor/145, t/unit/manager/368."
 ---
 
 # What happened

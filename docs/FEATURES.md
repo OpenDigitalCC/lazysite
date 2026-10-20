@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.12"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.13"
 brand: plain
 ---
 
@@ -2023,6 +2023,12 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.13** (2026-10-20, edge) - **An installed app opens with no
+  connection.** an installed app keeps chosen pages for offline use and an
+  update can wait for the page (SM1197); the app's own page fetch is not
+  counted as a visit (SM1203); a group rule that cannot be read no longer says
+  "sign in" (SM1201); the per-host override list holds only its keys (SM1200);
+  OOM 0.36 vendored, and a rows check that loads no registry (SM1185, SM1198)
 - **0.15.12** (2026-10-20, edge) - **Who a request is, decided once, in the
   worker.** on the one-rule pool templates a signed-in page and the manager API
   run in the pool worker from one identity decision, held as a value, with no

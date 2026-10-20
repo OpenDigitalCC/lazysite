@@ -53,30 +53,32 @@ Archive
 
 ## Unreleased
 
-- SM1204 (PENDING) **internal: a newer OOM on the host does not fail the gate.**
+## 0.15.13 - EDGE: an installed app opens with no connection (2026-10-20)
+
+- SM1204 (51ea6a53) **internal: a newer OOM on the host does not fail the gate.**
   SM1202's t/unit/odoo/78 failed whenever the host's odoo-oom held a model or
   profile the vendored snapshot lacks, so the gate failed the morning OOM 0.37 was
   installed (its helpdesk behaviours and profile), a gate that depends on the host.
   The snapshot is still searched first; a host-only model or profile now fails only
   when a test that reaches OOM names it, and the rest are reported as a TODO.
-- SM1202 (PENDING) **internal: the gate holds that OOM's behaviours and profiles come from
+- SM1202 (aec7322b) **internal: the gate holds that OOM's behaviours and profiles come from
   the snapshot.** OOM cannot be told to leave the host's data directory out of its
   search; t/unit/odoo/78 holds that the host's copy never answers.
-- SM1198 (PENDING) **a request with a list of rows loads no registry.** The
+- SM1198 (bed2da18) **a request with a list of rows loads no registry.** The
   binding's rows check calls OOM 0.36's `Odoo::Ops::Rows->check` (loading only
   `Odoo::Error`, `Odoo::JSON` and `Odoo::Ops`) instead of the operation class's
   `check_rows`, so a call through oomd that feeds a rows parameter no longer loads
   the registry, the service or the client (SM1180's last exception). OOM 0.36's
   failed changes carry no `code` though its note says so; the test records it as a
   TODO. t/unit/odoo/73, 77.
-- SM1185 (PENDING) **internal: lazysite's vendored OOM is 0.36.** The pinned
+- SM1185 (b05717ef) **internal: lazysite's vendored OOM is 0.36.** The pinned
   snapshot in `t/vendor/oom` moves from 0.34 to OOM 0.36 (8e4f2c3). Two things
   in lazysite's tests broke and are fixed: the suite read the host's installed
   packs (OOM's 0.36 `shop` pack claimed `shop.basket` beside the test pack's), so
   the tests now name no pack directory by default; and a fixture pack named with
   a hyphen, which OOM has refused since 0.35 (`crm_page`, `stock.link_stranded`).
   t/unit/odoo/56, 71, 72, t/lint/207, 261, 262.
-- SM1197 (PENDING) **an installed app opens with no connection, and an update can wait
+- SM1197 (7fff7a33) **an installed app opens with no connection, and an update can wait
   for the page.** The generated worker kept the app shell and never a page, so an
   app started with no signal showed the browser's error; the OOM Lab wrote its own
   worker to get round it. `app_offline_pages` names the pages the worker keeps,
@@ -94,13 +96,13 @@ Archive
   warns in the console with the reason when a registration fails or the origin is
   not secure. Docs: the app page says a phone on `http://<lan-ip>:port` never
   registers a worker.
-- SM1201 (PENDING) **access: a group rule that cannot be read does not say sign
+- SM1201 (5595bc7a) **access: a group rule that cannot be read does not say sign
   in.** A bare `auth_groups: staff` was refused to everyone with "You need to sign in
   to view this page", to a signed-in member too. As SM1189 did for addresses, the
   refusal is now the plain sentence "This page is not available.", naming no key and
   no group, and still refused to everyone; a page whose unreadable key is `auth` or
   `payment` keeps its sign-in refusal. `t/integration/298`.
-- SM1203 (PENDING) **the app worker's fetch is not a visit.** SM1197's worker fetches each
+- SM1203 (1814dc7b) **the app worker's fetch is not a visit.** SM1197's worker fetches each
   offline page again behind every view of it, and the visitor log counted that second
   request as a second visit. The worker's keeping fetch now sends `X-Lazysite-App: keep`;
   the recorder puts such a request on its own `app` channel, counted apart as `app_hits`
@@ -108,13 +110,13 @@ Archive
   cached copy. A visitor sending the header only hides their own hit.
   `t/integration/299`, `t/unit/plugins/50`.
 
-- SM1200 (PENDING) **engine: the alias override list holds only its keys.** Three
+- SM1200 (123efd7e) **engine: the alias override list holds only its keys.** Three
   notes written as `#` comments inside the `qw()` of the per-host override whitelist
   were read as keys (ten were accepted by the conf reader, among them `language`,
   `domain` and `own`) and perl warned on every compile. The notes are out of the
   list and `t/unit/processor/146` holds it to its 26 keys (24, and SM1197's two).
 
-- SM1199 (PENDING) **tools: the precheck's job count is settable.** `tools/precheck.sh`
+- SM1199 (d91bf493) **tools: the precheck's job count is settable.** `tools/precheck.sh`
   ran `prove -j8` whatever the host, against the shared-host rule that agents run at
   most `-j2`. `LAZYSITE_PROVE_JOBS=N` or `--jobs N` sets it (the flag wins); neither
   given, it is `-j8` as before, so the release manager's runs and the integration

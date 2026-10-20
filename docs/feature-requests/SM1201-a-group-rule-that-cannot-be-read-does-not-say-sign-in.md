@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: SM1189, "Left open" (from inbox/2026-10-19-test-plan-01510-results.md, finding F-2)
 area: auth
-status-note: "SHIPPED (PENDING) on n690: lazysite-processor/auth.pm (unreadable_rule), starter/lazysite/templates/system/403.md; t/integration/298."
+status-note: "SHIPPED (0.15.13) on n690: lazysite-processor/auth.pm (unreadable_rule), starter/lazysite/templates/system/403.md; t/integration/298."
 ---
 
 # What happened

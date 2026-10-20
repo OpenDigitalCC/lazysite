@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the 0.15.13 release gate, 2026-10-20 (main 316d070ed), after OOM 0.37 was installed on the host at 09:32"
 area: odoo
-status-note: "SHIPPED (PENDING) on n693: t/unit/odoo/78 fails only for a host-only behaviour or profile that a test reaching OOM names; other extras are a TODO naming them. Sabotage: a test naming helpdesk.ticket fails it."
+status-note: "SHIPPED (0.15.13) on n693: t/unit/odoo/78 fails only for a host-only behaviour or profile that a test reaching OOM names; other extras are a TODO naming them. Sabotage: a test naming helpdesk.ticket fails it."
 ---
 
 # What happened

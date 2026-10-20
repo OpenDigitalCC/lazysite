@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: the C2 restack (release manager's agent), 2026-10-19 (perl's own warning on compiling the processor)
 area: engine
-status-note: "SHIPPED (PENDING) on n690: lazysite-processor.pl (%ALIAS_OVERRIDE_KEYS); t/unit/processor/146."
+status-note: "SHIPPED (0.15.13) on n690: lazysite-processor.pl (%ALIAS_OVERRIDE_KEYS); t/unit/processor/146."
 ---
 
 # What happened

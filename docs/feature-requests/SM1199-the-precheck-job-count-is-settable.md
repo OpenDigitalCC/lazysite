@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: the C2 restack (release manager's agent), 2026-10-19
 area: tools
-status-note: "SHIPPED (PENDING) on n690: tools/precheck.sh (--jobs, LAZYSITE_PROVE_JOBS); t/tools/187."
+status-note: "SHIPPED (0.15.13) on n690: tools/precheck.sh (--jobs, LAZYSITE_PROVE_JOBS); t/tools/187."
 ---
 
 # What happened
