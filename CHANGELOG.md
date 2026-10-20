@@ -119,6 +119,11 @@ Archive
   field-practice briefing and its source docs/practice/app-practice.md taught `plugin-list`,
   `plugin-action`, `plugin-read` and `plugin-save`; they name the `extension-*` actions now (the
   old names are still served, audited as deprecated). t/lint/266 scans the briefing too.
+- SM1229 (PENDING) **an address list a binding names is not deleted by accident.** The delete
+  guard read pages, access rules, groups and lazysite.conf but not a session binding's own
+  `signin_addresses` / `signin_addresses_deny`, so such a list could be deleted and the binding
+  then refused every call. The manager and the control API now refuse it, naming each binding
+  (with `force` as before).
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

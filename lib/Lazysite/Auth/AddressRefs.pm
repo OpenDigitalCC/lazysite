@@ -15,13 +15,16 @@ package Lazysite::Auth::AddressRefs;
 #   acls.json entry       fields addresses, addresses_deny (a list of names)
 #   groups-settings.json  fields addresses, addresses_deny (a list of names)
 #   lazysite.conf         manager_addresses, manager_addresses_deny (comma list)
+#                         signin_addresses, signin_addresses_deny
+#   handlers.conf         a type-odoo binding's signin_addresses, signin_addresses_deny
+#                         (SM1229; SM1159 held them on the binding's calls)
 # This module reads the files itself and loads nothing else of the engine's, so it
 # answers the same from the shell, the check and the manager, and does not depend
 # on the slices that enforce the rules being installed.
 #
 # rules($docroot) -> { rules => [ {where, ref, slot, name} ], faults => [ text ] }
-#   where  'page' | 'acl' | 'group' | 'conf'
-#   ref    page path (docroot-relative), acl path, group name, conf key
+#   where  'page' | 'acl' | 'group' | 'conf' | 'binding'
+#   ref    page path (docroot-relative), acl path, group name, conf key, binding id
 #   slot   'allow' | 'deny'
 # A store that exists and will not read or decode is a FAULT, named, never read as
 # "no rules" (SM1024): the caller cannot say a list is unreferenced then.
@@ -98,6 +101,51 @@ sub _conf_names {
     }
     close $fh;
     return %v;
+}
+
+# SM1229: a binding's own sign-in address limit. The records are read straight
+# from lazysite/forms/handlers.conf (this module loads nothing of the engine's).
+# A handler of type odoo carrying signin_addresses / signin_addresses_deny names
+# lists exactly as lazysite.conf's keys do, so deleting one it names would leave a
+# session binding refusing every call (an allow rule naming a deleted list admits
+# nobody, SM1138). Disabled bindings count: they can be switched on again.
+sub _binding_rules {
+    my ( $path, $rules, $faults ) = @_;
+    open my $fh, '<:utf8', $path or do {
+        push @{$faults}, "handlers.conf could not be read ($!)" unless $!{ENOENT};
+        return;
+    };
+    my ( $cur, @recs );
+    while ( my $line = <$fh> ) {
+        $line =~ s/\r?\n\z//;
+        next if $line =~ /\A\s*(?:#|\z)/;
+        if ( $line =~ /\A[ \t]*-[ \t]+id[ \t]*:[ \t]*(\S+)[ \t]*\z/ ) {
+            $cur = { id => $1 };
+            push @recs, $cur;
+            next;
+        }
+        if ( $cur && $line =~ /\A[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*:[ \t]*(.*?)[ \t]*\z/ ) {
+            $cur->{$1} = $2 if length $2;
+            next;
+        }
+        undef $cur if $line =~ /\A\S/;
+    }
+    close $fh;
+    for my $r (@recs) {
+        next unless ( $r->{type} // '' ) eq 'odoo';
+        for my $f (qw(signin_addresses signin_addresses_deny)) {
+            ( my $v = $r->{$f} // '' ) =~ s/\A\[(.*)\]\z/$1/;
+            push @{$rules},
+                {
+                where => 'binding',
+                ref   => $r->{id},
+                slot  => ( $f eq 'signin_addresses' ? 'allow' : 'deny' ),
+                name  => $_
+                }
+                for map { s/\A["']|["']\z//gr } _names( [ split /,/, $v ] );
+        }
+    }
+    return;
 }
 
 sub rules {
@@ -179,6 +227,8 @@ sub rules {
     push @rules, { where => 'conf', ref => 'signin_addresses_deny', slot => 'deny', name => $_ }
         for _names( $conf{signin_addresses_deny} );
 
+    _binding_rules( "$lz/forms/handlers.conf", \@rules, \@faults );
+
     return { rules => \@rules, faults => \@faults };
 }
 
@@ -187,9 +237,9 @@ sub describe {
     my (@r) = @_;
     my %by;
     push @{ $by{ $_->{where} } }, $_->{ref} for @r;
-    my %label = ( page => 'page', acl => 'access rule for', group => 'group', conf => 'lazysite.conf key' );
+    my %label = ( page => 'page', acl => 'access rule for', group => 'group', conf => 'lazysite.conf key', binding => 'Odoo binding' );
     my @out;
-    for my $w (qw(page acl group conf)) {
+    for my $w (qw(page acl group conf binding)) {
         next unless $by{$w};
         my %u;
         my @refs = grep { !$u{$_}++ } sort @{ $by{$w} };

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: inbox/2026-10-17-L2-ip-limits-on-sign-in.md (the OOM agent, at the owner's request)
 area: auth
-status-note: "SHIPPED on n651 (builds on SM1134, SM1138, SM1140): AddressScope::signin_refused, lazysite-auth.pl, lazysite-odoo.pl, Odoo::Binding, Config page; t/unit/auth/67, t/unit/odoo/54. A binding's rule is held on its calls (sign-in names no binding). Open: list-delete guard does not read bindings."
+status-note: "SHIPPED on n651 (builds on SM1134, SM1138, SM1140): AddressScope::signin_refused, lazysite-auth.pl, lazysite-odoo.pl, Odoo::Binding, Config page; t/unit/auth/67, t/unit/odoo/54. A binding's rule is held on its calls (sign-in names no binding). The list-delete guard reads bindings since SM1229."
 ---
 
 # What happened
@@ -47,4 +47,4 @@ The Odoo endpoint's sign-in names no binding (`{signin, login, password, visitor
 # Open
 
 - Two sign-in doors still outside this: lazysite's password reset and claim pages (`forgot`, `claim`), which are not sign-in. Not changed.
-- A binding's own list names live in the handler store, which `Auth::AddressRefs` does not read, so deleting a list a binding names is not yet refused. Filed here rather than widening that module in this branch.
+- A binding's own list names live in the handler store, which `Auth::AddressRefs` did not read, so deleting a list a binding named was not refused. Done in SM1229.
