@@ -53,40 +53,42 @@ Archive
 
 ## Unreleased
 
-- SM1218 (PENDING) **a write that got no answer is reported as not known, not failed.**
+## 0.15.15 - EDGE: the stable candidate: raw pages stay downgraded, and an empty setting is empty (2026-10-20)
+
+- SM1218 (cac60318) **a write that got no answer is reported as not known, not failed.**
   A write whose request was sent and whose answer never came (a read timeout) was
   reported `failed`, though Odoo had done it, and a page told the person to try again.
   It still ends `apply-incomplete`, now with `unknown`, `counts.unknown` and the change's
   outcome `unknown` with OOM's reason; a form is not delivered, and nothing advises a retry.
-- SM1209 (PENDING) **an empty app setting no longer blocks saving the others.** The manager's
+- SM1209 (e01eac0d) **an empty app setting no longer blocks saving the others.** The manager's
   save check read a key whose line was present but empty (`app_scope:`, how a cleared key
   is left) as the whole next line, so with every app_* line empty no app_scope or
   app_offline_pages could be saved. A value is read from its own line now, in the check
   and in the other conf readers that had the same shape (content_root, the form conf).
-- SM1210 (PENDING) **internal: a test never writes the tracked VERSION.**
+- SM1210 (fabd9ac1) **internal: a test never writes the tracked VERSION.**
   t/tools/52 wrote 99.0.0 into the checkout's VERSION for the length of its run, so
   any test reading VERSION could see it under prove -j. It now works on a scratch
   tree; t/lint/270 fails any test that writes VERSION, NEXT_VERSION, CHANGELOG.md or
   MANIFEST of the checkout.
-- SM1211 (PENDING) **installing an app keeps the other apps' operations answering.**
+- SM1211 (4953d8ca) **installing an app keeps the other apps' operations answering.**
   An installer that saved the whole `odoo_packs` list from its own view dropped the
   other apps' namespaces when two installs overlapped, and their operations answered
   "no operation installed". `plugin-save` takes an `add` field that puts a namespace
   into a list setting (`odoo_packs`, `odoo_pack_dirs`) under the lock, keeping the rest.
-- SM1212 (PENDING) **the manager shows the app's page refreshes.** SM1203 counted the
+- SM1212 (04bf7702) **the manager shows the app's page refreshes.** SM1203 counted the
   installed app's own page fetches as `app_hits` in the day rollup and nothing read
   them. The Stats page draws an "App page refreshes" tile, and the window answer
   (`totals`, the control API and MCP `analyse_visitors`) and each month carry
   `app_hits`, summed over the days beside `pageviews`; a site with no app fetches
   gets no new field.
-- SM1213 (PENDING) **security: an empty front-matter key reads as empty, and a raw page
+- SM1213 (a2f36674) **security: an empty front-matter key reads as empty, and a raw page
   serves no HTML type in any spelling.** The page scalar reader's `\s*` ran over the
   newline, so `title:` took the next line and that key was lost. No gated page opened:
   the gate reads each line itself. But the ADR 0006 downgrade read api:/raw: apart from
   the render, so `api:` above `true`, `api: "true"` and a quoted "text/html" were served
   verbatim as text/html. One reading now, in the renderer, the manager and the peek.
-- SM1214 (PENDING) **an apply answers the ids it made and a hold's reason on every path (OOM Lab L-21, L-20).** The Lab reported `created: {}` after an immediate write and a hold's reason missing from an attendance clock's answer; on the engine as it stands neither is so, on any of the four paths (immediate or confirm, in-process or through oomd). New t/unit/odoo/85 holds all four against a create with `ref` and `unique_by` and a hold; the docs say when `created` is empty (a reused record, a custom change that reports nothing). SM1215 is the same finding.
-- SM1217 (PENDING) **an Odoo group id Odoo does not know is not named, and the report says
+- SM1214 (4ed70c1e) **an apply answers the ids it made and a hold's reason on every path (OOM Lab L-21, L-20).** The Lab reported `created: {}` after an immediate write and a hold's reason missing from an attendance clock's answer; on the engine as it stands neither is so, on any of the four paths (immediate or confirm, in-process or through oomd). New t/unit/odoo/85 holds all four against a create with `ref` and `unique_by` and a hold; the docs say when `created` is empty (a reused record, a custom change that reports nothing). SM1215 is the same finding.
+- SM1217 (61e7b58a) **an Odoo group id Odoo does not know is not named, and the report says
   so.** From OOM 0.37 `core.has_groups` answers such an id 0, as for a group the
   person does not hold, and its `unknown` list is gone. The site sign-in's
   unknown-groups report is gone too: `site_groups` writes no
@@ -94,7 +96,7 @@ Archive
   be deleted). The Odoo status (`site_signin.unknown_named: 0`, `unknown_note`) and
   `lazysite check` say such ids are not named, so the missing list does not read as
   "all known". t/unit/odoo/90, 63.
-- SM1216 (PENDING) **internal: lazysite's vendored OOM is 0.38.** The pinned
+- SM1216 (bb4f4115) **internal: lazysite's vendored OOM is 0.38.** The pinned
   snapshot in `t/vendor/oom` moves from 0.36 to OOM 0.38 (8ccf2ae), skipping 0.37.
   The tests now read none of the host's OOM data: `OdooTest` sets `ODOO_OOM_SHARE`
   empty, and t/unit/odoo/78 asserts that the host's directory is not searched.

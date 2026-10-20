@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "release manager, 2026-10-20 (skip OOM 0.37, adopt 0.38); OOM agent, inbox 2026-10-20-oom-0.37-code-share-rows-shop-helpdesk.md"
 area: odoo
-status-note: "SHIPPED (PENDING) on n703: t/vendor/oom is OOM 8ccf2ae (Package 0.38), taken by tools/vendor-oom.sh with both 0.38 debs. OdooTest sets ODOO_OOM_SHARE empty, and t/unit/odoo/78 asserts the host's directory is not searched. t/unit/odoo/77's TODO is now a plain assertion. SM747's spec is re-filed. The has_groups change is SM1217."
+status-note: "SHIPPED (0.15.15) on n703: t/vendor/oom is OOM 8ccf2ae (Package 0.38), taken by tools/vendor-oom.sh with both 0.38 debs. OdooTest sets ODOO_OOM_SHARE empty, and t/unit/odoo/78 asserts the host's directory is not searched. t/unit/odoo/77's TODO is now a plain assertion. SM747's spec is re-filed. The has_groups change is SM1217."
 ---
 
 # What happened

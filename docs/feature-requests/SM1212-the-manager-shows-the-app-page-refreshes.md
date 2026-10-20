@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: the release manager (open item of SM1203)
 area: stats
-status-note: "SHIPPED (PENDING) on n700: plugins/stats.pl (window view, export totals, month rollup), starter/manager/stats.md (App page refreshes tile), starter/docs/ai-briefing-stats.md; t/unit/plugins/51, t/unit/manager/375."
+status-note: "SHIPPED (0.15.15) on n700: plugins/stats.pl (window view, export totals, month rollup), starter/manager/stats.md (App page refreshes tile), starter/docs/ai-briefing-stats.md; t/unit/plugins/51, t/unit/manager/375."
 ---
 
 # What happened

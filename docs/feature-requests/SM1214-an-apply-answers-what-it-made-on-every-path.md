@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "OOM Lab HR apps on Odoo 18, L-21 (timesheet) and L-20 (attendance), inbox 2026-10-19-odoo-extension-findings-from-the-hr-apps.md"
 area: odoo
-status-note: "SHIPPED (PENDING) on n702: no engine change - the answer already carries both on all four paths. t/unit/odoo/85 holds them; docs say when created is empty."
+status-note: "SHIPPED (0.15.15) on n702: no engine change - the answer already carries both on all four paths. t/unit/odoo/85 holds them; docs say when created is empty."
 ---
 
 # What happened

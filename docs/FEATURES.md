@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.14"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.15"
 brand: plain
 ---
 
@@ -2023,6 +2023,13 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.15** (2026-10-20, edge) - **The stable candidate: raw pages stay
+  downgraded, and an empty setting is empty.** an empty front-matter key no
+  longer reads the next line and a quoted or next-line api/raw/content_type no
+  longer serves a raw page as text/html (SM1213); an empty app setting no
+  longer blocks the others (SM1209); installing an app keeps the others
+  answering (SM1211); a write with no answer is "not known" (SM1218); OOM 0.38
+  (SM1216, SM1217); the Stats page shows app page refreshes (SM1212)
 - **0.15.14** (2026-10-20, edge) - **The deploy says what the final check
   found.** a Hestia deploy no longer reports the install-time health check as a
   finding when its own repair then makes the site pass (SM1205); vendoring OOM

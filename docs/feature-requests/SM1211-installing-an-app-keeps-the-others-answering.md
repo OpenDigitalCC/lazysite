@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: the OOM Lab, oom-pick FINDINGS.md L-4
 area: odoo
-status-note: "SHIPPED (PENDING) on n699: plugin-save `add` merges into a list setting under the lock. t/unit/odoo/80. The restart window itself answers in-process, not 404 (verified)."
+status-note: "SHIPPED (0.15.15) on n699: plugin-save `add` merges into a list setting under the lock. t/unit/odoo/80. The restart window itself answers in-process, not 404 (verified)."
 ---
 
 # What was asked

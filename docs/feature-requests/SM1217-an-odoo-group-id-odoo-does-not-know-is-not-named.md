@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "release manager, 2026-10-20 (the OOM 0.38 adoption, item 2); t/unit/odoo/63 on the 0.38 snapshot"
 area: odoo
-status-note: "SHIPPED (PENDING) on n703: site_groups no longer reads or writes odoo/unknown-groups.json. The status's site_signin carries unknown_named 0 and a sentence saying why, and so does lazysite check's line. An older file is not read. t/unit/odoo/90, 63. Sabotage: the old SiteSignin fails 90."
+status-note: "SHIPPED (0.15.15) on n703: site_groups no longer reads or writes odoo/unknown-groups.json. The status's site_signin carries unknown_named 0 and a sentence saying why, and so does lazysite check's line. An older file is not read. t/unit/odoo/90, 63. Sabotage: the old SiteSignin fails 90."
 ---
 
 # What happened

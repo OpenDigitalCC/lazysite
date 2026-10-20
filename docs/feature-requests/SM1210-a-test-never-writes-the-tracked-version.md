@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "SM1208 (the nightly's t/tools/29 failure), which locked one reader and left the cause"
 area: tests
-status-note: "SHIPPED (PENDING) on n698: t/tools/52 runs the compliance tool in a copied scratch tree; the checkout is never written. New t/lint/270 fails any test writing a tracked VERSION/CHANGELOG.md/MANIFEST; it fails on the old 52."
+status-note: "SHIPPED (0.15.15) on n698: t/tools/52 runs the compliance tool in a copied scratch tree; the checkout is never written. New t/lint/270 fails any test writing a tracked VERSION/CHANGELOG.md/MANIFEST; it fails on the old 52."
 ---
 
 # What happened

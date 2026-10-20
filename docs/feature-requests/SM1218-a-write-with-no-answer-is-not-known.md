@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the 0.15.11 edge walk (row Z7, finding G-1), and OOM's note of 2026-10-20"
 area: odoo
-status-note: "SHIPPED (PENDING) on n704: apply-incomplete carries unknown, counts.unknown and per-change outcome unknown with OOM's reason, in process and through oomd; a form is not delivered. t/unit/odoo/91, 92."
+status-note: "SHIPPED (0.15.15) on n704: apply-incomplete carries unknown, counts.unknown and per-change outcome unknown with OOM's reason, in process and through oomd; a form is not delivered. t/unit/odoo/91, 92."
 ---
 
 # What happened

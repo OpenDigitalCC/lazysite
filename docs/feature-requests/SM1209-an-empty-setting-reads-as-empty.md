@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the 0.15.13 edge walk, finding H-1 (inbox 2026-10-20-test-plan-01513-results.md): X1 FAIL, X2-X5 blocked"
 area: manager
-status-note: "SHIPPED (PENDING) on n697: Lazysite::Util::conf_text_value keeps a value on its line (last non-empty wins, as the engine reads it); config-set's checks, the content_root list and the form conf readers use a same-line separator. Tests 369, 370."
+status-note: "SHIPPED (0.15.15) on n697: Lazysite::Util::conf_text_value keeps a value on its line (last non-empty wins, as the engine reads it); config-set's checks, the content_root list and the form conf readers use a same-line separator. Tests 369, 370."
 ---
 
 # What happened

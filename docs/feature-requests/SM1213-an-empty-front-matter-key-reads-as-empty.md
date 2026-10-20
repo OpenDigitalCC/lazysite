@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "SM1209's audit (n697): the page front-matter scalar reader at lazysite-processor/front-matter.pm:382 and lib/Lazysite/Manager/Common.pm:1129 and :2289"
 area: security
-status-note: "SHIPPED (PENDING) on n701: an empty page front-matter key no longer takes the key line below it (renderer, page_form, raw_html_page_refusal); an indented continuation still does. No gated page opened. The ADR 0006 downgrade now reads api:/raw: as the render does: `api:` above `true`, `api: \"true\"` and a quoted \"text/html\" were served verbatim as text/html."
+status-note: "SHIPPED (0.15.15) on n701: an empty page front-matter key no longer takes the key line below it (renderer, page_form, raw_html_page_refusal); an indented continuation still does. No gated page opened. The ADR 0006 downgrade now reads api:/raw: as the render does: `api:` above `true`, `api: \"true\"` and a quoted \"text/html\" were served verbatim as text/html."
 ---
 
 # What happened
