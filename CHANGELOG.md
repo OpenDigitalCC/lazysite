@@ -94,6 +94,12 @@ Archive
   an undeclared key keeps 1,000. A JSON body over 64 KB names its binding in the query and is
   held to that binding's budget (20 MB at most), so a declared large value is not refused
   by the body cap first.
+- SM1225 (PENDING) **a report is a download.** A binding with `answer: download` is answered to
+  a GET with the document its report holds (OOM `core.report` with `inline=1`) instead of base64
+  in JSON: OOM's content type, a safe file name, `Content-Length`, `Cache-Control: private,
+  no-store`, and a size cap (`download_max_kb`, default 10 MB) over which it is refused, never
+  cut short. The binding's gate, callers, rate caps and both paths (in-process, oomd) are the
+  call's own; a binding without the option answers JSON as before.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

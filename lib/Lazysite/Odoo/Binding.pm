@@ -36,6 +36,7 @@ package Lazysite::Odoo::Binding;
 # otherwise be a security property nobody wrote down.
 use strict;
 use warnings;
+use Lazysite::Odoo::Download ();
 
 our @MODES = qw(scheduled authenticated public);
 
@@ -310,6 +311,37 @@ sub parse {
         $b{file_types} = \@ft;
     }
 
+    # SM1225: how a READ is answered to a GET. `json` (the default) is the report
+    # in a JSON answer; `download` is the document the report holds, as the response
+    # itself. The cap on it and whether a browser shows it or saves it are the
+    # binding's too.
+    my $ans = lc( $h->{answer} // '' );
+    $ans = 'json' unless length $ans;
+    return ( undef, "answer must be json or download (got '$ans')", 'answer' ) unless $ans =~ /\A(?:json|download)\z/;
+    $b{answer} = $ans;
+    my $dk = $h->{download_max_kb};
+    my $dd = lc( $h->{download_disposition} // '' );
+    if ( $ans eq 'download' ) {
+        if ( defined $dk && length $dk ) {
+            return ( undef, 'download_max_kb must be a whole number of at least 1', 'download_max_kb' )
+                unless $dk =~ /\A[1-9][0-9]{0,8}\z/;
+            return ( undef, "download_max_kb $dk is above the endpoint's ceiling of $Lazysite::Odoo::Download::CEILING_KB KB",
+                'download_max_kb' )
+                if $dk > $Lazysite::Odoo::Download::CEILING_KB;
+            $b{download_max_kb} = 0 + $dk;
+        }
+        if ( length $dd ) {
+            return ( undef, "download_disposition must be attachment or inline (got '$dd')", 'download_disposition' )
+                unless $dd =~ /\A(?:attachment|inline)\z/;
+            $b{download_disposition} = $dd;
+        }
+        return ( undef, 'a download is a GET of one person\'s document; a scheduled run has no one to give it to', 'modes' )
+            if $modes{scheduled};
+    }
+    elsif ( ( defined $dk && length $dk ) || length $dd ) {
+        return ( undef, 'download_max_kb and download_disposition belong to a binding with answer: download', 'answer' );
+    }
+
     # SM1173 (OOM Lab L-14): the caps. What the binding says stands, above or
     # below the default, for a read as for a write (no ceiling). What it leaves
     # out is the default for WHAT IT DOES - decided at the call, where the
@@ -340,6 +372,8 @@ sub parse {
 # when it is made rather than at a visitor's request (SM807).
 sub check_against {
     my ( $b, $class ) = @_;
+    return "$b->{operation} writes; answer: download is the document a READ returns (a report), answered to a GET"
+        if ( $b->{answer} // '' ) eq 'download' && $class->writes;
     my $spec = $class->params || {};
     for my $p ( sort( values %{ $b->{params} } ), sort( keys %{ $b->{fixed} } ), sort( values %{ $b->{file_params} || {} } ),
         ( length $b->{visitor_param} ? $b->{visitor_param} : () ) )

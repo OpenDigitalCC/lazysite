@@ -13,7 +13,8 @@
 #                                and, for a signed-in account, the session one;
 #                                for a person signed in to Odoo, who they are
 #                                (the display name - SM1145)
-#   GET  ?binding=ID&field=v...  run a READ binding
+#   GET  ?binding=ID&field=v...  run a READ binding (a binding with answer: download
+#                                is answered with the document itself, SM1225)
 #   POST {binding, params}       run a binding (a write plans, or applies when
 #                                the binding says immediate)
 #   POST {plan, confirm: true}   apply a plan this caller made
@@ -328,7 +329,9 @@ sub main {
         return reply( '405 Method Not Allowed',
             { ok => 0, kind => 'method', error => 'this binding changes data - send it as a POST with its token' } )
             if _writes($b);
-        return _answer( _timed( sub { Lazysite::Odoo::call( $b, $q, _ctx( $b, %who ), strict => 1 ) } ), \%who );
+        my $res = _timed( sub { Lazysite::Odoo::call( $b, $q, _ctx( $b, %who ), strict => 1 ) } );
+        return _download( $b, $res, \%who ) if ( $b->{answer} // '' ) eq 'download';
+        return _answer( $res, \%who );
     }
 
     if ($files) {    # SM1162: the checks of a call are _post_one's, unchanged
@@ -417,6 +420,9 @@ sub _post_one {
     my ( $b, $why ) = Lazysite::Odoo::find_binding( $req->{binding} );
     return _refusal_pair( { ok => 0, kind => 'not-found', error => $why } ) unless $b;
     if ( my $r = _address_refusal($b) ) { return _refusal_pair($r) }
+    return ( '405 Method Not Allowed',
+        { ok => 0, kind => 'method', error => 'this binding answers a download - GET it' } )
+        if ( $b->{answer} // '' ) eq 'download';
     my %ctx = _ctx( $b, %$who );
 
     # SM1168 (OOM Lab, session mode): a binding that runs as the person signed in
@@ -618,6 +624,28 @@ sub _csrf_pair {
             error => ( $ctx->{mode} eq 'public' && !$ctx->{visitor_key} )
             ? 'no visitor key on this request - fetch tokens from ?csrf=1 first'
             : 'missing or stale token - fetch fresh ones from ?csrf=1 and retry' } );
+}
+
+# SM1225: a binding with `answer: download` is answered with the document its call
+# returned. A refusal of the call (gate, rate, sign-in, Odoo's) is the JSON refusal it
+# always was; only a success becomes the document, or a JSON refusal if it is not
+# one (more or fewer than one, or over download_max_kb).
+sub _download {
+    my ( $b, $r, $who ) = @_;
+    my ( $status, $data ) = _settle( $r, $who );
+    return reply( $status, $data ) unless $r->{ok};
+    require Lazysite::Odoo::Download;
+    my $d = Lazysite::Odoo::Download::response( $b, $r );
+    return refuse($d) unless $d->{ok};
+    binmode STDOUT;
+    print "Status: 200 OK\r\n";
+    my $tm = Lazysite::Timing::header_line();
+    print "$tm\r\n" if length $tm;
+    print "$_\r\n" for @EXTRA;
+    print "$_\r\n" for @{ $d->{headers} };
+    print "\r\n";
+    print $d->{body};
+    return 0;
 }
 
 sub _answer {

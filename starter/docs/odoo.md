@@ -201,6 +201,47 @@ says what a request may set and who may cause it:
   that the bytes contradict (a PDF sent as `image/jpeg`) is refused with or without
   `file_types`. Empty: any type, and the operation is told what the bytes are.
 
+`answer`
+: `json` (the default) or **`download`**. With `download`, a `GET` of the binding is
+  answered with **the document itself**, not the report in JSON: a report
+  (`core.report` with `inline=1`, OOM 0.32 and later) fixed to `format: pdf` and
+  one record, say, is the PDF. Without it the report comes back as base64 inside
+  a JSON answer, which is fine for a small file and wasteful for a large one (a payslip
+  of 31 KB is about 42 KB of text; a quotation with images is more). The binding is a
+  read: saving one on an operation that writes is refused, and so is one that is
+  scheduled. Everything before the answer is the call's own and unchanged: the mode
+  and callers (or the session and its sign-in-first answer, or the visitor key), the
+  address rules, the rate caps, the call record and the audit. A refusal of any of
+  them is the JSON refusal it always was, with its status. It is the same through
+  the daemon and in-process.
+
+  The response carries `Content-Type` as OOM reported the document's `mimetype`
+  (anything that is not a `type/subtype` name becomes `application/octet-stream`),
+  `Content-Disposition` with a safe file name, `Content-Length`,
+  `Cache-Control: private, no-store` (it is one person's document),
+  `X-Content-Type-Options: nosniff` and a sandboxing `Content-Security-Policy`. The
+  file name is the last part of the name OOM gave, cut to ASCII letters, digits,
+  `.`, `_`, `-` and space, at most 100 characters; a quote, a semicolon, a
+  slash, a line break or a control character cannot reach the header. The operation
+  must return exactly one document; any other answer is `invalid`. A `POST` of a
+  download binding is refused `405 method`: it is fetched, not posted. A page
+  links to it (`<a href="/cgi-bin/lazysite-odoo.pl?binding=payslip&id=12">`), so the
+  browser sends its cookies and the same rules decide who gets it.
+
+`download_max_kb`
+: Only with `answer: download`. The largest document the binding sends, in KB.
+  Default **10240** (10 MB, which is also OOM's own `max_inline_bytes`); at most
+  **20480**. A document over it is **refused**, `413 too-large`, with a JSON answer
+  that names the size and the cap - never cut short. Odoo itself and OOM's
+  `max_inline_bytes` (and, through the daemon, its `max_response_bytes`) can refuse
+  a large document before this check does.
+
+`download_disposition`
+: Only with `answer: download`. `attachment` (the default) makes the browser save
+  the file; `inline` makes it show a PDF, an image or plain text. Html is always sent
+  as an attachment, whatever is set, since a page of Odoo's own markup must not run
+  on this site's address.
+
 `fixed`
 : `parameter=value`, comma separated. Set by the operator; nothing a request
   sends overrides one. A `json` or `list` parameter can only be fixed (a
@@ -774,9 +815,10 @@ never returned. The kinds a caller meets most:
 | `signin-refused`, `signin-required` | 401 | the password was refused, or the sign-in (or its pending code step) has ended: sign in again |
 | `second-factor` | 401 | Odoo did not accept the code; the person may try again |
 | `invalid` | 400 | a parameter is unmapped, of the wrong type, or missing; for a file, of a type the binding does not accept, a name that is not a plain name, or too many files |
-| `too-large` | 413 | a multipart request is larger than the binding's `file_max_kb` allows (refused before its body is read), or one file is over the cap; or a JSON body is over 64 KB (or the budget a declared rows `max` gives its binding) |
+| `too-large` | 413 | a multipart request is larger than the binding's `file_max_kb` allows (refused before its body is read), or one file is over the cap; or a JSON body is over 64 KB (or the budget a declared rows `max` gives its binding); or a download over `download_max_kb` |
 | `refused` | 400 | OOM refused it before Odoo answered; with an `Idempotency-Key`, that the key was used for a different request, or its plan was withdrawn |
 | `rate` | 429 | a rate cap is reached |
+| `method` | 405 | a `POST` to a binding with `answer: download`, or a `GET` of one that writes |
 | `not-found` | 404 | no such binding, or no such plan for this caller |
 | `stale`, `edited`, `applied` | 409 | the plan no longer fits Odoo, or was already applied |
 | `expired` | 410 | the plan is older than an hour |

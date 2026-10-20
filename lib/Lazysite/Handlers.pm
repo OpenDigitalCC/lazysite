@@ -324,6 +324,18 @@ our %TYPES      = (
             { key => 'rows_max', label => 'Cap: rows in a list a request gives', type => 'number',
                 note => 'Optional. A parameter the operation declares as a list of rows has a cap '
                     . 'of its own; this can only lower it, for this binding.' },
+            # SM1225: a report answered as the document itself.
+            { key => 'answer', label => 'How a read is answered', type => 'text', default => 'json',
+                note => 'json: the report in a JSON answer. download: the document the report '
+                    . 'holds (a core.report with inline=1) is the response to a GET, with its '
+                    . 'content type, a safe file name, its length and no-store. The same '
+                    . 'access rules apply. Reads only.' },
+            { key => 'download_max_kb', label => 'Download: largest document (KB)', type => 'number',
+                note => 'Only with answer: download. Default 10240, at most 20480. A larger '
+                    . 'document is refused with a clear error, never cut short.' },
+            { key => 'download_disposition', label => 'Download: save or show', type => 'text',
+                note => 'Only with answer: download. attachment (the default) saves the file; '
+                    . 'inline shows a pdf, image or plain text in the browser. Html is always saved.' },
             # SM1162: a binding that takes a file from a multipart request.
             { key => 'file_params', label => 'Files from the request', type => 'text',
                 max_len => 4000,
