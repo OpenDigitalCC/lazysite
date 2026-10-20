@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1205 (PENDING) **the Hestia deploy reports the final check's verdict.** install.pl's
+  health check runs before the deploy's permission pass and repair; its exit 4 was
+  printed as a `WARN:` and the batch updater listed it, cut to its first line, on
+  every site whose final check then passed. It is a progress line now; a failure the
+  repair leaves is still exit 5 and named.
+
 ## 0.15.13 - EDGE: an installed app opens with no connection (2026-10-20)
 
 - SM1204 (51ea6a53) **internal: a newer OOM on the host does not fail the gate.**

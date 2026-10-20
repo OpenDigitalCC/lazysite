@@ -134,8 +134,12 @@ elif [ "$IRC" = 4 ]; then
   # serviceable, and stopping here left it half-configured. The verdict is the
   # final check's, on the tree as it then is: exit 5 if it still fails.
   INSTALL_UNSERVICEABLE=1
-  echo "WARN: install.pl installed the release and its health check named a failure (exit 4);"
-  echo "      continuing, so the permission pass and the repair below still run."
+  # SM1205: A PROGRESS LINE, NOT A FINDING. install.pl's check ran BEFORE the
+  # permission pass and the repair, so its 4 is not this deploy's verdict; the
+  # batch updater's findings report keys on lines that begin WARN, and reported
+  # this one (cut to its first line) on every site whose final check then passed.
+  # One line, no level marker; the final check below says what became of it.
+  echo "==> install.pl's own health check named a failure before the permission pass and the repair (exit 4); the final check below decides"
 elif [ "$IRC" != 0 ]; then
   echo "ERROR: install failed (exit $IRC)" >&2
   exit "$IRC"
@@ -361,5 +365,5 @@ if [ "$CHK" != 0 ]; then
   exit 5
 fi
 if [ "${INSTALL_UNSERVICEABLE:-0}" = 1 ]; then
-  echo "  the install's health check failure was cleared by the permission pass and the repair"
+  echo "==> the install-time health check failure was cleared by the permission pass and the repair; the final check passes"
 fi
