@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1234 (PENDING) **release: the 0.15.15 stable candidate is promoted to beta.** Its
+  walk on edge found nothing material (V1-V9 PASS, 2026-10-20), so its code ships
+  unchanged on the beta channel as this version (PATH-TO-STABLE step 4). No code
+  change.
+
 ## 0.15.15 - EDGE: the stable candidate: raw pages stay downgraded, and an empty setting is empty (2026-10-20)
 
 - SM1218 (cac60318) **a write that got no answer is reported as not known, not failed.**
