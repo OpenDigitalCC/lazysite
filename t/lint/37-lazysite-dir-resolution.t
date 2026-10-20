@@ -301,6 +301,11 @@ subtest 'no shipped shell builds the engine dir behind its resolver' => sub {
         # The package staging directory the .deb is built from, not a site.
         'tools/build-deb.sh' => [qr{SRC="\$STAGE/lazysite"}],
 
+        # SM1233: the container's own layout, not a site's choice - compose.yaml
+        # mounts the settings volume at html/lazysite, so the engine dir is there
+        # by construction, before install.pl has written anything to resolve.
+        'installers/docker/entrypoint.sh' => [qr{^STATE=\$DOCROOT/lazysite/\.install-state\.json$}],
+
         # A cache clear that must not descend into a tree left inside the
         # docroot; a migrated site has none there, so it excludes nothing.
         'tools/build-static.sh' => [qr{! -path "\*/lazysite/\*"}],
