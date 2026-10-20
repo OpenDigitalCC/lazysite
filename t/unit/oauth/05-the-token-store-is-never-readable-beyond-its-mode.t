@@ -98,7 +98,7 @@ for my $m ( 0600, 0660 ) {
 for my $rel (
     'lib/Lazysite/Auth/OAuth.pm',      'lib/Lazysite/Manager/Users.pm',
     'lib/Lazysite/Manager/Sessions.pm', 'lib/Lazysite/Auth/Session.pm',
-    'lib/Lazysite/Odoo/SiteSignin.pm', 'lib/Lazysite/Manager/AccountImport.pm',
+    'lib/Lazysite/Manager/AccountImport.pm',
     'lib/Lazysite/Manager/Preview.pm',  'lib/Lazysite/Manager/Plugins.pm',
     ) {
     open my $fh, '<', "$root/$rel" or die "$rel: $!";
@@ -109,6 +109,17 @@ for my $rel (
         "$rel does not open a secret with the umask's mode and chmod it afterwards" )
         unless $rel =~ /Plugins/;    # other, non-secret writes live there
 }
+# SM1217 (OOM 0.38): Lazysite::Odoo::SiteSignin no longer writes a file at all - its
+# only writer was the unknown-groups report, which OOM's has_groups no longer feeds.
+# Held stronger than the list above: it opens nothing for writing, so a writer that
+# comes back must come back through the helper and onto that list.
+{
+    open my $fh, '<', "$root/lib/Lazysite/Odoo/SiteSignin.pm" or die $!;
+    my $src = do { local $/; <$fh> };
+    close $fh;
+    unlike( $src, qr{open\s*\(?\s*my\s+\$\w+\s*,\s*['"](?:\+?>|>>)}, 'SiteSignin.pm opens no file for writing' );
+}
+
 # --- the header says what the code does ------------------------------------
 {
     open my $fh, '<', "$root/lib/Lazysite/Auth/OAuth.pm" or die $!;
