@@ -228,6 +228,15 @@ says what a request may set and who may cause it:
   for example `created: {"sale.order": [42]}`. A page can open the new record
   from it without reading it back. Records the plan deleted are not listed.
 
+  Every path that answers a write gives the same: immediate or confirm, in this
+  process or through the daemon. A `create` change puts its id in `created`
+  whatever its other keys (`ref`, `unique_by`); a change that finds the record
+  already there (`skipped`, reason "already exists ... reused") makes nothing,
+  so `created` is empty and the change's own `id` in `result.changes` names the
+  record. A `custom` change is listed in `created` or `written` only when its
+  handler says so (it returns `reported => 'create'` or `'write'`); its `id` is
+  in `result.changes` either way.
+
   `result.changes` says what became of each change, in plan order: `seq`,
   `bucket`, `action`, `model`, `id` (the record, when there is one), `outcome`
   (`done`, `skipped`, `held` or `failed`), `reason` for a held or skipped

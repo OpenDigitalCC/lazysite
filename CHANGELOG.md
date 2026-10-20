@@ -80,6 +80,7 @@ Archive
   the gate reads each line itself. But the ADR 0006 downgrade read api:/raw: apart from
   the render, so `api:` above `true`, `api: "true"` and a quoted "text/html" were served
   verbatim as text/html. One reading now, in the renderer, the manager and the peek.
+- SM1214 (PENDING) **an apply answers the ids it made and a hold's reason on every path (OOM Lab L-21, L-20).** The Lab reported `created: {}` after an immediate write and a hold's reason missing from an attendance clock's answer; on the engine as it stands neither is so, on any of the four paths (immediate or confirm, in-process or through oomd). New t/unit/odoo/85 holds all four against a create with `ref` and `unique_by` and a hold; the docs say when `created` is empty (a reused record, a custom change that reports nothing). SM1215 is the same finding.
 
 ## 0.15.14 - EDGE: the deploy says what the final check found (2026-10-20)
 
