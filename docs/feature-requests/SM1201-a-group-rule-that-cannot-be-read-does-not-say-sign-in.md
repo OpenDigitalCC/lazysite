@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: SM1189, "Left open" (from inbox/2026-10-19-test-plan-01510-results.md, finding F-2)
 area: auth
-status-note: "SHIPPED (PENDING) on n690: lazysite-processor/auth.pm (unreadable_rule), starter/lazysite/templates/system/403.md; t/integration/290."
+status-note: "SHIPPED (PENDING) on n690: lazysite-processor/auth.pm (unreadable_rule), starter/lazysite/templates/system/403.md; t/integration/298."
 ---
 
 # What happened
@@ -44,6 +44,6 @@ which cannot help." `auth_groups: staff` did exactly that.
 - The validator's message already tells the author how to write it: "has the value
   'staff', which could not be read as a list - write it as a list: auth_groups:
   [editors], or one "- editors" line per group below it" (SM1189); unchanged.
-- `t/integration/290` runs the processor on a bare `auth_groups` (alone, and with
+- `t/integration/298` runs the processor on a bare `auth_groups` (alone, and with
   an address rule), with the shipped 403 page and with an old site copy, and holds
   the controls.

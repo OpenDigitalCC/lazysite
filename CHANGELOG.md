@@ -93,7 +93,7 @@ Archive
   to view this page", to a signed-in member too. As SM1189 did for addresses, the
   refusal is now the plain sentence "This page is not available.", naming no key and
   no group, and still refused to everyone; a page whose unreadable key is `auth` or
-  `payment` keeps its sign-in refusal. `t/integration/290`.
+  `payment` keeps its sign-in refusal. `t/integration/298`.
 - SM1203 (PENDING) **the app worker's fetch is not a visit.** SM1197's worker fetches each
   offline page again behind every view of it, and the visitor log counted that second
   request as a second visit. The worker's keeping fetch now sends `X-Lazysite-App: keep`;
