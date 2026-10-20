@@ -110,8 +110,12 @@ else
 fi
 
 echo "==> install.pl --mode $MODE (as $U)"
+# SM1220 (#356): install.pl's own health check is left out (--health-check-by-caller). As
+# $U it cannot read the web server group's private store, so every deploy carried
+# four "could not read ... Permission denied" warnings; the final check below runs
+# as root, after the permission pass, and is the deploy's one verdict.
 set +e
-sudo -u "$U" perl "$STAGE/install.pl" --mode "$MODE" --docroot "$DOC" --cgibin "$CGI"
+sudo -u "$U" perl "$STAGE/install.pl" --mode "$MODE" --docroot "$DOC" --cgibin "$CGI" --health-check-by-caller
 IRC=$?
 set -e
 # Exit 3 = the install was skipped by the site's update-channel policy (this site

@@ -70,6 +70,7 @@ Archive
   refused and not stored, and MCP, the control API, WebDAV and the data endpoint answer 503 to an
   account without it. The check is in the processor, so it holds behind the wrapper, on the
   split templates and in the one-rule pool. `lazysite check` warns while it is on.
+- SM1220 (PENDING) **the Hestia deploy no longer lists four "could not read ... Permission denied" warnings.** They came from install.pl's own health check, which the deploy runs as the site user, who cannot open the web server group's private store. The deploy passes install.pl `--health-check-by-caller`; its final check already runs as root, after the permission pass, and is the one verdict. No group change.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

@@ -160,6 +160,11 @@ Maintenance modes:
                       needs (forgot, logout, assets, .well-known). Remembered in
                       the install state, so a later upgrade does not ship them
                       either. Has no effect on a site that already has them.
+  --health-check-by-caller
+                      Do not run the health check at the end: the caller runs it. The
+                      Hestia deploy passes this and runs the check as root after its
+                      permission pass, where the web server group's private store
+                      is readable. The report says the check was not run.
   --serving-group G   The group the web server runs as. The install ends by
                       running the health check, which compares the tree against
                       this group; it defaults to www-data where that group
@@ -229,6 +234,8 @@ Getopt::Long::GetOptions(
     'serving-group=s' => \$opt{serving_group},
     # SM939 E2 / R15: no starter content. See $NO_STARTER.
     'no-starter' => \$opt{no_starter},
+    # SM1220: the caller runs the health check itself (the Hestia deploy, as root).
+    'health-check-by-caller' => \$opt{health_check_by_caller},
 ) or do {
     print {*STDERR} "install.pl: unknown option (run --help for the option list)\n";
     exit 2;
@@ -2696,6 +2703,13 @@ sub run_health_check {
     my ($o) = @_;
     my $tool = "$STAGE_DIR/tools/lazysite-check.pl";
 
+    # SM1220: the caller said it runs the check. Said in words, so that "not run"
+    # and "healthy" do not read alike.
+    if ( $o->{health_check_by_caller} ) {
+        print STDERR "Health check: not run here (--health-check-by-caller); the caller runs it.\n\n";
+        return 0;
+    }
+
     # An older payload, or a partial tree, may not carry the tool. Absence is
     # reported rather than passed over: "no health check was run" and "the site
     # is healthy" must never read the same way.
@@ -2839,6 +2853,13 @@ Is the code B<installed> at C<--docroot>/C<--cgibin> actually this payload's
 version? The deploy-gap detector: it compares what is on disk against the
 release manifest and reports the difference, exiting non-zero when they
 disagree. Needs both C<--docroot> and C<--cgibin>; changes nothing.
+
+=item B<--health-check-by-caller>
+
+Do not run the health check at the end of the install; the caller runs it. The
+Hestia deploy passes this and runs the check as root once its permission pass is
+done, because the check run as the site user cannot read the web server group's
+private store. The report says the check was not run.
 
 =item B<--channel-check>
 
