@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.13"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.14"
 brand: plain
 ---
 
@@ -2023,6 +2023,11 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.14** (2026-10-20, edge) - **The deploy says what the final check
+  found.** a Hestia deploy no longer reports the install-time health check as a
+  finding when its own repair then makes the site pass (SM1205); vendoring OOM
+  leaves the snapshot group-writable (SM1206); a pack's custom change through
+  oomd is held by a test (SM1207); the fleet test no longer races (SM1208)
 - **0.15.13** (2026-10-20, edge) - **An installed app opens with no
   connection.** an installed app keeps chosen pages for offline use and an
   update can wait for the page (SM1197); the app's own page fetch is not

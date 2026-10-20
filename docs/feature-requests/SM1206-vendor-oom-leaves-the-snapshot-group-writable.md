@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the release manager, after vendoring OOM 0.36 on 2026-10-19"
 area: tools
-status-note: "SHIPPED (PENDING) on n694: tools/vendor-oom.sh runs under umask 002 and sets directories 0775 and files 0664 (setgid kept from the parent). t/tools/188 runs it under umask 022 into a setgid scratch parent."
+status-note: "SHIPPED (0.15.14) on n694: tools/vendor-oom.sh runs under umask 002 and sets directories 0775 and files 0664 (setgid kept from the parent). t/tools/188 runs it under umask 022 into a setgid scratch parent."
 ---
 
 # What happened

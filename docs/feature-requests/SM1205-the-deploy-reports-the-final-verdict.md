@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the release manager, reading the 0.15.13 edge rollout's findings list"
 area: installers
-status-note: "SHIPPED (PENDING) on n694: the deploy's interim exit-4 line is one progress line with no level marker, so the updater's findings filter no longer keeps it; exit 5 still names a failure the repair left. t/tools/189."
+status-note: "SHIPPED (0.15.14) on n694: the deploy's interim exit-4 line is one progress line with no level marker, so the updater's findings filter no longer keeps it; exit 5 still names a failure the repair left. t/tools/189."
 ---
 
 # What happened

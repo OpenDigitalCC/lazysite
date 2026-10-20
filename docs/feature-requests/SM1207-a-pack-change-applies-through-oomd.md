@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the OOM Lab, oom-pick FINDINGS.md L-1 (apps/oom-pick, Validate.pm _teach_the_runner)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n695: verified, no code change. oomd starts with ODOO_OPS_NAMESPACES from odoo_packs and pack_dirs in its config, so its Runner finds the class. t/unit/odoo/79 applies a pack custom change through oomd."
+status-note: "SHIPPED (0.15.14) on n695: verified, no code change. oomd starts with ODOO_OPS_NAMESPACES from odoo_packs and pack_dirs in its config, so its Runner finds the class. t/unit/odoo/79 applies a pack custom change through oomd."
 ---
 
 # What was asked
