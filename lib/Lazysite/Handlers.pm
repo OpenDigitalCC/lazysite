@@ -1816,7 +1816,7 @@ sub _to_odoo {
         my $c = ( ref $r->{result} eq 'HASH' && ref $r->{result}{counts} eq 'HASH' ) ? $r->{result}{counts} : {};
         return { ok => 1,
             note => 'the change was applied in Odoo, and its checks afterwards reported apply-incomplete - see the Odoo call record' }
-            if ( $c->{done} // 0 ) > 0 && !( $c->{failed} // 0 ) && !( $c->{not_attempted} // 0 );
+            if ( $c->{done} // 0 ) > 0 && !( $c->{failed} // 0 ) && !( $c->{unknown} // 0 ) && !( $c->{not_attempted} // 0 );
     }
     return { ok => 0, why => 'the Odoo operation did not complete: ' . ( $r->{error} // $r->{kind} // 'failed' ) };
 }

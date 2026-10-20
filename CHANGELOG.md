@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1218 (PENDING) **a write that got no answer is reported as not known, not failed.**
+  A write whose request was sent and whose answer never came (a read timeout) was
+  reported `failed`, though Odoo had done it, and a page told the person to try again.
+  It still ends `apply-incomplete`, now with `unknown`, `counts.unknown` and the change's
+  outcome `unknown` with OOM's reason; a form is not delivered, and nothing advises a retry.
 - SM1209 (PENDING) **an empty app setting no longer blocks saving the others.** The manager's
   save check read a key whose line was present but empty (`app_scope:`, how a cleared key
   is left) as the whole next line, so with every app_* line empty no app_scope or

@@ -353,6 +353,9 @@ my %REFUSED_KIND = (
 # it in text, never markup.
 our $USAGE_TEXT_MAX = 300;
 
+# SM1218: what an apply says when a change was sent and no answer came (see _add_unknown).
+our $UNKNOWN_ANSWER = 'the plan may not have applied completely: a change was sent to Odoo and no answer came, so it is not known whether Odoo made it - read it back in Odoo before repeating it';
+
 sub _usage_text {
     my ($t) = @_;
     return undef unless defined $t && !ref $t;
@@ -1461,8 +1464,19 @@ sub _finish {
     record_call( %$rec, phase => $phase, outcome => 'answered', ms => $ms,
         ( defined $LAST_VIA ? ( via => $LAST_VIA ) : () ),
         ( $res->{ok} ? () : ( kind => 'apply-incomplete' ) ) );
-    $res->{error} = 'the plan did not apply completely - see the counts' unless $res->{ok};
-    $res->{kind}  = 'apply-incomplete' unless $res->{ok};
+    unless ( $res->{ok} ) {
+        # SM1218: a change whose request was sent and whose answer never came is not
+        # known to have failed. Same kind (a page that checks ok or kind still
+        # refuses it), but `unknown` says how many, and the sentence does not
+        # suggest the change did not happen.
+        my $u = ref $res->{result} eq 'HASH' && ref $res->{result}{counts} eq 'HASH' ? $res->{result}{counts}{unknown} : 0;
+        if ($u) {
+            $res->{unknown} = $u + 0;
+            $res->{error}   = $UNKNOWN_ANSWER;
+        }
+        else { $res->{error} = 'the plan did not apply completely - see the counts' }
+        $res->{kind} = 'apply-incomplete';
+    }
     return $res;
 }
 
@@ -1491,6 +1505,7 @@ sub _result_summary {
     my %out = map { ( $_ => $h->{$_} ) } qw(total counts by_bucket verified stopped_by created written);
     $out{changes} = _applied_changes( $h->{journal} );
     _add_failures( $out{changes}, $h->{failed_changes} );
+    _add_unknown( $out{changes}, $h->{unknown_changes} );
     return \%out;
 }
 
@@ -1522,6 +1537,38 @@ sub _add_failures {
         my $m = _usage_text( $f->{message} );
         $c->{message}  = defined $m ? $m : $WITHHELD;
         $c->{withheld} = 1 unless defined $m;
+    }
+    return;
+}
+
+# SM1218 (OOM 0.38; edge walk 0.15.11 G-1: "a write that timed out is reported as
+# failed, though Odoo did it"). OOM answers a write whose request was sent and
+# whose answer never came as UNKNOWN: `counts.unknown` and `unknown_changes`, each
+# with key, message and a `reason`. The change's entry in `changes` has outcome
+# `unknown` (SM1171) and gains `key`, `code`, `message` (through _usage_text, the
+# same withholding as a failure's) and `reason` (OOM's own sentence), and
+# `unknown => 1`. The reason says "Odoo may have made this change"; a page reads it
+# back before it does anything again, and is never told to try again.
+
+sub _add_unknown {
+    my ( $changes, $unknown ) = @_;
+    return unless ref $unknown eq 'ARRAY' && ref $changes eq 'ARRAY';
+    for my $f (@$unknown) {
+        next unless ref $f eq 'HASH';
+        my ($c) = grep { defined $f->{seq} && ( $_->{seq} // '' ) eq $f->{seq} } @$changes;
+        unless ($c) {
+            $c = { map { ( $_ => $f->{$_} ) } grep { defined $f->{$_} } qw(seq action model id) };
+            push @$changes, $c;
+        }
+        $c->{outcome} = 'unknown';
+        $c->{unknown} = 1;
+        $c->{key}     = $f->{key}  if defined $f->{key}  && !ref $f->{key};
+        $c->{code}    = $f->{code} if defined $f->{code} && !ref $f->{code};
+        my $m = _usage_text( $f->{message} );
+        $c->{message}  = $m if defined $m;
+        $c->{withheld} = 1 unless defined $m;
+        my $r = _usage_text( $f->{reason} );
+        $c->{reason} = defined $r ? $r : 'the request was sent and no answer came; Odoo may have made this change';
     }
     return;
 }

@@ -256,6 +256,25 @@ says what a request may set and who may cause it:
   entry then says `withheld: 1` with a plain sentence in its place. The changes
   that did apply beside it stay `done`.
 
+  A change whose request was sent and whose answer never came (a read timeout, a
+  connection closed after sending) is **not known**, which is not the same as
+  failed: Odoo may have made it. Such an apply still ends `apply-incomplete`
+  (status 207; `ok` is 0, so a page that checks `ok` or `kind` refuses it as
+  before), and it says so three ways. The answer carries `unknown: N`;
+  `result.counts.unknown` is the number; and each such change's entry has
+  `outcome: "unknown"`, `unknown: 1`, `key`, `message` (the transport's, cleaned
+  as a failure's is) and `reason` (OOM's sentence: the request was sent and no
+  answer came; Odoo may have made this change). `error` reads that it is not known
+  whether Odoo made the change. A run with no such change carries none of these.
+  The same on the in-process path and through `oomd`, for a confirmed plan and an
+  immediate apply. A form bound to the binding is not counted delivered. What a
+  page does: say that the outcome is not known, and read the record back in Odoo
+  (a read binding for it) before anything is sent again; a write that is not safe
+  to repeat is done twice by a retry. A page never offers "try again" on `unknown`.
+  The answer is `apply-incomplete` with a flag, not a new kind, so no page that
+  already handles `apply-incomplete` changes; one that wants the difference reads
+  `unknown`.
+
 `rate_per_visitor_hour`, `rate_per_hour`
 : The rate caps. **The default depends on what the binding does** - see
   *Rate caps: reads and writes* below. Leave them out to take the default.
