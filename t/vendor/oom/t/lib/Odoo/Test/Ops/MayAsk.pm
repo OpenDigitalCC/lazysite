@@ -16,7 +16,7 @@ sub pack    ($class) { undef }
 sub params  ($class) { { models => { type => 'list', required => 1, help => 'physical models' }, groups => { type => 'list', help => 'group xml ids' } } }
 
 sub read_scope ($class) {
-    my %s = ( 'res.users' => ['has_group'], 'ir.model.data' => ['check_object_reference'] );
+    my %s = ( 'res.users' => ['has_group'] );
     push @{ $s{$_} }, 'check_access_rights', 'has_access' for qw(res.partner ir.cron ir.model res.users res.partner.category);
     return \%s;
 }

@@ -17,8 +17,12 @@ effects:
     evidence: source 16.0 mailing.action_put_in_queue, ir_cron_data.xml; live 2026-10-15 (cron interval 1 day)
   - on: call
     method: action_send_mail
-    effect: makes one mailing.trace and one outgoing mail.mail per remaining recipient; a recipient opted out of every list it is on, on the blacklist, or a second contact with an address already mailed gets a trace in state cancel (mail_optout, mail_bl, mail_dup) and no mail; state ends done. The mails wait for the mail queue cron (hourly) unless it is pushed
-    evidence: source 16.0 mailing.action_send_mail, mass_mailing mail_compose_message._get_optout_emails; live 2026-10-15 (t/85)
+    effect: makes one mailing.trace and one outgoing mail.mail per remaining recipient; a recipient opted out of every list it is on, on the blacklist, or a second contact with an address already mailed gets a trace in state cancel (mail_optout, mail_bl, mail_dup) and a mail.mail in state cancel, none of them sent (the trace keeps its mail_mail_id); state ends done, whatever remains of the recipients given. The mails wait for the mail queue cron (hourly) unless it is pushed
+    evidence: "source 16.0 mailing.action_send_mail, mass_mailing mail_compose_message._get_optout_emails; live 2026-10-15 (t/85); the cancelled mail.mail rows read live 2026-10-20 on demo16 and demo18 (a probe: opted-out, blacklisted and repeated addresses)"
+  - on: call
+    method: action_send_mail
+    effect: "called with res_ids it sends exactly those recipients (the contacts given, whatever the mailing's domain), makes their traces and mails, and ends the mailing done even when others remain; without res_ids it sends the remaining recipients, the domain's contacts that have no trace of the mailing. A mailing sent in chunks is therefore done between them. The mass-mailing queue job (_process_mass_mailing_queue) searches in_queue and sending mailings only, so it does not take a done one; the mail queue cron sends mail.mail rows that exist, and the recipients not yet given have none"
+    evidence: "source 16.0 mass_mailing/models/mailing.py lines 1045-1075 (action_send_mail), 992 (_get_remaining_recipients), 1108 (_process_mass_mailing_queue); live 2026-10-20 (t/143-mail38-live.t on demo16: chunks of 10, 10 and 5, with the queue job and the mail queue run between them)"
   - on: call
     method: action_cancel
     effect: state back to draft, schedule_type now, schedule_date cleared; traces already made stay

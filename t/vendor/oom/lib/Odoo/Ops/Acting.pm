@@ -161,14 +161,21 @@ sub person ($class, $ctx) {
     $pid = $pid->[0] if ref $pid eq 'ARRAY';
     die $class->_no_person('the user has no partner') if !$pid || $pid !~ /\A[1-9]\d*\z/ || !defined $login || !length $login;
 
-    my $p = eval {
-        $ctx->guard->with_scope( { 'res.partner' => ['read'] }, 'person.verify',
-            sub { $client->model('res.partner')->read_one( $pid, ['commercial_partner_id'] ) } );
-    };
-    die $class->_person_error($@) if $@;
-    my $cp = ref $p eq 'HASH' ? $p->{commercial_partner_id} : undef;
-    $cp = $cp->[0] if ref $cp eq 'ARRAY';
-    die $class->_no_person('the user cannot read their own partner') if !$cp || $cp !~ /\A[1-9]\d*\z/;
+    # a session's identity is remembered by oomd for cache_ttl_session seconds (Odoo::Ops::Service); the commercial partner Odoo
+    # answered for it goes with it, so the next request of the same session does not ask again. It is Odoo's answer, as read
+    # for this very session, never a parameter; a session Odoo no longer accepts is forgotten by the daemon.
+    my $cp = ref $id eq 'HASH' && ( $id->{uid} // 0 ) == $uid && ( $id->{partner_id_of_commercial} // 0 ) == $pid ? $id->{commercial_partner_id} : undef;
+    if ( !defined $cp || $cp !~ /\A[1-9]\d*\z/ ) {
+        my $p = eval {
+            $ctx->guard->with_scope( { 'res.partner' => ['read'] }, 'person.verify',
+                sub { $client->model('res.partner')->read_one( $pid, ['commercial_partner_id'] ) } );
+        };
+        die $class->_person_error($@) if $@;
+        $cp = ref $p eq 'HASH' ? $p->{commercial_partner_id} : undef;
+        $cp = $cp->[0] if ref $cp eq 'ARRAY';
+        die $class->_no_person('the user cannot read their own partner') if !$cp || $cp !~ /\A[1-9]\d*\z/;
+        @$id{qw(commercial_partner_id partner_id_of_commercial)} = ( 0 + $cp, 0 + $pid ) if ref $id eq 'HASH' && ( $id->{uid} // 0 ) == $uid;
+    }
 
     return $act->{person} = { uid => 0 + $uid, login => "$login", name => $name, partner_id => 0 + $pid, commercial_partner_id => 0 + $cp };
 }
@@ -336,13 +343,14 @@ sub plan_stamp ($class, $op) {
     return { %$p, via => $src->{via} };
 }
 
-=head2 own($op, model =E<gt> M, ids =E<gt> [...], field =E<gt> F)
+=head2 own($op, model =E<gt> M, ids =E<gt> [...], field =E<gt> F, fields =E<gt> [...])
 
 Reads the records through the service client and returns their ids when every record's C<field> (a
 many2one to C<res.partner>) is the person's partner or commercial partner. Otherwise dies
 C<refused/not-yours> naming the model and the ids that failed. A record that is not there fails the same
 way: the refusal says nothing about another customer, and nothing about whether the record exists. The
-operation declares C<read> of the model in its C<read_scope>.
+operation declares C<read> of the model in its C<read_scope>. C<fields> names more fields to read in the same call; the rows
+are then kept in C<< $op-E<gt>{own_rows}{MODEL}{ID} >> for the pack that has just proved them the person's.
 
 =cut
 
@@ -363,13 +371,16 @@ sub own ($class, $op, %a) {
     my $svc    = $class->service($ctx);
     my %mine   = ( $person->{partner_id} => 1, $person->{commercial_partner_id} => 1 );
     my %got;
-    my $rows = eval { $svc->client->model($model)->read( \@ids, [ $a{field} ] ) };
+    # fields: more to read in the same call, kept on the operation as $op->{own_rows}{model}{id} for the caller that needs the rows
+    # it has just proved the person's, so it does not read them again
+    my @more = ref $a{fields} eq 'ARRAY' ? grep { $_ ne $a{field} } @{ $a{fields} } : ();
+    my $rows = eval { $svc->client->model($model)->read( \@ids, [ $a{field}, @more ] ) };
     if ( my $e = $@ ) {
         # a record that is not there reads as not yours
         die $e if !( blessed($e) && $e->isa('Odoo::Error') && $e->is_missing );
         $rows = [];
         for my $id (@ids) {
-            my $one = eval { $svc->client->model($model)->read( [$id], [ $a{field} ] ) };
+            my $one = eval { $svc->client->model($model)->read( [$id], [ $a{field}, @more ] ) };
             die $@ if $@ && !( blessed($@) && $@->isa('Odoo::Error') && $@->is_missing );
             push @$rows, @{ $one // [] };
         }
@@ -380,6 +391,8 @@ sub own ($class, $op, %a) {
         $got{ $r->{id} } = 1 if defined $v && !ref $v && $v =~ /\A\d+\z/ && $mine{$v};
     }
     my @no = grep { !$got{$_} } @ids;
+    # kept only when the person's: a refused read keeps nothing
+    if ( @more && !@no ) { $op->{own_rows}{$model}{ $_->{id} } = $_ for @{ $rows // [] } }
     Odoo::Error->throw(
         kind    => 'refused',
         code    => 'not-yours',

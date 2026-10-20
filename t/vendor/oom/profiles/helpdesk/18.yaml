@@ -1,0 +1,171 @@
+# Helpdesk pack, Odoo 18: the OCA helpdesk_mgmt tickets, with helpdesk_mgmt_sla and
+# helpdesk_mgmt_stage_validation. Read profiles/helpdesk/16.yaml for the comments on
+# each name. Read from the OCA/helpdesk 18.0 source (2026-10-19) and proved live on
+# demo18 (docs/MAPPER-SPEC.md section 9, helpdesk rows; t/130-helpdesk-live.t).
+#
+# What 18 does differently from 16, as this file states it:
+#   - a str body of message_post is escaped unless body_is_html is true
+#   - the SLA is a row per ticket and rule (helpdesk.ticket.sla): `ticket_sla` below,
+#     and the ticket's sla_deadline and sla_expired are computed from those rows
+#   - the ticket has `notes` (internal notes), and partner_name and partner_email are
+#     plain fields that nothing fills from the partner
+#   - teams and categories have a parent; a category has show_in_portal and no default team
+#   - a new ticket belongs to its creator unless user_id is sent false, so a customer's
+#     new ticket sends it (raise_user: none), as the module's own portal form does
+pack: helpdesk
+series: 18
+module: helpdesk_mgmt
+actions:
+  post: message_post
+  post_html_flag: body_is_html
+  comment_subtype: mail.mt_comment
+  note_subtype: mail.mt_note
+  channel_web: helpdesk_mgmt.helpdesk_ticket_channel_web
+  raise_user: none
+  stage_reset_on_team: 0
+models:
+  ticket:
+    model: helpdesk.ticket
+    fields:
+      number: number
+      title: name
+      description: description
+      partner: partner_id
+      commercial_partner: commercial_partner_id
+      partner_name: partner_name
+      partner_email: partner_email
+      team: team_id
+      user: user_id
+      stage: stage_id
+      category: category_id
+      tags: tag_ids
+      channel: channel_id
+      priority: priority
+      company: company_id
+      active: active
+      closed: closed
+      unattended: unattended
+      closed_date: closed_date
+      assigned_date: assigned_date
+      last_stage_update: last_stage_update
+      created: create_date
+      kanban_state: kanban_state
+      notes: notes
+      sla_deadline: { name: sla_deadline, module: helpdesk_mgmt_sla }
+      sla_expired: { name: sla_expired, module: helpdesk_mgmt_sla }
+      sla_rows: { name: ticket_sla_ids, module: helpdesk_mgmt_sla }
+  team:
+    model: helpdesk.ticket.team
+    fields:
+      name: name
+      active: active
+      members: user_ids
+      leader: user_id
+      categories: category_ids
+      company: company_id
+      show_in_portal: show_in_portal
+      alias: alias_name
+      open_count: todo_ticket_count
+      parent: parent_id
+      complete_name: complete_name
+      use_sla: { name: use_sla, module: helpdesk_mgmt_sla }
+      calendar: { name: resource_calendar_id, module: helpdesk_mgmt_sla }
+  stage:
+    model: helpdesk.ticket.stage
+    fields:
+      name: name
+      active: active
+      sequence: sequence
+      closed: closed
+      unattended: unattended
+      fold: fold
+      close_from_portal: close_from_portal
+      template: mail_template_id
+      teams: team_ids
+      company: company_id
+      validate: { name: validate_field_ids, module: helpdesk_mgmt_stage_validation }
+  category:
+    model: helpdesk.ticket.category
+    fields:
+      name: name
+      active: active
+      sequence: sequence
+      company: company_id
+      default_team: ~
+      parent: parent_id
+      complete_name: complete_name
+      show_in_portal: show_in_portal
+  tag:
+    model: helpdesk.ticket.tag
+    fields:
+      name: name
+      active: active
+      color: color
+  channel:
+    model: helpdesk.ticket.channel
+    fields:
+      name: name
+      active: active
+  sla:
+    model: helpdesk.sla
+    module: helpdesk_mgmt_sla
+    fields:
+      name: name
+      active: active
+      teams: team_ids
+      categories: category_ids
+      tags: tag_ids
+      stages: ~
+      stage: stage_id
+      ignore_stages: ignore_stage_ids
+      days: days
+      hours: hours
+      domain: domain
+  ticket_sla:
+    model: helpdesk.ticket.sla
+    module: helpdesk_mgmt_sla
+    fields:
+      ticket: ticket_id
+      sla: sla_id
+      name: name
+      state: state
+      deadline: deadline
+      hours: hours
+      consumed: consumed_time
+      expected_stage: expected_stage_id
+      expired: expired
+  partner:
+    model: res.partner
+    fields:
+      name: name
+      email: email
+      parent: parent_id
+      commercial_partner: commercial_partner_id
+  user:
+    model: res.users
+    fields:
+      name: name
+      login: login
+      partner: partner_id
+      active: active
+  message:
+    model: mail.message
+    fields:
+      model: model
+      res_id: res_id
+      author: author_id
+      date: date
+      body: body
+      type: message_type
+      subtype: subtype_id
+      attachments: attachment_ids
+      partners: partner_ids
+  attachment:
+    model: ir.attachment
+    fields:
+      name: name
+      res_model: res_model
+      res_id: res_id
+      datas: datas
+      mimetype: mimetype
+      size: file_size

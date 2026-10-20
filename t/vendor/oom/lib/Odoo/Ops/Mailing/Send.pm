@@ -38,6 +38,11 @@ by name, a send that should not go:
 "Would be mailed" is worked out as Odoo's send does it (distinct
 addresses, subscribed to some list, not blacklisted); Odoo's own
 C<expected> is 0 on a draft and its C<total> counts opted-out and blacklisted contacts.
+A mailing with its own domain (one region of its lists, see
+C<mailing.create>) is counted over the contacts that domain gives, so
+C<over-max> and the plan note are about that part and not the whole of
+its lists; a domain OOM cannot read leaves the count over the lists and
+the plan says so.
 
 The plan is one C<custom> change (kind C<send>) with the state and the
 C<total> read at planning as its before-image, so a mailing edited, or
@@ -76,10 +81,34 @@ was left). The change fails only when Odoo refuses the send itself
 (C<action_send_mail>, or C<action_put_in_queue> without C<now>); any other
 fault of the push is also the change's.
 
+B<chunk.> With C<chunk=N> the plan sends the next N of the mailing's
+remaining recipients now and leaves the rest, for a caller that keeps under
+a mail server's hourly limit. Who remains is what Odoo's own
+C<_get_remaining_recipients> gives (it is private, so it is worked out the
+same way): the contacts the mailing's domain gives, less those with a trace
+of this mailing. The N are the first by contact id. The plan names the count
+of the chunk and how many remain before and after; apply passes exactly those
+contacts to C<action_send_mail(res_ids)> (public on 16 and 18), reads the new
+traces back and reports C<traces_made>, C<traces_by_status> and C<remaining>.
+A chunk is sent from a draft, or from a done mailing that still has
+recipients (C<not-draft> otherwise). Odoo sets the mailing C<done> after every
+send, whatever remains, and the mass-mailing queue job takes mailings in
+C<in_queue> and C<sending> only (C<_process_mass_mailing_queue>,
+C<mass_mailing.ir_cron_mass_mailing_queue>), so a chunked mailing is never
+picked up by it: nothing but the next chunk sends the rest. A mailing already
+C<in_queue> or C<sending> is refused C<queued>, because the job would race
+the chunk. Other refusals: C<nothing-remaining>, C<ab-testing> (Odoo picks a
+random share of an A/B test's recipients), C<unreadable-domain> (a
+domain OOM cannot read), C<over-max> (the chunk is over C<max>), and a plan
+applied after its contacts were given traces is C<stale>. Chunks of more than
+Odoo's C<mail.mail.force.send.limit> (18; default 100) are left C<outgoing>
+by Odoo for the mail queue cron, and the apply pushes them as C<now> does.
+Without C<chunk> the operation behaves as before.
+
 A send cannot be taken back (a mail that left is gone), so a revert
 holds it.
 
-Series: written for Odoo 16; another series is refused by name until its
+Series: Odoo 16 and 18; another series is refused by name until its
 profile is probed.
 
 =cut
@@ -99,13 +128,15 @@ sub holds ($class) { [] }
 sub params ($class) {
     {   mailing      => { type => 'int',  required => 1, help => 'the mailing id' },
         now          => { type => 'bool', default => 0, help => 'send in this apply, not at Odoo\'s next queue run' },
-        max          => { type => 'int',  default => 500, help => 'refuse to send to more recipients than this' },
+        max          => { type => 'int',  default => 500, help => 'refuse to send to more recipients than this (with chunk, than the chunk)' },
+        chunk        => { type => 'int',  help => 'send the next N of the mailing\'s remaining recipients now, and leave the rest; the mailing is a draft, or done with recipients left' },
     };
 }
 sub read_scope ($class) {
     {   mailing      => [qw(read)],
         subscription => ['search_read'],
         contact      => ['search_read'],
+        trace        => ['search_read'],
         cron         => ['read'],
         'ir.model.data' => ['search_read'],
     };
@@ -125,7 +156,7 @@ sub plan ($self) {
     my $f = sub ($lf) { $p->field( mailing => $lf ) };
     my $id = $self->param('mailing');
     # total is a computed field: refused to this user it is left out of the before-image, not a fault
-    my ( $mrows, $info ) = Odoo::Ops::Mailing::Common::read_named( $self, 'mailing', [$id], [ map { $f->($_) } qw(subject state lists model_real total updated) ],
+    my ( $mrows, $info ) = Odoo::Ops::Mailing::Common::read_named( $self, 'mailing', [$id], [ map { $f->($_) } qw(subject state lists model_real total updated domain) ],
         required => [ map { $f->($_) } qw(subject state lists model_real updated) ] );
     my $m = $mrows->[0]
         or Odoo::Error->throw( kind => 'refused', code => 'unknown-mailing', message => "mailing.send: no mailing $id",
@@ -133,13 +164,18 @@ sub plan ($self) {
     my $state = $m->{ $f->('state') };
     Odoo::Error->throw( kind => 'refused', code => 'not-draft',
         message => "mailing $id is $state, not draft: only a draft is sent (mailing.cancel returns a queued one to draft)" )
-        if $state ne 'draft';
+        if $state ne 'draft' && !defined $self->param('chunk');
     Odoo::Error->throw( kind => 'refused', code => 'not-a-list-mailing',
         message => "mailing $id is to " . $m->{ $f->('model_real') } . ', not to mailing lists; mailing.send does lists only' )
         if $m->{ $f->('model_real') } ne $p->model_name('contact');
 
+    return $self->_plan_chunk( $p, $id, $m, $info ) if defined $self->param('chunk');
     my @lists = @{ $m->{ $f->('lists') } // [] };
-    my $aud = Odoo::Ops::Mailing::Common::audience( $self, \@lists );
+    # a mailing to one region of its lists mails the contacts its own domain gives, not every contact of the lists
+    my $dom_text = Odoo::Ops::Mailing::Common::text( $m->{ $f->('domain') } );
+    my $filtered = length $dom_text && !Odoo::Ops::Mailing::Common::same_domain( $dom_text, Odoo::Ops::Mailing::Common::list_domain( $self, \@lists ) );
+    my $parsed   = $filtered ? Odoo::Ops::Mailing::Common::parse_domain($dom_text) : undef;
+    my $aud = Odoo::Ops::Mailing::Common::audience( $self, \@lists, ( $parsed ? ( domain => $parsed ) : () ) );
     Odoo::Error->throw( kind => 'refused', code => 'no-recipients',
         message => "mailing $id has no one to mail: $aud->{subscriptions} subscription(s) on its lists, $aud->{opted_out} address(es) opted out, $aud->{blacklisted} blacklisted, $aud->{no_email} contact(s) without an address" )
         if !$aud->{reachable};
@@ -149,6 +185,8 @@ sub plan ($self) {
 
     my $plan = $self->new_plan( input_count => 1 );
     $plan->note("mailing $id ('$m->{ $f->('subject') }') to $aud->{reachable} address(es): $aud->{subscriptions} subscription(s), $aud->{opted_out} opted out, $aud->{blacklisted} blacklisted, $aud->{no_email} without an address");
+    $plan->note("the mailing has its own domain, $dom_text: the counts are of the contacts it gives, not of every contact of its lists") if $parsed;
+    $plan->note("the mailing has its own domain, $dom_text, which OOM cannot read: the counts above are of every contact of its lists, so they can be more than Odoo will mail") if $filtered && !$parsed;
     # information, not a hold: the rule that a test comes first lives in oom-mailshot
     if ( my $dir = $self->ctx->config->get('runs_dir') ) {
         my $written = $m->{ $f->('updated') };
@@ -194,6 +232,93 @@ sub plan ($self) {
     return $plan;
 }
 
+# The next N of the mailing's remaining recipients, sent now. Odoo's action_send_mail takes the recipients to
+# send (res_ids) on 16 and 18 and sets the mailing done whatever it was given, so a mailing sent in chunks is
+# done between them; the queue job takes in_queue and sending only, so it does not send the rest.
+sub _plan_chunk ($self, $p, $id, $m, $info) {
+    my $f = sub ($lf) { $p->field( mailing => $lf ) };
+    my $n = $self->param('chunk');
+    Odoo::Error->throw( kind => 'usage', message => "mailing.send: chunk must be a whole number of at least 1, not $n", fix => 'pass --set chunk=<how many recipients to send now>' )
+        if $n < 1;
+    my $state = $m->{ $f->('state') };
+    Odoo::Error->throw( kind => 'refused', code => 'queued',
+        message => "mailing $id is $state: Odoo's queue job sends every recipient that remains of a mailing in that state, so a chunk would race it",
+        fix => 'mailing.cancel returns it to draft; then chunk sends the next recipients' )
+        if $state =~ /^(?:in_queue|sending)\z/;
+    Odoo::Error->throw( kind => 'refused', code => 'not-draft',
+        message => "mailing $id is $state: a chunk is sent from a draft, or from a done mailing that still has recipients" )
+        if $state !~ /^(?:draft|done)\z/;
+    Odoo::Error->throw( kind => 'refused', code => 'over-max',
+        message => "chunk $n is over max=" . $self->param('max') . '; raise max deliberately' )
+        if $n > $self->param('max');
+    my $ab = $self->model('mailing')->read( [$id], [ $f->('ab_testing') ] )->[0];
+    Odoo::Error->throw( kind => 'refused', code => 'ab-testing',
+        message => "mailing $id is an A/B test: Odoo picks a random share of its recipients, so who remains is not the mailing's domain less its traces",
+        fix => 'send it whole with mailing.send' )
+        if $ab && $ab->{ $f->('ab_testing') };
+
+    my $dom_text = Odoo::Ops::Mailing::Common::text( $m->{ $f->('domain') } );
+    my $rem = Odoo::Ops::Mailing::Common::remaining( $self, $id, $dom_text )
+        or Odoo::Error->throw( kind => 'refused', code => 'unreadable-domain',
+            message => "mailing $id has a domain OOM cannot read ($dom_text), so who remains cannot be worked out",
+            fix => 'mailing.send without chunk sends what Odoo works out; or set the domain to the lists\' default (mailing.create writes it)' );
+    my @all = @{ $rem->{ids} };
+    Odoo::Error->throw( kind => 'refused', code => 'nothing-remaining',
+        message => "mailing $id has no recipient left: its domain gives $rem->{candidates} contact(s) and $rem->{traced} already have a trace" )
+        if !@all;
+    my @pick = @all[ 0 .. ( $n > @all ? $#all : $n - 1 ) ];
+    my $left = @all - @pick;
+    my @lists = @{ $m->{ $f->('lists') } // [] };
+    my $aud = Odoo::Ops::Mailing::Common::audience( $self, \@lists, domain => [ [ 'id', 'in', \@pick ] ] );
+
+    my $plan = $self->new_plan( input_count => 1 );
+    $plan->note("mailing $id ('$m->{ $f->('subject') }'): a chunk of " . scalar(@pick) . " of its $rem->{candidates} recipient(s); " . scalar(@all) . " remain now, $left will remain after");
+    $plan->note("the chunk is the next " . scalar(@pick) . " contact(s) by id; Odoo mails $aud->{reachable} address(es) of them and cancels the opted-out ($aud->{opted_out}), the blacklisted ($aud->{blacklisted}) and any address it has already mailed as cancelled traces, with no mail sent");
+    $plan->note("the mailing is $state and Odoo ends the send in state done, whatever remains; its queue job takes in_queue and sending mailings only (mass_mailing.ir_cron_mass_mailing_queue, _process_mass_mailing_queue), so nothing else is sent until the next chunk");
+    if ( my $dir = $self->ctx->config->get('runs_dir') ) {
+        my $written = $m->{ $f->('updated') };
+        my $ctx  = $self->ctx;
+        my $runs = Odoo::Ops::Runs->new( dir => $dir, ttl => $ctx->plan_ttl, now => sub { $ctx->now } );
+        my $tested = $runs->find( op => 'mailing.test', param => { mailing => $id }, state => 'applied', ok => 1,
+            ( defined $written && length $written ? ( since => $written ) : () ) );
+        $plan->note("no applied mailing.test of mailing $id since it was last written is in this registry (oom-mailshot send refuses to send untested; this primitive does not)")
+            if !$tested && $state eq 'draft';
+    }
+    my $parsed = $dom_text =~ /\S/ ? Odoo::Ops::Mailing::Common::parse_domain($dom_text) : [];
+    $plan->add(
+        bucket => 'send', action => 'custom', handler => $self->op_name, kind => 'send',
+        model => $p->model_name('mailing'), id => $id, key => "send:mailing $id chunk " . scalar(@pick),
+        calls => [
+            [ $p->model_name('mailing'), 'read' ], [ $p->model_name('mailing'), $p->action('send_mail') ],
+            [ $p->model_name('trace'), 'search_read' ], [ $p->model_name('contact'), 'search_read' ],
+            [ $p->model_name('mail'), 'search_read' ], [ $p->model_name('mail'), $p->action('process_mail_queue') ],
+        ],
+        before => { $f->('state') => $state, ( $info->{unreadable}{$id}{ $f->('total') } ? () : ( $f->('total') => $m->{ $f->('total') } ) ) },
+        vals => {
+            now            => JSON::PP::true,
+            chunk          => scalar(@pick),
+            res_ids        => \@pick,
+            domain         => $parsed // [],
+            send_mail      => $p->action('send_mail'),
+            mail_model     => $p->model_name('mail'),
+            mail_queue     => $p->action('process_mail_queue'),
+            mail_mailing   => $p->field( mail => 'mailing' ),
+            mail_state     => $p->field( mail => 'state' ),
+            contact_model  => $p->model_name('contact'),
+            trace_model    => $p->model_name('trace'),
+            trace_mailing  => $p->field( trace => 'mailing' ),
+            trace_res_id   => $p->field( trace => 'res_id' ),
+            trace_model_f  => $p->field( trace => 'model' ),
+            trace_status   => $p->field( trace => 'status' ),
+            state_field    => $f->('state'),
+            after_fields   => { map { $_ => $f->($_) } @AFTER },
+            reachable      => $aud->{reachable},
+        },
+        reason => 'send a chunk of ' . scalar(@pick) . " ($left will remain)",
+    );
+    return $plan;
+}
+
 sub _next_call ($self, $p) {
     my $cid = Odoo::Ops::Mailing::Common::xmlid_id( $self, $p->action('mass_queue_cron') ) or return undef;
     my $n = $p->field( cron => 'next_call' );
@@ -206,6 +331,7 @@ sub apply_custom ($class, $client, $c) {
     my $v  = $c->{vals};
     my $mm = $client->model( $c->{model} );
     my $push_note;
+    return _apply_chunk( $client, $c ) if defined $v->{chunk};
     if ( $v->{now} ) {
         # Not put in the queue first, as one would expect: action_put_in_queue makes a cron trigger due at
         # once, and a running cron worker then sends the same mailing in its own transaction while this one
@@ -235,6 +361,47 @@ sub apply_custom ($class, $client, $c) {
     # not verified, with the reason: whether every mail left cannot be said without reading mail.mail
     $ok = 0 if defined $push_note;
     return { returned => { %after, ( defined $push_note ? ( note => $push_note ) : () ) }, after => $ok ? { %after } : undef };
+}
+
+sub _apply_chunk ($client, $c) {
+    my $v  = $c->{vals};
+    my $mm = $client->model( $c->{model} );
+    my $tm = $client->model( $v->{trace_model} );
+    my $ids = $v->{res_ids};
+    my @tdom = ( [ $v->{trace_mailing}, '=', $c->{id} ], [ $v->{trace_model_f}, '=', $v->{contact_model} ] );
+    # a plan applied after another chunk went (or after Odoo made traces for these contacts) would send them twice
+    my $had = $tm->search_read( [ @tdom, [ $v->{trace_res_id}, 'in', $ids ] ], [ $v->{trace_res_id} ] );
+    Odoo::Error->throw( kind => 'refused', code => 'stale',
+        message => scalar(@$had) . " of the " . scalar(@$ids) . " recipients of this chunk already have a trace of mailing $c->{id}; plan the chunk again" )
+        if @$had;
+    $mm->call( $v->{send_mail}, [ [ $c->{id} ] ], res_ids => $ids );
+    # what a mail server that took the mails only partly leaves outgoing is pushed once, as a send now does
+    my $mail = $client->model( $v->{mail_model} );
+    my ( undef, $push_note ) = Odoo::Ops::Mailing::Common::denied( sub {
+        my $out = [ map { $_->{id} } @{ $mail->search_read( [ [ $v->{mail_mailing}, '=', $c->{id} ], [ $v->{mail_state}, '=', 'outgoing' ] ], ['id'] ) } ];
+        $mail->call( $v->{mail_queue}, [$out] ) if @$out;
+        return 1;
+    }, 'the push of the mails left outgoing', q(the chunk was sent; queued mails are sent by Odoo's cron) );
+    my $row = $mm->read_one( $c->{id}, [ values %{ $v->{after_fields} } ] );
+    my %after = map { $_ => $row->{ $v->{after_fields}{$_} } } keys %{ $v->{after_fields} };
+    my $made = $tm->search_read( [ @tdom, [ $v->{trace_res_id}, 'in', $ids ] ], [ $v->{trace_status} ] );
+    my %by;
+    $by{ $_->{ $v->{trace_status} } // 'unknown' }++ for @$made;
+    # who remains, as Odoo works it out (the domain less the traces), read after the send
+    my $dom = @{ $v->{domain} } ? $v->{domain} : [ [ 'id', 'in', [] ] ];
+    my $cands = $client->model( $v->{contact_model} )->all( $dom, ['id'] );
+    my %seen;
+    my @cid = map { $_->{id} } @$cands;
+    for ( my $i = 0 ; $i < @cid ; $i += 1000 ) {
+        my @slice = @cid[ $i .. ( $i + 999 < $#cid ? $i + 999 : $#cid ) ];
+        $seen{ $_->{ $v->{trace_res_id} } } = 1 for @{ $tm->all( [ @tdom, [ $v->{trace_res_id}, 'in', \@slice ] ], [ $v->{trace_res_id} ] ) };
+    }
+    my $remaining = scalar grep { !$seen{$_} } @cid;
+    my $sent = scalar @$made;
+    my $ok = $sent == @$ids && $after{ $v->{state_field} } eq 'done';
+    $ok = 0 if defined $push_note;
+    my %ret = ( %after, chunk => scalar(@$ids), traces_made => $sent, traces_by_status => \%by, remaining => $remaining, ( defined $push_note ? ( note => $push_note ) : () ) );
+    return { returned => \%ret, after => $ok ? { %after, traces_made => $sent, remaining => $remaining } : undef };
 }
 
 sub undo_custom ($class, $entry) {

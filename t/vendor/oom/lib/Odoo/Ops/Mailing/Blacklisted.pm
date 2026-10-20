@@ -50,7 +50,7 @@ normalised address, as C<< { id, name } >>, empty when there is none.
 
 The report is C<< { matching, shown, rows, fields } >>: C<matching> is
 how many rows the filters select, C<shown> how many are returned, so a
-cut-off is never silent. Series: written for Odoo 16; another series is
+cut-off is never silent. Series: Odoo 16 and 18; another series is
 refused by name until its profile is probed.
 
 =cut

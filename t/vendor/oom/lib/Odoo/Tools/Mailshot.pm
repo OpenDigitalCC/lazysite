@@ -6,6 +6,7 @@ use feature qw(signatures say);
 no warnings 'experimental::signatures';
 
 use File::Basename qw(basename);
+use Fcntl qw(:flock);
 use File::Spec;
 use HTTP::Tiny;
 use JSON::PP ();
@@ -24,7 +25,7 @@ use Odoo::Ops::Registry;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.36';
+our $VERSION = '0.38';
 
 =head1 NAME
 
@@ -269,7 +270,7 @@ sub _step ($self, $label, $op, $params, %o) {
         ( 1, $result->ok ? 1 : 0, @$h{qw(verified not_verified created written unlinked custom journal)}, File::Spec->catfile( $dir, 'result.json' ) );
     my $c = $h->{counts};
     $self->_p( "applied $step{run_id}: done $c->{done}, verified $h->{verified}, not verified $h->{not_verified}"
-        . ( $c->{failed} ? ", FAILED $c->{failed}" : '' ) . ( $c->{not_attempted} ? ", not attempted $c->{not_attempted}" : '' ) );
+        . ( $c->{failed} ? ", FAILED $c->{failed}" : '' ) . ( $c->{unknown} ? ", UNKNOWN $c->{unknown} (sent, no answer: look in Odoo before sending again)" : '' ) . ( $c->{not_attempted} ? ", not attempted $c->{not_attempted}" : '' ) );
     for my $sect (qw(created written unlinked)) {
         my $m = $h->{$sect} // {};
         $self->_p("   $sect $_: " . join( ' ', @{ $m->{$_} } ) ) for sort keys %$m;
@@ -425,7 +426,7 @@ sub _table ($self, $head, $rows) {
 
 # --- prepare ----------------------------------------------------------------------------------
 
-=head2 prepare(list, contacts, subject, body, from, reply_to, schedule, new_draft)
+=head2 prepare(list, contacts, subject, body, from, reply_to, schedule, new_draft, country_in, country_not_in, parts, part)
 
 C<mailing.subscribe> then C<mailing.create>, each planned and (when the
 tool may) approved and applied. Prints the ids made (list, contacts,
@@ -441,6 +442,14 @@ refuses C<refused/sent-before>, naming the mailing and the fix, so a script
 run twice does not make a draft each time. C<new_draft> (C<--new-draft>)
 is the deliberate second mailing. Without approval the plan is shown with
 the note. The contacts and list steps are not affected.
+
+C<country_in> or C<country_not_in> (comma-separated ISO codes), or C<parts> (a
+JSON parts file) with C<part> (a name in it), make the mailing one region of
+its lists (see L<Odoo::Ops::Mailing::Create>); C<list> may then name several
+lists, comma-separated, but not with C<contacts>. With C<parts> the parts are
+read first through C<mailing.partition> and the call is C<refused/not-a-partition>
+unless they cover the lists' contacts once. The audience printed is Odoo's count
+for the mailing's domain, and the domain, not the lists' own counts.
 
 A row whose tags column names a tag that does not exist is held
 C<tag-not-allowed> at plan time when Odoo says this user may not create
@@ -460,6 +469,25 @@ sub prepare ($self, %a) {
     my %ids = ( list => undef, contacts => [], contacts_already => [], mailing => undef );
     my %res = ( ids => \%ids, then => [] );
     my $status = 0;
+
+    # a part of a message: a country filter on the lists. --parts FILE --part NAME takes the filter from the file's
+    # part of that name and first reads that the file's parts cover the lists' contacts once
+    my %filter = map { defined $a{$_} ? ( $_ => $a{$_} ) : () } qw(country_in country_not_in);
+    Odoo::Error->throw( kind => 'usage', message => 'prepare: give --country-in or --country-not-in, not both', fix => 'oom-mailshot prepare --help' ) if keys %filter > 1;
+    Odoo::Error->throw( kind => 'usage', message => 'prepare: --parts and --part go together', fix => 'oom-mailshot prepare ... --parts parts.json --part NAME' )
+        if ( defined $a{parts} ? 1 : 0 ) != ( defined $a{part} ? 1 : 0 );
+    Odoo::Error->throw( kind => 'usage', message => 'prepare: --parts takes the filter from the part; do not give --country-in or --country-not-in as well', fix => 'oom-mailshot prepare --help' )
+        if defined $a{parts} && %filter;
+    my $multi = $a{list} =~ /,/ ? 1 : 0;
+    Odoo::Error->throw( kind => 'usage', message => 'prepare: --contacts goes with one list; this names several', fix => 'subscribe the contacts to each list first, then prepare with --list A,B' )
+        if $multi && defined $a{contacts};
+    if ( defined $a{parts} ) {
+        my $rep = $self->_partition( $a{list}, $a{parts}, refuse => 1 );
+        my ($part) = grep { $_->{name} eq $a{part} } @{ $rep->{parts} };
+        Odoo::Error->throw( kind => 'usage', message => "prepare: the parts file has no part '$a{part}' (it has " . join( ', ', map { "'$_->{name}'" } @{ $rep->{parts} } ) . ')', fix => 'give --part one of those names' ) if !$part;
+        %filter = $part->{country_in} ? ( country_in => join( ',', @{ $part->{country_in} } ) ) : ( country_not_in => join( ',', @{ $part->{country_not_in} } ) );
+        $res{partition} = $rep;
+    }
 
     if ( defined $a{contacts} ) {
         # a contact subscribed by an earlier call is a skipped row: its id is in the row's reason
@@ -483,7 +511,7 @@ sub prepare ($self, %a) {
         return $self->_finish( 'prepare', \%res, $status ) if $status;
     }
 
-    my %create = ( subject => $a{subject}, lists => $a{list}, body_file => $a{body},
+    my %create = ( subject => $a{subject}, lists => $a{list}, body_file => $a{body}, %filter,
         map { defined $a{$_} ? ( $_ => $a{$_} ) : () } qw(from reply_to schedule) );
     my $sent_before = sub ($sum) {
         return if $a{new_draft};
@@ -520,6 +548,22 @@ sub prepare ($self, %a) {
     }
     return $self->_finish( 'prepare', \%res, $status ) if $status;
 
+    if ( $multi || %filter ) {
+        # several lists, or one region of them: the lists' own counts are not what this mailing reaches; Odoo's total for its domain is
+        my $m = $self->_mailing_row( $ids{mailing} );
+        $res{audience} = { recipients => $m->{recipients}, lists => $m->{lists}, domain => $m->{domain} };
+        $self->_p( $_->{text} ) for @{ $res{held} // [] };
+        $self->_p(
+            "ids: mailing $ids{mailing}",
+            "audience: Odoo counts $m->{recipients} contact(s) for the mailing's domain (lists " . join( ', ', @{ $m->{lists} } ) . ')'
+                . ( %filter ? '; ' . ( exists $filter{country_in} ? "country in $filter{country_in}" : "country not in $filter{country_not_in}, or none" ) : '' ),
+            "domain: $m->{domain}",
+        );
+        my @sent = grep { /^sent before:/ } @{ $s->{notes} // [] };
+        if (@sent) { $res{sent_before} = \@sent; $self->_p(@sent) }
+        $res{then} = [ "oom-mailshot test --conf $self->{conf} --mailing $ids{mailing} --to <your address>" ];
+        return $self->_finish( 'prepare', \%res, 0 );
+    }
     my $row = $self->_list_row( $ids{list} // $a{list} );
     $ids{list} //= $row->{id};
     $res{audience} = { map { $_ => $row->{$_} } qw(contacts subscribed opted_out blacklisted reachable) };
@@ -541,12 +585,58 @@ sub prepare ($self, %a) {
     return $self->_finish( 'prepare', \%res, 0 );
 }
 
+# --- partition ----------------------------------------------------------------------------------
+
+=head2 partition(list, parts, check)
+
+C<mailing.partition>: whether the country-filtered parts in the file C<parts>
+(a JSON list of C<< { name, country_in | country_not_in } >>) cover every
+contact of the lists once. Prints each part's contacts (Odoo's own count for
+its domain) and the lists' totals, and the addresses of the contacts in no
+part or in two. With C<check> a problem is C<refused/not-a-partition> (exit
+1). C<prepare> with C<parts> and C<part> runs it first and refuses the same
+way; the C<--parts> file is the one place the parts are written.
+
+=cut
+
+sub _partition ($self, $lists, $parts_file, %o) {
+    my $rep = $self->_read( 'mailing.partition', lists => $lists, parts_file => $parts_file );
+    $self->_p("== partition (mailing.partition)");
+    $self->_p( '  lists: ' . join( ', ', map { $_->{name} } @{ $rep->{lists} } ) );
+    for my $pt ( @{ $rep->{parts} } ) {
+        $self->_p( "  part $pt->{name}: $pt->{contacts} contact(s) ($pt->{filter}), $pt->{blacklisted} blacklisted, $pt->{recipients} recipient(s)" );
+    }
+    my $w = $rep->{whole};
+    $self->_p( "  whole: $w->{contacts} contact(s) of the lists, $w->{blacklisted} blacklisted, $w->{recipients} recipient(s)"
+        . ( $w->{without_address} ? ", $w->{without_address} without an address" : '' )
+        . "; in no part $w->{in_no_part}{count}; in more than one part $w->{in_several_parts}{count}; addresses in different parts $w->{addresses_in_several_parts}{count}" );
+    for my $k ( [ in_no_part => 'in no part' ], [ in_several_parts => 'in more than one part' ], [ addresses_in_several_parts => 'in different parts' ] ) {
+        my $h = $w->{ $k->[0] };
+        $self->_p( "    $k->[1]: " . join( ', ', @{ $h->{emails} } ) . ( $h->{count} > @{ $h->{emails} } ? ', ...' : '' ) ) if $h->{count};
+    }
+    if ( $rep->{ok} ) { $self->_p("  the parts cover every contact of the lists once") }
+    elsif ( $o{refuse} ) {
+        my $e = eval { $self->_read( 'mailing.partition', lists => $lists, parts_file => $parts_file, check => 1 ); 1 } ? undef : $@;
+        die $self->_fix_for( $e, mailing => undef ) if $e;
+    }
+    return $rep;
+}
+
+sub partition ($self, %a) {
+    $self->{cmd} = 'partition';
+    for my $need (qw(list parts)) {
+        Odoo::Error->throw( kind => 'usage', message => "partition needs --$need", fix => 'oom-mailshot partition --help' ) if !defined $a{$need};
+    }
+    my $rep = $self->_partition( $a{list}, $a{parts}, refuse => $a{check} );
+    return $self->_finish( 'partition', { partition => $rep, then => [ $rep->{ok} ? "oom-mailshot prepare --conf $self->{conf} --list <lists> --subject <subject> --body <file.html> --parts " . _q( $a{parts} ) . ' --part <name>' : () ] }, 0 );
+}
+
 # --- test ---------------------------------------------------------------------------------------
 
 =head2 test(mailing, to)
 
 C<mailing.test>, then the mail itself: from the catcher when the config
-names one (C<mailcatcher>), else C<mailing.preview>'s rendering. Says which.
+names one (C<mailcatcher>), else C<mailing.preview>'s rendering (Odoo 18 renders no preview: the tool says so). Says which.
 
 The address is always named: without C<to> the call is a C<usage> error whose
 fix names C<--to E<lt>addressE<gt>> and C<--to me>. C<me> sends to the
@@ -594,7 +684,11 @@ sub test ($self, %a) {
     }
     if ( !$mail ) {
         my $pv = eval { $self->_read( 'mailing.preview', mailing => $id ) };
-        if ($pv) {
+        if ( $pv && ( $pv->{rendered_by} // '' ) eq 'none' ) {
+            $self->_p('   no preview either: this Odoo has no public renderer for a mass mail, so only the delivered test mail shows what recipients get (set mailcatcher in the config to read it)');
+            $res{mail} = { source => 'none' };
+        }
+        elsif ($pv) {
             $res{mail} = { source => 'preview', subject => $pv->{subject}, from => $pv->{from}, text_head => _head( $pv->{text} ),
                 unsubscribe_link => _no_token( $pv->{unsubscribe_url} ) };
             $mail = $res{mail};
@@ -604,7 +698,8 @@ sub test ($self, %a) {
     if ( $mail && $mail->{subject} ) {
         $self->_p( "   subject: $mail->{subject}", '   from:    ' . ( $mail->{from} // '' ), '   text:' );
         $self->_p("     $_") for @{ $mail->{text_head} };
-        $self->_p( '   unsubscribe link: ' . ( $mail->{unsubscribe_link} // 'NOT FOUND: the mail carries no way to opt out' ) );
+        $self->_p( '   unsubscribe link: ' . ( $mail->{unsubscribe_link}
+            // ( $mail->{unsubscribe_placeholder} ? "$mail->{unsubscribe_placeholder} (Odoo's generic link: a test mail carries no recipient's own, which a sent mail does)" : 'NOT FOUND: the mail carries no way to opt out' ) ) );
     }
     $res{then} = [ "oom-mailshot send --conf $self->{conf} --mailing $id" ];
     $self->_p('send --now pushes the mails left in Odoo\'s queue, which reads mail.mail; without --now Odoo\'s cron worker sends the mailing');
@@ -660,10 +755,13 @@ sub _caught ($self, $subject, $to) {
     my $html = $m->{HTML} // '';
     my ($unsub) = $html =~ m{href="([^"]*confirm_unsubscribe[^"]*)"};
     my ($track) = $html =~ m{src="(https?://[^"]*/mail/track/[^"]+/blank\.gif)"};
+    # Odoo 18 leaves the anchor as the generic placeholder in a test mail (it signs a link per recipient at send only)
+    my ($generic) = $unsub ? () : $html =~ m{href="([^"]*/unsubscribe_from_list[^"]*)"};
     $unsub =~ s/&amp;/&/g if $unsub;
     return {
         id => $hit->{ID}, subject => $m->{Subject}, from => ( ref $m->{From} ? $m->{From}{Address} : $m->{From} ),
         text_head => _head( $m->{Text} ), unsubscribe_link => _no_token($unsub),
+        ( $generic ? ( unsubscribe_placeholder => $generic ) : () ),
         ( $track ? ( tracking_image => 1 ) : () ), _track_url => $track,
     };
 }
@@ -737,7 +835,27 @@ sub _test_run ($self, $id) {
 }
 
 sub _counters_line ($r) {
-    return "mailing $r->{id}: $r->{state}; recipients $r->{recipients}, expected $r->{expected}, sent $r->{sent}, delivered $r->{delivered}, opened $r->{opened}, clicked $r->{clicked}, bounced $r->{bounced}, cancelled $r->{canceled}, failed $r->{failed}";
+    my $line = "mailing $r->{id}: $r->{state}; recipients $r->{recipients}, expected $r->{expected}, sent $r->{sent}, delivered $r->{delivered}, opened $r->{opened}, clicked $r->{clicked}, bounced $r->{bounced}, cancelled $r->{canceled}, failed $r->{failed}";
+    # Odoo's done is every recipient having a trace: a mail still to go is part of the line
+    my $s = $r->{still_to_go};
+    $line .= '; still to go: ' . join( ', ', map { "$s->{$_}{count} $_" } grep { $s->{$_} && $s->{$_}{count} } qw(outgoing error exception) )
+        if $s && grep { $s->{$_} && $s->{$_}{count} } qw(outgoing error exception);
+    return $line;
+}
+
+# The words under a done mailing's counters when mail is still to go: the first addresses of each kind and what moves it.
+sub _still_lines ($r) {
+    my $s = $r->{still_to_go} or return ();
+    return () if !grep { $s->{$_} && $s->{$_}{count} } qw(outgoing error exception);
+    my @l;
+    for my $k (qw(outgoing error exception)) {
+        next if !$s->{$k} || !$s->{$k}{count};
+        push @l, "  $k $s->{$k}{count}: " . join( ', ', @{ $s->{$k}{emails} } ) . ( $s->{$k}{count} > @{ $s->{$k}{emails} } ? ', ...' : '' )
+            . ( $k eq 'error' && $s->{$k}{failure_types} ? ' (' . join( ', ', map { "$_ $s->{$k}{failure_types}{$_}" } sort keys %{ $s->{$k}{failure_types} } ) . ')' : '' );
+    }
+    push @l, "  exception: $s->{exception_note}" if defined $s->{exception_note};
+    push @l, "  $s->{note}" if defined $s->{note};
+    return @l;
 }
 
 # --- watch ----------------------------------------------------------------------------------------
@@ -745,8 +863,12 @@ sub _counters_line ($r) {
 =head2 watch(mailing, until, timeout, interval)
 
 Polls C<mailing.status> until the state is reached, printing each change of
-counters. C<until> is C<done> (the state is done) or C<sent> (some mail has
-gone and none is still waiting). Exit 0 when reached, 1 on timeout with the
+counters. C<until> is C<done> (the state is done and no trace is outgoing:
+Odoo calls a mailing done once every recipient has a trace, with mail possibly
+still to go) or C<sent> (some mail has gone and none is still waiting). When
+the time ends on a done mailing with traces outgoing, it says so, names the
+first addresses and C<mailing.process>, and exits 1; traces in error and mail
+in exception are told on reaching and do not change the exit status. Exit 0 when reached, 1 on timeout with the
 last status. It reads once before it waits: a mailing that already holds the
 condition prints C<mailing N: done; ... (already)> and C<reached: done>, with
 no C<[+Ns]> prefix that would suggest a wait.
@@ -763,7 +885,8 @@ sub watch ($self, %a) {
     while (1) {
         $row = $self->_mailing_row($id);
         my $key = join '|', map { $row->{$_} // '' } qw(state expected scheduled sent delivered opened clicked bounced canceled failed);
-        $reached = $until eq 'done' ? $row->{state} eq 'done' : ( $row->{sent} > 0 && !$row->{scheduled} );
+        # Odoo's done is every recipient having a trace, not every mail having gone: done waits for no trace to be outgoing
+        $reached = $until eq 'done' ? $row->{state} eq 'done' && !( $row->{still_to_go} && $row->{still_to_go}{outgoing}{count} ) : ( $row->{sent} > 0 && !$row->{scheduled} );
         # the first read already holds the condition: nothing was waited for, so no [+Ns] that implies a wait (item 13)
         if ( $reached && $last_key eq '' ) { $already = 1; $self->_p( _counters_line($row) . ' (already)' ) }
         elsif ( $key ne $last_key ) { $self->_p( sprintf '[+%ds] %s', $self->{clock}->() - $t0, _counters_line($row) ) }
@@ -774,8 +897,16 @@ sub watch ($self, %a) {
     my %res = ( mailing => $id, until => $until, reached => $reached ? 1 : 0, already => $already ? 1 : 0, status => $row, then => [] );
     if ($reached) {
         $self->_p("reached: $until");
+        # mail that failed is a fact for the caller, not a wait: told, and the exit stays 0
+        $self->_p( _still_lines($row) );
         $res{then} = ["oom-mailshot status --conf $self->{conf} --mailing $id --traces"];
         return $self->_finish( 'watch', \%res, 0 );
+    }
+    # Odoo calls it done and its mail is still outgoing: the wait ended on the clock, and the reason is the mail
+    if ( $until eq 'done' && $row->{state} eq 'done' ) {
+        $self->_p( "timed out after ${timeout}s: Odoo calls mailing $id done, but $row->{still_to_go}{outgoing}{count} trace(s) are still outgoing", _still_lines($row) );
+        $res{then} = ["oom-ops run mailing.process --conf $self->{conf} --set mailing=$id"];
+        return $self->_finish( 'watch', \%res, 1 );
     }
     # a schedule that lies ahead is not a stuck queue: say so instead of pointing at mailing.process
     my $now_odoo = Odoo::Ops::iso_time( $self->{clock}->() );
@@ -788,6 +919,176 @@ sub watch ($self, %a) {
     $res{then} = $ahead ? ["oom-ops run mailing.cancel --conf $self->{conf} --set mailing=$id"]
         : $row->{state} eq 'in_queue' ? ["oom-ops run mailing.process --conf $self->{conf} --set mailing=$id"] : [];
     return $self->_finish( 'watch', \%res, 1 );
+}
+
+# --- drip -----------------------------------------------------------------------------------------
+
+=head2 drip(mailing, chunk, every, once, until, max, force_untested, despite_outgoing)
+
+Sends a mailing in chunks of C<chunk> recipients, never two closer together
+than C<every> minutes, until no recipient remains: a mail server that allows
+so many mails an hour is kept under its limit. Each chunk is
+C<mailing.send> with C<chunk> (planned, approved and applied as C<send> is),
+so it sends the next recipients of the mailing's remaining set and reads the
+new traces back. Odoo ends every send in state C<done>, so the mailing is
+C<done> between chunks and its queue job (which takes C<in_queue> and
+C<sending> only) never sends the rest; C<remaining> in the status says how many
+are left. The rule of C<send> holds for the first chunk: a draft is sent only
+once a C<mailing.test> of it has been applied (C<untested>; C<force_untested>
+overrides).
+
+C<once> sends one chunk and exits, for a caller's own timer (a cron line or a
+systemd timer, see C<docs/use-cases/mailshot.md>); without it the call waits
+C<every> minutes between chunks and ends when none remain. C<until> is C<done>,
+the one value. The tool keeps a lock and the time of the last chunk of each
+mailing in C<drip/> under the config's C<runs_dir>: a second C<drip> of the
+same mailing while one runs is refused C<drip-busy>, and a call earlier than
+C<every> after the last chunk sends nothing (C<once> says when the next is due and exits 0; without C<once> it
+waits). The spacing is kept by that record, so it holds across calls and
+processes.
+
+Before each chunk it reads the status: a mailing in C<in_queue> or
+C<sending> is refused C<queued> (Odoo's queue job would race the chunk); a done mailing with no
+recipient left is finished; a done mailing with traces still C<outgoing> (a mail
+server dropped the connection and Odoo left the rest of the last chunk in its
+queue, Odoo 16) stops the drip with the C<still_to_go> lines, exit 1, and
+sends nothing until they have gone (C<mailing.process> pushes them) or a person
+passes C<despite_outgoing>. Traces in error do not stop it. The tool needs an
+approval that needs no person (C<--yes>, or C<approval = self>), else it plans
+the first chunk and prints the approval lines.
+
+=cut
+
+sub drip ($self, %a) {
+    my $id = $self->_mailing_id( \%a, 'drip' );
+    my ( $n, $every ) = @a{qw(chunk every)};
+    Odoo::Error->throw( kind => 'usage', message => 'drip needs --chunk: how many recipients to send in each', fix => 'oom-mailshot drip --help' )
+        if !defined $n || $n !~ /\A\d+\z/ || $n < 1;
+    Odoo::Error->throw( kind => 'usage', message => 'drip needs --every: the minutes to keep between two chunks', fix => 'oom-mailshot drip --help' )
+        if !defined $every || $every !~ /\A\d+(?:\.\d+)?\z/ || $every <= 0;
+    my $until = $a{until} // 'done';
+    Odoo::Error->throw( kind => 'usage', message => "--until must be done, not '$until'", fix => 'oom-mailshot drip --help' ) if $until ne 'done';
+    my $lock = $self->_drip_lock($id);
+    my %res = ( mailing => $id, chunk => 0 + $n, every => 0 + $every, once => $a{once} ? 1 : 0, chunks => [], finished => 0, then => [] );
+    my $k = 0;
+    while (1) {
+        my $row = $self->_mailing_row( $id, remaining => 1 );
+        Odoo::Error->throw( kind => 'refused', code => 'queued',
+            message => "mailing $id is $row->{state}: Odoo's queue job sends every recipient that remains of a mailing in that state, so a chunk would race it",
+            fix => "oom-ops run mailing.cancel --conf $self->{conf} --set mailing=$id returns it to draft; then drip again" )
+            if $row->{state} =~ /^(?:in_queue|sending)\z/;
+        if ( $row->{state} eq 'done' && defined $row->{remaining} && !$row->{remaining} ) {
+            $res{finished} = 1;
+            $self->_p( _counters_line($row), "mailing $id: no recipient remains" );
+            $res{status} = $row;
+            $res{then} = ["oom-mailshot status --conf $self->{conf} --mailing $id --traces"];
+            return $self->_finish( 'drip', \%res, 0 );
+        }
+        my $out = $row->{still_to_go} && $row->{still_to_go}{outgoing} ? $row->{still_to_go}{outgoing}{count} : 0;
+        if ( $out && !$a{despite_outgoing} ) {
+            $res{stopped} = 'outgoing';
+            $res{status}  = $row;
+            $self->_p( "stopped: $out trace(s) of mailing $id are still outgoing, so the last chunk has not all gone; no chunk is sent until it has", _still_lines($row) );
+            $res{then} = [ "oom-ops run mailing.process --conf $self->{conf} --set mailing=$id", "oom-mailshot drip --conf $self->{conf} --mailing $id --chunk $n --every $every" . ( $a{once} ? ' --once' : '' ) . ' (--despite-outgoing goes on regardless)' ];
+            return $self->_finish( 'drip', \%res, 1 );
+        }
+        # never closer than every minutes to the last chunk, whoever sent it
+        my $last = $self->_drip_last($id);
+        my $now  = $self->{clock}->();
+        if ( $last && defined $last->{at} && $now < $last->{at} + $every * 60 ) {
+            my $due = $last->{at} + $every * 60;
+            if ( $a{once} ) {
+                $res{not_due} = { last => Odoo::Ops::iso_time( $last->{at} ), next => Odoo::Ops::iso_time($due) };
+                $self->_p( 'not due: the last chunk of mailing ' . $id . ' went at ' . Odoo::Ops::iso_time( $last->{at} ) . ', the next is due at ' . Odoo::Ops::iso_time($due) . ' (every ' . $every . ' minutes); nothing sent' );
+                $res{then} = ["oom-mailshot drip --conf $self->{conf} --mailing $id --chunk $n --every $every --once"];
+                return $self->_finish( 'drip', \%res, 0 );
+            }
+            $self->_p( sprintf 'waiting %d s: the last chunk went at %s', $due - $now, Odoo::Ops::iso_time( $last->{at} ) );
+            $self->{sleep}->( $due - $now );
+            next;
+        }
+        my $note = "oom-mailshot drip: chunk of $n";
+        if ( $row->{state} eq 'draft' ) {
+            my $test = $self->_test_run($id);
+            if ($test) { $res{tested_by} = $test->{id}; $note .= ", tested by run $test->{id}" }
+            elsif ( $a{force_untested} ) {
+                $res{forced_untested} = 1;
+                $self->_p('NOT TESTED: sending anyway because of --force-untested');
+                $note = 'oom-mailshot drip --force-untested: sent with no applied mailing.test since the mailing was last written';
+            }
+            else {
+                Odoo::Error->throw( kind => 'refused', code => 'untested',
+                    message => "mailing $id has no applied mailing.test run in this registry since it was last written ($self->{_written})",
+                    fix => "oom-mailshot test --conf $self->{conf} --mailing $id --to <your address>, then drip again; --force-untested overrides" );
+            }
+        }
+        my $s = $self->_step( 'drip', 'mailing.send', { mailing => $id, chunk => 0 + $n, ( defined $a{max} ? ( max => $a{max} ) : () ) }, note => $note );
+        if ( $s->{pending} ) {
+            $res{pending} = 1;
+            $res{then} = [ $s->{approve}, $s->{apply} ];
+            return $self->_finish( 'drip', \%res, 0 );
+        }
+        my $status = _step_status($s);
+        return $self->_finish( 'drip', \%res, $status ) if !$s->{applied} || $status;
+        $self->_drip_record( $id, { at => $self->{clock}->(), chunk => 0 + $n } );
+        my $ret = ( $s->{custom} && $s->{custom}[0] ? $s->{custom}[0]{returned} : undef ) // {};
+        my $after = $self->_mailing_row( $id, remaining => 1 );
+        $k++;
+        push @{ $res{chunks} }, { traces_made => $ret->{traces_made}, traces_by_status => $ret->{traces_by_status}, remaining => $after->{remaining}, at => Odoo::Ops::iso_time( $self->{clock}->() ) };
+        $self->_p( "chunk $k: " . ( $ret->{traces_made} // '?' ) . ' traces made' . ( $ret->{traces_by_status} ? ' (' . join( ', ', map { "$ret->{traces_by_status}{$_} $_" } sort keys %{ $ret->{traces_by_status} } ) . ')' : '' )
+            . '; ' . ( defined $after->{remaining} ? "$after->{remaining} recipient(s) remain" : 'what remains is not worked out' ), _counters_line($after) );
+        $res{status} = $after;
+        if ( defined $after->{remaining} && !$after->{remaining} ) {
+            $res{finished} = 1;
+            $self->_p("mailing $id: no recipient remains");
+            $res{then} = ["oom-mailshot status --conf $self->{conf} --mailing $id --traces"];
+            return $self->_finish( 'drip', \%res, 0 );
+        }
+        if ( $a{once} ) {
+            $res{then} = ["oom-mailshot drip --conf $self->{conf} --mailing $id --chunk $n --every $every --once (again after $every minutes)"];
+            return $self->_finish( 'drip', \%res, 0 );
+        }
+    }
+}
+
+# The drip state of a mailing sits in drip/ under the runs_dir (a folder without a plan.json is not a run, so the
+# registry skips it): mailing-<id>.lock, held for as long as one drip of the mailing runs, and mailing-<id>.json,
+# the time of the last chunk.
+sub _drip_dir ($self) {
+    my $dir = File::Spec->catdir( $self->{config}->get('runs_dir'), 'drip' );
+    mkdir $dir if !-d $dir;
+    Odoo::Error->throw( kind => 'config', message => "cannot make $dir: $!", fix => 'the config\'s runs_dir must be writable' ) if !-d $dir;
+    return $dir;
+}
+
+sub _drip_lock ($self, $id) {
+    my $path = File::Spec->catfile( $self->_drip_dir, "mailing-$id.lock" );
+    open my $fh, '>>', $path or Odoo::Error->throw( kind => 'config', message => "cannot open $path: $!" );
+    flock( $fh, LOCK_EX | LOCK_NB )
+        or Odoo::Error->throw( kind => 'refused', code => 'drip-busy',
+            message => "another drip of mailing $id is running (it holds $path); two never run at once, so the chunks stay apart",
+            fix => 'wait for it, or stop it; a cron or timer call that finds it running can simply try again at its next time' );
+    return $fh;
+}
+
+sub _drip_record_path ($self, $id) { File::Spec->catfile( $self->_drip_dir, "mailing-$id.json" ) }
+
+sub _drip_last ($self, $id) {
+    my $path = $self->_drip_record_path($id);
+    return undef if !-e $path;
+    open my $fh, '<', $path or return undef;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    return eval { Odoo::JSON::decode($raw) };
+}
+
+sub _drip_record ($self, $id, $rec) {
+    my $path = $self->_drip_record_path($id);
+    open my $fh, '>', "$path.new" or Odoo::Error->throw( kind => 'config', message => "cannot write $path.new: $!" );
+    print {$fh} Odoo::JSON->new( pretty => 1 )->encode($rec);
+    close $fh or Odoo::Error->throw( kind => 'config', message => "cannot write $path.new: $!" );
+    rename "$path.new", $path or Odoo::Error->throw( kind => 'config', message => "cannot replace $path: $!" );
+    return;
 }
 
 # --- status ---------------------------------------------------------------------------------------
@@ -803,9 +1104,13 @@ without it the read is refused C<refused/archived> and the fix names the flag.
 
 sub status ($self, %a) {
     my $id = $self->_mailing_id( \%a, 'status' );
-    my $r = $self->_mailing_row( $id, ( $a{traces} ? ( traces => 1 ) : () ), ( $a{queue} ? ( queue => 1 ) : () ), ( $a{archived} ? ( archived => 1 ) : () ) );
+    my $r = $self->_mailing_row( $id, remaining => 1, ( $a{traces} ? ( traces => 1 ) : () ), ( $a{queue} ? ( queue => 1 ) : () ), ( $a{archived} ? ( archived => 1 ) : () ) );
     my %res = ( mailing => $r, then => [] );
     $self->_p( _counters_line($r), "  subject: $r->{subject}", '  lists: ' . join( ', ', @{ $r->{lists} } ) );
+    $self->_p( "  domain: $r->{domain}" ) if length( $r->{domain} // '' ) && $r->{domain} !~ /\A\[\('list_ids', 'in', \[[\d, ]+\]\)\]\z/;
+    $self->_p( _still_lines($r) );
+    $self->_p( "  remaining: $r->{remaining} recipient(s) have no trace yet (a mailing sent in chunks is done between them; oom-mailshot drip sends the rest)" )
+        if $r->{state} eq 'done' && $r->{remaining};
     $self->_p( "  scheduled for $r->{schedule_date}" ) if $r->{schedule_date};
     $self->_p( "  sent on $r->{sent_date}" ) if $r->{sent_date};
     if ( $a{traces} ) {
@@ -1269,7 +1574,7 @@ sub cleanup ($self, %a) {
         @step{qw(verified not_verified)} = @$h{qw(verified not_verified)};
         $self->_p( "applied $step{run_id}: " . ( $result->ok ? 'ok' : 'FAILED' ) . ", undone $h->{counts}{done}, verified $h->{verified}, not verified $h->{not_verified}"
             . ( length $undone ? " ($undone)" : '' )
-            . ( $h->{counts}{failed} ? ", FAILED $h->{counts}{failed}" : '' ) . ( $h->{counts}{not_attempted} ? ", not attempted $h->{counts}{not_attempted}" : '' ) );
+            . ( $h->{counts}{failed} ? ", FAILED $h->{counts}{failed}" : '' ) . ( $h->{counts}{unknown} ? ", UNKNOWN $h->{counts}{unknown} (sent, no answer: look in Odoo before sending again)" : '' ) . ( $h->{counts}{not_attempted} ? ", not attempted $h->{counts}{not_attempted}" : '' ) );
         if ( $result->ok ) { push @removed, { what => $what, lines => _record_lines($recs), records => $recs } } else { $failed = 1; push @kept, { what => $what, why => 'the revert failed' } }
         push @kept, { what => $what, why => join( '; ', map { "$_->{bucket}: $_->{reason}" } @{ $s->{held} } ), refused => 1 } if @{ $s->{held} };
     }

@@ -1,0 +1,63 @@
+# helpdesk.ticket, Odoo 18 (OCA helpdesk_mgmt 18.0.1.19.2 with helpdesk_mgmt_sla and helpdesk_mgmt_stage_validation).
+# Read in the OCA/helpdesk 18.0 source (2026-10-19) and met on demo18 by the helpdesk-1 survey and
+# t/130-helpdesk-live.t. The stage is a plain field and closing is a stage with `closed` on, as on 16.
+model: helpdesk.ticket
+series: 18
+module: helpdesk_mgmt
+effects:
+  - on: create
+    fields: [name, description]
+    effect: gives the ticket its number (HT and five digits) and the team's first stage; the ticket's user is the creating user when the company's "Auto assign tickets" is on (it is by default), whatever the team, unless user_id is sent false; the creating user is the only follower, and the customer is not one; partner_name and partner_email stay empty
+    evidence: source 18.0 helpdesk_ticket.create and default_get; live 2026-10-19 (survey, demo18)
+  - on: create
+    fields: [team_id]
+    effect: with helpdesk_mgmt_sla, makes a helpdesk.ticket.sla row for each rule that fits the ticket when its team uses SLA; a rule made later reaches a ticket only through refresh_sla
+    evidence: source 18.0 helpdesk_mgmt_sla helpdesk_ticket.create and set_sla; live 2026-10-19 (survey, demo18)
+  - on: write
+    fields: [stage_id]
+    effect: sets last_stage_update; a stage with closed on also sets closed_date, which moving back to an open stage does not clear; the SLA rows are recomputed (a stage a rule ignores holds the clock, the rule's stage fulfils it)
+    evidence: source 18.0 helpdesk_ticket.write and helpdesk_ticket_sla._stage_recompute; live 2026-10-19 (survey, demo18)
+  - on: write
+    fields: [stage_id]
+    effect: a stage with an email template sends it to the ticket's partner (the data's Done, Cancelled and Rejected carry "Helpdesk Closed Ticket Notification Email"); a mail that cannot leave stays in state exception on an instance with no outgoing server
+    evidence: 'source 18.0 helpdesk_ticket._track_template; live 2026-10-19 (survey, demo18: the mail.mail rows read "Name or service not known")'
+  - on: write
+    fields: [stage_id]
+    effect: 'with helpdesk_mgmt_stage_validation, refuses a stage whose validate_field_ids hold a field the ticket leaves empty, in the words "Ticket <title> can''t be moved to the stage <stage> until the following fields are set: <labels>."; one write that sets the fields and the stage together passes'
+    evidence: source 18.0 helpdesk_mgmt_stage_validation _validate_stage_fields; live 2026-10-19 (survey, demo18)
+  - on: write
+    fields: [team_id]
+    effect: a user who is not a member of the new team is removed from the ticket (user_id empty); the stage stays when the new team may use it
+    evidence: 'source 18.0 helpdesk_ticket._compute_user_id and _compute_stage_id; live 2026-10-19 (survey, demo18: user_id empty after the move to a team the user is not in; t/130-helpdesk-live.t: the stage stayed In Progress and the user went)'
+  - on: write
+    fields: [user_id]
+    effect: sets assigned_date; Odoo subscribes the new user and emails them "you have been assigned" from the acting user
+    suppress: { context: { mail_auto_subscribe_no_notify: true } }
+    evidence: source 18.0 mail_thread._message_auto_subscribe_notify; assigned_date live 2026-10-19 (survey, demo18); the email is not probed
+actions:
+  - method: assign_to_me
+    note: writes the calling user as the ticket's user
+    evidence: source 18.0 helpdesk_ticket.assign_to_me
+  - method: refresh_sla
+    module: helpdesk_mgmt_sla
+    note: makes the SLA rows the ticket's rules now ask for and removes the rows no rule asks for; one ticket at a time
+    evidence: 'source 18.0 helpdesk_mgmt_sla helpdesk_ticket.refresh_sla; live 2026-10-19 (survey, demo18: called on a ticket)'
+  - method: set_sla
+    module: helpdesk_mgmt_sla
+    note: removes the ticket's SLA rows and makes them again from the rules
+    evidence: source 18.0 helpdesk_mgmt_sla helpdesk_ticket.set_sla
+  - method: action_open_duplicate_wizard
+    wizard: helpdesk.ticket.duplicate.wizard
+    note: answers with the duplicate wizard window and changes nothing; the marking is the wizard's
+    evidence: source 18.0 helpdesk_ticket.action_open_duplicate_wizard
+wizards:
+  - model: helpdesk.ticket.duplicate.wizard
+    method: action_confirm
+    button: action_confirm
+    values: [duplicate_of_id, target_stage_id]
+    context_from_record: [default_ticket_id]
+    note: sets duplicate_id on the ticket and, when target_stage_id is given, moves it to that stage; refuses a ticket marked a duplicate of itself or of a ticket that is itself a duplicate ("You need to set a valid duplicate!")
+    evidence: 'source 18.0 helpdesk_ticket_duplicate_wizard.action_confirm; live 2026-10-19 (survey, demo18: created with ticket_id and confirmed, duplicate_id set)'
+routes:
+  note: '{ via: message_post, why: a note is message_post with the subtype mail.mt_note and body_is_html true; a reply is the same with mail.mt_comment and the customer in partner_ids }'
+probes: []

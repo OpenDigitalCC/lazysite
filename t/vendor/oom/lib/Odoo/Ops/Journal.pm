@@ -41,6 +41,23 @@ sub create ($class, $path, %o) {
     return bless { fh => $fh, path => $path, blob_min => $o{blob_min} }, $class;
 }
 
+=head2 append($path)
+
+Class method: opens an existing journal to add change lines after its end. How a
+later fact about an earlier change is recorded (a change that ended C<unknown> and
+was then found made, or assumed so by a person): the journal is never edited, and
+a reader that keys changes by C<seq> takes the last line of each.
+
+=cut
+
+sub append ($class, $path, %o) {
+    Odoo::Error->throw( kind => 'config', message => "journal $path does not exist" ) if !-e $path;
+    open my $fh, '>>', $path
+        or Odoo::Error->throw( kind => 'config', message => "cannot append to journal $path: $!" );
+    $fh->autoflush(1);
+    return bless { fh => $fh, path => $path, blob_min => $o{blob_min} }, $class;
+}
+
 sub path ($self) { $self->{path} }
 
 sub header ($self, %h) { $self->_line( type => 'run', %h ) }

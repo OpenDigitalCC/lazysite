@@ -1,0 +1,40 @@
+# helpdesk.ticket, Odoo 16 (OCA helpdesk_mgmt 16.0.2.14.0 with helpdesk_mgmt_sla and helpdesk_mgmt_stage_validation).
+# Read in the OCA/helpdesk 16.0 source (2026-10-19) and met on demo16 by the helpdesk-1 survey and
+# t/130-helpdesk-live.t. The ticket's stage is a plain field written by the form's status bar, and
+# closing is a stage with `closed` on: there is no close method.
+model: helpdesk.ticket
+series: 16
+module: helpdesk_mgmt
+effects:
+  - on: create
+    fields: [name, description]
+    effect: gives the ticket its number from the sequence helpdesk.ticket.sequence (HT and five digits), the team's first stage when none is given, and the team's alias user (the Administrator when the team names none) as its user when none is given; the creating user is the only follower, and the customer is not one
+    evidence: source 16.0 helpdesk_ticket.create and _compute_user_id; live 2026-10-19 (survey, demo16)
+  - on: write
+    fields: [stage_id]
+    effect: sets last_stage_update; a stage with closed on also sets closed_date, which moving back to an open stage does not clear; kanban_state is reset
+    evidence: source 16.0 helpdesk_ticket.write; live 2026-10-19 (survey, demo16)
+  - on: write
+    fields: [stage_id]
+    effect: a stage with an email template sends it to the ticket's partner (the data's Done, Cancelled and Rejected carry "Helpdesk Closed Ticket Notification Email")
+    evidence: 'source 16.0 helpdesk_ticket._track_template; live 2026-10-19 (survey, demo16: one mail.mail to the partner after a ticket reached Done)'
+  - on: write
+    fields: [stage_id]
+    effect: 'with helpdesk_mgmt_stage_validation, refuses a stage whose validate_field_ids hold a field the ticket leaves empty, in the words "Ticket <title> can''t be moved to the stage <stage> until the following fields are set: <labels>."; one write that sets the fields and the stage together passes'
+    evidence: source 16.0 helpdesk_mgmt_stage_validation _validate_stage_fields; live 2026-10-19 (survey, demo16)
+  - on: write
+    fields: [team_id]
+    effect: the stage is computed from the team, so a change of team puts the ticket in the new team's first stage; the user stays
+    evidence: source 16.0 helpdesk_ticket._compute_stage_id (depends on team_id)
+  - on: write
+    fields: [user_id]
+    effect: sets assigned_date; Odoo subscribes the new user and emails them "you have been assigned" from the acting user
+    suppress: { context: { mail_auto_subscribe_no_notify: true } }
+    evidence: source 16.0 mail_thread._message_auto_subscribe_notify; assigned_date live 2026-10-19 (survey, demo16); the email is not probed
+actions:
+  - method: assign_to_me
+    note: writes the calling user as the ticket's user
+    evidence: 'source 16.0 helpdesk_ticket.assign_to_me; live 2026-10-19 (survey, demo16: as the Administrator)'
+routes:
+  note: '{ via: message_post, why: a note is message_post with the subtype mail.mt_note; a reply is the same with mail.mt_comment and the customer in partner_ids }'
+probes: []

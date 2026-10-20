@@ -31,7 +31,8 @@ returns what Odoo would send, so a person or an agent can read the mail
 without sending it and without a mail catcher. The recipient is C<email>
 (a contact's address) or C<contact> (a C<mailing.contact> id), else the
 first reachable subscription of the mailing's lists (a valid address, not
-opted out, not blacklisted). It never sends anything and writes nothing
+opted out, not blacklisted; for a mailing to one region of its lists, of the
+contacts its own domain gives). It never sends anything and writes nothing
 that lasts.
 
 B<How it renders (Odoo 16, proved on demo16).> The rendering methods of
@@ -86,8 +87,14 @@ C<archived> reads an archived mailing. A mailing to a model other than
 mailing lists is refused (C<not-a-list-mailing>); a mailing nobody can be
 mailed for is refused (C<no-recipients>).
 
-Series: written for Odoo 16; another series is refused by name until its
-profile is probed.
+Series: Odoo 16 and 18. Odoo 18 has no public method that renders a mass mail
+for one recipient (the composer's C<get_mail_values> became the private
+C<_prepare_mail_values>, which cannot be called over RPC), and OOM does not
+imitate Odoo's rendering. There the report says C<rendered_by: none>: the
+recipient, the mailing's C<state>, and after a send C<tracking> and
+C<tracked_links>, with no subject, from, reply-to, html or text;
+C<mailing.test> sends the mail Odoo renders to an address you give. Another
+series is refused by name until its profile is probed.
 
 =cut
 
@@ -129,7 +136,7 @@ sub report ($self) {
     Odoo::Error->throw( kind => 'usage', message => 'mailing.preview: give email or contact, not both' )
         if defined $self->param('email') && defined $self->param('contact');
 
-    my @read = map { $f->( mailing => $_ ) } qw(subject body_html state lists model_real email_from reply_to reply_to_mode active);
+    my @read = map { $f->( mailing => $_ ) } qw(subject body_html state lists model_real email_from reply_to reply_to_mode active domain);
     my $m = $mm->read( [$id], \@read )->[0]
         or Odoo::Error->throw( kind => 'refused', code => 'unknown-mailing', message => "mailing.preview: no mailing $id",
             fix => q(oom-ops run mailing.status --conf <conf> lists the mailings) );
@@ -140,71 +147,91 @@ sub report ($self) {
         if $m->{ $f->( mailing => 'model_real' ) } ne $p->model_name('contact');
     my @lists = @{ $m->{ $f->( mailing => 'lists' ) } // [] };
 
-    my $who = $self->_recipient( $p, \@lists );
+    # a mailing to one region of its lists previews for a contact of that region
+    my $dom_text = Odoo::Ops::Mailing::Common::text( $m->{ $f->( mailing => 'domain' ) } );
+    my $parsed   = length $dom_text && !Odoo::Ops::Mailing::Common::same_domain( $dom_text, Odoo::Ops::Mailing::Common::list_domain( $self, \@lists ) )
+        ? Odoo::Ops::Mailing::Common::parse_domain($dom_text) : undef;
+    my $in_domain = $parsed ? { map { $_->{id} => 1 } @{ $self->model('contact')->all( $parsed, ['id'] ) } } : undef;
+    my $who = $self->_recipient( $p, \@lists, $in_domain );
 
-    # the composer as action_send_mail makes it (mass_mailing/models/mailing.py), for one recipient
-    my $mode = $m->{ $f->( mailing => 'reply_to_mode' ) } // '';
-    my %cv = (
-        $f->( composer => 'mode' )    => 'mass_mail',
-        $f->( composer => 'model' )   => $p->model_name('contact'),
-        $f->( composer => 'subject' ) => $m->{ $f->( mailing => 'subject' ) },
-        $f->( composer => 'body' )    => Odoo::Ops::Mailing::Common::text( $m->{ $f->( mailing => 'body_html' ) } ),
-        $f->( composer => 'mailing' ) => $id,
-        $f->( composer => 'lists' )   => [ map { [ 4, $_ ] } @lists ],
-        $f->( composer => 'reply_to_force_new' ) => $mode eq 'new' ? JSON::PP::true : JSON::PP::false,
-    );
-    my $from = Odoo::Ops::Mailing::Common::text( $m->{ $f->( mailing => 'email_from' ) } );
-    $cv{ $f->( composer => 'email_from' ) } = $from if length $from;
-    $cv{ $f->( composer => 'reply_to' ) } = Odoo::Ops::Mailing::Common::text( $m->{ $f->( mailing => 'reply_to' ) } ) if $mode eq 'new';
-    my $comp = $self->model('composer');
-    my $cid  = $comp->create( \%cv );
-    my $res  = $comp->call( $p->action('render_one'), [ [$cid], [ $who->{id} ] ],
-        context => { active_ids => [ $who->{id} ], active_model => $p->model_name('contact') } );
-    my $one = ref $res eq 'HASH' ? $res->{ $who->{id} } : undef;
-    Odoo::Error->throw( kind => 'fault', message => "mailing.preview: Odoo rendered nothing for contact $who->{id}" ) if ref $one ne 'HASH';
+    my %out;
+    if ( $p->has_action('render_one') ) {
+        # the composer as action_send_mail makes it (mass_mailing/models/mailing.py), for one recipient
+        my $mode = $m->{ $f->( mailing => 'reply_to_mode' ) } // '';
+        my %cv = (
+            $f->( composer => 'mode' )    => 'mass_mail',
+            $f->( composer => 'model' )   => $p->model_name('contact'),
+            $f->( composer => 'subject' ) => $m->{ $f->( mailing => 'subject' ) },
+            $f->( composer => 'body' )    => Odoo::Ops::Mailing::Common::text( $m->{ $f->( mailing => 'body_html' ) } ),
+            $f->( composer => 'mailing' ) => $id,
+            $f->( composer => 'lists' )   => [ map { [ 4, $_ ] } @lists ],
+            $f->( composer => 'reply_to_force_new' ) => $mode eq 'new' ? JSON::PP::true : JSON::PP::false,
+        );
+        my $from = Odoo::Ops::Mailing::Common::text( $m->{ $f->( mailing => 'email_from' ) } );
+        $cv{ $f->( composer => 'email_from' ) } = $from if length $from;
+        $cv{ $f->( composer => 'reply_to' ) } = Odoo::Ops::Mailing::Common::text( $m->{ $f->( mailing => 'reply_to' ) } ) if $mode eq 'new';
+        my $comp = $self->model('composer');
+        my $cid  = $comp->create( \%cv );
+        my $res  = $comp->call( $p->action('render_one'), [ [$cid], [ $who->{id} ] ],
+            context => { active_ids => [ $who->{id} ], active_model => $p->model_name('contact') } );
+        my $one = ref $res eq 'HASH' ? $res->{ $who->{id} } : undef;
+        Odoo::Error->throw( kind => 'fault', message => "mailing.preview: Odoo rendered nothing for contact $who->{id}" ) if ref $one ne 'HASH';
 
-    my $base = $mm->call( $p->action('base_url'), [ [$id] ] );
-    $base = '' if ref $base || !defined $base;
-    $base =~ s{/+\z}{};
-    my $html = Odoo::Ops::Mailing::Common::text( $one->{body_html} );
-    my $href = $p->action('unsubscribe_href');
-    # the raw URL Odoo's send looks for in the body: the base URL and the path
-    my $raw = "$base$href";
-    my $text = _plain($html);
-    my $has_anchor = index( $html, $raw ) >= 0;
+        my $base = $mm->call( $p->action('base_url'), [ [$id] ] );
+        $base = '' if ref $base || !defined $base;
+        $base =~ s{/+\z}{};
+        my $html = Odoo::Ops::Mailing::Common::text( $one->{body_html} );
+        my $href = $p->action('unsubscribe_href');
+        # the raw URL Odoo's send looks for in the body: the base URL and the path
+        my $raw = "$base$href";
+        my $text = _plain($html);
+        my $has_anchor = index( $html, $raw ) >= 0;
 
-    my $unsub = sprintf '%s/mailing/%d/confirm_unsubscribe?res_id=%d&email=%s&token=TOKEN-SIGNED-BY-ODOO-AT-SEND', $base, $id, $who->{id}, _urlenc( $who->{email} );
-    ( my $unsub_html = $unsub ) =~ s/&/&amp;/g;
-    $html =~ s/\Q$raw\E/$unsub_html/g if $has_anchor;
+        my $unsub = sprintf '%s/mailing/%d/confirm_unsubscribe?res_id=%d&email=%s&token=TOKEN-SIGNED-BY-ODOO-AT-SEND', $base, $id, $who->{id}, _urlenc( $who->{email} );
+        ( my $unsub_html = $unsub ) =~ s/&/&amp;/g;
+        $html =~ s/\Q$raw\E/$unsub_html/g if $has_anchor;
 
-    my $from_text = Odoo::Ops::Mailing::Common::text( $one->{email_from} );
-    my ( $sent_from, $from_note ) = $self->_sent_from($from_text);
-    my %out = (
-        mailing         => $id,
-        rendered_by     => 'odoo',
-        recipient       => { contact_id => $who->{id}, email => $who->{email}, name => $who->{name} },
-        subject         => Odoo::Ops::Mailing::Common::text( $one->{subject} ),
-        from            => $from_text,
-        sent_from       => $sent_from,
-        from_note       => $from_note,
-        reply_to        => Odoo::Ops::Mailing::Common::text( $one->{reply_to} ),
-        text            => $text,        text_derived_by => 'oom',
-        unsubscribe_url => $has_anchor ? $unsub : undef,
-        unsubscribe_token => 'signed by Odoo at send time (an HMAC under database.secret, which OOM does not read); the URL shows where the link goes and does not unsubscribe anyone',
-        placeholders    => [
-            ( $has_anchor ? 'the unsubscribe link: its token is a placeholder' : 'the body has no ' . $href . ' anchor: the mail goes out with no way to opt out' ),
-            'links to other pages read as written: Odoo shortens them into tracked links only at send (see tracked_links after a send)',
-            'no tracking image: Odoo appends it to the sent body (see tracking after a send)',
-            'the text part is derived by OOM, not rendered by Odoo',
-        ],
-    );
-    # text comes first: it is short and says what the mail reads like; the html follows
-    if ( $htmlmode eq '1' ) { $out{html} = $html }
-    elsif ( $htmlmode eq 'inner' ) {
-        my $inner = Odoo::Ops::Mailing::Common::text( $m->{ $f->( mailing => 'body_html' ) } );
-        $inner =~ s{\b(href|src)=(["'])/(?!/)}{$1=$2$base/}gi;
-        $inner =~ s/\Q$raw\E/$unsub_html/g;
-        $out{html} = $inner;
+        my $from_text = Odoo::Ops::Mailing::Common::text( $one->{email_from} );
+        my ( $sent_from, $from_note ) = $self->_sent_from($from_text);
+        %out = (
+            mailing         => $id,
+            rendered_by     => 'odoo',
+            recipient       => { contact_id => $who->{id}, email => $who->{email}, name => $who->{name} },
+            subject         => Odoo::Ops::Mailing::Common::text( $one->{subject} ),
+            from            => $from_text,
+            sent_from       => $sent_from,
+            from_note       => $from_note,
+            reply_to        => Odoo::Ops::Mailing::Common::text( $one->{reply_to} ),
+            text            => $text,        text_derived_by => 'oom',
+            unsubscribe_url => $has_anchor ? $unsub : undef,
+            unsubscribe_token => 'signed by Odoo at send time (an HMAC under database.secret, which OOM does not read); the URL shows where the link goes and does not unsubscribe anyone',
+            placeholders    => [
+                ( $has_anchor ? 'the unsubscribe link: its token is a placeholder' : 'the body has no ' . $href . ' anchor: the mail goes out with no way to opt out' ),
+                'links to other pages read as written: Odoo shortens them into tracked links only at send (see tracked_links after a send)',
+                'no tracking image: Odoo appends it to the sent body (see tracking after a send)',
+                'the text part is derived by OOM, not rendered by Odoo',
+            ],
+        );
+        # text comes first: it is short and says what the mail reads like; the html follows
+        if ( $htmlmode eq '1' ) { $out{html} = $html }
+        elsif ( $htmlmode eq 'inner' ) {
+            my $inner = Odoo::Ops::Mailing::Common::text( $m->{ $f->( mailing => 'body_html' ) } );
+            $inner =~ s{\b(href|src)=(["'])/(?!/)}{$1=$2$base/}gi;
+            $inner =~ s/\Q$raw\E/$unsub_html/g;
+            $out{html} = $inner;
+        }
+    }
+    else {
+        # Odoo 18: the composer's renderer is private (_prepare_mail_values), so there is no mail to read; what a read can say is said
+        %out = (
+            mailing     => $id,
+            rendered_by => 'none',
+            recipient   => { contact_id => $who->{id}, email => $who->{email}, name => $who->{name} },
+            placeholders => [
+                'Odoo ' . $self->client->server_series . ' has no public method that renders a mass mail for a recipient (16\'s get_mail_values is the private _prepare_mail_values here), so there is no subject, from, reply_to, html or text: nothing is rendered or imitated',
+                'mailing.test sends the mail Odoo renders to an address you give',
+            ],
+        );
     }
     $out{state} = $m->{ $f->( mailing => 'state' ) };
     # after a send: what the trace and the link tracker hold for this recipient
@@ -305,7 +332,7 @@ sub _sent_from ($self, $from) {
 }
 
 # the contact asked for, or the first reachable subscription of the lists
-sub _recipient ($self, $p, $lists) {
+sub _recipient ($self, $p, $lists, $in_domain = undef) {
     my $f = sub ( $lm, $lf ) { $p->field( $lm => $lf ) };
     my @cf = map { $f->( contact => $_ ) } qw(name email_normalized blacklisted);
     my $cm = $self->model('contact');
@@ -336,7 +363,8 @@ sub _recipient ($self, $p, $lists) {
                 [ $f->( subscription => 'contact' ) ], order => 'id asc', limit => $page, offset => $off );
             last if !@$subs;
             my %seen;
-            my @cid = grep { !$seen{$_}++ } map { Odoo::Ops::Mailing::Common::id_of( $_->{ $f->( subscription => 'contact' ) } ) } @$subs;
+            my @cid = grep { !$seen{$_}++ && ( !$in_domain || $in_domain->{$_} ) } map { Odoo::Ops::Mailing::Common::id_of( $_->{ $f->( subscription => 'contact' ) } ) } @$subs;
+            if ( !@cid ) { last if @$subs < $page; next }
             my %c = map { $_->{id} => $_ } @{ $cm->all( [ [ 'id', 'in', \@cid ] ], \@cf ) };
             ($row) = grep { $_ && length( Odoo::Ops::Mailing::Common::text( $_->{ $f->( contact => 'email_normalized' ) } ) ) && !$_->{ $f->( contact => 'blacklisted' ) } }
                 map { $c{$_} } @cid;
@@ -386,7 +414,7 @@ sub _plain ($html) {
 sub _fields () {
     my $s = sub ($t, $str) { { portable_type => $t, string => $str } };
     return {
-        rendered_by     => $s->( 'text', 'odoo: subject, from, reply_to and html are Odoo\'s own rendering for this recipient' ),
+        rendered_by     => $s->( 'text', 'odoo: subject, from, reply_to and html are Odoo\'s own rendering for this recipient; none (Odoo 18): Odoo has no public renderer, so those keys are absent' ),
         recipient       => $s->( 'object', 'The contact it was rendered for' ),
         subject         => $s->( 'text', 'Subject as Odoo renders it for the recipient' ),
         from            => $s->( 'text', 'The mailing\'s email_from, as Odoo renders it' ),

@@ -73,7 +73,7 @@ mailing lost under C<force=1>, and a subscription whose list or contact
 has been deleted since. The date an opt-out was made is Odoo's to stamp:
 a recreated opt-out carries the date of the revert.
 
-Series: written for Odoo 16; another series is refused by name until its
+Series: Odoo 16 and 18; another series is refused by name until its
 profile is probed.
 
 =cut

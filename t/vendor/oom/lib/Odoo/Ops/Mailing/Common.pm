@@ -27,13 +27,13 @@ once.
 
 =head2 ready($op)
 
-The mailing profile for this server, or a refusal. A series with no
-profile of its own is refused by name (C<series>): the registry's
-fallback to the nearest lower profile is right for a pack whose model
-has not changed, but nothing here was probed on any series but 16, so
-loading the 16 file for a 17 server would be a guess. The profile is
-then checked against the live C<fields_get> (C<profile> when a mapped
-model or field is missing).
+The mailing profile for this server, or a refusal. The pack has a profile
+for Odoo 16 and one for 18. A series with no profile of its own is refused
+by name (C<series>): the registry's fallback to the nearest lower profile is
+right for a pack whose model has not changed, but nothing here was probed on
+any series but 16 and 18, so loading the 18 file for a 19 server would be a
+guess. The profile is then checked against the live C<fields_get>
+(C<profile> when a mapped model or field is missing).
 
 =cut
 
@@ -43,8 +43,8 @@ sub ready ($op) {
     Odoo::Error->throw(
         kind    => 'refused',
         code    => 'series',
-        message => $op->op_name . " is not probed on Odoo $series: the mailing pack has a profile for series "
-            . $p->series . ' only, and a later series is a profile and a probe away (docs/OPS.md)',
+        message => $op->op_name . " is not probed on Odoo $series: the mailing pack has profiles for series 16 and 18 only, "
+            . 'and a later series is a profile and a probe away (docs/OPS.md)',
     ) if $p->series != $series;
     my $v = $p->validate( $op->client );
     Odoo::Error->throw(
@@ -220,7 +220,8 @@ sub has_unsubscribe ($html, $href) {
 
 C<scope_for> for the operations that call Odoo methods whose names a
 profile owns: an entry written C<&name> in a declared scope is replaced
-by the physical method C<< $profile->action('name') >>. So an operation
+by the physical method C<< $profile->action('name') >>; an entry the profile
+does not name is left out (the operation says why it cannot run). So an operation
 declares C<< mailing => ['read', '&send_mail'] >> and a later series
 renames the method in its profile, not in the code.
 
@@ -228,7 +229,7 @@ renames the method in its profile, not in the code.
 
 sub scope ($op, $phase, $scope) {
     my $p = $op->profile;
-    return { map { my $m = $_; $m => [ sort map { /^&(.+)\z/ ? $p->action($1) : $_ } @{ $scope->{$m} } ] } keys %$scope };
+    return { map { my $m = $_; $m => [ sort map { /^&(.+)\z/ ? ( $p->has_action($1) ? $p->action($1) : () ) : $_ } @{ $scope->{$m} } ] } keys %$scope };
 }
 
 =head2 xmlid_id($op, $xmlid)
@@ -403,7 +404,178 @@ sub _needs ($err) {
     return ( $model, $group );
 }
 
-=head2 audience($op, \@list_ids)
+=head2 list_domain($op, \@list_ids)
+
+Odoo 16's default C<mailing_domain> for a mailing to these lists, as the
+text Odoo stores: C<[('list_ids', 'in', [1, 2])]>. Odoo adds no term for
+the blacklist (read on demo16, C<t/85>): a blacklisted contact is in the
+domain and is cancelled at send as a trace.
+
+=head2 country_domain($op, \@list_ids, $mode, \@country_ids)
+
+The domain of a list mailing to one region of its lists: the default for
+the lists and the clause on the contact's own country, as Odoo stores a
+domain. C<$mode> C<in> is C<('country_id', 'in', [...])>; C<not_in> is
+C<'|', ('country_id', '=', False), ('country_id', 'not in', [...])>, so a
+contact with no country is in it. Ids are sorted, so the same filter is
+the same text.
+
+=head2 same_domain($a, $b)
+
+True when two domain texts are the same but for white space.
+
+=head2 parse_domain($text)
+
+A domain text (Python literal as Odoo stores it, or JSON) read into the
+list the client sends: terms as C<[field, op, value]>, C<'|'>, C<'&'> and
+C<'!'> as strings, C<True>/C<False>/C<None> as booleans and null. Undef
+when the text is not a domain this reads (it is then not guessed at).
+
+=cut
+
+sub list_domain ($op, $list_ids) {
+    my $lf = $op->profile->field( contact => 'lists' );
+    return "[('$lf', 'in', [" . join( ', ', sort { $a <=> $b } @$list_ids ) . '])]';
+}
+
+sub country_domain ($op, $list_ids, $mode, $country_ids) {
+    my $p  = $op->profile;
+    my $cf = $p->field( contact => 'country' );
+    my $ids = join ', ', sort { $a <=> $b } @$country_ids;
+    ( my $base = list_domain( $op, $list_ids ) ) =~ s/\]\z//;
+    return $mode eq 'in'
+        ? "$base, ('$cf', 'in', [$ids])]"
+        : "$base, '|', ('$cf', '=', False), ('$cf', 'not in', [$ids])]";
+}
+
+sub same_domain ($x, $y) {
+    return 0 if !defined $x || !defined $y;
+    my ( $a, $b ) = map { s/\s+//gr } ( $x, $y );
+    return $a eq $b ? 1 : 0;
+}
+
+sub parse_domain ($text) {
+    return undef if !defined $text || ref $text || $text !~ /\S/;
+    my ( $pos, $s ) = ( 0, $text );
+    my $ws = sub { $s =~ /\G\s*/gc; $pos = pos($s) // $pos };
+    my $value;
+    $value = sub {
+        pos($s) = $pos;
+        $s =~ /\G\s*/gc;
+        if ( $s =~ /\G([\[(])/gc ) {
+            my $close = $1 eq '[' ? ']' : ')';
+            my @items;
+            while (1) {
+                $s =~ /\G\s*/gc;
+                last if $s =~ /\G\Q$close\E/gc;
+                $pos = pos($s);
+                my $v = $value->();
+                return undef if !$v;
+                push @items, $v->[0];
+                pos($s) = $pos;
+                $s =~ /\G\s*/gc;
+                next if $s =~ /\G,/gc;
+                last if $s =~ /\G\Q$close\E/gc;
+                return undef;
+            }
+            $pos = pos($s);
+            return [ \@items ];
+        }
+        if ( $s =~ /\G(["'])((?:\\.|(?!\1).)*)\1/gcs ) {
+            ( my $str = $2 ) =~ s/\\(.)/$1/g;
+            $pos = pos($s);
+            return [$str];
+        }
+        if ( $s =~ /\G(-?\d+(?:\.\d+)?)/gc ) { $pos = pos($s); return [ $1 + 0 ] }
+        if ( $s =~ /\G(True|true)\b/gc )  { $pos = pos($s); return [JSON::PP::true] }
+        if ( $s =~ /\G(False|false)\b/gc ) { $pos = pos($s); return [JSON::PP::false] }
+        if ( $s =~ /\G(None|null)\b/gc )  { $pos = pos($s); return [undef] }
+        return undef;
+    };
+    $pos = 0;
+    my $v = $value->();
+    return undef if !$v || ref $v->[0] ne 'ARRAY';
+    pos($s) = $pos;
+    $s =~ /\G\s*/gc;
+    return undef if ( pos($s) // $pos ) != length $s;
+    my $dom = $v->[0];
+    for my $term (@$dom) {
+        next if !ref $term && defined $term && $term =~ /\A[|&!]\z/;
+        return undef if ref $term ne 'ARRAY' || @$term != 3;
+    }
+    return $dom;
+}
+
+=head2 remaining($op, $mailing_id, $domain_text)
+
+Who Odoo's own C<_get_remaining_recipients> would send to now, worked out the way
+it does (it is private, so it cannot be called): the contacts the mailing's
+domain gives, less those that already have a trace of this mailing. Returns
+C<< { ids => [ ... ], candidates => N, traced => M } >>, the ids in contact id
+order, C<traced> being the candidates that have a trace; or undef when the domain
+is one OOM cannot read (it is then not guessed at). An empty domain gives no
+recipient, as Odoo's does (its C<_parse_mailing_domain> falls back to no record
+when the text is not a domain).
+
+=cut
+
+sub remaining ($op, $mailing_id, $domain_text) {
+    my $p = $op->profile;
+    my $dom = !defined $domain_text || $domain_text !~ /\S/ ? [ [ 'id', 'in', [] ] ] : parse_domain($domain_text);
+    return undef if !$dom;
+    my $contacts = $op->model('contact')->all( $dom, ['id'] );
+    my @ids = map { $_->{id} } @$contacts;
+    my ( $tm, $tmail, $tres, $tmodel ) = ( $op->model('trace'), map { $p->field( trace => $_ ) } qw(mailing res_id model) );
+    my %traced;
+    for ( my $i = 0 ; $i < @ids ; $i += 1000 ) {
+        my @slice = @ids[ $i .. ( $i + 999 < $#ids ? $i + 999 : $#ids ) ];
+        $traced{ $_->{$tres} } = 1 for @{ $tm->all( [ [ $tmail, '=', $mailing_id ], [ $tmodel, '=', $p->model_name('contact') ], [ $tres, 'in', \@slice ] ], [$tres] ) };
+    }
+    return { ids => [ grep { !$traced{$_} } @ids ], candidates => scalar @ids, traced => scalar( grep { $traced{$_} } @ids ) };
+}
+
+=head2 countries($op, \@codes)
+
+The C<res.country> rows (C<id>, C<code>, C<name>) for ISO codes, upper-cased
+and each once, in the order given. A code Odoo has no country for is a
+C<usage> refusal naming it.
+
+=cut
+
+sub countries ($op, $codes) {
+    my $p = $op->profile;
+    my ( $cc, $cn ) = map { $p->field( country => $_ ) } qw(code name);
+    my @want;
+    my %seen;
+    for my $c (@$codes) {
+        my $u = uc( $c =~ s/^\s+|\s+\z//gr );
+        next if !length $u || $seen{$u}++;
+        push @want, $u;
+    }
+    Odoo::Error->throw( kind => 'usage', message => $op->op_name . ': a country filter needs at least one country code',
+        fix => 'give ISO 3166 alpha-2 codes, comma-separated (AU,JP)' ) if !@want;
+    my $rows = $op->model('country')->search_read( [ [ $cc, 'in', \@want ] ], [ $cc, $cn ] );
+    my %by = map { uc( $_->{$cc} ) => { id => $_->{id}, code => uc( $_->{$cc} ), name => $_->{$cn} } } @$rows;
+    my @unknown = grep { !$by{$_} } @want;
+    Odoo::Error->throw( kind => 'usage',
+        message => $op->op_name . ': unknown country code' . ( @unknown > 1 ? 's' : '' ) . ' ' . join( ', ', map { "'$_'" } @unknown ) . ' (res.country has no such code)',
+        fix => 'ISO 3166 alpha-2 codes as res.country holds them (AU, GB, US); oom-ops run core.select --set model=res.country lists them' ) if @unknown;
+    return [ map { $by{$_} } @want ];
+}
+
+=head2 country_words($mode, \@countries)
+
+The filter in words: C<country in Australia (AU), Japan (JP)>, or
+C<country not in ..., or no country>.
+
+=cut
+
+sub country_words ($mode, $countries) {
+    my $list = join ', ', map { "$_->{name} ($_->{code})" } @$countries;
+    return $mode eq 'in' ? "contact's own country is one of $list" : "contact's own country is not one of $list, or the contact has no country";
+}
+
+=head2 audience($op, \@list_ids, domain => \@domain)
 
 Who a mailing to these lists reaches, worked out the way Odoo's own
 send does it, from the subscriptions: an address is mailed once (two
@@ -412,6 +584,8 @@ blacklist, and not when every subscription it has among these lists is
 opted out. Returns C<< { subscriptions, contacts, reachable, opted_out,
 blacklisted, no_email } >> (addresses for the last four but the last).
 
+With C<domain> (a parsed C<mailing_domain>, see L</parse_domain($text)>) only the contacts that domain gives are counted: the audience of one region of the lists.
+
 C<reachable> is what a send will mail; Odoo's own C<total> counts the
 contacts of the lists (the 16 domain has no blacklist term for lists),
 opted-out and blacklisted ones included, and its C<expected> stays 0 until a send has made traces, so
@@ -419,12 +593,17 @@ neither can answer "how many will receive this".
 
 =cut
 
-sub audience ($op, $list_ids) {
+sub audience ($op, $list_ids, %o) {
     my $p = $op->profile;
     my ( $sc, $sl, $so ) = map { $p->field( subscription => $_ ) } qw(contact list opt_out);
     my ( $ce, $cb ) = map { $p->field( contact => $_ ) } qw(email_normalized blacklisted);
     return { subscriptions => 0, contacts => 0, reachable => 0, opted_out => 0, blacklisted => 0, no_email => 0 } if !@$list_ids;
     my $subs = $op->model('subscription')->all( [ [ $sl, 'in', $list_ids ] ], [ $sc, $sl, $so ] );
+    # a mailing with its own domain (a region of its lists) reaches the contacts that domain gives, as Odoo's total counts them
+    if ( $o{domain} ) {
+        my %in = map { $_->{id} => 1 } @{ $op->model('contact')->all( $o{domain}, ['id'] ) };
+        @$subs = grep { $in{ id_of( $_->{$sc} ) // 0 } } @$subs;
+    }
     my %cid  = map { id_of( $_->{$sc} ) => 1 } @$subs;
     my $rows = %cid ? $op->model('contact')->all( [ [ 'id', 'in', [ sort { $a <=> $b } keys %cid ] ] ], [ $ce, $cb ] ) : [];
     my %contact = map { $_->{id} => $_ } @$rows;

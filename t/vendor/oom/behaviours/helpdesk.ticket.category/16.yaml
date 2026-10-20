@@ -1,0 +1,9 @@
+# helpdesk.ticket.category, Odoo 16 (OCA helpdesk_mgmt). Source 16.0, 2026-10-19; live 2026-10-19 (survey, demo16).
+model: helpdesk.ticket.category
+series: 16
+module: helpdesk_mgmt
+effects:
+  - on: create
+    fields: [default_team_id]
+    effect: a ticket made with this category and no team belongs to the category's default team
+    evidence: source 16.0 helpdesk_ticket.create and _prepare_team_id; live 2026-10-19 (survey, demo16)

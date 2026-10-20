@@ -51,8 +51,8 @@ A record:
 
 States: C<planned>, C<approved>, C<applied> (every change applied, held or
 skipped; C<result.ok> is false only when an invariant broke), C<failed>
-(the apply ended with a change failed or not attempted and none applied),
-C<partly-applied> (some applied, then one failed or was not attempted;
+(the apply ended with a change failed, unknown or not attempted and none applied),
+C<partly-applied> (some applied, then one failed, ended unknown or was not attempted;
 C<resume> is the way forward), C<nothing> (a plan with nothing to apply,
 closed when it was planned: not live, not listed unless asked for),
 C<reverted>, C<partly-reverted> (a
@@ -610,7 +610,7 @@ sub record_applied ($class, $dir, $result, %o) {
     my $idx = $class->_load_dir($dir)
         // ( $o{plan} ? $class->index_plan( $dir, $o{plan}, now => $o{now} ) : undef )
         or return undef;
-    my $ok = !$h->{counts}{failed} && !$h->{counts}{not_attempted} && !$h->{invariants_failed} ? 1 : 0;
+    my $ok = !$h->{counts}{failed} && !$h->{counts}{unknown} && !$h->{counts}{not_attempted} && !$h->{invariants_failed} ? 1 : 0;
     $idx->{state}   = _apply_state( $h->{counts} );
     $idx->{applied} = { at => $h->{finished} // Odoo::Ops::iso_time( $o{now} // time ), by => $o{by} // $ENV{USER} // 'unknown' };
     $idx->{result}  = {
@@ -627,7 +627,7 @@ sub record_applied ($class, $dir, $result, %o) {
         my $before_done = $prev ? ( $prev->{done_total} // $prev->{result}{counts}{done} // 0 ) : 0;
         my $did  = ( $c->{done} // 0 ) + $before_done;
         my $held = ( $c->{held} // 0 ) + @prior;
-        my $lost = ( $c->{failed} // 0 ) + ( $c->{not_attempted} // 0 );
+        my $lost = ( $c->{failed} // 0 ) + ( $c->{unknown} // 0 ) + ( $c->{not_attempted} // 0 );
         $outcome = $did ? ( $ok && !$held ? 'reverted' : 'partly-reverted' )
             : $lost ? 'failed'
             : $held ? 'held'
@@ -662,7 +662,7 @@ sub record_applied ($class, $dir, $result, %o) {
 # when some were applied before it stopped
 sub _apply_state ($counts) {
     my $c    = $counts // {};
-    my $lost = ( $c->{failed} // 0 ) + ( $c->{not_attempted} // 0 );
+    my $lost = ( $c->{failed} // 0 ) + ( $c->{unknown} // 0 ) + ( $c->{not_attempted} // 0 );
     return 'applied' if !$lost;
     return ( $c->{done} // 0 ) ? 'partly-applied' : 'failed';
 }
@@ -739,7 +739,7 @@ sub _load_dir ($self, $dir) {
         if ( $jh && !$res ) {
             my %counts;
             $counts{ $_->{outcome} }++ for @$jc;
-            my ($failed) = grep { ( $_->{outcome} // '' ) eq 'failed' } @$jc;
+            my ($failed) = grep { ( $_->{outcome} // '' ) =~ /\A(?:failed|unknown)\z/ } @$jc;
             $res = {
                 counts => $jfoot ? $jfoot->{counts} : { %counts, not_attempted => 1 },    # no footer: it did not finish
                 finished => $jfoot ? $jfoot->{finished} : undef, journal => $jf,

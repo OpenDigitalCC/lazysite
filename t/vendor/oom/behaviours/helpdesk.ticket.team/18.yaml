@@ -1,0 +1,13 @@
+# helpdesk.ticket.team, Odoo 18 (OCA helpdesk_mgmt). Source 16.0, 2026-10-19; live 2026-10-19 (survey, demo18).
+model: helpdesk.ticket.team
+series: 18
+module: helpdesk_mgmt
+effects:
+  - on: create
+    fields: [name]
+    effect: makes the team's mail alias (a mail.alias of the ticket model with the team in its defaults); the alias has no name, so it is inactive until alias_name is set
+    evidence: 'source 18.0 mail.alias.mixin and helpdesk_ticket_team._alias_get_creation_values; live 2026-10-19 (survey, demo18: alias_id "Inactive Alias")'
+  - on: write
+    fields: [user_ids]
+    effect: Odoo's record rules read a user's teams (user.helpdesk_team_ids) and cache the domain; a member added or removed is not seen by that user's rules until a group of the user is written or the server restarts
+    evidence: 'live 2026-10-19 (survey, demo18: a service login added to a team could not create or read the team''s tickets until its groups were written again)'

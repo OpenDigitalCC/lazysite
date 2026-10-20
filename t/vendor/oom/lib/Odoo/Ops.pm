@@ -9,7 +9,7 @@ use JSON::PP ();
 use Odoo::JSON ();
 use Digest::SHA qw(sha256_hex);
 
-our $VERSION = '0.36';
+our $VERSION = '0.38';
 
 =head1 NAME
 

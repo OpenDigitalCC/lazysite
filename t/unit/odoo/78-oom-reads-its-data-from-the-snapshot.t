@@ -18,6 +18,12 @@
 #      advisory tier for a newer OOM), and only an extra the suite actually uses
 #      fails, because only that one could change a test's result;
 #   3. the pack directories are the ones OdooTest set, not the host's.
+# SM1216: OOM 0.37 reads ODOO_OOM_SHARE for that last root, and an empty value names
+# none (lazysite's SM1202 ask). OdooTest sets it empty, so with an OOM that honours it
+# the host's directory is not searched AT ALL: no host root in core_dirs, and no
+# matrix.yaml from the host. Rules 1 and 2 (SM1204's) still hold an OOM that does not
+# honour it (older than 0.37), and the tier that means the host (tools/ext-compat.sh,
+# LAZYSITE_OOM_LIB set, where OdooTest leaves ODOO_OOM_SHARE alone).
 use strict;
 use warnings;
 use Test::More;
@@ -33,8 +39,9 @@ BEGIN { oom_or_skip() }
 my $host = '/usr/share/' . 'odoo-oom'; # lint 262 allows this only in the tools that mean the host
 my $snap = vendor_dir();
 
-my $script = 'use strict; use warnings; use JSON::PP; require Odoo::Ops::Behaviour; require Odoo::Ops::Profile; require Odoo::Ops::Registry;'
-    . ' print encode_json({ b => [ Odoo::Ops::Behaviour->core_dirs ], p => [ Odoo::Ops::Profile->core_dirs ] }), "\n";';
+my $script = 'use strict; use warnings; use JSON::PP; require Odoo::Ops; require Odoo::Ops::Behaviour; require Odoo::Ops::Profile; require Odoo::Ops::Registry;'
+    . ' my @m = eval { require Odoo::Ops::Matrix; Odoo::Ops::Matrix->default_files };'
+    . ' print encode_json({ v => $Odoo::Ops::VERSION, b => [ Odoo::Ops::Behaviour->core_dirs ], p => [ Odoo::Ops::Profile->core_dirs ], m => \@m }), "\n";';
 open my $ph, '-|', $^X, '-I' . oom_lib(), '-e', $script or die $!;
 my $out = do { local $/; <$ph> };
 close $ph;
@@ -42,12 +49,28 @@ my $r = eval { JSON::PP::decode_json($out) } or BAIL_OUT("child said: $out");
 
 sub names { my ($d) = @_; opendir my $dh, $d or return (); my @n = sort grep { !/^\./ } readdir $dh; closedir $dh; return @n }
 
+# OOM 0.37 is the first to read ODOO_OOM_SHARE (its debian/changelog, 0.37).
+sub honours_share {
+    my ($v) = @_;
+    my ( $maj, $min ) = ( $v // '' ) =~ /\A(\d+)\.(\d+)/ or return 0;
+    return $maj > 0 || $min >= 37;
+}
+my $share_off = defined $ENV{ODOO_OOM_SHARE} && $ENV{ODOO_OOM_SHARE} eq '';
+
+# the host root is gone only when it is off AND this OOM reads the variable
+my $no_host = $share_off && honours_share( $r->{v} );
+
 for my $kind ( [ b => 'behaviours' ], [ p => 'profiles' ] ) {
     my ( $k, $dir ) = @$kind;
     my @roots = @{ $r->{$k} };
     is( Cwd::abs_path( $roots[0] ), Cwd::abs_path("$snap/$dir"), "$dir: the snapshot's tree is searched first" )
         or diag explain \@roots;
     my @host_roots = grep { $_ eq "$host/$dir" } @roots;
+    if ($no_host) {
+        is_deeply( \@host_roots, [], "$dir: with the share root off (OOM $r->{v}), the host's directory is not searched at all" )
+            or diag explain \@roots;
+        next;
+    }
     if ( !@host_roots ) {
         pass("$dir: the host holds none to search");
         next;
@@ -93,6 +116,16 @@ sub suite_names {
         }
     }
     return grep { /(?<![\w.])\Q$name\E(?![\w])/ } values %SUITE_TEXT;
+}
+
+if ($no_host) {
+    is_deeply( [ grep { index( $_, "$host/" ) == 0 } @{ $r->{m} } ], [], "matrix.yaml: the host's is not read either" )
+        or diag explain $r->{m};
+}
+
+unless ( $ENV{LAZYSITE_OOM_LIB} ) {
+    is( $ENV{ODOO_OOM_SHARE}, '', 'the share root is the one OdooTest set: none' );
+    ok( honours_share( $r->{v} ), "and the snapshot's OOM ($r->{v}) honours it" );
 }
 
 {

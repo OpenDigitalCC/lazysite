@@ -8,7 +8,7 @@ use Odoo::JSON ();
 use builtin qw(is_bool created_as_number);
 no warnings 'experimental::builtin';
 
-our $VERSION = '0.36';
+our $VERSION = '0.38';
 
 =head1 NAME
 

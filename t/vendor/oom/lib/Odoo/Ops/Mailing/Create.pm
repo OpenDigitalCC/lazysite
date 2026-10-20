@@ -39,6 +39,26 @@ which makes the mailing a scheduled one; it still waits for
 C<mailing.send>). The body is kept both as Odoo sends it (C<body_html>)
 and as its editor keeps it (C<body_arch>).
 
+C<country_in> or C<country_not_in> (one of the two, a list of ISO country
+codes) sends the mailing to part of its lists: the contacts whose own
+country (C<mailing.contact.country_id>; a linked partner is not consulted,
+a list contact need not have one) is one of the codes, or, for
+C<country_not_in>, is none of them and every contact with no country. It is
+written as the mailing's C<mailing_domain>: Odoo's default for the lists
+(C<[('list_ids', 'in', [ids])]>, no blacklist term) and the clause on
+C<country_id>. A code C<res.country> does not hold is refused C<usage>,
+naming it. The plan states the filter in words, the domain, and the number
+of C<mailing.contact> records Odoo's own domain gives at plan time (what
+the mailing's C<total> will read), and counts the audience for that part
+alone. Odoo recomputes the domain whenever the lists are written, so a
+filter is part of the same write as the lists or is asked for again; a plan
+that changes the lists of a filtered draft without asking for a filter says
+that it is lost. After apply the domain is read back: a domain Odoo stored
+other than written is listed under the result's C<custom> as C<read-back
+differs>, and the change counts as not verified. Drafts that share a
+subject and lists but differ in the filter are different drafts (the parts
+of one message): C<exists> and C<sent before> compare the domain too.
+
 One row, one bucket:
 
     mailing-create    the draft is made; the plan note counts who would receive it now
@@ -64,7 +84,7 @@ that will receive it is the plan's note (distinct addresses,
 subscribed to some list, not blacklisted). Odoo's
 C<expected> is 0 until a send makes traces.
 
-Series: written for Odoo 16; another series is refused by name until its
+Series: Odoo 16 and 18; another series is refused by name until its
 profile is probed.
 
 =cut
@@ -98,6 +118,8 @@ sub params ($class) {
         reply_to => { type => 'str',  help => 'reply-to address' },
         schedule => { type => 'str',  help => 'UTC datetime to send, YYYY-MM-DD HH:MM:SS' },
         mailing  => { type => 'int',  help => 'change this draft instead of making one' },
+        country_in     => { type => 'list', help => 'send only to the lists\' contacts whose own country is one of these ISO codes (AU,JP)' },
+        country_not_in => { type => 'list', help => 'send only to the lists\' contacts whose own country is none of these ISO codes, and to those with no country' },
         allow_no_unsubscribe => { type => 'bool', default => 0, help => 'allow a body with no unsubscribe link' },
     };
 }
@@ -105,7 +127,8 @@ sub read_scope ($class) {
     {   mailing      => [qw(search_read read)],
         list         => ['search_read'],
         subscription => ['search_read'],
-        contact      => ['search_read'],
+        contact      => [qw(search_read search_count)],
+        country      => ['search_read'],
         'ir.model'   => ['search_read'],
     };
 }
@@ -129,14 +152,23 @@ sub plan ($self) {
         Odoo::Error->throw( kind => 'usage', message => 'mailing.create: give a body (body_file or body)' ) if !defined $body;
         Odoo::Error->throw( kind => 'usage', message => 'mailing.create: give at least one list (lists)' ) if !@{ $self->param('lists') // [] };
     }
+    my ( $cin, $cnot ) = map { $self->param($_) } qw(country_in country_not_in);
+    Odoo::Error->throw( kind => 'usage', message => 'mailing.create: give country_in or country_not_in, not both',
+        fix => 'country_in sends to those countries; country_not_in to every other country and to contacts with no country' )
+        if defined $cin && defined $cnot;
+    my $cmode = defined $cin ? 'in' : defined $cnot ? 'not_in' : undef;
+    my $countries = $cmode ? Odoo::Ops::Mailing::Common::countries( $self, $cmode eq 'in' ? $cin : $cnot ) : undef;
     my $current;
     if ( defined $upd ) {
-        $current = $self->model('mailing')->read( [$upd], [ map { $f->($_) } qw(subject state lists body_html body_arch email_from reply_to schedule_date schedule_type) ] )->[0]
+        $current = $self->model('mailing')->read( [$upd], [ map { $f->($_) } qw(subject state lists body_html body_arch email_from reply_to schedule_date schedule_type model_real domain) ] )->[0]
             or Odoo::Error->throw( kind => 'refused', code => 'unknown-mailing', message => "mailing.create: no mailing $upd",
             fix => q(oom-ops run mailing.status --conf <conf> lists the mailings) );
         Odoo::Error->throw( kind => 'refused', code => 'not-draft',
             message => "mailing $upd is $current->{ $f->('state') }, not draft: only a draft can be changed" )
             if $current->{ $f->('state') } ne 'draft';
+        Odoo::Error->throw( kind => 'refused', code => 'not-a-list-mailing',
+            message => "mailing $upd is to " . Odoo::Ops::Mailing::Common::text( $current->{ $f->('model_real') } ) . ', not to mailing lists: a country filter is on the contacts of lists' )
+            if $cmode && Odoo::Ops::Mailing::Common::text( $current->{ $f->('model_real') } ) ne $p->model_name('contact');
     }
 
     # lists: every name or id must exist (archived ones are not offered to a mailing)
@@ -160,13 +192,19 @@ sub plan ($self) {
                 "the body has no anchor whose href is $href, so recipients would have no way to opt out; add one (docs/examples/mailing/newsletter.html), or allow_no_unsubscribe=1" ];
         }
     }
+    # what the mailing's domain will read: the filter on the lists, or Odoo's default for them
+    my @dom_lists = @ids ? @ids : ( $current ? @{ $current->{ $f->('lists') } // [] } : () );
+    my $domtext = $cmode && @dom_lists ? Odoo::Ops::Mailing::Common::country_domain( $self, \@dom_lists, $cmode, [ map { $_->{id} } @$countries ] ) : undef;
+    my $want_domain = $domtext // ( @dom_lists ? Odoo::Ops::Mailing::Common::list_domain( $self, \@dom_lists ) : undef );
     if ( !defined $upd && @ids ) {
         my %want = map { $_ => 1 } @ids;
         my $drafts = $self->model('mailing')->all( [ [ $f->('state'), '=', 'draft' ], [ $f->('subject'), '=', $self->param('subject') ] ],
-            [ $f->('subject'), $f->('lists') ] );
+            [ $f->('subject'), $f->('lists'), $f->('domain') ] );
         for my $d (@$drafts) {
             my %have = map { $_ => 1 } @{ $d->{ $f->('lists') } // [] };
             next if keys %have != keys %want || grep { !$have{$_} } keys %want;
+            # the parts of one message share subject and lists and differ in the filter: a draft is the same one only with the same domain
+            next if !Odoo::Ops::Mailing::Common::same_domain( Odoo::Ops::Mailing::Common::text( $d->{ $f->('domain') } ) || $want_domain, $want_domain );
             unshift @problems, [ 'exists', "a draft with this subject and these lists exists: mailing $d->{id}; pass mailing=$d->{id} to change it" ];
             last;
         }
@@ -177,12 +215,21 @@ sub plan ($self) {
 
     # A repeat after a send makes a new draft under the same subject; the reviewer
     # sees the earlier mailing before approving, not after (second try-out, item 3).
-    my @sent_before = !defined $upd && @ids ? $self->_sent_before( \@ids ) : ();
+    my @sent_before = !defined $upd && @ids ? $self->_sent_before( \@ids, $want_domain ) : ();
 
-    my $aud = @ids ? Odoo::Ops::Mailing::Common::audience( $self, \@ids ) : undef;
+    # a region of the lists: the contacts Odoo's own domain gives, counted by Odoo now
+    my $parsed   = $domtext ? Odoo::Ops::Mailing::Common::parse_domain($domtext) : undef;
+    my $matching = $parsed ? $self->model('contact')->count($parsed) : undef;
+    my $aud_ids  = @ids ? \@ids : $cmode ? \@dom_lists : undef;
+    my $aud = $aud_ids && @$aud_ids ? Odoo::Ops::Mailing::Common::audience( $self, $aud_ids, ( $parsed ? ( domain => $parsed ) : () ) ) : undef;
     my $note = sub () {
         return () if !$aud;
-        return sprintf 'audience now: %d reachable address(es) of %d subscription(s); %d opted out, %d blacklisted, %d without an address', @$aud{qw(reachable subscriptions opted_out blacklisted no_email)};
+        my @n = ( sprintf 'audience now%s: %d reachable address(es) of %d subscription(s); %d opted out, %d blacklisted, %d without an address',
+            ( $parsed ? ' in the filtered part' : '' ), @$aud{qw(reachable subscriptions opted_out blacklisted no_email)} );
+        unshift @n, 'country filter: ' . Odoo::Ops::Mailing::Common::country_words( $cmode, $countries )
+            . "; mailing_domain $domtext; Odoo's own domain gives $matching contact(s) now (opted-out ones included, as its total counts them)"
+            if $parsed;
+        return @n;
     };
 
     # proved on 16 by the try-out of 2026-10-15: nothing the author can do in the body, so a note and not a hold
@@ -203,21 +250,37 @@ sub plan ($self) {
             $want->( $f->('schedule_date'), $when );
             if ( ( $current->{ $f->('schedule_type') } // '' ) ne 'scheduled' ) { $set{ $f->('schedule_type') } = 'scheduled'; $before{ $f->('schedule_type') } = $current->{ $f->('schedule_type') } }
         }
+        my $lists_change = 0;
         if (@ids) {
             my %have = map { $_ => 1 } @{ $current->{ $f->('lists') } // [] };
             if ( keys %have != @ids || grep { !$have{$_} } @ids ) {
                 $set{ $f->('lists') } = [ [ 6, 0, \@ids ] ];
                 $before{ $f->('lists') } = $current->{ $f->('lists') };
+                $lists_change = 1;
             }
+        }
+        # Odoo recomputes the domain whenever the lists are written: a filter on this mailing is kept only when it is asked for again
+        my $cur_dom = Odoo::Ops::Mailing::Common::text( $current->{ $f->('domain') } );
+        my $filtered_now = length $cur_dom
+            && !Odoo::Ops::Mailing::Common::same_domain( $cur_dom, Odoo::Ops::Mailing::Common::list_domain( $self, $current->{ $f->('lists') } // [] ) );
+        if ($domtext) {
+            if ( !Odoo::Ops::Mailing::Common::same_domain( $cur_dom, $domtext ) ) {
+                $set{ $f->('domain') } = $domtext;
+                $before{ $f->('domain') } = $current->{ $f->('domain') };
+            }
+        }
+        elsif ( $lists_change && $filtered_now ) {
+            $plan->note("changing the lists makes Odoo recompute the mailing's domain: the filter it has now ($cur_dom) is lost; pass country_in or country_not_in again to keep a filter");
         }
         if ( !%set ) {
             $plan->add( bucket => 'unchanged', action => 'skip', key => $key, id => $upd, reason => "mailing $upd already reads as asked" );
             return $plan;
         }
-        $plan->note( $note->() ) if @ids;
+        $plan->note($_) for $note->();
         $plan->note( $text_part->() ) if defined $body;
         $plan->add( bucket => 'mailing-update', action => 'write', model => $p->model_name('mailing'), id => $upd, key => $key,
-            vals => \%set, before => \%before, reason => 'changes ' . join( ', ', sort keys %set ) );
+            vals => \%set, before => \%before, ( $set{ $f->('domain') } ? ( compare => [ $f->('domain') ] ) : () ),
+            reason => 'changes ' . join( ', ', sort keys %set ) );
         return $plan;
     }
 
@@ -229,6 +292,8 @@ sub plan ($self) {
         $f->('body_arch') => $body,
         $f->('model')     => $ir->{id},
         $f->('lists')     => [ [ 6, 0, \@ids ] ],
+        # given with the lists, Odoo keeps it; it recomputes the domain from the lists only for a mailing it was given none
+        ( $domtext ? ( $f->('domain') => $domtext ) : () ),
         ( defined $self->param('from')     ? ( $f->('email_from') => $self->param('from') )         : () ),
         ( defined $self->param('reply_to') ? ( $f->('reply_to')   => $self->param('reply_to') )     : () ),
     );
@@ -236,29 +301,32 @@ sub plan ($self) {
         $vals{ $f->('schedule_type') } = 'scheduled';
         $vals{ $f->('schedule_date') } = Odoo::Ops::Mailing::Common::datetime( 'mailing.create', 'schedule', $self->param('schedule') );
     }
-    $plan->note( $note->() );
+    $plan->note($_) for $note->();
     $plan->note( $text_part->() );
     $plan->note($_) for @sent_before;
     $plan->note('a draft: nothing is sent until mailing.send; test it first with mailing.test');
     $plan->add( bucket => 'mailing-create', action => 'create', model => $p->model_name('mailing'), key => $key, vals => \%vals,
-        readback => [ map { $f->($_) } qw(subject state total email_from reply_to lists model) ],
+        readback => [ map { $f->($_) } qw(subject state total email_from reply_to lists model domain) ],
+        ( $domtext ? ( compare => [ $f->('domain') ] ) : () ),
         reason => 'a draft mailing to ' . scalar(@ids) . ' list(s)' );
     return $plan;
 }
 
 # Mailings in any state but draft that carry this subject and exactly these
 # lists, newest first (archived ones too: a cleaned-up send is still a send).
-sub _sent_before ($self, $ids) {
+sub _sent_before ($self, $ids, $want_domain) {
     my $f = sub ($lf) { $self->profile->field( mailing => $lf ) };
     my %want = map { $_ => 1 } @$ids;
     my $rows = $self->model('mailing')->search_read(
         [ [ $f->('state'), '!=', 'draft' ], [ $f->('subject'), '=', $self->param('subject') ],
           [ $f->('active'), 'in', [ JSON::PP::true, JSON::PP::false ] ] ],
-        [ map { $f->($_) } qw(subject state lists sent_date updated) ], order => 'id desc', limit => 20 );
+        [ map { $f->($_) } qw(subject state lists sent_date updated domain) ], order => 'id desc', limit => 20 );
     my @note;
     for my $m (@$rows) {
         my %have = map { $_ => 1 } @{ $m->{ $f->('lists') } // [] };
         next if keys %have != keys %want || grep { !$have{$_} } keys %want;
+        # another part of the same message (same lists, another country filter) is not a send of this one
+        next if defined $want_domain && !Odoo::Ops::Mailing::Common::same_domain( Odoo::Ops::Mailing::Common::text( $m->{ $f->('domain') } ) || $want_domain, $want_domain );
         my $when = Odoo::Ops::Mailing::Common::text( $m->{ $f->('sent_date') } ) || Odoo::Ops::Mailing::Common::text( $m->{ $f->('updated') } );
         $when = substr( $when, 0, 16 ) if length $when > 16;
         push @note, "sent before: mailing $m->{id} ($m->{ $f->('state') }" . ( length $when ? ", $when" : '' ) . ') has this subject and these lists; this plan makes a new draft';

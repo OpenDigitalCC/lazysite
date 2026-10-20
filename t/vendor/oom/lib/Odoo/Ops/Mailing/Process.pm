@@ -45,8 +45,8 @@ and the plan is the place to see that before approving. Each change reads
 back the mailing's counters (state, sent, failed, scheduled), or without
 C<mailing> the number of queued mailings and outgoing mails left.
 
-Not reversible, and says so: a revert holds both. Series: written for
-Odoo 16; another series is refused by name until its profile is probed.
+Not reversible, and says so: a revert holds both. Series: Odoo 16 and 18; another series is refused by name until its
+profile is probed.
 
 =cut
 
@@ -95,7 +95,7 @@ sub plan ($self) {
     my $queued = $self->model('mailing')->search_read( [ [ $f->( mailing => 'state' ), 'in', [qw(in_queue sending)] ] ],
         [ $f->( mailing => 'subject' ), $f->( mailing => 'state' ), $f->( mailing => 'schedule_date' ) ], order => 'id asc' );
     my $outgoing = $self->model('mail')->search_read( [ [ $f->( mail => 'state' ), '=', 'outgoing' ] ], [ $f->( mail => 'mailing' ) ] );
-    my @mine = defined $id ? grep { Odoo::Ops::Mailing::Common::id_of( $_->{ $f->( mail => 'mailing' ) } ) == $id } @$outgoing : @$outgoing;
+    my @mine = defined $id ? grep { ( Odoo::Ops::Mailing::Common::id_of( $_->{ $f->( mail => 'mailing' ) } ) // 0 ) == $id } @$outgoing : @$outgoing;
 
     my $plan = $self->new_plan( input_count => 2 );
     $plan->note( 'the mass-mailing job takes every queued mailing that is due, not only the one named: '

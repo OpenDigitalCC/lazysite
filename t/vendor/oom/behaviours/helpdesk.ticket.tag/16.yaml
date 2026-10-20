@@ -1,0 +1,6 @@
+# helpdesk.ticket.tag, Odoo 16 (OCA helpdesk_mgmt). Source 16.0, 2026-10-19.
+# A tag is read and written by helpdesk managers; internal users read it.
+model: helpdesk.ticket.tag
+series: 16
+module: helpdesk_mgmt
+effects: []

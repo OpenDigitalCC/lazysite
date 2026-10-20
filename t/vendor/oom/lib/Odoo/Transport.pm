@@ -6,8 +6,9 @@ use feature qw(signatures);
 no warnings 'experimental::signatures';
 
 use HTTP::Tiny;
+use Scalar::Util ();
 
-our $VERSION = '0.36';
+our $VERSION = '0.38';
 
 use Odoo::Error;
 
@@ -89,6 +90,67 @@ sub post ($http, $url, $args, %opt) {
     return $http->post( $url, $args );
 }
 
+=head2 request_sent($res)
+
+Whether the request of a failed HTTP::Tiny response may have reached Odoo: true or
+false. Odoo cannot have acted on a request that was never connected, never passed
+TLS, or never finished writing (Odoo reads the whole body before it runs anything),
+so these are false: C<Could not connect>, C<SSL connection failed>, a timeout or an
+error C<writing> the request, a refused header. Anything else is true, because the
+request had been written whole and Odoo may have made the change: a timeout waiting
+to read, a connection closed or reset after the request, an unreadable answer, and
+any HTTP answer that is not Odoo's own (a 502 or 504 from a proxy in front of it).
+Where the kind of failure is not known, the answer is true.
+
+=cut
+
+my $NOT_SENT = qr/\A(?:Could not connect to|SSL connection failed|Error halting prior SSL|Could not set SO_KEEPALIVE|Could not binmode|Cannot parse URL|Unsupported URL scheme|Timed out while waiting for socket to become ready for writing|Socket closed by remote server|Could not write to|Wide character|Invalid HTTP header|Content-Length mismatch)/;
+
+sub request_sent ($res) {
+    return 1 if ( $res->{status} // 0 ) != 599;
+    return ( $res->{content} // '' ) =~ $NOT_SENT ? 0 : 1;
+}
+
+=head2 transport_error($res, $label, idempotent =E<gt> 0|1, detail =E<gt> TEXT)
+
+The L<Odoo::Error> (kind C<transport>) of a failed HTTP::Tiny response, worded
+C<LABEL: DETAIL> (the detail is HTTP::Tiny's own words for a 599, else
+C<HTTP status reason>), carrying C<sent> (see C<request_sent>) and C<write>
+(true unless the call was marked C<idempotent>). Returns the error; the caller
+throws it.
+
+=cut
+
+sub transport_error ($res, $label, %opt) {
+    my $detail = $opt{detail} // (
+        ( $res->{status} // 0 ) == 599
+        ? ( $res->{content} // 'internal HTTP::Tiny error' )
+        : "HTTP $res->{status} " . ( $res->{reason} // '' ) );
+    $detail =~ s/\s+\z//;
+    return Odoo::Error->new(
+        kind    => 'transport',
+        message => "$label: $detail",
+        sent    => request_sent($res) ? 1 : 0,
+        write   => $opt{idempotent} ? 0 : 1,
+    );
+}
+
+=head2 answered_unusably($error, idempotent =E<gt> 0|1)
+
+Marks a transport error raised after a whole answer arrived but could not be
+read (not JSON, not XML, no result) as C<sent>, and as a C<write> unless the
+call was a read: the request was made, so Odoo may have acted on it. Returns the
+error, to be rethrown. Other errors pass through unchanged.
+
+=cut
+
+sub answered_unusably ($err, %opt) {
+    return $err if !( Scalar::Util::blessed($err) && $err->isa('Odoo::Error') && $err->kind eq 'transport' ) || defined $err->{sent};
+    $err->{sent}  = 1;
+    $err->{write} = $opt{idempotent} ? 0 : 1;
+    return $err;
+}
+
 =head2 is_read_method($method)
 
 True for an Odoo method that only reads, so a call of it may be made again
@@ -97,7 +159,8 @@ after a closed connection.
 =cut
 
 my %READ = map { $_ => 1 } qw(search_read read search search_count fields_get read_group name_search name_get
-    default_get check_access_rights check_access_rule version_info);
+    default_get check_access_rights check_access_rule version_info
+    search_fetch web_search_read web_read web_read_group onchange);
 
 sub is_read_method ($method) { return $READ{ $method // '' } ? 1 : 0 }
 

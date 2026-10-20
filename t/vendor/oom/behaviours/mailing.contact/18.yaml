@@ -1,0 +1,31 @@
+# mailing.contact, Odoo 18 (mass_mailing, mail.thread.blacklist). Read from
+# the 18.0 source and met live by t/85-mailing-live.t on demo18 (2026-10-20).
+model: mailing.contact
+series: 18
+effects:
+  - on: create
+    fields: [name, first_name, last_name]
+    effect: name is a stored computed field, readonly false; first_name and last_name are new on 18 and compose it when either is given (first_name last_name), otherwise the name given stands. OOM writes name
+    evidence: source 18.0 mailing_contact._compute_name; live 2026-10-20 (t/85 on demo18)
+  - on: create
+    fields: [email]
+    effect: email_normalized (stored) is computed, lower-cased, and is empty when the text is not an address; is_blacklisted follows the active rows of mail.blacklist for that address. No check refuses a malformed address
+    evidence: source 18.0 mail_thread_blacklist._compute_email_normalized, _compute_is_blacklisted
+  - on: write
+    fields: [email]
+    effect: email_normalized recomputes; the contact is blacklisted or not by its new address
+    evidence: source 18.0 mail_thread_blacklist
+  - on: create
+    fields: [subscription_ids, list_ids]
+    effect: each list makes a mailing.contact.subscription row (opt_out false); giving both list_ids and subscription_ids is refused
+    evidence: source 18.0 mailing_contact.create
+  - on: write
+    fields: [subscription_ids]
+    effect: setting opt_out on a subscription stamps opt_out_datetime (a stored computed field, writable); clearing it clears the date. A date or an opt_out_reason_id alone sets opt_out
+    evidence: source 18.0 mailing.subscription.create / write
+  - on: call
+    method: unlink
+    effect: the contact's subscriptions go with it (mailing.subscription.contact_id is ondelete cascade) and the lists stay; mailing traces that point at the contact keep their email and lose the contact (trace.res_id is not a foreign key); the blacklist row for its address is not touched. mailing.delete carries the memberships in the change, so a revert recreates the contact on its lists (opted out where it was) with a new id
+    evidence: "source 18.0 mailing_contact.py (contact_id ondelete cascade); live 2026-10-20 (t/85 third pass, demo18, subscriptions counted before and after, traces kept, a revert putting the memberships back)"
+routes:
+  unsubscribe: { via: mailing.subscription.write, why: opting out keeps the subscription row so the list still knows the contact and the send skips it }

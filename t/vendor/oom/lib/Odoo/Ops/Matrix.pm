@@ -45,7 +45,7 @@ file carries the order; nothing here sorts. t/43-matrix.t keeps it.
 
 The file is found like profiles are: C<dirs> passed in, then
 C<$ENV{ODOO_OOM_MATRIX}> (a file), the source tree, then
-F</usr/share/odoo-oom/matrix.yaml>.
+F</usr/share/odoo-oom/matrix.yaml> (C<$ENV{ODOO_OOM_SHARE}/matrix.yaml> when that is set; none when it is empty).
 
 =cut
 
@@ -58,7 +58,7 @@ my %SHORT = ( 'live' => 'live', 'source' => 'src', 'refused' => 'ref', 'n/a' => 
 sub default_files ($class, @extra) {
     my $tree = File::Spec->catfile( dirname(__FILE__), ('..') x 3, 'matrix.yaml' );
     return grep { defined && -f } ( map { -d $_ ? File::Spec->catfile( $_, 'matrix.yaml' ) : $_ } @extra ),
-        $ENV{ODOO_OOM_MATRIX}, $tree, '/usr/share/odoo-oom/matrix.yaml';
+        $ENV{ODOO_OOM_MATRIX}, $tree, do { my $s = $ENV{ODOO_OOM_SHARE} // '/usr/share/odoo-oom'; length $s ? "$s/matrix.yaml" : () };
 }
 
 sub load ($class, %args) {

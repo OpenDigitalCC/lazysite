@@ -1,0 +1,7 @@
+# helpdesk.sla, Odoo 18 (OCA helpdesk_mgmt_sla 18.0.2.1.1). Source 18.0, 2026-10-19; live 2026-10-19 (survey, demo18).
+# 18 makes a helpdesk.ticket.sla row per ticket and rule when a ticket is made; there is no cron and no
+# check_sla. A rule made later reaches an existing ticket through the ticket's refresh_sla.
+model: helpdesk.sla
+series: 18
+module: helpdesk_mgmt_sla
+effects: []

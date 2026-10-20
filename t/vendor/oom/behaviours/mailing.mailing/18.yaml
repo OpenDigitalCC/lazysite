@@ -1,0 +1,46 @@
+# mailing.mailing, Odoo 18 (mass_mailing). Read from the 18.0 source and
+# met live by t/85-mailing-live.t on demo18 (2026-10-20).
+model: mailing.mailing
+series: 18
+effects:
+  - on: create
+    fields: [contact_list_ids, mailing_model_id]
+    effect: mailing_domain is computed from the lists (every contact in them, since for lists there is no blacklist term, so opted-out and blacklisted contacts are in total and are cancelled as traces at send); a mailing made without email_from takes the creating user's formatted email, so the user must have one
+    evidence: source 18.0 mailing._compute_email_from, _get_default_mailing_domain; live 2026-10-20 (t/85 on demo18)
+  - on: create
+    fields: [mailing_model_id]
+    effect: reply_to_mode becomes new (a given address) for a mailing to lists, and reply_to takes the creating user's email when none is given
+    evidence: source 18.0 mailing._compute_reply_to_mode, _compute_reply_to; live 2026-10-20 (t/85 on demo18)
+  - on: call
+    method: action_put_in_queue
+    effect: state becomes in_queue and a cron trigger is made for the mass-mailing queue (at schedule_date, else now); the trigger is due at once, so a running cron worker sends the mailing within seconds (proved on demo18); the cron's own interval (a day) matters only with no cron worker. A direct action_send_mail on the same mailing at that moment races the worker and can mail a recipient twice
+    evidence: source 18.0 mailing.action_put_in_queue, ir_cron_data.xml; live 2026-10-20 (t/85 on demo18, cron interval 1 day)
+  - on: call
+    method: action_send_mail
+    effect: makes one mailing.trace and one outgoing mail.mail per remaining recipient; a recipient opted out of every list it is on, on the blacklist, or a second contact with an address already mailed gets a trace in state cancel (mail_optout, mail_bl, mail_dup) and a mail.mail in state cancel, none of them sent (the trace keeps its mail_mail_id); state ends done, whatever remains of the recipients given. The mails wait for the mail queue cron (hourly) unless it is pushed
+    evidence: "source 18.0 mailing.action_send_mail, mass_mailing wizard/mail_compose_message._get_optout_emails, _prepare_mail_values_mailing_traces; live 2026-10-20 (t/85 on demo18; the cancelled mail.mail rows read in a probe the same day)"
+  - on: call
+    method: action_send_mail
+    effect: "called with res_ids it sends exactly those recipients (the contacts given, whatever the mailing's domain), makes their traces and mails, and ends the mailing done even when others remain; without res_ids it sends the remaining recipients, the domain's contacts that have no trace of the mailing. A mailing sent in chunks is therefore done between them. The mass-mailing queue job (_process_mass_mailing_queue) searches in_queue and sending mailings only, so it does not take a done one; the mail queue cron sends mail.mail rows that exist, and the recipients not yet given have none"
+    evidence: "source 18.0 mass_mailing/models/mailing.py lines 1097-1155 (action_send_mail, _action_send_mail), 1034 (_get_remaining_recipients), 1175 (_process_mass_mailing_queue); live 2026-10-20 (t/143-mail38-live.t on demo18: chunks of 10, 10 and 5, with the queue job and the mail queue run between them)"
+  - on: call
+    method: action_cancel
+    effect: state back to draft, schedule_type now, schedule_date cleared; traces already made stay
+    evidence: source 18.0 mailing.action_cancel; live 2026-10-20 (t/85 on demo18)
+  - on: write
+    fields: [contact_list_ids]
+    effect: mailing_domain is recomputed, so the recipients follow the lists
+    evidence: source 18.0 mailing._compute_mailing_domain
+  - on: call
+    method: unlink
+    effect: "the mailing is deleted (proved on a draft and a done mailing; queued states not probed) and its traces go with it (mailing.trace.mass_mailing_id is ondelete cascade), so the record of who was mailed is lost; mailing.delete therefore deletes drafts only and holds a sent mailing as sent-kept"
+    evidence: "source 18.0 mailing_trace.py (ondelete cascade); live 2026-10-20 (t/85 on demo18, a done mailing with five traces unlinked, its traces count 0 afterwards)"
+  - on: write
+    fields: [active]
+    effect: active false archives the mailing (proved on a done mailing); it keeps its traces and counters and drops out of the default searches, including the queue cron's, so an archived in_queue mailing is not sent
+    evidence: "source 18.0 mailing.py (active, tracking); live 2026-10-20 (t/85 on demo18, a done mailing archived and restored, five traces kept)"
+routes:
+  test_send:
+    via: mailing.mailing.test.send_mail_test
+    why: "the wizard sends at once as the acting user and deletes its mail.mail rows, so a test leaves no queue row and no trace; failures are logged on the mailing's chatter. The subject is prefixed [TEST], and the mail is sent with mailing_test_mail in the context, so the unsubscribe anchor stays Odoo's generic link and no recipient's own is made"
+  push_queue: { via: ir.cron.method_direct_trigger, why: _process_mass_mailing_queue is private and cannot be called over RPC }

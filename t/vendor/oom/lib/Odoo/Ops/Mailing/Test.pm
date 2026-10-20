@@ -47,7 +47,7 @@ like every run; the mailshot tool finds it there
 (C<< Odoo::Ops::Runs->find >>) to enforce its rule that a mailing is
 tested before it is sent. C<mailing.send> does not look.
 
-Series: written for Odoo 16; another series is refused by name until its
+Series: Odoo 16 and 18; another series is refused by name until its
 profile is probed.
 
 =cut

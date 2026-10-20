@@ -48,7 +48,7 @@ Who may do this on Odoo 16: an administrator (Settings) or an Email
 Marketing user - both can create, write and delete C<mail.blacklist>
 rows (proved on demo16, 2026-10-15).
 
-Series: written for Odoo 16; another series is refused by name until its
+Series: Odoo 16 and 18; another series is refused by name until its
 profile is probed.
 
 =cut

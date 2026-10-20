@@ -95,16 +95,19 @@ change's context carries the suppressing key, so the person approving
 sees the consequences beside the values.
 
 Roots searched: C<$ENV{ODOO_OOM_BEHAVIOURS}>, the source tree's
-C<behaviours/>, C</usr/share/odoo-oom/behaviours>, then the C<behaviours/> of
+C<behaviours/>, C</usr/share/odoo-oom/behaviours> (C<$ENV{ODOO_OOM_SHARE}/behaviours> when that is set; none when it is empty), then the C<behaviours/> of
 each loaded pack (L<Odoo::Ops::Pack>), so a pack adds models and never
 shadows core's.
 
 =cut
 
+# the installed share root: ODOO_OOM_SHARE names another, and empty names none (a caller's tests that must not read the host)
+sub _share ($class, $leaf) { my $s = $ENV{ODOO_OOM_SHARE} // '/usr/share/odoo-oom'; return length $s ? "$s/$leaf" : undef }
+
 # core's own roots: what a pack may not replace
 sub core_dirs ($class) {
     my $tree = File::Spec->catdir( dirname(__FILE__), ('..') x 3, 'behaviours' );
-    return grep { defined && -d } $ENV{ODOO_OOM_BEHAVIOURS}, $tree, '/usr/share/odoo-oom/behaviours';
+    return grep { defined && -d } $ENV{ODOO_OOM_BEHAVIOURS}, $tree, $class->_share('behaviours');
 }
 
 sub default_dirs ($class, @extra) {

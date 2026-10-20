@@ -62,6 +62,7 @@ sub http ($self) { $self->{http} }
 
 sub call ($self, $service, $method, @params) {
     my $body = encode_request($method, @params);
+    my $idem = ( $service eq 'object' && $method eq 'execute_kw' ? Odoo::Transport::is_read_method($params[4]) : $service eq 'common' ) ? 1 : 0;
     my $res  = Odoo::Transport::post(
         $self->{http},
         "$self->{url}/xmlrpc/2/$service",
@@ -69,20 +70,13 @@ sub call ($self, $service, $method, @params) {
             content => $body,
             headers => { 'content-type' => 'text/xml; charset=utf-8' },
         },
-        idempotent => ( $service eq 'object' && $method eq 'execute_kw' ? Odoo::Transport::is_read_method($params[4]) : $service eq 'common' ),
+        idempotent => $idem,
     );
     Odoo::Transport::refuse_by_policy($res, "xmlrpc $service.$method");
-    if (!$res->{success}) {
-        my $detail =
-            ($res->{status} // 0) == 599
-            ? ($res->{content} // 'internal HTTP::Tiny error')
-            : "HTTP $res->{status} $res->{reason}";
-        Odoo::Error->throw(
-            kind    => 'transport',
-            message => "xmlrpc $service.$method: $detail",
-        );
-    }
-    return decode_response($res->{content});
+    die Odoo::Transport::transport_error( $res, "xmlrpc $service.$method", idempotent => $idem ) if !$res->{success};
+    my $out = eval { decode_response($res->{content}) };
+    die Odoo::Transport::answered_unusably( $@, idempotent => $idem ) if $@;
+    return $out;
 }
 
 #--- request encoding ---------------------------------------------------------

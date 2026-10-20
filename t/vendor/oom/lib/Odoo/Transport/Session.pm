@@ -11,7 +11,7 @@ use Odoo::JSON ();
 use Odoo::Error;
 use Odoo::Transport;
 
-our $VERSION = '0.36';
+our $VERSION = '0.38';
 
 use constant TRUSTED_DEVICE_COOKIE => 'td_id';
  use constant DEVICE_AGENT => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 odoo-oom-perl';
@@ -570,16 +570,11 @@ sub _rpc ($self, $path, $params, $label, %opt) {
     my $res = Odoo::Transport::post( $self->{http}, "$self->{url}$path", { content => $body, headers => \%headers }, idempotent => $opt{idempotent} );
     $self->_absorb_cookies($res);
     Odoo::Transport::refuse_by_policy( $res, $label );
-    if ( !$res->{success} ) {
-        my $detail = ( $res->{status} // 0 ) == 599
-            ? ( $res->{content} // 'internal HTTP::Tiny error' )
-            : "HTTP $res->{status} $res->{reason}";
-        Odoo::Error->throw( kind => 'transport', message => "$label: $detail" );
-    }
+    die Odoo::Transport::transport_error( $res, $label, idempotent => $opt{idempotent} ) if !$res->{success};
     my $data = eval { $self->{json}->decode( $res->{content} ) };
     if ( !$data || ref $data ne 'HASH' ) {
         my $peek = substr( $res->{content} // '', 0, 120 );
-        Odoo::Error->throw( kind => 'transport', message => "$label: unparseable response: $peek" );
+        Odoo::Error->throw( kind => 'transport', message => "$label: unparseable response: $peek", sent => 1, write => $opt{idempotent} ? 0 : 1 );
     }
     if ( my $err = $data->{error} ) {
         my $msg = $err->{message} // 'unknown fault';

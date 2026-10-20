@@ -49,6 +49,30 @@ C<recipients_now> is the contacts of the lists today: after the contacts are
 deleted (a cleanup) a done mailing reads C<recipients> 0 and C<recipients_now> 0
 while C<sent> and C<expected> keep the record of who was mailed.
 
+C<domain> is the mailing's C<mailing_domain> as Odoo stores it. For a
+mailing to one region of its lists (a country filter, see
+C<mailing.create>) C<recipients> is Odoo's total for that domain and
+C<recipients_now> counts the contacts that domain gives today; with the
+default domain both are the contacts of the lists.
+
+With C<remaining=1> a mailing to lists also carries C<remaining>: the
+recipients Odoo would send to now, the way its private
+C<_get_remaining_recipients> works it out (the contacts of the mailing's
+domain that have no trace of it). A mailing sent in chunks (see
+C<mailing.send>) is C<done> with C<remaining> above 0 until its last chunk;
+C<remaining> is null, with C<remaining_note>, for a domain OOM cannot read.
+
+C<still_to_go> is on every mailing Odoo calls C<done>: C<done> means every
+recipient has a trace, not that every mail has gone. It holds C<outgoing>
+(traces still waiting for the mail queue), C<error> (traces whose mail
+failed) and C<exception> (C<mail.mail> rows in state exception, read from
+C<mail.mail>, so C<null> with C<exception_note> for a user Odoo does not let
+read it), each as C<< { count, emails } >> with the first five addresses
+(C<error> also C<failure_types>), and C<note> in words when any is not zero.
+Odoo 16 ends a mass-mailing queue run when the mail server drops the SMTP
+session; the mails the run had not reached stay C<outgoing> until the next
+run of the mail queue cron (C<mailing.process> runs it now).
+
 C<queue_due> says when Odoo will next move a queued mailing by itself:
 for the mass-mailing queue cron and the mail queue cron, the interval
 (a day and an hour on a fresh instance), the next scheduled call and any
@@ -117,7 +141,11 @@ sub fields ($class) {
         { name => 'write_date', meaning => 'Last written (Odoo\'s, UTC)' },
         { name => 'create_date', meaning => 'Made on (Odoo\'s, UTC)' },
         { name => 'recipients', meaning => 'Odoo\'s total: every contact of the lists, opted-out included; 0 once the lists or their contacts are gone, while sent keeps the count' },
-        { name => 'recipients_now', meaning => 'Contacts of the lists today, after any deletes (opted-out included)' },
+        { name => 'recipients_now', meaning => 'Contacts of the lists today (of the domain, for a filtered part), after any deletes (opted-out included)' },
+        { name => 'domain', meaning => 'The mailing\'s domain as Odoo stores it' },
+        { name => 'remaining', meaning => 'With remaining=1: recipients with no trace yet (the domain\'s contacts less the traces)' },
+        { name => 'remaining_note', meaning => 'Present when remaining is null: why' },
+        { name => 'still_to_go', meaning => 'On a done mailing: traces still outgoing or in error and mail in exception, counts and the first addresses' },
         { name => 'expected', meaning => 'Traces made' },
         { name => 'scheduled', meaning => 'Waiting to go' },
         { name => 'sent', meaning => 'Sent' },
@@ -143,13 +171,14 @@ sub params ($class) {
         traces  => { type => 'bool', default => 0, help => 'one row per recipient' },
         queue   => { type => 'bool', default => 0, help => 'the mail.mail rows of the mailing, by state' },
         archived => { type => 'bool', default => 0, help => 'include archived mailings' },
+        remaining => { type => 'bool', default => 0, help => 'per mailing to lists: how many recipients Odoo would still send to (its domain less the traces)' },
     };
 }
 sub read_scope ($class) {
     {   mailing => [qw(search_read search_count read)],
         list    => ['read'],
         trace   => [qw(search_read search_count)],
-        contact => ['search_count'],
+        contact => [qw(search_count search_read)],
         mail    => ['search_read'],
         cron    => ['read'],
         cron_trigger => ['search_read'],
@@ -166,7 +195,7 @@ sub report ($self) {
     my $p = Odoo::Ops::Mailing::Common::ready($self);
     my $f = sub ( $lm, $lf ) { $p->field( $lm => $lf ) };
     my $mm = $self->model('mailing');
-    my @read = map { $f->( mailing => $_ ) } qw(subject state lists schedule_date sent_date updated created total active), @COUNTERS;
+    my @read = map { $f->( mailing => $_ ) } qw(subject state lists schedule_date sent_date updated created total active domain), @COUNTERS;
     my @dom;
     push @dom, [ 'id', '=', $self->param('mailing') ] if defined $self->param('mailing');
     push @dom, [ $f->( mailing => 'subject' ), 'ilike', $self->param('subject') ] if defined $self->param('subject');
@@ -191,6 +220,18 @@ sub report ($self) {
     my @lids = keys %{ { map { $_ => 1 } map { @{ $_->{ $f->( mailing => 'lists' ) } // [] } } @$rows } };
     %lname = map { $_->{id} => $_->{ $f->( list => 'name' ) } } @{ $self->model('list')->read( [ sort { $a <=> $b } @lids ], [ $f->( list => 'name' ) ] ) } if @lids;
 
+    # a done mailing's unfinished mail: from Odoo's own counters, then the traces behind them
+    my %exc;
+    my ( $exc_rows, $exc_note );
+    my @done = map { $_->{id} } grep { ( $_->{ $f->( mailing => 'state' ) } // '' ) eq 'done' } @$rows;
+    if (@done) {
+        my %m = map { $_ => $f->( mail => $_ ) } qw(mailing state email_to);
+        ( $exc_rows, $exc_note ) = Odoo::Ops::Mailing::Common::denied(
+            sub { $self->model('mail')->search_read( [ [ $m{mailing}, 'in', \@done ], [ $m{state}, '=', 'exception' ] ], [ values %m ], order => 'id asc', limit => 5000 ) },
+            'mail in exception', q(the traces above are Odoo's own) );
+        for my $x ( @{ $exc_rows // [] } ) { push @{ $exc{ Odoo::Ops::Mailing::Common::id_of( $x->{ $m{mailing} } ) } }, Odoo::Ops::Mailing::Common::text( $x->{ $m{email_to} } ) }
+    }
+
     my ( @out, %unreadable );
     for my $r (@$rows) {
         my $state = $r->{ $f->( mailing => 'state' ) };
@@ -207,12 +248,22 @@ sub report ($self) {
             create_date   => _when( $r->{ $f->( mailing => 'created' ) } ),
             # a field this user may not compute is null with the reason, never 0
             recipients    => $unread->{ $f->( mailing => 'total' ) } ? undef : $r->{ $f->( mailing => 'total' ) } // 0,
-            recipients_now => $self->_contacts_now( $r->{ $f->( mailing => 'lists' ) } ),
+            recipients_now => $self->_contacts_now( $r->{ $f->( mailing => 'lists' ) }, Odoo::Ops::Mailing::Common::text( $r->{ $f->( mailing => 'domain' ) } ) ),
+            domain        => Odoo::Ops::Mailing::Common::text( $r->{ $f->( mailing => 'domain' ) } ),
             ( map { $_ => $unread->{ $f->( mailing => $_ ) } ? undef : $r->{ $f->( mailing => $_ ) } // 0 } @COUNTERS ),
         );
         if (%$unread) {
             $row{unreadable} = { map { $rowkey{$_} => Odoo::Ops::Mailing::Common::unreadable_note( $rowkey{$_}, $unread->{$_} ) } keys %$unread };
             $unreadable{ $rowkey{$_} } = 1 for keys %$unread;
+        }
+        $row{still_to_go} = $self->_still_to_go( $r, \%exc, $exc_rows, $exc_note ) if $state eq 'done';
+        if ( $self->param('remaining') ) {
+            # only a mailing to lists has contacts to count; a mailing on another model has no remaining here
+            if ( @{ $r->{ $f->( mailing => 'lists' ) } // [] } ) {
+                my $rem = Odoo::Ops::Mailing::Common::remaining( $self, $r->{id}, $row{domain} );
+                if ($rem) { $row{remaining} = scalar @{ $rem->{ids} } }
+                else { @row{qw(remaining remaining_note)} = ( undef, 'the mailing\'s domain is one OOM cannot read, so who remains is not worked out' ) }
+            }
         }
         if ( $state eq 'in_queue' || $state eq 'sending' ) {
             $row{queue_due} = $due;
@@ -268,10 +319,51 @@ sub report ($self) {
 # Distinct contacts on the mailing's lists today, counted here beside Odoo's
 # own total, so a reader sees both after a cleanup removed the contacts or the
 # lists (second try-out, item 5). Cached per set of lists.
-sub _contacts_now ($self, $list_ids) {
+sub _contacts_now ($self, $list_ids, $domain = '') {
     my @ids = sort { $a <=> $b } @{ $list_ids // [] };
     return 0 if !@ids;
-    return $self->{_now}{ join ',', @ids } //= $self->model('contact')->count( [ [ $self->profile->field( contact => 'lists' ), 'in', \@ids ] ] );
+    # a mailing to one region of its lists reaches the contacts its own domain gives; the default domain is the lists' contacts
+    my $parsed = length $domain && !Odoo::Ops::Mailing::Common::same_domain( $domain, Odoo::Ops::Mailing::Common::list_domain( $self, \@ids ) )
+        ? Odoo::Ops::Mailing::Common::parse_domain($domain) : undef;
+    my $key = join( ',', @ids ) . ( $parsed ? "|$domain" : '' );
+    return $self->{_now}{$key} //= $self->model('contact')->count( $parsed // [ [ $self->profile->field( contact => 'lists' ), 'in', \@ids ] ] );
+}
+
+# What a done mailing still has to go: its outgoing and error traces and its mail in exception. Odoo's counters say
+# whether there is any (nothing is read behind a zero); the traces behind a counter give the addresses.
+sub _still_to_go ($self, $r, $exc, $exc_rows, $exc_note) {
+    my $p  = $self->profile;
+    my $id = $r->{id};
+    my $tm = $self->model('trace');
+    my %t  = map { $_ => $p->field( trace => $_ ) } qw(mailing email status failure_type);
+    my %out;
+    for my $k ( [ outgoing => 'scheduled' ], [ error => 'failed' ] ) {
+        my ( $status, $counter ) = @$k;
+        my $n = $r->{ $p->field( mailing => $counter ) } // 0;
+        my %e = ( count => 0 + $n, emails => [] );
+        if ($n) {
+            my $dom = [ [ $t{mailing}, '=', $id ], [ $t{status}, '=', $status ] ];
+            $e{count} = 0 + $tm->count($dom);
+            my $rows = $tm->search_read( $dom, [ $t{email}, $t{failure_type} ], order => 'id asc', limit => 5 );
+            $e{emails} = [ map { Odoo::Ops::Mailing::Common::text( $_->{ $t{email} } ) } @$rows ];
+            if ( $status eq 'error' ) {
+                my %ft;
+                $ft{ Odoo::Ops::Mailing::Common::text( $_->{ $t{failure_type} } ) || 'unknown' }++ for @{ $tm->search_read( $dom, [ $t{failure_type} ], limit => 2000 ) };
+                $e{failure_types} = \%ft;
+            }
+        }
+        $out{$status} = \%e;
+    }
+    if ( defined $exc_note ) { $out{exception} = undef; $out{exception_note} = $exc_note }
+    else {
+        my @em = @{ $exc->{$id} // [] };
+        $out{exception} = { count => scalar @em, emails => [ @em[ 0 .. ( $#em > 4 ? 4 : $#em ) ] ] };
+    }
+    my @parts = map { $out{$_} && $out{$_}{count} ? "$out{$_}{count} $_" : () } qw(outgoing error exception);
+    $out{note} = 'Odoo calls this mailing done, but ' . join( ', ', @parts ) . ' ' . ( @parts > 1 ? 'are' : 'is' ) . ' still to go: done means every recipient has a trace, not that every mail has gone; '
+        . 'mail left outgoing waits for the next run of Odoo\'s mail queue cron (oom-ops run mailing.process --set mailing=' . $id . ' runs it now)'
+        if @parts;
+    return \%out;
 }
 
 sub _when ($v) { my $t = Odoo::Ops::Mailing::Common::text($v); length $t ? $t : undef }
@@ -334,7 +426,11 @@ sub _fields ($self) {
         create_date   => { portable_type => 'datetime', string => 'Made on (Odoo\'s, UTC)' },
         active        => { portable_type => 'boolean', string => 'Not archived' },
         recipients    => $int->('Odoo\'s total: every contact of the lists, opted-out included; it falls to 0 when the lists or their contacts are gone, while sent keeps the count'),
-        recipients_now => $int->('Contacts of the lists today, after any deletes (opted-out included)'),
+        recipients_now => $int->('Contacts of the lists today (of the domain, for a filtered part), after any deletes (opted-out included)'),
+        domain         => { portable_type => 'text', string => 'The mailing\'s domain as Odoo stores it: the default for its lists, or the lists with a country filter' },
+        remaining      => $int->('With remaining=1: the recipients Odoo would send to now, the way its _get_remaining_recipients works it out: the contacts of the mailing\'s domain that have no trace of it. Null with remaining_note when the domain is one OOM cannot read'),
+        remaining_note => { portable_type => 'text', string => 'Present when remaining is null: why' },
+        still_to_go    => { portable_type => 'object', string => 'On a done mailing: outgoing and error (each { count, emails, error also failure_types }), exception (the mail.mail rows in state exception; null with exception_note for a user who may not read mail.mail) and note when any is not zero' },
         expected      => $int->('Traces made'),
         scheduled     => $int->('Waiting to go'),
         sent          => $int->('Sent'),

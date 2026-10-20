@@ -620,7 +620,7 @@ sub _idem_answer ($self, $ctx, $run, $key) {
         }
         $h ||= { applied => 1, op => $run->{op}, plan_fingerprint => $run->{fingerprint}, total => $run->{changes}, counts => $run->{result}{counts} // {},
             by_bucket => {}, verified => 0, not_verified => 0, journal => $run->{result}{journal}, created => {}, written => {}, unlinked => {},
-            custom => [], failed_changes => [], invariants => [], invariants_failed => 0 };
+            custom => [], failed_changes => [], unknown_changes => [], invariants => [], invariants_failed => 0 };
         return { kind => 'result', result => bless( {%$h}, 'Odoo::Ops::Result' ), path => $rf, dir => $dir, run_id => $run->{id}, idem => $key, repeat => 1 };
     }
     my $path = File::Spec->catfile( $dir, 'plan.json' );
@@ -729,7 +729,11 @@ sub _revert ($self, $req) {
 sub _resume ($self, $req) {
     my $journal = $self->_journal($req);
     my $ctx  = $self->context($req);
-    my $plan = Odoo::Ops::Runner->resume_plan( $ctx, $journal );
+    my $o    = ref $req->{options} eq 'HASH' ? $req->{options} : {};
+    my $names = sub ($v) { ref $v eq 'ARRAY' ? ( grep { defined && !ref && length } @$v ) : () };
+    my $plan = Odoo::Ops::Runner->resume_plan( $ctx, $journal,
+        assume_done     => [ $names->( $o->{assume_done} ) ],
+        assume_not_done => [ $names->( $o->{assume_not_done} ) ] );
     my $check = $req->{check} ? 1 : 0;
     my $dir = $check ? undef : $ctx->run_dir( $plan->op );
     return $self->_emit_plan( $plan, $ctx, $check, $dir );

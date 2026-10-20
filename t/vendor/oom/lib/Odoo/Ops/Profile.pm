@@ -59,15 +59,18 @@ single portable reading carries none; a profile overrides per field
 with the map form C<< logical: { name: physical, portable_type: text } >>.
 
 Roots searched, in order: C<dirs> passed in, C<$ENV{ODOO_OOM_PROFILES}>,
-the source tree's C<profiles/>, C</usr/share/odoo-oom/profiles>, then the
+the source tree's C<profiles/>, C</usr/share/odoo-oom/profiles> (C<$ENV{ODOO_OOM_SHARE}/profiles> when that is set; none when it is empty), then the
 C<profiles/> of each loaded pack (L<Odoo::Ops::Pack>).
 
 =cut
 
+# the installed share root: ODOO_OOM_SHARE names another, and empty names none (a caller's tests that must not read the host)
+sub _share ($class, $leaf) { my $s = $ENV{ODOO_OOM_SHARE} // '/usr/share/odoo-oom'; return length $s ? "$s/$leaf" : undef }
+
 # core's own roots: what a pack may not replace
 sub core_dirs ($class) {
     my $tree = File::Spec->catdir( dirname( __FILE__ ), ('..') x 3, 'profiles' );
-    return grep { defined && -d } $ENV{ODOO_OOM_PROFILES}, $tree, '/usr/share/odoo-oom/profiles';
+    return grep { defined && -d } $ENV{ODOO_OOM_PROFILES}, $tree, $class->_share('profiles');
 }
 
 sub default_dirs ($class, @extra) {
@@ -178,6 +181,17 @@ sub action ($self, $name) {
         message => "profile $self->{pack}/$self->{series} names no action '$name'",
     );
 }
+
+=head2 has_action($name)
+
+True when the profile names the action. A series that lacks one (Odoo 18 has no
+public method that renders a mass mail for a recipient) leaves it out, and an
+operation that needs it refuses C<not-applicable> instead of calling a method
+that is not there.
+
+=cut
+
+sub has_action ($self, $name) { return defined $self->{actions}{$name} ? 1 : 0 }
 
 =head2 states($verb)
 

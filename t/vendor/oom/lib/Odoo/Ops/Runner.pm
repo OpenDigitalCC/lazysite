@@ -25,6 +25,8 @@ use Odoo::Ops::Route;
 use Odoo::Ops::Runs;
 use Odoo::Portable;
 
+use constant UNKNOWN_REASON => 'the request was sent and no answer came; Odoo may have made this change';
+
 =head1 NAME
 
 Odoo::Ops::Runner - apply a plan through a journal; plan a revert
@@ -65,7 +67,11 @@ change numbers.
 Changes then run in order under the plan's declared scope. Every
 change's outcome goes to the journal as it happens; each create and
 write is read back from the server and the after-image journalled
-(C<verified>). The first failure stops the run - the rest are
+(C<verified>). A create or write that names fields in C<compare> is held
+to them: when the read-back of one differs from what was planned (a
+stored value Odoo rewrote), the entry carries C<rewritten>, the change is
+not verified, and the result lists it under C<custom> as C<read-back
+differs>. The first failure stops the run - the rest are
 C<not_attempted> - unless C<< continue_on_error => 1 >>, with which a
 row's failure (a fault Odoo raised for that row) is counted C<failed>
 and the run goes on. A fault of kind C<transport> stops the run
@@ -213,7 +219,7 @@ sub apply ($class, $ctx, $plan, %opts) {
         my $inv_before = Odoo::Ops::Invariant->measure_all( $client, \@invariants );
 
         my ( %counts, %by_bucket, %refs, $verified, $not_verified, $stopped );
-        my ( %created, %written, %unlinked, @custom, @failed, @held );    # what the result reports back
+        my ( %created, %written, %unlinked, @custom, @failed, @unknown, @held );    # what the result reports back
         my $record = sub ( $c, $entry, $outcome ) {
             $refs{ $c->{ref} } = $entry->{id} if $outcome eq 'done' && defined $c->{ref};
             if ( $outcome eq 'done' ) {
@@ -224,6 +230,11 @@ sub apply ($class, $ctx, $plan, %opts) {
                 if ( $c->{action} eq 'custom' && ( $entry->{reported} // '' ) =~ /^(create|write)\z/ && defined( my $rid = $entry->{id} // $c->{id} ) ) {
                     push @{ ( $1 eq 'create' ? \%created : \%written )->{ $c->{model} } }, $rid;
                 }
+            }
+            # a field Odoo stored other than written is told with the result, not only in the journal
+            if ( $outcome eq 'done' && ref $entry->{rewritten} eq 'HASH' ) {
+                push @custom, { key => $c->{key}, kind => 'read-back differs',
+                    returned => { rewritten => $entry->{rewritten}, note => 'Odoo stored ' . join( ', ', map { "$_ as " . ( Odoo::Ops::json()->encode( $entry->{rewritten}{$_}{now} ) ) } sort keys %{ $entry->{rewritten} } ) . ', not as planned' } };
             }
             $entry->{outcome} = $outcome;
             # the audit trail names every button pressed, and what Odoo answered
@@ -242,12 +253,18 @@ sub apply ($class, $ctx, $plan, %opts) {
             $entry->{error} = $is_err
                 ? { kind => $err->kind, category => $err->fault_category, message => $err->message, ( defined $err->code && $err->code ne $err->kind ? ( code => $err->code ) : () ) }
                 : { kind => 'perl', message => "$err" };
+            # a write whose request was sent and whose answer never came is not a failure: Odoo may have made it
+            my $unknown = $is_err && $err->unanswered_write && $c->{action} =~ /\A(?:create|write|unlink|call|custom|route)\z/;
+            $entry->{reason} = UNKNOWN_REASON if $unknown;
             # the screen says why too, not only the journal
-            push @failed, { seq => $c->{seq}, key => $c->{key}, action => $c->{action}, model => $c->{model},
-                id => $entry->{id} // $c->{id}, message => $entry->{error}{message} };
+            push @{ $unknown ? \@unknown : \@failed }, { seq => $c->{seq}, key => $c->{key}, action => $c->{action}, model => $c->{model},
+                id => $entry->{id} // $c->{id}, message => $entry->{error}{message},
+                ( defined $entry->{error}{code} ? ( code => $entry->{error}{code} ) : () ),
+                ( $unknown ? ( reason => UNKNOWN_REASON ) : () ) };
             my $transport = $is_err && $err->kind eq 'transport';
             $stopped = $c->{seq} if $transport || !$keep_going;
             $stopped = $c->{seq} if $opts{stop_after} && ( $counts{failed} // 0 ) + 1 >= $opts{stop_after};
+            return $unknown ? 'unknown' : 'failed';
         };
         # one change at a time; or, with batch => N, runs of up to N
         # consecutive creates on one model sent as one create call
@@ -314,7 +331,7 @@ sub apply ($class, $ctx, $plan, %opts) {
                             $entry{hold}   = 'backorder-choice';
                             push @held, { seq => $c->{seq}, key => $c->{key}, bucket => $c->{bucket}, hold => 'backorder-choice', reason => $entry{reason} };
                         }
-                        else { $outcome = 'failed'; $fail->( $c, \%entry, $err ) }
+                        else { $outcome = $fail->( $c, \%entry, $err ) }
                     }
                 }
                 $record->( $c, \%entry, $outcome );
@@ -346,6 +363,7 @@ sub apply ($class, $ctx, $plan, %opts) {
             unlinked         => \%unlinked,
             custom           => \@custom,
             failed_changes   => \@failed,
+            unknown_changes  => \@unknown,
             held_changes     => \@held,
             invariants       => \@inv_rows,
             invariants_failed => $inv_failed,
@@ -388,7 +406,7 @@ sub _audit_run ($class, $ctx, $plan, $dir, $idx, $result, $created, $written, $u
     my $p     = $plan->{params} // {};
     my $event = $plan->op eq 'revert' ? 'revert' : defined $p->{resumes} ? 'resume' : 'apply';
     my $state = $idx ? ( $idx->{outcome} // $idx->{state} ) : undef;
-    $state //= !( $c->{failed} || $c->{not_attempted} ) ? 'applied' : $c->{done} ? 'partly-applied' : 'failed';
+    $state //= !( $c->{failed} || $c->{unknown} || $c->{not_attempted} ) ? 'applied' : $c->{done} ? 'partly-applied' : 'failed';
     my @touched;
     for my $m ( $created, $written, $unlinked ) {
         for my $model ( sort keys %$m ) { push @touched, map { "$model:$_" } grep { defined } @{ $m->{$model} } }
@@ -413,7 +431,7 @@ sub _scope_reads ($plan, $model) {
 sub _entry ($c) {
 
     return map { $_ => $c->{$_} } grep { exists $c->{$_} }
-        qw(seq bucket action kind model id method handler before vals key ref support context reason path params precondition fault_note);
+        qw(seq bucket action kind model id method handler before vals key ref support context reason path params precondition fault_note compare);
 }
 
 # a plain create: no reference to an earlier change's id, nothing narrowing the read-back
@@ -458,9 +476,22 @@ sub _apply_batch ($class, $client, $run, $refs, $record, $fail) {
         }
     }
     else { @to_create = @$run }
+    my $ids;
     if (@to_create) {
-        my $ids = eval { $model->create( [ map { $_->{vals} } @to_create ], @ctx ) };
-        return ( 0, 0, 0 ) if !$ids || ref $ids ne 'ARRAY' || @$ids != @to_create;
+        $ids = eval { $model->create( [ map { $_->{vals} } @to_create ], @ctx ) };
+        my $err = $@;
+        if ( !$ids && blessed($err) && $err->isa('Odoo::Error') && $err->unanswered_write ) {
+            # the one create was sent and no answer came: any of its records may exist, so none is made again
+            # one at a time; each is journalled unknown and the run stops
+            for my $c (@to_create) {
+                my %entry = _entry($c);
+                $pending{ $c->{seq} } = [ \%entry, $fail->( $c, \%entry, $err ) ];
+            }
+            @to_create = ();
+        }
+        elsif ( !$ids || ref $ids ne 'ARRAY' || @$ids != @to_create ) { return ( 0, 0, 0 ) }
+    }
+    if (@to_create) {
         my %fields;
         for my $c (@to_create) { $fields{$_} = 1 for keys %{ $c->{vals} } }
         my $rows = eval { $model->read( $ids, [ sort keys %fields ] ) } // [];
@@ -616,13 +647,16 @@ sub _do_change ($class, $client, $c, $entry, $ctx = undef) {
         $entry->{id} = $id;
         # readback narrows what is read back (e.g. not a file's content)
         my $rb = $c->{readback} ? { map { $_ => 1 } @{ $c->{readback} } } : $c->{vals};
-        return $entry->{after} = $class->_read_back( $model, $id, $rb );
+        my $after = $class->_read_back( $model, $id, $rb );
+        $entry->{after} = $after;
+        return $class->_compared( $c, $entry, $after );
     }
     if ( $action eq 'write' ) {
         $model->write( $c->{id}, $c->{vals}, @ctx );
         my $after = $class->_read_back( $model, $c->{id}, $c->{vals} );
         $entry->{after} = $after;
-        # an undo says what it meant to put back (restores): the read-back
+        $after = $class->_compared( $c, $entry, $after );
+        # an undo says what it meant what it meant to put back (restores): the read-back
         # is compared with it, and a field that did not take is named
         if ( my $want = $c->{restores} ) {
             my @bad = map { $_->[0] } _diffs( $want, $after );
@@ -711,6 +745,18 @@ sub _call_state ($class, $ctx, $client, $model, $ids) {
     return ( undef, undef, "not verified: the operation's scope does not read $model" ) if $ctx->guard->can('allows') && !$ctx->guard->allows( $model, 'read' );
     my $rows = $client->model($model)->read( $ids, [$field] );
     return ( $field, { map { $_->{id} => $_->{$field} } @$rows } );
+}
+
+# A change that names fields in compare => [...] says Odoo may store them other than written (a domain
+# string, say). The read-back is held to what was planned for those fields: a difference is named on the
+# entry (rewritten) and the change is not verified, never passed as read back as planned.
+sub _compared ($class, $c, $entry, $after) {
+    return $after if !$after || ref $c->{compare} ne 'ARRAY' || ref $c->{vals} ne 'HASH';
+    my %want = map { $_ => $c->{vals}{$_} } grep { exists $c->{vals}{$_} } @{ $c->{compare} };
+    my @d = _diffs( \%want, $after );
+    return $after if !@d;
+    $entry->{rewritten} = { map { $_->[0] => { planned => $_->[1], now => $_->[2] } } @d };
+    return undef;
 }
 
 sub _read_back ($class, $model, $id, $vals) {
@@ -1271,7 +1317,15 @@ sub _dir_of ($journal_path) { return ( File::Spec->splitpath($journal_path) )[1]
 A new, unapplied plan of the changes of a run that C<failed> or were
 C<not_attempted>, in their original order with their keys, read from
 the journal and the C<plan.json> beside it. Holds and skips are not
-carried. A C<$ref> to a record the earlier run created is replaced by
+carried. A change that ended C<unknown> (its request was sent and no answer
+came) is read back first, by its own evidence: a create by its C<unique_by>, a
+write by the fields it wrote, an unlink by the record's absence, a call, route or
+custom change by its C<verify> (or the handler's C<unknown_outcome>). One that
+reads as made is journalled C<done> (C<found made on resume>) and is not carried;
+one that reads as not made is carried as a change to apply. One with no evidence
+refuses C<unknown-outcome>, naming it, unless the caller decides: C<assume_done>
+or C<assume_not_done> (lists of the change's key, or its number) are journalled
+with the actor. The journal gets these lines appended; nothing is sent to Odoo. A C<$ref> to a record the earlier run created is replaced by
 its id. The before-image of each write, unlink, call and custom change
 is read again from the server: a record that changed since planning
 (or is gone) is held C<stale> in the new plan, so one changed row does
@@ -1284,7 +1338,7 @@ resumes.
 sub resume_plan ($class, $ctx, $journal_path, %o) {
     Odoo::Ops::Runs->refuse_closed( _dir_of($journal_path) );
     my ( $header, $entries ) = Odoo::Ops::Journal->read($journal_path);
-    return Odoo::Ops::Acting->as_service( $ctx, $header->{acts_for}, sub ($svc) { $class->resume_plan( $svc, $journal_path, acting => 1 ) }, op => $header->{op} )
+    return Odoo::Ops::Acting->as_service( $ctx, $header->{acts_for}, sub ($svc) { $class->resume_plan( $svc, $journal_path, %o, acting => 1 ) }, op => $header->{op} )
         if $header->{acts_for} && !$o{acting};
     # an administrator may finish another login's revert (undoing is theirs to do); another login's apply stays that login's
     my $other = $class->_journal_owner( $ctx, $header, 'resume', never => ( ( $header->{op} // '' ) ne 'revert' ) );
@@ -1299,6 +1353,8 @@ sub resume_plan ($class, $ctx, $journal_path, %o) {
     ) if $orig->fingerprint ne ( $header->{plan_fingerprint} // '' );
 
     my %outcome = map { $_->{seq} => $_ } @$entries;
+    # a change whose answer never came is read back before anything is repeated
+    my @unknown_notes = $class->_settle_unknown( $ctx, $orig, $journal_path, \%outcome, \%o );
     my ( %made, @carry );
     for my $c ( @{ $orig->changes } ) {
         my $e = $outcome{ $c->{seq} };
@@ -1353,9 +1409,147 @@ sub resume_plan ($class, $ctx, $journal_path, %o) {
         $plan->add(%copy);
     }
     $plan->note( "this run was applied by $other; you resume it as an administrator (" . $ctx->instance->{login} . ')' ) if defined $other;
+    $plan->note($_) for @unknown_notes;
     $plan->note( "resumes $journal_path: " . scalar(@carry) . ' changes failed or were not attempted' );
     $plan->set_scope($scope);
     return $plan->finalize;
+}
+
+# --- a change that ended unknown --------------------------------------------------------------------------------
+
+# The key a person names a change by: its key, else its number.
+sub _change_name ($c) { return defined $c->{key} && length $c->{key} ? $c->{key} : $c->{seq} }
+
+sub _change_words ($c) {
+    my $what = join ' ', grep { defined && length } $c->{action}, $c->{method} // $c->{handler}, $c->{model}, ( defined $c->{id} ? "on $c->{id}" : () );
+    return "change #$c->{seq}" . ( defined $c->{key} && length $c->{key} ? " [$c->{key}]" : '' ) . " ($what)";
+}
+
+# an x2many command list cannot be compared with what a read gives back
+sub _is_command_list ($v) { return ref $v eq 'ARRAY' && ( grep { ref $_ eq 'ARRAY' } @$v ) ? 1 : 0 }
+
+# What Odoo says about a change that ended unknown, read now: (1, how) when it was made,
+# (0, how) when it was not, () when the change names no way to tell.
+sub _made_on_read ($class, $client, $c) {
+    my $action = $c->{action};
+    if ( $action eq 'create' ) {
+        return () if !$c->{unique_by};
+        my $id = $class->_existing( $client, $c );
+        return defined $id ? ( 1, 'a record is there by ' . ( _unique($c) )[0], $id ) : ( 0, 'no record is there by ' . ( _unique($c) )[0] );
+    }
+    if ( $action eq 'write' ) {
+        my $vals = ref $c->{vals} eq 'HASH' ? $c->{vals} : {};
+        my %want = map { $_ => $vals->{$_} } grep { !_is_command_list( $vals->{$_} ) } keys %$vals;
+        return () if !%want || !defined $c->{id};
+        my $row = $client->model( $c->{model} )->read_one( $c->{id}, [ sort keys %want ] );
+        return ( 0, "$c->{model} $c->{id} no longer reads" ) if !$row;
+        my @d = _diffs( \%want, $row );
+        return @d ? ( 0, 'the fields read other than written: ' . join( ', ', map { $_->[0] } @d ) ) : ( 1, 'the fields read as written' );
+    }
+    if ( $action eq 'unlink' ) {
+        return () if !defined $c->{id};
+        my $rows = eval { $client->model( $c->{model} )->read( [ $c->{id} ], ['display_name'] ) };
+        my $err  = $@;
+        my $gone = !$err ? !@{ $rows // [] } : ( blessed($err) && $err->isa('Odoo::Error') && ( $err->fault_category // '' ) eq 'missing' );
+        die $err if $err && !$gone;
+        return $gone ? ( 1, 'the record is gone' ) : ( 0, 'the record is still there' );
+    }
+    if ( $action =~ /\A(?:call|custom|route)\z/ ) {
+        if ( ref $c->{verify} eq 'HASH' && ref $c->{verify}{ids} eq 'ARRAY' && @{ $c->{verify}{ids} } && ref $c->{verify}{fields} eq 'HASH' ) {
+            my $v    = $c->{verify};
+            my $rows = $client->model( $v->{model} )->read( $v->{ids}, [ sort keys %{ $v->{fields} } ] );
+            my $ok   = @$rows == @{ $v->{ids} };
+            for my $row (@$rows) { for my $f ( keys %{ $v->{fields} } ) { $ok = 0 if !_same( $row->{$f}, $v->{fields}{$f} ) } }
+            return $ok ? ( 1, 'the verify fields read as planned' ) : ( 0, 'the verify fields do not read as planned' );
+        }
+        if ( $action eq 'custom' ) {
+            my $h = Odoo::Ops::Registry->new->class_for_handler( $c->{handler} );
+            if ( $h && $h->can('unknown_outcome') ) {
+                my ( $made, $how ) = $h->unknown_outcome( $client, $c );
+                return ( $made ? 1 : 0, $how // ( $made ? 'the handler read it as made' : 'the handler read it as not made' ) ) if defined $made;
+            }
+        }
+    }
+    return ();
+}
+
+# Settles every change the journal left unknown before the rest is planned: read first (see resume_plan),
+# the verdicts journalled, %$outcome updated to the last line of each. Returns the plan notes.
+sub _settle_unknown ($class, $ctx, $orig, $journal_path, $outcome, $o) {
+    my @unk = grep { $outcome->{ $_->{seq} } && ( $outcome->{ $_->{seq} }{outcome} // '' ) eq 'unknown' } @{ $orig->changes };
+    my %assume = ( done => { map { $_ => 1 } @{ $o->{assume_done} // [] } }, not_done => { map { $_ => 1 } @{ $o->{assume_not_done} // [] } } );
+    for my $kind (qw(done not_done)) {
+        for my $name ( sort keys %{ $assume{$kind} } ) {
+            my $flag = $kind eq 'done' ? '--assume-done' : '--assume-not-done';
+            Odoo::Error->throw( kind => 'usage', message => "$flag $name: no change of this run ended unknown by that key or number",
+                fix => @unk ? 'the changes that ended unknown are: ' . join( ', ', map { _change_name($_) } @unk ) : 'this run has no change that ended unknown' )
+                if !grep { _change_name($_) eq $name || "$_->{seq}" eq $name } @unk;
+            Odoo::Error->throw( kind => 'usage', message => "$name is named by both --assume-done and --assume-not-done" )
+                if $kind eq 'done' && $assume{not_done}{$name};
+        }
+    }
+    return () if !@unk;
+
+    my $scope = { %{ $orig->scope } };
+    for my $c (@unk) {
+        for my $m ( grep { defined } $c->{model}, ( ref $c->{verify} eq 'HASH' ? $c->{verify}{model} : () ) ) {
+            $scope->{$m} = [ sort keys %{ { map { $_ => 1 } @{ $scope->{$m} // [] }, qw(read search_read) } } ];
+        }
+    }
+    my $blobs = $orig->blob_source( _dir_of($journal_path) );
+    my ( %verdict, @undecided );
+    $ctx->guard->with_scope( $scope, 'resume', sub {
+        for my $plain (@unk) {
+            my $c = $blobs->resolve($plain);
+            my $name = _change_name($c);
+            if ( $assume{done}{$name} || $assume{done}{ $c->{seq} } ) { $verdict{ $c->{seq} } = [ 1, 'assumed', undef, 'done' ]; next }
+            if ( $assume{not_done}{$name} || $assume{not_done}{ $c->{seq} } ) { $verdict{ $c->{seq} } = [ 0, 'assumed', undef, 'not done' ]; next }
+            my ( $made, $how, $id ) = $class->_made_on_read( $ctx->client, $c );
+            if ( !defined $made ) { push @undecided, $c; next }
+            $verdict{ $c->{seq} } = [ $made, $how, $id ];
+        }
+    } );
+    if (@undecided) {
+        my $fix_name = _change_name( $undecided[0] );
+        Odoo::Error->throw(
+            kind    => 'refused',
+            code    => 'unknown-outcome',
+            message => join( '; ', map { _change_words($_) . ' ended unknown: its request was sent and no answer came, and it names no read that tells whether Odoo made it' } @undecided )
+                . '; a person must look in Odoo',
+            fix => "look in Odoo at what the change does, then resume with --assume-done $fix_name (it was made) or --assume-not-done $fix_name (it was not); the decision is journalled with your login",
+        );
+    }
+
+    my $j = Odoo::Ops::Journal->append( $journal_path, blob_min => $ctx->config->blob_min );
+    my ( $found, $notfound, $assumed ) = ( 0, 0, 0 );
+    for my $c (@unk) {
+        my ( $made, $how, $id, $word ) = @{ $verdict{ $c->{seq} } };
+        my %e = _entry($c);
+        delete $e{reason};
+        if ( $how eq 'assumed' ) {
+            $assumed++;
+            $e{reason}  = 'assumed ' . $word . ' by ' . $ctx->actor . ( $made ? ' (--assume-done)' : ' (--assume-not-done)' );
+            $e{assumed} = $made ? 'done' : 'not-done';
+            $e{by}      = $ctx->actor;
+        }
+        else {
+            $e{reason} = $made ? 'found made on resume' : 'read on resume: not made';
+            $e{read}   = $how;
+            $made ? $found++ : $notfound++;
+        }
+        $e{id} = $id if defined $id && $c->{action} eq 'create';
+        if ( $made && $how ne 'assumed' && $c->{action} =~ /\A(?:create|write)\z/ && defined( $e{id} // $c->{id} ) ) {
+            my %want = map { $_ => 1 } grep { !_is_command_list( $c->{vals}{$_} ) } keys %{ $c->{vals} // {} };
+            my $after = %want ? eval { $ctx->guard->with_scope( $scope, 'resume', sub { $ctx->client->model( $c->{model} )->read_one( $e{id} // $c->{id}, [ sort keys %want ] ) } ) } : undef;
+            $e{after} = $after if $after;
+        }
+        $e{outcome} = $made ? 'done' : 'not_attempted';
+        $j->change(%e);
+        $outcome->{ $c->{seq} } = {%e};
+    }
+    return ( "$found change(s) that ended unknown were found made on resume and are journalled done"
+        . ( $notfound ? "; $notfound read as not made and are carried" : '' )
+        . ( $assumed ? "; $assumed settled by the operator's decision (" . $ctx->actor . ')' : '' ) );
 }
 
 # { '$ref' => name } becomes the id when the earlier run made it; a ref to a

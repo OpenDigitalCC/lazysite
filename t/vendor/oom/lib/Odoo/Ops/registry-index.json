@@ -74,17 +74,43 @@
             "sale.confirm" : "Odoo::Ops::Documents::SaleConfirm"
          }
       },
+      "Odoo::Ops::Helpdesk" : {
+         "files" : "Assign.pm,Categories.pm,Close.pm,Common.pm,Create.pm,MyClose.pm,MyReply.pm,MyTicket.pm,MyTickets.pm,Note.pm,Raise.pm,Reopen.pm,Reply.pm,Stage.pm,Stages.pm,Tags.pm,Teams.pm,Ticket.pm,TicketList.pm,Tickets.pm,Update.pm",
+         "ops" : {
+            "helpdesk.assign" : "Odoo::Ops::Helpdesk::Assign",
+            "helpdesk.categories" : "Odoo::Ops::Helpdesk::Categories",
+            "helpdesk.close" : "Odoo::Ops::Helpdesk::Close",
+            "helpdesk.create" : "Odoo::Ops::Helpdesk::Create",
+            "helpdesk.my_close" : "Odoo::Ops::Helpdesk::MyClose",
+            "helpdesk.my_reply" : "Odoo::Ops::Helpdesk::MyReply",
+            "helpdesk.my_ticket" : "Odoo::Ops::Helpdesk::MyTicket",
+            "helpdesk.my_tickets" : "Odoo::Ops::Helpdesk::MyTickets",
+            "helpdesk.note" : "Odoo::Ops::Helpdesk::Note",
+            "helpdesk.raise" : "Odoo::Ops::Helpdesk::Raise",
+            "helpdesk.reopen" : "Odoo::Ops::Helpdesk::Reopen",
+            "helpdesk.reply" : "Odoo::Ops::Helpdesk::Reply",
+            "helpdesk.stage" : "Odoo::Ops::Helpdesk::Stage",
+            "helpdesk.stages" : "Odoo::Ops::Helpdesk::Stages",
+            "helpdesk.tags" : "Odoo::Ops::Helpdesk::Tags",
+            "helpdesk.teams" : "Odoo::Ops::Helpdesk::Teams",
+            "helpdesk.ticket" : "Odoo::Ops::Helpdesk::Ticket",
+            "helpdesk.tickets" : "Odoo::Ops::Helpdesk::Tickets",
+            "helpdesk.update" : "Odoo::Ops::Helpdesk::Update"
+         }
+      },
       "Odoo::Ops::Mailing" : {
-         "files" : "Archive.pm,Blacklist.pm,Blacklisted.pm,Cancel.pm,Common.pm,Contacts.pm,Create.pm,Delete.pm,Lists.pm,Preview.pm,Process.pm,Send.pm,Status.pm,Subscribe.pm,Test.pm",
+         "files" : "Archive.pm,Blacklist.pm,Blacklisted.pm,Cancel.pm,Common.pm,ContactCountry.pm,Contacts.pm,Create.pm,Delete.pm,Lists.pm,Partition.pm,Preview.pm,Process.pm,Send.pm,Status.pm,Subscribe.pm,Test.pm",
          "ops" : {
             "mailing.archive" : "Odoo::Ops::Mailing::Archive",
             "mailing.blacklist" : "Odoo::Ops::Mailing::Blacklist",
             "mailing.blacklisted" : "Odoo::Ops::Mailing::Blacklisted",
             "mailing.cancel" : "Odoo::Ops::Mailing::Cancel",
+            "mailing.contact_country" : "Odoo::Ops::Mailing::ContactCountry",
             "mailing.contacts" : "Odoo::Ops::Mailing::Contacts",
             "mailing.create" : "Odoo::Ops::Mailing::Create",
             "mailing.delete" : "Odoo::Ops::Mailing::Delete",
             "mailing.lists" : "Odoo::Ops::Mailing::Lists",
+            "mailing.partition" : "Odoo::Ops::Mailing::Partition",
             "mailing.preview" : "Odoo::Ops::Mailing::Preview",
             "mailing.process" : "Odoo::Ops::Mailing::Process",
             "mailing.send" : "Odoo::Ops::Mailing::Send",

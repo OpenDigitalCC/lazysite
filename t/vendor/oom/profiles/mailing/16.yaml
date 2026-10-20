@@ -37,12 +37,14 @@ models:
       model: mailing_model_id         # ir.model; mailing.list for a mailing to lists
       model_real: mailing_model_real  # mailing.contact when the model is mailing.list
       lists: contact_list_ids
+      domain: mailing_domain          # a Python-literal domain on mailing.contact for a list mailing; written after the lists, which reset it
       schedule_type: schedule_type
       schedule_date: schedule_date
       sent_date: sent_date
       updated: write_date
       created: create_date
       active: active
+      ab_testing: ab_testing_enabled  # a mailing that sends a random share of its recipients; its remaining set is not the domain's
       total: total                    # contacts of the lists, opted-out and blacklisted included; expected is 0 until traces exist
       expected: expected              # traces made
       scheduled: scheduled
@@ -78,6 +80,7 @@ models:
       lists: list_ids
       subscriptions: subscription_list_ids
       blacklisted: is_blacklisted
+      country: country_id             # the contact's own country (res.country); a linked partner is not consulted
   subscription:
     model: mailing.contact.subscription
     fields:
@@ -127,6 +130,11 @@ models:
       next_call: nextcall
       last_call: lastcall
       active: active
+  country:
+    model: res.country
+    fields:
+      code: code                       # ISO 3166 alpha-2
+      name: name
   tag:
     model: res.partner.category
     fields:

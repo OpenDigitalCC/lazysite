@@ -31,7 +31,7 @@ cancel, and a mailing that is sending or done has gone. The change is a
 verified call (state reads C<draft> afterwards). A revert holds it as a
 method call; queue the mailing again with C<mailing.send>.
 
-Series: written for Odoo 16; another series is refused by name until its
+Series: Odoo 16 and 18; another series is refused by name until its
 profile is probed.
 
 =cut

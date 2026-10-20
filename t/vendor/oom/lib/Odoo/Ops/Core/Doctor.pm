@@ -831,7 +831,7 @@ sub _pack_checks ($self, $config) {
         # broken here, so it is a fact and its behaviour lines are left out.
         if ( !$self->_covers( $pack, $p ) ) {
             push @c, _check( "profile.$pack", 'info', "not covered on " . $self->client->server_series
-                    . ": the $pack pack has a profile for " . $p->series . " only; its operations are refused by name" );
+                    . ": the $pack pack has no profile for this series (the nearest below is " . $p->series . "'s); its operations are refused by name" );
             next;
         }
         my $v = eval { $p->validate( $self->client ) };

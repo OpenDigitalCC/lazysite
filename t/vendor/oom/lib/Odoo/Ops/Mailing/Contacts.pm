@@ -38,7 +38,7 @@ opted out, absent while subscribed). The filters combine:
 
 The report is C<< { matching, shown, rows, fields } >>: C<matching> is
 how many contacts the filters select, C<shown> how many are returned
-(at most C<limit>), so a cut-off is never silent. Series: Odoo 16.
+(at most C<limit>), so a cut-off is never silent. Series: Odoo 16 and 18.
 
 =cut
 

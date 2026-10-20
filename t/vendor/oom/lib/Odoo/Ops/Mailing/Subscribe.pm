@@ -91,7 +91,7 @@ Contact creates and updates carry the quiet context (no chatter, no
 tracking). A revert undoes creates (the contact, the list, a tag) and
 writes; a C<remove> is an unlink and is held as irreversible.
 
-Series: written for Odoo 16; another series is refused by name until its
+Series: Odoo 16 and 18; another series is refused by name until its
 profile is probed.
 
 =cut

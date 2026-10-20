@@ -14,6 +14,10 @@
 # not at 01:30 on the night of a cut.
 #
 # t/vendor/ itself is OOM's own code and is not scanned (it is held by t/lint/261).
+# What that code reads from the host by default is turned off in t/lib/OdooTest.pm,
+# not here: ODOO_OOM_PACK_DIRS names no packs (SM1185), and ODOO_OOM_SHARE is empty,
+# which from OOM 0.37 names no installed share root for behaviours, profiles and
+# matrix.yaml (SM1216; t/unit/odoo/78 asserts the host's directory is not searched).
 use strict;
 use warnings;
 use Test::More;

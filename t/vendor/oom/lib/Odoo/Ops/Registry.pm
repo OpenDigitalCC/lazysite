@@ -64,7 +64,7 @@ error.
 
 =cut
 
-my @DEFAULT = qw(Odoo::Ops::Core Odoo::Ops::CRM Odoo::Ops::Comms Odoo::Ops::Stock Odoo::Ops::Mailing Odoo::Ops::Documents Odoo::Ops::Discuss);
+my @DEFAULT = qw(Odoo::Ops::Core Odoo::Ops::CRM Odoo::Ops::Comms Odoo::Ops::Stock Odoo::Ops::Mailing Odoo::Ops::Documents Odoo::Ops::Discuss Odoo::Ops::Helpdesk);
 
 my $SAID;       # the full scan has been announced in this process
 my $SHIPPED;    # the shipped index, read once per process (a plan's changes each ask for a registry)

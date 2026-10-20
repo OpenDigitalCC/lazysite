@@ -12,7 +12,7 @@ use Odoo::JSON ();
 use Odoo::Error;
 use Odoo::Transport;
 
-our $VERSION = '0.36';
+our $VERSION = '0.38';
 
 =head1 NAME
 
@@ -234,12 +234,15 @@ sub _post ($self, $db, $key, $model, $method, $body) {
     my $res = Odoo::Transport::post( $self->{http}, "$self->{url}/json/2/$model/$method",
         { content => $self->{json}->encode($body), headers => \%headers },
         idempotent => Odoo::Transport::is_read_method($method) );
-    $self->_check_http( $res, $label );
-    return $self->_decode( $res, $label );
+    my $idem = Odoo::Transport::is_read_method($method) ? 1 : 0;
+    $self->_check_http( $res, $label, $idem );
+    my $out = eval { $self->_decode( $res, $label ) };
+    die Odoo::Transport::answered_unusably( $@, idempotent => $idem ) if $@;
+    return $out;
 }
 
 # policy refusals, then the failures that are the network's, not Odoo's
-sub _check_http ($self, $res, $label) {
+sub _check_http ($self, $res, $label, $idem = 1) {
     Odoo::Transport::refuse_by_policy( $res, $label );
     my $status = $res->{status} // 0;
     return if $res->{success};
@@ -248,10 +251,7 @@ sub _check_http ($self, $res, $label) {
     Odoo::Error->throw( kind => 'refused', code => 'series',
         message => "$label: HTTP 404 and no JSON answer - the server has no /json/2 route (Odoo before 19?)" )
         if $status == 404;
-    my $detail = $status == 599
-        ? ( $res->{content} // 'internal HTTP::Tiny error' )
-        : "HTTP $status " . ( $res->{reason} // '' );
-    Odoo::Error->throw( kind => 'transport', message => "$label: $detail" );
+    die Odoo::Transport::transport_error( $res, $label, idempotent => $idem );
 }
 
 my %CLASS = (    # the HTTP-level names Odoo uses, folded onto the exception names the rest knows

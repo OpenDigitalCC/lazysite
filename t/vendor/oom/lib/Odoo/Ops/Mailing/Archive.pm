@@ -41,7 +41,7 @@ plan says that Odoo's queue will no longer take it (it searches active
 mailings only); C<mailing.cancel> first is the usual order. The read
 operations show archived mailings with C<archived=1>.
 
-Series: written for Odoo 16; another series is refused by name until its
+Series: Odoo 16 and 18; another series is refused by name until its
 profile is probed.
 
 =cut

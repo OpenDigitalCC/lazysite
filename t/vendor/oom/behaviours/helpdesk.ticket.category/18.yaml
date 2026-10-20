@@ -1,0 +1,8 @@
+# helpdesk.ticket.category, Odoo 18 (OCA helpdesk_mgmt). Source 18.0, 2026-10-19; live 2026-10-19 (survey, demo18).
+# 18 has no default_team_id: a ticket made with a category and no team has no team. The web form lists
+# the categories with show_in_portal when the company's "Select category in Helpdesk portal" is on; the
+# API lists them all (no record rule), which the survey met with a portal login.
+model: helpdesk.ticket.category
+series: 18
+module: helpdesk_mgmt
+effects: []

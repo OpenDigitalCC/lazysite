@@ -9,6 +9,9 @@ use Odoo::Error;
 use Odoo::JSON ();
 use Odoo::Ops;
 
+use constant DEFAULT_STR => 4096;
+use constant MAX_STR     => 1_048_576;
+
 =head1 NAME
 
 Odoo::Ops::Rows - the rows an operation is given: in-process records or a file
@@ -126,12 +129,15 @@ before it sends. C<$decl> is the parameter's declaration:
                row => { product_id => 'int', qty => 'int', discount => 'int?' } }
 
 Each row field is C<str>, C<int> or C<bool>, with C<?> for an optional key;
-C<max> is required. C<$value> is an array of hashes, or the text of a JSON
+C<max> is required. A C<str> key that may be longer than 4096 characters is
+declared as a hash, C<< note => { type => 'str?', max => 20000 } >>, with a
+C<max> of at most 1,048,576; the other types take no C<max>. C<$value> is an array of hashes, or the text of a JSON
 array of flat objects. It must hold at most C<max> rows, each a hash with
 only the declared keys, every required key present and each value of its
 type with no nesting: an C<int> is a whole number (JSON number or digits), a
 C<bool> is true or false (C<1 0 yes no true false>), a C<str> is a plain
-value of at most 4096 characters holding no control character. A C<null>
+value of at most 4096 characters (or the key's own C<max>) holding no control
+character other than newline, carriage return and tab. A C<null>
 leaves an optional key out. Returns the rows (a new array of new hashes,
 values typed). A breach is C<usage>, naming the row number (from 1) and the
 key; C<$label> (default C<rows>) leads the message.
@@ -147,12 +153,24 @@ sub check ($class, $decl, $value, $label = 'rows') {
     defined $max && !ref $max && $max =~ /\A[1-9]\d*\z/ or $bad->( ' declares no max (a whole number of at least 1)', 'config' );
     my $row = $decl->{row};
     ref $row eq 'HASH' && %$row or $bad->( ' declares no row fields', 'config' );
-    my ( %type, %optional );
+    my ( %type, %optional, %limit );
     for my $k ( sort keys %$row ) {
-        my ( $ty, $q ) = ( $row->{$k} // '' ) =~ /\A(str|int|bool)(\?)?\z/
-            or $bad->( " declares row key '$k' as '" . ( $row->{$k} // '' ) . "' (str, int or bool, with ? for optional)", 'config' );
+        my $d = $row->{$k};
+        my $lim;
+        if ( ref $d eq 'HASH' ) {
+            $lim = $d->{max};
+            $d   = $d->{type};
+        }
+        my ( $ty, $q ) = ( $d // '' ) =~ /\A(str|int|bool)(\?)?\z/
+            or $bad->( " declares row key '$k' as '" . ( $d // '' ) . "' (str, int or bool, with ? for optional)", 'config' );
+        if ( defined $lim ) {
+            $ty eq 'str' or $bad->( " declares a max for row key '$k', which is not a str", 'config' );
+            !ref $lim && $lim =~ /\A[1-9]\d*\z/ && $lim <= MAX_STR
+                or $bad->( " declares row key '$k' with a max that is not a whole number from 1 to " . MAX_STR, 'config' );
+        }
         $type{$k}     = $ty;
         $optional{$k} = 1 if $q;
+        $limit{$k}    = $lim // DEFAULT_STR;
     }
 
     my $rows = $value;
@@ -192,8 +210,9 @@ sub check ($class, $decl, $value, $label = 'rows') {
                 $o{$k} = $v =~ /\A(?:1|yes|true)\z/i ? 1 : 0;
             }
             else {
-                $bad->( " row $n: key '$k' must be at most 4096 characters" ) if length $v > 4096;
-                $bad->( " row $n: key '$k' must not hold a control character" ) if $v =~ /[\x00-\x1f\x7f]/;
+                $bad->( " row $n: key '$k' must be at most $limit{$k} characters" ) if length $v > $limit{$k};
+                # lines and tabs are text; any other control character is not
+                $bad->( " row $n: key '$k' must not hold a control character other than newline, carriage return or tab" ) if $v =~ /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
                 $o{$k} = "$v";
             }
         }

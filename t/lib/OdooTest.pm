@@ -107,6 +107,16 @@ sub vendor_dir {
 $ENV{ODOO_OOM_PACK_DIRS} = vendor_dir() . '/no-packs-here'
     unless defined $ENV{ODOO_OOM_PACK_DIRS} || defined $ENV{LAZYSITE_OOM_LIB};
 
+# SM1216: NOR THE HOST'S BEHAVIOURS, PROFILES OR matrix.yaml. Up to OOM 0.36 the
+# deb's data directory was a root OOM always searched after the snapshot's own tree
+# (SM1202, t/unit/odoo/78). OOM 0.37, at lazysite's ask, reads ODOO_OOM_SHARE for that
+# root, and an empty value names none (inbox 2026-10-20-oom-0.37-code-share-rows-
+# shop-helpdesk.md: "set ODOO_OOM_SHARE= in your harness and nothing installed on
+# the host is read"). Same rule as the packs: unless the caller set it, or
+# LAZYSITE_OOM_LIB names the host's library (tools/ext-compat.sh).
+$ENV{ODOO_OOM_SHARE} = ''
+    unless defined $ENV{ODOO_OOM_SHARE} || defined $ENV{LAZYSITE_OOM_LIB};
+
 sub oom_lib { return $ENV{LAZYSITE_OOM_LIB} // vendor_dir() . '/lib' }
 
 

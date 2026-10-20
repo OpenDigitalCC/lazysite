@@ -1,0 +1,10 @@
+# helpdesk.sla, Odoo 16 (OCA helpdesk_mgmt_sla 16.0.1.0.0). Source 16.0, 2026-10-19; live 2026-10-19 (survey, demo16).
+model: helpdesk.sla
+series: 16
+module: helpdesk_mgmt_sla
+effects: []
+actions:
+  - method: check_sla
+    on: model
+    note: sets sla_deadline and sla_expired on every open ticket a rule fits (the first rule that fits, in the order Odoo finds them); the module's own cron calls it every 5 minutes. A ticket made after the rule has no deadline until it runs
+    evidence: 'source 16.0 helpdesk_sla.check_sla; live 2026-10-19 (survey, demo16: called as the Administrator, the deadline was set on the next working morning for a 4-hour rule)'

@@ -8,13 +8,14 @@ no warnings 'experimental::signatures';
 use JSON::PP ();
 use Scalar::Util qw(blessed looks_like_number);
 
+use Odoo::Transport ();
 use Odoo::Transport::Session ();
 use Odoo::Cache ();
 use Odoo::Error;
 use Odoo::Model;
 use Odoo::Portable;
 
-our $VERSION = '0.36';
+our $VERSION = '0.38';
 
 =head1 NAME
 
@@ -712,10 +713,16 @@ sub models ($self, %opts) {
 }
 
 # Retry ladder: each entry is a sleep before that attempt. Transport
-# errors walk the ladder; faults and anything else surface at once.
+# errors walk the ladder; faults and anything else surface at once. A write
+# (an execute_kw of a method that does not only read) is sent again only when
+# the transport says its request never left (connect refused, DNS, TLS): a
+# write whose request may have reached Odoo is never resent, whether or not
+# the transport can say so, because the change may have been made and a second
+# send would make it twice. That error is marked as a write and surfaces at once.
 sub _call ($self, $service, $method, @args) {
     my @ladder = @{ $self->{retries} };
     @ladder = (0) if !@ladder;
+    my $write = $service eq 'object' && $method eq 'execute_kw' && !Odoo::Transport::is_read_method( $args[4] );
     my $last;
     for my $delay (@ladder) {
         sleep $delay if $delay;
@@ -725,6 +732,11 @@ sub _call ($self, $service, $method, @args) {
         $last = $@;
         die $last
             if !(blessed($last) && $last->isa('Odoo::Error') && $last->is_transport);
+        if ($write) {
+            $last->{write} = 1;
+            # sent unknown (a transport that does not say) counts as sent
+            die $last if $last->{sent} || !defined $last->{sent};
+        }
     }
     die $last;
 }

@@ -1,0 +1,157 @@
+# Helpdesk pack, Odoo 16: the OCA helpdesk_mgmt tickets, with helpdesk_mgmt_sla and
+# helpdesk_mgmt_stage_validation. Logical names on the left are what the operations
+# speak; physical names on the right are checked against the live fields_get by
+# `oom-ops run core.check --set pack=helpdesk`. Read from the OCA/helpdesk 16.0 source
+# (2026-10-19) and proved live on demo16 (docs/MAPPER-SPEC.md section 9, helpdesk rows;
+# t/130-helpdesk-live.t). Only 16 and 18 are probed: the operations refuse any other
+# series `not-applicable`, naming the series.
+#
+# `actions` are the names and the values the operations send:
+#   post / post_html_flag / comment_subtype / note_subtype  - message_post of the ticket:
+#     16 reads a str body as HTML (no flag); the subtype xml ids of a reply and a note
+#   channel_web  - the xml id of the channel the module's own portal form gives a ticket
+#   raise_user   - what a customer's new ticket holds in user_id: `module` leaves it to the
+#     module (16 gives the team's alias user), `none` sends user_id false (18, as the
+#     module's portal form does, because 18 gives the creating user the ticket)
+#   stage_reset_on_team - 1 where a change of the ticket's team puts it back in the team's
+#     first stage (16: the stage is computed from the team)
+pack: helpdesk
+series: 16
+module: helpdesk_mgmt
+actions:
+  post: message_post
+  post_html_flag: ''
+  comment_subtype: mail.mt_comment
+  note_subtype: mail.mt_note
+  channel_web: helpdesk_mgmt.helpdesk_ticket_channel_web
+  raise_user: module
+  stage_reset_on_team: 1
+models:
+  ticket:
+    model: helpdesk.ticket
+    fields:
+      number: number
+      title: name
+      description: description
+      partner: partner_id
+      commercial_partner: commercial_partner_id
+      partner_name: partner_name
+      partner_email: partner_email
+      team: team_id
+      user: user_id
+      stage: stage_id
+      category: category_id
+      tags: tag_ids
+      channel: channel_id
+      priority: priority
+      company: company_id
+      active: active
+      closed: closed
+      unattended: unattended
+      closed_date: closed_date
+      assigned_date: assigned_date
+      last_stage_update: last_stage_update
+      created: create_date
+      kanban_state: kanban_state
+      notes: ~
+      sla_rows: ~
+      sla_deadline: { name: sla_deadline, module: helpdesk_mgmt_sla }
+      sla_expired: { name: sla_expired, module: helpdesk_mgmt_sla }
+  team:
+    model: helpdesk.ticket.team
+    fields:
+      name: name
+      active: active
+      members: user_ids
+      leader: user_id
+      categories: category_ids
+      company: company_id
+      show_in_portal: show_in_portal
+      alias: alias_name
+      open_count: todo_ticket_count
+      use_sla: { name: use_sla, module: helpdesk_mgmt_sla }
+      calendar: { name: resource_calendar_id, module: helpdesk_mgmt_sla }
+  stage:
+    model: helpdesk.ticket.stage
+    fields:
+      name: name
+      active: active
+      sequence: sequence
+      closed: closed
+      unattended: unattended
+      fold: fold
+      close_from_portal: close_from_portal
+      template: mail_template_id
+      teams: team_ids
+      company: company_id
+      validate: { name: validate_field_ids, module: helpdesk_mgmt_stage_validation }
+  category:
+    model: helpdesk.ticket.category
+    fields:
+      name: name
+      active: active
+      sequence: sequence
+      company: company_id
+      default_team: default_team_id
+      parent: ~
+      complete_name: ~
+      show_in_portal: ~
+  tag:
+    model: helpdesk.ticket.tag
+    fields:
+      name: name
+      active: active
+      color: color
+  channel:
+    model: helpdesk.ticket.channel
+    fields:
+      name: name
+      active: active
+  sla:
+    model: helpdesk.sla
+    module: helpdesk_mgmt_sla
+    fields:
+      name: name
+      active: active
+      teams: team_ids
+      categories: category_ids
+      tags: tag_ids
+      stages: stage_ids
+      days: days
+      hours: hours
+      domain: domain
+  partner:
+    model: res.partner
+    fields:
+      name: name
+      email: email
+      parent: parent_id
+      commercial_partner: commercial_partner_id
+  user:
+    model: res.users
+    fields:
+      name: name
+      login: login
+      partner: partner_id
+      active: active
+  message:
+    model: mail.message
+    fields:
+      model: model
+      res_id: res_id
+      author: author_id
+      date: date
+      body: body
+      type: message_type
+      subtype: subtype_id
+      attachments: attachment_ids
+      partners: partner_ids
+  attachment:
+    model: ir.attachment
+    fields:
+      name: name
+      res_model: res_model
+      res_id: res_id
+      datas: datas
+      mimetype: mimetype
+      size: file_size

@@ -81,6 +81,12 @@ Archive
   the render, so `api:` above `true`, `api: "true"` and a quoted "text/html" were served
   verbatim as text/html. One reading now, in the renderer, the manager and the peek.
 - SM1214 (PENDING) **an apply answers the ids it made and a hold's reason on every path (OOM Lab L-21, L-20).** The Lab reported `created: {}` after an immediate write and a hold's reason missing from an attendance clock's answer; on the engine as it stands neither is so, on any of the four paths (immediate or confirm, in-process or through oomd). New t/unit/odoo/85 holds all four against a create with `ref` and `unique_by` and a hold; the docs say when `created` is empty (a reused record, a custom change that reports nothing). SM1215 is the same finding.
+- SM1216 (PENDING) **internal: lazysite's vendored OOM is 0.38.** The pinned
+  snapshot in `t/vendor/oom` moves from 0.36 to OOM 0.38 (8ccf2ae), skipping 0.37.
+  The tests now read none of the host's OOM data: `OdooTest` sets `ODOO_OOM_SHARE`
+  empty, and t/unit/odoo/78 asserts that the host's directory is not searched.
+  t/unit/odoo/77's TODO for a refusal's `code` through oomd is a plain assertion. SM747's
+  spec is re-filed. t/unit/odoo/77, 78, t/lint/207, 261, 262.
 
 ## 0.15.14 - EDGE: the deploy says what the final check found (2026-10-20)
 

@@ -5,8 +5,6 @@ use warnings;
 use feature qw(signatures);
 no warnings 'experimental::signatures';
 
-use Scalar::Util qw(blessed);
-
 use parent 'Odoo::Ops::Operation';
 
 =head1 NAME
@@ -19,20 +17,19 @@ Odoo::Ops::Core::HasGroups - does the signed-in person hold these groups?
 
     # a program holding a person's session context
     my $r = Odoo::Ops::Core::HasGroups->new( ctx => $ctx, params => { groups => [ 'base.group_user' ] } )->run;
-    # { groups => { 'base.group_user' => 1 }, unknown => [] }
+    # { groups => { 'base.group_user' => 1 } }
 
 =head1 DESCRIPTION
 
 C<core.has_groups> asks Odoo, as the login the context carries (a person's
 session or key, never another login), whether that user holds each group in
 C<groups>, a list of at most 50 group xml ids (C<module.name>). The answer is
-C<< { groups => { XMLID => 1|0 }, unknown => [ XMLID ... ] } >>: C<1> held,
-C<0> not held. An xml id Odoo has no group for is answered C<0> and is also
-listed in C<unknown>, so a caller can tell "not held" from "no such group".
+C<< { groups => { XMLID => 1|0 } } >>: C<1> held, C<0> not held. An xml id
+Odoo has no group for is answered C<0>, like a group the person does not hold.
 Duplicates are asked once. A malformed id (not exactly C<module.name>) or a
 list over 50 is a C<usage> error before anything is asked.
 
-It needs no administrator right and no read of C<ir.model.data> rows: the
+It needs no administrator right and reads no C<ir.model.data> row: the
 method is Odoo's own C<res.users.has_group>, which answers for the calling user.
 A portal user may ask it as well as an internal one.
 
@@ -43,12 +40,7 @@ user's own record, and Odoo refuses a portal user the record of anyone else.
 C<has_groups> of 18 and 19 takes one spec and answers one boolean for the whole
 list (any of, with C<!> to exclude), so it cannot give a per-group answer: the
 operation makes one C<has_group> call for each id. Odoo's C<has_group> answers
-false for an unknown id and does not raise, so the ids answered C<0> are each
-looked up with C<ir.model.data.check_object_reference>, a call that any user may
-make and that answers C<External ID not found in the system> for an id that does
-not exist (a portal user is refused the group itself, which is an answer that it
-exists). Only that answer lists an id as unknown; any other outcome leaves it
-only at C<0>.
+false for an unknown id and does not raise.
 
 C<base.group_no_one> answers C<0> on 18 and 19 outside debug mode, which an RPC
 call never is.
@@ -70,12 +62,7 @@ sub params ($class) {
     };
 }
 
-# has_group answers for the calling user; check_object_reference only tells an id Odoo has from one it has not
-sub read_scope ($class) {
-    {   'res.users'     => ['has_group'],
-        'ir.model.data' => ['check_object_reference'],
-    };
-}
+sub read_scope ($class) { { 'res.users' => ['has_group'] } }
 
 my $MAX = 50;
 
@@ -101,23 +88,12 @@ sub report ($self) {
     # 16 and 17: a model method; 18 and later: a method on the user's own record
     my $on_record = $client->server_series >= 18;
 
-    my ( %held, @unknown );
+    my %held;
     for my $id (@ids) {
         my $r = $users->call( 'has_group', $on_record ? [ [$uid], $id ] : [$id] );
         $held{$id} = $r ? 1 : 0;
     }
-    my $data = $client->model('ir.model.data');
-    for my $id ( grep { !$held{$_} } @ids ) {
-        my ( $module, $name ) = split /\./, $id, 2;
-        eval { $data->call( 'check_object_reference', [ $module, $name ] ); 1 } and next;
-        my $e = $@;
-        die $e if !( blessed($e) && $e->isa("Odoo::Error") );
-        # a portal user is refused the group itself: it exists
-        next if $e->is_access_denied;
-        if ( $e->kind eq 'fault' && $e->message =~ /External ID not found in the system/ ) { push @unknown, $id; next }
-        die $e;
-    }
-    return { groups => \%held, unknown => \@unknown };
+    return { groups => \%held };
 }
 
 sub audit_detail ($self, $report) {

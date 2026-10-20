@@ -89,20 +89,17 @@ subtest 'a failed change\'s code, when the entry has one, reaches the change' =>
 };
 
 # End to end, through the real oomd and a change refused with kind `refused`, code
-# `not-yours`. OOM 0.36's Runner journals that code in the entry's `error`, but its
-# `push @failed` (Runner.pm, "id => ..., message => ...") adds NO code, so the
-# 0.36 answer has none to carry (the inbox note says it does; reported to the OOM
-# agent). TODO, not skip: the day OOM adds it this test says so, and the line below
-# becomes an ordinary `is`.
+# `not-yours`. OOM 0.36's Runner journalled that code only in the entry's `error`
+# (its `push @failed` added none), so this was a TODO. From OOM 0.37 each
+# `failed_changes` entry carries `code` when the change was refused with one (inbox
+# 2026-10-20-oom-0.37-code-share-rows-shop-helpdesk.md; OOM's t/126-failed-answer.t),
+# and SM1216 makes it an ordinary assertion on the vendored 0.38.
 subtest 'a refusal\'s code through oomd' => sub {
     my $r = run_b( 'coded', { why => 'Not yours' } );
     is( $r->{kind}, 'apply-incomplete', 'apply-incomplete' ) or diag explain $r;
     my $c = the_change($r) or BAIL_OUT('no failed change');
     is( $c->{message}, 'Not yours', 'its message arrives' );
-  TODO: {
-        local $TODO = 'OOM 0.36 failed_changes carries no code (Runner.pm push @failed)';
-        is( $c->{code}, 'not-yours', 'and its code' );
-    }
+    is( $c->{code},    'not-yours', 'and its code' );
 };
 
 oomd_stop($svc);

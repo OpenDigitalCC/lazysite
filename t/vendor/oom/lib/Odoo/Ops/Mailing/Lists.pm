@@ -36,8 +36,8 @@ C<name> filters on a part of the name, case-insensitively. Archived
 lists are left out unless C<archived> is on.
 
 The report is C<< { count, rows, fields } >> like the crm reads.
-Series: written for Odoo 16; another series is refused by name until
-its profile is probed.
+Series: Odoo 16 and 18; another series is refused by name until its
+profile is probed.
 
 =cut
 

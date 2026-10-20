@@ -73,6 +73,28 @@ sub failed_lines ($h, $conf, %o) {
     return ( @out, fix_lines( $h, $conf, %o ) );
 }
 
+=head2 unknown_lines($result_hash, $conf, %o)
+
+The lines for the changes of an apply that ended C<unknown>: one C<unknown: ...>
+per change with the transport's words and the reason, then the C<fix:> line that
+says to look in Odoo, or let C<resume> read it back. Empty when none did.
+
+=cut
+
+sub unknown_lines ($h, $conf, %o) {
+    my @u = @{ $h->{unknown_changes} // [] };
+    return () if !@u;
+    my $lead = $o{lead} // '';
+    my @out;
+    for my $x (@u) {
+        my ($first) = split /\n/, $x->{message} // '', 2;
+        my $what = join ' ', grep { defined && length } $x->{model} // $x->{action}, $x->{id} // $x->{key};
+        push @out, $lead . 'unknown: ' . $what . ': ' . ( $first // 'no message' ) . ' (' . ( $x->{reason} // '' ) . ')';
+    }
+    push @out, $lead . "fix: do not send it again; resume reads Odoo before it repeats a change: oom-ops resume --journal $h->{journal} --conf $conf";
+    return @out;
+}
+
 sub fix_lines ($h, $conf, %o) {
     my @f = @{ $h->{failed_changes} // [] };
     return () if !@f;

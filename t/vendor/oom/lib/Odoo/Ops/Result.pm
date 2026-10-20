@@ -39,6 +39,12 @@ object (C<failed_changes>), the C<--json> of C<oom-ops apply>, and the result an
 C<oomd> request answers. C<message> is Odoo's own text, as the journal holds it
 (the journal's C<error> carries its C<kind>, C<category> and, for a refusal, its
 C<code> as well).
+C<unknown_changes> is the same list, with a C<reason>, for a write whose request
+was sent and whose answer never came (a read timeout, a connection closed after
+sending): Odoo may have made it, so it is not C<failed>. The counts carry
+C<unknown> beside C<failed> when there is one (the key is absent otherwise), the
+run stops there as for a failure, and C<resume> reads Odoo before it repeats the change. A fault
+Odoo answered is always C<failed>.
 C<held_changes> is C<< [ { seq, key, bucket, hold, reason } ] >> for every change
 that apply held because it needed a choice only the caller can make (a validation
 that opened the backorder wizard with no C<backorder> chosen: C<hold> is
@@ -50,6 +56,8 @@ my @OUTCOMES = qw(done skipped held failed not_attempted);
 
 sub new ($class, %args) {
     my %counts = map { $_ => $args{counts}{$_} // 0 } @OUTCOMES;
+    # unknown is there only when a change was left unknown: the counts of a run without one keep their shape
+    $counts{unknown} = $args{counts}{unknown} if $args{counts}{unknown};
     my $sum    = 0;
     $sum += $_ for values %counts;
     Odoo::Error->throw(
@@ -74,6 +82,7 @@ sub new ($class, %args) {
         unlinked         => $args{unlinked} // {},
         custom           => $args{custom} // [],
         failed_changes   => $args{failed_changes} // [],
+        unknown_changes  => $args{unknown_changes} // [],
         held_changes     => $args{held_changes} // [],
         invariants       => $args{invariants} // [],
         invariants_failed => $args{invariants_failed} // 0,
@@ -92,8 +101,9 @@ sub unlinked   ($self) { $self->{unlinked} }
 sub custom     ($self) { $self->{custom} }
 sub invariants        ($self) { $self->{invariants} }
 sub failed_changes    ($self) { $self->{failed_changes} }
+sub unknown_changes   ($self) { $self->{unknown_changes} }
 sub invariants_failed ($self) { $self->{invariants_failed} }
-sub ok         ($self) { !$self->{counts}{failed} && !$self->{counts}{not_attempted} && !$self->{invariants_failed} }
+sub ok         ($self) { !$self->{counts}{failed} && !$self->{counts}{unknown} && !$self->{counts}{not_attempted} && !$self->{invariants_failed} }
 
 sub to_hash ($self) { return { %$self } }
 

@@ -172,9 +172,9 @@ sub _compose ($class, $op, $plan, $name, %params) {
 =head2 has_groups($op, @xmlids)
 
 Whether the person the operation runs as holds each group: C<core.has_groups>
-as a library call, answering C<< { groups => { XMLID => 1|0 }, unknown => [ XMLID ... ] } >>
+as a library call, answering C<< { groups => { XMLID => 1|0 } } >>
 (see L<Odoo::Ops::Core::HasGroups>). The operation declares C<res.users>
-C<has_group> and C<ir.model.data> C<check_object_reference> in its C<read_scope>.
+C<has_group> in its C<read_scope>.
 
 =cut
 

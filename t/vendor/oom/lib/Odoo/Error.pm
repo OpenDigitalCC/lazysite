@@ -82,6 +82,8 @@ sub new ($class, %args) {
         code        => $args{code},
         fix         => $args{fix},
         fault_class => $args{fault_class},
+        sent        => $args{sent},
+        write       => $args{write},
     }, $class;
 }
 
@@ -91,6 +93,22 @@ sub kind        ($self) { $self->{kind} }
 sub message     ($self) { $self->{message} }
 sub code        ($self) { $self->{code} }
 sub fault_class ($self) { $self->{fault_class} }
+
+=head2 sent, write, unanswered_write
+
+A transport error says whether the request left. C<sent> is true when it may have
+reached Odoo (a read timeout, a connection closed or reset after the request was
+written, an HTTP error or an unreadable answer from a proxy), false when it did not
+(connect refused, DNS, TLS, a failure while writing the request), and undef when
+the transport does not know. C<write> is true when the call was one that changes
+Odoo. C<unanswered_write> is true when both hold: Odoo may have made the change and
+no answer came, which is what L<Odoo::Ops::Runner> records as C<unknown>.
+
+=cut
+
+sub sent             ($self) { $self->{sent} }
+sub write            ($self) { $self->{write} }
+sub unanswered_write ($self) { $self->{kind} eq 'transport' && $self->{sent} && $self->{write} ? 1 : 0 }
 
 =head2 fix, and the fix of an access fault
 

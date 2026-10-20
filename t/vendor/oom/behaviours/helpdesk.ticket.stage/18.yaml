@@ -1,0 +1,8 @@
+# helpdesk.ticket.stage, Odoo 18 (OCA helpdesk_mgmt, helpdesk_mgmt_stage_validation). Source 18.0, 2026-10-19.
+# A stage with closed on closes the tickets that reach it; mail_template_id names the email sent to the
+# ticket's partner then (the ticket's behaviour file says so); validate_field_ids are the fields a ticket
+# must hold to reach it. None of this is a side effect of writing the stage record itself.
+model: helpdesk.ticket.stage
+series: 18
+module: helpdesk_mgmt
+effects: []
