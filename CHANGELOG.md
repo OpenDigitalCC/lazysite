@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1204 (PENDING) **internal: a newer OOM on the host does not fail the gate.**
+  SM1202's t/unit/odoo/78 failed whenever the host's odoo-oom held a model or
+  profile the vendored snapshot lacks, so the gate failed the morning OOM 0.37 was
+  installed (its helpdesk behaviours and profile), a gate that depends on the host.
+  The snapshot is still searched first; a host-only model or profile now fails only
+  when a test that reaches OOM names it, and the rest are reported as a TODO.
 - SM1202 (PENDING) **internal: the gate holds that OOM's behaviours and profiles come from
   the snapshot.** OOM cannot be told to leave the host's data directory out of its
   search; t/unit/odoo/78 holds that the host's copy never answers.
@@ -106,7 +112,7 @@ Archive
   notes written as `#` comments inside the `qw()` of the per-host override whitelist
   were read as keys (ten were accepted by the conf reader, among them `language`,
   `domain` and `own`) and perl warned on every compile. The notes are out of the
-  list and `t/unit/processor/145` holds it to its 24 keys.
+  list and `t/unit/processor/146` holds it to its 26 keys (24, and SM1197's two).
 
 - SM1199 (PENDING) **tools: the precheck's job count is settable.** `tools/precheck.sh`
   ran `prove -j8` whatever the host, against the shared-host rule that agents run at

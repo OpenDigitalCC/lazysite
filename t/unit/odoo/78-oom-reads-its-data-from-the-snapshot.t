@@ -9,15 +9,20 @@
 # root in front), so the host's directory cannot be poisoned or excluded from here.
 # What is held instead, in a fresh perl on the snapshot's library:
 #   1. the snapshot's tree is searched before any host directory;
-#   2. every model (behaviours) and pack (profiles) the host's directory holds is
-#      also in the snapshot, so the host root is never the one that answers - a
-#      host with more than the snapshot (a newer deb) fails here and says so;
+#   2. no model (behaviours) or pack (profiles) that only the host's directory
+#      holds is one this suite names, so the host root never answers for a test.
+#      SM1204: a host with MORE than the snapshot (a newer deb: OOM 0.37's helpdesk
+#      models on 2026-10-20) failed this outright, which made the gate depend on
+#      the host - what SM1081 forbids. The extras are now reported as a TODO
+#      (re-vendor when the release manager decides; tools/ext-compat.sh is the
+#      advisory tier for a newer OOM), and only an extra the suite actually uses
+#      fails, because only that one could change a test's result;
 #   3. the pack directories are the ones OdooTest set, not the host's.
 use strict;
 use warnings;
 use Test::More;
 use JSON::PP ();
-use Cwd ();
+use Cwd      ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
@@ -25,7 +30,7 @@ use OdooTest qw(oom_or_skip vendor_dir oom_lib);
 
 BEGIN { oom_or_skip() }
 
-my $host = '/usr/share/' . 'odoo-oom';    # lint 262 allows this only in the tools that mean the host
+my $host = '/usr/share/' . 'odoo-oom'; # lint 262 allows this only in the tools that mean the host
 my $snap = vendor_dir();
 
 my $script = 'use strict; use warnings; use JSON::PP; require Odoo::Ops::Behaviour; require Odoo::Ops::Profile; require Odoo::Ops::Registry;'
@@ -47,10 +52,47 @@ for my $kind ( [ b => 'behaviours' ], [ p => 'profiles' ] ) {
         pass("$dir: the host holds none to search");
         next;
     }
-    my %have = map { $_ => 1 } names("$snap/$dir");
+    my %have  = map  { $_ => 1 } names("$snap/$dir");
     my @extra = grep { !$have{$_} } names("$host/$dir");
-    is_deeply( \@extra, [], "$dir: nothing in the host's directory is missing from the snapshot, so it never answers" )
-        or diag "The host's odoo-oom is newer than t/vendor/oom ($dir: @extra): re-vendor (tools/vendor-oom.sh) or the gate depends on the host.";
+    my @used  = grep { suite_names($_) } @extra;
+    is_deeply( \@used, [], "$dir: nothing only the host holds is named by this suite, so it never answers for a test" )
+        or diag "The suite uses $dir that only the host's odoo-oom has (@used): re-vendor (tools/vendor-oom.sh) or the gate depends on the host.";
+TODO: {
+        local $TODO = "the host's odoo-oom is newer than t/vendor/oom ($dir: @extra); re-vendor when ruled" if @extra;
+        is_deeply( \@extra, [], "$dir: the snapshot holds everything the host's directory does" );
+    }
+}
+
+# Whether any test file outside the vendored tree names $name (a model such as
+# helpdesk.ticket, or a profile's pack name) as a word: the test files, their t/lib
+# helpers and fixtures. Read once.
+my %SUITE_TEXT;
+
+sub suite_names {
+    my ($name) = @_;
+    unless (%SUITE_TEXT) {
+        my $t    = Cwd::abs_path("$FindBin::Bin/../..");
+        my $self = Cwd::abs_path($0);    # this file names the extras in its own notes
+        my @todo = ($t);
+        while ( my $d = shift @todo ) {
+            next if $d =~ m{/vendor\z};
+            opendir my $dh, $d or next;
+            for my $e ( grep { !/^\./ } readdir $dh ) {
+                my $p = "$d/$e";
+                if ( -d $p ) { push @todo, $p; next }
+                next unless $e =~ /\.(?:t|pm|pl|md|ya?ml|json|conf)\z/;
+                next if Cwd::abs_path($p) eq $self;
+                open my $fh, '<', $p or next;
+                my $s = do { local $/; <$fh> };
+                # only what reaches OOM: a file that loads it through OdooTest or
+                # names an Odoo:: module, and the Odoo test packs and fixtures. A
+                # word in a lint's list or a URL path (/helpdesk) reaches nothing.
+                next unless $s =~ /\bOdooTest\b|\bOdoo::/ || $p =~ m{/(?:Odoo|odoo)[^/]*/};
+                $SUITE_TEXT{$p} = $s;
+            }
+        }
+    }
+    return grep { /(?<![\w.])\Q$name\E(?![\w])/ } values %SUITE_TEXT;
 }
 
 {

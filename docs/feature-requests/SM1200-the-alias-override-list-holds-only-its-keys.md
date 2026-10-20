@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-19
 raised-by: the C2 restack (release manager's agent), 2026-10-19 (perl's own warning on compiling the processor)
 area: engine
-status-note: "SHIPPED (PENDING) on n690: lazysite-processor.pl (%ALIAS_OVERRIDE_KEYS); t/unit/processor/145."
+status-note: "SHIPPED (PENDING) on n690: lazysite-processor.pl (%ALIAS_OVERRIDE_KEYS); t/unit/processor/146."
 ---
 
 # What happened
@@ -41,6 +41,6 @@ a future key colliding with one of those words; none has.
 
 - The three notes moved above the declaration; the list holds only the 24 keys it
   meant, and the warnings are gone.
-- `t/unit/processor/145` loads the processor and holds `%ALIAS_OVERRIDE_KEYS` to
+- `t/unit/processor/146` loads the processor and holds `%ALIAS_OVERRIDE_KEYS` to
   exactly those keys, and runs `perl -c` on the processor asserting neither the
   qw() comment warning nor the comma warning.
