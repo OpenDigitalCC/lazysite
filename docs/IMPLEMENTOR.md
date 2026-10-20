@@ -66,7 +66,7 @@ procedure, including the one-time template copy and `a2enmod` lines, is the
 runbook. The tarball-era `lazysite-hestia-deploy.sh` script is superseded
 and kept only for existing deployments (runbook appendix).
 
-## Deploying with Docker Compose (since 0.15.16)
+## Deploying with Docker Compose (since 0.15.17)
 
 `installers/docker/` in the release tarball is a Docker Compose package: nginx,
 the one-rule FastCGI pool and the persistent runtime in one container, the
