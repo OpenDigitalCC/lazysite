@@ -13,7 +13,7 @@ Assets: account credentials (hashed passwords, `lzs_` tokens, TOTP seeds),
 session cookies, site content, form submissions, the per-install HMAC secret,
 the audit trail, the Odoo connection user's key and a person's Odoo session
 (0.15.5), and, once the visitor log names the signed-in account (held for
-0.15.16, SM1219), account names in the log.
+0.15.17, SM1219), account names in the log.
 
 Trust boundaries (each is where an attacker's input crosses into trusted code):
 
@@ -76,7 +76,7 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
     by a Unix socket in a 0700 directory, holding the connection's key files by label.
 
 Not yet code, so not yet boundaries: SM1128's native OIDC relying party and directory
-groups (phases 2-3). Held for 0.15.16 and not in the 0.15.15 candidate: the visitor
+groups (phases 2-3). Held for 0.15.17 and not in the 0.15.15 candidate: the visitor
 log's signed-in account (SM1219) and the maintenance capability (SM1118); see
 `architecture/security.md` and the last register entry.
 
@@ -1414,11 +1414,11 @@ verdict
 : accepted (proposed). No trigger fired; recorded because it closed a bypass of a boundary
   this register names.
 
-### 2026-10-20 - SM1219, SM1118 (held for 0.15.16; not in 0.15.15): the visitor log's accounts and the maintenance capability
+### 2026-10-20 - SM1219, SM1118 (held for 0.15.17; not in 0.15.15): the visitor log's accounts and the maintenance capability
 
 Assessment drafted by the developer agent; the release manager confirms. Both are
 shipped on held branches (n705, n706), written here ahead of their release so the entry
-exists when they land. They are in 0.15.16 if they land, and not in the 0.15.15
+exists when they land. They are in 0.15.17 if they land, and not in the 0.15.15
 candidate.
 
 what changed

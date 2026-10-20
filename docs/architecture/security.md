@@ -1033,7 +1033,7 @@ new-authentication-method trigger and, with its JWT verifier (ruling R5, a packa
 `Crypt::JWT`), the new-dependency one; it is assessed in the significant-change
 register when it is built.
 
-## Held for 0.15.16 (on branches n705 and n706; not in the 0.15.15 candidate)
+## Held for 0.15.17 (on branches n705 and n706; not in the 0.15.15 candidate)
 
 Two filings are shipped on held branches and describe changes that join the model
 when they land.
