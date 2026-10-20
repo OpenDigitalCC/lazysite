@@ -206,6 +206,17 @@ SKIP: {
         is_deeply( $f->{forced_held}, [], 'or kept' );
     };
 
+    subtest 'the keeping fetch says it is the app; the own navigation of the person does not (SM1203)' => sub {
+        my @n = @{ $f->{app_header}{fetches} };
+        is( scalar @n, 2, 'one page view makes two requests: the navigation and the keeping fetch' );
+        is( $n[0]{credentials}, 'include', 'the first is the navigation, with credentials' );
+        ok( !defined $n[0]{app}, 'and it carries no X-Lazysite-App header, so it is a visit' );
+        is( $n[1]{credentials}, 'omit', 'the second is the keeping fetch' );
+        is( $n[1]{app}, 'keep', 'and it says X-Lazysite-App: keep, so the visitor log can leave it out of the visitors' );
+        my @pf = @{ $f->{install}{page_fetches} };
+        is( scalar( grep { ( $_->{app} // '' ) eq 'keep' } @pf ), scalar @pf, 'the fetches at install carry it too' );
+    };
+
     subtest 'install keeps the listed pages that may be kept, fetched without credentials' => sub {
         is_deeply( $f->{install}{held_pages}, ['/portal/'], 'the page that says no-store is not kept' );
         ok( ( !grep { $_->{credentials} ne 'omit' } @{ $f->{install}{page_fetches} } ) && @{ $f->{install}{page_fetches} },

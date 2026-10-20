@@ -114,6 +114,8 @@ A day rollup (`day=YYYY-MM-DD`) additionally carries:
 bot_paced        n                              requests moved to bot by pace (basis 5)
 registry_hits    n                              generated registries served
 registry_by      { "sitemap.xml": n, ... }       which one, and how often
+app_hits         n                              installed-app worker fetches that keep a page (X-Lazysite-App: keep)
+app_by           { "/portal/": n, ... }          which page, and how often
 ```
 
 These are the engine's generated files - the sitemap and the feeds - fetched
@@ -121,6 +123,10 @@ mostly by crawlers. They are counted **beside** `pageviews` and never inside it:
 a sitemap fetch is not a page view, and folding it in would inflate the one
 figure an operator reads as their audience. Read them as interest from search engines
 and AI crawlers rather than as traffic.
+
+`app_hits` and `app_by` are the installed app's own worker keeping a copy of a page for
+offline use; it identifies itself with an `X-Lazysite-App: keep` header and is
+counted here instead of as a second visit to the page.
 
 ### auth_refused
 

@@ -94,6 +94,13 @@ Archive
   refusal is now the plain sentence "This page is not available.", naming no key and
   no group, and still refused to everyone; a page whose unreadable key is `auth` or
   `payment` keeps its sign-in refusal. `t/integration/290`.
+- SM1203 (PENDING) **the app worker's fetch is not a visit.** SM1197's worker fetches each
+  offline page again behind every view of it, and the visitor log counted that second
+  request as a second visit. The worker's keeping fetch now sends `X-Lazysite-App: keep`;
+  the recorder puts such a request on its own `app` channel, counted apart as `app_hits`
+  in the day rollup, not dropped and not a visit. Nothing else changes: same page, same
+  cached copy. A visitor sending the header only hides their own hit.
+  `t/integration/299`, `t/unit/plugins/50`.
 
 - SM1200 (PENDING) **engine: the alias override list holds only its keys.** Three
   notes written as `#` comments inside the `qw()` of the per-host override whitelist

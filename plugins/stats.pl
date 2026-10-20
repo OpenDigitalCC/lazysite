@@ -1745,6 +1745,11 @@ sub _day_rollup {
         registry_hits => ( $bucket->{registry_hits} // 0 ),
         registry_by   => ( $bucket->{registry_by}   // {} ),
 
+        # SM1203: the app's own page-keeping fetches, beside the views and not in
+        # them, for the same reason.
+        app_hits => ( $bucket->{app_hits} // 0 ),
+        app_by   => ( $bucket->{app_by}   // {} ),
+
         # SM338: what these numbers mean, carried WITH them. A reader comparing
         # this day to another has to be able to tell whether the comparison is
         # valid, and the answer cannot live in a changelog they would have to
@@ -2147,6 +2152,10 @@ sub _new_day_bucket {
         # was previously invisible - the one served path that logged nothing.
         registry_hits => 0,
         registry_by   => {},
+
+        # SM1203: the installed app's keeping fetches (X-Lazysite-App: keep).
+        app_hits => 0,
+        app_by   => {},
 
         # SM335: the manager Stats page reports these two and the durable
         # rollup did not, which is one of the reasons the page carried its own
@@ -3299,6 +3308,18 @@ sub _export_ingest_first_party {
                 ( my $rn = ( $r->{p} // '' ) ) =~ s{\A.*/}{};
                 $rn =~ s/\?.*\z//;
                 $rb->{registry_by}{$rn}++ if length $rn && keys %{ $rb->{registry_by} } < 32;
+                next;
+            }
+            # SM1203: the installed app's service worker keeping its copy of a
+            # page (X-Lazysite-App: keep) is the app, not a second visit to it.
+            # Counted on its own, like a registry, and kept off the page path.
+            if ( $ch eq 'app' ) {
+                my @at = gmtime( $r->{t} );
+                my $ad = sprintf '%04d-%02d-%02d', $at[5] + 1900, $at[4] + 1, $at[3];
+                my $ab = $cache->{days}{$ad} ||= _new_day_bucket();
+                $ab->{app_hits}++;
+                ( my $ap = ( $r->{p} // '' ) ) =~ s/\?.*\z//;
+                $ab->{app_by}{$ap}++ if length $ap && keys %{ $ab->{app_by} } < 32;
                 next;
             }
             next if $ch ne 'page';    # operator traffic out

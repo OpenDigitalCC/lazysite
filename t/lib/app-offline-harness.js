@@ -45,7 +45,12 @@ function world(which, files) {
     if (flags.down) throw new TypeError('Failed to fetch');
     const u = key(r);
     const credentials = init && init.credentials ? init.credentials : (typeof r === 'object' && r.credentials) || 'include';
-    fetched.push({ url: u.replace(ORIGIN, ''), credentials });
+    // SM1203: the engine's visitor log tells the worker's own fetch from a visit by
+    // this header, so what the fetch sent is recorded too (init first, else the request).
+    const hdrs = (init && init.headers) || (typeof r === 'object' && r.headers) || {};
+    const app = typeof hdrs.get === 'function' ? hdrs.get('x-lazysite-app')
+      : (Object.keys(hdrs).filter((k) => k.toLowerCase() === 'x-lazysite-app').map((k) => hdrs[k])[0] || null);
+    fetched.push({ url: u.replace(ORIGIN, ''), credentials, app });
     const f = files[u];
     if (!f) return new Resp({ status: 404 });
     return new Resp(typeof f === 'function' ? f(credentials) : f);
@@ -107,6 +112,13 @@ const facts = {};
     const off = await dispatch(w, '/portal/');
     facts.credentials = { shown_online: a.response.body, shown_offline: off.response.body,
       fetched: w.fetched.map((f) => f.credentials) };
+  }
+
+  // SM1203: the worker's keeping fetch says what it is; the person's own navigation says nothing
+  {
+    const w = world('now', { [ORIGIN + '/portal/']: { body: 'p' } });
+    await dispatch(w, '/portal/');
+    facts.app_header = { fetches: w.fetched.map((f) => ({ credentials: f.credentials, app: f.app })) };
   }
 
   // what is never kept

@@ -203,6 +203,20 @@ sub _access_field {
     return _json_str($s);
 }
 
+# SM1203: the channel this request is recorded on. The installed app's service
+# worker re-fetches each offline page behind every view of it (SM1197) and says so
+# with `X-Lazysite-App: keep`; such a fetch is the app keeping its copy and not a
+# visit, so a page request that carries it goes on the `app` channel, as a registry
+# fetch goes on `registry` - recorded and counted apart (plugins/stats.pl), never
+# dropped and never a page view. It changes nothing but this field: the page, its
+# cache key and the access decisions never read the header. A visitor who sends it
+# themselves hides only their own hit.
+sub _access_channel {
+    my $ch = $ACCESS_REC{ch} // 'page';
+    return 'app' if $ch eq 'page' && ( $ENV{HTTP_X_LAZYSITE_APP} // '' ) eq 'keep';
+    return $ch;
+}
+
 # Record the request outcome. No-op when no emitter ran (redirects), when the
 # stats unit is switched off (SM222 L0), when first_party: off, or on any
 # internal failure - recording must never break serving. One O_APPEND write; lines are far below PIPE_BUF, so concurrent
@@ -247,7 +261,7 @@ sub _access_record {
         my $line = '{"t":' . time()
             . ',"p":"' . _access_field( $path, 200 ) . '"'
             . ',"s":' .   ( $ACCESS_REC{s} + 0 )
-            . ',"ch":"' . ( $ACCESS_REC{ch} // 'page' ) . '"'
+            . ',"ch":"' . _access_channel() . '"'
             . ',"v":"' . _visitor_key($ymd) . '"'
             . ',"ua":"' . _access_field( $ENV{HTTP_USER_AGENT}, 160 ) . '"';
         my $ref = $ENV{HTTP_REFERER} // '';

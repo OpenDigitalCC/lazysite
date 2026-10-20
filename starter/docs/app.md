@@ -188,6 +188,12 @@ When there is no copy
 A page may carry a form, or a template that asks the visitor's address; the
 engine sends those `no-store, private`, and the worker then keeps nothing.
 
+The worker's keeping fetch sends `X-Lazysite-App: keep`, and the visitor log
+records it as the app keeping its copy, not as a visitor: it is counted apart as
+`app_hits` in a day's figures, and the page is not counted twice. The person's own
+visit does not send the header and is counted as ever. Someone who sends the header
+by hand only hides their own request from the visitor count.
+
 ## How an update reaches an installed app
 
 The worker's cache name is built from the installed release, a fingerprint of

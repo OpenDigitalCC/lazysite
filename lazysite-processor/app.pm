@@ -395,10 +395,13 @@ function storablePage(response) {
 
 /* Fetch the page for keeping: by the worker, without credentials, so the copy is
    the page as an anonymous visitor gets it whoever is signed in. A failed fetch
-   (no network) leaves a good copy alone. */
+   (no network) leaves a good copy alone. It says what it is (SM1203): the engine
+   records a request carrying X-Lazysite-App: keep as the app keeping its copy,
+   not as a second visit to the page. Only this fetch sends it, never the
+   person's own navigation. */
 function refreshPage(key) {
   return caches.open(CFG.cache).then(function (cache) {
-    return fetch(key, { credentials: 'omit', cache: 'no-cache' }).then(function (response) {
+    return fetch(key, { credentials: 'omit', cache: 'no-cache', headers: { 'X-Lazysite-App': 'keep' } }).then(function (response) {
       return storablePage(response) ? cache.put(key, response.clone()) : cache.delete(key);
     }, function () {});
   }).catch(function () {});
