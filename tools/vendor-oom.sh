@@ -29,6 +29,9 @@
 # t/vendor/oom/. Only this script and tools/ext-compat.sh may name /srv/projects/odoo
 # (lint 262).
 set -euo pipefail
+# SM1206: what this writes is group-writable (the release manager, another user in the
+# same group, resets the tree over it); directories keep the parent's setgid.
+umask 002
 
 DEB=''
 EXTRA_DEB=''
@@ -83,9 +86,9 @@ cp -R "$TMP/behaviours" "$DEST/behaviours"
 cp -R "$TMP/profiles" "$DEST/profiles"
 cp "$TMP/docs/MAPPER-SPEC.md" "$DEST/docs/MAPPER-SPEC.md"
 cp "$TMP/debian/copyright" "$DEST/COPYRIGHT-OOM"
-find "$DEST" -type d -exec chmod 0755 {} +
-find "$DEST" -type f -exec chmod 0644 {} +
-chmod 0755 "$DEST/bin/oomd"
+find "$DEST" -type d -exec chmod 0775 {} +
+find "$DEST" -type f -exec chmod 0664 {} +
+chmod 0775 "$DEST/bin/oomd"
 
 {
     echo "# The pinned snapshot of OOM that lazysite's tests run on (SM1081). Refreshed only by"

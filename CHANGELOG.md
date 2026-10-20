@@ -53,6 +53,10 @@ Archive
 
 ## Unreleased
 
+- SM1206 (PENDING) **internal: vendor-oom.sh leaves the snapshot group-writable.** It left
+  t/vendor/oom directories 2755 and files 644, so another user in the group could not
+  `git reset --hard` over them; it now writes 0775/0664 under umask 002.
+
 - SM1205 (PENDING) **the Hestia deploy reports the final check's verdict.** install.pl's
   health check runs before the deploy's permission pass and repair; its exit 4 was
   printed as a `WARN:` and the batch updater listed it, cut to its first line, on
