@@ -291,8 +291,13 @@ subtest 'only the operator sets a group\'s addresses; it is audited' => sub {
 
 subtest 'a refused group is audited once an hour per address' => sub {
     my $log = sub { scalar grep { /\| address-refused \| group g-ed \| \Q$OUT\E \|/ } split /\n/, slurp("$d/lazysite/logs/audit.log") };
+    # The marker is per CLOCK hour (AddressAudit: int(time/3600)), so three requests
+    # that straddle :00 rightly leave two rows; expect one row per hour they touched
+    # (the 0.15.15 integration ran across 14:00 and failed on the old `is 1`).
+    my $h0 = int( time() / 3600 );
     cookie( $OUT, 'ed', 'pages' ) for 1 .. 3;
-    is( $log->(), 1, 'three requests from one address leave one row' );
+    my $hours = int( time() / 3600 ) - $h0 + 1;
+    is( $log->(), $hours, 'three requests from one address leave one row (one per clock hour they touched)' );
     like( slurp("$d/lazysite/logs/audit.log"), qr/\| address-refused \| group g-ed \| \Q$OUT\E \| fail \| web \| not-allowed; lists office/,
         'naming the target, the address, the reason and the list' );
 };
