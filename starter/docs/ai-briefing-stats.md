@@ -128,6 +128,10 @@ and AI crawlers rather than as traffic.
 offline use; it identifies itself with an `X-Lazysite-App: keep` header and is
 counted here instead of as a second visit to the page.
 
+The window answer (`totals`) and each month carry `app_hits` too, summed over the days,
+and leave it out when the app made no fetches. The manager's Stats page shows it as
+"App page refreshes" under the same condition.
+
 ### auth_refused
 
 Paths a visitor was **turned away from** - a page or file that exists and that an

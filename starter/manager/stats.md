@@ -142,6 +142,12 @@ function renderStats(d) {
      + tile('Images and files', fmtNum(d.asset_hits || 0),
             'Images, stylesheets and downloads fetched successfully in this '
           + 'window by the same group of callers as Page views.')
+  // SM1203: the installed app keeping a page for offline use. Counted beside
+  // Page views and not in them; no tile when the app made none, so a site
+  // without the app sees nothing new.
+     + (d.app_hits ? tile('App page refreshes', fmtNum(d.app_hits),
+            'Fetches the installed app made in this window to keep a page for '
+          + 'offline use. Not visits.') : '')
   // SM941 AV2: THE 404s, WHERE THE OPERATOR CAN SEE THEM.
   //
   // These were inside Page views. Nobody read a page, so they are not visits -

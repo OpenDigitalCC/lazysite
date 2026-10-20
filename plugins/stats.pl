@@ -1215,9 +1215,12 @@ sub _page_view_from_buckets {
     my ( $hits, $bytes, $assets, $ref_internal, $ref_direct ) = ( 0, 0, 0, 0, 0 );
     # SM941 AV2
     my $error_hits = 0;
+    # SM1203: summed per day, like the rest
+    my $app_hits = 0;
 
     for my $day (@in_window) {
         my $b = $days->{$day};
+        $app_hits += ( $b->{app_hits} // 0 );
         $cls_hits{$_} += $b->{cls}{$_} for keys %{ $b->{cls} || {} };
         for my $c ( keys %{ $b->{cls_ips} || {} } ) {
             $cls_vis{$c}{$_} = 1 for keys %{ $b->{cls_ips}{$c} };
@@ -1292,6 +1295,9 @@ sub _page_view_from_buckets {
         hits            => $hits,                      # successful PAGE views
         asset_hits      => $assets,                    # SM329
         error_hits      => $error_hits,                # >= 400, NOT a visit
+
+        # SM1203: absent when the app made none
+        ( $app_hits ? ( app_hits => $app_hits ) : () ),
         unique_visitors => scalar keys %vis,           # `unattributed` only
         bytes           => $bytes,
         top_pages       => _topn( \%pages, $top_n ),
@@ -1826,6 +1832,7 @@ sub _month_rollup {
     my ( %cls, %pages, %ips, %status, %nf_pl, %forms );
     my %auth_ref;    # SM223
     my ( $pv, $ndays, $nf_junk, $asset_pv, $inferred, $paced ) = ( 0, 0, 0, 0, 0, 0 );
+    my $app_pv = 0;    # SM1203
     my %bases;       # SM338
     for my $day ( grep { index( $_, $mon ) == 0 } keys %$days ) {
         my $b = $days->{$day};
@@ -1834,6 +1841,7 @@ sub _month_rollup {
         $asset_pv += ( $b->{asset_hits}       // 0 );    # SM329
         $inferred += ( $b->{scanner_inferred} // 0 );    # SM332
         $paced    += ( $b->{bot_paced}        // 0 );    # SM956
+        $app_pv   += ( $b->{app_hits}         // 0 );    # SM1203
         $bases{$_} = 1 for _basis_of($b);                # SM338
         $nf_junk      += ( $b->{nf_junk} // 0 );
         $cls{$_}      += $b->{cls}{$_}          for keys %{ $b->{cls}          || {} };
@@ -1853,6 +1861,7 @@ sub _month_rollup {
         asset_hits       => $asset_pv,
         scanner_inferred => $inferred,
         bot_paced        => $paced,
+        ( $app_pv ? ( app_hits => $app_pv ) : () ),    # SM1203
 
         # SM338: a MONTH is where this bites hardest. The current month is
         # refreshed on every call, so in the month an instance upgrades it sums
@@ -3481,6 +3490,7 @@ sub _export_assemble {
     my %auth_ref;                     # SM223: paths a visitor was turned away from
     my ( $hits, $ref_internal, $ref_direct, $nf_junk ) = ( 0, 0, 0, 0 );
     my ( $assets, $error_hits ) = ( 0, 0 );    # SM941 AV2
+    my $app_hits = 0;
 
     for my $day ( sort keys %{ $cache->{days} } ) {
         next if $day lt $from_day;
@@ -3520,6 +3530,7 @@ sub _export_assemble {
         $bases{$_} = 1 for keys %{ $b->{basis} || {} };    # SM941 AV10
         $hits         += $b->{hits}         // 0;
         $assets       += $b->{asset_hits}   // 0;
+        $app_hits     += $b->{app_hits}     // 0;
         $error_hits   += $b->{error_hits}   // 0;
         $ref_internal += $b->{ref_internal} // 0;
         $ref_direct   += $b->{ref_direct}   // 0;
@@ -3658,6 +3669,7 @@ sub _export_assemble {
             asset_hits      => $assets,
             error_hits      => $error_hits,
             unique_visitors => scalar keys %uips,
+            ( $app_hits ? ( app_hits => $app_hits ) : () ),    # SM1203
         },
         traffic_classes => \%class_out,
         by_day          => \@by_day,

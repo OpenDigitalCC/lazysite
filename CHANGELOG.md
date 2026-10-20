@@ -68,6 +68,12 @@ Archive
   other apps' namespaces when two installs overlapped, and their operations answered
   "no operation installed". `plugin-save` takes an `add` field that puts a namespace
   into a list setting (`odoo_packs`, `odoo_pack_dirs`) under the lock, keeping the rest.
+- SM1212 (PENDING) **the manager shows the app's page refreshes.** SM1203 counted the
+  installed app's own page fetches as `app_hits` in the day rollup and nothing read
+  them. The Stats page draws an "App page refreshes" tile, and the window answer
+  (`totals`, the control API and MCP `analyse_visitors`) and each month carry
+  `app_hits`, summed over the days beside `pageviews`; a site with no app fetches
+  gets no new field.
 
 ## 0.15.14 - EDGE: the deploy says what the final check found (2026-10-20)
 
