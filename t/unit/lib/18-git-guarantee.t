@@ -400,7 +400,7 @@ sub mksite {
     # SM201: a real install ships the protected system-page defaults; lazysite-check
     # verifies they exist, so a bare docroot would (correctly) FAIL that probe.
     t_spit( "$d/lazysite/templates/system/$_.md", "---\ntitle: $_\n---\n\n$_\n" )
-        for qw(login claim forgot logout 402 403 404);    # SM1048: the sign-in flow
+        for qw(login claim forgot logout maintenance 402 403 404);    # SM1048: the sign-in flow
     t_spit( "$d/lazysite/lazysite.conf", "site_name: T\ngit_history: enabled\n" );
     t_spit( "$d/lazysite/nav.conf",      "Home | /\n" );
     t_spit( "$d/index.md",               "home\n" );
