@@ -52,9 +52,9 @@ sub max_bytes {
 sub safe_name {
     my ( $name, $mime ) = @_;
     my $n = defined $name ? "$name" : '';
-    $n =~ s{\A.*[/\\]}{}s;                  # no path, either separator
-    $n =~ s/[^A-Za-z0-9._ -]+/_/g;          # quotes, ;, CR, LF, controls, non-ASCII, % and the rest
-    $n =~ s/\A[ .]+//;                      # no hidden file, no leading space
+    $n =~ s{\A.*[/\\]}{}s;         # no path, either separator
+    $n =~ s/[^A-Za-z0-9._ -]+/_/g; # quotes, ;, CR, LF, controls, non-ASCII, % and the rest
+    $n =~ s/\A[ .]+//;             # no hidden file, no leading space
     $n =~ s/[ .]+\z//;
     $n =~ s/_{2,}/_/g;
     $n = substr( $n, 0, 100 );
@@ -78,7 +78,7 @@ sub response {
         unless defined $b64 && !ref $b64 && length $b64;
 
     $b64 =~ s/\s+//g;
-    my $cap  = max_bytes($b);
+    my $cap = max_bytes($b);
     my $size = int( length($b64) * 3 / 4 ) - ( $b64 =~ /==\z/ ? 2 : $b64 =~ /=\z/ ? 1 : 0 );
     return _no( 'too-large',
         "the document is $size bytes; this binding sends at most " . ( $cap / 1024 ) . ' KB (download_max_kb)' )

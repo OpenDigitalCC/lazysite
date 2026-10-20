@@ -700,6 +700,13 @@ sub resolve_odoo {
             key => $key, binding => $id );
         return '';
     }
+    if ( ( $b->{answer} // '' ) eq 'download' ) {    # SM1225
+        log_event( 'WARN', $page,
+            "odoo: page variable refused - the binding '$id' answers a download (answer: download); "
+                . 'the document would be put in the page as base64. Link to the Odoo endpoint instead',
+            key => $key, binding => $id );
+        return '';
+    }
     if ( ( $b->{credential} // '' ) eq 'session' ) {
         log_event( 'WARN', $page,
             'odoo: page variable refused - the binding runs as a person signed in to Odoo, and a '

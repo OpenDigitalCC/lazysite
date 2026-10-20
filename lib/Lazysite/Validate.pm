@@ -579,6 +579,30 @@ sub _check_db_bindings {
     return;
 }
 
+# SM1225: A PAGE BINDING THAT NAMES A DOWNLOAD. `odoo:ID` puts the binding's report in
+# a page variable; a binding with `answer: download` returns a document, which would be
+# the page's base64. The render refuses it (sources.pm resolve_odoo); the save says so.
+sub _check_odoo_bindings {
+    my ( $issues, $fm, $docroot ) = @_;
+    return unless defined $docroot && length $docroot;
+    for my $line ( split /\n/, ( $fm // '' ) ) {
+        next unless $line =~ /:\s*odoo:([A-Za-z0-9][A-Za-z0-9_-]{0,63})\s*\z/;
+        my $id = $1;
+        my $b  = eval {
+            require Lazysite::Odoo;
+            no warnings 'once';
+            local $Lazysite::Odoo::DOCROOT = $docroot;
+            ( Lazysite::Odoo::find_binding($id) )[0];
+        };
+        next unless ref $b eq 'HASH' && ( $b->{answer} // '' ) eq 'download';
+        push @$issues, { kind => 'odoo-binding-is-a-download',
+            message => "this page binds odoo:$id, and '$id' answers a download (answer: download): "
+                . 'its document would be put in the page as base64, so a render refuses it. '
+                . 'Link to the Odoo endpoint instead (?binding=' . $id . ').' };
+    }
+    return;
+}
+
 sub _check_form_rules {
     my ( $issues, $content ) = @_;
     # Form-field rules (catch typos/unsupported rules before publish).
@@ -827,6 +851,7 @@ sub validate_content {
     # the two checks on one page count from the same place - the top of the file.
     push @issues, Lazysite::Manager::Common::page_parse_issues( $body, _fm_line_offset($fm) );
     _check_db_bindings( \@issues, \@warnings, $fm, $docroot );
+    _check_odoo_bindings( \@issues, $fm, $docroot );    # SM1225
     _check_form_rules( \@issues, $content );
     _check_html_in_page( \@warnings, $body, $h );
     _check_form_delivery( \@warnings, $content, $body, $h, $o{path}, $lz );

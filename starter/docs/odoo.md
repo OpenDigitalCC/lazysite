@@ -226,7 +226,9 @@ says what a request may set and who may cause it:
   must return exactly one document; any other answer is `invalid`. A `POST` of a
   download binding is refused `405 method`: it is fetched, not posted. A page
   links to it (`<a href="/cgi-bin/lazysite-odoo.pl?binding=payslip&id=12">`), so the
-  browser sends its cookies and the same rules decide who gets it.
+  browser sends its cookies and the same rules decide who gets it. A page binding (`odoo:ID` in `tt_page_var`) cannot name a download binding:
+  the validator reports it and a render leaves the variable empty, since the document would
+  be the page's base64.
 
 `download_max_kb`
 : Only with `answer: download`. The largest document the binding sends, in KB.

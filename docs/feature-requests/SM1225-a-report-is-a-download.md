@@ -54,11 +54,15 @@ document, hostile file names, inline, gate, POST, rate), 101 (the real oomd),
 t/integration/330 (a signed-in group member is given the binary document; signed out,
 outside the group and a forged cookie are refused with nothing reaching Odoo).
 
+- A page binding (`tt_page_var: x: odoo:ID`) naming a download binding is refused: the
+  validator (`validate_page`, Lazysite::Validate) reports `odoo-binding-is-a-download`
+  as an issue naming the binding and saying to link to the endpoint, as it does for a `db:`
+  table that is missing; at render (sources.pm resolve_odoo) the variable is empty and the
+  log says why. A page naming a JSON binding is unchanged. t/unit/odoo/102.
+
 # Not done
 
 - The control API and MCP (`odoo-run`) still return the JSON report for such a binding:
-  they are not a browser fetching a link.
-- A page binding (`odoo:ID`) of a download binding would put the base64 in the page
-  variable; it is not refused.
+  they are not a browser fetching a link. That is intended.
 - A report over OOM's own `max_inline_bytes` (10 MiB by default) is refused by OOM
   first; a larger download needs a streaming route (OOM `dir`, not `inline`).
