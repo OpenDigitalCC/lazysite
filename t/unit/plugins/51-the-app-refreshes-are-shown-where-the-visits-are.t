@@ -56,7 +56,11 @@ sub site_with {
 
 sub run {
     my ( $d, @args ) = @_;
-    my $out = `DOCUMENT_ROOT=\Q$d\E $^X \Q$plugin\E @args --docroot \Q$d\E 2>/dev/null`;
+    # Argument list, never a shell string (t/lint/40); stdout only, as it is JSON.
+    local $ENV{DOCUMENT_ROOT} = $d;
+    open my $ph, '-|', $^X, $plugin, @args, '--docroot', $d or die "cannot run $plugin: $!";
+    my $out = do { local $/; <$ph> };
+    close $ph;
     return eval { decode_json($out) } || {};
 }
 

@@ -10,6 +10,7 @@ use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
+use PageScript ();
 
 my $page = repo_root() . '/starter/manager/stats.md';
 plan skip_all => "no $page" unless -f $page;
@@ -17,7 +18,7 @@ chomp( my $node = `sh -c 'command -v node || command -v nodejs' 2>/dev/null` );
 plan skip_all => 'node not installed' unless length $node && -x $node;
 
 my $src      = do { open my $fh, '<', $page or die $!; local $/; <$fh> };
-my ($tilefn) = $src =~ /(function tile\(label, value, note\) \{.*?\n\}\n)/s;
+my $tilefn   = PageScript::extract_function( $src, 'tile', 'starter/manager/stats.md' ) . "\n";
 my ($expr)   = $src =~ /(\(d\.app_hits \? tile\(.*?\) : ''\))/s;
 ok( $tilefn, 'the page carries the tile builder' );
 ok( $expr,   'and a tile for d.app_hits' ) or do { done_testing(); exit };
