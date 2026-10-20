@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the nightly suite, 2026-10-20 08:33 (main 13f0b549f), t/tools/29-cli-fleet.t failed 2 of 6"
 area: tests
-status-note: "SHIPPED (PENDING) on n696: t/tools/29 holds the VERSION preserve lock t/tools/52 holds, so it never reads 99.0.0. New t/tools/188 holds the lock and requires 29 to wait; it fails without the fix."
+status-note: "SHIPPED (PENDING) on n696: t/tools/29 holds the VERSION preserve lock t/tools/52 holds, so it never reads 99.0.0. New t/tools/190 holds the lock and requires 29 to wait; it fails without the fix."
 ---
 
 # What happened
@@ -38,5 +38,5 @@ behind the other tests that build one. Its own work is about 11 seconds.
 # Change
 
 29 takes the VERSION preserve lock before anything reads VERSION and keeps it to
-the end. t/tools/188 holds that lock, starts 29, and requires that 29 has checked
+the end. t/tools/190 holds that lock, starts 29, and requires that 29 has checked
 nothing after 8 seconds and passes once the lock is let go.
