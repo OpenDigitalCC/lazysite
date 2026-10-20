@@ -133,6 +133,7 @@ our %OUTCOME_SAID = (
 our %REFUSAL_SAID = (
     'unavailable' => 'This form is not accepting submissions right now. Please contact the site owner.',
     'undelivered' => 'This form is not accepting submissions right now (nothing accepted the submission: its delivery is switched off or refused it - the site owner can see why in the event log). Please contact the site owner.',
+    'maintenance' => 'This site is in maintenance, so the form was not sent and nothing was stored. Please try again later.',
     'no-uploads'     => 'This form does not accept file uploads.',
     'too-many-files' => 'Too many files (max {n}).',
     'file-too-large' => 'A file is too large (max {n} KiB).',
@@ -291,6 +292,26 @@ eval {
             : 0;
     } // 0;
     my $actor = $signed_in ? $signed_in : '';
+
+    # SM1118 (ruled 2026-10-20, #338): A FORM POSTED DURING MAINTENANCE IS REFUSED
+    # with the maintenance message and NOT STORED - ahead of the rate limiter (a
+    # refusal must not spend a visitor's quota), the uploads and every delivery.
+    # The one exception is a verified session that holds `maintenance_access`
+    # (the HMAC-verified cookie above, never a header).
+    {
+        require Lazysite::Maintenance;
+        my $mst = Lazysite::Maintenance::status( lazysite_dir => $LAZYSITE_DIR, host => $ENV{HTTP_HOST} );
+        if ( $mst->{on} ) {
+            my $held = 0;
+            if ($signed_in) {
+                no warnings 'once';
+                require Lazysite::Auth::Settings;
+                local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
+                $held = ( Lazysite::Auth::Settings::caps_for($signed_in) || {} )->{maintenance_access} ? 1 : 0;
+            }
+            refuse('maintenance') unless $held;
+        }
+    }
     if ($signed_in) {
         log_event( 'INFO', 'form', 'rate limit waived: verified session' );
     }

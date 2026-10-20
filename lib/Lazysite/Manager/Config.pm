@@ -71,6 +71,7 @@ sub action_config_read {
         app_theme_colour app_background_colour
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
         app_offline_pages app_update
+        maintenance maintenance_page maintenance_until
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
@@ -314,6 +315,7 @@ sub action_config_set {
         app_theme_colour app_background_colour
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
         app_offline_pages app_update
+        maintenance maintenance_page maintenance_until
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
 
     # SM612: settable, but NOT BY A TOKEN CLIENT. The operator toggles the
@@ -440,6 +442,37 @@ sub action_config_set {
                 unless $ip =~ /^[0-9.]+$/ || $ip =~ /^[0-9A-Fa-f:]+$/;
         }
     }
+    # SM1118 (ruled 2026-10-20, #338): the maintenance switch and its two settings.
+    # The switch has two values, and an unreadable one is refused rather than stored
+    # (the engine reads anything else as off, which would show an operator `on` and
+    # leave the site open). Turning it ON needs the capability to get through it: the
+    # account that switched the site off for everyone else must not be shut out of
+    # the door that switches it back, which would leave only the host to undo it.
+    if ( $key eq 'maintenance' ) {
+        $value = lc( $value // '' );
+        $value =~ s/^\s+|\s+$//g;
+        return { ok => 0, kind => 'invalid', field => $key, error => "maintenance must be 'on' or 'off'" }
+            unless $value eq 'on' || $value eq 'off';
+        return { ok => 0, kind => 'forbidden', field => $key,
+            error => 'Switching maintenance on needs the "Access during maintenance" capability '
+                . '(maintenance_access) on your own account: without it the next request would '
+                . 'be refused and only the host could switch it off again.' }
+            if $value eq 'on' && !_user_caps($auth_user)->{maintenance_access};
+    }
+    if ( $key eq 'maintenance_page' && defined $value && length $value ) {
+        $value =~ s/^\s+|\s+$//g;
+        require Lazysite::Maintenance;
+        return { ok => 0, kind => 'invalid', field => $key,
+            error => 'maintenance_page must be a path on this site, such as /maintenance, or an https:// address' }
+            unless Lazysite::Maintenance::page_ok($value);
+    }
+    if ( $key eq 'maintenance_until' && defined $value && length $value ) {
+        $value =~ s/^\s+|\s+$//g;
+        require Lazysite::Maintenance;
+        return { ok => 0, kind => 'invalid', field => $key,
+            error => 'maintenance_until must be a UTC time such as 2026-11-01 18:30' }
+            unless Lazysite::Maintenance::until_ok($value);
+    }
     # SM122: validate the enum/name-shaped keys.
     # SM416: seconds, bounded; 0 (or empty) restores the revalidation default.
     if ( $key eq 'asset_max_age' && defined $value && length $value
@@ -471,7 +504,7 @@ sub action_config_set {
         manager_addresses manager_addresses_deny signin_addresses signin_addresses_deny
         app_name app_short_name app_scope app_start_url app_theme_colour app_background_colour
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
-        app_offline_pages app_update);
+        app_offline_pages app_update maintenance_page maintenance_until);
     return { ok => 0,
         error => "A value is required: '$key' has no default to fall back to, so it "
             . 'cannot be cleared (the keys that can are '

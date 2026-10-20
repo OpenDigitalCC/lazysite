@@ -96,7 +96,7 @@ my %CORE = map { $_ => 1 } qw(
     manage_domains manage_config manage_services manage_users
     analytics audit notifications feedback read_submissions
     delete_submissions approve_accounts
-    housekeeping purge audit_switch
+    housekeeping purge audit_switch maintenance_access
     create_sub_users delegate_sub_user_creation
     manage_connectors manage_notifications);    # SM1019: core - the notify handler type
 

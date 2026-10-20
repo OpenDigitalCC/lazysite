@@ -634,6 +634,19 @@ If your delegates rely on that, give them explicit grant authority for the
 capabilities they legitimately hand out; otherwise those grants now refuse, and
 the refusal names the command that fixes it.
 
+### Access during maintenance
+
+`maintenance_access` (Access during maintenance) is the capability that gets an
+account through a site in maintenance (the `maintenance` setting; see the
+[reference](/docs/reference)). With the switch on, a page request goes to the
+maintenance page, a posted form is refused, and MCP, the control API, WebDAV and
+the data endpoint answer `503` - unless the request's verified identity holds
+this capability. It is assigned to a group on the Groups page like any other and
+the operator group holds it by default, on an upgraded site as on a new one. You
+need it yourself to switch maintenance on, so the account that closes the site is
+one the closed site lets back in. It does nothing while the site is not in
+maintenance.
+
 ### Manager access
 
 The manager at `/manager` uses the same auth mechanism. Access is the

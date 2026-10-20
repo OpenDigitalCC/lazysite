@@ -95,7 +95,8 @@ var LABELS = {
   content_root: 'Content folder', site_url: 'Site address', site_name: 'Site title',
   theme: 'Theme', layout: 'Layout', appearance: 'Appearance (layout & theme)',
   nav_file: 'Navigation menu', search_default: 'Search',
-  allowed_groups: 'Groups allowed to manage', locked_users: 'Users locked to this domain'
+  allowed_groups: 'Groups allowed to manage', locked_users: 'Users locked to this domain',
+  maintenance: 'In maintenance', maintenance_page: 'Maintenance page', maintenance_until: 'Expected back (UTC)'
 };
 function label(k) { return LABELS[k] || k; }
 
@@ -171,7 +172,8 @@ var DISPLAY_KEYS = ['content_root', 'site_name', 'theme'];
 // SM167: theme + layout are edited as one 'appearance' field (a layout/theme
 // pair); saveDomain splits it back into the two conf keys.
 var EDIT_KEYS = ['content_root', 'site_url', 'site_name', 'appearance', 'nav_file', 'search_default',
-  'allowed_groups', 'locked_users', 'lang', 'lang_group'];
+  'allowed_groups', 'locked_users', 'lang', 'lang_group',
+  'maintenance', 'maintenance_page', 'maintenance_until'];
 // The editor groups the keys into labelled sections so the sheet reads
 // top-to-bottom like the Add form, rather than one ragged row of mixed-width
 // fields. Identity holds the site address / title / content folder; Presentation
@@ -180,7 +182,10 @@ var EDIT_SECTIONS = [
   { title: 'Identity',     note: '',                                  keys: ['site_url', 'site_name', 'content_root'] },
   { title: 'Presentation', note: 'optional – inherits the default',   keys: ['appearance', 'nav_file', 'search_default'] },
   { title: 'Access',       note: 'who may manage this domain',        keys: ['allowed_groups', 'locked_users'] },
-  { title: 'Language',     note: 'for a multilingual set',            keys: ['lang', 'lang_group'] }
+  { title: 'Language',     note: 'for a multilingual set',            keys: ['lang', 'lang_group'] },
+  // SM1118: one domain in maintenance, the rest of the instance untouched. The
+  // instance switch (Config, Maintenance) covers every domain and wins over this.
+  { title: 'Maintenance',  note: 'send this domain\'s visitors to a maintenance page', keys: ['maintenance', 'maintenance_page', 'maintenance_until'], editOnly: true }
 ];
 // Optional grey hint rendered under an edit field where the effect is not obvious.
 var EDIT_HINTS = {
@@ -189,6 +194,9 @@ var EDIT_HINTS = {
   appearance: 'A theme always belongs to a layout, so pick them together.',
   lang: 'This host’s language (e.g. en, fr, pt-BR). Sets <html lang> and the Content-Language header.',
   lang_group: 'The language set this host belongs to (a shared name across the languages, e.g. providers). Two+ hosts sharing it become a switchable set.',
+  maintenance: 'on sends this domain\'s visitors to its maintenance page (a 302; the page answers 503) and refuses its machine doors, except to accounts holding access during maintenance. off leaves the domain open. The instance switch on the Config page puts every domain in maintenance, whatever is set here.',
+  maintenance_page: 'A path on this site or an https address. Blank uses the instance setting, then /maintenance.',
+  maintenance_until: 'Optional, UTC: 2026-11-01 18:30. Shown to visitors and sent as Retry-After.',
   allowed_groups: 'Add the groups whose members may manage this domain (and are confined to it). None = only operators.',
   locked_users: 'Add accounts that can reach ONLY this domain (of the ones their groups allow) – nothing else.'
 };
@@ -205,7 +213,8 @@ var CREATE_HINTS = {
 // "inherit" blank), not a free-text box - matching the processor's own config UI
 // (SM174). search_default is a true/false choice there, so it is here too.
 var EDIT_OPTIONS = {
-  search_default: ['true', 'false']
+  search_default: ['true', 'false'],
+  maintenance: ['on', 'off']
 };
 
 // SM165 access fields are lists of existing principals, edited with the SAME
@@ -377,6 +386,7 @@ function domainSettingsHtml(row, isCreate) {
   }
 
   EDIT_SECTIONS.forEach(function (s) {
+    if (isCreate && s.editOnly) return;
     h += '<div class="mg-box">' + editSection(host, s, row, isCreate) + '</div>';
   });
 

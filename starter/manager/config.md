@@ -156,6 +156,17 @@ var SITE_SCHEMA = [
   { key: 'app_update', placeholder: 'now', label: 'When a new version takes over', type: 'text', default: '',
     group: 'Install as an app',
     note: 'now (the default): an installed app switches to a new version at once. wait: it switches only when the page asks, so a form being filled in is not swapped under the person. Write now or wait. With wait the page needs a few lines of script to offer a Reload (see the app documentation).' },
+  // SM1118 (ruled 2026-10-20, #338): the maintenance switch. The instance switch covers
+  // every domain; one domain is put in maintenance from its own sheet on the Domains page.
+  { key: 'maintenance', label: 'Site in maintenance', type: 'toggle',
+    on: 'on', off: 'off', default: 'off', group: 'Maintenance',
+    note: 'On: every page request goes to the maintenance page (a 302; the page itself answers 503 with Retry-After), a posted form is refused and not stored, and MCP, the control API, WebDAV and the data endpoint answer 503, except to accounts that hold Access during maintenance (the operator group holds it by default). The sign-in pages and the maintenance page stay open so an operator can sign in. This switch covers every domain; one domain is put in maintenance on the Domains page. You need the capability yourself to switch it on. A request for a file the web server serves by name (an image, a stylesheet) is not a page request and is not affected.' },
+  { key: 'maintenance_page', placeholder: '/maintenance', label: 'Maintenance page (optional)', type: 'text', default: '',
+    group: 'Maintenance',
+    note: 'A path on this site (the default, /maintenance, is a page the site ships and you can restyle by writing your own maintenance.md) or an https:// address elsewhere. Blank uses /maintenance.' },
+  { key: 'maintenance_until', placeholder: '2026-11-01 18:30', label: 'Expected back, UTC (optional)', type: 'text', default: '',
+    group: 'Maintenance',
+    note: 'A UTC time, YYYY-MM-DD HH:MM. Sent to browsers and crawlers as Retry-After and shown to visitors. Blank sends an hour.' },
   // SM623: the service toggles are grouped BY WHAT A CLIENT NEEDS, not by the
   // order they were added. They were interleaved - WebDAV, MCP, OAuth, control
   // API, token exchange - so an operator setting up one kind of connection had

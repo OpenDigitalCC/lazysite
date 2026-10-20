@@ -225,6 +225,21 @@ sub main {
     Lazysite::Timing::operator(1);       # SM1144: a verified account is shown the phases
     Lazysite::Timing::to('render');
 
+    # SM1118 (ruled 2026-10-20, #338): a site in maintenance refuses this door
+    # with a 503 and Retry-After to an account that does not hold
+    # `maintenance_access` - after the credential verified, before any method
+    # (OPTIONS included) is served.
+    {
+        require Lazysite::Maintenance;
+        my $mst = Lazysite::Maintenance::status(
+            lazysite_dir => Lazysite::Paths::lazysite_dir($DOCROOT), host => $ENV{HTTP_HOST} );
+        if ( $mst->{on} && !_caps_for($user)->{maintenance_access} ) {
+            return send_status( 503,
+                headers => [ 'Retry-After: ' . Lazysite::Maintenance::retry_after($mst) ],
+                body    => Lazysite::Maintenance::message($mst) . "\n" );
+        }
+    }
+
     # OPTIONS advertises capabilities and touches no files.
     if ( $method eq 'OPTIONS' ) {
         return do_options();

@@ -659,6 +659,7 @@ sub _form_outcome_banner {
         my %REFUSED = (
             'unavailable' => 'This form is not accepting submissions right now. Please contact the site owner.',
             'undelivered' => 'This form is not accepting submissions right now (nothing accepted the submission: its delivery is switched off or refused it - the site owner can see why in the event log). Please contact the site owner.',
+            'maintenance' => 'This site is in maintenance, so the form was not sent and nothing was stored. Please try again later.',
             'no-uploads'     => 'This form does not accept file uploads.',
             'too-many-files' => 'Too many files (max {n}).',
             'file-too-large' => 'A file is too large (max {n} KiB).',

@@ -237,6 +237,32 @@ sub send_cannot_tell {
     exit 0;
 }
 
+# SM1118 (ruled 2026-10-20, #338): A SITE IN MAINTENANCE REFUSES THIS DOOR to a
+# caller who does not hold `maintenance_access`: HTTP 503 with Retry-After and a
+# JSON-RPC error of its own code, so an agent reads "come back later" and does not
+# retry as though a capability were missing (-32002) or a credential bad (-32001).
+# Asked after the bearer verified, so it is the VERIFIED account's grant that
+# decides; discovery (initialize, tools/list) stays open and acts on nothing.
+sub send_maintenance {
+    my ( $id, $caps ) = @_;
+    require Lazysite::Maintenance;
+    my $st = Lazysite::Maintenance::status( lazysite_dir => $LAZYSITE_DIR, host => $ENV{HTTP_HOST} );
+    return unless $st->{on};
+    return if ref $caps eq 'HASH' && $caps->{maintenance_access};
+    my $retry = Lazysite::Maintenance::retry_after($st);
+    binmode STDOUT;    # encode_json emits UTF-8 bytes; do not re-encode
+    print "Status: 503 Service Unavailable\r\n";
+    print "Retry-After: $retry\r\n";
+    print "Content-Type: application/json\r\n";
+    print "MCP-Protocol-Version: $PROTOCOL\r\n";
+    print _timing_line();
+    print "\r\n";
+    print encode_json( { jsonrpc => '2.0', id => $id,
+            error => { code => -32004, message => Lazysite::Maintenance::message($st),
+                data => { kind => 'maintenance', retry_after => $retry } } } );
+    exit 0;
+}
+
 # SM076 OAuth: a tool call without valid auth returns HTTP 401 with a
 # WWW-Authenticate challenge pointing at the protected-resource metadata, so an
 # OAuth client (Claude.ai web) discovers the authorization server and starts the
@@ -4466,6 +4492,7 @@ elsif ( $method eq 'tools/call' ) {
     my ( $user, $caps ) = verify_bearer();
     send_cannot_tell( $id, $BEARER_CANNOT_TELL ) if length $BEARER_CANNOT_TELL;
     send_401($id)                                   unless defined $user;
+    send_maintenance( $id, $caps );    # SM1118: after the credential, before any tool
     Lazysite::Timing::operator(1);    # SM1144: a verified connector is shown the phases
     Lazysite::Timing::to('render');
     rpc_error( $id, -32602, "Unknown tool: $name" ) unless $tool;

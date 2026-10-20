@@ -193,7 +193,8 @@ our $PREVIEW_COOKIE = 'lzs_preview';    # SM071: theme/layout preview cookie
 # itself if deleted. `account_page: disabled` in lazysite.conf withdraws the
 # engine default (the page answers 404 unless a site wrote its own) and turns
 # its me-* actions off with it.
-my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim forgot logout account 402 403 404);
+# SM1118: and `maintenance`, the page a site in maintenance sends its visitors to.
+my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim forgot logout account maintenance 402 403 404);
 
 sub _system_page_md {
     my ( $base, $croot ) = @_;
@@ -283,6 +284,7 @@ our $TT_DEP_LIVE;    # a source with no local mtime (url:) was used
 our $REGISTRY_CACHE_DIR = "$CACHE_BASE/registries";
 our %AUTH_CONTEXT;            # populated by main() auth check, read by render_content()
 our %ACCESS_REC;              # SM140: per-request outcome for the first-party access log
+our %MAINT;    # SM1118: this request's maintenance outcome (gates.pm), reset per request
 our $RESPONSE_LANG = 'en';    # SM179 (P1): the rendered page's language, set per
                               # request from page_lang; emitted as Content-Language.
 our $REQUEST_CROOT;    # SM151: the request's confined content root (undef => docroot),
@@ -436,7 +438,8 @@ our %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
     app_name app_short_name app_scope app_start_url app_theme_colour
     app_background_colour app_icon_64 app_icon_192 app_icon_512 app_icon_maskable
     app_shell
-    app_offline_pages app_update);    # SM1197
+    app_offline_pages app_update
+    maintenance maintenance_page maintenance_until);    # SM1197, SM1118
 
 # SM151 P6: content-type by extension for per-domain static files served by the
 # processor (_serve_content_static). Kept small - the SEO artefacts
@@ -1121,6 +1124,12 @@ sub main {
     # Trust gate: strip HTTP_X_REMOTE_* / HTTP_X_PAYMENT_* unless
     # a trusted source (auth wrapper or configured proxy) set them.
     apply_trust_gate($uri);
+
+    # SM1118: a site in maintenance sends everyone who does not hold
+    # `maintenance_access` to its maintenance page. After the trust gate, so the
+    # identity asked is the one the gate left; before the manager path, which is
+    # the capability's to open like any other page.
+    return if _maintenance_gate($uri);
 
     # Manager path gate. Returns truthy when the request is
     # already handled (forbidden, redirected, or bounced to login).
@@ -1872,6 +1881,10 @@ sub _lazy_lib {
         # alias_hosts is unset. Alias lines use dotted keys, which the \w+
         # base parse above cannot match, so they never leak into base vars.
         my $alias_host = q{};
+        # SM1118: the instance's maintenance switch covers every domain, so an alias
+        # line cannot take its host out of it (Lazysite::Maintenance::status, which
+        # decides; this keeps the cheap test in front of it honest).
+        my $base_maint = $defs{maintenance};
         if ( defined $defs{alias_hosts} ) {
             my $req_host = _request_host();
             my %declared;
@@ -1919,6 +1932,9 @@ sub _lazy_lib {
             }
         }
 
+        $defs{maintenance} = $base_maint
+            if defined $base_maint && $base_maint !~ /\A\s*(?:off|disabled|false|no|0)\s*\z/i;
+
         my %vars = resolve_tt_vars( \%defs );
 
         # The active alias host as a TT var ('' on the primary), so layouts
@@ -1962,6 +1978,7 @@ sub _lazy_lib {
         $_site_vars_loaded = 0;
         $_site_vars_sig    = '';
         undef $REQUEST_CROOT;    # SM151: recomputed per request in main()
+        %MAINT = ();             # SM1118: this request's maintenance outcome
         undef $ACL_MAP_CACHE;    # SM973: a pooled worker re-reads acls.json
         undef $DRAFT_BYTES;      # SM1030
         undef $DRAFT_MD;

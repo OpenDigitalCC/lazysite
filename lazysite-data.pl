@@ -65,7 +65,7 @@ use Lazysite::Timing (); # SM1144: after the lib search, so its load phase cover
 exit main() if !caller;
 
 sub reply {
-    my ( $status, $data ) = @_;
+    my ( $status, $data, $extra ) = @_;    # SM1118: $extra, response header lines
 
     # SM700: ->utf8, and the Content-Length that depends on it.
     #
@@ -91,6 +91,7 @@ sub reply {
     # Bytes now. Say so, rather than relying on the absence of a layer.
     binmode STDOUT;
     print "Status: $status\r\n";
+    print "$_\r\n" for @{ $extra || [] };
     print "Content-Type: application/json; charset=utf-8\r\n";
 
     # Never cached by anything in front. What a visitor may see depends on who
@@ -194,6 +195,28 @@ sub main {
         Lazysite::Timing::operator(1) if ( Lazysite::Auth::Settings::caps_for($user) || {} )->{ui};
     }
     Lazysite::Timing::to('render');
+
+    # SM1118 (ruled 2026-10-20, #338): a site in maintenance refuses the data
+    # endpoint, as it refuses a posted form, to anyone who does not hold
+    # `maintenance_access` - the verified account, or nobody. JSON 503 with
+    # Retry-After.
+    {
+        require Lazysite::Maintenance;
+        my $mst = Lazysite::Maintenance::status( lazysite_dir => $lz, host => $ENV{HTTP_HOST} );
+        if ( $mst->{on} ) {
+            my $held = 0;
+            if ( length $user ) {
+                require Lazysite::Auth::Settings;
+                local $Lazysite::Auth::Settings::AUTH_DIR = "$lz/auth";
+                $held = ( Lazysite::Auth::Settings::caps_for($user) || {} )->{maintenance_access} ? 1 : 0;
+            }
+            my $retry = Lazysite::Maintenance::retry_after($mst);
+            return reply( 503,
+                { ok => 0, kind => 'maintenance', error => Lazysite::Maintenance::message($mst), retry_after => $retry },
+                ["Retry-After: $retry"] )
+                unless $held;
+        }
+    }
 
     # DISABLED AND REVOKED ARE ALREADY DECIDED, and re-deciding them here was
     # wrong twice: verify_session_cookie returns undef with 'disabled' or

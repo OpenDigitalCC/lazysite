@@ -74,6 +74,7 @@ our @POOL_PRELOAD = qw(
     Lazysite::Odoo::Visitor
     Lazysite::Auth::Session
     Lazysite::BadUrl
+    Lazysite::Maintenance
 );
 
 # Load the modules, then compile one trivial template and one trivial page of

@@ -19,7 +19,7 @@ use Cwd                       qw(realpath);
 use Digest::SHA               qw(hmac_sha256_hex);
 use File::Path                qw(make_path);
 use Lazysite::Util            qw(log_event);
-use Lazysite::Manager::Common qw(path_is_reserved processor_path);
+use Lazysite::Manager::Common qw(path_is_reserved processor_path _user_caps);
 use Exporter 'import';
 use Lazysite::Paths   ();
 use Lazysite::Private ();    # N141D: purge reaches the private store too
@@ -42,8 +42,11 @@ our $auth_user = '';    # for log attribution
 # confined to it). SM179 adds the language keys: lang (this host's language) and
 # lang_group (the language set it belongs to) - so a language set is configurable
 # through the Domains page / control API / CLI, not only by hand-editing the conf.
+# SM1118 adds the maintenance keys: maintenance (on|off), maintenance_page and
+# maintenance_until put ONE domain in maintenance (Lazysite::Maintenance::status).
 my @DOMAIN_KEYS = qw(content_root site_url site_name theme layout nav_file
-    search_default allowed_groups locked_users lang lang_group);
+    search_default allowed_groups locked_users lang lang_group
+    maintenance maintenance_page maintenance_until);
 my %IS_KEY = map { $_ => 1 } @DOMAIN_KEYS;
 
 # SM583: the two keys that name a layout or a theme rather than describing one.
@@ -1240,6 +1243,38 @@ sub domain_set {
         return { ok => 0, kind => 'invalid', error => 'Invalid language tag' }
             unless $value eq '' || $value =~ /^[A-Za-z]+(?:-[A-Za-z0-9]+)*\z/;
     }
+    elsif ( $key eq 'maintenance' ) {
+        # SM1118: a switch has two values. Empty clears the line (the domain then
+        # follows the instance setting).
+        $value =~ s/^\s+|\s+$//g;
+        $value = lc $value;
+        return { ok => 0, kind => 'invalid', error => "maintenance must be 'on' or 'off'" }
+            unless $value eq '' || $value eq 'on' || $value eq 'off';
+        # ...and the account switching a domain INTO maintenance must be one the
+        # maintenance reaches the door of: otherwise the next request is its own
+        # lock-out, and the change could only be undone from the host.
+        if ( $value eq 'on' ) {
+            return { ok => 0, kind => 'forbidden',
+                error => 'Putting a domain in maintenance needs the "Access during maintenance" '
+                    . 'capability (maintenance_access) yourself: without it the next request would '
+                    . 'be refused and only the host could switch it off.' }
+                unless length $auth_user && _user_caps($auth_user)->{maintenance_access};
+        }
+    }
+    elsif ( $key eq 'maintenance_page' ) {
+        $value =~ s/^\s+|\s+$//g;
+        require Lazysite::Maintenance;
+        return { ok => 0, kind => 'invalid',
+            error => 'maintenance_page must be a path on this site (/maintenance) or an https:// address' }
+            unless $value eq '' || Lazysite::Maintenance::page_ok($value);
+    }
+    elsif ( $key eq 'maintenance_until' ) {
+        $value =~ s/^\s+|\s+$//g;
+        require Lazysite::Maintenance;
+        return { ok => 0, kind => 'invalid',
+            error => 'maintenance_until must be a UTC time such as 2026-11-01 18:30' }
+            unless $value eq '' || Lazysite::Maintenance::until_ok($value);
+    }
     elsif ( $key eq 'lang_group' ) {
         # SM179: the language-set name, shared across the set's hosts. A plain
         # name token; empty clears it.
@@ -1946,7 +1981,8 @@ sub action_domain_check {
 # manager only displays them, never edits them.
 sub action_domains_list {
     my @keys = qw(site_name site_url content_root theme layout nav_file search_default
-        allowed_groups locked_users lang lang_group);
+        allowed_groups locked_users lang lang_group
+        maintenance maintenance_page maintenance_until);
     my %base;
     my %ov;    # host => { key => value }
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {

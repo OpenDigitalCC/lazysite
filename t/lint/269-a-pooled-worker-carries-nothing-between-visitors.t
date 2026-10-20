@@ -364,6 +364,8 @@ my %T = (
         # its end as well (t/integration/292 holds both ends).
         '$REQUEST_IDENT'         => [ reset  => 'reset_request_state' ],
         '%PAYMENT_CONTEXT'       => [ reset  => 'reset_request_state' ],
+        # SM1118: this request's maintenance outcome (the gate, the 503 page, the banner).
+        '%MAINT'                 => [ reset  => 'reset_request_state' ],
         '%PREVIEW_CONTEXT'       => [ reset  => 'main' ],
         '$FALLBACK_LAYOUT'       => [ exempt => 'constant text (a heredoc)' ],
         '%ALIAS_OVERRIDE_KEYS'   => [ exempt => 'a constant set of conf keys' ],

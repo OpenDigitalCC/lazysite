@@ -74,6 +74,27 @@ Directory scan
   generates the web app manifest and the service worker from these. Setting
   `app_name` turns it on. See [Installing a site as an app](/docs/app).
 
+`maintenance`, `maintenance_page`, `maintenance_until`
+: Put the site in maintenance. `maintenance: on` sends every page request, by
+  a temporary redirect (302), to `maintenance_page` - a path on the site, or an
+  `https://` address; the default is `/maintenance`, a page the site ships and
+  you can restyle by writing your own `maintenance.md`. The maintenance page
+  itself answers `503` with `Retry-After`, the number of seconds to
+  `maintenance_until` (UTC, `2026-11-01 18:30`; an hour when it is not set). A
+  form posted meanwhile is refused with the maintenance message and not stored,
+  and MCP, the control API, WebDAV and the data endpoint answer `503`. The
+  exception is an account holding the `maintenance_access` capability (Access
+  during maintenance), which the operator group holds and any group can be given:
+  it browses the site as normal, under a banner. The sign-in pages, the
+  maintenance page and the assets they need stay reachable. On an instance
+  serving several domains `alias.<host>.maintenance: on` puts one declared
+  domain in maintenance (and `alias.<host>.maintenance_page`, `.maintenance_until`
+  give it its own), while `maintenance: on` covers them all. Anything but `on`
+  is off. Set on the Config page, and per domain on the Domains page; `lazysite
+  check` warns while it is on. A file the web server serves by name (an image, a
+  stylesheet, a cached page asked for by its `.html` name) is not a page request
+  and is not affected.
+
 `csp_script_src`, `csp_connect_src`, `csp_img_src`, `csp_frame_src`
 : Hosts a page may load from beyond its own, each list appended to the
   default for that directive: `csp_script_src: https://ads.example.com,

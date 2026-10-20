@@ -1118,7 +1118,7 @@ sub run_checks {
                 create_sub_users delegate_sub_user_creation
                 manage_data write_data manage_briefs run_jobs manage_connectors
                 manage_notifications
-                housekeeping purge audit_switch);
+                housekeeping purge audit_switch maintenance_access);
 
             my $gsettings = $gs;    # SM1023: read once, and readable to reach here
 
@@ -1407,6 +1407,7 @@ sub run_checks {
     report_unconverted_delivery();
     report_retired_conf_keys();
     report_app_settings();              # SM1155
+    report_maintenance();               # SM1118
     report_shared_manager_account();    # N141D (SM864)
 
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
@@ -1490,7 +1491,7 @@ sub run_checks {
     {
         my ( @dead, @root_only );
         # SM1048: forgot and logout, the rest of the sign-in flow.
-        for my $name (qw(login claim forgot logout 402 403 404)) {
+        for my $name (qw(login claim forgot logout maintenance 402 403 404)) {
             my $has_default = -f "$LZ/templates/system/$name.md";
             my $has_root    = -f "$DOC/$name.md";
             push @dead,      $name if !$has_default && !$has_root;
@@ -2793,6 +2794,48 @@ sub report_unconverted_delivery {
     }
     else {
         report( 'OK', 'every form and schedule names a handler the engine reads' );
+    }
+    return;
+}
+
+# SM1118 (ruled 2026-10-20, #338): A SITE IN MAINTENANCE IS A SITE NOBODY BUT ITS
+# OPERATORS CAN USE, and it stays that way until somebody switches it off - so the
+# check says so every time it runs, naming where it is on (the instance, or which
+# domains) and when it is expected back. A value the engine would read as off is
+# named as well: `maintenance: yes please` leaves the site open while the file
+# says otherwise. This file is core-Perl by design and loads no engine module, so
+# it carries the switch's values as Lazysite::Maintenance::on_value reads them.
+sub report_maintenance {
+    open my $fh, '<', $conf or return;
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    my $is_on = sub { defined $_[0] && $_[0] =~ /\A\s*(?:on|enabled|true|yes|1)\s*\z/i };
+    my $is_off = sub { !defined $_[0] || $_[0] =~ /\A\s*(?:off|disabled|false|no|0)?\s*\z/i };
+    my ( $base, $until, $page );
+    while ( $text =~ /^maintenance\h*:\h*(.*?)\h*$/mg )       { $base  = $1 }
+    while ( $text =~ /^maintenance_until\h*:\h*(.*?)\h*$/mg ) { $until = $1 }
+    while ( $text =~ /^maintenance_page\h*:\h*(.*?)\h*$/mg )  { $page  = $1 }
+    my %dom;
+    while ( $text =~ /^alias\.(\S+)\.maintenance\h*:\h*(.*?)\h*$/mg ) { $dom{ lc $1 } = $2 }
+    my @odd = ( ( defined $base && !$is_on->($base) && !$is_off->($base) ? ('maintenance') : () ),
+        map { "alias.$_.maintenance" } grep { !$is_on->( $dom{$_} ) && !$is_off->( $dom{$_} ) } sort keys %dom );
+    report( 'WARN',
+        'lazysite.conf has a maintenance value the engine reads as OFF: ' . join( ', ', @odd ),
+        "write on or off in '$conf'; anything else leaves the site open" )
+        if @odd;
+    my @on = ( $is_on->($base) ? ('the whole instance') : () );
+    push @on, map { "domain $_" } grep { $is_on->( $dom{$_} ) } sort keys %dom if !$is_on->($base);
+    return unless @on;
+    my $back = ( defined $until && length $until ) ? " (expected back $until UTC)" : '';
+    report( 'WARN',
+        'the site is IN MAINTENANCE for ' . join( ', ', @on ) . "$back: visitors are sent to the maintenance page and only accounts holding access during maintenance get through",
+        'switch it off on the Config page (or the domain\'s sheet) when the work is done' );
+    my $p = ( defined $page && length $page ) ? $page : '/maintenance';
+    if ( $p =~ m{\A/} ) {
+        ( my $n = $p ) =~ s{\A/+|/+\z}{}g;
+        report( 'WARN', "the maintenance page ($p) does not resolve to a page of this site, so visitors would be sent to a 404",
+            'write it as a page, or leave maintenance_page unset to use the one the site ships' )
+            unless length $n && ( -f "$DOC/$n.md" || ( $n eq 'maintenance' && -f "$LZ/templates/system/maintenance.md" ) );
     }
     return;
 }

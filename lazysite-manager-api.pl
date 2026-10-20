@@ -412,6 +412,28 @@ unless ($token_auth) {
     }
 }
 
+# SM1118 (ruled 2026-10-20, #338): A SITE IN MAINTENANCE REFUSES THIS DOOR with a
+# JSON 503 and Retry-After to a caller - token or cookie - who does not hold
+# `maintenance_access`. After the credential is verified, so the verified account's
+# grant decides; before the action is read, so nothing it names runs. The
+# maintenance switch itself is changed through this door by the operator, who holds
+# the capability by default.
+{
+    require Lazysite::Maintenance;
+    my $mst = Lazysite::Maintenance::status( lazysite_dir => $LAZYSITE_DIR, host => $ENV{HTTP_HOST} );
+    if ( $mst->{on} ) {
+        my $mcaps = $token_auth ? \%token_caps : _user_caps($auth_user);
+        unless ( $mcaps->{maintenance_access} ) {
+            my $retry = Lazysite::Maintenance::retry_after($mst);
+            _emit_json( '503 Service Unavailable', ["Retry-After: $retry"],
+                { ok => JSON::PP::false, kind => 'maintenance',
+                    error       => Lazysite::Maintenance::message($mst),
+                    retry_after => $retry } );
+            exit 0;
+        }
+    }
+}
+
 # SM1144: someone is signed in here (an unauthenticated request was refused
 # above), and this surface is the operators' own: they are shown the phases.
 Lazysite::Timing::operator(1);

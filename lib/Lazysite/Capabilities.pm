@@ -541,6 +541,22 @@ my %ACTION_INFO = (
         grants => 'Switch the audit trail off and on (audit-trail-set), together with Site config. Off stops recording and keeps everything already recorded. Granted to no role by default.',
         unlocks => { api => [qw(audit-trail-set)] },
     },
+    # SM1118, ruled 2026-10-20 (#338): WHO GETS THROUGH A SITE IN MAINTENANCE.
+    # With `maintenance: on` every page request goes to the maintenance page and
+    # every machine door (MCP, the control API, WebDAV, the data endpoint, the form
+    # handler) answers 503. A request whose verified identity holds this
+    # capability is the exception. Assignable to any group like the others; the
+    # operator group holds it by default (a manager group is topped up with every
+    # capability, on upgrade as at first run). It unlocks no action of its own:
+    # it changes how every other door answers while the switch is on.
+    maintenance_access => {
+        section => 'Operations',
+        title   => 'Use the site while it is in maintenance. Without this, a page '
+            . 'request is sent to the maintenance page and the remote doors '
+            . '(MCP, control API, WebDAV) answer 503 until maintenance is switched off.',
+        grants => 'Browse the site, and use MCP, the control API and WebDAV, while the site is in maintenance (the `maintenance` setting, per domain or for the whole instance). Held by the operator group by default. Has no effect while the site is not in maintenance.',
+        unlocks => {},
+    },
     audit => {
         section => 'Insight',
         # SM618: measured on edge 2026-08-26 under a grant holding `analytics`

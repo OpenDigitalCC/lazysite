@@ -34,7 +34,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $LAYOUT_CACHE_DIR, $MANAGER_LAYOUT, $FALLBACK_LAYOUT, $REMOTE_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %AUTH_CONTEXT );
+our ( $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $LAYOUT_CACHE_DIR, $MANAGER_LAYOUT, $FALLBACK_LAYOUT, $REMOTE_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %AUTH_CONTEXT, %MAINT );
 
 # --- Layout, theme and injection ---
 #
@@ -1153,6 +1153,19 @@ sub _admin_bar_choice {
 sub _inject_admin_bar_live {
     my ( $html, $md_path ) = @_;
     return $html unless defined $html && $html =~ /<body/i;
+
+    # SM1118 (ruled): somebody who holds maintenance_access browses a site in
+    # maintenance as normal, with a banner saying so - per request, like the bar,
+    # so it is never written to the shared cache. A fixed notice with no markup of
+    # the request's in it.
+    if ( $MAINT{holder} ) {
+        my $banner = '<div class="lazysite-maintenance-banner" role="status" style="'
+            . 'position:sticky;top:0;z-index:2147483000;margin:0;padding:.4rem .8rem;'
+            . 'background:#7a1f00;color:#fff;font:600 14px/1.4 sans-serif;text-align:center">'
+            . 'This site is in maintenance. Visitors are being sent to the maintenance page; '
+            . 'you can see the site because you hold access during maintenance.</div>';
+        $html =~ s/(<body[^>]*>)/$1$banner/i;
+    }
     my %sv = resolve_site_vars();
     return $html unless ( $sv{manager} // '' ) eq 'enabled';
 

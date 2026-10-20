@@ -32,7 +32,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $REQUEST_CROOT, $RESPONSE_LANG, %ACCESS_REC, $FORM_TS_PLACEHOLDER, $FORM_TK_PLACEHOLDER );
+our ( $DOCROOT, $LAZYSITE_DIR, $REQUEST_CROOT, $RESPONSE_LANG, %ACCESS_REC, $FORM_TS_PLACEHOLDER, $FORM_TK_PLACEHOLDER, %MAINT );
 
 # --- Output ---
 
@@ -49,6 +49,17 @@ sub output_page {
     my ( $content, $content_type, $ttl, $auth_protected, $status, $extra, $camera ) = @_;
     $content_type //= 'text/html; charset=utf-8';
     $status       //= '200 OK';
+
+    # SM1118 (ruled): the maintenance page itself answers 503 with Retry-After, and
+    # is never stored by a cache - however it was reached (a fresh render, a cache
+    # hit or a TTL hit all end here), so turning maintenance off takes effect at
+    # once. Only the page a visitor was sent to: a holder of maintenance_access
+    # sees it as the 200 it is.
+    if ( $MAINT{page} && $status =~ /\A200/ ) {
+        $status         = '503 Service Unavailable';
+        $auth_protected = 1;                           # Cache-Control: no-store, private
+        $extra = [ @{ $extra || [] }, 'Retry-After: ' . Lazysite::Maintenance::retry_after( $MAINT{state} ) ];
+    }
 
     # SM252: mint the form timing token HERE, per response, rather than at render
     # time where it would be baked into the cached page and shared by every

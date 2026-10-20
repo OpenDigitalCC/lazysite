@@ -1,8 +1,16 @@
 package main;
 
-# lazysite-processor/gates.pm - the processor's payment and preview gates.
+# lazysite-processor/gates.pm - the processor's payment, preview and maintenance gates.
 #
-# HOLDS   peek_payment($path), check_payment($uri, $meta, $auth, $vars) and
+# HOLDS   _maintenance_gate($uri) (SM1118): a site in maintenance (the
+#         `maintenance` switch, per domain or for the instance) sends a page
+#         request to its maintenance page - a 302, no-store - unless the request's
+#         verified identity holds `maintenance_access`; the page itself, the
+#         sign-in pages and their assets stay reachable, and the maintenance page
+#         answers 503 with Retry-After (output_page reads %MAINT). A request that
+#         is not a GET or HEAD is refused 503, not redirected. Lazysite::Maintenance
+#         is the decision, loaded only when lazysite.conf carries the key.
+#         peek_payment($path), check_payment($uri, $meta, $auth, $vars) and
 #         serve_402($result): a page whose front matter says `payment: required`
 #         is served 402 with an x402 X-Payment-Response unless the caller is in
 #         a bypass group or the front end set the verified header; the SM071
@@ -29,7 +37,65 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $PREVIEW_COOKIE, %PAYMENT_CONTEXT );
+our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $PREVIEW_COOKIE, %PAYMENT_CONTEXT, %MAINT, %ACCESS_REC );
+
+# SM1118 (ruled 2026-10-20, #338): the maintenance gate. See the header.
+#
+# WHY HERE. Every way a page request reaches the engine ends in main(): the plain
+# CGI behind the auth wrapper, the split FastCGI templates (a signed-in request
+# through the wrapper, an anonymous one straight to this program) and the one-rule
+# pool (the worker's held identity). The identity this asks is the one reader
+# every other gate asks, so the check holds on all three without a copy in each
+# front end. Returns 1 when the request has been answered.
+sub _maintenance_gate {
+    my ($uri) = @_;
+    my %sv    = resolve_site_vars();
+    my $sw    = $sv{maintenance};
+    return 0 if !defined $sw || $sw =~ /\A\s*(?:off|disabled|false|no|0)\s*\z/i;
+
+    _lazy_lib('Lazysite::Maintenance');
+    my $st = Lazysite::Maintenance::status(
+        conf_text => ( -f $CONF_FILE ? read_file($CONF_FILE) : '' ),
+        host      => _request_host() );
+    return 0 unless $st->{on};
+    %MAINT = ( on => 1, state => $st );
+
+    # Who gets through: the verified identity, and only the capability.
+    my $ident = _request_identity( conf => \%sv );
+    if ( length( $ident->{user} // '' )
+        && _groups_grant_cap( 'maintenance_access', _cap_groups( @{ $ident->{groups} || [] } ) ) )
+    {
+        $MAINT{holder} = 1;
+        return 0;
+    }
+
+    ( my $path = $uri // '/' ) =~ s/\?.*\z//s;
+    if ( Lazysite::Maintenance::exempt( $path, $st, $sv{auth_redirect} ) ) {
+        $MAINT{page} = 1 if Lazysite::Maintenance::is_page( $path, $st );
+        return 0;
+    }
+
+    my $method = uc( $ENV{REQUEST_METHOD} // 'GET' );
+    my $retry  = Lazysite::Maintenance::retry_after($st);
+    if ( $method ne 'GET' && $method ne 'HEAD' ) {
+        $ACCESS_REC{s} = 503;
+        output_page( Lazysite::Maintenance::message($st) . "\n",
+            'text/plain; charset=utf-8', undef, 1, '503 Service Unavailable',
+            ["Retry-After: $retry"] );
+        return 1;
+    }
+
+    my $page = $st->{page};
+    my $to = $page . ( index( $page, '?' ) >= 0 ? '&' : '?' ) . 'from=' . uri_encode($path);
+    $ACCESS_REC{s} = 302;
+    binmode( STDOUT, ':utf8' );
+    print "Status: 302 Found\r\n";
+    print "$_\r\n" for _security_headers();
+    print "Content-Type: text/html; charset=utf-8\r\n";
+    print "Cache-Control: no-store\r\n";
+    print "Location: $to\r\n\r\n";
+    return 1;
+}
 
 sub peek_payment {
     my ($path) = @_;
