@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1181 (PENDING) **security: who a request is, decided once, in the worker.** On
+## 0.15.12 - EDGE: who a request is, decided once, in the worker (2026-10-20)
+
+- SM1181 (c4d8827c) **security: who a request is, decided once, in the worker.** On
   the one-rule pool templates, a signed-in page and the manager API used to go
   through the auth wrapper, a separate program started for each request, which
   passed the identity on in headers. They now run in the pool worker from one

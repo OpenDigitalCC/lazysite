@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.11"
+subtitle: "Everything lazysite has and does, and why - as of v0.15.12"
 brand: plain
 ---
 
@@ -2023,6 +2023,11 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.15.12** (2026-10-20, edge) - **Who a request is, decided once, in the
+  worker.** on the one-rule pool templates a signed-in page and the manager API
+  run in the pool worker from one identity decision, held as a value, with no
+  auth wrapper program per request; two forged-FastCGI-parameter gaps closed;
+  the dev server runs the self-verifying endpoints direct (SM1181)
 - **0.15.11** (2026-10-19, edge) - **A visitor's address can be trusted again,
   and the tools say what they could not do.** Hestia's lazysite templates
   follow the release, and an old front end with a trusted proxy fails the
