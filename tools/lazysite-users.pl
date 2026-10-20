@@ -4112,7 +4112,7 @@ sub _default_group_seed {
         # side effect of a job title - which is what one bundle would have done.
         'cap-analytics' => {
             label       => 'Capability: analytics', assignable => 0,
-            description => 'IP-anonymised visitor analytics, including which signed-in accounts visited (account names are personal data).',
+            description => 'Sanitised, IP-anonymised visitor analytics, including which signed-in accounts visited.',
             analytics   => 1 },
         'cap-audit' => {
             label       => 'Capability: audit trail', assignable => 0,

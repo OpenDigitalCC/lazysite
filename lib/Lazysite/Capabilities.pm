@@ -522,8 +522,8 @@ my %ACTION_INFO = (
     },
     analytics => {
         section => 'Insight',
-        title => 'Read IP-anonymised visitor analytics, including which signed-in accounts visited (account names are personal data).',
-        grants => 'Read this site\'s visitor figures. Addresses are anonymised before this capability sees them, but a visit made while signed in is recorded with the account name (personal data), and the visits per account are shown to this capability. A caller confined to some domains sees only the accounts that visited those domains.',
+        title => 'Read sanitised, IP-anonymised visitor analytics, including which signed-in accounts visited.',
+        grants => 'Read this site\'s visitor figures. Addresses are anonymised before this capability sees them; a visit made while signed in carries the account name, and the visits per account are shown. A caller confined to some domains sees only the accounts that visited those domains.',
         unlocks => { api => [qw(analyse_visitors)], mcp => [qw(analyse_visitors)] },
     },
     # N13-04, ruled 2026-09-10 and 2026-09-11: THE AUDIT TRAIL'S SWITCH IS NOT
