@@ -53,20 +53,6 @@ Archive
 
 ## Unreleased
 
-## 0.15.12 - EDGE: who a request is, decided once, in the worker (2026-10-20)
-
-- SM1181 (c4d8827c) **security: who a request is, decided once, in the worker.** On
-  the one-rule pool templates, a signed-in page and the manager API used to go
-  through the auth wrapper, a separate program started for each request, which
-  passed the identity on in headers. They now run in the pool worker from one
-  identity decision, made by the same function the wrapper and the data endpoint
-  call, and held as a value rather than read back from headers. The dev server
-  (`tools/lazysite-server.pl`) runs the Odoo, data, MCP and OAuth endpoints, which
-  check their own callers, directly instead of behind the wrapper. Two latent gaps
-  are closed: a `LAZYSITE_AUTH_TRUSTED` or `LAZYSITE_AUTH_NO_PASSWORD` sent as a
-  FastCGI parameter, which only the web server's configuration can send, could make
-  a page or the manager API believe a forged `X-Remote-User` or flag; in the pool
-  both are now ignored. Plain CGI and the split FastCGI templates are unchanged.
 - SM1202 (PENDING) **internal: the gate holds that OOM's behaviours and profiles come from
   the snapshot.** OOM cannot be told to leave the host's data directory out of its
   search; t/unit/odoo/78 holds that the host's copy never answers.
@@ -84,6 +70,21 @@ Archive
   the tests now name no pack directory by default; and a fixture pack named with
   a hyphen, which OOM has refused since 0.35 (`crm_page`, `stock.link_stranded`).
   t/unit/odoo/56, 71, 72, t/lint/207, 261, 262.
+
+## 0.15.12 - EDGE: who a request is, decided once, in the worker (2026-10-20)
+
+- SM1181 (c4d8827c) **security: who a request is, decided once, in the worker.** On
+  the one-rule pool templates, a signed-in page and the manager API used to go
+  through the auth wrapper, a separate program started for each request, which
+  passed the identity on in headers. They now run in the pool worker from one
+  identity decision, made by the same function the wrapper and the data endpoint
+  call, and held as a value rather than read back from headers. The dev server
+  (`tools/lazysite-server.pl`) runs the Odoo, data, MCP and OAuth endpoints, which
+  check their own callers, directly instead of behind the wrapper. Two latent gaps
+  are closed: a `LAZYSITE_AUTH_TRUSTED` or `LAZYSITE_AUTH_NO_PASSWORD` sent as a
+  FastCGI parameter, which only the web server's configuration can send, could make
+  a page or the manager API believe a forged `X-Remote-User` or flag; in the pool
+  both are now ignored. Plain CGI and the split FastCGI templates are unchanged.
 
 ## 0.15.11 - EDGE: a visitor's address can be trusted again, and the tools say what they could not do (2026-10-19)
 
