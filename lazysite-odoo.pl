@@ -260,7 +260,20 @@ sub main {
         if ( $len > $budget && defined $q->{binding} && length $q->{binding} ) {
             _engine($docroot);
             my ($qb) = Lazysite::Odoo::find_binding( $q->{binding} );
-            $budget = Lazysite::Odoo::json_budget($qb) if $qb;
+
+            # The larger budget is for a caller who may call this binding: the
+            # engine's own gate (mode, callers, groups, domain, sign-in, switch) and
+            # the binding's address rule, decided BEFORE the body is read. Anyone
+            # else stays at 64 KB and is refused 413 unread. The rate caps are taken
+            # by the call itself, once the body is read. The token is in the body,
+            # so it is checked after, as for any call.
+            if ( $qb && !_address_refusal($qb) ) {
+                require Lazysite::Util;
+                my %pre = _ctx( $qb, user => $user, groups => \@groups, caps => $caps, visitor => $visitor,
+                    ip => $ip, host => Lazysite::Util::request_host(), odoo_session => $odoo_session );
+                my ($allowed) = quiet_gate( $qb, %pre );
+                $budget = Lazysite::Odoo::json_budget($qb) if $allowed;
+            }
         }
         return reply( '413 Payload Too Large',
             { ok => 0, kind => 'too-large',
@@ -425,6 +438,14 @@ sub _post_one {
     return ( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'params must be an object' } )
         if defined $req->{params} && ref $req->{params} ne 'HASH';
     return _settle( _timed( sub { Lazysite::Odoo::call( $b, $req->{params} // {}, %ctx, strict => 1, _idem_ctx( \%o ), ( $o{files} ? ( files => $o{files} ) : () ) ) } ), $who );
+}
+
+# SM1224: the engine's gate for a caller, asked before a large body is read: true when
+# the caller may call the binding. Its refusal is recorded as any gate's is.
+sub quiet_gate {
+    my ( $b, %ctx ) = @_;
+    my ($ok) = Lazysite::Odoo::gate( $b, %ctx );
+    return $ok ? 1 : 0;
 }
 
 # SM1223: the caller's Idempotency-Key, from the request header of ONE call (a

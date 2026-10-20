@@ -36,6 +36,8 @@ bind( $d, id => 'notes', operation => 'shop.notes', modes => 'authenticated', ca
     apply => 'immediate', params => 'notes=notes' );
 bind( $d, id => 'memo', operation => 'shop.notes', modes => 'public',
     apply => 'immediate', params => 'memo=memo' );
+bind( $d, id => 'memo_staff', operation => 'shop.notes', modes => 'authenticated', callers => 'staff',
+    apply => 'immediate', params => 'memo=memo' );
 bind( $d, id => 'order', operation => 'shop.order', modes => 'public,authenticated', callers => 'staff',
     apply => 'immediate', params => 'lines=lines', fixed => 'basket_key=cart' );
 
@@ -169,6 +171,21 @@ subtest 'a request over 64 KB reaches a binding whose declared maxima need it' =
     is( $st, 413, 'a body that names another binding than the query: refused' );
     ( $st, undef, $j, $raw ) = post( 'memo', { calls => [ { binding => 'memo' } ], pad => $text } );
     is( $st, 413, 'a batch over 64 KB: refused' );
+};
+
+subtest 'the larger budget is for a caller who may call the binding' => sub {
+    my $text   = 'm' x 100_000;
+    my $before = n_basket();
+    my $calls  = scalar @{ $fake->calls };
+    my ( $st, undef, $j, $raw, $pos ) = post( 'memo_staff',
+        { binding => 'memo_staff', visitor_token => $VT, params => { memo => [ { text => $text } ] } } );
+    is( $st, 413, 'a signed-out caller naming a staff-only binding with a 100 KB body: 413' ) or diag $raw;
+    is( $j->{error},              'body too large', 'at the 64 KB cap' );
+    is( $pos,                     0,                'the body was not read' );
+    is( n_basket(),               $before,          'the operation was not called' );
+    is( scalar @{ $fake->calls }, $calls,           'and Odoo was not asked' );
+    ( $st, undef, $j ) = post( 'memo', { binding => 'memo', visitor_token => $VT, params => { memo => [ { text => $text } ] } } );
+    is( $st, 200, 'a caller the binding admits (public) has the 100 KB body accepted' );
 };
 
 subtest 'over the binding\'s budget is refused before the body is read' => sub {

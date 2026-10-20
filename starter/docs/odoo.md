@@ -326,8 +326,10 @@ The page endpoint, `/cgi-bin/lazysite-odoo.pl`
   binding's operation declares a rows key with a `max` above 1,000**: the body may then
   weigh what the binding's lists can hold - its rows times each key at its declared
   `max`, at six bytes a character, to a ceiling of 20 MB - and a larger one is refused
-  `413` before it is read. The body's `binding` must be the query's. A batch is always
-  held to 64 KB.
+  `413` before it is read. The larger budget is granted only to a caller the binding admits (its mode, callers,
+  groups, domain, sign-in and address rule are decided before the body is read); anyone
+  else is held to 64 KB and refused `413` unread. The body's `binding` must be the
+  query's. A batch is always held to 64 KB.
 
   `GET ?csrf=1` also says who is signed in to Odoo. For a person with an Odoo
   session and a current identity cookie the answer carries

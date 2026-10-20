@@ -44,7 +44,7 @@ no declared `max` of this kind and keeps 1,000. Nothing else holds a length to
   names its binding in the query (`?binding=ID`, as a multipart request already
   must), and is held to that binding's budget: 64 KB plus its rows parameters'
   most (rows times each key at its limit, six bytes a character for escapes), never
-  above 20 MB (the endpoint's file ceiling). A binding whose keys declare nothing
+  above 20 MB (the endpoint's file ceiling). The budget is granted only after the engine's gate (mode, callers, groups, domain, sign-in, switch) and the binding's address rule pass for this caller, decided before the body is read; anyone else stays at 64 KB and is refused 413 unread. The rate caps are taken by the call itself, after the body. A binding whose keys declare nothing
   above 1,000 has budget 64 KB, as before. A body over its budget is refused `413
   too-large` before one byte is read; a batch, a request with no binding in the
   query and a body naming another binding are held to 64 KB. This is the only cap
