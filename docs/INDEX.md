@@ -43,7 +43,7 @@ Top-level references: the manuals an operator, developer or implementor reads en
 | Document | What it is |
 | --- | --- |
 | [`ACCESSIBILITY.md`](ACCESSIBILITY.md) - lazysite - accessibility statement | Conformance target and known state for the manager UI and shipped themes |
-| [`DECLARATION-OF-CONFORMITY.md`](DECLARATION-OF-CONFORMITY.md) - lazysite - Declaration of Conformity | EU declaration of conformity per Regulation (EU) 2024/2847 (Cyber Resilience Act) - UNSIGNED DRAFT, restamped to the 0.15.15 stable candidate |
+| [`DECLARATION-OF-CONFORMITY.md`](DECLARATION-OF-CONFORMITY.md) - lazysite - Declaration of Conformity | EU declaration of conformity per Regulation (EU) 2024/2847 (Cyber Resilience Act) - UNSIGNED DRAFT, for the 0.16.0 stable |
 | [`DEVELOPER.md`](DEVELOPER.md) - lazysite - Developer guide | For someone changing lazysite's code. |
 | [`FEATURES.md`](FEATURES.md) - Lazysite - Complete Feature Reference | Everything lazysite has and does, and why - as of v0.15.16 |
 | [`IMPLEMENTOR.md`](IMPLEMENTOR.md) - lazysite - Implementor guide | For someone installing or integrating lazysite. |

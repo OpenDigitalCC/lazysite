@@ -53,89 +53,14 @@ Archive
 
 ## Unreleased
 
-- SM1219 (PENDING) **the visitor log names the signed-in account.** A visit made while signed in is
-  recorded with the account the engine verified (never a header a client sent; an anonymous
-  visit has none), kept as long as the rest of the log. analyse_visitors takes `by_account`
-  (analytics; a domain-confined caller sees only its own domains' accounts) and the manager
-  Stats page lists the visits per account. The analytics capability's text no longer says it
-  cannot identify a visitor. Account names are personal data: telling members is the operator's
-  duty (operator guide).
-- SM1118 (PENDING) **a site can be put into maintenance.** `maintenance: on` (Config page; per
-  domain on the Domains page, `alias.<host>.maintenance: on`, with the instance switch covering
-  all) sends every page request by 302 to `maintenance_page` (default `/maintenance`, a shipped
-  system page); the page answers 503 with Retry-After (`maintenance_until`, UTC). A new
-  capability, `maintenance_access` (Access during maintenance), is what gets an account through:
-  the operator group and the site-admins role hold it, on upgrade too (an upgrade adds the
-  `cap-maintenance` bundle to an existing site), and any group can be given it. A posted form is
-  refused and not stored, and MCP, the control API, WebDAV and the data endpoint answer 503 to an
-  account without it. The check is in the processor, so it holds behind the wrapper, on the
-  split templates and in the one-rule pool. `lazysite check` warns while it is on.
-- SM1220 (PENDING) **the Hestia deploy no longer lists four "could not read ... Permission denied" warnings.** They came from install.pl's own health check, which the deploy runs as the site user, who cannot open the web server group's private store. The deploy passes install.pl `--health-check-by-caller`; its final check already runs as root, after the permission pass, and is the one verdict. No group change.
-- SM1222 (PENDING) **the dev server takes extension directories.** `tools/lazysite-server.pl
-  --extensions DIR` (repeatable) adds directories to look for extensions in, so an app's
-  extensions need not be copied beside the docroot. They are searched in the order given,
-  before the docroot's `plugins/`; a name in two is served from the first, and the startup
-  lines say so. A symlinked directory stops the server; a symlinked script is skipped. The
-  dev server only: an installed engine's lookup is unchanged.
-- SM1221 (PENDING) **a signed-out call to the manager API answers 401, not 400.**
-  A request with no sign-in answered `400 {ok:false, error:"Authentication required"}`, the
-  status for a malformed request. It answers 401 with the same body, now with kind
-  `unauthenticated`, and no `WWW-Authenticate` (the session is a cookie). A site with no
-  manager account yet answers 503 (`not-set-up`) in its own wording: nothing to sign in to.
-- SM1223 (PENDING) **a binding passes the caller's idempotency key to OOM.** A page that queues its
-  writes offline sends an `Idempotency-Key` header per item (8 to 128 characters); it is hashed with the
-  binding and who sent it into OOM's `idem`, so nobody collides with or replays another person, and a
-  repeat answers the first plan or result (`repeat: true`) instead of writing twice, in process and
-  through oomd, for an immediate apply and for plan and confirm. The call record has `idem` and `repeat`.
-  The browser helper takes `{ idempotencyKey }`.
-- SM1224 (PENDING) **a rows key's declared max raises its cap.** lazysite held every request value to
-  1,000 characters, so a rows key an operation declares with its own `max` (OOM 0.38, up to
-  1,048,576) was refused past 1,000 though OOM accepts it. That `max` is now the key's cap;
-  an undeclared key keeps 1,000. A JSON body over 64 KB names its binding in the query and is
-  held to that binding's budget (20 MB at most), so a declared large value is not refused
-  by the body cap first.
-- SM1225 (PENDING) **a report is a download.** A binding with `answer: download` is answered to
-  a GET with the document its report holds (OOM `core.report` with `inline=1`) instead of base64
-  in JSON: OOM's content type, a safe file name, `Content-Length`, `Cache-Control: private,
-  no-store`, and a size cap (`download_max_kb`, default 10 MB) over which it is refused, never
-  cut short. The binding's gate, callers, rate caps and both paths (in-process, oomd) are the
-  call's own; a binding without the option answers JSON as before.
-- SM1226 (PENDING) **security, performance: the Odoo endpoint runs warm-forked.** Every
-  Odoo call used to start a perl and compile the endpoint. A parent per site, supervised
-  by lazysited (the `odoo-endpoint` service, on a site with a pool conf and the Odoo
-  extension on; never on a plain-CGI site), now holds the compiled endpoint and nothing
-  else: no configuration, no key, no request. It forks a fresh child for each request,
-  and the child runs the endpoint as the CGI does and exits. The one-rule pool hands it
-  the endpoint; the split FastCGI templates (nginx and Apache `vhost-fcgi`, Hestia's
-  fcgi templates) now send `/cgi-bin/lazysite-odoo.pl` to the pool, which hands it on.
-  With no parent listening the pool runs the CGI. It restarts when the engine changes on
-  disk. An Odoo read through the pool went from 116 ms to 17 ms on the dev host.
-  Regenerate a split-template vhost to take the new location.
-- SM1164 (PENDING) **internal: the surface bench measures an Odoo call through oomd.**
-  `tools/bench-surfaces.sh --surface odoo-oomd` (D5) times a read binding end to end
-  against the vendored oomd and OOM's fake Odoo. It splits each call into the program
-  start, the endpoint's own work and the call. `--with-warm-fork` adds SM1226's parent.
-- SM1228 (PENDING) **the practice copies take the extension-* action names.** The served
-  field-practice briefing and its source docs/practice/app-practice.md taught `plugin-list`,
-  `plugin-action`, `plugin-read` and `plugin-save`; they name the `extension-*` actions now (the
-  old names are still served, audited as deprecated). t/lint/266 scans the briefing too.
-- SM1229 (PENDING) **an address list a binding names is not deleted by accident.** The delete
-  guard read pages, access rules, groups and lazysite.conf but not a session binding's own
-  `signin_addresses` / `signin_addresses_deny`, so such a list could be deleted and the binding
-  then refused every call. The manager and the control API now refuse it, naming each binding
-  (with `force` as before).
-- SM1230 (PENDING) **coverage fits around the night's other work.** The 01:30 cover-once was refused on
-  2,904 MB of swap in use with 7,075 MB available (the host carries swap all day). Swap in use no longer
-  refuses a heavy job (a note, as in the gate); only MemAvailable under 5 GB, disk, inodes or the lock do.
-  A stand-alone `tools/coverage.sh` runs under `nice -n 19 ionice -c3` with 2 jobs (`LAZYSITE_COVER_JOBS`),
-  has no time limit, resumes from the groups already recorded, and a second start exits 2.
-- SM1231 (PENDING) **docs: the stable gate's records are walked for the 0.16.0 stable.** The threat
-  model (`docs/architecture/security.md`, `docs/SECURITY.md`) takes in the trust changes
-  since 0.11, and the held SM1219 and SM1118 as held for 0.16.1, not in the 0.16.0 stable. The significant-change register
-  has ten drafted entries for the release manager to confirm; SM747's (the Odoo extension)
-  is accepted. OBLIGATIONS.md and TECHNICAL-FILE.md are walked row by row against the code of 0.15.15 (which is 0.16.0's) and stamped 0.16.0, with
-  what a person must confirm, and the Declaration of Conformity is restamped to 0.16.0 and
-  says at its top that it is an unsigned draft. Docs only; nothing is signed.
+- SM1231 (PENDING) **docs: the stable gate's records are walked for the 0.16.0 stable.** The
+  threat model (`docs/architecture/security.md`, `docs/SECURITY.md`) takes in the trust
+  changes since 0.11; the held SM1219 and SM1118 are held for 0.16.1, not in the 0.16.0
+  stable. The significant-change register has ten drafted entries for the release manager
+  to confirm; SM747's (the Odoo extension) is accepted. OBLIGATIONS.md and TECHNICAL-FILE.md
+  are walked row by row against the code of 0.15.15 (which is 0.16.0's) and stamped 0.16.0,
+  with what a person must confirm, and the Declaration of Conformity is an unsigned draft
+  for 0.16.0, saying so at its top. Docs only; nothing is signed.
 
 ## 0.15.16 - BETA: 0.15.15 promoted to beta (2026-10-20)
 
