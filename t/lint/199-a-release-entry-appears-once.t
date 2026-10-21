@@ -42,11 +42,13 @@ use strict;
 use warnings;
 use Test::More;
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use TestHelper qw(changelog_text);
 
-my $file = "$FindBin::Bin/../../CHANGELOG.md";
-open my $fh, '<', $file or die "CHANGELOG.md: $!";
-my @lines = <$fh>;
-close $fh;
+# SM1231: THE WHOLE HISTORY. A minor bump moves the earlier minors to
+# docs/releases/CHANGELOG-archive.md; a torn entry is as torn there, and the
+# sanity floor below counts lines of both.
+my @lines = map {"$_\n"} split /\n/, changelog_text( history => 1 );
 
 my ( $section, %state, @torn ) = ('(before any heading)');
 for my $i ( 0 .. $#lines ) {

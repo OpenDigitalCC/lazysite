@@ -22,7 +22,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root changelog_text);
 
 my $root = repo_root();
 # -e not -d: a git WORKTREE has a .git file, and this lint must run there too
@@ -30,7 +30,9 @@ my $root = repo_root();
 plan skip_all => 'needs a git checkout with tags'
     unless -e "$root/.git" && `git -C \Q$root\E tag -l 'v*'` =~ /\S/;
 
-my $log = do { open my $fh, '<', "$root/CHANGELOG.md" or die $!; local $/; <$fh> };
+# SM1231: live + archive (live first, so "## Unreleased" and the file order
+# newest-first hold). The previous-release lookup crosses the minor boundary.
+my $log = changelog_text( history => 1 );
 
 # --- 1. one Unreleased heading ------------------------------------------------
 my @unreleased = ( $log =~ /^(## Unreleased)\s*$/mg );

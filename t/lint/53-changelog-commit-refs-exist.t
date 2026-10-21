@@ -35,11 +35,12 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root changelog_text);
 
 my $root = repo_root();
 my $changelog = "$root/CHANGELOG.md";
 ok( -f $changelog, 'CHANGELOG.md is present' );
+ok( -f "$root/docs/releases/CHANGELOG-archive.md", 'the changelog archive is present' );
 
 # A repository is needed to resolve anything. A tarball checkout legitimately
 # has none, and skipping is right there - but it must SKIP, loudly, rather than
@@ -49,7 +50,9 @@ unless ($is_repo) {
     plan skip_all => 'not a git checkout - commit refs cannot be resolved here';
 }
 
-my $src = do { open my $fh, '<', $changelog or die $!; local $/; <$fh> };
+# SM1231: live + archive. A minor bump moves the earlier minors out of
+# CHANGELOG.md, and their refs are as load-bearing there.
+my $src = changelog_text( history => 1 );
 
 # Refs appear as `- SM238 (37e7c37) ...` and occasionally as a pair,
 # `- SM317 / SM319 (2258858, 8e2f1a4) ...`. Anchored on the bullet so a hex
