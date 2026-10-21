@@ -28,9 +28,9 @@ rises monotonically.
 :::
 
 ```yaml
-status:              index - complete in coverage, walked row by row on 2026-10-20 against the code of 0.15.15, which is the code of 0.16.0 (walked clean); a person confirms
+status:              index - complete in coverage, walked row by row on 2026-10-20 against the code of 0.15.15, which is the code of 0.16.0 (walked clean); confirmed by the release manager on 2026-10-21 for the register entries, a person still confirms the threat model rows and the declaration at certified
 covers_version:      0.16.0
-content_sha:         78dc3c473aac2118
+content_sha:         148b3776ec692b5c
 ce_marking_due:      2027-12-11
 owner:               release manager
 ```
@@ -47,7 +47,7 @@ text: 2
 General description: intended purpose, versions, product form | docs/FEATURES.md; README.md; CHANGELOG.md | current - checked at each release by tools/lazysite-compliance.pl
 Design and development: architecture, components | docs/architecture/*.md; docs/adr/*.md (ADRs record decision AND cause) | current
 Production and monitoring processes | docs/development.md; tools/release.sh; docs/RELIABILITY.md | current
-Cybersecurity risk assessment | docs/SECURITY.md (STRIDE, ASVS L1, thirteen-boundary model and the significant-change register); docs/architecture/security.md | current to 0.15.15 - the 0.11-0.15 trust changes added 20 Oct 2026, the new register entries drafts awaiting the release manager
+Cybersecurity risk assessment | docs/SECURITY.md (STRIDE, ASVS L1, thirteen-boundary model and the significant-change register); docs/architecture/security.md | current to 0.15.15 - the 0.11-0.15 trust changes added 20 Oct 2026, the 20 Oct 2026 register entries confirmed by the release manager on 21 Oct 2026
 Applicable harmonised standards | docs/POLICY.md | current
 Vulnerability handling processes | SECURITY.md (CVD intake); docs/adr/0007-pentest-deferral.md (SLAs, triggers) | PARTIAL - no dated remediation record
 Support-period statement | docs/POLICY.md; docs/compliance/OBLIGATIONS.md (absolute date) | current

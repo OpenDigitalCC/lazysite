@@ -1054,7 +1054,7 @@ verdict
 
 ### 2026-10-20 - SM1042/SM1043 (0.15.5): a member changes their own password and sets up their own two-factor
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-21.
 
 what changed
 : **SM1043**: `/account`, a system page in the site's own layout (`account_page:
@@ -1091,14 +1091,14 @@ residual risk
   `me-sign-out-everywhere` action ends the current session too, as ruled.
 
 verdict
-: accepted (proposed). The new interface only reaches the caller's own account, behind
+: accepted, confirmed by the release manager on 2026-10-21. The new interface only reaches the caller's own account, behind
   re-authentication, the shared rate limit and an audit row; the manager lost a
   capability rather than gaining one. No ahead-of-schedule third-party engagement
   required.
 
 ### 2026-10-20 - SM1019/SM1020 (0.15.5): a notification rule over a form event
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-21.
 
 what changed
 : A `notify` handler type queues a rule over a form event, and the engine job
@@ -1128,7 +1128,7 @@ residual risk
   page; whether to widen it is an open question in the SM1019 filing.
 
 verdict
-: accepted (proposed). Recipients and their sources were ruled by the release manager;
+: accepted, confirmed by the release manager on 2026-10-21. Recipients and their sources were ruled by the release manager;
   authoring is capability-gated and off by default; the data flow is the one a form
   mail handler has always had, with a per-recipient cap and an unsubscribe. No
   ahead-of-schedule third-party engagement required.
@@ -1189,7 +1189,7 @@ verdict
 
 ### 2026-10-20 - SM1160 (0.15.10): the person's Odoo login is the site sign-in
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-21.
 
 what changed
 : On a site that sets `odoo_site_signin: on` (default off), a successful Odoo sign-in
@@ -1224,14 +1224,14 @@ residual risk
   is not built, as ruled.
 
 verdict
-: accepted (proposed). The trigger fired and is contained: no capability can be reached
+: accepted, confirmed by the release manager on 2026-10-21. The trigger fired and is contained: no capability can be reached
   through the door, the cookie carries no authority of its own, and the bound on a stale
   session is stated and operator-set. No ahead-of-schedule third-party engagement required
   beyond the one ADR 0007 already requires.
 
 ### 2026-10-20 - SM1164/SM1207 (0.15.10, 0.15.14): oomd, a resident OOM
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-21.
 
 what changed
 : With `odoo_daemon` set to `on` or `required` (default `off`), lazysited supervises one
@@ -1265,13 +1265,13 @@ residual risk
   unchanged.
 
 verdict
-: accepted (proposed). Opt-in, off by default, the same user and privilege drop as the
+: accepted, confirmed by the release manager on 2026-10-21. Opt-in, off by default, the same user and privilege drop as the
   scheduler, no key in any file it reads, and every gate closing stops it. Trigger review
   of the production unit when a host first runs it.
 
 ### 2026-10-20 - SM1129-SM1131, SM929, SM1189, SM1194, SM1196 (0.15.10-0.15.11): a proxy is believed only from its address
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-21.
 
 what changed
 : SM1129: `auth_proxy_trusted_from` (a CIDR list matched against the TCP peer,
@@ -1307,14 +1307,14 @@ residual risk
   the copy after an upgrade is a documented step the domain tool checks.
 
 verdict
-: accepted (proposed). No trigger fired; recorded because identity and address trust
+: accepted, confirmed by the release manager on 2026-10-21. No trigger fired; recorded because identity and address trust
   changed. The F-6 exposure is closed by the rollout where the rollout is run. When SM1128
   phase 2 is built it fires the new-authentication-method trigger and, with its JWT
   verifier, the new-dependency one, and is assessed then.
 
 ### 2026-10-20 - SM1134 (SM1138-SM1141, 0.15.10): access limited by the visitor's address
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-21.
 
 what changed
 : Named allow and deny address lists in `lazysite/auth/address-lists.json`, applied to
@@ -1348,12 +1348,12 @@ residual risk
   stales the page.
 
 verdict
-: accepted (proposed). Nothing in it widens access; the failure direction of every
+: accepted, confirmed by the release manager on 2026-10-21. Nothing in it widens access; the failure direction of every
   fault is a refusal.
 
 ### 2026-10-20 - SM1181 (0.15.12): who a request is, decided once
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-21.
 
 what changed
 : On the one-rule pool a signed-in request is rendered in the pool worker with the
@@ -1382,12 +1382,12 @@ residual risk
   actions keep their own credentials and are not moved.
 
 verdict
-: accepted (proposed). No new interface, method, dependency or data; the review preceded
+: accepted, confirmed by the release manager on 2026-10-21. No new interface, method, dependency or data; the review preceded
   the code and every threat has a test that was broken on purpose.
 
 ### 2026-10-20 - SM1213 (0.15.15): an empty front-matter key reads as empty
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-21.
 
 what changed
 : The page front matter's scalar reader ran over the newline after an empty key, so
@@ -1412,12 +1412,12 @@ residual risk
 : None identified beyond the 2026-07-18 entry's.
 
 verdict
-: accepted (proposed). No trigger fired; recorded because it closed a bypass of a boundary
+: accepted, confirmed by the release manager on 2026-10-21. No trigger fired; recorded because it closed a bypass of a boundary
   this register names.
 
 ### 2026-10-20 - SM1219, SM1118 (held for 0.16.1; not in the 0.16.0 stable): the visitor log's accounts and the maintenance capability
 
-Assessment drafted by the developer agent; the release manager confirms. Both are
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-21 ("Confirm now"). Both are
 shipped on held branches (n705, n706), written here ahead of their release so the entry
 exists when they land. They are in 0.16.1 if they land, and not in the 0.16.0
 stable.
@@ -1452,4 +1452,28 @@ residual risk
   closed to everyone while the switch is on.
 
 verdict
-: accepted (proposed), to be re-read at the release that carries them.
+: accepted, confirmed by the release manager on 2026-10-21 ("Confirm now"). Both remain held for 0.16.1 and are not in the 0.16.0 code.
+
+### 2026-10-21 - SM975, SM976, SM979-SM982, SM991-SM993, SM1057, SM1092 (0.15.3-0.15.7), SM1234 (0.15.16): gate-tightening fixes and a release with no code change
+
+Decision of the release manager, 2026-10-21, at the 0.16.0 stable sign-off.
+
+what changed
+: The fixes in 0.15.3 to 0.15.7 that tightened existing gates (SM975, SM976,
+  SM979-SM982, SM991-SM993, SM1057, SM1092, the set listed in
+  `docs/compliance/OBLIGATIONS.md` under "Walked for 0.16.0"). 0.15.16 (SM1234)
+  carries no code change.
+
+threat delta
+: None. Each narrowed a gate that already existed and added no interface, method,
+  dependency or data.
+
+controls
+: The existing gates, narrowed; nothing new was added to control.
+
+residual risk
+: None identified beyond the entries above.
+
+verdict
+: accepted. No trigger fired for the 0.15.3-0.15.7 fixes, and none fires for 0.15.16,
+  which has no code change. Decision of the release manager, 2026-10-21.

@@ -3,7 +3,7 @@ title: "lazysite - human sign-off switch"
 subtitle: "Whether the release gate blocks on records that only a person can close. Set by the release manager, not by the engine."
 brand: plain
 standard-margins: true
-signoff_required: no
+signoff_required: yes
 ---
 
 # What this file decides
@@ -93,3 +93,9 @@ nobody had yet chosen it *for this promotion*.
   not whether an obligation exists. A certified cut (ADR 0010) is where
   `signoff_required: yes` attaches, and the records have to be walked
   before then rather than at it.
+
+2026-10-21, stable 0.16.0
+: **`signoff_required: yes`.** The release manager's sign-off of the stable 0.16.0
+  (rulings 2026-10-21): the register entries confirmed, the gate-tightening fixes
+  recorded as no trigger. The switch now blocks on the findings a person must close.
+  The Declaration of Conformity stays unsigned until the certified cut.
