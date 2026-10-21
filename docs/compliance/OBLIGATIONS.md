@@ -25,7 +25,7 @@ cutting a release, not something to remember afterwards.
 :::
 
 ```yaml
-reviewed_at_version: 0.15.15
+reviewed_at_version: 0.16.0
 content_sha:         4cdf45b8ae085a8b
 reviewed_on:         2026-10-20
 next_review:         at the next release, whichever channel
@@ -44,7 +44,7 @@ bold: 1
 tone: medium
 text: 5
 ---
-Declaration of Conformity finalised and signed | at the certified cut (ADR 0010) | certified cut | OPEN | docs/DECLARATION-OF-CONFORMITY.md - draft restamped to 0.15.15 on 20 Oct 2026 and unsigned; the release manager signs it at the certified cut
+Declaration of Conformity finalised and signed | at the certified cut (ADR 0010) | certified cut | OPEN | docs/DECLARATION-OF-CONFORMITY.md - draft restamped to 0.16.0 on 20 Oct 2026 and unsigned; the release manager signs it at the certified cut
 Significant-change register entry per triggering release | at each release | 0.15.15 | STARTED | docs/SECURITY.md - nine entries dated 20 Oct 2026 cover 0.15.3 to 0.15.15 (Odoo extension, Odoo sign-in, oomd, trusted proxies, address rules, identity in-process, member credentials, notification rules, SM1213) and a tenth the held SM1219 and SM1118; each is a developer-agent draft until the release manager confirms. Previous 6 Oct 2026 for SM924-SM938
 Threat model current with the architecture | at each release | 0.15.15 | met | docs/SECURITY.md trust boundaries 9-13 and six STRIDE rows, and docs/architecture/security.md (identity in the pool, trusted proxies, address rules, the Odoo extension and oomd, the ADR 0006 downgrade), added 20 Oct 2026; boundary 8 (the scheduled actor) 5 Sep 2026
 SBOM regenerated and shipped | at each release | every release | met | strict gate, tools/manifest-to-sbom.pl --strict - run 20 Oct 2026 on the 0.15.15 tree: exit 0, 444 components
@@ -83,9 +83,10 @@ CE marking applied | 2027-12-11 | OPEN | docs/POLICY.md
 Support period ends | 2031-07-10 | running | docs/POLICY.md - five years from 0.7.0, cut 2026-07-10. The absolute date is written here so the commitment does not depend on anyone recalling which release was first stable
 ```
 
-# Walked to 0.15.15: what a person must confirm
+# Walked for 0.16.0: what a person must confirm
 
-Walked on 2026-10-20 by the developer agent for the stable candidate 0.15.15
+Walked on 2026-10-20 by the developer agent for the stable candidate 0.15.15, whose code is the code of 0.16.0 (the
+beta 0.15.16 carries it unchanged; the stable is cut from main before the next batch lands)
 (release manager, 2026-10-20: "0.15.15, after its walk"). Every row above was read
 against the tree; the rows below hold what only a person can close.
 

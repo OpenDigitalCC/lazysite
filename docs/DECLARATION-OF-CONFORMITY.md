@@ -1,6 +1,6 @@
 ---
 title: "lazysite - Declaration of Conformity"
-subtitle: "EU declaration of conformity per Regulation (EU) 2024/2847 (Cyber Resilience Act) - UNSIGNED DRAFT, restamped to the 0.15.15 stable candidate"
+subtitle: "EU declaration of conformity per Regulation (EU) 2024/2847 (Cyber Resilience Act) - UNSIGNED DRAFT, for the 0.16.0 stable"
 brand: plain
 ---
 
@@ -13,8 +13,10 @@ at the certified cut (ADR 0010); the developer agent restamped the draft on 20 O
 record and this document claims no conformity not yet in place.
 :::
 
-This is the Declaration of Conformity draft for the 0.15.15 stable candidate of
-lazysite (release manager, 20 October 2026: "0.15.15, after its walk"). It was
+This is the Declaration of Conformity draft for the 0.16.0 stable of
+lazysite. Its code is the code of 0.15.15, walked clean (release manager,
+20 October 2026: "0.15.15, after its walk"; 21 October 2026: the stable is cut from main
+before the next batch lands). It was
 prepared at 0.8.0 and carried forward through the stable releases since;
 it is now stamped to the candidate and its evidence is refreshed. It becomes the
 declaration of record when the version and dates are finalised and the responsible
@@ -31,8 +33,8 @@ bold: 1
 tone: medium
 ---
 Product | lazysite - static site builder with authenticated authoring (web manager, WebDAV, control API/MCP)
-Version | 0.15.15 - the stable candidate; to be finalised at the certified cut
-Unique identification | git tag `v0.15.15`; release tarball `dist/lazysite-0.15.15.tar.gz` with `.sha256` sidecar; embedded `release-manifest.json` and `sbom.json` (CycloneDX)
+Version | 0.16.0 - the stable (the code of 0.15.15); to be finalised at the certified cut
+Unique identification | git tag `v0.16.0`; release tarball `dist/lazysite-0.16.0.tar.gz` with `.sha256` sidecar; embedded `release-manifest.json` and `sbom.json` (CycloneDX)
 Release channel | stable candidate (`release.sh --final`); the declaration of record attaches to a certified cut (`release.sh --certified`, ADR 0010)
 ```
 

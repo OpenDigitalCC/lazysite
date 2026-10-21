@@ -28,8 +28,8 @@ rises monotonically.
 :::
 
 ```yaml
-status:              index - complete in coverage, walked row by row to 0.15.15 on 2026-10-20; a person confirms
-covers_version:      0.15.15
+status:              index - complete in coverage, walked row by row on 2026-10-20 against the code of 0.15.15, which is the code of 0.16.0 (walked clean); a person confirms
+covers_version:      0.16.0
 content_sha:         78dc3c473aac2118
 ce_marking_due:      2027-12-11
 owner:               release manager
@@ -53,8 +53,8 @@ Vulnerability handling processes | SECURITY.md (CVD intake); docs/adr/0007-pente
 Support-period statement | docs/POLICY.md; docs/compliance/OBLIGATIONS.md (absolute date) | current
 SBOM | dist/config/sbom-deps.json; generated per release, CycloneDX, shipped in the tarball | current, strict gate
 Conformity assessment records | docs/review/*-eight-dimension/ (four full reviews, the last of 0.10.9); docs/review/0.13.1-daemon/; docs/review/2026-10-07-sm869-adversarial-review.md; the SM1181 security review in docs/feature-requests | the last full review is of 0.10.9
-Declaration of Conformity | docs/DECLARATION-OF-CONFORMITY.md | OPEN - draft restamped 0.15.15, unsigned; signed at the certified cut
-Test evidence | t/ (1,484 test files at 0.15.15); coverage floors in dist/config/coverage-floor and coverage-floor-groups; bench baseline | the per-group coverage re-baseline and the bench re-capture are due at the stable cut
+Declaration of Conformity | docs/DECLARATION-OF-CONFORMITY.md | OPEN - draft restamped 0.16.0, unsigned; signed at the certified cut
+Test evidence | t/ (1,484 test files at 0.15.15, the code of 0.16.0); coverage floors in dist/config/coverage-floor and coverage-floor-groups; bench baseline | the per-group coverage re-baseline and the bench re-capture are due at the stable cut
 ```
 
 # Known gaps
@@ -67,7 +67,7 @@ Vulnerability remediation record
   `docs/compliance/OBLIGATIONS.md` and stays for the certified release.
 
 Declaration of Conformity
-: restamped to 0.15.15 and unsigned; the release manager signs it at the certified cut.
+: restamped to 0.16.0 and unsigned; the release manager signs it at the certified cut.
 
 Signed releases
 : not applied, and cannot be applied retroactively; stays for the certified release.

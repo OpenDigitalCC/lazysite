@@ -129,12 +129,12 @@ Archive
   refuses a heavy job (a note, as in the gate); only MemAvailable under 5 GB, disk, inodes or the lock do.
   A stand-alone `tools/coverage.sh` runs under `nice -n 19 ionice -c3` with 2 jobs (`LAZYSITE_COVER_JOBS`),
   has no time limit, resumes from the groups already recorded, and a second start exits 2.
-- SM1231 (PENDING) **docs: the stable gate's records are walked to 0.15.15.** The threat
+- SM1231 (PENDING) **docs: the stable gate's records are walked for the 0.16.0 stable.** The threat
   model (`docs/architecture/security.md`, `docs/SECURITY.md`) takes in the trust changes
-  since 0.11, and the held SM1219 and SM1118 as 0.15.17. The significant-change register
+  since 0.11, and the held SM1219 and SM1118 as held for 0.16.1, not in the 0.16.0 stable. The significant-change register
   has ten drafted entries for the release manager to confirm; SM747's (the Odoo extension)
-  is accepted. OBLIGATIONS.md and TECHNICAL-FILE.md are walked row by row to 0.15.15, with
-  what a person must confirm, and the Declaration of Conformity is restamped to 0.15.15 and
+  is accepted. OBLIGATIONS.md and TECHNICAL-FILE.md are walked row by row against the code of 0.15.15 (which is 0.16.0's) and stamped 0.16.0, with
+  what a person must confirm, and the Declaration of Conformity is restamped to 0.16.0 and
   says at its top that it is an unsigned draft. Docs only; nothing is signed.
 
 ## 0.15.16 - BETA: 0.15.15 promoted to beta (2026-10-20)
