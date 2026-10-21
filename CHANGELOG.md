@@ -53,7 +53,7 @@ Archive
 
 ## Unreleased
 
-- SM1231 (PENDING) **docs: the stable gate's records are walked for the 0.16.0 stable.** The
+- SM1231 (d5739370) **docs: the stable gate's records are walked for the 0.16.0 stable.** The
   threat model (`docs/architecture/security.md`, `docs/SECURITY.md`) takes in the trust
   changes since 0.11; the held SM1219 and SM1118 are held for 0.16.1, not in the 0.16.0
   stable. The significant-change register has ten drafted entries for the release manager
