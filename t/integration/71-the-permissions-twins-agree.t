@@ -101,21 +101,6 @@ subtest 'webdav alone is REFUSED - SM570 closed the SM074 door' => sub {
         'a webdav-only grant cannot write content, so it cannot govern it (SM570)' ) or diag explain $get;
 };
 
-subtest 'SM1263: acl-remove needs an explicit path' => sub {
-    # Paired with MCP remove_permissions, which requires path. The dispatcher
-    # defaults path to "/", the SITE-WIDE rule, so an acl-remove with the argument
-    # left out removed the rule gating the whole site.
-    my $stub = stub_with( api => 1, manage_content => 1 );
-    ok( api( $stub, 'action=acl-set&path=/', { read => 'tester' } )->{ok}, 'a site-wide rule is set' );
-    my $r = api( $stub, 'action=acl-remove', {} );
-    ok( !$r->{ok}, 'acl-remove with no path is refused' ) or diag explain $r;
-    like( $r->{error} // '', qr/path is required.*path=\//s, 'saying to pass path=/ for the site-wide rule' );
-    my $g = api( $stub, 'action=acl-get&path=/', {} );
-    is_deeply( $g->{acl}{read}, ['tester'], 'and the site-wide rule is still there' ) or diag explain $g;
-    my $ok = api( $stub, 'action=acl-remove&path=/', {} );
-    ok( $ok->{ok} && $ok->{removed}, 'with path=/ spelled out it is removed' ) or diag explain $ok;
-};
-
 subtest 'neither capability is still a refusal' => sub {
     my $stub = stub_with( api => 1, manage_nav => 1 );
     my $get  = api( $stub, 'action=acl-get&path=/content/note.md', {} );

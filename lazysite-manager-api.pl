@@ -1438,19 +1438,7 @@ elsif ( $action eq 'acl-get' ) { $result = action_acl_get( $path, $auth_user ) }
 elsif ( $action eq 'acl-set' ) {
     ( $result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER ) = dispatch_acl_set();
 }
-elsif ( $action eq 'acl-remove' ) {
-    # SM1263: an explicit path, as acl-set has needed since SM306. The `/` every
-    # action defaults to is the SITE-WIDE rule, and removing it with the
-    # argument left out publishes a whole gated site - not the harmless default
-    # Files.pm's acl-set note took it for. Pairing it with MCP's
-    # remove_permissions (which requires path) brought it under t/lint/52.
-    $result = ( defined $params{path} && length $params{path} )
-        ? action_acl_remove( $path, $auth_user )
-        : { ok => 0,
-        error => 'acl-remove needs an explicit path. To remove the rule that governs the '
-            . 'whole site, pass path=/ - it is deliberately spelled out, because removing '
-            . 'a rule that broad should not be what you get by leaving the argument out.' };
-}
+elsif ( $action eq 'acl-remove' ) { $result = action_acl_remove( $path, $auth_user ) }
 elsif ( $action eq 'protected-sections' ) {
     # SM267: read-only, and scoped - a confined manager is shown only the
     # sections inside their own scope, so the list cannot be used to discover

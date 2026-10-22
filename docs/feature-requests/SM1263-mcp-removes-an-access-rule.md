@@ -1,14 +1,14 @@
 ---
 id: SM1263
 title: "SM1263: MCP can remove an access rule"
-subtitle: "An agent could set an access rule over MCP and never take one off: set_permissions with empty lists leaves an owner-only rule behind. remove_permissions is the twin of the control API's acl-remove and `lazysite acl remove`. The control API's acl-remove now needs an explicit path, because its default was the site-wide rule."
+subtitle: "An agent could set an access rule over MCP and never take one off: set_permissions with empty lists leaves an owner-only rule behind. remove_permissions is the twin of the control API's acl-remove and `lazysite acl remove`. The control API's acl-remove keeps its default, as SM306 ruled."
 brand: plain
 standard-margins: true
 status: shipped
 raised: 2026-10-22
 raised-by: "the release manager, ruling on SM1242's open question (2026-10-22); first reported by the xisl.com site agent (inbox 2026-10-20-set-permissions-says-a-draft-is-readable.md)"
 area: mcp
-status-note: "SHIPPED (PENDING) on n725: MCP remove_permissions runs Files::action_acl_remove under manage_content, path-aware, audited as acl-remove; acl-remove is its declared twin; the control API's acl-remove requires path. t/unit/mcp/51, t/integration/71."
+status-note: "SHIPPED (PENDING) on n725: MCP remove_permissions runs Files::action_acl_remove under manage_content, path-aware, audited as acl-remove; acl-remove is its declared twin; the control API's acl-remove keeps SM306's default, recorded in lints 52 and 265. t/unit/mcp/51."
 ---
 
 # What happened
@@ -39,14 +39,14 @@ and the CLI has `lazysite acl remove`. MCP had no tool for it, and
   `mcp => 'remove_permissions'`, and lint 23's "no named twin" exemption is gone. Lint
   218 lists it beside set_permissions: an access rule moves a page between the trees,
   and no page text is written.
-- **The control API's acl-remove needs an explicit path.** Pairing it with a tool that
-  requires `path` brought it under lint 52 and lint 265, which found the hazard. The
-  dispatcher defaults `path` to `/` for every action, and `/` is the site-wide rule.
-  So `acl-remove` with the argument left out removed the rule gating a whole site and
-  published it. A comment in Files.pm had called that default "harmless".
-  - Its `path` is now `required => 1` in the registry, so the dispatcher refuses it:
-    "path is required (... pass path=/ for the site-wide rule)".
-  - The branch guards it as well, in acl-set's words (SM306).
+- **The control API's acl-remove keeps its default, and the difference is recorded.**
+  Pairing it with a tool that requires `path` brought it under lints 52 and 265. The
+  dispatcher defaults `path` to `/` for every action, and `/` is the site-wide rule, so
+  `acl-remove` with no path removes the rule on the whole site. SM306 kept that
+  deliberately: un-protecting the root is what recovery looks like, and recovery must
+  stay as easy as the mistake (t/integration/52, "recovery stays at least as easy as the
+  mistake"). So the default stays, each lint records it with SM306's reason, and MCP
+  requires the path, so an agent names what it removes.
 - The connector tools page (`starter/docs/ai-connector-tools.md`) and the
   access-control model's surface table name the tool.
 
@@ -63,7 +63,13 @@ and the CLI has `lazysite acl remove`. MCP had no tool for it, and
     attempt.
 
   With lazysite-mcp.pl reverted, the tool's assertions fail.
-- **t/integration/71**, new subtest: `acl-remove` with no path is refused, says to pass
-  `path=/`, and leaves a site-wide rule in place. With the path spelled out, the rule is
-  removed. With Actions.pm reverted, the branch guard still refuses, in its own words.
-- Lints 23, 52, 218 and 265 pass with the twin declared.
+- Lints 23, 52, 218 and 265 pass with the twin declared. t/integration/52 still holds
+  SM306's recovery default.
+
+# Not done
+
+- **Whether the control API's acl-remove should need an explicit path.** A first cut of
+  this change required it, and t/integration/52 refused it as SM306's ruling. The two
+  arguments are: with no path, a script that drops its argument publishes a gated site;
+  with a path required, an operator recovering a site types `path=/`. That is the release
+  manager's choice to revisit, not this change's.

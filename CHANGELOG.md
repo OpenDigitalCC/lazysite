@@ -56,9 +56,9 @@ Archive
 - SM1263 (PENDING) **MCP can remove an access rule.** `remove_permissions { path }` is the
   twin of the control API's `acl-remove` and `lazysite acl remove`: the same function, so the
   same `manage_content` capability, owner refusal, site-wide `/` and audit action
-  (`acl-remove`). `set_permissions` with empty lists only clears a rule's lists. The control
-  API's `acl-remove` now needs an explicit path: its default was `/`, the site-wide rule, so
-  leaving the argument out removed the rule gating a whole site.
+  (`acl-remove`). `set_permissions` with empty lists only clears a rule's lists. The MCP tool
+  requires its path; the control API's `acl-remove` keeps SM306's default (no path removes the
+  site-wide rule, so recovery stays easy).
 - SM1262 (PENDING) **a bundle is adopted once, and a deleted one stays deleted.** Bundle
   adoption could not tell a bundle a site never had from one an operator deleted, so a
   deleted bundle (a `ch-files` taken out to deny WebDAV) came back on the next use of the

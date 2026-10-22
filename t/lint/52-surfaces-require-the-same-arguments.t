@@ -148,6 +148,12 @@ my %SAFE_WITH_DEFAULT = (
     # the hazardous sibling (acl-set) is guarded, not excepted, above.
     'acl-get' => 'a defaulted path reads the root rule, which SM310 made the '
         . 'canonical spelling of that question. Read-only either way.',
+    # SM1263 paired acl-remove with remove_permissions, which requires path. The
+    # API keeps its default ON PURPOSE (t/integration/52, SM306): the default
+    # un-protects the root, which is what recovering a site looks like.
+    'acl-remove' => 'SM306 kept this default deliberately: with no path it removes the '
+        . 'root rule, so recovering a site stays as easy as the mistake that broke it '
+        . '(t/integration/52). MCP requires the path, so an agent says what it removes.',
 );
 
 subtest 'every argument MCP requires is not silently supplied by the API' => sub {
