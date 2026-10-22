@@ -274,6 +274,13 @@ Archive
   for block HTML, so the head of the form was wrapped: `<p><link><form>` ... `</p>` and
   `<p></form>`, and every stepped form had stray spacing. The link is emitted inside the form, after
   the opening tag, so the form passes through as a single-step one does. t/unit/processor/149.
+- SM1253 (PENDING) **validate_page no longer reports valid form rules as unknown.** The form check
+  split a field's rules on whitespace and knew ten words, so a radio or checklist option with a
+  space, a quoted `placeholder:"Your full name"`, and the `file`, `multiple` and `capture` rules
+  were each an `invalid-form-rule` issue, failing a page that renders correctly. The validator cuts
+  the rules with a marked copy of the renderer's tokeniser and knows every rule word the renderer
+  takes. t/lint/273 runs both: it takes the renderer's accepted words from the renderer itself and
+  compares the two cuts over every form line in the tree and a generated set.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

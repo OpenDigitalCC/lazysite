@@ -43,8 +43,15 @@ use Lazysite::Manager::Common ();
 # Rules a form field may carry. A word outside this list is a typo, and a typo
 # in a rule is silently ignored at render time - which is why it is worth
 # naming before publish.
+#
+# SM1253: THE RENDERER'S WORDS, ALL OF THEM. This list stopped at textarea, and
+# `file`, `multiple` and `capture` - which the renderer has taken since SM905 -
+# were reported as unknown, so a valid upload field failed validate_page. The
+# list is the bare words `_form_rules_from_tokens` (lazysite-processor/forms.pm)
+# sets a rule from; t/lint/273 derives that set from the renderer itself and
+# fails on any difference, in either direction.
 my %FORM_FLAGS = map { $_ => 1 }
-    qw(required optional email tel date time number url password textarea);
+    qw(required optional email tel date time number url password textarea file multiple capture);
 
 # --- SM921: a `pattern` a browser cannot compile validates NOTHING -----------
 #
@@ -603,6 +610,43 @@ sub _check_odoo_bindings {
     return;
 }
 
+# SM1253: A FIELD'S RULES, AS TOKENS - the renderer's cut.
+#
+# MARKED COPY (ADR 0001) of _form_rule_tokens in lazysite-processor/forms.pm,
+# which validate_page and `lazysite validate` cannot load. t/lint/273 runs both
+# over every form line in the tree and a generated set, and fails on any
+# difference. Change one, change both. In short:
+#   select: radio: checklist: checklist-qty:   take the rest of the line
+#   pattern:<unquoted>                          takes the rest of the line
+#   key:"..."                                   one token; \" is a quote
+#   anything else                               one token per run of non-space
+# The renderer also logs an unclosed quoted value; that is its own business, and
+# the cut is the same either way.
+sub form_rule_tokens {
+    my ($rs) = @_;
+    my @tok;
+    $rs //= '';
+    while ( length $rs ) {
+        $rs =~ s/^\s+//;
+        last unless length $rs;
+        if ( $rs =~ s/^((?:select|radio|checklist|checklist-qty):.*)\z//s ) {
+            push @tok, $1;
+        }
+        elsif ( $rs =~ s/^(pattern:(?!")\S.*)\z//s ) {
+            ( my $t = $1 ) =~ s/\s+\z//;
+            push @tok, $t;
+        }
+        elsif ( $rs =~ s/^([A-Za-z]+:)"((?:[^"\\]|\\.)*)"// ) {
+            my ( $key, $val ) = ( $1, $2 );
+            $val =~ s/\\"/"/g;
+            push @tok, "$key$val";
+        }
+        elsif ( $rs =~ s/^(\S+)// ) { push @tok, $1 }
+        else                        { last }
+    }
+    return @tok;
+}
+
 sub _check_form_rules {
     my ( $issues, $content ) = @_;
     # Form-field rules (catch typos/unsupported rules before publish).
@@ -612,26 +656,26 @@ sub _check_form_rules {
             next unless length $line;
             my ( $name, undef, $rules ) = split /\s*\|\s*/, $line, 3;
             next if !defined $name || $name eq 'submit' || !defined $rules;
-            # SM921: THE PATTERN IS READ BEFORE THE TOKENS, and it takes the rest of
-            # the line exactly as the processor now does - the two have to agree
-            # about where a pattern ends or this checks a different page from the
-            # one that renders. A quoted pattern keeps its own value.
-            my $pat;
-            ( my $check = $rules ) =~ s/\bselect:.*$//s;
-            if    ( $check =~ s/\bpattern:"((?:[^"\\]|\\.)*)"// ) { $pat = $1 }
-            elsif ( $check =~ s/\bpattern:(\S.*)\z//s )           { $pat = $1 }
-            if    ( defined $pat ) {
-                $pat =~ s/\s+\z//;
-                if ( my $why = html_pattern_problem($pat) ) {
-                    push @$issues, { kind => 'uncompilable-pattern',
-                        message => "the pattern on field '$name' will not compile: $why" };
-                }
-            }
 
-            # select: takes the rest of the line (its options are not rules and may
-            # contain spaces) - dropped above before the remaining rule tokens are
-            # checked, as the pattern now is.
-            for my $tok ( split /\s+/, $check ) {
+            # SM1253: THE RULES ARE CUT INTO TOKENS AS THE RENDERER CUTS THEM
+            # (form_rule_tokens, below), so this checks the page that renders.
+            # It split on whitespace after taking out only `select:` and the
+            # pattern, so a radio or checklist option with a space in it, and a
+            # quoted `placeholder:"Your full name"`, came apart into words that
+            # were each reported as an unknown rule.
+            #
+            # SM921: the pattern a browser gets is the `pattern:` token's value,
+            # read by the same cut - so a quoted one ends where the renderer's
+            # ends, and an escaped quote in it is a quote, as it is there.
+            for my $tok ( form_rule_tokens($rules) ) {
+                if ( $tok =~ /\Apattern:(.+)/s ) {
+                    my $pat = $1;
+                    if ( my $why = html_pattern_problem($pat) ) {
+                        push @$issues, { kind => 'uncompilable-pattern',
+                            message => "the pattern on field '$name' will not compile: $why" };
+                    }
+                    next;
+                }
                 next if $FORM_FLAGS{$tok} || $tok =~ /^[a-z]+:/; # known flag or key:value
                 next if $tok                      !~ /^[a-z]+$/; # only flag plain words
                 push @$issues, { kind => 'invalid-form-rule',

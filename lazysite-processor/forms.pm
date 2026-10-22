@@ -223,6 +223,11 @@ sub _write_form_rules {
 # contains spaces (e.g. placeholder:"Your full name" or
 # pattern:"[0-9 +()-]{7,20}"). $name is for the unclosed-quote warning only.
 # Both `last`s are this sub's own `while`'s.
+#
+# SM1253: MARKED COPY (ADR 0001) in Lazysite::Validate::form_rule_tokens, for
+# validate_page, which cannot load this file. t/lint/273 runs both over the same
+# rule strings, and takes the rule words this file's _form_rules_from_tokens
+# accepts as the validator's list. Change one, change both.
 sub _form_rule_tokens {
     my ( $rules_str, $name ) = @_;
     my @rule_tokens;
