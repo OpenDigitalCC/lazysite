@@ -281,6 +281,11 @@ Archive
   the rules with a marked copy of the renderer's tokeniser and knows every rule word the renderer
   takes. t/lint/273 runs both: it takes the renderer's accepted words from the renderer itself and
   compares the two cuts over every form line in the tree and a generated set.
+- SM1254 (PENDING) **a quoted page variable reaches the layout without its quotes.** A
+  `tt_page_var:` entry kept its quote marks, so `hero_cards: "a,b,c"` reached the layout as
+  `"a,b,c"` and a split gave `"a` and `c"`. One matched pair of quotes is taken off, as it is for
+  a top-level front-matter key; an unquoted value is unchanged. A quoted source
+  (`x: "json:/d.json"`) now binds as the unquoted one does. t/unit/processor/150.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

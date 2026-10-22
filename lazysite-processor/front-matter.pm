@@ -376,7 +376,14 @@ sub parse_yaml_front_matter {
             my $block = $1;
             my %tt_vars;
             while ( $block =~ /^[ \t]+(\w+)\s*:\s*(.+)$/mg ) {
-                $tt_vars{$1} = $2;
+                my ( $k, $v ) = ( $1, $2 );
+                # SM1254: A QUOTED VALUE IS ITS CONTENTS, as it is for
+                # a top-level key (_front_matter_scalars). The quotes were kept,
+                # so `hero_cards: "a,b,c"` reached the layout as `"a,b,c"` and
+                # its first split item was `"a`. One matched pair, the same rule.
+                $v =~ s/\s+\z//;
+                $v =~ s/\A"(.*)"\z/$1/s or $v =~ s/\A'(.*)'\z/$1/s;
+                $tt_vars{$k} = $v;
             }
             $meta{tt_page_var} = \%tt_vars;
         }
