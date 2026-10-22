@@ -1972,8 +1972,9 @@ sub _report_forwarded_trust {
 # the CLI beside this tool by path (the tarball puts no `lazysite` on PATH).
 sub cli_spelling {
     return $ENV{LAZYSITE_CLI} if length( $ENV{LAZYSITE_CLI} // '' );
+    require File::Spec;
     for my $d ( split /:/, $ENV{PATH} // '' ) {
-        return 'lazysite' if length $d && -x "$d/lazysite";
+        return 'lazysite' if length $d && -x File::Spec->catfile( $d, 'lazysite' );
     }
     require Cwd;
     require File::Basename;
@@ -4215,7 +4216,7 @@ sub _probe_protect {
     # not have. The cause is the warning's, cut to its first sentence.
     if ( ( $r->{kind} // '' ) eq 'partial' ) {
         for my $w ( @{ $r->{warnings} || [] } ) {
-            next unless $w =~ /could not be moved (?:out of|back into) the document root: (.+?)\.(?: |\z)/s;
+            next unless $w =~ /could[ ]not[ ]be[ ]moved[ ](?:out[ ]of|back[ ]into)[ ]the[ ]document[ ]root:[ ](.+?)\.(?:[ ]|\z)/sx;
             return ( 0, "the probe folder could not be moved into the private store: $1" );
         }
     }
