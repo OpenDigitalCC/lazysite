@@ -53,6 +53,10 @@ Archive
 
 ## Unreleased
 
+- SM1243 (PENDING) **the offline pages refusal says the list takes commas.** An
+  `app_offline_pages` value of paths separated by spaces was refused as one path that is not
+  plain, without saying the list is separated by commas. The refusal now says so and shows
+  the list written that way.
 - SM1242 (PENDING) **a draft is called a draft, and a page's rule goes with it.**
   set_permissions (acl-set) judged only the page's own record, so a page inside a draft
   folder, or under a folder's read list, was told "anyone may still fetch these pages". The

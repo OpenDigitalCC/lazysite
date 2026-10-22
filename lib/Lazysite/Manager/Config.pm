@@ -170,6 +170,11 @@ sub _app_setting_fault {
         $scope = '/' unless defined $scope && length $scope;
         for my $pg ( grep { length } map { s/\A\s+|\s+\z//gr } split /,/, $v ) {
             my $why = _app_offline_page_fault( $pg, $scope, $conf, $stored );
+            # SM1243 (#372c): the list is split on commas only (here and in the
+            # processor's app.pm), so "/a /b" is one entry. Say so when an entry
+            # reads as paths separated by spaces, with the list as it should be.
+            $why .= '; the list is separated by commas, e.g. ' . join( ', ', split /\s+/, $pg )
+                if defined $why && $pg =~ m{\s/};
             return "app_offline_pages: $pg $why" if defined $why;
         }
     }

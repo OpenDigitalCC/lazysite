@@ -145,6 +145,20 @@ subtest 'paths the worker never handles, and paths that are not pages' => sub {
     }
 };
 
+subtest 'SM1243: a list separated by spaces is refused saying it takes commas' => sub {
+    # #372c, the 0.15.15 test-plan results: "/zz75/a /zz75/m" was refused as not
+    # a plain site path, which is true, and the answer did not say the list is
+    # separated by commas - which is the whole of what the caller got wrong.
+    my $r = set( app_offline_pages => '/portal/ /portal/new' );
+    ok( !$r->{ok}, 'refused' );
+    like( $r->{error} // '', qr/not a plain site path/, '... as not a plain site path' );
+    like( $r->{error} // '', qr/separated by commas/, '... saying the list takes commas' );
+    like( $r->{error} // '', qr{e\.g\. /portal/, /portal/new\z}, '... with the list written that way' );
+    my $one = set( app_offline_pages => '/portal/, /portal/a b' );
+    unlike( $one->{error} // '', qr/commas/, 'a single path with a space in it gets no such hint' );
+    like( conf($d), qr{^app_offline_pages: /portal/, /portal/new, /portal/open$}m, 'the stored list is as it was' );
+};
+
 subtest 'a site where every page is gated by default keeps only what says auth: none' => sub {
     open my $a, '>>', "$d/lazysite/lazysite.conf" or die $!; print {$a} "auth_default: required\n"; close $a;
     my $r = set( app_offline_pages => '/portal/' );
