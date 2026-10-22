@@ -14,7 +14,7 @@
 # intact - no root writes into site trees.
 #
 # Verbs:
-#   add USER DOMAIN [--channel edge|beta|stable] [--policy auto|manual] [--fcgi]
+#   add USER DOMAIN [--channel edge|beta|stable|certified] [--policy auto|manual] [--fcgi]
 #                   [--workers N] [--max-requests N] [--daemon]
 #   remove DOMAIN
 #   list
@@ -90,7 +90,7 @@ HestiaCP panel-side integrator for lazysite domains. Runs as root (the
 panel context) and drops to the site user for every site-tree write.
 
 Verbs:
-  add USER DOMAIN [--channel edge|beta|stable] [--policy auto|manual] [--fcgi]
+  add USER DOMAIN [--channel edge|beta|stable|certified] [--policy auto|manual] [--fcgi]
                   [--workers N] [--max-requests N] [--daemon]
         Prepare the Hestia domain layout as root (locked domain root,
         docroot group/setgid), then provision the site AS THE PANEL USER
@@ -229,8 +229,11 @@ sub cmd_add {
     fail('add needs USER and DOMAIN: lazysite-hestia-domain add USER DOMAIN')
         unless length( $user // '' ) && length( $domain // '' );
     check_domain($domain);
-    fail("--channel must be 'edge', 'beta' or 'stable'")
-        if length $o{channel} && $o{channel} !~ /^(?:edge|beta|stable)$/;
+    # SM1256: the ladder's four rungs (ADR 0010), as `lazysite provision`, which
+    # this passes the value on to, accepts them. `certified` was refused here
+    # alone, so a Hestia site could not be provisioned on it in one step.
+    fail("--channel must be 'edge', 'beta', 'stable' or 'certified'")
+        if length $o{channel} && $o{channel} !~ /^(?:edge|beta|stable|certified)$/;
     fail("--policy must be 'auto' or 'manual'")
         if length $o{policy} && $o{policy} !~ /^(?:auto|manual)$/;
     require_root('add');
@@ -625,7 +628,7 @@ lazysite-hestia-domain - HestiaCP panel-side provisioning for lazysite domains
 
 =head1 SYNOPSIS
 
-  lazysite-hestia-domain add USER DOMAIN [--channel edge|beta|stable]
+  lazysite-hestia-domain add USER DOMAIN [--channel edge|beta|stable|certified]
                              [--policy auto|manual] [--fcgi]
                              [--workers N] [--max-requests N] [--daemon]
   lazysite-hestia-domain remove DOMAIN
@@ -649,7 +652,7 @@ describes the full packaged onboarding.
 
 =over 4
 
-=item B<add> USER DOMAIN [--channel edge|beta|stable] [--policy auto|manual] [--fcgi] [--workers N] [--max-requests N] [--daemon]
+=item B<add> USER DOMAIN [--channel edge|beta|stable|certified] [--policy auto|manual] [--fcgi] [--workers N] [--max-requests N] [--daemon]
 
 Onboard an existing Hestia web domain (create it in Hestia first). As
 root it prepares the panel-specific layout: the C<plugins/>, C<tools/>

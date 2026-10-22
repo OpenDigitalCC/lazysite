@@ -294,6 +294,10 @@ Archive
   30 minutes; the CSP shipped report-only by default (FEATURES.md said enforcing); the bad-URL
   block list is on the plugin's own page; and a cached page is served by the processor, not the
   web server. t/lint/274 asks the code for each fact.
+- SM1256 (PENDING) **the Hestia integrator takes the certified channel.** `lazysite-hestia-domain
+  add --channel certified` was refused ("must be 'edge', 'beta' or 'stable'") although ADR 0010
+  added the rung and `lazysite provision`, which the integrator passes the value to, accepts it.
+  The check, the usage and the POD take all four. t/tools/212.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 
