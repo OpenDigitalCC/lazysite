@@ -140,7 +140,7 @@ subtest 'the order is refresh, then rebuild, then the rendered-file check' => su
 # --- the domain tool's hint ---------------------------------------------------
 {
     my @subs;
-    for my $s (qw(template_hint proxy_template_hint template_state)) {
+    for my $s (qw(template_hint proxy_template_hint template_state cli_spelling)) {
         my ($body) = slurp($DOM) =~ /^(sub \Q$s\E \{\n.*?^\})/ms;
         push @subs, $body if $body;
     }
