@@ -675,6 +675,33 @@ collect_findings() {
     fi
 }
 
+# SM1239: settle_after_repair INDEX - the repair of site INDEX left no failure,
+# so a NOT SERVICEABLE from its deploy is not the site's verdict.
+#
+# The 0.16.0 rollout reported sumaya.fund and opendigital.cc NOT SERVICEABLE and,
+# in the same run, "repair: 32 clean, 0 need a human"; a later repair of each
+# found no failure. NOT SERVICEABLE was the deploy's exit 5 - its own final
+# check, run by the deploy straight after the install and its restarts - and the
+# summary kept it whatever the repair, run later on every in-scope site, then
+# found. The verdict is now the LAST check's: a site whose repair exits 0 is
+# updated, with a finding saying the deploy's check failed and the repair after
+# it passed (the deploy's output, printed whole above, says what failed). A site
+# whose repair does not pass stays NOT SERVICEABLE.
+settle_after_repair() {
+    local i="$1" k keep=()
+    [ "${RESULTS[$i]:-}" = "NOT SERVICEABLE" ] || return 0
+    RESULTS[$i]="updated (repaired)"
+    ok=$(( ok + 1 ))
+    for k in "${UNSERVICEABLE[@]}"; do
+        [ "$k" = "${DOMAINS[$i]}" ] || keep+=( "$k" )
+    done
+    UNSERVICEABLE=( "${keep[@]}" )
+    if [ -n "$FINDINGS_FILE" ]; then
+        printf '%s\t%s\n' "${DOMAINS[$i]}" "NOTE: the deploy's final check named a failure (its output is above) and the repair after it left none - the site is serviceable" >> "$FINDINGS_FILE"
+    fi
+    return 0
+}
+
 # run_quiet LABEL COMMAND...
 #
 # Runs the command with its output captured. On success, prints only the lines
@@ -1207,10 +1234,6 @@ if [ "${DO_REAPPLY_DRY:-0}" = 1 ]; then
             printf '  DRY RUN FAILED: %s\n' "${DRY_FAILED[*]}"
     fi
 fi
-[ "${#SKIPPED[@]}" -gt 0 ] && printf 'SKIPPED (stable site, edge release not installed): %s\n' "${SKIPPED[*]}"
-[ "${#FAILED[@]}" -gt 0 ]  && printf 'FAILED to upgrade: %s\n' "${FAILED[*]}"
-[ "${#UNSERVICEABLE[@]}" -gt 0 ] && \
-    printf 'NOT SERVICEABLE (installed; the health check still fails - needs a human): %s\n' "${UNSERVICEABLE[*]}"
 
 # --- health repair and the outside-in probe, via the CLI ---------------------
 #
@@ -1241,7 +1264,7 @@ if [ -f "$LZS" ]; then
         _rc=$?
         set -e
         case "$_rc" in
-            0) _rep_clean=$(( _rep_clean + 1 )) ;;
+            0) _rep_clean=$(( _rep_clean + 1 )); settle_after_repair "$i" ;;
             *) _rep_human=$(( _rep_human + 1 )); REPAIR_RC=1 ;;
         esac
     done
@@ -1268,6 +1291,12 @@ if [ -f "$LZS" ]; then
         done
     fi
 fi
+
+# SM1239: printed AFTER the repair, which can clear a NOT SERVICEABLE.
+[ "${#SKIPPED[@]}" -gt 0 ] && printf 'SKIPPED (stable site, edge release not installed): %s\n' "${SKIPPED[*]}"
+[ "${#FAILED[@]}" -gt 0 ]  && printf 'FAILED to upgrade: %s\n' "${FAILED[*]}"
+[ "${#UNSERVICEABLE[@]}" -gt 0 ] && \
+    printf 'NOT SERVICEABLE (installed; the health check still fails - needs a human): %s\n' "${UNSERVICEABLE[*]}"
 
 echo
 if [ "$DO_PROXY" = 1 ]; then
@@ -1296,7 +1325,7 @@ for i in "${!DOMAINS[@]}"; do
     # runs this release, and its check is the finding. It was reported as a
     # channel skip, so the summary said "0 with warnings or failures" while the
     # check had both.
-    if [ -f "$LZS" ] && { [ "${RESULTS[$i]:-}" = updated ] || [ "${RESULTS[$i]:-}" = "NOT SERVICEABLE" ]; }; then
+    if [ -f "$LZS" ] && { [ "${RESULTS[$i]:-}" = updated ] || [ "${RESULTS[$i]:-}" = "updated (repaired)" ] || [ "${RESULTS[$i]:-}" = "NOT SERVICEABLE" ]; }; then
         _chk=$(check_verdict "${DOMAINS[$i]}")
         if [ "$_chk" = clean ]; then _chk_clean=$(( _chk_clean + 1 )); else _chk_warn=$(( _chk_warn + 1 )); fi
     fi

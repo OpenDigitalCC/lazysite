@@ -125,6 +125,11 @@ Archive
   config `namespaces` and its `reload` verb reach it, and SM1248 adopts them.
   Every Odoo test passes on the new snapshot unchanged. SM747's spec is re-filed.
   t/lint/207, 261.
+- SM1239 (PENDING) **NOT SERVICEABLE is the verdict of the check after the repair.** The 0.16.0
+  rollout reported two sites NOT SERVICEABLE and, in the same run, "repair: 32 clean". The verdict
+  was the deploy's own final check, run straight after the install; the repair runs later on
+  every site. A site whose repair passes is now `updated (repaired)`, with a finding saying the
+  deploy's check failed first. One whose repair does not pass stays NOT SERVICEABLE.
 - SM1238 (PENDING) **the ACL dry run names what has not moved, and the Hestia updater runs it.**
   The 0.16.0 notes tell the operator to run `lazysite-acl.pl reapply` without `--apply` on each site
   and report each `NOT MOVED: <path>` line. The dry run never printed one: it listed every rule.
