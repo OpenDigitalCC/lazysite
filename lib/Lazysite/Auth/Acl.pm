@@ -348,7 +348,7 @@ sub fold_page_stem {
     my $acls = load_acls();
     my $from = $acls->{$stem};
     return 0 unless ref $from eq 'HASH';
-    my $own = ref $acls->{$rel} eq 'HASH' ? { %{ $acls->{$rel} } } : {};
+    my $own   = ref $acls->{$rel} eq 'HASH' ? { %{ $acls->{$rel} } } : {};
     my $empty = sub {
         my ($v) = @_;
         return 1 unless defined $v;
