@@ -125,6 +125,13 @@ Archive
   config `namespaces` and its `reload` verb reach it, and SM1248 adopts them.
   Every Odoo test passes on the new snapshot unchanged. SM747's spec is re-filed.
   t/lint/207, 261.
+- SM1238 (PENDING) **the ACL dry run names what has not moved, and the Hestia updater runs it.**
+  The 0.16.0 notes tell the operator to run `lazysite-acl.pl reapply` without `--apply` on each site
+  and report each `NOT MOVED: <path>` line. The dry run never printed one: it listed every rule.
+  It now names each read-listed or draft rule whose files are still in the document root (the
+  SM296 state), moving nothing; `--json` carries `not_moved`. `lazysite-hestia-update-all.sh
+  --reapply-acls-dry-run` runs it on every site that upgraded, as the site's own user, reports
+  each line as a finding and exits 2 if there is one (#378).
 - SM1237 (PENDING) **a probe that could not run says why.** The 0.16.0 rollout ended "probe: 16
   clean, 0 exposed, 16 could not run" with no reason given. `lazysite probe` now prints a reason
   for every site it could not confirm: the skip's cause, the probe's own no-answer verdict, or

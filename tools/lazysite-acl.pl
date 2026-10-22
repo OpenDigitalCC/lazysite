@@ -428,17 +428,37 @@ sub cmd_reapply {
     }
 
     unless ( $opt{apply} ) {
-        printf "Would re-apply %d rule(s) on %s:\n", scalar @sections,
-            $opt{docroot}
-            unless $opt{json};
-        print "  $_->{prefix}\n" for @sections;
-        print "\nNothing has changed. Re-run with --apply to move the content.\n"
-            unless $opt{json};
+        # SM1238: THE DRY RUN SAYS WHICH RULES HAVE NOT MOVED THEIR CONTENT.
+        #
+        # The 0.16.0 release notes (ON UPGRADE, step 2) tell the operator to
+        # run this dry run on every site and report each "NOT MOVED: <path>"
+        # line - content whose rule is stored and whose files are still in the
+        # document root, the 0.10.8 SM296 state. The dry run printed no such
+        # line: it listed every rule, moved or not, so "a site with no such
+        # line is settled" was true of every site. It now names them, from the
+        # same facts the apply acts on: a rule that relocates content (a read
+        # list or draft; never the site-wide rule) whose path is still in the
+        # document root - alone, or beside its store copy (SM981's both-trees
+        # case). It moves nothing and exits 0, as before.
+        my @not_moved = grep { _still_in_docroot($_) } @sections;
+        unless ( $opt{json} ) {
+            printf "Would re-apply %d rule(s) on %s:\n", scalar @sections, $opt{docroot};
+            print "  $_->{prefix}\n" for @sections;
+            if (@not_moved) {
+                print "\n";
+                for my $s (@not_moved) {
+                    print "NOT MOVED: $s->{prefix}\n";
+                    print "  its rule is stored and its files are still in the document root; --apply moves them\n";
+                }
+            }
+            print "\nNothing has changed. Re-run with --apply to move the content.\n";
+        }
         return emit(
             { ok => 1,
-                dry_run => 1,
-                would   => [ map { $_->{prefix} } @sections ],
-                count   => scalar @sections,
+                dry_run   => 1,
+                would     => [ map { $_->{prefix} } @sections ],
+                not_moved => [ map { $_->{prefix} } @not_moved ],
+                count     => scalar @sections,
             }
         ) if $opt{json};
         return 0;
@@ -580,6 +600,18 @@ sub cli_spelling {
     return -f $cli ? "perl $cli" : 'lazysite';
 }
 
+# SM1238: is this listed section's content still in the document root, where its
+# rule says it must not be? Only a rule that relocates content counts - a read
+# list or draft - and never the site-wide one, which moves nothing (SM287).
+sub _still_in_docroot {
+    my ($s) = @_;
+    return 0 if $s->{site_wide};
+    return 0 unless ( $s->{policy} // '' ) eq 'draft' || @{ $s->{read} || [] };
+    ( my $rel = $s->{prefix} // '' ) =~ s{\A/+|/+\z}{}g;
+    return 0 unless length $rel;
+    return -e "$opt{docroot}/$rel" ? 1 : 0;
+}
+
 sub cmd_remove {
     my $path  = shift @ARGV;
     my $actor = require_actor();
@@ -624,7 +656,9 @@ Sub-commands:
                          the store's copy of a file both hold is kept, and the
                          public one is moved to lazysite/displaced/<time>/,
                          outside both trees, and named (SM981).
-                         Dry-run unless --apply.
+                         Dry-run unless --apply; the dry run names each rule
+                         whose files are still in the document root, as
+                         "NOT MOVED: PATH" (SM1238).
 
 Options:
   --docroot D    the site's document root (required)

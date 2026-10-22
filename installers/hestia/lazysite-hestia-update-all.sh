@@ -69,6 +69,13 @@
 #                 the same state on sites that DID protect something.
 #                 Changes no rule; moves bytes. Opt-in, because it moves content
 #                 on a live site.
+#   --reapply-acls-dry-run  SM1238: the 0.16.0 ON UPGRADE "SM296 dry run",
+#                 automated: `lazysite-acl.pl reapply` WITHOUT --apply, per site
+#                 that upgraded, as the site's own user. Each "NOT MOVED: <path>"
+#                 it prints - a rule stored with its files still in the document
+#                 root - is a finding, and the run exits 2 if there is one.
+#                 Changes nothing. With --reapply-acls as well it runs after the
+#                 apply, so it reports what the apply left.
 #   --proxy       SM283: ALSO stage the lazysite-proxy nginx templates and put
 #                 every discovered domain on them (v-change-web-domain-proxy-tpl,
 #                 which rebuilds the vhost). Implies --templates.
@@ -121,6 +128,7 @@ for a in "$@"; do
         --rebuild)    DO_REBUILD=1; DO_TPL=1 ;;
         --proxy)      DO_PROXY=1; DO_TPL=1 ;;
         --reapply-acls) DO_REAPPLY=1 ;;
+        --reapply-acls-dry-run) DO_REAPPLY_DRY=1 ;;
         *)            ARGS+=("$a") ;;
     esac
 done
@@ -765,6 +773,41 @@ probe_site() {
 }
 
 
+# SM1238: acl_dry_run_site DOMAIN USER DOCROOT - the SM296 dry run for one site,
+# as its own user. DRY_VERDICT is found (a NOT MOVED line), settled (none) or
+# failed (the tool exited non-zero; its output is printed whole). Each
+# "NOT MOVED: <path>" becomes a finding labelled with the site - which SM1235
+# groups, so a site with forty of them is one finding with examples.
+acl_dry_run_site() {
+    local d="$1" u="$2" dr="$3" out rc had_e line n=0
+    case $- in *e*) had_e=1 ;; *) had_e=0 ;; esac
+    set +e
+    out=$( sudo -u "$u" perl "$ACLTOOL" reapply --docroot "$dr" --actor local 2>&1 )
+    rc=$?
+    [ "$had_e" = 1 ] && set -e
+    [ "$VERBOSE" = 1 ] && printf '%s\n' "$out"
+    if [ "$rc" != 0 ]; then
+        DRY_VERDICT=failed
+        [ "$VERBOSE" = 1 ] || printf '\n--- acl dry run %s: FAILED (status %s), full output ---\n%s\n--- end acl dry run %s ---\n' "$d" "$rc" "$out" "$d"
+        return 0
+    fi
+    while IFS= read -r line; do
+        case "$line" in
+            'NOT MOVED: '*)
+                n=$(( n + 1 ))
+                if [ -n "$FINDINGS_FILE" ]; then
+                    printf '%s\t%s\n' "$d" "$line - its access rule is stored and its files are still in the document root (the SM296 state); --reapply-acls moves them" >> "$FINDINGS_FILE"
+                else
+                    printf '  [acl %s] %s\n' "$d" "$line"
+                fi
+                ;;
+        esac
+    done <<< "$out"
+    if [ "$n" -gt 0 ]; then DRY_VERDICT=found; else DRY_VERDICT=settled; fi
+    return 0
+}
+
+
 ver_of() {   # print the "version" from an install-state.json, or "?"
     # (perl -ne exits 0 on a missing file, so test first rather than ||)
     [ -f "$1" ] || { echo '?'; return; }
@@ -1133,6 +1176,37 @@ if [ "${DO_REAPPLY:-0}" = 1 ]; then
 else
     echo "==> access rules: not re-applied (no --reapply-acls); content protected before 0.10.9 keeps its files in the docroot."
 fi
+
+# --- SM1238: the SM296 dry run, per site -------------------------------------
+# The same sites and the same user as the apply above; it moves nothing.
+DRY_FOUND=(); DRY_FAILED=(); DRY_SETTLED=0
+if [ "${DO_REAPPLY_DRY:-0}" = 1 ]; then
+    ACLTOOL="$STAGE/tools/lazysite-acl.pl"
+    if [ ! -f "$ACLTOOL" ]; then
+        echo "==> acl dry run: $ACLTOOL missing in the staged release; skipping." >&2
+    else
+        echo
+        echo "==> acl dry run (SM296): which stored rules still have their files in the document root"
+        for i in "${!DOMAINS[@]}"; do
+            d="${DOMAINS[$i]}"; u="${USERS[$i]}"
+            in_list "$d" "${SKIPPED[@]}" && continue
+            in_list "$d" "${FAILED[@]}"  && continue
+            dr="${DOCS[$i]}"
+            [ -d "$dr" ] || { echo "    no docroot at $dr; skipping $d" >&2; continue; }
+            acl_dry_run_site "$d" "$u" "$dr"
+            case "$DRY_VERDICT" in
+                found)   DRY_FOUND+=( "$d" ) ;;
+                failed)  DRY_FAILED+=( "$d" ) ;;
+                *)       DRY_SETTLED=$(( DRY_SETTLED + 1 )) ;;
+            esac
+        done
+        echo "==> acl dry run: ${#DRY_FOUND[@]} site(s) with content not moved, $DRY_SETTLED settled, ${#DRY_FAILED[@]} could not run."
+        [ "${#DRY_FOUND[@]}" -gt 0 ] && \
+            printf '  NOT MOVED on: %s (each path is under findings; --reapply-acls moves them)\n' "${DRY_FOUND[*]}"
+        [ "${#DRY_FAILED[@]}" -gt 0 ] && \
+            printf '  DRY RUN FAILED: %s\n' "${DRY_FAILED[*]}"
+    fi
+fi
 [ "${#SKIPPED[@]}" -gt 0 ] && printf 'SKIPPED (stable site, edge release not installed): %s\n' "${SKIPPED[*]}"
 [ "${#FAILED[@]}" -gt 0 ]  && printf 'FAILED to upgrade: %s\n' "${FAILED[*]}"
 [ "${#UNSERVICEABLE[@]}" -gt 0 ] && \
@@ -1299,7 +1373,8 @@ if [ "${#UNSERVICEABLE[@]}" -gt 0 ]; then
     exit 2
 fi
 
-if [ "${REPAIR_RC:-0}" != 0 ] || [ "${ACL_PROBE_RC:-0}" != 0 ] || [ "${_xff_bad:-0}" != 0 ]; then
+if [ "${REPAIR_RC:-0}" != 0 ] || [ "${ACL_PROBE_RC:-0}" != 0 ] || [ "${_xff_bad:-0}" != 0 ] \
+   || [ -n "${DRY_FOUND[*]:-}" ] || [ -n "${DRY_FAILED[*]:-}" ]; then
     echo
     echo "ROLLOUT SUCCEEDED, FLEET HAS FINDINGS: every site that accepted this"
     echo "  release installed and verified. The findings above are conditions the"

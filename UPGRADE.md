@@ -493,6 +493,11 @@ The sweep runs only on sites that actually upgraded - a site skipped by its
 update channel is still on its old version - and runs as each site's own user,
 never as root.
 
+`--reapply-acls-dry-run` (SM1238) runs the dry run on the same sites, as the same
+users, and moves nothing. Each `NOT MOVED: <path>` line it prints - a rule stored
+with its files still in the document root - is reported as a finding, and the
+rollout exits 2 if there is one.
+
 ::: widebox
 **Order matters: upgrade first, then sweep.** The re-apply is the operation
 SM296 broke. On 0.10.8 it is the thing that crashes, so running it before the
