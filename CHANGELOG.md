@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1241 (PENDING) **every shipped bundle reaches an existing site.** Bundles were seeded
+  only when groups-settings.json was absent, so cap-tidy, cap-services and any later bundle
+  reached new installs only; SM1118 adopted cap-maintenance alone. Every bundle in the shipped
+  nesting is adopted now, on the next use of the users tool: only when it is absent, only for
+  the shipped roles present, never rewriting an edited group, and only on a site that already
+  has the bundle layer, so a site whose roles predate the bundles is left as it is.
 - SM1240 (PENDING) **the sign-in rate counter is made for the serving group.** The login
   rate limiter created `auth/.login-rate.db` 0600, so only its creator could open it; the
   0.16.0 rollout found it owned by the site user on two sites, where the www-data CGI could

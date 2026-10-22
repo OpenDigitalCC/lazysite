@@ -4260,22 +4260,34 @@ sub _default_group_nesting {
 # that already had its roles. A capability given to a ROLE by a new bundle needs
 # one, or it exists on new sites and not on the fleet.
 #
+# SM1241 (#369): EVERY SHIPPED BUNDLE, not cap-maintenance alone. cap-tidy and
+# cap-services were the cases #369 named, and the next bundle a release adds
+# would have been the next. The bundles are the groups the nesting map lists
+# (the cap-* bundles and the ch-* channels); a role is never adopted here, and
+# a bundle no role draws on (cap-audit-switch) has nobody to adopt it for.
+#
 # SCOPE, deliberately narrow:
-#   - only the bundles listed here, by name - not "whatever the seed has that the
-#     site lacks", which would re-create a bundle an operator removed and would
-#     invent role groups on a site that never had the role layer;
+#   - only the shipped bundles - not "whatever the seed has that the site lacks",
+#     which would invent role groups on a site that never had the role layer;
 #   - only when the roles that draw on the bundle exist as shipped groups on this
-#     site (the `seeded` mark), so a pre-roles site is left as it is;
+#     site (the `seeded` mark), so a pre-roles site is left as it is, and only
+#     those roles are nested in it;
+#   - only on a site that already has the bundle layer (one shipped bundle is
+#     there). A site seeded between SM608 and SM631 has shipped roles that hold
+#     their capabilities directly and no bundle; nesting them in every bundle
+#     would re-home its live grants, which SM631 left to a sysop on purpose;
 #   - only when the bundle is ABSENT. A bundle that exists, edited or not, is never
-#     rewritten, and the nesting is written only with the record, so a site that
-#     later took the role out of the bundle stays that way.
+#     rewritten, no role's own record is touched, and the nesting is written only
+#     with the record, so a site that later took the role out of the bundle stays
+#     that way.
 sub _adopt_added_bundles {
     my $gs = Lazysite::Auth::Settings::read_group_settings();
     return unless ref $gs eq 'HASH';
     my $seed    = _default_group_seed();
     my $nesting = _default_group_nesting();
+    return unless grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{seeded} } keys %{$nesting};
     my @added;
-    for my $bundle (qw(cap-maintenance)) {
+    for my $bundle ( sort keys %{$nesting} ) {
         next if $gs->{$bundle};
         next unless ref $seed->{$bundle} eq 'HASH';
         my @roles = grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{seeded} } @{ $nesting->{$bundle} || [] };
@@ -4292,7 +4304,7 @@ sub _adopt_added_bundles {
         push @{ $groups{$bundle} }, grep { !$have{$_}++ } @{$roles};
     }
     write_groups(%groups);
-    log_event( 'INFO', $_->[0], 'bundle added for this release (SM1118)' ) for @added;
+    log_event( 'INFO', $_->[0], 'bundle added for this release (SM1118, SM1241)' ) for @added;
     return;
 }
 
