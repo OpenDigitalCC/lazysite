@@ -426,9 +426,15 @@ sub permission_issues {
                 . "write $f: self to allow it on this page (https only)" };
     }
     for my $k (@$unknown) {
+        # Ruling 16: browsing-topics is the Topics API, denied on every site
+        # under the no-trackers rule; say so rather than calling it unknown.
+        my $why
+            = $k eq 'browsing-topics'
+            ? 'browsing-topics stays denied on every site - lazysite installs no trackers'
+            : "$k is not a browser feature a page can ask for";
         push @issues, { kind => 'permission-unknown', key => $k,
-            message => "'$k: self' grants nothing: $k is not a browser feature a page can ask for. "
-                . 'The ones it can are ' . join( ', ', @Lazysite::SecurityHeaders::PAGE_FEATURES )
+            message => "'$k: self' grants nothing: $why. "
+                . 'The ones a page can ask for are ' . join( ', ', @Lazysite::SecurityHeaders::PAGE_FEATURES )
                 . ' - each denied unless the page says <feature>: self (https only)' };
     }
     return @issues;

@@ -69,7 +69,7 @@ subtest 'page_status lists the features a page allows, and only for that page' =
 };
 
 subtest 'self and none are accepted for every feature a page may ask for' => sub {
-    for my $f (qw(geolocation microphone accelerometer browsing-topics display-capture gyroscope
+    for my $f (qw(geolocation microphone accelerometer display-capture gyroscope
         magnetometer midi usb xr-spatial-tracking)) {
         for my $v (qw(self none 'self' "none")) {
             is_deeply( kinds( page("$f: $v\n") ), [], "$f: $v - no issue" );
@@ -106,6 +106,15 @@ subtest 'a key that says self and is no feature a page can ask for is a permissi
     is_deeply( wkinds( page("tagline: myself\n") ), [], 'a value that is not self is any other key' );
     ok( !( grep { $_ eq 'permission-unknown' } @{ wkinds( page("payment: self\n") ) } ),
         'payment: self is the access key reader\'s to report, not this' );
+};
+
+subtest 'browsing-topics cannot be asked for: a warning saying so (ruling 16)' => sub {
+    my $r = page("browsing-topics: self\n");
+    my ($i) = grep { ( $_->{kind} // '' ) eq 'permission-unknown' } @{ $r->{warnings} || [] };
+    ok( $i, 'browsing-topics: self is a warning' ) or diag explain $r;
+    like( $i->{message} // '', qr/denied on every site.*no trackers/, '...saying it stays denied, and why' );
+    ok( $r->{valid}, '...and the page stays valid' );
+    is_deeply( kinds( page("browsing-topics: none\n") ), [], 'browsing-topics: none says nothing' );
 };
 
 subtest 'the camera keeps its SM1174 kind' => sub {

@@ -181,7 +181,7 @@ Archive
   before, and the camera behaves as it did. The validator reports a value other than
   `self` or `none` (`permission-unreadable`) and a `<key>: self` that names no such
   feature (`permission-unknown`, a warning); page_status and the editor's status bar list what a
-  page allows. `payment` cannot be asked for, because `payment:` is the paid-page key.
+  page allows. `payment` (the paid-page key) and `browsing-topics` (no trackers) cannot be asked for.
   The site-level allow list is later.
 - SM1267 (PENDING) **the briefings name the denied browser features.** The authoring and
   layouts briefings list every feature Permissions-Policy denies and say how a page asks

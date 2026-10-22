@@ -648,8 +648,10 @@ alone, over https only. So a component that needs one of these features is
 used on a page that asks for it, and the layout keeps working without it
 everywhere else - check before calling the API, and degrade quietly when it is
 refused. See the front matter keys in
-[AI briefing - content authoring](/docs/ai-briefing-authoring). `autoplay`,
-`fullscreen` and `picture-in-picture` are not denied and need nothing.
+[AI briefing - content authoring](/docs/ai-briefing-authoring). Two features
+cannot be asked for by any page: `payment` (its key is the paid-page key) and
+`browsing-topics` (lazysite installs no trackers). `autoplay`, `fullscreen` and
+`picture-in-picture` are not denied and need nothing.
 
 ## What NOT to do
 

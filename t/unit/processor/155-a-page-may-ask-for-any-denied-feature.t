@@ -80,6 +80,11 @@ subtest 'payment cannot be asked for: payment: is the paid-page key' => sub {
     unlike( $out, qr/payment=\(self\)/, 'no payment=(self)' );
 };
 
+subtest 'browsing-topics cannot be asked for: no trackers (ruling 16)' => sub {
+    spit( "$d/topics.md", "---\ntitle: Topics\nbrowsing-topics: self\n---\nx\n" );
+    is( policy( get( '/topics', 1 ) ), $DEFAULT, 'browsing-topics: self over https: the default' );
+};
+
 subtest 'served from the cache in turn, each page gets its own header' => sub {
     ok( -f "$d/clock.html" && -f "$d/plain.html", 'both pages are now cached renders' );
     for ( 1 .. 2 ) {

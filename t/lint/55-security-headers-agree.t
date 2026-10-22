@@ -348,9 +348,10 @@ subtest 'SM1266: any feature a page may ask for is the same decision in both, an
     my @may = @Lazysite::SecurityHeaders::PAGE_FEATURES;
     ok( ( grep { $_ eq 'geolocation' } @may ) && ( grep { $_ eq 'microphone' } @may ),
         'geolocation and microphone are among them - the lock is gone' );
-    ok( !( grep { $_ eq 'payment' } @may ), 'payment is not: `payment:` is the paid-page key (SM980)' );
-    is_deeply( \@may, [ grep { $_ ne 'payment' } @Lazysite::SecurityHeaders::DENIED_FEATURES ],
-        'and it is the denied list less payment, in its order' );
+    ok( !( grep { $_ eq 'payment' } @may ), 'payment is not: `payment:` is the paid-page key (SM980, ruling 15)' );
+    ok( !( grep { $_ eq 'browsing-topics' } @may ), 'nor browsing-topics: no trackers (ruling 16)' );
+    is_deeply( \@may, [ grep { $_ ne 'payment' && $_ ne 'browsing-topics' } @Lazysite::SecurityHeaders::DENIED_FEATURES ],
+        'and it is the denied list less those two, in its order' );
     for my $https ( 0, 1 ) {
         local $ENV{HTTPS} = $https ? 'on' : '';
         for my $ask ( ( map { [$_] } @Lazysite::SecurityHeaders::DENIED_FEATURES ),

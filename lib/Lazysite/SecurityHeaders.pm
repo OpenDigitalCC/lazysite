@@ -80,9 +80,9 @@ our $HSTS_MAX_AGE = 300;
 # browsing-topics is in the list for a reason beyond tidiness. It is the Topics
 # API - the browser offering the page an interest profile of its visitor - and
 # "no trackers" is a codified feature of this product, not a preference. A site
-# that cannot ask is a stronger statement than a site that does not. (SM1266:
-# since the 2026-10-22 ruling a page may ask for ANY feature here, this one
-# included; it stays denied unless a page's own front matter says so.)
+# that cannot ask is a stronger statement than a site that does not. (Ruling 16,
+# 2026-10-22: so it stays denied on every page of every site, and is the one
+# feature besides payment that SM1266's page key cannot ask for.)
 #
 # Deliberately ABSENT: autoplay, fullscreen and picture-in-picture. Those are
 # things a page's own content might legitimately want, and denying them would be
@@ -119,16 +119,18 @@ sub _csp_mode {
 # alone. Denial stays the default: a page that asks for nothing sends exactly
 # the list above. The site-level ceiling SM710 describes is later.
 #
-# `payment` is the one feature a page cannot ask for: `payment:` is already the
-# paid-page access key (SM980, `payment: required`), whose reader refuses a
-# page that says `payment: self` to everyone. The question of a second key for
-# the Payment Request API is open rather than guessed at here.
+# TWO FEATURES A PAGE CANNOT ASK FOR (rulings 15 and 16, 2026-10-22):
+#
+#   payment          `payment:` is already the paid-page access key (SM980,
+#                    `payment: required`), whose reader refuses a page that
+#                    says `payment: self` to everyone.
+#   browsing-topics  the no-trackers rule above: denied on every site.
 #
 # The processor carries a marked copy (lazysite-processor/output.pm,
 # _pp_denied and _pp_page_may_ask; ADR 0001); t/lint/55 compares the two by
 # value, for every feature.
 our @PAGE_FEATURES = qw(
-    accelerometer browsing-topics camera display-capture geolocation
+    accelerometer camera display-capture geolocation
     gyroscope magnetometer microphone midi usb xr-spatial-tracking
 );
 

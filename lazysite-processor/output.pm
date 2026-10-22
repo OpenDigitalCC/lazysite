@@ -243,16 +243,16 @@ sub _csp_origin_ok {
 
 # SM1266: the features Permissions-Policy denies, and those a page may ask for -
 # the marked copy (ADR 0001) of Lazysite::SecurityHeaders' @DENIED_FEATURES and
-# @PAGE_FEATURES, which say why each is there and why `payment` cannot be asked
-# for. t/lint/55 compares them by value. _peek_md reads a page's `<feature>:
-# self` against the second.
+# @PAGE_FEATURES, which say why each is there and why `payment` and
+# `browsing-topics` cannot be asked for. t/lint/55 compares them by value.
+# _peek_md reads a page's `<feature>: self` against the second.
 sub _pp_denied {
     return qw(accelerometer browsing-topics camera display-capture geolocation
         gyroscope magnetometer microphone midi payment usb xr-spatial-tracking);
 }
 
 sub _pp_page_may_ask {
-    return grep { $_ ne 'payment' } _pp_denied();
+    return grep { $_ ne 'payment' && $_ ne 'browsing-topics' } _pp_denied();
 }
 
 # P16: this response's allow-lists - the site's csp_<d>_src, or the serving

@@ -36,7 +36,8 @@ list comes later."
 # What shipped
 
 - One data-driven key: `<feature>: self` in a page's front matter, for every
-  feature in `@PAGE_FEATURES` (`@DENIED_FEATURES` less `payment`, below) -
+  feature in `@PAGE_FEATURES` (`@DENIED_FEATURES` less `payment` and
+  `browsing-topics`, below) -
   `geolocation: self`, `microphone: self`, and `camera: self` as before. That page,
   over https, sends `<feature>=(self)`; every other feature stays `=()`, and so does
   every other page. Over plain http the key is ignored.
@@ -70,12 +71,12 @@ list comes later."
 
 # Not done
 
-- `payment` cannot be asked for. `payment:` is already the paid-page access key
-  ([[SM980]], `payment: required`), and its reader refuses a page that says
-  `payment: self` to everyone. A different key for the Payment Request API is a
-  naming decision, so it is left for a ruling rather than guessed.
-- `browsing-topics` is askable, as the ruling says ("any feature"). The module's
-  comment had called a site that cannot ask for it "a stronger statement" of the
-  no-trackers rule; that comment now records the ruling. Taking it out of
-  `@PAGE_FEATURES` is one line if that is wanted.
+- Two features cannot be asked for, and stay denied on every page:
+  - `payment` (ruling 15, 2026-10-22). `payment:` is already the paid-page access
+    key ([[SM980]], `payment: required`), and its reader refuses a page that says
+    `payment: self` to everyone.
+  - `browsing-topics` (ruling 16, 2026-10-22). It is the Topics API, an interest
+    profile of the visitor, and the no-trackers rule keeps it denied on every
+    site. A page that says `browsing-topics: self` gets the `permission-unknown`
+    warning, saying so, and the default header.
 - The site-level ceiling ([[SM710]]'s instance key) is later, as ruled.

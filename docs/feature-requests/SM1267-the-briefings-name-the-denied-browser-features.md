@@ -25,7 +25,7 @@ for the denied list and the way to ask to be documented in both.
 - The authoring briefing's front matter keys list an entry for the browser
   features: the twelve denied, why a script cannot even prompt under `=()`, the
   page key `<feature>: self` ([[SM1266]]), https only, what the validator reports,
-  that `payment` cannot be asked for, and that the names are reserved keys rather
+  that `payment` and `browsing-topics` cannot be asked for and why, and that the names are reserved keys rather
   than page variables.
 - The layouts briefing gains a section: a layout or theme script that calls
   `getUserMedia`, `navigator.geolocation` or a sensor API fails on every page, no

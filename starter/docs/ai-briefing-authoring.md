@@ -185,9 +185,11 @@ Template::Plugin::JSON module, which is not bundled; prefer `json:`.)
   value, and a `<key>: self` that is not one of the names above
   (`geolocaton: self`), is reported by `lazysite validate` and validate_page,
   and grants nothing. The key is read from the front matter only, and the
-  browser still asks the visitor before the feature starts. `payment` is the
-  exception: `payment:` is the paid-page key above, so a page cannot ask for
-  the Payment Request API. These names are reserved keys, not page variables.
+  browser still asks the visitor before the feature starts. Two features
+  cannot be asked for, and stay denied on every page: `payment`, because
+  `payment:` is the paid-page key above, and `browsing-topics` (the Topics API,
+  an interest profile of the visitor), because lazysite installs no trackers.
+  These names are reserved keys, not page variables.
   page_status lists what a page allows (`permissions`), and so does the
   editor's status bar.
 
