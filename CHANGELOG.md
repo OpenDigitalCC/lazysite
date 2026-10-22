@@ -187,6 +187,13 @@ Archive
   layouts briefings list every feature Permissions-Policy denies and say how a page asks
   for one, so an author learns a microphone or location feature needs the page key
   before a visitor reports that it does not work (SM710).
+- SM1245 (PENDING) **internal: a test child never deadlocks on its pipes, and never hangs
+  the suite.** t/unit/dav/33 sat 95 minutes in the 2026-10-20 14:30 suite run: run_dav read
+  the child's stdout to EOF before its stderr, with no limit, and 232 files under t/ had
+  their own copies of that block, 381 in all. TestHelper::run_child writes stdin while it
+  reads stdout and stderr, and a child still running after five minutes (twenty under
+  Devel::Cover) is killed and the test fails naming itself, the child and the wait. The
+  helpers and the copies run through it; t/unit/lib/206 hangs on the old run_dav.
 - SM1233 (PENDING) **a Docker Compose package.** `installers/docker/` is no longer a
   placeholder: nginx, the one-rule FastCGI pool and `lazysited` in one container,
   the engine in the image and the site in three volumes (the docroot, `lazysite/`,

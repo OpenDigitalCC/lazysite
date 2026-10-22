@@ -33,9 +33,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(new_site);
 
 use File::Path qw(make_path);
-use TestHelper ();
-use IPC::Open3;
-use Symbol qw(gensym);
+use TestHelper qw(run_child);
 use JSON::PP;
 use Digest::SHA qw(hmac_sha256_hex);
 
@@ -191,14 +189,8 @@ sub call {
     $ENV{HTTP_COOKIE}         = $self->cookie_for($user);
     $ENV{HTTP_X_CSRF_TOKEN}   = $self->csrf_for($user);
 
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $self->{api} );
-    print {$w} ( defined $json ? $json : '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    my $err = do { local $/; <$e> };
-    waitpid $pid, 0;
+    my ( $out, $err ) = @{ run_child( [ $^X, $self->{api} ],
+        stdin => ( defined $json ? $json : '' ) ) }{qw(out err)};
     # SM906 T3: the STATUS LINE, kept beside the body rather than added to it -
     # callers compare decoded bodies whole, and a key of ours would join them.
     ( $self->{last_status} ) = $out =~ /^Status:\s*(\d+)/m;

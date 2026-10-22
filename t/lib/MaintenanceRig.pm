@@ -22,7 +22,7 @@ use File::Path  qw(make_path);
 use File::Copy  ();
 use Digest::SHA qw(hmac_sha256_hex);
 use FindBin;
-use TestHelper qw(repo_root site_tempdir grant_caps env_passthrough);
+use TestHelper qw(repo_root site_tempdir grant_caps env_passthrough run_child);
 our @EXPORT_OK = qw(build_site cookie_for spit slurp conf_set parse_cgi via_wrapper via_processor);
 
 our $SECRET = 'e' x 64;
@@ -109,18 +109,9 @@ sub parse_cgi {
 
 sub _run {
     my ( $script, $d, $env, $stdin ) = @_;
-    require IPC::Open3;
-    require Symbol;
     my $root = repo_root();
     local %ENV = ( env_passthrough(), PATH => $ENV{PATH}, DOCUMENT_ROOT => $d, %$env );
-    my ( $w, $r );
-    my $e   = Symbol::gensym();
-    my $pid = IPC::Open3::open3( $w, $r, $e, $^X, $script );
-    print {$w} ( $stdin // '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    my $err = do { local $/; <$e> };
-    waitpid $pid, 0;
+    my ( $out, $err ) = @{ run_child( [ $^X, $script ], stdin => ( $stdin // '' ) ) }{qw(out err)};
     my $res = parse_cgi($out);
     $res->{stderr} = $err // '';
     return $res;

@@ -22,7 +22,7 @@ our @EXPORT_OK = qw(
     grant_caps add_account revoke_caps
     env_passthrough
     repo_manifest_guard repo_root_lock
-    run_cmd
+    run_cmd run_child child_timeout feed_child reap_child
     preserve_tracked
     changelog_text
 );
@@ -45,16 +45,209 @@ our @EXPORT_OK = qw(
 # that ignores stderr cannot tell a refusal from a crash.
 sub run_cmd {
     my (@argv) = @_;
-    my $pid    = open my $ph, '-|';
-    die "run_cmd: cannot fork: $!" unless defined $pid;
+    return run_child( \@argv, stderr => 'merge' )->{out};
+}
+
+# SM1245: run a child and collect what it writes, never deadlocking on its pipes
+# and never waiting for it without a limit.
+#
+# WHY THIS EXISTS. Each suite had its own copy of open3 + "read stdout to EOF,
+# then stderr" (or never read stderr at all). A child that fills the stderr pipe
+# (64 KiB) blocks writing it while the parent blocks reading stdout, and neither
+# moves again. t/unit/dav/33 sat 95 minutes in the 2026-10-20 14:30 suite run on
+# a lazysite-dav.pl child; nothing bounded it but the run's 5 h limit.
+#
+# So the three streams are served together (IO::Select): stdin is written while
+# stdout and stderr are read, so no pipe can fill while the other end waits. A
+# child still running after the timeout is killed and the TEST DIES NAMING
+# ITSELF, the child and how long it waited - a failure, rather than a hang that
+# names nothing.
+#
+#   run_child( [ $^X, $script, @args ], %opt )
+#     stdin   => bytes fed to the child (default none: it reads EOF)
+#     stderr  => 'pipe' (default; returned in err) | 'merge' (into out)
+#                | 'inherit' (the test's own stderr) | 'discard' | a handle (to it)
+#     timeout => seconds (default child_timeout())
+#     label   => what the failure calls the child (default its script's name)
+#   -> { out, err, status, written, stdin_error }, with the wait status in $?
+#      as well. written is how much of stdin the child took; stdin_error why it
+#      stopped short (EPIPE: the child exited without reading the rest).
+#
+# The argv is never given to a shell, as with run_cmd.
+sub run_child {
+    my ( $argv, %opt ) = @_;
+    die "run_child: the command is an array of words\n"
+        unless ref $argv eq 'ARRAY' && @$argv;
+    my $mode    = $opt{stderr} // 'pipe';
+    die "run_child: stderr => '$mode' is none of pipe, merge, inherit, discard or a handle\n"
+        unless ref $mode || $mode =~ /^(?:pipe|merge|inherit|discard)\z/;
+    my $timeout = $opt{timeout} // child_timeout();
+    my $label   = $opt{label} // _child_label($argv);
+    my $stdin   = defined $opt{stdin} ? "$opt{stdin}" : '';
+    # What print would have sent down a handle without layers.
+    utf8::downgrade( $stdin, 1 ) or utf8::encode($stdin);
+
+    require IO::Select;
+    require IO::Handle;
+    require POSIX;
+    require Time::HiRes;
+    pipe( my $in_r,  my $in_w )  or die "run_child: pipe: $!";
+    pipe( my $out_r, my $out_w ) or die "run_child: pipe: $!";
+    my ( $err_r, $err_w );
+    if ( $mode eq 'pipe' ) { pipe( $err_r, $err_w ) or die "run_child: pipe: $!" }
+
+    # Unflushed TAP would otherwise be written twice: once by us, once by the
+    # child as it reopens STDOUT.
+    STDOUT->flush;
+    STDERR->flush;
+    my $pid = fork;
+    die "run_child: cannot fork: $!" unless defined $pid;
     if ( !$pid ) {
-        open STDERR, '>&', \*STDOUT or exit 127;
-        exec @argv;
-        exit 127;
+        close $in_w;
+        close $out_r;
+        close $err_r if $err_r;
+        open STDIN,  '<&', $in_r  or POSIX::_exit(127);
+        open STDOUT, '>&', $out_w or POSIX::_exit(127);
+        if    ( ref $mode )           { open STDERR, '>&', $mode      or POSIX::_exit(127) }
+        elsif ( $mode eq 'pipe' )    { open STDERR, '>&', $err_w     or POSIX::_exit(127) }
+        elsif ( $mode eq 'merge' )   { open STDERR, '>&', \*STDOUT   or POSIX::_exit(127) }
+        elsif ( $mode eq 'discard' ) { open STDERR, '>',  '/dev/null' or POSIX::_exit(127) }
+        { no warnings q(exec); exec { $argv->[0] } @$argv; }
+        print STDERR "run_child: cannot run $argv->[0]: $!\n";
+        POSIX::_exit(127);    # never the test's END blocks, in a copy of the test
     }
-    my $out = do { local $/; <$ph> };
-    close $ph;
-    return defined $out ? $out : '';
+    close $in_r;
+    close $out_w;
+    close $err_w if $err_w;
+
+    local $SIG{PIPE} = 'IGNORE';    # a child that stops reading is not our death
+    my %got  = ( out => '', err => '' );
+    my %name = ( fileno($out_r) => 'out', ( $err_r ? ( fileno($err_r) => 'err' ) : () ) );
+    my $rsel = IO::Select->new( $out_r, $err_r ? $err_r : () );
+    my $wsel = IO::Select->new;
+    my $off  = 0;
+    my $stdin_error;
+    if ( length $stdin ) { $in_w->blocking(0); $wsel->add($in_w) }
+    else                 { close $in_w }
+
+    my $t0       = Time::HiRes::time();
+    my $deadline = $t0 + $timeout;
+    while ( $rsel->count || $wsel->count ) {
+        my $left = $deadline - Time::HiRes::time();
+        _child_timed_out( $pid, $label, $t0, \%got ) if $left <= 0;
+        my ( $r, $w ) = IO::Select->select( $rsel, ( $wsel->count ? $wsel : undef ), undef, $left );
+        for my $fh ( @{ $w || [] } ) {
+            my $n = syswrite $fh, $stdin, 65536, $off;
+            next if !defined $n && ( $!{EAGAIN} || $!{EINTR} );
+            $off += $n if defined $n;
+            $stdin_error = "$!" unless defined $n;
+            if ( !defined $n || $off >= length $stdin ) {    # done, or the child closed it
+                $wsel->remove($fh);
+                close $fh;
+            }
+        }
+        for my $fh ( @{ $r || [] } ) {
+            my $n = sysread $fh, my $chunk, 65536;
+            next if !defined $n && $!{EINTR};
+            if ( !$n ) { $rsel->remove($fh); close $fh; next }
+            $got{ $name{ fileno $fh } } .= $chunk;
+        }
+    }
+
+    # Both streams are closed, but a child can close them and carry on.
+    my $status = _reap( $pid, $label, $t0, $deadline, \%got );
+    return { out => $got{out}, err => $got{err}, status => $status,
+        written => $off, stdin_error => $stdin_error };
+}
+
+# SM1245: for the few tests that drive a child themselves - they signal it, or
+# read it while it runs, so they hold its pid - the same limit, the same failure.
+#
+#   feed_child( $fh, $bytes, %opt )  writes without blocking for ever; returns
+#                                    the bytes written (short if the child left)
+#   reap_child( $pid, %opt )         waitpid, bounded; returns the wait status
+#
+# %opt: timeout, label, as run_child. Give the child's stdout and stderr to
+# files (open3's '>&' . fileno $fh), not to pipes nobody reads while it runs.
+sub feed_child {
+    my ( $fh, $bytes, %opt ) = @_;
+    require IO::Select;
+    require Time::HiRes;
+    my $deadline = Time::HiRes::time() + ( $opt{timeout} // child_timeout() );
+    local $SIG{PIPE} = 'IGNORE';
+    my $was = $fh->blocking(0);
+    my $sel = IO::Select->new($fh);
+    my $off = 0;
+    while ( $off < length $bytes ) {
+        my $left = $deadline - Time::HiRes::time();
+        die sprintf "%s: child %s took %d of %d bytes of its input in %ds\n", $0,
+            $opt{label} // 'stdin', $off, length $bytes, ( $opt{timeout} // child_timeout() )
+            if $left <= 0;
+        next unless $sel->can_write($left);
+        my $n = syswrite $fh, $bytes, 65536, $off;
+        next if !defined $n && ( $!{EAGAIN} || $!{EINTR} );
+        last unless $n;
+        $off += $n;
+    }
+    $fh->blocking($was);
+    return $off;
+}
+
+sub reap_child {
+    my ( $pid, %opt ) = @_;
+    require Time::HiRes;
+    my $t0 = Time::HiRes::time();
+    return _reap( $pid, $opt{label} // "pid $pid", $t0, $t0 + ( $opt{timeout} // child_timeout() ),
+        { err => '' } );
+}
+
+sub _reap {
+    my ( $pid, $label, $t0, $deadline, $got ) = @_;
+    require POSIX;
+    while (1) {
+        my $w = waitpid $pid, POSIX::WNOHANG();
+        return $? if $w == $pid || $w == -1;
+        _child_timed_out( $pid, $label, $t0, $got ) if Time::HiRes::time() >= $deadline;
+        Time::HiRes::sleep(0.02);
+    }
+}
+
+# SM1245: how long a test waits for one child. A test's child is one CGI request
+# or one tool run: five minutes leaves room for a loaded host at prove -j4 and
+# still ends a hang; twenty under Devel::Cover, which makes every Perl child
+# several times slower. LAZYSITE_TEST_CHILD_TIMEOUT overrides both.
+sub child_timeout {
+    return $ENV{LAZYSITE_TEST_CHILD_TIMEOUT} if ( $ENV{LAZYSITE_TEST_CHILD_TIMEOUT} // '' ) =~ /^\d+(\.\d+)?\z/;
+    my $covered = $INC{'Devel/Cover.pm'}
+        || grep { /Devel::Cover/ } grep { defined } @ENV{qw(PERL5OPT HARNESS_PERL_SWITCHES)};
+    return $covered ? 1200 : 300;
+}
+
+# The name a timeout gives the child: the script perl runs, or the program.
+sub _child_label {
+    my ($argv) = @_;
+    my @w = @$argv;
+    if ( $w[0] eq $^X || $w[0] =~ m{(?:^|/)perl[\d.]*\z} ) {
+        shift @w;
+        return "perl $w[0]" if @w && $w[0] =~ /^-[eE]\z/;
+        shift @w while @w > 1 && $w[0] =~ /^-/;
+    }
+    return ( $w[0] // $argv->[0] ) =~ s{.*/}{}r;
+}
+
+sub _child_timed_out {
+    my ( $pid, $label, $t0, $got ) = @_;
+    my $waited = Time::HiRes::time() - $t0;
+    kill 'TERM', $pid;
+    my $grace = Time::HiRes::time() + 5;
+    until ( waitpid( $pid, POSIX::WNOHANG() ) ) {
+        if ( Time::HiRes::time() >= $grace ) { kill 'KILL', $pid; waitpid $pid, 0; last }
+        Time::HiRes::sleep(0.05);
+    }
+    my $tail = substr( $got->{err}, -400 );
+    die sprintf "%s: child %s (pid %d) was still running after %ds and was killed%s\n",
+        $0, $label, $pid, $waited + 0.5,
+        length $tail ? "; its stderr ended:\n$tail" : '';
 }
 
 # SM269 phase 1: OWN the shared release-manifest.json, rather than lock beside
@@ -605,7 +798,7 @@ sub run_processor {
             delete $ENV{$k};
         }
     }
-    return qx($^X \Q$proc\E 2>/dev/null);
+    return run_child( [ $^X, $proc ], stderr => 'discard' )->{out};
 }
 
 # Run any script at repo root (e.g. lazysite-manager-api.pl) as subprocess.
@@ -617,19 +810,9 @@ sub run_script {
     for my $k ( keys %{ $opts{env} || {} } ) {
         $ENV{$k} = $opts{env}{$k};
     }
-    my $stdin = $opts{stdin};
-    if ( defined $stdin ) {
-        require IPC::Open2;
-        my ( $cout, $cin );
-        my $pid = IPC::Open2::open2( $cout, $cin, $^X, $script );
-        print $cin $stdin;
-        close $cin;
-        my $out = do { local $/; <$cout> };
-        close $cout;
-        waitpid $pid, 0;
-        return $out;
-    }
-    return qx($^X \Q$script\E 2>/dev/null);
+    # open2 left the child's stderr on the test's; qx sent it to /dev/null.
+    return run_child( [ $^X, $script ], stdin => $opts{stdin},
+        stderr => defined $opts{stdin} ? 'inherit' : 'discard' )->{out};
 }
 
 # SM070: drive lazysite-dav.pl as a CGI subprocess.
@@ -661,19 +844,9 @@ sub run_dav {
         else                    { delete $ENV{$k} }
     }
 
-    require IPC::Open3;
-    require Symbol;
-    my ( $wtr, $rdr );
-    my $err = Symbol::gensym();
-    my $pid = IPC::Open3::open3( $wtr, $rdr, $err, $^X, $script );
-    binmode $wtr;
-    print {$wtr} $body;
-    close $wtr;
-    my $out  = do { local $/; <$rdr> };
-    my $eout = do { local $/; <$err> };
-    waitpid $pid, 0;
-    $out  //= '';
-    $eout //= '';
+    my $res  = run_child( [ $^X, $script ], stdin => $body );
+    my $out  = $res->{out};
+    my $eout = $res->{err};
 
     my ($code) = $out =~ /^Status:\s*(\d+)/;
     my ( $hblock, $rbody ) = split /\r\n\r\n/, $out, 2;
@@ -695,15 +868,8 @@ sub run_dav {
 # SM070: run tools/lazysite-users.pl quietly, returning its exit code.
 sub dav_users_tool {
     my ( $docroot, @args ) = @_;
-    require IPC::Open3;
-    require Symbol;
     my $root = repo_root();
-    my $err  = Symbol::gensym();
-    my $pid  = IPC::Open3::open3( my $in, my $out, $err,
-        $^X, "$root/tools/lazysite-users.pl", '--docroot', $docroot, @args );
-    close $in;
-    { local $/; my $o = <$out>; my $e = <$err>; }
-    waitpid $pid, 0;
+    run_child( [ $^X, "$root/tools/lazysite-users.pl", '--docroot', $docroot, @args ] );
     return $? >> 8;
 }
 
