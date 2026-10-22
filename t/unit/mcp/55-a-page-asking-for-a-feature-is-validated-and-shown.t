@@ -1,8 +1,9 @@
 #!/usr/bin/perl
 # SM1266 (ruled 2026-10-22, #2): SM1174's page key for every feature a page may
 # ask for. `geolocation: self` is accepted like `camera: self`; the validator
-# names a value other than self or none (`permission-unreadable`) and a key that
-# says self and is no feature a page can ask for (`permission-unknown`); and
+# names a value other than self or none (`permission-unreadable`, an issue) and a
+# key that says self and is no feature a page can ask for (`permission-unknown`,
+# a WARNING that leaves the page valid - ruling 11, 2026-10-22); and
 # page_status lists the features a page allows, with the https condition. The
 # camera keeps SM1174's own kind and fields.
 use strict;
@@ -49,7 +50,8 @@ sub mcp {
     my $j = eval { decode_json( $jb // '' ) } || {};
     return $j->{result}{structuredContent} || { ok => 0, error => 'no answer' };
 }
-sub kinds { my ($r) = @_; return [ sort map { $_->{kind} // '' } @{ $r->{issues} || [] } ] }
+sub kinds  { my ($r) = @_; return [ sort map { $_->{kind} // '' } @{ $r->{issues}   || [] } ] }
+sub wkinds { my ($r) = @_; return [ sort map { $_->{kind} // '' } @{ $r->{warnings} || [] } ] }
 sub page  { my ($fm) = @_; return mcp( validate_page => { content => "---\ntitle: T\n$fm---\nB\n" } ) }
 
 subtest 'page_status lists the features a page allows, and only for that page' => sub {
@@ -89,17 +91,20 @@ subtest 'any other value is permission-unreadable, naming the key' => sub {
     is_deeply( kinds($twice), ['permission-unreadable'], 'given twice is an issue too' );
 };
 
-subtest 'a key that says self and is no feature a page can ask for is permission-unknown' => sub {
+subtest 'a key that says self and is no feature a page can ask for is a permission-unknown warning' => sub {
     for my $k (qw(geolocaton bluetooth fullscreen Camera)) {
         my $r = page("$k: self\n");
-        my ($i) = grep { ( $_->{kind} // '' ) eq 'permission-unknown' } @{ $r->{issues} || [] };
-        ok( $i, "$k: self is an issue" ) or diag explain $r;
+        my ($i) = grep { ( $_->{kind} // '' ) eq 'permission-unknown' } @{ $r->{warnings} || [] };
+        ok( $i, "$k: self is a warning" ) or diag explain $r;
+        is( $i->{severity}, 'warning', '...with severity warning' );
+        ok( $r->{valid}, '...and the page stays valid' ) or diag explain $r;
+        is_deeply( kinds($r), [], '...with no issue' );
         like( $i->{message} // '', qr/grants nothing/, '...saying it grants nothing' );
         like( $i->{message} // '', qr/geolocation, gyroscope/, '...and naming the features there are' );
     }
-    is_deeply( kinds( mcp( validate_page => { path => '/typo' } ) ), ['permission-unknown'], 'a saved page alike' );
-    is_deeply( kinds( page("tagline: myself\n") ), [], 'a value that is not self is any other key' );
-    ok( !( grep { $_ eq 'permission-unknown' } @{ kinds( page("payment: self\n") ) } ),
+    is_deeply( wkinds( mcp( validate_page => { path => '/typo' } ) ), ['permission-unknown'], 'a saved page alike' );
+    is_deeply( wkinds( page("tagline: myself\n") ), [], 'a value that is not self is any other key' );
+    ok( !( grep { $_ eq 'permission-unknown' } @{ wkinds( page("payment: self\n") ) } ),
         'payment: self is the access key reader\'s to report, not this' );
 };
 

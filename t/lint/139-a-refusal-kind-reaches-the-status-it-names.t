@@ -94,7 +94,7 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
 
 # SM1266: `permission-unreadable` and `permission-unknown` are GROUP 2 like
 # `camera-unreadable` - Lazysite::Validate issues about a page's `<feature>:`
-# value, or a `<key>: self` that is no feature. The page still serves, on the
+# value, or (a warning) a `<key>: self` that is no feature. The page still serves, on the
 # default policy.
 
 # SM857: `mine_needs_timestamps` is the binding grammar refusing (mine) on a

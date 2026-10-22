@@ -54,7 +54,9 @@ list comes later."
 - The validator: a value other than `self` or `none`, or a key given twice, is
   `permission-unreadable` naming the feature; a `<key>: self` that is no feature a
   page can ask for (`geolocaton: self`, `fullscreen: self`, `Camera: self`) is
-  `permission-unknown`, and grants nothing. The camera keeps `camera-unreadable`
+  `permission-unknown`, and grants nothing. That one is a WARNING and leaves the
+  page valid (coordinator, 2026-10-22, after ruling 11: an unknown key warns and
+  never blocks), since the key may be a site's own page variable. The camera keeps `camera-unreadable`
   and its sentence. In `validate_page` and `lazysite validate`.
 - Shown in page status: MCP `page_status` answers `permissions` (the features
   allowed, in the policy's order) and `permissions_note`; the manager's file read

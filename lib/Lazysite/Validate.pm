@@ -370,7 +370,8 @@ sub camera_value {
 # \@unknown ): the value read for each feature the page names ('self' or
 # 'none'), the reason for each it names and cannot read, and the keys that say
 # `self` and are no feature a page can ask for (`geolocaton: self`, `fullscreen:
-# self`), which grant nothing and would otherwise do so silently. The access keys
+# self`), which grant nothing and would otherwise do so silently - reported as a
+# warning, not an issue (ruling 11). The access keys
 # are left to read_access_keys, which already reports `payment: self`.
 sub permission_values {
     my ($fm)   = @_;
@@ -433,9 +434,14 @@ sub permission_issues {
     return @issues;
 }
 
+# SM1266 (ruling 11, 2026-10-22: an unknown key warns, never blocks): a
+# `<key>: self` that is no feature grants nothing and is a WARNING - it may be a
+# site's own page variable. An unreadable value on a feature is an issue.
 sub _check_permissions {
-    my ( $issues, $fm ) = @_;
-    push @$issues, permission_issues($fm);
+    my ( $issues, $warnings, $fm ) = @_;
+    for my $i ( permission_issues($fm) ) {
+        push @{ $i->{kind} eq 'permission-unknown' ? $warnings : $issues }, $i;
+    }
     return;
 }
 
@@ -998,7 +1004,7 @@ sub validate_content {
     _check_front_matter( \@issues, \@warnings, $content, $h );
     _check_access_keys( \@issues, $fm, _page_place( $o{path}, $docroot, $lz ) ); # SM980, SM993
     _check_address_kinds( \@issues, $fm, $lz );                                  # SM1189
-    _check_permissions( \@issues, $fm );    # SM1174, SM1266
+    _check_permissions( \@issues, \@warnings, $fm );    # SM1174, SM1266
     _check_fences( \@warnings, $fm, $body );
     # SM900: with the front-matter offset, as _check_fences has always done, so
     # the two checks on one page count from the same place - the top of the file.
