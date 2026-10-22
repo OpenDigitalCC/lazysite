@@ -17,11 +17,9 @@ use warnings;
 use Test::More;
 use File::Path  qw(make_path);
 use JSON::PP    qw(encode_json);
-use IPC::Open3  qw(open3);
-use Symbol      qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root site_tempdir env_passthrough);
+use TestHelper qw(repo_root site_tempdir env_passthrough run_child);
 use ManagerSession;
 
 my $root = repo_root();
@@ -66,12 +64,7 @@ sub via_wrapper {
         ( defined $o{proxy_user}  ? ( HTTP_X_REMOTE_USER => $o{proxy_user}, HTTP_X_REMOTE_GROUPS => '' ) : () ),
         %{ $o{env} // {} },
     );
-    my $err = gensym;
-    my $pid = open3( my $w, my $r, $err, $^X, "$root/lazysite-auth.pl" );
-    close $w;
-    my $out = do { local $/; <$r> };
-    my $log = do { local $/; <$err> };
-    waitpid $pid, 0;
+    my ( $out, $log ) = @{ run_child( [ $^X, "$root/lazysite-auth.pl" ] ) }{qw(out err)};
     return ( $out, $log );
 }
 

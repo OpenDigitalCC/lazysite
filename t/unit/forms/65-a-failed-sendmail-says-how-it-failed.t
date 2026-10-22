@@ -10,11 +10,9 @@ use warnings;
 use Test::More;
 use JSON::PP   ();
 use File::Path qw(make_path);
-use IPC::Open3 ();
-use Symbol     qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir run_child);
 
 my $script = repo_root() . '/plugins/form-smtp.pl';
 my $d      = site_tempdir();
@@ -31,12 +29,8 @@ sub mock {
 
 sub send_it {
     local $ENV{DOCUMENT_ROOT} = $d;
-    my $err = gensym;
-    my $pid = IPC::Open3::open3( my $in, my $o, $err, $^X, $script, '--pipe' );
-    print {$in} JSON::PP::encode_json( { config => { to => 'ada@example.net' }, form => { message => 'hi' } } );
-    close $in;
-    my $res = do { local $/; <$o> };
-    waitpid $pid, 0;
+    my $res = run_child( [ $^X, $script, '--pipe' ],
+        stdin => JSON::PP::encode_json( { config => { to => 'ada@example.net' }, form => { message => 'hi' } } ) )->{out};
     return JSON::PP::decode_json( $res || '{}' );
 }
 

@@ -19,7 +19,7 @@ use Digest::SHA qw(sha256_hex);
 use IPC::Open3  qw(open3);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir);
+use TestHelper qw(repo_root env_passthrough site_tempdir run_child);
 
 my $root = repo_root();
 my $d    = site_tempdir();
@@ -51,14 +51,8 @@ sub render {
         LAZYSITE_NOCACHE => '1',
         ( defined $o{draft_path} ? ( LAZYSITE_DRAFT_PATH => $o{draft_path} ) : () ),
     );
-    my $pid = open3( my $in, my $out, undef, $^X, "$root/lazysite-processor.pl" );
-    binmode $in;
-    local $SIG{PIPE} = 'IGNORE';
-    print {$in} ( $o{stdin} // '' );
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-processor.pl" ],
+        stdin => $o{stdin}, stderr => 'merge' )->{out};
     my ( $head, $body ) = split /\r?\n\r?\n/, ( $resp // '' ), 2;
     my ($status) = ( $head // '' ) =~ /Status:\s*(\d+)/i;
     return { status => $status // 200, head => $head // '', body => $body // '' };

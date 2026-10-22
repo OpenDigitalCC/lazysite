@@ -22,13 +22,10 @@ use File::Path   qw(make_path);
 use JSON::PP     qw(encode_json decode_json);
 use Digest::SHA  qw(hmac_sha256_hex);
 use MIME::Base64 qw(encode_base64);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir);
+use TestHelper qw(repo_root env_passthrough site_tempdir run_child);
 use RateWindow qw(stay_in_one_window);
 use Lazysite::Auth::LoginRate ();
 
@@ -43,13 +40,8 @@ my $BOB    = 'bob-first-password';
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utl, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utl, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // { _raw => $out };
 }
 
@@ -66,12 +58,7 @@ sub signed_in {
         DOCUMENT_ROOT => $d, REDIRECT_URL => '/',         REQUEST_METHOD     => 'GET',
         QUERY_STRING  => '', REMOTE_ADDR  => '127.0.0.1', LAZYSITE_PROCESSOR => $stub,
         HTTP_COOKIE   => "lazysite_auth=$cookie" );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $auth );
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $auth ] )->{out};
     return ( $out // '' ) =~ /^USER=(\S+)$/m ? $1 : '';
 }
 
@@ -98,13 +85,7 @@ sub api {
         ( $o{token} ? ( HTTP_AUTHORIZATION => 'Basic ' . encode_base64( "$who:$o{token}", '' ) ) : () ),
     );
     delete $ENV{HTTP_X_REMOTE_USER} if $o{token};
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $mapi );
-    print $w $json;
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ], stdin => $json )->{out};
     my ($jb) = ( $out // '' ) =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // { _raw => $out };
 }

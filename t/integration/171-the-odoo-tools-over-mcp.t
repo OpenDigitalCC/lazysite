@@ -15,13 +15,12 @@
 use strict;
 use warnings;
 use Test::More;
-use IPC::Open2;
 use File::Path ();
 use JSON::PP   qw(encode_json decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 use OdooTest   qw(oom_or_skip shop_ready bind quiet);
 
 BEGIN { oom_or_skip() }
@@ -66,13 +65,8 @@ sub mcp {
     $ENV{HTTP_AUTHORIZATION}  = "Bearer $who:lzs_tok";
     $ENV{PERL5OPT}            = "-I$root/t/lib -MOdooInject";
     $ENV{LAZYSITE_OOM_LIB}    = OdooTest::oom_lib();
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, "-I$root/lib", $mcp );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "-I$root/lib", $mcp ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // {};
 }

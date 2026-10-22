@@ -8,12 +8,9 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use JSON::PP qw(encode_json decode_json);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough);
+use TestHelper qw(repo_root env_passthrough run_child);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -21,10 +18,8 @@ my $utl  = "$root/tools/lazysite-users.pl";
 
 sub users_api {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utl, '--api', '--docroot', $d );
-    print $i encode_json($p); close $i;
-    my $out = do { local $/; <$o> }; close $o; waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utl, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return decode_json($out);
 }
 
@@ -43,11 +38,7 @@ sub forgot {
         HTTP_HOST           => 'example.org',
         LAZYSITE_USERS_TOOL => $utl,
     );
-    my ( $w, $r ); my $e = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $auth );
-    print $w $body; close $w;
-    my $out = do { local $/; <$r> }; do { local $/; <$e> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $auth ], stdin => $body )->{out};
     return $out // '';
 }
 

@@ -14,11 +14,9 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use File::Find ();
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root setup_test_site run_processor env_passthrough);
+use TestHelper qw(repo_root setup_test_site run_processor env_passthrough run_child);
 
 my $root = repo_root();
 my $d    = tempdir( CLEANUP => 1 );
@@ -63,16 +61,11 @@ subtest 'cached .html is group-writable despite umask 0022' => sub {
 # --- secret mint under umask 0022: auth/.secret via a login ------------------
 subtest 'auth secret minted 0660 (owner+group, never world)' => sub {
     require JSON::PP;
-    require IPC::Open2;
     my $utl = "$root/tools/lazysite-users.pl";
 
     # seed a user through the tool (API mode, like the real CGI does)
-    my ( $cout, $cin );
-    my $pid = IPC::Open2::open2( $cout, $cin, $^X, $utl, '--api', '--docroot', $d );
-    print $cin JSON::PP::encode_json( { action => 'add', username => 'u1', password => 'pw-long-enough' } );
-    close $cin;
-    do { local $/; <$cout> };
-    waitpid $pid, 0;
+    run_child( [ $^X, $utl, '--api', '--docroot', $d ],
+        stdin => JSON::PP::encode_json( { action => 'add', username => 'u1', password => 'pw-long-enough' } ), stderr => 'inherit' );
 
     # a login mints lazysite/auth/.secret if absent
     my $body = 'username=u1&password=pw-long-enough&next=/';
@@ -86,13 +79,7 @@ subtest 'auth secret minted 0660 (owner+group, never world)' => sub {
         CONTENT_TYPE        => 'application/x-www-form-urlencoded',
         LAZYSITE_USERS_TOOL => $utl,
     );
-    my $err = gensym;
-    my $apid = open3( my $wtr, my $rdr, $err, $^X, "$root/lazysite-auth.pl" );
-    print $wtr $body;
-    close $wtr;
-    do { local $/; <$rdr> };
-    do { local $/; <$err> };
-    waitpid $apid, 0;
+    run_child( [ $^X, "$root/lazysite-auth.pl" ], stdin => $body );
 
     my $sec = "$d/lazysite/auth/.secret";
     ok( -f $sec, 'auth/.secret minted by the login flow' ) or return;

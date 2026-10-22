@@ -23,7 +23,7 @@ use IPC::Open3 qw(open3);
 use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir);
+use TestHelper qw(repo_root env_passthrough site_tempdir run_child);
 
 my $root = repo_root();
 my $d    = site_tempdir();
@@ -96,13 +96,7 @@ sub mcp {
         %env,
     );
     open my $e, '>>', "$logs/stderr.log" or die $!;
-    my $pid = open3( my $in, my $out, '>&' . fileno($e), $^X, "$root/lazysite-mcp.pl" );
-    binmode $in;
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ], stdin => $body, stderr => $e )->{out};
     close $e;
     my ($jb) = ( $resp // '' ) =~ /\r?\n\r?\n(.*)/s;
     my $j = eval { decode_json( $jb // '' ) };

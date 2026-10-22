@@ -53,7 +53,7 @@ use File::Temp                    ();
 use File::Copy                    ();
 use File::Basename                qw(dirname);
 use IO::Compress::Zip             qw(zip $ZipError);
-use TestHelper                    qw(repo_root site_tempdir grant_caps);
+use TestHelper                    qw(repo_root site_tempdir grant_caps run_child);
 use Lazysite::ControlApi::Actions ();
 
 my $root = repo_root();
@@ -104,12 +104,7 @@ sub api {
     $ENV{LAZYSITE_LOG_LEVEL}    = $o{log_level} if defined $o{log_level};
     $ENV{HTTP_X_CSRF_TOKEN} = hmac_sha256_hex( 'csrf:admin:' . int( time() / 3600 ), $secret ) if $o{token};
     open my $err, '>', "$ERRDIR/stderr" or die $!;
-    my $pid = open3( my $w, my $r, '>&' . fileno($err), $^X, $mapi );
-    binmode $w;
-    print {$w} $body;
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ], stdin => $body, stderr => $err )->{out};
     close $err;
     my ( $head, $jb ) = split /\r?\n\r?\n/, $out, 2;
     my ($status) = ( $head // '' ) =~ /^Status:\s*(\d+)/m;
@@ -147,19 +142,14 @@ chmod 0600, "$lz/auth/.secret";
 # The account store is written through the tool that owns it.
 sub users_tool {
     my (@args) = @_;
-    my $pid = open3( my $w, my $r, undef, $^X, "$root/tools/lazysite-users.pl", '--docroot', $tpl_doc, @args );
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--docroot', $tpl_doc, @args ],
+        stderr => 'merge' )->{out};
     return $out;
 }
 sub users_api {
     my ($req) = @_;
-    my $pid = open3( my $w, my $r, undef, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $tpl_doc );
-    print {$w} encode_json($req);
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $tpl_doc ],
+        stdin => encode_json($req), stderr => 'merge' )->{out};
     return $out;
 }
 users_api( { action => 'add', username => 'admin', password => 'pw-admin-0123456789' } );

@@ -25,10 +25,9 @@ use File::Path     qw(make_path);
 use File::Basename qw(dirname);
 use Cwd            qw(abs_path);
 use IPC::Open3     qw(open3);
-use Symbol         qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root repo_manifest_guard site_tempdir);
+use TestHelper qw(repo_root repo_manifest_guard site_tempdir run_child);
 
 my $root    = repo_root();
 my $INSTALL = "$root/install.pl";
@@ -111,14 +110,8 @@ sub run_cgi {
         PATH     => '/usr/bin:/bin',          %$env,
         PERL5OPT => "-I$probe -MLzsLibProbe", LZS_LIB_PROBE => $rec,
     );
-    my $err = gensym;
-    my $pid = open3( my $in, my $out, $err, $file );
-    print {$in} $body if defined $body;
-    close $in;
+    my ( $so, $se ) = @{ run_child( [$file], stdin => $body ) }{qw(out err)};
     local $/;
-    my $so = <$out> // '';
-    my $se = <$err> // '';
-    waitpid $pid, 0;
     my @recs;
     if ( open my $fh, '<', $rec ) {
         @recs = map { chomp; +{ map { split /=/, $_, 2 } split /\t/ } } <$fh>;

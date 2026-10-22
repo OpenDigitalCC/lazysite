@@ -11,9 +11,8 @@ use FindBin;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP qw(decode_json);
-use IPC::Open2;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough);
+use TestHelper qw(repo_root env_passthrough run_child);
 
 my $root = repo_root();
 
@@ -114,7 +113,6 @@ SKIP: {
 
     my $token = csrf_for($docroot);
 
-    my ( $cout, $cin );
     my $body = '{"content":"boom","mtime":null}';
     local %ENV = (
         env_passthrough(),   # keep coverage instrumentation for the CGI child
@@ -126,13 +124,8 @@ SKIP: {
         HTTP_X_REMOTE_USER => 'mgr',
         HTTP_X_CSRF_TOKEN  => $token,
     );
-    my $pid = open2( $cout, $cin,
-        $^X, "$root/lazysite-manager-api.pl" );
-    print $cin $body;
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-manager-api.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     $out =~ s/\A.*?\r?\n\r?\n//s;
     my $r = decode_json($out);
 

@@ -16,11 +16,9 @@ use strict;
 use warnings;
 use Test::More;
 use FindBin;
-use IPC::Open3 qw(open3);
-use Symbol     qw(gensym);
 use JSON::PP   qw(decode_json);
 use lib "$FindBin::Bin/../../lib";
-use TestHelper     qw(repo_root);
+use TestHelper     qw(repo_root run_child);
 use ManagerSession qw(new_site);
 use lib repo_root() . '/lib';
 
@@ -52,13 +50,7 @@ sub upload_request {
     $ENV{CONTENT_LENGTH}        = length $MP;
     $ENV{HTTP_COOKIE}           = $s->cookie_for($user);
     $ENV{HTTP_X_CSRF_TOKEN}     = $s->csrf_for($user);
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $s->{api} );
-    print {$w} $MP;
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $s->{api} ], stdin => $MP )->{out};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     my $res = eval { decode_json( $jb // '' ) };
     return ref $res eq 'HASH' ? $res : { _raw => $out };

@@ -10,11 +10,10 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
-use IPC::Open2;
 use JSON::PP qw(decode_json encode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough);
+use TestHelper qw(repo_root env_passthrough run_child);
 
 eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)) };
 if ( $@ ) {
@@ -55,7 +54,6 @@ sub build_zip {
 
 sub api_post {
     my ( $action, $filename, $body, $token ) = @_;
-    my ( $cout, $cin );
     local %ENV = (
         env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT      => $docroot,
@@ -74,13 +72,8 @@ sub api_post {
         LAZYSITE_AUTH_TRUSTED => 1,
         HTTP_X_CSRF_TOKEN  => $token // '',
     );
-    my $pid = open2( $cout, $cin,
-        $^X, "$root/lazysite-manager-api.pl" );
-    print $cin $body if defined $body;
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-manager-api.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     $out =~ s/\A.*?\r?\n\r?\n//s;
     return decode_json($out);
 }

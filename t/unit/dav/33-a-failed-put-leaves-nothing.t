@@ -12,12 +12,11 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use IPC::Open3;
-use Symbol qw(gensym);
 use POSIX ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(setup_dav_site run_dav repo_root site_tempdir);
+use TestHelper qw(setup_dav_site run_dav repo_root site_tempdir run_child feed_child reap_child);
 
 my $root = repo_root();
 local $SIG{PIPE} = 'IGNORE';
@@ -80,11 +79,7 @@ print "failed=", ( $st->{failed} // '' ), " errno=", ( $st->{errno} + 0 ), "\n";
 main::_write_failure( 'write the file', $st->{errno}, "$ARGV[2]/x" );
 PERL
     close $fh;
-    my $err = gensym;
-    my $pid = open3( my $in, my $out, $err, $^X, $drv, $root, $link, $d );
-    close $in;
-    my $o = do { local $/; <$out> };
-    waitpid $pid, 0;
+    my $o = run_child( [ $^X, $drv, $root, $link, $d ] )->{out};
     my $enospc = POSIX::ENOSPC();
     like( $o, qr/failed=write errno=$enospc\b/, 'a write to a full device fails with ENOSPC' );
     like( $o, qr/Status: 507/, 'which is answered 507 Insufficient Storage' );
@@ -104,11 +99,7 @@ do "$ARGV[0]/lazysite-dav.pl" or die $@ || $!;
 main::_write_failure( 'write the file', do { local $! = 27; $! }, "$ARGV[1]/x" );
 PERL
     close $fh;
-    my $err = gensym;
-    my $pid = open3( my $in, my $out, $err, $^X, $drv, $root, $d );
-    close $in;
-    my $o = do { local $/; <$out> };
-    waitpid $pid, 0;
+    my $o = run_child( [ $^X, $drv, $root, $d ] )->{out};
     like( $o, qr/Status: 500/, 'a non-space write error is a 500' );
     like( $o, qr/Cannot write the file: File too large/, 'whose body names the cause' );
 }
@@ -126,10 +117,15 @@ PERL
     $ENV{LAZYSITE_DAV_FAIL_DELAY} = 0;
     $ENV{HTTP_AUTHORIZATION}      = $s->{auth};
     $ENV{CONTENT_LENGTH}          = 1_000_000;
-    my $err = gensym;
-    my $pid = open3( my $in, my $out, $err, $^X, "$root/lazysite-dav.pl" );
+    # SM1245: this test drives the child itself - it signals it mid-body, so it
+    # holds the pid. Its output goes to files no pipe can fill, and the body and
+    # the wait are bounded.
+    my $logs = tempdir( CLEANUP => 1 );
+    open my $cout, '>', "$logs/stdout" or die $!;
+    open my $cerr, '>', "$logs/stderr" or die $!;
+    my $pid = open3( my $in, '>&' . fileno($cout), '>&' . fileno($cerr), $^X, "$root/lazysite-dav.pl" );
     binmode $in;
-    syswrite $in, 'z' x 200_000;
+    feed_child( $in, 'z' x 200_000, label => 'lazysite-dav.pl' );
     my $seen = 0;
     for ( 1 .. 100 ) {
         if ( tmps($d) && -s "$d/" . ( tmps($d) )[0] ) { $seen = 1; last }
@@ -137,7 +133,7 @@ PERL
     }
     ok( $seen, 'the temp file exists while the body is still arriving' );
     kill 'TERM', $pid;
-    waitpid $pid, 0;
+    reap_child( $pid, label => 'lazysite-dav.pl' );
     is_deeply( [ tmps($d) ], [], 'after SIGTERM the temp file is gone' );
     ok( !-e "$d/slow.bin", 'and no half file was stored' );
 }

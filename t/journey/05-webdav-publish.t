@@ -12,10 +12,9 @@ use File::Temp   qw(tempdir);
 use File::Path   qw(make_path);
 use MIME::Base64 qw(encode_base64);
 use JSON::PP     qw(encode_json decode_json);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root run_dav run_processor setup_minimal_site dav_users_tool grant_caps revoke_caps);
+use TestHelper qw(repo_root run_dav run_processor setup_minimal_site dav_users_tool grant_caps revoke_caps run_child);
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
@@ -27,14 +26,8 @@ close $cf;
 
 sub users_api {
     my ($payload) = @_;
-    my ( $cout, $cin );
-    my $pid = open2( $cout, $cin, $^X, "$root/tools/lazysite-users.pl",
-        '--api', '--docroot', $docroot );
-    print $cin encode_json($payload);
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl",
+        '--api', '--docroot', $docroot ], stdin => encode_json($payload), stderr => 'inherit' )->{out};
     return decode_json($out);
 }
 sub basic { 'Basic ' . encode_base64( "deploy:$_[0]", '' ) }

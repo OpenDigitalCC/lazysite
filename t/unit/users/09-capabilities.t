@@ -6,12 +6,9 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use JSON::PP qw(encode_json decode_json);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps);
+use TestHelper qw(repo_root grant_caps run_child);
 
 my $script = repo_root() . "/tools/lazysite-users.pl";
 
@@ -22,18 +19,13 @@ sub fresh_docroot {
 }
 sub cli {
     my ( $d, @a ) = @_;
-    my ( $w, $r ); my $e = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $script, '--docroot', $d, @a );
-    close $w; my $out = do { local $/; <$r> }; my $err = do { local $/; <$e> };
-    waitpid $pid, 0;
+    my ( $out, $err ) = @{ run_child( [ $^X, $script, '--docroot', $d, @a ] ) }{qw(out err)};
     return { out => $out // '', err => $err // '', code => $? >> 8 };
 }
 sub settings {
     my ( $d, $u ) = @_;
-    my ( $co, $ci );
-    my $pid = open2( $co, $ci, $^X, $script, '--api', '--docroot', $d );
-    print $ci encode_json({ action => 'settings-get', username => $u });
-    close $ci; my $out = do { local $/; <$co> }; close $co; waitpid $pid, 0;
+    my $out = run_child( [ $^X, $script, '--api', '--docroot', $d ],
+        stdin => encode_json({ action => 'settings-get', username => $u }), stderr => 'inherit' )->{out};
     return ( eval { decode_json($out) } // {} )->{settings};
 }
 

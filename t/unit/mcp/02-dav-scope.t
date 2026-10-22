@@ -10,10 +10,9 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
 my $mcp  = "$root/lazysite-mcp.pl";
@@ -54,13 +53,7 @@ sub call {
     $ENV{CONTENT_LENGTH}      = length $body;
     $ENV{LAZYSITE_USERS_TOOL} = $stub;
     $ENV{HTTP_AUTHORIZATION}  = "Bearer $user:lzs_x";
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, $mcp );
-    print $in $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, $mcp ], stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     return ( defined $jb && length $jb ) ? eval { decode_json($jb) } : undef;
 }

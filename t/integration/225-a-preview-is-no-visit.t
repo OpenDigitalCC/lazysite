@@ -24,7 +24,7 @@ use JSON::PP   qw(encode_json decode_json);
 use IPC::Open3 qw(open3);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper     qw(repo_root env_passthrough);
+use TestHelper     qw(repo_root env_passthrough run_child);
 use ManagerSession ();
 
 my $root = repo_root();
@@ -88,12 +88,7 @@ sub mcp {
         STUB_SCOPE                   => $scope // '',
     );
     open my $e, '>>', "$logs/stderr.log" or die $!;
-    my $pid = open3( my $in, my $out, '>&' . fileno($e), $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ], stdin => $body, stderr => $e )->{out};
     close $e;
     my ($jb) = ( $resp // '' ) =~ /\r?\n\r?\n(.*)/s;
     my $j = eval { decode_json( $jb // '' ) };

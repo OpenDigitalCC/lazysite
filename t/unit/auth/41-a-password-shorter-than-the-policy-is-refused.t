@@ -13,13 +13,10 @@ use utf8;
 use Test::More;
 use File::Path qw(make_path);
 use JSON::PP qw(encode_json decode_json);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir);
+use TestHelper qw(repo_root env_passthrough site_tempdir run_child);
 use Lazysite::Auth::Credential qw(hash_password password_min_length password_policy_refusal);
 
 my $root = repo_root();
@@ -28,26 +25,14 @@ my $utl  = "$root/tools/lazysite-users.pl";
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utl, '--api', '--docroot', $d );
-    binmode $i, ':raw';
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utl, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // { _raw => $out };
 }
 
 sub cli {
     my ( $d, @args ) = @_;
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $utl, '--docroot', $d, @args );
-    close $w;
-    my $out = do { local $/; <$r> };
-    my $err = do { local $/; <$e> };
-    waitpid $pid, 0;
+    my ( $out, $err ) = @{ run_child( [ $^X, $utl, '--docroot', $d, @args ] ) }{qw(out err)};
     return { rc => $? >> 8, out => $out // '', err => $err // '' };
 }
 
@@ -62,13 +47,7 @@ sub auth_post {
         REMOTE_ADDR         => '127.0.0.1',
         HTTPS               => '',
         LAZYSITE_USERS_TOOL => $utl );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $auth );
-    print $w $body;
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $auth ], stdin => $body )->{out};
     return $out // '';
 }
 

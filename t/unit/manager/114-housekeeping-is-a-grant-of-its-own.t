@@ -20,13 +20,10 @@ use File::Temp   qw(tempdir);
 use File::Path   qw(make_path);
 use JSON::PP     qw(encode_json decode_json);
 use MIME::Base64 qw(encode_base64);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper             qw(repo_root grant_caps revoke_caps);
+use TestHelper             qw(repo_root grant_caps revoke_caps run_child);
 use Lazysite::Capabilities ();
 
 my $root   = repo_root();
@@ -36,13 +33,8 @@ my $secret = 'sekret' x 6;
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utool, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // { _raw => $out };
 }
 
@@ -59,14 +51,8 @@ sub mapi {
     $ENV{CONTENT_LENGTH}      = defined $body ? length($body) : 0;
     delete $ENV{HTTP_X_REMOTE_USER};
     for ( keys %o ) { $ENV{$_} = $o{$_} if defined $o{$_} }
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $mapi );
-    print $w ( defined $body ? $body : '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    my $err = do { local $/; <$e> };
-    waitpid $pid, 0;
+    my ( $out, $err ) = @{ run_child( [ $^X, $mapi ],
+        stdin => ( defined $body ? $body : '' ) ) }{qw(out err)};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // { _raw => $out, _err => $err };
 }

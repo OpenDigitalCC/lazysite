@@ -18,10 +18,9 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-users.pl";
@@ -37,13 +36,8 @@ sub fresh_docroot {
 
 sub api {
     my ( $docroot, $payload ) = @_;
-    my ( $cout, $cin );
-    my $pid = open2( $cout, $cin, $^X, $script, '--api', '--docroot', $docroot );
-    print $cin encode_json($payload);
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $script, '--api', '--docroot', $docroot ],
+        stdin => encode_json($payload), stderr => 'inherit' )->{out};
     my $r = eval { decode_json($out) };
     return $r || { ok => 0, error => "unparseable: $out" };
 }

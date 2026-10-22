@@ -9,10 +9,9 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps run_cmd);
+use TestHelper qw(repo_root grant_caps run_cmd run_child);
 
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-users.pl";
@@ -28,13 +27,8 @@ sub run_cli {
 
 sub users_api {
     my ($payload) = @_;
-    my ( $cout, $cin );
-    my $pid = open2( $cout, $cin, $^X, $script, '--api', '--docroot', $d );
-    print $cin encode_json($payload);
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $script, '--api', '--docroot', $d ],
+        stdin => encode_json($payload), stderr => 'inherit' )->{out};
     return decode_json($out);
 }
 

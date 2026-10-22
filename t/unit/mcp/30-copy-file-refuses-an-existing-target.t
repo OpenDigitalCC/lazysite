@@ -11,10 +11,9 @@ use warnings;
 use Test::More;
 use File::Path qw(make_path);
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2 qw(open2);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir);
+use TestHelper qw(repo_root env_passthrough site_tempdir run_child);
 
 my $root = repo_root();
 my $d    = site_tempdir();
@@ -34,12 +33,8 @@ sub mcp {
     local %ENV = ( env_passthrough(), DOCUMENT_ROOT => $d, REQUEST_METHOD => 'POST',
         CONTENT_LENGTH     => length $body, LAZYSITE_USERS_TOOL => $stub,
         HTTP_AUTHORIZATION => 'Bearer tester:lzs_tok' );
-    my $pid = open2( my $out, my $in, $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     my $j = eval { decode_json( $jb // '' ) } || {};
     return { ok => 0, error => $j->{error}{message} } if $j->{error};
@@ -78,11 +73,8 @@ my $tools = do {
     local %ENV = ( env_passthrough(), DOCUMENT_ROOT => $d, REQUEST_METHOD => 'POST',
         CONTENT_LENGTH     => length $body, LAZYSITE_USERS_TOOL => $stub,
         HTTP_AUTHORIZATION => 'Bearer tester:lzs_tok' );
-    my $pid = open2( my $out, my $in, $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     ( eval { decode_json($jb) } || {} )->{result}{tools} || [];
 };

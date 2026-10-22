@@ -17,11 +17,8 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use JSON::PP       qw(encode_json decode_json);
-use IPC::Open2     qw(open2);
-use IPC::Open3     qw(open3);
-use Symbol         qw(gensym);
 use MIME::Base64   qw(encode_base64);
-use TestHelper     qw(repo_root);
+use TestHelper     qw(repo_root run_child);
 use ManagerSession qw(new_site);
 
 my $root = repo_root();
@@ -39,12 +36,8 @@ $s->grant( 'agent2', 'night-bots', [qw(api manage_content manage_config maintena
 
 sub uapi {
     my ($p) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$i} encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 my %auth;
@@ -74,13 +67,8 @@ sub api {
         $ENV{HTTP_COOKIE}           = $s->cookie_for( $o{user} );
         $ENV{HTTP_X_CSRF_TOKEN}     = $s->csrf_for( $o{user} );
     }
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, "$root/lazysite-manager-api.pl" );
-    print {$w} ( $body // '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-manager-api.pl" ],
+        stdin => ( $body // '' ) )->{out};
     my ( $head, $jb ) = split /\r?\n\r?\n/, $out // '', 2;
     my ($code) = ( $head // '' ) =~ /^Status:\s*(\d+)/mi;
     my %h;

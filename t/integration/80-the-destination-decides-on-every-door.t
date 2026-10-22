@@ -18,10 +18,9 @@ use Test::More;
 use File::Path   qw(make_path);
 use JSON::PP     qw(encode_json decode_json);
 use MIME::Base64 qw(encode_base64);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir);
+use TestHelper qw(repo_root env_passthrough site_tempdir run_child);
 
 my $root    = repo_root();
 my $docroot = site_tempdir();
@@ -82,13 +81,8 @@ sub mcp {
         LAZYSITE_USERS_TOOL => $stub,
         HTTP_AUTHORIZATION  => 'Bearer tester:lzs_tok',
     );
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     my $r = eval { decode_json($jb) } || {};
     return $r->{result}{structuredContent} // { ok => 0, error => ( $r->{error}{message} // 'no answer' ) };

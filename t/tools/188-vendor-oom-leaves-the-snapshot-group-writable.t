@@ -13,7 +13,7 @@ use File::Find qw(find);
 use IPC::Open3 qw(open3);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $script = repo_root() . '/tools/vendor-oom.sh';
 my $t      = tempdir( CLEANUP => 1 );
@@ -44,10 +44,8 @@ chmod 02775, $parent;
 my $dest = "$parent/dest";
 
 umask 022;    # the umask that produced 2755/644; the tool must not depend on it
-my $pid = open3( my $in, my $both, undef, 'env', "VENDOR_OOM_DEST=$dest", 'bash', $script, $commit, $repo );
-close $in;
-my $out = do { local $/; <$both> };
-waitpid $pid, 0;
+my $out = run_child( [ 'env', "VENDOR_OOM_DEST=$dest", 'bash', $script, $commit, $repo ],
+    stderr => 'merge' )->{out};
 is( $? >> 8, 0, 'the tool runs' ) or diag $out;
 
 my ( @bad, @nosgid, $n );

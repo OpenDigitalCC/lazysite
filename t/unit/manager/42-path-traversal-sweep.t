@@ -13,13 +13,11 @@ use warnings;
 use Test::More;
 use JSON::PP    qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
-use IPC::Open3  qw(open3);
-use Symbol      qw(gensym);
 use File::Path  qw(make_path);
 use File::Temp  qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root   = repo_root();
 my $mapi   = "$root/lazysite-manager-api.pl";
@@ -39,14 +37,7 @@ sub call {
     $ENV{HTTP_X_CSRF_TOKEN} = hmac_sha256_hex( "csrf:admin:" . int( time() / 3600 ), $secret );
     $ENV{LAZYSITE_AUTH_TRUSTED} = 1;
     $ENV{$_} = $o{$_} for grep { defined $o{$_} && /^[A-Z]/ } keys %o;
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $mapi );
-    print $w ( defined $body ? $body : '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ], stdin => ( defined $body ? $body : '' ) )->{out};
     return $out // '';
 }
 sub json_of { my ($jb) = $_[0] =~ /\r?\n\r?\n(.*)/s; eval { decode_json( $jb // '' ) } // {} }

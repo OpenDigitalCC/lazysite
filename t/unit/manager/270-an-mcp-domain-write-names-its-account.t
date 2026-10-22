@@ -25,10 +25,8 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use JSON::PP       qw(encode_json decode_json);
-use IPC::Open3     qw(open3);
-use Symbol         qw(gensym);
 use File::Path     qw(make_path);
-use TestHelper     qw(repo_root);
+use TestHelper     qw(repo_root run_child);
 use ManagerSession qw(new_site);
 use lib repo_root() . '/lib';
 use Lazysite::Git ();
@@ -60,12 +58,8 @@ plan skip_all => 'content history could not initialise (no git?)'
     unless ref $init eq 'HASH' && $init->{ok};
 
 my $token = do {
-    my $e = gensym;
-    my $pid = open3( my $w, my $r, $e, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$w} encode_json( { action => 'token', username => 'mcu' } );
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json( { action => 'token', username => 'mcu' } ) )->{out};
     ( eval { decode_json($out) } || {} )->{token} // '';
 };
 ok( length $token, 'the grant has a token' ) or BAIL_OUT('no token');
@@ -113,13 +107,7 @@ sub mcp_domain_set {
     $ENV{HTTP_AUTHORIZATION}           = "Bearer mcu:$token";
     $ENV{LAZYSITE_LOG_LEVEL}           = 'INFO';
     $ENV{LAZYSITE_FORWARD_DIAGNOSTICS} = 'off';
-    my $e   = gensym;
-    my $pid = open3( my $w, my $r, $e, $^X, $wrapper );
-    print {$w} $body;
-    close $w;
-    my $out = do { local $/; <$r> };
-    my $err = do { local $/; <$e> };
-    waitpid $pid, 0;
+    my ( $out, $err ) = @{ run_child( [ $^X, $wrapper ], stdin => $body ) }{qw(out err)};
     my ($jb)  = $out =~ /\r?\n\r?\n(.*)/s;
     my $j     = eval { decode_json( $jb // '' ) }      || {};
     my $after = eval { decode_json( slurp($result) ) } || {};
@@ -127,12 +115,8 @@ sub mcp_domain_set {
 }
 
 sub last_commit {
-    my $e = gensym;
-    my $pid = open3( my $w, my $r, $e, 'git', "--git-dir=" . Lazysite::Git::git_dir($d), 'log', '-1',
-        '--format=%an|%s' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ 'git', "--git-dir=" . Lazysite::Git::git_dir($d), 'log', '-1',
+        '--format=%an|%s' ] )->{out};
     chomp $out;
     return split /\|/, $out, 2;
 }

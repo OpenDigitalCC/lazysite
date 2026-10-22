@@ -16,8 +16,7 @@ use Test::More;
 use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root env_passthrough);
-use IPC::Open2;
+use TestHelper qw(repo_root env_passthrough run_child);
 use JSON::PP qw(encode_json decode_json);
 
 my $root    = repo_root();
@@ -41,15 +40,8 @@ close $nf;
 
 sub users_api {
     my ($payload) = @_;
-    my ( $cout, $cin );
-    my $pid = open2( $cout, $cin,
-        $^X, "$root/tools/lazysite-users.pl",
-        '--api', '--docroot', $docroot );
-    print $cin encode_json($payload);
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl",
+        '--api', '--docroot', $docroot ], stdin => encode_json($payload), stderr => 'inherit' )->{out};
     return decode_json($out);
 }
 
@@ -74,13 +66,8 @@ my $cookie;
         CONTENT_TYPE    => 'application/x-www-form-urlencoded',
         REMOTE_ADDR     => '127.0.0.1',
     );
-    my ( $cout, $cin );
-    my $pid = open2( $cout, $cin, $^X, "$root/lazysite-auth.pl" );
-    print $cin $body;
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-auth.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
 
     like( $out, qr/Status: 302 Found/,           'login → 302' );
     like( $out, qr{Location: /protected},         'login redirects to next param' );

@@ -21,12 +21,9 @@ use Test::More;
 use File::Path  qw(make_path);
 use JSON::PP    qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir run_cmd);
+use TestHelper qw(repo_root env_passthrough site_tempdir run_cmd run_child);
 use Lazysite::Auth::Session;
 
 my $root   = repo_root();
@@ -36,13 +33,8 @@ my $secret = 'sm1070-secret-' x 3;
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utl, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utl, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // { _raw => $out };
 }
 
@@ -121,12 +113,7 @@ sub revoked {
         HTTP_X_REMOTE_USER    => 'op',
         HTTP_X_CSRF_TOKEN => hmac_sha256_hex( 'csrf:op:' . int( time() / 3600 ), $secret ),
         LAZYSITE_USERS_TOOL => $utl );
-    my ( $w, $r, $e ) = ( undef, undef, gensym );
-    my $pid = open3( $w, $r, $e, $^X, $mapi );
-    print $w $body;
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ], stdin => $body )->{out};
     like( $out, qr/"ok":(?:1|true)/, 'manager remove: ok' ) or diag $out;
     ok( revoked($d)->{not_before}{alice}, 'manager remove: the account\'s sessions are revoked' );
 }

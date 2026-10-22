@@ -20,11 +20,10 @@ use warnings;
 use Test::More;
 use JSON::PP      qw(encode_json decode_json);
 use MIME::Base64  ();
-use IPC::Open2    qw(open2);
 use File::Compare qw(compare);
 use FindBin;
 use lib "$FindBin::Bin/../lib", "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough);
+use TestHelper qw(repo_root env_passthrough run_child);
 use ManagerSession;
 
 my $root = repo_root();
@@ -73,12 +72,8 @@ sub mcp_call {
         CONTENT_LENGTH     => length $body,
         HTTP_AUTHORIZATION => "Bearer agent:$tok",
     );
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, "$root/lazysite-mcp.pl" );
-    print {$i} $body;
-    close $i;
-    my $r = do { local $/; <$o> };
-    waitpid $pid, 0;
+    my $r = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($st) = $r =~ /^Status:\s*(\d+)/m;
     my ($jb) = $r =~ /\r?\n\r?\n(.*)/s;
     return ( $st // 0, eval { decode_json( $jb // '' ) } || {} );

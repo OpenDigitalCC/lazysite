@@ -11,10 +11,9 @@ use warnings;
 use Test::More;
 use DB_File;
 use Fcntl qw(O_RDWR);
-use IPC::Open2 qw(open2);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper     qw(repo_root env_passthrough);
+use TestHelper     qw(repo_root env_passthrough run_child);
 use ManagerSession qw(new_site);
 use RateWindow     qw(stay_in_one_window);
 
@@ -51,12 +50,8 @@ sub login {
         REMOTE_ADDR    => $o{peer} // '127.0.0.1',
         ( defined $o{via} ? ( HTTP_X_FORWARDED_FOR => $o{via} ) : () ),
     );
-    my $pid = open2( my $cout, my $cin, $^X, "$root/lazysite-auth.pl" );
-    print $cin $body;
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-auth.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     return $out;
 }
 

@@ -16,7 +16,7 @@ use DB_File;
 use Fcntl qw(O_RDWR O_CREAT);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough);
+use TestHelper qw(repo_root env_passthrough run_child);
 use RateWindow qw(stay_in_one_window);
 
 my $root    = repo_root();
@@ -57,14 +57,8 @@ sub login_once {
         CONTENT_LENGTH => length($body),
         REMOTE_ADDR    => $ip,
     );
-    require IPC::Open2;
-    my ( $cout, $cin );
-    my $pid = IPC::Open2::open2( $cout, $cin, $^X, "$root/lazysite-auth.pl" );
-    print $cin $body;
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-auth.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     return $out;
 }
 

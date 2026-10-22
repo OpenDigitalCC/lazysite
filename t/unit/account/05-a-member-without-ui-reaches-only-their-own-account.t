@@ -11,13 +11,10 @@ use Test::More;
 use File::Path  qw(make_path);
 use JSON::PP    qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir run_processor);
+use TestHelper qw(repo_root env_passthrough site_tempdir run_processor run_child);
 use Lazysite::ControlApi::Actions ();
 
 my $root       = repo_root();
@@ -30,13 +27,8 @@ my $UI_REFUSAL = qr/does not have manager access/;
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utl, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utl, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 
@@ -58,13 +50,7 @@ sub api {
         LAZYSITE_AUTH_SID => $SID,
         ( $post ? ( HTTP_X_CSRF_TOKEN => csrf('member') ) : () ),
     );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $mapi );
-    print $w $json;
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ], stdin => $json )->{out};
     my ($status) = ( $out // '' ) =~ /^Status:\s*(\d+)/m;
     my ($jb)     = ( $out // '' ) =~ /\r?\n\r?\n(.*)/s;
     return ( $status // 200, eval { decode_json( $jb // '' ) } // { _raw => $out } );

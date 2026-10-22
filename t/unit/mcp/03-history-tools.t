@@ -11,11 +11,10 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP qw(encode_json decode_json);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 use Lazysite::Git ();
 
 plan skip_all => 'git not available' unless Lazysite::Git::git_available();
@@ -57,13 +56,7 @@ sub mcp {
     $ENV{CONTENT_LENGTH}      = length $body;
     $ENV{LAZYSITE_USERS_TOOL} = $stub;
     $ENV{HTTP_AUTHORIZATION}  = $extra{auth} if defined $extra{auth};
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, $mcp );
-    print $in $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, $mcp ], stdin => $body, stderr => 'inherit' )->{out};
     my ($status) = $resp =~ /Status:\s*(\d+)/;
     my ($jb)     = $resp =~ /\r?\n\r?\n(.*)/s;
     my $obj = ( defined $jb && length $jb ) ? eval { decode_json($jb) } : undef;

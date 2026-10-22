@@ -13,12 +13,9 @@ use warnings;
 use Test::More;
 use File::Path  qw(make_path);
 use JSON::PP    qw(encode_json decode_json);
-use IPC::Open2  qw(open2);
-use IPC::Open3  qw(open3);
-use Symbol      qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root setup_auth_site run_processor site_tempdir grant_caps);
+use TestHelper qw(repo_root setup_auth_site run_processor site_tempdir grant_caps run_child);
 
 my $root = repo_root();
 
@@ -129,13 +126,8 @@ subtest 'per-file ACL: the same rule' => sub {
 my $utool = "$root/tools/lazysite-users.pl";
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utool, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 
@@ -148,15 +140,7 @@ sub mapi {
     $ENV{CONTENT_LENGTH} = 0;
     delete @ENV{qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS LAZYSITE_AUTH_TRUSTED REMOTE_ADDR HTTP_X_FORWARDED_FOR)};
     $ENV{$_} = $o{$_} for grep { defined $o{$_} } keys %o;
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, "$root/lazysite-manager-api.pl" );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    my $err = do { local $/; <$e> };
-    close $e;
-    waitpid $pid, 0;
+    my ( $out, $err ) = @{ run_child( [ $^X, "$root/lazysite-manager-api.pl" ] ) }{qw(out err)};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     my $res = eval { decode_json( $jb // '' ) } // { _raw => $out };
     $res->{_stderr} = $err // '';

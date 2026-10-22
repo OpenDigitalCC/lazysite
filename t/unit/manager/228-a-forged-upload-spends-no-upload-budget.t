@@ -28,7 +28,7 @@ use JSON::PP    qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
 use IPC::Open3  qw(open3);
 use File::Path  qw(make_path);
-use TestHelper  qw(repo_root site_tempdir grant_caps);
+use TestHelper  qw(repo_root site_tempdir grant_caps run_child);
 
 my $root = repo_root();
 my $mapi = "$root/lazysite-manager-api.pl";
@@ -44,11 +44,8 @@ sub new_site {
     make_path("$d/lazysite/auth");
     spit( "$d/lazysite/lazysite.conf", "site_name: T\nmanager: enabled\nmanager_groups: managers\n" );
     spit( "$d/lazysite/auth/.secret", $secret );
-    my $pid = open3( my $w, my $r, undef, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$w} encode_json( { action => 'add', username => 'admin', password => 'pw-admin-0123456789' } );
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json( { action => 'add', username => 'admin', password => 'pw-admin-0123456789' } ), stderr => 'merge' )->{out};
     grant_caps( $d, 'admin', 'manage_users', 'ui', 'manage_content' ); # SM1057: writes content in the manager
     return $d;
 }
@@ -71,11 +68,7 @@ sub upload {
     $ENV{HTTP_X_REMOTE_USER}    = 'admin';
     $ENV{LAZYSITE_AUTH_TRUSTED} = 1;
     $ENV{HTTP_X_CSRF_TOKEN} = hmac_sha256_hex( 'csrf:admin:' . int( time() / 3600 ), $secret ) if $genuine;
-    my $pid = open3( my $w, my $r, undef, $^X, $mapi );
-    print {$w} $body;
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ], stdin => $body, stderr => 'merge' )->{out};
     my ($status) = $out =~ /^Status:\s*(\d+)/m;
     my ($jb)     = $out =~ /\r?\n\r?\n(.*)/s;
     return ( $status // 200, eval { decode_json( $jb // '' ) } // {} );

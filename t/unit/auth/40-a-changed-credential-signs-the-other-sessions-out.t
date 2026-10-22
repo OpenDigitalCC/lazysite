@@ -31,12 +31,9 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir grant_caps);
+use TestHelper qw(repo_root env_passthrough site_tempdir grant_caps run_child);
 
 my $root   = repo_root();
 my $auth   = "$root/lazysite-auth.pl";
@@ -47,13 +44,8 @@ my %SID    = ( A => 'a' x 16, B => 'b' x 16, C => 'c' x 16, O1 => '0' x 16, O2 =
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utl, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utl, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // { _raw => $out };
 }
 
@@ -80,12 +72,7 @@ sub signed_in {
         LAZYSITE_PROCESSOR => $stub,
         HTTP_COOKIE        => "lazysite_auth=$cookie",
     );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $auth );
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $auth ] )->{out};
     return ( $out // '' ) =~ /^USER=(\S+)$/m ? $1 : '';
 }
 
@@ -103,13 +90,7 @@ sub mapi {
         CONTENT_LENGTH        => length($body),
         LAZYSITE_AUTH_TRUSTED => 1,
         %o );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $mapi );
-    print $w $body;
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ], stdin => $body )->{out};
     my ($jb) = ( $out // '' ) =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // { _raw => $out };
 }
@@ -252,11 +233,8 @@ sub users_line {
 # --- 8. the CLI ------------------------------------------------------------------------
 {
     my ( $d, $c ) = site();
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utl, '--docroot', $d, 'passwd', 'alice', 'alice-cli-password' );
-    close $i;
-    my $out = do { local $/; <$o> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utl, '--docroot', $d, 'passwd', 'alice', 'alice-cli-password' ],
+        stderr => 'inherit' )->{out};
     like( $out, qr/Password updated/, 'CLI passwd: ok' );
     is( signed_in( $d, $c->{A} ), '', 'CLI passwd: the account\'s sessions are signed out' );
 }

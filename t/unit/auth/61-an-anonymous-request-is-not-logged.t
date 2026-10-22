@@ -17,13 +17,11 @@
 use strict;
 use warnings;
 use Test::More;
-use IPC::Open3 qw(open3);
-use Symbol     qw(gensym);
 use File::Temp ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir);
+use TestHelper qw(repo_root env_passthrough site_tempdir run_child);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -58,13 +56,7 @@ sub anon_get {
         LAZYSITE_PROCESSOR => $stub,
         %env,
     );
-    my ( $wtr, $rdr );
-    my $err = gensym;
-    my $pid = open3( $wtr, $rdr, $err, $^X, $auth );
-    close $wtr;
-    my $out  = do { local $/; <$rdr> };
-    my $eout = do { local $/; <$err> };
-    waitpid $pid, 0;
+    my ( $out, $eout ) = @{ run_child( [ $^X, $auth ] ) }{qw(out err)};
     return { out => $out // '', err => $eout // '' };
 }
 

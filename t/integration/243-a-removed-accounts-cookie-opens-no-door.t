@@ -22,8 +22,6 @@ use Test::More;
 use File::Path  qw(make_path);
 use Digest::SHA qw(hmac_sha256_hex);
 use JSON::PP    qw(encode_json decode_json);
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -31,7 +29,7 @@ BEGIN {
     eval { require DBI; require DBD::SQLite; require YAML::PP; 1 }
         or plan skip_all => 'DBI/DBD::SQLite/YAML::PP not available';
 }
-use TestHelper             qw(repo_root env_passthrough site_tempdir run_cmd);
+use TestHelper             qw(repo_root env_passthrough site_tempdir run_cmd run_child);
 use Lazysite::Data::Tables qw(apply_schema read_rows);
 
 my $root = repo_root();
@@ -48,13 +46,7 @@ sub slurp { my ($p) = @_; open my $fh, '<', $p or return ''; local $/; my $t = <
 sub run {
     my ( $argv, $env, $body ) = @_;
     local %ENV = ( env_passthrough(), %$env );
-    my ( $w, $r, $e ) = ( undef, undef, gensym );
-    my $pid = open3( $w, $r, $e, $^X, @$argv );
-    print {$w} ( $body // '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    my $err = do { local $/; <$e> };
-    waitpid $pid, 0;
+    my ( $out, $err ) = @{ run_child( [ $^X, @$argv ], stdin => ( $body // '' ) ) }{qw(out err)};
     my ($st) = ( $out // '' ) =~ /^Status:\s*(\d+)/m;
     my ($b)  = ( $out // '' ) =~ /\r?\n\r?\n(.*)/s;
     return ( $st // 200, $b // '', $err // '', $out // '' );

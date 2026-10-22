@@ -15,7 +15,7 @@ use Digest::SHA qw(sha256_hex);
 use IPC::Open3  qw(open3);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root   = repo_root();
 my $script = "$root/tools/vendor-oom.sh";
@@ -50,10 +50,8 @@ sub run_tool {
     my (@args) = @_;
     my $dest = "$t/dest";
     system( 'rm', '-rf', $dest );
-    my $pid = open3( my $stdin, my $both, undef, 'env', "VENDOR_OOM_DEST=$dest", 'bash', $script, @args );
-    close $stdin;
-    my $out = do { local $/; <$both> };
-    waitpid $pid, 0;
+    my $out = run_child( [ 'env', "VENDOR_OOM_DEST=$dest", 'bash', $script, @args ],
+        stderr => 'merge' )->{out};
     return ( $? >> 8, $out, $dest );
 }
 

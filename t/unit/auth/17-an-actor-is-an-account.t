@@ -24,14 +24,11 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol      qw(gensym);
 use MIME::Base64 ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root env_passthrough);
+use TestHelper qw(repo_root env_passthrough run_child);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -40,13 +37,8 @@ plan skip_all => "no $auth" unless -f $auth && -f $utl;
 
 sub users_api {
     my ( $docroot, $payload ) = @_;
-    my ( $cout, $cin );
-    my $pid = open2( $cout, $cin, $^X, $utl, '--api', '--docroot', $docroot );
-    print {$cin} encode_json($payload);
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utl, '--api', '--docroot', $docroot ],
+        stdin => encode_json($payload), stderr => 'inherit' )->{out};
     return decode_json($out);
 }
 
@@ -56,14 +48,7 @@ sub run_auth {
     local %ENV = ( env_passthrough(), %$env, CONTENT_LENGTH => length($body),
         CONTENT_TYPE        => 'application/x-www-form-urlencoded',
         LAZYSITE_USERS_TOOL => $utl );
-    my ( $wtr, $rdr );
-    my $err = gensym;
-    my $pid = open3( $wtr, $rdr, $err, $^X, $auth );
-    print {$wtr} $body;
-    close $wtr;
-    my $out = do { local $/; <$rdr> };
-    do { local $/; <$err> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $auth ], stdin => $body )->{out};
     return $out // '';
 }
 
@@ -258,13 +243,7 @@ SKIP: {
         REMOTE_ADDR        => '127.0.0.1',
         HTTP_AUTHORIZATION => 'Basic '
             . MIME::Base64::encode_base64( "reader:$tok", '' ) );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $mapi );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ] )->{out};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     my $res = eval { decode_json( $jb // '' ) } // {};
 

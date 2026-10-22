@@ -18,10 +18,9 @@ use warnings;
 use Test::More;
 use JSON::PP   qw(encode_json decode_json);
 use File::Path qw(make_path);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root site_tempdir run_cmd);
+use TestHelper qw(repo_root site_tempdir run_cmd run_child);
 
 my $tool = repo_root() . '/tools/lazysite-users.pl';
 plan skip_all => 'users tool missing' unless -f $tool;
@@ -43,13 +42,8 @@ sub cli {
 
 sub api {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $tool, '--api', '--docroot', $d );
-    print {$i} encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $tool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     my $r = eval { decode_json( $out // '' ) };
     return ref $r eq 'HASH' ? $r : { ok => 0, _raw => $out };
 }

@@ -27,10 +27,7 @@ use Lazysite::Capabilities   ();
 use Lazysite::Auth::Settings ();
 use JSON::PP qw(encode_json decode_json);
 use MIME::Base64 qw(encode_base64);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
-use TestHelper qw(grant_caps);
+use TestHelper qw(grant_caps run_child);
 
 my $root  = "$FindBin::Bin/../../..";
 my $tool  = "$root/tools/lazysite-users.pl";
@@ -41,13 +38,8 @@ plan skip_all => "no $tool" unless -f $tool;
 # door, and section 2b below is the half of THIS rule that 17 cannot carry.
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $tool, '--api', '--docroot', $d );
-    print {$i} encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $tool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 
@@ -60,14 +52,7 @@ sub mapi {
     $ENV{CONTENT_LENGTH} = defined $body ? length($body) : 0;
     delete $ENV{HTTP_X_REMOTE_USER};
     $ENV{$_} = $o{$_} for grep { defined $o{$_} } keys %o;
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $mapil );
-    print {$w} ( defined $body ? $body : '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapil ], stdin => ( defined $body ? $body : '' ) )->{out};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // { _raw => $out };
 }

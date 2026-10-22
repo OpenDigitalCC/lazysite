@@ -26,10 +26,9 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use File::Path     qw(make_path);
 use JSON::PP       qw(encode_json decode_json);
-use IPC::Open2     qw(open2);
 use MIME::Base64   qw(encode_base64);
 use ManagerSession qw(new_site);
-use TestHelper     qw(repo_root run_dav);
+use TestHelper     qw(repo_root run_dav run_child);
 
 my $root = repo_root();
 plan skip_all => 'manager api missing' unless -f "$root/lazysite-manager-api.pl";
@@ -108,12 +107,8 @@ my $post = slurp("$d/sites/tprf/post/p.md");
 
 my %tok;
 {
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$i} encode_json( { action => 'token', username => 'agent' } );
-    close $i;
-    my $out = do { local $/; <$o> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json( { action => 'token', username => 'agent' } ), stderr => 'inherit' )->{out};
     $tok{agent} = ( eval { decode_json($out) } || {} )->{token} // '';
 }
 
@@ -127,12 +122,8 @@ sub mcp {
     $ENV{REQUEST_METHOD}     = 'POST';
     $ENV{CONTENT_LENGTH}     = length $body;
     $ENV{HTTP_AUTHORIZATION} = "Bearer agent:$tok{agent}";
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     my $j = eval { decode_json( $jb // '' ) } || {};
     return { ok => 0, error => $j->{error}{message} } if $j->{error};

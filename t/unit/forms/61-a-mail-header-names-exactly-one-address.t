@@ -15,10 +15,9 @@ use warnings;
 use Test::More;
 use JSON::PP   ();
 use File::Path qw(make_path);
-use IPC::Open2 ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
-use TestHelper         qw(repo_root site_tempdir run_cmd);
+use TestHelper         qw(repo_root site_tempdir run_cmd run_child);
 use Lazysite::Mail     ();
 use Lazysite::Handlers ();
 
@@ -67,16 +66,11 @@ subtest 'the header writer refuses rather than repairs' => sub {
     my $send = sub {
         my ($to) = @_;
         local $ENV{DOCUMENT_ROOT} = $d;
-        my ( $o, $i );
-        my $pid = IPC::Open2::open2( $o, $i, $^X, $script, '--pipe' );
-        print {$i} JSON::PP::encode_json( {
+        my $res = run_child( [ $^X, $script, '--pipe' ], stderr => 'inherit',
+            stdin => JSON::PP::encode_json( {
                 config => { to => $to, from => 'web@example.org', method => 'sendmail',
                     sendmail_path => $mock },
-                form => { message => 'hello' } } );
-        close $i;
-        my $res = do { local $/; <$o> };
-        close $o;
-        waitpid $pid, 0;
+                form => { message => 'hello' } } ) )->{out};
         return JSON::PP::decode_json($res);
     };
 

@@ -12,10 +12,9 @@
 use strict;
 use warnings;
 use Test::More;
-use IPC::Open3 ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $sh = repo_root() . '/tools/bench-surfaces.sh';
 plan skip_all => 'taskset is not installed on this host' unless grep { -x "$_/taskset" } split /:/, $ENV{PATH};
@@ -25,10 +24,7 @@ sub run {
     local %ENV = %ENV;
     delete $ENV{BENCH_SURFACES_CONSTRAINED};
     $ENV{BENCH_MARGIN_STUB} = $stub if defined $stub;
-    my $pid = IPC::Open3::open3( my $in, my $ph, undef, "/bin/bash", $sh, @args );
-    close $in;
-    my $out = do { local $/; <$ph> };
-    waitpid $pid, 0;
+    my $out = run_child( [ "/bin/bash", $sh, @args ], stderr => 'merge' )->{out};
     return ( $? >> 8, $out );
 }
 

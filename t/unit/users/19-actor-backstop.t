@@ -10,25 +10,19 @@ use strict;
 use warnings;
 use Test::More;
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2 qw(open2);
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps);
+use TestHelper qw(repo_root grant_caps run_child);
 
 my $root  = repo_root();
 my $utool = "$root/tools/lazysite-users.pl";
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utool, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 

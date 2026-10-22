@@ -31,10 +31,9 @@ use Test::More;
 use JSON::PP   qw(decode_json);
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
-use IPC::Open3;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
 my $d    = tempdir( CLEANUP => 1 );
@@ -47,13 +46,8 @@ close $cf;
 # setting is cleared) and a shell-interpolated '' simply disappears.
 sub users {
     my @args = @_;
-    my ( $r, $w );
-    my $pid = IPC::Open3::open3( $w, $r, undef,
-        $^X, "$root/tools/lazysite-users.pl", '--docroot', $d, @args );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--docroot', $d, @args ],
+        stderr => 'merge' )->{out};
     return $out // '';
 }
 

@@ -21,11 +21,10 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2 qw(open2);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root grant_caps revoke_caps site_tempdir);
+use TestHelper qw(repo_root grant_caps revoke_caps site_tempdir run_child);
 use Lazysite::Manager::StartPage qw(parse_start_page validate_start_page start_page_choices resolve_start_page fallback_landing);
 
 my $root = repo_root();
@@ -61,13 +60,8 @@ page('about.md');
 
 sub users_api {
     my ($payload) = @_;
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, $utl, '--api', '--docroot', $d );
-    print {$in} encode_json($payload);
-    close $in;
-    my $raw = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $raw = run_child( [ $^X, $utl, '--api', '--docroot', $d ],
+        stdin => encode_json($payload), stderr => 'inherit' )->{out};
     return decode_json($raw);
 }
 users_api( { action => 'add', username => $_, password => 'pw-long-enough' } ) for qw(admin editor shopper);

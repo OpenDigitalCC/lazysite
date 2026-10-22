@@ -25,11 +25,9 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root setup_dav_site);
+use TestHelper qw(repo_root setup_dav_site run_child);
 
 my $root = repo_root();
 my $site = setup_dav_site();
@@ -53,31 +51,13 @@ sub put_refused {
     $ENV{CONTENT_LENGTH}          = length $body;
     $ENV{LAZYSITE_DAV_FAIL_DELAY} = 0;
 
-    # SIGPIPE would kill this test process rather than fail an assertion, and
-    # "the test died" is not a measurement.
-    local $SIG{PIPE} = 'IGNORE';
+    # run_child ignores SIGPIPE while it writes, and says how much of the body
+    # the child took and why it stopped (EPIPE: it exited without reading).
+    my $r = run_child( [ $^X, "$root/lazysite-dav.pl" ], stdin => $body );
+    my ($code) = $r->{out} =~ /^Status:\s*(\d+)/;
 
-    my ( $wtr, $rdr );
-    my $err = gensym();
-    my $pid = open3( $wtr, $rdr, $err, $^X, "$root/lazysite-dav.pl" );
-    binmode $wtr;
-
-    my $written = 0;
-    my $broke   = '';
-    while ( $written < length $body ) {
-        my $n = syswrite $wtr, $body, 65536, $written;
-        if ( !defined $n ) { $broke = "$!"; last }
-        last unless $n;
-        $written += $n;
-    }
-    close $wtr;
-    my $out = do { local $/; <$rdr> };
-    my $e   = do { local $/; <$err> };
-    waitpid $pid, 0;
-    my ($code) = ( $out // '' ) =~ /^Status:\s*(\d+)/;
-
-    return { written => $written, broke => $broke, code => $code,
-        stderr => ( $e // '' ) };
+    return { written => $r->{written}, broke => $r->{stdin_error} // '', code => $code,
+        stderr => $r->{err} };
 }
 
 subtest 'a small refused body: the client sees the refusal' => sub {

@@ -12,12 +12,9 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use JSON::PP       qw(encode_json decode_json);
-use IPC::Open2     qw(open2);
-use IPC::Open3     qw(open3);
-use Symbol         qw(gensym);
 use MIME::Base64   qw(encode_base64);
 use File::Path     qw(make_path);
-use TestHelper     qw(repo_root run_dav);
+use TestHelper     qw(repo_root run_dav run_child);
 use ManagerSession qw(new_site);
 
 my $root = repo_root();
@@ -58,12 +55,8 @@ ok( $s->call( 'op', 'domain-set', body => { host => 'mine.example.org', key => '
 
 sub uapi {
     my ($p) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$i} encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 my %tok = map { $_ => ( uapi( { action => 'token', username => $_ } )->{token} // '' ) } qw(tk tkc mc mcc);
@@ -80,12 +73,8 @@ sub api {
     $ENV{QUERY_STRING}       = $query;
     $ENV{REQUEST_METHOD}     = defined $json ? 'POST'       : 'GET';
     $ENV{CONTENT_LENGTH}     = defined $json ? length $json : 0;
-    my ( $w, $r );
-    my $pid = open3( $w, $r, gensym, $^X, "$root/lazysite-manager-api.pl" );
-    print {$w} ( $json // '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-manager-api.pl" ],
+        stdin => ( $json // '' ) )->{out};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // { _raw => $out };
 }
@@ -100,12 +89,8 @@ sub mcp {
     $ENV{REQUEST_METHOD}     = 'POST';
     $ENV{CONTENT_LENGTH}     = length $body;
     $ENV{HTTP_AUTHORIZATION} = "Bearer $who:$tok{$who}";
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, "$root/lazysite-mcp.pl" );
-    print {$i} $body;
-    close $i;
-    my $resp = do { local $/; <$o> };
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     my $j = eval { decode_json( $jb // '' ) } || {};
     return { ok => 0, error => $j->{error}{message} } if $j->{error};

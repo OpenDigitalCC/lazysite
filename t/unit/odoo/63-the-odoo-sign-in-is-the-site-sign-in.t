@@ -30,13 +30,11 @@ use Test::More;
 use JSON::PP qw(decode_json encode_json);
 use File::Path qw(make_path);
 use File::Copy qw(copy);
-use IPC::Open3;
-use Symbol qw(gensym);
 use Digest::SHA qw(hmac_sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root setup_minimal_site site_tempdir grant_caps env_passthrough processor_path);
+use TestHelper qw(repo_root setup_minimal_site site_tempdir grant_caps env_passthrough processor_path run_child);
 use OdooTest   qw(oom_or_skip shop_ready bind quiet fake_shop odoo_site write_conf);
 
 BEGIN { oom_or_skip() }
@@ -208,13 +206,7 @@ sub page {
         REMOTE_ADDR => '198.51.100.99', HTTPS => '', LAZYSITE_PROCESSOR => processor_path(),
         ( length( $o{cookie} // '' ) ? ( HTTP_COOKIE => $o{cookie} ) : () ), %{ $o{env} || {} },
     );
-    my ( $w, $r );
-    my $err = gensym;
-    my $pid = open3( $w, $r, $err, $^X, "$root/lazysite-auth.pl" );
-    close $w;
-    my $out = do { local $/; <$r> };
-    do { local $/; <$err> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-auth.pl" ] )->{out};
     my ($st) = ( $out // '' ) =~ /^Status:\s*(\d+)/m;
     return ( $st // 200, $out // '' );
 }

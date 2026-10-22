@@ -22,10 +22,9 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP;
-use IPC::Open2 qw(open2);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
@@ -48,10 +47,8 @@ sub validate {
     $ENV{DOCUMENT_ROOT} = $docroot; $ENV{REQUEST_METHOD} = 'POST';
     $ENV{CONTENT_LENGTH} = length $body; $ENV{LAZYSITE_USERS_TOOL} = $stub;
     $ENV{HTTP_AUTHORIZATION} = 'Bearer tester:lzs_tok';
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body; close $in;
-    my $resp = do { local $/; <$out> }; close $out; waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     my $d = eval { decode_json($jb) } || {};
     return eval { decode_json( $d->{result}{content}[0]{text} // '' ) } || {};

@@ -9,11 +9,10 @@ use File::Path qw(make_path);
 use JSON::PP qw(encode_json decode_json);
 use Digest::SHA qw(sha256);
 use MIME::Base64 qw(encode_base64);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 use Lazysite::Auth::OAuth qw(validate_token);
 
 my $root  = repo_root();
@@ -37,21 +36,14 @@ sub run {
     $ENV{REQUEST_METHOD} = $o{method} || 'GET';
     $ENV{CONTENT_LENGTH} = defined $o{body} ? length $o{body} : 0;
     $ENV{HTTP_AUTHORIZATION} = $o{auth} if defined $o{auth};
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, $script );
-    print $in ( defined $o{body} ? $o{body} : '' );
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, $script ],
+        stdin => ( defined $o{body} ? $o{body} : '' ), stderr => 'inherit' )->{out};
     return $resp;
 }
 sub uapi {
     my ($p) = @_;
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, $users, '--api', '--docroot', $d );
-    print $in encode_json($p); close $in;
-    my $r = do { local $/; <$out> }; close $out; waitpid $pid, 0;
+    my $r = run_child( [ $^X, $users, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return decode_json($r);
 }
 sub jbody { my ($r) = @_; my ($b) = $r =~ /\r?\n\r?\n(.*)/s; return decode_json( $b // '{}' ) }

@@ -12,14 +12,11 @@ use warnings;
 use Test::More;
 use JSON::PP    qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
-use IPC::Open2  qw(open2);
-use IPC::Open3  qw(open3);
-use Symbol      qw(gensym);
 use File::Path  qw(make_path);
 use File::Temp  qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper   qw(repo_root grant_caps);
+use TestHelper   qw(repo_root grant_caps run_child);
 use MIME::Base64 qw(encode_base64);
 
 my $root   = repo_root();
@@ -31,13 +28,8 @@ sub spit { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close 
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utool, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 
@@ -52,14 +44,7 @@ sub mapi {
     delete $ENV{HTTP_X_REMOTE_GROUPS};
     $ENV{$_} = $o{$_} for grep { defined $o{$_} } keys %o;
     $ENV{LAZYSITE_AUTH_TRUSTED} = 1 if length( $ENV{HTTP_X_REMOTE_USER} // '' );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $mapi_s );
-    print $w ( defined $body ? $body : '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi_s ], stdin => ( defined $body ? $body : '' ) )->{out};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // { _raw => $out };
 }

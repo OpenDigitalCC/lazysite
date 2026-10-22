@@ -8,12 +8,9 @@ use Test::More;
 use File::Temp qw(tempdir);
 use JSON::PP qw(encode_json decode_json);
 use MIME::Base64 qw(encode_base64);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough);
+use TestHelper qw(repo_root env_passthrough run_child);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -21,13 +18,8 @@ my $utl  = "$root/tools/lazysite-users.pl";
 
 sub users_api {
     my ( $docroot, $payload ) = @_;
-    my ( $cout, $cin );
-    my $pid = open2( $cout, $cin, $^X, $utl, '--api', '--docroot', $docroot );
-    print $cin encode_json($payload);
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utl, '--api', '--docroot', $docroot ],
+        stdin => encode_json($payload), stderr => 'inherit' )->{out};
     return decode_json($out);
 }
 
@@ -48,14 +40,7 @@ sub run_auth {
         LAZYSITE_USERS_TOOL => $utl,
         %env,
     );
-    my ( $wtr, $rdr );
-    my $err = gensym;
-    my $pid = open3( $wtr, $rdr, $err, $^X, $auth );
-    print $wtr $body;
-    close $wtr;
-    my $out = do { local $/; <$rdr> };
-    do { local $/; <$err> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $auth ], stdin => $body )->{out};
     $out =~ s/\A.*?\r?\n\r?\n//s;    # strip CGI headers
     return eval { decode_json($out) } // { _raw => $out };
 }

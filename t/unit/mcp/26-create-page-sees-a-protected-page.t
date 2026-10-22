@@ -13,11 +13,10 @@ use strict;
 use warnings;
 use Test::More;
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2 qw(open2);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir run_child);
 
 my $mcp  = repo_root() . '/lazysite-mcp.pl';
 my $d    = site_tempdir();
@@ -49,13 +48,7 @@ sub create_page {
     $ENV{CONTENT_LENGTH}      = length $body;
     $ENV{LAZYSITE_USERS_TOOL} = $stub;
     $ENV{HTTP_AUTHORIZATION}  = 'Bearer agent:lzs_tok';
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, $mcp );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, $mcp ], stdin => $body, stderr => 'inherit' )->{out};
     return $resp // '';
 }
 

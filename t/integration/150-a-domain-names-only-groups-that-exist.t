@@ -13,9 +13,8 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use JSON::PP       qw(encode_json decode_json);
-use IPC::Open2     qw(open2);
 use File::Path     qw(make_path);
-use TestHelper     qw(repo_root);
+use TestHelper     qw(repo_root run_child);
 use ManagerSession qw(new_site);
 
 my $root = repo_root();
@@ -37,12 +36,8 @@ sub conf { open my $fh, '<', "$d/lazysite/lazysite.conf" or return ''; local $/;
 
 sub uapi {
     my ($p) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$i} encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 my $token = uapi( { action => 'token', username => 'mcm' } )->{token} // '';
@@ -57,12 +52,8 @@ sub mcp {
     $ENV{REQUEST_METHOD}     = 'POST';
     $ENV{CONTENT_LENGTH}     = length $body;
     $ENV{HTTP_AUTHORIZATION} = "Bearer mcm:$token";
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     my $j = eval { decode_json( $jb // '' ) } || {};
     return { ok => 0, error => $j->{error}{message} } if $j->{error};

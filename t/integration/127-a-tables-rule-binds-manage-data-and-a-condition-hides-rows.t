@@ -14,7 +14,6 @@ use strict;
 use warnings;
 use Test::More;
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2 qw(open2);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -24,7 +23,7 @@ BEGIN {
     eval { require DBI; require DBD::SQLite; require YAML::PP; 1 }
         or plan skip_all => 'DBI/DBD::SQLite/YAML::PP not available';
 }
-use TestHelper             qw(repo_root env_passthrough);
+use TestHelper             qw(repo_root env_passthrough run_child);
 use ManagerSession         qw(new_site);
 use Lazysite::Data::Tables qw(apply_schema insert_row read_rows);
 use Lazysite::Auth::Acl    ();
@@ -131,12 +130,8 @@ sub mcp {
     local %ENV = ( env_passthrough(), DOCUMENT_ROOT => $d, REQUEST_METHOD => 'POST',
         CONTENT_LENGTH     => length $body, LAZYSITE_USERS_TOOL => $stub,
         HTTP_AUTHORIZATION => 'Bearer tester:lzs_tok' );
-    my $pid = open2( my $out, my $in, $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     my $j = eval { decode_json( $jb // '' ) } || {};
     return { ok => 0, error => $j->{error}{message} } if $j->{error};
@@ -160,11 +155,8 @@ sub endpoint {
     my $out;
     if ( defined $body ) {
         $ENV{CONTENT_LENGTH} = length $body;
-        my $pid = open2( my $o, my $i, $^X, "$root/lazysite-data.pl" );
-        print {$i} $body;
-        close $i;
-        $out = do { local $/; <$o> };
-        waitpid $pid, 0;
+        $out = run_child( [ $^X, "$root/lazysite-data.pl" ],
+            stdin => $body, stderr => 'inherit' )->{out};
     }
     else { $out = qx($^X \Q$root/lazysite-data.pl\E 2>/dev/null) }
     my ($st) = $out =~ /Status:\s*(\d+)/;

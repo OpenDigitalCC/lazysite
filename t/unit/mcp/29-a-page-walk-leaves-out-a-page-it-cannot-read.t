@@ -12,10 +12,9 @@ use Test::More;
 use File::Path qw(make_path);
 use JSON::PP   qw(encode_json decode_json);
 use IPC::Open3 qw(open3);
-use Symbol     qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir);
+use TestHelper qw(repo_root env_passthrough site_tempdir run_child);
 
 my $root = repo_root();
 my $d    = site_tempdir();
@@ -48,12 +47,7 @@ sub mcp {
     );
     my $log = "$d/stderr.log";
     open my $e, '>', $log or die $!;
-    my $pid = open3( my $in, my $out, '>&' . fileno($e), $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ], stdin => $body, stderr => $e )->{out};
     close $e;
     open my $lf, '<', $log or die $!;
     my $text = do { local $/; <$lf> };

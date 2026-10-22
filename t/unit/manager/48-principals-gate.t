@@ -11,12 +11,9 @@ use Test::More;
 use File::Temp   qw(tempdir);
 use File::Path   qw(make_path);
 use JSON::PP     qw(encode_json decode_json);
-use IPC::Open2   qw(open2);
-use IPC::Open3   qw(open3);
-use Symbol       qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root  = repo_root();
 my $utool = "$root/tools/lazysite-users.pl";
@@ -40,13 +37,8 @@ close $sf;
 # from actual membership, not the request headers - SEC-2026-07 M5).
 sub uapi {
     my ($p) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utool, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 for my $spec (
@@ -76,13 +68,7 @@ sub principals {
     $ENV{HTTP_X_REMOTE_GROUPS}  = $groups // '';
     $ENV{LAZYSITE_AUTH_TRUSTED} = 1;
     $ENV{QUERY_STRING}          = 'action=principals';
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, $mapi );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ] )->{out};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // {};
 }

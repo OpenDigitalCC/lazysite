@@ -17,7 +17,7 @@ use Symbol      qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir reap_child);
 
 my $root = repo_root();
 require "$root/tools/lazysite-server.pl";
@@ -103,6 +103,7 @@ subtest 'the dev server routes the form handler to a directory that holds it' =>
 };
 
 # The server itself: start it, read its startup lines, stop it.
+# It drives the child itself (SM1245): the read is under an alarm, the wait bounded.
 sub start_lines {
     my (@args) = @_;
     my $err = gensym;
@@ -122,7 +123,7 @@ sub start_lines {
     alarm 0;
     kill 'TERM', $pid;
     my $errtext = do { local $/; local $SIG{ALRM} = sub { }; alarm 2; my $e = eval { <$err> }; alarm 0; $e // '' };
-    waitpid $pid, 0;
+    reap_child( $pid, label => 'lazysite-server.pl' );
     return ( $text, $errtext, $? >> 8 );
 }
 

@@ -15,9 +15,10 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
-use IPC::Open2;
 use JSON::PP;
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(run_child);
 
 BEGIN {
     eval { require DBI; require DBD::SQLite; require YAML::PP; 1 }
@@ -64,13 +65,7 @@ sub mcp {
     $ENV{CONTENT_LENGTH}      = length $body;
     $ENV{LAZYSITE_USERS_TOOL} = $stub;
     $ENV{HTTP_AUTHORIZATION}  = $extra{auth} if defined $extra{auth};
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, $mcp );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, $mcp ], stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     return ( defined $jb && length $jb ) ? eval { decode_json($jb) } : undef;
 }

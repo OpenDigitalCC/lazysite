@@ -23,13 +23,10 @@ use warnings;
 use Test::More;
 use JSON::PP    qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
-use IPC::Open2  qw(open2);
-use IPC::Open3  qw(open3);
-use Symbol      qw(gensym);
 use File::Path  qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root site_tempdir grant_caps);
+use TestHelper qw(repo_root site_tempdir grant_caps run_child);
 
 my $root   = repo_root();
 my $utool  = "$root/tools/lazysite-users.pl";
@@ -53,13 +50,8 @@ sub w {
 
 sub uapi {
     my ($p) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utool, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 
@@ -78,15 +70,7 @@ sub post {
     $ENV{LAZYSITE_AUTH_TRUSTED} = 1;
     $ENV{HTTP_X_CSRF_TOKEN} = hmac_sha256_hex( "csrf:$user:" . int( time() / 3600 ), $secret );
     $ENV{LAZYSITE_LOG_LEVEL} = 'ERROR';
-    my ( $win, $rout );
-    my $err = gensym;
-    my $pid = open3( $win, $rout, $err, $^X, $mapi );
-    binmode $rout;
-    print $win $body;
-    close $win;
-    my $out = do { local $/; <$rout> };
-    close $rout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ], stdin => $body )->{out};
     my ( $head, $rest ) = split /\r?\n\r?\n/, $out, 2;
     my ($status) = ( $head // '' ) =~ /^Status:\s*(\d+)/m;
     return ( $status // 200, $head // '', $rest // '' );

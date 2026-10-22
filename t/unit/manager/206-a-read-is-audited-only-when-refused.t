@@ -20,13 +20,10 @@ use Test::More;
 use File::Path   qw(make_path);
 use JSON::PP     qw(encode_json decode_json);
 use MIME::Base64 qw(encode_base64);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(grant_caps repo_root site_tempdir);
+use TestHelper qw(grant_caps repo_root site_tempdir run_child);
 
 my $root = repo_root();
 my $tool = "$root/tools/lazysite-users.pl";
@@ -34,12 +31,8 @@ plan skip_all => "no $tool" unless -f $tool;
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my $pid = open2( my $o, my $i, $^X, $tool, '--api', '--docroot', $d );
-    print {$i} encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $tool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 
@@ -62,12 +55,8 @@ sub mapi {
     $ENV{QUERY_STRING}       = $query;
     $ENV{CONTENT_LENGTH}     = defined $body ? length($body) : 0;
     $ENV{HTTP_AUTHORIZATION} = 'Basic ' . encode_base64( "rd:$tok", '' );
-    my $pid = open3( my $w, my $r, gensym, $^X, "$root/lazysite-manager-api.pl" );
-    print {$w} ( defined $body ? $body : '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-manager-api.pl" ],
+        stdin => ( defined $body ? $body : '' ) )->{out};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // { _raw => $out };
 }

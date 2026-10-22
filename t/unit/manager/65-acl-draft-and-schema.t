@@ -22,15 +22,12 @@ use strict;
 use warnings;
 use Test::More;
 use JSON::PP    qw(encode_json decode_json);
-use IPC::Open3;
-use IPC::Open2  qw(open2);
-use Symbol      qw(gensym);
 use File::Temp  qw(tempdir);
 use File::Path  qw(make_path);
 use Digest::SHA qw(hmac_sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root   = repo_root();
 my $secret = 'sekret' x 6;
@@ -60,14 +57,8 @@ sub mapi {
     delete $ENV{HTTP_X_REMOTE_GROUPS};
     $ENV{$_} = $o{$_} for grep { defined $o{$_} } keys %o;
     $ENV{LAZYSITE_AUTH_TRUSTED} = 1 if length( $ENV{HTTP_X_REMOTE_USER} // '' );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, "$root/lazysite-manager-api.pl" );
-    print $w ( defined $body ? $body : '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-manager-api.pl" ],
+        stdin => ( defined $body ? $body : '' ) )->{out};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // { _raw => $out };
 }
@@ -143,13 +134,8 @@ sub call {
     $ENV{CONTENT_LENGTH}      = length $body;
     $ENV{LAZYSITE_USERS_TOOL} = $stub;
     $ENV{HTTP_AUTHORIZATION}  = 'Bearer agent:lzs_tok';
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, "$root/lazysite-mcp.pl" );
-    print $in $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     return ( defined $jb && length $jb ) ? eval { decode_json($jb) } : undef;
 }

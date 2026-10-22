@@ -21,12 +21,10 @@
 use strict;
 use warnings;
 use Test::More;
-use IPC::Open3 qw(open3);
-use Symbol     qw(gensym);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir run_child);
 
 my $root = repo_root();
 my $proc = "$root/lazysite-processor.pl";
@@ -50,12 +48,7 @@ sub get {
     if ( defined $user ) {
         @ENV{qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS LAZYSITE_AUTH_TRUSTED)} = ( $user, $groups, 1 );
     }
-    my ( $w, $r, $e ) = ( undef, undef, gensym );
-    my $pid = open3( $w, $r, $e, $^X, $proc );
-    close $w;
-    my $out = do { local $/; <$r> };
-    my $err = do { local $/; <$e> };
-    waitpid $pid, 0;
+    my ( $out, $err ) = @{ run_child( [ $^X, $proc ] ) }{qw(out err)};
     my ($st) = $out =~ /^Status:\s*(\d+)/m;
     return ( $st // 200, ( $out =~ /SECRET-ROWS/ ? 1 : 0 ), $err // '' );
 }

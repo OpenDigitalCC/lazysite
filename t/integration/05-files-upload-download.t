@@ -6,11 +6,10 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
-use IPC::Open2;
 use JSON::PP qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root env_passthrough);
+use TestHelper qw(repo_root env_passthrough run_child);
 use RateWindow qw(stay_in_one_window);
 
 my $root    = repo_root();
@@ -63,7 +62,6 @@ sub api_get {
 
 sub api_post_multipart {
     my ( $qs, $body, $token, $ctype ) = @_;
-    my ( $cout, $cin );
     local %ENV = (
         env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT      => $docroot,
@@ -82,13 +80,8 @@ sub api_post_multipart {
     # upload closes our pipe while we are still writing. Ignore
     # SIGPIPE here and tolerate short writes.
     local $SIG{PIPE} = 'IGNORE';
-    my $pid = open2( $cout, $cin,
-        $^X, "$root/lazysite-manager-api.pl" );
-    { no warnings 'closed'; print {$cin} $body; }
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-manager-api.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     $out =~ s/\A.*?\r?\n\r?\n//s;
     return decode_json($out);
 }

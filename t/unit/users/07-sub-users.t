@@ -5,12 +5,9 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use JSON::PP qw(encode_json decode_json);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps);
+use TestHelper qw(repo_root grant_caps run_child);
 
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-users.pl";
@@ -24,25 +21,14 @@ sub fresh_docroot {
 
 sub cli {
     my ( $docroot, @args ) = @_;
-    my ( $wtr, $rdr );
-    my $err = gensym;
-    my $pid = open3( $wtr, $rdr, $err, $^X, $script, '--docroot', $docroot, @args );
-    close $wtr;
-    my $out  = do { local $/; <$rdr> };
-    my $eout = do { local $/; <$err> };
-    waitpid $pid, 0;
+    my ( $out, $eout ) = @{ run_child( [ $^X, $script, '--docroot', $docroot, @args ] ) }{qw(out err)};
     return { out => $out // '', err => $eout // '', code => $? >> 8 };
 }
 
 sub api {
     my ( $docroot, $payload ) = @_;
-    my ( $cout, $cin );
-    my $pid = open2( $cout, $cin, $^X, $script, '--api', '--docroot', $docroot );
-    print $cin encode_json($payload);
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $script, '--api', '--docroot', $docroot ],
+        stdin => encode_json($payload), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // { _raw => $out };
 }
 

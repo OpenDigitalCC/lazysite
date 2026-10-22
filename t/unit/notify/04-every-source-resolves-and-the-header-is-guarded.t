@@ -15,10 +15,9 @@ use utf8;
 use Test::More;
 use File::Path qw(make_path);
 use JSON::PP   ();
-use IPC::Open2 ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
-use TestHelper             qw(repo_root site_tempdir run_cmd);
+use TestHelper             qw(repo_root site_tempdir run_cmd run_child);
 use Lazysite::Handlers     ();
 use Lazysite::Outbox       ();
 use Lazysite::Mail         ();
@@ -86,14 +85,9 @@ subtest 'the message mode carries only the headers it knows, in their shape' => 
     my $send   = sub {
         my ($headers) = @_;
         local $ENV{DOCUMENT_ROOT} = $d;
-        my ( $o, $i );
-        my $pid = IPC::Open2::open2( $o, $i, $^X, $script, '--pipe' );
-        print {$i} JSON::PP::encode_json( { config => { to => 'x@example.net' }, form => {},
-                message => { subject => 's', text => 't', headers => $headers } } );
-        close $i;
-        my $res = do { local $/; <$o> };
-        close $o;
-        waitpid $pid, 0;
+        my $res = run_child( [ $^X, $script, '--pipe' ], stderr => 'inherit',
+            stdin => JSON::PP::encode_json( { config => { to => 'x@example.net' }, form => {},
+                message => { subject => 's', text => 't', headers => $headers } } ) )->{out};
         return JSON::PP::decode_json($res);
     };
     unlink $OUT;

@@ -18,8 +18,7 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use JSON::PP       qw(encode_json decode_json);
-use IPC::Open2     qw(open2);
-use TestHelper     qw(repo_root);
+use TestHelper     qw(repo_root run_child);
 use ManagerSession qw(new_site);
 
 my $root = repo_root();
@@ -42,12 +41,8 @@ $s->users( 'set', 'u1', 'email', 'old1@example.org' );
 
 sub uapi {
     my ($p) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$i} encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 sub api {

@@ -22,7 +22,7 @@ use Test::More;
 use JSON::PP qw(encode_json decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper     qw(repo_root run_cmd);
+use TestHelper     qw(repo_root run_cmd run_child);
 use MaintenanceRig qw(build_site cookie_for conf_set via_wrapper slurp spit);
 
 my $root = repo_root();
@@ -36,12 +36,8 @@ sub users_cli {
 # adopts a release on.
 sub touch {
     my ($d) = @_;
-    require IPC::Open2;
-    my $pid = IPC::Open2::open2( my $o, my $i, $^X, $tool, '--api', '--docroot', $d );
-    print {$i} encode_json( { action => 'users-page', me => 'boss' } );
-    close $i;
-    my $out = do { local $/; <$o> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $tool, '--api', '--docroot', $d ],
+        stdin => encode_json( { action => 'users-page', me => 'boss' } ), stderr => 'inherit' )->{out};
     return $out;
 }
 sub gs_file { "$_[0]/lazysite/auth/groups-settings.json" }

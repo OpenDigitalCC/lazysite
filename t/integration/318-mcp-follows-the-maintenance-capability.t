@@ -14,9 +14,8 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2 qw(open2);
 use File::Path qw(make_path);
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir run_child);
 
 my $root = repo_root();
 plan skip_all => 'mcp missing' unless -f "$root/lazysite-mcp.pl";
@@ -61,12 +60,8 @@ sub mcp {
     $ENV{HTTP_HOST}           = $o{host} // 'site.test';
     $ENV{LAZYSITE_USERS_TOOL} = $stub;
     $ENV{HTTP_AUTHORIZATION}  = "Bearer $o{who}:lzs_tok" if defined $o{who};
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     my ( $head, $jb ) = split /\r?\n\r?\n/, $resp // '', 2;
     my ($code) = ( $head // '' ) =~ /^Status:\s*(\d+)/mi;
     my %h;

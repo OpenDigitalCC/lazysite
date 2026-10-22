@@ -25,7 +25,7 @@ use Digest::SHA qw(hmac_sha256_hex);
 use IPC::Open3  qw(open3);
 use File::Path  qw(make_path);
 use File::Temp  ();
-use TestHelper  qw(repo_root site_tempdir grant_caps);
+use TestHelper  qw(repo_root site_tempdir grant_caps run_child);
 
 my $root = repo_root();
 my $mapi = "$root/lazysite-manager-api.pl";
@@ -40,11 +40,8 @@ make_path("$d/lazysite/auth");
 spit( "$d/lazysite/lazysite.conf", "site_name: T\nmanager: enabled\nmanager_groups: managers\n" );
 spit( "$d/lazysite/auth/.secret", $secret );
 {
-    my $pid = open3( my $w, my $r, undef, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$w} encode_json( { action => 'add', username => 'admin', password => 'pw-admin-0123456789' } );
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json( { action => 'add', username => 'admin', password => 'pw-admin-0123456789' } ), stderr => 'merge' )->{out};
 }
 grant_caps( $d, 'admin', 'manage_users', 'ui', 'manage_content' ); # SM1057: writes content in the manager
 spit( "$d/page.md", "---\ntitle: Page\n---\nx\n" );
@@ -66,11 +63,7 @@ sub post {
     $ENV{HTTP_X_CSRF_TOKEN}     = $o{header} if defined $o{header};
     $ENV{LAZYSITE_LOG_LEVEL}    = $o{level}  if defined $o{level};
     open my $err, '>', $ERR or die $!;
-    my $pid = open3( my $w, my $r, '>&' . fileno($err), $^X, $mapi );
-    print {$w} $body;
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ], stdin => $body, stderr => $err )->{out};
     close $err;
     my ($status) = $out =~ /^Status:\s*(\d+)/m;
     my ($jb)     = $out =~ /\r?\n\r?\n(.*)/s;

@@ -14,13 +14,11 @@ use warnings;
 use Test::More;
 use MIME::Base64 qw(encode_base64);
 use JSON::PP      qw(decode_json);
-use IPC::Open3   qw(open3);
-use Symbol       qw(gensym);
 use File::Path   qw(make_path);
 use File::Temp   qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
 
@@ -40,15 +38,8 @@ sub site {
 sub cgi {
     my ( $script, $env, $stdin ) = @_;
     local %ENV = ( %ENV, %$env );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, "$root/$script" );
-    print $w ( defined $stdin ? $stdin : '' );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    do { local $/; <$e> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/$script" ],
+        stdin => ( defined $stdin ? $stdin : '' ) )->{out};
     return $out // '';
 }
 

@@ -6,22 +6,16 @@ use warnings;
 use Test::More;
 use JSON::PP qw(encode_json decode_json);
 use MIME::Base64 qw(encode_base64);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root run_dav setup_dav_site);
+use TestHelper qw(repo_root run_dav setup_dav_site run_child);
 
 my $script = repo_root() . "/tools/lazysite-users.pl";
 
 sub api {
     my ( $docroot, $payload ) = @_;
-    my ( $co, $ci );
-    my $pid = open2( $co, $ci, $^X, $script, '--api', '--docroot', $docroot );
-    print $ci encode_json($payload);
-    close $ci;
-    my $out = do { local $/; <$co> };
-    close $co;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $script, '--api', '--docroot', $docroot ],
+        stdin => encode_json($payload), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // { _raw => $out };
 }
 

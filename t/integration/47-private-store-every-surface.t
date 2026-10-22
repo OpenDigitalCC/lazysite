@@ -16,11 +16,10 @@ use Test::More;
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2;
 use MIME::Base64 ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper        qw(repo_root run_script setup_dav_site grant_caps);
+use TestHelper        qw(repo_root run_script setup_dav_site grant_caps run_child);
 use Lazysite::Private qw(private_path private_root);
 
 my $root = repo_root();
@@ -89,13 +88,8 @@ sub mcp_call {
     $ENV{CONTENT_LENGTH}      = length $body;
     $ENV{LAZYSITE_USERS_TOOL} = $stub;
     $ENV{HTTP_AUTHORIZATION}  = 'Bearer partner:lzs_x';
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, "$root/lazysite-mcp.pl" );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, "$root/lazysite-mcp.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     return $resp // '';
 }
 

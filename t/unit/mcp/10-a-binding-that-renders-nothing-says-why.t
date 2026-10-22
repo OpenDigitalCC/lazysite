@@ -22,8 +22,7 @@ use File::Path qw(make_path);
 use JSON::PP;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use IPC::Open2 qw(open2);
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 BEGIN {
     eval { require DBI; require DBD::SQLite; require YAML::PP; 1 }
@@ -81,13 +80,7 @@ sub validate {
     $ENV{LAZYSITE_USERS_TOOL} = $stub;
     $ENV{HTTP_AUTHORIZATION}  = 'Bearer tester:lzs_tok';
 
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, $mcp );
-    print {$in} $body;
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, $mcp ], stdin => $body, stderr => 'inherit' )->{out};
 
     my ($jb) = $resp =~ /\r?\n\r?\n(.*)/s;
     my $d = ( defined $jb && length $jb ) ? eval { decode_json($jb) } : undef;

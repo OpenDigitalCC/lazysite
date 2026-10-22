@@ -12,13 +12,11 @@ use strict;
 use warnings;
 use Test::More;
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2 qw(open2);
 use IPC::Open3 qw(open3);
-use Symbol     qw(gensym);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps site_tempdir);
+use TestHelper qw(repo_root grant_caps site_tempdir run_child);
 
 my $root  = repo_root();
 my $utool = "$root/tools/lazysite-users.pl";
@@ -26,13 +24,8 @@ my $mapi  = "$root/lazysite-manager-api.pl";
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utool, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 
@@ -46,13 +39,7 @@ sub mapi {
     delete @ENV{qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS LAZYSITE_AUTH_TRUSTED HTTP_AUTHORIZATION)};
     $ENV{$_} = $o{$_} for keys %o;
     $ENV{LAZYSITE_AUTH_TRUSTED} = 1 if $trusted;
-    my $e   = gensym;
-    my $pid = open3( my $w, my $r, $e, $^X, $mapi );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    { local $/; my $x = <$e>; close $e }
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $mapi ] )->{out};
     my ( $head, $body ) = $out =~ /\A(.*?)\r?\n\r?\n(.*)\z/s;
     my ($st) = ( $head // '' ) =~ /^Status:\s*(\d+)/m;
     return ( $st // 200, $head // '', eval { decode_json( $body // '' ) } || {} );

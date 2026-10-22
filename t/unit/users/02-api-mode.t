@@ -4,10 +4,9 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use JSON::PP qw(encode_json decode_json);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root    = repo_root();
 my $script  = "$root/tools/lazysite-users.pl";
@@ -18,13 +17,8 @@ ok( -f $script, 'tools/lazysite-users.pl present' );
 sub api {
     my ($payload) = @_;
     my $json = encode_json($payload);
-    my ( $cout, $cin );
-    my $pid = open2( $cout, $cin, $^X, $script, '--api', '--docroot', $docroot );
-    print $cin $json;
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $script, '--api', '--docroot', $docroot ],
+        stdin => $json, stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // { _raw => $out };
 }
 
@@ -74,13 +68,8 @@ sub api {
 
 # --- invalid JSON input ---
 {
-    my ( $cout, $cin );
-    my $pid = open2( $cout, $cin, $^X, $script, '--api', '--docroot', $docroot );
-    print $cin "not json";
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $script, '--api', '--docroot', $docroot ],
+        stdin => "not json", stderr => 'inherit' )->{out};
     my $r = eval { decode_json($out) };
     ok( $r, 'response is parseable JSON even for bad input' );
     is( $r->{ok}, 0, 'bad input → ok=false' );

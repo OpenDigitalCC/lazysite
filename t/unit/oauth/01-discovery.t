@@ -7,10 +7,9 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP qw(encode_json decode_json);
-use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root  = repo_root();
 my $oauth = "$root/lazysite-oauth.pl";
@@ -26,13 +25,8 @@ sub oauth {
     $ENV{QUERY_STRING}   = $qs;
     $ENV{REQUEST_METHOD} = defined $body ? 'POST' : 'GET';
     $ENV{CONTENT_LENGTH} = defined $body ? length($body) : 0;
-    my ( $out, $in );
-    my $pid = open2( $out, $in, $^X, $oauth );
-    print $in ( defined $body ? $body : '' );
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $resp = run_child( [ $^X, $oauth ],
+        stdin => ( defined $body ? $body : '' ), stderr => 'inherit' )->{out};
     my ($status) = $resp =~ /Status:\s*(\d+)/;
     my ($jb)     = $resp =~ /\r?\n\r?\n(.*)/s;
     return ( $status, eval { decode_json( $jb // '' ) } // { _raw => $jb } );

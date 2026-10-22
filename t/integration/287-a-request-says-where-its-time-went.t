@@ -16,16 +16,13 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
-use IPC::Open3;
-use IPC::Open2 ();
-use Symbol qw(gensym);
 use JSON::PP qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
 use MIME::Base64 ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root site_tempdir setup_auth_site run_dav setup_dav_site dav_users_tool);
+use TestHelper qw(repo_root site_tempdir setup_auth_site run_dav setup_dav_site dav_users_tool run_child);
 use ManagerSession qw(new_site);
 
 my $root = repo_root();
@@ -36,14 +33,7 @@ sub cgi {
     my ( $script, $env, $stdin ) = @_;
     $stdin //= '';
     local %ENV = ( PATH => $ENV{PATH}, TestHelper::env_passthrough(), %{$env} );
-    my $err = gensym;
-    my $pid = open3( my $in, my $out, $err, $^X, "$root/$script" );
-    binmode $in;
-    print {$in} $stdin;
-    close $in;
-    my $o = do { local $/; <$out> } // '';
-    my $e = do { local $/; <$err> } // '';
-    waitpid $pid, 0;
+    my ( $o, $e ) = @{ run_child( [ $^X, "$root/$script" ], stdin => $stdin ) }{qw(out err)};
     my ( $head, $body ) = split /\r?\n\r?\n/, $o, 2;
     my %h;
     for my $l ( split /\r?\n/, $head // '' ) {
@@ -198,12 +188,9 @@ subtest 'MCP' => sub {
     my $d = $m->docroot;
     $m->add_user( 'agent', 'pw-agent-0123456789' );
     $m->grant( 'agent', 'g-agent', ['mcp'], ['mcp'] );
-    my ( $o, $i );
-    my $pid = IPC::Open2::open2( $o, $i, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$i} encode_json( { action => 'token', username => 'agent' } );
-    close $i;
-    my $tok = eval { decode_json( do { local $/; <$o> } )->{token} } // '';
-    waitpid $pid, 0;
+    my $got = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json( { action => 'token', username => 'agent' } ), stderr => 'inherit' )->{out};
+    my $tok = eval { decode_json($got)->{token} } // '';
     ok( length $tok, 'a connector token was minted' ) or return;
 
     my $call = encode_json( { jsonrpc => '2.0', id => 1, method => 'tools/call',

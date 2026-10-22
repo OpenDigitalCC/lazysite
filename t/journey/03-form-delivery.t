@@ -11,7 +11,7 @@ use Test::More;
 use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 use Digest::SHA qw(hmac_sha256_hex);
 use JSON::PP qw(decode_json);
 
@@ -103,15 +103,8 @@ sleep 4;
         QUERY_STRING   => '',
     );
 
-    require IPC::Open2;
-    my ( $cout, $cin );
-    my $pid = IPC::Open2::open2( $cout, $cin,
-        $^X, "$root/plugins/form-handler.pl" );
-    print $cin $body;
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/plugins/form-handler.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
 
     like( $out, qr/Status: 200 OK/, 'form POST → 200' );
     $out =~ s/\A.*?\r?\n\r?\n//s;
@@ -161,14 +154,8 @@ sleep 4;
         REMOTE_ADDR    => '127.0.0.9',
         QUERY_STRING   => '',
     );
-    require IPC::Open2;
-    my ( $cout, $cin );
-    my $pid = IPC::Open2::open2( $cout, $cin, $^X, "$root/plugins/form-handler.pl" );
-    print $cin $body;
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/plugins/form-handler.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     like( $out, qr/Status: 200 OK/, 'spammy submission still 200 (stored, not rejected)' );
 
     open my $fh, '<', "$docroot/form-submissions/contact.jsonl" or die $!;
@@ -197,15 +184,8 @@ sleep 4;
         CONTENT_TYPE   => 'application/x-www-form-urlencoded',
         REMOTE_ADDR    => '127.0.0.1',
     );
-    require IPC::Open2;
-    my ( $cout, $cin );
-    my $pid = IPC::Open2::open2( $cout, $cin,
-        $^X, "$root/plugins/form-handler.pl" );
-    print $cin $body;
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/plugins/form-handler.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     $out =~ s/\A.*?\r?\n\r?\n//s;
     my $r = decode_json($out);
     # Current behaviour: same token is accepted while within window.
@@ -224,15 +204,8 @@ sleep 4;
         CONTENT_TYPE   => 'application/x-www-form-urlencoded',
         REMOTE_ADDR    => '127.0.0.1',
     );
-    require IPC::Open2;
-    my ( $cout, $cin );
-    my $pid = IPC::Open2::open2( $cout, $cin,
-        $^X, "$root/plugins/form-handler.pl" );
-    print $cin $body;
-    close $cin;
-    my $out = do { local $/; <$cout> };
-    close $cout;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/plugins/form-handler.pl" ],
+        stdin => $body, stderr => 'inherit' )->{out};
     $out =~ s/\A.*?\r?\n\r?\n//s;
     my $r = decode_json($out);
     is( $r->{ok}, 0, 'honeypot-filled → rejected' );

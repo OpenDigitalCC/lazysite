@@ -17,15 +17,12 @@ use strict;
 use warnings;
 use Test::More;
 use JSON::PP    qw(encode_json decode_json);
-use IPC::Open2;
-use IPC::Open3;
-use Symbol      qw(gensym);
 use File::Temp  qw(tempdir);
 use File::Path  qw(make_path);
 use Digest::SHA qw(hmac_sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 use lib repo_root() . '/lib';
 use Lazysite::Manager::Files ();
 use Lazysite::Auth::Acl ();
@@ -72,13 +69,7 @@ sub users_api {
     my ($req) = @_;
     my $cmd = join ' ',
         map {"\Q$_\E"} ( $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    my ( $out, $in );
-    my $pid = IPC::Open2::open2( $out, $in, $cmd );
-    print {$in} encode_json($req);
-    close $in;
-    my $r = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my $r = run_child( [ $cmd ], stdin => encode_json($req), stderr => 'inherit' )->{out};
     return $r;
 }
 
@@ -91,13 +82,7 @@ sub mapi {
     delete $ENV{HTTP_X_REMOTE_GROUPS};
     $ENV{$_} = $o{$_} for grep { defined $o{$_} } keys %o;
     $ENV{LAZYSITE_AUTH_TRUSTED} = 1 if length( $ENV{HTTP_X_REMOTE_USER} // '' );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, "$root/lazysite-manager-api.pl" );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-manager-api.pl" ] )->{out};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // { _raw => $out };
 }

@@ -24,11 +24,9 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
-use IPC::Open3;
-use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../lib", "$FindBin::Bin/../../lib";
-use TestHelper             qw(repo_root site_tempdir run_cmd env_passthrough);
+use TestHelper             qw(repo_root site_tempdir run_cmd env_passthrough run_child);
 use Lazysite::Handlers     ();
 use Lazysite::Outbox       ();
 use Lazysite::Data::Tables qw(apply_schema insert_row);
@@ -86,13 +84,7 @@ sub auth {
         REMOTE_ADDR    => '192.0.2.77',
         HTTP_HOST      => 'news.example',
     );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, "$root/lazysite-auth.pl" );
-    print {$w} $body;
-    close $w;
-    my $out = do { local $/; <$r> };
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-auth.pl" ], stdin => $body )->{out};
     my ($status) = ( $out // '' ) =~ /^Status: (\d+)/m;
     return { status => $status // 0, out => $out // '' };
 }

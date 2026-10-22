@@ -14,12 +14,10 @@ use warnings;
 use Test::More;
 use JSON::PP   qw(encode_json decode_json);
 use IPC::Open2 qw(open2);
-use IPC::Open3 qw(open3);
-use Symbol     qw(gensym);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
-use TestHelper                qw(repo_root grant_caps site_tempdir);
+use TestHelper                qw(repo_root grant_caps site_tempdir run_child);
 use Lazysite::Manager::Common ();
 
 my $root = repo_root();
@@ -68,14 +66,9 @@ for ( [ "$d/lazysite/lazysite.conf", "site_name: T\n" ], [ "$d/lazysite/auth/.se
     close $fh;
 }
 {
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    print {$i} encode_json( { action => 'add', username => 'op', password => 'x-long-enough' } );
-    close $i;
-    local $/;
-    <$o>;
-    close $o;
-    waitpid $pid, 0;
+    run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json( { action => 'add', username => 'op', password => 'x-long-enough' } ),
+        stderr => 'inherit' );
 }
 grant_caps( $d, 'op', 'manage_nav' );
 
@@ -85,13 +78,7 @@ sub api {
     delete @ENV{qw(HTTP_X_REMOTE_GROUPS CONTENT_LENGTH)};
     @ENV{qw(DOCUMENT_ROOT REQUEST_METHOD QUERY_STRING HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS LAZYSITE_AUTH_TRUSTED)}
         = ( $d, 'GET', $qs, 'op', 'role-op', 1 );
-    my ( $w, $r );
-    my $e   = gensym;
-    my $pid = open3( $w, $r, $e, $^X, "$root/lazysite-manager-api.pl" );
-    close $w;
-    my $out = do { local $/; <$r> };
-    close $r;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, "$root/lazysite-manager-api.pl" ] )->{out};
     my ($s) = $out =~ /\AStatus: (\d{3})/;
     my ($b) = $out =~ /\r?\n\r?\n(.*)/s;
     return ( $s, eval { decode_json( $b // '' ) } || {} );

@@ -30,10 +30,9 @@ use warnings;
 use Test::More;
 use File::Path qw(make_path);
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2 qw(open2);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(site_tempdir);
+use TestHelper qw(site_tempdir run_child);
 
 my $root  = do { my $d = $FindBin::Bin; $d =~ s{/t/unit/users$}{}; $d };
 my $utool = "$root/tools/lazysite-users.pl";
@@ -42,13 +41,8 @@ sub w { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1]; close $fh }
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utool, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 

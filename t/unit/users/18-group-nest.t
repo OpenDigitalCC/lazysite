@@ -8,8 +8,9 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2 qw(open2);
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(run_child);
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Auth::Settings qw(caps_for);
 
@@ -22,13 +23,8 @@ sub slurp { open my $fh, '<', $_[0] or return ''; local $/; my $t = <$fh>; close
 
 sub uapi {
     my ( $d, $p ) = @_;
-    my ( $o, $i );
-    my $pid = open2( $o, $i, $^X, $utool, '--api', '--docroot', $d );
-    print $i encode_json($p);
-    close $i;
-    my $out = do { local $/; <$o> };
-    close $o;
-    waitpid $pid, 0;
+    my $out = run_child( [ $^X, $utool, '--api', '--docroot', $d ],
+        stdin => encode_json($p), stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // {};
 }
 
