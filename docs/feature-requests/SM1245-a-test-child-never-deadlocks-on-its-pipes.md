@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "task #370: t/unit/dav/33 hung 95 minutes in the 2026-10-20 14:30 suite run (tmp/nightly/2026-10-20.log: 6659 s wall, against about 600 for the runs either side)"
 area: tests
-status-note: "SHIPPED (PENDING) on n726: TestHelper::run_child (with feed_child, reap_child, child_timeout); run_cmd, run_script, run_processor, run_dav and dav_users_tool on it; ManagerSession and MaintenanceRig on it; every test's own open2/open3 block moved onto it, apart from the two that signal their child (t/unit/dav/33, t/tools/200), which use feed_child and reap_child. New t/unit/lib/206; with the old run_dav it hangs and an external timeout kills it."
+status-note: "SHIPPED (PENDING) on n726: TestHelper::run_child (with feed_child, reap_child, child_timeout); the TestHelper helpers, ManagerSession, MaintenanceRig and every test's own open2/open3 block run through it; t/unit/dav/33 and t/tools/200, which signal their child, use feed_child and reap_child. New t/unit/lib/206 hangs on the old run_dav."
 ---
 
 # What happened

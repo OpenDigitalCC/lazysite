@@ -67,9 +67,8 @@ sub users {
 # ... and its JSON API mode, which reads the request on stdin.
 sub users_api {
     my ($req) = @_;
-    my $cmd = join ' ',
-        map {"\Q$_\E"} ( $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d );
-    my $r = run_child( [ $cmd ], stdin => encode_json($req), stderr => 'inherit' )->{out};
+    my $r = run_child( [ $^X, "$root/tools/lazysite-users.pl", '--api', '--docroot', $d ],
+        stdin => encode_json($req), stderr => 'inherit' )->{out};
     return $r;
 }
 
