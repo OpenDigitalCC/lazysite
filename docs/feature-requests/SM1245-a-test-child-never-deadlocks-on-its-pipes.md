@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "task #370: t/unit/dav/33 hung 95 minutes in the 2026-10-20 14:30 suite run (tmp/nightly/2026-10-20.log: 6659 s wall, against about 600 for the runs either side)"
 area: tests
-status-note: "SHIPPED (PENDING) on n726: TestHelper::run_child (with feed_child, reap_child, child_timeout); the TestHelper helpers, ManagerSession, MaintenanceRig and every test's own open2/open3 block run through it; t/unit/dav/33 and t/tools/200, which signal their child, use feed_child and reap_child. New t/unit/lib/206 hangs on the old run_dav."
+status-note: "SHIPPED (PENDING) on n726: TestHelper::run_child (with feed_child, reap_child, child_timeout); the TestHelper helpers, ManagerSession, MaintenanceRig and every test's own open2/open3 block run through it; t/unit/dav/33 and t/tools/200, which signal their child, use feed_child and reap_child. New t/unit/lib/207 hangs on the old run_dav."
 ---
 
 # What happened
@@ -59,7 +59,7 @@ now sends its child's output to files and writes its input with `feed_child`;
 both wait with `reap_child`. Each is bounded by the same limit and fails the same
 way.
 
-t/unit/lib/206 proves it. Its child writes 200 KB to stderr before any stdout,
+t/unit/lib/207 proves it. Its child writes 200 KB to stderr before any stdout,
 through run_child and through run_dav itself (a module loaded into the real
 lazysite-dav.pl). A 1 MB body is echoed back. A child that never exits fails in
 bounded time and names itself, through run_child, through run_dav and as a whole

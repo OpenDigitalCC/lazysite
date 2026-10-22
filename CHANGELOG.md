@@ -193,7 +193,7 @@ Archive
   their own copies of that block, 381 in all. TestHelper::run_child writes stdin while it
   reads stdout and stderr, and a child still running after five minutes (twenty under
   Devel::Cover) is killed and the test fails naming itself, the child and the wait. The
-  helpers and the copies run through it; t/unit/lib/206 hangs on the old run_dav.
+  helpers and the copies run through it; t/unit/lib/207 hangs on the old run_dav.
 - SM1246 (PENDING) **internal: a test runs its children through run_child.** t/lint/273
   fails a test that calls open2 or open3 itself, unless it says it drives the child itself
   (signals it, or reads it while it runs).
