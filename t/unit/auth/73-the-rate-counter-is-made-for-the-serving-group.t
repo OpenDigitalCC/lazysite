@@ -10,16 +10,16 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(site_tempdir);
 
 plan skip_all => 'DB_File is not installed' unless eval { require DB_File; 1 };
 use_ok('Lazysite::Auth::LoginRate');
 
 sub site {
-    my $d = tempdir( CLEANUP => 1 );
+    my $d = site_tempdir();
     make_path("$d/lazysite/auth");
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print $cf "site_name: R\nplugins:\n  - plugins/login-rate-limit.pl\n";
