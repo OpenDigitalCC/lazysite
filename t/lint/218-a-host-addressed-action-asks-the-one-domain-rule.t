@@ -494,6 +494,7 @@ my %MCP_NO_NEW_BINDING = (
     delete_page      => 'removes a page; removing a binding is unchanged',
     invalidate_cache => 'drops rendered output; no page text',
     set_permissions  => 'as acl-set: moves a page between the trees form_bindings reads',
+    remove_permissions => 'as acl-remove: moves a page back into the docroot; no page text', # SM1263
 );
 my %twin_of = map { $twin{$_} => $_ } grep { defined $twin{$_} } keys %twin;
 my ( @mcp_bind_missing, @mcp_bind_stale, @mcp_bind_seen );

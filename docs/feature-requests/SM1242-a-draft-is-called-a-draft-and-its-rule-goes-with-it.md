@@ -68,8 +68,7 @@ The xisl.com site agent reported two things:
 - **A tool that removes a rule.** The control API has `acl-remove` (and the CLI has
   `lazysite acl remove`), but MCP has no tool for it. It is not needed for a deleted
   page any more, but it is needed for a rule an agent set by mistake, or one on a path
-  that never had content. Adding an MCP tool changes the published surface, so that is
-  for the release manager.
+  that never had content. Ruled 2026-10-22: added as [[SM1263]].
 - **A move leaves a stem-keyed rule behind** (found while measuring this). `action_move`
   re-keys the page's own key and its descendants, not the stem. A page drafted through
   `/about` and moved to `/other` loses its draft: the rule stays at `about`, and

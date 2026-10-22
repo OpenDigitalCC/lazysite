@@ -2421,10 +2421,11 @@ sub dispatch_acl_set {
     #
     # $path above defaults to '/' for EVERY action. That is right for `list`,
     # which should list the site root when asked for nothing in particular, and
-    # harmless for acl-get and acl-remove. acl-set inherited it, where the same
-    # omission applies a site-wide read restriction and returns ok:1. Before
-    # SM287 a root entry sat inert, so this was a no-op; SM287 made a root rule
-    # take effect, and the default has been hazardous since.
+    # harmless for acl-get (acl-remove has its own guard, SM1263). acl-set
+    # inherited it, where the same omission applies a site-wide read
+    # restriction and returns ok:1. Before SM287 a root entry sat inert, so this
+    # was a no-op; SM287 made a root rule take effect, and the default has been
+    # hazardous since.
     #
     # SM287 was careful about every OTHER spelling of the root - '/' canonical,
     # '', '.' and './' normalised to it, glob spellings refused with a message

@@ -324,6 +324,12 @@ set_permissions `{ path, read, write, draft }`
   flow, granted access, and the section kept 404ing; least surprise says the
   trap gets named where the tool is learned.
 
+remove_permissions `{ path }`
+: Remove the rule on a path (a file, a folder prefix ending in `/`, or `/` for the
+  site-wide rule) - owner, lists, draft flag and address lists together. Only the
+  rule's owner (or an operator) may. Removing a draft or read rule publishes what it
+  held back. Audited as `acl-remove`. Use `set_permissions` to change a rule.
+
 bind_form `{ form, handler }` or `{ form, handlers: [...] }`
 : Wire a form to delivery by naming existing handlers from `list_handlers`.
   Needs `manage_forms` only - and nothing but handler ids: to deliver

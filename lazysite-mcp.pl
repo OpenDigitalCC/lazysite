@@ -1609,6 +1609,20 @@ my %TOOLS = (
                 { addresses => $_[0]->{addresses}, addresses_deny => $_[0]->{addresses_deny} } );
         },
     },
+    # SM1263 (ruled 2026-10-22): acl-remove's MCP twin. set_permissions with empty
+    # lists leaves an owner-only rule behind; this takes the rule off, as the
+    # control API's acl-remove and `lazysite acl remove` do - the same function
+    # (Files::action_acl_remove), so the same owner refusal, the same "/" for the
+    # site-wide rule, the same content moved back into the document root.
+    remove_permissions => {
+        path_args => [qw(path)],
+        description => 'Remove the access rule on a file OR a folder prefix (a path ending in /), or the site-wide rule ("/"): its owner, read/write lists, draft flag and address lists all go, and the path is then governed by whatever rule sits above it, or by none. Only the rule\'s owner (or an operator) may remove it. Removing a draft or read rule PUBLISHES what it held back. A path with no rule answers removed: 0. Use set_permissions to change a rule instead of removing it.',
+        cap         => 'manage_content', path_aware => 1,
+        inputSchema => { type => 'object',
+            properties => { path => { type => 'string' } },
+            required   => ['path'], additionalProperties => JSON::PP::false },
+        run => sub { action_acl_remove( $_[0]->{path}, $_[1] ) },
+    },
     list_themes => {
         description => 'List the themes installed across all layouts (with which is active), so you can discover what is available without activating each in turn.',
         cap => 'manage_themes',
@@ -4723,16 +4737,17 @@ elsif ( $method eq 'tools/call' ) {
         # manager UI + WebDAV audit vocabulary.
         my $act =
             $name eq 'write_file' ? ( ( ref $out eq 'HASH' && $out->{created} ) ? 'create' : 'edit' )
-            : $name eq 'replace_text'    ? 'edit'
-            : $name eq 'create_page'     ? 'create'
-            : $name eq 'create_theme'    ? 'theme-create'
-            : $name eq 'copy_theme'      ? 'theme-copy'
-            : $name eq 'delete_file'     ? 'delete'
-            : $name eq 'delete_page'     ? 'delete'
-            : $name eq 'rename_page'     ? 'move'
-            : $name eq 'move_file'       ? 'move'
-            : $name eq 'submit_feedback' ? 'feedback'
-            :                              $name;
+            : $name eq 'replace_text'       ? 'edit'
+            : $name eq 'create_page'        ? 'create'
+            : $name eq 'create_theme'       ? 'theme-create'
+            : $name eq 'copy_theme'         ? 'theme-copy'
+            : $name eq 'delete_file'        ? 'delete'
+            : $name eq 'delete_page'        ? 'delete'
+            : $name eq 'rename_page'        ? 'move'
+            : $name eq 'move_file'          ? 'move'
+            : $name eq 'remove_permissions' ? 'acl-remove' # SM1263: the control API's line
+            : $name eq 'submit_feedback'    ? 'feedback'
+            :                                 $name;
         # SM750 / SM711 half 2: audit_detail FIRST - the `kind: cause - remedy`
         # line a refusal composes - then the class, then the sentence. The same
         # order the control API uses, so the two token channels leave the same

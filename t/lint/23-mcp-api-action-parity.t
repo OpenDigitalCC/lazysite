@@ -213,10 +213,9 @@ my %API_ONLY = (
     # the same fact.
     'form-targets-read' => 'SM842: list_handlers carries every binding as used_by',
 
-    # SM431: acl-get/acl-set are paired with the permissions tools; acl-remove
-    # has no named twin because set_permissions with empty read/write lists
-    # clears a rule - a twin would be a second spelling of the same operation.
-    'acl-remove' => 'set_permissions with empty lists is the MCP spelling',
+    # SM431: acl-get/acl-set are paired with the permissions tools. SM1263
+    # (ruled 2026-10-22): acl-remove is paired too, with remove_permissions -
+    # empty lists leave an owner-only rule behind, so it was not the same thing.
     # SM732: the PDF render. UNDECIDED for MCP, recorded rather than left
     # silent. The action STREAMS a binary body, and MCP has no established
     # convention here for returning one - a twin would have to invent one (a

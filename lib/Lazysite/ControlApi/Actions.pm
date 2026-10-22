@@ -390,9 +390,9 @@ our %GATE = (
 # CGI table it came from. A key not in that list is refused at load, so a
 # misspelt field cannot quietly mean its default.
 our %ACTION = (
-    # [mcp] SM431: the permissions twins, recorded as twins. acl-remove has no
-    # named MCP twin (set_permissions with empty lists clears a rule) and
-    # passes the completeness check under manage_content like the others.
+    # [mcp] SM431: the permissions twins, recorded as twins. SM1263 (ruled
+    # 2026-10-22): acl-remove has its own, remove_permissions - set_permissions
+    # with empty lists leaves an owner-only rule behind, and nothing took it off.
     # SM1053 (P-5), ruled 2026-10-12, "Operator-run import": a partner stages an
     # account import (no passwords); the operator reviews the dry run and applies
     # it in the manager. Account creation stays a human-at-a-browser act (SM268).
@@ -403,7 +403,7 @@ our %ACTION = (
     'accounts-import-stage' => { mcp => 'stage_accounts', mutates => 1, cookie_cap => 'manage_users', params => [ { name => 'accounts', in => 'body' }, { name => 'csv', in => 'body' } ] },
     'acl-get' => { mcp => 'get_permissions', scoped => 1, file_surface => 'read', cookie_gates_itself => 'the owner reads their rule, manage_users reads any (SM464, Files::action_acl_get)', params => [ { name => 'path', in => 'query' } ] },
     # [changes_access] see acl-set: one rule, set or cleared.
-    'acl-remove' => { mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may remove its rule (Files::action_acl_remove)', params => [ { name => 'path', in => 'query' } ] },
+    'acl-remove' => { mcp => 'remove_permissions', mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may remove its rule (Files::action_acl_remove)', params => [ { name => 'path', in => 'query', required => 1, note => 'SM1263: explicit - pass path=/ for the site-wide rule' } ] },
 # [changes_access] acl-set / acl-remove   set or clear the rule that decides who may read a
 #                          path. acl-set is also the draft/publish pair the
 #                          filing names - there is no separate publish verb;

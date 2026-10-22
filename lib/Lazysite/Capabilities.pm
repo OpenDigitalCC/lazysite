@@ -78,7 +78,7 @@ my %ACTION_INFO = (
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
                     validate_page invalidate_cache regenerate_registries audit_site create_form
-                    get_permissions set_permissions read_brief
+                    get_permissions set_permissions remove_permissions read_brief
                     list_briefs
                     list_versions list_content_history view_version restore_version preview_public_page)
             ],
