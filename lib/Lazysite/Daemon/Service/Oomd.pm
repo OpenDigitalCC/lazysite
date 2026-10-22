@@ -15,13 +15,14 @@ package Lazysite::Daemon::Service::Oomd;
 #     refuse work: SM222/SM666.)
 #   * it waits for `oomd <name> ready <socket>` before the supervisor sees it
 #     healthy; SIGTERM stops oomd (it finishes the requests in hand, deadline
-#     30 s, removes its socket); SIGHUP is passed on (reload the config and the
-#     packs, keeping the socket);
+#     30 s, removes its socket); SIGHUP asks oomd's `reload` verb (SM1248): the
+#     config, its namespaces (odoo_packs) and the packs are taken with the socket
+#     kept, and a request that arrives meanwhile waits for the new workers
+#     instead of finding no daemon;
 #   * a crash is the supervisor's: this process exits and the supervisor's
 #     backoff and `failed` ceiling apply as they do for the scheduler;
 #   * it restarts oomd when the health verb's OOM version is not the installed
-#     one (an upgrade of the package), once per installed version, and when
-#     the packs oomd reads from its environment (odoo_packs) have changed.
+#     one (an upgrade of the package), once per installed version.
 #
 # THE RUN USER. Nothing here chooses one: lazysited runs as the unix user the
 # request path writes as (SM760), so oomd's socket, pid record, log and cache
@@ -98,9 +99,8 @@ sub installed_version {
     return eval { require Odoo::Ops::Version; $Odoo::Ops::Version::VERSION };
 }
 
-# What oomd reads from its environment rather than its config. A change is a
-# restart, not a SIGHUP.
-sub _env_signature {
+# The namespaces the config names now (odoo_packs).
+sub _namespaces {
     my ($root) = @_;
     require Lazysite::Odoo;
     no warnings 'once';
@@ -110,7 +110,7 @@ sub _env_signature {
 }
 
 sub _start {
-    my ( $root, $name, $conf, $sig ) = @_;
+    my ( $root, $name, $conf ) = @_;
     require Lazysite::Odoo::Daemon;
     my ($sock) = Lazysite::Odoo::Daemon::socket_for($root);
     ( my $dir = $sock ) =~ s{/[^/]+\z}{};
@@ -129,7 +129,11 @@ sub _start {
         $um = umask 077;
         open STDERR, '>', $err;
         umask $um;
-        $ENV{ODOO_OPS_NAMESPACES} = $sig;
+        # SM1248: the config names the namespaces, and a reload can take one away
+        # only if the environment does not name it too. An oomd before 0.39 reads
+        # them only from here.
+        if ( Lazysite::Odoo::Daemon::reloads_namespaces() ) { delete $ENV{ODOO_OPS_NAMESPACES} }
+        else { $ENV{ODOO_OPS_NAMESPACES} = _namespaces($root) }
         exec( @{$COMMAND}, '--name', $name, '--config', $conf, '--foreground' )
             or do { print STDERR "cannot run $COMMAND->[0]: $!\n"; POSIX::_exit(127) };
     }
@@ -152,6 +156,36 @@ sub _wait_ready {
         return 1 if $buf =~ /^oomd \S+ ready \S+$/m;
         return 0 if waitpid( $pid, POSIX::WNOHANG() ) == $pid;
     }
+    return 0;
+}
+
+# SM1248: the reload. oomd's `reload` verb answers when the new workers serve, or
+# with why it refused (the workers it had go on serving): both are logged. An oomd
+# before 0.39 has no verb; it is sent SIGHUP, which reloads its config but not the
+# namespaces it read from its environment at its start.
+sub _reload {
+    my ( $root, $sock, $pid, $started ) = @_;
+    require Lazysite::Odoo::Daemon;
+    unless ( Lazysite::Odoo::Daemon::reloads_namespaces() ) {
+        kill 'HUP', $pid;
+        log_event( 'INFO', 'oomd', 'oomd told to reload' );
+        log_event( 'WARN', 'oomd', 'odoo_packs changed; this OOM takes them only when oomd starts (0.39 reloads them)' )
+            if _namespaces($root) ne $started;
+        return 1;
+    }
+    my $r = eval {
+        require Odoo::Ops::Client::Daemon;
+        Odoo::Ops::Client::Daemon->new( socket => $sock, fallback => 0 )->reload;
+    };
+    if ( ref $r eq 'HASH' ) {
+        log_event( 'INFO', 'oomd', 'oomd reloaded', generation => $r->{generation} // '',
+            namespaces => join( ',', @{ ref $r->{namespaces} eq 'ARRAY' ? $r->{namespaces} : [] } ) );
+        return 1;
+    }
+    my $e   = $@;
+    my $why = ref $e && eval { $e->can('message') } ? $e->message : "$e";
+    $why =~ s/\s+\z//;
+    log_event( 'ERROR', 'oomd', 'oomd did not reload; the workers it had go on serving', reason => $why );
     return 0;
 }
 
@@ -215,8 +249,8 @@ sub run {
     my ($sock) = Lazysite::Odoo::Daemon::socket_for($root);
     _clear_stale( $root, $sock );
 
-    my $sig = _env_signature($root);
-    my ( $pid, $r ) = _start( $root, $name, $w->{path}, $sig );
+    my $started = _namespaces($root);
+    my ( $pid, $r ) = _start( $root, $name, $w->{path} );
     unless ($pid) { log_event( 'ERROR', 'oomd', 'could not start oomd' ); return 1 }
     unless ( _wait_ready( $pid, $r, sub { $term } ) ) {
         if ($term) { _stop($pid); return 0 }
@@ -235,17 +269,12 @@ sub run {
             log_event( 'WARN', 'oomd', 'oomd exited', reason => failure_reason($root) );
             return 1;
         }
-        my $restart = 0;
         if ($hup) {
             $hup = 0;
-            my $now = _env_signature($root);
-            if ( $now ne $sig ) { $restart = 1 }
-            else {
-                kill 'HUP', $pid;
-                log_event( 'INFO', 'oomd', 'oomd told to reload' );
-            }
+            _reload( $root, $sock, $pid, $started );
         }
-        if ( !$restart && time >= $next_health ) {
+        my $restart = 0;
+        if ( time >= $next_health ) {
             $next_health = time + $HEALTH_EVERY;
             my $h = eval {
                 require Odoo::Ops::Daemon::Path;
@@ -262,8 +291,8 @@ sub run {
         if ($restart) {
             _stop($pid);
             Lazysite::Odoo::Daemon::write_conf($root);
-            $sig = _env_signature($root);
-            ( $pid, $r ) = _start( $root, $name, $w->{path}, $sig );
+            $started = _namespaces($root);
+            ( $pid, $r ) = _start( $root, $name, $w->{path} );
             return 1 unless $pid;
             unless ( _wait_ready( $pid, $r, sub { $term } ) ) {
                 _stop($pid);

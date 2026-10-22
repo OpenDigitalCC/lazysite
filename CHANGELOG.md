@@ -103,6 +103,16 @@ Archive
   not open it and allowed every attempt. It is now created 0660 under any umask, in the auth
   directory's group, and a counter the process owns that lost group access gets it back. The
   limiter still fails open when it cannot open the counter.
+- SM1248 (PENDING) **a change of `odoo_packs` reloads oomd with no gap.** oomd used to
+  read the site's packs from its environment at its start, so the service restarted it
+  when `odoo_packs` changed. While it restarted, a call was refused as `daemon-down`
+  (`odoo_daemon: required`) or ran in-process (`on`). oomd's config now names the
+  packs (`namespaces`, OOM 0.39 and later). On a config save the service asks oomd's
+  `reload` verb, which swaps in new workers with the socket kept, and logs the answer
+  or why it was refused. A call made meanwhile waits and is answered by the daemon.
+  The restart for a changed `odoo_packs` is gone. An OOM before 0.39 keeps reading the
+  packs at its start, and the service logs that a change waits for it.
+  t/unit/odoo/103, t/unit/daemon/14.
 - SM1247 (PENDING) **internal: lazysite's vendored OOM is 0.42.** The pinned
   snapshot in `t/vendor/oom` moves from 0.38 to OOM 0.42 (b91d5e2), skipping 0.39
   to 0.41. Each change of 0.39 to 0.42 was checked against lazysite. Only oomd's

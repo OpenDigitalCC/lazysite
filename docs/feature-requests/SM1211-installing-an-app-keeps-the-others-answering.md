@@ -69,3 +69,7 @@ Checked and not the cause:
 
 An installer that still saves the whole `odoo_packs` value from its own view keeps the
 old behaviour; it should send `add`. Removing a pack stays a whole-value save.
+
+The restart window described above (oomd's) is closed by [[SM1248]] on OOM 0.39 and
+later. oomd's config names the packs, and a change is taken by its `reload` verb,
+with the socket kept.

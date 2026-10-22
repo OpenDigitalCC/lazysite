@@ -1007,9 +1007,13 @@ one `oomd` per site and the extension sends its calls through it.
   lazysite's own in-process path when the daemon is absent, `required` refuses with
   `daemon-down`. Each call record carries `via` (`daemon` or `in-process`).
 - **Sign-in stays in-process**: oomd's protocol has no sign-in verb.
-- **Site packs** (SM1207): oomd starts with `ODOO_OPS_NAMESPACES` from the site's
-  `odoo_packs` and `pack_dirs` in its config, so a pack's custom change applies
-  through it; t/unit/odoo/79 holds it.
+- **Site packs** (SM1207, SM1248): oomd's config names the site's `odoo_packs`
+  (`namespaces`, OOM 0.39 and later) and `pack_dirs`, so a pack's custom change
+  applies through it; t/unit/odoo/79 holds it. The service starts oomd with
+  `ODOO_OPS_NAMESPACES` removed from its environment, so the config is the whole
+  list and a pack taken out of `odoo_packs` is gone from the daemon. A change is
+  taken by oomd's `reload` verb, with the socket kept (t/unit/odoo/103). An OOM
+  before 0.39 still reads the list from its environment, at its start.
 
 ## Raw pages and the ADR 0006 downgrade (SM1213, 0.15.15)
 

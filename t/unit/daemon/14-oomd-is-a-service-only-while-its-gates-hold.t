@@ -4,7 +4,8 @@
 #
 # The filing's D2: "runs `oomd --name <site> --config <conf> --foreground` while the
 # Odoo extension is enabled and `odoo_daemon: on`; waits for `oomd <name> ready
-# <socket>`; SIGTERM to stop (30 s), SIGHUP on a config change; restarts on a crash
+# <socket>`; SIGTERM to stop (30 s), SIGHUP on a config change (oomd's reload verb,
+# SM1248, so a change of odoo_packs keeps the same oomd too); restarts on a crash
 # under the supervisor's backoff; restarts when the health verb's OOM version differs
 # from the installed one. With the daemon extension off, or oomd not installed, nothing
 # starts and every call takes the in-process path." SM666's rule for every service: a
@@ -126,11 +127,16 @@ subtest 'a crash is the supervisor\'s: oomd comes back under the backoff' => sub
     $first_pid = oomd_up($d)->{pid};
 };
 
-subtest 'a change of odoo_packs is a restart (OOM reads it from its environment)' => sub {
+subtest 'a change of odoo_packs is a reload, not a restart (SM1248: OOM 0.39 reads them from its config)' => sub {
+    my $gen = oomd_up($d)->{generation};
     conf_write( odoo_packs => 'Odoo::Test::OomdOps,Odoo::Test::Ops' );
-    Lazysite::Odoo::Daemon::refresh($d);
-    ok( wait_until( sub { my $h = oomd_up($d); $h && $h->{pid} != $first_pid }, 40 ), 'a new oomd' );
-    $first_pid = oomd_up($d)->{pid};
+    my $r = Lazysite::Odoo::Daemon::refresh($d);
+    ok( $r->{signalled}, 'the service was signalled' ) or diag explain $r;
+    ok( wait_until( sub { my $h = oomd_up($d); $h && grep { $_ eq 'Odoo::Test::Ops' } @{ $h->{namespaces} || [] } }, 40 ),
+        'oomd serves the added pack' );
+    my $h = oomd_up($d);
+    is( $h->{pid}, $first_pid, 'the same oomd' );
+    cmp_ok( $h->{generation}, '>', $gen, 'a new generation of its workers' );
 };
 
 subtest 'closing the Odoo gate stops oomd; nothing of it remains' => sub {

@@ -17,7 +17,8 @@ package Lazysite::Odoo::Daemon;
 #   * where the socket is: lazysite/run/oomd.sock when that path is under 104
 #     bytes (the Unix socket limit), otherwise oomd's default directory with a
 #     name of its own;
-#   * the daemon's name, SIGHUP to the running service, and D4's status.
+#   * the daemon's name, SIGHUP to the running service (which reloads oomd), and
+#     D4's status.
 #
 # The service that runs it is Lazysite::Daemon::Service::Oomd (D2); the call
 # path is in Lazysite::Odoo (D3).
@@ -130,6 +131,21 @@ sub socket_for {
 
 # --- D1: the conf -------------------------------------------------------------------------
 
+# SM1248: OOM 0.39 reads the extra operation namespaces (odoo_packs) from oomd's
+# config, and its `reload` verb swaps in workers built from the config as it now is,
+# with the socket kept and no request refused. So a change of odoo_packs is a reload,
+# not a restart. An older oomd refuses a config key it does not know and reads its
+# namespaces only from its environment, at its start.
+our $RELOAD_SINCE = '0.39';
+
+sub reloads_namespaces {
+    require Lazysite::Daemon::Service::Oomd;
+    my ($v) = ( Lazysite::Daemon::Service::Oomd::installed_version() // '' ) =~ /\A(\d+\.\d+)/;
+    return 0 unless defined $v;
+    require version;
+    return eval { version->parse($v) >= version->parse($RELOAD_SINCE) } ? 1 : 0;
+}
+
 # The account labels and the key files behind them: `conn` is the connection
 # user's, `grant-<hash>` an MCP grant's own Odoo account, `sched-<hash>` a
 # scheduled binding's own login (SM1161). Only a key that exists is named - oomd
@@ -184,6 +200,7 @@ sub render_conf {
         'cache_dir = ' . _lz($root) . '/odoo/cache',
         "cache_ttl_version = $CACHE_TTL",
         ( @{ $c->{pack_dirs} || [] } ? 'pack_dirs = ' . join( ':', @{ $c->{pack_dirs} } ) : () ),
+        ( @{ $c->{packs} || [] } && reloads_namespaces() ? 'namespaces = ' . join( ',', @{ $c->{packs} } ) : () ),
         "workers = $c->{daemon_workers}",
         "socket = $sock",
         'log = ' . log_file($root),
@@ -228,9 +245,9 @@ sub write_conf {
 }
 
 # The conf rewritten and the service told: what a config save, and a key set or
-# cleared (a new label), do. SIGHUP reloads the config and the packs and keeps
-# the socket; a change of odoo_packs (OOM reads those from its environment, set
-# when the service starts) is the service's to notice and restart for.
+# cleared (a new label), do. The service's SIGHUP asks oomd's `reload` verb, which
+# takes the config, its namespaces (odoo_packs) and the packs with the socket kept
+# (SM1248).
 sub refresh {
     my ($root) = @_;
     my $w = write_conf($root);
