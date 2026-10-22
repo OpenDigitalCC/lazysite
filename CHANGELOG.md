@@ -255,6 +255,13 @@ Archive
   `signin_addresses` / `signin_addresses_deny`, so such a list could be deleted and the binding
   then refused every call. The manager and the control API now refuse it, naming each binding
   (with `force` as before).
+- SM1250 (PENDING) **a multi-step form no longer restyles a themed page.** A page with a
+  `--- step ---` form links `/assets/lazysite-chrome.css` for its step rules, under any layout, and
+  the file's fallback page rules were bare element selectors: on a themed site every such page took
+  the system font, an 800px column, 2rem margins and #333 text, since the link comes after the
+  theme's stylesheet. The fallback template's `<body>` now carries `class="lazysite-fallback"` and
+  every page rule in the file is scoped to it, so a layout's page gets the form rules only. A theme
+  that worked around it (`html body { ... }`) can drop the workaround. t/unit/processor/148.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

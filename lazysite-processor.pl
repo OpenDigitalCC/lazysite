@@ -321,7 +321,10 @@ our $FALLBACK_LAYOUT = <<'END_FALLBACK';
     [% END %]
     <link rel="stylesheet" href="/assets/lazysite-chrome.css?v=[% lazysite_version %]">
 </head>
-<body>
+[%# SM1250: the class is what scopes lazysite-chrome.css's page rules to this
+    template. A layout's page also links that file (a multi-step form does), and
+    must get its form rules only - never this page's font, column and colours. %]
+<body class="lazysite-fallback">
 <div class="site-bar" id="site-bar">
     <a href="/">[% IF site_name %][% site_name %][% ELSE %]Home[% END %]</a>
     <!-- SM099: client-toggled so the cached page shows the right control. Both
