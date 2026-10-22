@@ -1041,27 +1041,6 @@ sub action_save {
             : () ) };
 }
 
-# SM1242 (#372b): A PAGE'S RULE CAN BE KEYED BY ITS STEM. set_permissions on
-# "/about" stores `about`, and that key governs about.md (SM268 H14: a folder's
-# rule covers its landing page), so the page's own key was not the only one CF-2
-# had to drop: deleting about.md left `about` in the store, and the next page
-# written there was born a draft nobody set. The stem key is dropped with the
-# page only while no folder of that name exists in either tree - then it is the
-# page's rule and nothing else's. Its descendants are left: they name a folder.
-sub _forget_page_stem_rule {
-    my ($rel) = @_;
-    return unless defined $rel && $rel =~ m{\A/*(.+)\.(?:md|url|html)\z};
-    my $stem = $1;
-    return if -d "$DOCROOT/$stem";
-    my $priv = Lazysite::Private::private_path( $DOCROOT, $stem );
-    return if defined $priv && -d $priv;
-    my $acls = load_acls();
-    return unless exists $acls->{$stem};
-    delete $acls->{$stem};
-    save_acls($acls);
-    return;
-}
-
 sub action_delete {
     my ( $rel_path, $username ) = @_;
 
@@ -1121,8 +1100,10 @@ sub action_delete {
     # used to be there. DAV's DELETE has dropped entries since SM212 under a
     # comment saying "the manager's delete has always done this"; it never did,
     # so the fix reached one surface out of four.
+    # SM1242: a rule keyed by the page's stem goes too - folded into the page's
+    # own key first (Acl::fold_page_stem, shared with every mover and DAV).
+    Lazysite::Auth::Acl::fold_page_stem( $DOCROOT, $result->{rel} );
     Lazysite::Auth::Acl::forget_path( $result->{rel} );
-    _forget_page_stem_rule( $result->{rel} );
 
     # SM507: the store entry goes with the file - an entry for a deleted
     # page is an orphan nothing can discover (the field proved it with three).

@@ -74,5 +74,5 @@ The xisl.com site agent reported two things:
   re-keys the page's own key and its descendants, not the stem. A page drafted through
   `/about` and moved to `/other` loses its draft: the rule stays at `about`, and
   `other.md` is published. Fixed by [[SM1257]].
-- **WebDAV's DELETE** drops the path's own key (SM212) but not a stem key. It is not
-  changed here.
+- **WebDAV's DELETE** dropped the path's own key (SM212) but not a stem key. Fixed by
+  [[SM1258]], through the same function.

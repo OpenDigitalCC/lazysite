@@ -1068,6 +1068,10 @@ sub do_delete {
     # same answer. The inline copy that used to live here is what let the two
     # drift - and the comment above, claiming the manager already did this, was
     # wrong for four surfaces until CF-2.
+    # SM1258: a rule keyed by the page's stem goes too, by the one rule the
+    # manager's delete uses (Acl::fold_page_stem): folded into the page's own
+    # key, so the forget below takes it.
+    Lazysite::Auth::Acl::fold_page_stem( $DOCROOT, $key ) if length $key;
     Lazysite::Auth::Acl::forget_path($key) if length $key;
     # SM507: the brief store entry goes with the file, on this surface too.
     # Docroot passed explicitly - this process never sets the package var.
@@ -1176,6 +1180,7 @@ sub _partial_delete_answer {
     for my $page (@gone) {
         Lazysite::Aliases::deindex_page( $DOCROOT, $page );
         invalidate_cache("$DOCROOT/$page");
+        Lazysite::Auth::Acl::fold_page_stem( $DOCROOT, $page );    # SM1258
         Lazysite::Auth::Acl::forget_path($page);
         Lazysite::Manager::Briefs::store_entry_remove( $DOCROOT, $page );
     }

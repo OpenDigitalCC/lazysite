@@ -53,6 +53,10 @@ Archive
 
 ## Unreleased
 
+- SM1258 (PENDING) **a WebDAV delete takes a page's stem rule with it.** WebDAV DELETE
+  dropped only the page's own rule, so a rule keyed by its stem waited for the next page
+  written there. It now drops it under SM1242's rule (the exact stem key, only while no
+  folder of that name exists), and the manager's delete and WebDAV call one shared function.
 - SM1257 (PENDING) **a page drafted through its stem stays a draft when it moves.** A rule
   set on `/about` is stored as `about` and holds `about.md` back; every mover re-keyed only
   the page's own key, so a moved page left its draft behind and was published at its new
