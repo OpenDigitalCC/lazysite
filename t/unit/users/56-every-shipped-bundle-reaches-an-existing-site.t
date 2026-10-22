@@ -44,6 +44,8 @@ sub groups_write {
 
 # Take groups out of the store, as a release before them left it: the record and
 # its line in the groups file, and its name from every other group's members.
+# SM1262: and with no record of the bundles the site has had - a release before
+# this one kept none.
 sub remove_groups {
     my ( $d, @names ) = @_;
     my %gone = map { $_ => 1 } @names;
@@ -54,6 +56,7 @@ sub remove_groups {
     delete @{$g}{@names};
     $_ = [ grep { !$gone{$_} } @$_ ] for values %$g;
     groups_write( $d, $g );
+    unlink "$d/lazysite/auth/bundles-adopted.json";
 }
 
 # What the manager's own reads do first: the ordinary use a site adopts a release on.
@@ -142,6 +145,62 @@ sub seeded_site {
     touch($d);
     is_deeply( gs_read($d),     $before_gs, 'no bundle is added' );
     is_deeply( groups_read($d), $before_g,  'and no membership changes' );
+}
+
+# --- SM1262: a bundle is adopted once, and a deleted one stays deleted -------
+sub delete_bundle {
+    my ( $d, $b ) = @_;
+    my $g = groups_read($d);
+    $g->{$b} = [];
+    groups_write( $d, $g );    # empty it first: a group with members is not deleted
+    require IPC::Open2;
+    my $pid = IPC::Open2::open2( my $o, my $i, $^X, $tool, '--api', '--docroot', $d );
+    print {$i} encode_json( { action => 'group-delete', group => $b } );
+    close $i;
+    my $out = do { local $/; <$o> };
+    waitpid $pid, 0;
+    return $out;
+}
+
+{
+    my $d = seeded_site();
+    remove_groups( $d, 'ch-files' );
+    touch($d);
+    ok( gs_read($d)->{'ch-files'}, 'ch-files is adopted on the existing site' );
+    like( slurp("$d/lazysite/auth/bundles-adopted.json"), qr/"ch-files"/, '...and the record says so' );
+    is( sprintf( '%04o', ( stat "$d/lazysite/auth/bundles-adopted.json" )[2] & 07777 ), '0660',
+        '...in a file the serving group can write' );
+
+    delete_bundle( $d, 'ch-files' );
+    ok( !gs_read($d)->{'ch-files'}, 'an operator deletes the adopted ch-files' );
+    touch($d);
+    touch($d);
+    ok( !gs_read($d)->{'ch-files'}, 'THE NEXT USES OF THE TOOL DO NOT BRING IT BACK' )
+        or diag( 'A deleted ch-files that comes back gives WebDAV back to three roles.' );
+    ok( !groups_read($d)->{'ch-files'}, '...nor its nesting' );
+}
+
+{
+    # A site upgraded from a release with no record: what it has at the first run
+    # counts as had, so a bundle SM1118 or the seed gave it is never re-adopted.
+    my $d = seeded_site();
+    unlink "$d/lazysite/auth/bundles-adopted.json";
+    touch($d);
+    like( slurp("$d/lazysite/auth/bundles-adopted.json"), qr/"cap-maintenance"/,
+        'the first run records the bundles the site already has' );
+    delete_bundle( $d, 'cap-maintenance' );
+    touch($d);
+    ok( !gs_read($d)->{'cap-maintenance'}, 'so one deleted afterwards stays deleted' );
+}
+
+{
+    # A record that exists and cannot be read cannot say what was had: nothing is adopted.
+    my $d = seeded_site();
+    remove_groups( $d, 'cap-tidy' );
+    spit( "$d/lazysite/auth/bundles-adopted.json", 'not json' );
+    touch($d);
+    ok( !gs_read($d)->{'cap-tidy'}, 'an unreadable record adopts nothing' );
+    is( slurp("$d/lazysite/auth/bundles-adopted.json"), 'not json', '...and is not written over' );
 }
 
 done_testing;

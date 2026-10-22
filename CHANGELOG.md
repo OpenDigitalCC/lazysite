@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1262 (PENDING) **a bundle is adopted once, and a deleted one stays deleted.** Bundle
+  adoption could not tell a bundle a site never had from one an operator deleted, so a
+  deleted bundle (a `ch-files` taken out to deny WebDAV) came back on the next use of the
+  users tool. The bundles a site has had - present at the first run, seeded, or adopted - are
+  recorded in `auth/bundles-adopted.json`, and a recorded bundle is never adopted again. An
+  unreadable record adopts nothing.
 - SM1258 (PENDING) **a WebDAV delete takes a page's stem rule with it.** WebDAV DELETE
   dropped only the page's own rule, so a rule keyed by its stem waited for the next page
   written there. It now drops it under SM1242's rule (the exact stem key, only while no

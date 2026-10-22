@@ -252,6 +252,7 @@ my $USERS_FILE = "$AUTH_DIR/users";
 sub _store_readable { return Lazysite::Auth::Verify::store_readable() }
 my $GROUPS_FILE         = "$AUTH_DIR/groups";
 my $GROUP_SETTINGS_FILE = "$AUTH_DIR/groups-settings.json";
+my $BUNDLES_HAD_FILE    = "$AUTH_DIR/bundles-adopted.json";    # SM1262
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 $Lazysite::Auth::AddressLists::AUTH_DIR = $AUTH_DIR;
 $Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
@@ -4279,23 +4280,61 @@ sub _default_group_nesting {
 #   - only when the bundle is ABSENT. A bundle that exists, edited or not, is never
 #     rewritten, no role's own record is touched, and the nesting is written only
 #     with the record, so a site that later took the role out of the bundle stays
-#     that way.
+#     that way;
+#   - SM1262 (ruled 2026-10-22): only ONCE. Absent is all the group store says, so
+#     a bundle an operator deleted looked like one the site never had and came
+#     back on the next use of the tool - a deleted ch-files gave WebDAV back to
+#     three roles. The bundles this site has HAD are recorded in
+#     auth/bundles-adopted.json: every one present when this runs (so a bundle
+#     SM1118 or a fresh seed gave the site counts) and every one adopted here. A
+#     recorded bundle is never adopted again. The record is its own file because
+#     every reader of groups-settings.json takes each key for a group. A record
+#     that exists and cannot be read adopts nothing: it cannot say what was had.
+sub _bundles_had {
+    return ( {}, 1 ) unless -e $BUNDLES_HAD_FILE;
+    open my $fh, '<:raw', $BUNDLES_HAD_FILE or do { cannot_read( 'bundles-adopted.json', $BUNDLES_HAD_FILE ); return ( undef, 0 ) };
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $d = eval { JSON::PP::decode_json( $raw // '' ) };
+    return ( undef, 0 ) unless ref $d eq 'HASH' && ref $d->{bundles} eq 'ARRAY';
+    return ( { map { $_ => 1 } grep { defined && !ref } @{ $d->{bundles} } }, 1 );
+}
+
+sub _write_bundles_had {
+    my ($had) = @_;
+    require JSON::PP;
+    my ( $ok, $why ) = Lazysite::Util::write_private_atomic( $BUNDLES_HAD_FILE,
+        JSON::PP->new->canonical->pretty->encode( { bundles => [ sort keys %$had ] } ), 0660 );
+    log_event( 'WARN', 'users', 'the record of the bundles this site has had was not written', error => $why )
+        unless $ok;
+    return $ok;
+}
+
 sub _adopt_added_bundles {
     my $gs = Lazysite::Auth::Settings::read_group_settings();
     return unless ref $gs eq 'HASH';
     my $seed    = _default_group_seed();
     my $nesting = _default_group_nesting();
     return unless grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{seeded} } keys %{$nesting};
+    my ( $had, $readable ) = _bundles_had();
+    return unless $readable;
+    my $was = join ',', sort keys %$had;
+    $had->{$_} = 1 for grep { ref $gs->{$_} eq 'HASH' } keys %{$nesting};
     my @added;
     for my $bundle ( sort keys %{$nesting} ) {
-        next if $gs->{$bundle};
+        next if $gs->{$bundle} || $had->{$bundle};
         next unless ref $seed->{$bundle} eq 'HASH';
         my @roles = grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{seeded} } @{ $nesting->{$bundle} || [] };
         next unless @roles;
-        $gs->{$bundle} = { %{ $seed->{$bundle} }, seeded => 1 };
+        $gs->{$bundle}  = { %{ $seed->{$bundle} }, seeded => 1 };
+        $had->{$bundle} = 1;
         push @added, [ $bundle, \@roles ];
     }
-    return unless @added;
+    # The record follows the store: written after the adoption has landed, so a
+    # failed write never marks a bundle the site did not get.
+    my $changed = join( ',', sort keys %$had ) ne $was;
+    unless (@added) { _write_bundles_had($had) if $changed; return }
     write_group_settings($gs);
     my %groups = read_groups();
     for my $item (@added) {
@@ -4304,6 +4343,7 @@ sub _adopt_added_bundles {
         push @{ $groups{$bundle} }, grep { !$have{$_}++ } @{$roles};
     }
     write_groups(%groups);
+    _write_bundles_had($had);
     log_event( 'INFO', $_->[0], 'bundle added for this release (SM1118, SM1241)' ) for @added;
     return;
 }
@@ -4425,6 +4465,8 @@ sub _ensure_groups_seeded {
         push @{ $groups{$parent} }, grep { !$have{$_}++ } @{ $nest->{$parent} };
     }
     write_groups(%groups);
+    # SM1262: a fresh site has had every bundle it was seeded with.
+    _write_bundles_had( { map { $_ => 1 } grep { ref $seed->{$_} eq 'HASH' } keys %$nest } );
 
     _remove_conf_key('manager_groups');    # SM138: key retired once migrated
     return;

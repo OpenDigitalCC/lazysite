@@ -66,5 +66,4 @@ still passes.
   next use of the tool adopts it again, with its shipped roles. SM1118 already did this
   for cap-maintenance, and it now applies to every bundle, including the ch-* channels.
   A deleted ch-files gives WebDAV back to content-editors, design-team and site-admins.
-  A record of what was adopted once would stop it. That is a decision for the release
-  manager.
+  Ruled 2026-10-22: adopt once. Fixed by [[SM1262]].

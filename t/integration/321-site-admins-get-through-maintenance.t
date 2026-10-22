@@ -97,6 +97,7 @@ sub role_site {
     spit( gs_file($d), encode_json($gs) );
     my @keep = grep { !/^cap-maintenance:/ } split /\n/, slurp("$d/lazysite/auth/groups");
     spit( "$d/lazysite/auth/groups", join( "\n", @keep ) . "\n" );
+    unlink "$d/lazysite/auth/bundles-adopted.json";    # SM1262: an earlier release kept no record
     ok( !exists gs_read($d)->{'cap-maintenance'}, 'the store has the shape the earlier release left (no bundle)' );
 
     touch($d);
