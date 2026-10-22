@@ -125,6 +125,14 @@ Archive
   config `namespaces` and its `reload` verb reach it, and SM1248 adopts them.
   Every Odoo test passes on the new snapshot unchanged. SM747's spec is re-filed.
   t/lint/207, 261.
+- SM1236 (PENDING) **the rollout names a command this host runs, and the repair after a rebuild.**
+  The 0.16.0 rollout said `lazysite check --domain D` on hosts deployed from the tarball, which
+  puts no `lazysite` on PATH. Every hint in the updater, the deploy, the CLI and the check, acl
+  and hestia-domain tools now names `lazysite` when it is on PATH and `perl <stage>/tools/lazysite-cli.pl`
+  otherwise (passed down as `LAZYSITE_CLI`), and offers `repair --domain D` rather than
+  `check --fix`. A hint naming `v-rebuild-web-domain` names the repair after it, because a
+  rebuild resets the docroot to 2751 (SM270). `--rebuild` already repairs the sites it manages;
+  a domain it rebuilds and does not manage is now told the repair command.
 - SM1235 (PENDING) **the rollout reports a message that differs only by a path once.** On the
   0.16.0 rollout one site's findings held about seventy "both trees held 'docs/X.md' ... moved
   to <dir>/docs/X.md" lines, one per file, and the report could no longer be copied. The quiet

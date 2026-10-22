@@ -101,7 +101,7 @@ if ( ( $> == 0 || $ENV{LAZYSITE_CLI_FAKE_ROOT} )
             . "  A write here creates files in the site tree, and root-owned files\n"
             . "  there are exactly what stops the manager working afterwards (SM139).\n"
             . "  Run it as the site user instead:\n"
-            . "    sudo -u SITEUSER lazysite acl $verb ...\n"
+            . "    sudo -u SITEUSER " . cli_spelling() . " acl $verb ...\n"
             . "  (--actor is a different thing: it names the lazysite ACCOUNT the\n"
             . "  rule is written as, not the unix user running the command.)" );
 }
@@ -534,7 +534,8 @@ sub cmd_reapply {
         # fleet sweep reads as advisory noise and scrolls past; the operator
         # needs one sentence saying the sweep did not do its job and what to run.
         if (@unmoved) {
-            print <<'WHY';
+            my $cli = cli_spelling();
+            print <<"WHY";
 
 The rules are stored and the engine honours them, but the FILES are still in the
 document root - so a front end serving them directly is not covered, which is
@@ -544,13 +545,13 @@ This is almost always the private store: it is a SIBLING of the document root,
 so it needs a directory the docroot repair does not touch. Repairing the docroot
 alone does NOT fix it.
 
-  lazysite check --docroot D              names the store, its owner and mode
-  sudo lazysite check --docroot D --fix   creates it
-  lazysite acl reapply --docroot D --apply --actor U    then re-run this
+  $cli check --docroot D           names the store, its owner and mode
+  sudo $cli check --docroot D --fix   creates it
+  $cli acl reapply --docroot D --apply --actor U    then re-run this
 
 WHY
         }
-        print "Verify from OUTSIDE with: lazysite check --check-acl URL\n"
+        print 'Verify from OUTSIDE with: ' . cli_spelling() . " check --check-acl URL\n"
             unless @failed || @unmoved;
     }
     return emit(
@@ -563,6 +564,20 @@ WHY
         }
     ) if $opt{json};
     return ( @failed || @unmoved ) ? 1 : 0;
+}
+
+# SM1236: the CLI as this host runs it, for a hint. LAZYSITE_CLI is set by the
+# CLI and the Hestia updater; otherwise `lazysite` when it is on PATH, otherwise
+# the CLI beside this tool by path (the tarball puts no `lazysite` on PATH).
+sub cli_spelling {
+    return $ENV{LAZYSITE_CLI} if length( $ENV{LAZYSITE_CLI} // '' );
+    for my $d ( split /:/, $ENV{PATH} // '' ) {
+        return 'lazysite' if length $d && -x "$d/lazysite";
+    }
+    require Cwd;
+    require File::Basename;
+    my $cli = File::Basename::dirname( Cwd::abs_path($0) // $0 ) . '/lazysite-cli.pl';
+    return -f $cli ? "perl $cli" : 'lazysite';
 }
 
 sub cmd_remove {

@@ -52,6 +52,16 @@ STAGE="${3:-$(cd "$(dirname "$0")/../.." && pwd)}"
 # *without* a mode is what the ruling forbids.
 [ -f "$STAGE/install.pl" ] || { echo "$0: no install.pl under STAGE '$STAGE'" >&2; exit 2; }
 
+# SM1236: the CLI as this host runs it, for the hints below. The batch updater
+# passes its spelling in LAZYSITE_CLI; the tarball puts no `lazysite` on PATH.
+if [ -n "${LAZYSITE_CLI:-}" ]; then
+  LZS_CLI="$LAZYSITE_CLI"
+elif command -v lazysite >/dev/null 2>&1; then
+  LZS_CLI=lazysite
+else
+  LZS_CLI="perl $STAGE/tools/lazysite-cli.pl"
+fi
+
 HESTIA=/usr/local/hestia
 DOM="/home/$U/web/$DOMAIN"
 DOC="$DOM/public_html"
@@ -216,6 +226,8 @@ if [ -f "$DOC/index.html" ] && [ -f "$DOC/index.md" ]; then
   echo "is no longer a DirectoryIndex). If '/' shows no manager bar while other"
   echo "pages do, this vhost is on an OLDER template - re-apply it:"
   echo "    v-rebuild-web-domain $U $DOMAIN"
+  # SM1236: a rebuild resets the docroot permissions (SM270); the repair puts them back.
+  echo "    $LZS_CLI repair --domain $DOMAIN"
 fi
 # First-run sentinel: the group-settings store exists once setup-manager has
 # run. (The old sentinel grepped the conf for manager_groups:, which SM138
@@ -365,7 +377,7 @@ CHK=$?
 set -e
 if [ "$CHK" != 0 ]; then
   echo "NOT SERVICEABLE: $DOMAIN installed, and its health check still names a failure" >&2
-  echo "  after the repair (see above). Run: lazysite check --domain $DOMAIN" >&2
+  echo "  after the repair (see above). Run: ${LZS_CLI:-lazysite} check --domain $DOMAIN" >&2
   exit 5
 fi
 if [ "${INSTALL_UNSERVICEABLE:-0}" = 1 ]; then

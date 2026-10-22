@@ -1959,10 +1959,26 @@ sub _report_forwarded_trust {
             . 'a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55'
             . ( $default ? ' (the private-range default)' : '' ),
         'if it is seen as 192.0.2.55, rebuild the site\'s vhost from the current '
-            . 'template (lazysite-hestia-update-all.sh --rebuild, or '
-            . 'v-rebuild-web-domain USER DOMAIN); set trusted_proxies: none until it is rebuilt '
+            . 'template (the Hestia updater\'s --rebuild, or '
+            . 'v-rebuild-web-domain USER DOMAIN followed by `' . cli_spelling()
+            . ' repair --domain DOMAIN`, which puts back the permissions a rebuild '
+            . 'resets - SM270); set trusted_proxies: none until it is rebuilt '
             . '(do not remove the line - removing it restores the default trust)' );
     return;
+}
+
+# SM1236: the CLI as this host runs it, for a hint. LAZYSITE_CLI is set by the
+# CLI and the Hestia updater; otherwise `lazysite` when it is on PATH, otherwise
+# the CLI beside this tool by path (the tarball puts no `lazysite` on PATH).
+sub cli_spelling {
+    return $ENV{LAZYSITE_CLI} if length( $ENV{LAZYSITE_CLI} // '' );
+    for my $d ( split /:/, $ENV{PATH} // '' ) {
+        return 'lazysite' if length $d && -x "$d/lazysite";
+    }
+    require Cwd;
+    require File::Basename;
+    my $cli = File::Basename::dirname( Cwd::abs_path($0) // $0 ) . '/lazysite-cli.pl';
+    return -f $cli ? "perl $cli" : 'lazysite';
 }
 
 sub conf_value {

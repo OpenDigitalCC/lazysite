@@ -36,6 +36,10 @@ my $DEFAULT_REGISTRY_DIR = '/etc/lazysite/sites.d';
 Getopt::Long::Configure( 'no_ignore_case', 'bundling_override' );
 
 my $verb = shift @ARGV;
+
+# SM1236: the tools this runs spell their hints the way the operator reached
+# this one (invoked_as), unless a caller - the Hestia updater - already said.
+$ENV{LAZYSITE_CLI} = invoked_as() unless length( $ENV{LAZYSITE_CLI} // '' );
 $verb = defined $verb ? $verb : '';
 
 if    ( $verb eq '' )                                     { usage(2) }
@@ -1004,7 +1008,7 @@ sub cmd_site_setting {
 
     my $value = shift @ARGV;
     usage_error( "$verb needs the value to set (" . join( '|', split ' ', $words )
-            . "). To READ what a site is on, use `lazysite sites`." )
+            . "). To READ what a site is on, use `" . invoked_as() . ' sites`.' )
         unless defined $value && length $value;
     fail("$verb must be one of: $words") unless $value =~ $pattern;
     usage_error("$verb takes one value, not: $value @ARGV") if @ARGV;
@@ -1231,8 +1235,11 @@ sub cmd_upgrade_all {
             # Installed, and the health check named a failure. The code IS in
             # place, so the restart still applies - a worker holding the old
             # engine is a second fault on top of the first.
+            # SM1236: the repair (check, --fix, check again) as this host runs it,
+            # rather than `lazysite check --fix`, which a tarball host has no
+            # `lazysite` for and which is the repair without its re-check.
             print "== $s->{name}: upgraded, and NOT serviceable - see its health "
-                . "check above (lazysite check --domain $s->{name} --fix)\n";
+                . 'check above (' . invoked_as() . " repair --domain $s->{name})\n";
             push @unhealthy, $s->{name};
             my @r = $is_root ? _restart_site_workers( $s->{name} ) : ();
             print "   restarted: " . join( ', ', @r ) . "\n" if @r;

@@ -128,6 +128,9 @@ STAGE="${ARGS[0]:-$(cd "$(dirname "$0")/../.." && pwd)}"
 
 [ "$(id -u)" = 0 ] || { echo "$0: must run as root" >&2; exit 1; }
 DEPLOY="$STAGE/installers/hestia/lazysite-hestia-deploy.sh"
+# The release's own CLI: the health phase runs it, and every hint names it
+# (SM1236). Set here, above every caller.
+LZS="$STAGE/tools/lazysite-cli.pl"
 [ -f "$DEPLOY" ] || { echo "$0: no deploy script under STAGE '$STAGE'" >&2; exit 2; }
 
 HESTIA=/usr/local/hestia
@@ -283,7 +286,7 @@ xff_reason() {
         default) why='trusted_proxies is not set, so the private ranges are trusted by default' ;;
         *)       why='trusted_proxies is set to a list' ;;
     esac
-    printf '%s\n' "the front end passes the client's X-Forwarded-For through, so trusted_proxies lets any visitor choose their address ($why); fix: rebuild the vhost (--rebuild, or v-rebuild-web-domain USER DOMAIN), then probe: a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55; until then set trusted_proxies: none (do not remove the line - removing it restores the default trust)"
+    printf '%s\n' "the front end passes the client's X-Forwarded-For through, so trusted_proxies lets any visitor choose their address ($why); fix: rebuild the vhost (--rebuild, or v-rebuild-web-domain USER DOMAIN and then $(cli_cmd) repair --domain DOMAIN, which puts back the permissions a rebuild resets), then probe: a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55; until then set trusted_proxies: none (do not remove the line - removing it restores the default trust)"
 }
 
 # xff_exposure USER DOMAIN DOCROOT - prints the FAILURE line when this site
@@ -432,6 +435,28 @@ table_row()  { printf "$TBL_FMT" "$1" "$2" "$3" "$4" "$5" "$6" "$7"; }
 SUM_FMT='  %-42s %-9s %-9s %-16s %-8s %s\n'
 sum_head() { printf "$SUM_FMT" DOMAIN FROM TO CHECK VHOST RESULT; }
 sum_row()  { printf "$SUM_FMT" "$1" "$2" "$3" "$4" "$5" "$6"; }
+
+# SM1236: THE COMMAND THAT RUNS ON THIS HOST. Every hint said `lazysite ...`, and
+# the tarball - the Hestia deploy shape - puts no `lazysite` on PATH (the .deb
+# does). So a hint names `lazysite` when it is there and the release's own CLI by
+# path otherwise, which runs from any directory. The child tools are told the
+# same spelling through LAZYSITE_CLI, so their hints agree with this script's.
+cli_cmd() {
+    if command -v lazysite >/dev/null 2>&1; then
+        echo lazysite
+    else
+        printf 'perl %s\n' "${LZS:-tools/lazysite-cli.pl}"
+    fi
+}
+
+# SM1236: A REBUILD IS FOLLOWED BY A REPAIR. v-rebuild-web-domain re-applies
+# Hestia's own permissions (docroot 2751, lazysite/git 2775 - SM270, seen again
+# by hand on three sites after the 0.16.0 rollout), so a hint that sends an
+# operator to it names the repair that puts them back. Argument: the lead-in.
+rebuild_hint() {
+    printf '%s: v-rebuild-web-domain USER DOMAIN, then %s repair --domain DOMAIN (a rebuild resets the docroot permissions, SM270)\n' "$1" "$(cli_cmd)"
+}
+
 
 # SM889: WHAT COUNTS AS A FINDING - and the old answer matched prose.
 #
@@ -679,6 +704,10 @@ ver_of() {   # print the "version" from an install-state.json, or "?"
     perl -MJSON::PP -0777 -ne 'my $d=eval{decode_json($_)}; print(($d && $d->{version}) ? $d->{version} : "?")' "$1" 2>/dev/null || echo '?'
 }
 
+# SM1236: the child tools spell their hints the way this script does.
+LAZYSITE_CLI="${LAZYSITE_CLI:-$(cli_cmd)}"
+export LAZYSITE_CLI
+
 # --- discover lazysite sites -------------------------------------------------
 # Preferred: lazysite-hestia-list.sh --template-only - the Hestia web template
 # (lazysite-app) is the sole authority for what we update. A marker-only domain
@@ -810,7 +839,7 @@ printf '  %d candidate(s): %d in scope, %d out of scope, %d excluded\n' \
 [ "${#OUT_OF_SCOPE[@]}" -gt 0 ] && \
     echo '  Out of scope: update_channel does not accept this build - no template change, no rebuild, no repair, no probe.'
 [ "${#EXC_D[@]}" -gt 0 ] && \
-    echo '  Excluded: re-set the template or remove the stale marker to reconcile (lazysite-hestia-list.sh).'
+    echo "  Excluded: re-set the template or remove the stale marker to reconcile (bash $LISTER)."
 [ "$LIST" = 1 ] && exit 0
 
 # From here on, these are THE sites.
@@ -893,7 +922,7 @@ done
 if [ "${#NEED_REBUILD[@]}" -gt 0 ]; then
     echo "    these domains render the replaced template until their vhost is rebuilt:"
     printf '      %s\n' "${NEED_REBUILD[@]}"
-    [ "$DO_REBUILD" = 1 ] || echo "    rebuild them: --rebuild, or v-rebuild-web-domain USER DOMAIN"
+    [ "$DO_REBUILD" = 1 ] || rebuild_hint "    rebuild them: --rebuild, or for each"
 fi
 
 # --- move each domain onto the proxy template (SM283) ------------------------
@@ -941,6 +970,10 @@ if [ "$DO_REBUILD" = 1 ]; then
         in_list "${_k#*/}" "${DOMAINS[@]}" && continue
         if "$HESTIA/bin/v-rebuild-web-domain" "${_k%%/*}" "${_k#*/}" >/dev/null 2>&1; then
             echo "    rebuilt: ${_k#*/}"
+            # SM1236: this run neither deploys nor repairs a domain it does not
+            # manage, and a rebuild resets its docroot permissions (SM270). Say
+            # what to run rather than repair a site outside this run's scope.
+            echo "    rebuilt outside this rollout - now run: $(cli_cmd) repair --domain ${_k#*/} (a rebuild resets the docroot permissions, SM270)"
         else
             echo "    REBUILD FAILED: ${_k#*/} (user ${_k%%/*})" >&2
         fi
@@ -1048,7 +1081,6 @@ fi
 # They are now `lazysite repair` and `lazysite probe`, addressing sites through
 # the registry or this host's own site list. This script sequences them; it no
 # longer contains them.
-LZS="$STAGE/tools/lazysite-cli.pl"
 if [ -f "$LZS" ]; then
     # SM345: --domain per IN-SCOPE site, never --all.
     #
@@ -1146,11 +1178,11 @@ printf '  %d updated, %d failed, %d not serviceable, %d skipped, %d out of scope
     printf '  probe:  %d clean, %d exposed, %d could not run\n' \
         "${_probe_ok:-0}" "${_probe_bad:-0}" "${_probe_none:-0}"
 [ -f "$LZS" ] && \
-    printf '  check:  %d clean, %d with warnings or failures (lazysite check --domain D shows each)\n' \
-        "$_chk_clean" "$_chk_warn"
+    printf '  check:  %d clean, %d with warnings or failures (%s check --domain D shows each)\n' \
+        "$_chk_clean" "$_chk_warn" "$(cli_cmd)"
 [ "$_vh_rebuild" -gt 0 ] && \
-    printf '  vhost:  %d site(s) render an older template - rebuild them to take this release'"'"'s front-end rules (--rebuild, or v-rebuild-web-domain USER DOMAIN)\n' \
-        "$_vh_rebuild"
+    printf '  vhost:  %d site(s) render an older template - rebuild them to take this release'"'"'s front-end rules (--rebuild, or v-rebuild-web-domain USER DOMAIN then %s repair --domain DOMAIN)\n' \
+        "$_vh_rebuild" "$(cli_cmd)"
 xff_summary_line "$_xff_bad"
 report_findings
 
@@ -1192,7 +1224,7 @@ if [ "${#UNSERVICEABLE[@]}" -gt 0 ]; then
     echo "ROLLOUT INSTALLED, ${#UNSERVICEABLE[@]} SITE(S) NOT SERVICEABLE: the release is in"
     echo "  place on them and their health check still fails after the repair:"
     printf '    %s\n' "${UNSERVICEABLE[@]}"
-    echo "  They need a human (lazysite check --domain D names each failure);"
+    echo "  They need a human ($(cli_cmd) check --domain D names each failure);"
     echo "  re-running this deploy will not change them, and neither will cutting"
     echo "  another version."
     exit 2

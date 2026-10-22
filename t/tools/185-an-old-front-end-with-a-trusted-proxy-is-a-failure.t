@@ -28,7 +28,7 @@ sub spit { my ( $p, $b ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh}
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; my $s = <$fh>; close $fh; return $s }
 
 my $src   = slurp($UPD);
-my @names = qw(lazysite_dir template_rev vhost_xff_state site_trust_kind xff_reason xff_exposure
+my @names = qw(cli_cmd lazysite_dir template_rev vhost_xff_state site_trust_kind xff_reason xff_exposure
     record_xff_exposure xff_summary_line group_findings report_findings);
 my %fn;
 for my $n (@names) {

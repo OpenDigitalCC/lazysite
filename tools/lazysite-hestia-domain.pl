@@ -497,6 +497,20 @@ sub template_state {
 # Point the operator at the shipped template copies if Hestia does not have
 # them yet (the one-off host step from README.Debian), or has an OLD copy of
 # them (SM1196). Advisory only.
+# SM1236: the CLI as this host runs it, for a hint. LAZYSITE_CLI is set by the
+# CLI and the Hestia updater; otherwise `lazysite` when it is on PATH, otherwise
+# the CLI beside this tool by path (the tarball puts no `lazysite` on PATH).
+sub cli_spelling {
+    return $ENV{LAZYSITE_CLI} if length( $ENV{LAZYSITE_CLI} // '' );
+    for my $d ( split /:/, $ENV{PATH} // '' ) {
+        return 'lazysite' if length $d && -x "$d/lazysite";
+    }
+    require Cwd;
+    require File::Basename;
+    my $cli = File::Basename::dirname( Cwd::abs_path($0) // $0 ) . '/lazysite-cli.pl';
+    return -f $cli ? "perl $cli" : 'lazysite';
+}
+
 sub template_hint {
     my ($tpl) = @_;
     my $hestia_tpl = "$TPL_BASE/apache2/php-fpm";
@@ -508,7 +522,9 @@ sub template_hint {
             . "      so Hestia renders the OLD vhost on every rebuild. Refresh it, then\n"
             . "      rebuild every domain on it (the updater does both: --rebuild):\n"
             . "    cp /usr/share/lazysite-hestia/templates/$tpl.* $hestia_tpl/\n"
-            . "    v-rebuild-web-domain USER DOMAIN\n";
+            . "    v-rebuild-web-domain USER DOMAIN\n"
+            # SM1236: a rebuild resets the docroot permissions (SM270).
+            . '    ' . cli_spelling() . " repair --domain DOMAIN\n";
         return;
     }
     print "NOTE: $tpl is not installed in $hestia_tpl yet; copy it first:\n"
@@ -529,7 +545,8 @@ sub proxy_template_hint {
             . "      through, SM929). Refresh it, then rebuild every domain on it\n"
             . "      (the updater does both: --rebuild):\n"
             . "    cp /usr/share/lazysite-hestia/templates/lazysite-proxy.* $hestia_tpl/\n"
-            . "    v-rebuild-web-domain USER DOMAIN\n";
+            . "    v-rebuild-web-domain USER DOMAIN\n"
+            . '    ' . cli_spelling() . " repair --domain DOMAIN\n";
         return;
     }
     print "NOTE: lazysite-proxy is not installed in $hestia_tpl yet; copy it\n"
