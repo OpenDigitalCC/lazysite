@@ -130,7 +130,9 @@ subtest 'the domains using a refreshed template are found, from Hestia\'s own re
 
 subtest 'the order is refresh, then rebuild, then the rendered-file check' => sub {
     my $call    = index( $src, "refresh_template \"\$PROXYTPLDIR\"" );
-    my $rebuild = index( $src, 'v-rebuild-web-domain" "$u" "$d"' );
+    # SM1265: rebuild_exposed, a function defined above the main flow, makes the
+    # same call, so the rebuild looked for is the first one after the refresh.
+    my $rebuild = index( $src, 'v-rebuild-web-domain" "$u" "$d"', $call );
     my $check   = index( $src, "\n    record_xff_exposure \"\${USERS[\$i]}\"" );
     ok( $call > 0 && $rebuild > 0 && $check > 0, 'all three steps are in the script' );
     ok( $call < $rebuild && $rebuild < $check, 'in that order' );
