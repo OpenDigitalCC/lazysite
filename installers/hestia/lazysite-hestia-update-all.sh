@@ -502,25 +502,89 @@ trap cleanup_findings EXIT
 #   be paired with its finding - which is the one thing the list is for. Records
 #   are ordered on input (by message, then site) and printed in that order, and
 #   nothing sorts the output.
+#
+# SM1235: A MESSAGE THAT DIFFERS ONLY BY A PATH IS ONE FINDING. The 0.16.0
+# rollout gave sumaya.fund about seventy lines of "WARNING: both trees held
+# 'docs/X.md': ... moved to <dir>/docs/X.md, where it can be recovered", one per
+# file, and the report could no longer be copied. Each message is normalised
+# before grouping: an absolute path, and a quoted name with a slash or an
+# extension, become <path>. A group of more than one distinct message prints
+# once: the count, the directories its paths are under per site (for that line,
+# the displaced directory), three examples, and the file holding the full list
+# ($FINDINGS_FULL, written only when a group needs it). A leading log timestamp
+# is dropped for the same reason. A message with no path, or one copy of it,
+# prints exactly as before.
 group_findings() {
-    local TAB
-    TAB=$(printf '\t')
-    # "phase site<TAB>msg" -> "site<TAB>msg"; a bare "site<TAB>msg" is untouched.
-    # Then one line per (message, site): sort -u on those two keys IS the dedupe.
-    sed "s/^[^${TAB}]* \([^${TAB} ]*\)${TAB}/\1${TAB}/" \
-        | sort -t "$TAB" -u -k2,2 -k1,1 \
-        | awk -F'\t' '
-            {
-                if (!($2 in cnt)) order[++k] = $2
-                cnt[$2]++
-                sites[$2] = sites[$2] (sites[$2] ? ", " : "") $1
+    local prog
+    prog=$(cat <<'PERL'
+    use strict;
+    use warnings;
+    my $full = shift // '';
+    my ( %seen, %group, %msgs, %sites );
+    while ( my $line = <STDIN> ) {
+        chomp $line;
+        my ( $label, $msg ) = split /\t/, $line, 2;
+        next unless defined $msg && length $msg;
+        # "phase site" -> "site": the site is the LAST word of the label.
+        my $site = ( split / /, $label )[-1] // $label;
+        $msg =~ s/\A\[\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\] //;
+        next if $seen{"$site\t$msg"}++;
+        my @v;
+        ( my $key = $msg ) =~ s{(^|[\s"(=\[])(/[^\s'",;()\[\]]*[^\s'",;()\[\].:])|'([^'\s]*/[^'\s]*|[^'\s/]+\.[A-Za-z0-9]{1,8})'}{
+            defined $2 ? do { push @v, $2; "$1<path>" } : do { push @v, $3; "'<path>'" } }ge;
+        push @{ $group{$key} }, [ $site, $msg, \@v ];
+        $msgs{$key}{$msg} = 1;
+        $sites{$key}{$site} = 1;
+    }
+    # The longest common directory of a set of paths ("" when none).
+    my $under = sub {
+        my @p = @_;
+        return $p[0] if !grep { $_ ne $p[0] } @p;
+        my $c = $p[0];
+        for my $x (@p) { chop $c while length $c && index( $x, $c ) != 0 }
+        $c =~ s{[^/]*\z}{};
+        return $c;
+    };
+    for my $key ( sort keys %group ) {
+        my @rows  = sort { $a->[0] cmp $b->[0] || $a->[1] cmp $b->[1] } @{ $group{$key} };
+        my @names = sort keys %{ $sites{$key} };
+        my $n     = scalar @names;
+        my @m     = keys %{ $msgs{$key} };
+        if ( @m == 1 ) {
+            printf "  [%d] %s\n      sites: %s\n", $n, $m[0], join( ', ', @names );
+            next;
+        }
+        printf "  [%d] %s\n", $n, $key;
+        printf "      %d instance(s); the paths named are under:\n", scalar @rows;
+        for my $s (@names) {
+            my @mine = grep { $_->[0] eq $s } @rows;
+            my $slots = @{ $mine[0][2] };
+            my @u;
+            for my $i ( 0 .. $slots - 1 ) {
+                my $d = $under->( map { $_->[2][$i] // '' } @mine );
+                push @u, length $d ? $d : '(various)';
             }
-            END {
-                for (i = 1; i <= k; i++) {
-                    m = order[i]
-                    printf "  [%d] %s\n      sites: %s\n", cnt[m], m, sites[m]
-                }
-            }'
+            printf "        %s: %s\n", $s, join( ' | ', @u );
+        }
+        my ( %ex, @ex );
+        for my $r (@rows) {
+            my $e = $r->[2][0];
+            next if !defined $e || $ex{$e}++;
+            push @ex, $e;
+            last if @ex == 3;
+        }
+        printf "      e.g. %s\n", join( ', ', @ex ) if @ex;
+        if ( length $full && open my $fh, '>>', $full ) {
+            print {$fh} "== $key\n";
+            print {$fh} "$_->[0]\t$_->[1]\n" for @rows;
+            close $fh;
+            printf "      full list: %s\n", $full;
+        }
+        printf "      sites: %s\n", join( ', ', @names );
+    }
+PERL
+)
+    perl -e "$prog" "${FINDINGS_FULL:-}"
 }
 
 # report_findings - print every collected finding once, with the sites it
@@ -528,6 +592,9 @@ group_findings() {
 # is the kind of line this change exists to remove.
 report_findings() {
     [ -n "$FINDINGS_FILE" ] && [ -s "$FINDINGS_FILE" ] || return 0
+    # SM1235: where a finding that collapsed many paths keeps the full list. It
+    # outlives the run (the findings file does not), and the finding names it.
+    FINDINGS_FULL="${FINDINGS_FULL:-${LAZYSITE_FINDINGS_DIR:-${TMPDIR:-/tmp}}/lazysite-rollout-findings-$(date +%Y%m%d%H%M%S)-$$.txt}"
     echo
     echo '==> findings (one line per distinct message, with the sites it affects)'
     group_findings < "$FINDINGS_FILE"

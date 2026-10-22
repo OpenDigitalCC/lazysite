@@ -125,6 +125,13 @@ Archive
   config `namespaces` and its `reload` verb reach it, and SM1248 adopts them.
   Every Odoo test passes on the new snapshot unchanged. SM747's spec is re-filed.
   t/lint/207, 261.
+- SM1235 (PENDING) **the rollout reports a message that differs only by a path once.** On the
+  0.16.0 rollout one site's findings held about seventy "both trees held 'docs/X.md' ... moved
+  to <dir>/docs/X.md" lines, one per file, and the report could no longer be copied. The quiet
+  report now normalises paths before grouping: such lines are one finding with the count, the
+  directory the paths are under per site (the displaced directory), three examples and a file
+  with the full list (`LAZYSITE_FINDINGS_DIR`, default `$TMPDIR`). This covers every per-path
+  finding. A message with no path reads as before.
 - SM1233 (PENDING) **a Docker Compose package.** `installers/docker/` is no longer a
   placeholder: nginx, the one-rule FastCGI pool and `lazysited` in one container,
   the engine in the image and the site in three volumes (the docroot, `lazysite/`,
