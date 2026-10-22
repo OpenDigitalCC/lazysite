@@ -267,7 +267,9 @@ subtest 'channel with no value points at the verb that READS it' => sub {
     my ( $d, $cgi ) = site();
     my ( $rc, $out ) = cli( 'channel', '--docroot', $d );
     isnt( $rc, 0, 'refused' ) or diag($out);
-    like( $out, qr/lazysite sites/, 'naming the verb that reports the setting' );
+    # SM1236: spelled the way this host runs the CLI - `lazysite` from the
+    # deb, the CLI by path from a checkout or the tarball.
+    like( $out, qr/(?:\blazysite|lazysite-cli\.pl) sites`/, 'naming the verb that reports the setting' );
 };
 
 subtest 'channel needs a site, and says which ways there are to name one' => sub {
