@@ -11,7 +11,7 @@ use Odoo::JSON ();
 use Odoo::Error;
 use Odoo::Transport;
 
-our $VERSION = '0.38';
+our $VERSION = '0.42';
 
 use constant TRUSTED_DEVICE_COOKIE => 'td_id';
  use constant DEVICE_AGENT => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 odoo-oom-perl';

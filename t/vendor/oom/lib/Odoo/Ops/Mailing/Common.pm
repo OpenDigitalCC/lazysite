@@ -12,6 +12,7 @@ use Time::Local qw(timegm);
 use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Match;
+use Odoo::Ops::Mailing::Plaintext;
 use Odoo::Ops::Rows;
 use Odoo::Ops::Source;
 
@@ -201,6 +202,31 @@ sub lists_by ($op, $ref, %o) {
     my $rows = $op->model('list')->search_read( \@dom, [ 'id', $name, $p->field( list => 'active' ) ] );
     # =ilike reads _ and % as wildcards; a list named by a person is matched as written
     return $ref =~ /^\d+\z/ ? $rows : [ grep { lc( $_->{$name} // '' ) eq lc $ref } @$rows ];
+}
+
+=head2 text_part_links($op, $profile, $mailing_id)
+
+The C<text_links> verdicts of the plain-text part Odoo will make from the
+stored body of the mailing: the body is read, local links are made absolute
+with the mailing's base URL (as C<mail.render.mixin._replace_local_links>
+does), and C<html2plaintext> is applied. Undef when the body or the base URL
+cannot be read by this user or the body cannot be parsed, so the caller says
+nothing instead of guessing.
+
+=cut
+
+sub text_part_links ($op, $p, $id) {
+    my $fb = $p->field( mailing => 'body_html' );
+    my ($row) = denied( sub { $op->model('mailing')->read( [$id], [$fb] )->[0] }, 'the mailing body' );
+    return undef if !$row;
+    my $body = text( $row->{$fb} );
+    my ($base) = denied( sub { $op->model('mailing')->call( $p->action('base_url'), [ [$id] ] ) }, 'the base URL' );
+    return undef if !defined $base || ref $base;
+    $base =~ s{/+\z}{};
+    $body =~ s{\b(href|src)=(["'])/(?!/)}{$1=$2$base/}gi if length $base;
+    my ( undef, $urls ) = eval { Odoo::Ops::Mailing::Plaintext::html2plaintext($body) };
+    return undef if !$urls;
+    return Odoo::Ops::Mailing::Plaintext::text_links( $urls, base_url => $base, series => $op->client->server_series );
 }
 
 =head2 has_unsubscribe($html, $href)
@@ -420,6 +446,23 @@ C<'|', ('country_id', '=', False), ('country_id', 'not in', [...])>, so a
 contact with no country is in it. Ids are sorted, so the same filter is
 the same text.
 
+=head2 slice_domain($domain_text, $from_id, $before_id)
+
+A domain text with a contact id range added: C<('id', '>=', FROM)> and
+C<('id', '<', BEFORE)>, either left out when undef. Odoo's domains have no
+modulo, so a slice of a part is an id range; a range with no upper bound
+takes every contact made after it was planned. The terms follow whatever the
+domain holds (the lists and a country clause), so a slice is a part of a
+part.
+
+=head2 slice_words($from_id, $before_id)
+
+The range in words: C<contacts with id 1 or more and below 4,812>.
+
+=head2 commas($n)
+
+A count with thousands commas (C<4,812>).
+
 =head2 same_domain($a, $b)
 
 True when two domain texts are the same but for white space.
@@ -446,6 +489,21 @@ sub country_domain ($op, $list_ids, $mode, $country_ids) {
     return $mode eq 'in'
         ? "$base, ('$cf', 'in', [$ids])]"
         : "$base, '|', ('$cf', '=', False), ('$cf', 'not in', [$ids])]";
+}
+
+sub slice_domain ($text, $from, $before) {
+    ( my $base = $text ) =~ s/\]\s*\z//;
+    my @terms = ( ( defined $from ? "('id', '>=', $from)" : () ), ( defined $before ? "('id', '<', $before)" : () ) );
+    # an empty domain takes the terms alone; any other gets them after its own, which Odoo ANDs
+    return $base . ( $base =~ /\[\s*\z/ ? '' : ', ' ) . join( ', ', @terms ) . ']';
+}
+
+sub commas ($n) { scalar reverse( join ',', unpack '(A3)*', reverse $n ) }
+
+sub slice_words ($from, $before) {
+    return 'contacts with id ' . commas($from) . ' or more and below ' . commas($before) if defined $from && defined $before;
+    return 'contacts with id ' . commas($from) . ' or more (no upper bound)' if defined $from;
+    return 'contacts with id below ' . commas($before) . ' (no lower bound)';
 }
 
 sub same_domain ($x, $y) {

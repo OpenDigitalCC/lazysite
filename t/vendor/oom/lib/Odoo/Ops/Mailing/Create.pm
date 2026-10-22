@@ -11,6 +11,7 @@ use JSON::PP ();
 use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Mailing::Common;
+use Odoo::Ops::Mailing::Plaintext;
 
 use parent 'Odoo::Ops::Operation';
 
@@ -59,6 +60,25 @@ differs>, and the change counts as not verified. Drafts that share a
 subject and lists but differ in the filter are different drafts (the parts
 of one message): C<exists> and C<sent before> compare the domain too.
 
+C<slice> (C<< { from_id, before_id } >>, either may be left out, not both)
+sends the mailing to one slice of its lists, or of the part a country filter
+gives: the contacts with C<id E<gt>= from_id> and C<id E<lt> before_id>, for a
+part too big for one mailing (C<mailing.partition> C<slices> gives the cut
+points, and the first slice has no C<from_id>, the last no C<before_id>).
+Odoo's domains have no modulo, so a slice is a contact id range. The domain
+written is Odoo's default for the lists, the country clause when there is
+one, and the id clause; the plan states the range in words and the number of
+C<mailing.contact> records Odoo's own domain gives at plan time, as for a
+country filter, and the domain is read back after apply in the same way.
+Drafts of one subject and lists that differ in the range are different drafts
+(each slice has its own schedule), so none is C<exists> or C<sent before>
+because of another. A C<from_id> that is not below C<before_id> is refused
+C<usage>; so is a C<slice> that holds neither bound or anything else, and a
+mailing that is not to lists (C<mailing=ID>) is refused C<not-a-list-mailing>,
+as for a country filter. Changing the lists of a draft that has a slice, as
+of one that has a filter, makes Odoo recompute its domain: the slice is
+written again with the lists.
+
 One row, one bucket:
 
     mailing-create    the draft is made; the plan note counts who would receive it now
@@ -71,11 +91,11 @@ One row, one bucket:
                       the path Odoo rewrites to the recipient's own link at send time;
                       allow_no_unsubscribe=1 lets it through and the plan says so
 
-The plan notes that the unsubscribe anchor is rewritten in the HTML part
-only: Odoo derives the plain-text part from the HTML at send time and the
-raw C</unsubscribe_from_list> URL stays in it (16.0, proved by the
-try-out of 2026-10-15). It is a note and not a hold, because nothing the
-author can do in the body changes it.
+When the body's unsubscribe anchor will stay a placeholder in the plain-text part, the plan carries one note saying so: Odoo makes the text
+part before it swaps the recipient's own link into the HTML part, so the text
+part's C</unsubscribe_from_list> link will answer 404, while the HTML part and the
+C<List-Unsubscribe> header work (L<Odoo::Ops::Mailing::Plaintext>). It is a note
+and not a hold, because nothing the author can do in the body changes it.
 
 A mailing that is not a draft refuses by name (C<not-draft>). The read
 back after apply includes C<total>, Odoo's count of the lists' contacts
@@ -120,6 +140,7 @@ sub params ($class) {
         mailing  => { type => 'int',  help => 'change this draft instead of making one' },
         country_in     => { type => 'list', help => 'send only to the lists\' contacts whose own country is one of these ISO codes (AU,JP)' },
         country_not_in => { type => 'list', help => 'send only to the lists\' contacts whose own country is none of these ISO codes, and to those with no country' },
+        slice    => { type => 'json', help => 'send only to the contacts of this id range: {"from_id":N,"before_id":M} (id >= from_id and id < before_id; either may be left out, not both)' },
         allow_no_unsubscribe => { type => 'bool', default => 0, help => 'allow a body with no unsubscribe link' },
     };
 }
@@ -157,6 +178,8 @@ sub plan ($self) {
         fix => 'country_in sends to those countries; country_not_in to every other country and to contacts with no country' )
         if defined $cin && defined $cnot;
     my $cmode = defined $cin ? 'in' : defined $cnot ? 'not_in' : undef;
+    my ( $sfrom, $sbefore ) = $self->_slice;
+    my $slice = defined $sfrom || defined $sbefore ? 1 : 0;
     my $countries = $cmode ? Odoo::Ops::Mailing::Common::countries( $self, $cmode eq 'in' ? $cin : $cnot ) : undef;
     my $current;
     if ( defined $upd ) {
@@ -167,8 +190,8 @@ sub plan ($self) {
             message => "mailing $upd is $current->{ $f->('state') }, not draft: only a draft can be changed" )
             if $current->{ $f->('state') } ne 'draft';
         Odoo::Error->throw( kind => 'refused', code => 'not-a-list-mailing',
-            message => "mailing $upd is to " . Odoo::Ops::Mailing::Common::text( $current->{ $f->('model_real') } ) . ', not to mailing lists: a country filter is on the contacts of lists' )
-            if $cmode && Odoo::Ops::Mailing::Common::text( $current->{ $f->('model_real') } ) ne $p->model_name('contact');
+            message => "mailing $upd is to " . Odoo::Ops::Mailing::Common::text( $current->{ $f->('model_real') } ) . ', not to mailing lists: a country filter or a slice is on the contacts of lists' )
+            if ( $cmode || $slice ) && Odoo::Ops::Mailing::Common::text( $current->{ $f->('model_real') } ) ne $p->model_name('contact');
     }
 
     # lists: every name or id must exist (archived ones are not offered to a mailing)
@@ -194,7 +217,9 @@ sub plan ($self) {
     }
     # what the mailing's domain will read: the filter on the lists, or Odoo's default for them
     my @dom_lists = @ids ? @ids : ( $current ? @{ $current->{ $f->('lists') } // [] } : () );
-    my $domtext = $cmode && @dom_lists ? Odoo::Ops::Mailing::Common::country_domain( $self, \@dom_lists, $cmode, [ map { $_->{id} } @$countries ] ) : undef;
+    my $domtext = $cmode && @dom_lists ? Odoo::Ops::Mailing::Common::country_domain( $self, \@dom_lists, $cmode, [ map { $_->{id} } @$countries ] )
+        : $slice && @dom_lists ? Odoo::Ops::Mailing::Common::list_domain( $self, \@dom_lists ) : undef;
+    $domtext = Odoo::Ops::Mailing::Common::slice_domain( $domtext, $sfrom, $sbefore ) if $slice && defined $domtext;
     my $want_domain = $domtext // ( @dom_lists ? Odoo::Ops::Mailing::Common::list_domain( $self, \@dom_lists ) : undef );
     if ( !defined $upd && @ids ) {
         my %want = map { $_ => 1 } @ids;
@@ -220,21 +245,25 @@ sub plan ($self) {
     # a region of the lists: the contacts Odoo's own domain gives, counted by Odoo now
     my $parsed   = $domtext ? Odoo::Ops::Mailing::Common::parse_domain($domtext) : undef;
     my $matching = $parsed ? $self->model('contact')->count($parsed) : undef;
-    my $aud_ids  = @ids ? \@ids : $cmode ? \@dom_lists : undef;
+    my $aud_ids  = @ids ? \@ids : $cmode || $slice ? \@dom_lists : undef;
     my $aud = $aud_ids && @$aud_ids ? Odoo::Ops::Mailing::Common::audience( $self, $aud_ids, ( $parsed ? ( domain => $parsed ) : () ) ) : undef;
     my $note = sub () {
         return () if !$aud;
         my @n = ( sprintf 'audience now%s: %d reachable address(es) of %d subscription(s); %d opted out, %d blacklisted, %d without an address',
             ( $parsed ? ' in the filtered part' : '' ), @$aud{qw(reachable subscriptions opted_out blacklisted no_email)} );
-        unshift @n, 'country filter: ' . Odoo::Ops::Mailing::Common::country_words( $cmode, $countries )
-            . "; mailing_domain $domtext; Odoo's own domain gives $matching contact(s) now (opted-out ones included, as its total counts them)"
+        unshift @n, join '; ', ( $cmode ? 'country filter: ' . Odoo::Ops::Mailing::Common::country_words( $cmode, $countries ) : () ),
+            ( $slice ? 'slice: ' . Odoo::Ops::Mailing::Common::slice_words( $sfrom, $sbefore ) . ' of the ' . ( $cmode ? 'part' : 'lists' ) : () ),
+            "mailing_domain $domtext", "Odoo's own domain gives $matching contact(s) now (opted-out ones included, as its total counts them)"
             if $parsed;
         return @n;
     };
 
-    # proved on 16 by the try-out of 2026-10-15: nothing the author can do in the body, so a note and not a hold
+    # Odoo makes the plain-text part before it swaps the recipient's links into the HTML: nothing the author can do in the body, so a note and not a hold.
+    # The body is read as Odoo's html2plaintext reads it; its relative links are judged by their path, as Odoo makes them absolute with the base URL.
     my $text_part = sub () {
-        return "the unsubscribe anchor is rewritten to the recipient's own link in the HTML part only; Odoo derives the plain-text part from the HTML at send time and its $href link stays as written (a text-only reader gets a link that does not unsubscribe)";
+        my (undef, $urls) = eval { Odoo::Ops::Mailing::Plaintext::html2plaintext($body) };
+        return () if !$urls;
+        return grep { defined } Odoo::Ops::Mailing::Plaintext::warning( Odoo::Ops::Mailing::Plaintext::text_links( $urls, series => $self->client->server_series ) );
     };
 
     if ( defined $upd ) {
@@ -270,14 +299,17 @@ sub plan ($self) {
             }
         }
         elsif ( $lists_change && $filtered_now ) {
-            $plan->note("changing the lists makes Odoo recompute the mailing's domain: the filter it has now ($cur_dom) is lost; pass country_in or country_not_in again to keep a filter");
+            $plan->note("changing the lists makes Odoo recompute the mailing's domain: the filter it has now ($cur_dom) is lost; pass country_in, country_not_in or slice again to keep it");
         }
+        # a slice written without the country filter the draft has replaces it: say so rather than keep a clause nobody asked for
+        $plan->note("the slice replaces the filter the mailing has now ($cur_dom): pass country_in or country_not_in with it to keep a country filter")
+            if $slice && !$cmode && $filtered_now && $domtext && !Odoo::Ops::Mailing::Common::same_domain( $cur_dom, $domtext );
         if ( !%set ) {
             $plan->add( bucket => 'unchanged', action => 'skip', key => $key, id => $upd, reason => "mailing $upd already reads as asked" );
             return $plan;
         }
         $plan->note($_) for $note->();
-        $plan->note( $text_part->() ) if defined $body;
+        $plan->note($_) for $text_part->();
         $plan->add( bucket => 'mailing-update', action => 'write', model => $p->model_name('mailing'), id => $upd, key => $key,
             vals => \%set, before => \%before, ( $set{ $f->('domain') } ? ( compare => [ $f->('domain') ] ) : () ),
             reason => 'changes ' . join( ', ', sort keys %set ) );
@@ -302,7 +334,7 @@ sub plan ($self) {
         $vals{ $f->('schedule_date') } = Odoo::Ops::Mailing::Common::datetime( 'mailing.create', 'schedule', $self->param('schedule') );
     }
     $plan->note($_) for $note->();
-    $plan->note( $text_part->() );
+    $plan->note($_) for $text_part->();
     $plan->note($_) for @sent_before;
     $plan->note('a draft: nothing is sent until mailing.send; test it first with mailing.test');
     $plan->add( bucket => 'mailing-create', action => 'create', model => $p->model_name('mailing'), key => $key, vals => \%vals,
@@ -333,6 +365,27 @@ sub _sent_before ($self, $ids, $want_domain) {
         last if @note >= 3;
     }
     return @note;
+}
+
+# the slice param: a map of one or two contact ids, validated before anything is read
+sub _slice ($self) {
+    my $s = $self->param('slice');
+    return () if !defined $s;
+    my $fix = 'slice is {"from_id":N,"before_id":M}: the contacts with id >= from_id and id < before_id, either bound may be left out, not both (mailing.partition slices=N gives the cut points)';
+    Odoo::Error->throw( kind => 'usage', message => 'mailing.create: slice must be a map with from_id and/or before_id', fix => $fix )
+        if ref $s ne 'HASH' || grep { !/\A(?:from_id|before_id)\z/ } keys %$s;
+    my @v = map { $s->{$_} } qw(from_id before_id);
+    for my $i ( 0, 1 ) {
+        next if !defined $v[$i];
+        my $name = ( qw(from_id before_id) )[$i];
+        Odoo::Error->throw( kind => 'usage', message => "mailing.create: slice $name must be a contact id (a whole number of at least 1), not '$v[$i]'", fix => $fix )
+            if ref $v[$i] || $v[$i] !~ /\A[1-9]\d*\z/;
+        $v[$i] += 0;
+    }
+    Odoo::Error->throw( kind => 'usage', message => 'mailing.create: give slice from_id, before_id or both', fix => $fix ) if !defined $v[0] && !defined $v[1];
+    Odoo::Error->throw( kind => 'usage', message => "mailing.create: slice from_id $v[0] is not below before_id $v[1]: the range holds no contact", fix => $fix )
+        if defined $v[0] && defined $v[1] && $v[0] >= $v[1];
+    return @v;
 }
 
 sub _body ($self) {

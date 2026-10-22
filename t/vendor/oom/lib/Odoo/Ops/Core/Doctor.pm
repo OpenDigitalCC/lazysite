@@ -162,7 +162,7 @@ sub read_scope ($class) {
 # http and tls are injectable so the offline test needs no network:
 #   http: an object with get($url) and post($url, \%opts), HTTP::Tiny's shape
 #   catcher_http: the same, for the mail catcher's /api/v1/info only
-#   tls:  sub ($host, $port, $ca_file) returning { verified, error, subject, not_after (epoch) }
+#   tls:  sub ($host, $port, $ca_file) returning { verified, error, subject, not_after and not_before (epoch) }
 sub new ($class, %args) {
     my $self = $class->SUPER::new(%args);
     $self->{http} = $args{http};
@@ -584,6 +584,10 @@ sub _default_tls_probe ($host, $port, $ca) {
         if ( $iso && $iso =~ /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z/ ) {
             $r{not_after} = Time::Local::timegm( $6, $5, $4, $3, $2 - 1, $1 );
         }
+        $iso = Net::SSLeay::P_ASN1_TIME_get_isotime( Net::SSLeay::X509_get_notBefore($x) );
+        if ( $iso && $iso =~ /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z/ ) {
+            $r{not_before} = Time::Local::timegm( $6, $5, $4, $3, $2 - 1, $1 );
+        }
     }
     $s->close;
     return \%r;
@@ -591,6 +595,9 @@ sub _default_tls_probe ($host, $port, $ca) {
 
 # the server certificate against ssl_ca_file (or the system store): does
 # it verify, whose is it, when does it run out
+# 12.0 reads as 12
+sub _trim ($n) { $n =~ s/\.0$//; return $n }
+
 sub _tls_chain ($self, $config) {
     my $url = $config->get('url') // '';
     my ( $scheme, $host, $port ) = $url =~ m{^(https?)://(?:[^/@]*@)?([^/:?#]+)(?::(\d+))?}i;
@@ -608,10 +615,22 @@ sub _tls_chain ($self, $config) {
     }
     my $d = 'verifies' . ( $r->{subject} ? "; subject $r->{subject}" : '' );
     return _check( 'tls.chain', 'ok', $d ) if !$r->{not_after};
-    my $days = int( ( $r->{not_after} - $self->ctx->now ) / 86400 );
+    my $left = $r->{not_after} - $self->ctx->now;
     my $when = Odoo::Ops::iso_time( $r->{not_after} );
-    return _check( 'tls.chain', 'fail', "$d; expired $when" ) if $days < 0;
-    return _check( 'tls.chain', $days < 14 ? 'warn' : 'ok', "$d; expires $when ($days days)" );
+    return _check( 'tls.chain', 'fail', "$d; expired $when" ) if $left < 0;
+    # ACME clients renew at about a third of the lifetime left, so under a
+    # sixth means renewal is overdue; a short-lived leaf (Caddy's internal
+    # CA: 12 hours) is judged against its own lifetime, not a fixed 14 days
+    my $life = defined $r->{not_before} ? $r->{not_after} - $r->{not_before} : 0;
+    if ( $life <= 0 ) {
+        my $days = int( $left / 86400 );
+        return _check( 'tls.chain', $days < 14 ? 'warn' : 'ok', "$d; expires $when ($days days)" );
+    }
+    my $what = $left < 2 * 86400 ? sprintf( $left < 36000 ? '%.1f hours' : '%d hours', $left / 3600 ) : sprintf( '%d days', int( $left / 86400 ) );
+    my $of = $life < 2 * 86400 ? sprintf( '%s-hour', _trim( sprintf '%.1f', $life / 3600 ) ) : sprintf( '%d-day', int( $life / 86400 + 0.5 ) );
+    my $line = "$d; expires $when ($what left of a $of certificate)";
+    return _check( 'tls.chain', 'warn', "$line: renewal is overdue: under a sixth of its lifetime is left" ) if $left < $life / 6;
+    return _check( 'tls.chain', 'ok', $line );
 }
 
 sub _http ($self, $config) {

@@ -7,11 +7,10 @@ no warnings 'experimental::signatures';
 
 use JSON::PP ();
 
-use HTML::Entities ();
-
 use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Mailing::Common;
+use Odoo::Ops::Mailing::Plaintext;
 
 use parent 'Odoo::Ops::Operation';
 
@@ -77,11 +76,16 @@ mass mail.
 
 =back
 
-The C<text> part is derived here (C<text_derived_by: oom>, a close
-imitation of Odoo's C<html2plaintext>), from the HTML before the unsubscribe
-rewrite, because that is what Odoo does at send time: the plain-text part
-keeps the raw C</unsubscribe_from_list> URL (16.0, proved by the try-out of
-2026-10-15). C<placeholders> lists what the preview does not carry.
+The C<text> part is derived here (C<text_derived_by: oom>) with a port of
+Odoo's C<html2plaintext> (L<Odoo::Ops::Mailing::Plaintext>), from the HTML
+before the unsubscribe rewrite, because that is what Odoo does at send time:
+the plain-text part keeps the raw C</unsubscribe_from_list> URL, and Odoo's
+route for it answers 404. C<text_links> lists each link of the text part
+(C<n>, C<url>, C<verdict>): C<unsubscribe-placeholder> and C<view-placeholder>
+name a link that will answer 404 (with C<answers> and C<fault>), anything else is
+C<ok>. When a placeholder remains, C<placeholders> says so in one line: the HTML
+part and the C<List-Unsubscribe> header carry the recipient's working link.
+C<placeholders> lists what the preview does not carry.
 
 C<archived> reads an archived mailing. A mailing to a model other than
 mailing lists is refused (C<not-a-list-mailing>); a mailing nobody can be
@@ -92,7 +96,10 @@ for one recipient (the composer's C<get_mail_values> became the private
 C<_prepare_mail_values>, which cannot be called over RPC), and OOM does not
 imitate Odoo's rendering. There the report says C<rendered_by: none>: the
 recipient, the mailing's C<state>, and after a send C<tracking> and
-C<tracked_links>, with no subject, from, reply-to, html or text;
+C<tracked_links>, with no subject, from, reply-to or html. The C<text> part is
+the one thing derived: from the mailing's stored C<body_html> (local links made
+absolute), unpersonalised and without the layout Odoo wraps round the body, with
+the same port; C<text_basis> says so, and C<text_links> gives the same verdicts.
 C<mailing.test> sends the mail Odoo renders to an address you give. Another
 series is refused by name until its profile is probed.
 
@@ -184,7 +191,9 @@ sub report ($self) {
         my $href = $p->action('unsubscribe_href');
         # the raw URL Odoo's send looks for in the body: the base URL and the path
         my $raw = "$base$href";
-        my $text = _plain($html);
+        # the text part as Odoo makes it: html2plaintext of the body before the recipient's links are swapped in
+        my ( $text, $urls ) = Odoo::Ops::Mailing::Plaintext::html2plaintext($html);
+        my $text_links = Odoo::Ops::Mailing::Plaintext::text_links( $urls, base_url => $base, series => $self->client->server_series );
         my $has_anchor = index( $html, $raw ) >= 0;
 
         my $unsub = sprintf '%s/mailing/%d/confirm_unsubscribe?res_id=%d&email=%s&token=TOKEN-SIGNED-BY-ODOO-AT-SEND', $base, $id, $who->{id}, _urlenc( $who->{email} );
@@ -203,13 +212,16 @@ sub report ($self) {
             from_note       => $from_note,
             reply_to        => Odoo::Ops::Mailing::Common::text( $one->{reply_to} ),
             text            => $text,        text_derived_by => 'oom',
+            text_basis      => 'the rendered body before the recipient\'s links are swapped in, through a port of Odoo\'s html2plaintext',
+            text_links      => $text_links,
             unsubscribe_url => $has_anchor ? $unsub : undef,
             unsubscribe_token => 'signed by Odoo at send time (an HMAC under database.secret, which OOM does not read); the URL shows where the link goes and does not unsubscribe anyone',
             placeholders    => [
                 ( $has_anchor ? 'the unsubscribe link: its token is a placeholder' : 'the body has no ' . $href . ' anchor: the mail goes out with no way to opt out' ),
                 'links to other pages read as written: Odoo shortens them into tracked links only at send (see tracked_links after a send)',
-                'no tracking image: Odoo appends it to the sent body (see tracking after a send)',
-                'the text part is derived by OOM, not rendered by Odoo',
+                'no tracking image: Odoo appends it to the sent body (see tracking after a send), and the sent text part lists it last as "blank [n]"',
+                'the text part is derived by OOM with a port of Odoo\'s html2plaintext, not rendered by Odoo; the sent one lists the shortened links of a send',
+                ( Odoo::Ops::Mailing::Plaintext::warning($text_links) // () ),
             ],
         );
         # text comes first: it is short and says what the mail reads like; the html follows
@@ -222,13 +234,27 @@ sub report ($self) {
         }
     }
     else {
-        # Odoo 18: the composer's renderer is private (_prepare_mail_values), so there is no mail to read; what a read can say is said
+        # Odoo 18: the composer's renderer is private (_prepare_mail_values), so there is no mail to read; what a read can say is said.
+        # The one thing derived is the text part, from the stored body: Odoo makes it from the body it renders, so this is the
+        # unpersonalised stand-in, with local links made absolute as Odoo does (mail.render.mixin._replace_local_links)
+        my $base = $mm->call( $p->action('base_url'), [ [$id] ] );
+        $base = '' if ref $base || !defined $base;
+        $base =~ s{/+\z}{};
+        my $stored = Odoo::Ops::Mailing::Common::text( $m->{ $f->( mailing => 'body_html' ) } );
+        $stored =~ s{\b(href|src)=(["'])/(?!/)}{$1=$2$base/}gi if length $base;
+        my ( $text, $urls ) = Odoo::Ops::Mailing::Plaintext::html2plaintext($stored);
+        my $text_links = Odoo::Ops::Mailing::Plaintext::text_links( $urls, base_url => $base, series => $self->client->server_series );
         %out = (
             mailing     => $id,
             rendered_by => 'none',
             recipient   => { contact_id => $who->{id}, email => $who->{email}, name => $who->{name} },
+            text            => $text,        text_derived_by => 'oom',
+            text_basis      => 'the mailing\'s stored body_html, unpersonalised and without the mass-mailing layout, through a port of Odoo\'s html2plaintext',
+            text_links      => $text_links,
             placeholders => [
-                'Odoo ' . $self->client->server_series . ' has no public method that renders a mass mail for a recipient (16\'s get_mail_values is the private _prepare_mail_values here), so there is no subject, from, reply_to, html or text: nothing is rendered or imitated',
+                'Odoo ' . $self->client->server_series . ' has no public method that renders a mass mail for a recipient (16\'s get_mail_values is the private _prepare_mail_values here), so there is no subject, from, reply_to or html: nothing is rendered or imitated',
+                'the text is derived by OOM from the stored body, unpersonalised (a placeholder such as {{ object.name }} reads as written) and without the layout Odoo wraps round it at send, with a port of Odoo\'s html2plaintext; the sent one also lists the tracking image last as "blank [n]" and the shortened links of a send',
+                ( Odoo::Ops::Mailing::Plaintext::warning($text_links) // () ),
                 'mailing.test sends the mail Odoo renders to an address you give',
             ],
         );
@@ -381,36 +407,6 @@ sub _recipient ($self, $p, $lists, $in_domain = undef) {
 
 sub _urlenc ($s) { $s =~ s/([^A-Za-z0-9_.~-])/sprintf '%%%02X', ord $1/ger }
 
-# html2plaintext, near enough: Odoo's own is a regex pass of the same kind (odoo/tools/mail.py), links
-# become "text [n]" with the addresses listed after
-sub _plain ($html) {
-    my $t = $html;
-    $t =~ s{<(head|style|script)\b.*?</\1>}{}gis;
-    $t =~ s{<!--.*?-->}{}gs;
-    my @links;
-    $t =~ s{<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>(.*?)</a>}{
-        my ( $h, $label ) = ( $2, $3 );
-        $label =~ s/<[^>]+>//g;
-        if ( $h =~ m{^(?:https?:|/)}i ) { push @links, $h; "$label [" . scalar(@links) . ']' } else { $label }
-    }gise;
-    $t =~ s{<br\s*/?>}{\n}gi;
-    $t =~ s{</(?:p|div|tr|h[1-6]|table|ul|ol)>}{\n\n}gi;
-    $t =~ s{<li\b[^>]*>}{* }gi;
-    $t =~ s{</li>}{\n}gi;
-    $t =~ s{<hr\b[^>]*>}{\n}gi;
-    $t =~ s{<[^>]+>}{}g;
-    # named, decimal and hex entities become their characters (after the tags are gone, so an
-    # escaped "<b>" stays text); a no-break space reads as the space it stands for
-    $t = HTML::Entities::decode_entities($t);
-    $t =~ tr/\x{A0}/ /;
-    $t =~ s/[ \t]+\n/\n/g;
-    $t =~ s/^[ \t]+//mg;
-    $t =~ s/\n{3,}/\n\n/g;
-    $t =~ s/\A\s+|\s+\z//g;
-    $t .= "\n\n" . join( "\n", map { "[$_] $links[$_-1]" } 1 .. @links ) if @links;
-    return "$t\n";
-}
-
 sub _fields () {
     my $s = sub ($t, $str) { { portable_type => $t, string => $str } };
     return {
@@ -422,7 +418,9 @@ sub _fields () {
         from_note       => $s->( 'text', 'One sentence: which case applied and why' ),
         reply_to        => $s->( 'text', 'Reply-to' ),
         html            => $s->( 'html', 'Absent with html=0. By default the body with the mass-mailing layout, links absolute, the unsubscribe link carrying a placeholder token; with html=inner the mailing\'s body_html alone (local links made absolute, the unsubscribe link rewritten, no per-recipient rendering), without the layout wrapper that the mail Odoo sends carries' ),
-        text            => $s->( 'text', 'The plain-text part, derived from the HTML before the unsubscribe rewrite, as Odoo does at send (the raw unsubscribe URL stays in it)' ),
+        text            => $s->( 'text', 'The plain-text part, derived from the HTML before the unsubscribe rewrite, as Odoo does at send (the raw unsubscribe URL stays in it); on 18 from the stored body, unpersonalised' ),
+        text_basis      => $s->( 'text', 'What the text was derived from' ),
+        text_links      => $s->( 'list', 'Each link of the text part: n, url, verdict (ok, unsubscribe-placeholder or view-placeholder; a placeholder answers 404 and carries answers and fault)' ),
         text_derived_by => $s->( 'text', 'oom: the text part is not rendered by Odoo' ),
         unsubscribe_url => $s->( 'text', 'Where the recipient\'s unsubscribe link goes; its token is a placeholder (Odoo signs it at send)' ),
         placeholders    => $s->( 'list', 'What this preview does not carry compared with the sent mail' ),

@@ -70,6 +70,11 @@ core read operation through it, never by loading the core module.
 C<core.action> in a pack's plan), C<has_groups> and C<may> (what the login may
 do), below.
 
+=item * This module's C<group> and C<page> (a grouped and a paged read), C<reconcile>,
+C<unreconcile>, C<statement_undo> and C<mail> (the changes of C<account.reconcile>,
+C<account.unreconcile>, C<account.statement_undo> and C<core.mail> in a pack's plan) and
+C<needs> (what the operation declares to call them), below.
+
 =item * Its own namespace, C<Odoo::Pack::E<lt>NameE<gt>>.
 
 =back
@@ -167,6 +172,97 @@ sub _compose ($class, $op, $plan, $name, %params) {
     }
     $plan->note($_) for @{ $inner->notes };
     return $inner->input_count;
+}
+
+=head2 group($op, %params) / page($op, %params)
+
+C<group> runs C<core.group> (Odoo's C<read_group>: counts and sums per group, each group with the domain that selects
+it) for the operation C<$op> and answers its report; C<page> runs C<core.read> and answers it, with C<offset> and
+C<total> for a result larger than one answer (the report's C<total> is the whole domain's size, so the last page is
+the one where C<offset> plus C<count> reaches it; page on an order that ends in C<id>). Both are C<read>
+under another name, so the rules of C<read> hold. The operation declares in its C<read_scope> the model's
+C<read_group> (for C<group>), or C<search_read> and C<search_count> (for C<page>, which asks for the total).
+
+    my $g = Odoo::Ops::Pack->group( $self, model => 'account.move.line', groupby => 'partner_id,date:month',
+        fields => 'balance:sum', domain => [ [ 'parent_state', '=', 'posted' ] ] );
+    for my $row ( @{ $g->{rows} } ) {      # $row->{__domain} selects the group's records
+        my $items = Odoo::Ops::Pack->page( $self, model => 'account.move.line', domain => $row->{__domain},
+            fields => 'name,balance', order => 'date, id', limit => 80, offset => 0 );
+    }
+
+=cut
+
+sub group ($class, $op, %params) { return $class->read( $op, 'core.group', %params ) }
+sub page  ($class, $op, %params) { return $class->read( $op, 'core.read',  %params ) }
+
+=head2 reconcile($op, $plan, %params) / unreconcile / statement_undo / mail
+
+Add to the plan C<$plan> of the pack operation C<$op> the changes C<account.reconcile>, C<account.unreconcile>,
+C<account.statement_undo> or C<core.mail> would plan for C<%params> (their own parameters: C<lines> for the three
+account operations; C<model>, C<record> or C<records>, C<template>, C<reports>, C<partners> for C<mail>, or its
+C<items> rows), and answer how many rows they planned (the rows to count in the plan's C<input_count>). The change
+is the one the core operation plans, with its holds, so the apply journals it, reads it back and names what Odoo
+did, and C<oom-ops revert> takes it back as the core operation does: an C<account.reconcile> by removing the partial
+reconciles it made, an C<account.unreconcile> by reconciling the items again, a C<core.mail> and an
+C<account.statement_undo> never (they are held C<irreversible>). The option C<bucket =E<gt> NAME> puts every change
+of the call in the named bucket.
+
+    my $n = Odoo::Ops::Pack->reconcile( $self, $plan, lines => [ 696, 698 ] );
+    $n    = Odoo::Ops::Pack->mail( $self, $plan, model => 'account.move', records => [ 12, 13 ],
+        template => 'account.email_template_edi_invoice', reports => ['account.account_invoices'] );
+
+The pack operation declares what the change calls, as for any plan, from C<needs>:
+
+    sub read_scope  { Odoo::Ops::Pack->needs( 'account.reconcile' )->{read} }
+    sub write_scope { Odoo::Ops::Pack->needs( 'account.reconcile' )->{write} }
+
+and the buckets the change lands in (C<reconcile>, C<unreconcile>, C<undo>, C<mail>, and their holds, which the
+operation's C<holds> lists). A call outside the scope is refused C<scope> at plan time, naming it. The account
+operations refuse a series other than 16 and 18 (C<series>) and C<core.mail> likewise.
+
+=cut
+
+sub reconcile      ($class, $op, $plan, %params) { return $class->_compose( $op, $plan, 'account.reconcile',        %params ) }
+sub unreconcile    ($class, $op, $plan, %params) { return $class->_compose( $op, $plan, 'account.unreconcile',      %params ) }
+sub statement_undo ($class, $op, $plan, %params) { return $class->_compose( $op, $plan, 'account.statement_undo',   %params ) }
+sub mail           ($class, $op, $plan, %params) { return $class->_compose( $op, $plan, 'core.mail',                %params ) }
+
+=head2 needs($name, %options)
+
+What a pack operation declares to call the core operation C<$name> (one of C<account.reconcile>,
+C<account.unreconcile>, C<account.statement_undo>, C<core.mail>, C<core.group>, C<core.read>), as
+C<< { read => { model => [methods] }, write => { model => [methods] } } >> with physical model names, ready to merge
+into the operation's C<read_scope> and C<write_scope>. C<core.mail> and C<core.read> also need the model of the
+records: C<< model =E<gt> 'account.move' >> adds C<read> and C<search_read> on it, and with C<core.mail>
+C<< report_model =E<gt> 'res.partner' >> does so for the model a C<report:ID> attachment is rendered for. C<core.read>
+adds C<search_count> with C<< total =E<gt> 1 >>, and C<core.group> needs C<model>. An unknown name is C<usage>.
+
+=cut
+
+my %NEEDS = map { $_ => 1 } qw(account.reconcile account.unreconcile account.statement_undo core.mail core.group core.read);
+
+sub needs ($class, $name, %o) {
+    Odoo::Error->throw( kind => 'usage', message => 'needs: ' . ( defined $name ? "'$name'" : 'no name' ) . ' is not an operation a pack composes here (' . join( ', ', sort keys %NEEDS ) . ')' )
+        if !defined $name || !$NEEDS{$name};
+    require Odoo::Ops::Registry;
+    my $cls = Odoo::Ops::Registry->new->class_for($name);
+    my ( %read, %write );
+    my $add = sub ($h, $m, @methods) { $h->{$m}{$_} = 1 for @methods };
+    if ( $name eq 'core.read' || $name eq 'core.group' ) {
+        Odoo::Error->throw( kind => 'usage', message => "needs: $name needs model => 'the.model'" ) if !defined $o{model};
+        $add->( \%read, $o{model}, $name eq 'core.group' ? 'read_group' : ( 'search_read', ( $o{total} ? ('search_count') : () ) ) );
+    }
+    else {
+        my ( $r, $w ) = ( $cls->read_scope, $cls->write_scope );
+        $add->( \%read,  $_, @{ $r->{$_} } ) for keys %$r;
+        $add->( \%write, $_, @{ $w->{$_} } ) for keys %$w;
+        $add->( \%write, $_, 'read' ) for keys %$w;
+        if ( $name eq 'core.mail' ) {
+            Odoo::Error->throw( kind => 'usage', message => "needs: core.mail needs model => 'the.model' (the model of the records)" ) if !defined $o{model};
+            $add->( \%read, $_, qw(read search_read) ) for grep { defined } $o{model}, $o{report_model};
+        }
+    }
+    return { read => { map { $_ => [ sort keys %{ $read{$_} } ] } keys %read }, write => { map { $_ => [ sort keys %{ $write{$_} } ] } keys %write } };
 }
 
 =head2 has_groups($op, @xmlids)

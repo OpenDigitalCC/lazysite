@@ -237,7 +237,7 @@ sub _signal ( $self, $model, $max_age ) {
 =head2 read(%args)
 
 C<model>, C<domain>, C<fields>, C<fetch> (a coderef that reads the rows
-live) and, optional, C<order>, C<limit>, C<archived>, C<pricelist>, C<context> (the other context keys the read sends, part of the key),
+live) and, optional, C<order>, C<limit>, C<offset>, C<archived>, C<pricelist>, C<context> (the other context keys the read sends, part of the key),
 C<max_age>, C<also> (more models whose signal the answer depends on, as the
 pricelist rules are for a priced read). Returns C<< { rows, cached, age,
 checked, live } >>; see L</DESCRIPTION>.
@@ -257,6 +257,8 @@ sub read ( $self, %a ) {
     my @models = ( $model, @{ $a{also} // [] } );
     my $key = $self->_digest( 'rd', $self->{url}, $self->{db}, $self->{login}, $model,
         Odoo::Ops::json()->encode( [ $a{domain} // [], $fields // [] ] ), $a{order} // '', $a{limit} // 0,
+        # a page past the first is another answer (nothing is added to the key of the first page)
+        ( $a{offset} ? ( "offset=$a{offset}" ) : () ),
         $self->{lang}, $a{pricelist} // '', $a{archived} ? 1 : 0,
         # the context the read sent (C<warehouse>, C<location>, ...): a figure for one warehouse is not the figure for another
         ( ref $a{context} eq 'HASH' && %{ $a{context} } ? join( ',', map { "$_=$a{context}{$_}" } sort keys %{ $a{context} } ) : () ) );

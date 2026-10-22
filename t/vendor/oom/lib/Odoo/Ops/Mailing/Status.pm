@@ -54,6 +54,9 @@ mailing to one region of its lists (a country filter, see
 C<mailing.create>) C<recipients> is Odoo's total for that domain and
 C<recipients_now> counts the contacts that domain gives today; with the
 default domain both are the contacts of the lists.
+A mailing to another model (C<res.partner>, a lead) has its domain on that
+model, so C<recipients_now> is null with C<recipients_now_note>, and it has no
+C<remaining>, even when lists are still set on it.
 
 With C<remaining=1> a mailing to lists also carries C<remaining>: the
 recipients Odoo would send to now, the way its private
@@ -121,6 +124,12 @@ counter is null with the same note, never 0; C<recipients_now>, which OOM
 counts from the subscriptions, is still given. A refusal of C<subject> or
 C<state> is a fault, with a C<fix> line naming the model and the groups.
 
+C<limit> is the most mailings read, a whole number of at least 1 (else
+C<usage>); without it a read with C<subject> or C<archived> takes the newest 100
+and any other the newest 20. When C<limit> is given and that many rows come
+back, the report carries C<limit_note>: older mailings that match are not in
+C<rows>.
+
 C<archived> includes archived mailings (and C<active> on each row says
 which they are), as C<mailing.lists> does for lists; naming an archived
 mailing by C<mailing> without it is refused with that advice.
@@ -141,7 +150,7 @@ sub fields ($class) {
         { name => 'write_date', meaning => 'Last written (Odoo\'s, UTC)' },
         { name => 'create_date', meaning => 'Made on (Odoo\'s, UTC)' },
         { name => 'recipients', meaning => 'Odoo\'s total: every contact of the lists, opted-out included; 0 once the lists or their contacts are gone, while sent keeps the count' },
-        { name => 'recipients_now', meaning => 'Contacts of the lists today (of the domain, for a filtered part), after any deletes (opted-out included)' },
+        { name => 'recipients_now', meaning => 'Contacts of the lists today (of the domain, for a filtered part), after any deletes (opted-out included); null with recipients_now_note for a mailing to another model' },
         { name => 'domain', meaning => 'The mailing\'s domain as Odoo stores it' },
         { name => 'remaining', meaning => 'With remaining=1: recipients with no trace yet (the domain\'s contacts less the traces)' },
         { name => 'remaining_note', meaning => 'Present when remaining is null: why' },
@@ -161,6 +170,7 @@ sub fields ($class) {
         { name => 'queue_due', meaning => 'When Odoo next moves a queued mailing by itself; null when this user may not read the cron records' },
         { name => 'queue_due_note', meaning => 'Present when queue_due is null: what this user may not read and which group would' },
         { name => 'unreadable', meaning => 'On a row: { field => why } for each field this user may not compute (that field is null on the row)' },
+        { name => 'limit_note', meaning => 'Present when limit was given and as many mailings were read: older matches are not in rows' },
         { name => 'unreadable_fields', meaning => 'At the top: the fields that are null on some row because this user may not compute them' },
     ];
 }
@@ -171,6 +181,7 @@ sub params ($class) {
         traces  => { type => 'bool', default => 0, help => 'one row per recipient' },
         queue   => { type => 'bool', default => 0, help => 'the mail.mail rows of the mailing, by state' },
         archived => { type => 'bool', default => 0, help => 'include archived mailings' },
+        limit   => { type => 'int',  help => 'most mailings read (a whole number of at least 1; default 100 with subject or archived, 20 without)' },
         remaining => { type => 'bool', default => 0, help => 'per mailing to lists: how many recipients Odoo would still send to (its domain less the traces)' },
     };
 }
@@ -193,9 +204,12 @@ my $TRACE_LIMIT = 2000;
 
 sub report ($self) {
     my $p = Odoo::Ops::Mailing::Common::ready($self);
+    my $limit = $self->param('limit');
+    Odoo::Error->throw( kind => 'usage', message => "mailing.status: limit must be a whole number of at least 1, not '$limit'", fix => 'pass --set limit=<how many mailings to read, 1 or more>' )
+        if defined $limit && ( $limit !~ /\A\d+\z/ || $limit < 1 );
     my $f = sub ( $lm, $lf ) { $p->field( $lm => $lf ) };
     my $mm = $self->model('mailing');
-    my @read = map { $f->( mailing => $_ ) } qw(subject state lists schedule_date sent_date updated created total active domain), @COUNTERS;
+    my @read = map { $f->( mailing => $_ ) } qw(subject state lists schedule_date sent_date updated created total active domain model_real), @COUNTERS;
     my @dom;
     push @dom, [ 'id', '=', $self->param('mailing') ] if defined $self->param('mailing');
     push @dom, [ $f->( mailing => 'subject' ), 'ilike', $self->param('subject') ] if defined $self->param('subject');
@@ -203,7 +217,7 @@ sub report ($self) {
     # a computed field this user may not run (total, over a partner domain that reaches account.move) is
     # named and read per row, not a fault of the whole read; subject and state cannot be done without
     my ( $rows, $info ) = Odoo::Ops::Mailing::Common::search_read_named( $self, 'mailing', \@dom, \@read,
-        order => 'id desc', limit => ( @dom ? 100 : 20 ), required => [ map { $f->( mailing => $_ ) } qw(subject state) ] );
+        order => 'id desc', limit => ( $limit // ( @dom ? 100 : 20 ) ), required => [ map { $f->( mailing => $_ ) } qw(subject state) ] );
     my %rowkey = ( $f->( mailing => 'total' ) => 'recipients', map { $f->( mailing => $_ ) => $_ } @COUNTERS );
     if ( defined $self->param('mailing') && !@$rows ) {
         my $gone = !$self->param('archived')
@@ -236,6 +250,9 @@ sub report ($self) {
     for my $r (@$rows) {
         my $state = $r->{ $f->( mailing => 'state' ) };
         my $unread = $info->{unreadable}{ $r->{id} } // {};
+        # a mailing's domain is on its own model: only a mailing to lists has contacts of the lists to count
+        my $model    = Odoo::Ops::Mailing::Common::text( $r->{ $f->( mailing => 'model_real' ) } );
+        my $to_lists = $model eq $self->profile->model_name('contact');
         my %row = (
             id            => $r->{id},
             subject       => $r->{ $f->( mailing => 'subject' ) },
@@ -248,7 +265,8 @@ sub report ($self) {
             create_date   => _when( $r->{ $f->( mailing => 'created' ) } ),
             # a field this user may not compute is null with the reason, never 0
             recipients    => $unread->{ $f->( mailing => 'total' ) } ? undef : $r->{ $f->( mailing => 'total' ) } // 0,
-            recipients_now => $self->_contacts_now( $r->{ $f->( mailing => 'lists' ) }, Odoo::Ops::Mailing::Common::text( $r->{ $f->( mailing => 'domain' ) } ) ),
+            recipients_now => $to_lists ? $self->_contacts_now( $r->{ $f->( mailing => 'lists' ) }, Odoo::Ops::Mailing::Common::text( $r->{ $f->( mailing => 'domain' ) } ) ) : undef,
+            ( $to_lists ? () : ( recipients_now_note => "a mailing to $model, not to mailing lists: its domain is on $model, so no contacts of lists are counted" ) ),
             domain        => Odoo::Ops::Mailing::Common::text( $r->{ $f->( mailing => 'domain' ) } ),
             ( map { $_ => $unread->{ $f->( mailing => $_ ) } ? undef : $r->{ $f->( mailing => $_ ) } // 0 } @COUNTERS ),
         );
@@ -259,7 +277,7 @@ sub report ($self) {
         $row{still_to_go} = $self->_still_to_go( $r, \%exc, $exc_rows, $exc_note ) if $state eq 'done';
         if ( $self->param('remaining') ) {
             # only a mailing to lists has contacts to count; a mailing on another model has no remaining here
-            if ( @{ $r->{ $f->( mailing => 'lists' ) } // [] } ) {
+            if ( $to_lists && @{ $r->{ $f->( mailing => 'lists' ) } // [] } ) {
                 my $rem = Odoo::Ops::Mailing::Common::remaining( $self, $r->{id}, $row{domain} );
                 if ($rem) { $row{remaining} = scalar @{ $rem->{ids} } }
                 else { @row{qw(remaining remaining_note)} = ( undef, 'the mailing\'s domain is one OOM cannot read, so who remains is not worked out' ) }
@@ -271,7 +289,9 @@ sub report ($self) {
         }
         push @out, \%row;
     }
-    my %rep = ( count => scalar @out, queue_due => $due, ( defined $due_note ? ( queue_due_note => $due_note ) : () ), rows => \@out, unreadable_fields => [ sort keys %unreadable ], fields => $self->_fields );
+    my %rep = ( count => scalar @out,
+        ( defined $limit && @out >= $limit ? ( limit_note => "read the newest $limit mailing(s) that match; older ones are not in rows (raise limit)" ) : () ),
+        queue_due => $due, ( defined $due_note ? ( queue_due_note => $due_note ) : () ), rows => \@out, unreadable_fields => [ sort keys %unreadable ], fields => $self->_fields );
     my %by_id = map { $_->{id} => $_ } @out;
     my @ids = map { $_->{id} } @out;
     if ( $self->param('traces') && @ids ) {
@@ -426,7 +446,7 @@ sub _fields ($self) {
         create_date   => { portable_type => 'datetime', string => 'Made on (Odoo\'s, UTC)' },
         active        => { portable_type => 'boolean', string => 'Not archived' },
         recipients    => $int->('Odoo\'s total: every contact of the lists, opted-out included; it falls to 0 when the lists or their contacts are gone, while sent keeps the count'),
-        recipients_now => $int->('Contacts of the lists today (of the domain, for a filtered part), after any deletes (opted-out included)'),
+        recipients_now => $int->('Contacts of the lists today (of the domain, for a filtered part), after any deletes (opted-out included). Null with recipients_now_note for a mailing to another model (res.partner, a lead): its domain is on that model'),
         domain         => { portable_type => 'text', string => 'The mailing\'s domain as Odoo stores it: the default for its lists, or the lists with a country filter' },
         remaining      => $int->('With remaining=1: the recipients Odoo would send to now, the way its _get_remaining_recipients works it out: the contacts of the mailing\'s domain that have no trace of it. Null with remaining_note when the domain is one OOM cannot read'),
         remaining_note => { portable_type => 'text', string => 'Present when remaining is null: why' },

@@ -1,4 +1,4 @@
-# Account pack, Odoo 18: the state operations account.post, account.cancel and account.draft on account.move. Read from the 18.0 source (account/models/account_move.py) and proved live by t/49-documents-pack-live.t.
+# Account pack, Odoo 18: the state operations account.post, account.cancel and account.draft on account.move, and the reconciliation operations account.reconcile, account.unreconcile and account.statement_undo on journal items and bank statement lines. Read from the 18.0 source (account/models/account_move.py) and proved live by t/49-documents-pack-live.t.
 pack: account
 series: 18
 module: account
@@ -14,6 +14,66 @@ models:
       state: state
       partner: partner_id
       type: move_type
+  move_line:
+    model: account.move.line
+    fields:
+      move: move_id
+      account: account_id
+      partner: partner_id
+      state: parent_state
+      reconciled: reconciled
+      residual: amount_residual
+      residual_currency: amount_residual_currency
+      balance: balance
+      currency: currency_id
+      company: company_id
+      matching: matching_number
+      full: full_reconcile_id
+      debits: matched_debit_ids
+      credits: matched_credit_ids
+      name: name
+  partial:
+    model: account.partial.reconcile
+    fields:
+      debit: debit_move_id
+      credit: credit_move_id
+      amount: amount
+      date: max_date
+      full: full_reconcile_id
+  full:
+    model: account.full.reconcile
+    fields:
+      lines: reconciled_line_ids
+  account:
+    model: account.account
+    fields:
+      code: code
+      name: name
+      reconcile: reconcile
+      type: account_type
+  statement_line:
+    model: account.bank.statement.line
+    fields:
+      move: move_id
+      reconciled: is_reconciled
+      amount: amount
+      residual: amount_residual
+      label: payment_ref
+      partner: partner_id
+      payments: payment_ids
+      journal: journal_id
+      checked: checked
+  payment:
+    model: account.payment
+    fields:
+      name: name
+      amount: amount
+      state: state
+  journal:
+    model: account.journal
+    fields:
+      liquidity: default_account_id
+      suspense: suspense_account_id
 states:
   post:
     # action_post (soft=False: a future-dated move is posted now, not scheduled)

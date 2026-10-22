@@ -73,7 +73,7 @@ is run in-process. An error from a daemon that took the request is not C<daemon-
 =head2 health
 
 The daemon's answer to the health verb: name, version, pid, uptime, instance,
-workers, request counts, packs. Dies with a C<transport> error when nothing
+workers, request counts, generation, namespaces, packs. Dies with a C<transport> error when nothing
 answers.
 
 =cut
@@ -97,6 +97,31 @@ sub new ($class, %a) {
 sub socket ($self) { $self->{socket} // Odoo::Ops::Daemon::Path->socket_for( $self->{name} ) }
 
 sub health ($self) { Odoo::Ops::Daemon::Path->health( socket => $self->socket ) }
+
+=head2 reload
+
+Asks the daemon to take its config as it now is (the C<namespaces>, the packs, the workers) and answers
+when the new workers serve: C<< { generation, namespaces, packs, workers, reloaded } >>. Nothing is repeated
+or run in-process. Dies with the daemon's refusal (kind C<config>, naming why; the old workers keep
+serving) or with a C<transport> error when nothing answers.
+
+=cut
+
+sub reload ($self) {
+    my $sock = $self->socket;
+    my $resp = eval { Odoo::Ops::Daemon::Path->ask( $sock, { v => 1, verb => 'reload' }, timeout => $self->{reload_timeout} // 120 ) };
+    if ( !$resp ) {
+        my $e = $@;
+        if ( ref $e && $e->isa('Odoo::Error') && $e->{unreachable} ) {
+            my $who = defined $self->{name} ? "oomd $self->{name}" : 'oomd';
+            die Odoo::Error->new( kind => 'transport', code => 'daemon-down', message => "$who is not answering at $sock (" . ( $e->{why} // 'no answer' ) . ')',
+                fix => 'start it with oomd --name NAME --config FILE (oomd status lists the daemons)' );
+        }
+        die $e;
+    }
+    die Odoo::Ops::Wire::error_from_wire( $resp->{error} ) if !$resp->{ok};
+    return $resp->{result};
+}
 
 sub _up ($self) {
     return 1 if time - $self->{healthy_at} < 5;

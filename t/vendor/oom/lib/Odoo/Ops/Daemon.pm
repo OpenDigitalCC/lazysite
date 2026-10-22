@@ -67,6 +67,7 @@ One JSON object per line, one response per request.
      "credential":{"label":"conn"} | {"session":"<id>"}, "actor":"...",
      "plan":"<path or run id>", "id":"<the caller's request id>"}
     {"v":1, "verb":"health"}
+    {"v":1, "verb":"reload"}
 
     {"id":..., "ok":true,  "result":{...}}
     {"id":..., "ok":false, "error":{"kind","code","message","fix"}}
@@ -75,6 +76,20 @@ C<phase> is C<run>, C<check>, C<apply>, C<revert>, C<resume> or C<approve>
 (L<Odoo::Ops::Service>). A key is never sent: a request names a C<label> of the
 C<credentials> the daemon's config lists, and a session id is used for that
 request only.
+
+=head2 Reload
+
+SIGHUP and the C<reload> verb read the config again (its C<namespaces>, C<pack_dirs>, C<pack>, C<workers>,
+credentials) and swap the workers with no gap. The master forks the new workers from the new config; each
+builds its registry and says C<READY>, or C<FAIL> with why (a namespace with no module on C<@INC> or whose
+modules do not compile, and on a reload a pack that is refused). While they start the old workers finish what
+they hold and no request is handed on: it waits. When all are ready the new workers take over, the old ones
+finish the request in hand and exit, and the generation rises. If any fails, or the workers do not answer in
+30 seconds, they are stopped, the old workers go on, and the log and the verb's answer say why. The verb is
+answered when the swap is done (C<generation>, C<namespaces>, C<packs>, C<workers>) or when it is refused (an
+error of kind C<config>). The health verb carries C<generation>, C<namespaces> and C<packs> too. With
+C<$ENV{OOMD_TEST_STAMP_GENERATION}> set, a worker adds C<oomd_generation> to each answer: a test's way to see
+which generation served it.
 
 =head2 Config
 
@@ -98,6 +113,7 @@ my %KEYS = map { $_ => 1 } qw(workers max_requests shutdown_deadline socket log 
 my $MAX_LINE   = 64 * 1024 * 1024;
 my $MAX_QUEUE  = 1024;
 my $CLIENT_IDLE = 120;
+my $RELOAD_WAIT = 30;    # seconds the workers of a reload have to say they can answer
 
 # ---- names and places ------------------------------------------------------------------------
 
@@ -339,8 +355,10 @@ sub _serve ($self) {
     local $SIG{HUP}  = sub { $HUP = 1 };
     local $SIG{PIPE} = 'IGNORE';
     local $SIG{CHLD} = 'DEFAULT';
+    $self->{generation} = 1;
     $self->_log( "start name=$self->{name} pid=$$ workers=$self->{conf}{workers} version=$Odoo::Ops::Version::VERSION" );
-    $self->_spawn while @{ $self->{workers} } < $self->{conf}{workers};
+    $self->_spawn('start') while @{ $self->{workers} } < $self->{conf}{workers};
+    $self->_await_start;
     if ( $self->{ready_fd} ) {
         syswrite( $self->{ready_fd}, "ready\n" );
         close $self->{ready_fd};
@@ -353,13 +371,14 @@ sub _serve ($self) {
     $self->_notify("READY=1\nMAINPID=$$\n");
     my $stop_at;
     while (1) {
-        if ($HUP) { $HUP = 0; $self->_reload }
+        if ($HUP) { $HUP = 0; $self->_reload unless $self->{stopping} }
         if ( $TERM && !$self->{stopping} ) {
             $self->{stopping} = 1;
             $stop_at = Odoo::Ops::Daemon::_now() + $self->{conf}{deadline};
             $self->_begin_stop;
         }
         $self->_reap;
+        $self->_reload_progress;
         $self->_dispatch;
         if ( $self->{stopping} ) {
             my $busy = grep { $_->{busy} } @{ $self->{workers} };
@@ -389,18 +408,20 @@ sub _select_once ($self) {
         vec( $rin, fileno $c->{sock}, 1 ) = 1 if !$c->{waiting} && !length $c->{out} && !$c->{eof};
         vec( $win, fileno $c->{sock}, 1 ) = 1 if length $c->{out};
     }
-    for my $w ( @{ $self->{workers} } ) {
+    # the workers of a reload in progress are listened to for their readiness, and given no request
+    my @all = ( @{ $self->{workers} }, grep { !$_->{closed} } @{ $self->{pending} ? $self->{pending}{workers} : [] } );
+    for my $w (@all) {
         vec( $rin, fileno $w->{sock}, 1 ) = 1;
         vec( $win, fileno $w->{sock}, 1 ) = 1 if length $w->{out};
     }
     my $n = select( my $rout = $rin, my $wout = $win, undef, 0.2 );
     return if !defined $n || $n <= 0;
     if ( $l && !$self->{stopping} && vec( $rout, fileno $l, 1 ) ) { $self->_accept }
-    for my $w ( @{ $self->{workers} } ) {
-        $self->_worker_write($w) if vec( $wout, fileno $w->{sock}, 1 ) && length $w->{out};
+    for my $w (@all) {
+        $self->_worker_write($w) if !$w->{closed} && vec( $wout, fileno $w->{sock}, 1 ) && length $w->{out};
     }
-    for my $w ( @{ $self->{workers} } ) {
-        $self->_worker_read($w) if vec( $rout, fileno $w->{sock}, 1 );
+    for my $w (@all) {
+        $self->_worker_read($w) if !$w->{closed} && vec( $rout, fileno $w->{sock}, 1 );
     }
     for my $c ( values %{ $self->{clients} } ) {
         next if $c->{closed};
@@ -486,7 +507,15 @@ sub _take_request ($self, $c) {
     $c->{op} = _clean( $req->{verb} // $req->{op} );
     if ( defined $req->{verb} ) {
         return $self->_reply( $c, { id => $req->{id}, ok => JSON::PP::true, result => $self->_health }, 'ok', $req->{id}, 'health' ) if $req->{verb} eq 'health';
-        return $self->_reply( $c, { id => $req->{id}, ok => JSON::PP::false, error => { kind => 'usage', code => 'usage', message => "unknown verb '" . ( ref $req->{verb} ? '?' : $req->{verb} ) . "'", fix => 'the verb is health' } }, 'usage', $req->{id}, 'verb' );
+        if ( !ref $req->{verb} && $req->{verb} eq 'reload' ) {
+            return $self->_reply( $c, { id => $req->{id}, ok => JSON::PP::false, error => { kind => 'transport', code => 'transport', message => "oomd $self->{name} is stopping", fix => 'try again when it is back' } }, 'transport', $req->{id}, 'reload' )
+                if $self->{stopping};
+            # answered when the new workers serve (or the reload is refused), not before
+            $c->{waiting} = 1;
+            $self->_reload( { client => $c, id => $req->{id} } );
+            return;
+        }
+        return $self->_reply( $c, { id => $req->{id}, ok => JSON::PP::false, error => { kind => 'usage', code => 'usage', message => "unknown verb '" . ( ref $req->{verb} ? '?' : $req->{verb} ) . "'", fix => 'the verbs are health and reload' } }, 'usage', $req->{id}, 'verb' );
     }
     if ( $self->{stopping} || @{ $self->{queue} } >= $MAX_QUEUE ) {
         my $why = $self->{stopping} ? "oomd $self->{name} is stopping" : "oomd $self->{name} has too many requests waiting";
@@ -534,22 +563,30 @@ sub _flush_all ($self) {
 
 # ---- workers ---------------------------------------------------------------------------------------------
 
-sub _spawn ($self) {
+# A worker is forked with the config and the generation it serves. It builds the registry of that config and says
+# READY, or FAIL with why, before it takes a request: how the master knows a reload's workers can answer.
+# check: 'reload' also refuses a pack that is refused; 'start' refuses only a namespace that does not load; 0 asks nothing.
+sub _spawn_worker ($self, $conf, $gen, $check) {
     socketpair( my $m, my $w, AF_UNIX, SOCK_STREAM, PF_UNSPEC ) or Odoo::Error->throw( kind => 'fault', message => "oomd: socketpair: $!" );
     my $pid = fork;
     Odoo::Error->throw( kind => 'fault', message => "oomd: cannot fork a worker: $!" ) if !defined $pid;
     if ( !$pid ) {
         close $m;
-        $self->_worker_main($w);
+        $self->_worker_main( $w, $conf, $gen, $check );
         POSIX::_exit(0);
     }
     close $w;
     $m->blocking(0);
-    push @{ $self->{workers} }, { pid => $pid, sock => $m, in => '', out => '', busy => 0, retiring => 0, client => undef, born => time };
+    return { pid => $pid, sock => $m, in => '', out => '', busy => 0, retiring => 0, client => undef, born => time, gen => $gen, ready => 0 };
+}
+
+# a worker of the generation now serving
+sub _spawn ($self, $check = 0) {
+    push @{ $self->{workers} }, $self->_spawn_worker( $self->{conf}, $self->{generation}, $check );
     return;
 }
 
-sub _worker_main ($self, $sock) {
+sub _worker_main ($self, $sock, $conf, $gen, $check) {
     $SIG{TERM} = $SIG{INT} = $SIG{HUP} = 'IGNORE';
     $SIG{PIPE} = 'IGNORE';
     $SIG{CHLD} = 'DEFAULT';
@@ -557,7 +594,7 @@ sub _worker_main ($self, $sock) {
     # the master's other handles are not this worker's
     close $self->{listen} if $self->{listen};
     for my $c ( values %{ $self->{clients} } ) { close $c->{sock} }
-    for my $w ( @{ $self->{workers} } ) { close $w->{sock} }
+    for my $w ( @{ $self->{workers} }, ( $self->{pending} ? @{ $self->{pending}{workers} } : () ) ) { close $w->{sock} if !$w->{closed} }
     close $self->{logfh} if $self->{logfh};
     open STDIN,  '<', '/dev/null';
     open STDOUT, '>',  '/dev/null';
@@ -565,16 +602,30 @@ sub _worker_main ($self, $sock) {
     open STDERR, '>',  '/dev/null';
     srand();
     require Odoo::Ops::Service;
-    my $svc = Odoo::Ops::Service->new( config => $self->{conf}{config}, mode => 'daemon', credentials => $self->{conf}{credentials}, name => $self->{name}, act_as => $self->{conf}{act_as} );
+    my $svc = Odoo::Ops::Service->new( config => $conf->{config}, mode => 'daemon', credentials => $conf->{credentials}, name => $self->{name}, act_as => $conf->{act_as} );
     $sock->autoflush(1);
+    my $why = eval { $self->_worker_check( $conf, $check ) };
+    $why = 'the operations do not load: ' . ( ref $@ && $@->can('message') ? $@->message : "$@" ) if $@;
+    if ( defined $why ) {
+        $why =~ s/\s+/ /g;
+        syswrite( $sock, 'FAIL' . "\t" . substr( $why, 0, 500 ) . "\n" );
+        POSIX::_exit(1);
+    }
+    syswrite( $sock, "READY\n" );
+    my $stamp  = $ENV{OOMD_TEST_STAMP_GENERATION} ? 1 : 0;
     my $served = 0;
-    my $max    = $self->{conf}{max_requests};
+    my $max    = $conf->{max_requests};
     while ( defined( my $line = <$sock> ) ) {
         chomp $line;
         my ( $resp, $outcome ) = eval { $svc->serve_line($line) };
         if ( !defined $resp ) {
             $outcome = 'fault';
             $resp = Odoo::Ops::json()->encode( { id => undef, ok => JSON::PP::false, error => { kind => 'fault', code => 'fault', message => 'the worker could not answer', fix => undef } } );
+        }
+        # a test can ask each answer to say which generation's worker made it
+        if ( $stamp && defined $resp ) {
+            my $h = eval { Odoo::Ops::json()->decode($resp) };
+            if ( ref $h eq 'HASH' ) { $h->{oomd_generation} = $gen; $resp = Odoo::Ops::json()->encode($h) }
         }
         undef $line;
         $served++;
@@ -592,6 +643,24 @@ sub _worker_main ($self, $sock) {
     POSIX::_exit(0);
 }
 
+# undef when the config's registry builds, else why it does not (a namespace whose modules do not load, and on a
+# reload a pack that is refused)
+sub _worker_check ($self, $conf, $check) {
+    return undef if !$check;
+    # a namespace the config names must be found: one with no module on @INC would otherwise be an empty list
+    for my $ns ( $conf->{config}->namespaces ) {
+        return "namespace $ns holds no module on \@INC (the daemon's PERL5LIB is read when it starts)" if !Odoo::Ops::Registry->_files($ns);
+    }
+    Odoo::Ops::Registry->use_config( $conf->{config} );
+    my $reg = eval { Odoo::Ops::Registry->new };
+    return 'the operations do not load: ' . ( ref $@ && $@->can('message') ? $@->message : "$@" ) if !$reg;
+    if ( $check eq 'reload' ) {
+        my @bad = $reg->refused;
+        return join( '; ', map { "pack $_->{name} is refused: $_->{reason}" } @bad ) if @bad;
+    }
+    return undef;
+}
+
 sub _worker_write ($self, $w) {
     my $n = syswrite( $w->{sock}, $w->{out}, length $w->{out} );
     if ( !defined $n ) { return if $! == EAGAIN || $! == EINTR; return $self->_worker_gone($w) }
@@ -602,6 +671,14 @@ sub _worker_write ($self, $w) {
 sub _worker_read ($self, $w) {
     my $n = sysread( $w->{sock}, $w->{in}, 1 << 20, length $w->{in} );
     if ( !defined $n ) { return if $! == EAGAIN || $! == EINTR; return $self->_worker_gone($w) }
+    # a worker's first line says it can answer, or why it cannot
+    while ( $w->{in} =~ s/\A(?:(READY)|FAIL\t([^\n]*))\n// ) {
+        if ($1) { $w->{ready} = 1 }
+        else {
+            $w->{failed} = length $2 ? $2 : 'no reason given';
+            $self->{start_failed} //= $w->{failed} if !$w->{pending};
+        }
+    }
     return $self->_worker_gone($w) if $n == 0;
     while ( $w->{in} =~ s/\A([^\t\n]*)\t([01])\t([^\n]*)\n// ) {
         my ( $outcome, $retire, $resp ) = ( $1, $2, $3 );
@@ -636,6 +713,8 @@ sub _worker_gone ($self, $w) {
     return if $w->{closed};
     close $w->{sock};
     $w->{closed} = 1;
+    # a worker of a reload that has not swapped in: the reload notices, nothing is replaced
+    if ( $w->{pending} ) { $w->{dead} = 1; return }
     my $busy = $w->{busy};
     my $died = $busy || !$w->{retiring};
     if ( !$busy && $died ) {
@@ -683,6 +762,8 @@ sub _reap ($self) {
 }
 
 sub _dispatch ($self) {
+    # while a reload builds its workers no request is handed on: it waits, and is served by the generation that follows
+    return if $self->{pending};
     while ( @{ $self->{queue} } ) {
         my ($w) = grep { !$_->{busy} && !$_->{retiring} && !$_->{closed} } @{ $self->{workers} };
         last if !$w;
@@ -709,28 +790,135 @@ sub _kill_busy ($self) {
 
 # ---- reload, stop, health ------------------------------------------------------------------------------------
 
-sub _reload ($self) {
+# The reload (docs/OPS.md, oomd): the new config is read, new workers are forked from it and each builds its registry
+# (the namespaces and the packs as they now are) and says READY. Until every one has, the old workers serve what they
+# hold and no request is handed to any worker: it waits. When all are ready the new ones take over at once, the old
+# ones finish the request in hand and exit, and the generation rises. A new worker that fails, or does not answer in
+# time, ends the reload: the new workers are stopped, the old ones serve on, and the log and the verb's answer say why.
+# $waiter: { client, id } of a reload verb, answered when the reload ends.
+sub _reload ($self, @waiters) {
+    if ( $self->{pending} ) {
+        # one reload at a time; a request for another is run after this one, so it reads the config as it then is
+        push @{ $self->{reload_next} }, @waiters;
+        $self->{reload_again} = 1;
+        return;
+    }
     my $new = eval { ref($self)->load_config( $self->{name}, $self->{conf_path} ) };
-    if ( !$new ) {
-        $self->_log( 'reload refused: ' . ( "$@" =~ s/\s+\z//r ) );
-        return;
-    }
+    return $self->_reload_refused( \@waiters, "$@" =~ s/\s+\z//r, $@ ) if !$new;
     my ( $a, $b ) = ( $self->{conf}{config}, $new->{config} );
-    if ( ( $a->get('url') =~ s{/+\z}{}r ) ne ( $b->get('url') =~ s{/+\z}{}r ) || $a->get('db') ne $b->get('db') ) {
-        $self->_log('reload refused: a daemon serves one instance; start another daemon for a different one');
-        return;
-    }
+    return $self->_reload_refused( \@waiters, 'a daemon serves one instance; start another daemon for a different one' )
+        if ( $a->get('url') =~ s{/+\z}{}r ) ne ( $b->get('url') =~ s{/+\z}{}r ) || $a->get('db') ne $b->get('db');
     $self->_log('the socket cannot change on a reload; restart for that') if ( $new->{socket} // '' ) ne ( $self->{conf}{socket} // '' );
     $new->{socket} = $self->{conf}{socket};
     $new->{log}    = $self->{conf}{log};
-    $self->{conf}  = $new;
-    # new workers read the new config and the packs as they now are; the old ones finish what they hold
-    for my $w ( @{ $self->{workers} } ) {
-        $w->{retiring} = 1;
-        $self->_retire_idle($w) if !$w->{busy};
+    my $p = $self->{pending} = { conf => $new, workers => [], waiters => \@waiters, deadline => _now() + $RELOAD_WAIT };
+    for ( 1 .. $new->{workers} ) {
+        my $w = eval { $self->_spawn_worker( $new, $self->{generation} + 1, 'reload' ) };
+        if ( !$w ) { $p->{spawn_error} = ref $@ && $@->can('message') ? $@->message : "$@"; last }
+        $w->{pending} = 1;
+        push @{ $p->{workers} }, $w;
     }
-    $self->_spawn while grep( { !$_->{retiring} } @{ $self->{workers} } ) < $self->{conf}{workers};
-    $self->_log("reloaded workers=$new->{workers}");
+    $self->_log("reload begun: $new->{workers} new workers for generation " . ( $self->{generation} + 1 ) );
+    return;
+}
+
+sub _reload_refused ($self, $waiters, $why, $err = undef) {
+    $why = ref $err && $err->can('message') ? $err->message : $why;
+    $self->_log("reload refused: $why");
+    $self->_answer_waiters( $waiters, 0, $why );
+    return;
+}
+
+sub _answer_waiters ($self, $waiters, $ok, $why = undef) {
+    for my $wt (@$waiters) {
+        my $c = $wt->{client};
+        if ( !$c || $c->{closed} ) { $c->{waiting} = 0 if $c; next }
+        my $res = $ok
+            ? { id => $wt->{id}, ok => JSON::PP::true, result => $self->_reload_result }
+            : { id => $wt->{id}, ok => JSON::PP::false, error => { kind => 'config', code => 'config',
+                message => "oomd $self->{name}: the reload was refused ($why); generation $self->{generation} keeps serving",
+                fix => 'correct the config or the pack and reload again; the workers that were serving still are' } };
+        $self->_reply( $c, $res, $ok ? 'ok' : 'config', $wt->{id}, 'reload' );
+    }
+    return;
+}
+
+# the swap, or the end of a reload that cannot be made; called every turn of the loop
+sub _reload_progress ($self) {
+    my $p = $self->{pending} or return;
+    my @w = @{ $p->{workers} };
+    my ($bad) = grep { $_->{failed} || $_->{dead} } @w;
+    return $self->_reload_end( $p, $p->{spawn_error} ) if defined $p->{spawn_error};
+    return $self->_reload_end( $p, $bad->{failed} // 'a new worker stopped before it could answer' ) if $bad;
+    return $self->_reload_end( $p, "the new workers did not answer within $RELOAD_WAIT seconds" ) if _now() > $p->{deadline};
+    return if grep { !$_->{ready} } @w;
+
+    # every new worker answers: they serve from here, the old ones finish what they hold
+    $_->{pending} = 0 for @w;
+    my @old = @{ $self->{workers} };
+    $self->{workers} = [ @old, @w ];
+    $self->{conf}    = $p->{conf};
+    $self->{generation}++;
+    delete $self->{pending};
+    for my $o (@old) {
+        $o->{retiring} = 1;
+        $self->_retire_idle($o) if !$o->{busy};
+    }
+    $self->_log("reloaded generation=$self->{generation} workers=$self->{conf}{workers}");
+    $self->_answer_waiters( $p->{waiters}, 1 );
+    $self->_reload_follow;
+    return;
+}
+
+sub _reload_end ($self, $p, $why) {
+    for my $w ( @{ $p->{workers} } ) {
+        close $w->{sock} if !$w->{closed};
+        $w->{closed} = 1;
+        if ( kill( 0, $w->{pid} ) ) { kill 'KILL', $w->{pid} }
+        waitpid( $w->{pid}, 0 );
+    }
+    delete $self->{pending};
+    $self->_log("reload refused: $why");
+    $self->_answer_waiters( $p->{waiters}, 0, $why );
+    $self->_reload_follow;
+    return;
+}
+
+# a reload asked for while one was building runs now, once, for all who asked
+sub _reload_follow ($self) {
+    return if !$self->{reload_again} || $self->{stopping};
+    my @next = @{ delete( $self->{reload_next} ) // [] };
+    delete $self->{reload_again};
+    $self->_reload(@next);
+    return;
+}
+
+sub _reload_result ($self) {
+    return { reloaded => JSON::PP::true, generation => $self->{generation}, namespaces => [ $self->_namespaces ], packs => scalar $self->_packs_info, workers => scalar @{ $self->{workers} } };
+}
+
+# the namespaces beyond the shipped ones that the registry reads: the config's, then the environment's
+sub _namespaces ($self) { return Odoo::Ops::Registry->extra_namespaces( $self->{conf}{config} ) }
+
+# Waits for the first workers to say they can answer, so a namespace that does not load is a refusal to start
+# and the ready line is true.
+sub _await_start ($self) {
+    my $until = _now() + 30;
+    while (1) {
+        $self->_reap;
+        my @w = @{ $self->{workers} };
+        my ($bad) = grep { $_->{failed} || $_->{closed} } @w;
+        my $why = defined $self->{start_failed} ? $self->{start_failed} : $bad ? 'a worker stopped before it could answer' : _now() > $until ? 'the workers did not answer within 30 seconds' : undef;
+        if ( defined $why ) {
+            $self->_log("start refused: $why");
+            $self->{stopping} = 1;
+            $self->_begin_stop;
+            $self->_finish;
+            Odoo::Error->throw( kind => 'config', message => "oomd $self->{name}: $why", fix => 'correct the config (namespaces, pack_dirs) and start again' );
+        }
+        last if !grep { !$_->{ready} } @w;
+        $self->_select_once;
+    }
     return;
 }
 
@@ -762,6 +950,18 @@ sub _begin_stop ($self) {
         $self->_client_write($c);
     }
     $self->{queue} = [];
+    if ( my $p = delete $self->{pending} ) {
+        for my $w ( @{ $p->{workers} } ) {
+            close $w->{sock} if !$w->{closed};
+            $w->{closed} = 1;
+            kill 'KILL', $w->{pid};
+            waitpid( $w->{pid}, 0 );
+        }
+        for my $wt ( @{ $p->{waiters} }, @{ delete( $self->{reload_next} ) // [] } ) {
+            my $c = $wt->{client} or next;
+            $self->_reply( $c, { id => $wt->{id}, ok => JSON::PP::false, error => { kind => 'transport', code => 'transport', message => "oomd $self->{name} is stopping", fix => 'try again when it is back' } }, 'transport', $wt->{id}, 'reload' );
+        }
+    }
     for my $w ( @{ $self->{workers} } ) {
         $w->{retiring} = 1;
         $self->_retire_idle($w) if !$w->{busy};
@@ -786,8 +986,8 @@ sub _finish ($self) {
     return;
 }
 
-sub _health ($self) {
-    my @w = @{ $self->{workers} };
+# the packs the config's directories hold: name => { version, oom_min }, and the names of those refused
+sub _packs_info ($self) {
     my %packs;
     my @refused;
     my $d = eval { Odoo::Ops::Pack->discover( [ $self->{conf}{config}->pack_dirs ], only => [ $self->{conf}{config}->pack_only ] ) };
@@ -795,6 +995,13 @@ sub _health ($self) {
         $packs{$_} = { version => $d->{packs}{$_}{version}, oom_min => $d->{packs}{$_}{oom_min} } for keys %{ $d->{packs} };
         @refused = map { $_->{name} } @{ $d->{refused} };
     }
+    return wantarray ? ( \%packs, \@refused ) : \%packs;
+}
+
+sub _health ($self) {
+
+    my @w = @{ $self->{workers} };
+    my ( $packs, $refused ) = $self->_packs_info;
     my $c = $self->{conf}{config};
     return {
         name      => $self->{name},
@@ -806,8 +1013,10 @@ sub _health ($self) {
         workers   => { total => scalar @w, busy => scalar( grep { $_->{busy} } @w ), idle => scalar( grep { !$_->{busy} } @w ),
             pids => [ sort { $a <=> $b } map { $_->{pid} } @w ], max_requests => $self->{conf}{max_requests} },
         requests  => { %{ $self->{stats} } },
-        packs     => \%packs,
-        packs_refused => \@refused,
+        generation => $self->{generation},
+        namespaces => [ $self->_namespaces ],
+        packs     => $packs,
+        packs_refused => $refused,
         credentials => [ 'conn', sort grep { $_ ne 'conn' } keys %{ $self->{conf}{credentials} } ],
     };
 }

@@ -30,7 +30,7 @@ use Odoo::Ops::ResetForm;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.38';
+our $VERSION = '0.42';
 
 =head1 NAME
 

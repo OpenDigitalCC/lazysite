@@ -25,7 +25,7 @@
          }
       },
       "Odoo::Ops::Core" : {
-         "files" : "Access.pm,Action.pm,ActionCommon.pm,Archive.pm,Attach.pm,Check.pm,Configure.pm,Credential.pm,Doctor.pm,Fetch.pm,Get.pm,HasGroups.pm,Import.pm,Make.pm,OneRecord.pm,Read.pm,ReadContext.pm,Report.pm,Reports.pm,Rights.pm,Set.pm,Skeleton.pm,Unarchive.pm,User.pm,Whoami.pm,Wizard.pm",
+         "files" : "Access.pm,Action.pm,ActionCommon.pm,Archive.pm,Attach.pm,Check.pm,Configure.pm,Credential.pm,Doctor.pm,Fetch.pm,Get.pm,Group.pm,HasGroups.pm,Import.pm,Mail.pm,Make.pm,OneRecord.pm,Read.pm,ReadContext.pm,Report.pm,Reports.pm,Rights.pm,Set.pm,Skeleton.pm,Unarchive.pm,User.pm,Whoami.pm,Wizard.pm",
          "ops" : {
             "core.access" : "Odoo::Ops::Core::Access",
             "core.action" : "Odoo::Ops::Core::Action",
@@ -37,8 +37,10 @@
             "core.doctor" : "Odoo::Ops::Core::Doctor",
             "core.fetch" : "Odoo::Ops::Core::Fetch",
             "core.get" : "Odoo::Ops::Core::Get",
+            "core.group" : "Odoo::Ops::Core::Group",
             "core.has_groups" : "Odoo::Ops::Core::HasGroups",
             "core.import" : "Odoo::Ops::Core::Import",
+            "core.mail" : "Odoo::Ops::Core::Mail",
             "core.make" : "Odoo::Ops::Core::Make",
             "core.read" : "Odoo::Ops::Core::Read",
             "core.report" : "Odoo::Ops::Core::Report",
@@ -63,11 +65,14 @@
          }
       },
       "Odoo::Ops::Documents" : {
-         "files" : "AccountCancel.pm,AccountDraft.pm,AccountPost.pm,Common.pm,PurchaseCancel.pm,PurchaseConfirm.pm,SaleCancel.pm,SaleConfirm.pm",
+         "files" : "AccountCancel.pm,AccountDraft.pm,AccountPost.pm,AccountReconcile.pm,AccountStatementUndo.pm,AccountUnreconcile.pm,Common.pm,PurchaseCancel.pm,PurchaseConfirm.pm,Reconcile.pm,SaleCancel.pm,SaleConfirm.pm",
          "ops" : {
             "account.cancel" : "Odoo::Ops::Documents::AccountCancel",
             "account.draft" : "Odoo::Ops::Documents::AccountDraft",
             "account.post" : "Odoo::Ops::Documents::AccountPost",
+            "account.reconcile" : "Odoo::Ops::Documents::AccountReconcile",
+            "account.statement_undo" : "Odoo::Ops::Documents::AccountStatementUndo",
+            "account.unreconcile" : "Odoo::Ops::Documents::AccountUnreconcile",
             "purchase.cancel" : "Odoo::Ops::Documents::PurchaseCancel",
             "purchase.confirm" : "Odoo::Ops::Documents::PurchaseConfirm",
             "sale.cancel" : "Odoo::Ops::Documents::SaleCancel",
@@ -99,7 +104,7 @@
          }
       },
       "Odoo::Ops::Mailing" : {
-         "files" : "Archive.pm,Blacklist.pm,Blacklisted.pm,Cancel.pm,Common.pm,ContactCountry.pm,Contacts.pm,Create.pm,Delete.pm,Lists.pm,Partition.pm,Preview.pm,Process.pm,Send.pm,Status.pm,Subscribe.pm,Test.pm",
+         "files" : "Archive.pm,Blacklist.pm,Blacklisted.pm,Cancel.pm,Catcher.pm,Common.pm,ContactCountry.pm,Contacts.pm,Create.pm,Delete.pm,Lists.pm,Partition.pm,Plaintext.pm,Preview.pm,Process.pm,Send.pm,Status.pm,Subscribe.pm,Test.pm",
          "ops" : {
             "mailing.archive" : "Odoo::Ops::Mailing::Archive",
             "mailing.blacklist" : "Odoo::Ops::Mailing::Blacklist",

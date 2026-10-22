@@ -401,6 +401,7 @@ sub fake ($class, %o) {
         my $w = $fk->{data}{'mailing.mailing.test'}{ $args->[0][0] };
         my $mid = $w->{mass_mailing_id};
         $log->("send_mail_test $mid");
+        $fx->{on_test}->() if $fx->{on_test};    # a test that has a mail catcher behind it
         my @li;
         for my $to ( split /\n/, $w->{email_to} ) {
             my ($e) = Odoo::Ops::Match::norm_email($to);

@@ -12,3 +12,11 @@ effects:
   method: unlink
   effect: Odoo deletes a line while its move is draft or cancel; a line of a posted move is refused ("You cannot delete an item linked to a posted entry"; reset the move to draft first). Tax and payment-term lines are also refused unless the context carries dynamic_unlink, and a reconciled line is refused.
   evidence: source 16.0 account_move_line._unlink_except_posted (any move in the lines is posted); live 2026-10-16 t/49-documents-pack-live.t on 16 (the refusal of a line of a posted move and the deletion after account.draft)
+- 'on': call
+  method: reconcile
+  effect: Odoo matches the items against each other and makes the partial reconciles (account.partial.reconcile) joining debit to credit up to the smaller residual; when nothing is left open on any item of the group it makes the full reconcile, and each item reads reconciled with a matching_number. matching_number is the full reconcile's name (A17) or the literal P for any partial; reconcile() answers record sets (a dict), which a JSON-RPC client reads as text. Odoo refuses an item already reconciled, an account that does not allow reconciliation, an entry that is not posted, and items of two companies or two accounts, in its own words.
+  evidence: source 16.0 account_move_line.reconcile; live 2026-10-21 t/153-acct40-live.t on 16 (a full reconcile, a partial one against a larger payment, and the refusals through account.reconcile)
+- 'on': call
+  method: remove_move_reconcile
+  effect: Odoo unlinks every partial reconcile the items hold, and with them the full reconcile they belonged to; the items read open again with their residual back and no matching_number. The other items those partials joined are released as well.
+  evidence: source 16.0 account_move_line.remove_move_reconcile; live 2026-10-21 t/153-acct40-live.t on 16 (account.unreconcile and the revert of account.reconcile)

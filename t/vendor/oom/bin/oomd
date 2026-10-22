@@ -29,7 +29,8 @@ own name, config and user, may serve the same instance.
 
   --foreground   stay in the foreground (for a supervisor): print "oomd NAME ready SOCKET"
                  when the socket accepts. SIGTERM finishes the requests in hand, removes
-                 the socket and exits 0; SIGHUP reloads the config and the packs.
+                 the socket and exits 0; SIGHUP, or {"verb":"reload"} on the socket, reloads the config, its
+                 namespaces and the packs with no gap (oom-ops --daemon NAME reload).
 EOT
 }
 
@@ -158,8 +159,9 @@ whose process is gone is removed.
 
 When the socket accepts, C<oomd> prints one line on standard output, C<oomd NAME ready SOCKET>
 (detached, the parent prints it and exits 0). SIGTERM finishes the requests in hand (for at most
-C<shutdown_deadline> seconds), removes the socket and exits 0. SIGHUP reloads the config and the
-packs without dropping the socket. A pack whose version changed is loaded again by the next
+C<shutdown_deadline> seconds), removes the socket and exits 0. SIGHUP, or the C<reload> verb on the socket, reloads the config, its C<namespaces> and the
+packs without dropping the socket and without a gap: the new workers are built first and take over
+when every one answers (see L<Odoo::Ops::Daemon>). A pack whose version changed is loaded again by the next
 request that uses it.
 
 =head1 PROTOCOL

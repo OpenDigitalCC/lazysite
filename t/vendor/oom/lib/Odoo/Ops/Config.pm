@@ -72,6 +72,8 @@ line, C<#> comments, blank lines ignored. Recognised keys:
     cache_ttl_session     oomd only: seconds a session's identity is remembered in a worker's memory, default 60 (0: ask every time)
     data_cache            1: a read that names max_age may be answered from a file in the cache directory (default 0)
     data_cache_max_mb     most megabytes of data cache kept per login, default 200; the oldest files go first
+    namespaces            a comma list of extra operation namespaces (Perl packages on @INC), as $ODOO_OPS_NAMESPACES
+                          gives them; the registry takes these, then the environment's; oomd reads it on every reload
     pack_dirs             a colon list of directories that hold packs (docs/OPS.md, Packs); default
                           $ODOO_OOM_PACK_DIRS, else /usr/share/odoo-oom/packs when odoo-oom-packs is installed
     pack                  a comma list limiting which packs of those directories load; default all
@@ -94,7 +96,7 @@ my %KNOWN = map { $_ => 1 } qw(
     approval plan_ttl mailcatcher record_reads blob_min
     audit_log audit_syslog audit_syslog_facility audit_level audit_required
     cache cache_dir cache_ttl_version cache_ttl_fields_stamp cache_stamp_conf cache_ttl_session data_cache data_cache_max_mb
-    pack_dirs pack act_as_conf
+    pack_dirs pack act_as_conf namespaces
 );
 
 sub load ($class, $path) {
@@ -178,6 +180,8 @@ sub new ($class, %conf) {
         if defined $conf{pack_dirs} && $conf{pack_dirs} !~ /[^:\s]/;
     Odoo::Error->throw( kind => q(config), message => "pack must be a comma list of pack names, not '$conf{pack}'" )
         if defined $conf{pack} && $conf{pack} !~ /\A\s*[a-z][a-z0-9_-]*(?:\s*,\s*[a-z][a-z0-9_-]*)*\s*\z/;
+    Odoo::Error->throw( kind => q(config), message => "namespaces must be a comma list of Perl package names, not '$conf{namespaces}'" )
+        if defined $conf{namespaces} && $conf{namespaces} !~ /\A\s*[A-Za-z_]\w*(?:::\w+)*(?:\s*,\s*[A-Za-z_]\w*(?:::\w+)*)*\s*\z/;
     Odoo::Error->throw( kind => q(config), message => 'act_as_conf must be a path to an ops config, not empty' )
         if defined $conf{act_as_conf} && $conf{act_as_conf} eq '';
     Odoo::Error->throw( kind => q(config), message => 'cache_dir must be a path, not empty' )
@@ -248,6 +252,9 @@ sub pack_dirs ($self) {
     return grep { length } split /:/, $v if defined $v && length $v;
     return grep { -d } '/usr/share/odoo-oom/packs';
 }
+
+# the extra operation namespaces this config names (docs/OPS.md, oomd); the registry adds the environment's after them
+sub namespaces ($self) { return grep { length } map { s/^\s+|\s+\z//gr } split /,/, $self->{namespaces} // '' }
 
 # the packs that may load (empty: every pack of the directories)
 sub pack_only ($self) { return grep { length } map { s/^\s+|\s+\z//gr } split /,/, $self->{pack} // '' }

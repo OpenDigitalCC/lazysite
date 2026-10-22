@@ -9,6 +9,7 @@ use JSON::PP ();
 
 use Odoo::Error;
 use Odoo::Test::FakeOdoo;
+use Odoo::Test::ReconFixture;
 
 # A fake Odoo 16, 18 or 19 with sale.order, purchase.order and account.move and the
 # actions the documents pack calls, each with the state rules of the source
@@ -38,7 +39,11 @@ my $sel  = sub { { type => 'selection', store => 1 } };
 my $m2o  = sub ($rel) { { type => 'many2one', relation => $rel, store => 1 } };
 
 sub fields ($series) {
+    # the account profile of 16 and 18 also names the reconciliation models (the profile is validated whole)
+    my %recon = $series == 19 ? () : %{ Odoo::Test::ReconFixture::fields($series) };
+    delete @recon{qw(account.move res.partner ir.module.module)};
     return {
+        %recon,
         'sale.order' => { name => $c->(), state => $sel->(), partner_id => $m2o->('res.partner'), ( $series >= 18 ? ( locked => $bool->() ) : () ) },
         'purchase.order' => { name => $c->(), state => $sel->(), partner_id => $m2o->('res.partner'), partner_ref => $c->(), ( $series == 19 ? ( locked => $bool->() ) : () ) },
         'account.move' => { name => $c->(), state => $sel->(), partner_id => $m2o->('res.partner'), move_type => $c->() },

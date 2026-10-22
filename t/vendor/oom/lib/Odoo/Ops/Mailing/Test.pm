@@ -9,6 +9,7 @@ use JSON::PP ();
 
 use Odoo::Error;
 use Odoo::Ops;
+use Odoo::Ops::Mailing::Catcher;
 use Odoo::Ops::Mailing::Common;
 
 use parent 'Odoo::Ops::Operation';
@@ -27,9 +28,20 @@ C<mailing.test> plans one test send of mailing C<mailing> to C<to>
 (addresses, comma-separated; default the connected user's own email).
 Apply drives Odoo's own test wizard (C<mailing.mailing.test>, field
 C<email_to>, method C<send_mail_test>), so the mail is the mailing as a
-recipient would get it: the same layout, the same sender, the same
-unsubscribe rewrite - and none of the counters move, because a test
-makes no trace.
+recipient would get it in layout and sender, but not in its links: Odoo has no
+recipient to sign an unsubscribe link for, so the HTML part carries the test link
+(16: C<res_id=0>) or the generic C</unsubscribe_from_list> (18), and the text part
+keeps the generic link. None of the counters move, because a test makes no trace.
+
+With C<mailcatcher> in the config (a Mailpit address), apply reads each address's
+mail back from the catcher and returns, under C<read_back>, for each address:
+C<text> and C<html> (both parts), C<list_unsubscribe> and C<list_unsubscribe_post>
+(the headers), C<one_click_url> and C<text_links> (the verdicts of
+L<Odoo::Ops::Mailing::Plaintext>: a text part that holds Odoo's unsubscribe
+placeholder is C<unsubscribe-placeholder>, which answers 404). Only the mail this
+test sent is read (the catcher is asked before the send). Without a catcher,
+C<read_back> says C<made: 0> and why. Either way the answer's C<note> says that a
+test mail is not a recipient's, so it is not mistaken for one.
 
 On Odoo 16 the wizard renders the body against one real contact if there
 is one, sends at once through the mail server (it does not wait for the
@@ -69,8 +81,8 @@ sub params ($class) {
         to      => { type => 'list', help => 'addresses to test to, comma-separated; default your own' },
     };
 }
-sub read_scope ($class) { { mailing => [qw(read)], 'res.users' => ['read'] } }
-sub write_scope ($class) { { test_wizard => [qw(create read &test_send)], message => ['search_read'] } }
+sub read_scope ($class) { { mailing => [qw(read &base_url)], 'res.users' => ['read'] } }
+sub write_scope ($class) { { test_wizard => [qw(create read &test_send)], message => ['search_read'], mailing => ['&base_url'] } }
 
 sub scope_for ($self, $phase) { Odoo::Ops::Mailing::Common::scope( $self, $phase, $self->SUPER::scope_for($phase) ) }
 
@@ -105,7 +117,7 @@ sub plan ($self) {
     $plan->add(
         bucket => 'test-send', action => 'custom', handler => $self->op_name, kind => 'test-send',
         model => $p->model_name('mailing'), id => $id, key => "test:mailing $id",
-        calls => [ [ $p->model_name('message'), 'search_read' ], [ $p->model_name('test_wizard'), 'create' ], [ $p->model_name('test_wizard'), $p->action('test_send') ] ],
+        calls => [ [ $p->model_name('message'), 'search_read' ], [ $p->model_name('test_wizard'), 'create' ], [ $p->model_name('test_wizard'), $p->action('test_send') ], [ $p->model_name('mailing'), $p->action('base_url') ] ],
         before => { $f->('state') => $state },
         vals => {
             wizard      => $p->model_name('test_wizard'),
@@ -114,6 +126,10 @@ sub plan ($self) {
             method      => $p->action('test_send'),
             message     => $p->model_name('message'),
             to          => \@to,
+            subject     => $m->{ $f->('subject') },
+            base_url    => $p->action('base_url'),
+            mailing_model => $p->model_name('mailing'),
+            ( length( $self->ctx->config->get('mailcatcher') // '' ) ? ( catcher => $self->ctx->config->get('mailcatcher') ) : () ),
         },
         reason => 'a test send; nothing is recorded against the recipients',
     );
@@ -127,6 +143,8 @@ sub apply_custom ($class, $client, $c) {
     # the wizard logs its outcome on the mailing; what is there already is not this test's
     my $last = $msgs->search_read( [ [ 'model', '=', $c->{model} ], [ 'res_id', '=', $c->{id} ] ], ['id'], order => 'id desc', limit => 1 )->[0];
     my $after_id = $last ? $last->{id} : 0;
+    # what the catcher holds already, so that only this test's mail is read back
+    my %seen = $v->{catcher} ? ( map { $_ => Odoo::Ops::Mailing::Catcher::known( $v->{catcher}, to => $_, subject => $v->{subject} ) } @{ $v->{to} } ) : ();
     my $wid = $client->model( $v->{wizard} )->create( { $v->{mailing} => $c->{id}, $v->{email_to} => join( "\n", @{ $v->{to} } ) } );
     $client->model( $v->{wizard} )->call( $v->{method}, [ [$wid] ] );
     my $logged = $msgs->search_read( [ [ 'model', '=', $c->{model} ], [ 'res_id', '=', $c->{id} ], [ 'id', '>', $after_id ] ], ['body'], order => 'id asc' );
@@ -144,7 +162,30 @@ sub apply_custom ($class, $client, $c) {
         kind    => 'fault',
         message => 'the test did not reach ' . join( ', ', @missing ) . ( @failed ? ': ' . join( '; ', map { "$_->{to} - $_->{why}" } @failed ) : ' (Odoo logged no outcome for it)' ),
     ) if @missing;
-    return { returned => { sent_to => \@sent }, after => { sent_to => scalar @sent, asked => scalar @{ $v->{to} } } };
+    my $read = _read_back( $client, $c, \%seen );
+    return {
+        returned => { sent_to => \@sent, read_back => $read, note => _note($read) },
+        after    => { sent_to => scalar @sent, asked => scalar @{ $v->{to} } },
+    };
+}
+
+# The test mail read back from the catcher, one entry per address, or the reason it was not made
+sub _read_back ($client, $c, $seen) {
+    my $v = $c->{vals};
+    return { made => 0, why => 'the config names no mailcatcher, so the mail that went out was not read back' } if !$v->{catcher};
+    my $base = eval { $client->model( $v->{mailing_model} )->call( $v->{base_url}, [ [ $c->{id} ] ] ) };
+    $base = '' if !defined $base || ref $base;
+    my @mails;
+    for my $to ( @{ $v->{to} } ) {
+        my $m = Odoo::Ops::Mailing::Catcher::read_back( $v->{catcher}, to => $to, subject => $v->{subject}, seen => $seen->{$to}, base_url => $base, series => $client->server_series );
+        push @mails, $m ? { %$m, caught => 1 } : { to => $to, caught => 0, why => "the catcher at $v->{catcher} holds no new mail to $to with this subject" };
+    }
+    return { made => 1, catcher => $v->{catcher}, mails => \@mails };
+}
+
+sub _note ($read) {
+    my $generic = 'a test mail is not a recipient\'s mail: Odoo has no recipient to sign a link for, so the HTML part\'s unsubscribe link is the test link (16: res_id=0) or the generic /unsubscribe_from_list (18), and the text part keeps the generic one; a sent mail carries each recipient\'s own in the HTML part and in the List-Unsubscribe header';
+    return $read->{made} ? $generic : "$read->{why}; $generic";
 }
 
 sub undo_custom ($class, $entry) {

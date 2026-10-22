@@ -234,6 +234,12 @@ sub call ($self, $service, $method, @args) {
         my $n = scalar @all;
         return [ { __count => $n, write_date => $self->{wd}{$model} // JSON::PP::false } ];
     }
+    # read_group with aggregates, several levels or a date granularity (lazy off): the row shape met live on 16 and 18 -
+    # the groupby values (a many2one as [id, label], a date as the granularity's label), the aggregates under their field
+    # names, __count, __domain and, for a date, __range; 18 answers id:count under id, 16 does not
+    if ( $m eq 'read_group' && $self->_rich_group($margs) ) {
+        return $self->_read_group_rich( $model, $f, $margs, $kw );
+    }
     if ( $m eq 'read_group' ) {
         # 16-series row shape: <field>_count; many2many groups per member.
         my ( $domain, undef, $groupby ) = @$margs;
@@ -316,6 +322,100 @@ sub _unlink ($self, $model, $id) {
         }
     }
     delete $self->{data}{$model}{$id};
+}
+
+sub _rich_group ($self, $margs) {
+    my ( undef, $fields, $groupby ) = @$margs;
+    my @g = ref $groupby ? @$groupby : ($groupby);
+    return 1 if @g > 1 || grep { /:/ } @g;
+    return 1 if grep { /:|\A__count\z/ } @{ $fields // [] };
+    return 0;
+}
+
+my @MONTHS = qw(January February March April May June July August September October November December);
+
+# "date:month" of a date: the label Odoo shows, the first day, the first day after
+sub _date_bucket ($self, $gran, $v) {
+    return ( 0, undef, undef ) if !defined $v || $v eq '';
+    my ( $y, $mo, $d ) = split /-/, $v;
+    if ( $gran eq 'month' ) {
+        my ( $ny, $nm ) = $mo == 12 ? ( $y + 1, 1 ) : ( $y, $mo + 1 );
+        return ( "$MONTHS[$mo-1] $y", sprintf( '%04d-%02d-01', $y, $mo ), sprintf( '%04d-%02d-01', $ny, $nm ) );
+    }
+    if ( $gran eq 'year' ) { return ( "$y", "$y-01-01", sprintf( '%04d-01-01', $y + 1 ) ) }
+    die "fake: read_group granularity $gran is not modelled\n";
+}
+
+sub _read_group_rich ($self, $model, $f, $margs, $kw) {
+    my ( $domain, $fields, $groupby ) = @$margs;
+    my @g = map { my ( $n, $gr ) = split /:/, $_, 2; { name => $n, gran => $gr, key => $_ } } ref $groupby ? @$groupby : ($groupby);
+    my @agg = map { my ( $n, $fn ) = split /:/, $_, 2; { name => $n, fn => $fn } } grep { $_ ne '__count' } @{ $fields // [] };
+    my ( %group, @order );
+    for my $id ( $self->_search( $model, $domain // [], $kw->{context} ) ) {
+        my $r = $self->{data}{$model}{$id};
+        my @key = map {
+            my $v = $r->{ $_->{name} };
+            $_->{gran} ? ( ( $self->_date_bucket( $_->{gran}, $v ) )[0] ) : ( ref $v eq 'ARRAY' ? $v->[0] : ( $v // 0 ) )
+        } @g;
+        my $k = join "\0", @key;
+        if ( !$group{$k} ) { $group{$k} = { recs => [], key => \@key }; push @order, $k }
+        push @{ $group{$k}{recs} }, $r;
+    }
+    my @rows;
+    for my $k (@order) {
+        my $grp = $group{$k};
+        my %row = ( __count => scalar @{ $grp->{recs} } );
+        my @dom;
+        for my $i ( 0 .. $#g ) {
+            my ( $gi, $v0 ) = ( $g[$i], $grp->{recs}[0]{ $g[$i]{name} } );
+            my $def = $f->{ $gi->{name} } // {};
+            if ( $gi->{gran} ) {
+                my ( $label, $from, $to ) = $self->_date_bucket( $gi->{gran}, $v0 );
+                $row{ $gi->{key} } = $label;
+                $row{__range}{ $gi->{key} } = { from => $from, to => $to };
+                push @dom, [ $gi->{name}, '>=', $from ], [ $gi->{name}, '<', $to ];
+            }
+            elsif ( ( $def->{type} // '' ) eq 'many2one' ) {
+                my $id = ref $v0 eq 'ARRAY' ? $v0->[0] : $v0;
+                $row{ $gi->{name} } = $id ? [ $id, $self->{data}{ $def->{relation} }{$id}{name} // "#$id" ] : JSON::PP::false;
+                push @dom, [ $gi->{name}, '=', $id || JSON::PP::false ];
+            }
+            else {
+                $row{ $gi->{name} } = defined $v0 && $v0 ne '' ? $v0 : JSON::PP::false;
+                push @dom, [ $gi->{name}, '=', $row{ $gi->{name} } ];
+            }
+        }
+        $row{__domain} = [ @dom, @{ $domain // [] } ];
+        for my $ag (@agg) {
+            my @v = map { my $x = $_->{ $ag->{name} }; ref $x eq 'ARRAY' ? $x->[0] : ( $x // 0 ) } @{ $grp->{recs} };
+            my $fn = $ag->{fn} // 'sum';
+            if    ( $fn eq 'sum' ) { my $t = 0; $t += $_ for @v; $row{ $ag->{name} } = $t }
+            elsif ( $fn eq 'avg' ) { my $t = 0; $t += $_ for @v; $row{ $ag->{name} } = @v ? $t / @v : 0 }
+            elsif ( $fn eq 'min' ) { my ($x) = sort { $a <=> $b } @v; $row{ $ag->{name} } = $x }
+            elsif ( $fn eq 'max' ) { my ($x) = sort { $b <=> $a } @v; $row{ $ag->{name} } = $x }
+            elsif ( $fn eq 'count' ) { $row{ $ag->{name} } = scalar @v if $self->{series} >= 18 }
+            elsif ( $fn eq 'count_distinct' ) { $row{ $ag->{name} } = scalar keys %{ { map { ( $_ => 1 ) } @v } } }
+            else  { die "fake: read_group aggregate $fn is not modelled\n" }
+        }
+        push @rows, \%row;
+    }
+    if ( defined $kw->{orderby} && length $kw->{orderby} ) {
+        my @terms = map { /\A\s*(\S+)(?:\s+(asc|desc))?\s*\z/i ? [ $1, lc( $2 // 'asc' ) ] : die "fake: unsupported orderby\n" } split /,/, $kw->{orderby};
+        my $val = sub ($row, $n) { my $v = $row->{$n}; $v = $v->[0] if ref $v eq 'ARRAY'; return defined $v && !ref $v ? $v : '' };
+        @rows = sort {
+            my $r = 0;
+            for my $t (@terms) {
+                my ( $x, $y ) = ( $val->( $a, $t->[0] ), $val->( $b, $t->[0] ) );
+                $r = ( $x =~ /\A-?\d+(?:\.\d+)?\z/ && $y =~ /\A-?\d+(?:\.\d+)?\z/ ) ? $x <=> $y : $x cmp $y;
+                $r = -$r if $t->[1] eq 'desc';
+                last if $r;
+            }
+            $r;
+        } @rows;
+    }
+    @rows = $kw->{offset} > $#rows ? () : @rows[ $kw->{offset} .. $#rows ] if $kw->{offset};
+    @rows = @rows[ 0 .. $kw->{limit} - 1 ] if $kw->{limit} && @rows > $kw->{limit};
+    return \@rows;
 }
 
 sub _count_keys ($self, $kw, $g, $n) {
@@ -490,8 +590,13 @@ sub _match ($r, $field, $op, $want) {
     # like and ilike wrap the value in %...% (unescaped, as Odoo does)
     return $s =~ _like_re( $want // '', $op eq '=ilike' ) if $op eq '=like' || $op eq '=ilike';
     return $s =~ _like_re( "%$want%", $op eq 'ilike' ) if $op eq 'like' || $op eq 'ilike';
-    return ( $v // 0 ) > $want if $op eq '>';
-    return ( $v // 0 ) < $want if $op eq '<';
+    # ordering: dates (YYYY-MM-DD, with or without a time) compare as text, numbers as numbers
+    if ( $op =~ /\A(?:>|<|>=|<=)\z/ ) {
+        my $by_text = defined $want && $want =~ /\A\d{4}-\d{2}-\d{2}/;
+        my ( $x, $y ) = $by_text ? ( $s, "$want" ) : ( $v // 0, $want );
+        my $cmp = $by_text ? $x cmp $y : $x <=> $y;
+        return $op eq '>' ? $cmp > 0 : $op eq '<' ? $cmp < 0 : $op eq '>=' ? $cmp >= 0 : $cmp <= 0;
+    }
     if ( $op eq 'in' ) {
         my %w = map { $_ => 1 } @$want;
         return ref $r->{$field} eq 'ARRAY'

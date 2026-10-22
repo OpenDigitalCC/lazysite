@@ -1,0 +1,8 @@
+# account.bank.statement.line, Odoo 18 (account). Read from the 18.0 source (account/models/account_bank_statement_line.py). The undo is source only: the login of the live instances may not create a statement line (Odoo's Accountant group), so it was not run live.
+model: account.bank.statement.line
+series: 18
+effects:
+- 'on': call
+  method: action_undo_reconciliation
+  effect: Odoo removes the partial reconciles of the entry's lines, deletes the payments made for the statement line (payment_ids), and rewrites the entry as its liquidity line plus a suspense line for the amount, so the line reads unreconciled; the counterpart lines (an invoice's receivable, an expense, a write-off) are deleted, not recreated by any inverse; the check flag is set to checked true (the line counts as checked)
+  evidence: source 18.0 account_bank_statement_line.action_undo_reconciliation; live not run (the login may not create a bank statement line); offline t/154-acct40-recon.t

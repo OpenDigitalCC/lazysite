@@ -177,7 +177,7 @@ run is not applied and cannot be.
 sub withdraw ($self, $id, %o) {
     my $d   = File::Spec->catdir( $self->{dir}, $id );
     my $idx = -d $d ? $self->_load_dir($d) : undef;
-    $idx or Odoo::Error->throw( kind => 'usage', message => "no run '$id' in " . $self->{dir},
+    $idx or Odoo::Error->throw( kind => 'refused', code => 'unknown-run', message => "no run '$id' in " . $self->{dir},
         fix => 'oom-ops runs --conf <conf> lists the runs' );
     Odoo::Error->throw( kind => 'refused', code => 'state',
         message => "run $id is $idx->{state}; only a planned or approved run can be withdrawn" . ( $idx->{state} eq 'nothing' ? ' (a run with nothing to apply is closed already)' : '' ),
@@ -197,8 +197,8 @@ with C<closed: { by, at, reason, was }>, C<was> being the state it left.
 Allowed from C<failed>, C<partly-applied> and C<partly-reverted>. The folder,
 the journal and what it touched stay as they are and nothing goes to Odoo.
 Refused (C<state>) from any other state: for C<planned> and C<approved> the
-fix names C<withdraw>, for C<applied> it names C<revert>. An unknown id and an
-empty reason are C<usage>. A closed run is not applied, resumed or reverted
+fix names C<withdraw>, for C<applied> it names C<revert>. An unknown id is
+C<refused/unknown-run>; an empty reason is C<usage>. A closed run is not applied, resumed or reverted
 (C<refuse_closed>). With C<purge> the run's blobs (L<Odoo::Ops::Blob>) are removed
 and C<closed.purged> says how many. A closed run no longer holds its
 idempotency key.
@@ -211,7 +211,7 @@ sub close_run ($self, $id, %o) {
         if !defined $reason || $reason !~ /\S/;
     my $d   = File::Spec->catdir( $self->{dir}, $id );
     my $idx = -d $d ? $self->_load_dir($d) : undef;
-    $idx or Odoo::Error->throw( kind => 'usage', message => "no run '$id' in " . $self->{dir},
+    $idx or Odoo::Error->throw( kind => 'refused', code => 'unknown-run', message => "no run '$id' in " . $self->{dir},
         fix => 'oom-ops runs --conf <conf> --all lists the runs' );
     my $was = $idx->{state};
     Odoo::Error->throw( kind => 'refused', code => 'state',
@@ -387,13 +387,13 @@ sub get ($self, $id) {
 =head2 record($id)
 
 The record plus C<paths> (plan, journal, result, audit). Throws
-C<usage> for an unknown run.
+C<refused/unknown-run> for an unknown run.
 
 =cut
 
 sub record ($self, $id) {
     my $r = $self->get($id)
-        or Odoo::Error->throw( kind => 'usage', message => "no run '$id' in " . $self->{dir},
+        or Odoo::Error->throw( kind => 'refused', code => 'unknown-run', message => "no run '$id' in " . $self->{dir},
         fix => 'oom-ops runs --conf <conf> lists the runs' );
     my $d = File::Spec->catdir( $self->{dir}, $id );
     $r->{paths} = { map { $_ => File::Spec->catfile( $d, "$_.json" . ( $_ =~ /^(journal|audit)\z/ ? 'l' : '' ) ) }
@@ -414,7 +414,7 @@ run past its time.
 sub approve ($self, $id, %o) {
     my $d = File::Spec->catdir( $self->{dir}, $id );
     my $r = $self->get($id)
-        or Odoo::Error->throw( kind => 'usage', message => "no run '$id' in " . $self->{dir},
+        or Odoo::Error->throw( kind => 'refused', code => 'unknown-run', message => "no run '$id' in " . $self->{dir},
         fix => 'oom-ops runs --conf <conf> lists the runs' );
     return $self->approve_plan( $d, Odoo::Ops::Plan->load( File::Spec->catfile( $d, 'plan.json' ) ), now => $self->_now, %o );
 }
@@ -440,7 +440,7 @@ that), by the run C<$by_run>.
 sub mark_reverted ($self, $id, $by_run, %o) {
     my $d   = File::Spec->catdir( $self->{dir}, $id );
     my $idx = $self->_load_dir($d)
-        or Odoo::Error->throw( kind => 'usage', message => "no run '$id' in " . $self->{dir},
+        or Odoo::Error->throw( kind => 'refused', code => 'unknown-run', message => "no run '$id' in " . $self->{dir},
         fix => 'oom-ops runs --conf <conf> lists the runs' );
     $idx->{state}    = $o{state} // 'reverted';
     $idx->{reverted} = { by_run => $by_run, at => Odoo::Ops::iso_time( $self->_now ) };

@@ -42,7 +42,13 @@ the id under the field's name and the label under C<E<lt>fieldE<gt>_name>
 is a JSON domain (default C<[]>), C<ids> narrows to those ids, C<limit>
 defaults to 80 (C<limit_reached> says the rows ran out of limit, not of
 records), C<order> is Odoo's order string, and C<archived> includes
-inactive records. C<context> is a JSON object of Odoo context keys from a short
+inactive records. C<offset> skips that many matching rows (in the order asked) so a
+caller can page through a queue larger than one answer; C<total> (or any C<offset>
+above 0) adds C<total> to the answer, the number of records the whole domain matches
+now (Odoo's C<search_count>, read live, never from the data cache), so the last page
+is the one where C<offset> plus C<count> reaches C<total>. C<count> stays the rows in
+this answer. Page on an order that ends in C<id> so rows do not move between pages.
+C<context> is a JSON object of Odoo context keys from a short
 list (L<Odoo::Ops::Core::ReadContext>): C<warehouse>, C<location> and C<lot_id> make
 the stock quantities (C<free_qty>, C<qty_available>) those of one warehouse, location or lot. The report's C<fields> block (C<--schema>) describes the
 fields asked: type, portable type, label, comodel, selection values.
@@ -61,7 +67,9 @@ sub params ($class) {
         fields   => { type => 'str',  help => 'comma-separated fields (default id,display_name and state when the model has one)' },
         ids      => { type => 'list', help => 'comma-separated record ids (added to the domain)' },
         limit    => { type => 'int',  default => 80, help => 'most rows returned' },
-        order    => { type => 'str',  help => 'Odoo order string, e.g. "id desc"' },
+        order    => { type => 'str',  help => 'Odoo order string, e.g. "id desc"; end it with id when paging' },
+        offset   => { type => 'int',  default => 0, help => 'rows to skip, to page through a larger result (with limit); adds total to the answer' },
+        total    => { type => 'bool', default => 0, help => 'add total, the number of records the whole domain matches (search_count)' },
         archived => { type => 'bool', default => 0, help => 'include inactive (archived) records' },
         max_age  => { type => 'int',  help => 'seconds the answer may be old: with data_cache = 1 in the config it may come from the data cache while Odoo\'s signal for the model holds; 0 or absent: live' },
         pricelist => { type => 'int', help => 'the pricelist (id) Odoo prices the read with; part of the data cache key; the same as context.pricelist' },
@@ -75,6 +83,8 @@ sub fields ($class) {
         { name => 'model',         meaning => 'The model read' },
         { name => 'count',         meaning => 'Rows returned' },
         { name => 'limit_reached', meaning => 'Present when count equals limit: there may be more records' },
+        { name => 'offset',        meaning => 'Present when offset was given above 0: the rows skipped' },
+        { name => 'total',         meaning => 'Present with total=1 or an offset: how many records the whole domain matches (search_count), not the rows of this answer' },
         { name => 'rows',          meaning => 'The records, one object each; a many2one is its id under the field name and its label under <field>_name' },
         { name => 'fields',        meaning => 'The fields asked: type, portable_type, string, and relation or values where they apply (--schema prints it)' },
         { name => 'cached',        meaning => '1 when the rows came from the data cache, else 0' },
@@ -87,10 +97,13 @@ sub fields ($class) {
 sub scope_for ($self, $phase) {
     my $m = $self->param('model');
     return {} if !defined $m;
-    return { $m => ['search_read'] } if !$self->param('max_age');
+    my @counts = $self->_wants_total ? ('search_count') : ();
+    return { $m => [ 'search_read', @counts ] } if !$self->param('max_age');
     # the signal of the model (and, for a priced read, of the pricelist rules) is a read_group
-    return { $m => [ 'search_read', 'read_group' ], ( $self->param('pricelist') ? ( map { $_ => ['read_group'] } Odoo::Cache::Data->pricelist_models ) : () ) };
+    return { $m => [ 'search_read', @counts, 'read_group' ], ( $self->param('pricelist') ? ( map { $_ => ['read_group'] } Odoo::Cache::Data->pricelist_models ) : () ) };
 }
+
+sub _wants_total ($self) { return $self->param('total') || ( $self->param('offset') // 0 ) > 0 ? 1 : 0 }
 
 sub report ($self) {
     my $model = $self->param('model');
@@ -121,16 +134,19 @@ sub report ($self) {
     my $limit = $self->param('limit');
     Odoo::Error->throw( kind => 'usage', message => 'core.read: limit must be a whole number above 0' ) if !defined $limit || $limit < 1;
 
+    my $offset = $self->param('offset') // 0;
+    Odoo::Error->throw( kind => 'usage', message => 'core.read: offset must be 0 or a whole number above 0', fix => 'oom-ops describe core.read lists the parameters' )
+        if $offset !~ /\A\d+\z/;
     my $ma = $self->param('max_age');
     Odoo::Error->throw( kind => 'usage', message => 'core.read: max_age must be 0 or more seconds', fix => 'oom-ops describe core.read lists the parameters' )
         if defined $ma && $ma < 0;
     my ( $send, $pl, $keyed ) = Odoo::Ops::Core::ReadContext->resolve( 'core.read', context => $self->param('context'), pricelist => $self->param('pricelist'), archived => $self->param('archived') );
     my $got = $self->ctx->data_cache->read(
         model => $model, domain => \@domain, fields => \@want, order => $self->param('order'), limit => $limit,
-        archived => $self->param('archived'), pricelist => $pl, context => $keyed, max_age => $ma,
+        archived => $self->param('archived'), pricelist => $pl, context => $keyed, max_age => $ma, offset => $offset,
         ( $pl ? ( also => [ Odoo::Cache::Data->pricelist_models ] ) : () ),
         fetch => sub {
-            $m->search_read( \@domain, [@want], limit => $limit,
+            $m->search_read( \@domain, [@want], limit => $limit, ( $offset ? ( offset => $offset ) : () ),
                 ( defined $self->param('order') ? ( order => $self->param('order') ) : () ),
                 ( %$send ? ( context => $send ) : () ) );
         } );
@@ -139,8 +155,12 @@ sub report ($self) {
 
     my ( $out, $schema ) = Odoo::Ops::Core::OneRecord->rows_and_schema( $f, \@want, $rows );
     my @out = @$out;
+    # the whole domain's size, read live: a page served from the data cache still says how many match now
+    my $total = $self->_wants_total ? $m->search_count( \@domain, ( %$send ? ( context => $send ) : () ) ) : undef;
     return {
         model => $model, count => scalar @out, rows => \@out, fields => $schema, Odoo::Cache::Data->says($got),
+        ( $offset ? ( offset => 0 + $offset ) : () ),
+        ( defined $total ? ( total => 0 + $total ) : () ),
         ( @out == $limit ? ( limit_reached => JSON::PP::true ) : () ),
     };
 }

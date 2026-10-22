@@ -23,6 +23,8 @@ Odoo::Ops::Mailing::Partition - do the parts of one mailing cover every contact 
         --set parts_file=parts.json
     oom-ops run mailing.partition --conf ops.conf --set lists=7,8 --set check=1 \
         --set 'parts=[{"name":"apac","country_in":["AU","JP"]},{"name":"rest","country_not_in":["AU","JP"]}]'
+    oom-ops run mailing.partition --conf ops.conf --set lists=Distributors,Customers \
+        --set parts_file=parts.json --set slices=400
 
 =head1 DESCRIPTION
 
@@ -53,28 +55,50 @@ C<check=1> refuses with C<not-a-partition> (exit 1) when C<ok> is false,
 the message carrying the counts and the first addresses. A contact is
 checked by its own country; its linked partner is not consulted.
 
+C<slices> (a whole number N, at least 1) cuts each part into slices of at
+most N contacts, for a part too big to leave in one mailing: each slice is
+its own draft (C<mailing.create> C<slice>) scheduled at its own time. With
+C<slices> the parts may be left out and the whole of the lists is one part,
+named C<all>. Odoo's domains have no modulo, so a slice is a contact id
+range. The contacts Odoo's own domain gives for the part now are taken in id
+order and cut every N; each part then has C<slices>, a list of C<< { n,
+from_id, before_id, count, first_email, last_email } >>: the contacts with
+C<id E<gt>= from_id> and C<id E<lt> before_id> (C<count> is what Odoo's
+C<search_count> gives for the part's domain and that range). The first slice has
+no C<from_id> and the last no C<before_id> (both null), the others share a
+cut point, so every contact of the part, one made after the cut points were
+read included, is in exactly one slice: a contact made before the send falls
+in the last. C<slices_note> says so and gives the last slice's headroom (N less
+its count): contacts added before the send can take that slice over N, and a
+slice's plan shows the count at plan time only.
+
+C<addresses_in_several_parts> counts, with C<slices>, an address held by
+contacts in two slices of one part as well: it gets one mail from each, as
+across parts (Odoo drops a repeated address within one mailing only).
+
 Series: Odoo 16 and 18; another series is refused by name until its
 profile is probed.
 
 =cut
 
 sub op_name ($class) { 'mailing.partition' }
-sub summary ($class) { 'Check that the country-filtered parts of one mailing cover every contact of its lists exactly once' }
+sub summary ($class) { 'Check that the country-filtered parts of one mailing cover every contact of its lists exactly once, and cut a part into slices' }
 sub pack    ($class) { 'mailing' }
 sub fields ($class) {
     return [
         { name => 'lists', meaning => 'The lists the parts go to' },
-        { name => 'parts', meaning => 'Each part: its filter, the contacts Odoo\'s domain gives, those blacklisted, the recipients' },
-        { name => 'whole', meaning => 'The lists\' contacts, those in no part, those in more than one, and the addresses spread over parts' },
-        { name => 'ok', meaning => 'True when no contact is in no part or in two, and no address is in two parts' },
+        { name => 'parts', meaning => 'Each part: its filter, the contacts Odoo\'s domain gives, those blacklisted, the recipients; with slices, its slices and slices_note' },
+        { name => 'whole', meaning => 'The lists\' contacts, those in no part, those in more than one, and the addresses spread over parts (and slices)' },
+        { name => 'ok', meaning => 'True when no contact is in no part or in two, and no address is in two parts or two slices' },
     ];
 }
 
 sub params ($class) {
     {   lists      => { type => 'list', required => 1, help => 'the lists, names or ids, comma-separated' },
-        parts      => { type => 'json', help => 'the parts: [{"name":"apac","country_in":["AU","JP"]},{"name":"rest","country_not_in":["AU","JP"]}]' },
+        parts      => { type => 'json', help => 'the parts: [{"name":"apac","country_in":["AU","JP"]},{"name":"rest","country_not_in":["AU","JP"]}]; with slices, none means the whole of the lists as one part' },
         parts_file => { type => 'path', help => 'a JSON file holding the parts list, instead of parts' },
         check      => { type => 'bool', default => 0, help => 'refuse (exit 1) when a contact is in no part or in two' },
+        slices     => { type => 'int', help => 'cut each part into slices of at most this many contacts (a contact id range each; the first has no lower bound, the last no upper)' },
     };
 }
 sub read_scope ($class) {
@@ -104,9 +128,13 @@ sub report ($self) {
     my @ids = sort { $a <=> $b } map { $_->{id} } @lists;
 
     # the parts
+    my $slices = $self->param('slices');
+    Odoo::Error->throw( kind => 'usage', message => "mailing.partition: slices must be a whole number of at least 1, not $slices",
+        fix => 'pass --set slices=<the most contacts in one slice>' ) if defined $slices && $slices < 1;
     my $given = $self->_parts_input;
     my ( @parts, %name );
-    for my $i ( 0 .. $#$given ) {
+    push @parts, { name => 'all', mode => 'all', countries => [], domain => Odoo::Ops::Mailing::Common::list_domain( $self, \@ids ) } if !defined $given;
+    for my $i ( 0 .. ( $given ? $#$given : -1 ) ) {
         my $g = $given->[$i];
         Odoo::Error->throw( kind => 'usage', message => 'mailing.partition: part #' . ( $i + 1 ) . ' is not a map with a name and country_in or country_not_in' ) if ref $g ne 'HASH';
         my $nm = Odoo::Ops::Mailing::Common::text( $g->{name} );
@@ -134,6 +162,29 @@ sub report ($self) {
         push @{ $member{$_} }, $k for @{ $parts[$k]{ids} };
     }
 
+    # a part's contacts in id order, cut every N; the cut points are shared so a contact lies in one slice only
+    if ( defined $slices ) {
+        for my $part (@parts) {
+            my @pid = sort { $a <=> $b } @{ $part->{ids} };
+            my $m = @pid ? int( ( @pid + $slices - 1 ) / $slices ) : 1;
+            my @sl;
+            for my $k ( 1 .. $m ) {
+                my @in = @pid[ ( $k - 1 ) * $slices .. ( $k * $slices > @pid ? $#pid : $k * $slices - 1 ) ];
+                my $e = sub ($id) { my $r = $c{$id}; Odoo::Ops::Mailing::Common::text( $r->{$ne} ) || Odoo::Ops::Mailing::Common::text( $r->{$em} ) };
+                push @sl, { n => $k, from_id => $k > 1 ? $pid[ ( $k - 1 ) * $slices ] : undef, before_id => $k < $m ? $pid[ $k * $slices ] : undef,
+                    count => scalar @in, first_email => @in ? $e->( $in[0] ) : undef, last_email => @in ? $e->( $in[-1] ) : undef };
+                $part->{slice_of}{$_} = $k for @in;
+            }
+            $part->{slices} = \@sl;
+            my $last = $sl[-1];
+            my $room = $slices - $last->{count};
+            $part->{slices_note} = "part $part->{name}: " . ( @sl == 1 ? 'one slice' : scalar(@sl) . ' slices' ) . " of at most $slices contact(s), cut by contact id; "
+                . "the first has no from_id and the last no before_id, so every contact of the part lies in one slice and one made before the send falls in slice $last->{n}; "
+                . "slice $last->{n} holds $last->{count} now, " . ( $room > 0 ? "headroom $room" : 'no headroom' )
+                . ": contacts added before the send can take it over $slices (its plan shows the count at plan time only)";
+        }
+    }
+
     my ( @none, @several, %addr_parts, $without );
     for my $id ( sort { $a <=> $b } keys %c ) {
         my $r = $c{$id};
@@ -143,7 +194,8 @@ sub report ($self) {
         my $n = @{ $member{$id} // [] };
         push @none, $e if !$n;
         push @several, $e if $n > 1;
-        $addr_parts{$e}{$_} = 1 for @{ $member{$id} // [] };
+        # with slices an address in two slices of one part is as much two mails as an address in two parts
+        $addr_parts{$e}{ $_ . ( defined $slices ? ':' . $parts[$_]{slice_of}{$id} : '' ) } = 1 for @{ $member{$id} // [] };
     }
     my @spread = sort grep { keys %{ $addr_parts{$_} } > 1 } keys %addr_parts;
     my $list = sub (@e) { +{ count => scalar @e, emails => [ @e[ 0 .. ( $#e > 19 ? 19 : $#e ) ] ] } };
@@ -160,9 +212,11 @@ sub report ($self) {
     my @out = map {
         my $part = $_;
         my $black = scalar grep { $c{$_} && $c{$_}{$bl} } @{ $part->{ids} };
-        +{ name => $part->{name}, ( $part->{mode} eq 'in' ? 'country_in' : 'country_not_in' ) => [ map { $_->{code} } @{ $part->{countries} } ],
-           filter => Odoo::Ops::Mailing::Common::country_words( $part->{mode}, $part->{countries} ), domain => $part->{domain},
-           contacts => scalar @{ $part->{ids} }, blacklisted => $black, recipients => @{ $part->{ids} } - $black };
+        +{ name => $part->{name},
+           ( $part->{mode} eq 'all' ? () : ( ( $part->{mode} eq 'in' ? 'country_in' : 'country_not_in' ) => [ map { $_->{code} } @{ $part->{countries} } ] ) ),
+           filter => $part->{mode} eq 'all' ? 'every contact of the lists' : Odoo::Ops::Mailing::Common::country_words( $part->{mode}, $part->{countries} ), domain => $part->{domain},
+           contacts => scalar @{ $part->{ids} }, blacklisted => $black, recipients => @{ $part->{ids} } - $black,
+           ( $part->{slices} ? ( slices => $part->{slices}, slices_note => $part->{slices_note} ) : () ) };
     } @parts;
 
     if ( $self->param('check') && !$ok ) {
@@ -170,16 +224,17 @@ sub report ($self) {
         Odoo::Error->throw( kind => 'refused', code => 'not-a-partition',
             message => 'mailing.partition: the parts are not a partition of the lists: '
                 . join( '; ', $words->( 'contact(s) in no part', $whole->{in_no_part} ), $words->( 'contact(s) in more than one part', $whole->{in_several_parts} ),
-                    $words->( 'address(es) in different parts', $whole->{addresses_in_several_parts} ) ),
-            fix => 'change the parts\' countries so each contact lands in one, or set the contacts\' countries (oom-ops run mailing.contact_country); run again without check=1 for the counts' );
+                    $words->( defined $slices ? 'address(es) in different parts or slices' : 'address(es) in different parts', $whole->{addresses_in_several_parts} ) ),
+            fix => 'change the parts\' countries so each contact lands in one, or set the contacts\' countries (oom-ops run mailing.contact_country)'
+                . ( defined $slices ? '; an address on two contacts in different slices gets a mail from each, so merge or remove the repeated contact' : '' ) . '; run again without check=1 for the counts' );
     }
     return {
         lists => \@lists, parts => \@out, whole => $whole, ok => $ok ? JSON::PP::true : JSON::PP::false,
         fields => {
             lists => { portable_type => 'list', string => 'The lists the parts go to' },
-            parts => { portable_type => 'list', string => 'Each part: name, filter in words, domain, contacts (Odoo\'s count for the domain, what the mailing\'s total reads), blacklisted, recipients' },
+            parts => { portable_type => 'list', string => 'Each part: name, filter in words, domain, contacts (Odoo\'s count for the domain, what the mailing\'s total reads), blacklisted, recipients; with slices, slices ({ n, from_id, before_id, count, first_email, last_email }) and slices_note' },
             whole => { portable_type => 'object', string => 'contacts of the lists, blacklisted, recipients, without_address, and in_no_part, in_several_parts, addresses_in_several_parts as { count, emails (up to 20) }' },
-            ok    => { portable_type => 'boolean', string => 'No contact in no part or in two, no address in two parts' },
+            ok    => { portable_type => 'boolean', string => 'No contact in no part or in two, no address in two parts (or two slices)' },
         },
     };
 }
@@ -194,6 +249,7 @@ sub _parts_input ($self) {
         $inline = eval { Odoo::Ops::json()->decode($raw) };
         Odoo::Error->throw( kind => 'usage', message => "mailing.partition: $file is not JSON: a list of parts" ) if ref $inline ne 'ARRAY';
     }
+    return undef if !defined $inline && defined $self->param('slices');
     Odoo::Error->throw( kind => 'usage', message => 'mailing.partition: give the parts (parts or parts_file)' ) if !defined $inline;
     Odoo::Error->throw( kind => 'usage', message => 'mailing.partition: parts must be a list of parts' ) if ref $inline ne 'ARRAY';
     return $inline;

@@ -10,6 +10,7 @@ use JSON::PP ();
 use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Mailing::Common;
+use Odoo::Ops::Mailing::Plaintext;
 use Odoo::Ops::Runs;
 
 use parent 'Odoo::Ops::Operation';
@@ -108,6 +109,13 @@ Without C<chunk> the operation behaves as before.
 A send cannot be taken back (a mail that left is gone), so a revert
 holds it.
 
+When the plain-text part Odoo will make from the body keeps the generic
+unsubscribe or view link (Odoo makes it before it swaps the recipient's own link
+into the HTML part, so the link answers 404 there), the plan carries one note
+saying so and that the HTML part and the C<List-Unsubscribe> header work. It is a
+warning, never a refusal: the send is the caller's decision. A user who may not
+read the body or the base URL gets no such note.
+
 Series: Odoo 16 and 18; another series is refused by name until its
 profile is probed.
 
@@ -133,7 +141,7 @@ sub params ($class) {
     };
 }
 sub read_scope ($class) {
-    {   mailing      => [qw(read)],
+    {   mailing      => [qw(read &base_url)],
         subscription => ['search_read'],
         contact      => ['search_read'],
         trace        => ['search_read'],
@@ -187,6 +195,7 @@ sub plan ($self) {
     $plan->note("mailing $id ('$m->{ $f->('subject') }') to $aud->{reachable} address(es): $aud->{subscriptions} subscription(s), $aud->{opted_out} opted out, $aud->{blacklisted} blacklisted, $aud->{no_email} without an address");
     $plan->note("the mailing has its own domain, $dom_text: the counts are of the contacts it gives, not of every contact of its lists") if $parsed;
     $plan->note("the mailing has its own domain, $dom_text, which OOM cannot read: the counts above are of every contact of its lists, so they can be more than Odoo will mail") if $filtered && !$parsed;
+    $self->_text_part_note($plan, $p, $id);
     # information, not a hold: the rule that a test comes first lives in oom-mailshot
     if ( my $dir = $self->ctx->config->get('runs_dir') ) {
         my $written = $m->{ $f->('updated') };
@@ -273,6 +282,7 @@ sub _plan_chunk ($self, $p, $id, $m, $info) {
 
     my $plan = $self->new_plan( input_count => 1 );
     $plan->note("mailing $id ('$m->{ $f->('subject') }'): a chunk of " . scalar(@pick) . " of its $rem->{candidates} recipient(s); " . scalar(@all) . " remain now, $left will remain after");
+    $self->_text_part_note( $plan, $p, $id );
     $plan->note("the chunk is the next " . scalar(@pick) . " contact(s) by id; Odoo mails $aud->{reachable} address(es) of them and cancels the opted-out ($aud->{opted_out}), the blacklisted ($aud->{blacklisted}) and any address it has already mailed as cancelled traces, with no mail sent");
     $plan->note("the mailing is $state and Odoo ends the send in state done, whatever remains; its queue job takes in_queue and sending mailings only (mass_mailing.ir_cron_mass_mailing_queue, _process_mass_mailing_queue), so nothing else is sent until the next chunk");
     if ( my $dir = $self->ctx->config->get('runs_dir') ) {
@@ -317,6 +327,14 @@ sub _plan_chunk ($self, $p, $id, $m, $info) {
         reason => 'send a chunk of ' . scalar(@pick) . " ($left will remain)",
     );
     return $plan;
+}
+
+# the plain-text part Odoo makes keeps the generic unsubscribe and view links (Odoo fault 001): one line, never a refusal
+sub _text_part_note ($self, $plan, $p, $id) {
+    my $links = Odoo::Ops::Mailing::Common::text_part_links( $self, $p, $id ) or return;
+    my $w = Odoo::Ops::Mailing::Plaintext::warning($links) or return;
+    $plan->note($w);
+    return;
 }
 
 sub _next_call ($self, $p) {

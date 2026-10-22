@@ -68,6 +68,12 @@ A read operation; the report carries the report, its ids and one row per
 document with the path, size and SHA-1 of what was written. Nothing of the
 content is printed or journalled.
 
+C<options> is the data a report is printed with, a map, sent to the report route as Odoo's own print action sends it
+(C<?options=E<lt>jsonE<gt>>, which the route merges into the data of the render). A report that renders from a wizard's data, such
+as the statements of C<partner_statement>, needs it: the wizard's C<_prepare_statement> map (C<date_end>, C<company_id>,
+C<partner_ids>, ...) is the options. A render with options is always a render (C<source=render>); a stored copy was made
+without them.
+
 C<inline=1> returns each document in its row instead of writing it:
 C<content_base64> (the bytes, base64 on one line) with C<name>, C<mimetype>,
 C<bytes>, C<sha1> and, for a pdf, C<pages>; no C<dir> is given and no file is
@@ -95,6 +101,7 @@ sub params ($class) {
         overwrite => { type => 'bool', default => 0, help => 'replace a file already in dir' },
         source    => { type => 'str',  default => 'render', help => 'render (default; needs a web session), attachment (the stored copy, no render) or auto' },
         timeout   => { type => 'int',  help => 'seconds the render request may take (default: the connection\'s)' },
+        options   => { type => 'json', help => 'the data a report is printed with (a map), sent as the options of the report route as Odoo\'s own print action sends them; for a report that renders from a wizard\'s data, such as the statements of partner_statement; needs source=render' },
     };
 }
 
@@ -140,6 +147,10 @@ sub report ($self) {
     my $have_record = defined $p{record};
     my $have_ids    = defined $p{ids} && @{ $p{ids} };
     Odoo::Error->throw( kind => 'usage', message => 'core.report: give exactly one of record and ids' ) if $have_record == $have_ids || ( $have_record && $have_ids );
+    my $options = $p{options};
+    Odoo::Error->throw( kind => 'usage', message => 'core.report: options is a map of the data the report is printed with, e.g. {"date_end":"2026-10-31"}' ) if defined $options && ref $options ne 'HASH';
+    Odoo::Error->throw( kind => 'usage', message => 'core.report: options is the data of a render, so source must be render (a stored copy was made without it)',
+        fix => 'leave source at its default, render' ) if defined $options && $p{source} ne 'render';
     my $inline = $p{inline} ? 1 : 0;
     Odoo::Error->throw( kind => 'usage', message => 'core.report: dir and inline are exclusive: inline returns the bytes in the report, dir writes files',
         fix => 'give --set dir=... or --set inline=1, not both' ) if $inline && defined $p{dir};
@@ -229,7 +240,7 @@ sub report ($self) {
             $self->_need_session( $rep, $id );
             $check_exists->();
             my $before = $stores && $fmt eq 'pdf' ? $self->_max_attachment( $model, $id ) : undef;
-            $bytes = $self->_render( $rep, $fmt, $id, $p{timeout} );
+            $bytes = $self->_render( $rep, $fmt, $id, $p{timeout}, $options );
             %extra = ( source => 'render' );
             if ( defined $before ) {
                 my $att = $self->_stored_copy( $model, $id, $fmt, $plain, 1 );
@@ -389,11 +400,13 @@ sub _need_session ($self, $rep, $id) {
     return $st;
 }
 
-sub _render ($self, $rep, $fmt, $id, $timeout) {
+sub _render ($self, $rep, $fmt, $id, $timeout, $options = undef) {
     my $ctx = $self->ctx;
     my $st  = $self->_need_session( $rep, $id );
 
     my $path = '/report/' . $fmt . '/' . ( $rep->{report_name} =~ s/([^A-Za-z0-9._-])/sprintf( '%%%02X', ord $1 )/ger ) . "/$id";
+    # Odoo's print action sends a report's data as ?options=<json>, which the route merges into the data of the render
+    $path .= '?options=' . ( Odoo::Ops::json()->encode($options) =~ s/([^A-Za-z0-9._~-])/sprintf( '%%%02X', ord $1 )/ger ) if defined $options;
     my $what = "report $rep->{report_name} for $rep->{model} $id";
     my $res;
     for my $try ( 1, 2 ) {

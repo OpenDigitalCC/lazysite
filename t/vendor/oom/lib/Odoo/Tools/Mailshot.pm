@@ -19,13 +19,14 @@ use Odoo::Ops;
 use Odoo::Ops::Config;
 use Odoo::Ops::Context;
 use Odoo::Ops::Journal;
+use Odoo::Ops::Mailing::Common ();
 use Odoo::Ops::Plan;
 use Odoo::Ops::PlanPrint;
 use Odoo::Ops::Registry;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.38';
+our $VERSION = '0.42';
 
 =head1 NAME
 
@@ -451,6 +452,11 @@ read first through C<mailing.partition> and the call is C<refused/not-a-partitio
 unless they cover the lists' contacts once. The audience printed is Odoo's count
 for the mailing's domain, and the domain, not the lists' own counts.
 
+C<slices> (C<--slices N>) with C<first> and C<every> (C<--first "YYYY-MM-DD
+HH:MM:SS" --every MINUTES>) cuts the part into slices of at most N contacts,
+each its own draft scheduled in Odoo's queue; see L</Slices of a part>. C<max>
+(C<--max>) is the limit per slice.
+
 A row whose tags column names a tag that does not exist is held
 C<tag-not-allowed> at plan time when Odoo says this user may not create
 partner tags: the list and the other rows are made, the held row makes no
@@ -466,6 +472,7 @@ sub prepare ($self, %a) {
     for my $need (qw(list subject body)) {
         Odoo::Error->throw( kind => 'usage', message => "prepare needs --$need", fix => 'oom-mailshot prepare --help' ) if !defined $a{$need};
     }
+    return $self->_prepare_slices(%a) if grep { defined $a{$_} } qw(slices first every max);
     my %ids = ( list => undef, contacts => [], contacts_already => [], mailing => undef );
     my %res = ( ids => \%ids, then => [] );
     my $status = 0;
@@ -587,7 +594,7 @@ sub prepare ($self, %a) {
 
 # --- partition ----------------------------------------------------------------------------------
 
-=head2 partition(list, parts, check)
+=head2 partition(list, parts, check, slices)
 
 C<mailing.partition>: whether the country-filtered parts in the file C<parts>
 (a JSON list of C<< { name, country_in | country_not_in } >>) cover every
@@ -597,14 +604,26 @@ part or in two. With C<check> a problem is C<refused/not-a-partition> (exit
 1). C<prepare> with C<parts> and C<part> runs it first and refuses the same
 way; the C<--parts> file is the one place the parts are written.
 
+With C<slices> (C<--slices N>) each part is also cut into slices of at most N
+contacts by contact id, and each slice is printed with its first and last
+address; the first slice has no lower bound and the last no upper, and the
+note under a part gives the last slice's headroom. An address held by contacts
+in two slices counts, as across parts, as a problem. C<parts> may then be left
+out: the whole of the lists is one part, named C<all>.
+
 =cut
 
 sub _partition ($self, $lists, $parts_file, %o) {
-    my $rep = $self->_read( 'mailing.partition', lists => $lists, parts_file => $parts_file );
+    my %with = ( ( defined $parts_file ? ( parts_file => $parts_file ) : () ), ( defined $o{slices} ? ( slices => $o{slices} ) : () ) );
+    my $rep = $self->_read( 'mailing.partition', lists => $lists, %with );
     $self->_p("== partition (mailing.partition)");
     $self->_p( '  lists: ' . join( ', ', map { $_->{name} } @{ $rep->{lists} } ) );
     for my $pt ( @{ $rep->{parts} } ) {
         $self->_p( "  part $pt->{name}: $pt->{contacts} contact(s) ($pt->{filter}), $pt->{blacklisted} blacklisted, $pt->{recipients} recipient(s)" );
+        next if !$pt->{slices};
+        my $m = @{ $pt->{slices} };
+        $self->_p( '    ' . _slice_line( $_, $m ) ) for @{ $pt->{slices} };
+        $self->_p( "    $pt->{slices_note}" );
     }
     my $w = $rep->{whole};
     $self->_p( "  whole: $w->{contacts} contact(s) of the lists, $w->{blacklisted} blacklisted, $w->{recipients} recipient(s)"
@@ -616,7 +635,7 @@ sub _partition ($self, $lists, $parts_file, %o) {
     }
     if ( $rep->{ok} ) { $self->_p("  the parts cover every contact of the lists once") }
     elsif ( $o{refuse} ) {
-        my $e = eval { $self->_read( 'mailing.partition', lists => $lists, parts_file => $parts_file, check => 1 ); 1 } ? undef : $@;
+        my $e = eval { $self->_read( 'mailing.partition', lists => $lists, %with, check => 1 ); 1 } ? undef : $@;
         die $self->_fix_for( $e, mailing => undef ) if $e;
     }
     return $rep;
@@ -625,10 +644,195 @@ sub _partition ($self, $lists, $parts_file, %o) {
 sub partition ($self, %a) {
     $self->{cmd} = 'partition';
     for my $need (qw(list parts)) {
-        Odoo::Error->throw( kind => 'usage', message => "partition needs --$need", fix => 'oom-mailshot partition --help' ) if !defined $a{$need};
+        Odoo::Error->throw( kind => 'usage', message => "partition needs --$need" . ( $need eq 'parts' ? ' (or --slices, for the whole of the lists as one part)' : '' ), fix => 'oom-mailshot partition --help' )
+            if !defined $a{$need} && !( $need eq 'parts' && defined $a{slices} );
     }
-    my $rep = $self->_partition( $a{list}, $a{parts}, refuse => $a{check} );
-    return $self->_finish( 'partition', { partition => $rep, then => [ $rep->{ok} ? "oom-mailshot prepare --conf $self->{conf} --list <lists> --subject <subject> --body <file.html> --parts " . _q( $a{parts} ) . ' --part <name>' : () ] }, 0 );
+    Odoo::Error->throw( kind => 'usage', message => "partition: --slices must be a whole number of at least 1, not '$a{slices}'", fix => 'oom-mailshot partition --help' )
+        if defined $a{slices} && ( $a{slices} !~ /\A\d+\z/ || $a{slices} < 1 );
+    my $rep = $self->_partition( $a{list}, $a{parts}, refuse => $a{check}, slices => $a{slices} );
+    return $self->_finish( 'partition', { partition => $rep, then => [ $rep->{ok} ? "oom-mailshot prepare --conf $self->{conf} --list <lists> --subject <subject> --body <file.html> "
+      . ( defined $a{parts} ? '--parts ' . _q( $a{parts} ) . ' --part <name>' : '' )
+      . ( defined $a{slices} ? ' --slices ' . ( 0 + $a{slices} ) . ' --first "YYYY-MM-DD HH:MM:SS" --every <minutes>' : '' ) : () ] }, 0 );
+}
+
+# --- slices of a part ---------------------------------------------------------------------------
+
+=head2 Slices of a part
+
+C<prepare> with C<slices> (N), C<first> (a UTC time, C<YYYY-MM-DD HH:MM:SS>) and
+C<every> (minutes) cuts one message, or one part of it (C<parts> and C<part>;
+without them the whole of the lists), into slices of at most N contacts, for a
+part too big to leave in one mailing. The rule it keeps: every mail leaves from
+Odoo's own queue at a time set in advance; nothing here runs later.
+
+It runs C<mailing.partition> with C<slices> first and is
+C<refused/not-a-partition> unless the parts cover the lists once (and no
+address lies in two slices). Each slice is its own draft: the same subject,
+lists, body and country filter, a C<slice> clause (C<mailing.create>: a contact
+id range, the first slice with no lower bound and the last with no upper) and
+its own schedule, C<first> plus C<every> minutes for each slice before it. The
+subject the recipient sees is unchanged; the slice is named C<SUBJECT [part
+NAME, slice k of m]> in the tool's own record (the step and the approval note),
+and a draft is told apart in Odoo by its domain. One plan is printed for all of
+them, before anything is written: each slice's clause in words, Odoo's contact
+count, the addresses it would mail, and its schedule; C<max> (default 500)
+applies to each slice, and with C<yes> a slice over it refuses C<over-max> before
+any draft is made.
+
+The drafts follow the usual approval (C<yes>, or C<approval = self>; otherwise
+the C<oom-ops approve> and C<apply> lines are printed for each). With C<yes> each
+slice is then queued with C<mailing.send> (no C<now>) and Odoo's cron sends it at
+its schedule date; the approval note says it was not tested. Without C<yes> the
+C<then:> lines are C<mailing.send> for each slice (C<oom-mailshot test> first for
+one of them: the slices share a body). A draft that exists already with the same
+subject, lists and range is updated in place, as for any C<prepare>.
+
+=cut
+
+sub _slice_line ($sl, $m) {
+    my $range = !defined $sl->{from_id} && !defined $sl->{before_id} ? 'the whole part' : Odoo::Ops::Mailing::Common::slice_words( $sl->{from_id}, $sl->{before_id} );
+    return "slice $sl->{n} of $m: " . Odoo::Ops::Mailing::Common::commas( $sl->{count} ) . " contact(s), $range"
+        . ( defined $sl->{first_email} && length $sl->{first_email} ? " ($sl->{first_email} .. $sl->{last_email})" : '' );
+}
+
+# a plan of an operation and nothing else: no run folder, no approval
+sub _plan_of ($self, $op, $params) {
+    my $class = $self->{reg}->class_for($op);
+    return eval { my $p = $class->check_params($params); $class->new( ctx => $self->_ctx, params => $p )->run } // do { die $self->_fix_for( $self->_own( $@, mailing => $params->{mailing} ), mailing => $params->{mailing} ) };
+}
+
+sub _prepare_slices ($self, %a) {
+    $self->{cmd} = 'prepare';
+    my $usage = sub ($m, $fix = 'oom-mailshot prepare ... --parts parts.json --part NAME --slices N --first "YYYY-MM-DD HH:MM:SS" --every MINUTES') {
+        Odoo::Error->throw( kind => 'usage', message => "prepare: $m", fix => $fix );
+    };
+    $usage->('--first, --every and --max go with --slices') if !defined $a{slices};
+    $usage->("--slices must be a whole number of at least 1, not '$a{slices}'") if $a{slices} !~ /\A\d+\z/ || $a{slices} < 1;
+    $usage->('--slices needs --first: the UTC time of the first slice, YYYY-MM-DD HH:MM:SS') if !defined $a{first};
+    $usage->('--slices needs --every: the minutes between two slices') if !defined $a{every};
+    $usage->("--first must be a UTC datetime, YYYY-MM-DD HH:MM:SS, not '$a{first}'") if $a{first} !~ /\A\d{4}-\d\d-\d\d[ T]\d\d:\d\d:\d\d\z/;
+    $usage->("--every must be a number of minutes above 0, not '$a{every}'") if $a{every} !~ /\A\d+(?:\.\d+)?\z/ || $a{every} <= 0;
+    my $max = $a{max} // 500;
+    $usage->("--max must be a whole number of at least 1, not '$max'") if $max !~ /\A\d+\z/ || $max < 1;
+    $usage->('--schedule is each slice\'s own time: give --first and --every') if defined $a{schedule};
+    $usage->('--contacts goes with one draft: subscribe the contacts first, then prepare the slices') if defined $a{contacts};
+    $usage->('--slices takes the filter from --parts and --part; do not give --country-in or --country-not-in') if defined $a{country_in} || defined $a{country_not_in};
+    $usage->('--parts and --part go together') if ( defined $a{parts} ? 1 : 0 ) != ( defined $a{part} ? 1 : 0 );
+    $a{first} =~ s/T/ /;
+    my $t0 = Odoo::Ops::Mailing::Common::epoch( $a{first} );
+
+    # the parts cover the lists once, and where the slices are cut
+    my $rep = $self->_partition( $a{list}, $a{parts}, refuse => 1, slices => 0 + $a{slices} );
+    my ($part) = defined $a{parts} ? grep { $_->{name} eq $a{part} } @{ $rep->{parts} } : $rep->{parts}[0];
+    $usage->( "the parts file has no part '$a{part}' (it has " . join( ', ', map { "'$_->{name}'" } @{ $rep->{parts} } ) . ')', 'give --part one of those names' ) if !$part;
+    my %filter = $part->{country_in} ? ( country_in => join( ',', @{ $part->{country_in} } ) ) : $part->{country_not_in} ? ( country_not_in => join( ',', @{ $part->{country_not_in} } ) ) : ();
+    my @sl = @{ $part->{slices} };
+    my $m  = @sl;
+    my %res = ( ids => { mailing => [] }, partition => $rep, then => [], slices => [] );
+
+    # one plan for all the slices, before anything is written
+    my @work;
+    for my $sl (@sl) {
+        my $when = Odoo::Ops::Mailing::Common::odoo_time( $t0 + int( ( $sl->{n} - 1 ) * $a{every} * 60 + 0.5 ) );
+        my $label = "[part $part->{name}, slice $sl->{n} of $m]";
+        my %create = ( subject => $a{subject}, lists => $a{list}, body_file => $a{body}, %filter, schedule => $when,
+            # a part that fits in one slice has no range to write: it is the part's own filter
+            ( defined $sl->{from_id} || defined $sl->{before_id} ? ( slice => { map { defined $sl->{$_} ? ( $_ => $sl->{$_} ) : () } qw(from_id before_id) } ) : () ),
+            map { defined $a{$_} ? ( $_ => $a{$_} ) : () } qw(from reply_to) );
+        my $sum = $self->_plan_of( 'mailing.create', \%create )->summary;
+        my ($reach) = map { /audience now[^:]*: (\d+) reachable/ ? $1 : () } @{ $sum->{notes} };
+        my ($held) = @{ $sum->{held} };
+        push @work, { sl => $sl, label => $label, create => \%create, when => $when, reachable => $reach, held => $held, notes => $sum->{notes} };
+        push @{ $res{slices} }, { n => $sl->{n}, from_id => $sl->{from_id}, before_id => $sl->{before_id}, count => $sl->{count}, reachable => $reach, schedule => $when };
+    }
+    $self->_p( "== slices of part $part->{name} (mailing.create, $m draft(s))",
+        "  subject '$a{subject}', " . Odoo::Ops::Mailing::Common::commas( $part->{contacts} ) . " contact(s) of the part cut into $m slice(s) of at most $a{slices}; the first goes at $a{first} UTC, then one every $a{every} minute(s); max $max per slice" );
+    my $now = Odoo::Ops::Mailing::Common::odoo_time( $self->{clock}->() );
+    for my $w (@work) {
+        my $sl = $w->{sl};
+        my $over = defined $w->{reachable} && $w->{reachable} > $max;
+        $self->_p( '  ' . _slice_line( $sl, $m ) . ( defined $w->{reachable} ? "; mails $w->{reachable} address(es)" : '' ) . "; at $w->{when}"
+            . ( $over ? "; OVER max=$max" : '' ) . ( $w->{when} lt $now ? '; in the past, so Odoo sends it as soon as it is queued' : '' )
+            . ( $w->{held} ? "; held $w->{held}{bucket}: $w->{held}{reason}" : '' ) );
+        if ( $over && $self->{yes} ) {
+            Odoo::Error->throw( kind => 'refused', code => 'over-max',
+                message => "prepare: slice $sl->{n} of $m would mail $w->{reachable} addresses, over max=$max; no draft was made",
+                fix => 'raise --max deliberately, or cut the part smaller: --slices N' );
+        }
+    }
+
+    # the drafts, then (with --yes) the queue
+    my $status = 0;
+    my @pending;
+    for my $w (@work) {
+        my ( $sl, $label ) = @$w{qw(sl label)};
+        my $note = "oom-mailshot prepare: mailing $a{subject} $label";
+        my $sent_before = sub ($sum) {
+            return if $a{new_draft};
+            my ($sb) = grep { /^sent before:/ } @{ $sum->{notes} // [] };
+            return if !$sb;
+            my ($n) = $sb =~ /mailing (\d+)/;
+            return Odoo::Error->new( kind => 'refused', code => 'sent-before', message => "prepare: $sb",
+                fix => "pass --new-draft to make another mailing under this subject, or oom-mailshot status --conf $self->{conf} --mailing $n" );
+        };
+        my $s = $self->_step( "mailing $label", 'mailing.create', $w->{create}, note => $note, refuse => $sent_before );
+        if ( !$s->{applied} && !$s->{pending} ) {
+            my ($ex) = grep { $_->{bucket} eq 'exists' } @{ $s->{held} };
+            if ($ex) {
+                my ($id) = $ex->{reason} =~ /mailing (\d+)/;
+                $self->_p("   the draft already exists: mailing $id; updating it in place (mailing=$id)");
+                $w->{existing} = 0 + $id;
+                $s = $self->_step( "mailing $label (update)", 'mailing.create', { %{ $w->{create} }, mailing => $id }, note => "oom-mailshot prepare: update of mailing $id $label" );
+                $w->{id} = 0 + $id;
+            }
+            else {
+                $res{held} = [ @{ $res{held} // [] }, @{ _held_groups( $s->{held} ) } ];
+                $self->_p("   slice $sl->{n} was not made: see held above");
+                return $self->_finish( 'prepare', \%res, 1 );
+            }
+        }
+        if ( $s->{pending} ) { push @pending, $s->{approve}, $s->{apply}; next }
+        $status ||= _step_status($s);
+        $w->{id} //= _created( $s, 'mailing.mailing' )->[0] // ( $s->{written} && $s->{written}{'mailing.mailing'} ? $s->{written}{'mailing.mailing'}[0] : undef );
+        return $self->_finish( 'prepare', \%res, $status ) if $status;
+    }
+    if (@pending) {
+        $res{pending} = 1;
+        $res{then} = \@pending;
+        return $self->_finish( 'prepare', \%res, 0 );
+    }
+    for my $i ( 0 .. $#work ) {
+        $res{slices}[$i]{mailing} = $work[$i]{id};
+        $res{slices}[$i]{existing} = 1 if $work[$i]{existing};
+    }
+    $res{ids}{mailing} = [ map { $_->{id} } @work ];
+    $self->_p( 'ids: mailing ' . join( ', ', map { $_->{id} // '(none)' } @work ) );
+    for my $w (@work) { $self->_p( @{ $w->{notes} }[ grep { $w->{notes}[$_] =~ /^sent before:/ } 0 .. $#{ $w->{notes} } ] ) }
+
+    if ( $self->{yes} ) {
+        my $failed = 0;
+        for my $w (@work) {
+            my $mid = $w->{id} or next;
+            my $s = eval { $self->_step( "send slice $w->{sl}{n} of $m", 'mailing.send', { mailing => $mid, max => 0 + $max },
+                note => "oom-mailshot prepare --slices --yes: slice $w->{sl}{n} of $m of part $part->{name} queued for $w->{when}; not tested (its body is the first slice's)" ) };
+            if ( !$s ) {
+                my $e = $@;
+                $self->_p( "   slice $w->{sl}{n} (mailing $mid) was not queued: " . ( blessed($e) && $e->can('message') ? $e->message : "$e" ) );
+                $res{slices}[ $w->{sl}{n} - 1 ]{queued} = 0;
+                $failed++;
+                next;
+            }
+            $res{slices}[ $w->{sl}{n} - 1 ]{queued} = _step_status($s) ? 0 : 1;
+            $failed++ if _step_status($s);
+        }
+        $status = $failed ? 1 : 0;
+        $res{then} = [ "oom-mailshot status --conf $self->{conf} --mailing $work[0]{id}", "oom-ops run mailing.cancel --conf $self->{conf} --set mailing=<id> returns a queued slice to draft" ];
+    }
+    else {
+        $res{then} = [ "oom-mailshot test --conf $self->{conf} --mailing $work[0]{id} --to <your address>  (the slices share a body)",
+            map { "oom-ops run mailing.send --conf $self->{conf} --set mailing=$_->{id} --set max=$max   (slice $_->{sl}{n} of $m, at $_->{when})" } grep { $_->{id} } @work ];
+    }
+    return $self->_finish( 'prepare', \%res, $status );
 }
 
 # --- test ---------------------------------------------------------------------------------------
@@ -700,6 +904,16 @@ sub test ($self, %a) {
         $self->_p("     $_") for @{ $mail->{text_head} };
         $self->_p( '   unsubscribe link: ' . ( $mail->{unsubscribe_link}
             // ( $mail->{unsubscribe_placeholder} ? "$mail->{unsubscribe_placeholder} (Odoo's generic link: a test mail carries no recipient's own, which a sent mail does)" : 'NOT FOUND: the mail carries no way to opt out' ) ) );
+    }
+    # mailing.test read the mail back from the catcher as well: the text part's links, and the header a mail program shows
+    my $rb = ( $s->{custom} && $s->{custom}[0] && ref $s->{custom}[0]{returned} eq 'HASH' ) ? $s->{custom}[0]{returned}{read_back} : undef;
+    if ( $rb && $rb->{made} ) {
+        my ($got) = grep { $_->{caught} && lc( $_->{to} // '' ) eq lc( $first // '' ) } @{ $rb->{mails} // [] };
+        if ($got) {
+            $res{mail} = { %{ $res{mail} // {} }, text_links => $got->{text_links}, list_unsubscribe => $got->{list_unsubscribe}, list_unsubscribe_post => $got->{list_unsubscribe_post} };
+            $self->_p( '   text part links: ' . join( '; ', map { "[$_->{n}] $_->{verdict}" } @{ $got->{text_links} } ) ) if @{ $got->{text_links} };
+            $self->_p( '   List-Unsubscribe: ' . _no_token( $got->{list_unsubscribe} ) ) if defined $got->{list_unsubscribe};
+        }
     }
     $res{then} = [ "oom-mailshot send --conf $self->{conf} --mailing $id" ];
     $self->_p('send --now pushes the mails left in Odoo\'s queue, which reads mail.mail; without --now Odoo\'s cron worker sends the mailing');
@@ -1096,7 +1310,12 @@ sub _drip_record ($self, $id, $rec) {
 =head2 status(mailing, traces, queue, archived)
 
 C<mailing.status> as a table; C<traces> adds one line per recipient and
-C<queue> the mail still waiting in Odoo's mail queue. An archived mailing
+C<queue> the mail still waiting in Odoo's mail queue. A mailing that is a
+slice of a part (its domain holds a contact id range, see L</Slices of a part>)
+is shown with the other slices of the part, found in Odoo as the mailings of
+the same subject and lists whose domains differ only in the range: each with its
+state, schedule, recipients and what is sent or still to go, and a line when the
+ranges do not meet end to end. An archived mailing
 (a cleanup archives a sent one) is read with C<archived> (C<--archived>);
 without it the read is refused C<refused/archived> and the fix names the flag.
 
@@ -1109,6 +1328,18 @@ sub status ($self, %a) {
     $self->_p( _counters_line($r), "  subject: $r->{subject}", '  lists: ' . join( ', ', @{ $r->{lists} } ) );
     $self->_p( "  domain: $r->{domain}" ) if length( $r->{domain} // '' ) && $r->{domain} !~ /\A\[\('list_ids', 'in', \[[\d, ]+\]\)\]\z/;
     $self->_p( _still_lines($r) );
+    my $group = $self->_slice_group( $r, archived => $a{archived} );
+    if ($group) {
+        $res{part} = $group;
+        $self->_p( '  part: this mailing is ' . ( defined $group->{this} ? "slice $group->{this} of " . scalar @{ $group->{slices} } : 'not among the ' . scalar @{ $group->{slices} } . ' slices read' ) . ' of one message (same subject, lists and filter; each its own contact id range)' );
+        for my $g ( @{ $group->{slices} } ) {
+            $self->_p( sprintf '    slice %d  mailing %d  %s%s  recipients %s  sent %s%s%s', $g->{n}, $g->{mailing}, $g->{state},
+                ( $g->{schedule_date} ? "  scheduled for $g->{schedule_date}" : '' ), $g->{recipients} // '-', $g->{sent} // 0,
+                ( $g->{still_to_go} ? "  still to go $g->{still_to_go}" : '' ), ( $g->{mailing} == $r->{id} ? '  (this one)' : '' ) );
+        }
+        $self->_p("  $_") for @{ $group->{gaps} };
+        $self->_p("  $group->{note}") if $group->{note};
+    }
     $self->_p( "  remaining: $r->{remaining} recipient(s) have no trace yet (a mailing sent in chunks is done between them; oom-mailshot drip sends the rest)" )
         if $r->{state} eq 'done' && $r->{remaining};
     $self->_p( "  scheduled for $r->{schedule_date}" ) if $r->{schedule_date};
@@ -1125,6 +1356,49 @@ sub status ($self, %a) {
     elsif ( $r->{state} eq 'in_queue' ) { $res{then} = [ "oom-mailshot watch --conf $self->{conf} --mailing $id --until done" ] }
     elsif ( !$a{traces} )               { $res{then} = [ "oom-mailshot status --conf $self->{conf} --mailing $id --traces" . ( $a{archived} ? ' --archived' : '' ) ] }
     return $self->_finish( 'status', \%res, 0 );
+}
+
+# The contact id range a slice's domain holds, and the rest of the domain (the lists and any filter) with the range left out
+sub _slice_range ($domain) {
+    return undef if !defined $domain;
+    my ($from)   = $domain =~ /\(\s*'id',\s*'>=',\s*(\d+)\s*\)/;
+    my ($before) = $domain =~ /\(\s*'id',\s*'<',\s*(\d+)\s*\)/;
+    return undef if !defined $from && !defined $before;
+    ( my $base = $domain ) =~ s/,\s*\(\s*'id',\s*'(?:>=|<)',\s*\d+\s*\)//g;
+    return { from => $from, before => $before, base => $base =~ s/\s+//gr };
+}
+
+# The slices of the part this mailing is one of: the mailings of its subject, lists and filter that differ in the range
+# only, as Odoo holds them (nothing is kept here). Undef when the mailing is not a slice.
+our $SLICE_READ_LIMIT = 5000;
+
+sub _slice_group ($self, $row, %o) {
+    my $me = _slice_range( $row->{domain} ) or return undef;
+    # a limit above what one subject can meet; a read the limit still cut says so in the group's note
+    my $rep = $self->_read( 'mailing.status', subject => $row->{subject}, limit => $SLICE_READ_LIMIT, ( $o{archived} ? ( archived => 1 ) : () ) );
+    my $lists = join "\0", sort @{ $row->{lists} };
+    my @all = sort { ( $a->{r}{from} // 0 ) <=> ( $b->{r}{from} // 0 ) || $a->{row}{id} <=> $b->{row}{id} }
+        grep { $_->{r} && $_->{r}{base} eq $me->{base} }
+        map { +{ row => $_, r => ( $_->{subject} eq $row->{subject} && join( "\0", sort @{ $_->{lists} } ) eq $lists ? _slice_range( $_->{domain} ) : undef ) } } @{ $rep->{rows} };
+    my ( $n, @slices, @gaps ) = (0);
+    for my $g (@all) {
+        my $x = $g->{row};
+        $n++;
+        my $s = $x->{still_to_go};
+        my $go = $s ? join( ', ', map { "$s->{$_}{count} $_" } grep { $s->{$_} && $s->{$_}{count} } qw(outgoing error exception) ) : '';
+        push @slices, { n => $n, mailing => $x->{id}, state => $x->{state}, schedule_date => $x->{schedule_date}, recipients => $x->{recipients}, recipients_now => $x->{recipients_now},
+            sent => $x->{sent}, still_to_go => $go, from_id => $g->{r}{from}, before_id => $g->{r}{before} };
+    }
+    return undef if !@slices;
+    push @gaps, "the first slice has a lower bound (id >= $slices[0]{from_id}): contacts below it are in no slice" if defined $slices[0]{from_id};
+    push @gaps, "the last slice has an upper bound (id < $slices[-1]{before_id}): contacts above it, and any made later, are in no slice" if defined $slices[-1]{before_id};
+    for my $i ( 1 .. $#slices ) {
+        my ( $p, $q ) = @slices[ $i - 1, $i ];
+        next if defined $p->{before_id} && defined $q->{from_id} && $p->{before_id} == $q->{from_id};
+        push @gaps, "slices $p->{n} and $q->{n} do not meet: slice $p->{n} ends before id " . ( $p->{before_id} // 'no end' ) . ", slice $q->{n} starts at id " . ( $q->{from_id} // 'no start' );
+    }
+    my ($mine) = grep { $_->{mailing} == $row->{id} } @slices;
+    return { this => $mine ? $mine->{n} : undef, slices => \@slices, gaps => \@gaps, ( $rep->{limit_note} ? ( note => "the group was read from the newest $SLICE_READ_LIMIT mailings of this subject and more may exist: slices of older mailings can be missing" ) : () ) };
 }
 
 # --- open-check -----------------------------------------------------------------------------------

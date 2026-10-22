@@ -15,7 +15,7 @@ use Odoo::Error;
 use Odoo::Model;
 use Odoo::Portable;
 
-our $VERSION = '0.38';
+our $VERSION = '0.42';
 
 =head1 NAME
 

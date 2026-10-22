@@ -31,8 +31,8 @@ Knows the operations of each namespace (the C<.pm> files directly under its
 directory on C<@INC> that are L<Odoo::Ops::Operation> subclasses, keyed by
 C<op_name>) from an index, and loads a module only when its operation is
 asked for, so a process that runs one operation pays for one module. A new
-function pack is a new namespace - pass C<namespaces>, or add it to
-C<$ENV{ODOO_OPS_NAMESPACES}> (comma-separated). Two operations claiming one
+function pack is a new namespace - pass C<namespaces>, name it in the config's
+C<namespaces> key, or add it to C<$ENV{ODOO_OPS_NAMESPACES}> (comma-separated). Two operations claiming one
 name is an error, not a last-one-wins.
 
 The index of the shipped namespaces is C<registry-index.json> beside this
@@ -74,6 +74,19 @@ my $CONFIG;     # the config whose packs a registry made without arguments reads
 
 sub default_namespaces ($class) { @DEFAULT }
 
+=head2 extra_namespaces($config)
+
+The namespaces beyond the shipped ones a registry reads: those the config's C<namespaces> names, then
+C<$ENV{ODOO_OPS_NAMESPACES}>, each once.
+
+=cut
+
+sub extra_namespaces ($class, $config = undef) {
+    my %seen = map { $_ => 1 } @DEFAULT;
+    return grep { length && !$seen{$_}++ } ( $config ? $config->namespaces : () ),
+        split( /\s*,\s*/, $ENV{ODOO_OPS_NAMESPACES} // '' );
+}
+
 =head2 use_config($config)
 
 Makes registries made without arguments in this process read the packs
@@ -85,9 +98,7 @@ environment and the installed packs.
 sub use_config ($class, $config) { $CONFIG = $config; return }
 
 sub new ($class, %args) {
-    my @ns = @{ $args{namespaces} // [
-        @DEFAULT, grep { length } split /\s*,\s*/, $ENV{ODOO_OPS_NAMESPACES} // ''
-    ] };
+    my @ns = @{ $args{namespaces} // [ @DEFAULT, $class->extra_namespaces( $args{config} // $CONFIG ) ] };
     my $self = bless {
         ops    => {},
         ns     => \@ns,

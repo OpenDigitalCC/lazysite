@@ -1,7 +1,7 @@
-# Stock pack, Odoo 17 and later (19 validated live 2026-10-13; 17 and
-# 18 pending). Differences from 16: the move line carries one quantity
-# and a picked flag (reserved_uom_qty and qty_done are gone), the move's
-# done quantity is `quantity`, and the immediate-transfer wizard no
+# Stock pack, Odoo 17 and later (19 validated live 2026-10-13, 18 on
+# 2026-10-21; 17 pending). Differences from 16: the move line carries one
+# quantity and a picked flag (reserved_uom_qty and qty_done are gone), the
+# move's done quantity is `quantity`, and the immediate-transfer wizard no
 # longer exists (a picking without done quantities validates from its
 # reservation).
 pack: stock

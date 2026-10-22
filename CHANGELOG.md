@@ -103,6 +103,12 @@ Archive
   not open it and allowed every attempt. It is now created 0660 under any umask, in the auth
   directory's group, and a counter the process owns that lost group access gets it back. The
   limiter still fails open when it cannot open the counter.
+- SM1247 (PENDING) **internal: lazysite's vendored OOM is 0.42.** The pinned
+  snapshot in `t/vendor/oom` moves from 0.38 to OOM 0.42 (b91d5e2), skipping 0.39
+  to 0.41. Each change of 0.39 to 0.42 was checked against lazysite. Only oomd's
+  config `namespaces` and its `reload` verb reach it, and SM1248 adopts them.
+  Every Odoo test passes on the new snapshot unchanged. SM747's spec is re-filed.
+  t/lint/207, 261.
 - SM1233 (PENDING) **a Docker Compose package.** `installers/docker/` is no longer a
   placeholder: nginx, the one-rule FastCGI pool and `lazysited` in one container,
   the engine in the image and the site in three volumes (the docroot, `lazysite/`,
