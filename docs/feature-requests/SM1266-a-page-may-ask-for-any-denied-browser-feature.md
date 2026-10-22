@@ -63,7 +63,8 @@ list comes later."
   fields (`camera`, `camera_note`, `camera_issue`) and its sentence are unchanged.
 - The camera's behaviour is byte-identical: t/unit/processor/143, t/unit/mcp/33
   and t/unit/manager/364 pass unchanged.
-- Docs: starter/docs/frontmatter.md and ai-connector-tools.md.
+- Docs: starter/docs/frontmatter.md and ai-connector-tools.md. The briefings are
+  [[SM1267]].
 
 # Not done
 

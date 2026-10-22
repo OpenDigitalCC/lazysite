@@ -631,6 +631,26 @@ If `theme.json.layouts` does NOT contain the active layout:
 - `theme` is an empty hash
 - The page still renders through layout.tt
 
+## A layout cannot open the camera, the microphone or the visitor's location
+
+Every response sends a `Permissions-Policy` header that denies these browser
+features: `accelerometer`, `browsing-topics`, `camera`, `display-capture`,
+`geolocation`, `gyroscope`, `magnetometer`, `microphone`, `midi`, `payment`,
+`usb`, `xr-spatial-tracking`. A layout or theme script that calls
+`getUserMedia`, `navigator.geolocation` or a sensor API fails on every page,
+and the visitor is never asked - the browser refuses at the policy first. There
+is no layout or theme setting that changes this, and nothing to ask of the
+front end: the engine sends the header.
+
+What relaxes it is the PAGE. A page whose front matter says `<feature>: self`
+(`camera: self`, `geolocation: self`) sends `<feature>=(self)` for that page
+alone, over https only. So a component that needs one of these features is
+used on a page that asks for it, and the layout keeps working without it
+everywhere else - check before calling the API, and degrade quietly when it is
+refused. See the front matter keys in
+[AI briefing - content authoring](/docs/ai-briefing-authoring). `autoplay`,
+`fullscreen` and `picture-in-picture` are not denied and need nothing.
+
 ## What NOT to do
 
 - Do not modify `lazysite/manager/layout.tt` - that's the

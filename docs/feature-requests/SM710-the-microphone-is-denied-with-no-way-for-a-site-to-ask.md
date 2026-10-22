@@ -96,3 +96,11 @@ being necessary for the common case.
 
 **If only one half is built, build the page half.** An instance-wide `camera=*`
 is the outcome worth avoiding, and it is what a single switch would produce.
+
+# The page half, for every feature (2026-10-22)
+
+[[SM1174]] built the page half for the camera; [[SM1266]] widened it to every
+feature in `@DENIED_FEATURES` except `payment` (ruled 2026-10-22: "a page opts in
+to any feature ... on its own"), so `microphone: self` now answers the familyhq
+driver. [[SM1267]] documented the denied list in the briefings. What stays open
+here is the instance ceiling, ruled for later.

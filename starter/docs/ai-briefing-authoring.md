@@ -169,6 +169,28 @@ Template::Plugin::JSON module, which is not bundled; prefer `json:`.)
 : Enables form processing for the page and names the form. Requires a
   matching `lazysite/forms/NAME.conf`.
 
+`camera`, `geolocation`, `microphone` and the other browser features
+: Every response sends a `Permissions-Policy` header that DENIES these
+  browser features to every page: `accelerometer`, `browsing-topics`,
+  `camera`, `display-capture`, `geolocation`, `gyroscope`, `magnetometer`,
+  `microphone`, `midi`, `payment`, `usb`, `xr-spatial-tracking`. Under
+  `geolocation=()` a script cannot even ask for the visitor's position - the
+  browser refuses before the visitor is asked - so a page that needs one of
+  them must say so. Write `<feature>: self` in the page's front matter
+  (`geolocation: self`, `microphone: self`): that page alone then sends
+  `<feature>=(self)` over https, and every other feature, and every other page,
+  stays denied. Over plain http the key is ignored, because browsers offer
+  these features on a secure connection only. `self` is the one value that
+  grants; `none` or leaving the key out keeps the feature denied. Any other
+  value, and a `<key>: self` that is not one of the names above
+  (`geolocaton: self`), is reported by `lazysite validate` and validate_page,
+  and grants nothing. The key is read from the front matter only, and the
+  browser still asks the visitor before the feature starts. `payment` is the
+  exception: `payment:` is the paid-page key above, so a page cannot ask for
+  the Payment Request API. These names are reserved keys, not page variables.
+  page_status lists what a page allows (`permissions`), and so does the
+  editor's status bar.
+
 ## Markdown elements
 
 ### Headings

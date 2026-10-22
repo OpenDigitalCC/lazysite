@@ -183,6 +183,10 @@ Archive
   feature (`permission-unknown`); page_status and the editor's status bar list what a
   page allows. `payment` cannot be asked for, because `payment:` is the paid-page key.
   The site-level allow list is later.
+- SM1267 (PENDING) **the briefings name the denied browser features.** The authoring and
+  layouts briefings list every feature Permissions-Policy denies and say how a page asks
+  for one, so an author learns a microphone or location feature needs the page key
+  before a visitor reports that it does not work (SM710).
 - SM1233 (PENDING) **a Docker Compose package.** `installers/docker/` is no longer a
   placeholder: nginx, the one-rule FastCGI pool and `lazysited` in one container,
   the engine in the image and the site in three volumes (the docroot, `lazysite/`,
