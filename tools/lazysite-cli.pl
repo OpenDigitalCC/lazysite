@@ -1472,7 +1472,7 @@ sub cmd_probe {
         else {
             push @unconfirmed, $s->{name};
             my $why = _probe_unconfirmed_reason( $out, $crc );
-            push @whys, $why unless $why_sites{$why};
+            $why_sites{$why} or push @whys, $why;    # first sighting keeps its order
             push @{ $why_sites{$why} }, $s->{name};
             print "  $s->{name}: NOT CONFIRMED: $why\n";
             print "    $_\n" for grep { /\[ warn \]/ } split /\n/, $out;
@@ -1541,7 +1541,7 @@ sub _probe_unconfirmed_reason {
     my ( $out, $rc ) = @_;
     return $1 if $out =~ /ACL PROBE SKIPPED:\s*(.+?)\s*$/m;
     return $1
-        if $out =~ /^\[ warn \] (the ACL probe (?:got no usable answer|could not vouch for)[^\n]*?)\s*$/m;
+        if $out =~ /^\[[ ]warn[ ]\][ ](the[ ]ACL[ ]probe[ ](?:got[ ]no[ ]usable[ ]answer|could[ ]not[ ]vouch[ ]for)[^\n]*?)\s*$/mx;
     my ($last) = reverse grep { /\S/ } split /\n/, $out // '';
     $last = '' unless defined $last;
     $last =~ s/\A\s+|\s+\z//g;

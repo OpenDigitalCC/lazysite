@@ -18,16 +18,16 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
-use File::Temp qw(tempdir);
 use Cwd ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root site_tempdir);
 
 my $root = repo_root();
 my $CLI  = "$root/tools/lazysite-cli.pl";
 my $UPD  = "$root/installers/hestia/lazysite-hestia-update-all.sh";
-my $T    = Cwd::realpath( tempdir( CLEANUP => 1 ) );
+# Each site's docroot is <name>/public_html under this, a level down (t/lint/118).
+my $T    = Cwd::realpath( site_tempdir() );
 
 sub spit  { my ( $p, $b ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $b; close $fh; return }
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; my $s = <$fh>; close $fh; return $s }
