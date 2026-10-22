@@ -85,6 +85,17 @@ and Hestia `lazysite-cgi`/`lazysite-fcgi` templates, but true for the plain
 Hestia `lazysite.tpl` (`DirectoryIndex index.html index.htm`). It was not in the
 report, and which template is meant needs a ruling.
 
+The report's last note: Lazysite::Git's content-history exclude list names
+`/lazysite/aliases.json` but not the per-domain maps under `lazysite/aliases/`
+(SM440). Checked: a map holds alias paths and the canonical URL each redirects
+to (Lazysite::Aliases), derived from `aliases:` front matter that is itself in
+the history. Nothing in it is a secret or personal data, so the exclude list's
+security boundary is intact and nothing was changed. The difference is one of
+tidiness only (the root map is kept out as a generated file, the per-domain
+ones are not); adding the entry would cover new repositories only, since
+info/exclude is written at init and a tracked file stays tracked, and
+`excluded_from_history` would then disagree with existing repositories.
+
 # Tests
 
 t/lint/274 asks the code for each fact: no shipped doc or the descriptor names
