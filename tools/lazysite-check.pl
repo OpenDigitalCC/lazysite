@@ -1386,7 +1386,7 @@ sub run_checks {
     # --- 8g3. do the Odoo keys scheduled bindings run on expire soon? (SM1161) ---
     report_odoo_scheduled_keys();
 
-    # --- 8g3b. is the OOM the Odoo extension loads one that never resends a write? (SM1244) ---
+    # --- 8g3b. does the OOM the site loads resend a write? (SM1244) -----------
     report_odoo_oom_version();
 
 # --- 8g4. is the Odoo extension's resident OOM running where the site asks for it? (SM1164 D4) ---

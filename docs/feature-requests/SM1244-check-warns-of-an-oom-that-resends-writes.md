@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager (task #376, part 1)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n725: report_odoo_oom_version names the version and the file the site loads OOM from, and WARNs below 0.38 with the fix; report_odoo_daemon does the same for the OOM a running oomd reports. t/tools/214. Part 2 (a page resuming an unknown plan) is not built."
+status-note: "SHIPPED (PENDING) on n725: report_odoo_oom_version names the version and the file the site loads OOM from, and WARNs below 0.38 with the fix; report_odoo_daemon does the same for the OOM a running oomd reports. t/tools/214. Part 2 (a page resuming an unknown plan) waits for a ruling; the filing says what it would take."
 ---
 
 # What happened
