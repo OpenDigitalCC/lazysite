@@ -90,6 +90,20 @@ sub validator_flags {
     my @missed = grep { /\A[a-z]+\z/ && !$b{$_} && !validator_flags($_) } sort keys %word;
     is_deeply( \@missed, [], 'and flags every bare word the renderer ignores' )
         or diag("passed but ignored by the renderer: @missed");
+
+    # SM1264: a key:value the renderer does not read is a WARNING - so the
+    # validator's reading of a valued rule must be the renderer's, both ways,
+    # for every word in forms.pm with every shape of value.
+    my @disagree;
+    for my $w ( sort keys %word ) {
+        for my $v ( 'x', '1', '12', 'user', 'environment', 'front', 'a,b', 'a b', '' ) {
+            my $tok = "$w:$v";
+            push @disagree, $tok
+                if renderer_takes($tok) != Lazysite::Validate::form_value_rule_known($tok);
+        }
+    }
+    is_deeply( \@disagree, [], 'the validator reads a key:value rule as the renderer does, token by token' )
+        or diag("disagree: @disagree[0 .. ($#disagree < 9 ? $#disagree : 9)]");
 }
 
 # --- 2. the same cut ------------------------------------------------------------

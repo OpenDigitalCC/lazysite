@@ -647,40 +647,96 @@ sub form_rule_tokens {
     return @tok;
 }
 
-sub _check_form_rules {
-    my ( $issues, $content ) = @_;
-    # Form-field rules (catch typos/unsupported rules before publish).
-    if ( $content =~ /:::\s*form\b(.*?):::/s ) {
-        for my $line ( split /\n/, $1 ) {
-            $line =~ s/^\s+|\s+$//g;
-            next unless length $line;
-            my ( $name, undef, $rules ) = split /\s*\|\s*/, $line, 3;
-            next if !defined $name || $name eq 'submit' || !defined $rules;
+# SM1264: A VALUED RULE THE RENDERER READS - the `key:value` half of
+# _form_rules_from_tokens (lazysite-processor/forms.pm), one alternative per
+# branch there. A token it does not match sets nothing when the form renders:
+# `maxx:5`, `capture:front`, `max:many`. t/lint/276 holds this against the
+# renderer itself, token by token.
+sub form_value_rule_known {
+    my ($tok) = @_;
+    return ( defined $tok
+            && $tok =~ /\A(?:accept:.|capture:(?:user|environment)\z|select:.|radio:.|checklist-qty:.|checklist:.|max:\d|min:\d|pattern:.|placeholder:.|value:|prefill:\S)/s )
+        ? 1 : 0;
+}
 
-            # SM1253: THE RULES ARE CUT INTO TOKENS AS THE RENDERER CUTS THEM
-            # (form_rule_tokens, below), so this checks the page that renders.
-            # It split on whitespace after taking out only `select:` and the
-            # pattern, so a radio or checklist option with a space in it, and a
-            # quoted `placeholder:"Your full name"`, came apart into words that
-            # were each reported as an unknown rule.
-            #
-            # SM921: the pattern a browser gets is the `pattern:` token's value,
-            # read by the same cut - so a quoted one ends where the renderer's
-            # ends, and an escaped quote in it is a quote, as it is there.
-            for my $tok ( form_rule_tokens($rules) ) {
-                if ( $tok =~ /\Apattern:(.+)/s ) {
-                    my $pat = $1;
-                    if ( my $why = html_pattern_problem($pat) ) {
-                        push @$issues, { kind => 'uncompilable-pattern',
-                            message => "the pattern on field '$name' will not compile: $why" };
-                    }
-                    next;
+# What one form block's field lines get wrong, as findings: `word` (a bare word
+# that is no rule), `pattern` (one a browser cannot compile) and `key` (a
+# key:value the renderer does not read). The caller decides each one's severity.
+sub _form_block_findings {
+    my ($block) = @_;
+    my @f;
+    for my $line ( split /\n/, $block ) {
+        $line =~ s/^\s+|\s+$//g;
+        next unless length $line;
+        my ( $name, undef, $rules ) = split /\s*\|\s*/, $line, 3;
+        next if !defined $name || $name eq 'submit' || !defined $rules;
+
+        # SM1253: THE RULES ARE CUT INTO TOKENS AS THE RENDERER CUTS THEM
+        # (form_rule_tokens, above), so this checks the page that renders.
+        # It split on whitespace after taking out only `select:` and the
+        # pattern, so a radio or checklist option with a space in it, and a
+        # quoted `placeholder:"Your full name"`, came apart into words that
+        # were each reported as an unknown rule.
+        #
+        # SM921: the pattern a browser gets is the `pattern:` token's value,
+        # read by the same cut - so a quoted one ends where the renderer's
+        # ends, and an escaped quote in it is a quote, as it is there.
+        for my $tok ( form_rule_tokens($rules) ) {
+            if ( $tok =~ /\Apattern:(.+)/s ) {
+                my $pat = $1;
+                if ( my $why = html_pattern_problem($pat) ) {
+                    push @f, { what => 'pattern',
+                        message => "the pattern on field '$name' will not compile: $why" };
                 }
-                next if $FORM_FLAGS{$tok} || $tok =~ /^[a-z]+:/; # known flag or key:value
-                next if $tok                      !~ /^[a-z]+$/; # only flag plain words
-                push @$issues, { kind => 'invalid-form-rule',
-                    message => "unknown form rule '$tok' on field '$name'" };
+                next;
             }
+            next if $FORM_FLAGS{$tok};
+            if ( $tok =~ /\A[A-Za-z-]+:/ ) {
+                push @f, { what => 'key',
+                    message => "form rule '$tok' on field '$name' is not one the form reads, "
+                        . 'so it does nothing when the form renders' }
+                    unless form_value_rule_known($tok);
+                next;
+            }
+            next if $tok !~ /^[a-z]+$/;    # only flag plain words
+            push @f, { what => 'word', message => "unknown form rule '$tok' on field '$name'" };
+        }
+    }
+    return @f;
+}
+
+# SM1264 (ruled 2026-10-22): WHAT BLOCKS IS WHAT BLOCKED. The first `::: form`
+# block's unknown words and uncompilable patterns are ISSUES, exactly as before -
+# the block found by the same match as before. Everything this check newly sees
+# is a WARNING, which never blocks a save: an unknown key:value anywhere, and any
+# finding in a block after the first (the renderer renders every block; this
+# read only the first).
+sub _check_form_rules {
+    my ( $issues, $warnings, $content ) = @_;
+    my %said;
+    if ( $content =~ /:::\s*form\b(.*?):::/s ) {
+        for my $f ( _form_block_findings($1) ) {
+            $said{ $f->{message} }++;
+            if ( $f->{what} eq 'key' ) {
+                push @$warnings, { kind => 'unknown-form-rule', message => $f->{message} };
+            }
+            else {
+                push @$issues, {
+                    kind => ( $f->{what} eq 'pattern' ? 'uncompilable-pattern' : 'invalid-form-rule' ),
+                    message => $f->{message} };
+            }
+        }
+    }
+    # Every block, fenced as convert_fenced_form fences it.
+    my $n = 0;
+    while ( $content =~ /^:::[ \t]*form[ \t]*\n(.*?)^:::[ \t]*\n/gsm ) {
+        my $block = $1;
+        $n++;
+        for my $f ( _form_block_findings($block) ) {
+            next if $said{ $f->{message} }++;
+            push @$warnings, {
+                kind    => ( $f->{what} eq 'pattern' ? 'pattern-will-not-compile' : 'unknown-form-rule' ),
+                message => "form $n: $f->{message}" };
         }
     }
     return;
@@ -896,7 +952,7 @@ sub validate_content {
     push @issues, Lazysite::Manager::Common::page_parse_issues( $body, _fm_line_offset($fm) );
     _check_db_bindings( \@issues, \@warnings, $fm, $docroot );
     _check_odoo_bindings( \@issues, $fm, $docroot );    # SM1225
-    _check_form_rules( \@issues, $content );
+    _check_form_rules( \@issues, \@warnings, $content );    # SM1264
     _check_html_in_page( \@warnings, $body, $h );
     _check_form_delivery( \@warnings, $content, $body, $h, $o{path}, $lz );
     _check_public_data( \@warnings, $fm, $body );

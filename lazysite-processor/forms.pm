@@ -323,6 +323,10 @@ sub _form_rule_tokens {
 
 # SM1012 S2: A FIELD'S RULES, FROM ITS TOKENS - cut from _render_form's line
 # loop. Each token sets one rule; a token that is none of them is ignored.
+#
+# SM1264: the valued branches below are read again, for validate_page's
+# warning, by Lazysite::Validate::form_value_rule_known (a marked copy, ADR
+# 0001); t/lint/276 compares the two token by token. Change one, change both.
 sub _form_rules_from_tokens {
     my (@rule_tokens) = @_;
     my %rules;

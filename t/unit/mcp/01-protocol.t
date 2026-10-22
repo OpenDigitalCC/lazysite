@@ -344,6 +344,22 @@ ok( ( grep { $_->{kind} eq 'invalid-form-rule' } @{ $r->{result}{structuredConte
             "---\ntitle: T\n---\n::: form\ndog | Dog | required select:No,Yes - one small to medium dog\nsubmit | Go\n:::\n" }, $bearer_lim );
 ok( !( grep { $_->{kind} eq 'invalid-form-rule' } @{ $r->{result}{structuredContent}{issues} || [] } ),
     'validate_page does not flag the words inside a multi-word select option' );
+# SM1264: an unknown key:value, and a typo in a SECOND form, are warnings: the
+# page is still valid, and write_file still writes it.
+{
+    my $pg = "---\ntitle: T\nform: f\n---\n::: form\nname | Name | required maxx:5\nsubmit | Go\n:::\n\n"
+        . "::: form\nemail | Email | requierd\nsubmit | Go\n:::\n";
+    ( $st, $r ) = call( 'validate_page', { content => $pg }, $bearer_lim );
+    my $sc = $r->{result}{structuredContent} || {};
+    ok( $sc->{valid}, 'validate_page: a page with an unknown key:value is still valid' )
+        or diag( encode_json($sc) );
+    my @w = grep { $_->{kind} eq 'unknown-form-rule' } @{ $sc->{warnings} || [] };
+    ok( ( grep { $_->{message} =~ /'maxx:5'/ } @w ), 'and the key:value is a warning' );
+    ok( ( grep { $_->{message} =~ /form 2: unknown form rule 'requierd'/ } @w ),
+        'and so is a typo in the second form' );
+    ( $st, $r ) = call( 'write_file', { path => '/content/sm1264.md', content => $pg }, $bearer_lim );
+    ok( $r->{result}{structuredContent}{ok}, 'write_file saves the page' ) or diag( encode_json($r) );
+}
 
 # --- audit_site: broken link + duplicate block + missing title ---
 my $shared = "This exact testimonial paragraph is shared across two pages and is plenty long.";

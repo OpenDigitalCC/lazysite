@@ -63,6 +63,7 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     raw-html-page hand-authored hand-authored-form no-title
     front-matter-unterminated fence-close-unmatched component-fence-unmatched
     form-mailto form-third-party form-unbound form-unnamed
+    unknown-form-rule pattern-will-not-compile
     public-credential public-phone public-postcode
 
     form-binding-unchecked no-content unreadable

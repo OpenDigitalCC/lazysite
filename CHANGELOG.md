@@ -308,6 +308,13 @@ Archive
   installer honours it. Both take it now. Every other channel validator in the tree was checked:
   install.pl and the CLI already took it (now pinned), and SM1256 and SM1259 fixed the Hestia
   integrator and the manifest build. t/unit/manager/17, t/tools/214.
+- SM1264 (PENDING) **validate_page warns on a form rule the renderer ignores, in every form.** An
+  unknown `key:value` (`maxx:5`, `capture:front`) was passed silently, and only a page's first
+  `::: form` block was read. Both are reported now as warnings that never block a save
+  (`unknown-form-rule`, `pattern-will-not-compile`, a later block's messages naming its number);
+  `invalid-form-rule` and `uncompilable-pattern` still block exactly what they blocked. The
+  valued rules are read by a marked copy of the renderer's, held to it by t/lint/276.
+  t/unit/lib/206, t/unit/mcp/01.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 
