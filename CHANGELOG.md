@@ -125,6 +125,12 @@ Archive
   config `namespaces` and its `reload` verb reach it, and SM1248 adopts them.
   Every Odoo test passes on the new snapshot unchanged. SM747's spec is re-filed.
   t/lint/207, 261.
+- SM1249 (PENDING) **the Hestia site list sees every lazysite template.** `lazysite-hestia-list.sh`
+  matched only the lazysite-app web template, so a host whose sites use lazysite-cgi or
+  lazysite-fcgi behind lazysite-proxy listed 0 sites. It now lists every domain on a lazysite web
+  template (lazysite, -app, -cgi, -fcgi) or on the lazysite-proxy proxy template, reads each field
+  by name, and shows the template. `--tpl NAME` narrows the list to one. The batch updater still
+  deploys only lazysite-app domains (#379).
 - SM1239 (PENDING) **NOT SERVICEABLE is the verdict of the check after the repair.** The 0.16.0
   rollout reported two sites NOT SERVICEABLE and, in the same run, "repair: 32 clean". The verdict
   was the deploy's own final check, run straight after the install; the repair runs later on

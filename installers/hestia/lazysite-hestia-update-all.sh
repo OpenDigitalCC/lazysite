@@ -867,9 +867,12 @@ while IFS=$'\t' read -r u d doc; do
     [ -n "$d" ] || continue
     USERS+=( "$u" ); DOMAINS+=( "$d" ); DOCS+=( "$doc" )
     VERS+=( "$(ver_of "$(lazysite_dir "$doc")/.install-state.json")" )
-done < <(bash "$LISTER" --plain --template-only)
+done < <(bash "$LISTER" --plain --template-only --tpl lazysite-app)
 # Marker-only domains = the union minus the template set: excluded from the
 # update, but surfaced so the operator can reconcile template vs marker.
+# SM1249: the union is every lazysite template (the lister's default) and the
+# markers, so a domain on lazysite-cgi, lazysite-fcgi or lazysite-proxy alone -
+# a site this tarball-flow deploy does not manage - is listed as excluded too.
 declare -A _IN_TPL=()
 for i in "${!DOMAINS[@]}"; do _IN_TPL["${USERS[$i]}/${DOMAINS[$i]}"]=1; done
 while IFS=$'\t' read -r u d doc; do
