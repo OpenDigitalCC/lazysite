@@ -103,6 +103,12 @@ Archive
   not open it and allowed every attempt. It is now created 0660 under any umask, in the auth
   directory's group, and a counter the process owns that lost group access gets it back. The
   limiter still fails open when it cannot open the counter.
+- SM1261 (PENDING) **a confirm whose daemon run is gone says to make the plan again.**
+  oomd finds a confirm's plan by its run folder. When that folder or its plan file was
+  gone, the page was told "the Odoo connection is not configured correctly" (`config`,
+  503). It now answers `not-found` (404), "this plan is no longer held by the Odoo
+  daemon - make the plan again", naming no path, on the page endpoint, the control API
+  and MCP alike. t/unit/odoo/104.
 - SM1248 (PENDING) **a change of `odoo_packs` reloads oomd with no gap.** oomd used to
   read the site's packs from its environment at its start, so the service restarted it
   when `odoo_packs` changed. While it restarted, a call was refused as `daemon-down`

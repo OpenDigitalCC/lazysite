@@ -339,6 +339,7 @@ my %REFUSED_KIND = (
     'not-a-plan' => [ 'invalid', 'that is a result, not a plan' ],
     'idem-mismatch' => [ 'refused', 'that Idempotency-Key was used for a different request - give this request a key of its own' ],
     'idem-withdrawn' => [ 'refused', 'the plan made with that Idempotency-Key was withdrawn - give the request a new key' ],
+    'run-gone' => [ 'not-found', 'this plan is no longer held by the Odoo daemon - make the plan again' ], # SM1261
 );
 
 # SM1186: the text of an OOM `usage` error, as far as a page may have it, or undef
@@ -1306,6 +1307,8 @@ sub confirm {
                 my $r = eval { _confirm_daemon( $cl, $meta, $pid, $b, { %c, conn => $conn } ) };
                 if ( ref $r eq 'HASH' ) { $LAST_VIA = 'daemon'; return $r }
                 my $e = $@;
+                die _idem_error( 'run-gone', 'the daemon holds no plan for this run' )
+                    if _daemon_run_gone( $e, $meta->{run_id} );
                 die $e unless _daemon_down($e) && ( $conn->{daemon} // '' ) eq 'on';
                 log_event( 'WARN', 'odoo', 'the Odoo daemon is not answering; this confirm runs in-process',
                     binding => $b->{id} );
@@ -1341,6 +1344,18 @@ sub confirm {
     # applicable will never run again, so the file bytes it holds go now.
     purge_plan_blobs( $pid, $meta ) if _plan_spent( $res, $err );
     return _session_end( $b, _finish( \%rec, $res, $err, $t0, 'apply' ) );
+}
+
+# SM1261 (release manager, 2026-10-22): the daemon finds a confirm's plan by path,
+# lazysite/odoo/runs/<run_id>/plan.json (Odoo::Ops::Service _plan_path). With that
+# folder or file gone OOM fails in Plan->load as `config`, which would tell the page
+# the connection is misconfigured. A `config` failure with the plan file absent is
+# that, and is answered `not-found` (make the plan again).
+sub _daemon_run_gone {
+    my ( $e, $run ) = @_;
+    return 0 unless ref $e && eval { $e->isa('Odoo::Error') } && ( $e->kind // '' ) eq 'config';
+    require Lazysite::Odoo::Daemon;
+    return -e Lazysite::Odoo::Daemon::runs_dir($DOCROOT) . "/$run/plan.json" ? 0 : 1;
 }
 
 # Is the plan SPENT after this confirm: it was applied (the result says so, whole or

@@ -821,7 +821,7 @@ never returned. The kinds a caller meets most:
 | `refused` | 400 | OOM refused it before Odoo answered; with an `Idempotency-Key`, that the key was used for a different request, or its plan was withdrawn |
 | `rate` | 429 | a rate cap is reached |
 | `method` | 405 | a `POST` to a binding with `answer: download`, or a `GET` of one that writes |
-| `not-found` | 404 | no such binding, or no such plan for this caller |
+| `not-found` | 404 | no such binding, or no such plan for this caller; or the Odoo daemon no longer holds the plan it made (its run folder is gone): make the plan again |
 | `stale`, `edited`, `applied` | 409 | the plan no longer fits Odoo, or was already applied |
 | `expired` | 410 | the plan is older than an hour |
 | `unavailable`, `config`, `no-key` | 503 | OOM is missing or too old, the connection is not configured, or the key is not set |

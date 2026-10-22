@@ -113,5 +113,5 @@ Sabotage, backups under tmp/:
   returns, as before. Whether the reload took is in the site log. The Odoo status
   does not show `generation`.
 - **OOM 0.31 to 0.38.** The behaviour above keeps such a host working, but a pack
-  change waits for oomd's next start. Requiring 0.39 for the daemon instead is a
-  product decision, and is left open.
+  change waits for oomd's next start. The release manager ruled on 2026-10-22 to keep
+  this fallback rather than require 0.39 for the daemon.

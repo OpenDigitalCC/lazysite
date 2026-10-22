@@ -71,5 +71,5 @@ MANIFEST.
   fails in `Odoo::Ops::Plan->load` with "cannot read plan ...: No such file or
   directory", kind `config`. The page is told "the Odoo connection is not configured
   correctly - see the event log". The plan record in lazysite's own `plans/` is still
-  there. Naming it (for example `not-found`, "make the plan again") is a product
-  decision and is left open.
+  there. The release manager ruled on 2026-10-22 that it answers `not-found`, saying to
+  make the plan again: [[SM1261]].
