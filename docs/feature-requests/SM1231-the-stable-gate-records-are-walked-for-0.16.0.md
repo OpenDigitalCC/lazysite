@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the release manager's stable-gate plan rulings, 2026-10-20 (tmp/rulings-2026-10-20.md, \"Stable gate (218) and coverage (337)\"), and the sign-off of 2026-10-21 (\"Stable 0.16.0 sign-off\")"
 area: release
-status-note: "SHIPPED (PENDING) on n720: docs only. Threat model, register entries (confirmed 2026-10-21), OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.0, an unsigned declaration draft, SIGNOFF signoff_required yes. Signed releases and the vulnerability register stay for the certified release."
+status-note: "SHIPPED (0.16.0) on n720: docs only. Threat model, register entries (confirmed 2026-10-21), OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.0, an unsigned declaration draft, SIGNOFF signoff_required yes. Signed releases and the vulnerability register stay for the certified release."
 ---
 
 # What was asked

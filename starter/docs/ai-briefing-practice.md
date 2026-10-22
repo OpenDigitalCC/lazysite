@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.15.16
-     imported: 2026-10-20
+     engine-version: 0.16.0
+     imported: 2026-10-22
      agent: the lazysite site agent (Claude Code)
      source: docs/practice/authoring-practice.md sha256=b519875859b5ed7681abbdc511c5cf5da3ebff747b11a0fd7178140a8ac87377 modified=2026-10-01
      source: docs/practice/app-practice.md sha256=a6475e0c96e9f7a2b9fdefb59caca8464b47e372ae66c67def4481ac58dbb38b modified=2026-10-07
-     body-sha256: dc20a73b93863dd4c56ae79d0316932f6acd39b7b9eb7197ed98890341fae7eb
+     body-sha256: ff8346a46a084cc5b4a0268d736b259be53abf2acc26b1c5b7725f4775c98357
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.15.16**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.16.0**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -1650,7 +1650,7 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-10-20** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-10-22** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |

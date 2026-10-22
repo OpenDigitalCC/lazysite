@@ -1,8 +1,19 @@
 {
-  "inputs_digest": "e2b848472485064db0bc6202d530ea92e64368e3b9f37e88b115cbf2986f689f",
+  "inputs_digest": "43c852d5ddf55fe11b2c9a0df9025f9b4f613b2134c8852821dfd615db00f736",
   "result": "pass",
-  "floor": "75",
-  "branch_floor": "62",
+  "groups": {
+    "processor": { "digest": "5220294a63900083857b50e0eb562f9c81ab336a117264182784c20752f69f68", "state": "pass" },
+    "manager": { "digest": "dec8a5e91279ccba11036cfbf5b461e6480234a9dbe0f8230add4f4d270e5a1a", "state": "pass" },
+    "auth": { "digest": "1ebdf93ed344f4f1fb494977ffee46426628c9a06ad22a13148e72a8e0e31d2c", "state": "pass" },
+    "data": { "digest": "1a6c887e0b446106bbd6f8bd25e9a34c64ea2bde820ad6481c915af60fac32d9", "state": "nothing-gated" },
+    "front": { "digest": "bd2c371d95d4b0493fb8a6f9742b8f6c37bf649c62177ac7a0dd5cf6a7fc90a4", "state": "pass" },
+    "daemon": { "digest": "a6cfaa47d12e61210b6d1d3e5b05b33bf6bd40670cd9e0c96669b1b6b8250ad6", "state": "nothing-gated" },
+    "odoo": { "digest": "b0ca3b2c328ae8a291d058b0e8c4eeb48d7ecc432024a561f1b37efaa5af8ee5", "state": "nothing-gated" },
+    "lib": { "digest": "04c3a0fe69e0d48c0c1893bd0ca3bab1958f2ec5e82cba2622b325636a010be7", "state": "nothing-gated" },
+    "tools": { "digest": "3cfdbe157f3971b23aeed03d70fe97284f654a1d3ed861aa52c0e7b626b6ed1f", "state": "pass" }
+  },
+  "measured": 0,
+  "reused": 5,
   "host": "ai-dev",
-  "captured": "2026-10-11T14:55:34Z"
+  "captured": "2026-10-22T13:31:02Z"
 }

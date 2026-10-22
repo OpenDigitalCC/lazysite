@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.15.16"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.0"
 brand: plain
 ---
 
@@ -2023,6 +2023,13 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.0** (2026-10-22, stable) - **The stable release of the 0.15 line.**
+  the 0.15.16 beta's code (0.15.15's) as the new stable, replacing 0.14.4:
+  identity decided once in the pool worker (SM1181), proxies and the visitor's
+  address believed only from a listed front end (SM1129-SM1196), access by
+  address (SM1134), a pool worker that forgets each visitor (SM1169), raw pages
+  that stay downgraded (SM1213), the Odoo extension with oomd and OOM 0.38
+  (SM747, SM1164, SM1216), an installed app that opens offline (SM1197)
 - **0.15.16** (2026-10-20, beta) - **0.15.15 promoted to beta.** the 0.15.15
   stable candidate, unchanged, on the beta channel after a clean walk (V1-V9
   PASS, 20 October 2026): the raw-page downgrade and empty front-matter keys

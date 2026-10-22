@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the release manager, 2026-10-20 (tmp/rulings-2026-10-20.md, Stable gate (218) and coverage (337)), after the 01:30 cover-once was refused"
 area: tools
-status-note: "SHIPPED (PENDING) on n713: preflight no longer refuses on swap in use (MemAvailable under 5 GB still does); stand-alone coverage runs nice 19, ionice idle, 2 jobs, one at a time, resuming by group. Test t/tools/205."
+status-note: "SHIPPED (0.16.0) on n713: preflight no longer refuses on swap in use (MemAvailable under 5 GB still does); stand-alone coverage runs nice 19, ionice idle, 2 jobs, one at a time, resuming by group. Test t/tools/205."
 ---
 
 # What happened
