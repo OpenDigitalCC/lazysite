@@ -225,7 +225,7 @@ sub _write_form_rules {
 # Both `last`s are this sub's own `while`'s.
 #
 # SM1253: MARKED COPY (ADR 0001) in Lazysite::Validate::form_rule_tokens, for
-# validate_page, which cannot load this file. t/lint/273 runs both over the same
+# validate_page, which cannot load this file. t/lint/276 runs both over the same
 # rule strings, and takes the rule words this file's _form_rules_from_tokens
 # accepts as the validator's list. Change one, change both.
 sub _form_rule_tokens {

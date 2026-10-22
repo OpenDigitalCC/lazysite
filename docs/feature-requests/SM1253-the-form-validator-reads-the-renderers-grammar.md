@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: the lazysite.io site agent, inbox 2026-10-22-forms-validator-and-page-var-quotes.md (K-2)
 area: validate
-status-note: "SHIPPED (PENDING) on n728: Lazysite::Validate::form_rule_tokens, a marked copy of _form_rule_tokens; %FORM_FLAGS gains file, multiple, capture; t/lint/273 pins both."
+status-note: "SHIPPED (PENDING) on n728: Lazysite::Validate::form_rule_tokens, a marked copy of _form_rule_tokens; %FORM_FLAGS gains file, multiple, capture; t/lint/276 pins both."
 ---
 
 # What happened
@@ -56,7 +56,7 @@ lint that runs the renderer itself, so neither side can change alone.
 
 # Tests
 
-t/lint/273:
+t/lint/276:
 
 1. Every word in forms.pm, tried bare and with four values, is put to
    `_form_rules_from_tokens`; the validator passes each the renderer takes (52)

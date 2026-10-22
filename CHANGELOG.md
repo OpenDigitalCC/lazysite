@@ -279,7 +279,7 @@ Archive
   space, a quoted `placeholder:"Your full name"`, and the `file`, `multiple` and `capture` rules
   were each an `invalid-form-rule` issue, failing a page that renders correctly. The validator cuts
   the rules with a marked copy of the renderer's tokeniser and knows every rule word the renderer
-  takes. t/lint/273 runs both: it takes the renderer's accepted words from the renderer itself and
+  takes. t/lint/276 runs both: it takes the renderer's accepted words from the renderer itself and
   compares the two cuts over every form line in the tree and a generated set.
 - SM1254 (PENDING) **a quoted page variable reaches the layout without its quotes.** A
   `tt_page_var:` entry kept its quote marks, so `hero_cards: "a,b,c"` reached the layout as

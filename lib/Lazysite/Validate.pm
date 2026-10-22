@@ -48,7 +48,7 @@ use Lazysite::Manager::Common ();
 # `file`, `multiple` and `capture` - which the renderer has taken since SM905 -
 # were reported as unknown, so a valid upload field failed validate_page. The
 # list is the bare words `_form_rules_from_tokens` (lazysite-processor/forms.pm)
-# sets a rule from; t/lint/273 derives that set from the renderer itself and
+# sets a rule from; t/lint/276 derives that set from the renderer itself and
 # fails on any difference, in either direction.
 my %FORM_FLAGS = map { $_ => 1 }
     qw(required optional email tel date time number url password textarea file multiple capture);
@@ -613,7 +613,7 @@ sub _check_odoo_bindings {
 # SM1253: A FIELD'S RULES, AS TOKENS - the renderer's cut.
 #
 # MARKED COPY (ADR 0001) of _form_rule_tokens in lazysite-processor/forms.pm,
-# which validate_page and `lazysite validate` cannot load. t/lint/273 runs both
+# which validate_page and `lazysite validate` cannot load. t/lint/276 runs both
 # over every form line in the tree and a generated set, and fails on any
 # difference. Change one, change both. In short:
 #   select: radio: checklist: checklist-qty:   take the rest of the line
