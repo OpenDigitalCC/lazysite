@@ -591,9 +591,8 @@ WHY
 # the CLI beside this tool by path (the tarball puts no `lazysite` on PATH).
 sub cli_spelling {
     return $ENV{LAZYSITE_CLI} if length( $ENV{LAZYSITE_CLI} // '' );
-    require File::Spec;
     for my $d ( split /:/, $ENV{PATH} // '' ) {
-        return 'lazysite' if length $d && -x File::Spec->catfile( $d, 'lazysite' );
+        return 'lazysite' if length $d && -x join( '/', $d, 'lazysite' );
     }
     require Cwd;
     require File::Basename;
