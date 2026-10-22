@@ -1,6 +1,6 @@
 ---
 title: Per-page layout override
-subtitle: Use a different view template for a specific page via front matter.
+subtitle: Use a different layout for a specific page via front matter.
 tags:
   - configuration
   - template
@@ -9,9 +9,9 @@ tags:
 
 ## Per-page layout override
 
-Set `layout:` in a page's front matter to use a different view template
-for that page. This overrides the site-wide `theme:` setting from
-`lazysite.conf`.
+Set `layout:` in a page's front matter to render that page through a
+different layout. This overrides the site's `layout:` setting in
+`lazysite.conf` (or the domain's, on a multi-domain site).
 
 ### Syntax
 
@@ -22,11 +22,12 @@ for that page. This overrides the site-wide `theme:` setting from
 
 ### Resolution
 
-The `layout:` value follows the same resolution as `theme:`:
+The `layout:` value resolves the way the site-wide one does:
 
-1. `lazysite/themes/NAME/view.tt` - theme directory
-2. `lazysite/templates/NAME.tt` - named template file
-3. Falls back to default `view.tt` if not found
+1. `lazysite/layouts/NAME/layout.tt` - an installed layout
+2. If that file does not exist, a warning is logged and the page renders
+   through the built-in fallback template - not through the site's own
+   layout
 
 The name is sanitised to `a-z`, `A-Z`, `0-9`, `_`, `-` only.
 
@@ -35,17 +36,17 @@ The name is sanitised to `a-z`, `A-Z`, `0-9`, `_`, `-` only.
 The `layout:` value can be a remote URL:
 
     ---
-    layout: https://example.com/themes/special/view.tt
+    layout: https://example.com/layouts/special/layout.tt
     ---
 
-Remote layouts are cached and sandboxed the same as site-wide remote
-themes.
+Remote layouts are cached and sandboxed the same as a site-wide remote
+layout. See [Remote layouts](/docs/features/configuration/remote-layouts).
 
 ### Example
 
-Create a minimal template for a specific page:
+Create a minimal layout for a specific page:
 
-    # lazysite/templates/bare.tt
+    # lazysite/layouts/bare/layout.tt
     [% content %]
 
 Use it in the page:
@@ -58,10 +59,10 @@ Use it in the page:
 
 ### Notes
 
-- `layout:` takes precedence over `theme:` in `lazysite.conf`
-- If the named layout is not found, a warning is logged and the
-  default `view.tt` is used
-- [Themes](/docs/features/configuration/themes) - site-wide theme
-  configuration
-- [Views](/docs/features/configuration/views) - view template
-  reference
+- A page's `layout:` takes precedence over the site's `layout:`
+- A page can also pin a theme with `theme:`; it applies when the theme
+  is compatible with the layout the page renders through
+- [Layouts](/docs/features/configuration/layouts) - the layout reference
+  and the variables a `layout.tt` receives
+- [Themes](/docs/features/configuration/themes) - themes and how one is
+  chosen

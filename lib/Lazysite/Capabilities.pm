@@ -730,7 +730,7 @@ my @TASKS = (
     { id => 'author-layout', title => 'Author and activate a layout',
         requires => ['manage_layouts'],
         steps    => [
-            'PUT layout files (view.tt, components) under lazysite/layouts/<name>/ over WebDAV',
+            'PUT layout files (layout.tt, layout.json, components) under lazysite/layouts/<name>/ over WebDAV',
             'call activate_layout (MCP) or POST action=layout-activate (control API)',
         ],
     },

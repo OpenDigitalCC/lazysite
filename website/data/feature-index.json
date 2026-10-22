@@ -140,11 +140,6 @@
 "section": "Configuration"
 },
 {
-"url": "/docs/features/configuration/views",
-"title": "Views",
-"section": "Configuration"
-},
-{
 "url": "/docs/features/configuration/webdav",
 "title": "WebDAV publishing",
 "section": "Configuration"

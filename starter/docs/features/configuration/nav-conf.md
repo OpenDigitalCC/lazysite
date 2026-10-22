@@ -77,5 +77,5 @@ In the view template:
 - An indented line before any top-level item is treated as a
   top-level item (orphan child)
 - If the nav file does not exist, `nav` is an empty array
-- [Views](/docs/features/configuration/views) - using `nav` in the
-  view template
+- [Layouts](/docs/features/configuration/layouts) - using `nav` in the
+  layout template

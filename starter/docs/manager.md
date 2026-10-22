@@ -286,7 +286,8 @@ with a marker on your own current session - and lets you:
   cookie, including yours, stops working and everyone signs in again.
 
 Sessions are still signed cookies, not server-side records: the list is an
-advisory registry written at login (self-pruned after 24 hours), and
+advisory registry written at login (a line is pruned once it is older than
+the session lifetime, `session_lifetime`, 24 hours by default), and
 revocations are enforced at cookie verification. Sessions from before this
 feature cannot be listed, but per-user sign-out and secret rotation still
 kill them. Revocations are recorded in the audit trail.

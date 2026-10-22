@@ -226,8 +226,8 @@ extensions:
 ### Allowlisted environment variables
 
 Only these CGI variables may be used with `${VAR}` syntax:
-`SERVER_NAME`, `REQUEST_SCHEME`, `SERVER_PORT`, `HTTPS`, `REDIRECT_URL`,
-`DOCUMENT_ROOT`, `SERVER_ADMIN`.
+`SERVER_NAME`, `REQUEST_SCHEME`, `SERVER_PORT`, `HTTPS`, `REQUEST_URI`,
+`REDIRECT_URL`, `DOCUMENT_ROOT`, `SERVER_ADMIN`.
 
 `HTTP_HOST` is intentionally excluded - it is request-supplied and
 therefore untrusted. Use `SERVER_NAME` for host-based URL construction.
@@ -247,9 +247,16 @@ Rules:
 
 - Only whitelisted keys may be overridden per host: `site_name`, `theme`,
   `layout`, `nav_file`, `search_default`, `content_root`, `site_url`,
-  `lang`, `lang_group`. Anything else (notably `manager`, `auth_*`,
-  `webdav_*`) is ignored with a logged warning - the Host header is
-  request-supplied, so security settings must never vary by host.
+  `lang`, `lang_group`; the CSP allow-lists `csp_script_src`,
+  `csp_connect_src`, `csp_img_src`, `csp_frame_src`; the app keys
+  `app_name`, `app_short_name`, `app_scope`, `app_start_url`,
+  `app_theme_colour`, `app_background_colour`, `app_icon_64`,
+  `app_icon_192`, `app_icon_512`, `app_icon_maskable`, `app_shell`,
+  `app_offline_pages`, `app_update`; and `maintenance`,
+  `maintenance_page`, `maintenance_until`. Anything else (notably
+  `manager`, `auth_*`, `webdav_*`) is ignored with a logged warning - the
+  Host header is request-supplied, so security settings must never vary
+  by host.
 - The request's Host header is matched case-insensitively against
   `alias_hosts` (port stripped). The primary host, undeclared hosts, and
   malformed Host headers all get the base configuration unchanged.
@@ -413,7 +420,8 @@ file editor. One already in a nav file renders as `#` and is logged;
 ### nav TT variable structure
 
 `nav` is an array of hashrefs. Each item has `label`, `url`, and
-`children` keys. See [Views](/docs/features/configuration/views) for looping examples.
+`children` keys. See [Layouts](/docs/features/configuration/layouts) for
+the variables a `layout.tt` receives.
 
 If `nav.conf` is missing, `nav` is an empty array and the template
 renders without navigation.

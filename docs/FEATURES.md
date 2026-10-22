@@ -8,8 +8,10 @@ brand: plain
 
 Lazysite is a Markdown-driven website engine and lightweight CMS written in
 near-core Perl. You drop a `.md` file into a document root; on the first request
-the processor renders it to HTML through a layout/theme, caches the result as a
-sibling `.html`, and the web server serves that cache directly thereafter. There
+the processor renders it to HTML through a layout/theme and caches the result,
+and later requests are answered from that cache without a render - by the
+processor, to which the web server hands a page's address (static files are
+served directly; see `docs/reference/webserver-wiring.md`). There
 is **no build step, no database, and no application server** - just CGI scripts, a
 tree of Markdown, and a flat-file configuration. (For production speed the same
 processor can run as a persistent per-site FastCGI pool - see Part X - but
@@ -2801,9 +2803,10 @@ Newest first; releases are git tags.
   training crawler is not) and behaviour-beats-declaration (SM405, decided ahead
   of build).
 - **0.10.15** (2026-08-19, EDGE) - **The security header set stops being a claim.**
-  A Content-Security-Policy ships enforcing, with an operator dial and a
-  hash-based allowance for the one inline script pattern shipped layouts use
-  (SM379/SM380, SM384 fixing the hash on non-ASCII scripts). Every response path
+  A Content-Security-Policy ships, report-only by default, with an operator
+  dial (`csp: enforce` or `csp: off`) and a hash-based allowance for the one
+  inline script pattern shipped layouts use (SM379/SM380, SM384 fixing the hash
+  on non-ASCII scripts). Every response path
   now passes the header choke point - including 402/403 (which also rendered
   into the wrong docroot on multi-domain instances), the registries, and the
   `.well-known` endpoints (SM381). Engine chrome resolves on content-rooted

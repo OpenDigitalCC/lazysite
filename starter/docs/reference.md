@@ -162,11 +162,14 @@ Directory scan
   primary) get the base configuration.
 
 `alias.<host>.<key>`
-: Per-alias-host override. `<key>` is limited to `site_name`, `theme`,
-  `layout`, `nav_file`, `search_default`; other keys are ignored.
-  Each alias host has its own page-cache slot (`lazysite/cache/hosts/`),
-  cleared alongside the primary cache. Conf-file only - not settable via
-  the manager or API.
+: Per-alias-host override. `<key>` is limited to the per-host keys
+  listed under [Domain aliases](/docs/configuration) (presentation,
+  language, the CSP allow-lists, the app keys and the maintenance keys);
+  other keys are ignored with a logged warning. Each alias host has its
+  own page-cache slot (`lazysite/cache/hosts/`), cleared alongside the
+  primary cache. Set in the conf, on the manager's **Domains** page, or
+  with the `domain-set` control-API action, which take the presentation,
+  language and maintenance keys.
 
 All other keys are available as TT variables in page content and the
 layout template.

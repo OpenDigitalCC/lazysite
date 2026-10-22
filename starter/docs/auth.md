@@ -145,7 +145,8 @@ A session is the signed cookie itself - there is no server-side session
 store on the request path. Two small side files make sessions visible and
 revocable: at login the cookie payload carries a random session id and one
 line (who / when / IP / device) is appended to
-`lazysite/auth/sessions.jsonl` (self-pruned after 24 h), and cookie
+`lazysite/auth/sessions.jsonl` (a line is pruned once it is older than the
+session lifetime, `session_lifetime`, 24 hours by default), and cookie
 verification consults `lazysite/auth/revoked.json` when it exists. The
 manager **Sessions** page lists the live sessions and can sign out a single
 session, all of one user's sessions ("Sign out everywhere"), or - by

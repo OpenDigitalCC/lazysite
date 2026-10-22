@@ -116,8 +116,8 @@
         {
           "title": "Multiple views",
           "what": "Define alternate renderings of the same content for different audiences or formats.",
-          "how_url": "/docs/features/configuration/views",
-          "how_label": "Views"
+          "how_url": "/docs/features/configuration/layout-override",
+          "how_label": "Per-page layout override"
         }
       ]
     },

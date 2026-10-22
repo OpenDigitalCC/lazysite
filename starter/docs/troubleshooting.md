@@ -8,10 +8,10 @@ register:
 ## Migrating from other tools
 
 Pico CMS
-: Content migrates directly. Copy your Pico `content/` files to the docroot and rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter. Replace Pico theme templates with a `lazysite/themes/default/view.tt` file. One-liner to convert front matter keys across all files: `find public_html -name "*.md" | xargs sed -i 's/^Title:/title:/;s/^Description:/subtitle:/'`
+: Content migrates directly. Copy your Pico `content/` files to the docroot and rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter. Replace Pico theme templates with a layout, `lazysite/layouts/NAME/layout.tt`. One-liner to convert front matter keys across all files: `find public_html -name "*.md" | xargs sed -i 's/^Title:/title:/;s/^Description:/subtitle:/'`
 
 Hugo
-: Content files require no changes  -  Hugo and lazysite use the same front matter format. What needs replacing is the template system: `view.tt` replaces your Hugo `baseof.html` or equivalent base template.
+: Content files require no changes  -  Hugo and lazysite use the same front matter format. What needs replacing is the template system: a layout's `layout.tt` replaces your Hugo `baseof.html` or equivalent base template.
 
 ## Troubleshooting
 

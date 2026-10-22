@@ -6,8 +6,9 @@
 # and blocks an IP after a threshold. Detection + counting + the block store live
 # in Lazysite::BadUrl; enforcement runs in the auth wrapper (lazysite-auth.pl).
 # This descriptor just exposes the settings on the Plugin Config page and marks
-# the feature enabled by default. The blocked-IP list + unblock live on the Stats
-# page (control-API actions bad-url-blocks / bad-url-unblock).
+# the feature enabled by default. The blocked-IP list + unblock live on this
+# plugin's own config page, under Blocked addresses (moved from the Stats page
+# by SM703; control-API actions bad-url-blocks / bad-url-unblock).
 
 use strict;
 use warnings;

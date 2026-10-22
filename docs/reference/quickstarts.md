@@ -20,7 +20,7 @@ Requires: `manage_themes`
 
 Requires: `manage_layouts`
 
-1. PUT layout files (view.tt, components) under lazysite/layouts/<name>/ over WebDAV
+1. PUT layout files (layout.tt, layout.json, components) under lazysite/layouts/<name>/ over WebDAV
 2. call activate_layout (MCP) or POST action=layout-activate (control API)
 
 ## Switch the site to a different layout

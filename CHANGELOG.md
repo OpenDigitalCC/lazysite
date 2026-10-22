@@ -286,6 +286,14 @@ Archive
   `"a,b,c"` and a split gave `"a` and `c"`. One matched pair of quotes is taken off, as it is for
   a top-level front-matter key; an unquoted value is unchanged. A quoted source
   (`x: "json:/d.json"`) now binds as the unquoted one does. t/unit/processor/150.
+- SM1255 (PENDING) **docs: the shipped docs say what the engine does.** From the lazysite.io
+  content check: the pre-layouts Views page (`view.tt`) is removed and its links point at Layouts,
+  and the per-page layout override page describes `lazysite/layouts/NAME/layout.tt` and the
+  built-in fallback; the per-host key list has all 29 keys (and the env allowlist `REQUEST_URI`);
+  the session registry prunes at `session_lifetime`, not a fixed 24 hours; the connect code lasts
+  30 minutes; the CSP shipped report-only by default (FEATURES.md said enforcing); the bad-URL
+  block list is on the plugin's own page; and a cached page is served by the processor, not the
+  web server. t/lint/274 asks the code for each fact.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

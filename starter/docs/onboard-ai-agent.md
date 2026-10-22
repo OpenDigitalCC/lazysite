@@ -41,7 +41,7 @@ Open **Connect an AI assistant** for this user and pick the option that matches 
 **Claude Code / Claude Desktop / scripts (token)**
 : Use **Generate agent brief** (a pairing key) or **Generate credential** (an `lzs_` token). Add the endpoint as a remote MCP server with the header `Authorization: Bearer <user>:<lzs_ token>`. A script can also use the control API and WebDAV directly.
 
-The complete tool list, capability model and error reference is in the [AI connector tools reference](/docs/ai-connector-tools). If a connection fails, check that WebDAV is enabled and that the connect code has not expired (it lasts 15 minutes - reopen the panel for a fresh one).
+The complete tool list, capability model and error reference is in the [AI connector tools reference](/docs/ai-connector-tools). If a connection fails, check that WebDAV is enabled and that the connect code has not expired (it lasts 30 minutes - reopen the panel for a fresh one).
 
 ## 4. Put it to work
 
