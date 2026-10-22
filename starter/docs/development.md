@@ -147,11 +147,22 @@ To force regeneration:
     rm public_html/about.html
     find public_html -name "*.html" -delete
 
-Index pages (`index.md` / `index.html`) are served directly by the web
-server via `DirectoryIndex` and bypass the processor when the cache exists.
-After editing `index.md`, delete the cached file manually:
+Whether the homepage cache (`index.html`) is served by the web server or by
+the processor depends on the vhost template:
 
-    rm public_html/index.html
+- The plain Hestia `lazysite` template (`lazysite.tpl` / `lazysite.stpl`)
+  has `DirectoryIndex index.html index.htm`. Once `index.html` exists, `/`
+  is served from it directly and the processor is not asked, so an edit to
+  `index.md` does not show until the cache is deleted:
+
+      rm public_html/index.html
+
+- The nginx and Apache templates and the Hestia `lazysite-cgi`,
+  `lazysite-fcgi` and `lazysite-app` templates leave `index.html` out of
+  the index list (`index.htm index.shtml`), and the one-rule templates
+  have none. `/` with an `index.md` reaches the processor, which serves
+  the cache and re-renders it after an edit. An `index.html` with no
+  `index.md` beside it is served as a static home.
 
 ### Cache housekeeping
 
@@ -185,10 +196,14 @@ This removes both the layout cache and content type cache.
 
 ### Index page serves blank or stale content
 
-Apache serves `index.html` directly via `DirectoryIndex`, bypassing the
-processor. After editing `index.md`, delete the cache:
+On the plain Hestia `lazysite` template, Apache serves `index.html`
+directly via `DirectoryIndex`, bypassing the processor. After editing
+`index.md`, delete the cache:
 
     rm public_html/index.html
+
+The other shipped templates hand `/` to the processor, so this does not
+arise on them.
 
 ### A page caches as an empty file
 

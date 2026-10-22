@@ -173,8 +173,10 @@ Pages are cached as `.html` files alongside their source `.md` files.
 
 - A request for `/about` serves `about.html` if newer than `about.md`.
 - If the `.html` is missing or stale, the processor regenerates it.
-- `index.md` compiles to `index.html` and is served directly by Apache
-  via `DirectoryIndex`.
+- `index.md` compiles to `index.html`. On the plain Hestia `lazysite`
+  template that file is served directly by Apache via `DirectoryIndex`;
+  the other shipped templates leave it out of the index list, so `/`
+  reaches the processor.
 - Force regeneration by deleting the `.html` file.
 
 Pages with `auth:` or `payment:` are never cached to disk and always

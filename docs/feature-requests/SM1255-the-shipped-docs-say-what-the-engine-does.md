@@ -77,13 +77,19 @@ D-8, who serves a cached page
 with the Capabilities quickstart, and `docs/INDEX.md` does not list the
 configuration pages, so it is unchanged.
 
-# Not changed
+# The homepage, per template (ruled 2026-10-22: say what each does)
 
-starter/docs/development.md and ai-briefing-development.md say the homepage's
-`index.html` is served by `DirectoryIndex`. That is false for the nginx, Apache
-and Hestia `lazysite-cgi`/`lazysite-fcgi` templates, but true for the plain
-Hestia `lazysite.tpl` (`DirectoryIndex index.html index.htm`). It was not in the
-report, and which template is meant needs a ruling.
+starter/docs/development.md and ai-briefing-development.md said the homepage's
+`index.html` is served by `DirectoryIndex`, without the processor. Read from
+the templates: true for the plain Hestia `lazysite.tpl` / `lazysite.stpl`
+(`DirectoryIndex index.html index.htm`), false for every other shipped one -
+the nginx and Apache cgi/fcgi templates and the Hestia `lazysite-cgi`,
+`lazysite-fcgi` and `lazysite-app` ones list `index.htm index.shtml`, and the
+one-rule templates pass everything to the engine. Both docs now say which
+template does which, and t/lint/274 holds the set of templates that serve
+`index.html` as an index.
+
+# Not changed
 
 The report's last note: Lazysite::Git's content-history exclude list names
 `/lazysite/aliases.json` but not the per-domain maps under `lazysite/aliases/`

@@ -126,4 +126,27 @@ unlike( slurp('docs/FEATURES.md'), qr/the web server serves that cache directly/
 like( slurp('installers/nginx/vhost-fcgi.conf.example'), qr/try_files \$uri \@lazysite;/,
     'and the nginx front end does hand an address with no file to the processor' );
 
+# The homepage is the exception, on ONE template: the plain Hestia `lazysite`
+# template lists index.html as a DirectoryIndex, so its cache is served
+# without the processor. The docs say which template, and this holds the
+# set: a template that joins or leaves it makes the docs wrong.
+{
+    my @serves;
+    for my $v ( sort( glob("$root/installers/nginx/*.example"), glob("$root/installers/apache/*.example"),
+        glob("$root/installers/hestia/*.tpl"), glob("$root/installers/hestia/*.stpl") ) )
+    {
+        my $t = do { open my $fh, '<', $v or die $!; local $/; <$fh> };
+        my @lists = ( $t =~ /^\s*DirectoryIndex\s+(.*)$/mg, $t =~ /^\s*index\s+([^;]*);/mg );
+        push @serves, $v =~ s{\A\Q$root\E/}{}r if grep { /(?:^|\s)index\.html(?:\s|$)/ } @lists;
+    }
+    is_deeply( \@serves, [ 'installers/hestia/lazysite.stpl', 'installers/hestia/lazysite.tpl' ],
+        'only the plain Hestia template serves index.html as a directory index' );
+    my $dev = slurp('starter/docs/development.md');
+    like( $dev, qr/plain Hestia `lazysite` template \(`lazysite\.tpl` \/ `lazysite\.stpl`\)\s+has `DirectoryIndex index\.html/,
+        'development.md names that template as the one that serves the homepage cache' );
+    like( $dev, qr/leave `index\.html` out of\s+the index list/, 'and says the others do not' );
+    like( slurp('starter/docs/ai-briefing-development.md'), qr/On the plain Hestia `lazysite`\s+template that file is served directly/,
+        'and so does the development briefing' );
+}
+
 done_testing();
