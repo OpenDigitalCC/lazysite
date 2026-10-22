@@ -159,7 +159,9 @@ subtest 'the sweep treats "moved nothing" as failure' => sub {
     # per-folder line reads as advisory noise and scrolls past.
     like( $src, qr/SIBLING of the document root/,
         'the summary names the actual cause' );
-    like( $src, qr/lazysite check .*--fix/,
+    # SM1236: the command is spelled as this host runs it ($cli: `lazysite`
+    # on PATH, else the CLI by path), so the source names the variable.
+    like( $src, qr/\$cli check .*--fix/,
         'and gives the command that repairs it' );
 };
 
