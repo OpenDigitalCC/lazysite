@@ -2679,6 +2679,16 @@ sub _page_status {
                     . 'Over plain http the setting is ignored and the page keeps camera=(), '
                     . 'because browsers offer the camera on a secure connection only.';
             }
+            # SM1266: every feature the page asks for, the camera among them, in
+            # the policy's order. The camera's own two fields stay as SM1174 made them.
+            my @pp = Lazysite::Validate::permissions_allowed($fm);
+            if (@pp) {
+                $out{permissions}      = \@pp;
+                $out{permissions_note} = 'allowed on this page over https: '
+                    . join( ', ', map { "$_=(self)" } @pp )
+                    . '. Over plain http the page keeps them denied, and every feature it does not name '
+                    . 'stays denied (=()) on every connection.';
+            }
         }
     }
     return \%out;

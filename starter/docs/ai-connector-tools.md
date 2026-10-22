@@ -163,7 +163,9 @@ page_status `{ path }`
 : Whether the source exists + last-modified, whether the render is pending (cache
   dropped after an edit, re-renders next visit), and the public URL. A page whose
   front matter says `camera: self` also reports `camera` and `camera_note`
-  ("camera allowed on this page", https only). Confirm an
+  ("camera allowed on this page", https only), and a page that asks for any
+  browser feature (`geolocation: self`, `camera: self`) reports `permissions`,
+  the features it allows, and `permissions_note`. Confirm an
   edit will reach visitors without a web fetch.
 
 search_files `{ query, path }`

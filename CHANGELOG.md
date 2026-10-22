@@ -173,6 +173,16 @@ Archive
   directory the paths are under per site (the displaced directory), three examples and a file
   with the full list (`LAZYSITE_FINDINGS_DIR`, default `$TMPDIR`). This covers every per-path
   finding. A message with no path reads as before.
+- SM1266 (PENDING) **a page may ask for any browser feature the platform denies.**
+  SM1174 let a page say `camera: self`; the same key now works for every feature in the
+  Permissions-Policy denied list - `geolocation: self`, `microphone: self` - on the
+  camera's terms: that page alone, over https only, front matter only, kept per page
+  through the cache. A page that asks for nothing sends exactly the header it sent
+  before, and the camera behaves as it did. The validator reports a value other than
+  `self` or `none` (`permission-unreadable`) and a `<key>: self` that names no such
+  feature (`permission-unknown`); page_status and the editor's status bar list what a
+  page allows. `payment` cannot be asked for, because `payment:` is the paid-page key.
+  The site-level allow list is later.
 - SM1233 (PENDING) **a Docker Compose package.** `installers/docker/` is no longer a
   placeholder: nginx, the one-rule FastCGI pool and `lazysited` in one container,
   the engine in the image and the site in three volumes (the docroot, `lazysite/`,

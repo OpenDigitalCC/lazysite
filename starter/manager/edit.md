@@ -855,12 +855,18 @@ function renderBinaryPanel(path) {
 }
 
 // SM1174: the server decides (camera / camera_issue on the read and save
-// answers); this only shows what it said.
+// answers); this only shows what it said. SM1266: and permissions /
+// permission_issues for the other features a page may ask for.
 function edShowCamera(data) {
   var el = document.getElementById('ed-camera');
   if (!el) return;
-  el.textContent = data && data.camera === 'self' ? 'Camera allowed on this page (https only)'
-    : (data && data.camera_issue) || '';
+  var said = [];
+  var other = ((data && data.permissions) || []).filter(function (f) { return f !== 'camera'; });
+  if (data && data.camera === 'self') said.push('Camera allowed on this page (https only)');
+  else if (data && data.camera_issue) said.push(data.camera_issue);
+  if (other.length) said.push('Allowed on this page (https only): ' + other.join(', '));
+  ((data && data.permission_issues) || []).forEach(function (m) { said.push(m); });
+  el.textContent = said.join('; ');
 }
 
 function loadContent() {

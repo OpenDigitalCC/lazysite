@@ -39,6 +39,7 @@ our @EXPORT_OK = qw(
 );
 
 use Lazysite::Manager::Common ();
+use Lazysite::SecurityHeaders ();    # SM1266: the features a page may ask for
 
 # Rules a form field may carry. A word outside this list is a typo, and a typo
 # in a rule is silently ignored at render time - which is why it is worth
@@ -359,32 +360,82 @@ sub _check_address_kinds {
 # unreadable) so page_status can show it.
 sub camera_value {
     my ($fm) = @_;
-    my ( $v, $bad );
-    my $seen = 0;
+    my ( $v, $bad ) = permission_values($fm);
+    return wantarray ? ( $v->{camera}, $bad->{camera} ) : $v->{camera};
+}
+
+# SM1266 (ruled 2026-10-22, #2): the same reading for EVERY feature a page may
+# ask for (Lazysite::SecurityHeaders' @PAGE_FEATURES) - `geolocation: self`,
+# `microphone: self` - on exactly the camera's terms. Returns ( \%value, \%bad,
+# \@unknown ): the value read for each feature the page names ('self' or
+# 'none'), the reason for each it names and cannot read, and the keys that say
+# `self` and are no feature a page can ask for (`geolocaton: self`, `fullscreen:
+# self`), which grant nothing and would otherwise do so silently. The access keys
+# are left to read_access_keys, which already reports `payment: self`.
+sub permission_values {
+    my ($fm)   = @_;
+    my %may    = map { $_ => 1 } @Lazysite::SecurityHeaders::PAGE_FEATURES;
+    my %access = map { $_ => 1 } qw(auth auth_groups addresses addresses_deny payment);
+    my ( %v, %bad, %seen, @unknown );
     for my $line ( split /\r?\n/, ( $fm // '' ) ) {
-        next unless $line =~ /\Acamera[ \t]*:(.*)\z/;
-        my $raw = $1;
+        next unless $line =~ /\A([A-Za-z][A-Za-z0-9_-]*)[ \t]*:(.*)\z/;
+        my ( $key, $raw ) = ( $1, $2 );
         $raw =~ s/\s+#.*\z//;
         $raw =~ s/\A\s+|\s+\z//g;
         $raw =~ s/\A"(.*)"\z/$1/ or $raw =~ s/\A'(.*)'\z/$1/;
-        if ( $seen++ ) { $bad = "'camera' is given more than once"; next }
-        if ( $raw eq 'self' || $raw eq 'none' ) { $v = $raw }
+        if ( !$may{$key} ) {
+            push @unknown, $key if $raw eq 'self' && !$access{ lc $key };
+            next;
+        }
+        if ( $seen{$key}++ ) { $bad{$key} = "'$key' is given more than once"; next }
+        if ( $raw eq 'self' || $raw eq 'none' ) { $v{$key} = $raw }
         else {
-            $bad = length $raw
-                ? "'camera: $raw' is not one of self, none"
-                : "'camera' has no value - write self (or none)";
+            $bad{$key} = length $raw
+                ? "'$key: $raw' is not one of self, none"
+                : "'$key' has no value - write self (or none)";
         }
     }
-    return wantarray ? ( $v, $bad ) : $v;
+    return ( \%v, \%bad, \@unknown );
 }
 
-sub _check_camera {
-    my ( $issues, $fm )  = @_;
-    my ( undef,   $bad ) = camera_value($fm);
-    push @$issues, { kind => 'camera-unreadable', key => 'camera',
-        message => "$bad, so the page keeps camera=() and cannot open the camera - "
-            . 'write camera: self to allow it on this page (https only)' }
-        if defined $bad;
+# The features a page's front matter allows, in the policy's own order - what
+# page_status and the editor show.
+sub permissions_allowed {
+    my ($fm) = @_;
+    my ($v)  = permission_values($fm);
+    return grep { ( $v->{$_} // '' ) eq 'self' } @Lazysite::SecurityHeaders::PAGE_FEATURES;
+}
+
+# SM1174 kept its kind and its sentence for the camera; SM1266's other features
+# share one kind, naming the key. A list of issues, for the editor's status bar
+# as well as validate_content.
+sub permission_issues {
+    my ($fm) = @_;
+    my @issues;
+    my ( undef, $bad, $unknown ) = permission_values($fm);
+    for my $f ( grep { defined $bad->{$_} } @Lazysite::SecurityHeaders::PAGE_FEATURES ) {
+        if ( $f eq 'camera' ) {
+            push @issues, { kind => 'camera-unreadable', key => 'camera',
+                message => "$bad->{camera}, so the page keeps camera=() and cannot open the camera - "
+                    . 'write camera: self to allow it on this page (https only)' };
+            next;
+        }
+        push @issues, { kind => 'permission-unreadable', key => $f,
+            message => "$bad->{$f}, so the page keeps $f=() and cannot use it - "
+                . "write $f: self to allow it on this page (https only)" };
+    }
+    for my $k (@$unknown) {
+        push @issues, { kind => 'permission-unknown', key => $k,
+            message => "'$k: self' grants nothing: $k is not a browser feature a page can ask for. "
+                . 'The ones it can are ' . join( ', ', @Lazysite::SecurityHeaders::PAGE_FEATURES )
+                . ' - each denied unless the page says <feature>: self (https only)' };
+    }
+    return @issues;
+}
+
+sub _check_permissions {
+    my ( $issues, $fm ) = @_;
+    push @$issues, permission_issues($fm);
     return;
 }
 
@@ -947,7 +998,7 @@ sub validate_content {
     _check_front_matter( \@issues, \@warnings, $content, $h );
     _check_access_keys( \@issues, $fm, _page_place( $o{path}, $docroot, $lz ) ); # SM980, SM993
     _check_address_kinds( \@issues, $fm, $lz );                                  # SM1189
-    _check_camera( \@issues, $fm );                                              # SM1174
+    _check_permissions( \@issues, $fm );    # SM1174, SM1266
     _check_fences( \@warnings, $fm, $body );
     # SM900: with the front-matter offset, as _check_fences has always done, so
     # the two checks on one page count from the same place - the top of the file.

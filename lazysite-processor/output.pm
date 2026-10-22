@@ -10,7 +10,8 @@ package main;
 #         _security_headers, _content_security_policy, _inline_script_hashes,
 #         _csp_mode and _is_manager_request (the ADR 0001 copy of
 #         Lazysite::SecurityHeaders, pinned by value by t/lint/55), with
-#         _csp_origin_ok and _csp_allow (P16, the allow-lists; t/lint/225); _conf_value
+#         _csp_origin_ok and _csp_allow (P16, the allow-lists; t/lint/225); _pp_denied
+#         and _pp_page_may_ask (SM1266, the Permissions-Policy features); _conf_value
 #         and _conf_flag_enabled, the lazysite.conf readers; _ai_partner_doc, the .well-known/ai-partner
 #         document built from the live config; _request_croot.
 # OWNS    the bytes of a response's head; which security headers it carries;
@@ -43,10 +44,11 @@ sub output_page {
     # SM381: $extra carries response headers only one caller has - the 402's
     # X-Payment-Response. Optional and last for the same reason $status was:
     # every existing caller is unchanged.
-    # SM1174: $camera is true when the page's own front matter says `camera: self`.
+    # SM1174, SM1266: $permissions is the features the page's own front matter
+    # asks for (`camera: self`, `geolocation: self`), as _peek_md read them.
     # Passed by the three paths that serve a page from its source (fresh render,
     # cache hit, ttl hit) so a cached page keeps ITS policy and no other page's.
-    my ( $content, $content_type, $ttl, $auth_protected, $status, $extra, $camera ) = @_;
+    my ( $content, $content_type, $ttl, $auth_protected, $status, $extra, $permissions ) = @_;
     $content_type //= 'text/html; charset=utf-8';
     $status       //= '200 OK';
 
@@ -95,7 +97,7 @@ sub output_page {
     # setting fits today. t/lint/56 holds that inventory - ten entries across
     # the engine - which is what a report-only collector would otherwise have
     # had to discover from live traffic, for a fact the source already states.
-    print "$_\n" for _security_headers( html => $content, camera => $camera ); # SM352, SM1174
+    print "$_\n" for _security_headers( html => $content, permissions => $permissions ); # SM352, SM1266
     print "$_\n" for @{ $extra || [] };                                        # SM381
     print "Content-Language: $RESPONSE_LANG\n" if $RESPONSE_LANG;    # SM179 (P1)
     if ($auth_protected) {
@@ -239,6 +241,20 @@ sub _csp_origin_ok {
         (?: : [1-9][0-9]{0,4} )? \z}xi ? 1 : 0;
 }
 
+# SM1266: the features Permissions-Policy denies, and those a page may ask for -
+# the marked copy (ADR 0001) of Lazysite::SecurityHeaders' @DENIED_FEATURES and
+# @PAGE_FEATURES, which say why each is there and why `payment` cannot be asked
+# for. t/lint/55 compares them by value. _peek_md reads a page's `<feature>:
+# self` against the second.
+sub _pp_denied {
+    return qw(accelerometer browsing-topics camera display-capture geolocation
+        gyroscope magnetometer microphone midi payment usb xr-spatial-tracking);
+}
+
+sub _pp_page_may_ask {
+    return grep { $_ ne 'payment' } _pp_denied();
+}
+
 # P16: this response's allow-lists - the site's csp_<d>_src, or the serving
 # domain's alias.<host>.csp_<d>_src (resolve_site_vars overlays it), each entry
 # that is not an origin dropped and logged. None on the manager: its pages load
@@ -264,17 +280,17 @@ sub _csp_allow {
 
 sub _security_headers {
     my (%opt) = @_;
+    my %may   = map { $_ => 1 } _pp_page_may_ask();
+    my %ask = $ENV{HTTPS} ? ( map { $_ => 1 } grep { $may{$_} } @{ $opt{permissions} || [] } ) : ();
     my @h = (
         'X-Content-Type-Options: nosniff',
         'X-Frame-Options: SAMEORIGIN',
         'Referrer-Policy: strict-origin-when-cross-origin',
-        'Permissions-Policy: accelerometer=(), browsing-topics=(), camera='
-            # SM1174: `camera: self` in the page's front matter, on https only.
-            # Per response and never stored with the render - the cache keeps
-            # HTML, and this is decided from the page's own source each time.
-            . ( ( $opt{camera} && $ENV{HTTPS} ) ? '(self)' : '()' ) . ', '
-            . 'display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), '
-            . 'microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()',
+        # SM1266 (SM1174 for every feature): `<feature>: self` in the page's front
+        # matter, on https only. Per response and never stored with the render -
+        # the cache keeps HTML, and this is decided from the page's own source
+        # each time.
+        'Permissions-Policy: ' . join( ', ', map { $ask{$_} ? "$_=(self)" : "$_=()" } _pp_denied() ),
     );
 
     # Same test the session cookie uses for its Secure flag, so there is one

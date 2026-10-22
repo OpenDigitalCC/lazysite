@@ -7,11 +7,12 @@
 # copies Auth::Acl and the private-store path is copied into install.pl. This
 # pins the pair, in the same treatment t/lint/51 gives that one.
 #
-# BY VALUE, NOT BY TEXT. The two are written differently - one builds the
-# Permissions-Policy from a list, the other spells it out, because a list-and-map
-# in the processor would be a second thing to keep in step. So this evaluates
+# BY VALUE, NOT BY TEXT. The two are written differently, so this evaluates
 # both and compares the header lines they produce. A copy that drifts in the
-# max-age, drops a denied capability or reorders the set fails here.
+# max-age, drops a denied capability or reorders the set fails here. (Until
+# SM1266 the processor spelled the Permissions-Policy out; since a page may ask
+# for any feature, both build it from their list, and the DEFAULT is pinned
+# below as the literal line it has always been.)
 #
 # WHAT IT PROTECTS. The reason SM352 exists at all is a header set maintained by
 # repetition: four response paths each wrote their own list, three of them
@@ -75,7 +76,7 @@ subtest 'the processor carries the copy, and it agrees' => sub {
     my $pkg = 'ProcessorHeadersUnderTest';
     for my $name (
         qw(_security_headers _inline_script_hashes _content_security_policy _csp_mode _conf_value _is_manager_request
-        _csp_allow _csp_origin_ok)
+        _csp_allow _csp_origin_ok _pp_denied _pp_page_may_ask)
         )
     {
         my ($sub) = $src =~ /(\nsub \Q$name\E \{.*?\n\}\n)/s;
@@ -318,12 +319,60 @@ subtest 'every response path emits the set' => sub {
             . 'fourth, invisibly to anyone probing the homepage.' );
 };
 
+# SM1266: THE DEFAULT, PINNED. A page that asks for nothing sends exactly the
+# line every response sent before a page could ask - SM1174's camera page and
+# SM1266's lifting of the camera-only lock change nothing for it. Written out
+# here rather than built from either list, so a feature dropped from both, or a
+# reorder in both, still fails.
+my $DEFAULT_PP = 'Permissions-Policy: accelerometer=(), browsing-topics=(), camera=(), '
+    . 'display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), '
+    . 'microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()';
+
+subtest 'SM1266: the default Permissions-Policy is the denied list, every feature =()' => sub {
+    for my $https ( 0, 1 ) {
+        local $ENV{HTTPS} = $https ? 'on' : '';
+        my ($m) = grep {/^Permissions-Policy:/} Lazysite::SecurityHeaders::security_headers( https => $https );
+        my ($c) = grep {/^Permissions-Policy:/} ProcessorHeadersUnderTest::_security_headers();
+        is( $m, $DEFAULT_PP, "https=$https: the module's default is the pinned line" );
+        is( $c, $DEFAULT_PP, "https=$https: and so is the processor's" );
+        my ($asked) = grep {/^Permissions-Policy:/} ProcessorHeadersUnderTest::_security_headers( permissions => [] );
+        is( $asked, $DEFAULT_PP, '...and an empty ask is the default too' );
+    }
+    is_deeply( [ ProcessorHeadersUnderTest::_pp_denied() ], \@Lazysite::SecurityHeaders::DENIED_FEATURES,
+        'the processor denies the same features, in the same order' );
+    is_deeply( [ ProcessorHeadersUnderTest::_pp_page_may_ask() ], \@Lazysite::SecurityHeaders::PAGE_FEATURES,
+        'and a page may ask for the same ones in both' );
+};
+
+subtest 'SM1266: any feature a page may ask for is the same decision in both, and https-only' => sub {
+    my @may = @Lazysite::SecurityHeaders::PAGE_FEATURES;
+    ok( ( grep { $_ eq 'geolocation' } @may ) && ( grep { $_ eq 'microphone' } @may ),
+        'geolocation and microphone are among them - the lock is gone' );
+    ok( !( grep { $_ eq 'payment' } @may ), 'payment is not: `payment:` is the paid-page key (SM980)' );
+    is_deeply( \@may, [ grep { $_ ne 'payment' } @Lazysite::SecurityHeaders::DENIED_FEATURES ],
+        'and it is the denied list less payment, in its order' );
+    for my $https ( 0, 1 ) {
+        local $ENV{HTTPS} = $https ? 'on' : '';
+        for my $ask ( ( map { [$_] } @Lazysite::SecurityHeaders::DENIED_FEATURES ),
+            [qw(geolocation microphone)], [qw(camera nonsense)] )
+        {
+            my @module = Lazysite::SecurityHeaders::security_headers( https => $https, permissions => $ask );
+            my @copy   = ProcessorHeadersUnderTest::_security_headers( permissions => $ask );
+            is_deeply( \@copy, \@module, "https=$https asks @$ask: the same lines" );
+            my ($pp) = grep {/^Permissions-Policy:/} @copy;
+            my %granted = map { $_ => 1 } grep { my $f = $_; $https && grep { $_ eq $f } @may } @$ask;
+            ( my $want = $DEFAULT_PP ) =~ s/(?<=[ :])([a-z-]+)=\(\)/$granted{$1} ? "$1=(self)" : "$1=()"/ge;
+            is( $pp, $want, '...and only what was asked for and may be is (self)' );
+        }
+    }
+};
+
 subtest 'SM1174: the camera allowance is the same decision in both, and https-only' => sub {
     for my $https ( 0, 1 ) {
         for my $camera ( 0, 1 ) {
             local $ENV{HTTPS} = $https ? 'on' : '';
             my @module = Lazysite::SecurityHeaders::security_headers( https => $https, camera => $camera );
-            my @copy   = ProcessorHeadersUnderTest::_security_headers( camera => $camera );
+            my @copy   = ProcessorHeadersUnderTest::_security_headers( permissions => $camera ? ['camera'] : [] );
             is_deeply( \@copy, \@module, "https=$https camera=$camera: the same lines" );
             my ($pp) = grep {/^Permissions-Policy:/} @copy;
             my $want = ( $https && $camera ) ? 'camera=(self)' : 'camera=()';

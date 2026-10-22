@@ -19,7 +19,7 @@ package main;
 # CALLS   uri_encode, _groups_grant_cap, _esc_html, output_page, _access_keys_read,
 #         _request_croot, _system_page_md, process_md, _sanitise_not_found,
 #         _rewrite_if_changed, _chrome_lang, _chrome, _draft_is, _draft_stat,
-#         log_event (the script and its parts); JSON::PP::decode_json by its
+#         _pp_page_may_ask, log_event (the script and its parts); JSON::PP::decode_json by its
 #         full name (loaded by the script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES (SM1030: the peek reads a
 #         draft from memory) and $REQUEST_IDENT (SM1181: the held identity value); SETS %ACCESS_REC (the script's, declared `our`
@@ -69,6 +69,7 @@ our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, $REQUEST_IDENT, %ACCESS
         # SM980: the FRONT MATTER, for _access_keys_read - only when the file
         # opens with one; a page without front matter declares no access keys.
         my ( $fm_text, $has_fm ) = ( '', 0 );
+        my %pp_may = map { $_ => 1 } _pp_page_may_ask();    # SM1266
 
         my $fh;
         ( $draft ? open( $fh, '<:utf8', \$DRAFT_BYTES ) : open( $fh, '<:utf8', $path ) ) or do {
@@ -86,12 +87,19 @@ our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, $REQUEST_IDENT, %ACCESS
             elsif ( $line =~ /^api\s*:\s*true/i )     { $m{api}     = 1 }
             elsif ( $line =~ /^nocache\s*:\s*true/i ) { $m{nocache} = 1 }
             elsif ( $line =~ /^raw\s*:\s*true/i )     { $m{raw}     = 1 }
-            # SM1174 (L-16): `camera: self`, the ONE value that lets this page
-            # alone send camera=(self) on https. Exactly that and nothing else
-            # reads as a grant - `*`, a URL, `Self` or a typo leaves the page on
-            # camera=() - and only inside the front matter, so a body line that
-            # happens to read "camera: self" grants nothing.
-            elsif ( $has_fm && $line =~ /^camera[ \t]*:[ \t]*([\x22\x27]?)self\1[ \t]*\r?$/ ) { $m{camera} = 'self' }
+            # SM1174 (L-16), SM1266: `camera: self` - and since SM1266 the same
+            # for every feature a page may ask for (_pp_page_may_ask), such as
+            # `geolocation: self` - the ONE value that lets this page alone send
+            # <feature>=(self) on https. Exactly that and nothing else reads as a
+            # grant - `*`, a URL, `Self` or a typo leaves the page on <feature>=()
+            # - and only inside the front matter, so a body line that happens to
+            # read "camera: self" grants nothing.
+            elsif ( $has_fm
+                && $line =~ /^([a-z-]+)[ \t]*:[ \t]*([\x22\x27]?)self\2[ \t]*\r?$/
+                && $pp_may{$1} )
+            {
+                push @{ $m{permissions} }, $1;
+            }
             # SM656: the page says what KIND of page it is. The admin bar is
             # injected for anyone holding `ui`, which is a property of the
             # PERSON - and on an application page the bar's Edit link opens the

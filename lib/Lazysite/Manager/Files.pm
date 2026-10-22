@@ -439,15 +439,25 @@ sub action_list {
 # here by the validator's own reader so the editor holds no copy of the rule.
 # `camera => 'self'` for a page that grants it, `camera_issue` carrying the
 # validator's sentence for a value it cannot read, nothing otherwise.
+#
+# SM1266: and the same for every other feature a page may ask for -
+# `permissions => [ ... ]`, the features it allows (the camera among them), and
+# `permission_issues => [ ... ]`, the validator's sentence for each other
+# feature's value it cannot read or each `<key>: self` that is no feature.
 sub _camera_fields {
     my ( $rel, $content ) = @_;
     return () unless defined $rel && $rel =~ /\.md\z/ && defined $content;
     require Lazysite::Validate;
     my ($fm) = Lazysite::Validate::split_front_matter($content);
     my ( $v, $bad ) = Lazysite::Validate::camera_value($fm);
-    return ( camera_issue => $bad )   if defined $bad;
-    return ( camera       => 'self' ) if defined $v && $v eq 'self';
-    return ();
+    my @pp     = Lazysite::Validate::permissions_allowed($fm);
+    my @issues = map { $_->{message} }
+        grep { $_->{kind} ne 'camera-unreadable' } Lazysite::Validate::permission_issues($fm);
+    return (
+        ( defined $bad ? ( camera_issue => $bad ) : defined $v && $v eq 'self' ? ( camera => 'self' ) : () ),
+        ( @pp     ? ( permissions       => \@pp )     : () ),
+        ( @issues ? ( permission_issues => \@issues ) : () ),
+    );
 }
 
 sub action_read {

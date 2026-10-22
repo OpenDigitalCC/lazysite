@@ -80,7 +80,9 @@ our $HSTS_MAX_AGE = 300;
 # browsing-topics is in the list for a reason beyond tidiness. It is the Topics
 # API - the browser offering the page an interest profile of its visitor - and
 # "no trackers" is a codified feature of this product, not a preference. A site
-# that cannot ask is a stronger statement than a site that does not.
+# that cannot ask is a stronger statement than a site that does not. (SM1266:
+# since the 2026-10-22 ruling a page may ask for ANY feature here, this one
+# included; it stays denied unless a page's own front matter says so.)
 #
 # Deliberately ABSENT: autoplay, fullscreen and picture-in-picture. Those are
 # things a page's own content might legitimately want, and denying them would be
@@ -107,17 +109,34 @@ sub _csp_mode {
     return ( grep { $_ eq $v } @CSP_MODES ) ? $v : 'report-only';
 }
 
-# SM1174 (L-16, ruled 2026-10-18 "Per page, opt-in"): ONE feature may be
-# relaxed, and only for one response - camera, to (self), when the page asked
-# for it in its front matter (`camera: self`) AND the request is https. A live
-# viewfinder (getUserMedia) is refused on a page under camera=(), and browsers
-# only offer the camera on a secure origin anyway, so the relaxation is not sent
-# where it could not work. Microphone, geolocation and every other directive
-# stay denied: this is not a general "allow" list (SM710 asks for that
-# separately), and a list built for one driver would be the thing it warns of.
+# SM1266 (ruled 2026-10-22, #2): A PAGE MAY ASK FOR ANY OF THEM, on its own.
+# SM1174 let one feature be relaxed - camera, for a page whose front matter says
+# `camera: self` - and the owner asked for that lock to go. The same key now
+# works for every feature here (`geolocation: self`, `microphone: self`), on the
+# same terms as the camera: the value `self` and nothing else, in the front
+# matter only, over https only (browsers offer these on a secure origin only, so
+# the relaxation is not sent where it could not work), and for that response
+# alone. Denial stays the default: a page that asks for nothing sends exactly
+# the list above. The site-level ceiling SM710 describes is later.
+#
+# `payment` is the one feature a page cannot ask for: `payment:` is already the
+# paid-page access key (SM980, `payment: required`), whose reader refuses a
+# page that says `payment: self` to everyone. The question of a second key for
+# the Payment Request API is open rather than guessed at here.
+#
+# The processor carries a marked copy (lazysite-processor/output.pm,
+# _pp_denied and _pp_page_may_ask; ADR 0001); t/lint/55 compares the two by
+# value, for every feature.
+our @PAGE_FEATURES = qw(
+    accelerometer browsing-topics camera display-capture geolocation
+    gyroscope magnetometer microphone midi usb xr-spatial-tracking
+);
+
 sub _permissions_policy {
     my (%o) = @_;
-    return join ', ', map { ( $_ eq 'camera' && $o{camera} ) ? 'camera=(self)' : "$_=()" } @DENIED_FEATURES;
+    my %may = map { $_ => 1 } @PAGE_FEATURES;
+    my %ask = map { $_ => 1 } grep { $may{$_} } @{ $o{allow} || [] };
+    return join ', ', map { $ask{$_} ? "$_=(self)" : "$_=()" } @DENIED_FEATURES;
 }
 
 # THE POLICY, AND WHY EACH LOOSE DIRECTIVE IS LOOSE.
@@ -284,9 +303,11 @@ sub content_security_policy {
 
 # The header lines for one response.
 #
-#   https  => truthy when the request arrived over TLS
-#   camera => truthy when the page asked for the camera (SM1174); honoured only
-#             with https, so the caller need not repeat that test
+#   https       => truthy when the request arrived over TLS
+#   permissions => [ features ] the page asked for (SM1266), each set to (self);
+#                  honoured only with https, so the caller need not repeat that
+#                  test, and only for a feature in @PAGE_FEATURES
+#   camera      => truthy for [ 'camera' ] (SM1174's spelling, kept)
 #
 # The caller passes it rather than this module reading %ENV, so a test can ask
 # both questions without staging an environment.
@@ -308,7 +329,9 @@ sub security_headers {
         'X-Content-Type-Options: nosniff',
         'X-Frame-Options: SAMEORIGIN',
         'Referrer-Policy: strict-origin-when-cross-origin',
-        'Permissions-Policy: ' . _permissions_policy( camera => ( $opt{camera} && $opt{https} ) ),
+        'Permissions-Policy: '
+            . _permissions_policy(
+            allow => $opt{https} ? [ @{ $opt{permissions} || [] }, ( $opt{camera} ? 'camera' : () ) ] : [] ),
     );
     push @h, "Strict-Transport-Security: max-age=$HSTS_MAX_AGE" if $opt{https};
 

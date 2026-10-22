@@ -85,7 +85,10 @@ Any other key
 : `nocache: true` renders the page fresh on every request - never served from or written to the cache. Use it for genuinely per-request content, such as showing the visitor their own IP with `[% client_ip %]`. See [Showing the visitor's IP](/docs/features/authoring/visitor-ip).
 
 `camera`
-: `camera: self` lets this page alone open the visitor's camera - a live viewfinder for scanning a barcode or photographing a card. The page sends `Permissions-Policy: camera=(self)` over https; every other page, and this page over plain http, keeps `camera=()`. `self` is the one value that grants; `none` or leaving the key out keeps the camera closed, and any other value is reported by validate. Microphone, location and the other browser features stay closed on every page. The browser still asks the visitor before the camera starts.
+: `camera: self` lets this page alone open the visitor's camera - a live viewfinder for scanning a barcode or photographing a card. The page sends `Permissions-Policy: camera=(self)` over https; every other page, and this page over plain http, keeps `camera=()`. `self` is the one value that grants; `none` or leaving the key out keeps the camera closed, and any other value is reported by validate. The browser still asks the visitor before the camera starts.
+
+`geolocation`, `microphone` and the other browser features
+: The same key for every browser feature the platform denies - `accelerometer`, `browsing-topics`, `camera`, `display-capture`, `geolocation`, `gyroscope`, `magnetometer`, `microphone`, `midi`, `usb` and `xr-spatial-tracking`. `geolocation: self` lets this page alone ask for the visitor's position: it sends `geolocation=(self)` over https, and every other feature, every other page, and this page over plain http keep `=()`. `self` grants and `none` does not; any other value, and a `<key>: self` that names no such feature (a typo such as `geolocaton: self`), is reported by validate and grants nothing. A page cannot ask for `payment`: `payment:` is the paid-page key. Without any of these keys a page sends the full denied list, as it always has.
 
 `query_params`
 : Accepted URL query-parameter names, exposed as `[% query.name %]`. Requests with matching parameters bypass the cache. See [API and raw mode](/docs/api).

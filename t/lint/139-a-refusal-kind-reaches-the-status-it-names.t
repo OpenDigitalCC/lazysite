@@ -73,6 +73,7 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     access-key-unreadable
     address-list-wrong-kind
     camera-unreadable
+    permission-unreadable permission-unknown
     odoo-binding-is-a-download
 );
 
@@ -90,6 +91,11 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
 # SM1174: `camera-unreadable` is GROUP 2 like `access-key-unreadable` - a
 # Lazysite::Validate issue about a page's `camera:` value, reported to whoever
 # asked. The page itself still serves, on camera=().
+
+# SM1266: `permission-unreadable` and `permission-unknown` are GROUP 2 like
+# `camera-unreadable` - Lazysite::Validate issues about a page's `<feature>:`
+# value, or a `<key>: self` that is no feature. The page still serves, on the
+# default policy.
 
 # SM857: `mine_needs_timestamps` is the binding grammar refusing (mine) on a
 # table with no created_by - an author's binding that cannot work as written,
