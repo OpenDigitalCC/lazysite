@@ -78,8 +78,6 @@ Archive
 ## 0.15.15 - EDGE: the stable candidate: raw pages stay downgraded, and an empty setting is empty (2026-10-20)
 
 - SM1218 (cac60318) **a write that got no answer is reported as not known, not failed.**
-
-- SM1218 (PENDING) **a write that got no answer is reported as not known, not failed.**
   A write whose request was sent and whose answer never came (a read timeout) was
   reported `failed`, though Odoo had done it, and a page told the person to try again.
   It still ends `apply-incomplete`, now with `unknown`, `counts.unknown` and the change's
