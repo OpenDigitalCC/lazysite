@@ -91,9 +91,40 @@ sub check_login_rate {
                 . '(Debian: libdb-file-perl)' );
         return 1;    # fail open, loudly
     }
+    # SM1240: THE COUNTER IS CREATED 0660, IN THE AUTH DIRECTORY'S GROUP.
+    #
+    # It was created 0600. Whoever made it was then the only identity that could
+    # open it, and four processes count against it - the sign-in CGI, the
+    # manager's account page, the Odoo sign-in (a CGI or the runtime) - which do
+    # not all run as one unix user. The 0.16.0 rollout found it 0600, owned by the
+    # site user in group www-data, on two production sites: the CGI could not open
+    # it, so every attempt was allowed, and only `lazysite check` said so. A 0600
+    # file handed to the site user by an ownership pass is the same state.
+    #
+    # So the mode is 0660, under a umask that clears only what 0660 does not carry
+    # (the caller's umask is the runtime's 077 or a shell's 022 as often as the
+    # CGI's 0002, and any of them narrowed 0660 to something the group cannot
+    # open). The group is the auth directory's: a setgid directory gives it
+    # already, and otherwise it is set here - best effort, since a process can
+    # only hand a file to a group it is in. A counter this process owns that has
+    # lost group access is given it back, as the audit log does (Audit.pm).
+    my $is_new = !-e $LOGIN_RATE_DB;
+    if ( !$is_new ) {
+        my @s = stat $LOGIN_RATE_DB;
+        chmod 0660, $LOGIN_RATE_DB
+            if @s && $s[4] == $> && ( $s[2] & 0060 ) != 0060;
+    }
+    my $um = umask( 0777 & ~0660 );
     eval {
-        tie %db, 'DB_File', $LOGIN_RATE_DB, O_CREAT | O_RDWR, 0o600;
+        tie %db, 'DB_File', $LOGIN_RATE_DB, O_CREAT | O_RDWR, 0o660;
     };
+    umask $um;
+    if ( $is_new && tied %db ) {
+        my $dgid = ( stat $AUTH_DIR )[5];
+        my $fgid = ( stat $LOGIN_RATE_DB )[5];
+        chown -1, $dgid, $LOGIN_RATE_DB
+            if defined $dgid && defined $fgid && $dgid != $fgid;
+    }
     if ( $@ || !tied %db ) {
         my $why = $@ || "$!";
         $why =~ s/\s+\z//;

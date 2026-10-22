@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1240 (PENDING) **the sign-in rate counter is made for the serving group.** The login
+  rate limiter created `auth/.login-rate.db` 0600, so only its creator could open it; the
+  0.16.0 rollout found it owned by the site user on two sites, where the www-data CGI could
+  not open it and allowed every attempt. It is now created 0660 under any umask, in the auth
+  directory's group, and a counter the process owns that lost group access gets it back. The
+  limiter still fails open when it cannot open the counter.
 - SM1233 (PENDING) **a Docker Compose package.** `installers/docker/` is no longer a
   placeholder: nginx, the one-rule FastCGI pool and `lazysited` in one container,
   the engine in the image and the site in three volumes (the docroot, `lazysite/`,
