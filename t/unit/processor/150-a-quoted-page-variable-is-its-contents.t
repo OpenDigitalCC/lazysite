@@ -9,7 +9,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(load_processor setup_minimal_site setup_test_site run_processor site_tempdir);
@@ -34,7 +33,7 @@ is( var_of( q{mixed: "a,b'}, 'mixed' ), q{"a,b'}, 'an unmatched pair is not a pa
 is( var_of( 'one: "', 'one' ), '"', 'a lone quote is a value of its own' );
 
 # Through the render: the layout splits it, as the reporting layout did.
-my $d = tempdir( CLEANUP => 1 );
+my $d = site_tempdir();
 setup_test_site($d);
 open my $lf, '>', "$d/lazysite/layouts/test/layout.tt" or die $!;
 print {$lf} '<!DOCTYPE html><html><head><title>[% page_title %]</title></head><body>'

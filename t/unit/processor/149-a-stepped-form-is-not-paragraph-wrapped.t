@@ -14,10 +14,9 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(setup_minimal_site setup_test_site run_processor);
+use TestHelper qw(setup_minimal_site setup_test_site run_processor site_tempdir);
 
 my %form = (
     stepped => "name | Name | required\n--- step: Contact ---\nemail | Email | required email\n"
@@ -28,7 +27,7 @@ my %form = (
 for my $site ( [ 'no layout', \&setup_minimal_site ], [ 'a layout', \&setup_test_site ] ) {
     my ( $where, $setup ) = @$site;
     for my $kind (qw(stepped single)) {
-        my $d = tempdir( CLEANUP => 1 );
+        my $d = site_tempdir();
         $setup->($d);
         open my $fh, '>', "$d/apply.md" or die $!;
         print {$fh} "---\ntitle: Apply\nform: apply\n---\n\nIntro.\n\n::: form\n$form{$kind}:::\n\nAfter.\n";

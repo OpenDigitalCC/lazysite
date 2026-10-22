@@ -18,10 +18,9 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root setup_minimal_site setup_test_site run_processor);
+use TestHelper qw(repo_root setup_minimal_site setup_test_site run_processor site_tempdir);
 
 my $CSS = repo_root() . '/starter/assets/lazysite-chrome.css';
 
@@ -73,7 +72,7 @@ my $page = "---\ntitle: Apply\nform: apply\n---\n\n::: form\n"
 
 for my $case ( [ 'no layout', \&setup_minimal_site, 1 ], [ 'a layout', \&setup_test_site, 0 ] ) {
     my ( $what, $setup, $fallback ) = @$case;
-    my $d = tempdir( CLEANUP => 1 );
+    my $d = site_tempdir();
     $setup->($d);
     open my $fh, '>', "$d/apply.md" or die $!;
     print {$fh} $page;

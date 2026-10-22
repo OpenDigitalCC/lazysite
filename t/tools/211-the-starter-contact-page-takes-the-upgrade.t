@@ -19,12 +19,11 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path     qw(make_path);
-use File::Temp     qw(tempdir);
 use Digest::SHA    qw(sha256_hex);
 use JSON::PP       qw(decode_json encode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root repo_manifest_guard);
+use TestHelper qw(repo_root repo_manifest_guard site_tempdir);
 
 my $ROOT     = repo_root();
 my $MF_GUARD = repo_manifest_guard();
@@ -142,9 +141,9 @@ sub install {
 # backdate the state, so the next run is the upgrade a release brings.
 sub old_site {
     my ($page) = @_;
-    my $dir = tempdir( 'lazysite-sm1251-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
-    my ( $docroot, $cgibin ) = ( "$dir/site", "$dir/cgi-bin" );
-    make_path( $docroot, $cgibin );
+    my $docroot = site_tempdir();
+    ( my $cgibin = $docroot ) =~ s{/[^/]+\z}{/cgi-bin};
+    make_path($cgibin);
     my ( $rc, $out ) = install( $docroot, $cgibin, 'provision' );
     is( $rc, 0, 'the site is provisioned' ) or diag $out;
 
