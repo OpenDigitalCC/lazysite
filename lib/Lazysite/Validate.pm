@@ -655,7 +655,9 @@ sub form_rule_tokens {
 sub form_value_rule_known {
     my ($tok) = @_;
     return ( defined $tok
-            && $tok =~ /\A(?:accept:.|capture:(?:user|environment)\z|select:.|radio:.|checklist-qty:.|checklist:.|max:\d|min:\d|pattern:.|placeholder:.|value:|prefill:\S)/s )
+            && $tok =~ m{\A(?: accept:. | capture:(?:user|environment)\z | select:. | radio:.
+                | checklist-qty:. | checklist:. | max:\d | min:\d | pattern:. | placeholder:.
+                | value: | prefill:\S )}sx )
         ? 1 : 0;
 }
 
@@ -735,7 +737,7 @@ sub _check_form_rules {
         for my $f ( _form_block_findings($block) ) {
             next if $said{ $f->{message} }++;
             push @$warnings, {
-                kind    => ( $f->{what} eq 'pattern' ? 'pattern-will-not-compile' : 'unknown-form-rule' ),
+                kind => ( $f->{what} eq 'pattern' ? 'pattern-will-not-compile' : 'unknown-form-rule' ),
                 message => "form $n: $f->{message}" };
         }
     }
@@ -951,7 +953,7 @@ sub validate_content {
     # the two checks on one page count from the same place - the top of the file.
     push @issues, Lazysite::Manager::Common::page_parse_issues( $body, _fm_line_offset($fm) );
     _check_db_bindings( \@issues, \@warnings, $fm, $docroot );
-    _check_odoo_bindings( \@issues, $fm, $docroot );    # SM1225
+    _check_odoo_bindings( \@issues, $fm, $docroot );        # SM1225
     _check_form_rules( \@issues, \@warnings, $content );    # SM1264
     _check_html_in_page( \@warnings, $body, $h );
     _check_form_delivery( \@warnings, $content, $body, $h, $o{path}, $lz );
