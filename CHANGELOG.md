@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1230 (PENDING) **coverage fits around the night's other work.** The 01:30 cover-once was refused on
+  2,904 MB of swap in use with 7,075 MB available (the host carries swap all day). Swap in use no longer
+  refuses a heavy job (a note, as in the gate); only MemAvailable under 5 GB, disk, inodes or the lock do.
+  A stand-alone `tools/coverage.sh` runs under `nice -n 19 ionice -c3` with 2 jobs (`LAZYSITE_COVER_JOBS`),
+  has no time limit, resumes from the groups already recorded, and a second start exits 2.
+
 - SM1231 (d5739370) **docs: the stable gate's records are walked for the 0.16.0 stable.** The
   threat model (`docs/architecture/security.md`, `docs/SECURITY.md`) takes in the trust
   changes since 0.11; the held SM1219 and SM1118 are held for 0.16.1, not in the 0.16.0
@@ -72,11 +78,6 @@ Archive
 ## 0.15.15 - EDGE: the stable candidate: raw pages stay downgraded, and an empty setting is empty (2026-10-20)
 
 - SM1218 (cac60318) **a write that got no answer is reported as not known, not failed.**
-- SM1230 (PENDING) **coverage fits around the night's other work.** The 01:30 cover-once was refused on
-  2,904 MB of swap in use with 7,075 MB available (the host carries swap all day). Swap in use no longer
-  refuses a heavy job (a note, as in the gate); only MemAvailable under 5 GB, disk, inodes or the lock do.
-  A stand-alone `tools/coverage.sh` runs under `nice -n 19 ionice -c3` with 2 jobs (`LAZYSITE_COVER_JOBS`),
-  has no time limit, resumes from the groups already recorded, and a second start exits 2.
 
 - SM1218 (PENDING) **a write that got no answer is reported as not known, not failed.**
   A write whose request was sent and whose answer never came (a read timeout) was
