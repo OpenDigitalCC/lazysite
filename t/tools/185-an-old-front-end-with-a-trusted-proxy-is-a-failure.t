@@ -28,7 +28,7 @@ sub spit { my ( $p, $b ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh}
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; my $s = <$fh>; close $fh; return $s }
 
 my $src   = slurp($UPD);
-my @names = qw(cli_cmd lazysite_dir template_rev vhost_xff_state site_trust_kind xff_reason xff_exposure
+my @names = qw(cli_cmd xff_fix_words lazysite_dir template_rev vhost_xff_state site_trust_kind xff_reason xff_exposure
     record_xff_exposure xff_summary_line group_findings report_findings);
 my %fn;
 for my $n (@names) {
@@ -79,7 +79,7 @@ subtest 'a pre-SM929 rendering with trusted_proxies set is a FAILURE, with the r
     like( $out, qr/passes the client's X-Forwarded-For through, so trusted_proxies lets any visitor choose their address/,
         'with the reason' );
     like( $out, qr/trusted_proxies is set to a list/, 'naming the explicit list' );
-    like( $out, qr/rebuild the vhost.*probe/s, 'and the fix: rebuild, then probe' );
+    like( $out, qr/fix: re-run with --rebuild-exposed.*then probe/s, 'and the fix: rebuild (SM1265: naming --rebuild-exposed), then probe' );
 };
 
 subtest 'a rendering that passes the client header through is the same failure' => sub {

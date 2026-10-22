@@ -60,6 +60,13 @@
 #                 cannot be the only one, because not every rebuild comes
 #                 through here.
 #
+#   --rebuild-exposed  SM1265: rebuild ONLY the in-scope sites in the
+#                 X-Forwarded-For pass-through FAILURE (SM1194: a vhost rendered
+#                 before SM929 in front of a site that trusts forwarded
+#                 addresses), inside the run and BEFORE the deploy, so the
+#                 permission pass and the repair follow it as they follow
+#                 --rebuild. Each one is logged as auto-rebuilt. Opt-in: it
+#                 changes a vhost. Refused with --list.
 #   --reapply-acls  SM286/SM296: after upgrading, re-issue every stored access
 #                 rule on every site so its content actually moves out of the
 #                 document root. Protecting content moves it only on the ACT of
@@ -118,6 +125,7 @@ LIST=0
 VERBOSE=0
 DO_TPL=0
 DO_REBUILD=0
+DO_REBUILD_EXPOSED=0
 DO_PROXY=0
 ARGS=()
 for a in "$@"; do
@@ -126,6 +134,7 @@ for a in "$@"; do
         --verbose|-v) VERBOSE=1 ;;
         --templates)  DO_TPL=1 ;;
         --rebuild)    DO_REBUILD=1; DO_TPL=1 ;;
+        --rebuild-exposed) DO_REBUILD_EXPOSED=1 ;;
         --proxy)      DO_PROXY=1; DO_TPL=1 ;;
         --reapply-acls) DO_REAPPLY=1 ;;
         --reapply-acls-dry-run) DO_REAPPLY_DRY=1 ;;
@@ -133,6 +142,11 @@ for a in "$@"; do
     esac
 done
 STAGE="${ARGS[0]:-$(cd "$(dirname "$0")/../.." && pwd)}"
+# SM1265: --list promises to change nothing, and --rebuild-exposed changes vhosts.
+if [ "$LIST" = 1 ] && [ "$DO_REBUILD_EXPOSED" = 1 ]; then
+    echo "$0: --rebuild-exposed rebuilds vhosts and --list changes nothing - give one or the other" >&2
+    exit 2
+fi
 
 [ "$(id -u)" = 0 ] || { echo "$0: must run as root" >&2; exit 1; }
 DEPLOY="$STAGE/installers/hestia/lazysite-hestia-deploy.sh"
@@ -294,7 +308,19 @@ xff_reason() {
         default) why='trusted_proxies is not set, so the private ranges are trusted by default' ;;
         *)       why='trusted_proxies is set to a list' ;;
     esac
-    printf '%s\n' "the front end passes the client's X-Forwarded-For through, so trusted_proxies lets any visitor choose their address ($why); fix: rebuild the vhost (--rebuild, or v-rebuild-web-domain USER DOMAIN and then $(cli_cmd) repair --domain DOMAIN, which puts back the permissions a rebuild resets), then probe: a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55; until then set trusted_proxies: none (do not remove the line - removing it restores the default trust)"
+    printf '%s\n' "the front end passes the client's X-Forwarded-For through, so trusted_proxies lets any visitor choose their address ($why); fix: $(xff_fix_words), then probe: a request with X-Forwarded-For: 192.0.2.55 must not be seen as 192.0.2.55; until then set trusted_proxies: none (do not remove the line - removing it restores the default trust)"
+}
+
+# SM1265: how the FAILURE says to fix it. Without --rebuild-exposed it names
+# that flag first - the one that rebuilds only these sites, inside the run. With
+# it, the site was rebuilt and still passes the header through, so the rebuild
+# rendered an old template: the line says to look at Hestia's copy.
+xff_fix_words() {
+    if [ "${DO_REBUILD_EXPOSED:-0}" = 1 ]; then
+        printf '%s' "this run rebuilt the vhost (--rebuild-exposed) and it still passes the header through, so Hestia's copy of lazysite-proxy is not the release's - compare it with the release's and rebuild again"
+    else
+        printf '%s' "re-run with --rebuild-exposed, which rebuilds only the exposed sites before the deploy and repairs them (or --rebuild for every site, or v-rebuild-web-domain USER DOMAIN and then $(cli_cmd) repair --domain DOMAIN, which puts back the permissions a rebuild resets)"
+    fi
 }
 
 # xff_exposure USER DOMAIN DOCROOT - prints the FAILURE line when this site
@@ -645,6 +671,29 @@ record_xff_exposure() {
     else
         printf '%s\n' "$out"
     fi
+    return 0
+}
+
+# SM1265: rebuild_exposed - for --rebuild-exposed: v-rebuild-web-domain each
+# in-scope site whose vhost passes X-Forwarded-For through to a site that trusts
+# forwarded addresses (xff_exposure), and no other. Called before the deploy, so
+# the deploy's permission pass and the health phase's repair follow, as they do
+# for --rebuild (SM270). Each is logged as auto-rebuilt, on the transcript and
+# among the findings. AUTO_REBUILT lists them.
+rebuild_exposed() {
+    local i d u
+    AUTO_REBUILT=()
+    for i in "${!DOMAINS[@]}"; do
+        d="${DOMAINS[$i]}"; u="${USERS[$i]}"
+        [ -n "$(xff_exposure "$u" "$d" "${DOCS[$i]:-}")" ] || continue
+        if "$HESTIA/bin/v-rebuild-web-domain" "$u" "$d" >/dev/null 2>&1; then
+            echo "    auto-rebuilt: $d (its front end passed the client's X-Forwarded-For through; the deploy and the repair follow)"
+            AUTO_REBUILT+=( "$d" )
+            [ -z "${FINDINGS_FILE:-}" ] || printf '%s\t%s\n' "$d" "NOTE: auto-rebuilt by --rebuild-exposed: its front end passed the client's X-Forwarded-For through to a site that trusts forwarded addresses" >> "$FINDINGS_FILE"
+        else
+            echo "    REBUILD FAILED: $d (user $u) - still exposed; the deploy will still run" >&2
+        fi
+    done
     return 0
 }
 
@@ -1118,6 +1167,16 @@ if [ "$DO_REBUILD" = 1 ]; then
             echo "    REBUILD FAILED: ${_k#*/} (user ${_k%%/*})" >&2
         fi
     done
+fi
+
+# --- SM1265: rebuild only the exposed vhosts, BEFORE deploying ---------------
+# The same place in the order as --rebuild, for the same reason (SM270). With
+# --rebuild as well there is nothing left to do: every vhost was just rebuilt.
+AUTO_REBUILT=()
+if [ "$DO_REBUILD_EXPOSED" = 1 ] && [ "$DO_REBUILD" != 1 ]; then
+    echo "==> rebuilding the vhosts that pass X-Forwarded-For through (--rebuild-exposed)"
+    rebuild_exposed
+    [ "${#AUTO_REBUILT[@]}" -gt 0 ] || echo "    none of the in-scope sites is exposed - nothing rebuilt."
 fi
 
 # --- deploy each -------------------------------------------------------------

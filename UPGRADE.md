@@ -81,6 +81,16 @@ auto-blocker and the daily visitor count:
    `grep -n "X-Forwarded-For" /usr/local/hestia/data/templates/web/nginx/lazysite-proxy.*tpl`
    must match in both files, and a request sent with `X-Forwarded-For: 192.0.2.55`
    must not be seen as 192.0.2.55.
+
+   **`--rebuild-exposed` rebuilds only the sites at risk** (SM1265). A site whose
+   vhost still passes the client's `X-Forwarded-For` through, and which trusts
+   forwarded addresses (`trusted_proxies` absent, empty or a list), is a FAILURE:
+   any visitor chooses their address. With `--rebuild-exposed` the rollout
+   rebuilds those sites, and no others, after it has refreshed Hestia's template
+   copies and before it deploys, so the deploy's permission pass and the repair
+   put back what the rebuild resets (SM270). Each one is logged as `auto-rebuilt`.
+   Without the flag the FAILURE line names it. It cannot be combined with
+   `--list`, which changes nothing.
 2. **The engine must be told the proxy is trustworthy.** `trusted_proxies` on the
    Config page, or in `lazysite.conf`. Absent or empty means the private ranges
    `10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16`, which covers a proxy on a

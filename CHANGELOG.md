@@ -125,6 +125,13 @@ Archive
   config `namespaces` and its `reload` verb reach it, and SM1248 adopts them.
   Every Odoo test passes on the new snapshot unchanged. SM747's spec is re-filed.
   t/lint/207, 261.
+- SM1265 (PENDING) **`--rebuild-exposed` rebuilds only the sites in the X-Forwarded-For failure.**
+  A site whose front end passes the client's X-Forwarded-For through to a site that trusts
+  forwarded addresses lets any visitor choose their address (SM1194). The Hestia updater's
+  new opt-in `--rebuild-exposed` rebuilds those in-scope sites and no others, after the
+  template refresh and before the deploy, so the permission pass and the repair follow
+  (SM270). Each is logged as auto-rebuilt. Without the flag the FAILURE line names it. It is
+  refused with `--list` (#379, ruled option B).
 - SM1249 (PENDING) **the Hestia site list sees every lazysite template.** `lazysite-hestia-list.sh`
   matched only the lazysite-app web template, so a host whose sites use lazysite-cgi or
   lazysite-fcgi behind lazysite-proxy listed 0 sites. It now lists every domain on a lazysite web
