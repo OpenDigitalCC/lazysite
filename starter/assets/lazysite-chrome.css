@@ -61,6 +61,76 @@ body.lazysite-fallback { font-family: system-ui, sans-serif; max-width: 800px;
          font-size: 0.85rem; color: #888; }
 .lazysite-fallback a { color: #0066cc; }
 
+/* --- native forms, fallback only ------------------------------------------
+ * SM1251: the default look of a `::: form` on a site with no layout. These
+ * were an inline <style> at the top of the starter /contact.md, which came
+ * after any theme's stylesheet and beat its form rules on that one page. Under
+ * the fallback class they apply where nothing else styles a form, and a theme
+ * is never overridden by them. */
+.lazysite-fallback .lazysite-form {
+    max-width: min(480px, 100%);
+    margin: 1rem 0;
+    box-sizing: border-box;
+}
+.lazysite-fallback .lazysite-form .form-field {
+    display: grid;
+    grid-template-columns: 7rem 1fr;
+    gap: 0.6rem 0.75rem;
+    align-items: start;
+    margin-bottom: 0.6rem;
+}
+.lazysite-fallback .lazysite-form .form-field label {
+    text-align: right;
+    padding-top: 0.45rem;
+}
+.lazysite-fallback .lazysite-form input[type="text"],
+.lazysite-fallback .lazysite-form input[type="email"],
+.lazysite-fallback .lazysite-form input[type="tel"],
+.lazysite-fallback .lazysite-form input[type="number"],
+.lazysite-fallback .lazysite-form textarea,
+.lazysite-fallback .lazysite-form select {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font: inherit;
+}
+.lazysite-fallback .lazysite-form textarea {
+    min-height: 6rem;
+    resize: vertical;
+}
+.lazysite-fallback .lazysite-form input:focus,
+.lazysite-fallback .lazysite-form textarea:focus,
+.lazysite-fallback .lazysite-form select:focus {
+    outline: 2px solid #0056b3;
+    outline-offset: 0;
+}
+.lazysite-fallback .lazysite-form .required {
+    color: #888;
+    font-weight: normal;
+}
+.lazysite-fallback .lazysite-form .form-field.form-submit > button {
+    grid-column: 2;
+    padding: 0.45rem 1.25rem;
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid #0056b3;
+    background: #0056b3;
+    color: #fff;
+    border-radius: 3px;
+}
+.lazysite-fallback .lazysite-form .form-field.form-submit > button:hover {
+    background: #003d80;
+    border-color: #003d80;
+}
+.lazysite-fallback .lazysite-form .form-status {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #666;
+}
+
 /* --- SM098 multi-step forms ----------------------------------------------
  * Progressive enhancement: WITHOUT the JS-added `lsf-js` class every step
  * shows and the nav is hidden, so a visitor with no JavaScript gets one long

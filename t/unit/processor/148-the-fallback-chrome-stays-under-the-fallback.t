@@ -55,6 +55,16 @@ sub selectors_of {
 
     my @step = grep { /\A\.lazysite-form(?:\.lsf-js)?\[data-multistep\]/ } @sel;
     cmp_ok( scalar @step, '>=', 4, 'the multi-step rules are still there, unscoped by the fallback' );
+
+    # SM1251: the native-form defaults the starter /contact.md carried inline
+    # live here now, and only under the fallback, so a theme's form rules win.
+    my %have = map { $_ => 1 } @sel;
+    for my $want ( '.lazysite-fallback .lazysite-form',
+        '.lazysite-fallback .lazysite-form .form-field',
+        '.lazysite-fallback .lazysite-form .form-field.form-submit > button' )
+    {
+        ok( $have{$want}, "the fallback chrome styles a native form: $want" );
+    }
 }
 
 my $page = "---\ntitle: Apply\nform: apply\n---\n\n::: form\n"

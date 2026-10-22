@@ -262,6 +262,13 @@ Archive
   theme's stylesheet. The fallback template's `<body>` now carries `class="lazysite-fallback"` and
   every page rule in the file is scoped to it, so a layout's page gets the form rules only. A theme
   that worked around it (`html body { ... }`) can drop the workaround. t/unit/processor/148.
+- SM1251 (PENDING) **the starter contact page no longer overrides the theme's form styles.** The
+  shipped `/contact.md` opened with a `<style>` block (blue buttons, a two-column label grid) that
+  came after the theme's stylesheet and beat its form rules on that page. The block is gone; the
+  same rules are in `/assets/lazysite-chrome.css` under the fallback template's body class, so a
+  site with no layout looks as before and a themed site gets its theme. An upgrade replaces an
+  unmodified copy of the page and keeps a customised one (t/tools/211 runs it). `validate_page`
+  already warns on a `<style>` in page content (`style-block-in-page`).
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 
