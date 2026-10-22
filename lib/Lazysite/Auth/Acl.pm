@@ -317,6 +317,52 @@ sub rekey_path {
     return $moved;
 }
 
+# SM1242/SM1257/SM1258: A PAGE'S RULE CAN BE KEYED BY ITS STEM.
+#
+# set_permissions on "/about" stores `about`, and that key governs about.md
+# (SM268 H14: a folder's rule covers its landing page). forget_path and
+# rekey_path work on the page's own key, so the stem rule stayed where it was:
+# a deleted page left it for the next page written there (born a draft nobody
+# set), and a MOVED page left it behind - a page drafted through /about and
+# moved to /other was published at /other. Every surface that deletes or moves
+# a page calls this first, so the page's rules are all under its own key and
+# the existing forget/re-key carries them.
+#
+# The stem key is the PAGE's only while no folder of that name exists in either
+# tree; while one does it is the folder's rule and is left alone, as are rules
+# beneath the stem. Folding keeps the meaning per mode: the walk asks the page's
+# own key first and falls back to the stem only for a mode the own key does not
+# carry, so the merged record takes the stem's value exactly where the own key
+# has none (no key, an empty list, a false flag). Returns 1 when it folded.
+#   fold_page_stem( $docroot, $rel )
+sub fold_page_stem {
+    my ( $docroot, $rel ) = @_;
+    $rel = _acl_norm($rel);
+    return 0 unless defined $rel && $rel =~ m{\A(.+)\.(?:md|url|html)\z};
+    my $stem = $1;
+    local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
+    return 0 if -d "$DOCROOT/$stem";
+    require Lazysite::Private;
+    my $priv = Lazysite::Private::private_path( $DOCROOT, $stem );
+    return 0 if defined $priv && -d $priv;
+    my $acls = load_acls();
+    my $from = $acls->{$stem};
+    return 0 unless ref $from eq 'HASH';
+    my $own = ref $acls->{$rel} eq 'HASH' ? { %{ $acls->{$rel} } } : {};
+    my $empty = sub {
+        my ($v) = @_;
+        return 1 unless defined $v;
+        return ref $v eq 'ARRAY' ? !@$v : !$v;
+    };
+    for my $k ( keys %$from ) {
+        $own->{$k} = $from->{$k} if $empty->( $own->{$k} );
+    }
+    $acls->{$rel} = $own;
+    delete $acls->{$stem};
+    save_acls($acls) or return 0;
+    return 1;
+}
+
 # Strip leading slashes so an ACL key matches the manager's relative paths.
 sub _acl_norm { my $r = shift; $r =~ s{^/+}{} if defined $r; return $r }
 

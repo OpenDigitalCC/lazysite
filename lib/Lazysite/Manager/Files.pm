@@ -1310,6 +1310,12 @@ sub action_move {
     # and DAV already used it; this was the copy it missed. The old keys are
     # listed BEFORE the re-key so each new key can be synced below; the same
     # prefix test as rekey_path, so docs-archive is not a child of docs.
+    #
+    # SM1257: and the rule keyed by the page's STEM. A page drafted through
+    # "/about" holds its rule at `about`, which the re-key below never touched:
+    # moved to other.md the page left its draft behind and was published. It is
+    # folded into the page's own key first, so the re-key carries it.
+    Lazysite::Auth::Acl::fold_page_stem( $DOCROOT, $s->{rel} );
     my ( $sk, $dk ) = ( _acl_norm( $s->{rel} ), _acl_norm( $d->{rel} ) );
     my @store_warnings;
     my @old_keys = grep { $_ eq $sk || index( $_, "$sk/" ) == 0 }

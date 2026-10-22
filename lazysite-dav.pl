@@ -1435,6 +1435,8 @@ sub do_copy_move {
     # A COPY makes a fresh file, which gets a fresh owner entry and inherits no
     # read/write lists - the same rule action_copy applies, for the same reason.
     if ($move) {
+        # SM1257: a rule keyed by the page's stem moves with it (Acl::fold_page_stem).
+        Lazysite::Auth::Acl::fold_page_stem( $DOCROOT, $a{rel} );
         if ( Lazysite::Auth::Acl::rekey_path( $a{rel}, $drel ) ) {
             my $acls = Lazysite::Auth::Acl::load_acls();
             my @w    = _sync_acl_store( $drel, $acls->{ _dav_acl_key($drel) } );

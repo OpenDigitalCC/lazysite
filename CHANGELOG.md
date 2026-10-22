@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1257 (PENDING) **a page drafted through its stem stays a draft when it moves.** A rule
+  set on `/about` is stored as `about` and holds `about.md` back; every mover re-keyed only
+  the page's own key, so a moved page left its draft behind and was published at its new
+  path, its bytes back in the document root. The stem rule now moves with the page through
+  one shared function (`Acl::fold_page_stem`), in the manager's move, MCP `move_file` and
+  `rename_page`, the control API's move and WebDAV MOVE, while no folder of that name exists.
 - SM1244 (PENDING) **lazysite check warns of an OOM that can resend a write.** OOM 0.37 and
   earlier can send a write again when its answer timed out, so a change can be made twice in
   Odoo. While the Odoo extension is on, the check names the OOM the site loads (version and

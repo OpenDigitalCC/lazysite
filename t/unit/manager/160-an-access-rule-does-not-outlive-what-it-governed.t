@@ -242,4 +242,30 @@ subtest 'SM1242: a page rule keyed by its STEM goes with the page' => sub {
     ok( rule_at('videos/section/inner.md'), 'and so does a rule beneath it' );
 };
 
+subtest 'SM1257: a page drafted through its STEM stays a draft when it moves' => sub {
+    # A rule set on "/videos/about" is stored as `videos/about` and holds about.md
+    # back. action_move (the manager, MCP move_file and rename_page, the control
+    # API's move) re-keyed the page's own key only, so the draft stayed behind
+    # and the moved page was PUBLISHED at its new path.
+    my $a = Lazysite::Auth::Acl::load_acls();
+    delete $a->{$_} for keys %$a;
+    Lazysite::Auth::Acl::save_acls($a);
+    unlink "$doc/videos/about.md", "$doc/videos/other.md";
+
+    ok( Lazysite::Manager::Files::action_acl_set( '/videos/about', 'owner', undef, undef, undef, 1, {} )->{ok},
+        'the page is drafted through its stem' );
+    ok( Lazysite::Manager::Files::action_save( '/videos/about.md', 'owner', "---\ntitle: A\n---\nHeld back.\n", undef )->{ok},
+        'and written' );
+    is( Lazysite::Auth::Acl::placement_for( $doc, 'videos/about.md' ), 'private', 'it is held back before the move' );
+
+    my $mv = Lazysite::Manager::Files::action_move( '/videos/about.md', '/videos/other.md', 'owner' );
+    ok( $mv->{ok}, 'the page moved' ) or diag explain $mv;
+    ok( defined Lazysite::Auth::Acl::governing_key( $doc, 'videos/other.md', 'draft' ),
+        'THE MOVED PAGE IS STILL A DRAFT' )
+        or diag( 'The stem rule stayed at videos/about and the page at videos/other.md was published.' );
+    ok( !-e "$doc/videos/other.md", 'and its bytes are not in the document root, where a front end serves them' );
+    ok( !rule_at('videos/about'), 'and no rule is left at the old stem for the next page written there' );
+    unlink "$doc/videos/other.md";
+};
+
 done_testing();
