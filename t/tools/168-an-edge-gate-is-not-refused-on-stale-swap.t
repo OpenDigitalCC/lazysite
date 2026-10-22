@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM1088: an edge or beta gate is not refused on stale swap.
+# SM1088, SM1230: no gate is refused on stale swap.
 #
 # The 0.15.6 edge gate (2026-10-16) was SKIPPED: "swap in use 2521 MB is over
 # 1024 MB and MemAvailable 6665 MB is under 7168 MB". The swap rule guards the
@@ -7,10 +7,13 @@
 # guard in SUITE mode unless coverage will run (stable, certified, or
 # LAZYSITE_COVER_FORCE=1).
 #
+# SM1230: swap in use never refuses, for coverage either (HEAVY and SUITE alike);
+# it is printed as a note and MemAvailable is what counts. So every gate, edge,
+# stable or coverage forced, passes the stale swap.
+#
 # HOW IT IS TOLD APART WITHOUT RUNNING A GATE. Stale swap, and a stage disk
-# requirement no host meets: the HEAVY guard refuses on the swap (it is checked
-# first), the SUITE guard passes the swap and refuses on the disk. Either way
-# the gate stops at the guard, exit 3, before it stages anything.
+# requirement no host meets: the guard notes the swap, passes it, and refuses on
+# the disk, exit 3, before the gate stages anything.
 use strict;
 use warnings;
 use Test::More;
@@ -43,14 +46,16 @@ like( $out, qr/stage base .* MB free, under/, 'on the disk, past the swap' );
 
 ( $rc, $out ) = gate('--final');
 is( $rc, 3, 'the stable gate stops at the guard' ) or diag $out;
-like( $out, qr/swap in use \d+ MB is over 1024 MB and MemAvailable 6656 MB is under 7168 MB/,
-    'on the swap: coverage runs for stable' );
+like( $out, qr/swap in use \d+ MB is over 1024 MB; not refusing/,
+    'stable (coverage runs): the swap is a note' );
+like( $out, qr/stage base .* MB free, under/, 'stable: on the disk, past the swap' );
 
 {
     local $ENV{LAZYSITE_COVER_FORCE} = 1;
     ( $rc, $out ) = gate();
-    like( $out, qr/swap in use \d+ MB is over 1024 MB and MemAvailable/,
-        'an edge gate with coverage forced keeps the swap rule' );
+    is( $rc, 3, 'an edge gate with coverage forced stops at the guard' ) or diag $out;
+    like( $out, qr/stage base .* MB free, under/,
+        'coverage forced: on the disk, past the swap' );
 }
 
 done_testing();
