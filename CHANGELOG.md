@@ -53,7 +53,7 @@ Archive
 
 ## Unreleased
 
-- SM1230 (PENDING) **coverage fits around the night's other work.** The 01:30 cover-once was refused on
+- SM1230 (902e2784) **coverage fits around the night's other work.** The 01:30 cover-once was refused on
   2,904 MB of swap in use with 7,075 MB available (the host carries swap all day). Swap in use no longer
   refuses a heavy job (a note, as in the gate); only MemAvailable under 5 GB, disk, inodes or the lock do.
   A stand-alone `tools/coverage.sh` runs under `nice -n 19 ionice -c3` with 2 jobs (`LAZYSITE_COVER_JOBS`),
