@@ -3728,7 +3728,29 @@ sub report_private_store_usable {
             }
         }
     }
-    return unless $gating || -e $store;
+    unless ( $gating || -e $store ) {
+        # SM1237: BUT A ROOT --fix CREATES IT WHERE THE ENGINE CANNOT. Quiet, as
+        # above - nothing is reported - and only as root, so nobody is nagged.
+        #
+        # On Hestia the store's parent is the domain folder, mode 0551, so
+        # neither the CGI nor the site user can create it. A site that never
+        # protected anything therefore has no store, and the first protect of
+        # anything fails with the content left public: the manager's, MCP's,
+        # and the outside-in probe's own (it protects a throwaway folder as the
+        # site user). Measured: the probe answers "ACL PROBE SKIPPED: the engine
+        # refused to protect the probe folder" on every such site, so a fleet
+        # run reports it "could not run" for a site that has nothing wrong with
+        # it. The deploy and `lazysite repair` run --fix as root; creating the
+        # store there, empty and in the shape SM313 gives it, is what lets the
+        # probe run on the next pass.
+        if ( $> == 0 ) {
+            ( my $parent = $store ) =~ s{/[^/]+\z}{};
+            my @pst = stat $parent;
+            $store_create_needed = $store
+                if @pst && !( cgi_can( 2, @pst ) && cgi_can( 1, @pst ) );
+        }
+        return;
+    }
 
     if ( -d $store ) {
         # It exists. The question is then whether the CGI can write INTO it.

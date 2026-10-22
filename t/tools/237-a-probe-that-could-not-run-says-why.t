@@ -131,4 +131,22 @@ subtest 'the summary points at the reasons' => sub {
     like( $u, qr/the reason for each is under findings: "probe could not run"/, 'which names the finding' );
 };
 
+subtest 'a root --fix creates the store the engine cannot' => sub {
+    my $c = slurp("$root/tools/lazysite-check.pl");
+    my ($blk) = $c =~ /(unless \( \$gating \|\| -e \$store \) \{.*?\n        return;\n    \})/s;
+    ok( $blk, 'the no-protection branch is found' ) or return;
+    like( $blk, qr/if \( \$> == 0 \)/, 'as root only' );
+    like( $blk, qr/\$store_create_needed = \$store\s+if \@pst && !\( cgi_can\( 2, \@pst \) && cgi_can\( 1, \@pst \) \)/,
+        'when the engine cannot create it itself - the shape --fix already creates (SM313)' );
+
+    # And as anybody else, nothing changes: no report, and no nag under --fix.
+    plan skip_all => 'running as root' if $> == 0;
+    my $doc = a_site('quiet');
+    chmod 0551, "$T/quiet";
+    my $out = qx($^X \Q$root/tools/lazysite-check.pl\E --docroot \Q$doc\E --fix 2>&1);
+    chmod 0755, "$T/quiet";
+    unlike( $out, qr/private store/, 'a non-root check says nothing about a store this site does not need' )
+        or diag $out;
+};
+
 done_testing();
