@@ -269,6 +269,11 @@ Archive
   site with no layout looks as before and a themed site gets its theme. An upgrade replaces an
   unmodified copy of the page and keeps a customised one (t/tools/211 runs it). `validate_page`
   already warns on a `<style>` in page content (`style-block-in-page`).
+- SM1252 (PENDING) **a stepped form no longer leaves empty paragraphs inside itself.** A
+  multi-step form's output began with its stylesheet `<link>`, which the Markdown pass does not take
+  for block HTML, so the head of the form was wrapped: `<p><link><form>` ... `</p>` and
+  `<p></form>`, and every stepped form had stray spacing. The link is emitted inside the form, after
+  the opening tag, so the form passes through as a single-step one does. t/unit/processor/149.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

@@ -906,7 +906,14 @@ sub _render_form {
             . qq(    <button type="button" class="lsf-back">Back</button>\n)
             . qq(    <button type="button" class="lsf-next">Next</button>\n)
             . qq(  </div>\n);
-        $step_css     = _form_step_css();
+        # SM1252: INSIDE the form, on its own line after the opening tag. Before
+        # it, the form's output began with <link>, which the Markdown pass does
+        # not take for block HTML, so it paragraph-wrapped the head of the form:
+        # `<p><link ...><form ...>` hidden inputs `</p>`, and `<p></form>` - the
+        # stray <p>s a browser then leaves inside every stepped form. Starting
+        # with <form>, as a single-step form does, the block passes through
+        # untouched. A stylesheet <link> is valid in the body.
+        $step_css     = '  ' . _form_step_css() . "\n";
         $extra_script = _form_step_script($form_name);
     }
     else {
@@ -926,11 +933,11 @@ sub _render_form {
     $page_esc =~ s/&/&amp;/g;
     my $banner = _form_outcome_banner( $form_name, [ map { $_->{name} } grep { ref $_ eq 'HASH' && defined $_->{name} } @server_rules ] ); # SM1012 S6
     return <<"END_FORM";
-$banner$step_css<form method="POST"
+$banner<form method="POST"
       action="/cgi-bin/form-handler.pl"$enctype
       class="lazysite-form"
       data-form="$form_name"$multistep_attr>
-  <input type="hidden" name="_form" value="$form_name">
+$step_css  <input type="hidden" name="_form" value="$form_name">
   <input type="hidden" name="_page" value="$page_esc">
   <input type="hidden" name="_ts" value="$ts">
   <input type="hidden" name="_tk" value="$tk">
