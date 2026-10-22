@@ -50,7 +50,7 @@ travels with the auth store.
   It cannot say what the site had, and guessing would bring back what an operator
   deleted.
 - An absent record is read as empty: that is a site from a release that kept none.
-  `ops.work_users_tool_statements` is now 3874 (lint 216).
+  `ops.work_users_tool_statements` is now 3877 (lint 216).
 
 # Tests
 

@@ -4291,8 +4291,13 @@ sub _default_group_nesting {
 #     every reader of groups-settings.json takes each key for a group. A record
 #     that exists and cannot be read adopts nothing: it cannot say what was had.
 sub _bundles_had {
-    return ( {}, 1 ) unless -e $BUNDLES_HAD_FILE;
-    open my $fh, '<:raw', $BUNDLES_HAD_FILE or do { cannot_read( 'bundles-adopted.json', $BUNDLES_HAD_FILE ); return ( undef, 0 ) };
+    # The open decides (SM770): absent is a site that kept no record, anything
+    # else that will not open is a record that cannot be read.
+    open my $fh, '<:raw', $BUNDLES_HAD_FILE or do {
+        return ( {}, 1 ) if $!{ENOENT};
+        cannot_read( 'bundles-adopted.json', $BUNDLES_HAD_FILE );
+        return ( undef, 0 );
+    };
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;
