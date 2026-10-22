@@ -298,6 +298,10 @@ Archive
   add --channel certified` was refused ("must be 'edge', 'beta' or 'stable'") although ADR 0010
   added the rung and `lazysite provision`, which the integrator passes the value to, accepts it.
   The check, the usage and the POD take all four. t/tools/212.
+- SM1259 (PENDING) **a certified cut gets past the manifest build.** `release.sh --certified`
+  passes `--channel certified` to `build-manifest.pl`, which accepted only edge, beta and stable and
+  died, so the first certified cut would have stopped there. It takes the fourth rung (ADR 0010);
+  an unknown channel is still refused. t/tools/213.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

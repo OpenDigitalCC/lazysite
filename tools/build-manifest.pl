@@ -53,9 +53,14 @@ $opt{version} //= read_version_file();
 # with --channel beta / release.sh --beta), 'stable' (certified customer
 # rollout, cut with --channel stable / release.sh --final). A site's
 # update_channel is the minimum maturity it accepts (see install.pl).
+#
+# SM1259: and 'certified' (ADR 0010), a stable build whose compliance records
+# were walked, cut with release.sh --certified - which passes exactly that
+# value here. It was refused, so the first certified cut would have stopped at
+# this step. install.pl already ranks it (%CHANNEL_RANK).
 $opt{channel} //= 'edge';
-die "build-manifest: --channel must be 'edge', 'beta' or 'stable'\n"
-    unless $opt{channel} =~ /^(?:edge|beta|stable)$/;
+die "build-manifest: --channel must be 'edge', 'beta', 'stable' or 'certified'\n"
+    unless $opt{channel} =~ /^(?:edge|beta|stable|certified)$/;
 
 if ( $opt{check} ) {
     exit check_manifest();
