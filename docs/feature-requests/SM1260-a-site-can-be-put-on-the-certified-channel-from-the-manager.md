@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: found beside SM1259 on n728, ruled for build by the coordinator 2026-10-22
 area: manager
-status-note: "SHIPPED (PENDING) on n728: Lazysite::Manager::Config accepts certified; the Config page offers it; t/unit/manager/17 and t/tools/214."
+status-note: "SHIPPED (PENDING) on n728: Lazysite::Manager::Config accepts certified; the Config page offers it; t/unit/manager/17 and t/tools/215."
 ---
 
 # What happened
@@ -31,8 +31,8 @@ it already took certified, run:
 | `starter/manager/config.md` select options | no certified | offers it (this change) |
 | `tools/lazysite-hestia-domain.pl add --channel` | refused | accepts it (SM1256) |
 | `tools/build-manifest.pl --channel` | refused | accepts it (SM1259) |
-| `install.pl --channel`, `read_update_channel` (`%CHANNEL_RANK`) | took it | unchanged; now pinned by t/tools/214 |
-| `tools/lazysite-cli.pl channel` and `provision --channel` | took it | unchanged; `channel` now pinned by t/tools/214 |
+| `install.pl --channel`, `read_update_channel` (`%CHANNEL_RANK`) | took it | unchanged; now pinned by t/tools/215 |
+| `tools/lazysite-cli.pl channel` and `provision --channel` | took it | unchanged; `channel` now pinned by t/tools/215 |
 | MCP | has no tool that sets the channel | - |
 
 The Hestia deploy scripts' skip messages say "stable channel, edge build"
@@ -44,6 +44,6 @@ whatever the rungs were; that is wording, not validation, and is left.
   refuses an unknown value naming certified, and takes every option the Config
   page's schema offers, which include certified. With the old Config.pm and
   config.md, the certified case, the refusal text and the page check fail.
-- t/tools/214 runs install.pl `--channel certified` and `lazysite channel
+- t/tools/215 runs install.pl `--channel certified` and `lazysite channel
   certified` on a site: each writes the value and refuses `gold` leaving the conf
   as it was. These already worked; the test holds them.

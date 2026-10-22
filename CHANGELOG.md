@@ -307,7 +307,7 @@ Archive
   offer it, though ADR 0010 says a site that requires certification sets exactly that and the
   installer honours it. Both take it now. Every other channel validator in the tree was checked:
   install.pl and the CLI already took it (now pinned), and SM1256 and SM1259 fixed the Hestia
-  integrator and the manifest build. t/unit/manager/17, t/tools/214.
+  integrator and the manifest build. t/unit/manager/17, t/tools/215.
 - SM1264 (PENDING) **validate_page warns on a form rule the renderer ignores, in every form.** An
   unknown `key:value` (`maxx:5`, `capture:front`) was passed silently, and only a page's first
   `::: form` block was read. Both are reported now as warnings that never block a save
