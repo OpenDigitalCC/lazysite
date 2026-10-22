@@ -1386,6 +1386,9 @@ sub run_checks {
     # --- 8g3. do the Odoo keys scheduled bindings run on expire soon? (SM1161) ---
     report_odoo_scheduled_keys();
 
+    # --- 8g3b. is the OOM the Odoo extension loads one that never resends a write? (SM1244) ---
+    report_odoo_oom_version();
+
 # --- 8g4. is the Odoo extension's resident OOM running where the site asks for it? (SM1164 D4) ---
     report_odoo_daemon();
 
@@ -3534,6 +3537,53 @@ sub report_odoo_scheduled_keys {
 # the check names the site, says which socket it should answer on (the site's own
 # or oomd's default directory, which a long path forces), and why it is not
 # there when the supervisor knows.
+# SM1244 (#376): OOM 0.37 AND EARLIER CAN SEND A WRITE AGAIN WHEN ITS ANSWER TIMED
+# OUT, so a change can be made twice in Odoo. 0.38 calls such a change `unknown`
+# and does not repeat it (runs-38, SM1216). The site loads OOM the way any Perl
+# does - `require Odoo::Ops` on its @INC: the installed libodoo-oom-perl, unless
+# PERL5LIB names another copy (the vendored t/vendor/oom is the suite's, never a
+# site's) - so this asks the same question in the same way and names the file it
+# found. ODOO_OOM_SHARE says where OOM's DATA is, not its code, and plays no part.
+# Only while the Odoo extension is on: a site that does not call Odoo is not at risk.
+our $OOM_SAFE_RESEND;
+BEGIN { $OOM_SAFE_RESEND = q{0.38} }    # set before the checks above run
+
+sub report_odoo_oom_version {
+    my $on = eval {
+        require Lazysite::Manager::Plugins;
+        no warnings 'once';
+        local $Lazysite::Manager::Plugins::DOCROOT = $opt{docroot};
+        Lazysite::Manager::Plugins::plugin_enabled('plugins/odoo.pl');
+    };
+    return unless $on;
+    my ( $have, $file );
+    if ( eval { require Odoo::Ops::Version; 1 } ) {
+        no warnings 'once';
+        ( $have, $file ) = ( $Odoo::Ops::Version::VERSION, $INC{'Odoo/Ops/Version.pm'} );
+    }
+    elsif ( eval { require Odoo::Ops; 1 } ) {
+        ( $have, $file ) = ( eval { Odoo::Ops->VERSION }, $INC{'Odoo/Ops.pm'} );
+    }
+    else {
+        report( 'WARN', 'the Odoo extension is on and OOM cannot be loaded (Odoo::Ops), so every Odoo call is refused',
+            'install OOM ' . $OOM_SAFE_RESEND . ' or later (libodoo-oom-perl)' );
+        return;
+    }
+    require version;
+    my $old = !defined $have || !eval { version->parse($have) >= version->parse($OOM_SAFE_RESEND) };
+    unless ($old) {
+        report( 'OK', "the Odoo extension loads OOM $have ($file)" );
+        return;
+    }
+    report( 'WARN',
+        'the Odoo extension is on and the OOM it loads is ' . ( $have // 'unversioned' ) . " ($file): "
+            . "OOM older than $OOM_SAFE_RESEND can send a write again when its answer timed out, "
+            . 'so a change can be made twice in Odoo',
+        "install OOM $OOM_SAFE_RESEND or later (libodoo-oom-perl >= $OOM_SAFE_RESEND, and odoo-oom-tools "
+            . 'for oomd)' );
+    return;
+}
+
 sub report_odoo_daemon {
     my $d = $opt{docroot};
     return unless -r "$LZ/odoo.conf";
@@ -3551,6 +3601,16 @@ sub report_odoo_daemon {
     if ( $st->{running} ) {
         my $h = $st->{health} || {};
         report( 'OK', "the Odoo extension's oomd is running ($st->{name}, OOM $h->{version}, $h->{workers} workers); $where" );
+        # SM1244: a call oomd answers runs in oomd's OOM, not the one the site
+        # loads, so its version is asked the same question.
+        require version;
+        report( 'WARN',
+            "the Odoo extension's oomd runs OOM $h->{version}: OOM older than $OOM_SAFE_RESEND can send a write "
+                . 'again when its answer timed out, so a change can be made twice in Odoo',
+            "install OOM $OOM_SAFE_RESEND or later (odoo-oom-tools and libodoo-oom-perl >= $OOM_SAFE_RESEND) "
+                . 'and restart oomd' )
+            if defined $h->{version}
+            && !eval { version->parse( $h->{version} ) >= version->parse($OOM_SAFE_RESEND) };
         return;
     }
     my $level = $st->{mode} eq 'required' ? 'FAIL' : 'WARN';

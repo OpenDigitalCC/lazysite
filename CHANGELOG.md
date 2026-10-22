@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1244 (PENDING) **lazysite check warns of an OOM that can resend a write.** OOM 0.37 and
+  earlier can send a write again when its answer timed out, so a change can be made twice in
+  Odoo. While the Odoo extension is on, the check names the OOM the site loads (version and
+  file) and warns below 0.38, with the fix: install OOM 0.38 or later. A running oomd that
+  reports an older OOM gets the same warning.
 - SM1243 (PENDING) **the offline pages refusal says the list takes commas.** An
   `app_offline_pages` value of paths separated by spaces was refused as one path that is not
   plain, without saying the list is separated by commas. The refusal now says so and shows
