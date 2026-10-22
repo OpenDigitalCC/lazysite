@@ -492,9 +492,11 @@ sub action_config_set {
         return { ok => 0, error => "webdav_enabled must be 'enabled' or 'disabled'" };
     }
     # Channel ladder: 'all' (the UI vocabulary) and 'edge' (the CLI's) are
-    # synonyms - both mean "accept every release".
-    if ( $key eq 'update_channel' && defined $value && $value !~ /^(?:all|edge|beta|stable)$/ ) {
-        return { ok => 0, error => "update_channel must be 'all', 'beta' or 'stable'" };
+    # synonyms - both mean "accept every release". SM1260: and 'certified', the
+    # rung ADR 0010 put above stable - what a site that requires certification
+    # sets, and what install.pl already ranks (%CHANNEL_RANK).
+    if ( $key eq 'update_channel' && defined $value && $value !~ /^(?:all|edge|beta|stable|certified)$/ ) {
+        return { ok => 0, error => "update_channel must be 'all', 'beta', 'stable' or 'certified'" };
     }
     if ( ( $key eq 'layout' || $key eq 'theme' ) && defined $value && length $value
         && $value !~ /^[A-Za-z0-9_-]+$/ ) {

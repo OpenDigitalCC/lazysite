@@ -302,6 +302,12 @@ Archive
   passes `--channel certified` to `build-manifest.pl`, which accepted only edge, beta and stable and
   died, so the first certified cut would have stopped there. It takes the fourth rung (ADR 0010);
   an unknown channel is still refused. t/tools/213.
+- SM1260 (PENDING) **a site can be put on the certified channel from the manager.** config-set
+  (the Config page and the control API) refused `update_channel: certified`, and the page did not
+  offer it, though ADR 0010 says a site that requires certification sets exactly that and the
+  installer honours it. Both take it now. Every other channel validator in the tree was checked:
+  install.pl and the CLI already took it (now pinned), and SM1256 and SM1259 fixed the Hestia
+  integrator and the manifest build. t/unit/manager/17, t/tools/214.
 
 ## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
 

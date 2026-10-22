@@ -77,7 +77,9 @@ unlike( conf($d), qr/manager_groups: pwn/, 'refused key is not written' );
 
 # update_channel accepts the full ladder (field finding: only all/stable were
 # selectable), plus 'edge' as the CLI-vocabulary synonym of 'all'; junk refused.
-for my $ch (qw(all edge beta stable)) {
+# SM1260: and 'certified', ADR 0010's fourth rung - refused here though the
+# installer ranks it, so a site could not be put on it from the manager.
+for my $ch (qw(all edge beta certified stable)) {
     my $c = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
         HTTP_AUTHORIZATION => basic( 'p', $tok ),
         body => encode_json( { key => 'update_channel', value => $ch } ) );
@@ -88,6 +90,24 @@ my $badch = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-s
     HTTP_AUTHORIZATION => basic( 'p', $tok ),
     body => encode_json( { key => 'update_channel', value => 'nightly' } ) );
 ok( !$badch->{ok}, 'an unknown channel is refused' );
+like( $badch->{error} // '', qr/'certified'/, 'and the refusal names certified among the four' );
+
+# SM1260: the Config page offers every value config-set takes, certified with
+# them - each option read from the page's own schema and posted.
+{
+    open my $cm, '<', repo_root() . '/starter/manager/config.md' or die $!;
+    my $page = do { local $/; <$cm> };
+    close $cm;
+    my ($opts) = $page =~ /key: 'update_channel'.*?options: \[([^\]]*)\]/s;
+    my @opts = ( $opts // '' ) =~ /'([a-z]+)'/g;
+    ok( ( grep { $_ eq 'certified' } @opts ), 'the Config page offers certified' );
+    for my $ch (@opts) {
+        my $c = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+            HTTP_AUTHORIZATION => basic( 'p', $tok ),
+            body => encode_json( { key => 'update_channel', value => $ch } ) );
+        ok( $c->{ok}, "the page's option '$ch' is one config-set takes" ) or diag $c->{error};
+    }
+}
 
 # SM156: canonical_ip - a comma list of IP literals; may be CLEARED (empty =
 # auto-detect); a hostname / junk is refused; config-read surfaces it.

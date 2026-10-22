@@ -210,7 +210,7 @@ var SITE_SCHEMA = [
     preview: true,
     note: 'How the manager itself looks. This changes nothing about the site you publish - only the admin pages you are reading now. Preview a style before committing to it: the preview shows every component in that style, so a style that leaves something unstyled is visible before you choose it.' },
   { key: 'update_channel', label: 'Update channel', type: 'select',
-    options: ['all', 'beta', 'stable'], default: 'all', group: 'Updates',
+    options: ['all', 'beta', 'stable', 'certified'], default: 'all', group: 'Updates',
     note: 'The minimum release maturity this site accepts, on the edge < beta < stable < certified ladder. "all" installs every release (early testing); "beta" takes beta and above (tested, bedding in); "stable" takes stable and certified builds - supported software; "certified" takes only builds whose compliance records were walked before the cut. Out-of-channel upgrades are skipped and logged in the audit trail. Use "stable" for customer sites.' },
 ];
 
