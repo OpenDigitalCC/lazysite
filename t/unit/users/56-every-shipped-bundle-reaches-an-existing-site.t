@@ -16,7 +16,7 @@ use File::Path qw(make_path);
 use JSON::PP   qw(encode_json decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(site_tempdir run_cmd);
+use TestHelper qw(site_tempdir run_cmd run_child);
 
 my $tool = "$FindBin::Bin/../../../tools/lazysite-users.pl";
 
@@ -62,13 +62,8 @@ sub remove_groups {
 # What the manager's own reads do first: the ordinary use a site adopts a release on.
 sub touch {
     my ($d) = @_;
-    require IPC::Open2;
-    my $pid = IPC::Open2::open2( my $o, my $i, $^X, $tool, '--api', '--docroot', $d );
-    print {$i} encode_json( { action => 'users-page', me => 'boss' } );
-    close $i;
-    my $out = do { local $/; <$o> };
-    waitpid $pid, 0;
-    return $out;
+    return run_child( [ $^X, $tool, '--api', '--docroot', $d ],
+        stdin => encode_json( { action => 'users-page', me => 'boss' } ), stderr => 'inherit' )->{out};
 }
 
 sub seeded_site {
@@ -153,13 +148,8 @@ sub delete_bundle {
     my $g = groups_read($d);
     $g->{$b} = [];
     groups_write( $d, $g );    # empty it first: a group with members is not deleted
-    require IPC::Open2;
-    my $pid = IPC::Open2::open2( my $o, my $i, $^X, $tool, '--api', '--docroot', $d );
-    print {$i} encode_json( { action => 'group-delete', group => $b } );
-    close $i;
-    my $out = do { local $/; <$o> };
-    waitpid $pid, 0;
-    return $out;
+    return run_child( [ $^X, $tool, '--api', '--docroot', $d ],
+        stdin => encode_json( { action => 'group-delete', group => $b } ), stderr => 'inherit' )->{out};
 }
 
 {
