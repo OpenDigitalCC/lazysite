@@ -387,6 +387,9 @@ sub _acl_entry_and_key {
         my ($e) = @_;
         return 0 unless ref $e eq 'HASH';
         return 1 unless defined $mode && length $mode;
+        # SM1242: `draft` is a flag, not a list - the processor's draft mode
+        # (lazysite-processor/acl.pm, SM981): only an entry carrying it decides.
+        return ( $e->{draft} ? 1 : 0 ) if $mode eq 'draft';
         return ( ref $e->{$mode} eq 'ARRAY' && @{ $e->{$mode} } ) ? 1 : 0;
     };
 

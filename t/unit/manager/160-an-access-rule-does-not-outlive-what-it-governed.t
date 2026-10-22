@@ -212,4 +212,34 @@ subtest 'AO2: a page born gated under an ancestor rule says so' => sub {
         'and carries no notice, because nothing gates it' );
 };
 
+subtest 'SM1242: a page rule keyed by its STEM goes with the page' => sub {
+    # #372b, from the xisl.com site agent: delete_page removed the page and its
+    # draft rule stayed. CF-2 drops the page's own key (AO1 above); a rule set on
+    # "/about" is stored as `about`, governs about.md, and was left behind.
+    my $a = Lazysite::Auth::Acl::load_acls();
+    delete $a->{$_} for keys %$a;
+    Lazysite::Auth::Acl::save_acls($a);
+
+    write_page( 'videos/stem.md', "---\ntitle: S\n---\nS.\n" );
+    set_rule( 'videos/stem', draft => 1 );
+    my $r = Lazysite::Manager::Files::action_delete( '/videos/stem.md', 'owner' );
+    ok( $r->{ok}, 'the page was deleted' ) or diag explain $r;
+    ok( !rule_at('videos/stem'), 'THE STEM RULE IS GONE TOO' );
+    write_page( 'videos/stem.md', "---\ntitle: New\n---\nNew.\n" );
+    is( Lazysite::Manager::Files::_acl_gates_public( Lazysite::Auth::Acl::load_acls()->{'videos/stem'} ), 0,
+        'and a new page there is not born a draft' );
+    unlink "$doc/videos/stem.md";
+
+    # The discriminating half: where a FOLDER of that name exists, the stem key
+    # is the folder's rule, and deleting the landing page must not remove it.
+    make_path("$doc/videos/section");
+    write_page( 'videos/section.md', "---\ntitle: L\n---\nL.\n" );
+    set_rule( 'videos/section', draft => 1 );
+    set_rule( 'videos/section/inner.md', read => ['@volunteers'] );
+    $r = Lazysite::Manager::Files::action_delete( '/videos/section.md', 'owner' );
+    ok( $r->{ok}, 'the landing page of a folder was deleted' ) or diag explain $r;
+    ok( rule_at('videos/section'), 'and the folder\'s rule stays' );
+    ok( rule_at('videos/section/inner.md'), 'and so does a rule beneath it' );
+};
+
 done_testing();

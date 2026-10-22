@@ -1041,6 +1041,27 @@ sub action_save {
             : () ) };
 }
 
+# SM1242 (#372b): A PAGE'S RULE CAN BE KEYED BY ITS STEM. set_permissions on
+# "/about" stores `about`, and that key governs about.md (SM268 H14: a folder's
+# rule covers its landing page), so the page's own key was not the only one CF-2
+# had to drop: deleting about.md left `about` in the store, and the next page
+# written there was born a draft nobody set. The stem key is dropped with the
+# page only while no folder of that name exists in either tree - then it is the
+# page's rule and nothing else's. Its descendants are left: they name a folder.
+sub _forget_page_stem_rule {
+    my ($rel) = @_;
+    return unless defined $rel && $rel =~ m{\A/*(.+)\.(?:md|url|html)\z};
+    my $stem = $1;
+    return if -d "$DOCROOT/$stem";
+    my $priv = Lazysite::Private::private_path( $DOCROOT, $stem );
+    return if defined $priv && -d $priv;
+    my $acls = load_acls();
+    return unless exists $acls->{$stem};
+    delete $acls->{$stem};
+    save_acls($acls);
+    return;
+}
+
 sub action_delete {
     my ( $rel_path, $username ) = @_;
 
@@ -1101,6 +1122,7 @@ sub action_delete {
     # comment saying "the manager's delete has always done this"; it never did,
     # so the fix reached one surface out of four.
     Lazysite::Auth::Acl::forget_path( $result->{rel} );
+    _forget_page_stem_rule( $result->{rel} );
 
     # SM507: the store entry goes with the file - an entry for a deleted
     # page is an orphan nothing can discover (the field proved it with three).
@@ -3120,6 +3142,18 @@ sub action_acl_set {
     # the fix; a second rule in a second place is how the two came apart.
     my $reads_open = !_acl_gates_public( \%rec );
 
+    # SM1242 (#372a): AND NOT ONLY THIS RECORD. A page's own owner-only rule
+    # inside a draft folder, or under a folder's read list, was told "anyone may
+    # still fetch these pages" about a page that 404s to the public (draft) or
+    # bounces to sign-in (read list). The rule that decides is asked by the same
+    # walk the engine uses, after the save: the nearest entry carrying `draft`,
+    # and the nearest carrying a read list. Their keys are named in the reply.
+    my $draft_key = $rec{draft} ? $rel : eval { Lazysite::Auth::Acl::governing_key( $DOCROOT, $rel, 'draft' ) };
+    my $read_key = ( ref $rec{read} eq 'ARRAY' && @{ $rec{read} } )
+        ? $rel
+        : eval { Lazysite::Auth::Acl::governing_key( $DOCROOT, $rel, 'read' ) };
+    $reads_open = 0 if defined $draft_key || defined $read_key;
+
     # SM650: A HALF-APPLIED ACL IS NOT ok:true.
     #
     # The rule is saved and the engine honours it, but the content never left
@@ -3172,6 +3206,15 @@ sub action_acl_set {
                     . 'READING: it has no read list, so anyone may still fetch '
                     . "these pages. Pass a read list in the request body - "
                     . '{"read":["' . '@' . 'team"]} - to gate them.' )
+            : () ),
+        # SM1242: what a draft with no read list does, said instead (the
+        # reporter's ask): 404 to the public, a preview for any signed-in account.
+        ( defined $draft_key && !defined $read_key
+            ? ( draft_note => ( $draft_key eq $rel ? 'this rule holds the pages back as a draft'
+                    : "these pages are held back as a draft by the rule on '$draft_key'" )
+                    . ': they answer 404 to the public and are left out of the sitemap and '
+                    . 'search, and any signed-in account may preview them. Pass a read list - '
+                    . '{"read":["' . '@' . 'team"]} - to limit who may preview.' )
             : () ),
         ( @warnings ? ( warnings => \@warnings ) : () ) };
 }

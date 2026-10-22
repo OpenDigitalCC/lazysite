@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1242 (PENDING) **a draft is called a draft, and a page's rule goes with it.**
+  set_permissions (acl-set) judged only the page's own record, so a page inside a draft
+  folder, or under a folder's read list, was told "anyone may still fetch these pages". The
+  reply now asks the rules that decide, after the save, and a draft with no read list carries
+  `draft_note`: 404 to the public, a preview for any signed-in account. Deleting a page
+  (delete_page, the control API, the manager) also drops a rule keyed by its stem, while no
+  folder of that name exists.
 - SM1241 (PENDING) **every shipped bundle reaches an existing site.** Bundles were seeded
   only when groups-settings.json was absent, so cap-tidy, cap-services and any later bundle
   reached new installs only; SM1118 adopted cap-maintenance alone. Every bundle in the shipped

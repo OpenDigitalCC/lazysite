@@ -202,6 +202,40 @@ subtest 'SM937: A DRAFT RULE DOES RESTRICT READS, AND IS NOT CALLED OPEN' => sub
             . 'reported defect.' );
     ok( !defined $d->{reads_unrestricted_note},
         'and carries no note saying anyone may fetch them' );
+    # SM1242: and says what a draft with no read list does.
+    like( $d->{draft_note} // '', qr/404 to the public/, 'it says the pages answer 404 to the public' );
+    like( $d->{draft_note} // '', qr/any signed-in account may preview/, 'and who may preview them' );
+};
+
+subtest 'SM1242: A PAGE INSIDE A DRAFT OR GATED FOLDER IS NOT CALLED OPEN' => sub {
+    # #372a, from the xisl.com site agent: the reply judged the page's OWN record.
+    # A page's owner-only rule inside a draft folder was told "anyone may still
+    # fetch these pages" about a page that 404s; the same under a folder's read
+    # list, about a page that bounces to sign-in.
+    for my $dir (qw(held gated)) {
+        make_path("$docroot/$dir");
+        open my $fh, '>', "$docroot/$dir/page.md" or die $!;
+        print {$fh} "---\ntitle: P\n---\n\nP.\n";
+        close $fh;
+    }
+    ok( api( 'action=acl-set&path=/held', { draft => JSON::PP::true() } )->{ok}, 'the folder is a draft' );
+    ok( api( 'action=acl-set&path=/gated', { read => ['@team'] } )->{ok}, 'the other folder has a read list' );
+
+    my $d = api( 'action=acl-set&path=/held/page.md', { owner => 'sjm' } );
+    ok( $d->{ok}, 'an owner-only rule on a page in the draft folder is accepted' ) or diag( $d->{error} // '' );
+    ok( !$d->{reads_unrestricted}, 'and the reply does NOT say reads are unrestricted' );
+    like( $d->{draft_note} // '', qr/held back as a draft by the rule on 'held\/?'/,
+        'it names the folder rule that holds the page back' );
+    like( $d->{draft_note} // '', qr/404 to the public/, 'and says what that does' );
+
+    $d = api( 'action=acl-set&path=/gated/page.md', { owner => 'sjm' } );
+    ok( $d->{ok}, 'an owner-only rule on a page in the gated folder is accepted' );
+    ok( !$d->{reads_unrestricted}, 'and the reply does NOT say reads are unrestricted' );
+    ok( !defined $d->{draft_note}, 'and says nothing about a draft' );
+
+    $d = api( 'action=acl-set&path=/probe', { owner => 'sjm', draft => JSON::PP::false() } );
+    ok( $d->{reads_unrestricted}, 'an owner-only rule with nothing above it still says reads are open' );
+    ok( !defined $d->{draft_note}, 'and carries no draft note' );
 };
 
 done_testing();
