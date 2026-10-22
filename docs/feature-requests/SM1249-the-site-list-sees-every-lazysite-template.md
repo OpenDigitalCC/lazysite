@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager (task #379, part 1)"
 area: installers
-status-note: "SHIPPED (PENDING) on n724: the lister's default is every lazysite template; --tpl NAME narrows; the updater passes --tpl lazysite-app. t/tools/249. Part 2 (an automatic rebuild) is a ruling, not built."
+status-note: "SHIPPED (PENDING) on n724: the lister's default is every lazysite template; --tpl NAME narrows; the updater passes --tpl lazysite-app. t/tools/249. Part 2 (an automatic rebuild) is left for a ruling."
 ---
 
 # What happened
