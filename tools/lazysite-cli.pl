@@ -1409,7 +1409,7 @@ sub cmd_probe {
     $targets ||= _targets_or_fail();
 
     my $tool = payload_root() . '/tools/lazysite-check.pl';
-    my ( @verified, @exposed, @unconfirmed, @skip_reasons );
+    my ( @verified, @exposed, @unconfirmed, %why_sites, @whys );
 
     my $me      = current_user();
     my $is_root = running_as_root();
@@ -1442,6 +1442,7 @@ sub cmd_probe {
 
         my $shell = join ' ', map { quotemeta } @cmd;
         my $out   = qx($shell 2>&1);
+        my $crc   = $? == -1 ? 127 : ( $? >> 8 );
 
         # MATCH THE PROBE'S OWN VERDICT, not any [ FAIL ] in the report.
         #
@@ -1470,9 +1471,10 @@ sub cmd_probe {
         }
         else {
             push @unconfirmed, $s->{name};
-            push @skip_reasons, $1
-                if $out =~ /ACL PROBE SKIPPED:\s*(.+?)\s*$/m;
-            print "  $s->{name}: NOT CONFIRMED\n";
+            my $why = _probe_unconfirmed_reason( $out, $crc );
+            push @whys, $why unless $why_sites{$why};
+            push @{ $why_sites{$why} }, $s->{name};
+            print "  $s->{name}: NOT CONFIRMED: $why\n";
             print "    $_\n" for grep { /\[ warn \]/ } split /\n/, $out;
         }
     }
@@ -1500,15 +1502,14 @@ sub cmd_probe {
         # Sending a sysop after the wrong thing is the defect SM368 is
         # about, and it is worse in a summary than in a detail line, because the
         # summary is what a deploy log reader sees.
-        if (@skip_reasons) {
-            my %seen;
-            for my $r ( grep { !$seen{$_}++ } @skip_reasons ) {
-                print "  - $r\n";
-            }
-        }
-        else {
-            print "No reason was given, which usually means a docroot or ACL\n";
-            print "store the probe could not write: run `lazysite repair`.\n";
+        #
+        # SM1237: AND EVERY SITE HAS ONE. The guess above survived as the
+        # fallback for a probe that named no skip - which is every probe that
+        # reached the fetch and got nothing back, and every check that did not
+        # run at all. Each reason now comes from what the check printed, or
+        # from the check failing to run, and is listed with its sites.
+        for my $r (@whys) {
+            print "  - $r (" . join( ', ', @{ $why_sites{$r} } ) . ")\n";
         }
     }
 
@@ -1528,6 +1529,23 @@ sub cmd_probe {
     exit 1 if @exposed;
     exit 3 if @unconfirmed;
     exit 0;
+}
+
+# SM1237: WHY a probe confirmed nothing, from the check's own output. In order:
+# the designated skip marker and its cause (SM319); the probe's own non-pass
+# verdicts - no usable answer, or some file types it could not vouch for; and,
+# when the check printed neither, that it gave no verdict at all, with its exit
+# status and its last line, which is what a check that could not start leaves.
+# Never a guess at the cause: SM385's rule, applied to the case it missed.
+sub _probe_unconfirmed_reason {
+    my ( $out, $rc ) = @_;
+    return $1 if $out =~ /ACL PROBE SKIPPED:\s*(.+?)\s*$/m;
+    return $1
+        if $out =~ /^\[ warn \] (the ACL probe (?:got no usable answer|could not vouch for)[^\n]*?)\s*$/m;
+    my ($last) = reverse grep { /\S/ } split /\n/, $out // '';
+    $last = '' unless defined $last;
+    $last =~ s/\A\s+|\s+\z//g;
+    return "the check gave no probe verdict (exit $rc)" . ( length $last ? ": $last" : ', and no output' );
 }
 
 sub _targets_or_fail {

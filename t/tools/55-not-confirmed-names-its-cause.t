@@ -36,31 +36,21 @@ subtest 'the skip reason is captured from the probe output' => sub {
         'the reason the probe gave is parsed out' )
         or diag( 'Without this the summary can only guess, and the probe has '
             . 'already done the work of saying why.' );
-    like( $src, qr/\@skip_reasons/, 'and kept for the summary' );
+    like( $src, qr/_probe_unconfirmed_reason/, 'by the one sub that names a reason per site' );
 };
 
-subtest 'the summary prints the reason rather than a fixed guess' => sub {
+subtest 'the summary prints the reasons, and no fixed guess' => sub {
     my ($block) = $src =~ /if \(\@unconfirmed\) \{(.*?)\n    \}/s;
     ok( $block, 'the NOT CONFIRMED block is present' ) or return;
+    like( $block, qr/for my \$r \(\@whys\)/, 'it lists the reasons it captured' );
 
-    like( $block, qr/\@skip_reasons/,
-        'it uses the reasons it captured' );
-
-    # The repair advice must be CONDITIONAL now. It is right when the probe gave
-    # no reason and wrong when it did.
-    my ($repair) = $block =~ /(No reason was given.*?repair.*?;)/s;
-    ok( $repair, 'the repair advice survives for the no-reason case' )
-        or diag( 'That case is real - a docroot the probe cannot write gives no '
-            . 'reason - and losing the advice would trade one wrong summary '
-            . 'for another.' );
-
-    # And it must not be reachable when a reason WAS given.
-    my ($else_pos) = $block =~ /(else \{)/;
-    ok( $else_pos, 'and only in the else branch' )
-        or diag( 'If the repair line prints unconditionally, this is the '
-            . 'defect again with extra text above it.' );
+    # SM1237: the repair advice survived here for "the probe gave no reason",
+    # on the argument that a docroot the probe cannot write gives none. It does
+    # give one ("cannot create a probe directory in the docroot"), and the cases
+    # that truly gave none - no usable answer, a check that did not run - now
+    # get their own words. The guess had no case left that it was right for.
+    unlike( $block, qr/No reason was given|usually means/, 'the guess is gone' );
 };
-
 subtest 'the root skip is the case that exposed this' => sub {
     # Named explicitly so a future reader knows which reason broke the guess,
     # and so removing the root skip does not silently orphan this test.

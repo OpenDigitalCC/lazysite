@@ -646,6 +646,27 @@ xff_summary_line() {
     printf '  vhost:  %d site(s) FAILURE: a front end that passes the client'"'"'s X-Forwarded-For through trusts it by default (trusted_proxies is not "none") - any visitor can choose their address (see findings)\n' "$1"
 }
 
+# collect_findings LABEL OUTPUT - keep the lines of OUTPUT that look like a
+# finding (NOISE_RE), for the report at the end.
+#
+# SM889: COLLECTED, not printed. Each finding is stored as label<TAB>message and
+# reported once at the end with the sites it affects - see report_findings.
+# Leading and trailing space is trimmed so the same message indented differently
+# by two phases still groups. (SM1237: a function of its own, so the probe phase,
+# which reads its output as well as filtering it, collects the same way.)
+collect_findings() {
+    local label="$1" out="$2" line
+    if [ -n "$FINDINGS_FILE" ]; then
+        printf '%s\n' "$out" | grep -E "$NOISE_RE" \
+            | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+            | while IFS= read -r line; do
+                [ -n "$line" ] && printf '%s\t%s\n' "$label" "$line" >> "$FINDINGS_FILE"
+            done || true
+    else
+        printf '%s\n' "$out" | grep -E "$NOISE_RE" | sed "s/^/  [$label] /" || true
+    fi
+}
+
 # run_quiet LABEL COMMAND...
 #
 # Runs the command with its output captured. On success, prints only the lines
@@ -680,21 +701,67 @@ run_quiet() {
         printf '%s\n' "$out"
         printf -- '--- end %s ---\n' "$label"
     else
-        # SM889: COLLECTED, not printed. Each finding is stored as
-        # label<TAB>message and reported once at the end with the sites it
-        # affects - see report_findings. Leading and trailing space is trimmed
-        # so the same message indented differently by two phases still groups.
-        if [ -n "$FINDINGS_FILE" ]; then
-            printf '%s\n' "$out" | grep -E "$NOISE_RE" \
-                | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
-                | while IFS= read -r line; do
-                    [ -n "$line" ] && printf '%s\t%s\n' "$label" "$line" >> "$FINDINGS_FILE"
-                done || true
-        else
-            printf '%s\n' "$out" | grep -E "$NOISE_RE" | sed "s/^/  [$label] /" || true
-        fi
+        collect_findings "$label" "$out"
     fi
     return "$rc"
+}
+
+# SM1237: probe_site DOMAIN - run `lazysite probe` for one site and say what it
+# found: PROBE_VERDICT is ok, exposed or none, and for none the REASON is a
+# finding of its own ("probe could not run: <why>"), grouped with the others.
+#
+# The 0.16.0 rollout said "probe: 16 clean, 0 exposed, 16 could not run" and
+# never why. The probe knew - its output said ACL PROBE SKIPPED and the cause -
+# but the summary read only the exit status, and in the quiet report a probe
+# that exited 3 was dumped whole as FAILED, sixteen transcripts deep. Now the
+# reason the probe gives (`<site>: NOT CONFIRMED: <reason>`) is what the report
+# carries, and a probe that could not run is filtered like a success: its
+# reason is the finding.
+#
+# The other non-pass is a probe COMMAND that did not finish - the CLI refused
+# (exit 1 with no exposure, e.g. a site it cannot address) or died. That was
+# counted as EXPOSED. It is counted as could-not-run, with its last line as the
+# reason and its whole output printed, and it still marks the fleet for a human
+# (PROBE_TOOL_FAILED), as the exposure count used to.
+probe_site() {
+    local d="$1" out rc had_e why last failed=0
+    case $- in *e*) had_e=1 ;; *) had_e=0 ;; esac
+    set +e
+    out=$( perl "$LZS" probe --domain "$d" 2>&1 )
+    rc=$?
+    [ "$had_e" = 1 ] && set -e
+    [ "$VERBOSE" = 1 ] && printf '%s\n' "$out"
+    PROBE_VERDICT=none
+    if [ "$rc" = 0 ]; then
+        PROBE_VERDICT=ok
+    elif [ "$rc" = 1 ] && printf '%s\n' "$out" | grep -q 'SERVED ANONYMOUSLY'; then
+        PROBE_VERDICT=exposed
+    fi
+    why=''
+    if [ "$PROBE_VERDICT" = none ]; then
+        why=$(printf '%s\n' "$out" | sed -n 's/^  [^ ]*: NOT CONFIRMED: //p' | head -1)
+        if [ "$rc" != 3 ] || [ -z "$why" ]; then
+            last=$(printf '%s\n' "$out" | sed -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' | tail -1)
+            why="the probe command did not finish (status $rc)${last:+: $last}"
+            PROBE_TOOL_FAILED=1
+            failed=1
+        fi
+    fi
+    if [ "$VERBOSE" != 1 ]; then
+        if [ "$PROBE_VERDICT" = exposed ] || [ "$failed" = 1 ]; then
+            printf '\n--- probe %s: status %s, full output ---\n%s\n--- end probe %s ---\n' "$d" "$rc" "$out" "$d"
+        else
+            collect_findings "probe $d" "$out"
+        fi
+    fi
+    if [ -n "$why" ]; then
+        if [ -n "$FINDINGS_FILE" ]; then
+            printf '%s\t%s\n' "$d" "probe could not run: $why" >> "$FINDINGS_FILE"
+        else
+            printf '  [probe %s] probe could not run: %s\n' "$d" "$why"
+        fi
+    fi
+    return 0
 }
 
 
@@ -1113,15 +1180,16 @@ if [ -f "$LZS" ]; then
         # never happened. Exit 3 is the probe saying so; it is not an exposure
         # and it is not a pass.
         _probe_ok=0; _probe_bad=0; _probe_none=0
+        # SM1237: probe_site reads the verdict from the probe's own words, and
+        # puts the reason for each could-not-run among the findings.
         for i in "${!DOMAINS[@]}"; do
-            set +e
-            run_quiet "probe ${DOMAINS[$i]}" perl "$LZS" probe --domain "${DOMAINS[$i]}"
-            _rc=$?
-            set -e
-            case "$_rc" in
-                0) _probe_ok=$(( _probe_ok + 1 )) ;;
-                3) _probe_none=$(( _probe_none + 1 )) ;;
-                *) _probe_bad=$(( _probe_bad + 1 )); ACL_PROBE_RC=1 ;;
+            PROBE_TOOL_FAILED=''
+            probe_site "${DOMAINS[$i]}"
+            case "$PROBE_VERDICT" in
+                ok)      _probe_ok=$(( _probe_ok + 1 )) ;;
+                exposed) _probe_bad=$(( _probe_bad + 1 )); ACL_PROBE_RC=1 ;;
+                *)       _probe_none=$(( _probe_none + 1 ))
+                         [ -z "$PROBE_TOOL_FAILED" ] || ACL_PROBE_RC=1 ;;
             esac
         done
     fi
@@ -1175,8 +1243,9 @@ printf '  %d updated, %d failed, %d not serviceable, %d skipped, %d out of scope
 [ -n "${_rep_clean:-}" ] && \
     printf '  repair: %d clean, %d need a human\n' "${_rep_clean:-0}" "${_rep_human:-0}"
 [ -n "${_probe_ok:-}" ] && \
-    printf '  probe:  %d clean, %d exposed, %d could not run\n' \
-        "${_probe_ok:-0}" "${_probe_bad:-0}" "${_probe_none:-0}"
+    printf '  probe:  %d clean, %d exposed, %d could not run%s\n' \
+        "${_probe_ok:-0}" "${_probe_bad:-0}" "${_probe_none:-0}" \
+        "$( [ "${_probe_none:-0}" -gt 0 ] && echo ' (the reason for each is under findings: "probe could not run")' )"
 [ -f "$LZS" ] && \
     printf '  check:  %d clean, %d with warnings or failures (%s check --domain D shows each)\n' \
         "$_chk_clean" "$_chk_warn" "$(cli_cmd)"

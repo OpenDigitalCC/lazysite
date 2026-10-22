@@ -125,6 +125,14 @@ Archive
   config `namespaces` and its `reload` verb reach it, and SM1248 adopts them.
   Every Odoo test passes on the new snapshot unchanged. SM747's spec is re-filed.
   t/lint/207, 261.
+- SM1237 (PENDING) **a probe that could not run says why.** The 0.16.0 rollout ended "probe: 16
+  clean, 0 exposed, 16 could not run" with no reason given. `lazysite probe` now prints a reason
+  for every site it could not confirm: the skip's cause, the probe's own no-answer verdict, or
+  that the check gave no verdict, with its last line. The old guess ("run lazysite repair") is
+  gone. The rollout reports each reason as a finding, grouped with its sites, and counts a probe
+  command that did not finish as could-not-run rather than exposed. A half-applied probe rule
+  names its cause. A root `--fix` creates the private store where the engine cannot (the Hestia
+  domain folder is 0551), so the probe can run on a site that never protected anything.
 - SM1236 (PENDING) **the rollout names a command this host runs, and the repair after a rebuild.**
   The 0.16.0 rollout said `lazysite check --domain D` on hosts deployed from the tarball, which
   puts no `lazysite` on PATH. Every hint in the updater, the deploy, the CLI and the check, acl

@@ -114,8 +114,11 @@ subtest 'P2: the fleet summary counts the third state' => sub {
     my $src = do { open my $fh, '<', $sh or die $!; local $/; <$fh> };
 
     like( $src, qr/_probe_none/, 'a third counter exists' );
-    like( $src, qr/3\)\s*_probe_none/,
-        'and exit 3 is what increments it' );
+    # SM1237: the verdict is read from the probe's own words (probe_site),
+    # and a could-not-run - exit 3, or a probe command that did not finish -
+    # is what increments it.
+    like( $src, qr/\*\)\s*_probe_none=/,
+        'and a probe that did not pass or expose is what increments it' );
     like( $src, qr/could not run/,
         'and the summary line says so in words' )
         or diag( 'Three states in the exit code and two in the report is the '

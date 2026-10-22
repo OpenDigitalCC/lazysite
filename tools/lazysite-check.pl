@@ -4185,6 +4185,18 @@ sub _probe_protect {
     };
     return ( 0, "the engine refused to protect the probe folder: $@" )
         if !$r || $@;
+
+    # SM1237: A HALF-APPLIED RULE SAYS WHY. Its error is the generic "IS IN FORCE
+    # ... see the warnings", and the warnings - which name the cause, such as a
+    # private store that does not exist and cannot be created - were never
+    # printed, so the reason a fleet run carried was a pointer to text it did
+    # not have. The cause is the warning's, cut to its first sentence.
+    if ( ( $r->{kind} // '' ) eq 'partial' ) {
+        for my $w ( @{ $r->{warnings} || [] } ) {
+            next unless $w =~ /could not be moved (?:out of|back into) the document root: (.+?)\.(?: |\z)/s;
+            return ( 0, "the probe folder could not be moved into the private store: $1" );
+        }
+    }
     return ( 0, "the engine refused to protect the probe folder: "
             . ( $r->{error} // 'no reason given' ) )
         unless $r->{ok};
