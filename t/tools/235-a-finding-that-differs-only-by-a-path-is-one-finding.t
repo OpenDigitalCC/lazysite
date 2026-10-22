@@ -18,17 +18,16 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root site_tempdir);
 
 my $script = repo_root() . '/installers/hestia/lazysite-hestia-update-all.sh';
 my $src    = do { open my $fh, '<', $script or die $!; local $/; <$fh> };
 my ($fn)   = $src =~ /^(group_findings\(\) \{\n.*?^\}\n)/ms;
 ok( $fn, 'the group_findings function was found' ) or do { done_testing; exit };
 
-my $dir = tempdir( CLEANUP => 1 );
+my $dir = site_tempdir();    # a scratch directory; no docroot here
 
 sub grouped {
     my (@lines) = @_;
