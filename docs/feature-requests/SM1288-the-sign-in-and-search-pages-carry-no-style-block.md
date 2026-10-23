@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: the release manager, ruling 12 (rulings-2026-10-22), from the pages SM1251 named
 area: starter
-status-note: "SHIPPED (PENDING) on n735: the <style> blocks removed from five pages; the same rules under .lazysite-fallback in lazysite-chrome.css; t/unit/processor/160 renders each page with and without a layout and theme; t/tools/280 runs the upgrade."
+status-note: "SHIPPED (PENDING) on n735: the <style> blocks removed from five pages; the same rules under .lazysite-fallback in lazysite-chrome.css; t/unit/processor/165 renders each page with and without a layout and theme; t/tools/285 runs the upgrade."
 ---
 
 # What happened
@@ -59,12 +59,12 @@ for the briefings work (n734), which moves the docs tree.
 
 # Tests
 
-- t/unit/processor/160: none of the five shipped pages has a `<style>`; each
+- t/unit/processor/165: none of the five shipped pages has a `<style>`; each
   rendered with no layout has none of its own, carries the fallback body class
   and links the chrome; each rendered under a layout with an active theme has no
   `<style>` and no fallback class; the moved rules are in the chrome under the
   class. With the old pages and stylesheet restored, 25 assertions fail.
-- t/tools/280: the 0.16.1 pages embedded verbatim (sha256 asserted), provisioned,
+- t/tools/285: the 0.16.1 pages embedded verbatim (sha256 asserted), provisioned,
   recorded as installed and upgraded; the unmodified copies become the shipped
   pages with no `<style>`, the customised copies are byte-identical and listed
   as preserved. With the old pages restored, the shipped-page and refreshed-page

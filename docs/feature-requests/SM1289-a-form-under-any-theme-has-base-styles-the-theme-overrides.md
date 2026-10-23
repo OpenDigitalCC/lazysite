@@ -8,16 +8,15 @@ status: shipped
 raised: 2026-10-22
 raised-by: "edge observation O-4; the release manager, ruling 30 (2026-10-23)"
 area: processor
-status-note: "SHIPPED (PENDING) on n735: native-form base rules in lazysite-chrome.css, each selector a :where(); _inject_form_base links the file first in the head of a layout's page with a form and drops the stepped form's later copy; t/unit/processor/161, t/unit/processor/148."
+status-note: "SHIPPED (PENDING) on n735: native-form base rules in lazysite-chrome.css, each selector a :where(); _inject_form_base links the file first in the head of a layout's page with a form and drops the stepped form's later copy; t/unit/processor/166, t/unit/processor/148."
 ---
 
 # What happened
 
-On edge, under lumen - a theme that writes nothing about forms - a stepped
-form's fields were narrow browser inputs, its buttons were the browser's grey,
-and its step fieldsets wore the browser's grooved border (O-4). SM1250 had just
-scoped the chrome's page rules to the fallback, correctly, which left a themed
-site's forms with nothing at all unless the theme styled them. Q30 asked whether
+Edge observation O-4: under a theme with no form styles (lumen), a stepped
+form's fields and buttons are the browser's own styling. Since SM1250 and
+SM1251 the chrome's form defaults apply under the fallback only (the step
+rules aside), so under a layout a form has what its theme gives it. Q30 asked whether
 that is each theme's job or the engine's; ruling 30: zero-specificity base
 styles, loaded on any page with a form, so a theme overrides any of it.
 
@@ -51,7 +50,7 @@ styles, loaded on any page with a form, so a theme overrides any of it.
 
 # Tests
 
-- t/unit/processor/161: parsed from the stylesheet, the base rules are present,
+- t/unit/processor/166: parsed from the stylesheet, the base rules are present,
   every selector of every one is made only of `:where()` (and the combinators
   between them), none sets a colour beyond `currentColor`/`inherit` or any
   background, and the ruling's five areas are covered; rendered, a one-step and
