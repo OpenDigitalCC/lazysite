@@ -340,6 +340,9 @@ my %REFUSED_KIND = (
     'idem-mismatch' => [ 'refused', 'that Idempotency-Key was used for a different request - give this request a key of its own' ],
     'idem-withdrawn' => [ 'refused', 'the plan made with that Idempotency-Key was withdrawn - give the request a new key' ],
     'run-gone' => [ 'not-found', 'this plan is no longer held by the Odoo daemon - make the plan again' ], # SM1261
+    # SM1275: OOM read every unknown change it could and one names no read that tells
+    'unknown-outcome' => [ 'unknown-outcome', 'a change of this run cannot be read back from Odoo, so whether it was made is for a person to say: look in Odoo, then resume it saying it was made or was not' ],
+    closed => [ 'dismissed', 'this run was closed in OOM, so it is not resumed' ],
 );
 
 # SM1186: the text of an OOM `usage` error, as far as a page may have it, or undef
@@ -454,8 +457,11 @@ sub outcome_of {
 # bearer secret.
 # SM1223: `idem` is the key OOM holds for the call (derived, never the caller's own),
 # `repeat` that the answer was the first one again.
+# SM1275: `run` is the run a resume or a dismissal acts on (its handle, never a
+# path), `decision` what was decided: check (read back only), assume-done:N
+# assume-not-done:M (how many, never which keys), or dismiss.
 our @CALL_FIELDS = qw(at call_id actor visitor ip login binding operation mode phase
-    outcome kind ms via decl idem repeat);
+    outcome kind ms via decl idem repeat run decision);
 my %CALL_FIELD = map { $_ => 1 } @CALL_FIELDS;
 
 sub record_call {
@@ -517,9 +523,12 @@ sub _audit_line {
         require Lazysite::Audit;
         no warnings 'once';
         local $Lazysite::Audit::LAZYSITE_DIR = _lz();
+        # SM1275: a resume or a dismissal names the run and the decision too
         Lazysite::Audit::audit_log( $r->{actor} // '', 'odoo-call',
             ( $r->{binding} // '' ) . ' -> ' . ( $r->{operation} // '' ),
-            $r->{ip} // '', $r->{outcome} // '', $r->{mode} // '', $r->{kind} // '' );
+            $r->{ip} // '', $r->{outcome} // '', $r->{mode} // '',
+            join( ' ', grep { length } $r->{kind} // '', ( defined $r->{run} ? "run=$r->{run}" : () ),
+                ( defined $r->{decision} ? "decision=$r->{decision}" : () ) ) );
         1;
     };
     return;
@@ -1159,8 +1168,10 @@ sub call {
 
     my $t0  = _now_hires();
     my $res = eval { _run( $b, $class, $conn, $params, \%c ) };
-    return _session_end( $b,
-        _finish( \%rec, $res, $@, $t0, $class->writes ? ( $b->{apply} eq 'immediate' ? 'apply' : 'plan' ) : 'run' ) );
+    my $out = _finish( \%rec, $res, $@, $t0, $class->writes ? ( $b->{apply} eq 'immediate' ? 'apply' : 'plan' ) : 'run' );
+    # SM1275: an immediate apply that left a change unknown is a run its maker may resume
+    $out = _note_unknown( $out, $b, $conn, cap => _holds_settle(%c), may_assume => 1 ) if $class->writes;
+    return _session_end( $b, $out );
 }
 
 # SM1162: what a binding's files weigh at the endpoint, BEFORE the body is read.
@@ -1343,7 +1354,10 @@ sub confirm {
     # plan that has been applied (fully or partly) or refused as no longer
     # applicable will never run again, so the file bytes it holds go now.
     purge_plan_blobs( $pid, $meta ) if _plan_spent( $res, $err );
-    return _session_end( $b, _finish( \%rec, $res, $err, $t0, 'apply' ) );
+    my $out = _finish( \%rec, $res, $err, $t0, 'apply' );
+    # SM1275: a confirm that left a change unknown is a run its maker may resume
+    $out = _note_unknown( $out, $b, $conn, cap => _holds_settle(%c), may_assume => 1 );
+    return _session_end( $b, $out );
 }
 
 # SM1261 (release manager, 2026-10-22): the daemon finds a confirm's plan by path,
@@ -1421,6 +1435,318 @@ sub withdraw {
     record_call( %base, binding => $meta->{binding} // '', operation => $meta->{operation} // '',
         outcome => 'answered' );
     return { ok => 1, withdrawn => 1, plan => $pid };
+}
+
+# --- SM1275: A RUN THAT ENDED UNKNOWN IS RESUMED (rulings 10a, 10b, 10c) -----------
+#
+# OOM 0.38 calls a change whose request was sent and whose answer never came
+# `unknown` and never sends it again (SM1218). OOM 0.42's resume
+# (Runner->resume_plan, Calls->resume over oomd) READS EACH SUCH CHANGE BACK FIRST,
+# by its own evidence - a create by `unique_by`, a write by the fields it wrote, an
+# unlink by the record's absence, a call by its `verify` - journals what it finds,
+# and plans the rest of the run. A change it cannot read back is refused
+# `unknown-outcome` unless the caller says it was made (assume_done) or was not
+# (assume_not_done); the decision is journalled with the actor.
+#
+# THE RUN HANDLE is the plan id the apply answered with, `run` in the answer: 128
+# random bits naming lazysite/odoo/plans/<id>/, whose meta.json says whose run it is,
+# that it ended unknown and, for oomd, which daemon run holds its journal. The
+# journal's host path is never in an answer (_applied_changes keeps it here).
+#
+# WHO MAY DO WHAT (10a):
+#   check again   (no assume list) anyone the binding's gate admits; read back only,
+#                 then the rest of the run applies as the first apply would have.
+#   assume        the run's own maker, or a holder of settle_odoo_writes.
+#   a binding any visitor may run (modes: public) is never resumed from a page: a
+#                 visitor decides nothing about Odoo's state. An operator holding
+#                 settle_odoo_writes resumes it, on the manager's Odoo page.
+# The CSRF rule, the rate caps and the record are a confirm's: the resume is gated
+# by the binding as it stands now, counted against the binding's write caps, and
+# is one call record and one audit line naming the run and the decision.
+#
+# A RUN STAYS RESUMABLE UNTIL IT IS SETTLED OR DISMISSED (10c): no hour as a plan
+# has, and the store keeps it past its days (SM1279).
+our $SETTLE_CAP = 'settle_odoo_writes';
+our $ASSUME_MAX = 100;
+
+# An apply's answer, after _finish: a plan whose apply left a change unknown is a
+# run that can be resumed. Its meta.json records when and how many, and the account
+# it ran as (the key file's id and the login, never a key) so a resume runs as the
+# same Odoo login - OOM refuses another login's run. The answer names the run for a
+# caller who may resume it, and says whether they may also assume.
+sub _note_unknown {
+    my ( $res, $b, $conn, %o ) = @_;
+    return $res unless ref $res eq 'HASH' && $res->{unknown} && !$res->{ok};
+    my $pid = $res->{plan} // '';
+    return $res unless $pid =~ /\A[0-9a-f]{32}\z/;
+    my $dir  = plans_dir() . "/$pid";
+    my $meta = _read_json_file("$dir/meta.json") or return $res;
+    unless ( $meta->{unknown} ) {
+        $meta->{unknown} = { at => time, count => 0 + $res->{unknown} };
+        $meta->{account} = { id => $conn->{key_account}, login => $conn->{login},
+            ( $conn->{key_kind} ? ( source => $conn->{key_kind} ) : () ) }
+            if length( $conn->{key_account} // '' );
+        eval { _write_json_file( "$dir/meta.json", $meta ); 1 }
+            or log_event( 'WARN', 'odoo', 'a run that ended unknown could not be recorded as such', plan => $pid );
+    }
+    if ( !$b->{modes}{public} || $o{cap} ) {
+        $res->{run}        = $pid;
+        $res->{may_assume} = $o{may_assume} ? 1 : 0;
+    }
+    return $res;
+}
+
+# The mode a run was made in, from its owner label (_owner).
+sub _owner_mode {
+    my ($owner) = @_;
+    return 'public'        if ( $owner // '' ) =~ /\Avisitor:/;
+    return 'scheduled'     if ( $owner // '' ) eq 'scheduled';
+    return 'authenticated' if ( $owner // '' ) =~ /\A(?:account|session):/;
+    return '';
+}
+
+sub _holds_settle {
+    my (%c) = @_;
+    return ref $c{caps} eq 'HASH' && $c{caps}{$SETTLE_CAP} ? 1 : 0;
+}
+
+# The names of an assume list: ( \@names, '' ) or ( undef, why ). A change is named
+# by its key or its number, as OOM names it.
+sub _assume_list {
+    my ( $v, $what ) = @_;
+    return ( [], '' ) unless defined $v;
+    return ( undef, "$what must be a list of change keys or numbers" ) unless ref $v eq 'ARRAY';
+    return ( undef, "$what names at most $ASSUME_MAX changes" ) if @$v > $ASSUME_MAX;
+    for (@$v) {
+        return ( undef, "$what must be a list of change keys or numbers" )
+            unless defined && !ref && /\A[\x20-\x7e]{1,128}\z/;
+    }
+    return ( [@$v], '' );
+}
+
+# Where a run's journal is: the daemon's run folder for a run oomd made, else the plan's own.
+sub _run_journal {
+    my ( $meta, $pid ) = @_;
+    my $run = $meta->{run_id} // '';
+    if ( $run =~ /\A[A-Za-z0-9][\w.-]{0,127}\z/ ) {
+        require Lazysite::Odoo::Daemon;
+        return Lazysite::Odoo::Daemon::runs_dir($DOCROOT) . "/$run/journal.jsonl";
+    }
+    return plans_dir() . "/$pid/journal.jsonl";
+}
+
+# The journal's lines, the last per change, in order: [ [ seq, entry ] ... ], or [].
+sub _last_entries {
+    my ($path) = @_;
+    my $rows = eval { require Odoo::Ops::Journal; ( Odoo::Ops::Journal->read($path) )[1] };
+    return [] unless ref $rows eq 'ARRAY';
+    my ( %last, @order );
+    for my $e (@$rows) {
+        next unless ref $e eq 'HASH' && defined $e->{seq};
+        push @order, $e->{seq} unless exists $last{ $e->{seq} };
+        $last{ $e->{seq} } = $e;
+    }
+    return [ map { [ $_, $last{$_} ] } @order ];
+}
+
+# A change as a page or the manager is shown it: where it is and what it was, never
+# its values or before-image (the preview's rule).
+sub _run_change {
+    my ($e) = @_;
+    return { map { ( $_ => $e->{$_} ) } grep { defined $e->{$_} && !ref $e->{$_} } qw(seq key action model id) };
+}
+
+# The changes of a run that are still unknown.
+sub _unknown_changes {
+    my ($path) = @_;
+    return [ map { _run_change( $_->[1] ) } grep { ( $_->[1]{outcome} // '' ) eq 'unknown' } @{ _last_entries($path) } ];
+}
+
+# What a resume settled, from the lines OOM appended to the run's journal: each
+# formerly unknown change, its outcome now (done, or not_attempted and carried) and
+# how it was decided (read back, or assumed by a person).
+sub _settled_changes {
+    my ($path) = @_;
+    my @out;
+    for my $pair ( @{ _last_entries($path) } ) {
+        my $e = $pair->[1];
+        next unless defined $e->{assumed} || defined $e->{read};
+        push @out, { %{ _run_change($e) }, outcome => $e->{outcome} // '',
+            how => ( defined $e->{assumed} ? 'assumed' : 'read' ) };
+    }
+    return \@out;
+}
+
+# The meta of the plan a resume makes: the run's own owner, binding and account, and
+# the run it carries on.
+sub _resumed_meta {
+    my ( $b, $meta, $pid, $plan ) = @_;
+    return { binding => $b->{id}, operation => $b->{operation}, owner => $meta->{owner},
+        created => time, fingerprint => $plan->fingerprint, resumes => $pid,
+        ( ref $meta->{account} eq 'HASH' ? ( account => $meta->{account} ) : () ) };
+}
+
+# A resume that left nothing to apply: every unknown change was found made (or
+# assumed), and nothing else of the run was left.
+sub _nothing_left {
+    my ( $npid, $pid, $settled ) = @_;
+    return { ok => 1, applied => 1, plan => $npid, resumes => $pid, settled => $settled,
+        result => { total => 0, counts => {}, by_bucket => {}, verified => 0, changes => [] } };
+}
+
+# resume( $run, %ctx, assume_done => [...], assume_not_done => [...] ) -> { ok, ... }
+#
+# A run that is not yours and that you may not resume does not exist here, as a
+# plan that is not yours does not exist to a confirm.
+sub resume {
+    my ( $pid, %ctx ) = @_;
+    $LAST_VIA = undef;
+    my ( $done, $dwhy ) = _assume_list( delete $ctx{assume_done},     'assume_done' );
+    my ( $not,  $nwhy ) = _assume_list( delete $ctx{assume_not_done}, 'assume_not_done' );
+    my $sess = delete $ctx{odoo_session};
+    my $swho = length( $sess // '' ) ? do { require Lazysite::Odoo::Session; Lazysite::Odoo::Session::session_label($sess) } : '';
+    my %c = _with_visitor(%ctx);
+    my $decision = ( $done && $not && ( @$done || @$not ) )
+        ? 'assume-done:' . scalar(@$done) . ' assume-not-done:' . scalar(@$not) : 'check';
+    my %base = ( call_id => new_call_id(), actor => $c{actor} // '',
+        ( length( $c{visitor} // '' ) ? ( visitor => $c{visitor} ) : () ),
+        ip => $c{ip} // '', mode => $c{mode} // '', phase => 'resume', decision => $decision );
+    my $nf = 'no such run left unknown, or not one you may resume';
+    return ( _refusal( \%base, 'not-found', $nf ) )[1] unless defined $pid && !ref $pid && $pid =~ /\A[0-9a-f]{32}\z/;
+    my $dir  = plans_dir() . "/$pid";
+    my $meta = _read_json_file("$dir/meta.json");
+    return ( _refusal( \%base, 'not-found', $nf ) )[1] unless ref $meta eq 'HASH' && $meta->{unknown};
+    %base = ( %base, binding => $meta->{binding} // '', operation => $meta->{operation} // '', run => $pid );
+    return ( _refusal( \%base, 'invalid', $dwhy // $nwhy ) )[1] unless $done && $not;
+    my $who = _owner(%c);
+    my $own = ( length $who && ( $meta->{owner} // '' ) eq $who ) || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) ? 1 : 0;
+    my $cap = _holds_settle(%c);
+    my ( $b, $bwhy ) = find_binding( $meta->{binding} );
+    return ( _refusal( \%base, 'binding', $bwhy ) )[1] unless $b;
+
+    # 10a: a visitor decides nothing about Odoo's state
+    return ( _refusal( \%base, 'mode',
+            'this run is of a binding any visitor may run; an operator settles it on the Odoo page' ) )[1]
+        if $b->{modes}{public} && !$cap;
+    return ( _refusal( \%base, 'dismissed', 'this run was dismissed, so it is not resumed' ) )[1] if $meta->{dismissed};
+    return ( _refusal( \%base, 'settled', 'this run was settled already' ) )[1]                  if $meta->{settled};
+    return ( _refusal( \%base, 'not-yours',
+            'only the person who made this run, or a holder of settle_odoo_writes, may say whether a change was made' ) )[1]
+        if ( @$done || @$not ) && !$own && !$cap;
+    if ( session_binding($b) ) {
+        # It ran as the person, on their own Odoo login; OOM refuses another login's run.
+        return ( _refusal( \%base, 'not-yours',
+                'this run was made by a person signed in to Odoo, as them: only they can resume it, signed in; '
+                    . 'an operator may dismiss it' ) )[1]
+            unless length $swho && ( $meta->{owner} // '' ) eq $swho;
+        %c = ( %c, odoo_session => $sess, actor => $swho, mode => 'authenticated' );
+    }
+    # An operator settling another's run is gated in the mode the run was made in
+    # when the binding does not admit their own (a visitor's run, a scheduled one):
+    # the capability is the authority to decide, and the binding must still be on,
+    # of this domain, and configured.
+    my %g = %c;
+    if ( $cap && !$own && !$b->{modes}{ $c{mode} // '' } ) {
+        my $m = _owner_mode( $meta->{owner} );
+        $g{mode} = $m if length $m && $b->{modes}{$m};
+    }
+    my ( $ok, $conn ) = gate( $b, %g, phase => 'resume' );
+    return $conn unless $ok;
+    $conn = _as_account( $conn, $meta->{account} );
+    my %rec = ( _rec_base( $b, %c, phase => 'resume' ), login => $conn->{login}, run => $pid, decision => $decision );
+    return ( _refusal( \%rec, 'binding', 'the binding now names a different operation; the run is dismissed on the Odoo page' ) )[1]
+        if $b->{operation} ne ( $meta->{operation} // '' );
+    my ( $class, $refusal ) = _ready( $b, $conn, \%rec );
+    return $refusal unless $class;
+    my ( $capok, $capwhy ) = _take_cap( $b, $class, %c );
+    return ( _refusal( \%rec, 'rate', $capwhy ) )[1] unless $capok;
+
+    my $t0  = _now_hires();
+    my $res = eval { _resume_run( $b, $conn, $meta, $pid, \%c, $done, $not ) };
+    my $err = $@;
+    my $out = _finish( \%rec, $res, $err, $t0, 'resume' );
+    if ( ref $res eq 'HASH' ) {
+        # every unknown change of the run is decided: the run is settled, and the
+        # plan the resume applied is a run of its own, resumable if it left one again
+        $meta->{settled} = { at => time, by => _actor_label(%c), run => $res->{plan} };
+        eval { _write_json_file( "$dir/meta.json", $meta ); 1 }
+            or log_event( 'WARN', 'odoo', 'a settled run could not be recorded as settled', plan => $pid );
+        $out = _note_unknown( $out, $b, $conn, cap => $cap, may_assume => ( $own || $cap ) );
+    }
+    elsif ( ( $out->{kind} // '' ) eq 'unknown-outcome' ) {
+        $out->{run}        = $pid;
+        $out->{changes}    = _unknown_changes( _run_journal( $meta, $pid ) );
+        $out->{may_assume} = ( $own || $cap ) ? 1 : 0;
+    }
+    return _session_end( $b, $out );
+}
+
+# The resume itself: OOM's read-back and its plan, then that plan applied by the
+# path a first apply takes - oomd when the run is oomd's and it answers, else
+# in-process (as a confirm falls back with odoo_daemon: on).
+sub _resume_run {
+    my ( $b, $conn, $meta, $pid, $c, $done, $not ) = @_;
+    my %opt = ( assume_done => [@$done], assume_not_done => [@$not] );
+    my $run = $meta->{run_id} // '';
+    if ( $run =~ /\A[A-Za-z0-9][\w.-]{0,127}\z/ ) {
+        if ( my $cl = _daemon_for($conn) ) {
+            my $r = eval { _resume_daemon( $cl, $b, $conn, $meta, $pid, $c, \%opt ) };
+            if ( ref $r eq 'HASH' ) { $LAST_VIA = 'daemon'; return $r }
+            my $e = $@;
+            $LAST_VIA = 'daemon' unless _daemon_down($e);    # a refusal oomd answered is oomd's
+            die $e unless _daemon_down($e) && ( $conn->{daemon} // '' ) eq 'on';
+            log_event( 'WARN', 'odoo', 'the Odoo daemon is not answering; this resume runs in-process', binding => $b->{id} );
+        }
+    }
+    $LAST_VIA = 'in-process';
+    _load_oom();
+    my $journal = _run_journal( $meta, $pid );
+    die _idem_error( 'run-gone', 'the journal of this run is gone' ) unless -e $journal;
+    my $ctx = context( $conn, actor => _actor_label(%$c),
+        ( session_binding($b) ? ( session => $c->{odoo_session} ) : () ) );
+    my $plan = with_site_ops( $conn, sub { Odoo::Ops::Runner->resume_plan( $ctx, $journal, %opt ) } );
+    my $settled = _settled_changes($journal);
+    my ( $npid, $ndir ) = _new_plan_dir();
+    $ctx->use_run_dir($ndir);
+    $plan->save("$ndir/plan.json");
+    _write_json_file( "$ndir/meta.json", _resumed_meta( $b, $meta, $pid, $plan ) );
+    return _nothing_left( $npid, $pid, $settled ) unless @{ $plan->changes || [] };
+    _approve( $ndir, $plan, $meta->{owner}, 'resumed in lazysite' );
+    my $result = with_site_ops( $conn, sub { Odoo::Ops::Runner->apply( $ctx, $plan, dir => $ndir ) } );
+    return { ok => ( $result->ok ? 1 : 0 ), applied => 1, plan => $npid, resumes => $pid, settled => $settled,
+        result => _result_summary($result) };
+}
+
+# The same through oomd: its resume of the daemon run's journal, then approve and
+# apply of the run it planned, as a confirm does.
+sub _resume_daemon {
+    my ( $cl, $b, $conn, $meta, $pid, $c, $opt ) = @_;
+    my %req = ( credential => _daemon_credential( $b, $conn, $c ), actor => _actor_label(%$c) );
+    my $journal = _run_journal( $meta, $pid );
+    die _idem_error( 'run-gone', 'the daemon holds no journal for this run' ) unless -e $journal;
+    my $r    = $cl->resume( $journal, %req, options => $opt );
+    my $plan = $r->{plan} or die "the daemon answered a resume without a plan\n";
+    my $run_id = $r->{run_id} // '';
+    my $settled = _settled_changes($journal);
+    my ( $npid, $ndir ) = _new_plan_dir();
+    my $res = eval {
+        $plan->save("$ndir/plan.json");
+        _write_json_file( "$ndir/meta.json",
+            { %{ _resumed_meta( $b, $meta, $pid, $plan ) }, ( length $run_id ? ( run_id => $run_id ) : () ) } );
+        return _nothing_left( $npid, $pid, $settled ) unless @{ $plan->changes || [] };
+        $cl->approve( $run_id, %req, actor => $meta->{owner}, note => 'resumed in lazysite' );
+        my $a = _applied_answer( $npid, $cl->apply( $run_id, %req ) );
+        $a->{resumes} = $pid;
+        $a->{settled} = $settled;
+        $a;
+    };
+    unless ($res) {
+        my $e = $@;
+        require File::Path;
+        File::Path::remove_tree($ndir);
+        die $e;
+    }
+    return $res;
 }
 
 # B: a session that has ended - Odoo forgot it, or no longer accepts it - is said as

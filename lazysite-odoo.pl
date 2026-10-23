@@ -20,6 +20,12 @@
 #   POST {plan, confirm: true}   apply a plan this caller made
 #   POST {plan, withdraw: true}  give up a plan this caller made (SM1162): its file
 #                                bytes are removed and it can no longer be confirmed
+#   POST {run, resume: true, assume_done: [...], assume_not_done: [...]}
+#                                resume a run whose apply left a change unknown
+#                                (SM1275): OOM reads each one back first; the assume
+#                                lists are a person's word that a change was, or was
+#                                not, made - its maker's, or a settle_odoo_writes
+#                                holder's. Never for a binding any visitor may run.
 #   POST multipart/form-data, ?binding=ID
 #                                a binding call that carries FILES (SM1162): the part
 #                                named json is the JSON body above (params, tokens), a
@@ -417,6 +423,20 @@ sub _post_one {
         return _settle( _timed( sub { Lazysite::Odoo::withdraw( $req->{plan}, %ctx ) } ), $who );
     }
 
+    # SM1275 (rulings 10a, 10b): a run that ended unknown is resumed: {run, resume: true},
+    # with assume_done / assume_not_done (change keys or numbers) when a person says
+    # whether a change was made. Like a confirm it names no binding - the run's binding
+    # decides, as it stands now - and the caller's token must fit what the caller is.
+    # Who may resume, and who may assume, is the engine's (Lazysite::Odoo::resume).
+    if ( $req->{resume} ) {
+        my %ctx = _ctx( undef, %$who );
+        return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req );
+        return _settle( _timed( sub {
+                    Lazysite::Odoo::resume( $req->{run}, %ctx,
+                        assume_done => $req->{assume_done}, assume_not_done => $req->{assume_not_done} );
+        } ), $who );
+    }
+
     my ( $b, $why ) = Lazysite::Odoo::find_binding( $req->{binding} );
     return _refusal_pair( { ok => 0, kind => 'not-found', error => $why } ) unless $b;
     if ( my $r = _address_refusal($b) ) { return _refusal_pair($r) }
@@ -520,8 +540,8 @@ sub _read_multipart {
     }
     return $no->( 'invalid', 'a batch carries no files: send each call with files as its own multipart request' )
         if exists $req->{calls};
-    return $no->( 'invalid', 'a multipart request runs one binding with its files; a confirm, a sign-in and a sign-out are JSON requests' )
-        if grep { exists $req->{$_} } qw(plan confirm signin signin_code signout);
+    return $no->( 'invalid', 'a multipart request runs one binding with its files; a confirm, a resume, a sign-in and a sign-out are JSON requests' )
+        if grep { exists $req->{$_} } qw(plan confirm signin signin_code signout run resume);
     return $no->( 'invalid', "the json part names the binding '$req->{binding}' and the query '$id'" )
         if defined $req->{binding} && $req->{binding} ne $id;
     $req->{binding} = $id;

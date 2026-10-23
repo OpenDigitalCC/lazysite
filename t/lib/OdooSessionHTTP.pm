@@ -96,6 +96,12 @@ sub post {
                 $body->{params}{args}, $body->{params}{kwargs} );
         };
         if ( my $e = $@ ) {
+            # SM1275: a transport error the fake was told to throw is HTTP::Tiny's own
+            # 599 for a read that timed out, so OOM's session transport sees a request
+            # that was sent and never answered, as it would on the wire
+            return { success => 0, status => 599, reason => 'Internal Exception', headers => {},
+                content => $e->message }
+                if ref $e && eval { $e->isa('Odoo::Error') } && ( $e->kind // '' ) eq 'transport';
             return $s->_fault( ( ref $e ? $e->{fault_class} : undef ) // 'odoo.exceptions.UserError',
                 ( ref $e ? $e->message : 'error' ) );
         }

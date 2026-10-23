@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1275 (PENDING) **An Odoo run that ended unknown is read back and settled.** Rulings 10a and
+  10b, with OOM 0.42's resume: an apply that left a change unknown now names its run (`run`,
+  the plan id; no path), and `POST {run, resume: true}` resumes it. OOM reads each unknown
+  change back first (found made: done, never sent again; found not made: carried), then the
+  rest of the run applies through the path a first apply takes, in-process or through oomd.
+  A change no read can tell is refused `unknown-outcome` (409), naming it, until its maker or a
+  holder of `settle_odoo_writes` says it was made (`assume_done`) or was not
+  (`assume_not_done`). Anyone the binding admits may check again. A visitor never resumes a
+  public binding's run. A confirm's token rule, the write caps, one call record and one audit
+  line naming the run and the decision.
 - SM1276 (PENDING) **A capability settles an Odoo write whose answer never came.** Ruling 10a:
   where OOM cannot read a change back, the run's own maker or a holder of a new capability
   says whether it was made. `settle_odoo_writes` is declared by the Odoo extension, so it is

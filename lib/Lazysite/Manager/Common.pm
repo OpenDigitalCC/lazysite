@@ -1909,6 +1909,9 @@ our %REFUSAL_STATUS = (
     ( map { $_ => '401 Unauthorized' } qw(signin-required signin-refused second-factor second-factor-required) ), # SM1157: Odoo refused the authenticator code / waits for it
     ( map { $_ => '404 Not Found' } qw(no-operation odoo-missing) ),
     ( map { $_ => '409 Conflict' } qw(stale applied edited binding instance) ),
+    # SM1275: a run left unknown that OOM cannot read back (a person must say), or one
+    # already settled or dismissed - each in conflict with the state the run is in
+    ( map { $_ => '409 Conflict' } qw(unknown-outcome settled dismissed) ),
     'expired' => '410 Gone',
     ( map { $_ => '502 Bad Gateway' } qw(transport-failure odoo-fault invalid-credential session-expired) ),
     'odoo-validation'  => '422 Unprocessable Content',

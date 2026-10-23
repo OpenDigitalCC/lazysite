@@ -319,7 +319,8 @@ says what a request may set and who may cause it:
   to repeat is done twice by a retry. A page never offers "try again" on `unknown`.
   The answer is `apply-incomplete` with a flag, not a new kind, so no page that
   already handles `apply-incomplete` changes; one that wants the difference reads
-  `unknown`.
+  `unknown`. The answer also names the run (`run`), which is resumed: see *A write
+  whose answer never came*.
 
 `rate_per_visitor_hour`, `rate_per_hour`
 : The rate caps. **The default depends on what the binding does** - see
@@ -508,6 +509,55 @@ How long
 Both paths do this the same way: in-process and through oomd, for an immediate
 apply and for a plan with a confirm. The call record has the key OOM holds as `idem`
 (never your key) and `repeat` for an answer that was a repeat.
+
+## A write whose answer never came
+
+An apply that left a change `unknown` (above) is a **run** that can be resumed. The
+answer names it: `run` is a 32-character handle (the plan the apply answered with),
+and `may_assume: 1` says the caller may also say whether a change was made. The
+journal OOM keeps of the run stays on the server; no path is in any answer.
+
+```
+POST {run: "<handle>", resume: true, visitor_token}                       check again
+POST {run: "<handle>", resume: true, assume_done: ["line:1"], ...}         it was made
+POST {run: "<handle>", resume: true, assume_not_done: ["line:1"], ...}     it was not
+```
+
+A change is named by its `key` (or its number, `seq`), as the answer lists it.
+**OOM reads each unknown change back first**, by its own evidence: a create by the
+operation's `unique_by`, a write by the fields it wrote, an unlink by the record's
+absence, a call by its `verify`, a custom change by its handler. Found made, it is
+journalled done and never sent again; found not made, it is carried. The rest of
+the run (what failed or was never reached) is then planned and applied, through
+the same path a first apply takes (in-process, or `oomd`), and the answer is an
+apply's: `applied`, `result` with its `changes`, plus `resumes` (the run carried
+on) and `settled` (each formerly unknown change, its `outcome` now and `how`:
+`read` or `assumed`). A resume that leaves a change unknown again names a new
+`run`.
+
+Where a change names no read that tells, the resume is refused `unknown-outcome`
+(409), with `run`, the `changes` still unknown, and `may_assume`. Nothing is sent.
+A person then looks in Odoo and says: `assume_done` (it was made: journalled done,
+not sent) or `assume_not_done` (it was not: carried and sent). The decision is
+journalled by OOM with the person's name.
+
+Who may do what:
+
+- **Check again** (no assume list): anyone the binding's own gate admits now - its
+  modes, callers, domain and switch, as for a call.
+- **Assume**: the run's own maker (the account, or the person signed in to Odoo,
+  that applied it), or a holder of `settle_odoo_writes`.
+- A run of a binding with `public` in its modes is never resumed by a visitor
+  (`mode`, 403): an operator holding `settle_odoo_writes` settles it.
+- A run of a `credential: session` binding ran as the person, on their Odoo login,
+  and only they can resume it, signed in (`not-yours` for anybody else).
+
+A resume needs the token a confirm needs (`csrf`, 403), is counted against the
+binding's write caps (`rate`, 429), and is one call record (phase `resume`, with
+`run` and `decision`: `check`, or `assume-done:N assume-not-done:M`, never which
+keys) and one `odoo-call` audit line naming both. A settled run answers `settled`
+(409); a dismissed one `dismissed` (409); a handle that is not a run left unknown,
+or not one the caller may resume, `not-found` (404).
 
 ## A person's own Odoo account (`credential: session`)
 
@@ -823,6 +873,9 @@ never returned. The kinds a caller meets most:
 | `method` | 405 | a `POST` to a binding with `answer: download`, or a `GET` of one that writes |
 | `not-found` | 404 | no such binding, or no such plan for this caller; or the Odoo daemon no longer holds the plan it made (its run folder is gone): make the plan again |
 | `stale`, `edited`, `applied` | 409 | the plan no longer fits Odoo, or was already applied |
+| `unknown-outcome` | 409 | resuming a run: a change cannot be read back, and a person must say whether it was made |
+| `settled`, `dismissed` | 409 | the run was settled already, or an operator dismissed it |
+| `not-yours` | 403 | resuming a run: only its maker, or a holder of `settle_odoo_writes`, may say whether a change was made |
 | `expired` | 410 | the plan is older than an hour |
 | `unavailable`, `config`, `no-key` | 503 | OOM is missing or too old, the connection is not configured, or the key is not set |
 
