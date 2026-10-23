@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1269 (PENDING) **docs: the compliance records cover 0.16.1.** The 0.16.1 edge gate
+  refused with OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.0. Both are walked against
+  this release's changes and stamped 0.16.1. The significant-change register in
+  `docs/SECURITY.md` has five drafted entries for the release manager to confirm: the
+  warm-forked Odoo endpoint (SM1226, a new local socket), the stem-rule fix (SM1257), the
+  Odoo options and OOM 0.42, the Docker Compose package, and the changes that fired no
+  trigger. The threat model gains the warm-fork parent as a trust boundary, and
+  OBLIGATIONS.md an operator row for SM1219's account names. Docs only; nothing is signed.
 - SM1263 (PENDING) **MCP can remove an access rule.** `remove_permissions { path }` is the
   twin of the control API's `acl-remove` and `lazysite acl remove`: the same function, so the
   same `manage_content` capability, owner refusal, site-wide `/` and audit action

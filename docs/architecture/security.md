@@ -238,7 +238,11 @@ passes unnoticed.
 
 5 failed login attempts per IP per 5-minute window trigger a
 reject. A 2-second sleep is added to every failed login response.
-State is persisted in `lazysite/auth/.login-rate.db` (DB_File).
+State is persisted in `lazysite/auth/.login-rate.db` (DB_File), created
+0660 in the auth directory's group under any umask, so the serving group can
+open it whoever made it (SM1240, 0.16.1). A limiter that cannot open its
+counter allows the attempt, says so in the auth log, and `lazysite check`
+reports it (SM798).
 
 This is per-IP, so an attacker rotating IPs can defeat it. It
 raises the cost meaningfully for drive-by brute force.
@@ -538,6 +542,14 @@ answers:
   unrecognised value reads as report-only, never off.
 - `Strict-Transport-Security` - emitted only over TLS, `max-age=300`
   deliberately short, with neither `includeSubDomains` nor `preload`.
+- `Permissions-Policy` - every feature in `@DENIED_FEATURES`
+  (`Lazysite::SecurityHeaders`) is denied (`feature=()`). A page may ask for
+  one with `<feature>: self` in its front matter (SM1174 for the camera,
+  SM1266 for every feature, 0.16.1): the value `self` and nothing else, that
+  page alone, honoured over https only, kept per page through the cache.
+  `payment` and `browsing-topics` cannot be asked for, and a page that asks
+  for nothing sends the header it always sent. There is no site-level allow
+  list yet.
 
 The paragraph this replaced said both belonged at web server level
 because the policy is site-specific. SM286 settled that the other way:
@@ -1015,6 +1027,45 @@ one `oomd` per site and the extension sends its calls through it.
   taken by oomd's `reload` verb, with the socket kept (t/unit/odoo/103). An OOM
   before 0.39 still reads the list from its environment, at its start.
 
+### The warm-forked endpoint (SM1226, 0.16.1)
+
+On a site with a pool conf and the Odoo extension on, lazysited supervises the
+`odoo-endpoint` service: a parent that has compiled `lazysite-odoo.pl` and forks a
+fresh child for each request. Never on a plain-CGI site.
+
+- **The parent holds code and nothing else.** It reads no configuration or key and
+  never reads a request; t/lint/272 classifies what it keeps and t/integration/325
+  reads its memory after signed-in requests and finds no secret, key, cookie
+  signature, token or visitor parameter. It starts by exec, never as a fork of the
+  supervisor, and exits when its code changes on disk or it is re-parented.
+- **The socket.** `lazysite/run/odoo-endpoint.sock`, 0600 in the site's 0700
+  `lazysite/run/`. Only the one-rule pool connects to it; the web server reaches the
+  pool's socket as before, so the parent's socket stays the request-path user's
+  (SM760). With no parent listening the pool runs the CGI; a request the parent has
+  taken is never re-run.
+- **The child.** Its environment is the request's parameters less the sentinel, sid,
+  flag and every trust header; the endpoint verifies the cookie itself, as the CGI
+  does, so a forged `X-Remote-User` is nobody. It seeds its own random numbers and
+  exits after one request.
+- **Templates.** The split FastCGI templates (nginx and Apache `vhost-fcgi`, Hestia's
+  fcgi templates) send `/cgi-bin/lazysite-odoo.pl` to the pool; a vhost made from an
+  older template keeps running the CGI until it is regenerated.
+
+### Odoo calls: idempotency, declared sizes, downloads (SM1223-SM1225, 0.16.1)
+
+- **Idempotency** (SM1223): a page's `Idempotency-Key` (8 to 128 characters) is hashed
+  with the binding and the caller into OOM's `idem`, so one caller cannot collide with
+  or replay another's write; a repeat answers the first plan or result.
+- **Declared sizes** (SM1224): a rows key with its own declared `max` is capped there
+  (up to 1,048,576 characters); every other value keeps 1,000. A JSON body over 64 KB
+  names its binding and is held to that binding's budget, 20 MB at most.
+- **Downloads** (SM1225): `answer: download` returns a report's document with OOM's
+  content type, a safe file name, `Cache-Control: private, no-store` and a cap
+  (`download_max_kb`, default 10 MB) over which it is refused, never cut short. The
+  binding's gate, callers and rate caps are the call's own.
+- **OOM's version** (SM1244): `lazysite check` names the OOM a site loads and warns
+  below 0.38, which can send a write again when its answer timed out.
+
 ## Raw pages and the ADR 0006 downgrade (SM1213, 0.15.15)
 
 A page that declares `api:` or `raw:` is served verbatim, and ADR 0006's mechanical
@@ -1037,23 +1088,39 @@ new-authentication-method trigger and, with its JWT verifier (ruling R5, a packa
 `Crypt::JWT`), the new-dependency one; it is assessed in the significant-change
 register when it is built.
 
-## Held for 0.16.1 (on branches n705 and n706; not in the 0.16.0 stable)
+## Accounts in the visitor log, and maintenance (SM1219, SM1118, 0.16.1)
 
-Two filings are shipped on held branches and describe changes that join the model
-when they land.
+Held out of the 0.16.0 stable, both are in 0.16.1.
 
-- **The visitor log names the signed-in account** (SM1219, n705). The access record
+- **The visitor log names the signed-in account** (SM1219). The access record
   gains `u`, the account the engine verified (source `cookie`, including the pool
   front door's value, or `proxy`), never the raw `X-Remote-User`; an anonymous visit
   has none. It is read with the `analytics` capability, a domain-confined caller sees
   only its own domains' accounts, and the log keeps it for `retention_days`. The log
   is personal data once it holds account names.
-- **A site can be put into maintenance** (SM1118, n706). `maintenance: on` sends page
+- **A site can be put into maintenance** (SM1118). `maintenance: on` sends page
   requests by 302 to a page that answers 503; the new capability `maintenance_access`
   (held by the operator group, assignable to any group) gets through. MCP, the
   control API, WebDAV, the data endpoint and posted forms follow the same capability
   and are refused 503 without it; the check sits in the processor's `main()`
   (`_maintenance_gate`) so it holds on CGI, the split templates and the pool.
+- **Shipped bundles reach existing sites** (SM1241, SM1262). Every bundle in the
+  shipped nesting (`cap-maintenance` among them) is adopted on the next use of the
+  users tool, only when absent, only for the shipped roles a site has, never
+  rewriting an edited group, and only on a site that has the bundle layer. The
+  bundles a site has had are recorded in `auth/bundles-adopted.json`, so a bundle an
+  operator deleted is never adopted again; an unreadable record adopts nothing.
+
+## The Docker Compose package (SM1233, 0.16.1)
+
+`installers/docker/` runs nginx, the one-rule FastCGI pool and lazysited in one
+container, as `www-data`, with all capabilities dropped and the port published on
+loopback by default. The vhost is made from
+`installers/nginx/vhost-one-rule-pool.conf.example`, so the trust-header blanking is
+the template's. The docroot, `lazysite/` and the private store are three volumes; the
+private store is the docroot's sibling, outside the served tree, as on any install.
+The container serves plain HTTP on 8080: TLS is the front end's, and HSTS is sent
+only over TLS. No Odoo is in it.
 
 ## Credential lifecycle and MFA (SM072)
 
@@ -1081,7 +1148,16 @@ when they land.
   the dav (`authorise`) and the manager API. No entry = the account's `dav_scope`
   only. The store is set through the `acl-*` control-API actions, never a raw
   PUT. A token client is bound by ownership like any partner (it is not an
-  operator); the actions also honour the full deny-set.
+  operator); the actions also honour the full deny-set. MCP's
+  `remove_permissions` is `acl-remove`'s twin: the same function, capability
+  (`manage_content`), owner refusal and audit action (SM1263, 0.16.1).
+- **A page's stem rule goes with the page** (SM1242, SM1257, SM1258, 0.16.1). A
+  rule set on `/about` is stored as `about` and governs `about.md`. Every mover
+  (the manager, MCP `move_file` and `rename_page`, the control API, WebDAV MOVE)
+  and every delete calls `Acl::fold_page_stem`, which folds the stem rule into
+  the page's own key, or drops it, while no folder of that name exists; before
+  0.16.1 a moved draft left its rule behind and was published, its bytes synced
+  back into the document root.
 - **Forms:** a per-form dispatch config `lazysite/forms/<name>.conf` is
   agent-writable with `manage_forms`, and a PUT is shape-checked - its targets
   name existing handlers and nothing else (SM842). Handlers and the schedule

@@ -28,8 +28,8 @@ rises monotonically.
 :::
 
 ```yaml
-status:              index - complete in coverage, walked row by row on 2026-10-20 against the code of 0.15.15, which is the code of 0.16.0 (walked clean); confirmed by the release manager on 2026-10-21 for the register entries, a person still confirms the threat model rows and the declaration at certified
-covers_version:      0.16.0
+status:              index - complete in coverage, walked row by row on 2026-10-23 against the 0.16.1 edge (main 658d08b2d); the 2026-10-23 register entries are drafts a person confirms, as are the threat model rows and, at certified, the declaration
+covers_version:      0.16.1
 content_sha:         148b3776ec692b5c
 ce_marking_due:      2027-12-11
 owner:               release manager
@@ -44,17 +44,17 @@ bold: 1
 tone: medium
 text: 2
 ---
-General description: intended purpose, versions, product form | docs/FEATURES.md; README.md; CHANGELOG.md | current - checked at each release by tools/lazysite-compliance.pl
+General description: intended purpose, versions, product form | docs/FEATURES.md; README.md; CHANGELOG.md; the product forms in docs/IMPLEMENTOR.md (tarball, debs, Hestia, and from 0.16.1 the Docker Compose package, installers/docker/README.md) | current - checked at each release by tools/lazysite-compliance.pl
 Design and development: architecture, components | docs/architecture/*.md; docs/adr/*.md (ADRs record decision AND cause) | current
 Production and monitoring processes | docs/development.md; tools/release.sh; docs/RELIABILITY.md | current
-Cybersecurity risk assessment | docs/SECURITY.md (STRIDE, ASVS L1, thirteen-boundary model and the significant-change register); docs/architecture/security.md | current to 0.15.15 - the 0.11-0.15 trust changes added 20 Oct 2026, the 20 Oct 2026 register entries confirmed by the release manager on 21 Oct 2026
+Cybersecurity risk assessment | docs/SECURITY.md (STRIDE, ASVS L1, fourteen-boundary model and the significant-change register); docs/architecture/security.md | current to 0.16.1 - the 0.16.1 changes (the warm-fork parent, the stem-rule fix SM1257, the Odoo options and OOM 0.42, the Docker package) added 23 Oct 2026, those register entries drafts awaiting the release manager; the 0.11-0.15 changes and their entries confirmed on 21 Oct 2026
 Applicable harmonised standards | docs/POLICY.md | current
 Vulnerability handling processes | SECURITY.md (CVD intake); docs/adr/0007-pentest-deferral.md (SLAs, triggers) | PARTIAL - no dated remediation record
 Support-period statement | docs/POLICY.md; docs/compliance/OBLIGATIONS.md (absolute date) | current
-SBOM | dist/config/sbom-deps.json; generated per release, CycloneDX, shipped in the tarball | current, strict gate
-Conformity assessment records | docs/review/*-eight-dimension/ (four full reviews, the last of 0.10.9); docs/review/0.13.1-daemon/; docs/review/2026-10-07-sm869-adversarial-review.md; the SM1181 security review in docs/feature-requests | the last full review is of 0.10.9
+SBOM | dist/config/sbom-deps.json; generated per release, CycloneDX, shipped in the tarball | current, strict gate - 455 components at 0.16.1; OOM is declared as `libodoo-oom-perl`, and the 0.42 snapshot in t/vendor/oom (SM1247) is for the tests: it is in the tarball with t/ and is never installed
+Conformity assessment records | docs/review/*-eight-dimension/ (four full reviews, the last of 0.10.9); docs/review/0.13.1-daemon/; docs/review/2026-10-07-sm869-adversarial-review.md; the SM1181 security review and SM1226's threat table in docs/feature-requests | the last full review is of 0.10.9
 Declaration of Conformity | docs/DECLARATION-OF-CONFORMITY.md | OPEN - draft restamped 0.16.0, unsigned; signed at the certified cut
-Test evidence | t/ (1,484 test files at 0.15.15, the code of 0.16.0); coverage floors in dist/config/coverage-floor and coverage-floor-groups; bench baseline | the per-group coverage re-baseline and the bench re-capture are due at the stable cut
+Test evidence | t/ (1,550 test files at 0.16.1); coverage floors in dist/config/coverage-floor and coverage-floor-groups; bench baseline | coverage runs at a stable cut; the bench re-capture is due at the next stable cut
 ```
 
 # Known gaps
@@ -73,7 +73,7 @@ Signed releases
 : not applied, and cannot be applied retroactively; stays for the certified release.
 
 Review of the current line
-: the last full eight-dimension review is of 0.10.9; 0.11 to 0.15 are covered by the 0.13.1 daemon review, the 2026-10-07 adversarial review and the security reviews inside feature filings. Whether the certified cut wants a fresh full review is for the release manager.
+: the last full eight-dimension review is of 0.10.9; 0.11 to 0.16.1 are covered by the 0.13.1 daemon review, the 2026-10-07 adversarial review and the security reviews inside feature filings (SM1181's, and SM1226's threat table for the warm-forked endpoint). Whether the certified cut wants a fresh full review is for the release manager.
 
 # Maintenance
 

@@ -32,8 +32,8 @@ user-facing service, not part of that overlay: see `docs/SECURITY.md`.)
 | SBOM, kept current | **in place** (strict gate) |
 | Coordinated vulnerability disclosure | **in place** (SECURITY.md) |
 | Quality + documentation floors (8-dimension) | **partial** - the mechanical gates run per release (coverage floors, perf gate, SBOM, lint); the eight-dimension reviews run per release line and their findings are tracked to closure; the most recent is `docs/review/2026-08-14-eight-dimension-0.10.9/` (0.10.9: 3 PASS, 4 WARN, 1 REFUSE), and `docs/review/README.md` carries the full record |
-| Declaration of Conformity | **drafted** - `docs/DECLARATION-OF-CONFORMITY.md`, unsigned and stamped to the 0.15.15 stable candidate; the release manager signs it at the certified cut |
-| Annex VII technical file | **started** - `docs/compliance/TECHNICAL-FILE.md`, an index over existing evidence, walked to 0.15.15 |
+| Declaration of Conformity | **drafted** - `docs/DECLARATION-OF-CONFORMITY.md`, unsigned and stamped to the 0.16.0 stable; the release manager signs it at the certified cut |
+| Annex VII technical file | **started** - `docs/compliance/TECHNICAL-FILE.md`, an index over existing evidence, walked to 0.16.1 |
 | Support-period commitment | **declared** - five years from the first stable release (0.7.0); see "Support period" below |
 | Signed releases (Sigstore/cosign) | **pending** |
 | CE marking | **due 11 Dec 2027** - obligation noted; not yet applied |

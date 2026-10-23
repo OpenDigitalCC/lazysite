@@ -12,8 +12,8 @@ vulnerability-disclosure policy in the repo-root `SECURITY.md`.
 Assets: account credentials (hashed passwords, `lzs_` tokens, TOTP seeds),
 session cookies, site content, form submissions, the per-install HMAC secret,
 the audit trail, the Odoo connection user's key and a person's Odoo session
-(0.15.5), and, once the visitor log names the signed-in account (held for
-0.16.1, not in the 0.16.0 stable, SM1219), account names in the log.
+(0.15.5), and, since the visitor log names the signed-in account (0.16.1,
+SM1219), account names in the log.
 
 Trust boundaries (each is where an attacker's input crosses into trusted code):
 
@@ -74,12 +74,16 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
 13. **oomd, the resident OOM** (SM1164, 0.15.10) -> one long-lived process per
     site, opt-in (`odoo_daemon`), supervised by lazysited as the same user, reached
     by a Unix socket in a 0700 directory, holding the connection's key files by label.
+14. **The warm-fork parent of the Odoo endpoint** (SM1226, 0.16.1) -> one long-lived
+    process per site with a pool conf and the Odoo extension on, supervised by
+    lazysited as the request-path user, listening on a 0600 socket in the site's 0700
+    `lazysite/run/`. The one-rule pool hands it the endpoint's requests; it holds
+    compiled code and nothing else, and forks a fresh child per request.
 
 Not yet code, so not yet boundaries: SM1128's native OIDC relying party and directory
-groups (phases 2-3). Held for 0.16.1 and not in the 0.16.0 stable: the visitor
-log's signed-in account (SM1219) and the maintenance capability (SM1118); see
-`architecture/security.md` and the last register entry. Every
-other change this model describes, 0.15.x included, is in 0.16.0.
+groups (phases 2-3). The visitor log's signed-in account (SM1219) and the maintenance
+capability (SM1118), held out of the 0.16.0 stable, are in 0.16.1; see
+`architecture/security.md` and the register.
 
 ## STRIDE assessment
 
@@ -102,6 +106,8 @@ Elevation of privilege | Odoo sign-in granting site rights, or an anonymous visi
 Elevation of privilege | A process that outlives a request taking calls without the request's gates (oomd, SM1164) | Opt-in and off by default; started only while every gate holds; the socket directory is 0700 and the config 0600 with credentials as labels; `required` refuses with `daemon-down` where `on` falls back in-process | oomd has no sign-in verb, so sign-in stays in-process
 Tampering | A raw or `api:` page served as `text/html` past the ADR 0006 downgrade through a front-matter spelling the renderer read and the downgrade did not (SM1213) | One reading of `api:` and `raw:` in the renderer, the manager and the downgrade's peek; an empty key takes its own line only | Closed in 0.15.15; no gated page opened (t/integration/305)
 Information disclosure | A page or a group's rights reaching an address the operator excluded (SM1134) | Named lists decided by one module; deny wins; an unreadable store, an unparseable address and a wrong-kind name each deny; every layer must admit; groups drop out for a refused address | Only as good as the request address: see the trusted-proxy row
+Information disclosure | A page held back by a rule keyed by its stem (`/about` stored as `about`) published by a move or a delete that re-keys only the page's own key, its bytes synced back into the document root (SM1257, SM1242, SM1258) | `Acl::fold_page_stem` is the one function every mover and deleter calls (the manager, MCP `move_file` and `rename_page`, the control API, WebDAV MOVE and DELETE): the stem rule moves or goes with the page while no folder of that name exists, and the store sync puts the bytes where the rule says | Closed in 0.16.1; a stem key that is a folder's rule is left alone by design (t/unit/manager/160, t/unit/dav/34)
+Information disclosure | A long-lived parent that every Odoo endpoint child is forked from holds a key, a secret or one visitor's request, and every later child inherits it (SM1226) | The parent requires code and runs none of it, reads no configuration or key and never reads a request; a fresh child per request, which exits; the child's environment is the parameters less every identity variable, and the endpoint verifies the cookie itself; `srand` in the child | t/integration/325 reads the parent's memory after signed-in requests and finds no secret, key, cookie signature, token or parameter; t/lint/272 classifies what it holds
 ```
 
 ## Five priority entries (from the review)
@@ -1454,6 +1460,12 @@ residual risk
 verdict
 : accepted, confirmed by the release manager on 2026-10-21 ("Confirm now"). Both remain held for 0.16.1 and are not in the 0.16.0 code.
 
+landed
+: Both landed on main after the 0.16.0 stable and are in 0.16.1, as assessed above (walk
+  of 2026-10-23, SM1269). Since the entry, SM1241 adopts every shipped bundle on an
+  existing site, which is how `cap-maintenance` reaches one; see the 2026-10-23 entry for
+  the bundle record (SM1262).
+
 ### 2026-10-21 - SM975, SM976, SM979-SM982, SM991-SM993, SM1057, SM1092 (0.15.3-0.15.7), SM1234 (0.15.16): gate-tightening fixes and a release with no code change
 
 Decision of the release manager, 2026-10-21, at the 0.16.0 stable sign-off.
@@ -1477,3 +1489,218 @@ residual risk
 verdict
 : accepted. No trigger fired for the 0.15.3-0.15.7 fixes, and none fires for 0.15.16,
   which has no code change. Decision of the release manager, 2026-10-21.
+
+### 2026-10-23 - SM1226 (0.16.1): the Odoo endpoint runs warm-forked
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: On a site with a pool conf and the Odoo extension on (never on a plain-CGI site),
+  lazysited supervises an `odoo-endpoint` service: a parent that has compiled
+  `lazysite-odoo.pl` and the `Lazysite::` modules it names, listens on
+  `lazysite/run/odoo-endpoint.sock` (0600, in the site's 0700 `lazysite/run/`) and forks
+  a fresh child per request, which runs the endpoint as the CGI does and exits. The
+  one-rule pool hands it the endpoint's requests, and the split FastCGI templates (nginx
+  and Apache `vhost-fcgi`, Hestia's fcgi templates) send `/cgi-bin/lazysite-odoo.pl` to
+  the pool. With no parent listening the pool runs the CGI.
+
+threat delta
+: A new long-lived process and a new local interface, the oomd entry's shape: the
+  new-external-interface trigger fires in the sense the 2026-09-05 entry gave a local
+  socket. Information disclosure and Spoofing are the questions: a parent that held a
+  key or a visitor's request would hand it to every child, a forged identity could
+  enter a child by its parameters, and a request could reach a child no gate saw.
+
+controls
+: The filing's W1-W7, each with its test. The parent requires code and runs none of it,
+  reads no configuration or key and never reads a request (t/lint/272; t/integration/325
+  reads its memory after signed-in requests and finds no session secret, connection key,
+  cookie signature, token or visitor parameter). A fresh child per request, which exits;
+  `srand` in the child. The child's environment is the parameters less the sentinel,
+  sid, flag and every trust header, and the endpoint verifies the cookie itself, so a
+  forged `X-Remote-User` is nobody (t/unit/daemon/15, t/integration/325). The program
+  starts by exec, never as a fork of the supervisor, so it holds nothing the supervisor
+  read; it exits when its code changes on disk or it is re-parented, and removes its
+  socket. The web server reaches only the pool's socket, so the parent's socket stays the
+  request-path user's (SM760). A request the parent has taken is never re-run.
+
+residual risk
+: Every gate of the endpoint is the CGI's own and runs in the child, unchanged; what is
+  new is the process, which the tests hold to holding nothing. A site on a pre-SM1226
+  split template keeps a parent nobody calls until its vhost is regenerated. Not yet run
+  under `lazysited@<domain>` and systemd on a production host.
+
+verdict
+: proposed: accepted. The trigger fires on a local socket and is contained: the
+  socket is the request-path user's alone, the parent holds compiled code and nothing a
+  request or a configuration carries, and the endpoint's own gates run unchanged in each
+  child. No ahead-of-schedule third-party engagement beyond the one ADR 0007 already
+  requires, which takes the Odoo endpoint in scope (the SM747 entry).
+
+### 2026-10-23 - SM1257, SM1242, SM1258 (0.16.1): a page's stem rule moves and goes with the page
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: A rule set on `/about` is stored as `about` and governs `about.md` (SM268 H14). Every
+  mover re-keyed only the page's own key, so a moved page left its draft rule behind,
+  was served to anyone at its new path, and the store sync put its bytes back in the
+  document root, where a front end serves them too (SM1257). Deleting a page left the
+  stem rule for the next page written there (SM1242, SM1258 for WebDAV DELETE). One
+  shared function, `Lazysite::Auth::Acl::fold_page_stem`, now folds the stem rule into
+  the page's key before the manager's move, MCP `move_file` and `rename_page`, the
+  control API's move and WebDAV MOVE, and drops it on every delete, while no folder of
+  that name exists. SM1242 also makes `set_permissions` report what the rules decide
+  after the save (`draft_note` for a draft), rather than only the page's own record.
+
+threat delta
+: Information disclosure. A held-back page was published by an ordinary move, and its
+  bytes crossed the served-tree boundary (boundary 6) back into the document root. No
+  trigger of ADR 0007's four fired: no interface, method, dependency or data was added.
+
+controls
+: One function behind every mover and deleter, so the surfaces cannot answer
+  differently; a stem key that is a folder's rule is left alone; folding takes the
+  stem's value only for a mode the page's own key does not carry, so no rule is widened.
+  t/unit/manager/160 and t/unit/dav/34 each fail with the change reverted: the page is
+  published and its bytes land in the document root.
+
+residual risk
+: A page moved by a shell, outside the engine, is not seen. A page drafted through its
+  stem and moved before 0.16.1 was published at its new path and stays published: no
+  rule follows it, so neither the upgrade nor the SM1238 dry run names it, and the rule
+  left at its old stem holds back only a page written there later.
+
+verdict
+: proposed: accepted. No trigger fired; recorded because it closed a bypass of a
+  boundary this register names, as the SM1213 entry was. The remediation record ADR 0007
+  asks for stays for the certified release (`docs/compliance/OBLIGATIONS.md`).
+
+### 2026-10-23 - SM1223-SM1225, SM1244, SM1247, SM1248, SM1261 (0.16.1): the Odoo extension's options and OOM 0.42
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: SM1223: a page's `Idempotency-Key` (8 to 128 characters) is hashed with the binding and
+  the caller into OOM's `idem`, so a repeat answers the first plan or result. SM1224: a
+  rows key an operation declares with its own `max` (up to 1,048,576) is capped there; a
+  JSON body over 64 KB names its binding and is held to that binding's budget (20 MB at
+  most). SM1225: a binding with `answer: download` answers a GET with the document its
+  report holds, `Cache-Control: private, no-store`, capped by `download_max_kb` (default
+  10 MB) and refused over it. SM1244: `lazysite check` warns below OOM 0.38, which can
+  resend a write whose answer timed out. SM1247: the vendored test snapshot moves from
+  OOM 0.38 to 0.42; SM1248 adopts oomd's config `namespaces` and its `reload` verb, so a
+  pack change no longer restarts oomd. SM1261: a confirm whose daemon run is gone answers
+  `not-found`, naming no path.
+
+threat delta
+: No trigger fired. OOM is the SM747 entry's dependency at a newer version, reached
+  through the same interfaces; the `reload` verb is a request on oomd's existing socket;
+  a report is ERP data the extension already processes, answered as a file rather than as
+  JSON. Denial of service (a larger declared value), Spoofing (a key that replays another
+  caller's write) and Information disclosure (a cached or oversized document) are the
+  questions.
+
+controls
+: The idempotency key is hashed with the binding and who sent it, so nobody collides
+  with or replays another person. A declared `max` raises only that key's cap, and the
+  body is held to its binding's budget. A download runs the binding's gate, callers, rate
+  caps and both paths unchanged, carries a safe file name and `no-store`, and is refused
+  over its cap, never cut short. Each change of OOM 0.39 to 0.42 was checked against
+  lazysite (SM1247), and every Odoo test passes on the new snapshot unchanged (t/lint/207,
+  261). The OOM version warning names the file the site loads.
+
+residual risk
+: An operator who raises `download_max_kb` or declares a large `max` raises what one
+  call may cost. A host still on OOM 0.37 or earlier can make a write twice until it is
+  upgraded; the check says so and does not refuse.
+
+verdict
+: proposed: accepted. No trigger fired; recorded because the extension's inputs, outputs
+  and dependency version moved.
+
+### 2026-10-23 - SM1233 (0.16.1): a Docker Compose package
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: `installers/docker/` ships in the tarball: one container running nginx, the one-rule
+  FastCGI pool and lazysited, the engine in the image and the site in three volumes (the
+  docroot, `lazysite/`, the private store), built locally from the unpacked release with
+  `docker compose build`. No registry image and no Odoo. The first start runs `install.pl`
+  into the empty volumes; the first account is `setup-sysop`.
+
+threat delta
+: A new product form, the SM139 entry's question in a container. No trigger fired: the
+  container serves the engine's existing HTTP surface through the shipped one-rule
+  template, adds no authentication method, and carries the debs' own dependencies.
+  Elevation of privilege and Information disclosure are the questions: what the
+  container runs as, what it publishes, and whether the private store stays outside the
+  served tree.
+
+controls
+: The processes run as `www-data`; compose drops all capabilities and publishes the port
+  on loopback by default. The vhost is made by `sed` from
+  `installers/nginx/vhost-one-rule-pool.conf.example`, so the rule (with its trust-header
+  blanking) is written in one place. The private store is its own volume, the docroot's
+  sibling, where `install.pl` and the engine put it. Every install path is `install.pl`.
+  t/tools/210 holds the compose file, the Dockerfile's `sed` on the real template and the
+  entrypoint's decisions.
+
+residual risk
+: The container serves plain HTTP on 8080; TLS is the front end's, and so is HSTS (sent
+  only over TLS). Built and run once by hand; the test runs without Docker. An operator
+  who publishes the port beyond loopback without a TLS front end serves sign-in in clear.
+
+verdict
+: proposed: accepted. No trigger fired; recorded because it is a new way the product is
+  distributed and run.
+
+### 2026-10-23 - SM1240, SM1241, SM1262, SM1263, SM1266, SM1221, SM1235-SM1239, SM1249, SM1265, SM1256, SM1259, SM1260 (0.16.1): access, rollout and channel changes with no trigger
+
+Assessment drafted by the developer agent; the release manager confirms.
+
+what changed
+: SM1240: the sign-in rate counter `auth/.login-rate.db` is created 0660 in the auth
+  directory's group under any umask (two sites had it owned by the site user, so the
+  www-data CGI could not open it and allowed every attempt). SM1241: every shipped bundle
+  is adopted on an existing site, only when absent, only for the shipped roles present,
+  never rewriting an edited group; SM1262 records the bundles a site has had in
+  `auth/bundles-adopted.json`, so a deleted bundle stays deleted and an unreadable record
+  adopts nothing. SM1263: MCP `remove_permissions`, the twin of `acl-remove`, under
+  `manage_content` with the owner refusal and the `acl-remove` audit action. SM1266: a
+  page may ask `<feature>: self` for any feature Permissions-Policy denies, as SM1174
+  allowed the camera. SM1221: a signed-out manager API call answers 401. SM1235-SM1239,
+  SM1249, SM1265: the Hestia rollout reports and repairs (the ACL dry run as the site's
+  own user, `--rebuild-exposed`, a root `--fix` creating an empty private store in SM313's
+  shape, 2770). SM1256, SM1259, SM1260: the certified channel is accepted where ADR 0010
+  says it is.
+
+threat delta
+: None of ADR 0007's four triggers fired. SM1240 closed a sign-in limiter that had failed
+  open (Denial of service, against guessing). SM1241 grants capabilities on upgrade, an
+  Elevation of privilege question. SM1266 loosens a security header for one page, an
+  Information disclosure question (a camera, microphone or location reaching the page's
+  script). SM1263 is one more tool on an existing capability, as SM301 was one more
+  action.
+
+controls
+: SM1240: the limiter still fails open when it cannot open the counter (SM798), and the
+  auth log says so on each attempt and `lazysite check` reports it; a counter the process owns that lost group access gets it
+  back. SM1241: only the shipped nesting, only to shipped roles a site already has, only
+  on a site that has the bundle layer; SM1262's record is fail-closed. SM1263: the same
+  function as the control API, so the same gate, refusal and audit. SM1266: the value
+  `self` and nothing else, front matter only, honoured over https only, that page alone;
+  `payment` and `browsing-topics` cannot be asked for; a page that asks for nothing sends
+  the header it sent before; the validator reports an unknown or unreadable value. The
+  rollout changes run in the root-run integrator SM139 bounded, and a site-tree write
+  stays the site user's.
+
+residual risk
+: SM1266: an author who can save a page can give that page's scripts a device feature;
+  the site-level allow list is later. SM1241: the shipped roles an existing site has
+  gain the shipped bundles' capabilities on upgrade, as a new install's have them.
+
+verdict
+: proposed: accepted. No trigger fired; recorded because access, a sign-in control and a
+  security header moved.

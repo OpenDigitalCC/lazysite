@@ -25,9 +25,9 @@ cutting a release, not something to remember afterwards.
 :::
 
 ```yaml
-reviewed_at_version: 0.16.0
+reviewed_at_version: 0.16.1
 content_sha:         c8547d3d824105d1
-reviewed_on:         2026-10-20
+reviewed_on:         2026-10-23
 next_review:         at the next release, whichever channel
 owner:               release manager
 ```
@@ -45,14 +45,14 @@ tone: medium
 text: 5
 ---
 Declaration of Conformity finalised and signed | at the certified cut (ADR 0010) | certified cut | OPEN | docs/DECLARATION-OF-CONFORMITY.md - draft restamped to 0.16.0 on 20 Oct 2026 and unsigned; the release manager signs it at the certified cut
-Significant-change register entry per triggering release | at each release | 0.15.15 | STARTED | docs/SECURITY.md - nine entries dated 20 Oct 2026 cover 0.15.3 to 0.15.15 (Odoo extension, Odoo sign-in, oomd, trusted proxies, address rules, identity in-process, member credentials, notification rules, SM1213) and a tenth the held SM1219 and SM1118, drafted by the developer agent and confirmed by the release manager on 21 Oct 2026 (the Odoo extension entry accepted by the release manager on 20 Oct 2026); a further entry dated 21 Oct 2026 records that the 0.15.3-0.15.7 gate-tightening fixes and 0.15.16 fired no trigger. Previous 6 Oct 2026 for SM924-SM938
-Threat model current with the architecture | at each release | 0.15.15 | met | docs/SECURITY.md trust boundaries 9-13 and six STRIDE rows, and docs/architecture/security.md (identity in the pool, trusted proxies, address rules, the Odoo extension and oomd, the ADR 0006 downgrade), added 20 Oct 2026; boundary 8 (the scheduled actor) 5 Sep 2026
-SBOM regenerated and shipped | at each release | every release | met | strict gate, tools/manifest-to-sbom.pl --strict - run 20 Oct 2026 on the 0.15.15 tree: exit 0, 444 components
-Annex VII technical file kept current | continuous; complete before CE marking | 2027-12-11 | STARTED | docs/compliance/TECHNICAL-FILE.md - index form, walked to 0.15.15 on 20 Oct 2026
+Significant-change register entry per triggering release | at each release | 0.16.1 | STARTED | docs/SECURITY.md - five entries dated 23 Oct 2026 cover 0.16.1: the warm-forked Odoo endpoint (SM1226, a new local interface), a page's stem rule on move and delete (SM1257, SM1242, SM1258), the Odoo extension's options and OOM 0.42 (SM1223-SM1225, SM1244, SM1247, SM1248, SM1261), the Docker Compose package (SM1233), and the access, rollout and channel changes with no trigger; each is a developer-agent draft until the release manager confirms. SM1219 and SM1118, accepted on 21 Oct 2026, are recorded as landed in 0.16.1. Previous 20-21 Oct 2026 for 0.15.3 to 0.16.0, confirmed by the release manager on 21 Oct 2026
+Threat model current with the architecture | at each release | 0.16.1 | met | docs/SECURITY.md trust boundary 14 (the warm-fork parent) and two STRIDE rows (the stem rule, the parent), and docs/architecture/security.md (the warm-forked endpoint, Odoo idempotency, sizes and downloads, the stem rule, MCP remove_permissions, bundle adoption, Permissions-Policy, the rate counter, the Docker package), added 23 Oct 2026; boundaries 9-13 20 Oct 2026
+SBOM regenerated and shipped | at each release | every release | met | strict gate, tools/manifest-to-sbom.pl --strict - run 23 Oct 2026 on the 0.16.1 tree (main 658d08b2d): exit 0, 455 components
+Annex VII technical file kept current | continuous; complete before CE marking | 2027-12-11 | STARTED | docs/compliance/TECHNICAL-FILE.md - index form, walked to 0.16.1 on 23 Oct 2026
 Signed releases (Sigstore/cosign) | before CE marking; cannot be applied retroactively | 2027-12-11 | OPEN | docs/POLICY.md - every unsigned release is permanently unattestable; stays for the certified release (release manager, 20 Oct 2026)
 OpenChain 5230 + 18974 written policies | before CE marking | 2027-12-11 | OPEN | docs/POLICY.md
 Bench baseline re-captured | at each stable cut | next stable | OPEN | dist/config/bench-baseline.json - captured 2026-09-30; re-capture on a quiet host at the stable cut (stable-gate plan P8)
-Restore rehearsal recorded | at least once per stable cycle | next stable | OPEN | docs/RELIABILITY.md - last recorded 2026-08-26, before the last stable cut (2026-09-22); the rehearsal on a scratch copy of a real site at the candidate version is the operator's (stable-gate plan P6)
+Restore rehearsal recorded | at least once per stable cycle | next stable | OPEN | docs/RELIABILITY.md - last recorded 2026-08-26, before the last stable cut (0.16.0, 2026-10-22); the rehearsal on a scratch copy of a real site at the candidate version is the operator's (stable-gate plan P6)
 ```
 
 # Operate-side obligations
@@ -77,30 +77,32 @@ text: 4
 CRA Article 14 reporting path rehearsed before the clock is live | 2026-09-11 | OPEN | toolchain OPERATIONS-GUIDE.md #report-path-rehearsal; named triage owner + deputy, platform access verified, 24h/72h/14d cascade walked as a tabletop
 Named security triage owner and deputy | 2026-09-11 | OPEN | as above - the DoC names a function, not an individual
 First third-party penetration test | 2026-12-31, or first GA marketing, whichever first | OPEN | docs/adr/0007-pentest-deferral.md - after expiry an absent report is a refusal condition, not a deferral
-Significant-change assessment on each fired trigger | continuous | 0.15.15 | docs/adr/0007-pentest-deferral.md - the register is what keeps the waiver valid; the 20 Oct 2026 entries were confirmed by the release manager on 21 Oct 2026
+Significant-change assessment on each fired trigger | continuous | drafted to 0.16.1 | docs/adr/0007-pentest-deferral.md - the register is what keeps the waiver valid; the 20 Oct 2026 entries were confirmed by the release manager on 21 Oct 2026, the 23 Oct 2026 entries await the release manager's confirmation
 Vulnerability handling in operation (intake, triage, advisory, VEX) | continuous | PARTIAL | SECURITY.md declares CVD intake; the dated remediation register against the ADR 0007 SLAs stays for the certified release (release manager, 20 Oct 2026)
+People who sign in told that the visitor log records their account | on running 0.16.1 or later with the visitor log on | OPEN | docs/OPERATOR.md "The visitor log names signed-in accounts" (SM1219) - account names are personal data; the site's privacy notice says so, or the log is turned off or its retention shortened. The engine publishes no notice (SM1010)
 CE marking applied | 2027-12-11 | OPEN | docs/POLICY.md
 Support period ends | 2031-07-10 | running | docs/POLICY.md - five years from 0.7.0, cut 2026-07-10. The absolute date is written here so the commitment does not depend on anyone recalling which release was first stable
 ```
 
-# Walked for 0.16.0: what a person must confirm
+# Walked for 0.16.1: what a person must confirm
 
-Walked on 2026-10-20 by the developer agent for the stable candidate 0.15.15, whose code is the code of 0.16.0 (the
-beta 0.15.16 carries it unchanged; the stable is cut from main before the next batch lands)
-(release manager, 2026-10-20: "0.15.15, after its walk"). Every row above was read
-against the tree; the rows below hold what only a person can close.
+Walked on 2026-10-23 by the developer agent for the edge 0.16.1, the first batch on the
+0.16 line (main 658d08b2d): every row above was read against the CHANGELOG's
+`## Unreleased` section and `git log 3ada57d74..main` (SM1118, SM1164,
+SM1219-SM1226, SM1228, SM1229, SM1233, SM1235-SM1267). The rows below hold what only a person can
+close. The confirmations of the 0.16.0 walk (2026-10-21) are recorded in the register
+entries they confirmed.
 
-- Confirmed by the release manager on 2026-10-21 (stable 0.16.0 sign-off): the eight
-  significant-change entries dated 2026-10-20 in `docs/SECURITY.md` for 0.16.0's code
-  are accepted; the Odoo extension entry stands as accepted on 2026-10-20; the entry
-  for SM1219 and SM1118 (held for 0.16.1, not in the 0.16.0 code) is accepted
-  now ("Confirm now").
-- Confirmed by the release manager on 2026-10-21: the changes in 0.15.3 to 0.15.7 that
-  tightened existing gates (SM975, SM976, SM979-SM982, SM991-SM993, SM1057, SM1092)
-  fired no trigger, and 0.15.16 carries no code change (SM1234), so no trigger. Recorded
-  as a register entry dated 2026-10-21.
+- The five significant-change entries dated 2026-10-23 in `docs/SECURITY.md` are drafts,
+  each marked "assessment drafted by the developer agent; the release manager confirms",
+  with the verdict stated as proposed. The SM1226 entry treats the warm-fork parent's
+  socket as a new local interface, as the oomd entry did, and finds it contained.
+- Whether SM1257 (a page drafted through its stem was published by a move, its bytes
+  back in the document root) needs more than its register entry before the certified
+  release: the dated remediation register is left for the certified release by ruling.
 - The threat model rows in `docs/SECURITY.md` and `docs/architecture/security.md`: read
   from the filings, not from a fresh review of the code.
+- The operate-side row for SM1219 (telling the people who sign in), added at this walk.
 - The Declaration of Conformity (restamped, unsigned).
 - Operate-side rows the developer agent cannot observe: the CRA Article 14 reporting
   path rehearsal and the named triage owner and deputy (both dated 2026-09-11, still
