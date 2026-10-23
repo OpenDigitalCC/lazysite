@@ -160,11 +160,17 @@ Maintenance modes:
                       channel? Exit 3 if yes, 0 otherwise - so a deploy can
                       bail BEFORE touching the site. Needs --docroot; reads
                       lazysite.conf and the manifest only.
-  --no-starter        Install without lazysite's own starter content - the demo
-                      pages and the /docs tree - leaving the system pages a site
-                      needs (forgot, logout, assets, .well-known). Remembered in
-                      the install state, so a later upgrade does not ship them
-                      either. Has no effect on a site that already has them.
+  --starter           Install lazysite's own starter pages too - the demo pages,
+                      the sample contact and members pages and the starter's
+                      welcome page. A new site gets none of them without it
+                      (SM1285): it has the system pages, the /docs manual (the
+                      engine's, on every site) and a minimal home page until it
+                      writes its own. On an upgrade, lays the starter pages a
+                      site that declined them has not got. The choice is
+                      remembered in the install state.
+  --no-starter        Accepted, and the default for a new site. On an upgrade,
+                      records that the site declines the starter pages it has
+                      not got; it never removes one it has.
   --health-check-by-caller
                       Do not run the health check at the end: the caller runs it. The
                       Hestia deploy passes this and runs the check as root after its
@@ -241,6 +247,8 @@ Getopt::Long::GetOptions(
     'serving-group=s' => \$opt{serving_group},
     # SM939 E2 / R15: no starter content. See $NO_STARTER.
     'no-starter' => \$opt{no_starter},
+    # SM1285 (ruling 33): the starter pages are opt-in.
+    'starter' => \$opt{starter},
     # SM1220: the caller runs the health check itself (the Hestia deploy, as root).
     'health-check-by-caller' => \$opt{health_check_by_caller},
 ) or do {
@@ -701,7 +709,7 @@ sub audit_install_event {
 # Declared here, above every sub that reads them, and WITHOUT a file-scope
 # assignment: top-level code below `exit cmd_install(...)` never runs, so an
 # initialiser there would be a promise the program does not keep.
-our ( $NO_STARTER, $STARTER_SKIPPED );
+our ( $NO_STARTER, $STARTER_SKIPPED, %STARTER_SKIPPED_URL );
 
 # SM933 A5 / R16: THE MODE THE INSTALLER ACTUALLY LEFT on each directory it
 # created, as opposed to the mode the model declares (`dirs`).
@@ -739,8 +747,6 @@ sub cmd_install {
         ? %{ $state->{dirs_left} }
         : ();
 
-    $NO_STARTER = ( $o->{no_starter}
-            || ( ref $state eq 'HASH' && ( $state->{starter} // '' ) eq 'none' ) ) ? 1 : 0;
 
     # SM892 U2: THE OPERATOR SAYS WHICH, AND THIS CHECKS THEM.
     #
@@ -766,6 +772,17 @@ sub cmd_install {
     }
 
     info("Mode: $mode");
+
+    # SM939 E2: the flag, or a choice an earlier run recorded.
+    # SM1285 (ruling 33): and a NEW site declines them unless --starter asks.
+    # A site with no recorded choice was installed when they came by default,
+    # so it keeps the behaviour it was installed with; --starter on a site that
+    # declined them lays them, and drops the recorded `none`.
+    $NO_STARTER = $o->{starter} ? 0
+        : ( $mode eq 'fresh'
+            || $o->{no_starter}
+            || ( ref $state eq 'HASH' && ( $state->{starter} // '' ) eq 'none' ) ) ? 1
+        : 0;
     info("  docroot: $o->{docroot}");
     info("  cgibin:  $o->{cgibin}");
     if ( $mode ne 'fresh' ) {
@@ -1150,6 +1167,9 @@ sub compute_plan {
         # SM939 E2: starter content the site has opted out of, and has not got.
         if ( $NO_STARTER && $entry->{starter} && !exists $stored_files->{$dest} && !-e $dest ) {
             $STARTER_SKIPPED = ( $STARTER_SKIPPED // 0 ) + 1;
+            # SM1285: and the URL it would have served, so the seeded nav does
+            # not link to it.
+            $STARTER_SKIPPED_URL{"/$1"} = 1 if $entry->{path} =~ m{\Astarter/([^/]+)\.md\z};
             next;
         }
 
@@ -1786,6 +1806,14 @@ sub post_install_steps {
         if ( -f $src && !-f $dst ) {
             File::Copy::copy( $src, $dst )
                 or die "Could not seed nav.conf: $!\n";
+            # SM1285: a site without the starter pages gets no menu entry for
+            # one - the example links the demo, contact and members pages.
+            if (%STARTER_SKIPPED_URL) {
+                my @keep = grep {
+                    !( /\|\s*(\S+)\s*$/ && $STARTER_SKIPPED_URL{$1} )
+                } do { open my $in, '<', $dst or die "Could not read nav.conf: $!\n"; <$in> };
+                write_text( $dst, join '', @keep );
+            }
             # 0664, not 0644: the manager's nav editor saves this through the
             # www-data CGI ("Cannot write nav: Permission denied" in the field).
             chmod 0664, $dst;
@@ -2666,8 +2694,8 @@ sub print_summary {
     print STDERR "  Removed:    $stats->{removed}\n";
     # SM939 E2: say it, so an empty site reads as a choice and not a failure.
     print STDERR "  Starter:    not installed (" . ( $STARTER_SKIPPED // 0 ) . " file(s) skipped; "
-        . "--no-starter, remembered for upgrades)\n"
-        if $NO_STARTER;
+        . "--starter installs them; the choice is remembered for upgrades)\n"
+        if $NO_STARTER && $STARTER_SKIPPED;
     my $ocount = scalar @{ $stats->{orphaned} };
     if ($ocount) {
         print STDERR "  Orphans:    $ocount (edited post-install, left in place):\n";

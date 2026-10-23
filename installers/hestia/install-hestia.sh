@@ -139,12 +139,9 @@ fi
 index_md_preexisted=0
 [ -f "$docroot/index.md" ] && index_md_preexisted=1
 
-# Install starter index.md only if not already present
-if [ ! -f "$docroot/index.md" ]; then
-    install -m 644 -o "$user" -g "$user" \
-        "$TEMPLATE_DIR/index.md" \
-        "$docroot/index.md"
-fi
+# SM1285 (ruling 33): no starter index.md. A site without one is served the
+# engine's minimal home page until it writes its own, so seeding the starter's
+# welcome page here would put starter content on every new Hestia domain.
 
 # Clear a shadowing index.html ONLY when index.md already existed - i.e. the
 # index.html was rendered FROM that index.md and lazysite will regenerate it.

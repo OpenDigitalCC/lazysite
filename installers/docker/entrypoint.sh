@@ -101,6 +101,10 @@ install_site() {
         --serving-group "$(id -gn)")
     if [ "$mode" = provision ]; then
         args+=(--domain "$SITE_DOMAIN")
+        # SM1285 (ruling 33): a new site gets no starter pages unless asked.
+        if [ "${LAZYSITE_STARTER:-}" = 1 ]; then
+            args+=(--starter)
+        fi
     fi
     if [ "$mode" = upgrade ]; then
         args+=(--force)

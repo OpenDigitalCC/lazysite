@@ -28,6 +28,7 @@ proxy in front of it. To publish on another address or port, set
 | Variable | Default | Meaning |
 |---|---|---|
 | `LAZYSITE_DOMAIN` | `localhost` | The `site_url` domain a fresh site is seeded with. Read at the first start only. |
+| `LAZYSITE_STARTER` | unset | `1` adds lazysite's starter pages (demos, sample contact and members pages) to a fresh site. Read at the first start only. A site has the `/docs` manual and a minimal home page without them. |
 | `LAZYSITE_BIND` | `127.0.0.1` | The host address the port is published on. |
 | `LAZYSITE_PORT` | `8080` | The host port. |
 | `LAZYSITE_IMAGE` | `lazysite:local` | The tag `docker compose build` gives the image. |

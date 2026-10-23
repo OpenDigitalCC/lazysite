@@ -139,7 +139,13 @@ echo "==> install.pl --mode $MODE (as $U)"
 # four "could not read ... Permission denied" warnings; the final check below runs
 # as root, after the permission pass, and is the deploy's one verdict.
 set +e
-sudo -u "$U" perl "$STAGE/install.pl" --mode "$MODE" --docroot "$DOC" --cgibin "$CGI" --health-check-by-caller "${FORCE_ARGS[@]}"
+# SM1285 (ruling 33): a new site gets no starter pages unless LAZYSITE_STARTER=1
+# asks; install.pl's default, so this only passes the opt-in on.
+STARTER_FLAG=
+if [ "$MODE" = provision ] && [ "${LAZYSITE_STARTER:-}" = 1 ]; then
+  STARTER_FLAG=--starter
+fi
+sudo -u "$U" perl "$STAGE/install.pl" --mode "$MODE" --docroot "$DOC" --cgibin "$CGI" --health-check-by-caller "${FORCE_ARGS[@]}" $STARTER_FLAG
 IRC=$?
 set -e
 # Exit 3 = the install was skipped by the site's update-channel policy (this site

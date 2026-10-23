@@ -27,8 +27,9 @@ package main;
 #         not_found, output_page, _security_headers, uri_encode, _path_under,
 #         log_event (the script and its parts); realpath and decode_json
 #         (imported by the script's `use`, before its parts load).
-# READS   $LAZYSITE_DIR, $DOCROOT, $ENGINE_DOCS_DIR and $REQUEST_CROOT; SETS $ACL_MAP_CACHE and %ACCESS_REC (the
-#         script's, declared `our` there).
+# READS   $LAZYSITE_DIR, $DOCROOT, $ENGINE_DOCS_DIR, $ENGINE_HOME_MD and
+#         $REQUEST_CROOT; SETS $ACL_MAP_CACHE and %ACCESS_REC (the script's,
+#         declared `our` there).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S19). It is package main, required
 # by absolute path from lazysite-processor.pl's BEGIN and never through @INC, and
@@ -37,7 +38,8 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $ACL_MAP_CACHE, %ACCESS_REC, %AUTH_CONTEXT, $ENGINE_DOCS_DIR, $REQUEST_CROOT );
+our ( $DOCROOT, $LAZYSITE_DIR, $ACL_MAP_CACHE, %ACCESS_REC, %AUTH_CONTEXT, $ENGINE_DOCS_DIR, $ENGINE_HOME_MD,
+    $REQUEST_CROOT );
 
 # --- ACL, group and domain copies ---
 
@@ -358,6 +360,14 @@ sub _content_rel {
     # docs/ govern it exactly as they would the site's own copy - and a rule at
     # `/` still covers it when the engine tree is beside the docroot, where no
     # docroot prefix would have matched and the page would have been ungoverned.
+    # SM1285: and the engine's home page, by the home page's own name.
+    for my $home ( $ENGINE_HOME_MD, realpath($ENGINE_HOME_MD) ) {
+        next unless defined $home && length $home && $rel eq $home;
+        my $croot = $REQUEST_CROOT // $DOCROOT;
+        my $top   = '';
+        ( $top = $croot ) =~ s{\A\Q$DOCROOT\E/?}{} if $croot ne $DOCROOT;
+        return ( length $top ? "$top/" : '' ) . 'index.md';
+    }
     for my $tree ( $ENGINE_DOCS_DIR, realpath($ENGINE_DOCS_DIR) ) {
         next unless defined $tree && length $tree;
         next unless $rel =~ s{\A\Q$tree\E/}{};

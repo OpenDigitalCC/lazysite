@@ -264,6 +264,22 @@ sub _engine_doc_md {
     return undef;
 }
 
+# SM1285 (ruling 33): A NEW SITE HAS A HOME PAGE WITHOUT THE STARTER PAGES.
+#
+# The starter pages - the demos, the sample contact and members pages, and the
+# starter's own welcome page - are opt-in (`--starter`), so a site provisioned
+# without them had no index.md and answered its own front page with a 404.
+# The engine's minimal home serves at / until the site writes an index.md, and
+# from then on the site's page wins, as for /docs. Not a system page: the
+# primary's home is never served on a content-rooted domain that has none - the
+# engine's minimal one is.
+our $ENGINE_HOME_MD = "$LAZYSITE_DIR/templates/system/home.md";
+
+sub _engine_home_md {
+    my ($base) = @_;
+    return ( defined $base && $base eq 'index' && -f $ENGINE_HOME_MD ) ? $ENGINE_HOME_MD : undef;
+}
+
 # F0003: lazysite.conf path override
 # Priority: --conf arg > LAZYSITE_CONF env var > default
 my $CONF_OVERRIDE;
@@ -1265,16 +1281,17 @@ sub main {
     }
 
     # SM1284: then the engine's /docs page, when the site has none of its own.
+    # SM1285: and the engine's home page, for a site with no index.md.
     my $engine_doc = 0;
     if ( !$engine_page
         && !defined $DRAFT_BYTES
         && !-f _content_abs($md_path)
         && !-f _content_abs("$croot/$base.url")
-        && ( my $doc = _engine_doc_md($base) ) )
+        && ( my $doc = _engine_doc_md($base) // _engine_home_md($base) ) )
     {
         $md_path           = $doc;
         $engine_page       = $engine_doc = 1;
-        $ENGINE_DOC_RENDER = 1;
+        $ENGINE_DOC_RENDER = 1 if index( $doc, "$ENGINE_DOCS_DIR/" ) == 0;
     }
     my $url_path  = "$croot/$base.url";
     my $html_path = "$croot/$base.html";

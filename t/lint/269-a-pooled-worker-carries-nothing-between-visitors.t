@@ -230,6 +230,7 @@ my %T = (
         '$REGISTRY_CACHE_DIR'    => [ exempt => 'a path derived from the docroot once' ],
         '$ENGINE_DOCS_DIR'       => [ exempt => 'a path derived from the docroot once' ],    # SM1284
         '$ENGINE_DOC_RENDER'     => [ reset  => 'reset_request_state' ],                       # SM1284
+        '$ENGINE_HOME_MD'        => [ exempt => 'a path derived from the docroot once' ],    # SM1285
         '@TT_DEPS'               => [ reset  => 'process_md' ],
         '$TT_DEP_LIVE'           => [ reset  => 'process_md' ],
         '%AUTH_CONTEXT'          => [ reset  => 'handle_one_request' ],

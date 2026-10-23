@@ -15,7 +15,7 @@
 #
 # Verbs:
 #   add USER DOMAIN [--channel edge|beta|stable|certified] [--policy auto|manual] [--fcgi]
-#                   [--workers N] [--max-requests N] [--daemon]
+#                   [--workers N] [--max-requests N] [--daemon] [--starter]
 #   remove DOMAIN
 #   list
 #
@@ -91,7 +91,7 @@ panel context) and drops to the site user for every site-tree write.
 
 Verbs:
   add USER DOMAIN [--channel edge|beta|stable|certified] [--policy auto|manual] [--fcgi]
-                  [--workers N] [--max-requests N] [--daemon]
+                  [--workers N] [--max-requests N] [--daemon] [--starter]
         Prepare the Hestia domain layout as root (locked domain root,
         docroot group/setgid), then provision the site AS THE PANEL USER
         (sudo -u USER lazysite provision), register it in
@@ -105,6 +105,9 @@ Verbs:
         every five minutes and shows as `inactive (dead)`, which is the
         correct resting state and not a fault. --daemon is accepted and
         ignored; it used to be how you asked for this.
+        --starter adds lazysite's starter pages (demos, sample contact
+        and members pages); a new site has none without it (SM1285),
+        and has the /docs manual and a minimal home page either way.
         Afterwards apply BOTH templates yourself - the Apache one that
         carries the access rules, and the nginx proxy in front of it,
         which otherwise answers static requests before Apache sees them:
@@ -213,7 +216,8 @@ sub cmd_add {
         fcgi         => 0,
         daemon       => 0,
         workers      => 2,
-        max_requests => 500
+        max_requests => 500,
+        starter      => 0,
     );
     # GetOptions first (it permutes options out of @ARGV), positionals after,
     # so `add --fcgi USER DOMAIN` and `add USER DOMAIN --fcgi` both work.
@@ -224,6 +228,7 @@ sub cmd_add {
         'daemon'         => \$o{daemon},
         'workers=i'      => \$o{workers},
         'max-requests=i' => \$o{max_requests},
+        'starter'        => \$o{starter},        # SM1285 (ruling 33): opt-in
     ) or usage(2);
     my ( $user, $domain ) = @ARGV;
     fail('add needs USER and DOMAIN: lazysite-hestia-domain add USER DOMAIN')
@@ -299,6 +304,7 @@ sub cmd_add {
         '--domain',  $domain );
     push @prov, '--channel', $o{channel} if length $o{channel};
     push @prov, '--policy',  $o{policy}  if length $o{policy};
+    push @prov, '--starter' if $o{starter};
     run_or_fail(@prov);
 
     # Secrets dirs: group-writable, off the world, so the web-server CGI
@@ -630,7 +636,7 @@ lazysite-hestia-domain - HestiaCP panel-side provisioning for lazysite domains
 
   lazysite-hestia-domain add USER DOMAIN [--channel edge|beta|stable|certified]
                              [--policy auto|manual] [--fcgi]
-                             [--workers N] [--max-requests N] [--daemon]
+                             [--workers N] [--max-requests N] [--daemon] [--starter]
   lazysite-hestia-domain remove DOMAIN
   lazysite-hestia-domain list
 
@@ -652,7 +658,7 @@ describes the full packaged onboarding.
 
 =over 4
 
-=item B<add> USER DOMAIN [--channel edge|beta|stable|certified] [--policy auto|manual] [--fcgi] [--workers N] [--max-requests N] [--daemon]
+=item B<add> USER DOMAIN [--channel edge|beta|stable|certified] [--policy auto|manual] [--fcgi] [--workers N] [--max-requests N] [--daemon] [--starter]
 
 Onboard an existing Hestia web domain (create it in Hestia first). As
 root it prepares the panel-specific layout: the C<plugins/>, C<tools/>
@@ -660,7 +666,9 @@ and C<lib/> siblings inside the 0551-locked domain root, and the docroot
 and cgi-bin handed to C<USER:www-data> with setgid dirs so files the
 site user creates inherit the web group. It then drops to USER and runs
 C<lazysite provision --docroot ... --cgibin ... --domain DOMAIN>
-(passing C<--channel>/C<--policy> through), tightens the secrets dirs
+(passing C<--channel>/C<--policy> through, and C<--starter> to add
+lazysite's starter pages, which a new site otherwise has none of - SM1285),
+tightens the secrets dirs
 (C<lazysite/auth>, C<lazysite/forms>) to 2770, and writes the site
 registry entry at F</etc/lazysite/sites.d/DOMAIN>.
 

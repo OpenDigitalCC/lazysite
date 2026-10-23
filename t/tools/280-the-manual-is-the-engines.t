@@ -136,7 +136,7 @@ subtest 'a site copy shadows the engine page, and the check says so' => sub {
 # --- 4. the upgrade that ships this ----------------------------------------
 subtest 'the upgrade removes unmodified docs copies and keeps edited ones' => sub {
     my $d = fixture();
-    my ( $out, $rc ) = install( $d, 'provision' );
+    my ( $out, $rc ) = install( $d, 'provision', '--starter' );
     is( $rc, 0, 'provisioned' ) or diag $out;
 
     # Lay the site out as a release that shipped the manual into the docroot

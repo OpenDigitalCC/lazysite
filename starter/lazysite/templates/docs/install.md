@@ -89,21 +89,33 @@ that nothing in a site tree ends up owned by root. Each verb reads
 `release-manifest.json` from the payload and records what it installed at
 `{docroot}/lazysite/.install-state.json`.
 
-### A site without lazysite's own pages
+### What a new site has, and the starter pages
 
-By default a new site arrives with lazysite's demo pages and its `/docs/`
-pages. That suits a site that *is* lazysite documentation. For anything else,
-provision with `--no-starter`:
+A new site has what it needs to work, and none of lazysite's sample content:
+
+- the sign-in, password-reset, logout and error pages;
+- the site search;
+- `assets/`, `.well-known/` and the manager;
+- the `/docs/` manual, which is the engine's and serves on every site;
+- a minimal home page. The engine shows it until the site writes its own
+  `index.md`, which then serves instead.
+
+The **starter pages** are lazysite's demos, a sample contact page and members
+page, and the starter's welcome page. They come only when asked for:
 
 ```bash
-lazysite provision --docroot /path/to/public_html --cgibin /path/to/cgi-bin --no-starter
+lazysite provision --docroot /path/to/public_html --cgibin /path/to/cgi-bin --starter
 ```
 
-The site gets the pages it needs to work - the password-reset and logout pages,
-`assets/`, `.well-known/` and the manager - and none of lazysite's own content.
 The choice is recorded in the install state, so later upgrades and reinstalls
-keep to it without the flag. It never deletes anything: a site that already has
-the pages keeps them.
+keep to it without the flag. `--no-starter` is accepted and means the default.
+`lazysite demo` provisions its demo site with the starter pages. The Docker
+image and the Hestia deploy add them when `LAZYSITE_STARTER=1` is set at the
+first start or the first deploy.
+
+A site that already has starter pages keeps them, and nothing deletes them
+unasked. `lazysite starter --list` names the ones the site never edited, and
+`lazysite starter --remove-unmodified` removes them.
 
 ### From an unpacked tarball
 

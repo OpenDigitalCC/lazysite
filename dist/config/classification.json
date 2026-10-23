@@ -319,13 +319,15 @@
   ],
   "overrides": [],
   "starter_content": {
-    "_doc": "SM939 E2 / R15: the files a fresh install ships that are lazysite's OWN content - its demo pages - as opposed to what a site needs to work. SM1284: the /docs tree is no longer among them; it is the engine's manual, served from {LAZYSITE}/templates/docs/ on every site. install.pl --no-starter skips every file matched here, and records the choice in the install state so a later upgrade does not ship them either (docs/ is bucket code, so an upgrade would otherwise install it). `keep` names the system pages the engine genuinely needs even on an empty site; they win over `patterns`. The reporter's own list (SM939 SC3): 404, robots.txt, assets/, .well-known/, forgot, logout - the first four are not starter pages at all and are not matched here.",
+    "_doc": "SM939 E2 / R15: the files a fresh install ships that are lazysite's OWN content - its demo pages - as opposed to what a site needs to work. SM1284: the /docs tree is no longer among them; it is the engine's manual, served from {LAZYSITE}/templates/docs/ on every site. SM1285 (ruling 33): a NEW install lays none of them unless --starter asks; --no-starter is accepted and is the default. search-index and search-results are kept with forgot and logout: they are the site search, starter_role infrastructure, and a site's own pages are what they list. install.pl --no-starter skips every file matched here, and records the choice in the install state so a later upgrade does not ship them either (docs/ is bucket code, so an upgrade would otherwise install it). `keep` names the system pages the engine genuinely needs even on an empty site; they win over `patterns`. The reporter's own list (SM939 SC3): 404, robots.txt, assets/, .well-known/, forgot, logout - the first four are not starter pages at all and are not matched here.",
     "patterns": [
       "^starter/[^/]+\\.md$"
     ],
     "keep": [
       "^starter/forgot\\.md$",
-      "^starter/logout\\.md$"
+      "^starter/logout\\.md$",
+      "^starter/search-index\\.md$",
+      "^starter/search-results\\.md$"
     ]
   },
   "runtime_paths": [

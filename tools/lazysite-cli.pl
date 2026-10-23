@@ -114,7 +114,7 @@ checkout/tarball root when run from a source tree.
 
 Verbs:
   provision --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable|certified]
-            [--policy auto|manual] [--dry-run] [--serving-group G] [--no-starter]
+            [--policy auto|manual] [--dry-run] [--serving-group G] [--starter]
         Install a site that does not exist yet, from the host payload.
         Runs as the SITE USER, never root (ownership correct by
         construction), and records the site in the registry at
@@ -132,10 +132,13 @@ Verbs:
         runs as, which is what the check compares the tree against;
         it defaults to www-data where that group exists. The same is
         true of the two verbs below.
-        --no-starter installs WITHOUT lazysite's own demo pages and
-        /docs tree, keeping the system pages a site needs; the choice
-        is recorded in the site's install state, so upgrades honour it
-        without the flag.
+        A new site has the system pages, the /docs manual (the engine
+        serves it on every site) and a minimal home page it replaces
+        by writing its own. --starter adds lazysite's own starter
+        pages - the demos, sample contact and members pages and the
+        starter's welcome page; the choice is recorded in the site's
+        install state, so upgrades honour it without the flag.
+        --no-starter is accepted and is the default.
   upgrade --docroot D [--cgibin C] [--force] [--dry-run] [--serving-group G]
         Move an installed site to the payload's version, as the site
         user. --cgibin defaults to the site's registry entry; a site
@@ -454,6 +457,7 @@ sub _install_argv {
     # SM939 E2: only provision offers it - after that the install state carries
     # the choice, so an upgrade does not need (or get) a flag to keep it.
     push @cmd, '--no-starter' if $o{no_starter};
+    push @cmd, '--starter'    if $o{starter};      # SM1285: opt-in
     return @cmd;
 }
 
@@ -743,12 +747,13 @@ sub site_version {
 
 sub cmd_provision {
     my %o = (
-        docroot    => '', cgibin => '', domain  => '', installdir    => '',
-        channel    => '', policy => '', dry_run => 0,  serving_group => '',
-        no_starter => 0,
+        docroot    => '', cgibin  => '', domain  => '', installdir    => '',
+        channel    => '', policy  => '', dry_run => 0,  serving_group => '',
+        no_starter => 0,  starter => 0,
     );
     Getopt::Long::GetOptions(
-        'no-starter'      => \$o{no_starter},      # SM939 E2 / R15
+        'no-starter'      => \$o{no_starter},   # SM939 E2 / R15; the default since SM1285
+        'starter'         => \$o{starter},      # SM1285 (ruling 33): opt-in
         'docroot=s'       => \$o{docroot},
         'cgibin=s'        => \$o{cgibin},
         'installdir=s'    => \$o{installdir},
@@ -772,7 +777,8 @@ sub cmd_provision {
         mode          => 'provision',
         dry_run       => $o{dry_run},
         serving_group => $o{serving_group},
-        no_starter    => $o{no_starter} );
+        no_starter    => $o{no_starter},
+        starter       => $o{starter} );
     push @cmd, '--domain', $o{domain} if length $o{domain};
     my $health = run_installer(@cmd);
 
@@ -1851,7 +1857,8 @@ sub cmd_demo {
         fail("cannot create the demo site directories under $dir")
             unless -d $docroot && -d $cgibin;
         print "lazysite: fresh-installing a demo site at $dir\n";
-        run_installer( _install_argv( $docroot, $cgibin, mode => 'provision' ) );
+        # SM1285: a demo site is the one that wants the demo pages.
+        run_installer( _install_argv( $docroot, $cgibin, mode => 'provision', starter => 1 ) );
     }
 
     my @serve = ( $^X, "$root/tools/lazysite-server.pl",
@@ -1936,7 +1943,7 @@ C<probe>.
 
 =over 4
 
-=item B<provision> --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable|certified] [--policy auto|manual]
+=item B<provision> --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable|certified] [--policy auto|manual] [--starter]
 
 Fresh-install a site from the host payload (wraps C<install.pl>). Refuses
 to run as root. C<--domain> seeds the site URL and names the registry
@@ -1945,6 +1952,12 @@ C<--policy> sets the site's C<update_policy> (C<auto> opts the site in to
 fleet-wide C<upgrade --all> runs; C<manual>, the default, leaves upgrades
 to the sysop). On success the site is recorded in the registry (see
 L</REGISTRY>).
+
+A new site has the system pages, the F</docs> manual (the engine serves it on
+every site) and a minimal home page it replaces by writing its own.
+C<--starter> adds lazysite's starter pages - the demos and the sample contact
+and members pages - and the choice is kept for upgrades (SM1285).
+C<--no-starter> is accepted and is the default.
 
 C<--installdir DIR> stands for C<--docroot DIR/public_html --cgibin
 DIR/cgi-bin> - the HestiaCP layout, where the pair is always derived from

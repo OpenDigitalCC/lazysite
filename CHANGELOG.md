@@ -171,6 +171,17 @@ Archive
   refuses them by name, a hand-written one grants nothing, and `lazysite check` names it.
   On the Config page under Browser features; the site's for every domain, never set per
   domain alias. Page status shows what the response sends. Ruled 2026-10-23 (ruling 29).
+- SM1285 (PENDING) **A new site arrives without the starter pages.** Provisioning laid
+  lazysite's demo, sample contact and members pages and its welcome page on every site, for
+  the owner to delete before launch. A new site now has the system pages, the site search,
+  the engine's `/docs` manual (SM1284) and a minimal home page. The engine serves that home
+  at `/` until the site writes its own `index.md`, and an access rule at `/` governs it.
+  `--starter` adds the starter pages and is remembered for upgrades. `--no-starter` is
+  accepted and means the default. A site that already has starter pages keeps them. The
+  seeded menu no longer links pages the site has not got. `lazysite demo` keeps its
+  demos. `lazysite-hestia-domain add --starter` and `LAZYSITE_STARTER=1` (Hestia deploy,
+  Docker) opt in. Ruling 33.
+
 - SM1284 (PENDING) **The /docs manual is the engine's.** The agent briefings and the
   manual they link into were starter content in each site's docroot. So cleaning a site
   up for launch put at risk the pages the partner brief, `.well-known/ai-partner` and the
