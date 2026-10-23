@@ -28,7 +28,7 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root run_child);
+use TestHelper qw(repo_root run_child site_tempdir);
 
 my $root    = repo_root();
 my $updater = "$root/installers/hestia/lazysite-hestia-update-all.sh";
@@ -46,10 +46,10 @@ sub stage {
     return $s;
 }
 
-# A site at 0.0.1 on the given channel.
+# A site at 0.0.1 on the given channel, its docroot a level down (site_tempdir).
 sub site {
-    my ( $base, $name, $channel ) = @_;
-    my $d = "$base/$name/public_html";
+    my ( $name, $channel ) = @_;
+    my $d = site_tempdir();
     make_path("$d/lazysite");
     spit( "$d/lazysite/lazysite.conf",       "site_url: https://$name\nupdate_channel: $channel\n" );
     spit( "$d/lazysite/.install-state.json", encode_json( { version => '0.0.1', files => {} } ) );
@@ -57,8 +57,7 @@ sub site {
 }
 
 subtest 'install.pl --force-security: forced only for a release that declares it' => sub {
-    my $base = tempdir( CLEANUP => 1 );
-    my $st   = site( $base, 's.example', 'stable' );
+    my $st = site( 's.example', 'stable' );
     my $check = sub {
         my ( $s, @a ) = @_;
         my $r = run_child( [ $^X, "$s/install.pl", '--channel-check', '--docroot', $st, @a ], stderr => 'merge' );
@@ -97,8 +96,7 @@ ok( $scope, 'the discovery and scope blocks are found in the updater' ) or BAIL_
 sub fleet {
     my (%o) = @_;
     my $t    = tempdir( CLEANUP => 1 );
-    my $base = "$t/home";
-    my %doc  = map { $_->[0] => site( $base, @$_ ) }
+    my %doc  = map { $_->[0] => site(@$_) }
         ( [ 'a.example', 'edge' ], [ 's.example', 'stable' ], [ 'x.example', 'stable' ] );
     my $s = stage( security => $o{security} );
     make_path("$s/installers/hestia");
