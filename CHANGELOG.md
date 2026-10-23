@@ -123,6 +123,14 @@ Archive
   `lazysite-chrome.css` under `.lazysite-fallback`, as SM1251 did for the contact page: a site
   with no layout sees the same pages, and a themed site sees its theme. An upgrade refreshes a
   starter copy the site never changed and keeps one it did. Ruling 12.
+- SM1296 (PENDING) **get_permissions on a page's stem answers the rule that governs the
+  page.** On edge, `/zz76/b` answered `acl: null` while `/zz76/b.md` was a draft, because a
+  move had folded the draft into the page's own key (SM1257). A stem that names a page, and
+  the page itself, now answer the page's rule as the engine reads it, with `key` naming
+  the key that holds it (and `keys` when the page and its stem each hold part). On MCP
+  `get_permissions`, the control API `acl-get` and `lazysite acl show`. A folder of that
+  name keeps its own rule. Edge walk of 0.16.1, O-3.
+
 - SM1297 (PENDING) **the maintenance switch can be cleared back to unset.** Switched on
   and off through config-set, lazysite.conf read `maintenance: off` where it had been
   empty, and config-set refused an empty value. Empty is now accepted and means off, as

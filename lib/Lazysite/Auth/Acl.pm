@@ -341,26 +341,83 @@ sub fold_page_stem {
     return 0 unless defined $rel && $rel =~ m{\A(.+)\.(?:md|url|html)\z};
     my $stem = $1;
     local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
-    return 0 if -d "$DOCROOT/$stem";
-    require Lazysite::Private;
-    my $priv = Lazysite::Private::private_path( $DOCROOT, $stem );
-    return 0 if defined $priv && -d $priv;
+    return 0 if _stem_is_folder($stem);
     my $acls = load_acls();
     my $from = $acls->{$stem};
     return 0 unless ref $from eq 'HASH';
-    my $own   = ref $acls->{$rel} eq 'HASH' ? { %{ $acls->{$rel} } } : {};
+    $acls->{$rel} = _stem_folded( $acls->{$rel}, $from );
+    delete $acls->{$stem};
+    save_acls($acls) or return 0;
+    return 1;
+}
+
+# Is there a folder of this name, in the docroot or the private store? While there
+# is, the stem key is the folder's rule (SM268 H14) rather than the page's.
+sub _stem_is_folder {
+    my ($stem) = @_;
+    return 1 if -d "$DOCROOT/$stem";
+    require Lazysite::Private;
+    my $priv = Lazysite::Private::private_path( $DOCROOT, $stem );
+    return ( defined $priv && -d $priv ) ? 1 : 0;
+}
+
+# The page's own record with the stem's value wherever the own record has none (no
+# key, an empty list, a false flag) - the walk's per-mode precedence, as one record.
+sub _stem_folded {
+    my ( $own, $from ) = @_;
+    my %rec   = ref $own eq 'HASH' ? %$own : ();
     my $empty = sub {
         my ($v) = @_;
         return 1 unless defined $v;
         return ref $v eq 'ARRAY' ? !@$v : !$v;
     };
-    for my $k ( keys %$from ) {
-        $own->{$k} = $from->{$k} if $empty->( $own->{$k} );
+    for my $k ( keys %{ $from || {} } ) {
+        $rec{$k} = $from->{$k} if $empty->( $rec{$k} );
     }
-    $acls->{$rel} = $own;
-    delete $acls->{$stem};
-    save_acls($acls) or return 0;
-    return 1;
+    return \%rec;
+}
+
+# SM1296 (O-3, edge walk of 0.16.1): THE RULE THAT GOVERNS A PAGE, ASKED FOR BY THE
+# PAGE'S PATH OR ITS STEM, AND THE KEY THAT HOLDS IT.
+#
+# get_permissions on /zz76/b answered `acl: null` while /zz76/b.md was a draft:
+# the draft had been set through the stem, and a move folded it into the page's
+# own key (fold_page_stem, SM1257), so the exact key /zz76/b held nothing. The
+# caller saw no rule on a page the engine was holding back. A stem names a page
+# when no folder of that name exists and a page of it (.md, .url or .html) does -
+# in either tree, or as a key in the store; asked by that stem or by the page,
+# the answer is the page's own record with the stem's value wherever it has none,
+# which is how the walk reads the two. Anything else - a folder, a static, a stem
+# naming nothing - is the exact key, as before.
+#
+# Returns ( $record or undef, $key or undef, \@keys ): the rule, the key that
+# holds it (the page's own key when both hold part of it), and every key that
+# contributed.
+#   page_rule( $docroot, $rel )
+sub page_rule {
+    my ( $docroot, $rel ) = @_;
+    $rel = _acl_norm($rel) // '';
+    local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
+    my $acls  = load_acls();
+    my $exact = sub {
+        my $e = $acls->{$rel};
+        return ref $e eq 'HASH' ? ( $e, $rel, [$rel] ) : ( undef, undef, [] );
+    };
+    my ( $page, $stem );
+    if    ( $rel =~ m{\A(.+)\.(?:md|url|html)\z} ) { ( $page, $stem ) = ( $rel, $1 ) }
+    elsif ( length $rel && $rel !~ m{/\z} ) {
+        require Lazysite::Private;
+        ($page) = grep {
+            my $priv = Lazysite::Private::private_path( $DOCROOT, $_ );
+            -f "$DOCROOT/$_" || ( defined $priv && -f $priv ) || ref $acls->{$_} eq 'HASH'
+        } map { "$rel.$_" } qw(md url html);
+        $stem = $rel if defined $page;
+    }
+    return $exact->() unless defined $page && !_stem_is_folder($stem);
+    my @keys = grep { ref $acls->{$_} eq 'HASH' } ( $page, $stem );
+    return $exact->() unless @keys;
+    my $rec = @keys == 1 ? { %{ $acls->{ $keys[0] } } } : _stem_folded( $acls->{$page}, $acls->{$stem} );
+    return ( $rec, $keys[0], \@keys );
 }
 
 # Strip leading slashes so an ACL key matches the manager's relative paths.

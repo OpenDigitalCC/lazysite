@@ -203,6 +203,9 @@ analyse_visitors `{ window }`
 
 get_permissions `{ path }`
 : The ACL for a path (owner + read/write grants) - call before `set_permissions`.
+  For a page, asked by its path or its stem (`/about` for `about.md`), it answers
+  the rule that governs the page, and `key` names the key that holds it (`keys`
+  lists both when the page and its stem each hold part of it).
 
 list_handlers
 : The delivery handlers - the named functions a form or the schedule calls - with

@@ -350,6 +350,10 @@ sub cmd_show {
         return 0;
     }
     print "$r->{path}\n";
+    # SM1296: the key the rule is stored at, when it is not the path asked (a page's
+    # stem answers the page's rule; a page drafted through its stem holds it there).
+    print '  key:    ' . join( ' + ', @{ $r->{keys} || [ $r->{key} ] } ) . "\n"
+        if defined $r->{key} && ( $r->{key} ne $r->{path} || @{ $r->{keys} || [] } > 1 );
     print '  owner:  ' . ( $a->{owner} // '-' ) . "\n";
     print '  read:   '
         . ( @{ $a->{read} || [] } ? join( ',', @{ $a->{read} } ) : '- (anyone)' ) . "\n";
@@ -476,7 +480,7 @@ sub cmd_reapply {
         # behaviour depended on that subtlety staying true. Explicit is safer
         # for something that runs unattended across a fleet.
         my $cur = with_actor( $actor,
-            sub { return action_acl_get( $path, $actor ) } );
+            sub { return action_acl_get( $path, $actor, { exact => 1 } ) } );
         my $rule = ( $cur && $cur->{ok} ) ? ( $cur->{acl} || {} ) : {};
 
         my $r = with_actor( $actor, sub {

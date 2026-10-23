@@ -2063,7 +2063,7 @@ sub _acl_logins {
 }
 
 sub action_acl_get {
-    my ( $rel_path, $user ) = @_;
+    my ( $rel_path, $user, $opt ) = @_;
 
     # SM310: read the root the same way set and remove write it.
     #
@@ -2099,7 +2099,7 @@ sub action_acl_get {
             return { ok => 0, error => "Not the owner of this file" }
                 if $a && ( $a->{owner} // '' ) ne ( $user // '' );
         }
-        return { ok => 1, path => '/', acl => $a,
+        return { ok => 1, path => '/', acl => $a, key => ( $a ? $present : undef ),
             address_lists => _address_list_choices(),
             Lazysite::Auth::Settings::display_names_block( _acl_logins($a) ) };
     }
@@ -2108,12 +2108,23 @@ sub action_acl_get {
     return $r unless $r->{ok};
     if ( my $why = is_blocked_path( $r->{rel} ) ) { return _blocked( $r->{rel}, $why, 'blocked' ) }
     if ( my $why = is_blocked_config( $r->{rel} ) ) { return _blocked( $r->{rel}, $why, 'blocked-config' ) }
-    my $a = load_acls()->{ _acl_norm( $r->{rel} ) };
+    # SM1296 (O-3): a page's stem, or the page, answers the rule that governs the
+    # page and names the key holding it (Acl::page_rule) - a draft set through
+    # /about and folded into about.md by a move answered `acl: null` at /about.
+    # `exact` reads the one key as stored, for a caller about to write that key
+    # back (acl-set's before-image for the audit, the CLI's re-apply).
+    my ( $a, $key, $keys );
+    if ( ref $opt eq 'HASH' && $opt->{exact} ) {
+        my $k = _acl_norm( $r->{rel} );
+        $a = load_acls()->{$k};
+        ( $key, $keys ) = ref $a eq 'HASH' ? ( $k, [$k] ) : ( undef, [] );
+    }
+    else { ( $a, $key, $keys ) = Lazysite::Auth::Acl::page_rule( $DOCROOT, $r->{rel} ) }
     unless ( may_read_any_rule() ) {    # SM464: read-any; write stays owner-only
         return { ok => 0, error => "Not the owner of this file" }
             if $a && ( $a->{owner} // '' ) ne ( $user // '' );
     }
-    return { ok => 1, path => $r->{rel}, acl => $a,
+    return { ok => 1, path => $r->{rel}, acl => $a, key => $key, ( @$keys > 1 ? ( keys => $keys ) : () ),
         address_lists => _address_list_choices(),
         Lazysite::Auth::Settings::display_names_block( _acl_logins($a) ) };
 }
@@ -2510,7 +2521,8 @@ sub dispatch_acl_set {
         # changes is the thing an audit of a permission is usually asked about,
         # and once the second write lands the first value exists nowhere: a
         # rule is not versioned the way content is.
-        my $before = action_acl_get( $Lazysite::Manager::Common::path, $Lazysite::Manager::Common::auth_user );
+        my $before = action_acl_get( $Lazysite::Manager::Common::path, $Lazysite::Manager::Common::auth_user,
+            { exact => 1 } );
         $ACL_AUDIT_BEFORE
             = ( ref $before eq 'HASH' && $before->{ok} ) ? $before->{acl} : undef;
 
@@ -2614,7 +2626,7 @@ sub _acl_set_many {
     my ( @results, @audit, @warnings, %warned );
     my $all_ok = 1;
     for my $p (@paths) {
-        my $before = action_acl_get( $p, $user );
+        my $before = action_acl_get( $p, $user, { exact => 1 } );
         my $r      = action_acl_set( $p, $user, $m_read, $m_write, $m_owner, $m_draft,
             { addresses => $m_addr, addresses_deny => $m_deny } );
         my $ok = ref $r eq 'HASH' && $r->{ok} ? 1 : 0;

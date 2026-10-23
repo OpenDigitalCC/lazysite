@@ -1592,7 +1592,7 @@ my %TOOLS = (
     },
     get_permissions => {
         path_args => [qw(path)],
-        description => 'Read the access-control list for a path (owner + per-user / @group read & write grants). Call this before set_permissions to see the current state.',
+        description => 'Read the access-control list for a path (owner + per-user / @group read & write grants). For a page, asked by its path or its stem (/about for about.md), it answers the rule that governs the page; `key` names the key that holds it (and `keys` both, when the page and its stem each hold part). Call this before set_permissions to see the current state.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
