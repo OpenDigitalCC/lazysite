@@ -1348,16 +1348,21 @@ sub cmd_repair {
     Getopt::Long::GetOptionsFromArray( \@ARGV, 'dry-run' => \$o{dry_run} )
         or fail('bad options for repair');
 
-    my $tool = payload_root() . '/tools/lazysite-check.pl';
+    my $tool    = payload_root() . '/tools/lazysite-check.pl';
+    my $users   = payload_root() . '/tools/lazysite-users.pl';
+    my $me      = current_user();
+    my $is_root = running_as_root();
 
     # SM626: a pending DECISION is not an unfixed DEFECT, and counting them
     # together made the tally useless. A fleet of 26 healthy sites - 43 ok, zero
     # failures each - reported as "0 clean, 0 repaired, 26 need a human",
     # because every one carried the same warning: a group seeded before this
     # release has not been told what to do about the capabilities the release
-    # added. That warning CANNOT be repaired. It clears when a human decides,
-    # and until then it pins every site into the worst bucket, where a genuine
-    # unfixable failure would be indistinguishable from it.
+    # added. A warning that needs a human's decision cannot be repaired, and
+    # pinned every site into the worst bucket, where a genuine unfixable failure
+    # would be indistinguishable from it. SM1273: that one on a MANAGER group is
+    # no longer such a warning - the top-up below grants it - so a site whose
+    # only gap was that lands in repaired; a decision still left lands here.
     my ( @clean, @repaired, @stuck, @decide );
 
     for my $s (@$targets) {
@@ -1371,8 +1376,10 @@ sub cmd_repair {
         print "== $s->{name}\n";
         print "  $_\n" for @issues;
 
+        my @topup = _topup_commands( $s, $users, $me, $is_root );
         if ( $o{dry_run} ) {
             print "  -> would repair (--dry-run)\n";
+            print "  -> would run the capability top-up: $_->[1]\n" for @topup;
             push @stuck, $s->{name};
             next;
         }
@@ -1380,6 +1387,22 @@ sub cmd_repair {
         print "  -> repairing\n";
         system( $^X, _lib_arg(), $tool, @base, '--fix' ) >= 0
             or warn "  could not run the repair\n";
+
+        # SM1273 (ruling 25, 2026-10-23): the SM645 top-up, before the re-check.
+        # A manager group missing a capability this release added is granted it
+        # on the next use of the users tool (SM1272), and repair is that use: one
+        # group-reach per manager group, as the site's owner. The top-up fills
+        # only what has no decision, so a capability declined (0) stays declined.
+        # A call that fails is reported, and the repair goes on.
+        for my $t (@topup) {
+            my ( $g, $shown, @cmd ) = @$t;
+            my $out = qx(@{[ join ' ', map { quotemeta } @cmd ]} 2>&1);
+            my $rc  = $? == -1 ? 127 : ( $? >> 8 );
+            next unless $rc;
+            my ($last) = reverse grep { length } split /\n/, $out // '';
+            print "  -> the capability top-up for $g did not run (exit $rc): $shown"
+                . ( defined $last ? " - $last" : '' ) . "\n";
+        }
 
         my $after = qx($^X @{[ join ' ', _lib_arg() ]} \Q$tool\E @{[ join ' ', @base ]} 2>&1);
         my @left = grep { /\[ (?:warn|FAIL) \]/ } split /\n/, $after;
@@ -1421,6 +1444,37 @@ sub cmd_repair {
     # yet - that is a standing state, not an incident, and a check that cries
     # wolf every run is one nobody reads.
     exit( @stuck ? 1 : 0 );
+}
+
+# SM1273: the top-up commands for a site, one per manager group:
+# [ group, the command as shown, the command as run ]. As root it drops to the
+# site's owner (_as_owner, as probe and `upgrade --all` do), so the group store
+# is written by the account that owns it. A group store that cannot be read
+# names no manager group; that is said, and nothing is run.
+sub _topup_commands {
+    my ( $s, $users, $me, $is_root ) = @_;
+    _load_paths();
+    my $file = Lazysite::Paths::lazysite_dir( $s->{docroot} ) . '/auth/groups-settings.json';
+    my $gs;
+    if ( open my $fh, '<:raw', $file ) {
+        my $text = do { local $/; <$fh> };
+        close $fh;
+        $gs = eval { JSON::PP::decode_json($text) };
+    }
+    elsif ( !$!{ENOENT} ) {
+        print "  -> the capability top-up was not run: cannot read $file ($!)\n";
+        return;
+    }
+    return unless ref $gs eq 'HASH';
+    my $owner = site_owner($s);
+    my @out;
+    for my $g ( sort grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{manager} } keys %$gs ) {
+        my @cmd = ( $^X, _lib_arg(), $users, '--docroot', $s->{docroot}, 'group-reach', $g );
+        @cmd = _as_owner( $owner, @cmd )
+            if $is_root && defined $owner && length $owner && $owner ne $me;
+        push @out, [ $g, join( ' ', @cmd ), @cmd ];
+    }
+    return @out;
 }
 
 # Ask the FRONT END whether it honours an ACL, from outside.
@@ -1975,8 +2029,11 @@ C<--all> in place of C<--docroot>. A write needs C<--actor>.
 
 Run the doctor, apply the fixes it can apply, then run it B<again> and
 report the state after the repair - "the site is clean afterwards", not
-"we ran --fix". C<--dry-run> reports what would be repaired and changes
-nothing.
+"we ran --fix". Before the second run it gives each manager group the
+capabilities this release added that it has no decision on (the users tool's
+top-up, run as the site's owner); a capability declined stays declined.
+C<--dry-run> reports what would be repaired and the top-up it would run, and
+changes nothing.
 
 =item B<probe> --docroot D | --domain NAME | --all
 

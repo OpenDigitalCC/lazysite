@@ -1166,8 +1166,10 @@ sub run_checks {
                         . 'tool (opening the Users, Groups or Config page, or a '
                         . 'lazysite-users.pl command such as group-reach); nothing to '
                         . 'decide, and a capability declined on purpose stays declined',
-                    'or now, from a shell as the site user: perl tools/lazysite-users.pl '
-                        . "--docroot '$DOC' group-reach $fg" );
+                    # SM1273: repair runs the top-up, so it is the simplest route.
+                    'or now: ' . cli_spelling() . ' repair --domain DOMAIN (it runs the '
+                        . 'top-up), or from a shell as the site user: perl '
+                        . "tools/lazysite-users.pl --docroot '$DOC' group-reach $fg" );
             }
             if (@missing) {
                 report( 'WARN',

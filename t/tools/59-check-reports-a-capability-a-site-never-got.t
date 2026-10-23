@@ -89,8 +89,10 @@ subtest 'a site missing one is told, and told what to run' => sub {
     unlike( $out, qr/have not decided on capabilities/,
         'it no longer calls it undecided' );
     unlike( $out, qr/grant or dismiss/, 'nor asks for a decision on the Groups page' );
+    like( $out, qr/or now: \S.* repair --domain DOMAIN \(it runs the top-up\)/,
+        'with repair as the simplest route (SM1273), spelled as this host runs the CLI' );
     like( $out, qr/group-reach sysops/,
-        'with a command that grants it now as the shell fallback' );
+        'and a command that grants it now as the shell fallback' );
 };
 
 subtest 'what the warning says will happen does happen (SM1272)' => sub {

@@ -79,8 +79,7 @@ assertions) and t/unit/tools/41 fails both new subtests.
 # Not done
 
 - **No top-up at upgrade** (ruling 23).
-- **`lazysite repair`** (tools/lazysite-cli.pl) still files a site whose only warning is
-  this one under "awaiting your decision". It buckets by the warn/FAIL marker, never by
-  the sentence (SM626). A gap that clears on the next use is not a decision. Whether
-  repair should run a users-tool command to clear it is a question for the release
-  manager.
+- **`lazysite repair`** filed a site whose only warning was this one under "awaiting
+  your decision". Ruling 25 (2026-10-23) has repair run the top-up, so the site is
+  repaired instead: SM1273. The warning's fix names `repair --domain DOMAIN` as the
+  simplest route.

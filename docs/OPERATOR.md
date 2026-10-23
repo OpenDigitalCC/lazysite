@@ -141,7 +141,9 @@ named as forced in the table, the findings and the summary, and audited as
 ### Repairing permissions and ownership - the one way
 
 **`lazysite repair`.** It runs the doctor, applies its safe fixes, then checks
-again and reports the state AFTER the repair, per site.
+again and reports the state AFTER the repair, per site. Before checking again it
+gives each manager group the capabilities a release added that the group has no
+decision on (SM1273). A capability somebody declined stays declined.
 
 ```bash
 sudo lazysite repair --all --dry-run           # preview every site, change nothing

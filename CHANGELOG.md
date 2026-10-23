@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1273 (PENDING) **lazysite repair gives a manager group the capabilities a release
+  added.** A site whose only warning was a manager group's not-yet-held capability was left
+  "awaiting your decision", though there was nothing to decide. Before it checks again,
+  repair now runs the users tool's top-up (`group-reach` for each manager group, as the
+  site's owner when run as root), so the site ends repaired. A declined capability stays
+  declined. `--dry-run` names the commands and runs none, and a failed call is reported
+  and the repair goes on. The check's warning names `repair --domain DOMAIN` as the
+  simplest fix.
+
 - SM1272 (PENDING) **the check says a manager group is granted a new capability on the next
   use, not that it must decide.** After an upgrade, `lazysite check` told an operator that
   sysops had "not decided" on a capability the release added (on edge, `maintenance_access`)
