@@ -1708,7 +1708,7 @@ verdict
 
 ### 2026-10-23 - SM1303 (0.16.2): a theme archive's symbolic link reached the served asset mirror
 
-Assessment drafted by the developer agent for the release manager's confirmation. Ruling 41 as revised (2026-10-23): with the exposure able to disclose the session-signing secret, so that a `manage_themes` holder could forge an operator's session, this is a security release. Ruling 41b: the archive checks and the planted-link warning (SM1304) land alone on main and are cut as 0.16.2, marked `security_critical` (`tools/release.sh --security-critical`, SM1305) and pushed fleet-wide with `lazysite upgrade --all --force-security`, which reaches stable sites too.
+Assessment drafted by the developer agent for the release manager's confirmation. Ruling 41 as revised (2026-10-23): with the exposure able to disclose the session-signing secret, so that a `manage_themes` holder could forge an operator's session, this is a security release. Ruling 41b: the archive checks and the planted-link warning (SM1304) land alone on main and are cut as 0.16.2, marked `security_critical` (`tools/release.sh --security-critical`, SM1305) and pushed fleet-wide with `lazysite upgrade --all --force-security`, which reaches stable sites too (on a Hestia host, the updater's `--force-security`, SM1307). Ruling 44 (2026-10-23): no exploitation of SM1303 is known, so there is no CRA Article 14 notification and no advisory; the release notes carry it.
 
 what changed
 : The manager's Upload Theme (`theme-upload`, `Manager::Themes::action_theme_upload`)

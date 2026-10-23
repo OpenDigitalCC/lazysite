@@ -98,11 +98,10 @@ stand; the confirmation of its five register entries is recorded in those entrie
   "assessment drafted by the developer agent for the release manager's confirmation",
   with the verdict stated as pending. It finds no ADR 0007 trigger fired and records the
   exposure as a bypass of boundary 6, as the SM1213 and SM1257 entries did.
-- Whether SM1303 needs more than its register entry and the release notes: the
-  original ruling 41 set no advisory; the revised ruling makes 0.16.2 a security
-  release and says nothing of an advisory or a CRA Article 14 notification, so whether
-  either is owed is the release manager's to rule. The dated remediation register is left
-  for the certified release by ruling.
+- Ruled, not open: SM1303 has no known exploitation, so there is no CRA Article 14
+  notification and no advisory; its register entry and the release notes record it
+  (ruling 44, 2026-10-23). The dated remediation register is left for the certified
+  release by ruling.
 - The operate-side row for SM1304 (remove a planted link, rotate the secret), added at
   this walk.
 - The threat model rows in `docs/SECURITY.md` and `docs/architecture/security.md`: read

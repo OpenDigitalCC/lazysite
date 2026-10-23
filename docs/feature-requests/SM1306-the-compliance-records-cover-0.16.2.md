@@ -32,8 +32,8 @@ this branch, SM1303 to SM1305 and nothing else (ruling 41b).
   vulnerability-handling row records 0.16.2 as a security release (SM1305, pushed
   with `--force-security`); a new operate-side row for SM1304 (remove a planted
   link and rotate the secret); and the "what a person must confirm" section is
-  for 0.16.2, including whether SM1303 owes an advisory or a CRA Article 14
-  notification, which no ruling has said.
+  for 0.16.2. Ruling 44 (2026-10-23) settled what it first listed as open: SM1303
+  has no known exploitation, so no CRA Article 14 notification and no advisory.
 - docs/compliance/TECHNICAL-FILE.md, stamped 0.16.2: the risk assessment current to
   0.16.2, the vulnerability-handling row naming the first security-critical
   release, 455 SBOM components and 1,553 test files at 0.16.2.
