@@ -102,7 +102,8 @@ is_deeply( \@broken, [], 'every predicate evaluated without dying' );
 # the action, not the gate.
 my %DELIBERATELY_CONSTANT
     = map { $_ => 1 } qw(whoami describe-capabilities actions-list connector-call display-names nav-read
-    odoo-bindings odoo-run odoo-confirm);    # SM747 E: the binding decides, as the connector does
+    odoo-bindings odoo-run odoo-confirm    # SM747 E: the binding decides, as the connector does
+    odoo-resume);    # SM1278: the run's binding decides, as for a confirm
 my @unexpected = grep { !$DELIBERATELY_CONSTANT{$_} } @constant;
 is_deeply( \@unexpected, [], 'no gate silently ignores the capabilities it is given' )
     or diag( "constant-answer gates: @unexpected\n"

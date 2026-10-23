@@ -182,10 +182,13 @@ tone: medium
 `odoo-bindings` | any authenticated |  
 `odoo-calls` | manage_connectors | binding (query), limit (query)
 `odoo-confirm` | any authenticated | plan (body)
+`odoo-dismiss` | settle_odoo_writes | run (body), reason (body)
+`odoo-resume` | any authenticated | run (body), assume_done (body), assume_not_done (body)
 `odoo-run` | any authenticated | binding (body), params (body)
 `odoo-secret-clear` | manage_connectors | grant (body), scheduled (body)
 `odoo-secret-set` | manage_connectors | secret (body), grant (body), scheduled (body), login (body)
 `odoo-status` | manage_connectors |  
+`odoo-unknown-runs` | settle_odoo_writes |  
 `page-pdf` | manage_content | path (query)
 `pages` | manage_content / manage_nav |  
 `plugin-action` | cookie only | plugin (query), script (body), action_id (body), params (body)

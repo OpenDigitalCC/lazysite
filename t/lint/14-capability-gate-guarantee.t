@@ -222,6 +222,10 @@ my %COOKIE_READ = map { $_ => 1 } map { ( my $l = $_ ) =~ s/#.*//; split ' ', $l
     # SM747 CU: the Odoo connection's state (has_secret, never the key) and its
     # call record; the writers, odoo-secret-set and -clear, are in %MUTATING.
     odoo-status odoo-calls
+
+    # SM1278: the Odoo runs left unknown, read only; dismissing one (odoo-dismiss)
+    # and resuming one (odoo-resume) are in %MUTATING.
+    odoo-unknown-runs
 COOKIE_READ
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed

@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1278 (PENDING) **The manager lists, settles and dismisses an unknown Odoo run.** Rulings 10b
+  and 10c: the Odoo extension's row on the Extensions page has Unknown Odoo writes, each open run
+  with the changes still unknown, It was made / It was not made for a change, and Check again and
+  Dismiss for the run. Listing and dismissing need `settle_odoo_writes`; a dismissal sends
+  nothing to Odoo, keeps who, when and why, and is one call record and one audit line. The
+  control API and MCP have `odoo-unknown-runs`, `odoo-resume` and `odoo-dismiss` (and their
+  twins).
 - SM1279 (PENDING) **An unknown Odoo run is kept until it is settled or dismissed.** Ruling 10c:
   no expiry. The plan store's seven days, the daemon run folders' schedule and SM1162's purge
   of a spent plan's file bytes no longer reach a run left unknown and still open, since a resume

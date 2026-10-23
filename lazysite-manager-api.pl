@@ -2420,6 +2420,23 @@ elsif ( $action eq 'odoo-confirm' ) {
     my $req = _json_body();
     $result = _odoo()->can('action_odoo_confirm')->( $req->{plan}, _odoo_who() );
 }
+# SM1278 (rulings 10b, 10c): the runs left unknown, an operator's decision on one, and
+# dismissing one. Listing and dismissing are settle_odoo_writes'; a resume is gated by
+# the run's binding inside Lazysite::Odoo::resume, as a confirm is.
+elsif ( $action eq 'odoo-unknown-runs' ) {
+    _odoo();
+    $result = Lazysite::Odoo::action_odoo_unknown_runs( _odoo_who() );
+}
+elsif ( $action eq 'odoo-resume' ) {
+    my $req = _json_body();
+    $result = _odoo()->can('action_odoo_resume')
+        ->( $req->{run}, $req->{assume_done}, $req->{assume_not_done}, _odoo_who() );
+}
+elsif ( $action eq 'odoo-dismiss' ) {
+    my $req = _json_body();
+    _odoo();
+    $result = Lazysite::Odoo::action_odoo_dismiss( $req->{run}, $req->{reason}, _odoo_who() );
+}
 elsif ( $action eq 'connector-save' ) {
     my $req = _json_body();
     $result = _connectors()->can('action_connector_save')->( $req->{id}, $req->{connector} );

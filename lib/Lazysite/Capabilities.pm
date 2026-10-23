@@ -570,7 +570,13 @@ my %ACTION_INFO = (
             . 'not, on any run, and dismiss a run. The run\'s own maker may decide for '
             . 'their own run without this. Declared by the Odoo extension.',
         grants => 'Decide, for a change Odoo cannot be asked about, whether it was made, on a run anyone made, and dismiss an unsettled run so it is no longer offered. Every decision and every dismissal is one call record and one audit line naming who. Held by the operator group by default.',
-        unlocks => {},
+        # SM1278: the list and dismissing. odoo-resume is NOT here: the run's binding
+        # gates it, and the API admits any signed-in caller, as for odoo-confirm.
+        unlocks => {
+            ui  => ['the Unknown Odoo writes panel of the Odoo extension (Extensions)'],
+            api => [qw(odoo-unknown-runs odoo-dismiss)],
+            mcp => [qw(odoo_unknown_runs odoo_dismiss)],
+        },
     },
     audit => {
         section => 'Insight',

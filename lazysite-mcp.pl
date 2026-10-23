@@ -923,6 +923,37 @@ my %TOOLS = (
             _odoo_engine()->can('action_odoo_confirm')->( $a->{plan}, _odoo_who( $user, $caps ) );
         },
     },
+    # SM1278 (rulings 10a-10c): an Odoo run whose apply left a change unknown.
+    odoo_resume => {
+        description => 'Resume an Odoo run whose apply left a change unknown (its request was sent and no answer came), by the run an answer named. OOM reads each such change back first; one it cannot read back is refused unknown-outcome until you say it was made (assume_done) or was not (assume_not_done) - only the run\'s maker, or a holder of settle_odoo_writes, may say. The rest of the run is then applied.',
+        cap         => undef,
+        inputSchema => { type => 'object',
+            properties => { run => { type => 'string' },
+                assume_done     => { type => 'array', items => { type => 'string' } },
+                assume_not_done => { type => 'array', items => { type => 'string' } } },
+            required => ['run'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $a, $user, $caps ) = @_;
+            _odoo_engine()->can('action_odoo_resume')
+                ->( $a->{run}, $a->{assume_done}, $a->{assume_not_done}, _odoo_who( $user, $caps ) );
+        },
+    },
+    odoo_unknown_runs => {
+        description => 'The Odoo runs whose apply left a change unknown and that are not yet settled or dismissed, newest first: the binding, who made the run, when, and each change still unknown (its key, action, model and record). Never a value.',
+        cap => 'settle_odoo_writes',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub { _odoo_engine()->can('action_odoo_unknown_runs')->( _odoo_who( $_[1], $_[2] ) ) },
+    },
+    odoo_dismiss => {
+        description => 'Dismiss an Odoo run left unknown: it is no longer offered for resuming, and is kept as dismissed with who, when and the reason given. Nothing is sent to Odoo.',
+        cap => 'settle_odoo_writes',
+        inputSchema => { type => 'object', properties => { run => { type => 'string' }, reason => { type => 'string' } },
+            required => ['run'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $a, $user, $caps ) = @_;
+            _odoo_engine()->can('action_odoo_dismiss')->( $a->{run}, $a->{reason}, _odoo_who( $user, $caps ) );
+        },
+    },
     list_files => {
         path_args => [qw(path)],
         description => 'List files and folders under a site-relative directory path (default "/").',

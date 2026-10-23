@@ -62,6 +62,9 @@ $NOT_A_PATH{$_} = 1 for qw(addresses addresses_deny);
 # SM747 E: the Odoo tools' arguments - a binding id, a lazysite account name, an
 # Odoo login, the fields a binding maps, a plan id and an API key. None names
 # a file or a page on the site.
+# SM1278: and a run id, the keys of the changes a person says were or were not
+# made, and a dismissal's line of reason.
+$NOT_A_PATH{$_} = 1 for qw(run assume_done assume_not_done reason);
 
 # A path-shaped name that is not a content path on this tool, and why.
 my %NOT_A_PATH_HERE = (

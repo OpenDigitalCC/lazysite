@@ -283,11 +283,20 @@ function renderPluginCard(plugin) {
     html += '<button class="mg-btn mg-btn-sm" onclick="toggleBlocked(this)" '
          +  'aria-controls="blocked-body" aria-expanded="false">Blocked addresses</button>';
   }
+  // SM1278 (rulings 10b, 10c): the Odoo runs whose apply left a change unknown -
+  // the operator's place to say whether a change was made, or to dismiss a run.
+  if (plugin.id === 'odoo') {
+    html += '<button class="mg-btn mg-btn-sm" onclick="toggleUnknownRuns(this)" '
+         +  'aria-controls="odoo-unknown-body" aria-expanded="false">Unknown Odoo writes</button>';
+  }
   // Every button this plugin offers is now in ONE group, so they share a
   // baseline and wrap together. Panels open BELOW it, full width.
   html += '</div>';
   if (plugin.id === 'bad-url-blocker') {
     html += '<div class="mg-card-body mg-expand-body" id="blocked-body" style="display:none">Loading&hellip;</div>';
+  }
+  if (plugin.id === 'odoo') {
+    html += '<div class="mg-card-body mg-expand-body" id="odoo-unknown-body" hidden>Loading&hellip;</div>';
   }
   // SM085: an action result may ask for a choice (needs_choice) - the
   // conflict list + choice buttons render here.
@@ -767,6 +776,104 @@ function unblockIp(ip) {
       loadBlocked();
     })
     .catch(function (e) { showStatus('Error: ' + e.message, true); });
+}
+
+// --- Unknown Odoo writes (SM1278, rulings 10b and 10c) ---
+//
+// An Odoo run whose apply sent a change and got no answer stays open until it is
+// settled or dismissed. Each open run is listed with the changes still unknown.
+// Check again asks OOM to read them back; It was made / It was not made is the
+// operator's word for one change (settle_odoo_writes); Dismiss closes the run
+// without sending anything. A run a person made signed in to Odoo ran on their
+// own login, so only they can resume it: it is offered Dismiss alone. The keys are
+// held in window._unknownRuns and named by index, never written into a handler.
+
+function toggleUnknownRuns(btn) {
+  var el = document.getElementById('odoo-unknown-body');
+  if (!el) return;
+  var open = !el.hidden;
+  el.hidden = open;
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  if (!open) loadUnknownRuns();
+}
+
+function loadUnknownRuns() {
+  var el = document.getElementById('odoo-unknown-body');
+  if (!el) return;
+  fetch(API + '?action=odoo-unknown-runs').then(function (r) { return r.json(); }).then(function (d) {
+    if (!d || !d.ok) { el.innerHTML = '<p class="mg-muted">' + esc((d && d.error) || 'Unavailable.') + '</p>'; return; }
+    window._unknownRuns = d.runs || [];
+    if (!window._unknownRuns.length) { el.innerHTML = '<p class="mg-muted">No Odoo run is waiting.</p>'; return; }
+    var h = '<div class="mg-table-wrap"><table class="mg-table"><thead><tr>'
+          + '<th>Binding</th><th>Made by</th><th>When</th><th>Change</th><th></th></tr></thead><tbody>';
+    window._unknownRuns.forEach(function (run, i) {
+      var when = run.at ? new Date(run.at * 1000).toLocaleString() : '';
+      var who = run.person ? 'a person signed in to Odoo' : (run.owner || '');
+      var changes = run.changes && run.changes.length ? run.changes : [{}];
+      changes.forEach(function (c, j) {
+        var what = [c.key || ('#' + (c.seq || '')), c.action, c.model, c.id].filter(function (x) { return x !== undefined && x !== ''; }).join(' ');
+        h += '<tr><td>' + (j ? '' : esc(run.binding)) + '</td><td>' + (j ? '' : esc(who)) + '</td><td>'
+           + (j ? '' : esc(when)) + '</td><td><code>' + esc(what) + '</code></td><td>';
+        if (!run.person && c.seq !== undefined) {
+          h += '<button class="mg-btn mg-btn-sm" onclick="settleChange(' + i + ',' + j + ',\'done\')">It was made</button> '
+             + '<button class="mg-btn mg-btn-sm" onclick="settleChange(' + i + ',' + j + ',\'not\')">It was not made</button>';
+        }
+        h += '</td></tr>';
+      });
+      h += '<tr><td colspan="5">';
+      if (!run.person) h += '<button class="mg-btn mg-btn-sm" onclick="checkRunAgain(' + i + ')">Check again</button> ';
+      h += '<button class="mg-btn mg-btn-sm" onclick="dismissRun(' + i + ')">Dismiss</button></td></tr>';
+    });
+    el.innerHTML = h + '</tbody></table></div>';
+  }).catch(function (e) { el.textContent = 'Error: ' + e.message; });
+}
+
+function resumeRun(body, done) {
+  fetch(API + '?action=odoo-resume', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.ok) showStatus(done);
+      else if (d && d.kind === 'unknown-outcome') showStatus('Odoo cannot be asked about a change of this run. Say whether it was made.', true);
+      else if (d && d.unknown) showStatus('The run went on and a change got no answer again. It is listed below.', true);
+      else showStatus((d && d.error) || 'The run was not resumed', true);
+      loadUnknownRuns();
+    })
+    .catch(function (e) { showStatus('Error: ' + e.message, true); });
+}
+
+function checkRunAgain(i) {
+  var run = (window._unknownRuns || [])[i];
+  if (run) resumeRun({ run: run.run }, 'Read back: the run is settled.');
+}
+
+function settleChange(i, j, how) {
+  var run = (window._unknownRuns || [])[i];
+  var c = run && run.changes && run.changes[j];
+  if (!c) return;
+  var name = c.key || String(c.seq);
+  var body = { run: run.run };
+  body[how === 'done' ? 'assume_done' : 'assume_not_done'] = [name];
+  resumeRun(body, how === 'done' ? 'Settled: the change is recorded as made.' : 'Settled: the change was sent again.');
+}
+
+function dismissRun(i) {
+  var run = (window._unknownRuns || [])[i];
+  if (!run) return;
+  mgConfirm('Dismiss this run? It is no longer offered, and nothing is sent to Odoo.', { ok: 'Dismiss' }).then(function (ok) {
+    if (!ok) return;
+    fetch(API + '?action=odoo-dismiss', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run: run.run })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) { showStatus((d && d.error) || 'The run was not dismissed', true); return; }
+        showStatus('Dismissed.');
+        loadUnknownRuns();
+      })
+      .catch(function (e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 // SM957: THE SUBMISSIONS VIEWER IS ITS OWN PAGE NOW - /manager/submissions

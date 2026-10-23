@@ -340,7 +340,7 @@ my %REFUSED_KIND = (
     'idem-mismatch' => [ 'refused', 'that Idempotency-Key was used for a different request - give this request a key of its own' ],
     'idem-withdrawn' => [ 'refused', 'the plan made with that Idempotency-Key was withdrawn - give the request a new key' ],
     'run-gone' => [ 'not-found', 'this plan is no longer held by the Odoo daemon - make the plan again' ], # SM1261
-    # SM1275: OOM read every unknown change it could and one names no read that tells
+        # SM1275: OOM read every unknown change it could and one names no read that tells
     'unknown-outcome' => [ 'unknown-outcome', 'a change of this run cannot be read back from Odoo, so whether it was made is for a person to say: look in Odoo, then resume it saying it was made or was not' ],
     closed => [ 'dismissed', 'this run was closed in OOM, so it is not resumed' ],
 );
@@ -1518,7 +1518,7 @@ sub _holds_settle {
 # by its key or its number, as OOM names it.
 sub _assume_list {
     my ( $v, $what ) = @_;
-    return ( [], '' ) unless defined $v;
+    return ( [], '' )                                                  unless defined $v;
     return ( undef, "$what must be a list of change keys or numbers" ) unless ref $v eq 'ARRAY';
     return ( undef, "$what names at most $ASSUME_MAX changes" ) if @$v > $ASSUME_MAX;
     for (@$v) {
@@ -1605,11 +1605,11 @@ sub _nothing_left {
 sub resume {
     my ( $pid, %ctx ) = @_;
     $LAST_VIA = undef;
-    my ( $done, $dwhy ) = _assume_list( delete $ctx{assume_done},     'assume_done' );
-    my ( $not,  $nwhy ) = _assume_list( delete $ctx{assume_not_done}, 'assume_not_done' );
+    my ( $done, $dwhy ) = _assume_list( delete $ctx{assume_done}, 'assume_done' );
+    my ( $not, $nwhy )  = _assume_list( delete $ctx{assume_not_done}, 'assume_not_done' );
     my $sess = delete $ctx{odoo_session};
     my $swho = length( $sess // '' ) ? do { require Lazysite::Odoo::Session; Lazysite::Odoo::Session::session_label($sess) } : '';
-    my %c = _with_visitor(%ctx);
+    my %c        = _with_visitor(%ctx);
     my $decision = ( $done && $not && ( @$done || @$not ) )
         ? 'assume-done:' . scalar(@$done) . ' assume-not-done:' . scalar(@$not) : 'check';
     my %base = ( call_id => new_call_id(), actor => $c{actor} // '',
@@ -1633,7 +1633,7 @@ sub resume {
             'this run is of a binding any visitor may run; an operator settles it on the Odoo page' ) )[1]
         if $b->{modes}{public} && !$cap;
     return ( _refusal( \%base, 'dismissed', 'this run was dismissed, so it is not resumed' ) )[1] if $meta->{dismissed};
-    return ( _refusal( \%base, 'settled', 'this run was settled already' ) )[1]                  if $meta->{settled};
+    return ( _refusal( \%base, 'settled', 'this run was settled already' ) )[1] if $meta->{settled};
     return ( _refusal( \%base, 'not-yours',
             'only the person who made this run, or a holder of settle_odoo_writes, may say whether a change was made' ) )[1]
         if ( @$done || @$not ) && !$own && !$cap;
@@ -1675,7 +1675,7 @@ sub resume {
         $meta->{settled} = { at => time, by => _actor_label(%c), run => $res->{plan} };
         eval { _write_json_file( "$dir/meta.json", $meta ); 1 }
             or log_event( 'WARN', 'odoo', 'a settled run could not be recorded as settled', plan => $pid );
-        # SM1279: the settled run's file bytes go now, and the resumed plan's once it is spent
+    # SM1279: the settled run's file bytes go now, and the resumed plan's once it is spent
         purge_plan_blobs( $pid, $meta );
         my $nmeta = _read_json_file( plans_dir() . "/$res->{plan}/meta.json" );
         purge_plan_blobs( $res->{plan}, $nmeta ) if _plan_spent( $res, undef );
@@ -1701,7 +1701,7 @@ sub _resume_run {
             my $r = eval { _resume_daemon( $cl, $b, $conn, $meta, $pid, $c, \%opt ) };
             if ( ref $r eq 'HASH' ) { $LAST_VIA = 'daemon'; return $r }
             my $e = $@;
-            $LAST_VIA = 'daemon' unless _daemon_down($e);    # a refusal oomd answered is oomd's
+            $LAST_VIA = 'daemon' unless _daemon_down($e); # a refusal oomd answered is oomd's
             die $e unless _daemon_down($e) && ( $conn->{daemon} // '' ) eq 'on';
             log_event( 'WARN', 'odoo', 'the Odoo daemon is not answering; this resume runs in-process', binding => $b->{id} );
         }
@@ -1732,9 +1732,9 @@ sub _resume_daemon {
     my %req = ( credential => _daemon_credential( $b, $conn, $c ), actor => _actor_label(%$c) );
     my $journal = _run_journal( $meta, $pid );
     die _idem_error( 'run-gone', 'the daemon holds no journal for this run' ) unless -e $journal;
-    my $r    = $cl->resume( $journal, %req, options => $opt );
-    my $plan = $r->{plan} or die "the daemon answered a resume without a plan\n";
-    my $run_id = $r->{run_id} // '';
+    my $r       = $cl->resume( $journal, %req, options => $opt );
+    my $plan    = $r->{plan} or die "the daemon answered a resume without a plan\n";
+    my $run_id  = $r->{run_id} // '';
     my $settled = _settled_changes($journal);
     my ( $npid, $ndir ) = _new_plan_dir();
     my $res = eval {
@@ -3182,6 +3182,87 @@ sub action_odoo_confirm {
     my ( $c,    $cwhy ) = _who_ctx(%w);
     return { ok => 0, kind => 'cannot-tell', error => $cwhy } unless $c;
     return confirm( $plan, %$c );
+}
+
+# SM1278 (rulings 10b, 10c): THE MANAGER'S ODOO PAGE - the runs left unknown and still
+# open, an operator's decision on one, and dismissing one. Listing and dismissing are
+# settle_odoo_writes' (the control API's gate, and asked again here, since this is
+# also MCP's); resuming is the binding's and resume()'s, as on the page. A run of a
+# binding that belongs to a domain the caller does not reach is neither listed nor
+# dismissed (E-Q1). A run whose binding is gone is listed, to be dismissed.
+sub _run_reachable {
+    my ( $meta, %w ) = @_;
+    my ($b) = find_binding( $meta->{binding} );
+    return 1 unless $b;
+    return length domain_refusal( $b, mode => 'authenticated',
+        ( ref $w{reach} eq 'HASH' ? ( reach => $w{reach} ) : () ), ( defined $w{host} ? ( host => $w{host} ) : () ) ) ? 0 : 1;
+}
+
+sub action_odoo_unknown_runs {
+    my (%w) = @_;
+    return { ok => 0, kind => 'disabled', error => 'the Odoo extension is switched off' } unless _extension_enabled();
+    return { ok => 0, kind => 'forbidden', error => "listing the Odoo runs left unknown needs $SETTLE_CAP" }
+        unless ref $w{caps} eq 'HASH' && $w{caps}{$SETTLE_CAP};
+    my $root = plans_dir();
+    my @out;
+    if ( opendir my $dh, $root ) {
+        for my $pid ( sort grep { /\A[0-9a-f]{32}\z/ } readdir $dh ) {
+            my $m = _read_json_file("$root/$pid/meta.json");
+            next unless _open_unknown($m) && _run_reachable( $m, %w );
+            push @out, {
+                run       => $pid,
+                binding   => $m->{binding}   // '',
+                operation => $m->{operation} // '',
+                owner     => $m->{owner}     // '',
+                at        => $m->{unknown}{at},
+                count     => $m->{unknown}{count},
+                via       => ( length( $m->{run_id} // '' ) ? 'daemon' : 'in-process' ),
+                # a person's own Odoo login ran it: only they can resume it
+                person => ( ( $m->{owner} // '' ) =~ /\Asession:/ ? 1 : 0 ),
+                ( defined $m->{resumes} ? ( resumes => $m->{resumes} ) : () ),
+                changes => _unknown_changes( _run_journal( $m, $pid ) ),
+            };
+        }
+        closedir $dh;
+    }
+    @out = sort { ( $b->{at} // 0 ) <=> ( $a->{at} // 0 ) } @out;
+    return { ok => 1, runs => \@out };
+}
+
+sub action_odoo_resume {
+    my ( $run, $done, $not, %w ) = @_;
+    my ( $c, $cwhy ) = _who_ctx(%w);
+    return { ok => 0, kind => 'cannot-tell', error => $cwhy } unless $c;
+    delete $c->{account};    # a resume runs as the run's own account, never a grant's
+    return resume( $run, %$c, assume_done => $done, assume_not_done => $not );
+}
+
+# 10c: dismissing is an operator's decision that the run is not to be resumed: it is
+# kept as dismissed (who, when, why), its file bytes go, and it is one call record and
+# one audit line. Nothing is sent to Odoo.
+sub action_odoo_dismiss {
+    my ( $pid, $reason, %w ) = @_;
+    my %base = ( call_id => new_call_id(), actor => $w{user} // '', ip => $w{ip} // '',
+        mode => 'authenticated', phase => 'dismiss', decision => 'dismiss' );
+    return { ok => 0, kind => 'disabled', error => 'the Odoo extension is switched off' } unless _extension_enabled();
+    return ( _refusal( \%base, 'forbidden', "dismissing an Odoo run needs $SETTLE_CAP" ) )[1]
+        unless ref $w{caps} eq 'HASH' && $w{caps}{$SETTLE_CAP};
+    return ( _refusal( \%base, 'invalid', 'reason is a line of text, at most 300 characters' ) )[1]
+        if defined $reason && ( ref $reason || length $reason > 300 || $reason =~ /[\x00-\x1f\x7f]/ );
+    my $nf = 'no such run left unknown';
+    return ( _refusal( \%base, 'not-found', $nf ) )[1] unless defined $pid && !ref $pid && $pid =~ /\A[0-9a-f]{32}\z/;
+    my $dir  = plans_dir() . "/$pid";
+    my $meta = _read_json_file("$dir/meta.json");
+    return ( _refusal( \%base, 'not-found', $nf ) )[1] unless ref $meta eq 'HASH' && $meta->{unknown} && _run_reachable( $meta, %w );
+    %base = ( %base, binding => $meta->{binding} // '', operation => $meta->{operation} // '', run => $pid );
+    return ( _refusal( \%base, 'dismissed', 'this run was dismissed already' ) )[1] if $meta->{dismissed};
+    return ( _refusal( \%base, 'settled', 'this run was settled already' ) )[1] if $meta->{settled};
+    $meta->{dismissed} = { at => time, by => ( length( $w{user} // '' ) ? "account:$w{user}" : '' ),
+        ( defined $reason && length $reason ? ( reason => $reason ) : () ) };
+    _write_json_file( "$dir/meta.json", $meta );
+    purge_plan_blobs( $pid, $meta );
+    record_call( %base, outcome => 'answered' );
+    return { ok => 1, dismissed => 1, run => $pid };
 }
 
 sub action_odoo_calls {

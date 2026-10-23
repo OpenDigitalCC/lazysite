@@ -557,7 +557,23 @@ binding's write caps (`rate`, 429), and is one call record (phase `resume`, with
 `run` and `decision`: `check`, or `assume-done:N assume-not-done:M`, never which
 keys) and one `odoo-call` audit line naming both. A settled run answers `settled`
 (409); a dismissed one `dismissed` (409); a handle that is not a run left unknown,
-or not one the caller may resume, `not-found` (404).
+or not one the caller may resume, `not-found` (404). `odoo-resume` / `odoo_resume`
+is the same for a signed-in account over the control API and MCP.
+
+**On the manager.** The Odoo extension's row on the Extensions page has **Unknown
+Odoo writes**: each open run, its binding, who made it, when, and each change still
+unknown, with **Check again**, **It was made** and **It was not made** for a change,
+and **Dismiss** for the run. A run a person made signed in to Odoo is offered Dismiss
+alone. Listing (`odoo-unknown-runs` / `odoo_unknown_runs`) and dismissing
+(`odoo-dismiss` / `odoo_dismiss`, with an optional one-line `reason`) need
+`settle_odoo_writes`, which an operator group holds. A run of a domain the caller
+does not reach is not listed.
+
+**A run stays open until it is settled or dismissed**: no hour, as a plan has, and
+the plan store keeps it past its seven days, with the daemon's run folder and the
+bytes of any file it carries. A dismissal sends nothing to Odoo, keeps who, when and
+why, and is one call record (phase `dismiss`) and one audit line; the run then goes
+on the plan store's schedule.
 
 ## A person's own Odoo account (`credential: session`)
 

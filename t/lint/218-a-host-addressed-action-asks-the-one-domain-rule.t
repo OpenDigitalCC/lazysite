@@ -257,6 +257,12 @@ my %NOT_INSTANCE_WIDE = (
         . '(Lazysite::Odoo::may_call); it changes no setting',
     'odoo-confirm' => 'applies a plan its own caller made through a binding that decides '
         . 'who may (Lazysite::Odoo::may_call); it changes no setting',
+    # SM1278: a run of an Odoo binding left unknown. The run's binding decides who
+    # may resume it, and a run of a domain the caller does not reach is not found.
+    'odoo-resume' => 'resumes a run of an Odoo binding that decides who may (Lazysite::Odoo::resume); '
+        . 'it changes no setting',
+    'odoo-dismiss' => 'marks one Odoo run of a domain the caller reaches as not to be resumed; '
+        . 'it changes no setting',
     'key-revoke'              => $OPERATOR_ONLY,
     'session-revoke'          => $OPERATOR_ONLY,
     'user-revoke'             => $OPERATOR_ONLY,

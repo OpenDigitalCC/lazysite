@@ -108,7 +108,9 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #        is - it ends the backoff of what the outbox holds; the job still sends.
     #   122, SM1138 (slice A of SM1134): address-lists, gated manage_users as groups-list is -
     #        the named address lists, read only. Their writers are the operator's and cookie-only.
-    is( scalar keys %caps, 122, '122 actions are reachable with a token' )
+    #   125, SM1278: odoo-resume, gate ALWAYS as odoo-confirm is - the run's binding decides;
+    #        odoo-unknown-runs and odoo-dismiss, gated settle_odoo_writes (SM1276).
+    is( scalar keys %caps, 125, '125 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 

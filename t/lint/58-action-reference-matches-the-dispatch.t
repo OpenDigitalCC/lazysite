@@ -200,14 +200,15 @@ subtest 'and it is subset by grant, not a menu of refusals' => sub {
     # short deliberately; adding to it is a decision, not a detail.
     #
     # SM747 E: and odoo-bindings, odoo-run and odoo-confirm, for connector-call's
-    # reason - the BINDING decides, by its modes, callers and caps.
+    # reason - the BINDING decides, by its modes, callers and caps. SM1278: and
+    # odoo-resume, which the run's binding decides, as a confirm.
     #
     # SM943 ruling 2 (2026-10-09): and nav-read - the nav is public, so its
     # structured read needs no capability, and it reads only the caller's own
     # domains (SM976).
     is_deeply( [ sort @names ],
         [ 'actions-list', 'connector-call', 'describe-capabilities', 'display-names', 'nav-read',
-            'odoo-bindings', 'odoo-confirm', 'odoo-run', 'whoami' ],
+            'odoo-bindings', 'odoo-confirm', 'odoo-resume', 'odoo-run', 'whoami' ],
         'a capless token sees the introspection actions, connector-call, display-names and nav-read' )
         or diag( 'Listing everything would be a list of things to try and be '
             . 'refused - and the refusals then read as defects.' );

@@ -108,6 +108,12 @@ our %GATE = (
     'odoo-bindings' => 'ALWAYS',
     'odoo-run'      => 'ALWAYS',
     'odoo-confirm'  => 'ALWAYS',
+    # SM1278 (rulings 10b, 10c): the manager's Odoo page. A resume is gated by the
+    # run's binding (Lazysite::Odoo::resume), as a confirm is; the list and a
+    # dismissal are the settling capability's.
+    'odoo-resume'       => 'ALWAYS',
+    'odoo-unknown-runs' => [qw(settle_odoo_writes)],
+    'odoo-dismiss'      => [qw(settle_odoo_writes)],
     # SM160: domain management + the portable site-package family are the
     # manage_domains capability (carved out of manage_config), so an
     # orchestrating control panel drives the lazysite side of a deploy
@@ -918,6 +924,10 @@ our %ACTION = (
     'odoo-bindings' => { mcp => 'odoo_bindings', params => [] },
     'odoo-run' => { mcp => 'odoo_run', mcp_open_world => 1, mutates => 1, params => [ { name => 'binding', in => 'body', required => 1 }, { name => 'params', in => 'body', note => 'the request fields the binding maps; nothing else is taken' } ] },
     'odoo-confirm' => { mcp => 'odoo_confirm', mcp_open_world => 1, mutates => 1, params => [ { name => 'plan', in => 'body', required => 1 } ] },
+# [mcp] odoo_resume: SM1278: openWorld - OOM reads the run back from Odoo and applies the rest.
+    'odoo-resume' => { mcp => 'odoo_resume', mcp_open_world => 1, mutates => 1, params => [ { name => 'run', in => 'body', required => 1, note => 'the run an apply named, or one from odoo-unknown-runs' }, { name => 'assume_done', in => 'body', note => 'change keys or numbers you say were made (the run\'s maker, or settle_odoo_writes)' }, { name => 'assume_not_done', in => 'body', note => 'change keys or numbers you say were not made' } ] },
+    'odoo-unknown-runs' => { mcp => 'odoo_unknown_runs', cookie_cap => 'settle_odoo_writes', params => [] },
+    'odoo-dismiss' => { mcp => 'odoo_dismiss', mutates => 1, cookie_cap => 'settle_odoo_writes', params => [ { name => 'run', in => 'body', required => 1 }, { name => 'reason', in => 'body', note => 'a line of text kept with the run' } ] },
     'start-page' => { params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { mutates => 1, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body', required => 1, note => 'an empty string clears the start page' } ] },
     'whoami' => { params => [ { name => 'plugins', in => 'query' } ] },

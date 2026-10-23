@@ -58,7 +58,8 @@ my %INTROSPECTION = map { $_ => 1 }
 # SM579 phase 2: the MCP twin is gated the same way, by the connector, so it
 # has no capability home for the same reason its API half has none.
 my %CONNECTOR_GATED = map { $_ => 1 } qw(connector-call connector_call
-    odoo-bindings odoo_bindings odoo-run odoo_run odoo-confirm odoo_confirm);
+    odoo-bindings odoo_bindings odoo-run odoo_run odoo-confirm odoo_confirm
+    odoo-resume odoo_resume);    # SM1278: a resume is gated by its run's binding, as a confirm is
 # SM747 E: the three Odoo binding actions join connector-call for the same
 # reason. The gate is the BINDING - its modes, callers and caps
 # (Lazysite::Odoo::may_call) - so they have no capability home on either door.
