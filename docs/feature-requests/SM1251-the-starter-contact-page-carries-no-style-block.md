@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-21
 raised-by: the theunited.community site agent, inbox 2026-10-21-starter-contact-inline-style-overrides-theme.md
 area: starter
-status-note: "SHIPPED (PENDING) on n728: the <style> block removed from starter/contact.md; the same rules under .lazysite-fallback in lazysite-chrome.css; t/tools/211 runs the upgrade; t/unit/processor/148."
+status-note: "SHIPPED (0.16.1) on n728: the <style> block removed from starter/contact.md; the same rules under .lazysite-fallback in lazysite-chrome.css; t/tools/211 runs the upgrade; t/unit/processor/148."
 ---
 
 # What happened

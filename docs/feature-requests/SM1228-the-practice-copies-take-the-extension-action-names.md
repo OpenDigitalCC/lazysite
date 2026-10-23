@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: inbox/2026-10-18-app-practice-action-names-updated.md (the lazysite-sites agent); SM1125 "Open"
 area: docs
-status-note: "SHIPPED (PENDING) on n712: docs/practice/app-practice.md and starter/docs/ai-briefing-practice.md (re-imported) name extension-*; t/lint/266 scans the briefing. plugin-* still served, audited deprecated (t/unit/manager/167)."
+status-note: "SHIPPED (0.16.1) on n712: docs/practice/app-practice.md and starter/docs/ai-briefing-practice.md (re-imported) name extension-*; t/lint/266 scans the briefing. plugin-* still served, audited deprecated (t/unit/manager/167)."
 ---
 
 # What happened

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-18
 raised-by: OOM agent at the owner's request (inbox L7 and its addendum, 2026-10-18)
 area: odoo
-status-note: "SHIPPED (PENDING) on n711: D5, the bench's odoo-oomd surface (an endpoint call end to end, the vendored oomd against OOM's fake Odoo): 116 ms through the pool before SM1226's warm-fork and 17 after. D0 shipped on n655, D1-D4 on n657. Sign-in, sign-out and the two-factor step stay in-process: oomd has no verb for them."
+status-note: "SHIPPED (0.16.1) on n711: D5, the bench's odoo-oomd surface (an endpoint call end to end, the vendored oomd against OOM's fake Odoo): 116 ms through the pool before SM1226's warm-fork and 17 after. D0 shipped on n655, D1-D4 on n657. Sign-in, sign-out and the two-factor step stay in-process: oomd has no verb for them."
 ---
 
 # The request

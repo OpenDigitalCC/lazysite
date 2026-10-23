@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the OOM Lab, L-6 (inbox/2026-10-17-oom-lab-findings-for-the-odoo-extension.md); ruled 2026-10-20"
 area: tools
-status-note: "SHIPPED (PENDING) on n708: tools/lazysite-server.pl --extensions DIR (repeatable), searched in order before plugins/, first wins, symlinks refused; dev server only. t/tools/200."
+status-note: "SHIPPED (0.16.1) on n708: tools/lazysite-server.pl --extensions DIR (repeatable), searched in order before plugins/, first wins, symlinks refused; dev server only. t/tools/200."
 ---
 
 # What was asked

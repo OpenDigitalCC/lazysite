@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: found beside SM1256 on n728, ruled for build by the coordinator 2026-10-22
 area: release
-status-note: "SHIPPED (PENDING) on n728: tools/build-manifest.pl accepts --channel certified; t/tools/213."
+status-note: "SHIPPED (0.16.1) on n728: tools/build-manifest.pl accepts --channel certified; t/tools/213."
 ---
 
 # What happened

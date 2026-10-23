@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the OOM Lab expense app (inbox 2026-10-17, archive 2026-10-18; triage 32-3), ruled by the release manager 2026-10-20"
 area: odoo
-status-note: "SHIPPED (PENDING) on n709: the Idempotency-Key header (8-128 chars) is hashed with the binding and who sent it into OOM's idem, on run, approve and apply, in process and through oomd; a repeat is the first result. t/unit/odoo/96, 97, 98."
+status-note: "SHIPPED (0.16.1) on n709: the Idempotency-Key header (8-128 chars) is hashed with the binding and who sent it into OOM's idem, on run, approve and apply, in process and through oomd; a repeat is the first result. t/unit/odoo/96, 97, 98."
 ---
 
 # What happened

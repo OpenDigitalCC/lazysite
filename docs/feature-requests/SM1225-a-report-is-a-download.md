@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "OOM Lab findings L-22 (payslip PDF, 2026-10-19) and the quotation app (2026-10-17); ruled 2026-10-20"
 area: odoo
-status-note: "SHIPPED (PENDING) on n710: binding option answer: download (+ download_max_kb, download_disposition); GET answers the document, no-store, nosniff, safe name, 413 over the cap. t/unit/odoo/100, 101, t/integration/330."
+status-note: "SHIPPED (0.16.1) on n710: binding option answer: download (+ download_max_kb, download_disposition); GET answers the document, no-store, nosniff, safe name, 413 over the cap. t/unit/odoo/100, 101, t/integration/330."
 ---
 
 # What happened

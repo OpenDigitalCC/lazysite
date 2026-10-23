@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the release manager, 2026-10-20 (tmp/rulings-2026-10-20.md, Odoo endpoint: \"D5 - yes - i cant see why we would not want to save 200ms\"), on SM1082 R3"
 area: performance
-status-note: "SHIPPED (PENDING) on n711: Lazysite::WarmFork, a parent holding code only that forks a fresh child per request, runs as lazysited's odoo-endpoint service on a pooled site only; the one-rule pool and the split templates (through the pool) hand it the endpoint, the CGI the fallback. Tests t/unit/daemon/15, 16, t/integration/325, 326, t/lint/272. 116 to 17 ms."
+status-note: "SHIPPED (0.16.1) on n711: Lazysite::WarmFork, a parent holding code only that forks a fresh child per request, runs as lazysited's odoo-endpoint service on a pooled site only; the one-rule pool and the split templates (through the pool) hand it the endpoint, the CGI the fallback. Tests t/unit/daemon/15, 16, t/integration/325, 326, t/lint/272. 116 to 17 ms."
 ---
 
 # The ruling

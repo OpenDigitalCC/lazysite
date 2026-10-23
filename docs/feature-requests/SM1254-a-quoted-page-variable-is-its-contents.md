@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: the lazysite.io site agent, inbox 2026-10-22-forms-validator-and-page-var-quotes.md (K-3)
 area: processor
-status-note: "SHIPPED (PENDING) on n728: parse_yaml_front_matter takes one matched pair of quotes off a tt_page_var value; t/unit/processor/150."
+status-note: "SHIPPED (0.16.1) on n728: parse_yaml_front_matter takes one matched pair of quotes off a tt_page_var value; t/unit/processor/150."
 ---
 
 # What happened

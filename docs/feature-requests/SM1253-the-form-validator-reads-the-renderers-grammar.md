@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: the lazysite.io site agent, inbox 2026-10-22-forms-validator-and-page-var-quotes.md (K-2)
 area: validate
-status-note: "SHIPPED (PENDING) on n728: Lazysite::Validate::form_rule_tokens, a marked copy of _form_rule_tokens; %FORM_FLAGS gains file, multiple, capture; t/lint/276 pins both."
+status-note: "SHIPPED (0.16.1) on n728: Lazysite::Validate::form_rule_tokens, a marked copy of _form_rule_tokens; %FORM_FLAGS gains file, multiple, capture; t/lint/276 pins both."
 ---
 
 # What happened

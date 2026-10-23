@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: the lazysite.io site agent, inbox 2026-10-22-shipped-docs-out-of-step-with-0-15-16.md (D-6)
 area: hestia
-status-note: "SHIPPED (PENDING) on n728: the --channel check and the usage/POD in tools/lazysite-hestia-domain.pl take certified; t/tools/212."
+status-note: "SHIPPED (0.16.1) on n728: the --channel check and the usage/POD in tools/lazysite-hestia-domain.pl take certified; t/tools/212."
 ---
 
 # What happened

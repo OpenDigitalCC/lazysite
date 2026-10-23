@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager, ruling on SM1241's open question (2026-10-22)"
 area: users
-status-note: "SHIPPED (PENDING) on n725: auth/bundles-adopted.json records every shipped bundle a site has had, written on a fresh seed, at the first run on an upgraded site, and on each adoption; _adopt_added_bundles skips a recorded bundle and adopts nothing when the record cannot be read. t/unit/users/56."
+status-note: "SHIPPED (0.16.1) on n725: auth/bundles-adopted.json records every shipped bundle a site has had, written on a fresh seed, at the first run on an upgraded site, and on each adoption; _adopt_added_bundles skips a recorded bundle and adopts nothing when the record cannot be read. t/unit/users/56."
 ---
 
 # What happened

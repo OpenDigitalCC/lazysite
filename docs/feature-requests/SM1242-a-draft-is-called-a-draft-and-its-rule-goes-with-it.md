@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the xisl.com site agent, inbox 2026-10-20-set-permissions-says-a-draft-is-readable.md (task #372 a and b)"
 area: acl
-status-note: "SHIPPED (PENDING) on n725: acl-set's reply asks the engine's walk for the nearest draft and read rules after the save, and says what a draft does (draft_note). action_delete drops a page's stem-keyed rule when no folder of that name exists. Acl's walk takes a draft mode. t/integration/65, t/unit/manager/160."
+status-note: "SHIPPED (0.16.1) on n725: acl-set's reply asks the engine's walk for the nearest draft and read rules after the save, and says what a draft does (draft_note). action_delete drops a page's stem-keyed rule when no folder of that name exists. Acl's walk takes a draft mode. t/integration/65, t/unit/manager/160."
 ---
 
 # What happened

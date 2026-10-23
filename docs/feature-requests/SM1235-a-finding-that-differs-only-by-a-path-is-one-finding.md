@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager, reading the 0.16.0 stable rollout report (32 sites)"
 area: installers
-status-note: "SHIPPED (PENDING) on n724: group_findings normalises paths before grouping. t/tools/235."
+status-note: "SHIPPED (0.16.1) on n724: group_findings normalises paths before grouping. t/tools/235."
 ---
 
 # What happened

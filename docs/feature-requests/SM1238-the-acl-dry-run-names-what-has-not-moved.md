@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager (task #378), after the 0.16.0 stable rollout"
 area: installers
-status-note: "SHIPPED (PENDING) on n724: lazysite-acl.pl reapply's dry run prints NOT MOVED; lazysite-hestia-update-all.sh --reapply-acls-dry-run. t/tools/238."
+status-note: "SHIPPED (0.16.1) on n724: lazysite-acl.pl reapply's dry run prints NOT MOVED; lazysite-hestia-update-all.sh --reapply-acls-dry-run. t/tools/238."
 ---
 
 # What happened

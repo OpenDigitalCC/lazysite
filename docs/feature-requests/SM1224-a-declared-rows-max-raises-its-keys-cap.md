@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "SM1216's Not done list, ruled by the release manager 2026-10-20 (OOM Lab questions): yes"
 area: odoo
-status-note: "SHIPPED (PENDING) on n709: a rows key's declared max (to 1,048,576) is its cap; undeclared keys keep 1,000. A JSON body over 64 KB names its binding in the query and is held to that binding's budget (20 MB ceiling). t/unit/odoo/95."
+status-note: "SHIPPED (0.16.1) on n709: a rows key's declared max (to 1,048,576) is its cap; undeclared keys keep 1,000. A JSON body over 64 KB names its binding in the query and is held to that binding's budget (20 MB ceiling). t/unit/odoo/95."
 ---
 
 # What happened

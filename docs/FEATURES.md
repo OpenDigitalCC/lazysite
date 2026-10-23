@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.0"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.1"
 brand: plain
 ---
 
@@ -2032,6 +2032,14 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.1** (2026-10-23, edge) - **The first batch on the 0.16 line: a moved
+  draft stays a draft, and maintenance mode.** a page drafted through its stem
+  rule stays a draft when it moves (SM1257); a site can be put into maintenance
+  (SM1118); the visitor log names the signed-in account (SM1219); the Odoo
+  endpoint runs warm-forked (SM1226), takes an idempotency key, declared sizes
+  and report downloads (SM1223-SM1225), on OOM 0.42 (SM1247, SM1248); a Docker
+  Compose package (SM1233); the Hestia rollout names what has not moved and
+  rebuilds only the exposed sites (SM1238, SM1265)
 - **0.16.0** (2026-10-22, stable) - **The stable release of the 0.15 line.**
   the 0.15.16 beta's code (0.15.15's) as the new stable, replacing 0.14.4:
   identity decided once in the pool worker (SM1181), proxies and the visitor's

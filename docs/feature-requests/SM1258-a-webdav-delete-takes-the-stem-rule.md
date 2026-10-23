@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "found while measuring SM1242; fix asked by the release manager's coordinator, 2026-10-22"
 area: dav
-status-note: "SHIPPED (PENDING) on n725: WebDAV DELETE (and the housekeeping of a partial collection delete) call Acl::fold_page_stem before forget_path, as action_delete now does; SM1242's private helper in Files.pm is gone. t/unit/dav/34."
+status-note: "SHIPPED (0.16.1) on n725: WebDAV DELETE (and the housekeeping of a partial collection delete) call Acl::fold_page_stem before forget_path, as action_delete now does; SM1242's private helper in Files.pm is gone. t/unit/dav/34."
 ---
 
 # What happened

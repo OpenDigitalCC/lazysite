@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: the lazysite.io site agent, inbox 2026-10-22-forms-validator-and-page-var-quotes.md (K-1)
 area: forms
-status-note: "SHIPPED (PENDING) on n728: _render_form emits the step <link> after the opening <form> tag; t/unit/processor/149; t/unit/processor/112's record re-recorded for the two stepped cases."
+status-note: "SHIPPED (0.16.1) on n728: _render_form emits the step <link> after the opening <form> tag; t/unit/processor/149; t/unit/processor/112's record re-recorded for the two stepped cases."
 ---
 
 # What happened

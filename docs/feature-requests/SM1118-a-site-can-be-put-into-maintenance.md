@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: release manager, 2026-10-17
 area: core
-status-note: "SHIPPED (PENDING) on n706: maintenance / maintenance_page / maintenance_until, per domain or instance, in the processor gate; capability maintenance_access (operator group and site-admins, upgrade adds the bundle); MCP, API, WebDAV, data, forms follow it."
+status-note: "SHIPPED (0.16.1) on n706: maintenance / maintenance_page / maintenance_until, per domain or instance, in the processor gate; capability maintenance_access (operator group and site-admins, upgrade adds the bundle); MCP, API, WebDAV, data, forms follow it."
 ---
 
 # The request

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager, ruling on SM1242's open question (2026-10-22); first reported by the xisl.com site agent (inbox 2026-10-20-set-permissions-says-a-draft-is-readable.md)"
 area: mcp
-status-note: "SHIPPED (PENDING) on n725: MCP remove_permissions runs Files::action_acl_remove under manage_content, path-aware, audited as acl-remove; acl-remove is its declared twin; the control API's acl-remove keeps SM306's default, recorded in lints 52 and 265. t/unit/mcp/51."
+status-note: "SHIPPED (0.16.1) on n725: MCP remove_permissions runs Files::action_acl_remove under manage_content, path-aware, audited as acl-remove; acl-remove is its declared twin; the control API's acl-remove keeps SM306's default, recorded in lints 52 and 265. t/unit/mcp/51."
 ---
 
 # What happened

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: SM1253's "left alone, for a ruling"; ruled by the release manager 2026-10-22
 area: validate
-status-note: "SHIPPED (PENDING) on n728: unknown-form-rule and pattern-will-not-compile warnings in Lazysite::Validate; t/unit/lib/206, t/unit/mcp/01, t/lint/276."
+status-note: "SHIPPED (0.16.1) on n728: unknown-form-rule and pattern-will-not-compile warnings in Lazysite::Validate; t/unit/lib/206, t/unit/mcp/01, t/lint/276."
 ---
 
 # What happened

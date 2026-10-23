@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the 0.15.12 walk, Y4 (inbox/archive/2026-10-20-test-plan-01512-results.md)"
 area: manager
-status-note: "SHIPPED (PENDING) on n708: kind unauthenticated -> 401 (cookie session, so no WWW-Authenticate); no manager account -> 503 not-set-up. t/unit/manager/390, 391; t/integration/243 now expects 401."
+status-note: "SHIPPED (0.16.1) on n708: kind unauthenticated -> 401 (cookie session, so no WWW-Authenticate); no manager account -> 503 not-set-up. t/unit/manager/390, 391; t/integration/243 now expects 401."
 ---
 
 # What happened

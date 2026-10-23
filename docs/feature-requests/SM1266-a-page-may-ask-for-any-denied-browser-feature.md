@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "lazysite-sites agent for the OOM Lab, inbox/2026-10-22-site-chosen-permissions-policy-and-the-visitor-address-for-an-operation.md rows P-4 and P-6"
 area: security
-status-note: "SHIPPED (PENDING) on n729 (claude/n729-a-page-can-ask-for-a-denied-browser-feature): lib/Lazysite/SecurityHeaders.pm and its processor copy, the peek, Lazysite::Validate, page_status, the editor. t/unit/processor/155, t/unit/mcp/55, t/unit/manager/400, t/lint/55."
+status-note: "SHIPPED (0.16.1) on n729 (claude/n729-a-page-can-ask-for-a-denied-browser-feature): lib/Lazysite/SecurityHeaders.pm and its processor copy, the peek, Lazysite::Validate, page_status, the editor. t/unit/processor/155, t/unit/mcp/55, t/unit/manager/400, t/lint/55."
 ---
 
 # What happened

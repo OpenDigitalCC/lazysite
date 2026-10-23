@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the release manager, tmp/rulings-2026-10-20.md (Docker Compose package, for the next release: 0.16.1)"
 area: install
-status-note: "SHIPPED (PENDING) on n715: installers/docker/ (Dockerfile, compose.yaml, entrypoint.sh, nginx.conf, README); shipped in the tarball via classification.json; docs/IMPLEMENTOR.md; t/tools/210. Built and run once by hand."
+status-note: "SHIPPED (0.16.1) on n715: installers/docker/ (Dockerfile, compose.yaml, entrypoint.sh, nginx.conf, README); shipped in the tarball via classification.json; docs/IMPLEMENTOR.md; t/tools/210. Built and run once by hand."
 ---
 
 # What was asked

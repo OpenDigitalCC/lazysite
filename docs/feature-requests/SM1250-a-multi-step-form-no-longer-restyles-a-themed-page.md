@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-21
 raised-by: the OOM Lab agent, inbox 2026-10-21-multistep-form-pulls-fallback-body-rules-over-the-theme.md
 area: processor
-status-note: "SHIPPED (PENDING) on n728: body.lazysite-fallback on the fallback template; every page rule in starter/assets/lazysite-chrome.css under it; t/unit/processor/148."
+status-note: "SHIPPED (0.16.1) on n728: body.lazysite-fallback on the fallback template; every page rule in starter/assets/lazysite-chrome.css under it; t/unit/processor/148."
 ---
 
 # What happened

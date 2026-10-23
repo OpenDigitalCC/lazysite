@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-13
 raised-by: "the release manager, 2026-10-13 (inbox: the-visitor-log-records-the-signed-in-account); ruled 2026-10-20 (#339)"
 area: stats
-status-note: "SHIPPED (PENDING) on n705: access-log.pm records `u` for a verified session or a listed proxy's user; by_account in the export, API and MCP; a Visits by account card on the Stats page. Sabotage: reading the raw header fails the forged-header test."
+status-note: "SHIPPED (0.16.1) on n705: access-log.pm records `u` for a verified session or a listed proxy's user; by_account in the export, API and MCP; a Visits by account card on the Stats page. Sabotage: reading the raw header fails the forged-header test."
 ---
 
 # The request

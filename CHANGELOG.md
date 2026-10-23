@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1269 (PENDING) **docs: the compliance records cover 0.16.1.** The 0.16.1 edge gate
+## 0.16.1 - EDGE: the first batch on the 0.16 line: a moved draft stays a draft, and maintenance mode (2026-10-23)
+
+- SM1269 (b81c128e) **docs: the compliance records cover 0.16.1.** The 0.16.1 edge gate
   refused with OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.0. Both are walked against
   this release's changes and stamped 0.16.1. The significant-change register in
   `docs/SECURITY.md` has five drafted entries for the release manager to confirm: the
@@ -61,63 +63,63 @@ Archive
   Odoo options and OOM 0.42, the Docker Compose package, and the changes that fired no
   trigger. The threat model gains the warm-fork parent as a trust boundary, and
   OBLIGATIONS.md an operator row for SM1219's account names. Docs only; nothing is signed.
-- SM1263 (PENDING) **MCP can remove an access rule.** `remove_permissions { path }` is the
+- SM1263 (c9499210) **MCP can remove an access rule.** `remove_permissions { path }` is the
   twin of the control API's `acl-remove` and `lazysite acl remove`: the same function, so the
   same `manage_content` capability, owner refusal, site-wide `/` and audit action
   (`acl-remove`). `set_permissions` with empty lists only clears a rule's lists. The MCP tool
   requires its path; the control API's `acl-remove` keeps SM306's default (no path removes the
   site-wide rule, so recovery stays easy).
-- SM1262 (PENDING) **a bundle is adopted once, and a deleted one stays deleted.** Bundle
+- SM1262 (53a69904) **a bundle is adopted once, and a deleted one stays deleted.** Bundle
   adoption could not tell a bundle a site never had from one an operator deleted, so a
   deleted bundle (a `ch-files` taken out to deny WebDAV) came back on the next use of the
   users tool. The bundles a site has had - present at the first run, seeded, or adopted - are
   recorded in `auth/bundles-adopted.json`, and a recorded bundle is never adopted again. An
   unreadable record adopts nothing.
-- SM1258 (PENDING) **a WebDAV delete takes a page's stem rule with it.** WebDAV DELETE
+- SM1258 (c3e4a750) **a WebDAV delete takes a page's stem rule with it.** WebDAV DELETE
   dropped only the page's own rule, so a rule keyed by its stem waited for the next page
   written there. It now drops it under SM1242's rule (the exact stem key, only while no
   folder of that name exists), and the manager's delete and WebDAV call one shared function.
-- SM1257 (PENDING) **a page drafted through its stem stays a draft when it moves.** A rule
+- SM1257 (09684d7a) **a page drafted through its stem stays a draft when it moves.** A rule
   set on `/about` is stored as `about` and holds `about.md` back; every mover re-keyed only
   the page's own key, so a moved page left its draft behind and was published at its new
   path, its bytes back in the document root. The stem rule now moves with the page through
   one shared function (`Acl::fold_page_stem`), in the manager's move, MCP `move_file` and
   `rename_page`, the control API's move and WebDAV MOVE, while no folder of that name exists.
-- SM1244 (PENDING) **lazysite check warns of an OOM that can resend a write.** OOM 0.37 and
+- SM1244 (269ff00c) **lazysite check warns of an OOM that can resend a write.** OOM 0.37 and
   earlier can send a write again when its answer timed out, so a change can be made twice in
   Odoo. While the Odoo extension is on, the check names the OOM the site loads (version and
   file) and warns below 0.38, with the fix: install OOM 0.38 or later. A running oomd that
   reports an older OOM gets the same warning.
-- SM1243 (PENDING) **the offline pages refusal says the list takes commas.** An
+- SM1243 (4db4d2fb) **the offline pages refusal says the list takes commas.** An
   `app_offline_pages` value of paths separated by spaces was refused as one path that is not
   plain, without saying the list is separated by commas. The refusal now says so and shows
   the list written that way.
-- SM1242 (PENDING) **a draft is called a draft, and a page's rule goes with it.**
+- SM1242 (27b0769b) **a draft is called a draft, and a page's rule goes with it.**
   set_permissions (acl-set) judged only the page's own record, so a page inside a draft
   folder, or under a folder's read list, was told "anyone may still fetch these pages". The
   reply now asks the rules that decide, after the save, and a draft with no read list carries
   `draft_note`: 404 to the public, a preview for any signed-in account. Deleting a page
   (delete_page, the control API, the manager) also drops a rule keyed by its stem, while no
   folder of that name exists.
-- SM1241 (PENDING) **every shipped bundle reaches an existing site.** Bundles were seeded
+- SM1241 (a854ba6f) **every shipped bundle reaches an existing site.** Bundles were seeded
   only when groups-settings.json was absent, so cap-tidy, cap-services and any later bundle
   reached new installs only; SM1118 adopted cap-maintenance alone. Every bundle in the shipped
   nesting is adopted now, on the next use of the users tool: only when it is absent, only for
   the shipped roles present, never rewriting an edited group, and only on a site that already
   has the bundle layer, so a site whose roles predate the bundles is left as it is.
-- SM1240 (PENDING) **the sign-in rate counter is made for the serving group.** The login
+- SM1240 (896ab776) **the sign-in rate counter is made for the serving group.** The login
   rate limiter created `auth/.login-rate.db` 0600, so only its creator could open it; the
   0.16.0 rollout found it owned by the site user on two sites, where the www-data CGI could
   not open it and allowed every attempt. It is now created 0660 under any umask, in the auth
   directory's group, and a counter the process owns that lost group access gets it back. The
   limiter still fails open when it cannot open the counter.
-- SM1261 (PENDING) **a confirm whose daemon run is gone says to make the plan again.**
+- SM1261 (510802aa) **a confirm whose daemon run is gone says to make the plan again.**
   oomd finds a confirm's plan by its run folder. When that folder or its plan file was
   gone, the page was told "the Odoo connection is not configured correctly" (`config`,
   503). It now answers `not-found` (404), "this plan is no longer held by the Odoo
   daemon - make the plan again", naming no path, on the page endpoint, the control API
   and MCP alike. t/unit/odoo/104.
-- SM1248 (PENDING) **a change of `odoo_packs` reloads oomd with no gap.** oomd used to
+- SM1248 (4ea417dd) **a change of `odoo_packs` reloads oomd with no gap.** oomd used to
   read the site's packs from its environment at its start, so the service restarted it
   when `odoo_packs` changed. While it restarted, a call was refused as `daemon-down`
   (`odoo_daemon: required`) or ran in-process (`on`). oomd's config now names the
@@ -127,38 +129,38 @@ Archive
   The restart for a changed `odoo_packs` is gone. An OOM before 0.39 keeps reading the
   packs at its start, and the service logs that a change waits for it.
   t/unit/odoo/103, t/unit/daemon/14.
-- SM1247 (PENDING) **internal: lazysite's vendored OOM is 0.42.** The pinned
+- SM1247 (36a3434f) **internal: lazysite's vendored OOM is 0.42.** The pinned
   snapshot in `t/vendor/oom` moves from 0.38 to OOM 0.42 (b91d5e2), skipping 0.39
   to 0.41. Each change of 0.39 to 0.42 was checked against lazysite. Only oomd's
   config `namespaces` and its `reload` verb reach it, and SM1248 adopts them.
   Every Odoo test passes on the new snapshot unchanged. SM747's spec is re-filed.
   t/lint/207, 261.
-- SM1265 (PENDING) **`--rebuild-exposed` rebuilds only the sites in the X-Forwarded-For failure.**
+- SM1265 (ce3eb088) **`--rebuild-exposed` rebuilds only the sites in the X-Forwarded-For failure.**
   A site whose front end passes the client's X-Forwarded-For through to a site that trusts
   forwarded addresses lets any visitor choose their address (SM1194). The Hestia updater's
   new opt-in `--rebuild-exposed` rebuilds those in-scope sites and no others, after the
   template refresh and before the deploy, so the permission pass and the repair follow
   (SM270). Each is logged as auto-rebuilt. Without the flag the FAILURE line names it. It is
   refused with `--list` (#379, ruled option B).
-- SM1249 (PENDING) **the Hestia site list sees every lazysite template.** `lazysite-hestia-list.sh`
+- SM1249 (f0a4772b) **the Hestia site list sees every lazysite template.** `lazysite-hestia-list.sh`
   matched only the lazysite-app web template, so a host whose sites use lazysite-cgi or
   lazysite-fcgi behind lazysite-proxy listed 0 sites. It now lists every domain on a lazysite web
   template (lazysite, -app, -cgi, -fcgi) or on the lazysite-proxy proxy template, reads each field
   by name, and shows the template. `--tpl NAME` narrows the list to one. The batch updater still
   deploys only lazysite-app domains (#379).
-- SM1239 (PENDING) **NOT SERVICEABLE is the verdict of the check after the repair.** The 0.16.0
+- SM1239 (5a60a9e1) **NOT SERVICEABLE is the verdict of the check after the repair.** The 0.16.0
   rollout reported two sites NOT SERVICEABLE and, in the same run, "repair: 32 clean". The verdict
   was the deploy's own final check, run straight after the install; the repair runs later on
   every site. A site whose repair passes is now `updated (repaired)`, with a finding saying the
   deploy's check failed first. One whose repair does not pass stays NOT SERVICEABLE.
-- SM1238 (PENDING) **the ACL dry run names what has not moved, and the Hestia updater runs it.**
+- SM1238 (05d8831c) **the ACL dry run names what has not moved, and the Hestia updater runs it.**
   The 0.16.0 notes tell the operator to run `lazysite-acl.pl reapply` without `--apply` on each site
   and report each `NOT MOVED: <path>` line. The dry run never printed one: it listed every rule.
   It now names each read-listed or draft rule whose files are still in the document root (the
   SM296 state), moving nothing; `--json` carries `not_moved`. `lazysite-hestia-update-all.sh
   --reapply-acls-dry-run` runs it on every site that upgraded, as the site's own user, reports
   each line as a finding and exits 2 if there is one (#378).
-- SM1237 (PENDING) **a probe that could not run says why.** The 0.16.0 rollout ended "probe: 16
+- SM1237 (e9330fee) **a probe that could not run says why.** The 0.16.0 rollout ended "probe: 16
   clean, 0 exposed, 16 could not run" with no reason given. `lazysite probe` now prints a reason
   for every site it could not confirm: the skip's cause, the probe's own no-answer verdict, or
   that the check gave no verdict, with its last line. The old guess ("run lazysite repair") is
@@ -166,7 +168,7 @@ Archive
   command that did not finish as could-not-run rather than exposed. A half-applied probe rule
   names its cause. A root `--fix` creates the private store where the engine cannot (the Hestia
   domain folder is 0551), so the probe can run on a site that never protected anything.
-- SM1236 (PENDING) **the rollout names a command this host runs, and the repair after a rebuild.**
+- SM1236 (1289daa1) **the rollout names a command this host runs, and the repair after a rebuild.**
   The 0.16.0 rollout said `lazysite check --domain D` on hosts deployed from the tarball, which
   puts no `lazysite` on PATH. Every hint in the updater, the deploy, the CLI and the check, acl
   and hestia-domain tools now names `lazysite` when it is on PATH and `perl <stage>/tools/lazysite-cli.pl`
@@ -174,14 +176,14 @@ Archive
   `check --fix`. A hint naming `v-rebuild-web-domain` names the repair after it, because a
   rebuild resets the docroot to 2751 (SM270). `--rebuild` already repairs the sites it manages;
   a domain it rebuilds and does not manage is now told the repair command.
-- SM1235 (PENDING) **the rollout reports a message that differs only by a path once.** On the
+- SM1235 (2091a8a5) **the rollout reports a message that differs only by a path once.** On the
   0.16.0 rollout one site's findings held about seventy "both trees held 'docs/X.md' ... moved
   to <dir>/docs/X.md" lines, one per file, and the report could no longer be copied. The quiet
   report now normalises paths before grouping: such lines are one finding with the count, the
   directory the paths are under per site (the displaced directory), three examples and a file
   with the full list (`LAZYSITE_FINDINGS_DIR`, default `$TMPDIR`). This covers every per-path
   finding. A message with no path reads as before.
-- SM1266 (PENDING) **a page may ask for any browser feature the platform denies.**
+- SM1266 (6d322cff) **a page may ask for any browser feature the platform denies.**
   SM1174 let a page say `camera: self`; the same key now works for every feature in the
   Permissions-Policy denied list - `geolocation: self`, `microphone: self` - on the
   camera's terms: that page alone, over https only, front matter only, kept per page
@@ -191,21 +193,21 @@ Archive
   feature (`permission-unknown`, a warning); page_status and the editor's status bar list what a
   page allows. `payment` (the paid-page key) and `browsing-topics` (no trackers) cannot be asked for.
   The site-level allow list is later.
-- SM1267 (PENDING) **the briefings name the denied browser features.** The authoring and
+- SM1267 (bc6a26a4) **the briefings name the denied browser features.** The authoring and
   layouts briefings list every feature Permissions-Policy denies and say how a page asks
   for one, so an author learns a microphone or location feature needs the page key
   before a visitor reports that it does not work (SM710).
-- SM1245 (PENDING) **internal: a test child never deadlocks on its pipes, and never hangs
+- SM1245 (834e04a8) **internal: a test child never deadlocks on its pipes, and never hangs
   the suite.** t/unit/dav/33 sat 95 minutes in the 2026-10-20 14:30 suite run: run_dav read
   the child's stdout to EOF before its stderr, with no limit, and 232 files under t/ had
   their own copies of that block, 381 in all. TestHelper::run_child writes stdin while it
   reads stdout and stderr, and a child still running after five minutes (twenty under
   Devel::Cover) is killed and the test fails naming itself, the child and the wait. The
   helpers and the copies run through it; t/unit/lib/207 hangs on the old run_dav.
-- SM1246 (PENDING) **internal: a test runs its children through run_child.** t/lint/273
+- SM1246 (70b2272a) **internal: a test runs its children through run_child.** t/lint/273
   fails a test that calls open2 or open3 itself, unless it says it drives the child itself
   (signals it, or reads it while it runs).
-- SM1233 (PENDING) **a Docker Compose package.** `installers/docker/` is no longer a
+- SM1233 (f712a7f7) **a Docker Compose package.** `installers/docker/` is no longer a
   placeholder: nginx, the one-rule FastCGI pool and `lazysited` in one container,
   the engine in the image and the site in three volumes (the docroot, `lazysite/`,
   the private store), built locally from the unpacked release tarball with
@@ -216,14 +218,14 @@ Archive
   exclusion is gone and the manifest lists it), documented in
   `installers/docker/README.md` and `docs/IMPLEMENTOR.md`; t/tools/210 holds it
   without Docker.
-- SM1219 (PENDING) **the visitor log names the signed-in account.** A visit made while signed in is
+- SM1219 (b8ed6fbc) **the visitor log names the signed-in account.** A visit made while signed in is
   recorded with the account the engine verified (never a header a client sent; an anonymous
   visit has none), kept as long as the rest of the log. analyse_visitors takes `by_account`
   (analytics; a domain-confined caller sees only its own domains' accounts) and the manager
   Stats page lists the visits per account. The analytics capability's text no longer says it
   cannot identify a visitor. Account names are personal data: telling members is the operator's
   duty (operator guide).
-- SM1118 (PENDING) **a site can be put into maintenance.** `maintenance: on` (Config page; per
+- SM1118 (735eec5f) **a site can be put into maintenance.** `maintenance: on` (Config page; per
   domain on the Domains page, `alias.<host>.maintenance: on`, with the instance switch covering
   all) sends every page request by 302 to `maintenance_page` (default `/maintenance`, a shipped
   system page); the page answers 503 with Retry-After (`maintenance_until`, UTC). A new
@@ -233,37 +235,37 @@ Archive
   refused and not stored, and MCP, the control API, WebDAV and the data endpoint answer 503 to an
   account without it. The check is in the processor, so it holds behind the wrapper, on the
   split templates and in the one-rule pool. `lazysite check` warns while it is on.
-- SM1220 (PENDING) **the Hestia deploy no longer lists four "could not read ... Permission denied" warnings.** They came from install.pl's own health check, which the deploy runs as the site user, who cannot open the web server group's private store. The deploy passes install.pl `--health-check-by-caller`; its final check already runs as root, after the permission pass, and is the one verdict. No group change.
-- SM1222 (PENDING) **the dev server takes extension directories.** `tools/lazysite-server.pl
+- SM1220 (f45dacda) **the Hestia deploy no longer lists four "could not read ... Permission denied" warnings.** They came from install.pl's own health check, which the deploy runs as the site user, who cannot open the web server group's private store. The deploy passes install.pl `--health-check-by-caller`; its final check already runs as root, after the permission pass, and is the one verdict. No group change.
+- SM1222 (fea99edd) **the dev server takes extension directories.** `tools/lazysite-server.pl
   --extensions DIR` (repeatable) adds directories to look for extensions in, so an app's
   extensions need not be copied beside the docroot. They are searched in the order given,
   before the docroot's `plugins/`; a name in two is served from the first, and the startup
   lines say so. A symlinked directory stops the server; a symlinked script is skipped. The
   dev server only: an installed engine's lookup is unchanged.
-- SM1221 (PENDING) **a signed-out call to the manager API answers 401, not 400.**
+- SM1221 (fb2e5c3a) **a signed-out call to the manager API answers 401, not 400.**
   A request with no sign-in answered `400 {ok:false, error:"Authentication required"}`, the
   status for a malformed request. It answers 401 with the same body, now with kind
   `unauthenticated`, and no `WWW-Authenticate` (the session is a cookie). A site with no
   manager account yet answers 503 (`not-set-up`) in its own wording: nothing to sign in to.
-- SM1223 (PENDING) **a binding passes the caller's idempotency key to OOM.** A page that queues its
+- SM1223 (58890621) **a binding passes the caller's idempotency key to OOM.** A page that queues its
   writes offline sends an `Idempotency-Key` header per item (8 to 128 characters); it is hashed with the
   binding and who sent it into OOM's `idem`, so nobody collides with or replays another person, and a
   repeat answers the first plan or result (`repeat: true`) instead of writing twice, in process and
   through oomd, for an immediate apply and for plan and confirm. The call record has `idem` and `repeat`.
   The browser helper takes `{ idempotencyKey }`.
-- SM1224 (PENDING) **a rows key's declared max raises its cap.** lazysite held every request value to
+- SM1224 (65c229f7) **a rows key's declared max raises its cap.** lazysite held every request value to
   1,000 characters, so a rows key an operation declares with its own `max` (OOM 0.38, up to
   1,048,576) was refused past 1,000 though OOM accepts it. That `max` is now the key's cap;
   an undeclared key keeps 1,000. A JSON body over 64 KB names its binding in the query and is
   held to that binding's budget (20 MB at most), so a declared large value is not refused
   by the body cap first.
-- SM1225 (PENDING) **a report is a download.** A binding with `answer: download` is answered to
+- SM1225 (2dc27941) **a report is a download.** A binding with `answer: download` is answered to
   a GET with the document its report holds (OOM `core.report` with `inline=1`) instead of base64
   in JSON: OOM's content type, a safe file name, `Content-Length`, `Cache-Control: private,
   no-store`, and a size cap (`download_max_kb`, default 10 MB) over which it is refused, never
   cut short. The binding's gate, callers, rate caps and both paths (in-process, oomd) are the
   call's own; a binding without the option answers JSON as before.
-- SM1226 (PENDING) **security, performance: the Odoo endpoint runs warm-forked.** Every
+- SM1226 (9b8dee47) **security, performance: the Odoo endpoint runs warm-forked.** Every
   Odoo call used to start a perl and compile the endpoint. A parent per site, supervised
   by lazysited (the `odoo-endpoint` service, on a site with a pool conf and the Odoo
   extension on; never on a plain-CGI site), now holds the compiled endpoint and nothing
@@ -274,51 +276,51 @@ Archive
   With no parent listening the pool runs the CGI. It restarts when the engine changes on
   disk. An Odoo read through the pool went from 116 ms to 17 ms on the dev host.
   Regenerate a split-template vhost to take the new location.
-- SM1164 (PENDING) **internal: the surface bench measures an Odoo call through oomd.**
+- SM1164 (d9d729fb) **internal: the surface bench measures an Odoo call through oomd.**
   `tools/bench-surfaces.sh --surface odoo-oomd` (D5) times a read binding end to end
   against the vendored oomd and OOM's fake Odoo. It splits each call into the program
   start, the endpoint's own work and the call. `--with-warm-fork` adds SM1226's parent.
-- SM1228 (PENDING) **the practice copies take the extension-* action names.** The served
+- SM1228 (81539a35) **the practice copies take the extension-* action names.** The served
   field-practice briefing and its source docs/practice/app-practice.md taught `plugin-list`,
   `plugin-action`, `plugin-read` and `plugin-save`; they name the `extension-*` actions now (the
   old names are still served, audited as deprecated). t/lint/266 scans the briefing too.
-- SM1229 (PENDING) **an address list a binding names is not deleted by accident.** The delete
+- SM1229 (1f80f332) **an address list a binding names is not deleted by accident.** The delete
   guard read pages, access rules, groups and lazysite.conf but not a session binding's own
   `signin_addresses` / `signin_addresses_deny`, so such a list could be deleted and the binding
   then refused every call. The manager and the control API now refuse it, naming each binding
   (with `force` as before).
-- SM1250 (PENDING) **a multi-step form no longer restyles a themed page.** A page with a
+- SM1250 (08066592) **a multi-step form no longer restyles a themed page.** A page with a
   `--- step ---` form links `/assets/lazysite-chrome.css` for its step rules, under any layout, and
   the file's fallback page rules were bare element selectors: on a themed site every such page took
   the system font, an 800px column, 2rem margins and #333 text, since the link comes after the
   theme's stylesheet. The fallback template's `<body>` now carries `class="lazysite-fallback"` and
   every page rule in the file is scoped to it, so a layout's page gets the form rules only. A theme
   that worked around it (`html body { ... }`) can drop the workaround. t/unit/processor/148.
-- SM1251 (PENDING) **the starter contact page no longer overrides the theme's form styles.** The
+- SM1251 (fe75f66a) **the starter contact page no longer overrides the theme's form styles.** The
   shipped `/contact.md` opened with a `<style>` block (blue buttons, a two-column label grid) that
   came after the theme's stylesheet and beat its form rules on that page. The block is gone; the
   same rules are in `/assets/lazysite-chrome.css` under the fallback template's body class, so a
   site with no layout looks as before and a themed site gets its theme. An upgrade replaces an
   unmodified copy of the page and keeps a customised one (t/tools/211 runs it). `validate_page`
   already warns on a `<style>` in page content (`style-block-in-page`).
-- SM1252 (PENDING) **a stepped form no longer leaves empty paragraphs inside itself.** A
+- SM1252 (7866e16f) **a stepped form no longer leaves empty paragraphs inside itself.** A
   multi-step form's output began with its stylesheet `<link>`, which the Markdown pass does not take
   for block HTML, so the head of the form was wrapped: `<p><link><form>` ... `</p>` and
   `<p></form>`, and every stepped form had stray spacing. The link is emitted inside the form, after
   the opening tag, so the form passes through as a single-step one does. t/unit/processor/149.
-- SM1253 (PENDING) **validate_page no longer reports valid form rules as unknown.** The form check
+- SM1253 (fb97b34e) **validate_page no longer reports valid form rules as unknown.** The form check
   split a field's rules on whitespace and knew ten words, so a radio or checklist option with a
   space, a quoted `placeholder:"Your full name"`, and the `file`, `multiple` and `capture` rules
   were each an `invalid-form-rule` issue, failing a page that renders correctly. The validator cuts
   the rules with a marked copy of the renderer's tokeniser and knows every rule word the renderer
   takes. t/lint/276 runs both: it takes the renderer's accepted words from the renderer itself and
   compares the two cuts over every form line in the tree and a generated set.
-- SM1254 (PENDING) **a quoted page variable reaches the layout without its quotes.** A
+- SM1254 (f94da757) **a quoted page variable reaches the layout without its quotes.** A
   `tt_page_var:` entry kept its quote marks, so `hero_cards: "a,b,c"` reached the layout as
   `"a,b,c"` and a split gave `"a` and `c"`. One matched pair of quotes is taken off, as it is for
   a top-level front-matter key; an unquoted value is unchanged. A quoted source
   (`x: "json:/d.json"`) now binds as the unquoted one does. t/unit/processor/150.
-- SM1255 (PENDING) **docs: the shipped docs say what the engine does.** From the lazysite.io
+- SM1255 (86a3c29f) **docs: the shipped docs say what the engine does.** From the lazysite.io
   content check: the pre-layouts Views page (`view.tt`) is removed and its links point at Layouts,
   and the per-page layout override page describes `lazysite/layouts/NAME/layout.tt` and the
   built-in fallback; the per-host key list has all 29 keys (and the env allowlist `REQUEST_URI`);
@@ -326,21 +328,21 @@ Archive
   30 minutes; the CSP shipped report-only by default (FEATURES.md said enforcing); the bad-URL
   block list is on the plugin's own page; and a cached page is served by the processor, not the
   web server. t/lint/274 asks the code for each fact.
-- SM1256 (PENDING) **the Hestia integrator takes the certified channel.** `lazysite-hestia-domain
+- SM1256 (2266ca2b) **the Hestia integrator takes the certified channel.** `lazysite-hestia-domain
   add --channel certified` was refused ("must be 'edge', 'beta' or 'stable'") although ADR 0010
   added the rung and `lazysite provision`, which the integrator passes the value to, accepts it.
   The check, the usage and the POD take all four. t/tools/212.
-- SM1259 (PENDING) **a certified cut gets past the manifest build.** `release.sh --certified`
+- SM1259 (0e667758) **a certified cut gets past the manifest build.** `release.sh --certified`
   passes `--channel certified` to `build-manifest.pl`, which accepted only edge, beta and stable and
   died, so the first certified cut would have stopped there. It takes the fourth rung (ADR 0010);
   an unknown channel is still refused. t/tools/213.
-- SM1260 (PENDING) **a site can be put on the certified channel from the manager.** config-set
+- SM1260 (585f16bf) **a site can be put on the certified channel from the manager.** config-set
   (the Config page and the control API) refused `update_channel: certified`, and the page did not
   offer it, though ADR 0010 says a site that requires certification sets exactly that and the
   installer honours it. Both take it now. Every other channel validator in the tree was checked:
   install.pl and the CLI already took it (now pinned), and SM1256 and SM1259 fixed the Hestia
   integrator and the manifest build. t/unit/manager/17, t/tools/215.
-- SM1264 (PENDING) **validate_page warns on a form rule the renderer ignores, in every form.** An
+- SM1264 (f0c55990) **validate_page warns on a form rule the renderer ignores, in every form.** An
   unknown `key:value` (`maxx:5`, `capture:front`) was passed silently, and only a page's first
   `::: form` block was read. Both are reported now as warnings that never block a save
   (`unknown-form-rule`, `pattern-will-not-compile`, a later block's messages naming its number);

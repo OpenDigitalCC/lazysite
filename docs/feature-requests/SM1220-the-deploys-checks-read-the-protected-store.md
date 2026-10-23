@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the release manager, reading the edge deploy findings (#356)"
 area: installers
-status-note: "SHIPPED (PENDING) on n707: the deploy passes install.pl --health-check-by-caller; the final check already ran as root. No group change. t/tools/195."
+status-note: "SHIPPED (0.16.1) on n707: the deploy passes install.pl --health-check-by-caller; the final check already ran as root. No group change. t/tools/195."
 ---
 
 # What happened

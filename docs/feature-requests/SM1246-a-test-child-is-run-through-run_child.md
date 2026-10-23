@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "SM1245 (task #370: t/unit/dav/33 hung 95 minutes in the 2026-10-20 14:30 suite run)"
 area: tests
-status-note: "SHIPPED (PENDING) on n726: t/lint/273 scans t/ (TestHelper.pm and t/vendor/ apart) and fails an undeclared open2/open3; it proves it still finds run_dav's old block. It fails on the tree before SM1245."
+status-note: "SHIPPED (0.16.1) on n726: t/lint/273 scans t/ (TestHelper.pm and t/vendor/ apart) and fails an undeclared open2/open3; it proves it still finds run_dav's old block. It fails on the tree before SM1245."
 ---
 
 # What happened

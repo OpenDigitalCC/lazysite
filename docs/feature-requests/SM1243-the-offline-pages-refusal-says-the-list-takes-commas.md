@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: "the 0.15.15 test-plan results (inbox 2026-10-20-test-plan-01515-results.md), task #372c"
 area: manager
-status-note: "SHIPPED (PENDING) on n725: Config.pm's app_offline_pages check adds 'the list is separated by commas, e.g. ...' to a refusal whose entry reads as paths separated by spaces. t/unit/manager/368."
+status-note: "SHIPPED (0.16.1) on n725: Config.pm's app_offline_pages check adds 'the list is separated by commas, e.g. ...' to a refusal whose entry reads as paths separated by spaces. t/unit/manager/368."
 ---
 
 # What happened

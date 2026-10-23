@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the 0.16.1 edge gate (tools/gate-main.sh --version 0.16.1, tmp/release-gate/0.16.1/gate-main.log): two blocking compliance findings"
 area: release
-status-note: "SHIPPED (PENDING) on n730: docs only. OBLIGATIONS.md reviewed_at_version and TECHNICAL-FILE.md covers_version 0.16.1; five register entries dated 2026-10-23, drafts; threat model boundary 14 and two STRIDE rows; architecture/security.md and POLICY.md follow. content_sha is left for the release manager to stamp at sign-off."
+status-note: "SHIPPED (0.16.1) on n730: docs only. OBLIGATIONS.md reviewed_at_version and TECHNICAL-FILE.md covers_version 0.16.1; five register entries dated 2026-10-23, drafts; threat model boundary 14 and two STRIDE rows; architecture/security.md and POLICY.md follow. content_sha is left for the release manager to stamp at sign-off."
 ---
 
 # What was asked

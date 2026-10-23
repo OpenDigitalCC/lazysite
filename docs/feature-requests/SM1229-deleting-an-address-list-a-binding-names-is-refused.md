@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-20
 raised-by: SM1159 "Open" (the 2026-10-20 inbox triage, buildable item 4)
 area: auth
-status-note: "SHIPPED (PENDING) on n712: Lazysite::Auth::AddressRefs reads type-odoo records of handlers.conf; the manager and control API refuse (in-use) naming each binding; t/unit/manager/395. force as before."
+status-note: "SHIPPED (0.16.1) on n712: Lazysite::Auth::AddressRefs reads type-odoo records of handlers.conf; the manager and control API refuse (in-use) naming each binding; t/unit/manager/395. force as before."
 ---
 
 # What happened

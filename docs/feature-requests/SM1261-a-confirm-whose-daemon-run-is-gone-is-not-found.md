@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "release manager, 2026-10-22 (ruling on SM1247's open question)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n727: Lazysite::Odoo confirm maps a daemon `config` failure with the run's plan file absent to refused/run-gone, kind not-found. t/unit/odoo/104."
+status-note: "SHIPPED (0.16.1) on n727: Lazysite::Odoo confirm maps a daemon `config` failure with the run's plan file absent to refused/run-gone, kind not-found. t/unit/odoo/104."
 ---
 
 # What was asked

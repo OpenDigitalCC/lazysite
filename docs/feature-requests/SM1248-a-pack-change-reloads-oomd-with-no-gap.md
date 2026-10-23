@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "supervisor brief, task #373 item 3 (SM1211's open window; OOM 0.39 oomd-39)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n727: Lazysite::Odoo::Daemon writes `namespaces`; Lazysite::Daemon::Service::Oomd asks the `reload` verb on SIGHUP and starts oomd without ODOO_OPS_NAMESPACES; the restart for a changed odoo_packs is gone. t/unit/odoo/103, t/unit/daemon/14."
+status-note: "SHIPPED (0.16.1) on n727: Lazysite::Odoo::Daemon writes `namespaces`; Lazysite::Daemon::Service::Oomd asks the `reload` verb on SIGHUP and starts oomd without ODOO_OPS_NAMESPACES; the restart for a changed odoo_packs is gone. t/unit/odoo/103, t/unit/daemon/14."
 ---
 
 # What was asked

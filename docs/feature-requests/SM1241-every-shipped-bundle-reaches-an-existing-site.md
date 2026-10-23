@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager (task #369)"
 area: users
-status-note: "SHIPPED (PENDING) on n725: _adopt_added_bundles walks every bundle in the shipped nesting map, and only on a site that already has the bundle layer. t/unit/users/56."
+status-note: "SHIPPED (0.16.1) on n725: _adopt_added_bundles walks every bundle in the shipped nesting map, and only on a site that already has the bundle layer. t/unit/users/56."
 ---
 
 # What happened

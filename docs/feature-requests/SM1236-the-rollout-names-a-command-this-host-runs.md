@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager, reading the 0.16.0 stable rollout report and the manual rebuilds after it"
 area: installers
-status-note: "SHIPPED (PENDING) on n724: cli_cmd and rebuild_hint in the updater, LAZYSITE_CLI to the tools, cli_spelling in check, acl and hestia-domain. t/tools/236."
+status-note: "SHIPPED (0.16.1) on n724: cli_cmd and rebuild_hint in the updater, LAZYSITE_CLI to the tools, cli_spelling in check, acl and hestia-domain. t/tools/236."
 ---
 
 # What happened

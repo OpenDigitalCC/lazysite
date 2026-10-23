@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "supervisor brief, task #373 (OOM 0.42 installed on the host; lazysite vendors 0.38, SM1216)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n727: t/vendor/oom is OOM b91d5e2 (Package 0.42), taken by tools/vendor-oom.sh with the 0.42 library and tools debs. SM747's spec is re-filed. Every Odoo test dir passes on it unchanged; the one change lazysite adopts is SM1248."
+status-note: "SHIPPED (0.16.1) on n727: t/vendor/oom is OOM b91d5e2 (Package 0.42), taken by tools/vendor-oom.sh with the 0.42 library and tools debs. SM747's spec is re-filed. Every Odoo test dir passes on it unchanged; the one change lazysite adopts is SM1248."
 ---
 
 # What happened

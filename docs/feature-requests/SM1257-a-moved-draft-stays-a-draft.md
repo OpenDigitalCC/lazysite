@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "found while measuring SM1242; fix asked by the release manager's coordinator, 2026-10-22"
 area: acl
-status-note: "SHIPPED (PENDING) on n725: Acl::fold_page_stem folds a page's stem-keyed rule into its own key before a move, in action_move (the manager, MCP move_file and rename_page, the control API move) and WebDAV MOVE, so the existing re-key and store sync carry it. t/unit/manager/160, t/unit/dav/34."
+status-note: "SHIPPED (0.16.1) on n725: Acl::fold_page_stem folds a page's stem-keyed rule into its own key before a move, in action_move (the manager, MCP move_file and rename_page, the control API move) and WebDAV MOVE, so the existing re-key and store sync carry it. t/unit/manager/160, t/unit/dav/34."
 ---
 
 # What happened

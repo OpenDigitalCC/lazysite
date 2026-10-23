@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "lazysite-sites agent for the OOM Lab, inbox/2026-10-22-site-chosen-permissions-policy-and-the-visitor-address-for-an-operation.md row P-7; SM710 \"Also worth doing, and cheaper\""
 area: docs
-status-note: "SHIPPED (PENDING) on n729: starter/docs/ai-briefing-authoring.md and ai-briefing-layouts.md. t/lint/280."
+status-note: "SHIPPED (0.16.1) on n729: starter/docs/ai-briefing-authoring.md and ai-briefing-layouts.md. t/lint/280."
 ---
 
 # What happened

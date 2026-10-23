@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: the lazysite.io site agent, inbox 2026-10-22-shipped-docs-out-of-step-with-0-15-16.md (D-1 to D-5, D-7, D-8)
 area: docs
-status-note: "SHIPPED (PENDING) on n728: views.md removed and its links repointed, per-host keys and env allowlist, session pruning, connect code, CSP default, block-list page, page serving; t/lint/274. D-6 is SM1256."
+status-note: "SHIPPED (0.16.1) on n728: views.md removed and its links repointed, per-host keys and env allowlist, session pruning, connect code, CSP default, block-list page, page serving; t/lint/274. D-6 is SM1256."
 ---
 
 # What was found, and what the code says

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager, from the 0.16.0 rollout findings"
 area: auth
-status-note: "SHIPPED (PENDING) on n725: Lazysite::Auth::LoginRate creates .login-rate.db 0660 under a umask that keeps both group bits, sets the auth directory's group on a new counter, and gives group access back to a counter it owns. t/unit/auth/73."
+status-note: "SHIPPED (0.16.1) on n725: Lazysite::Auth::LoginRate creates .login-rate.db 0660 under a umask that keeps both group bits, sets the auth directory's group on a new counter, and gives group access back to a counter it owns. t/unit/auth/73."
 ---
 
 # What happened

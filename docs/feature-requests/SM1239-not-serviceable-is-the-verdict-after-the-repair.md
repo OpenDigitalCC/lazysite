@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager, following up the 0.16.0 stable rollout"
 area: installers
-status-note: "SHIPPED (PENDING) on n724: settle_after_repair in the updater's repair loop; the lists print after it. t/tools/239."
+status-note: "SHIPPED (0.16.1) on n724: settle_after_repair in the updater's repair loop; the lists print after it. t/tools/239."
 ---
 
 # What happened

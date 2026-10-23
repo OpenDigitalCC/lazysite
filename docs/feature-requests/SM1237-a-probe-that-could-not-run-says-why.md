@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager, reading the 0.16.0 stable rollout report (32 sites)"
 area: installers
-status-note: "SHIPPED (PENDING) on n724: _probe_unconfirmed_reason in the CLI, probe_site in the updater, the half-applied cause in _probe_protect, the store created by a root --fix. t/tools/237."
+status-note: "SHIPPED (0.16.1) on n724: _probe_unconfirmed_reason in the CLI, probe_site in the updater, the half-applied cause in _probe_protect, the store created by a root --fix. t/tools/237."
 ---
 
 # What happened

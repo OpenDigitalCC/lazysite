@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the release manager (task #379 part 2, ruled option B on 2026-10-22)"
 area: installers
-status-note: "SHIPPED (PENDING) on n724: rebuild_exposed and the --rebuild-exposed step in lazysite-hestia-update-all.sh; the FAILURE names the flag. t/tools/265."
+status-note: "SHIPPED (0.16.1) on n724: rebuild_exposed and the --rebuild-exposed step in lazysite-hestia-update-all.sh; the FAILURE names the flag. t/tools/265."
 ---
 
 # What happened

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: found beside SM1259 on n728, ruled for build by the coordinator 2026-10-22
 area: manager
-status-note: "SHIPPED (PENDING) on n728: Lazysite::Manager::Config accepts certified; the Config page offers it; t/unit/manager/17 and t/tools/215."
+status-note: "SHIPPED (0.16.1) on n728: Lazysite::Manager::Config accepts certified; the Config page offers it; t/unit/manager/17 and t/tools/215."
 ---
 
 # What happened
