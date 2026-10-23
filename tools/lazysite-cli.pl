@@ -438,8 +438,8 @@ sub _install_argv {
         '--docroot',    $docroot, '--cgibin', $cgibin, '--mode', $o{mode},
         '--invoked-as', invoked_as() );
     push @cmd, '--force' if $o{force};
-    # SM892 D5: starter/docs/install.md has documented `--dry-run` as the thing
-    # to run before committing an upgrade since the installer was the operator's
+    # SM892 D5: the install page (/docs/install) has documented `--dry-run` as the
+    # thing to run before committing an upgrade since the installer was the operator's
     # command. The verb had no way to ask for it, so repointing that document at
     # the verb would have meant either dropping the advice or naming install.pl
     # in it - and naming the implementation is the second spelling coming back.
@@ -930,7 +930,7 @@ sub cmd_reinstall {
 # reason the other three got one.
 #
 # `install.sh --restore` and `install.sh --list-backups` were documented in
-# starter/docs/install.md, and install.sh is now a signpost that refuses
+# starter/lazysite/templates/docs/install.md, and install.sh is now a signpost that refuses
 # everything - so those two blocks had to point somewhere. The choice was
 # between naming install.pl in an operator document, which D3 says stop doing,
 # and giving the operation a verb. A doc that reaches for the implementation

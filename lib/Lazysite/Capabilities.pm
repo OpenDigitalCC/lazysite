@@ -14,6 +14,7 @@ package Lazysite::Capabilities;
 use strict;
 use warnings;
 use JSON::PP                 ();
+use Lazysite::Paths          ();
 use Lazysite::Util           ();
 use Lazysite::Auth::Settings qw(@CAP_KEYS);
 use Exporter 'import';
@@ -851,21 +852,28 @@ sub _doc_meta {
 sub _scan_docs {
     my ($docroot) = @_;
     return unless defined $docroot && length $docroot;
-    my $dir = "$docroot/docs";
-    return unless -d $dir;
-    opendir my $dh, $dir or return;
+    # SM1284: the manual is the engine's (lazysite/templates/docs/), served at
+    # /docs/ when the site has no page of its own there - so it is indexed from
+    # both, and the site's copy of a page is the one described, as it is the one
+    # served. A site that cleared its docs/ still answers with the whole manual.
+    my %src;
+    for my $dir ( Lazysite::Paths::lazysite_dir($docroot) . '/templates/docs', "$docroot/docs" ) {
+        opendir my $dh, $dir or next;
+        for my $f ( readdir $dh ) {
+            next unless $f =~ /\A([A-Za-z0-9][A-Za-z0-9._-]*)\.md\z/;
+            $src{$1} = "$dir/$f" if -f "$dir/$f";    # the docroot's, read last, wins
+        }
+        closedir $dh;
+    }
+    return unless %src;
     my ( @briefings, @reference );
-    for my $f ( sort readdir $dh ) {
-        next unless $f =~ /\A([A-Za-z0-9][A-Za-z0-9._-]*)\.md\z/;
-        my $slug = $1;
-        next unless -f "$dir/$f";
-        my ( $title, $subtitle ) = _doc_meta("$dir/$f");
+    for my $slug ( sort keys %src ) {
+        my ( $title, $subtitle ) = _doc_meta( $src{$slug} );
         next unless defined $title && length $title;
         my %entry = ( path => "/docs/$slug", title => $title );
         $entry{answers} = $subtitle if defined $subtitle && length $subtitle;
         push @{ $slug =~ /^ai-briefing-/ ? \@briefings : \@reference }, \%entry;
     }
-    closedir $dh;
     return unless @briefings || @reference;
     return {
         note =>

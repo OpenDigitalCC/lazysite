@@ -108,6 +108,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM1284 (rulings 4, 27, 32): the /docs manual - the agent briefings and every page of the manual - is the ENGINE's, served by the processor from here when the site has no page of its own at the path. Code bucket, refreshed every upgrade, outside the content a site owner clears out, and NOT starter content, so a site installed without the starter pages still has it. It used to install to {DOCROOT}/docs/, and an upgrade drops an unmodified copy there (it leaves the manifest) and keeps an edited one with a warning. Precedes the general starter/*.md seed rule.",
+      "pattern": "^starter/lazysite/templates/docs/(.+)$",
+      "install_to": "{LAZYSITE}/templates/docs/$1",
+      "bucket": "code"
+    },
+    {
       "pattern": "^starter/manager/(.+)$",
       "install_to": "{DOCROOT}/manager/$1",
       "bucket": "code"
@@ -149,11 +155,6 @@
       "pattern": "^starter/nav\\.conf\\.example$",
       "install_to": "{LAZYSITE}/nav.conf.example",
       "bucket": "seed"
-    },
-    {
-      "pattern": "^starter/docs/(.+)$",
-      "install_to": "{DOCROOT}/docs/$1",
-      "bucket": "code"
     },
     {
       "pattern": "^starter/(\\.well-known/.+)$",
@@ -318,9 +319,8 @@
   ],
   "overrides": [],
   "starter_content": {
-    "_doc": "SM939 E2 / R15: the files a fresh install ships that are lazysite's OWN content - its demo pages and the /docs tree - as opposed to what a site needs to work. install.pl --no-starter skips every file matched here, and records the choice in the install state so a later upgrade does not ship them either (docs/ is bucket code, so an upgrade would otherwise install it). `keep` names the system pages the engine genuinely needs even on an empty site; they win over `patterns`. The reporter's own list (SM939 SC3): 404, robots.txt, assets/, .well-known/, forgot, logout - the first four are not starter pages at all and are not matched here.",
+    "_doc": "SM939 E2 / R15: the files a fresh install ships that are lazysite's OWN content - its demo pages - as opposed to what a site needs to work. SM1284: the /docs tree is no longer among them; it is the engine's manual, served from {LAZYSITE}/templates/docs/ on every site. install.pl --no-starter skips every file matched here, and records the choice in the install state so a later upgrade does not ship them either (docs/ is bucket code, so an upgrade would otherwise install it). `keep` names the system pages the engine genuinely needs even on an empty site; they win over `patterns`. The reporter's own list (SM939 SC3): 404, robots.txt, assets/, .well-known/, forgot, logout - the first four are not starter pages at all and are not matched here.",
     "patterns": [
-      "^starter/docs/",
       "^starter/[^/]+\\.md$"
     ],
     "keep": [
@@ -536,11 +536,6 @@
       "why": "uploads land here - the CGI creates files in this directory on every upload"
     },
     {
-      "path": "{DOCROOT}/docs",
-      "mode": "2775",
-      "why": "engine documentation ships as ordinary pages in the content tree, and an operator may add or rename one"
-    },
-    {
       "path": "{LAZYSITE}",
       "mode": "2775",
       "why": "the engine's own state directory; the setgid pass already ORs 02020 onto it, and this is the same answer applied at creation instead of after the fact"
@@ -566,14 +561,14 @@
       "why": "operator CLI tools - executed, never written by the CGI"
     },
     {
-      "path": "{DOCROOT}/docs/features",
+      "path": "{LAZYSITE}/templates/docs/features",
       "mode": "2775",
-      "why": "as docs/"
+      "why": "as templates/docs/"
     },
     {
-      "path": "{DOCROOT}/docs/integrations",
+      "path": "{LAZYSITE}/templates/docs/integrations",
       "mode": "2775",
-      "why": "as docs/"
+      "why": "as templates/docs/"
     },
     {
       "path": "{LAZYSITE}/auth",
@@ -611,19 +606,19 @@
       "why": "as ../lib"
     },
     {
-      "path": "{DOCROOT}/docs/features/authoring",
+      "path": "{LAZYSITE}/templates/docs/features/authoring",
       "mode": "2775",
-      "why": "as docs/"
+      "why": "as templates/docs/"
     },
     {
-      "path": "{DOCROOT}/docs/features/configuration",
+      "path": "{LAZYSITE}/templates/docs/features/configuration",
       "mode": "2775",
-      "why": "as docs/"
+      "why": "as templates/docs/"
     },
     {
-      "path": "{DOCROOT}/docs/features/development",
+      "path": "{LAZYSITE}/templates/docs/features/development",
       "mode": "2775",
-      "why": "as docs/"
+      "why": "as templates/docs/"
     },
     {
       "path": "{LAZYSITE}/templates/components",
@@ -639,6 +634,11 @@
       "path": "{LAZYSITE}/templates/system",
       "mode": "2775",
       "why": "as templates/"
+    },
+    {
+      "path": "{LAZYSITE}/templates/docs",
+      "mode": "2775",
+      "why": "as templates/ - the engine's /docs manual (SM1284)"
     },
     {
       "path": "{DOCROOT}/manager/assets/cm",

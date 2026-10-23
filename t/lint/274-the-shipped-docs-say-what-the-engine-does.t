@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # SM1255: THE SHIPPED DOCS SAY WHAT THE ENGINE DOES - the facts a site agent
-# found wrong in starter/docs and FEATURES.md (the lazysite.io content check
+# found wrong in starter/lazysite/templates/docs and FEATURES.md (the lazysite.io content check
 # against 0.15.16, 2026-10-22, D-1 to D-8), each asked of the CODE here rather
 # than of a copy of the right sentence, so the next change to the engine that
 # makes one of them false again fails here too.
@@ -31,7 +31,7 @@ sub slurp {
 
 my @SHIPPED;
 File::Find::find( { no_chdir => 1,
-        wanted => sub { push @SHIPPED, $File::Find::name if /\.md\z/ } }, "$root/starter/docs" );
+        wanted => sub { push @SHIPPED, $File::Find::name if /\.md\z/ } }, "$root/starter/lazysite/templates/docs" );
 @SHIPPED = sort map { s{\A\Q$root\E/}{}r } @SHIPPED;
 cmp_ok( scalar @SHIPPED, '>', 50, 'the shipped docs were found' );
 
@@ -52,7 +52,7 @@ cmp_ok( scalar @SHIPPED, '>', 50, 'the shipped docs were found' );
         my $t = slurp($f);
         while ( $t =~ m{\]\((/docs/[A-Za-z0-9_/.-]*?)/?(?:#[^)]*)?\)}g ) {
             my $p = $1;
-            ( my $rel = $p ) =~ s{\A/docs}{starter/docs};
+            ( my $rel = $p ) =~ s{\A/docs}{starter/lazysite/templates/docs};
             $rel =~ s{\.html\z}{};    # /docs/x.html is the page /docs/x
             next if -f "$root/$rel.md" || -f "$root/$rel/index.md" || -f "$root/$rel";
             push @dead, "$f -> $p";
@@ -71,7 +71,7 @@ cmp_ok( scalar @SHIPPED, '>', 50, 'the shipped docs were found' );
     my @engine = sort keys %main::ALIAS_OVERRIDE_KEYS;
     cmp_ok( scalar @engine, '>', 9, 'the processor\'s per-host key list was read' );
 
-    my $conf = slurp('starter/docs/configuration.md');
+    my $conf = slurp('starter/lazysite/templates/docs/configuration.md');
     my ($para) = $conf =~ /Only whitelisted keys may be overridden per host:(.*?)Anything else/s;
     my @doc = ( $para // '' ) =~ /`([a-z0-9_]+)`/g;
     @doc = sort @doc;
@@ -85,7 +85,7 @@ cmp_ok( scalar @SHIPPED, '>', 50, 'the shipped docs were found' );
 }
 
 # --- D-3: the session registry is pruned at the session lifetime ---------------
-for my $f (qw(starter/docs/auth.md starter/docs/manager.md)) {
+for my $f (qw(starter/lazysite/templates/docs/auth.md starter/lazysite/templates/docs/manager.md)) {
     my $t = slurp($f);
     unlike( $t, qr/self-pruned after 24/, "$f: the registry is not said to prune at a fixed 24 hours" );
     like( $t, qr/`session_lifetime`/, "$f: it names the setting it prunes at" );
@@ -97,7 +97,7 @@ for my $f (qw(starter/docs/auth.md starter/docs/manager.md)) {
     ok( defined $ttl, 'the connect code TTL was read from the users tool' );
     ( my $n = $ttl // 0 ) =~ s/_//g;
     my $min = $n / 60;
-    my @said = slurp('starter/docs/onboard-ai-agent.md') =~ /connect code has not expired \(it lasts (\d+) minutes/g;
+    my @said = slurp('starter/lazysite/templates/docs/onboard-ai-agent.md') =~ /connect code has not expired \(it lasts (\d+) minutes/g;
     is_deeply( \@said, [$min], "onboard-ai-agent.md gives the connect code $min minutes, as the code does" );
 }
 
@@ -105,7 +105,7 @@ for my $f (qw(starter/docs/auth.md starter/docs/manager.md)) {
 {
     my $default = Lazysite::SecurityHeaders::_csp_mode(undef);
     is( $default, 'report-only', 'the CSP mode with nothing set is report-only' );
-    like( slurp('starter/docs/reference.md'), qr/`csp`\n: The Content-Security-Policy mode: `\Q$default\E` \(the default/,
+    like( slurp('starter/lazysite/templates/docs/reference.md'), qr/`csp`\n: The Content-Security-Policy mode: `\Q$default\E` \(the default/,
         'reference.md gives that default' );
     unlike( slurp('docs/FEATURES.md'), qr/Content-Security-Policy ships enforcing/,
         'FEATURES.md does not say the CSP ships enforcing' );
@@ -141,11 +141,11 @@ like( slurp('installers/nginx/vhost-fcgi.conf.example'), qr/try_files \$uri \@la
     }
     is_deeply( \@serves, [ 'installers/hestia/lazysite.stpl', 'installers/hestia/lazysite.tpl' ],
         'only the plain Hestia template serves index.html as a directory index' );
-    my $dev = slurp('starter/docs/development.md');
+    my $dev = slurp('starter/lazysite/templates/docs/development.md');
     like( $dev, qr/plain Hestia `lazysite` template \(`lazysite\.tpl` \/ `lazysite\.stpl`\)\s+has `DirectoryIndex index\.html/,
         'development.md names that template as the one that serves the homepage cache' );
     like( $dev, qr/leave `index\.html` out of\s+the index list/, 'and says the others do not' );
-    like( slurp('starter/docs/ai-briefing-development.md'), qr/On the plain Hestia `lazysite`\s+template that file is served directly/,
+    like( slurp('starter/lazysite/templates/docs/ai-briefing-development.md'), qr/On the plain Hestia `lazysite`\s+template that file is served directly/,
         'and so does the development briefing' );
 }
 

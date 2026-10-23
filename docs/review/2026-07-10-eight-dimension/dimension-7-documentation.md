@@ -14,7 +14,7 @@ Assessed at tag `v0.6.10`, commit `5aa6f27` (verified with `git describe --tags`
 
 - Prior-finding verification: every 2026-07-01 D7 finding re-checked on disk (fixed / partial / open), with the fixing release identified from CHANGELOG.
 - Whole-tree currency grep for `manager_groups` (SM138) across `docs/`, `starter/`, `installers/` and root files, each hit classified current-behaviour-stale vs correctly-historical.
-- SM140 / SM137 / SM136 audience-doc currency checks against the shipped behaviour (`starter/docs/manager.md`, `ai-briefing-stats.md`, `forms-smtp.md`, `docs/FEATURES.md`, the generated `docs/reference/capability-map.md`).
+- SM140 / SM137 / SM136 audience-doc currency checks against the shipped behaviour (`starter/lazysite/templates/docs/manager.md`, `ai-briefing-stats.md`, `forms-smtp.md`, `docs/FEATURES.md`, the generated `docs/reference/capability-map.md`).
 - CHANGELOG completeness check against `git tag -l` for the full window, including the 0.6.6/0.6.7 field-fix round.
 - Doc drift gates run: `t/lint/01-stale-paths.t`, `t/tools/25-host-deps.t`, `t/tools/26-capability-docs.t`, `t/tools/27-manpages.t` (all pass).
 - Release-artefact inspection: `dist/lazysite-0.6.10.tar.gz` listed for man pages and shipped docs; `tools/release.sh` read for documentation steps.
@@ -31,8 +31,8 @@ bold: 1
 tone: medium
 text: 3
 ---
-F7.2/F7.5 SM095 currency rot (ten locations) | fixed | 0.5.37 sweep; FEATURES.md:398 (SM138-aware), starter/docs/configuration.md:75-78 and reference.md:72-75 mark the key "Retired", auth.md:269 and manager.md:43 describe the migration
-F7.3 raw-log download still documented | fixed | starter/docs/manager.md:192-193 now states "the raw logs are not downloadable through the manager"; plugins/stats.pl header comment rewritten; ai-briefing-stats.md:22 consistent
+F7.2/F7.5 SM095 currency rot (ten locations) | fixed | 0.5.37 sweep; FEATURES.md:398 (SM138-aware), starter/lazysite/templates/docs/configuration.md:75-78 and reference.md:72-75 mark the key "Retired", auth.md:269 and manager.md:43 describe the migration
+F7.3 raw-log download still documented | fixed | starter/lazysite/templates/docs/manager.md:192-193 now states "the raw logs are not downloadable through the manager"; plugins/stats.pl header comment rewritten; ai-briefing-stats.md:22 consistent
 F7.4 CHANGELOG keying | still PASS | see F7.6
 F7.6 no ADRs | fixed | docs/adr/0001-0006, framework structure (Status/Date/Tags; Context/Decision/Rationale/Consequences), retrospective ones dated and marked; the five recommended ADRs all written (0002-0006) plus 0001 from the D1 finding
 docs/SECURITY.md missing | fixed | STRIDE table over five trust boundaries + ASVS L1 status with named open items; cross-references architecture/security.md rather than duplicating it
@@ -47,7 +47,7 @@ The close-out itself is strong work: the 0.5.36-0.5.40 releases converted most o
 
 ### F7.2 - SM138 currency: the second rot wave, security tier missed (REFUSE condition)
 
-SM138 (0.6.5, breaking) retired the `manager_groups:` conf key entirely - manager access is groups-carried capabilities only, with an automatic migration that removes the key from `lazysite.conf`. The sweep that accompanied it updated `UPGRADE.md`, `docs/IMPLEMENTOR.md:51`, `docs/FEATURES.md:398` and the four `starter/docs/` pages - but not the security-tier documents, which still teach the retired key as the current control:
+SM138 (0.6.5, breaking) retired the `manager_groups:` conf key entirely - manager access is groups-carried capabilities only, with an automatic migration that removes the key from `lazysite.conf`. The sweep that accompanied it updated `UPGRADE.md`, `docs/IMPLEMENTOR.md:51`, `docs/FEATURES.md:398` and the four `starter/lazysite/templates/docs/` pages - but not the security-tier documents, which still teach the retired key as the current control:
 
 ```datatable
 columns: Location | Stale claim | Reality at v0.6.10
@@ -88,13 +88,13 @@ The 0.6.2 release itself performed a FEATURES.md sweep "brought current with the
 ### F7.4 - SM140/SM137 doc currency is good; SM136 has no prose documentation (WARN)
 
 SM140 (first-party analytics)
-: current and internally consistent. `starter/docs/manager.md:181-193` describes the dashboard as reading "lazysite's own first-party access log" with the server log as fallback and states raw logs are not downloadable; `ai-briefing-stats.md:19-22` matches (export built from the first-party log, tool never sees raw lines). The claim in CHANGELOG 0.6.9 that "docs updated (manager, AI briefing)" is verified true - for the site-served set. The repo-side gap is FEATURES.md (F7.3).
+: current and internally consistent. `starter/lazysite/templates/docs/manager.md:181-193` describes the dashboard as reading "lazysite's own first-party access log" with the server log as fallback and states raw logs are not downloadable; `ai-briefing-stats.md:19-22` matches (export built from the first-party log, tool never sees raw lines). The claim in CHANGELOG 0.6.9 that "docs updated (manager, AI briefing)" is verified true - for the site-served set. The repo-side gap is FEATURES.md (F7.3).
 
 SM137 (SMTP validation + password)
-: current. `starter/docs/forms-smtp.md:102-109` documents the Password field vs `password_file:` precedence; `:119-129` documents the staged Validate action with all four failure stages. Matches the shipped 0.6.4 button placement.
+: current. `starter/lazysite/templates/docs/forms-smtp.md:102-109` documents the Password field vs `password_file:` precedence; `:119-129` documents the staged Validate action with all four failure stages. Matches the shipped 0.6.4 button placement.
 
 SM136 (notifications)
-: no prose documentation anywhere. The `notifications` capability appears only in the generated `docs/reference/capability-map.md:44` and the plugin-registry descriptor; nothing in `starter/docs/` or `docs/` explains the manager bell, the capability's seeding on `user-managers`, or how to configure the **notify-xmpp** plugin (JID, password, recipient/room). An operator wanting XMPP delivery has CHANGELOG 0.6.2 as the only instruction.
+: no prose documentation anywhere. The `notifications` capability appears only in the generated `docs/reference/capability-map.md:44` and the plugin-registry descriptor; nothing in `starter/lazysite/templates/docs/` or `docs/` explains the manager bell, the capability's seeding on `user-managers`, or how to configure the **notify-xmpp** plugin (JID, password, recipient/room). An operator wanting XMPP delivery has CHANGELOG 0.6.2 as the only instruction.
 
 ### F7.5 - UPGRADE.md: the SM138 note is a model; the file lacks version keying (WARN, minor)
 
@@ -127,7 +127,7 @@ tone: medium
 text: 3
 ---
 Evaluator | README.md | current (174 lines; refreshed 0.6.2)
-User | docs/USER.md -> starter/docs/ | strong; site-served set current on the sampled topics; deferral still unrecorded in a manifest
+User | docs/USER.md -> starter/lazysite/templates/docs/ | strong; site-served set current on the sampled topics; deferral still unrecorded in a manifest
 Developer | docs/DEVELOPER.md + development.md + architecture/ | one stale capability sentence (DEVELOPER.md:26, F7.2); otherwise current incl. module inventory
 Implementor | docs/IMPLEMENTOR.md | current (SM138-aware, host-deps reference); its pointer target INSTALL-RUNBOOK.md is stale (F7.2)
 Operator | docs/OPERATOR.md | current; channels, backups, bad-URL blocker all present
@@ -147,7 +147,7 @@ This round applies the framework's refusal conditions strictly, as charged. Two 
 2. Bring `docs/FEATURES.md` current - SM136 (notifications capability + bell + notify-xmpp), SM137 (SMTP password + validation), SM140 (first-party analytics as the primary stats source, rewriting :836), add `notifications` to the capability table, extend the version timeline past 0.6.1. Effort: M. Gate: clears the feature-reference refusal condition.
 3. Make doc currency mechanical - extend `t/lint/01-stale-paths.t` (or a sibling) with a retired-terms list seeded with `manager_groups`-as-current-config, and add a doc-currency checklist step to the release flow so a breaking change cannot ship without its sweep. Effort: S-M. Gate: prevents the third wave; this is the systemic fix the 07-01 review asked for.
 4. Wire `tools/gen-manpages.pl` into `tools/release.sh` and ship the pages in the tarball (git archive `--add-file`, as for sbom.json) - or amend the 0.5.40 claim. Effort: S. Gate: man-page requirement; claim-vs-artefact honesty.
-5. Write user/operator documentation for SM136 - the bell, the `notifications` capability, and notify-xmpp configuration - in `starter/docs/` (manager.md section plus a short plugin page). Effort: S. Gate: audience coverage.
+5. Write user/operator documentation for SM136 - the bell, the `notifications` capability, and notify-xmpp configuration - in `starter/lazysite/templates/docs/` (manager.md section plus a short plugin page). Effort: S. Gate: audience coverage.
 6. Add `docs/MONITORS.md`, promoting the pre-launch operational holds and the existing practice (lazysite-check doctor, stats error surface, audit review) into a register with cadence and last-run. Effort: S. Gate: taxonomy; feeds the D5 monitors story.
 7. Version-key UPGRADE.md's recent sections and fold in the two CHANGELOG-only operator actions (0.5.39 channel caps; 0.6.6 ownership repair). Effort: S. Gate: upgrade-path usability.
 8. Amend ADR 0003 (or add 0007) for the SM138 clean cut. Effort: S. Gate: ADR currency.

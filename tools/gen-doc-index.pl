@@ -39,7 +39,7 @@ my @TREES = (
     [ 'docs/compliance', 'The regulatory record. Several are gated by lazysite-compliance.pl at a cut.' ],
     [ 'docs/review', 'Review registers: one row per piece of feedback, with what was done or why not.' ],
     [ 'docs/releases', 'What each release was gated on.' ],
-    [ 'starter/docs', 'SHIPPED. Installed into every site and served at /docs/. Written for the site owner and their agent.' ],
+    [ 'starter/lazysite/templates/docs', 'SHIPPED. The engine\'s /docs manual, installed into every site\'s engine tree and served at /docs/ (SM1284). Written for the site owner and their agent.' ],
 );
 
 sub summarise {
@@ -116,8 +116,9 @@ them by name - the filenames are sentences - or by content with `grep -rl`.
 
 ## Documentation that lives outside this repository
 
-- **A site's own published docs.** `starter/docs/` installs into every site and
-  is served at `/docs/`. A running site publishes around thirty pages; ask it
+- **A site's published docs.** `starter/lazysite/templates/docs/` installs into every site's
+  engine tree and is served at `/docs/` (SM1284). A running site publishes around
+  seventy pages; ask it
   with `describe_capabilities` (under "docs") or read `/docs/` rather than
   assuming a feature is undocumented.
 - **The layouts catalogue**, in its own repository, documents layouts and themes.

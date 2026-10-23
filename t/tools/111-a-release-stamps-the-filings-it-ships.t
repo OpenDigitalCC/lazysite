@@ -55,7 +55,7 @@ spit( "$d/docs/FEATURES.md",
         . "- **0.1.0** (2026-01-01, edge) - **The first.** It began.\n" );
 spit( "$d/docs/releases/CHANGELOG-archive.md",   "---\ntitle: \"Archive\"\n---\n" );
 spit( "$d/docs/INDEX.md",                        "index\n" );
-spit( "$d/starter/docs/ai-briefing-practice.md", "x\n" );
+spit( "$d/starter/lazysite/templates/docs/ai-briefing-practice.md", "x\n" );
 my $ABOUT = "---\ntitle: \"Changelog\"\n---\n\n";
 my $OLD = "## 0.1.0 - EDGE: the first (2026-01-01)\n\n- SM1 (abcdef12) **the first thing.**\n";
 spit( "$d/CHANGELOG.md", "$ABOUT## Unreleased\n\n$OLD" );

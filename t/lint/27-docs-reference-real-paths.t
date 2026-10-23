@@ -43,7 +43,7 @@ File::Find::find(
         },
     },
     "$root/docs",
-    "$root/starter/docs",
+    "$root/starter/lazysite/templates/docs",
 );
 # NOT the CHANGELOG. It is a historical record, and an entry describing what
 # 0.4.0 shipped correctly names files that existed then and do not now. Rewriting

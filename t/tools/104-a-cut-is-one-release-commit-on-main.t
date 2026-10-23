@@ -56,7 +56,7 @@ my %STANDIN = (
     'tools/import-field-practice.pl' => <<'PL',
 use strict; use warnings; use File::Basename qw(dirname); use Cwd qw(abs_path);
 my %o = @ARGV; my $root = dirname( dirname( abs_path($0) ) );
-open my $f, '>', "$root/starter/docs/ai-briefing-practice.md" or die;
+open my $f, '>', "$root/starter/lazysite/templates/docs/ai-briefing-practice.md" or die;
 print {$f} "engine-version: $o{'--engine-version'}\n";
 PL
     'tools/gen-doc-index.pl' => <<'PL',
@@ -107,7 +107,7 @@ T
     spit( "$d/docs/releases/CHANGELOG-archive.md", "---\ntitle: \"Archive\"\n---\n\n## 0.0.1 - EDGE: old (2025-01-01)\n" );
     spit( "$d/docs/releases/GATE-LOG.md", "| Version | Channel | Commit | Files | Tests | Gated (UTC) |\n|---|---|---|---|---|---|\n" );
     spit( "$d/docs/INDEX.md",                        "index\n" );
-    spit( "$d/starter/docs/ai-briefing-practice.md", "engine-version: 0.1.0\n" );
+    spit( "$d/starter/lazysite/templates/docs/ai-briefing-practice.md", "engine-version: 0.1.0\n" );
     spit( "$d/download/README.md",             "The 0.1.0 set: lazysite-0.1.0.tar.gz\n" );
     spit( "$d/download/lazysite-0.1.0.tar.gz", "old\n" );
     spit( "$d/CHANGELOG.md", "## Unreleased\n\n## 0.1.0 - EDGE: one (2026-01-01)\n\n- SM1 (abcdef12) **one.**\n" );

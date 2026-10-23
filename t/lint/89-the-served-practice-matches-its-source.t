@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM574: the served field-practice briefing matches what it was imported from.
 #
-# starter/docs/ai-briefing-practice.md is GENERATED, by
+# starter/lazysite/templates/docs/ai-briefing-practice.md is GENERATED, by
 # tools/import-field-practice.pl, from two files that live outside this repo -
 # the site agent's AUTHORING-PRACTICE.md and APP-PRACTICE.md. It ships in every
 # release and every connecting agent reads it. So it has two ways to become a
@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
 my $root = repo_root();
-my $doc  = "$root/starter/docs/ai-briefing-practice.md";
+my $doc  = "$root/starter/lazysite/templates/docs/ai-briefing-practice.md";
 my $gen  = "$root/tools/import-field-practice.pl";
 
 ok( -f $doc, 'the field-practice briefing is present' )
@@ -247,7 +247,7 @@ subtest 'the author-facing section is gone, and answered' => sub {
 # ai-briefing-*), so this file's NAME is what puts it in front of an agent, and
 # its front matter is what describes it there.
 subtest 'it is discoverable as a briefing' => sub {
-    like( $doc, qr{/starter/docs/ai-briefing-[a-z-]+\.md\z},
+    like( $doc, qr{/starter/lazysite/templates/docs/ai-briefing-[a-z-]+\.md\z},
         'it is named as a briefing, which is how describe_capabilities finds it' );
     like( $text, qr/\A---\ntitle:\s*\S/,
         'front matter is the first bytes of the file, with a title' );

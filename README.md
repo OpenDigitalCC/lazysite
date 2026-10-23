@@ -129,7 +129,7 @@ generated password if you don't supply one:
 its output.) Pass a password as a final argument to set your own.
 
 Full installation details in
-[starter/docs/install.md](starter/docs/install.md).
+[starter/lazysite/templates/docs/install.md](starter/lazysite/templates/docs/install.md).
 
 ### Connect an AI partner
 
@@ -150,23 +150,23 @@ content, navigation, forms and themes - trim with `--no-themes`, extend with
 
 Browse locally via the dev server, or read the Markdown directly:
 
-- `starter/docs/install.md` - installation
-- `starter/docs/authoring.md` - writing content
-- `starter/docs/configuration.md` - lazysite.conf, nav, plugins
-- `starter/docs/layouts.md` - layouts and themes
-- `starter/docs/manager.md` - the manager UI
-- `starter/docs/auth.md` - authentication
-- `starter/docs/forms.md` - contact forms
-- `starter/docs/payment.md` - x402 payment
-- `starter/docs/development.md` - dev server, rsync, troubleshooting
-- `starter/docs/reference.md` - keys, variables, file locations
+- `starter/lazysite/templates/docs/install.md` - installation
+- `starter/lazysite/templates/docs/authoring.md` - writing content
+- `starter/lazysite/templates/docs/configuration.md` - lazysite.conf, nav, plugins
+- `starter/lazysite/templates/docs/layouts.md` - layouts and themes
+- `starter/lazysite/templates/docs/manager.md` - the manager UI
+- `starter/lazysite/templates/docs/auth.md` - authentication
+- `starter/lazysite/templates/docs/forms.md` - contact forms
+- `starter/lazysite/templates/docs/payment.md` - x402 payment
+- `starter/lazysite/templates/docs/development.md` - dev server, rsync, troubleshooting
+- `starter/lazysite/templates/docs/reference.md` - keys, variables, file locations
 
 AI-assistant briefings:
 
-- `starter/docs/ai-briefing-authoring.md`
-- `starter/docs/ai-briefing-layouts.md`
-- `starter/docs/ai-briefing-configuration.md`
-- `starter/docs/ai-briefing-development.md`
+- `starter/lazysite/templates/docs/ai-briefing-authoring.md`
+- `starter/lazysite/templates/docs/ai-briefing-layouts.md`
+- `starter/lazysite/templates/docs/ai-briefing-configuration.md`
+- `starter/lazysite/templates/docs/ai-briefing-development.md`
 
 ## Layouts and themes
 

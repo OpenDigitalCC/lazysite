@@ -29,7 +29,8 @@ package main;
 #         Fcntl LOCK_* constants (imported by the script's `use`, before its
 #         parts load; the constants written as calls, so the part compiles alone).
 # READS   $DOCROOT, $LAZYSITE_DIR, $REGISTRY_DIR, $REGISTRY_CACHE_DIR,
-#         $REGISTRY_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %ACCESS_REC (the
+#         $REGISTRY_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %ACCESS_REC,
+#         $ENGINE_DOCS_DIR, $ENGINE_DOC_RENDER (the
 #         script's, declared `our` there).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S15). It is package main, required
@@ -38,7 +39,8 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $REGISTRY_DIR, $REGISTRY_CACHE_DIR, $REGISTRY_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %ACCESS_REC );
+our ( $DOCROOT, $LAZYSITE_DIR, $REGISTRY_DIR, $REGISTRY_CACHE_DIR, $REGISTRY_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %ACCESS_REC,
+    $ENGINE_DOCS_DIR, $ENGINE_DOC_RENDER );
 our $REGISTRY_REBUILDING;    # SM1152: true in the detached rebuild itself
 
 # --- Scan and registries ---
@@ -154,6 +156,20 @@ sub _scan_parse_modifiers {
 # of resolve_scan verbatim: same roots, same walk, same private-wins dedupe,
 # the cap the caller passes (P9: the site's scan_limit, 200 by default) in the
 # same order, and the same _tt_dep calls on the way.
+# SM1284: does this request's scan read the engine's docs? An engine page's
+# render does; a site page's only on a site that put them in (ruling 35).
+sub _scan_sees_engine_docs {
+    return 1 if $ENGINE_DOC_RENDER;
+    return _engine_docs_public();
+}
+
+# SM1284 (ruling 35): `engine_docs_public: true` in lazysite.conf puts the
+# engine's /docs pages into the site's search, sitemap, feeds and llms.txt -
+# for a site that IS the product's documentation (lazysite.io). Off by default.
+sub _engine_docs_public {
+    return ( peek_conf_key('engine_docs_public') // '' ) =~ /\A(?:true|yes|on|1)\z/i ? 1 : 0;
+}
+
 sub _scan_collect_files {
     my ( $pattern, $scan_root, $excl, $limit ) = @_;
 
@@ -181,9 +197,28 @@ sub _scan_collect_files {
     push @roots, $priv_root
         if defined $priv_root && $priv_root ne $scan_root && -d $priv_root;
 
+    # SM1284 (ruling 35): AND THE ENGINE'S /docs PAGES, WHEN THEY ARE ASKED FOR.
+    #
+    # The manual lists itself - the features index is a scan of
+    # /docs/features/ - so an engine page's own scans see the engine tree, or
+    # the index would be empty on every site without a docs copy. A site page's
+    # scan (the search index among them) sees it only when the site has said
+    # `engine_docs_public: true`: the manual is the engine's, and a site's own
+    # search and listings are about the site. FIRST, so a site's copy at the
+    # same path replaces it below - the site page wins, as it does when served.
+    my @fs_patterns;
+    if ( _scan_sees_engine_docs() ) {
+        if ( $pattern =~ m{\A/docs/(.+)\z}s ) {
+            push @fs_patterns, "$ENGINE_DOCS_DIR/$1";
+        }
+        elsif ( $pattern =~ m{\A/\*\*/(.+)\z}s ) {
+            push @fs_patterns, "$ENGINE_DOCS_DIR/**/$1";
+        }
+    }
+    push @fs_patterns, map { $_ . $pattern } @roots;
+
     my @files;
-    for my $root (@roots) {
-        my $fs_pattern = $root . $pattern;
+    for my $fs_pattern (@fs_patterns) {
         if ( $fs_pattern =~ m{\*\*} ) {
             # Recursive glob: expand ** by walking directories
             # Split pattern into base dir and file glob parts
@@ -206,6 +241,14 @@ sub _scan_collect_files {
                         next if $entry =~ /^\./;
                         my $path = "$dir/$entry";
                         if ( -d $path ) {
+                            # SM1284: never into the lazysite/ management tree,
+                            # as scan_pages already refuses. A site whose engine
+                            # tree is inside the docroot listed its system pages
+                            # in a `scan:/**/*.md` (the search index) at
+                            # /lazysite/templates/... URLs, and would have listed
+                            # the whole manual there. The engine's docs come in
+                            # by their own pattern, at their own URLs.
+                            next if $path eq $LAZYSITE_DIR;
                             # SM151: don't follow symlinked dirs - a symlink could
                             # cycle (hanging the walk) or escape the content root
                             # (leaking a sibling domain's pages into search).
@@ -366,7 +409,9 @@ sub resolve_scan {
         # SM460: _path_under_content, not _path_under - it accepts the scan
         # root OR its private twin, each boundary-safe, which is the same
         # two-strict-checks shape SM458 used rather than one loosened test.
-        next unless _path_under_content( $real, $scan_root );
+        # SM1284: or the engine's docs, which only the engine-docs pattern above
+        # can have put in the list.
+        next unless _path_under_content( $real, $scan_root ) || _engine_page_real($real);
         next unless -f $real;
 
         # SM311: recorded BEFORE the visibility filter, deliberately. A page that
@@ -422,6 +467,8 @@ sub resolve_scan {
         {
             $url_src = $scan_root . substr( $url_src, length($priv_scan) );
         }
+        # SM1284: an engine page is listed at the path it is served at.
+        $url_src = "$scan_root/docs/$1" if $url_src =~ m{\A\Q$ENGINE_DOCS_DIR\E/(.+)\z}s;
         my $url = _page_url( $url_src, $scan_root );
 
         # Date from front matter or mtime
@@ -561,7 +608,7 @@ sub resolve_scan {
     if ( @all > $limit ) {
         for my $path ( @all[ $limit .. $#all ] ) {
             my $real = realpath($path);
-            next unless defined $real && _path_under_content( $real, $scan_root ) && -f $real;
+            next unless defined $real && ( _path_under_content( $real, $scan_root ) || _engine_page_real($real) ) && -f $real;
             next if _scan_hidden($real);
             $total++;
         }
@@ -1152,6 +1199,10 @@ sub scan_pages {
 
     # Find all .md and .url files recursively under the root
     my @queue = ($root);
+    # SM1284 (ruling 35): and the engine's /docs pages, on a site that put them
+    # in. Otherwise a site's sitemap, feeds and llms.txt are its own content.
+    my $engine = ( _engine_docs_public() && -d $ENGINE_DOCS_DIR ) ? $ENGINE_DOCS_DIR : undef;
+    push @queue, $engine if defined $engine;
     while ( my $dir = shift @queue ) {
         opendir( my $dh, $dir ) or next;
         for my $entry ( sort readdir($dh) ) {
@@ -1208,8 +1259,15 @@ sub scan_pages {
                 # Get date from front matter or file mtime
                 my $date = _page_date( $meta, $path );
 
-                # Derive URL from path, relative to the scanned root (SM151)
-                my $url = _page_url( $path, $root );
+                # Derive URL from path, relative to the scanned root (SM151).
+                # SM1284: an engine page at the path it is served at - and not
+                # at all when the site has its own page there, which wins.
+                my $url_src = $path;
+                if ( defined $engine && $path =~ m{\A\Q$engine\E/(.+)\.md\z}s ) {
+                    next if -f _content_abs("$root/docs/$1.md");
+                    $url_src = "$root/docs/$1.md";
+                }
+                my $url = _page_url( $url_src, $root );
 
                 # P12: the page's other front matter, as a scan object carries
                 # it, less the engine-private keys; and its tags, as a list.

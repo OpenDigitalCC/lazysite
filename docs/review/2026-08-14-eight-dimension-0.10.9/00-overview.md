@@ -181,7 +181,7 @@ text: 1
 ---
 Re-capture the bench baseline at the next cut and add a registry-generation op | D4 | build, next release
 Fix POLICY.md's review pointer and rewrite ADR 0001's "one recorded copy" | D7 | build, next release
-Extend the llms.txt defaults change to `starter/docs/*/` - it missed a subdirectory | D7 | build, next release
+Extend the llms.txt defaults change to `starter/lazysite/templates/docs/*/` - it missed a subdirectory | D7 | build, next release
 Run the fleet updater with `--proxy` so SM283's remedy reaches the domains | D6 | operate
 Run `--reapply-acls` on the fleet, then verify with `check --check-acl` | D6 | operate
 ```

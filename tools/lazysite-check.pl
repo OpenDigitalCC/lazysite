@@ -1553,6 +1553,9 @@ sub run_checks {
             if !@dead && !@root_only;
     }
 
+    # --- 10b. a site page in front of the engine's /docs manual (SM1284) -------
+    report_shadowed_engine_docs();
+
     # --- 11. OAuth/remote discovery coherence (SM190 / SM200 lever 4) -------------
     # The .well-known discovery docs advertise every endpoint from site_url. If a
     # remote service is enabled but site_url is unset or not https, the docs hand a
@@ -3053,6 +3056,51 @@ sub report_shared_manager_account {
             . 'records every action under a name that is not a person'
     );
     return;
+}
+
+# SM1284 (ruling 27): A SITE'S OWN PAGE AT A /docs PATH WINS, AND SAYS SO HERE.
+#
+# The manual is the engine's (lazysite/templates/docs/), refreshed by every
+# upgrade. A site that keeps its own page at one of its paths is served that
+# page instead - an operator's deliberate override, or an edited copy the
+# upgrade that moved the manual kept rather than destroy. Either way the
+# engine's newer version is not what visitors and agents read, and nothing else
+# would ever say so. A copy byte-identical to the engine's shadows nothing.
+sub report_shadowed_engine_docs {
+    my $engine = "$LZ/templates/docs";
+    return unless -d $engine;
+    my @shadow;
+    find_noting( 'the engine-docs shadow check',
+        { no_chdir => 1,
+            wanted => sub {
+                my $p = $File::Find::name;
+                return unless $p =~ /\.md\z/ && -f $p;
+                ( my $rel = $p ) =~ s{\A\Q$engine\E/}{};
+                my $site = "$DOC/docs/$rel";
+                return unless -f $site;
+                push @shadow, "docs/$rel" if _slurp_raw($site) ne _slurp_raw($p);
+            },
+        },
+        $engine,
+    );
+    return unless @shadow;
+    @shadow = sort @shadow;
+    my @shown = @shadow > 10 ? ( @shadow[ 0 .. 9 ], '...' ) : @shadow;
+    report( 'WARN',
+        scalar(@shadow) . ' site page(s) shadow a newer version of the engine\'s /docs manual - '
+            . 'visitors and agents read the site\'s copy: ' . join( ', ', @shown ),
+        'keep a page you meant to override; delete one you did not, and the engine\'s current '
+            . 'page serves at the same path (SM1284)' );
+    return;
+}
+
+sub _slurp_raw {
+    my ($p) = @_;
+    open my $fh, '<:raw', $p or return '';
+    local $/;
+    my $c = <$fh>;
+    close $fh;
+    return $c // '';
 }
 
 sub report_stale_registries {

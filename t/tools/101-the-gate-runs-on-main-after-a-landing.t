@@ -78,7 +78,7 @@ sub repo {
     git( $d, 'config', 'user.name',  't' );
     spit( "$d/VERSION",      "0.1.0\n" );
     spit( "$d/NEXT_VERSION", ( $o{next} // '0.1.1' ) . "\n" );
-    spit( "$d/starter/docs/ai-briefing-practice.md", "---\nprovenance:\n    engine-version: " . ( $o{stamp} // '0.1.1' ) . "\n---\n" );
+    spit( "$d/starter/lazysite/templates/docs/ai-briefing-practice.md", "---\nprovenance:\n    engine-version: " . ( $o{stamp} // '0.1.1' ) . "\n---\n" );
     spit( "$d/.gitignore",       "tmp/\ncalls\n" );
     spit( "$d/tools/release.sh", $STANDIN );
     copy( "$root/tools/gate-main.sh", "$d/tools/gate-main.sh" ) or die $!;

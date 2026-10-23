@@ -34,7 +34,7 @@ use TestHelper qw(repo_root preserve_tracked);
 
 my $root = repo_root();
 my $tool = "$root/tools/import-field-practice.pl";
-my $out  = "$root/starter/docs/ai-briefing-practice.md";
+my $out  = "$root/starter/lazysite/templates/docs/ai-briefing-practice.md";
 plan skip_all => "no $tool" unless -f $tool;
 plan skip_all => "no $out"  unless -f $out;
 

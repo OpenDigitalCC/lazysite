@@ -15,7 +15,7 @@ Assessed at tag `v0.5.35`, commit `de12238` (verified with `git describe --tags`
 - File-by-file audit of the expected taxonomy map against the repo (`ls`, targeted reads).
 - Currency spot-checks: five claims across `FEATURES.md` / `IMPLEMENTOR.md` / `USER.md` / `OPERATOR.md` compared with the code at v0.5.35 (`lib/Lazysite/Auth/Settings.pm`, `lazysite-auth.pl`, `lazysite-manager-api.pl`, `plugins/stats.pl`) and with CHANGELOG entries 0.5.20-0.5.35.
 - CHANGELOG keying check and release-presence check for 0.5.22-0.5.35.
-- Contradiction sampling of three topics that overlap between `docs/` and the site-served `starter/docs/` set.
+- Contradiction sampling of three topics that overlap between `docs/` and the site-served `starter/lazysite/templates/docs/` set.
 - `--help` run against `tools/lazysite-users.pl`, `tools/lazysite-check.pl` and `install.pl` (man-page interim assessment).
 
 ## Findings
@@ -73,18 +73,18 @@ Classification: WARN - `FEATURES.md` is the auditor's map of the territory per t
 
 ### F7.3 - Currency: removed raw log download still documented (WARN)
 
-CHANGELOG 0.5.29 (line 77): "Synthesised error surface; raw log download removed". Verified in code: `lazysite-manager-api.pl` has no log-download action (only `file-download`, `backup-download`, `file-zip-download` at lines 465-476). Yet `starter/docs/manager.md:180` still states the stats dashboard "offers an operator-only raw access-log download". A stale code comment also survives at `plugins/stats.pl:16` (references the retired download endpoint). `starter/docs/ai-briefing-stats.md:20` is already correct ("the tool [never sees] the raw log"), so `starter/docs` contradicts itself on this topic.
+CHANGELOG 0.5.29 (line 77): "Synthesised error surface; raw log download removed". Verified in code: `lazysite-manager-api.pl` has no log-download action (only `file-download`, `backup-download`, `file-zip-download` at lines 465-476). Yet `starter/lazysite/templates/docs/manager.md:180` still states the stats dashboard "offers an operator-only raw access-log download". A stale code comment also survives at `plugins/stats.pl:16` (references the retired download endpoint). `starter/lazysite/templates/docs/ai-briefing-stats.md:20` is already correct ("the tool [never sees] the raw log"), so `starter/lazysite/templates/docs` contradicts itself on this topic.
 
 ### F7.4 - CHANGELOG keying and completeness (PASS)
 
 `CHANGELOG.md:14-17` declares the convention: released versions keyed by tag, unreleased entries keyed by SM number and short commit ref - conforming to the commit-ref-keyed house convention. Verified all of 0.5.22 through 0.5.35 present (lines 21-168), newest first, each entry high-level with a dated heading. One source of truth for "what changed" holds.
 
-### F7.5 - starter/docs vs repo docs: contradiction sample (WARN)
+### F7.5 - starter/lazysite/templates/docs vs repo docs: contradiction sample (WARN)
 
 Three overlapping topics sampled:
 
 ```datatable
-columns: Topic | starter/docs says | docs/ says | Contradiction?
+columns: Topic | starter/lazysite/templates/docs says | docs/ says | Contradiction?
 widths: 3cm | X | X | 3cm
 bold: 1
 tone: medium
@@ -92,10 +92,10 @@ text: 2 * 3
 ---
 Manager access control | manager_groups is the mechanism (auth.md:260-266, configuration.md:75, manager.md:223-225) | manager_groups group membership (FEATURES.md:364) | no - but both contradict the code (ui capability)
 Where capabilities are edited | per-account on the Users page (manager.md:136); Groups page described as membership-only (manager.md:139-143) | per-account toggles on Users page (FEATURES.md:385) | no - both stale the same way
-Visitor stats raw log | download exists (manager.md:180) vs never exposed (ai-briefing-stats.md:20) | FEATURES.md makes no download claim | yes - internal to starter/docs
+Visitor stats raw log | download exists (manager.md:180) vs never exposed (ai-briefing-stats.md:20) | FEATURES.md makes no download claim | yes - internal to starter/lazysite/templates/docs
 ```
 
-The two doc sets do not diverge from each other; they rotted in lockstep because the SM095 and 0.5.29 changes updated neither. The failure is systemic (no doc-currency step in the release flow), not a fork between the sets. The `starter/docs` set is otherwise strong - the AI briefings (including `ai-briefing-building-sites.md`, added 0.5.23) are current on the topics sampled.
+The two doc sets do not diverge from each other; they rotted in lockstep because the SM095 and 0.5.29 changes updated neither. The failure is systemic (no doc-currency step in the release flow), not a fork between the sets. The `starter/lazysite/templates/docs` set is otherwise strong - the AI briefings (including `ai-briefing-building-sites.md`, added 0.5.23) are current on the topics sampled.
 
 ### F7.6 - No ADRs; five standing decisions are unrecorded (WARN)
 
@@ -111,15 +111,15 @@ text: 2 * 3
 0001-uncommitted-tree-release-contract | releases cut from an uncommitted working tree the operator reviews and commits; diverges from the vcs-review default | CLAUDE.md:12-17; docs/development.md:6-15
 0002-channel-action-capabilities-groups-only | authorisation is channel caps x action caps, resolved from groups only, one resolver for all four surfaces | lib/Lazysite/Auth/Settings.pm:18-26,91-96; SM095
 0003-two-bucket-install-classification | every shipped file is code (always overwritten) or seed (operator content, preserved); provenance stamp distinguishes lazysite content from operator content | dist/config/classification.json; 0.5.33 preservation fix; 0.5.35 provenance stamp
-0004-edge-stable-release-channels | every release defaults to edge; --final marks stable; per-site update_channel selects | tools/release.sh:41-54; starter/docs/features/configuration/update-channel.md
-0005-raw-mode-self-contained-artifacts | api: true serves the body as data, bypassing Markdown pipeline and layout entirely | starter/docs/api.md; starter/docs/frontmatter.md:62
+0004-edge-stable-release-channels | every release defaults to edge; --final marks stable; per-site update_channel selects | tools/release.sh:41-54; starter/lazysite/templates/docs/features/configuration/update-channel.md
+0005-raw-mode-self-contained-artifacts | api: true serves the body as data, bypassing Markdown pipeline and layout entirely | starter/lazysite/templates/docs/api.md; starter/lazysite/templates/docs/frontmatter.md:62
 ```
 
 All five are retrospective ADRs (valid per the framework). ADRs 0002 and 0003 are the most urgent: both were nearly violated recently (the four parallel capability readers found by dimension 1; the 0.5.33 upgrade data-loss bug in the seed model).
 
 ### F7.7 - Audience-doc depth and gaps (WARN, minor)
 
-`USER.md` (53 lines) is a deliberate pointer to the site-served docs - defensible, since `starter/docs/` ships inside every installation and is the canonical user reference, but the deferral should be recorded in the project manifest as the taxonomy mapping the framework allows. `OPERATOR.md` carries no mention of the edge/stable release channels or `update_channel` (grep: no hits), although the operator is exactly who chooses a channel; the only channel documentation is site-served (`starter/docs/features/configuration/update-channel.md`).
+`USER.md` (53 lines) is a deliberate pointer to the site-served docs - defensible, since `starter/lazysite/templates/docs/` ships inside every installation and is the canonical user reference, but the deferral should be recorded in the project manifest as the taxonomy mapping the framework allows. `OPERATOR.md` carries no mention of the edge/stable release channels or `update_channel` (grep: no hits), although the operator is exactly who chooses a channel; the only channel documentation is site-served (`starter/lazysite/templates/docs/features/configuration/update-channel.md`).
 
 ### F7.8 - Man pages absent; --help is a reasonable interim (WARN, minor)
 
@@ -127,8 +127,8 @@ No `man/` directory. The three operator CLIs were run with `--help`: `tools/lazy
 
 ## Recommendations
 
-1. SM095 currency sweep - correct the six repo-doc locations in F7.2 and the four starter-doc locations in F7.5 (capability table regenerated from `@CAP_KEYS`, `manager_groups` re-described as legacy fallback, Groups page documented as the capability editor). Where: `docs/FEATURES.md`, `docs/IMPLEMENTOR.md`, `starter/docs/{manager,auth,configuration}.md`. Effort: M. Gate: Dimension 7 currency.
-2. Remove the raw-download claim at `starter/docs/manager.md:180` and the stale comment at `plugins/stats.pl:16`. Effort: S. Gate: Dimension 7 currency.
+1. SM095 currency sweep - correct the six repo-doc locations in F7.2 and the four starter-doc locations in F7.5 (capability table regenerated from `@CAP_KEYS`, `manager_groups` re-described as legacy fallback, Groups page documented as the capability editor). Where: `docs/FEATURES.md`, `docs/IMPLEMENTOR.md`, `starter/lazysite/templates/docs/{manager,auth,configuration}.md`. Effort: M. Gate: Dimension 7 currency.
+2. Remove the raw-download claim at `starter/lazysite/templates/docs/manager.md:180` and the stale comment at `plugins/stats.pl:16`. Effort: S. Gate: Dimension 7 currency.
 3. Create `docs/adr/` with the five retrospective ADRs of F7.6, framework structure (Status/Date/Tags, Context/Decision/Rationale/Consequences). Effort: M. Gate: Dimension 7 ADR set; also closes dimension 1's unrecorded-divergence finding for 0002.
 4. Write `docs/SECURITY.md` as the threat-model home (STRIDE over the four write surfaces, ASVS verification record), promoting and cross-referencing `docs/architecture/security.md` rather than duplicating it. Effort: L. Gate: Dimension 7 taxonomy; feeds the Dimension 8 technical file.
 5. Add `docs/MONITORS.md` - register the monitors that already exist in practice (stats plugin error surface, `lazysite-check.pl` health doctor, audit log review) with cadence and last-run. Effort: S. Gate: Dimension 7 taxonomy.

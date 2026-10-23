@@ -34,7 +34,7 @@ Operator (Hestia) | debian/lazysite-hestia.README.Debian | both switches, cost a
 Operator (general) | docs/OPERATOR.md | the FastCGI pool unit, in full | the daemon unit at all: lazysited@, the conf, --status, what the jobs write
 Developer | docs/DEVELOPER.md | - | the runtime in "architecture in one screen"; how a job is added and why the set is closed
 Implementor | docs/IMPLEMENTOR.md | - | that a deployment may include the runtime; the purpose-account recommendation
-Sysop (site docs) | starter/docs/*.md | - | any page: the Plugin Manager description is the only sysop-facing text
+Sysop (site docs) | starter/lazysite/templates/docs/*.md | - | any page: the Plugin Manager description is the only sysop-facing text
 Security | docs/SECURITY.md | - | a significant-change entry; a trust-boundary line for a scheduled actor without a request
 Architecture | docs/architecture/performance.md | "No daemon, no process manager, no listening socket" | the sentence is no longer true as written
 ADRs | docs/adr/ | 0009 (the plugin contract the daemon conforms to) | an ADR for the runtime's own decisions (one per instance; jobs are engine code; a process per service)
@@ -107,5 +107,5 @@ as its context.
 2. Recast the performance.md sentence (F7.3) - one line.
 3. DEVELOPER.md paragraph and table rows (F7.4).
 4. ADR 0011 (F7.5), drafted from SM666 - can follow the cut.
-5. A starter/docs page for the sysop when the plugin has a second real job set to
+5. A starter/lazysite/templates/docs page for the sysop when the plugin has a second real job set to
    describe; until then the plugin description carries it.

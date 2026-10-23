@@ -149,7 +149,7 @@ subtest 'neither is in any listing' => sub {
 
 subtest 'the shipped pages carry no auth: manager outside the manager' => sub {
     my @bad;
-    for my $f ( sort glob("$root/starter/docs/*.md"), glob("$root/starter/*.md") ) {
+    for my $f ( sort glob("$root/starter/lazysite/templates/docs/*.md"), glob("$root/starter/*.md") ) {
         open my $fh, '<', $f or next;
         my $head = '';
         while ( my $l = <$fh> ) { last if $. > 1 && $l =~ /^---/; $head .= $l }

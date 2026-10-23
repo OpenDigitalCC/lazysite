@@ -12,8 +12,8 @@
 #     than in.
 #
 # WHY THIS IS A TEST AND NOT A CONVENTION. The change that established the
-# policy was applied with the glob `starter/docs/*.md`, which does not descend.
-# `starter/docs/integrations/` was missed, and the miss was invisible in the
+# policy was applied with the glob `starter/lazysite/templates/docs/*.md`, which does not descend.
+# `starter/lazysite/templates/docs/integrations/` was missed, and the miss was invisible in the
 # source: a recursive check said two pages still registered while the author's
 # non-recursive one said none did. It was found by reading the registry off a
 # DEPLOYED site, three days after the change shipped.
@@ -62,12 +62,12 @@ sub pages_under {
 }
 
 subtest 'bundled documentation does not register for llms.txt' => sub {
-    my @docs = pages_under("$root/starter/docs");
+    my @docs = pages_under("$root/starter/lazysite/templates/docs");
     cmp_ok( scalar @docs, '>=', 10, 'found the shipped documentation' );
 
     # Assert the walk actually descends - a guard on the guard. If this file
     # ever regresses to a non-recursive glob, this is what says so.
-    my @nested = grep { m{/starter/docs/[^/]+/} } @docs;
+    my @nested = grep { m{/starter/lazysite/templates/docs/[^/]+/} } @docs;
     cmp_ok( scalar @nested, '>=', 1,
         'and the walk reaches pages in SUBDIRECTORIES - the exact case the '
             . 'original change missed' );

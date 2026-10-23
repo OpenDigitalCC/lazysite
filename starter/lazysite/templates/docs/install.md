@@ -218,7 +218,7 @@ Create `dirname/index.md` for any directory that needs an index page.
 
 ### Using an AI assistant
 
-Four audience-specific briefings live under `starter/docs/`:
+Four audience-specific briefings live under `starter/lazysite/templates/docs/`:
 
 - `ai-briefing-authoring.md` - writing content
 - `ai-briefing-layouts.md` - designing layouts and themes

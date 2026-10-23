@@ -44,14 +44,14 @@ sub slurp {
     return <$fh>;
 }
 
-# Every shipped documentation page, at any depth - starter/docs/integrations/ is
+# Every shipped documentation page, at any depth - starter/lazysite/templates/docs/integrations/ is
 # the directory a non-recursive glob missed in 0.10.9 (t/lint/46). Walk it.
 my @docs;
 find(
     {   no_chdir => 1,
         wanted   => sub { push @docs, $_ if /\.(?:md|html)\z/ && -f $_ },
     },
-    "$root/starter/docs"
+    "$root/starter/lazysite/templates/docs"
 );
 @docs = sort @docs;
 cmp_ok( scalar @docs, '>=', 10, 'found the shipped documentation' );
@@ -192,7 +192,7 @@ subtest 'no shipped page or example filters a query value' => sub {
 };
 
 subtest 'the briefing states the contract, not just the variable names' => sub {
-    my $brief = "$root/starter/docs/ai-briefing-layouts.md";
+    my $brief = "$root/starter/lazysite/templates/docs/ai-briefing-layouts.md";
     ok( -f $brief, 'the layouts briefing is present' ) or return;
     my $text = slurp($brief);
 

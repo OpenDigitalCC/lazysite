@@ -68,7 +68,7 @@ subtest 'SM708: the template-parse check refuses the real case only' => sub {
     # parse error - a hyphen is not valid in a bare TT identifier - so it is
     # refused, correctly. The first version of this test used the unquoted form
     # and failed; the fixture was wrong, not the check. The quoted form is also
-    # the one starter/docs/ai-briefing-layouts actually ships.
+    # the one starter/lazysite/templates/docs/ai-briefing-layouts actually ships.
     ok( !$refused->( qq{[% INCLUDE "definitely-not-here.tt" %]\n} ),
         'a missing INCLUDE is NOT refused - only parse errors are' );
 };

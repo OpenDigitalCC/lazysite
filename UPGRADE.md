@@ -68,6 +68,29 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## The /docs manual moves into the engine (SM1284)
+
+The whole `/docs` manual, the agent briefings included, now ships in the engine
+tree (`lazysite/templates/docs/`) and is served from there whenever the site has
+no page of its own at the path. Upgrades refresh it, and clearing a site's
+content leaves it in place.
+
+What the upgrade does to a site's `docs/` folder:
+
+- **A page the site never edited is removed**, along with its cached render.
+  The install state's checksum says it is unchanged, so the engine's copy now
+  serves at the same URL.
+- **An edited page is kept** and named in the output as `orphan (edited
+  post-install, left in place)`. It still serves in place of the engine's page,
+  and `lazysite check` warns that it shadows a newer version. Delete it to serve
+  the engine's page, or keep it as a deliberate override.
+- **A page the site wrote itself is untouched.** So is everything outside
+  `docs/`, the starter pages included.
+
+The manual stays out of the site's search, sitemap, feeds and `llms.txt`. Set
+`engine_docs_public: true` in `lazysite.conf` on a site that should list it,
+such as the product's own documentation site.
+
 ## The visitor's address, if this site is behind a reverse proxy (SM929)
 
 Nothing to do on a site served directly: the engine reads the connecting address,
@@ -825,7 +848,7 @@ installer lands (D021c).
 `install.sh` now catches up with files that were in the release
 manifest but previously not installed by the installer:
 
-- `starter/docs/features/` subtree (authoring, configuration, and
+- `starter/lazysite/templates/docs/features/` subtree (authoring, configuration, and
   development feature docs) under `{docroot}/docs/features/`
 - `tools/lazysite-server.pl` (dev/evaluation server) and
   `tools/build-static.sh` (static site export) under

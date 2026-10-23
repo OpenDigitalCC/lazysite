@@ -18,7 +18,7 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
 my $root = repo_root();
-my @dirs = ( "$root/starter/manager", "$root/starter/docs", "$root/starter" );
+my @dirs = ( "$root/starter/manager", "$root/starter/lazysite/templates/docs", "$root/starter" );
 
 my %seen;
 my @files;

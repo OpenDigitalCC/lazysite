@@ -3138,7 +3138,7 @@ Newest first; releases are git tags.
 
 ---
 
-*This reference was synthesised from the lazysite source, the `starter/docs/`
+*This reference was synthesised from the lazysite source, the `starter/lazysite/templates/docs/`
 documentation set, the `docs/feature-requests/` record, and the CHANGELOG. The
 version it describes is named once, in the subtitle at the top - deliberately
 once, because a document that dates itself twice is a document with two things

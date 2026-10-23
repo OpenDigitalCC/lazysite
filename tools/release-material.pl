@@ -20,7 +20,7 @@
 #                  the timeline entry, and the subtitle's "as of vX.Y.Z".
 #   VERSION, NEXT_VERSION
 #                  X.Y.Z and X.Y.(Z+1), by tools/bump-version.pl.
-#   starter/docs/ai-briefing-practice.md
+#   starter/lazysite/templates/docs/ai-briefing-practice.md
 #                  re-imported for X.Y.Z (tools/import-field-practice.pl).
 #   docs/INDEX.md  regenerated (tools/gen-doc-index.pl --write).
 #   docs/feature-requests/*.md
@@ -72,7 +72,7 @@ my @ALLOWLIST = qw(
     docs/releases/CHANGELOG-archive.md
     docs/FEATURES.md
     docs/INDEX.md
-    starter/docs/ai-briefing-practice.md
+    starter/lazysite/templates/docs/ai-briefing-practice.md
     VERSION
     NEXT_VERSION
     docs/releases/GATE-LOG.md

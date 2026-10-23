@@ -28,8 +28,9 @@ them by name - the filenames are sentences - or by content with `grep -rl`.
 
 ## Documentation that lives outside this repository
 
-- **A site's own published docs.** `starter/docs/` installs into every site and
-  is served at `/docs/`. A running site publishes around thirty pages; ask it
+- **A site's published docs.** `starter/lazysite/templates/docs/` installs into every site's
+  engine tree and is served at `/docs/` (SM1284). A running site publishes around
+  seventy pages; ask it
   with `describe_capabilities` (under "docs") or read `/docs/` rather than
   assuming a feature is undocumented.
 - **The layouts catalogue**, in its own repository, documents layouts and themes.
@@ -137,7 +138,7 @@ Field notes, maintained by the site agent. Source of the briefing that ships to 
 
 | Document | What it is |
 | --- | --- |
-| [`README.md`](README.md) - Field practice: what lives here and who maintains it | The two source documents from which starter/docs/ai-briefing-practice.md is built and shipped to every site. The site agent maintains them; the releas... |
+| [`README.md`](README.md) - Field practice: what lives here and who maintains it | The two source documents from which starter/lazysite/templates/docs/ai-briefing-practice.md is built and shipped to every site. The site agent maintai... |
 | [`app-foundation.md`](app-foundation.md) - The app foundation: from a visual prototype to an integrated app | This is the foundational approach for building an application on lazysite. |
 | [`app-practice.md`](app-practice.md) - Building apps on lazysite | is about pages: content, layout, theme, HTML and styling. |
 | [`authoring-practice.md`](authoring-practice.md) - Authoring practice on lazysite | The purpose of everything below is one thing: a site should stay maintainable by someone who has only a text editor and the site itself - no build ste... |
@@ -186,9 +187,9 @@ What each release was gated on.
 | [`CHANGELOG-archive.md`](CHANGELOG-archive.md) - lazysite - Changelog archive | Releases before the current minor line, moved unchanged from CHANGELOG.md (SM946). Newest first. |
 | [`GATE-LOG.md`](GATE-LOG.md) - lazysite - release gate record | Which commit each release was validated at, newest last. Appended by tools/release.sh. |
 
-# starter/docs
+# starter/lazysite/templates/docs
 
-SHIPPED. Installed into every site and served at /docs/. Written for the site owner and their agent.
+SHIPPED. The engine's /docs manual, installed into every site's engine tree and served at /docs/ (SM1284). Written for the site owner and their agent.
 
 | Document | What it is |
 | --- | --- |

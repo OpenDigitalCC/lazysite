@@ -282,4 +282,4 @@ does nothing.
 - `docs/reference/capability-map.md` - the generated capability list (authoritative)
 - `docs/architecture/security.md` - authentication, headers, input handling
 - `docs/architecture/access-control-model.md` - why there are two mechanisms
-- `starter/docs/auth.md` - the operator-facing guide
+- `starter/lazysite/templates/docs/auth.md` - the operator-facing guide

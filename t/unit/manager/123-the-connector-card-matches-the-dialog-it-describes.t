@@ -86,7 +86,7 @@ like( $html, qr{\Qhttps://example.test/cgi-bin/lazysite-mcp.pl\E},
 # the guide said "leave Advanced settings blank", which was true of the old
 # dialog and became wrong without anyone touching it. Pin them to each other.
 {
-    my $guide = "$FindBin::Bin/../../../starter/docs/ai-connector-setup.md";
+    my $guide = "$FindBin::Bin/../../../starter/lazysite/templates/docs/ai-connector-setup.md";
     my $g     = do { open my $fh, '<', $guide or die $!; local $/; <$fh> };
     like( $g, qr/register one automatically/,
         'the full guide names the same option as the card' );

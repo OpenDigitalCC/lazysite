@@ -31,7 +31,9 @@ for my $f (@files) {
     my $s = do { local $/; <$fh> };
     close $fh;
     next unless $s =~ /\btempdir\s*\(/;
-    next unless $s =~ /DOCUMENT_ROOT|DOCROOT|--docroot|lazysite\//;
+    # SM1284: a REPO path under starter/lazysite/ (the engine docs' source, which
+    # release tests write fixtures into) builds no docroot.
+    next unless $s =~ m{DOCUMENT_ROOT|DOCROOT|--docroot|(?<!starter/)lazysite/};
     next if $s =~ /\bsite_tempdir\s*\(/;
     ( my $rel = $f ) =~ s{^\Q$root\E/}{};
     push @bare, $rel;

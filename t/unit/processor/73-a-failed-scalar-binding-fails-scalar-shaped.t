@@ -4,7 +4,7 @@
 # Reported from the field against 0.13.11: a page carrying `total:
 # db:products.count()` rendered `ARRAY(0x564e492aa2d8)` to a visitor - a raw
 # reference, and a heap address, on a public page. The shipped documentation
-# (starter/docs/data-tables.md) promises "a number, not a list".
+# (starter/lazysite/templates/docs/data-tables.md) promises "a number, not a list".
 #
 # THE HAPPY PATH WAS ALWAYS RIGHT, which is why reading the code first pointed
 # the wrong way: resolve_db has carried "A SCALAR BINDING IS A SCALAR" since

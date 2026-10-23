@@ -66,7 +66,9 @@ is( $rc, 0, 'provision --no-starter succeeded and passed its health check' )
     or diag $out;
 
 subtest 'the starter content is left out' => sub {
-    ok( !-e "$bare/docs",               'no /docs tree' );
+    ok( !-e "$bare/docs",               'no /docs tree in the docroot' );
+    ok( -f "$bare/lazysite/templates/docs/ai-briefing-building-sites.md",
+        'and the manual is in the engine tree, which is not starter content (SM1284)' );
     ok( !-e "$bare/lazysite-demo.md",   'no demo page' );
     ok( !-e "$bare/payment-demo.md",    'no payment demo' );
     ok( !-e "$bare/members.md",         'no members demo' );
@@ -74,7 +76,7 @@ subtest 'the starter content is left out' => sub {
     like( $out, qr/Starter:\s+not installed \((\d+) file/,
         'and the summary says so, so an empty site reads as a choice' );
     my ($n) = $out =~ /not installed \((\d+) file/;
-    cmp_ok( $n // 0, '>', 30, "with a count ($n) - docs alone is over thirty files" );
+    cmp_ok( $n // 0, '>=', 5, "with a count ($n) - the demo and sample pages" );
 };
 
 subtest 'what a site needs is still there' => sub {
@@ -114,7 +116,7 @@ subtest 'the default is unchanged' => sub {
     my $full = fixture();
     my ( $o3, $rc3 ) = install( $full, 'provision' );
     is( $rc3, 0, 'a plain provision succeeded' ) or diag $o3;
-    ok( -d "$full/docs",             'it ships /docs' );
+    ok( -f "$full/lazysite/templates/docs/ai-briefing-building-sites.md", 'it ships the manual, into the engine tree' );
     ok( -f "$full/lazysite-demo.md", 'and the demo page' );
     unlike( $o3, qr/Starter:/, 'and says nothing about starter content' );
     ok( !exists state_of($full)->{starter}, 'and records no opt-out' );

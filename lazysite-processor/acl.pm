@@ -27,7 +27,7 @@ package main;
 #         not_found, output_page, _security_headers, uri_encode, _path_under,
 #         log_event (the script and its parts); realpath and decode_json
 #         (imported by the script's `use`, before its parts load).
-# READS   $LAZYSITE_DIR and $DOCROOT; SETS $ACL_MAP_CACHE and %ACCESS_REC (the
+# READS   $LAZYSITE_DIR, $DOCROOT, $ENGINE_DOCS_DIR and $REQUEST_CROOT; SETS $ACL_MAP_CACHE and %ACCESS_REC (the
 #         script's, declared `our` there).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S19). It is package main, required
@@ -37,7 +37,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $ACL_MAP_CACHE, %ACCESS_REC, %AUTH_CONTEXT );
+our ( $DOCROOT, $LAZYSITE_DIR, $ACL_MAP_CACHE, %ACCESS_REC, %AUTH_CONTEXT, $ENGINE_DOCS_DIR, $REQUEST_CROOT );
 
 # --- ACL, group and domain copies ---
 
@@ -353,6 +353,19 @@ sub _content_rel {
     my ($abs) = @_;
     return undef unless defined $abs && length $abs;
     my $rel = $abs;
+    # SM1284: an engine /docs page answers for the path it is SERVED at, so an
+    # access rule, an address list, a draft section and a section theme over
+    # docs/ govern it exactly as they would the site's own copy - and a rule at
+    # `/` still covers it when the engine tree is beside the docroot, where no
+    # docroot prefix would have matched and the page would have been ungoverned.
+    for my $tree ( $ENGINE_DOCS_DIR, realpath($ENGINE_DOCS_DIR) ) {
+        next unless defined $tree && length $tree;
+        next unless $rel =~ s{\A\Q$tree\E/}{};
+        my $croot = $REQUEST_CROOT // $DOCROOT;
+        my $top   = '';
+        ( $top = $croot ) =~ s{\A\Q$DOCROOT\E/?}{} if $croot ne $DOCROOT;
+        return ( length $top ? "$top/" : '' ) . "docs/$rel";
+    }
     return $rel if $rel =~ s{\A\Q$DOCROOT\E/}{};
     my $priv = _private_root();
     return $rel if length $priv && $rel =~ s{\A\Q$priv\E/}{};

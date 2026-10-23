@@ -23,8 +23,8 @@ use Lazysite::ControlApi::Actions ();
 use Lazysite::Data::Descriptor    ();
 
 my $root = repo_root();
-my @docs = ( "$root/starter/docs/data-tables.md",
-    "$root/starter/docs/ai-briefing-data.md" );
+my @docs = ( "$root/starter/lazysite/templates/docs/data-tables.md",
+    "$root/starter/lazysite/templates/docs/ai-briefing-data.md" );
 plan skip_all => 'data docs missing' unless -f $docs[0] && -f $docs[1];
 
 my $text = '';

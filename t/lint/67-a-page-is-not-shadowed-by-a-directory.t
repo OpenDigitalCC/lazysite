@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM432: a page and a same-named directory cannot both ship.
 #
-# starter/docs/features.md and starter/docs/features/ both exist in the
+# starter/lazysite/templates/docs/features.md and starter/lazysite/templates/docs/features/ both exist in the
 # tracked payload. features.md serves, the leaf pages under features/ serve,
 # and the canonical extensionless URL - /docs/features, the only one
 # sitemap.xml advertises - is shadowed by the directory and lands on a 404.
@@ -16,7 +16,7 @@
 # claiming one URL, in content we ship.
 #
 # There are NO collisions now. The one this lint was written beside -
-# starter/docs/features.md shadowed by starter/docs/features/ - was resolved by
+# starter/lazysite/templates/docs/features.md shadowed by starter/lazysite/templates/docs/features/ - was resolved by
 # moving the page to features/index.md, which keeps its published URL
 # (canonical_url_for maps foo/index.md to /foo) and needs no alias and no
 # redirect. So the exclusion list is empty, which is the state it should be in:
@@ -30,8 +30,8 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
 my $root = repo_root();
-my $docs = "$root/starter/docs";
-plan skip_all => 'no starter/docs' unless -d $docs;
+my $docs = "$root/starter/lazysite/templates/docs";
+plan skip_all => 'no starter/lazysite/templates/docs' unless -d $docs;
 
 # The known collision, awaiting the SM432 decision. Adding to this list is a
 # deliberate act with a URL consequence, which is the point of it being a list.
@@ -54,7 +54,7 @@ find(
 my @unexpected = grep { !$KNOWN{$_} } @collisions;
 
 is_deeply( \@unexpected, [],
-    'no page in starter/docs is shadowed by a same-named directory' )
+    'no page in starter/lazysite/templates/docs is shadowed by a same-named directory' )
     or diag( "These claim the same URL twice:\n  "
         . join( "\n  ", @unexpected )
         . "\n\nThe extensionless canonical URL - the one sitemap.xml"

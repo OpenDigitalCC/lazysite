@@ -171,6 +171,20 @@ Archive
   refuses them by name, a hand-written one grants nothing, and `lazysite check` names it.
   On the Config page under Browser features; the site's for every domain, never set per
   domain alias. Page status shows what the response sends. Ruled 2026-10-23 (ruling 29).
+- SM1284 (PENDING) **The /docs manual is the engine's.** The agent briefings and the
+  manual they link into were starter content in each site's docroot. So cleaning a site
+  up for launch put at risk the pages the partner brief, `.well-known/ai-partner` and the
+  MCP instructions send agents to: theunited.community kept 30 of 70 pages by hand. The
+  whole manual now ships in the engine tree (`lazysite/templates/docs/`), every upgrade
+  refreshes it, and it serves at `/docs/` on every site, `--no-starter` ones included,
+  whenever the site has no page of its own there. A site's own page at the path wins,
+  and `lazysite check` warns that it shadows a newer version of the engine's. Access
+  rules over `docs/` govern the engine's pages too. The manual stays out of the site's
+  search, sitemap, feeds and `llms.txt` unless `engine_docs_public: true` puts it in.
+  The upgrade removes each unmodified `docs/` copy and keeps an edited one, naming it.
+  A recursive scan no longer lists pages from the `lazysite/` management tree.
+  Rulings 4, 27, 32, 34 and 35.
+
 - SM1283 (PENDING) **The sign-in and error pages serve when the engine tree is beside the
   docroot.** On a site that had moved its engine tree to `<docroot>-lazysite` (SM293), the
   engine's own `/claim` and `/login` (SM201) answered 404 whenever the docroot had no copy

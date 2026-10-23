@@ -73,7 +73,7 @@ subtest 'THE DOCUMENTED SHAPE PRODUCES REAL IMAGES' => sub {
 };
 
 subtest 'the briefing itself carries the working form' => sub {
-    open my $bf, '<', "$root/starter/docs/ai-briefing-authoring.md" or die $!;
+    open my $bf, '<', "$root/starter/lazysite/templates/docs/ai-briefing-authoring.md" or die $!;
     my $doc = do { local $/; <$bf> };
     close $bf;
 

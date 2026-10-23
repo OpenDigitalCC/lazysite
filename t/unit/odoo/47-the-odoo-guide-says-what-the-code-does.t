@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM1150 (OOM Lab L-7) and the guide for SM1145, SM1146, SM1149: starter/docs/
+# SM1150 (OOM Lab L-7) and the guide for SM1145, SM1146, SM1149: starter/lazysite/templates/docs/
 # odoo.md said `credential: session` was "not available yet" while the lab's CRM
 # ran entirely on it. A guide that is wrong in that direction sends a reader to
 # build what exists, so the page is held to the code:
@@ -19,7 +19,7 @@ use Lazysite::Odoo::Session  ();
 use Lazysite::Odoo::Identity ();
 
 my $root = repo_root();
-my $doc  = do { open my $fh, '<', "$root/starter/docs/odoo.md" or die $!; local $/; <$fh> };
+my $doc  = do { open my $fh, '<', "$root/starter/lazysite/templates/docs/odoo.md" or die $!; local $/; <$fh> };
 
 my ($not_yet) = $doc =~ /^## Not available yet\n(.*?)(?:\n## |\z)/ms;
 ok( defined $not_yet, 'the guide has its "Not available yet" list' );

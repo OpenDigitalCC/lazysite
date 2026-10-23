@@ -22,7 +22,7 @@ sub slurp { my ($p) = @_; open my $fh, '<:utf8', "$root/$p" or die "$p: $!"; loc
 my @denied = @Lazysite::SecurityHeaders::DENIED_FEATURES;
 cmp_ok( scalar @denied, '>=', 10, 'the denied list was read' );
 
-for my $doc (qw(starter/docs/ai-briefing-authoring.md starter/docs/ai-briefing-layouts.md)) {
+for my $doc (qw(starter/lazysite/templates/docs/ai-briefing-authoring.md starter/lazysite/templates/docs/ai-briefing-layouts.md)) {
     my $text = slurp($doc);
     subtest $doc => sub {
         my @missing = grep { $text !~ /`\Q$_\E`/ } @denied;
@@ -35,7 +35,7 @@ for my $doc (qw(starter/docs/ai-briefing-authoring.md starter/docs/ai-briefing-l
 }
 
 subtest 'the front matter reference names every feature a page may ask for' => sub {
-    my $text    = slurp('starter/docs/frontmatter.md');
+    my $text    = slurp('starter/lazysite/templates/docs/frontmatter.md');
     my @missing = grep { $text !~ /`\Q$_\E`/ } @Lazysite::SecurityHeaders::PAGE_FEATURES;
     is_deeply( \@missing, [], 'every feature' ) or diag("Not named: @missing");
     like( $text, qr/`geolocation: self`/, 'with the page key spelled out' );

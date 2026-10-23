@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# import-field-practice.pl - build starter/docs/ai-briefing-practice.md from the
+# import-field-practice.pl - build starter/lazysite/templates/docs/ai-briefing-practice.md from the
 # site agent's practice files, which live OUTSIDE this tree (SM574).
 #
 #   perl tools/import-field-practice.pl                       # write the doc
@@ -74,7 +74,7 @@ my $ROOT = dirname( dirname( abs_path($0) ) );
 # used and printed as given.
 my $SITES_SRC = 'docs/practice/authoring-practice.md';
 my $APPS_SRC  = 'docs/practice/app-practice.md';
-my $OUT       = "$ROOT/starter/docs/ai-briefing-practice.md";
+my $OUT       = "$ROOT/starter/lazysite/templates/docs/ai-briefing-practice.md";
 
 # Sections that are instructions to the AUTHOR of the source, not practice. They
 # are dropped and answered by one line in the provenance section instead.

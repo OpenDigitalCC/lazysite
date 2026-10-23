@@ -268,7 +268,7 @@ Accessibility
   default theme.
 
 Shipped user reference
-: the `starter/docs/` set ships inside every installation as the canonical
+: the `starter/lazysite/templates/docs/` set ships inside every installation as the canonical
   user-facing reference, including AI briefings and feature guides.
 
 CHANGELOG discipline

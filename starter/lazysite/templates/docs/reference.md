@@ -113,6 +113,11 @@ Directory scan
   (default) or `false`. Pages without an explicit `search:` key inherit
   this value.
 
+`engine_docs_public`
+: `true` puts the engine's `/docs` manual into this site's search, sitemap,
+  feeds and `llms.txt`. Default unset: the manual is served at `/docs/` but
+  is not listed as the site's content.
+
 `manager`
 : `enabled` or `disabled`. Controls the built-in manager UI at
   `/manager`.

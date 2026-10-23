@@ -64,7 +64,7 @@ ok( $DISPATCHED{'channel'} && $DISPATCHED{'policy'},
 
 # --- B. install.sh installs nothing ------------------------------------------
 #
-# It is kept because README.md, starter/docs/install.md and UPGRADE.md named it
+# It is kept because README.md, starter/lazysite/templates/docs/install.md and UPGRADE.md named it
 # for years and deleting it would strand anyone still typing it. A signpost that
 # quietly went on installing would be the second spelling with extra steps.
 my $sh = slurp("$root/install.sh");
@@ -201,7 +201,7 @@ for my $rel (@READERS) {
 # moved), which would make every assertion above pass by finding nothing.
 cmp_ok( $named_sh, '>=', 3, 'the tracked files naming install.sh were discovered' )
     or diag( "Only $named_sh files named install.sh. README.md, "
-        . 'starter/docs/install.md, UPGRADE.md and the development notes all '
+        . 'starter/lazysite/templates/docs/install.md, UPGRADE.md and the development notes all '
         . 'do - a number below that means discovery failed, not that the '
         . 'readers were fixed.' );
 cmp_ok( $named_pl, '>=', 5, 'the tracked files naming install.pl were discovered' )

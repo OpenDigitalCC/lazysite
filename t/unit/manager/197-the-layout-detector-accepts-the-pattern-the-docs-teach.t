@@ -91,7 +91,7 @@ subtest 'the delete action names the parameter it wants' => sub {
 
 subtest 'the layouts briefing describes the token element it actually gets' => sub {
     my $doc = do {
-        open my $fh, '<', repo_root() . "/starter/docs/ai-briefing-layouts.md" or die $!;
+        open my $fh, '<', repo_root() . "/starter/lazysite/templates/docs/ai-briefing-layouts.md" or die $!;
         local $/;
         <$fh>;
     };

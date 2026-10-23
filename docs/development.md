@@ -1,7 +1,7 @@
 # Development
 
 Developer-facing notes for the lazysite repo. User-facing docs live
-under `starter/docs/` and ship inside every installation.
+under `starter/lazysite/templates/docs/` and ship inside every installation.
 
 ## Working with CC
 
@@ -103,7 +103,7 @@ for a test, and a release is one commit on main (SM971).
   minors' sections move there unchanged (lint 210);
 - `docs/FEATURES.md` - the timeline entry and the subtitle's "as of vX.Y.Z";
 - `VERSION` X.Y.Z and `NEXT_VERSION` X.Y.(Z+1), by `tools/bump-version.pl`;
-- `starter/docs/ai-briefing-practice.md`, by `tools/import-field-practice.pl`;
+- `starter/lazysite/templates/docs/ai-briefing-practice.md`, by `tools/import-field-practice.pl`;
 - `docs/INDEX.md`, by `tools/gen-doc-index.pl --write`.
 
 **A PENDING ref is resolved from git, never guessed.** The SHA is the one commit,

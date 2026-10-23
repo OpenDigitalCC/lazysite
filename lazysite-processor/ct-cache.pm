@@ -11,7 +11,7 @@ package main;
 # CALLS   _path_under, _cache_umask, _draft_requested, log_event
 #         (lazysite-processor.pl and request.pm);
 #         make_path, dirname, realpath (imported by the script's `use`).
-# READS   $CT_CACHE_DIR, $DOCROOT (the script's, declared `our` there).
+# READS   $CT_CACHE_DIR, $DOCROOT, $CACHE_BASE (the script's, declared `our` there).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S6). It is package main, required
 # by absolute path from lazysite-processor.pl's BEGIN and never through @INC, and
@@ -19,7 +19,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $CT_CACHE_DIR, $DOCROOT );
+our ( $CT_CACHE_DIR, $DOCROOT, $CACHE_BASE );
 
 # --- Content type cache ---
 
@@ -91,7 +91,11 @@ sub write_html {
     $check_path = dirname($check_path)
         while !-e $check_path && length($check_path) > 1;
     my $real = realpath($check_path);
-    if ( !_path_under( $real, $DOCROOT ) ) {
+    # SM1284: or the engine's own cache. An engine page caches in a host slot
+    # under it, and on a site whose engine tree is beside the docroot (SM293)
+    # that is outside the docroot - as an alias host's slot already was.
+    my $cache_real = realpath($CACHE_BASE);
+    if ( !_path_under( $real, $DOCROOT ) && !( defined $cache_real && _path_under( $real, $cache_real ) ) ) {
         log_event( "WARN", $ENV{REDIRECT_URL} // "-", "cache path outside docroot", path => $html_path );
         return;
     }

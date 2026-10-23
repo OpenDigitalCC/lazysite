@@ -5,6 +5,10 @@ register:
   - sitemap.xml
 ---
 
+This manual is the engine's. It serves on every site, upgrades refresh it, and a
+page the site puts at the same path overrides it - see
+[The /docs manual](/docs/configuration#the-docs-manual).
+
 ## Start here
 
 If you are an AI partner connecting over MCP or the control API, read the

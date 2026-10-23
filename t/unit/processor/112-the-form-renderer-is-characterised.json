@@ -2299,7 +2299,7 @@
                "version" : 1
             }
          },
-         "id" : "starter/docs/forms.md#1 plain",
+         "id" : "starter/lazysite/templates/docs/forms.md#1 plain",
          "meta" : {
             "form" : "contact"
          }
@@ -2326,7 +2326,7 @@
                "version" : 1
             }
          },
-         "id" : "starter/docs/forms.md#1 outcome=ok",
+         "id" : "starter/lazysite/templates/docs/forms.md#1 outcome=ok",
          "meta" : {
             "form" : "contact"
          }
@@ -2353,7 +2353,7 @@
                "version" : 1
             }
          },
-         "id" : "starter/docs/forms.md#1 outcome=ok-processing",
+         "id" : "starter/lazysite/templates/docs/forms.md#1 outcome=ok-processing",
          "meta" : {
             "form" : "contact"
          }
@@ -2380,7 +2380,7 @@
                "version" : 1
             }
          },
-         "id" : "starter/docs/forms.md#1 outcome=Sorry%2C+%3Cb%3Eno%3C%2Fb%3E+%C3%A9+%5B%25+x+%25%5D",
+         "id" : "starter/lazysite/templates/docs/forms.md#1 outcome=Sorry%2C+%3Cb%3Eno%3C%2Fb%3E+%C3%A9+%5B%25+x+%25%5D",
          "meta" : {
             "form" : "contact"
          }
@@ -2430,7 +2430,7 @@
                "version" : 1
             }
          },
-         "id" : "starter/docs/forms.md#2 plain",
+         "id" : "starter/lazysite/templates/docs/forms.md#2 plain",
          "meta" : {
             "form" : "contact"
          }
@@ -2480,7 +2480,7 @@
                "version" : 1
             }
          },
-         "id" : "starter/docs/forms.md#2 outcome=ok",
+         "id" : "starter/lazysite/templates/docs/forms.md#2 outcome=ok",
          "meta" : {
             "form" : "contact"
          }
@@ -2530,7 +2530,7 @@
                "version" : 1
             }
          },
-         "id" : "starter/docs/forms.md#2 outcome=ok-processing",
+         "id" : "starter/lazysite/templates/docs/forms.md#2 outcome=ok-processing",
          "meta" : {
             "form" : "contact"
          }
@@ -2580,7 +2580,7 @@
                "version" : 1
             }
          },
-         "id" : "starter/docs/forms.md#2 outcome=Sorry%2C+%3Cb%3Eno%3C%2Fb%3E+%C3%A9+%5B%25+x+%25%5D",
+         "id" : "starter/lazysite/templates/docs/forms.md#2 outcome=Sorry%2C+%3Cb%3Eno%3C%2Fb%3E+%C3%A9+%5B%25+x+%25%5D",
          "meta" : {
             "form" : "contact"
          }

@@ -30,7 +30,7 @@ my @guarded = (
     # 0.2.17 despite SM045's release notes claiming they'd land.
     'starter/lazysite.conf.example',
     '.gitignore',
-    'starter/docs/ai-briefing-development.md',
+    'starter/lazysite/templates/docs/ai-briefing-development.md',
     'starter/lazysite/manager/assets/manager-classic.css',
 );
 

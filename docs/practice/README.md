@@ -1,6 +1,6 @@
 ---
 title: "Field practice: what lives here and who maintains it"
-subtitle: "The two source documents from which starter/docs/ai-briefing-practice.md is built and shipped to every site. The site agent maintains them; the release side is custodian of what ships."
+subtitle: "The two source documents from which starter/lazysite/templates/docs/ai-briefing-practice.md is built and shipped to every site. The site agent maintains them; the release side is custodian of what ships."
 brand: plain
 standard-margins: true
 ---
@@ -13,7 +13,7 @@ standard-margins: true
 | `app-practice.md` | Building applications on the engine - data tables, forms, page scripts |
 
 `tools/import-field-practice.pl` assembles both into
-`starter/docs/ai-briefing-practice.md`, **which ships inside every lazysite
+`starter/lazysite/templates/docs/ai-briefing-practice.md`, **which ships inside every lazysite
 installation**. `t/lint/89` fails when the served copy and these sources
 disagree, so an edit here is not live until the import is re-run and committed.
 
@@ -58,7 +58,7 @@ well without one - which is the argument that the rule costs nothing.
 
 1. Edit the file here.
 2. `perl tools/import-field-practice.pl` - it refuses if a client is named.
-3. Commit both the source and the regenerated `starter/docs/ai-briefing-practice.md`.
+3. Commit both the source and the regenerated `starter/lazysite/templates/docs/ai-briefing-practice.md`.
 
 The import stamps the briefing with `NEXT_VERSION`, so it is stamped for the
 release being prepared. `t/lint/89` and the release gate both check that stamp:

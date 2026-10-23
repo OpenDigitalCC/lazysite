@@ -230,11 +230,38 @@ sub _system_page_md {
 sub _engine_page_real {
     my ($real) = @_;
     return 0 unless defined $real && length $real;
-    for my $tree ( "$LAZYSITE_DIR/templates/system" ) {
+    for my $tree ( "$LAZYSITE_DIR/templates/system", "$LAZYSITE_DIR/templates/docs" ) {
         my $t = realpath($tree);
         return 1 if defined $t && _path_under( $real, $t );
     }
     return 0;
+}
+
+# SM1284 (rulings 4, 27, 32): THE /docs MANUAL IS THE ENGINE'S.
+#
+# The docs - the agent briefings and the manual they link into - ship under
+# lazysite/templates/docs/, versioned with the engine and refreshed by every
+# upgrade, so a site that clears out its content for launch cannot take with it
+# the pages the partner brief, .well-known/ai-partner and the MCP instructions
+# send agents to. (theunited.community kept 30 of 70 pages by hand to keep the
+# briefings' links alive.)
+#
+# Resolution order for a /docs/ path: the site's own page (its content root,
+# its private store, or a .url page) - an operator's edited copy wins, and
+# `lazysite check` says it shadows the engine's - then the engine's page, then
+# 404. `/docs/x` names x.md, or x/index.md for a section, as the docs link to
+# both. The set is everything under the tree, and only /docs/ can reach it.
+our $ENGINE_DOCS_DIR = "$LAZYSITE_DIR/templates/docs";
+our $ENGINE_DOC_RENDER;    # this request renders one (its scans see the tree)
+
+sub _engine_doc_md {
+    my ($base) = @_;
+    return undef unless defined $base && $base =~ m{\Adocs(?:/(.*))?\z}s;
+    my $rest = ( defined $1 && length $1 ) ? $1 : 'index';
+    for my $cand ( "$ENGINE_DOCS_DIR/$rest.md", "$ENGINE_DOCS_DIR/$rest/index.md" ) {
+        return $cand if -f $cand;
+    }
+    return undef;
 }
 
 # F0003: lazysite.conf path override
@@ -283,7 +310,8 @@ our $REGISTRY_TTL   = 14400; # seconds before registries are regenerated (defaul
 # browse (the dev server's --auto-index) can relocate it off the docroot via
 # LAZYSITE_CACHE_DIR so pointing the processor at an arbitrary tree writes
 # nothing into it. Unset (production / tests) keeps the original location.
-my $CACHE_BASE       = $ENV{LAZYSITE_CACHE_DIR} || "$LAZYSITE_DIR/cache";
+# SM1284: `our`, because write_html (ct-cache.pm) accepts an engine page's slot under it.
+our $CACHE_BASE       = $ENV{LAZYSITE_CACHE_DIR} || "$LAZYSITE_DIR/cache";
 our $LAYOUT_CACHE_DIR = "$CACHE_BASE/layouts";
 our $CT_CACHE_DIR     = "$CACHE_BASE/ct";
 our $TT_COMPILE_DIR   = "$CACHE_BASE/tt";        # P-4 TT on-disk compile cache
@@ -1235,6 +1263,19 @@ sub main {
         $md_path     = $sys;
         $engine_page = 1;
     }
+
+    # SM1284: then the engine's /docs page, when the site has none of its own.
+    my $engine_doc = 0;
+    if ( !$engine_page
+        && !defined $DRAFT_BYTES
+        && !-f _content_abs($md_path)
+        && !-f _content_abs("$croot/$base.url")
+        && ( my $doc = _engine_doc_md($base) ) )
+    {
+        $md_path           = $doc;
+        $engine_page       = $engine_doc = 1;
+        $ENGINE_DOC_RENDER = 1;
+    }
     my $url_path  = "$croot/$base.url";
     my $html_path = "$croot/$base.html";
 
@@ -1274,6 +1315,13 @@ sub main {
         my %sv = resolve_site_vars();
         $html_path = "$HOST_CACHE_DIR/$sv{alias_host}/$base.html"
             if $sv{alias_host};
+        # SM1284: an engine page's render is the engine's too. It caches in a
+        # host slot ('_engine' for the primary: never a DNS name, so never a
+        # host's), so serving the manual does not put a docs/ tree of .html back
+        # into a docroot its owner has cleared - and every cache sweep already
+        # reaches the slots (Lazysite::Util::unlink_host_copies, clear_host_cache).
+        $html_path = "$HOST_CACHE_DIR/" . ( $sv{alias_host} || '_engine' ) . "/$base.html"
+            if $engine_doc;
     }
 
     # Stat both source and cache files once - pass results to avoid redundant syscalls
@@ -2026,6 +2074,7 @@ sub _lazy_lib {
         $_site_vars_loaded = 0;
         $_site_vars_sig    = '';
         undef $REQUEST_CROOT;    # SM151: recomputed per request in main()
+        undef $ENGINE_DOC_RENDER;    # SM1284
         %MAINT = ();             # SM1118: this request's maintenance outcome
         undef $ACL_MAP_CACHE;    # SM973: a pooled worker re-reads acls.json
         undef $DRAFT_BYTES;      # SM1030

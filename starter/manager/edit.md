@@ -167,7 +167,7 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 // this script. Inside <script> no HTML entity is decoded, so a path or flag
 // carrying an escaped character arrived here as the entity text; in an
 // attribute the parser decodes it and JS gets the real value. See the note in
-// starter/docs/auth.md - this is the idiom for every value a page's script
+// starter/lazysite/templates/docs/auth.md - this is the idiom for every value a page's script
 // needs from the request or the viewer.
 var edPathEl = document.getElementById('ed-filepath');
 var filePath = edPathEl.dataset.path || '';

@@ -54,8 +54,8 @@ worked: on the deployed host the registry went from 28 entries to 6, and bundled
 docs from 26 to 2.
 
 **The two survivors are the finding.** They are
-`starter/docs/integrations/figma.md` and `starter/docs/integrations/index.md` -
-the change globbed `starter/docs/*.md` and never reached the subdirectory.
+`starter/lazysite/templates/docs/integrations/figma.md` and `starter/lazysite/templates/docs/integrations/index.md` -
+the change globbed `starter/lazysite/templates/docs/*.md` and never reached the subdirectory.
 
 This is the same failure family the project has now found six times: a pattern
 that looked exhaustive and was not. It is notable that it was committed inside
@@ -65,7 +65,7 @@ about two.
 
 **Closed after this review**, on `claude/sm300-docs-glob-miss`. Both pages fixed
 with a recursive walk rather than a wider glob, and `t/lint/46` asserts the
-policy over `starter/docs` at any depth.
+policy over `starter/lazysite/templates/docs` at any depth.
 
 That lint carries a guard on the guard: it requires the walk to have reached at
 least one page in a subdirectory. Without it, a future regression to a

@@ -3,7 +3,7 @@
 # reachable through the `lazysite` CLI, and behave as the documentation says.
 #
 # WHY THIS FILE EXISTS AT ALL. D4 turned install.sh into a signpost that refuses
-# everything. That broke four blocks of live advice in starter/docs/install.md
+# everything. That broke four blocks of live advice in starter/lazysite/templates/docs/install.md
 # and UPGRADE.md - listing backups, restoring one, previewing an upgrade,
 # restoring a full-system backup - and the choice at that point was between
 # naming install.pl in an operator document, which D3 says stop doing, and
@@ -90,7 +90,7 @@ subtest '--dry-run writes NOTHING - not even the registry entry' => sub {
     my ( $rc, $out ) = cli( 'provision', '--docroot', $d, '--cgibin', $cgi, '--dry-run' );
     is( $rc, 0, 'provision --dry-run exits 0' ) or diag($out);
     ok( !installed($d), 'nothing was installed' )
-        or diag( 'starter/docs/install.md says --dry-run "reports what would '
+        or diag( 'starter/lazysite/templates/docs/install.md says --dry-run "reports what would '
             . 'change and writes nothing at all".' );
     like( $out, qr/nothing was written/i,
         'and it says so, rather than leaving the reader to infer it' );
@@ -164,7 +164,7 @@ subtest 'backups: listed, and put back' => sub {
     my ( $rc3, $out3 ) = cli( 'backups', '--docroot', $d );
     is( $rc3, 0, 'backups exits 0' ) or diag($out3);
     like( $out3, qr/\.tar\.gz/, 'and now lists a tarball' )
-        or diag( "starter/docs/install.md sends the operator here after a bad "
+        or diag( "starter/lazysite/templates/docs/install.md sends the operator here after a bad "
             . "upgrade. If the list is empty the page is wrong.\n$out3" );
 
     # Break a code file, then put it back from the backup. Restoring is the

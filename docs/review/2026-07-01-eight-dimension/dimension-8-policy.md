@@ -13,7 +13,7 @@ WARN - the posture of record exists, is honest about what is pending, and its th
 Assessed at tag `v0.5.35`, commit `de12238`. Framework: `/srv/projects/toolchain-development/TOOLCHAIN.md` Dimension 8 detail (the unique gate items), `/srv/projects/toolchain-development/POLICY.md` (CRA artefact row, regulation citations), `/srv/projects/toolchain-development/IMPLEMENTATION.md` per-project rows for lazysite. Work performed:
 
 - `docs/POLICY.md` read in full; every pending row extracted.
-- Evidence check of each claimed-met CRA Article 13 obligation: `dist/lazysite-0.5.35.tar.gz` listed and its `sbom.json` extracted and format-inspected; `tools/release.sh` read for the SBOM gate and channel machinery; `SECURITY.md` read; `update_channel` traced through `installers/hestia/lazysite-hestia-update-all.sh` and `starter/docs/features/configuration/update-channel.md`.
+- Evidence check of each claimed-met CRA Article 13 obligation: `dist/lazysite-0.5.35.tar.gz` listed and its `sbom.json` extracted and format-inspected; `tools/release.sh` read for the SBOM gate and channel machinery; `SECURITY.md` read; `update_channel` traced through `installers/hestia/lazysite-hestia-update-all.sh` and `starter/lazysite/templates/docs/features/configuration/update-channel.md`.
 - Negative checks: `dist/` swept for signature files (`.sig`/`.asc`), repo swept for VEX and Declaration of Conformity artefacts.
 - Regime-fit sanity check against IMPLEMENTATION.md's lazysite rows and what the product actually is.
 

@@ -50,7 +50,7 @@ use strict; use warnings;
 my %o = @ARGV;
 use File::Basename qw(dirname); use Cwd qw(abs_path);
 my $root = dirname( dirname( abs_path($0) ) );
-open my $f, '>', "$root/starter/docs/ai-briefing-practice.md" or die;
+open my $f, '>', "$root/starter/lazysite/templates/docs/ai-briefing-practice.md" or die;
 print {$f} "engine-version: $o{'--engine-version'}\nimported: $o{'--date'}\n";
 PL
 my $INDEX = <<'PL';
@@ -84,7 +84,7 @@ sub repo {
             . "- **0.1.0** (2026-01-01, edge) - **The first.** It began.\n" );
     spit( "$d/docs/releases/CHANGELOG-archive.md", "---\ntitle: \"Archive\"\n---\n\n## 0.0.9 - EDGE: older (2025-12-01)\n\n- old\n" );
     spit( "$d/docs/INDEX.md",                        "index\n" );
-    spit( "$d/starter/docs/ai-briefing-practice.md", "engine-version: 0.1.0\n" );
+    spit( "$d/starter/lazysite/templates/docs/ai-briefing-practice.md", "engine-version: 0.1.0\n" );
     spit( "$d/CHANGELOG.md",                         "$ABOUT## Unreleased\n\n$OLD" );
     commit( $d, 'the first release' );
     git( $d, 'tag', '-a', 'v0.1.0', '-m', 'v0.1.0' );
@@ -120,7 +120,7 @@ subtest 'the gate form: house heading, every PENDING stamped, the pair rolled' =
     like( $f, qr/as of v0\.1\.1"/, 'the FEATURES subtitle names the release' );
     like( $f, qr/git tags\.\n\n- \*\*0\.1\.1\*\* \(2026-10-08, edge\) - \*\*Gated before its notes were written\.\*\*/,
         'and the timeline entry is the newest' );
-    like( slurp("$d/starter/docs/ai-briefing-practice.md"), qr/engine-version: 0\.1\.1/, 'the briefing is re-imported for it' );
+    like( slurp("$d/starter/lazysite/templates/docs/ai-briefing-practice.md"), qr/engine-version: 0\.1\.1/, 'the briefing is re-imported for it' );
     like( slurp("$d/docs/INDEX.md"), qr/as of v0\.1\.1/, 'the index is regenerated after FEATURES' );
     my %allowed = map { $_ => 1 } split /\n/, ( gen( $d, '--paths' ) )[1];
     my @changed = map { substr $_, 3 } split /\n/, git( $d, 'status', '--porcelain' );
@@ -218,7 +218,7 @@ subtest 'it refuses what it cannot do cleanly' => sub {
 subtest 'the allowlist and the checks it publishes' => sub {
     my ( $rc, $out ) = gen( $root, '--paths' );
     is( $out, join( '', map { "$_\n" } qw(CHANGELOG.md docs/releases/CHANGELOG-archive.md docs/FEATURES.md
-                docs/INDEX.md starter/docs/ai-briefing-practice.md VERSION NEXT_VERSION docs/releases/GATE-LOG.md
+                docs/INDEX.md starter/lazysite/templates/docs/ai-briefing-practice.md VERSION NEXT_VERSION docs/releases/GATE-LOG.md
                 dist/config/coverage-last.json docs/feature-requests/) ), 'the release-material allowlist, exactly' );
     # P22: docs/feature-requests/ is a PREFIX entry - the filings a release stamps.
     ( $rc, $out ) = gen( $root, '--lints', '--dir', $root );

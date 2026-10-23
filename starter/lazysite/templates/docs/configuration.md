@@ -65,6 +65,13 @@ works on staging and production.
 : Site-wide default for the `search:` front matter key. `true` (default)
   or `false`.
 
+`engine_docs_public`
+: `true` lists the engine's `/docs` manual in this site's own search, sitemap,
+  feeds and `llms.txt`, as if its pages were the site's. Default unset: the
+  manual serves at `/docs/` on every site and stays out of the site's listings,
+  which are about the site's own content. For a site that is the product's
+  documentation. See [The /docs manual](#the-docs-manual).
+
 `manager`
 : `enabled` or `disabled`. Controls the built-in manager at `/manager`.
 
@@ -596,6 +603,35 @@ warning.
 
 See [Layouts and themes](/docs/ai-briefing-layouts) for installation and
 authoring.
+
+## The /docs manual
+
+The pages under `/docs/`, this one included, are the engine's. They ship in the
+engine tree (`lazysite/templates/docs/`), every upgrade refreshes them, and they
+serve on every site, including one installed without the starter pages. Clearing
+out a site's content for launch leaves them in place. That matters because the
+agent briefings among them are what the partner brief, `.well-known/ai-partner`
+and the MCP server's instructions send agents to.
+
+For a `/docs/` path the site's own page wins, then the engine's page, then a 404.
+To **override a page**, put your own at the same path: `docs/<page>.md` in the
+docroot, for example by editing the page in the manager or writing
+`docs/ai-briefing-layouts.md`. It serves in place of the engine's.
+`lazysite check` then warns that it shadows a newer version of the engine's page,
+because upgrades no longer refresh what visitors and agents read there. Keep the
+warning if the override is deliberate. To go back to the engine's page, delete
+yours.
+
+The manual serves at `/docs/`, but it is not listed as the site's content: it
+stays out of the site's search, sitemap, feeds and `llms.txt`. The manual's own
+indexes list it. `engine_docs_public: true` lists it as the site's too, for a
+site that is the product's documentation. An access rule on `/docs/` governs the
+engine's pages as it would the site's own.
+
+An upgrade from a release that shipped the manual into the docroot removes each
+`docs/` page the site never edited, so the engine's copy serves. It keeps an
+edited page, which the upgrade's output names as left in place. A `docs/` page
+the site wrote itself is untouched.
 
 ## Page scan
 

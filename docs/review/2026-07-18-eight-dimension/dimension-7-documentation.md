@@ -28,7 +28,7 @@ feature reference. That is not (yet) a shipped-feature-without-an-entry refusal
 because these are edge-line features not in a stable release; but promoting them
 to the 0.8.0 stable **is** the event the framework's refusal condition names, so
 the FEATURES.md sweep must land in the same cut. The site-served authoring tier
-(`starter/docs/`) and the generated tier (capability-map) *are* current for the
+(`starter/lazysite/templates/docs/`) and the generated tier (capability-map) *are* current for the
 new work; the repo-side cross-audience reference is the one that lags.
 
 ## Method
@@ -49,8 +49,8 @@ had not yet seen. Work performed:
   feature-request-archive.
 - New-cycle currency check: SM179 / SM165 / SM175 / cache / engine-i18n /
   alias-entity retirement against `docs/FEATURES.md`, `docs/OPERATOR.md`,
-  `docs/IMPLEMENTOR.md`, `starter/docs/configuration.md`,
-  `starter/docs/ai-briefing-configuration.md`, and the generated
+  `docs/IMPLEMENTOR.md`, `starter/lazysite/templates/docs/configuration.md`,
+  `starter/lazysite/templates/docs/ai-briefing-configuration.md`, and the generated
   `docs/reference/capability-map.md`.
 - CHANGELOG completeness spot-check against HEAD (0.7.28 entry present and
   dated; keying convention declared at CHANGELOG.md:8-17).
@@ -122,7 +122,7 @@ grouping in the Domains list - a cloned domain is now just an independent row -
 while explicitly keeping the underlying multi-host `alias_hosts` /
 `alias.<host>.<key>` mechanism unchanged. The distinction matters for the sweep:
 
-- Correct and current: `starter/docs/configuration.md:162-196` "Domain aliases"
+- Correct and current: `starter/lazysite/templates/docs/configuration.md:162-196` "Domain aliases"
   documents the surviving `alias_hosts` / `alias.<host>.` mechanism; the
   multilingual example keys (`alias.fr.example.com.lang_group`,
   configuration.md:213-216; ai-briefing-configuration.md:241) use the same live
@@ -143,11 +143,11 @@ guard to this cycle's retirement as well.
 The multilingual work is well documented at the tier operators and agents
 actually read:
 
-- `starter/docs/configuration.md:200-216` "Multilingual language sets": a set is
+- `starter/lazysite/templates/docs/configuration.md:200-216` "Multilingual language sets": a set is
   hosts sharing a `lang_group`, each a first-class domain with its own content
   root; the `lang`/`lang_group` keys are settable via conf, `domain-set` and CLI
   (:177, :191-192). Coherent with the shipped model.
-- `starter/docs/ai-briefing-configuration.md:226-258` "Multilingual sites
+- `starter/lazysite/templates/docs/ai-briefing-configuration.md:226-258` "Multilingual sites
   (language sets)": the AI-agent framing - the `lang_group` plane must exist
   before it can be populated, and the layout emits the switcher and `hreflang`
   automatically so agents must not hand-build them. This section (added this
@@ -171,7 +171,7 @@ operator surface (per-domain pools, `lazysite-hestia-domain`, restore-with-domai
 OPERATOR.md:88-97/:157-161; IMPLEMENTOR.md:44-58) but neither references the
 new domain-owned access delegation (SM165) or multilingual operation (SM179) at
 the operator/implementor tier - those live only in the authoring tier
-(`starter/docs/`) and the generated map. For an operator standing up a
+(`starter/lazysite/templates/docs/`) and the generated map. For an operator standing up a
 language-set or delegating domain access, the repo-side operator docs point at
 nothing. Effort to close is small; not a refusal condition.
 
@@ -195,12 +195,12 @@ bold: 1
 tone: medium
 text: 3
 ---
-User | docs/USER.md -> starter/docs/ | current, incl. new multilingual authoring (F7.6)
+User | docs/USER.md -> starter/lazysite/templates/docs/ | current, incl. new multilingual authoring (F7.6)
 Developer | docs/DEVELOPER.md + architecture/ | current; SM138 residue cleared (security.md:176)
 Implementor | docs/IMPLEMENTOR.md | current for packaging; no SM165/SM179 pointer (F7.8, minor)
 Operator | docs/OPERATOR.md | current for pools/restore; no domain-access/multilingual section (F7.8, minor)
 Security | SECURITY.md + docs/SECURITY.md + architecture/security.md | SM138 rot cleared (F7.1); threat model intact
-AI agent | starter/docs/ai-briefing-*.md | current incl. new multilingual briefing (F7.6)
+AI agent | starter/lazysite/templates/docs/ai-briefing-*.md | current incl. new multilingual briefing (F7.6)
 Cross-audience | docs/FEATURES.md | ~26 releases behind for the current cycle (F7.4) - the one lagging artefact
 Generated | docs/reference/capability-map.md | in sync with Capabilities.pm (F7.7)
 ```

@@ -30,7 +30,7 @@ sub parse {
 
 sub section {
     my ($name) = @_;
-    my $doc = repo_root() . "/starter/docs/$name";
+    my $doc = repo_root() . "/starter/lazysite/templates/docs/$name";
     open my $fh, '<:utf8', $doc or die "$doc: $!";
     my $text = do { local $/; <$fh> };
     close $fh;
