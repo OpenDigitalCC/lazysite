@@ -36,7 +36,7 @@ this branch, SM1303 to SM1305 and nothing else (ruling 41b).
   notification, which no ruling has said.
 - docs/compliance/TECHNICAL-FILE.md, stamped 0.16.2: the risk assessment current to
   0.16.2, the vulnerability-handling row naming the first security-critical
-  release, 455 SBOM components and 1,552 test files at 0.16.2.
+  release, 455 SBOM components and 1,553 test files at 0.16.2.
 - docs/POLICY.md: the technical file is walked to 0.16.2.
 - docs/architecture/security.md: the zip upload and the served asset mirror.
 

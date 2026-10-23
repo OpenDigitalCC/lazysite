@@ -54,7 +54,7 @@ Support-period statement | docs/POLICY.md; docs/compliance/OBLIGATIONS.md (absol
 SBOM | dist/config/sbom-deps.json; generated per release, CycloneDX, shipped in the tarball | current, strict gate - 455 components at 0.16.2 (as at 0.16.1); OOM is declared as `libodoo-oom-perl`, and the 0.42 snapshot in t/vendor/oom (SM1247) is for the tests: it is in the tarball with t/ and is never installed
 Conformity assessment records | docs/review/*-eight-dimension/ (four full reviews, the last of 0.10.9); docs/review/0.13.1-daemon/; docs/review/2026-10-07-sm869-adversarial-review.md; the SM1181 security review and SM1226's threat table in docs/feature-requests | the last full review is of 0.10.9
 Declaration of Conformity | docs/DECLARATION-OF-CONFORMITY.md | OPEN - draft restamped 0.16.0, unsigned; signed at the certified cut
-Test evidence | t/ (1,552 test files at 0.16.2); coverage floors in dist/config/coverage-floor and coverage-floor-groups; bench baseline | coverage runs at a stable cut; the bench re-capture is due at the next stable cut
+Test evidence | t/ (1,553 test files at 0.16.2); coverage floors in dist/config/coverage-floor and coverage-floor-groups; bench baseline | coverage runs at a stable cut; the bench re-capture is due at the next stable cut
 ```
 
 # Known gaps
