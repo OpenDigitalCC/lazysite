@@ -16,7 +16,7 @@
 # THE FAULT IS REPRODUCED, NOT ASSERTED. How the installer leaves the wrong mode
 # in the field: chmod by an account outside the directory's group silently drops
 # setgid. That needs a second group to reproduce for real, so the install below
-# runs with chmod overridden to drop setgid on docs/ only - the same outcome by
+# runs with chmod overridden to drop setgid on manager/assets/ only (docs/ until SM1284 moved the manual into the engine tree) - the same outcome by
 # the same call, and the recorded mode has to come from what is on disk for the
 # test to see it.
 use strict;
@@ -42,18 +42,18 @@ my $MF_GUARD = repo_manifest_guard();
 
 my $base = tempdir( 'lazysite-fixleft-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
 
-# chmod that drops setgid on any path ending /docs, as an account outside the
+# chmod that drops setgid on any path ending /manager/assets, as an account outside the
 # directory's group would see happen.
 my $shim = "$base/shim";
 make_path($shim);
 {
-    open my $fh, '>', "$shim/DropSetgidOnDocs.pm" or die $!;
+    open my $fh, '>', "$shim/DropSetgidOnAssets.pm" or die $!;
     print {$fh} <<'PM';
-package DropSetgidOnDocs;
+package DropSetgidOnAssets;
 BEGIN {
     *CORE::GLOBAL::chmod = sub {
         my ( $m, @p ) = @_;
-        $m &= ~02000 if grep { m{/docs\z} } @p;
+        $m &= ~02000 if grep { m{/manager/assets\z} } @p;
         return CORE::chmod( $m, @p );
     };
 }
@@ -83,17 +83,17 @@ sub check   { my ( $d, $flag ) = @_; $flag //= ''; return scalar `$^X \Q$CHECK\E
 
 # ---------------------------------------------------------------------------
 my $site = "$base/a/site";
-my ( $rc, $out ) = provision( $site, "-I\Q$shim\E -MDropSetgidOnDocs" );
+my ( $rc, $out ) = provision( $site, "-I\Q$shim\E -MDropSetgidOnAssets" );
 diag($out) if $rc && $rc != 4;    # 4: not serviceable, which is the point here
-ok( -d "$site/docs", 'the install made docs/' ) or BAIL_OUT($out);
+ok( -d "$site/manager/assets", 'the install made manager/assets/' ) or BAIL_OUT($out);
 
 subtest 'the state records the mode the installer LEFT, not the one it declared' => sub {
     my $st = state_of($site);
-    is( $st->{dirs}{"$site/docs"}, '2775', 'the model declares 2775' );
-    is( $st->{dirs_left}{"$site/docs"}, '0775', 'and records 0775, which is what is there' )
+    is( $st->{dirs}{"$site/manager/assets"}, '2775', 'the model declares 2775' );
+    is( $st->{dirs_left}{"$site/manager/assets"}, '0775', 'and records 0775, which is what is there' )
         or diag( 'A record of the declared mode would say nothing the dirs map does '
             . 'not, and could not tell the installer\'s output from a change.' );
-    is( mode_of("$site/docs"), 0775, 'the disk agrees' );
+    is( mode_of("$site/manager/assets"), 0775, 'the disk agrees' );
     my @off = grep { sprintf( '%04o', mode_of($_) ) ne $st->{dirs_left}{$_} }
         keys %{ $st->{dirs_left} };
     is_deeply( \@off, [], 'every recorded directory matches its disk mode' );
@@ -101,11 +101,11 @@ subtest 'the state records the mode the installer LEFT, not the one it declared'
 
 subtest 'check names it as the installer\'s output, and --fix sets the declared mode' => sub {
     my $r = check($site);
-    like( $r, qr/docs is 0775, as the installer left it; the model declares 2775/,
+    like( $r, qr{manager/assets is 0775, as the installer left it; the model declares 2775},
         'named as the installer\'s own result' );
     check( $site, '--fix' );
-    is( mode_of("$site/docs"), 02775, 'setgid restored - SM274 alone would have left it' );
-    unlike( check($site), qr/docs is \d+/, 'and the next check is clean on it' );
+    is( mode_of("$site/manager/assets"), 02775, 'setgid restored - SM274 alone would have left it' );
+    unlike( check($site), qr{manager/assets is \d+}, 'and the next check is clean on it' );
 };
 
 subtest 'a directory changed after the install stays the sysop\'s' => sub {
@@ -120,24 +120,24 @@ subtest 'a directory changed after the install stays the sysop\'s' => sub {
 };
 
 subtest 'a later run keeps the record for what an earlier run created' => sub {
-    chmod 0775, "$site/docs";    # back to what the first run left
+    chmod 0775, "$site/manager/assets";    # back to what the first run left
     my $out = `$^X \Q$INSTALL\E --mode reinstall --docroot \Q$site\E --cgibin \Q$site/../cgi-bin\E --serving-group \Q$FIXTURE_GROUP\E 2>&1`;
     like( $out, qr/Install summary/, 'the reinstall ran' ) or diag($out);
-    is( state_of($site)->{dirs_left}{"$site/docs"}, '0775',
-        'docs/ is still recorded as the first run left it' )
+    is( state_of($site)->{dirs_left}{"$site/manager/assets"}, '0775',
+        'manager/assets/ is still recorded as the first run left it' )
         or diag( 'Without the carry-forward the record would last until the first '
             . 'upgrade, and --fix would go back to declining.' );
 };
 
 subtest 'a directory that was there before the install is never claimed' => sub {
     my $pre = "$base/b/site";
-    make_path("$pre/docs");
-    chmod 0755, "$pre/docs";
+    make_path("$pre/manager/assets");
+    chmod 0755, "$pre/manager/assets";
     provision($pre);
-    ok( !exists state_of($pre)->{dirs_left}{"$pre/docs"},
+    ok( !exists state_of($pre)->{dirs_left}{"$pre/manager/assets"},
         'not recorded - the installer did not make it' );
     check( $pre, '--fix' );
-    is( mode_of("$pre/docs"), 0775,
+    is( mode_of("$pre/manager/assets"), 0775,
         'so --fix adds group write (SM274) and does NOT set setgid' );
 };
 
