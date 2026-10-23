@@ -52,4 +52,8 @@ query_params:
   </div>
 </form>
 
+[%# SM1299 (ruling 38): a site whose sign-in is the Odoo login (SM1160) offers it here too,
+    carrying any next through to /odoo-signin; the local form above stays. %]
+[% IF odoo_signin_banner %]<p class="login-odoo" data-ls-auth-in><a href="/odoo-signin[% IF query.next %]?next=[% query.next | uri %][% END %]">Sign in with Odoo</a></p>[% END %]
+
 [% IF smtp_configured %]<p data-ls-auth-in style="margin-top:0.5rem;font-size:0.9rem;"><a href="/forgot">Forgot password?</a></p>[% END %]

@@ -15,7 +15,7 @@ use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries conf_text_value);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries conf_text_value sanitise_next);
 
 our $COMPONENT = 'lazysite';
 
@@ -141,6 +141,25 @@ sub backup_retention {
 # no occurrence at all, and the LAST occurrence of a repeated key wins. undef when
 # the key has no occurrence; '' when the last one is blank (spaces only); the value
 # is trimmed.
+# The return target after a sign-in: a path on this site, or '/'. Moved here from
+# lazysite-auth.pl (SM1299) so the Odoo sign-in page's return (ruling 37) is
+# decided by the same check as /login's, not a second one. A path that starts
+# with a single '/' and holds only word characters, '/', '.' and '-': no scheme,
+# no host, no query, no backslash, and no '//' anywhere (as ruled for the Odoo
+# page, and as /login now reads it too). Anything else is '/'.
+sub sanitise_next {
+    my ($next) = @_;
+    return '/' unless defined $next && !ref $next && length $next;
+    # H-1: reject protocol-relative URLs (//host) and backslash forms
+    # before the permissive character-class check below - otherwise
+    # //evil.com matches \A/[\w/.-]*\z.
+    return '/' if $next =~ m{\A(?://|\\)};
+    # SM1299: and a '//' anywhere - an empty segment is no path we serve
+    return '/' if $next     =~ m{//};
+    return '/' unless $next =~ m{\A/[\w/.-]*\z};
+    return $next;
+}
+
 sub conf_text_value {
     my ( $text, $key ) = @_;
     return undef unless defined $text && defined $key;

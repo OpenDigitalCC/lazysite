@@ -123,6 +123,15 @@ Archive
   `lazysite-chrome.css` under `.lazysite-fallback`, as SM1251 did for the contact page: a site
   with no layout sees the same pages, and a themed site sees its theme. An upgrade refreshes a
   starter copy the site never changed and keeps one it did. Ruling 12.
+- SM1299 (PENDING) **the Odoo sign-in page returns the visitor where they were going, and
+  /login offers it.** Once signed in, `/odoo-signin` goes to its `?next=` when that is a
+  path on this site, and to `/` otherwise: the endpoint decides, through the check
+  `/login`'s own return uses (now one function, which also refuses a `//` anywhere in the
+  path, for `/login` too). On a site opted in to Odoo sign-in, `/login` shows a "Sign in
+  with Odoo" link to it, carrying any `next`, beside the local form. `/odoo-signin` stays
+  reachable while the site is in maintenance, as `/login` does. Ruled 2026-10-23
+  (rulings 36-39).
+
 - SM1295 (PENDING) **a ready-made sign-in page for a site whose sign-in is the Odoo
   login.** While `odoo_site_signin` is on, `/odoo-signin` is a sign-in page in the site's
   own layout: a "Sign in with your Odoo login" button that opens the sign-in dialog, and,

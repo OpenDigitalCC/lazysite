@@ -811,7 +811,19 @@ sub _signin {
     push @EXTRA, Lazysite::Odoo::Session::set_cookie_header( $r->{cookie}, _cookie_scope() );
     _identity_cookie_out( $r->{identity_cookie} );
     _site_cookie_out($r);
-    return reply( '200 OK', { ok => 1, signed_in => 1, identity => $r->{identity} } );
+    return reply( '200 OK', { ok => 1, signed_in => 1, identity => $r->{identity}, _next($req) } );
+}
+
+# SM1299 (ruling 37): where a sign-in page goes once the person is signed in. A
+# request that sends `next` (the /odoo-signin page's, from its own ?next=) is
+# answered the same-site path to go to - Lazysite::Util::sanitise_next, the check
+# /login's return goes through - and '/' for anything else. A request that sends
+# none is answered none, as before.
+sub _next {
+    my ($req) = @_;
+    return () unless exists $req->{next};
+    require Lazysite::Util;
+    return ( next => Lazysite::Util::sanitise_next( $req->{next} ) );
 }
 
 # SM1160: the site session's cookies, when the sign-in made one. A site session the browser
@@ -855,7 +867,7 @@ sub _signin_code {
     }
     _identity_cookie_out( $r->{identity_cookie} );
     _site_cookie_out($r);
-    return reply( '200 OK', { ok => 1, signed_in => 1, identity => $r->{identity} } );
+    return reply( '200 OK', { ok => 1, signed_in => 1, identity => $r->{identity}, _next($req) } );
 }
 
 # B: sign out. Ends the session at Odoo and clears the cookie; a person with no

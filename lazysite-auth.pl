@@ -1503,16 +1503,9 @@ sub _secure_transport {
     return ( $ENV{HTTPS} || $ip eq '127.0.0.1' || $ip eq '::1' ) ? 1 : 0;
 }
 
-sub sanitise_next {
-    my ($next) = @_;
-    return '/' unless defined $next && length $next;
-    # H-1: reject protocol-relative URLs (//host) and backslash forms
-    # before the permissive character-class check below - otherwise
-    # //evil.com matches \A/[\w/.-]*\z.
-    return '/' if $next     =~ m{\A(?://|\\)};
-    return '/' unless $next =~ m{\A/[\w/.-]*\z};
-    return $next;
-}
+# SM1299: the check is Lazysite::Util::sanitise_next, shared with the Odoo sign-in
+# page's return (ruling 37); this name stays for the callers here.
+sub sanitise_next { return Lazysite::Util::sanitise_next(@_) }
 
 sub redirect {
     my ($url) = @_;

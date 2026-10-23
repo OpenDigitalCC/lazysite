@@ -50,7 +50,7 @@ subtest 'the engine default ships with the system pages, with no inline style' =
     my $src = join '', map { open my $fh, '<', $_ or die $!; local $/; <$fh> } $page, $comp;
     unlike( $src, qr/<style\b/i, 'no <style> block' );
     unlike( $src, qr/\bstyle\s*=/i, 'no style attribute' );
-    like( $src, qr/<button type="button" data-ls-odoo-signin>/, 'a button the Odoo helper binds' );
+    like( $src, qr/<button type="button" data-ls-odoo-signin data-ls-odoo-next>/, 'a button the Odoo helper binds' );
     like( $src, qr/class="lazysite-form"/, 'inside the form class the stylesheets style' );
     ok( !-f "$root/starter/odoo-signin.md", 'and it is not seeded into the content' );
 };
@@ -99,6 +99,40 @@ subtest 'a layout\'s own component of the name wins' => sub {
     make_path("$d/lazysite/layouts/probe/components");
     spit( "$d/lazysite/layouts/probe/components/odoo-signin.tt", '<div data-ls-odoo-signin>LAYOUT-OWN-SIGNIN</div>' );
     like( run_processor( $d, '/odoo-signin' ), qr/LAYOUT-OWN-SIGNIN/, 'the layout restyles the sign-in' );
+};
+
+subtest 'SM1299 (ruling 38): /login offers the Odoo sign-in on an opted-in site, carrying next' => sub {
+    my $d   = site( layout => 1, extension => 1, signin => 'on' );
+    my $out = run_processor( $d, '/login', QUERY_STRING => 'next=/wholesale' );
+    is( status_of($out), 200, '/login answers' );
+    like( $out, qr{<p class="login-odoo" data-ls-auth-in><a href="/odoo-signin\?next=%2Fwholesale">Sign in with Odoo</a></p>},
+        'with a link to /odoo-signin that carries next' );
+    like( $out, qr{action="/cgi-bin/lazysite-auth\.pl\?action=login"}, 'and the local form stays' );
+    my ($line) = $out =~ m{(<p class="login-odoo"[^\n]*)};
+    unlike( $line // '', qr/\bstyle\s*=/i, 'the link carries no inline style' );
+    like( run_processor( $d, '/login' ), qr{<a href="/odoo-signin">Sign in with Odoo</a>}, 'with no next, a bare link' );
+    my $odd = run_processor( $d, '/login', QUERY_STRING => 'next=/a%20b%26c%3D1' );
+    like( $odd, qr{<a href="/odoo-signin\?next=%2Fa%20b%26[^"&<>]*">}, 'a next with query characters is carried encoded, inside the href' );
+    for my $case ( [ 'the opt-in off', extension => 1, signin => 'off' ], [ 'the extension not enabled', signin => 'on' ] ) {
+        my ( $why, %o ) = @$case;
+        unlike( run_processor( site( layout => 1, %o ), '/login' ), qr/Sign in with Odoo/, "$why: no link" );
+    }
+};
+
+subtest 'SM1299 (ruling 39): /odoo-signin is reachable during maintenance, as /login is' => sub {
+    require Lazysite::Maintenance;
+    ok( Lazysite::Maintenance::exempt( '/odoo-signin', {} ), 'the decision exempts it' );
+    ok( Lazysite::Maintenance::exempt( '/odoo-signin?next=/x', {} ), '...with its query' );
+    my $d = site( layout => 1, extension => 1, signin => 'on' );
+    open my $cf, '>>', "$d/lazysite/lazysite.conf" or die $!;
+    print {$cf} "maintenance: on\n";
+    close $cf;
+    spit( "$d/elsewhere.md", "---\ntitle: E\n---\nELSEWHERE\n" );
+    my $away = run_processor( $d, '/elsewhere' );
+    like( $away, qr/Status: 302/, 'a page is sent to the maintenance page' );
+    my $out = run_processor( $d, '/odoo-signin' );
+    is( status_of($out), 200, '/odoo-signin is served' );
+    like( $out, qr/data-ls-odoo-signin/, '...with its button' );
 };
 
 subtest 'a site\'s own copy wins, and deleting it restores the default' => sub {

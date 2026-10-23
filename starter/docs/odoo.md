@@ -824,9 +824,14 @@ site without it behaves as it always did.
   Set `auth_redirect` to a page that carries the sign-in link.
 - **A ready-made sign-in page.** While `odoo_site_signin` is on, the site has
   `/odoo-signin`: a sign-in page in the site's own layout with a "Sign in with
-  your Odoo login" button that opens the sign-in dialog, and, once signed in, who
-  is signed in and a sign-out. Set `auth_redirect: /odoo-signin` to send a visitor
-  there for a page that needs a sign-in. It is a system page, like `/login`: write
+  your Odoo login" button that opens the sign-in dialog. Once the person is signed
+  in it goes to the page's `?next=` when that is a path on this site (checked by
+  the endpoint as `/login` checks its own return), and to `/` otherwise; a person
+  already signed in sees who, and a sign-out. `/login` on such a site shows a
+  "Sign in with Odoo" link to it, carrying any `next`, beside the local form, and
+  it stays reachable while the site is in maintenance, as `/login` does. Set
+  `auth_redirect: /odoo-signin` to send a visitor straight there for a page that
+  needs a sign-in. It is a system page, like `/login`: write
   your own `odoo-signin.md` to replace it, and deleting yours brings the default
   back. The button is the `::: odoo-signin` component, which you can put on any
   page, and which a layout may restyle with its own `components/odoo-signin.tt`.

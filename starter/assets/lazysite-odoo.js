@@ -349,10 +349,25 @@
   /* sign a person in. The password is in this call's argument and the request
    * body and nowhere else; the caller clears its own box. Resolves the
    * endpoint's answer: { status, data } with data.identity.name on success. */
+  /* SM1299 (ruling 37): a sign-in page's return. A button carrying
+   * data-ls-odoo-next sends the page's own ?next= with the sign-in, and the
+   * endpoint answers the same-site path to go to (the check /login's return goes
+   * through, or '/'); the page goes there once the person is signed in. Only that
+   * answer is followed: this script never decides a destination itself. */
+  var afterSignin = { next: null, to: null };
+  function withNext(body) {
+    if (afterSignin.next !== null) body.next = afterSignin.next;
+    return body;
+  }
+  function keepNext(r) {
+    if (afterSignin.next !== null && r && r.data && r.data.signed_in && typeof r.data.next === 'string') afterSignin.to = r.data.next;
+    return r;
+  }
+
   API.signIn = function (login, password) {
-    return post({ signin: true, login: login, password: password }).then(function (r) {
+    return post(withNext({ signin: true, login: login, password: password })).then(function (r) {
       password = null;
-      return r;
+      return keepNext(r);
     });
   };
 
@@ -360,9 +375,9 @@
    * sign-in the server holds. Like the password, it is in this call's argument
    * and the request body and nowhere else. */
   API.signInCode = function (code, remember) {
-    return post({ signin_code: true, code: code, remember: remember ? true : false }).then(function (r) {
+    return post(withNext({ signin_code: true, code: code, remember: remember ? true : false })).then(function (r) {
       code = null;
-      return r;
+      return keepNext(r);
     });
   };
 
@@ -640,6 +655,13 @@
     });
   };
 
+  /* the page's own ?next=, as text ('' when it has none) */
+  function pageNext() {
+    var m = /[?&]next=([^&#]*)/.exec((root.location && root.location.search) || '');
+    if (!m) return '';
+    try { return decodeURIComponent(m[1].replace(/\+/g, ' ')); } catch (e) { return ''; }
+  }
+
   function start() {
     var d = doc();
     if (!d) return;
@@ -648,7 +670,10 @@
     [].slice.call(d.querySelectorAll('[data-ls-odoo-signin]')).forEach(function (b) {
       b.addEventListener('click', function (ev) {
         if (ev && ev.preventDefault) ev.preventDefault();
+        afterSignin.next = b.hasAttribute('data-ls-odoo-next') ? pageNext() : null;
+        afterSignin.to = null;
         API.prompt().then(function (ok) {
+          if (ok && afterSignin.to !== null) { root.location.assign(afterSignin.to); return; }
           if (ok) {
             tokens = null;                                   /* the sign-in changed who this is */
             API.showName();

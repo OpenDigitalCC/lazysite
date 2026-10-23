@@ -401,6 +401,53 @@ subtest 'two-factor: the site session is minted only after the code' => sub {
 };
 
 # ================================================================================
+subtest 'SM1299: a sign-in that sends next is answered a path on this site, or /' => sub {
+    # Ruling 37: /odoo-signin follows ?next= once the person is signed in, same-site
+    # only. The page sends it with the sign-in; the endpoint answers the path to go to
+    # through the check /login's return uses (Lazysite::Util::sanitise_next), so the
+    # script never decides a destination itself.
+    conf_on();
+    my %case = (
+        '/wholesale'            => '/wholesale',
+        '/docs/a-b_c.d'         => '/docs/a-b_c.d',
+        ''                      => '/',
+        'https://evil.example/' => '/',
+        '//evil.example/'       => '/',
+        '///evil.example'       => '/',
+        '/\\evil.example'       => '/',
+        '\\\\evil.example'      => '/',
+        'javascript:alert(1)'   => '/',
+        'evil.example'          => '/',
+        '/a//b'                 => '/',
+        '/x?y=1'                => '/',
+        '/%2F%2Fevil.example'   => '/',
+    );
+    for my $n ( sort keys %case ) {
+        %JAR = ();
+        my $vt = fresh_tokens()->{visitor_token};
+        my ( $st, $ck, $j ) = request( 'POST', '', { signin => 1, login => 'jane@example.com', password => $PW,
+                visitor_token => $vt, next => $n }, HTTP_COOKIE => jar() );
+        is( $st, 200, "next '$n': signed in" ) or diag explain $j;
+        is( $j->{next}, $case{$n}, "...and answered '$case{$n}'" );
+    }
+    %JAR = ();
+    my ( $st, $ck, $j ) = sign_in();
+    ok( !exists $j->{next}, 'a sign-in that sends no next is answered none, as before' );
+
+    %JAR = ();
+    my $vt = fresh_tokens()->{visitor_token};
+    ( $st, $ck, $j ) = request( 'POST', '', { signin => 1, login => 'otp@example.com', password => $PW,
+            visitor_token => $vt, next => '//evil.example' }, HTTP_COOKIE => jar() );
+    jar_take($ck);
+    ok( !exists $j->{next}, 'the password step of a two-factor sign-in goes nowhere yet' );
+    ( $st, $ck, $j ) = request( 'POST', '', { signin_code => 1, code => '482915', visitor_token => $vt,
+            next => '/wholesale' }, HTTP_COOKIE => jar() );
+    is( $st, 200, 'the code step signs in' ) or diag explain $j;
+    is( $j->{next}, '/wholesale', '...and answers the same-site next' );
+    %JAR = ();
+};
+
+# ================================================================================
 subtest 'sign-out ends both sessions' => sub {
     conf_on();
     %JAR = ();

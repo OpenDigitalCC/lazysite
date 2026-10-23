@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "plan 0.16.2 row n736, #340 (the follow-up of SM1128 and SM1160)"
 area: auth
-status-note: "SHIPPED (PENDING) on n736: lazysite/templates/system/odoo-signin.md and the built-in component lazysite/templates/components/odoo-signin.tt; the processor's %SYSTEM_PAGES and _odoo_site_signin_on (render.pm, shared with the banner). t/unit/processor/171. Open for a ruling: the page's name, following `next` after signing in, and whether /login or auth_redirect should point at it by themselves."
+status-note: "SHIPPED (PENDING) on n736: lazysite/templates/system/odoo-signin.md and the built-in component lazysite/templates/components/odoo-signin.tt; the processor's %SYSTEM_PAGES and _odoo_site_signin_on (render.pm, shared with the banner). t/unit/processor/171. The questions it left were ruled 2026-10-23 (rulings 36-39) and built as [[SM1299]]."
 ---
 
 # What was asked
@@ -75,3 +75,9 @@ chrome, whose stylesheet styles this markup; with the opt-in off, absent, or the
 extension not enabled, it answers 404; a layout's own component wins; a site's own copy
 wins and deleting it restores the default. Sabotage: the processor without the system
 page fails four subtests; without the opt-in gate the 404 subtest fails.
+
+# Ruled (2026-10-23)
+
+Rulings 36-39 answered the questions above: the name stands (36); the page follows
+`?next=`, same-site only (37); `/login` on an opted-in site links to it, carrying `next`
+(38); and it is reachable during maintenance (39). The three changes are [[SM1299]].

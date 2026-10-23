@@ -6,22 +6,14 @@ use File::Temp  qw(tempdir);
 use Digest::SHA qw(hmac_sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root);
 
-# We can't `do` lazysite-auth.pl in-process — it calls handle_request at
-# load time and exec()s the processor. Test sanitise_next by copying its
-# definition (it's a small pure function) to pin the contract. This copy
-# MUST mirror the real sanitise_next exactly.
-
-*sanitise_next = sub {
-    my ($next) = @_;
-    return '/' unless defined $next && length $next;
-    # H-1: reject protocol-relative and backslash forms before the main
-    # character-class check. Otherwise //evil.com matches \A/[\w/.-]*\z.
-    return '/' if $next     =~ m{\A(?://|\\)};
-    return '/' unless $next =~ m{\A/[\w/.-]*\z};
-    return $next;
-};
+# SM1299: sanitise_next is Lazysite::Util's now (lazysite-auth.pl calls it, and so
+# does the Odoo endpoint for its sign-in page), so the real one is tested here
+# rather than a copy that had to mirror it.
+use Lazysite::Util ();
+*sanitise_next = \&Lazysite::Util::sanitise_next;
 
 # --- allowed paths ---
 is( sanitise_next('/about'),        '/about',        'relative path accepted' );
@@ -33,6 +25,7 @@ is( sanitise_next('https://evil.com'), '/', 'absolute URL rejected' );
 
 is( sanitise_next('//evil.com'),  '/', 'protocol-relative //host rejected' );
 is( sanitise_next('///evil.com'), '/', 'triple-slash rejected' );
+is( sanitise_next('/a//b'),      '/', 'SM1299: an empty segment (// inside) rejected' );
 is( sanitise_next('\\evil.com'),  '/', 'backslash rejected' );
 
 is( sanitise_next('../../../etc'),    '/', 'path traversal rejected' );
