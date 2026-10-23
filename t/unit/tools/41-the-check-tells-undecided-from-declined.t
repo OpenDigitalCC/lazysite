@@ -57,16 +57,47 @@ subtest 'all decided: no warning' => sub {
     like( $out, qr/carry a decision on every capability/, 'the OK line says decided' );
 };
 
-subtest 'UNDECIDED warns, and the remedy is the UI first' => sub {
+subtest 'ABSENT on a manager group: granted on the next use, no decision asked' => sub {
+    # SM1272: the SM645 top-up fills a manager group's absent capabilities on
+    # the next use of the manager or the users tool, so there is nothing to
+    # decide - and the remedy still names the manager, not a shell, first.
     my %g = %granted;
     delete $g{feedback};    # the store has never seen it - a release-added cap
     my $out = site_with(%g);
-    like( $out, qr/have not decided on capabilities this release has: ops\/feedback/,
+    like( $out, qr/do not hold capabilities this release has yet: ops\/feedback/,
         'names the group and the capability' );
-    like( $out, qr/Groups -> the group -> the "new\s+capabilities" banner/,
-        'the remedy names the manager UI, not a shell' )
+    like( $out, qr/granted them on the next use of the manager or the users\s+tool \(opening the Users, Groups or Config page/,
+        'says it is granted, and names the use that does it, the manager first' )
         or diag( 'App support must not need a sysadmin: the UI is the remedy, '
             . 'the CLI the fallback.' );
+    unlike( $out, qr/have not decided on capabilities|grant or dismiss/,
+        'and asks for no decision the code has already taken' );
+};
+
+subtest 'a gap the top-up does not fill keeps the decision wording (SM1272)' => sub {
+    # Every gap the check can see today is on a manager group, in a capability
+    # the top-up fills - so this case cannot be produced through a site, and is
+    # held from the source instead: the predicate is the top-up's own rule, and
+    # what it rejects is reported with SM496's remedy, the Groups page first.
+    my $src = do { open my $fh, '<', $check or die $!; local $/; <$fh> };
+    my $users = do {
+        open my $fh, '<', repo_root() . '/tools/lazysite-users.pl' or die $!;
+        local $/;
+        <$fh>;
+    };
+    like( $src, qr/return \$have->\{manager\} && \$c ne 'api' && \$c ne 'mcp';/,
+        'the check fills a gap exactly where the top-up does: a manager group, not api/mcp' );
+    like( $users, qr/return unless \$gs->\{\$group\}\{manager\};/,
+        'the top-up acts only on a manager group' );
+    like( $users, qr/for my \$c \( grep \{ \$_ ne 'api' && \$_ ne 'mcp' \} \@CAP_KEYS \) \{\s*next if exists \$cfg->\{\$c\};/,
+        'and fills every capability but api/mcp it has no decision on' );
+    like( $src, qr/if\s+\( \$topup_fills->\( \$have, \$c \) \) \{ push \@filled,  "\$g\/\$c" \}\s*else\s*\{ push \@missing, "\$g\/\$c" \}/,
+        'what the predicate rejects goes to the decision bucket' );
+    my ($decide) = $src =~ /if \(\@missing\) \{(.*?)\n            \}/s;
+    like( $decide // '', qr/have not decided on capabilities this/,
+        'which keeps the "have not decided" warning' );
+    like( $decide // '', qr/Groups -> the group -> the "new\s*'\s*\.\s*'capabilities" banner \(grant or dismiss\)/,
+        'and the Groups page banner as the remedy' );
 };
 
 subtest 'DECLINED is a decision, not a warning' => sub {

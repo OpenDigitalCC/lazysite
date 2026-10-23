@@ -1084,22 +1084,31 @@ sub run_checks {
                         . 'claim-create <username>   # mints a 24h self-service link' ) }
             else { report( 'OK', "manager bootstrapped (group + user + password)" ) }
 
-            # SM471: A CAPABILITY ADDED AFTER THIS SITE WAS CREATED NEVER
-            # REACHED IT.
+            # SM471: A CAPABILITY ADDED AFTER THIS SITE WAS CREATED.
             #
-            # The manager group is seeded ONCE, with the capabilities that
-            # existed that day, and _ensure_manager_group_caps returns early
-            # when the group already has an entry - so no later release
-            # backfills. Every capability added since is absent, and the
-            # operator meets it as "you do not hold it" about something their
-            # role is designed to hold.
+            # The manager group is seeded with the capabilities that existed
+            # that day. SM471 found that no later release backfilled it, and
+            # reported the gap here rather than repair it.
             #
-            # REPORTED, NOT REPAIRED, and that is the decision rather than
-            # laziness. The code cannot tell "this did not exist when the group
-            # was made" from "an operator turned it off on purpose", and
-            # granting on upgrade gets the second silently wrong. Re-granting
-            # something somebody removed is worse than telling them about
-            # something they are missing.
+            # SM645 REPAIRS IT, and this check reports what that repair will do.
+            # _ensure_manager_group_caps (tools/lazysite-users.pl) tops a manager
+            # group up with every capability it has NO decision on - absent,
+            # never an explicit 0, which SM496 made the record of a decline - so
+            # granting cannot undo anybody's decision. It runs on the next use of
+            # the users tool: the manager's Users, Groups and Config pages, or a
+            # command such as `permissions`. Not at upgrade and not on sign-in:
+            # SM685 took it off the credential path, ruled 2026-09-09, and the
+            # release manager kept that on 2026-10-23 (SM1272) rather than add a
+            # top-up at upgrade. So a deploy's check runs before it, and an
+            # upgraded site shows the gap until the manager is next used.
+            #
+            # SM1272: TWO WORDINGS. A gap the top-up fills is reported as what
+            # will happen - granted on the next use - because "decide" asks for
+            # a decision the code has already taken (ruled 2026-08-27). Anything
+            # else keeps the SM496 remedy, the Groups page banner first: that
+            # is a real decision. Today every reported gap is on a manager group
+            # and every capability below is one the top-up fills, so the second
+            # wording is kept for the day either stops being true.
             #
             # api and mcp are excluded: SM127 keeps manager groups off the
             # remote channels deliberately, so their absence is the design.
@@ -1129,14 +1138,36 @@ sub run_checks {
             # capability the store has never seen a decision on warns, and
             # the remedy is the UI first: capability upkeep is app support,
             # and app support must not need a shell on the box.
-            my ( @missing, @declined );
+            # SM1272: the top-up's own rule (_ensure_manager_group_caps): a
+            # manager group, any capability but the two remote channels.
+            my $topup_fills = sub {
+                my ( $have, $c ) = @_;
+                return $have->{manager} && $c ne 'api' && $c ne 'mcp';
+            };
+            my ( @missing, @filled, @declined );
             for my $g (@groups) {
                 my $have = $gsettings->{$g} or next;
                 next unless $have->{manager};
                 for my $c (@CAPS) {
-                    if    ( !exists $have->{$c} ) { push @missing,  "$g/$c" }
-                    elsif ( !$have->{$c} )        { push @declined, "$g/$c" }
+                    if ( !exists $have->{$c} ) {
+                        if   ( $topup_fills->( $have, $c ) ) { push @filled,  "$g/$c" }
+                        else                                 { push @missing, "$g/$c" }
+                    }
+                    elsif ( !$have->{$c} ) { push @declined, "$g/$c" }
                 }
+            }
+            if (@filled) {
+                my ($fg) = $filled[0] =~ m{\A([^/]+)/};
+                report( 'WARN',
+                    'manager group(s) do not hold capabilities this release has yet: '
+                        . join( ', ', @filled )
+                        . ' - added after the group was seeded. A manager group is '
+                        . 'granted them on the next use of the manager or the users '
+                        . 'tool (opening the Users, Groups or Config page, or a '
+                        . 'lazysite-users.pl command such as group-reach); nothing to '
+                        . 'decide, and a capability declined on purpose stays declined',
+                    'or now, from a shell as the site user: perl tools/lazysite-users.pl '
+                        . "--docroot '$DOC' group-reach $fg" );
             }
             if (@missing) {
                 report( 'WARN',
@@ -1153,7 +1184,7 @@ sub run_checks {
                             . "--docroot '$DOC' group-set $fg $fc on|off";
                     } );
             }
-            else {
+            if ( !@missing && !@filled ) {
                 report( 'OK',
                     'manager group(s) carry a decision on every capability '
                         . 'this release has'

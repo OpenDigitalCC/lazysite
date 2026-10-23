@@ -53,6 +53,19 @@ Archive
 
 ## Unreleased
 
+- SM1272 (PENDING) **the check says a manager group is granted a new capability on the next
+  use, not that it must decide.** After an upgrade, `lazysite check` told an operator that
+  sysops had "not decided" on a capability the release added (on edge, `maintenance_access`)
+  and asked them to grant or dismiss it on the Groups page. The SM645 top-up grants a manager
+  group every capability it has no decision on, on the next use of the users tool, so the
+  warning now says that and names the use: opening the Users, Groups or Config page, or a
+  `lazysite-users.pl` command such as `group-reach`. A declined capability stays declined. A
+  gap the top-up does not fill keeps the Groups page wording. This corrects the 0.16.1 line
+  for SM1118, "on upgrade too (an upgrade adds the `cap-maintenance` bundle)": nothing is
+  granted at upgrade. The operator group and site-admins get `maintenance_access` on the
+  next use of the users tool after the upgrade (SM685, kept by the release manager on
+  2026-10-23).
+
 - SM1270 (PENDING) **acl-remove needs a path.** The control API's `acl-remove` with no path,
   or an empty one, removed the site-wide rule and published everything it held back (the
   dispatcher's `/` default, which SM306 kept for recovery). It is refused now, on every

@@ -9,11 +9,10 @@
 # operator meets it as "you do not hold it" about something their role is
 # designed to hold.
 #
-# REPORTED RATHER THAN REPAIRED, deliberately: the code cannot tell "this did
-# not exist when the group was made" from "an operator turned it off on
-# purpose", and granting on upgrade gets the second silently wrong. Re-granting
-# something somebody removed is worse than telling them about something they
-# are missing.
+# SM645 since tops a manager group up with every capability it has no decision
+# on, on the next use of the users tool (never at upgrade or sign-in: SM685,
+# kept 2026-10-23). SM1272: so the check says it WILL be granted, and when,
+# rather than asking for a decision - and the last subtest holds it to that.
 #
 # t/lint/81 pins the capability LIST the check carries. This asserts the check
 # actually SAYS something - a correct list nobody reports is a check that
@@ -72,9 +71,11 @@ subtest 'a site missing one is told, and told what to run' => sub {
     drop_cap( $d, 'manage_data' );    # as every pre-0.10.24 site is
     my $out = run_check($d);
 
-    # SM496: the wording moved from "lack" to "have not decided on" - absence
-    # means UNDECIDED now, and an explicit 0 (declined) does not warn at all.
-    like( $out, qr/have not decided on capabilities this release has/, 'the check warns' )
+    # SM1272: sysops is a manager group, so the SM645 top-up fills the gap on
+    # the next use of the manager or the users tool. The check says that, and
+    # stops asking for a decision the code has already taken.
+    like( $out, qr/manager group\(s\) do not hold capabilities this release has yet/,
+        'the check warns' )
         or diag( 'This is the whole finding: the operator otherwise meets it '
             . 'as a refusal about a capability their role should hold.' );
     like( $out, qr/sysops\/manage_data/, 'naming the group and the capability' );
@@ -82,10 +83,37 @@ subtest 'a site missing one is told, and told what to run' => sub {
         'and saying WHY it is absent' )
         or diag( 'Without that, an operator reads it as their configuration '
             . 'being wrong rather than as a seed that predates the feature.' );
-    like( $out, qr/Groups -> the group -> the "new\s+capabilities" banner/,
-        'the remedy is the UI first (SM496: app support needs no shell)' );
-    like( $out, qr/group-set sysops manage_data on/,
-        'with the exact command as the shell fallback' );
+    like( $out, qr/granted them on the next use of the manager or the users\s+tool/,
+        'it says the group is granted it, and when' );
+    like( $out, qr/Config page/, 'naming a use that does it' );
+    unlike( $out, qr/have not decided on capabilities/,
+        'it no longer calls it undecided' );
+    unlike( $out, qr/grant or dismiss/, 'nor asks for a decision on the Groups page' );
+    like( $out, qr/group-reach sysops/,
+        'with a command that grants it now as the shell fallback' );
+};
+
+subtest 'what the warning says will happen does happen (SM1272)' => sub {
+    # The Config page's call (capability-holders) and the shell fallback each
+    # top the group up, after which the check is clean. Either failing would
+    # make the new wording a promise the code does not keep.
+    for my $how ( 'config page', 'group-reach' ) {
+        my $d = site();
+        drop_cap( $d, 'manage_data' );
+        if ( $how eq 'config page' ) {
+            my $req = "$d/.req.json";
+            open my $rf, '>', $req or die $!;
+            print {$rf} '{"action":"capability-holders","actor":"sjm"}';
+            close $rf;
+            qx($^X \Q$users\E --docroot \Q$d\E --api < \Q$req\E 2>/dev/null);
+        }
+        else {
+            qx($^X \Q$users\E --docroot \Q$d\E group-reach sysops 2>/dev/null);
+        }
+        my $out = run_check($d);
+        like( $out, qr/manager group\(s\) carry a decision on every capability/,
+            "$how: the group holds it afterwards, and the check is clean" );
+    }
 };
 
 subtest 'the remote channels are not reported as missing' => sub {
