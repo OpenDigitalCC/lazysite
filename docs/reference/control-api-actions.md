@@ -197,7 +197,7 @@ tone: medium
 `plugin-list` | cookie only |  
 `plugin-read` | cookie only | plugin (query), script (body)
 `plugin-save` | cookie only | plugin (query), script (body), values (body), add (body)
-`preview` | cookie only | path (query)
+`preview` | cookie only | path (query), theme (query)
 `preview-clear` | cookie only |  
 `preview-grant` | manage_themes / manage_layouts |  
 `preview-public` | manage_content | path (query)
