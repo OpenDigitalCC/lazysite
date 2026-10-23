@@ -167,6 +167,10 @@ var SITE_SCHEMA = [
   { key: 'maintenance_until', placeholder: '2026-11-01 18:30', label: 'Expected back, UTC (optional)', type: 'text', default: '',
     group: 'Maintenance',
     note: 'A UTC time, YYYY-MM-DD HH:MM. Sent to browsers and crawlers as Retry-After and shown to visitors. Blank sends an hour.' },
+  // SM1294 (ruling 29): the site's optional ceiling on the browser features a page may ask for.
+  { key: 'permissions_policy_allow', placeholder: 'any a page asks for', label: 'Browser features pages may ask for', type: 'text',
+    default: '', group: 'Browser features',
+    note: 'Every browser feature such as the camera, microphone or location is denied to every page unless the page says, for example, camera: self in its front matter (https only). Blank lets a page ask for any of them. A list, comma separated, lets pages ask only for those: accelerometer, camera, display-capture, geolocation, gyroscope, magnetometer, microphone, midi, usb, xr-spatial-tracking. A page asking for another keeps it denied, and the page check warns. none lets no page ask. Payment and browsing-topics stay denied on every site and cannot be listed. This covers every domain of the site.' },
   // SM623: the service toggles are grouped BY WHAT A CLIENT NEEDS, not by the
   // order they were added. They were interleaved - WebDAV, MCP, OAuth, control
   // API, token exchange - so an operator setting up one kind of connection had

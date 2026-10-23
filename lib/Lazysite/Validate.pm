@@ -400,11 +400,13 @@ sub permission_values {
 }
 
 # The features a page's front matter allows, in the policy's own order - what
-# page_status and the editor show.
+# page_status and the editor show. SM1294: given the site's ceiling (an arrayref,
+# site_permissions_ceiling), only those it lists, as the response sends them.
 sub permissions_allowed {
-    my ($fm) = @_;
-    my ($v)  = permission_values($fm);
-    return grep { ( $v->{$_} // '' ) eq 'self' } @Lazysite::SecurityHeaders::PAGE_FEATURES;
+    my ( $fm, $ceiling ) = @_;
+    my ($v) = permission_values($fm);
+    my %cap = map { $_ => 1 } ( ref $ceiling eq 'ARRAY' ? @$ceiling : @Lazysite::SecurityHeaders::PAGE_FEATURES );
+    return grep { ( $v->{$_} // '' ) eq 'self' && $cap{$_} } @Lazysite::SecurityHeaders::PAGE_FEATURES;
 }
 
 # SM1174 kept its kind and its sentence for the camera; SM1266's other features
@@ -444,11 +446,44 @@ sub permission_issues {
 # `<key>: self` that is no feature grants nothing and is a WARNING - it may be a
 # site's own page variable. An unreadable value on a feature is an issue.
 sub _check_permissions {
-    my ( $issues, $warnings, $fm ) = @_;
+    my ( $issues, $warnings, $fm, $lz ) = @_;
     for my $i ( permission_issues($fm) ) {
         push @{ $i->{kind} eq 'permission-unknown' ? $warnings : $issues }, $i;
     }
+    # SM1294: a feature asked for that the site's ceiling does not list
+    push @$warnings, permission_ceiling_warnings( $fm, site_permissions_ceiling($lz) );
     return;
+}
+
+# SM1294 (ruling 29): the site's ceiling, read from its lazysite.conf as the
+# processor reads it (Lazysite::SecurityHeaders::permissions_ceiling) - undef for
+# none, which is also the answer with no site to ask.
+sub site_permissions_ceiling {
+    my ($lz) = @_;
+    return undef unless defined $lz && length $lz;
+    open my $fh, '<', "$lz/lazysite.conf" or return undef;
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    require Lazysite::Util;
+    my ($ceiling) = Lazysite::SecurityHeaders::permissions_ceiling(
+        Lazysite::Util::conf_text_value( $text, 'permissions_policy_allow' ) );
+    return $ceiling;
+}
+
+# A feature the page asks for that the site's ceiling does not list: the page keeps
+# it denied, so each is a WARNING naming the setting - the page still renders, and
+# the operator may widen the list rather than the author change the page.
+sub permission_ceiling_warnings {
+    my ( $fm, $ceiling ) = @_;
+    return () unless ref $ceiling eq 'ARRAY';
+    my %listed = map { $_ => 1 } @$ceiling;
+    my $lists  = @$ceiling ? 'lists only ' . join( ', ', @$ceiling ) : 'is none';
+    return map {
+        { kind => 'permission-above-site-ceiling', key => $_,
+            message => "'$_: self' grants nothing on this site: lazysite.conf's permissions_policy_allow "
+                . "$lists, so the page keeps $_=(). Add $_ to permissions_policy_allow "
+                . '(Config, Browser features) to let a page ask for it' }
+    } grep { !$listed{$_} } permissions_allowed($fm);
 }
 
 # SM993: where a page is, for read_access_keys - 'manager' for a page under the
@@ -1010,7 +1045,7 @@ sub validate_content {
     _check_front_matter( \@issues, \@warnings, $content, $h );
     _check_access_keys( \@issues, $fm, _page_place( $o{path}, $docroot, $lz ) ); # SM980, SM993
     _check_address_kinds( \@issues, $fm, $lz );                                  # SM1189
-    _check_permissions( \@issues, \@warnings, $fm );    # SM1174, SM1266
+    _check_permissions( \@issues, \@warnings, $fm, $lz );    # SM1174, SM1266, SM1294
     _check_fences( \@warnings, $fm, $body );
     # SM900: with the front-matter offset, as _check_fences has always done, so
     # the two checks on one page count from the same place - the top of the file.

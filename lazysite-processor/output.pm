@@ -11,7 +11,8 @@ package main;
 #         _csp_mode and _is_manager_request (the ADR 0001 copy of
 #         Lazysite::SecurityHeaders, pinned by value by t/lint/55), with
 #         _csp_origin_ok and _csp_allow (P16, the allow-lists; t/lint/225); _pp_denied
-#         and _pp_page_may_ask (SM1266, the Permissions-Policy features); _conf_value
+#         and _pp_page_may_ask (SM1266, the Permissions-Policy features), _pp_ceiling (SM1294,
+#         the site's cap on them); _conf_value
 #         and _conf_flag_enabled, the lazysite.conf readers; _ai_partner_doc, the .well-known/ai-partner
 #         document built from the live config; _request_croot.
 # OWNS    the bytes of a response's head; which security headers it carries;
@@ -261,6 +262,22 @@ sub _pp_page_may_ask {
     return grep { $_ ne 'payment' && $_ ne 'browsing-topics' } _pp_denied();
 }
 
+# SM1294 (ruling 29): the site's ceiling - lazysite.conf's permissions_policy_allow,
+# the last line of it, as Lazysite::Util::conf_text_value reads it - or undef when
+# there is none (absent, or empty). The marked copy (ADR 0001) of
+# Lazysite::SecurityHeaders::permissions_ceiling, which says why it is per site and
+# never per domain; t/lint/55 holds the two to one answer. A name that is no feature
+# a page may ask for is left out, so a typo narrows and never widens.
+sub _pp_ceiling {
+    open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" or return undef;
+    my $raw;
+    while ( my $l = <$fh> ) { $raw = $1 if $l =~ /^permissions_policy_allow[ \t]*:[ \t]*(.*?)\s*$/ }
+    close $fh;
+    return undef unless defined $raw && $raw =~ /\S/;
+    my %listed = map { lc($_) => 1 } grep { length } split /[\s,]+/, $raw;
+    return [ grep { $listed{$_} } _pp_page_may_ask() ];
+}
+
 # P16: this response's allow-lists - the site's csp_<d>_src, or the serving
 # domain's alias.<host>.csp_<d>_src (resolve_site_vars overlays it), each entry
 # that is not an origin dropped and logged. None on the manager: its pages load
@@ -286,7 +303,8 @@ sub _csp_allow {
 
 sub _security_headers {
     my (%opt) = @_;
-    my %may   = map { $_ => 1 } _pp_page_may_ask();
+    my $ceil  = _pp_ceiling();    # SM1294: a site's list caps what a page may ask
+    my %may   = map { $_ => 1 } ( $ceil ? @$ceil : _pp_page_may_ask() );
     my %ask = $ENV{HTTPS} ? ( map { $_ => 1 } grep { $may{$_} } @{ $opt{permissions} || [] } ) : ();
     my @h = (
         'X-Content-Type-Options: nosniff',

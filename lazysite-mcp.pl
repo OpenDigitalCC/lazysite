@@ -2727,15 +2727,17 @@ sub _page_status {
             if ( open my $fh, '<:utf8', $full ) { local $/; $src = <$fh>; close $fh }
             my ($fm) = Lazysite::Validate::split_front_matter( $src // '' );
             my $cam = Lazysite::Validate::camera_value($fm);
-            if ( defined $cam && $cam eq 'self' ) {
+            # SM1266: every feature the page asks for, the camera among them, in
+            # the policy's order. The camera's own two fields stay as SM1174 made them.
+            # SM1294: as the response sends them - inside the site's ceiling.
+            my @pp = Lazysite::Validate::permissions_allowed( $fm,
+                Lazysite::Validate::site_permissions_ceiling($LAZYSITE_DIR) );
+            if ( defined $cam && $cam eq 'self' && grep { $_ eq 'camera' } @pp ) {
                 $out{camera} = 'self';
                 $out{camera_note} = 'camera allowed on this page: it sends camera=(self) over https. '
                     . 'Over plain http the setting is ignored and the page keeps camera=(), '
                     . 'because browsers offer the camera on a secure connection only.';
             }
-            # SM1266: every feature the page asks for, the camera among them, in
-            # the policy's order. The camera's own two fields stay as SM1174 made them.
-            my @pp = Lazysite::Validate::permissions_allowed($fm);
             if (@pp) {
                 $out{permissions}      = \@pp;
                 $out{permissions_note} = 'allowed on this page over https: '

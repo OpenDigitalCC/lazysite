@@ -1404,6 +1404,7 @@ sub run_checks {
     report_rows_without_a_policy();
     report_unsafe_nav_urls();
     report_csp_allow_lists();
+    report_permissions_ceiling();    # SM1294
     report_group_acl_reach();
     report_address_rules();    # SM1141
 
@@ -2401,6 +2402,40 @@ sub report_csp_allow_lists {
         return;
     }
     report( 'OK', 'every CSP allow-list entry is an https origin' );
+    return;
+}
+
+# SM1294 (ruling 29): the site's ceiling on the browser features a page may ask
+# for. An entry that is no such feature - a typo, or payment or browsing-topics,
+# which can never be listed (rulings 15 and 16) - lets no page ask for anything
+# by it; the engine leaves it out, which narrows and never widens. This names
+# each, with its line, so the list says what the operator meant. Silent when the
+# site sets no ceiling. alias.<host>.permissions_policy_allow is not read: the
+# ceiling is per site, and a domain cannot override it.
+sub report_permissions_ceiling {
+    require Lazysite::SecurityHeaders;
+    no warnings 'once';    ## no critic (ProhibitNoWarnings)
+    open my $ch, '<', $conf or return;
+    my ( @bad, $raw, $at );
+    my $n = 0;
+    while ( my $l = <$ch> ) {
+        $n++;
+        next unless $l =~ /^permissions_policy_allow[ \t]*:[ \t]*(.*?)\s*$/;
+        ( $raw, $at ) = ( $1, $n );
+    }
+    close $ch;
+    my ( $ceil, $refused ) = Lazysite::SecurityHeaders::permissions_ceiling($raw);
+    return unless $ceil;
+    if (@$refused) {
+        report( 'WARN',
+            sprintf( 'lazysite.conf:%d permissions_policy_allow lists %s that no page can ask for: %s',
+                $at, ( @$refused == 1 ? 'an entry' : scalar(@$refused) . ' entries' ), join( ', ', @$refused ) ),
+            'payment and browsing-topics stay denied on every site and cannot be listed; the others are '
+                . join( ', ', @Lazysite::SecurityHeaders::PAGE_FEATURES ) . ', or none. See /docs/configuration.' );
+        return;
+    }
+    report( 'OK', 'pages may ask only for the browser features permissions_policy_allow lists: '
+            . ( @$ceil ? join( ', ', @$ceil ) : 'none' ) );
     return;
 }
 

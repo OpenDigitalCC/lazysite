@@ -72,6 +72,7 @@ sub action_config_read {
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
         app_offline_pages app_update
         maintenance maintenance_page maintenance_until
+        permissions_policy_allow
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
@@ -321,6 +322,7 @@ sub action_config_set {
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
         app_offline_pages app_update
         maintenance maintenance_page maintenance_until
+        permissions_policy_allow
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
 
     # SM612: settable, but NOT BY A TOKEN CLIENT. The operator toggles the
@@ -478,6 +480,32 @@ sub action_config_set {
             error => 'maintenance_until must be a UTC time such as 2026-11-01 18:30' }
             unless Lazysite::Maintenance::until_ok($value);
     }
+    # SM1294 (ruling 29): the site's ceiling on the browser features its pages may
+    # ask for. Each name must be one a page can ask for, or `none`; payment and
+    # browsing-topics are refused by name (rulings 15 and 16), and anything else
+    # unknown is refused rather than stored, since the engine would read it as
+    # absent from the list. Empty clears it: no ceiling, as on a site that never set
+    # it. Stored lower-case, comma separated, each once.
+    if ( $key eq 'permissions_policy_allow' && defined $value && length $value ) {
+        require Lazysite::SecurityHeaders;
+        my ( $ceil, $refused ) = Lazysite::SecurityHeaders::permissions_ceiling($value);
+        if (@$refused) {
+            my $n   = $refused->[0];
+            my %why = (
+                payment => "'payment' cannot be listed: payment: is the paid-page key, so a page "
+                    . "cannot ask for the browser's payment feature",
+                'browsing-topics' => "'browsing-topics' cannot be listed: it stays denied on every "
+                    . 'site, because lazysite installs no trackers',
+            );
+            return { ok => 0, kind => 'invalid', field => $key,
+                error => ( $why{$n} // "'$n' is not a browser feature a page can ask for" )
+                    . '. The ones that can be listed are '
+                    . join( ', ', @Lazysite::SecurityHeaders::PAGE_FEATURES ) . ', or none for no feature at all.' };
+        }
+        my @names = map { lc } grep { length } split /[\s,]+/, $value;
+        my %seen;
+        $value = @$ceil ? join( ', ', grep { !$seen{$_}++ } grep { $_ ne 'none' } @names ) : 'none';
+    }
     # SM122: validate the enum/name-shaped keys.
     # SM416: seconds, bounded; 0 (or empty) restores the revalidation default.
     if ( $key eq 'asset_max_age' && defined $value && length $value
@@ -511,7 +539,8 @@ sub action_config_set {
         manager_addresses manager_addresses_deny signin_addresses signin_addresses_deny
         app_name app_short_name app_scope app_start_url app_theme_colour app_background_colour
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
-        app_offline_pages app_update maintenance_page maintenance_until);
+        app_offline_pages app_update maintenance_page maintenance_until
+        permissions_policy_allow);
     return { ok => 0,
         error => "A value is required: '$key' has no default to fall back to, so it "
             . 'cannot be cleared (the keys that can are '

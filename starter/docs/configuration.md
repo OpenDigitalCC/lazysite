@@ -194,6 +194,19 @@ works on staging and production.
   (for a TLS-terminating proxy or trusted LAN). Loopback is always
   allowed; leave off otherwise.
 
+`permissions_policy_allow`
+: Optional. The browser features this site's pages may ask for with
+  `<feature>: self` in their front matter (see
+  [front matter](/docs/frontmatter)), comma separated, e.g.
+  `permissions_policy_allow: camera, geolocation`. Unset or empty, a page may
+  ask for any of `accelerometer`, `camera`, `display-capture`, `geolocation`,
+  `gyroscope`, `magnetometer`, `microphone`, `midi`, `usb` and
+  `xr-spatial-tracking`. Set, a page that asks for an unlisted one keeps it
+  denied (`=()`), and validate warns naming this key. `none` lets no page ask.
+  `payment` and `browsing-topics` stay denied on every site and cannot be listed;
+  the Config page refuses them and `lazysite check` names any written by hand.
+  It is the site's, for every domain: it cannot be set per domain alias.
+
 `alias_hosts`
 : Comma-separated list of extra hostnames that serve this site as
   domain aliases, e.g. `alias_hosts: blog.example.com, brand2.example`.

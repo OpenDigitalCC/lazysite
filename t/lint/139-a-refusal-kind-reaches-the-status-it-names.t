@@ -73,7 +73,7 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     access-key-unreadable
     address-list-wrong-kind
     camera-unreadable
-    permission-unreadable permission-unknown
+    permission-unreadable permission-unknown permission-above-site-ceiling
     odoo-binding-is-a-download
 );
 
@@ -96,6 +96,8 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
 # `camera-unreadable` - Lazysite::Validate issues about a page's `<feature>:`
 # value, or (a warning) a `<key>: self` that is no feature. The page still serves, on the
 # default policy.
+# SM1294: `permission-above-site-ceiling` is GROUP 2 the same way - a warning that
+# a feature the page asks for is not on the site's permissions_policy_allow.
 
 # SM857: `mine_needs_timestamps` is the binding grammar refusing (mine) on a
 # table with no created_by - an author's binding that cannot work as written,

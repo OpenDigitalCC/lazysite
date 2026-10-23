@@ -123,6 +123,14 @@ Archive
   `lazysite-chrome.css` under `.lazysite-fallback`, as SM1251 did for the contact page: a site
   with no layout sees the same pages, and a themed site sees its theme. An upgrade refreshes a
   starter copy the site never changed and keeps one it did. Ruling 12.
+- SM1294 (PENDING) **a site may set a ceiling on the browser features its pages ask
+  for.** `permissions_policy_allow` in lazysite.conf is optional. Absent or empty, a page
+  asks for any denied feature as SM1266 made it. Set, a page's `<feature>: self` grants
+  only a listed feature: an unlisted one keeps `=()`, and validate warns naming the key.
+  `none` lets no page ask. payment and browsing-topics can never be listed: config-set
+  refuses them by name, a hand-written one grants nothing, and `lazysite check` names it.
+  On the Config page under Browser features; the site's for every domain, never set per
+  domain alias. Page status shows what the response sends. Ruled 2026-10-23 (ruling 29).
 
 - SM1274 (PENDING) **Dismiss all empties the notices panel.** "Mark all read" marked every
   notice read and left them all in the panel. Now called Dismiss all, it also takes them out:

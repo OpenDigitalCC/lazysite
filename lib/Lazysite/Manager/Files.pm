@@ -450,11 +450,13 @@ sub _camera_fields {
     require Lazysite::Validate;
     my ($fm) = Lazysite::Validate::split_front_matter($content);
     my ( $v, $bad ) = Lazysite::Validate::camera_value($fm);
-    my @pp     = Lazysite::Validate::permissions_allowed($fm);
+    my $ceil   = Lazysite::Validate::site_permissions_ceiling( _lz() );    # SM1294
+    my @pp     = Lazysite::Validate::permissions_allowed( $fm, $ceil );
     my @issues = map { $_->{message} }
-        grep { $_->{kind} ne 'camera-unreadable' } Lazysite::Validate::permission_issues($fm);
+        ( grep { $_->{kind} ne 'camera-unreadable' } Lazysite::Validate::permission_issues($fm) ),
+        Lazysite::Validate::permission_ceiling_warnings( $fm, $ceil );
     return (
-        ( defined $bad ? ( camera_issue => $bad ) : defined $v && $v eq 'self' ? ( camera => 'self' ) : () ),
+        ( defined $bad ? ( camera_issue => $bad ) : defined $v && $v eq 'self' && ( grep { $_ eq 'camera' } @pp ) ? ( camera => 'self' ) : () ),
         ( @pp     ? ( permissions       => \@pp )     : () ),
         ( @issues ? ( permission_issues => \@issues ) : () ),
     );

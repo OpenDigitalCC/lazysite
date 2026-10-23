@@ -52,7 +52,7 @@ use strict;
 use warnings;
 
 our @EXPORT_OK = qw(security_headers content_security_policy inline_script_hashes csp_mode
-    csp_origin_ok csp_allow_lists @CSP_ALLOW_DIRECTIVES);
+    csp_origin_ok csp_allow_lists permissions_ceiling @CSP_ALLOW_DIRECTIVES);
 
 sub csp_mode { return _csp_mode(@_) }
 use Exporter 'import';
@@ -117,7 +117,7 @@ sub _csp_mode {
 # matter only, over https only (browsers offer these on a secure origin only, so
 # the relaxation is not sent where it could not work), and for that response
 # alone. Denial stays the default: a page that asks for nothing sends exactly
-# the list above. The site-level ceiling SM710 describes is later.
+# the list above. A site may cap what its pages ask for (SM1294, below).
 #
 # TWO FEATURES A PAGE CANNOT ASK FOR (rulings 15 and 16, 2026-10-22):
 #
@@ -134,9 +134,44 @@ our @PAGE_FEATURES = qw(
     gyroscope magnetometer microphone midi usb xr-spatial-tracking
 );
 
+# SM1294 (ruled 2026-10-23, #29): A SITE MAY SET A CEILING, and need not.
+# `permissions_policy_allow` in lazysite.conf names the features its pages may
+# ask for. Absent, or empty, there is no ceiling and a page may ask for any of
+# @PAGE_FEATURES, as SM1266 made it. Present, a page's `<feature>: self` grants
+# only a listed feature; an unlisted one stays =(), the default, and the
+# validator warns naming the setting. `none` lists nothing: no page may ask.
+#
+# Per SITE (its lazysite.conf), never per domain: like `csp` and every auth_*
+# key it is a security setting, and the Host header that selects a domain's
+# overrides is request-supplied, so alias.<host>.permissions_policy_allow is
+# not an override key (the processor's %ALIAS_OVERRIDE_KEYS).
+#
+# The list can never widen past @PAGE_FEATURES: `payment` and `browsing-topics`
+# (rulings 15 and 16) are refused by config-set and named by `lazysite check`,
+# and a hand-written one grants nothing here. Names are read case-blind,
+# separated by commas or spaces. Returns ( \@ceiling or undef, \@refused ): the
+# listed features in the policy's order, or undef for no ceiling, and each
+# entry that is no feature a page can ask for. The processor's marked copy is
+# _pp_ceiling (lazysite-processor/output.pm); t/lint/55 holds the two alike.
+sub permissions_ceiling {
+    my ($raw) = @_;
+    return ( undef, [] ) unless defined $raw && $raw =~ /\S/;
+    my %may = map { $_ => 1 } @PAGE_FEATURES;
+    my ( %listed, @refused );
+    for my $n ( map { lc } grep { length } split /[\s,]+/, $raw ) {
+        if    ( $may{$n} )     { $listed{$n} = 1 }
+        elsif ( $n ne 'none' ) { push @refused, $n }
+    }
+    return ( [ grep { $listed{$_} } @PAGE_FEATURES ], \@refused );
+}
+
 sub _permissions_policy {
     my (%o) = @_;
     my %may = map { $_ => 1 } @PAGE_FEATURES;
+    if ( ref $o{ceiling} eq 'ARRAY' ) {    # SM1294: the site's list, within these
+        my %listed = map { $_ => 1 } @{ $o{ceiling} };
+        %may = map { $_ => 1 } grep { $listed{$_} } @PAGE_FEATURES;
+    }
     my %ask = map { $_ => 1 } grep { $may{$_} } @{ $o{allow} || [] };
     return join ', ', map { $ask{$_} ? "$_=(self)" : "$_=()" } @DENIED_FEATURES;
 }
@@ -310,6 +345,8 @@ sub content_security_policy {
 #                  honoured only with https, so the caller need not repeat that
 #                  test, and only for a feature in @PAGE_FEATURES
 #   camera      => truthy for [ 'camera' ] (SM1174's spelling, kept)
+#   permissions_ceiling => [ features ] the site lists (SM1294; permissions_ceiling
+#                  above), or undef for none: only these may be (self)
 #
 # The caller passes it rather than this module reading %ENV, so a test can ask
 # both questions without staging an environment.
@@ -333,7 +370,8 @@ sub security_headers {
         'Referrer-Policy: strict-origin-when-cross-origin',
         'Permissions-Policy: '
             . _permissions_policy(
-            allow => $opt{https} ? [ @{ $opt{permissions} || [] }, ( $opt{camera} ? 'camera' : () ) ] : [] ),
+            allow => $opt{https} ? [ @{ $opt{permissions} || [] }, ( $opt{camera} ? 'camera' : () ) ] : [],
+            ceiling => $opt{permissions_ceiling} ),
     );
     push @h, "Strict-Transport-Security: max-age=$HSTS_MAX_AGE" if $opt{https};
 

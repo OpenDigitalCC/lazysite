@@ -104,3 +104,10 @@ feature in `@DENIED_FEATURES` except `payment` and `browsing-topics` (ruled 2026
 to any feature ... on its own"), so `microphone: self` now answers the familyhq
 driver. [[SM1267]] documented the denied list in the briefings. What stays open
 here is the instance ceiling, ruled for later.
+
+# The site's ceiling (2026-10-23)
+
+Ruling 29 made the site key an OPTIONAL ceiling rather than a second required half:
+[[SM1294]] built it as `permissions_policy_allow` in lazysite.conf, per site and not
+per domain. Absent, a page asks as SM1266 made it; present, only a listed feature can
+be asked for. With both halves built, nothing of this filing is open.

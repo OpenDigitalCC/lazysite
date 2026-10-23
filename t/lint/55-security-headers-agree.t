@@ -76,7 +76,7 @@ subtest 'the processor carries the copy, and it agrees' => sub {
     my $pkg = 'ProcessorHeadersUnderTest';
     for my $name (
         qw(_security_headers _inline_script_hashes _content_security_policy _csp_mode _conf_value _is_manager_request
-        _csp_allow _csp_origin_ok _pp_denied _pp_page_may_ask)
+        _csp_allow _csp_origin_ok _pp_denied _pp_page_may_ask _pp_ceiling)
         )
     {
         my ($sub) = $src =~ /(\nsub \Q$name\E \{.*?\n\}\n)/s;
@@ -366,6 +366,55 @@ subtest 'SM1266: any feature a page may ask for is the same decision in both, an
             is( $pp, $want, '...and only what was asked for and may be is (self)' );
         }
     }
+};
+
+subtest 'SM1294: a site\'s ceiling is the same decision in both, and only ever narrows' => sub {
+    # Ruling 29 (2026-10-23): lazysite.conf's permissions_policy_allow is an
+    # OPTIONAL ceiling. Absent or empty, a page may ask for any feature as SM1266
+    # made it; present, only a listed one is (self), every other stays =() - the
+    # default - whatever the page says. payment and browsing-topics can never be
+    # listed: a hand-written one grants nothing.
+    my $dir = tempdir( CLEANUP => 1 );
+    make_path("$dir/lazysite");
+    local $ProcessorHeadersUnderTest::LAZYSITE_DIR = "$dir/lazysite";
+    local $ENV{HTTPS} = 'on';
+    my @may = @Lazysite::SecurityHeaders::PAGE_FEATURES;
+    my @asks = ( [qw(camera)], [qw(microphone)], [qw(camera geolocation microphone)], [], [@may] );
+    for my $case (
+        [ undef,                           undef ],
+        [ '',                              undef ],
+        [ '   ',                           undef ],
+        [ 'camera',                        ['camera'] ],
+        [ 'geolocation, Camera',           [qw(camera geolocation)] ],
+        [ 'microphone camera,geolocation', [qw(camera geolocation microphone)] ],
+        [ 'none',                          [] ],
+        [ 'payment browsing-topics',       [] ],
+        [ 'payment, camera',               ['camera'] ],
+        [ 'wibble',                        [] ],
+        )
+    {
+        my ( $written, $want ) = @$case;
+        open my $cf, '>', "$dir/lazysite/lazysite.conf" or die $!;
+        print {$cf} "site_name: x\n" . ( defined $written ? "permissions_policy_allow: $written\n" : '' );
+        close $cf;
+        my $label = defined $written ? "'$written'" : 'absent';
+        my ($mod) = Lazysite::SecurityHeaders::permissions_ceiling($written);
+        is_deeply( $mod, $want, "$label: the module reads the ceiling" );
+        is_deeply( ProcessorHeadersUnderTest::_pp_ceiling(), $want, "$label: and the processor agrees" );
+        for my $ask (@asks) {
+            my @module = Lazysite::SecurityHeaders::security_headers( https => 1, permissions => $ask,
+                permissions_ceiling => $mod );
+            my @copy = ProcessorHeadersUnderTest::_security_headers( permissions => $ask );
+            is_deeply( \@copy, \@module, "$label, asks [@$ask]: the same lines" );
+            my %cap = map { $_ => 1 } ( $want ? @$want : @may );
+            my %granted = map { $_ => 1 } grep { $cap{$_} } @$ask;
+            my ($pp) = grep {/^Permissions-Policy:/} @copy;
+            ( my $line = $DEFAULT_PP ) =~ s/(?<=[ :])([a-z-]+)=\(\)/$granted{$1} ? "$1=(self)" : "$1=()"/ge;
+            is( $pp, $line, '...and only an asked and listed feature is (self)' );
+        }
+    }
+    my ( undef, $refused ) = Lazysite::SecurityHeaders::permissions_ceiling('camera, payment, browsing-topics, wibble');
+    is_deeply( $refused, [qw(payment browsing-topics wibble)], 'the module names each entry that cannot be listed' );
 };
 
 subtest 'SM1174: the camera allowance is the same decision in both, and https-only' => sub {
