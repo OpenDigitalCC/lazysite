@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1306 (PENDING) **docs: the compliance records cover 0.16.2.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against this security release's changes (SM1303-SM1305) and
+  stamped 0.16.2: the SM1303 register entry, the SBOM on the 0.16.2 tree, 0.16.2 as the first
+  release cut security-critical, and an operator row for SM1304's planted links. Docs only;
+  nothing is signed.
+
 - SM1305 (PENDING) **release: `tools/release.sh` cuts a security release.**
   `--security-critical` is passed to `build-manifest.pl`, so the shipped manifest carries
   `"security_critical": true`, the declaration `lazysite upgrade --all --force-security`

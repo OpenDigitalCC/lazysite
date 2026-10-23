@@ -697,6 +697,21 @@ theme/layout access.
 **Rate limiting.** A per-token volume bucket spans WebDAV and the control
 API; 429 (throttle) and 423 (locked) responses carry `Retry-After`.
 
+**The zip upload and the served asset mirror (SM1303, SM1304, 0.16.2).** The
+manager's Upload Theme (`theme-upload`, cookie-only, `manage_themes`) copies a
+theme's `assets/` into `/lazysite-assets/LAYOUT/THEME/` in the document root.
+Until 0.16.2 a symbolic link in the zip was copied there as a link, so a public
+URL served any file the web server can read - the session-signing secret
+`lazysite/auth/.secret` among them, from which an operator's session could be
+minted. Every entry is now checked before any is extracted, and a link, a file
+type the web server runs (`@DANGEROUS_EXT`) or an archive over the site's upload
+limit refuses the whole archive, as WebDAV and MCP `upload_file` already refused
+under a theme. A link planted before 0.16.2 is not removed by the upgrade:
+`lazysite check` warns for every symbolic link under `lazysite-assets/`, naming
+it and its target, and the operator removes it and rotates the secret (the
+Sessions page's "Log out all users"). The check never deletes one, and
+`lazysite repair` counts such a site as needing a human.
+
 ## Known constraints
 
 **Session revocation.** No server-side session store on the request
