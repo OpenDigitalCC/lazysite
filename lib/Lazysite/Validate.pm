@@ -759,6 +759,15 @@ sub form_value_rule_known {
         ? 1 : 0;
 }
 
+# SM1298 (O-2): ONE SENTENCE FOR A RULE THE FORM DOES NOT READ, a bare word or a
+# key:value alike - they were worded two ways, and a reader comparing the first
+# form's warning with a later form's could not tell they were the same finding.
+sub _unknown_form_rule {
+    my ( $tok, $name ) = @_;
+    return "unknown form rule '$tok' on field '$name': it is not one the form reads, "
+        . 'so it does nothing when the form renders';
+}
+
 # What one form block's field lines get wrong, as findings: `word` (a bare word
 # that is no rule), `pattern` (one a browser cannot compile) and `key` (a
 # key:value the renderer does not read). The caller decides each one's severity.
@@ -792,14 +801,12 @@ sub _form_block_findings {
             }
             next if $FORM_FLAGS{$tok};
             if ( $tok =~ /\A[A-Za-z-]+:/ ) {
-                push @f, { what => 'key',
-                    message => "form rule '$tok' on field '$name' is not one the form reads, "
-                        . 'so it does nothing when the form renders' }
+                push @f, { what => 'key', message => _unknown_form_rule( $tok, $name ) }
                     unless form_value_rule_known($tok);
                 next;
             }
             next if $tok !~ /^[a-z]+$/;    # only flag plain words
-            push @f, { what => 'word', message => "unknown form rule '$tok' on field '$name'" };
+            push @f, { what => 'word', message => _unknown_form_rule( $tok, $name ) };
         }
     }
     return @f;
@@ -817,8 +824,8 @@ sub _check_form_rules {
     if ( $content =~ /:::\s*form\b(.*?):::/s ) {
         for my $f ( _form_block_findings($1) ) {
             $said{ $f->{message} }++;
-            if ( $f->{what} eq 'key' ) {
-                push @$warnings, { kind => 'unknown-form-rule', message => $f->{message} };
+            if ( $f->{what} eq 'key' ) {    # SM1298: a warning, so it says which form, as the others do
+                push @$warnings, { kind => 'unknown-form-rule', message => "form 1: $f->{message}" };
             }
             else {
                 push @$issues, {

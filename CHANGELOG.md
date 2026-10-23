@@ -123,6 +123,14 @@ Archive
   `lazysite-chrome.css` under `.lazysite-fallback`, as SM1251 did for the contact page: a site
   with no layout sees the same pages, and a themed site sees its theme. An upgrade refreshes a
   starter copy the site never changed and keeps one it did. Ruling 12.
+- SM1298 (PENDING) **every form's unknown-rule warning says which form, in one
+  wording.** The first form's warning for a `key:value` the renderer ignores had no
+  "form 1:" and was worded differently from a later form's ("form 2: unknown form rule
+  ..."). Every form's warning now reads "form N: unknown form rule '<rule>' on field
+  '<field>': it is not one the form reads, so it does nothing when the form renders",
+  for a bare word and a `key:value` alike. What blocks a save is unchanged. Edge walk
+  of 0.16.1, O-2.
+
 - SM1294 (PENDING) **a site may set a ceiling on the browser features its pages ask
   for.** `permissions_policy_allow` in lazysite.conf is optional. Absent or empty, a page
   asks for any denied feature as SM1266 made it. Set, a page's `<feature>: self` grants

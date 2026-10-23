@@ -59,6 +59,23 @@ for my $tok ( 'max:200', 'capture:user', 'placeholder:"Your name"', 'value:', 'p
         'the first block\'s issue is not repeated as a warning' );
 }
 
+# --- SM1298 (O-2): every form's warning, one wording and its "form N:" ---------------
+{
+    my $r = check( page( 'x | X | colour:red', 'y | Y | colour:red requierd', 'z | Z | maxx:5' ) );
+    my @w = map { $_->{message} } grep { $_->{kind} eq 'unknown-form-rule' } @{ $r->{warnings} };
+    my $tail = qr/: it is not one the form reads, so it does nothing when the form renders\z/;
+    ok( ( grep { /^form 1: unknown form rule 'colour:red' on field 'x'$tail/ } @w ),
+        'the FIRST form\'s key:value warning says "form 1:" and the one wording' ) or diag explain \@w;
+    ok( ( grep { /^form 2: unknown form rule 'colour:red' on field 'y'$tail/ } @w ), 'a later form\'s key:value: the same' );
+    ok( ( grep { /^form 2: unknown form rule 'requierd' on field 'y'$tail/ } @w ),   'and a later form\'s bare word: the same' );
+    ok( ( grep { /^form 3: unknown form rule 'maxx:5' on field 'z'$tail/ } @w ),     'and the third form\'s' );
+    is( scalar( grep { !/^form \d+: unknown form rule '[^']+' on field '[^']+'$tail/ } @w ), 0,
+        'no warning in another wording' );
+    my ($i) = @{ check( page('x | X | requierd') )->{issues} };
+    like( $i->{message}, qr/^unknown form rule 'requierd' on field 'x'$tail/,
+        'the first form\'s blocking issue reads the same (an issue, so no form number)' );
+}
+
 # --- the same page through `lazysite validate` and a manager save -----------------
 my $pg = page( 'x | X | required maxx:5', 'y | Y | requierd' );
 {
