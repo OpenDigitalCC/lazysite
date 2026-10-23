@@ -9,10 +9,9 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper     qw(repo_root run_processor run_child);
+use TestHelper     qw(repo_root run_processor run_child site_tempdir);
 use ManagerSession qw(new_site);
 use PageScript     ();
 
@@ -62,7 +61,7 @@ subtest 'the Config page\'s switch, off, sends the empty value' => sub {
     my ($presets) = $src =~ /(var SERVICE_PRESETS = \{.*?\n\};)/s;
     ok( $schema && $presets, 'the page defines its schema' ) or return;
     my $fn  = PageScript::extract_function( $src, 'renderSiteForm', 'config.md' );
-    my $dir = tempdir( CLEANUP => 1 );
+    my $dir = site_tempdir();
     open my $js, '>', "$dir/p.js" or die $!;
     print {$js} "var location = { protocol: 'https:', host: 'x' }; var availableLayouts = [];\n"
         . "function esc(s) { return String(s); }\n$schema\n$presets\n$fn\n"
