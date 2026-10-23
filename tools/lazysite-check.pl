@@ -1377,6 +1377,9 @@ sub run_checks {
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
     report_stray_public();
 
+    # --- 8d2. a symbolic link planted in the served asset mirror (SM1304) -------
+    report_asset_links();
+
     # --- 8g. can this site's private store actually be written? (SM296) --------
     report_private_store_usable();
 
@@ -3898,6 +3901,52 @@ sub report_stray_public {
             . 'the private store is the current one, then remove the public '
             . 'copy - this tool will not delete content for you.'
     );
+    return;
+}
+
+# SM1304 (ruling 42): A SYMBOLIC LINK IN THE SERVED ASSET MIRROR IS A FINDING.
+#
+# Before 0.16.2 the manager's theme upload extracted a zip's symbolic link and
+# copied it into /lazysite-assets/ as a link (SM1303), so a public URL there
+# named any file the web server can read - lazysite/auth/.secret, the
+# session-signing secret, among them. The upload refuses one now; a link it
+# planted before stays (a backup restore puts it back, too), and an upgrade
+# does not look. Nothing lazysite installs under lazysite-assets/ is a link, so
+# every one is named, with its target.
+#
+# WARNED, NEVER REMOVED: the link may be the operator's own, and removing it
+# does not undo what it served - the secret it may have exposed is rotated by
+# hand. The message carries the remedy itself, because a deploy report keeps
+# the finding line and drops its hint.
+sub report_asset_links {
+    my $assets = "$DOC/lazysite-assets";
+    return unless -e $assets || -l $assets;
+
+    my @links;
+    if ( -l $assets ) { push @links, $assets }
+    else {
+        find_noting( 'the asset-mirror link check',
+            { no_chdir => 1, wanted => sub { push @links, $File::Find::name if -l $File::Find::name } },
+            $assets );
+    }
+
+    unless (@links) {
+        report( 'OK', 'no symbolic link in the served asset mirror (lazysite-assets/)' );
+        return;
+    }
+
+    my $secret = "$LZ/auth/.secret";
+    for my $l ( sort @links ) {
+        my $target = readlink($l) // '(unreadable)';
+        ( my $rel = $l ) =~ s{^\Q$DOC/\E}{};
+        report( 'WARN',
+            "SYMBOLIC LINK in the served asset mirror: $rel -> $target. Anything it points "
+                . "at is public at /$rel. Remove it, and rotate $secret",
+            "nothing lazysite installs is a link there; before 0.16.2 a theme upload could "
+                . "plant one (SM1303). Remove it (rm '$l'), then rotate the session-signing "
+                . "secret: the manager's Sessions page, \"Log out all users\" (rotate-auth-secret), "
+                . 'writes a new one and signs every session out. This check never deletes it.' );
+    }
     return;
 }
 

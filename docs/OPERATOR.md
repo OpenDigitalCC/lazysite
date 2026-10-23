@@ -154,6 +154,16 @@ re-checks, which is what you want after an upgrade. They are one implementation
 behind four entrances, so none of them disagree - but use `repair`.
 :::
 
+**A symbolic link in the asset mirror is left for you (SM1304).** Before 0.16.2
+a theme upload could plant a symbolic link under `lazysite-assets/`, which the
+front end then served publicly - whatever it pointed at, `lazysite/auth/.secret`
+(the session-signing secret) included. `lazysite check` warns for every link
+there, naming it and its target. Neither the check nor the repair removes it,
+and the repair counts the site as needing a human, not repaired. Remove the
+link, then rotate the secret: the manager's **Sessions** page, "Log out all
+users" (`rotate-auth-secret`), writes a new one and signs every session out,
+yours included.
+
 **When to run it.** After any upgrade, and after anything that rebuilds a vhost
 through the control panel. Hestia's `v-rebuild-web-domain` re-applies its own
 docroot permissions (`2751`: setgid, no group write) and a rebuild driven from

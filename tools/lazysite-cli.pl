@@ -1369,6 +1369,11 @@ sub cmd_repair {
         # than matching the capability sentence keeps this from rotting the next
         # time that wording changes.
         my @fails = grep { /\[ FAIL \]/ } @left;
+        # SM1304: a symbolic link in the served asset mirror is a warn the
+        # repair never touches, and it is not a decision either: it may have
+        # served the session secret. It needs a human, so the site is not
+        # counted as repaired, and the fleet run says so.
+        push @fails, grep { /\[ warn \] SYMBOLIC LINK in the served asset mirror/ } @left;
         if (@fails) {
             push @stuck, $s->{name};
             print "  -> STILL FAILING:\n";

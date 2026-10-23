@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1304 (PENDING) **security: `lazysite check` names a symbolic link in the served asset
+  mirror.** A link a theme upload planted before 0.16.2 (SM1303) stays after the upgrade,
+  still serving what it points at. The check now warns for every symbolic link under
+  `lazysite-assets/`, naming it and its target, and the line says to remove it and rotate
+  `lazysite/auth/.secret` (the manager's Sessions page, "Log out all users"). It never
+  deletes one, and `lazysite repair` counts such a site as needing a human, not as repaired
+  (ruling 42).
+
 - SM1303 (PENDING) **security: a theme archive cannot plant a link in the served asset
   mirror.** The manager's Upload Theme (`theme-upload`, `manage_themes`) extracted a zip's
   symbolic link and copied it into `/lazysite-assets/` as a link, so a public URL served any
