@@ -91,9 +91,17 @@ subtest 'repair does not count the site as repaired' => sub {
         open my $in, '<', $cli or die $!;
         spit( "$p/tools/lazysite-cli.pl", do { local $/; <$in> } );
     }
-    spit( "$p/tools/lazysite-check.pl", <<"PL" );
-my \$out = qx(\Q$^X\E -I\Q$root/lib\E \Q$check\E \@{[ join ' ', map { quotemeta } \@ARGV ]} 2>&1);
-print grep { /asset mirror/ } split /^/, \$out;
+    # The real check runs in list form, its output to a file, then filtered.
+    spit( "$p/tools/lazysite-check.pl", <<'PL' . "run( '$^X', '$root/lib', '$check', '$p/out.txt' );\n" );
+sub run {
+    my ( $perl, $lib, $check, $file ) = @_;
+    open my $keep, '>&', \*STDOUT or die $!;
+    open STDOUT, '>', $file or die $!;
+    system( $perl, "-I$lib", $check, @ARGV );
+    open STDOUT, '>&', $keep or die $!;
+    open my $in, '<', $file or die $!;
+    print grep { /asset mirror/ } <$in>;
+}
 PL
     my $reg = tempdir( CLEANUP => 1 );
     local $ENV{LAZYSITE_REGISTRY_DIR} = $reg;
