@@ -16,7 +16,10 @@
  *   6. runs several calls in one request (`batch`, SM1146);
  *   7. shows who is signed in, from the tokens it already fetches (SM1145);
  *   8. sends a File (or Blob, or a list of them) in a binding call's params as
- *      multipart/form-data (SM1162), see `write` below.
+ *      multipart/form-data (SM1162), see `write` below;
+ *   9. shows what a write left unknown - its request was sent and no answer came -
+ *      with "check again", and the person's own "it was made" / "it was not made"
+ *      where the server says they may (SM1277), see `showUnknown` below.
  *
  * THE SECOND FACTOR (SM1157). An Odoo account with two-factor authentication
  * answers the password with { second_factor: 'totp' } and nothing else: the
@@ -51,8 +54,13 @@
  *   <button data-ls-odoo-signin>Sign in to Odoo</button>
  *   <button data-ls-odoo-signout>Sign out</button>
  *   <span data-ls-odoo-name></span>
+ *   <div data-ls-odoo-unknown></div>
  *
  * `data-ls-odoo-<name>="v"` on a region is the request field `<name>`.
+ *
+ * `<div data-ls-odoo-unknown>` is where a write() or confirm() whose answer left a
+ * change unknown is drawn (SM1277): the changes, as text, and the buttons to settle
+ * them. A page without one gets the answer from write() as before.
  *
  * `<span data-ls-odoo-name>` is filled, as text, with the display name of the
  * person signed in to Odoo when the page loads (SM1145): from the answer to the
@@ -237,15 +245,106 @@
   API.write = function (binding, params, opts) {
     var split = splitFiles(params);
     if (split.files) {
-      return withSignin(function () { return postFiles(binding, split, keyHeader(opts)); }, opts);
+      return withSignin(function () { return postFiles(binding, split, keyHeader(opts)); }, opts).then(autoUnknown);
     }
-    return withSignin(function () { return post({ binding: binding, params: params || {} }, keyHeader(opts)); }, opts);
+    return withSignin(function () { return post({ binding: binding, params: params || {} }, keyHeader(opts)); }, opts)
+      .then(autoUnknown);
   };
 
   /* apply a plan this person made */
   API.confirm = function (plan, opts) {
-    return withSignin(function () { return post({ plan: plan, confirm: true }, keyHeader(opts)); }, opts);
+    return withSignin(function () { return post({ plan: plan, confirm: true }, keyHeader(opts)); }, opts)
+      .then(autoUnknown);
   };
+
+  /* SM1277 (rulings 10a, 10b): A WRITE WHOSE ANSWER NEVER CAME. An apply that left
+   * a change `unknown` answers `run` (the run's handle) and `may_assume`. resume()
+   * asks the endpoint to read the run back and finish it: POST {run, resume: true},
+   * with opts.assumeDone / opts.assumeNotDone (change keys) when the person says a
+   * change was, or was not, made. The server decides who may say so; a page only
+   * offers it where the answer said `may_assume`. */
+  API.resume = function (run, opts) {
+    var body = { run: run, resume: true };
+    if (opts && opts.assumeDone) body.assume_done = [].concat(opts.assumeDone);
+    if (opts && opts.assumeNotDone) body.assume_not_done = [].concat(opts.assumeNotDone);
+    return withSignin(function () { return post(body); }, opts);
+  };
+
+  /* The changes an answer says are still unknown: an apply's (its result's changes
+   * with outcome unknown) or a resume refused unknown-outcome (its changes). */
+  function unknownOf(data) {
+    if (!data) return [];
+    if (data.kind === 'unknown-outcome') return data.changes || [];
+    var ch = (data.result && data.result.changes) || [];
+    return ch.filter(function (c) { return c && c.outcome === 'unknown'; });
+  }
+
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+  /* Draws, into `node`, what an answer left unknown - as text, never markup - with
+   * "Check again", and "It was made" / "It was not made" for each change only when
+   * the answer says this person may say. Each button resumes the run and draws the
+   * answer it gets in the same place: settled, refused again (with the same
+   * choices), or a new run left unknown. data-ls-odoo-state says which: unknown,
+   * settled or stale. opts.onAnswer(r) is told each answer. */
+  API.showUnknown = function (node, data, opts) {
+    var d = doc();
+    if (!d || !node) return;
+    clear(node);
+    if (!data || !data.run) { node.setAttribute('data-ls-odoo-state', 'stale'); return; }
+    node.setAttribute('data-ls-odoo-state', 'unknown');
+    node.appendChild(el('p', { role: 'status' }, 'It is not known whether Odoo made '
+      + (unknownOf(data).length === 1 ? 'this change.' : 'these changes.')));
+    var list = el('ul');
+    var buttons = [];
+    function go(o) {
+      buttons.forEach(function (b) { b.disabled = true; });
+      return API.resume(data.run, o).then(function (r) {
+        if (opts && typeof opts.onAnswer === 'function') opts.onAnswer(r);
+        var a = r.data || {};
+        if (a.run && (a.unknown || a.kind === 'unknown-outcome')) { API.showUnknown(node, a, opts); return r; }
+        clear(node);
+        node.setAttribute('data-ls-odoo-state', a.ok ? 'settled' : 'stale');
+        node.appendChild(el('p', { role: 'status' }, a.ok ? 'Done.' : (a.error || 'That did not work.')));
+        return r;
+      }, function () {
+        buttons.forEach(function (b) { b.disabled = false; });
+        node.setAttribute('data-ls-odoo-state', 'stale');
+      });
+    }
+    unknownOf(data).forEach(function (c) {
+      var name = c.key !== undefined && c.key !== null && c.key !== '' ? String(c.key) : String(c.seq);
+      var li = el('li');
+      li.appendChild(el('span', { 'data-ls-field': 'change' },
+        [name, c.action, c.model].filter(function (x) { return x !== undefined && x !== null && x !== ''; }).join(' ')));
+      if (data.may_assume === 1 || data.may_assume === true) {
+        var made = el('button', { type: 'button' }, 'It was made');
+        var not = el('button', { type: 'button' }, 'It was not made');
+        made.addEventListener('click', function () { go({ assumeDone: [name] }); });
+        not.addEventListener('click', function () { go({ assumeNotDone: [name] }); });
+        li.appendChild(made);
+        li.appendChild(not);
+        buttons.push(made, not);
+      }
+      list.appendChild(li);
+    });
+    node.appendChild(list);
+    var again = el('button', { type: 'button' }, 'Check again');
+    again.addEventListener('click', function () { go({}); });
+    buttons.push(again);
+    node.appendChild(again);
+  };
+
+  /* A write or a confirm whose answer left a change unknown is drawn into the page's
+   * [data-ls-odoo-unknown] element, when it has one. */
+  function autoUnknown(r) {
+    var d = doc();
+    var a = r && r.data;
+    if (!d || !a || !a.run || !(a.unknown || a.kind === 'unknown-outcome')) return r;
+    var node = d.querySelector && d.querySelector('[data-ls-odoo-unknown]');
+    if (node) API.showUnknown(node, a);
+    return r;
+  }
 
   /* sign a person in. The password is in this call's argument and the request
    * body and nowhere else; the caller clears its own box. Resolves the
@@ -510,7 +609,7 @@
     var attrs = el_.attributes;
     for (var i = 0; i < attrs.length; i++) {
       var m = /^data-ls-odoo-(.+)$/.exec(attrs[i].name);
-      if (!m || /^(state|prompt|signin|signout|name|in|out|banner)$/.test(m[1])) continue;
+      if (!m || /^(state|prompt|signin|signout|name|in|out|banner|unknown)$/.test(m[1])) continue;
       out[m[1]] = attrs[i].value;
     }
     return out;

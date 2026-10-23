@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1277 (PENDING) **The page shows an Odoo write whose answer never came.** Ruling 10b: the
+  browser helper draws what a `write()` or `confirm()` left unknown into the page's
+  `data-ls-odoo-unknown` element, as text, with Check again, and It was made / It was not made
+  for each change only when the answer says the person may say. `LazysiteOdoo.resume` and
+  `showUnknown` are there for a page that draws it itself.
 - SM1278 (PENDING) **The manager lists, settles and dismisses an unknown Odoo run.** Rulings 10b
   and 10c: the Odoo extension's row on the Extensions page has Unknown Odoo writes, each open run
   with the changes still unknown, It was made / It was not made for a change, and Check again and

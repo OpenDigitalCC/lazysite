@@ -827,6 +827,19 @@ const photo = input.files[0];                 // a <input type="file">
 LazysiteOdoo.write('expense-receipt', { amount: '12.50', receipt: photo });
 ```
 
+**A write whose answer never came.** A page with an element marked
+`data-ls-odoo-unknown` gets, there, what a `write()` or `confirm()` left unknown: the
+changes, as text, with **Check again**, and **It was made** / **It was not made** for
+each change only when the answer says `may_assume`. Each button resumes the run (see
+*A write whose answer never came*) and draws the next answer in the same place; the
+element's `data-ls-odoo-state` is `unknown`, `settled` or `stale`. A page draws it
+elsewhere with `LazysiteOdoo.showUnknown(node, answer)`, or sends its own with
+`LazysiteOdoo.resume(run, { assumeDone: [key] })` or `{ assumeNotDone: [key] }`.
+
+```
+<div data-ls-odoo-unknown></div>
+```
+
 A region runs the binding with the request fields named by its `data-ls-odoo-<name>`
 attributes and fills its `<template>` from the rows, as text, for the fields the server
 drew. The module fetches the tokens, sends a stale one again once, and when the
