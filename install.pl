@@ -168,6 +168,12 @@ Maintenance modes:
                       writes its own. On an upgrade, lays the starter pages a
                       site that declined them has not got. The choice is
                       remembered in the install state.
+  --list-starter      List the site's starter pages, each as unmodified (the
+                      install state's checksum, or the shipped one, still
+                      matches) or edited. Needs --docroot; changes nothing.
+  --remove-starter    Remove the UNMODIFIED starter pages, with their cached
+                      renders; an edited one is never removed. With --dry-run,
+                      says what would go and removes nothing. Needs --docroot.
   --no-starter        Accepted, and the default for a new site. On an upgrade,
                       records that the site declines the starter pages it has
                       not got; it never removes one it has.
@@ -249,6 +255,9 @@ Getopt::Long::GetOptions(
     'no-starter' => \$opt{no_starter},
     # SM1285 (ruling 33): the starter pages are opt-in.
     'starter' => \$opt{starter},
+    # SM1286 (ruling 34): list them, or remove the unmodified ones.
+    'list-starter'   => \$opt{list_starter},
+    'remove-starter' => \$opt{remove_starter},
     # SM1220: the caller runs the health check itself (the Hestia deploy, as root).
     'health-check-by-caller' => \$opt{health_check_by_caller},
 ) or do {
@@ -291,6 +300,13 @@ if ( $opt{list_backups} ) {
 if ( $opt{restore} ) {
     _usage_error('--restore requires --docroot') unless $opt{docroot};
     exit cmd_restore( \%opt );
+}
+
+if ( $opt{list_starter} || $opt{remove_starter} ) {
+    _usage_error('--list-starter and --remove-starter each require --docroot') unless $opt{docroot};
+    _usage_error('--list-starter and --remove-starter are one or the other')
+        if $opt{list_starter} && $opt{remove_starter};
+    exit cmd_starter_pages( \%opt );
 }
 
 # --channel-check: would this upgrade be SKIPPED by the site's update channel?
@@ -1377,24 +1393,7 @@ sub execute_plan {
             push @{ $stats{preserved} }, $step->{dest};
         }
         elsif ( $a eq 'remove' ) {
-            unlink $step->{dest}
-                or warn "  warn: could not unlink $step->{dest}: $!\n";
-            # Also remove any stale .html cache for .md sources.
-            if ( $step->{dest} =~ /\.md$/ ) {
-                ( my $cached = $step->{dest} ) =~ s/\.md$/.html/;
-                unlink $cached if -f $cached;
-                # SM110: and its per-alias-host copies (standalone installer -
-                # inline rather than the Lazysite::Util helper).
-                ( my $rel = $cached ) =~ s{^\Q$opt{docroot}\E/?}{};
-                my $hosts = lazysite_dir_for( $opt{docroot} ) . "/cache/hosts";
-                if ( length $rel && $rel !~ m{\.\.} && opendir( my $hd, $hosts ) ) {
-                    for my $h ( readdir $hd ) {
-                        next                    if $h =~ /^\./;
-                        unlink "$hosts/$h/$rel" if -f "$hosts/$h/$rel";
-                    }
-                    closedir $hd;
-                }
-            }
+            remove_page_file( $opt{docroot}, $step->{dest} );
             $stats{removed}++;
         }
         elsif ( $a eq 'already_gone' ) {
@@ -2154,6 +2153,118 @@ sub write_backup_sha256 {
         return '';
     }
     return $sha;
+}
+
+# Remove one installed file, and for a page its cached renders: the .html beside
+# it and the per-alias-host copies (SM110 - standalone installer, so inline
+# rather than the Lazysite::Util helper). Shared by an upgrade's `remove` step
+# and --remove-starter (SM1286), which must leave nothing of a page behind.
+sub remove_page_file {
+    my ( $docroot, $dest ) = @_;
+    unlink $dest
+        or warn "  warn: could not unlink $dest: $!\n";
+    return unless $dest =~ /\.md$/;
+    ( my $cached = $dest ) =~ s/\.md$/.html/;
+    unlink $cached if -f $cached;
+    ( my $rel = $cached ) =~ s{^\Q$docroot\E/?}{};
+    my $hosts = lazysite_dir_for($docroot) . "/cache/hosts";
+    if ( length $rel && $rel !~ m{\.\.} && opendir( my $hd, $hosts ) ) {
+        for my $h ( readdir $hd ) {
+            next                    if $h =~ /^\./;
+            unlink "$hosts/$h/$rel" if -f "$hosts/$h/$rel";
+        }
+        closedir $hd;
+    }
+    return;
+}
+
+# SM1286 (ruling 34): THE STARTER PAGES A SITE HAS, AND WHICH IT NEVER EDITED.
+#
+# A new site gets no starter pages (SM1285), and the upgrade that made that the
+# default keeps the ones a site already has. This is how an owner clears them
+# out without unpicking them by hand: list them, or remove the unmodified ones.
+#
+# STARTER is the manifest's own flag (classification.json's starter_content),
+# so this names exactly the pages --starter lays - never forgot, logout or the
+# search pages, which a site needs.
+#
+# UNMODIFIED is provenance, as ADR 0004 defines it: the page still carries
+# `provenance: lazysite-starter`, and its bytes still match the checksum the
+# install state recorded for it, or the one this release ships. Anything else
+# is edited and stays. A page the state never tracked and that differs from
+# the shipped one is the operator's, whatever its path.
+#
+# Run as the site user (the CLI refuses root): it deletes in the site tree, and
+# nothing it does needs more.
+sub cmd_starter_pages {
+    my ($o)      = @_;
+    my $docroot  = $o->{docroot};
+    my $manifest = load_manifest("$STAGE_DIR/release-manifest.json");
+    my $state    = load_state( state_path($docroot) );
+    my $recorded = ( ref $state eq 'HASH' && ref $state->{files} eq 'HASH' ) ? $state->{files} : {};
+    my %subs = placeholders( $docroot, '' );
+
+    my ( @unmodified, @edited );
+    for my $entry ( @{ $manifest->{files} } ) {
+        next unless $entry->{starter} && defined $entry->{install_to};
+        my $dest = resolve_placeholders( $entry->{install_to}, \%subs );
+        next unless -f $dest;
+        my $sha     = _sha256_tag($dest);
+        my $ours    = _has_starter_provenance($dest);
+        my $matches = ( defined $recorded->{$dest} && $recorded->{$dest} eq $sha )
+            || ( defined $entry->{sha256} && $sha eq "sha256:$entry->{sha256}" );
+        push @{ ( $ours && $matches ) ? \@unmodified : \@edited }, $dest;
+    }
+    my $rel = sub { ( my $r = $_[0] ) =~ s{^\Q$docroot\E/?}{}; $r };
+
+    if ( $o->{list_starter} || $o->{dry_run} ) {
+        my $verb = $o->{remove_starter} ? 'would remove' : 'unmodified  ';
+        print "$verb  " . $rel->($_) . "\n"                               for @unmodified;
+        print 'edited        ' . $rel->($_) . "  (kept: never removed)\n" for @edited;
+        print "No starter pages on this site.\n" unless @unmodified || @edited;
+        if ( $o->{remove_starter} ) {
+            print "--dry-run: nothing removed.\n";
+        }
+        elsif (@unmodified) {
+            print "Remove the unmodified ones with --remove-starter (--dry-run first to see them).\n";
+        }
+        return 0;
+    }
+
+    remove_page_file( $docroot, $_ )                for @unmodified;
+    print 'removed  ' . $rel->($_) . "\n"           for @unmodified;
+    print 'kept     ' . $rel->($_) . "  (edited)\n" for @edited;
+    print "No unmodified starter pages to remove.\n" unless @unmodified;
+    audit_append( $docroot, 'starter-removed', scalar(@unmodified) . ' page(s)',
+        join( ' ', map { $rel->($_) } @unmodified ) )
+        if @unmodified;
+
+    # The seeded menu may still link a page that has gone; the menu is the
+    # operator's, so it is named rather than edited.
+    my %gone = map { ( '/' . ( $rel->($_) =~ s/\.md\z//r ) ) => 1 } @unmodified;
+    if ( %gone && open my $nav, '<', lazysite_dir_for($docroot) . '/nav.conf' ) {
+        my @linked = grep { /\|\s*(\S+)\s*$/ && $gone{$1} } <$nav>;
+        close $nav;
+        chomp @linked;
+        print "nav.conf still links a removed page - edit the menu: $_\n" for map { s/^\s+//r } @linked;
+    }
+    return 0;
+}
+
+# Does the page's front matter carry `provenance: lazysite-starter`?
+sub _has_starter_provenance {
+    my ($path) = @_;
+    open my $fh, '<', $path or return 0;
+    my $first = <$fh> // '';
+    my $ours  = 0;
+    if ( $first =~ /\A---\s*\z/ ) {
+        while ( my $l = <$fh> ) {
+            last if $l =~ /\A---\s*\z/;
+            $ours = 1 if $l =~ /^provenance\s*:\s*lazysite-starter\s*$/;
+        }
+    }
+    close $fh;
+    return $ours;
 }
 
 sub cmd_list_backups {

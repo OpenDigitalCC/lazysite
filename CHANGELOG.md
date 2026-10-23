@@ -171,6 +171,16 @@ Archive
   refuses them by name, a hand-written one grants nothing, and `lazysite check` names it.
   On the Config page under Browser features; the site's for every domain, never set per
   domain alias. Page status shows what the response sends. Ruled 2026-10-23 (ruling 29).
+- SM1286 (PENDING) **`lazysite starter` clears out the starter pages a site never
+  edited.** A site keeps the starter pages it has when the default changes (SM1285), and
+  removing them was file-by-file work. `lazysite starter --docroot D --list` names each
+  as unmodified or edited, by provenance: the `provenance: lazysite-starter` stamp, and
+  the checksum the install recorded or the one shipped. `--remove-unmodified` removes the
+  unmodified ones with their cached renders, and `--dry-run` says what it would remove.
+  An edited page is never removed, nor the pages a site needs (forgot, logout, the search
+  pages). It runs as the site user, refuses root, is audited, and names a menu entry left
+  linking a removed page. Ruling 34.
+
 - SM1285 (PENDING) **A new site arrives without the starter pages.** Provisioning laid
   lazysite's demo, sample contact and members pages and its welcome page on every site, for
   the owner to delete before launch. A new site now has the system pages, the site search,

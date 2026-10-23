@@ -68,6 +68,25 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Starter pages are opt-in for new sites (SM1285, SM1286)
+
+Nothing changes on an existing site. Its starter pages are kept: the demos, the
+sample contact and members pages and the starter's welcome page. A site
+provisioned from now on gets none of them unless `provision --starter` asks. It
+has the system pages, the site search, the `/docs` manual and a minimal home page
+that the engine serves until the site writes its own `index.md`.
+
+To clear out the starter pages a site never edited:
+
+```bash
+lazysite starter --docroot /path/to/public_html --list
+lazysite starter --docroot /path/to/public_html --remove-unmodified --dry-run
+lazysite starter --docroot /path/to/public_html --remove-unmodified
+```
+
+An edited page is never removed. A menu entry left linking a removed page is
+named in the output, for you to edit.
+
 ## The /docs manual moves into the engine (SM1284)
 
 The whole `/docs` manual, the agent briefings included, now ships in the engine

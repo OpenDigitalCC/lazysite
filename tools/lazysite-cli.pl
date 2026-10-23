@@ -48,6 +48,7 @@ elsif ( $verb eq 'provision' )                            { exit cmd_provision()
 elsif ( $verb eq 'upgrade' )                              { exit cmd_upgrade() }
 elsif ( $verb eq 'reinstall' )                            { exit cmd_reinstall() }
 elsif ( $verb eq 'backups' )                              { exit cmd_backups() }
+elsif ( $verb eq 'starter' )                              { exit cmd_starter() }
 elsif ( $verb eq 'channel' || $verb eq 'policy' )         { exit cmd_site_setting($verb) }
 elsif ( $verb eq 'sites' )                                { exit cmd_sites() }
 elsif ( $verb eq 'check' ) {
@@ -169,6 +170,16 @@ Verbs:
         temporary-domain to final-domain migration path. That tarball
         carries the auth secrets, which is why it is a command here
         and not a button in the manager.
+  starter --docroot D (--list | --remove-unmodified [--dry-run])
+        lazysite's starter pages on this site - the demos, the sample
+        contact and members pages and the starter's welcome page, which a
+        new site gets only with provision --starter. --list names each
+        as unmodified or edited, by provenance: its
+        `provenance: lazysite-starter` stamp, and its bytes against the
+        checksum the install recorded (or the shipped one).
+        --remove-unmodified removes the unmodified ones with their
+        cached renders, and never an edited one; --dry-run says what it
+        would remove. Runs as the SITE USER, never root.
   channel edge|beta|stable|certified --docroot D | --domain NAME | --all
         Set which builds a site accepts. The ladder is
         edge < beta < stable < certified: a site takes builds at its
@@ -981,6 +992,34 @@ sub cmd_backups {
         push @cmd, $o{restore} ? '--restore' : '--list-backups';
         push @cmd, '--backup', $o{backup} if length $o{backup};
     }
+    run_or_fail(@cmd);
+    return 0;
+}
+
+# SM1286 (ruling 34): list the starter pages a site has, or remove the ones it
+# never edited. The work is install.pl's (--list-starter / --remove-starter),
+# which already holds the manifest, the install state and the page-removal
+# step an upgrade uses; this is the verb an operator types.
+sub cmd_starter {
+    my %o = ( docroot => '', installdir => '', cgibin => '', list => 0, remove => 0, dry_run => 0 );
+    Getopt::Long::GetOptions(
+        'docroot=s'         => \$o{docroot},
+        'installdir=s'      => \$o{installdir},
+        'list'              => \$o{list},
+        'remove-unmodified' => \$o{remove},
+        'dry-run'           => \$o{dry_run},
+    ) or usage(2);
+    _paths_from_installdir( \%o, 'starter' );
+    usage_error('starter needs --docroot (or --installdir)') unless length $o{docroot};
+    usage_error('starter needs one of --list or --remove-unmodified') unless $o{list} xor $o{remove};
+    usage_error('--dry-run goes with --remove-unmodified; --list changes nothing anyway')
+        if $o{dry_run} && !$o{remove};
+    # Listing reads; removing deletes in the site tree, which root never does.
+    refuse_root('starter --remove-unmodified') if $o{remove};
+
+    my @cmd = ( $^X, payload_root() . '/install.pl', '--docroot', _resolve_docroot( \%o ),
+        $o{remove} ? '--remove-starter' : '--list-starter' );
+    push @cmd, '--dry-run' if $o{dry_run};
     run_or_fail(@cmd);
     return 0;
 }
@@ -2047,6 +2086,18 @@ capabilities this release added that it has no decision on (the users tool's
 top-up, run as the site's owner); a capability declined stays declined.
 C<--dry-run> reports what would be repaired and the top-up it would run, and
 changes nothing.
+
+=item B<starter> --docroot D (--list | --remove-unmodified [--dry-run])
+
+The site's starter pages: lazysite's demos, sample contact and members
+pages and the starter's welcome page, which a new site gets only with
+C<provision --starter> (SM1285). C<--list> names each as unmodified or
+edited, by provenance - its C<provenance: lazysite-starter> stamp, and its
+bytes against the checksum the install recorded or the one shipped.
+C<--remove-unmodified> removes the unmodified ones and their cached renders
+and never an edited one; C<--dry-run> says what it would remove. Removing
+runs as the site user and refuses root. A menu entry left linking a removed
+page is named, not edited (SM1286).
 
 =item B<probe> --docroot D | --domain NAME | --all
 
