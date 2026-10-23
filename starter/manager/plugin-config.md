@@ -783,9 +783,9 @@ function unblockIp(ip) {
 // An Odoo run whose apply sent a change and got no answer stays open until it is
 // settled or dismissed. Each open run is listed with the changes still unknown.
 // Check again asks OOM to read them back; It was made / It was not made is the
-// operator's word for one change (settle_odoo_writes); Dismiss closes the run
+// operator's word for one change (settle_odoo_writes); Close run dismisses it
 // without sending anything. A run a person made signed in to Odoo ran on their
-// own login, so only they can resume it: it is offered Dismiss alone. The keys are
+// own login, so only they can resume it: it is offered Close run alone. The keys are
 // held in window._unknownRuns and named by index, never written into a handler.
 
 function toggleUnknownRuns(btn) {
@@ -822,7 +822,7 @@ function loadUnknownRuns() {
       });
       h += '<tr><td colspan="5">';
       if (!run.person) h += '<button class="mg-btn mg-btn-sm" onclick="checkRunAgain(' + i + ')">Check again</button> ';
-      h += '<button class="mg-btn mg-btn-sm" onclick="dismissRun(' + i + ')">Dismiss</button></td></tr>';
+      h += '<button class="mg-btn mg-btn-sm" onclick="dismissRun(' + i + ')">Close run</button></td></tr>';
     });
     el.innerHTML = h + '</tbody></table></div>';
   }).catch(function (e) { el.textContent = 'Error: ' + e.message; });
@@ -861,7 +861,7 @@ function settleChange(i, j, how) {
 function dismissRun(i) {
   var run = (window._unknownRuns || [])[i];
   if (!run) return;
-  mgConfirm('Dismiss this run? It is no longer offered, and nothing is sent to Odoo.', { ok: 'Dismiss' }).then(function (ok) {
+  mgConfirm('Close this run? It is no longer offered, and nothing is sent to Odoo.', { ok: 'Close run' }).then(function (ok) {
     if (!ok) return;
     fetch(API + '?action=odoo-dismiss', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run: run.run })
@@ -869,7 +869,7 @@ function dismissRun(i) {
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.ok) { showStatus((d && d.error) || 'The run was not dismissed', true); return; }
-        showStatus('Dismissed.');
+        showStatus('Closed: the run is dismissed.');
         loadUnknownRuns();
       })
       .catch(function (e) { showStatus('Error: ' + e.message, true); });

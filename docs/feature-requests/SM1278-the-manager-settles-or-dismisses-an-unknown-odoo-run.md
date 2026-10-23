@@ -50,9 +50,9 @@ status-note: "SHIPPED (PENDING) on n733: odoo-unknown-runs / odoo_unknown_runs a
     gains **Unknown Odoo writes**, an expanding panel like the blocked-address list.
   - The panel is a table: binding, made by, when, and each unknown change, with **It
     was made** and **It was not made** for a change, and **Check again** and
-    **Dismiss** for the run.
-  - A person's run gets Dismiss alone.
-  - Dismiss asks first.
+    **Close run** (a dismissal) for the run: t/lint/97 keeps "Dismiss" for a button that loses nothing.
+  - A person's run gets Close run alone.
+  - Close run asks first.
   - The change keys are held in `window._unknownRuns` and named by index, never
     written into a handler string.
 - **Surfaces.** The three actions are in `%GATE` and `%ACTION`, and the MCP tools are

@@ -67,7 +67,7 @@ Archive
 - SM1278 (PENDING) **The manager lists, settles and dismisses an unknown Odoo run.** Rulings 10b
   and 10c: the Odoo extension's row on the Extensions page has Unknown Odoo writes, each open run
   with the changes still unknown, It was made / It was not made for a change, and Check again and
-  Dismiss for the run. Listing and dismissing need `settle_odoo_writes`; a dismissal sends
+  Close run (a dismissal) for the run. Listing and dismissing need `settle_odoo_writes`; a dismissal sends
   nothing to Odoo, keeps who, when and why, and is one call record and one audit line. The
   control API and MCP have `odoo-unknown-runs`, `odoo-resume` and `odoo-dismiss` (and their
   twins).

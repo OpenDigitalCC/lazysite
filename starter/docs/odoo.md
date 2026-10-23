@@ -594,7 +594,7 @@ is the same for a signed-in account over the control API and MCP.
 **On the manager.** The Odoo extension's row on the Extensions page has **Unknown
 Odoo writes**: each open run, its binding, who made it, when, and each change still
 unknown, with **Check again**, **It was made** and **It was not made** for a change,
-and **Dismiss** for the run. A run a person made signed in to Odoo is offered Dismiss
+and **Close run** (a dismissal) for the run. A run a person made signed in to Odoo is offered Close run
 alone. Listing (`odoo-unknown-runs` / `odoo_unknown_runs`) and dismissing
 (`odoo-dismiss` / `odoo_dismiss`, with an optional one-line `reason`) need
 `settle_odoo_writes`, which an operator group holds. A run of a domain the caller

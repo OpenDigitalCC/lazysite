@@ -110,6 +110,7 @@ subtest 'the Odoo extension\'s row on the Extensions page offers them' => sub {
     like( $page, qr/action=odoo-dismiss/,      'and dismissing' );
     like( $page, qr/>It was made</,            'with the operator\'s two words' );
     like( $page, qr/>It was not made</,        'for a change' );
+    like( $page, qr/>Close run</,              'and Close run for the run' );
 };
 
 done_testing;
