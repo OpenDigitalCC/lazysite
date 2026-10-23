@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1276 (PENDING) **A capability settles an Odoo write whose answer never came.** Ruling 10a:
+  where OOM cannot read a change back, the run's own maker or a holder of a new capability
+  says whether it was made. `settle_odoo_writes` is declared by the Odoo extension, so it is
+  grantable only where the extension is installed, and every operator group holds it: a new
+  site's at once, an older site's by the SM645 top-up. A declined 0 stays declined.
 - SM1274 (PENDING) **Dismiss all empties the notices panel.** "Mark all read" marked every
   notice read and left them all in the panel. Now called Dismiss all, it also takes them out:
   the panel is empty and the count 0, on screen and on the next page, and the notices stay in

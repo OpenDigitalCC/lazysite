@@ -78,6 +78,7 @@ var ACTIONS = [
   ['purge', 'Purge'],
   ['audit_switch', 'Audit trail switch'],
   ['maintenance_access', 'Access during maintenance'],
+  ['settle_odoo_writes', 'Settle Odoo writes'],
   ['manage_domains', 'Domains & site packages'],
   ['manage_config', 'Site config (+ extensions)'],
   // SM633: the five switches that decide whether the remote surfaces answer

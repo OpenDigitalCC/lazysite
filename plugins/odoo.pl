@@ -143,6 +143,12 @@ sub describe {
             # The page endpoint (SM411: it verifies its own caller).
             endpoints => ['lazysite-odoo.pl'],
 
+            # SM1276 (rulings 10a-10c): who may say whether an Odoo change whose
+            # answer never came was made, on another person's run, and dismiss a
+            # run. Declared here because t/lint/76 requires every capability to
+            # be core or plugin-owned; mirrored in @CAP_KEYS.
+            capabilities => ['settle_odoo_writes'],
+
             deps => ['Odoo::Ops (libodoo-oom-perl >= 0.03)'],
         },
 

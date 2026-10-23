@@ -237,6 +237,7 @@ var PERM_LABELS = {
   housekeeping: 'Housekeeping (recoverable)', purge: 'Purge (irreversible)',
   audit_switch: 'Audit trail switch',
   maintenance_access: 'Access during maintenance',
+  settle_odoo_writes: 'Settle Odoo writes',
   manage_domains: 'Domains & site packages', manage_config: 'Config + extensions',
   manage_services: 'Services (WebDAV/MCP/OAuth switches)',
   manage_connectors: 'Connectors',

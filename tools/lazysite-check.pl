@@ -1127,7 +1127,7 @@ sub run_checks {
                 create_sub_users delegate_sub_user_creation
                 manage_data write_data manage_briefs run_jobs manage_connectors
                 manage_notifications
-                housekeeping purge audit_switch maintenance_access);
+                housekeeping purge audit_switch maintenance_access settle_odoo_writes);
 
             my $gsettings = $gs;    # SM1023: read once, and readable to reach here
 

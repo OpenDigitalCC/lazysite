@@ -557,6 +557,21 @@ my %ACTION_INFO = (
         grants => 'Browse the site, and use MCP, the control API and WebDAV, while the site is in maintenance (the `maintenance` setting, per domain or for the whole instance). Held by the operator group and the site-admins role by default. Has no effect while the site is not in maintenance.',
         unlocks => {},
     },
+    # SM1276 (rulings 10a-10c, 2026-10-23): WHO SAYS WHETHER AN ODOO CHANGE WAS
+    # MADE. A write whose request was sent and whose answer never came is
+    # `unknown` (SM1218). Resuming its run reads each such change back first; one
+    # that cannot be read back is settled by a person's decision, and that
+    # decision is the run's own maker's or the holder of this. Declared by the
+    # Odoo extension (it owns it; t/lint/76), so it is grantable only where the
+    # extension is installed. A manager group is topped up with it (SM645).
+    settle_odoo_writes => {
+        section => 'Operations',
+        title   => 'Settle an Odoo write whose answer never came: say it was made or was '
+            . 'not, on any run, and dismiss a run. The run\'s own maker may decide for '
+            . 'their own run without this. Declared by the Odoo extension.',
+        grants => 'Decide, for a change Odoo cannot be asked about, whether it was made, on a run anyone made, and dismiss an unsettled run so it is no longer offered. Every decision and every dismissal is one call record and one audit line naming who. Held by the operator group by default.',
+        unlocks => {},
+    },
     audit => {
         section => 'Insight',
         # SM618: measured on edge 2026-08-26 under a grant holding `analytics`
