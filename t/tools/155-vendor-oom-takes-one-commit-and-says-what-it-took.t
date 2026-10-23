@@ -95,9 +95,8 @@ subtest 'a deb must have been built from that commit' => sub {
             for qw(Odoo/Ops.pm Odoo/Thing.pm Odoo/NotVendoredFromHere.txt);
         my $docdir = "$d/usr/share/doc/libodoo-" . 'oom-perl';
         make_path($docdir);
-        open my $z, '|-', 'sh', '-c', 'gzip -n > "$1"', 'sh', "$docdir/MAPPER-SPEC.md.gz" or die $!;
-        print {$z} $FILE{'docs/MAPPER-SPEC.md'};
-        close $z;
+        run_child( [ 'sh', '-c', 'gzip -n > "$1"', 'sh', "$docdir/MAPPER-SPEC.md.gz" ],
+            stdin => $FILE{'docs/MAPPER-SPEC.md'}, stderr => 'inherit' );
         system("dpkg-deb --root-owner-group -b $d $t/$name.deb >/dev/null 2>&1") == 0 or die "dpkg-deb failed";
         my ( $rc, $out, $dest ) = run_tool( '--deb', "$t/$name.deb", $commit, $repo );
         if ($matches) {

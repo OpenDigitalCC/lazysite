@@ -26,7 +26,7 @@ use File::Path  qw(make_path);
 use Digest::SHA qw(hmac_sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root site_tempdir env_passthrough);
+use TestHelper qw(repo_root site_tempdir env_passthrough run_child);
 
 my $plugin  = repo_root() . '/plugins/stats.pl';
 my $handler = repo_root() . '/plugins/form-handler.pl';
@@ -48,10 +48,8 @@ sub export {
     my ( $d, $tz, %env ) = @_;
     local $ENV{TZ} = $tz;
     local @ENV{ keys %env } = values %env;
-    open my $ph, '-|', $^X, $plugin, '--export', '--window', 30, '--docroot', $d
-        or die "cannot run the plugin: $!";
-    my $out = do { local $/; <$ph> };
-    close $ph;
+    my $out = run_child( [ $^X, $plugin, '--export', '--window', 30, '--docroot', $d ],
+        stderr => 'inherit' )->{out};
     return eval { decode_json($out) };
 }
 

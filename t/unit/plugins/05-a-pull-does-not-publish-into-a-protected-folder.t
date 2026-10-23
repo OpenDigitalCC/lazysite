@@ -27,6 +27,8 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(run_child);
 use Lazysite::Git     ();
 use Lazysite::Private ();
 
@@ -44,9 +46,7 @@ sub t_slurp { open my $fh, '<', $_[0] or return undef; local $/; my $t = <$fh>; 
 
 sub run_plugin {
     my (@args) = @_;
-    open my $fh, '-|', $^X, $PLUGIN, @args or die "cannot run plugin: $!";
-    my $out = do { local $/; <$fh> };
-    close $fh;
+    my $out = run_child( [ $^X, $PLUGIN, @args ], stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // { ok => 0, error => "no JSON: " . ( $out // '' ) };
 }
 

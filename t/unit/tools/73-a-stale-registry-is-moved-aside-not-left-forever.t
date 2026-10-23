@@ -24,6 +24,8 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(run_child);
 
 my $root = "$FindBin::Bin/../../..";
 my $tool = "$root/tools/lazysite-check.pl";
@@ -39,13 +41,11 @@ sub site {
 }
 sub put { my ( $p, $t ) = @_; open my $fh, '>', $p or die $!; print {$fh} $t; close $fh }
 # t/lint/40: no list interpolated into a shell string - word splitting makes the
-# command a different command than it reads as. Built as a LIST and run through a
-# pipe-open, so the arguments cannot be re-split.
+# command a different command than it reads as. Built as a LIST and run through
+# run_child, so the arguments cannot be re-split.
 sub run {
     my ( $d, @a ) = @_;
-    open my $fh, '-|', $^X, $tool, '--docroot', $d, @a or return '';
-    my $out = do { local $/; <$fh> };
-    close $fh;
+    my $out = run_child( [ $^X, $tool, '--docroot', $d, @a ], stderr => 'inherit' )->{out};
     return $out // '';
 }
 

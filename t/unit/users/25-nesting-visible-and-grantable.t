@@ -26,7 +26,7 @@ use File::Temp qw(tempdir);
 use JSON::PP   qw(encode_json decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $TOOL = repo_root() . '/tools/lazysite-users.pl';
 
@@ -48,13 +48,7 @@ sub cli {
 sub api {
     my ( $d, %req ) = @_;
     my $json = encode_json( \%req );
-    open my $ph, '|-', "$^X \Q$TOOL\E --api --docroot \Q$d\E > $d/.out 2>/dev/null"
-        or die $!;
-    print {$ph} $json;
-    close $ph;
-    open my $rh, '<', "$d/.out" or return {};
-    my $out = do { local $/; <$rh> };
-    close $rh;
+    my $out = run_child( [ $^X, $TOOL, '--api', '--docroot', $d ], stdin => $json, stderr => 'discard' )->{out};
     return eval { decode_json($out) } || {};
 }
 

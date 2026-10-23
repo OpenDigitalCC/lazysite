@@ -11,7 +11,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir run_child);
 
 my $root = repo_root();
 my $d    = site_tempdir();
@@ -27,12 +27,11 @@ use Lazysite::Handlers;
 my \$r = Lazysite::Handlers::_run_smtp_script( '$quit', { blob => 'x' x 300_000 } );
 print ref \$r eq 'HASH' && !\$r->{ok} ? "returned not-ok\\n" : "returned something else\\n";
 PERL
-# A list-form pipe, not qx: through /bin/sh a signal death reads as exit 141,
+# A list-form spawn, not qx: through /bin/sh a signal death reads as exit 141,
 # and the signal check below would never see it.
-open my $ph, '-|', $^X, '-e', $prog or die "cannot run perl: $!";
-my $out = do { local $/; <$ph> } // '';
-close $ph;
-my $status = $?;
+my $r      = run_child( [ $^X, '-e', $prog ], stderr => 'inherit' );
+my $out    = $r->{out};
+my $status = $r->{status};
 
 is( $status & 127, 0, 'the caller was not killed by a signal' )
     or diag( 'signal ' . ( $status & 127 ) . ' - 13 is SIGPIPE: a child that exits early killed the caller' );

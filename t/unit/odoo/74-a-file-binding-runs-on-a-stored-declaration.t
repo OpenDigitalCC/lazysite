@@ -24,7 +24,7 @@ use Digest::SHA qw(sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 use OdooTest   qw(oom_or_skip bind);
 
 BEGIN { oom_or_skip() }
@@ -80,9 +80,7 @@ sub child {
     local $ENV{T_DOCROOT} = $d;
     local $ENV{T_JPEG}    = unpack 'H*', $JPEG;
     local $ENV{T_PNG}     = unpack 'H*', $PNG;
-    open my $ph, '-|', $^X, $script or die $!;
-    my $out = do { local $/; <$ph> };
-    close $ph;
+    my $out = run_child( [ $^X, $script ], stderr => 'inherit' )->{out};
     my $r = eval { JSON::PP::decode_json($out) } or do { diag "child said: $out"; return {} };
     return $r;
 }

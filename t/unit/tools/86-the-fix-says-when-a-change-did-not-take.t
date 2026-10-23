@@ -21,7 +21,7 @@ use Test::More;
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir run_child);
 
 my $tool = repo_root() . '/tools/lazysite-check.pl';
 plan skip_all => "no $tool" unless -f $tool;
@@ -67,10 +67,8 @@ sub run {
     local $ENV{SHIM_MODE}  = $mode;
     local $ENV{SHIM_LOG}   = $log;
     local $ENV{LAZYSITE_CHECK_GROUPS} = '0';    # the caller is in no group of the path's
-    open my $fh, '-|', $^X, "-I$shim_dir", '-MDropSetgid', $tool, '--docroot', $d, '--fix'
-        or return ( '', 0 );
-    my $out = do { local $/; <$fh> };
-    close $fh;
+    my $out = run_child( [ $^X, "-I$shim_dir", '-MDropSetgid', $tool, '--docroot', $d, '--fix' ],
+        stderr => 'inherit' )->{out};
     my $n = 0;
     if ( open my $l, '<', $log ) { $n++ while <$l>; close $l }
     return ( $out // '', $n );

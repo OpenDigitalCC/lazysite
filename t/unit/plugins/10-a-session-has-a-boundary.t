@@ -34,7 +34,7 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $plugin = repo_root() . '/plugins/stats.pl';
 ok( -f $plugin, 'the stats plugin is present' );
@@ -83,10 +83,7 @@ sub day_of {
 sub run {
     my ($d) = @_;
     local $ENV{DOCUMENT_ROOT} = $d;
-    open my $ph, '-|', $^X, $plugin, '--export', '--window', 30
-        or die "cannot run: $!";
-    my $out = do { local $/; <$ph> };
-    close $ph;
+    my $out = run_child( [ $^X, $plugin, '--export', '--window', 30 ], stderr => 'inherit' )->{out};
     return eval { decode_json($out) };
 }
 

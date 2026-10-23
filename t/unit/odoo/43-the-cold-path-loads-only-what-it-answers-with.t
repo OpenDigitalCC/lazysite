@@ -14,7 +14,7 @@ use JSON::PP qw(encode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root setup_minimal_site);
+use TestHelper qw(repo_root setup_minimal_site run_child);
 use OdooTest   qw(oom_or_skip shop_ready bind oom_lib oom_test_lib odoo_site);
 
 BEGIN { oom_or_skip() }
@@ -37,18 +37,8 @@ sub loaded_after {
     local %ENV = ( PATH => $ENV{PATH}, DOCUMENT_ROOT => $d, REQUEST_METHOD => $method, QUERY_STRING => $query // '',
         REMOTE_ADDR => '198.51.100.3', SCRIPT_NAME => '/cgi-bin/lazysite-odoo.pl', CONTENT_LENGTH => length $json,
         HTTP_HOST => 'localhost', PERL5LIB => join( ':', oom_lib(), oom_test_lib(), "$root/lib", "$root/t/lib" ) );
-    my $in = "$d/in.json";
-    open my $fh, '>', $in or die $!;
-    print {$fh} $json;
-    close $fh;
-    my $pid = open my $out, '-|' // die $!;
-    if ( !$pid ) {
-        open STDIN,  '<', $in or die $!;
-        open STDERR, '>', '/dev/null';
-        exec $^X, '-e', $code, "$root/lazysite-odoo.pl" or die $!;
-    }
-    my $l = <$out>;
-    close $out;
+    my $out = run_child( [ $^X, '-e', $code, "$root/lazysite-odoo.pl" ], stdin => $json, stderr => 'discard' )->{out};
+    my ($l) = split /\n/, $out;
     return { map { $_ => 1 } split ' ', $l // '' };
 }
 

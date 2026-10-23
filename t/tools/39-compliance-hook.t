@@ -23,7 +23,7 @@ use File::Path qw(make_path);
 use File::Copy qw(copy);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
 my $tool = "$root/tools/lazysite-compliance.pl";
@@ -81,16 +81,8 @@ sub _recent {
 sub run_hook {
     my ( $dir, @args ) = @_;
     my @argv = ( $^X, "$dir/tools/lazysite-compliance.pl", @args );
-    my $pid  = open my $ph, '-|';
-    die "cannot fork: $!" unless defined $pid;
-    if ( !$pid ) {
-        open STDERR, '>&', \*STDOUT or exit 127;
-        exec @argv;
-        exit 127;
-    }
-    my $out = do { local $/; <$ph> };
-    close $ph;
-    return { out => ( $out // '' ), rc => $? >> 8 };
+    my $r    = run_child( \@argv, stderr => 'merge' );
+    return { out => $r->{out}, rc => $r->{status} >> 8 };
 }
 
 subtest 'current records on edge: passes' => sub {

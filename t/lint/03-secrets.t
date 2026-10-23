@@ -9,7 +9,7 @@ use Test::More;
 use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
 
@@ -50,9 +50,9 @@ for my $name ( sort keys %checks ) {
 for my $name ( sort keys %checks ) {
     my @args = ( 'git', '-C', $root, 'grep', '-nIE', '-e', $checks{$name},
         '--', '.', @exclude );
-    open my $p, '-|', @args or do { fail("cannot run git grep for $name"); next };
-    my $out = do { local $/; <$p> } // '';
-    close $p;
+    my $r = run_child( \@args, stderr => 'inherit' );
+    if ( $r->{status} >> 8 == 127 ) { fail("cannot run git grep for $name"); next }
+    my $out = $r->{out};
     is( $out, '', "no $name in tracked source" ) or diag($out);
 }
 

@@ -12,18 +12,15 @@ use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use JSON::PP qw(decode_json);
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(run_child);
 
 my $script = "$FindBin::Bin/../../../tools/lazysite-users.pl";
 
 sub run_cli {
     my ( $docroot, @args ) = @_;
     my @cmd = ( $^X, $script, '--docroot', $docroot, @args );
-    my $out = do {
-        local $/;
-        open my $fh, '-|', @cmd or die $!;
-        <$fh>;
-    };
-    return $out // '';
+    return run_child( \@cmd, stderr => 'inherit' )->{out};
 }
 
 # --- fresh install: setup-sysop, then the manager adds a user ---------------

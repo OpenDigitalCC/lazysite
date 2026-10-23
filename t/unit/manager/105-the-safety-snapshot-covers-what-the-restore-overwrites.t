@@ -18,6 +18,7 @@ use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
+use TestHelper qw(run_child);
 use Lazysite::Manager::Backups ();
 
 sub spit  { open my $fh, '>', $_[0] or die $!;    print {$fh} $_[1]; close $fh }
@@ -25,11 +26,7 @@ sub slurp { open my $fh, '<', $_[0] or return ''; local $/;          <$fh> }
 
 sub members {
     my ($path) = @_;
-    open my $fh, '-|', 'tar', 'tzf', $path or die "tar: $!";
-    my @m = <$fh>;
-    close $fh;
-    chomp @m;
-    return @m;
+    return split /\n/, run_child( [ 'tar', 'tzf', $path ], stderr => 'inherit' )->{out};
 }
 
 sub tar_of {
@@ -87,9 +84,7 @@ subtest 'the safety snapshot carries the top-level file the restore overwrites' 
     ok( ( grep { $_ eq './index.md' } @m ),
         'the prerestore snapshot carries ./index.md - the rollback copy exists' )
         or diag "safety members: @m";
-    open my $fh, '-|', 'tar', 'xzOf', "$bk/$r->{safety}", './index.md' or die $!;
-    my $body = do { local $/; <$fh> };
-    close $fh;
+    my $body = run_child( [ 'tar', 'xzOf', "$bk/$r->{safety}", './index.md' ], stderr => 'inherit' )->{out};
     is( $body, "NEW\n", 'and it is the pre-restore content' );
 };
 

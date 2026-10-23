@@ -25,7 +25,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir run_child);
 
 my $root  = repo_root();
 my $users = "$root/tools/lazysite-users.pl";
@@ -43,15 +43,8 @@ sub spit { open my $h, '>', $_[0] or die "$_[0]: $!"; print {$h} $_[1]; close $h
 # fails. The answer is the response; the warning is asserted where it belongs.
 sub api_call {
     my ( $docroot, $action ) = @_;
-    open my $ph, '|-',
-        "$^X \Q$users\E --api --docroot \Q$docroot\E > \Q$docroot\E/api.out 2>\Q$docroot\E/api.err"
-        or die $!;
-    print {$ph} qq({"action":"$action"});
-    close $ph;
-    open my $rh, '<', "$docroot/api.out" or die $!;
-    my $out = do { local $/; <$rh> };
-    close $rh;
-    return $out;
+    return run_child( [ $^X, $users, '--api', '--docroot', $docroot ],
+        stdin => qq({"action":"$action"}), stderr => 'discard' )->{out};
 }
 
 # A fresh site with one sysop, created the way an operator creates one.

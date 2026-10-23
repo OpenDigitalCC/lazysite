@@ -20,7 +20,7 @@ use File::Temp qw(tempdir);
 use File::Copy qw(copy);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root run_cmd);
+use TestHelper qw(repo_root run_cmd run_child);
 
 my $root = repo_root();
 
@@ -38,9 +38,7 @@ sub slurp { open my $f, '<', $_[0] or return ''; local $/; my $t = <$f>; close $
 # below read 'Devel::Cover: Deleting old coverage ...\nmain' and failed the gate.
 sub git {
     my ( $d, @a ) = @_;
-    open my $ph, '-|', 'git', '-C', $d, @a or die "git @a: $!";
-    my $o = do { local $/; <$ph> } // '';
-    close $ph;
+    my $o = run_child( [ 'git', '-C', $d, @a ], stderr => 'inherit' )->{out};
     die "git @a: exit $?" if $?;
     chomp $o;
     return $o;

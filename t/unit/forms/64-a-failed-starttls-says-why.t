@@ -16,7 +16,7 @@ use File::Path qw(make_path);
 use IO::Socket::INET;
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir run_child);
 
 plan skip_all => 'IO::Socket::SSL is not installed' unless eval { require IO::Socket::SSL; 1 };
 my $openssl = -x '/usr/bin/openssl' ? '/usr/bin/openssl' : '';
@@ -82,9 +82,8 @@ sub conf { my ( $host, $port ) = @_; spit( "$d/lazysite/forms/smtp.conf", "metho
 sub send_it {
     local $ENV{DOCUMENT_ROOT} = $d;
     local $ENV{LAZYSITE_LOG_LEVEL} = 'ERROR';
-    open( my $fh, '-|', 'sh', '-c', "echo '{\"config\":{\"to\":\"ada\@example.net\"},\"form\":{\"message\":\"hi\"}}' | $^X \Q$script\E --pipe 2>/dev/null" );
-    my $res = do { local $/; <$fh> };
-    close $fh;
+    my $res = run_child( [ $^X, $script, '--pipe' ],
+        stdin => qq({"config":{"to":"ada\@example.net"},"form":{"message":"hi"}}\n), stderr => 'discard' )->{out};
     return JSON::PP::decode_json( $res || '{}' );
 }
 sub validate {

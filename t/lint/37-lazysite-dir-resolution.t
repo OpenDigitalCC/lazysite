@@ -30,7 +30,7 @@ use File::Find ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper      qw(repo_root);
+use TestHelper      qw(repo_root run_child);
 use Lazysite::Paths qw(lazysite_dir external_lazysite_dir stray_lazysite);
 
 my $root = repo_root();
@@ -270,10 +270,7 @@ subtest 'every shell copy of the resolver agrees with the module' => sub {
 
         for my $site (@sites) {
             my ( $name, $d ) = @$site;
-            open my $out, '-|', 'bash', '-c', $fn . 'lazysite_dir "$1"', 'probe', $d
-                or die "bash: $!";
-            my $got = do { local $/; <$out> };
-            close $out;
+            my $got = run_child( [ 'bash', '-c', $fn . 'lazysite_dir "$1"', 'probe', $d ], stderr => 'inherit' )->{out};
             chomp $got if defined $got;
             is( $got, lazysite_dir($d), "$rel agrees with the module on a $name site" );
         }

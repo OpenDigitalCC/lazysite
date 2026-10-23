@@ -25,17 +25,15 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
 
 my @files;
-open my $fh, '-|', 'find', $root, '-maxdepth', '1', '-type', 'f', '-name', '*.pl' or die $!;
-while ( my $l = <$fh> ) { chomp $l; push @files, $l }
-close $fh;
-open my $lib, '-|', 'find', "$root/lib", "$root/tools", '-type', 'f', '-name', '*.p[lm]' or die $!;
-while ( my $l = <$lib> ) { chomp $l; push @files, $l }
-close $lib;
+push @files, split /\n/,
+    run_child( [ 'find', $root, '-maxdepth', '1', '-type', 'f', '-name', '*.pl' ], stderr => 'inherit' )->{out};
+push @files, split /\n/,
+    run_child( [ 'find', "$root/lib", "$root/tools", '-type', 'f', '-name', '*.p[lm]' ], stderr => 'inherit' )->{out};
 
 my ( @gates_the_table, @names_the_row, @asks_half );
 for my $f ( sort @files ) {

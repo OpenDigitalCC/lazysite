@@ -21,7 +21,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
 
@@ -74,13 +74,10 @@ my @READERS = grep {
 
 sub tracked_files {
     my @out;
-    open my $ls, '-|', 'git', '-C', $root, 'ls-files' or return ();
-    while ( my $l = <$ls> ) {
-        chomp $l;
+    for my $l ( split /\n/, run_child( [ 'git', '-C', $root, 'ls-files' ], stderr => 'inherit' )->{out} ) {
         next if $l =~ m{^(?:t/|tmp/)};
         push @out, $l;
     }
-    close $ls;
     return @out;
 }
 

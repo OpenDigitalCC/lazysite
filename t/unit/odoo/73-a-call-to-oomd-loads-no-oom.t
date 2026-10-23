@@ -18,7 +18,7 @@ use JSON::PP ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 use OdooTest   qw(oom_or_skip bind quiet write_conf);
 
 BEGIN { oom_or_skip() }
@@ -74,9 +74,7 @@ sub child {
     local $ENV{T_FAKE}    = $o{fake} ? 1 : 0;
     local $ENV{T_INPUT}   = $o{input} ? JSON::PP::encode_json( $o{input} ) : '';
     local $ENV{T_TESTLIB} = "$root/t/lib";
-    open my $ph, '-|', $^X, $script or die $!;
-    my $out = do { local $/; <$ph> };
-    close $ph;
+    my $out = run_child( [ $^X, $script ], stderr => 'inherit' )->{out};
     my $r = eval { JSON::PP::decode_json($out) } or do { diag "child said: $out"; return {} };
     return $r;
 }

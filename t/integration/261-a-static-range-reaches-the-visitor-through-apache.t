@@ -22,7 +22,7 @@ use Time::HiRes qw(sleep);
 use File::Path  qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root site_tempdir setup_test_site);
+use TestHelper qw(repo_root site_tempdir setup_test_site run_child);
 
 my $APACHE = -x '/usr/sbin/apache2' ? '/usr/sbin/apache2' : '';
 plan skip_all => 'apache2 not installed' unless $APACHE;
@@ -129,16 +129,7 @@ sub fetch {
     my @cmd = ( 'curl', '-s', '-i', '--max-time', '10',
         ( map { $_ eq '-I' ? ('-I') : ( '-H', $_ ) } @h ),
         "http://127.0.0.1:$PORT$path" );
-    my $pid = open my $ph, '-|';
-    return {} unless defined $pid;
-    if ( !$pid ) {
-        open STDERR, '>', '/dev/null' or exit 127;
-        exec @cmd;
-        exit 127;
-    }
-    binmode $ph;
-    my $out = do { local $/; <$ph> };
-    close $ph;
+    my $out = run_child( \@cmd, stderr => 'discard' )->{out};
     my ( $hd, $body ) = split /\r\n\r\n/, $out // '', 2;
     my ($status) = ( $hd // '' ) =~ m{\AHTTP/\S+ (\d{3})};
     my %h;

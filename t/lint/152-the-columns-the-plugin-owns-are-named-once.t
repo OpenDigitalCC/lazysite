@@ -20,7 +20,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
 my $HOME = 'lib/Lazysite/Data/Owned.pm';
@@ -29,13 +29,11 @@ my $HOME = 'lib/Lazysite/Data/Owned.pm';
 my @files;
 for my $dir ( 'lib', 'plugins', 'tools' ) {
     next unless -d "$root/$dir";
-    open my $fh, '-|', 'find', "$root/$dir", '-type', 'f', '-name', '*.p[lm]' or die $!;
-    while ( my $l = <$fh> ) { chomp $l; push @files, $l }
-    close $fh;
+    push @files, split /\n/,
+        run_child( [ 'find', "$root/$dir", '-type', 'f', '-name', '*.p[lm]' ], stderr => 'inherit' )->{out};
 }
-open my $top, '-|', 'find', $root, '-maxdepth', '1', '-type', 'f', '-name', '*.pl' or die $!;
-while ( my $l = <$top> ) { chomp $l; push @files, $l }
-close $top;
+push @files, split /\n/,
+    run_child( [ 'find', $root, '-maxdepth', '1', '-type', 'f', '-name', '*.pl' ], stderr => 'inherit' )->{out};
 cmp_ok( scalar @files, '>=', 40, 'the engine\'s Perl files were found' );
 
 my @owned = qw(created_at updated_at created_by updated_by);

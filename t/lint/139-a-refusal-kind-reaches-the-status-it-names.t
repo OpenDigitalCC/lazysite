@@ -22,7 +22,7 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper                qw(repo_root);
+use TestHelper                qw(repo_root run_child);
 use Lazysite::Manager::Common ();
 
 my $root = repo_root();
@@ -132,14 +132,11 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
 # --- every kind the tree emits ------------------------------------------------
 my @files;
 {
-    open my $ls, '-|', 'git', '-C', $root, 'ls-files' or die "git ls-files: $!";
-    while ( my $l = <$ls> ) {
-        chomp $l;
+    for my $l ( split /\n/, run_child( [ 'git', '-C', $root, 'ls-files' ], stderr => 'inherit' )->{out} ) {
         next if $l     =~ m{^(?:t/|tmp/)};
         next unless $l =~ /\.(?:pl|pm)$/;
         push @files, $l;
     }
-    close $ls;
 }
 cmp_ok( scalar @files, '>=', 30, 'the source files were discovered' )
     or do { done_testing(); exit };

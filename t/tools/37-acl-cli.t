@@ -20,7 +20,7 @@ use JSON::PP   ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper        qw(repo_root grant_caps);
+use TestHelper        qw(repo_root grant_caps run_child);
 use Lazysite::Private qw(private_path);
 
 my $root = repo_root();
@@ -56,21 +56,8 @@ grant_caps( $d, 'mallory', 'manage_content' );
 # defect and was a harness defect.
 sub acl {
     my (@args) = @_;
-    my $err    = "$base/acl-stderr.$$";
-    my $pid    = open my $ph, '-|';
-    die "fork: $!" unless defined $pid;
-    if ( !$pid ) {
-        open STDERR, '>', $err or die $!;
-        exec $^X, "-I$root/lib", $tool, @args;
-        exit 127;
-    }
-    my $out = do { local $/; <$ph> };
-    close $ph;
-    my $rc = $? >> 8;
-    my $e  = '';
-    if ( open my $eh, '<', $err ) { local $/; $e = <$eh> // ''; close $eh }
-    unlink $err;
-    return { out => ( $out // '' ) . $e, rc => $rc };
+    my $r      = run_child( [ $^X, "-I$root/lib", $tool, @args ] );
+    return { out => $r->{out} . $r->{err}, rc => $r->{status} >> 8 };
 }
 
 sub slurp {

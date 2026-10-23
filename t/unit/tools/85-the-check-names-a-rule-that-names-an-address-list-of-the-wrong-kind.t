@@ -12,7 +12,7 @@ use File::Path qw(make_path);
 use JSON::PP   qw(encode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir run_child);
 
 my $tool = repo_root() . '/tools/lazysite-check.pl';
 plan skip_all => "no $tool" unless -f $tool;
@@ -37,9 +37,7 @@ sub site {
 
 sub run {
     my ($d) = @_;
-    open my $fh, '-|', $^X, $tool, '--docroot', $d or return '';
-    my $out = do { local $/; <$fh> };
-    close $fh;
+    my $out = run_child( [ $^X, $tool, '--docroot', $d ], stderr => 'inherit' )->{out};
     return $out // '';
 }
 

@@ -29,6 +29,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
+use TestHelper qw(run_child);
 use Lazysite::Capabilities ();
 
 my $root = "$FindBin::Bin/../../..";
@@ -43,10 +44,7 @@ close $c;
 
 sub users {
     my (@a) = @_;
-    open my $fh, '-|', $^X, $tool, '--docroot', $d, @a or return '';
-    my $out = do { local $/; <$fh> };
-    close $fh;
-    return $out // '';
+    return run_child( [ $^X, $tool, '--docroot', $d, @a ], stderr => 'inherit' )->{out};
 }
 
 # Bootstrap exactly as an operator does: one command.

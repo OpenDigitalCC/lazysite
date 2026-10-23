@@ -17,7 +17,7 @@ use File::Copy     qw(copy);
 use File::Path     qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root site_tempdir);
+use TestHelper qw(repo_root site_tempdir run_child);
 
 my $root = repo_root();
 my $base = dirname( dirname( site_tempdir() ) );
@@ -51,14 +51,8 @@ my $B = copy_tree("$base/tree-b");
 # Run a tool, its stderr discarded; returns ( exit code, stdout ).
 sub run_tool {
     my ( $tool, @args ) = @_;
-    open my $save, '>&', \*STDERR    or die $!;
-    open STDERR,   '>',  '/dev/null' or die $!;
-    open my $fh,   '-|', $^X, "$root/tools/$tool", @args or die "$tool: $!";
-    my $out = do { local $/; <$fh> };
-    close $fh;
-    my $rc = $? >> 8;
-    open STDERR, '>&', $save or die $!;
-    return ( $rc, $out // '' );
+    my $r = run_child( [ $^X, "$root/tools/$tool", @args ], stderr => 'discard' );
+    return ( $r->{status} >> 8, $r->{out} );
 }
 
 subtest 'deparse-subs lists every processor sub' => sub {

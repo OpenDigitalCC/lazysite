@@ -16,7 +16,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
 my $gen  = "$root/tools/gen-doc-index.pl";
@@ -30,9 +30,7 @@ my $committed = do {
     local $/; <$fh>;
 };
 
-open my $ph, '-|', $^X, $gen or die "cannot run the generator: $!";
-my $fresh = do { local $/; <$ph> };
-close $ph;
+my $fresh = run_child( [ $^X, $gen ], stderr => 'inherit' )->{out};
 
 ok( length $fresh, 'the generator produced output' );
 

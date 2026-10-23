@@ -37,7 +37,7 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $plugin = repo_root() . '/plugins/stats.pl';
 ok( -f $plugin, 'the stats plugin is present' );
@@ -82,10 +82,7 @@ sub run {
     # space silently becomes two. t/lint/40 exists for exactly that and caught
     # this, which is the lint doing its job on the person who has been writing
     # lints all week.
-    open my $ph, '-|', $^X, $plugin, @args
-        or die "cannot run the plugin: $!";
-    my $out = do { local $/; <$ph> };
-    close $ph;
+    my $out = run_child( [ $^X, $plugin, @args ], stderr => 'inherit' )->{out};
     return eval { decode_json($out) };
 }
 

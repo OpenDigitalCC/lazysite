@@ -19,7 +19,7 @@ use File::Path  qw(make_path);
 use File::Temp  qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $APACHE = -x '/usr/sbin/apache2' ? '/usr/sbin/apache2' : '';
 plan skip_all => 'apache2 not installed' unless $APACHE;
@@ -134,16 +134,7 @@ sub fetch {
         ( $o{cookie} ? ( '-H', "Cookie: $o{cookie}" ) : () ),
         "http://127.0.0.1:$PORT$path",
     );
-    my $pid = open my $ph, '-|';
-    return '' unless defined $pid;
-    if ( !$pid ) {
-        open STDERR, '>', '/dev/null' or exit 127;
-        exec @cmd;
-        exit 127;
-    }
-    my $out = do { local $/; <$ph> };
-    close $ph;
-    return $out // '';
+    return run_child( \@cmd, stderr => 'discard' )->{out};
 }
 
 unless ( apache('start') ) {

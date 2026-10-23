@@ -29,7 +29,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper        qw(repo_root);
+use TestHelper        qw(repo_root run_child);
 use Lazysite::Private qw(private_path);
 
 my $root = repo_root();
@@ -47,16 +47,8 @@ sub spit {
 
 sub run_acl {
     my (@args) = @_;
-    my $pid    = open my $ph, '-|';
-    die "fork: $!" unless defined $pid;
-    if ( !$pid ) {
-        open STDERR, '>&', \*STDOUT or exit 127;
-        exec $^X, $acl, @args;
-        exit 127;
-    }
-    my $out = do { local $/; <$ph> };
-    close $ph;
-    return { out => ( $out // '' ), rc => $? >> 8 };
+    my $r      = run_child( [ $^X, $acl, @args ], stderr => 'merge' );
+    return { out => $r->{out}, rc => $r->{status} >> 8 };
 }
 
 # A site in the state an upgrade leaves: a rule in the store, and the content

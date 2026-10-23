@@ -21,7 +21,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper      qw(repo_root);
+use TestHelper      qw(repo_root run_child);
 use Lazysite::Paths qw(lazysite_dir external_lazysite_dir stray_lazysite);
 
 my $root = repo_root();
@@ -29,21 +29,8 @@ my $cli  = "$root/tools/lazysite-cli.pl";
 
 sub run_cli {
     my (@args) = @_;
-    my $err    = File::Temp::tmpnam();
-    my $pid    = open my $ph, '-|';
-    die "fork: $!" unless defined $pid;
-    if ( !$pid ) {
-        open STDERR, '>', $err or die $!;
-        exec $^X, "-I$root/lib", $cli, @args;
-        exit 127;
-    }
-    my $out = do { local $/; <$ph> };
-    close $ph;
-    my $rc = $? >> 8;
-    my $e  = '';
-    if ( open my $eh, '<', $err ) { local $/; $e = <$eh> // ''; close $eh }
-    unlink $err;
-    return { out => ( $out // '' ) . $e, rc => $rc };
+    my $r = run_child( [ $^X, "-I$root/lib", $cli, @args ] );
+    return { out => $r->{out} . $r->{err}, rc => $r->{status} >> 8 };
 }
 
 sub fresh_site {

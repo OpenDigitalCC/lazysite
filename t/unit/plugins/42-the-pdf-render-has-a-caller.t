@@ -17,7 +17,7 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
 my $api  = do {
@@ -85,16 +85,13 @@ subtest 'the plugin can be loaded without executing itself' => sub {
     my $plugin = "$root/plugins/pandoc.pl";
     ok( -f $plugin, 'the plugin is present' ) or return;
 
-    # LIST-FORM open, so there is no shell command string at all - t/lint/40
+    # LIST FORM, so there is no shell command string at all - t/lint/40
     # refuses an array interpolated into one, and it was right to: the first
     # version of this built the command with backticks. The arguments are real
     # argv here rather than a local @ARGV override, which tests more: the guard
     # has to hold when the process genuinely was given arguments.
     my $code = 'do $ARGV[0]; print "LOADED_QUIET"';
-    open my $ph, '-|', $^X, '-e', $code, $plugin, '--describe'
-        or do { fail('could not run the loader'); return };
-    my $out = do { local $/; <$ph> };
-    close $ph;
+    my $out = run_child( [ $^X, '-e', $code, $plugin, '--describe' ], stderr => 'inherit' )->{out};
     like( $out, qr/LOADED_QUIET/, 'the loader ran to completion' );
     unlike( $out, qr/\{.*"id"\s*:\s*"pandoc"/,
         'and the plugin did NOT print its descriptor - it was loaded, not run' );

@@ -32,6 +32,7 @@ use Cwd      ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
+use TestHelper qw(run_child);
 use OdooTest qw(oom_or_skip vendor_dir oom_lib);
 
 BEGIN { oom_or_skip() }
@@ -42,9 +43,7 @@ my $snap = vendor_dir();
 my $script = 'use strict; use warnings; use JSON::PP; require Odoo::Ops; require Odoo::Ops::Behaviour; require Odoo::Ops::Profile; require Odoo::Ops::Registry;'
     . ' my @m = eval { require Odoo::Ops::Matrix; Odoo::Ops::Matrix->default_files };'
     . ' print encode_json({ v => $Odoo::Ops::VERSION, b => [ Odoo::Ops::Behaviour->core_dirs ], p => [ Odoo::Ops::Profile->core_dirs ], m => \@m }), "\n";';
-open my $ph, '-|', $^X, '-I' . oom_lib(), '-e', $script or die $!;
-my $out = do { local $/; <$ph> };
-close $ph;
+my $out = run_child( [ $^X, '-I' . oom_lib(), '-e', $script ], stderr => 'inherit' )->{out};
 my $r = eval { JSON::PP::decode_json($out) } or BAIL_OUT("child said: $out");
 
 sub names { my ($d) = @_; opendir my $dh, $d or return (); my @n = sort grep { !/^\./ } readdir $dh; closedir $dh; return @n }

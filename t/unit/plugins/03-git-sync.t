@@ -20,6 +20,8 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(run_child);
 use Lazysite::Git ();
 
 my $ROOT   = "$FindBin::Bin/../../..";
@@ -33,9 +35,7 @@ sub t_slurp { open my $fh, '<', $_[0] or return undef; local $/; my $t = <$fh>; 
 # stdout), list-form - no shell.
 sub run_plugin {
     my (@args) = @_;
-    open my $fh, '-|', $^X, $PLUGIN, @args or die "cannot run plugin: $!";
-    my $out = do { local $/; <$fh> };
-    close $fh;
+    my $out = run_child( [ $^X, $PLUGIN, @args ], stderr => 'inherit' )->{out};
     my $r = eval { decode_json($out) };
     return $r // { ok => 0, error => "no JSON output: " . ( $out // '' ) };
 }
@@ -150,10 +150,8 @@ sub wgit {
 
 sub remote_count {
     my ($remote) = @_;
-    open my $fh, '-|', 'git', "--git-dir=$remote", 'rev-list', '--count', 'refs/heads/main'
-        or return -1;
-    chomp( my $n = do { local $/; <$fh> } // '' );
-    close $fh;
+    chomp( my $n = run_child( [ 'git', "--git-dir=$remote", 'rev-list', '--count', 'refs/heads/main' ],
+            stderr => 'inherit' )->{out} );
     return $n =~ /(\d+)/ ? $1 + 0 : -1;
 }
 

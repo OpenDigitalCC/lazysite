@@ -15,7 +15,7 @@ use File::Copy qw(copy);
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use POSIX      qw(strftime);
-use TestHelper qw(repo_root run_cmd);
+use TestHelper qw(repo_root run_cmd run_child);
 
 our @EXPORT_OK = qw(scratch stack overnight queue git spit slurp today);
 
@@ -43,9 +43,7 @@ sub slurp {
 
 sub git {
     my ( $d, @a ) = @_;
-    open my $ph, '-|', 'git', '-C', $d, @a or die "git @a: $!";
-    my $o = do { local $/; <$ph> } // '';
-    close $ph;
+    my $o = run_child( [ 'git', '-C', $d, @a ], stderr => 'inherit' )->{out};
     die "git @a: exit $?" if $?;
     chomp $o;
     return $o;
