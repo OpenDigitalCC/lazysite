@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1303 (PENDING) **security: a theme archive cannot plant a link in the served asset
+  mirror.** The manager's Upload Theme (`theme-upload`, `manage_themes`) extracted a zip's
+  symbolic link and copied it into `/lazysite-assets/` as a link, so a public URL served any
+  file the web server can read - `lazysite/auth/.secret`, the session-signing secret, among
+  them, from which an operator's session could be forged. Every release up to 0.16.1 is
+  affected. Every entry is now checked before any is extracted: a symbolic link, a file type
+  the web server runs (`.php` and the rest) or an archive over the site's upload limit
+  refuses the whole archive. `docs/SECURITY.md` records it, drafted for the release manager.
+
 ## 0.16.1 - EDGE: the first batch on the 0.16 line: a moved draft stays a draft, and maintenance mode (2026-10-23)
 
 - SM1269 (b81c128e) **docs: the compliance records cover 0.16.1.** The 0.16.1 edge gate

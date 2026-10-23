@@ -1751,6 +1751,16 @@ sub action_theme_upload {
             error => "Archive::Zip not installed (apt-get install libarchive-zip-perl)" };
     }
 
+    # SM1303: THE SITE'S UPLOAD LIMIT, as every other way bytes reach the site
+    # applies it (file-upload, MCP upload_file). This action had none of its own.
+    my $max = Lazysite::Manager::Common::upload_limits()->{max_bytes} // ( 10 * 1024 * 1024 );
+    if ( length( $zip_data // '' ) > $max ) {
+        return { ok => 0, kind => 'too-large',
+            error => sprintf( 'The theme archive is %d bytes; this site takes at most %d (%.0f MB). '
+                    . 'Raise manager_upload_max_mb to change it.',
+                length($zip_data), $max, $max / ( 1024 * 1024 ) ) };
+    }
+
     my $tmp_dir = "/tmp/lazysite-theme-$$";
     make_path($tmp_dir);
 
@@ -1785,6 +1795,23 @@ sub action_theme_upload {
         if ( $name =~ m{(?:^|/)\.\.(?:/|$)} ) {
             _cleanup_tmp($tmp_dir);
             return { ok => 0, error => "Zip slip detected in: $name" };
+        }
+
+        # SM1303: what WebDAV and upload_file refuse under a theme, refused here
+        # too, so an archive is not the one way round them. A symbolic link
+        # would be copied into the served asset mirror as a link - to anything
+        # the web server can read, lazysite/auth/.secret among it - and a file
+        # type the web server runs (the SEC-2026-07 list) would be served from
+        # the mirror as a program. Every entry is checked before any is
+        # extracted, so one refused entry refuses the whole archive.
+        if ( $member->isSymbolicLink ) {
+            _cleanup_tmp($tmp_dir);
+            return { ok => 0, kind => 'blocked', error => "Zip entry is a symbolic link: $name" };
+        }
+        if ( !$member->isDirectory && $name =~ $Lazysite::Manager::Common::DANGEROUS_RE ) {
+            _cleanup_tmp($tmp_dir);
+            return { ok => 0, kind => 'blocked',
+                error => "Zip entry is a file type the web server would run, which a theme may not carry: $name" };
         }
     }
 

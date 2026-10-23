@@ -108,6 +108,7 @@ Tampering | A raw or `api:` page served as `text/html` past the ADR 0006 downgra
 Information disclosure | A page or a group's rights reaching an address the operator excluded (SM1134) | Named lists decided by one module; deny wins; an unreadable store, an unparseable address and a wrong-kind name each deny; every layer must admit; groups drop out for a refused address | Only as good as the request address: see the trusted-proxy row
 Information disclosure | A page held back by a rule keyed by its stem (`/about` stored as `about`) published by a move or a delete that re-keys only the page's own key, its bytes synced back into the document root (SM1257, SM1242, SM1258) | `Acl::fold_page_stem` is the one function every mover and deleter calls (the manager, MCP `move_file` and `rename_page`, the control API, WebDAV MOVE and DELETE): the stem rule moves or goes with the page while no folder of that name exists, and the store sync puts the bytes where the rule says | Closed in 0.16.1; a stem key that is a folder's rule is left alone by design (t/unit/manager/160, t/unit/dav/34)
 Information disclosure | A long-lived parent that every Odoo endpoint child is forked from holds a key, a secret or one visitor's request, and every later child inherits it (SM1226) | The parent requires code and runs none of it, reads no configuration or key and never reads a request; a fresh child per request, which exits; the child's environment is the parameters less every identity variable, and the endpoint verifies the cookie itself; `srand` in the child | t/integration/325 reads the parent's memory after signed-in requests and finds no secret, key, cookie signature, token or parameter; t/lint/272 classifies what it holds
+Elevation of privilege | A theme archive's symbolic link copied into the served asset mirror, so a public URL under `/lazysite-assets/` named any file the web server can read - the session-signing secret `lazysite/auth/.secret` among them, from which a `manage_themes` holder could mint an operator's session (SM1303) | The theme upload checks every entry before extracting any and refuses a symbolic link, a file type the web server runs and an archive over the upload limit; `lazysite check` warns for every link under `lazysite-assets/` (SM1304) | Closed in 0.16.2; a link planted before then stays until removed, and the secret it may have served until rotated (t/integration/336, t/tools/290)
 ```
 
 ## Five priority entries (from the review)
@@ -1704,3 +1705,69 @@ residual risk
 verdict
 : proposed: accepted. No trigger fired; recorded because access, a sign-in control and a
   security header moved.
+
+### 2026-10-23 - SM1303 (0.16.2): a theme archive's symbolic link reached the served asset mirror
+
+Assessment drafted by the developer agent for the release manager's confirmation. Ruling 41 as revised (2026-10-23): with the exposure able to disclose the session-signing secret, so that a `manage_themes` holder could forge an operator's session, this is a security release. Ruling 41b: the archive checks and the planted-link warning (SM1304) land alone on main and are cut as 0.16.2, marked `security_critical` (`tools/release.sh --security-critical`, SM1305) and pushed fleet-wide with `lazysite upgrade --all --force-security`, which reaches stable sites too.
+
+what changed
+: The manager's Upload Theme (`theme-upload`, `Manager::Themes::action_theme_upload`)
+  extracted a theme zip and copied it, with `cp -r`, under each layout and its `assets/`
+  folder into `/lazysite-assets/LAYOUT/THEME/` in the document root. A zip member that
+  is a symbolic link (what `zip --symlinks` writes) was extracted as a link and copied
+  into the mirror as one, so a public URL under `/lazysite-assets/` named any file the
+  link pointed at. Shown, not assumed: with the old code t/integration/336's archive left
+  `lazysite-assets/default/linky/passwd` pointing at `/etc/passwd`. Every entry is now
+  checked before any is extracted, and a symbolic link refuses the whole archive
+  (`blocked`). The same function also applies the site's upload limit and refuses a file
+  type the web server runs (`@DANGEROUS_EXT`), as WebDAV and MCP `upload_file` already
+  did under a theme. `lazysite check` warns for every symbolic link under
+  `lazysite-assets/`, naming it and its target, and never removes one (SM1304).
+
+affected versions
+: Every release, 0.1.0 (2026-04-21) to 0.16.1. The upload has copied with `cp -r`
+  since the manager's first theme support (2026-04-18), extracting with `unzip` and,
+  from the D017 remediation before 0.1.0 was tagged, Archive::Zip; both extract links.
+  The fix is in 0.16.2.
+
+who could do it
+: A signed-in manager holding `manage_themes`, the capability the action has needed
+  since SEC-2026-07 (0.7.19). Before 0.7.19 the cookie path was not capability-gated,
+  so any signed-in manager account. Not reachable with a token (the action is
+  cookie-only) or anonymously - though once a link was planted, anyone could fetch what
+  it pointed at.
+
+threat delta
+: Information disclosure, and through it elevation of privilege. Whatever the web
+  server's user can read, served to anyone at a public URL, where the front end follows
+  symbolic links (Apache with `FollowSymLinks`, nginx by default). On a lazysite host
+  that includes the engine tree beside or inside the docroot - `lazysite/auth/` is
+  group-readable by the web user, so the auth secret `lazysite/auth/.secret`, the
+  account and group stores - and the site's configuration, its form submissions and any
+  file of the host the web user may read. A session cookie is an HMAC under that
+  secret, so whoever read it could mint a session for any account, the operator's
+  included. The holder of `manage_themes` is trusted with how every page looks, not
+  with those files or that account, so this crossed the served-tree boundary
+  (boundary 6) from inside. No trigger of ADR 0007's four fired: no interface, method,
+  dependency or data was added by the fix.
+
+controls
+: The member check runs before extraction (`isSymbolicLink`, then `@DANGEROUS_EXT`),
+  so nothing reaches the staging directory or the mirror. t/integration/336 drives the
+  manager's own upload as a signed-in person and fails with the change reverted (the
+  link is in the mirror). t/tools/290 holds the check to naming every link, with its
+  target and the remedy, to removing none, and `lazysite repair` to counting such a
+  site as needing a human.
+
+residual risk
+: A link already planted by an upload before 0.16.2 stays in the mirror until an
+  operator removes it; the upgrade's own health check names it (SM1304, ruling 42), and
+  ruling 43 takes no host-wide sweep before the release. A secret it may have served
+  stays valid until rotated: the manager's Sessions page, "Log out all users"
+  (`rotate-auth-secret`), writes a new one and ends every session and preview cookie.
+
+verdict
+: accepted, pending the release manager's confirmation. Recorded because it closed a
+  bypass of a boundary this register names, as the SM1213 and SM1257 entries were. The
+  remediation record ADR 0007 asks for stays for the certified release
+  (`docs/compliance/OBLIGATIONS.md`).

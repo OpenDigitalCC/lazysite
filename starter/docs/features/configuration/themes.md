@@ -143,6 +143,13 @@ via the Upload Theme card. The manager:
    with assets mirrored to `/lazysite-assets/LAYOUT/THEME/` for
    each.
 
+Every entry is checked before any is extracted: an absolute path, a
+`..`, a symbolic link or a file type the web server runs (`.php`,
+`.cgi`, `.pl` and the rest) refuses the whole archive, and so does an
+archive over the site's upload limit (`manager_upload_max_mb`). A theme
+whose name is already installed is installed beside it under a dated
+name (`YYYYMMDD-name`), never over it. Nothing is activated.
+
 A theme declaring `layouts: ["default", "landing"]` ends up
 with files duplicated under both layouts. That's the trade-off
 for per-layout scoping; the manager doesn't symlink or share.
