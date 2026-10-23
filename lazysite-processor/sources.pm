@@ -700,6 +700,13 @@ sub resolve_odoo {
             key => $key, binding => $id );
         return '';
     }
+    if ( length( $b->{address_param} // '' ) ) {    # SM1280
+        log_event( 'WARN', $page,
+            'odoo: page variable refused - the binding is told whether the call came from inside an address '
+                . 'list, and a page render is shared and cached; read it through the Odoo endpoint instead',
+            key => $key, binding => $id );
+        return '';
+    }
     if ( ( $b->{answer} // '' ) eq 'download' ) {    # SM1225
         log_event( 'WARN', $page,
             "odoo: page variable refused - the binding '$id' answers a download (answer: download); "

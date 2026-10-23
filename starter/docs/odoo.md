@@ -254,6 +254,37 @@ says what a request may set and who may cause it:
 : The parameter that receives the visitor's key (see *The anonymous write
   path*). The server supplies it; a request cannot.
 
+`address_list`, `address_param`
+: Optional, and together. `address_list` names an address list (Access, *Address
+  lists*); `address_param` names a parameter the operation declares as `bool`. The
+  operation then receives, in that parameter, **only whether the call came from
+  inside the list**: `1` or `0`, never the address. The server decides it from the
+  request's address, worked out behind the front ends `trusted_proxies` names (the
+  address the call record keeps), so set `trusted_proxies` or every visitor looks
+  like the proxy. A request cannot set or override it: the page endpoint refuses a
+  field the binding does not map, and the parameter cannot also be in `params` or
+  `fixed`. A call with no address, a list the store does not hold, or a store that
+  will not read, is `0`. The list may be an allow or a deny list (membership is all
+  that is asked), and it counts as in use, so deleting it is refused while the
+  binding names it. Refused at save on a `scheduled` binding (a timer comes from no
+  address); a page variable does not run such a binding (a render is shared).
+
+  **How the operation reads it.** As any parameter: declare it in `params` with
+  `type => 'bool'` (a default of `0` keeps the operation usable without the
+  binding) and read `$self->param('onsite')`. For the office-network clock-in: on
+  `1`, accept; on `0`, ask for the position instead.
+
+  ```
+  Handler (type: odoo)
+    id: clock-in
+    operation: pack.clock_in
+    modes: authenticated
+    callers: staff
+    params: latitude=latitude, longitude=longitude
+    address_list: office
+    address_param: onsite
+  ```
+
 `modes`
 : Who may run it, comma separated: `authenticated` (a signed-in account in
   `callers`, or one holding `manage_connectors`), `public` (anyone - a page, the

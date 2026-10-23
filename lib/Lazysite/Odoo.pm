@@ -1152,7 +1152,8 @@ sub call {
 
     require Lazysite::Odoo::Binding;
     my ( $params, $pwhy, $pkind ) = Lazysite::Odoo::Binding::assemble( $b, $class, $input,
-        visitor => $ctx{visitor_key}, strict => $ctx{strict}, ( $files ? ( files => $files ) : () ) );
+        visitor => $ctx{visitor_key}, strict => $ctx{strict}, ( $files ? ( files => $files ) : () ),
+        address_inside => _address_inside( $b, $c{ip} ) );
     return ( _refusal( \%rec, $pkind // 'invalid', $pwhy ) )[1] unless $params;
 
     if ( $class->writes && $b->{apply} ne 'immediate' && !length _owner(%c) ) {
@@ -1172,6 +1173,21 @@ sub call {
     # SM1275: an immediate apply that left a change unknown is a run its maker may resume
     $out = _note_unknown( $out, $b, $conn, cap => _holds_settle(%c), may_assume => 1 ) if $class->writes;
     return _session_end( $b, $out );
+}
+
+# SM1280 (ruling 3): whether the call came from inside the binding's address_list -
+# the request's address (the endpoint's _ip: the visitor's, behind the trusted
+# proxies, SM929) in the named list, by the one matcher every address rule uses
+# (Lazysite::Auth::AddressLists::in_list). A call with no address, a list that is not
+# in the store and a store that will not read all answer no: a soft fence that
+# cannot tell says "not inside". The address goes no further than this.
+sub _address_inside {
+    my ( $b, $ip ) = @_;
+    return 0 unless length( $b->{address_list} // '' ) && length( $ip // '' );
+    require Lazysite::Auth::AddressLists;
+    no warnings 'once';
+    local $Lazysite::Auth::AddressLists::AUTH_DIR = _lz() . '/auth';
+    return Lazysite::Auth::AddressLists::in_list( $ip, $b->{address_list} ) ? 1 : 0;
 }
 
 # SM1162: what a binding's files weigh at the endpoint, BEFORE the body is read.

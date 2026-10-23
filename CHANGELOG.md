@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1280 (PENDING) **An Odoo operation is told whether the call came from an address list.**
+  Ruling 3 (the OOM Lab's office-network clock-in): a binding names an `address_list` and an
+  `address_param` (a yes/no parameter), and its operation receives only 1 or 0 - never the
+  address. The server decides it from the request's address behind `trusted_proxies`, and a page
+  cannot set or override it. No address, an unknown list or an unreadable store is 0. The list
+  counts as in use, so it is not deleted while the binding names it.
 - SM1277 (PENDING) **The page shows an Odoo write whose answer never came.** Ruling 10b: the
   browser helper draws what a `write()` or `confirm()` left unknown into the page's
   `data-ls-odoo-unknown` element, as text, with Check again, and It was made / It was not made

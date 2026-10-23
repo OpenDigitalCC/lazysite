@@ -31,6 +31,11 @@ package Lazysite::Odoo::Binding;
 #   visitor_param  the parameter that receives the visitor's key - minted by
 #                  the server (Lazysite::Odoo::Visitor), never read from input.
 #                  This is what keeps a visitor to their own basket.
+#   address_param  SM1280 (ruling 3): with `address_list`, the parameter that
+#                  receives WHETHER the call came from inside that address list
+#                  (SM1134) - 1 or 0, decided by the server from the request's
+#                  address behind the trusted proxies (SM929). The address itself
+#                  is never passed, and nothing a request sends can set it.
 #
 # A name in two of the three is refused at save: the order of precedence would
 # otherwise be a security property nobody wrote down.
@@ -204,12 +209,28 @@ sub parse {
     # SM1051's domain, carried so the gate can hold a run to it (E-Q1).
     $b{domain} = lc( $h->{domain} // '' );
 
+    # SM1280 (ruling 3, 2026-10-22): the operation may be told whether the call came
+    # from inside a named address list - a soft fence (on the office network, accept;
+    # elsewhere, ask for more), where SM1159's signin_addresses is a hard one. Only the
+    # yes or no reaches the operation, never the address.
+    my ( $al, $ap ) = map { ( $_ // '' ) =~ s/\A\s+|\s+\z//gr } $h->{address_list}, $h->{address_param};
+    if ( length $al || length $ap ) {
+        return ( undef, 'address_list and address_param go together: the list says where from, and the '
+                . 'parameter receives whether the call came from inside it', length $al ? 'address_param' : 'address_list' )
+            unless length $al && length $ap;
+        return ( undef, "address_list: '$al' is not an address list name", 'address_list' ) unless $al =~ /\A[a-z0-9_-]{1,64}\z/;
+        return ( undef, "address_param '$ap' is not a parameter name", 'address_param' ) unless $ap =~ $PARAM;
+    }
+    $b{address_list}  = $al;
+    $b{address_param} = $ap;
+
     # ONE SOURCE PER PARAMETER.
     my %src;
     push @{ $src{$_} },  'params'      for values %$in;
     push @{ $src{$_} },  'fixed'       for keys %$fixed;
     push @{ $src{$_} },  'file_params' for values %$fin;
     push @{ $src{$vp} }, 'visitor_param' if length $vp;
+    push @{ $src{$ap} }, 'address_param' if length $ap;
     for my $p ( sort keys %src ) {
         return ( undef, "parameter '$p' is set by " . join( ' and ', @{ $src{$p} } )
                 . ' - each parameter has one source', 'params' )
@@ -225,6 +246,9 @@ sub parse {
     return ( undef, 'modes must name at least one of ' . join( ', ', @MODES ), 'modes' )
         unless grep { $_ } values %modes;
     $b{modes} = \%modes;
+    return ( undef, 'a scheduled run comes from no address, so it cannot say whether it came from inside '
+            . 'an address list - take scheduled off the modes, or the address_list off the binding', 'modes' )
+        if length $ap && $modes{scheduled};
 
     my @callers = grep { length } split /\s*,\s*/, ( $h->{callers} // '' );
     for (@callers) { return ( undef, "callers: '$_' is not a group name", 'callers' ) unless $_ =~ $GROUP }
@@ -376,7 +400,8 @@ sub check_against {
         if ( $b->{answer} // '' ) eq 'download' && $class->writes;
     my $spec = $class->params || {};
     for my $p ( sort( values %{ $b->{params} } ), sort( keys %{ $b->{fixed} } ), sort( values %{ $b->{file_params} || {} } ),
-        ( length $b->{visitor_param} ? $b->{visitor_param} : () ) )
+        ( length $b->{visitor_param}          ? $b->{visitor_param} : () ),
+        ( length( $b->{address_param} // '' ) ? $b->{address_param} : () ) )
     {
         my $d = param_decl( $spec, $p );
         return "parameter '$p' is not one $b->{operation} declares (it takes: "
@@ -424,7 +449,8 @@ sub check_against {
             if $b->{file_max_kb} * 1024 > $max;
     }
     my %covered = map { $_ => 1 } values %{ $b->{params} }, keys %{ $b->{fixed} }, values %{ $b->{file_params} || {} },
-        ( length $b->{visitor_param} ? $b->{visitor_param} : () );
+        ( length $b->{visitor_param}          ? $b->{visitor_param} : () ),
+        ( length( $b->{address_param} // '' ) ? $b->{address_param} : () );
     for my $p ( sort keys %$spec ) {
         return "$b->{operation} requires '$p' and the binding gives it no source"
             if $spec->{$p}{required} && !defined $spec->{$p}{default} && !$covered{$p};
@@ -437,12 +463,20 @@ sub check_against {
         return "visitor_param '$b->{visitor_param}' is $t - the visitor key is text (str)"
             unless $t eq 'str';
     }
+    if ( length( $b->{address_param} // '' ) ) {    # SM1280
+        my $t = $spec->{ $b->{address_param} }{type} // 'str';
+        return "address_param '$b->{address_param}' is $t - it receives whether the call came from inside "
+            . "the address list, yes or no (bool)"
+            unless $t eq 'bool';
+    }
     return '';
 }
 
 # assemble( \%binding, $op_class, \%input, %o ) -> ( \%params, '' ) or ( undef, why )
 #
 #   visitor  the visitor key, for the visitor parameter
+#   address_inside  SM1280: whether the call came from inside the binding's
+#            address_list, for the address parameter (the engine decides it)
 #   strict   refuse an input field the binding does not map (the endpoint);
 #            without it unmapped fields are dropped (a form, which posts
 #            every field it has)
@@ -625,6 +659,8 @@ sub assemble {
             unless defined $o{visitor} && length $o{visitor};
         $out{ $b->{visitor_param} } = $o{visitor};
     }
+    # SM1280: the server's yes or no, set last, so nothing above can stand in for it
+    $out{ $b->{address_param} } = $o{address_inside} ? 1 : 0 if length( $b->{address_param} // '' );
     for my $p ( sort keys %$spec ) {
         next if exists $out{$p} || defined $spec->{$p}{default};
         my ($field) = grep { $b->{params}{$_} eq $p } keys %{ $b->{params} };

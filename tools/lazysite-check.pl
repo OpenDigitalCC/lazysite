@@ -2132,7 +2132,8 @@ sub report_address_rules {
         # rule, since the author is not told at a request. Saves refuse the
         # combination now, so what is found here was written before that, by hand,
         # or by a list made again as the other kind.
-        my @wrong = grep { $have{ $_->{name} } && $lists->{ $_->{name} }{kind} ne $_->{slot} } @rules;
+       # SM1280: a binding's address_list ('match') asks membership only, so any kind fits
+        my @wrong = grep { $_->{slot} ne 'match' && $have{ $_->{name} } && $lists->{ $_->{name} }{kind} ne $_->{slot} } @rules;
         if (@wrong) {
             my ( %u, @say );
             for my $r (@wrong) {

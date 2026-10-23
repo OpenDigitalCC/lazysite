@@ -17,7 +17,8 @@ package Lazysite::Auth::AddressRefs;
 #   lazysite.conf         manager_addresses, manager_addresses_deny (comma list)
 #                         signin_addresses, signin_addresses_deny
 #   handlers.conf         a type-odoo binding's signin_addresses, signin_addresses_deny
-#                         (SM1229; SM1159 held them on the binding's calls)
+#                         (SM1229; SM1159 held them on the binding's calls), and its
+#                         address_list (SM1280: whether a call came from inside it)
 # This module reads the files itself and loads nothing else of the engine's, so it
 # answers the same from the shell, the check and the manager, and does not depend
 # on the slices that enforce the rules being installed.
@@ -25,7 +26,8 @@ package Lazysite::Auth::AddressRefs;
 # rules($docroot) -> { rules => [ {where, ref, slot, name} ], faults => [ text ] }
 #   where  'page' | 'acl' | 'group' | 'conf' | 'binding'
 #   ref    page path (docroot-relative), acl path, group name, conf key, binding id
-#   slot   'allow' | 'deny'
+#   slot   'allow' | 'deny', or 'match' for a binding's address_list (SM1280), which
+#          asks membership only and so may name a list of either kind
 # A store that exists and will not read or decode is a FAULT, named, never read as
 # "no rules" (SM1024): the caller cannot say a list is unreferenced then.
 
@@ -144,6 +146,9 @@ sub _binding_rules {
                 }
                 for map { s/\A["']|["']\z//gr } _names( [ split /,/, $v ] );
         }
+       # SM1280: the list a binding's operation is told about; a deleted one tells it "no"
+        push @{$rules}, { where => 'binding', ref => $r->{id}, slot => 'match', name => $_ }
+            for map { s/\A["']|["']\z//gr } _names( $r->{address_list} );
     }
     return;
 }
