@@ -3371,8 +3371,27 @@ sub action_protected_sections {
         ) };
 }
 
+# SM1270: the one refusal for acl-remove with no path, asked by the handler and
+# by the control API's dispatcher before its scope check (which would otherwise
+# judge the '/' an absent path defaults to, and refuse a confined caller about a
+# path it never sent).
+sub acl_remove_needs_a_path {
+    return { ok => 0, kind => 'missing-parameter', field => 'path',
+        error => 'acl-remove needs an explicit path. To remove the rule that '
+            . 'governs the whole site, pass path=/ - it is spelled out, because '
+            . 'publishing everything that rule holds back should not be what you '
+            . 'get by leaving the argument out. Nothing was changed.' };
+}
+
 sub action_acl_remove {
     my ( $rel_path, $user ) = @_;
+
+    # SM1270 (ruling 17, 2026-10-23): NO PATH IS NOT THE SITE-WIDE RULE. An
+    # absent or empty path used to reach '/' (the dispatcher's default, and ''
+    # as a root spelling below), so a script that dropped its argument published
+    # everything the site-wide rule held back. SM306 had kept that default as
+    # the easy way to recover a site; the ruling replaces it: '/' is typed.
+    return acl_remove_needs_a_path() unless defined $rel_path && length $rel_path;
 
     # SM287: remove has to understand the same spellings as set, or a site-wide
     # rule can be created and not taken off - which is a worse trap than not

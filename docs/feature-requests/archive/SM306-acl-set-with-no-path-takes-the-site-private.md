@@ -3,7 +3,7 @@ title: "SM306 - acl-set with no path protects the entire site"
 subtitle: "One default, chosen for the reading actions, inherited by the one action that can take a site off the air. Omitting an argument selects the most destructive available target."
 brand: plain
 status: shipped
-status-note: "SHIPPED on claude/sm305-principal-picker-and-polish - acl-set now refuses an absent or empty path naming path=/ as the explicit site-wide spelling, and refuses a body carrying a path key naming it. acl-remove, acl-get and list keep their defaults, and a test holds that so a safety change cannot make a site harder to rescue than to break. The THIRD option - narrowing the shared dispatcher default so any future write action stops inheriting the hazard - is deliberately NOT done and stays the follow-up; it is the change that stops the next instance rather than this one. Writing the control subtest for this fix uncovered SM310, a separate defect where acl-get could not read back the site-wide rule it had just written. FILED 2026-08-15 from a partner-agent field test of 0.10.9 on edge (inbox/acl-set-path-defaults-to-the-whole-site-2026-08-15.md, archived). The reporter put the path in the JSON body, where every neighbouring action takes its arguments; acl-set reads its path from the query string, discarded the body key in silence, and applied the default. The response was ok:1 and the site answered 302 to every anonymous request for about a minute. The reporter is explicit that the call was their mistake and the contract is documented - the filing is about which target an omitted argument selects, not about the call being wrong."
+status-note: "REPLACED IN PART by ruling 17 (2026-10-23, SM1270): acl-remove no longer keeps its default - with no path or an empty one it is refused, and the site-wide rule is removed with path=/. The acl-set half below stands. SHIPPED on claude/sm305-principal-picker-and-polish - acl-set now refuses an absent or empty path naming path=/ as the explicit site-wide spelling, and refuses a body carrying a path key naming it. acl-remove, acl-get and list keep their defaults, and a test holds that so a safety change cannot make a site harder to rescue than to break. The THIRD option - narrowing the shared dispatcher default so any future write action stops inheriting the hazard - is deliberately NOT done and stays the follow-up; it is the change that stops the next instance rather than this one. Writing the control subtest for this fix uncovered SM310, a separate defect where acl-get could not read back the site-wide rule it had just written. FILED 2026-08-15 from a partner-agent field test of 0.10.9 on edge (inbox/acl-set-path-defaults-to-the-whole-site-2026-08-15.md, archived). The reporter put the path in the JSON body, where every neighbouring action takes its arguments; acl-set reads its path from the query string, discarded the body key in silence, and applied the default. The response was ok:1 and the site answered 302 to every anonymous request for about a minute. The reporter is explicit that the call was their mistake and the contract is documented - the filing is about which target an omitted argument selects, not about the call being wrong."
 ---
 
 # SM306 - the destructive target is the default
@@ -120,6 +120,17 @@ dangerous default for it, and both look correct to every check.
 That is a candidate for a future lint rather than a defect in this one: for each
 paired action, an argument required on one surface should be required on the
 other, or the difference should be recorded with a reason.
+
+## Replaced for acl-remove: ruling 17 (2026-10-23)
+
+The release manager ruled on 2026-10-23 that the control API's `acl-remove` (and
+`lazysite acl remove`) refuses a call with no path, and that removing the
+site-wide rule takes `path=/`. That replaces the `acl-remove` row of the table
+above and the sentence in "The fix" that kept its default. The other reading
+of the direction of failure won: a script that drops its argument publishes
+everything a site-wide rule held back, and an operator recovering a site types
+`path=/`. SM1270 carries it; t/integration/52 now holds the refusal and the
+`path=/` recovery. `acl-set`, `acl-get` and `list` are as this filing left them.
 
 ## Related
 

@@ -26,10 +26,12 @@
 # to every way of saying "the whole site" except saying nothing at all - so the
 # most destructive available target was the one you got by omitting an argument.
 #
-# The direction of failure is what decides this. acl-remove keeps its default,
-# because its failure direction is to UN-protect the root, which is what recovery
-# looks like; a test below holds that, so a fix aimed at safety cannot make the
-# site harder to rescue than to break.
+# SM306 let acl-remove keep its default, because its failure direction is to
+# UN-protect the root, which is what recovery looks like. Ruling 17 (SM1270,
+# 2026-10-23) replaced that: with no path a script that drops its argument
+# publishes everything a site-wide rule held back, so acl-remove needs a path
+# too, and recovering a site is acl-remove with path=/. The tests below hold
+# both halves: the omission is refused, and path=/ still clears the root.
 use strict;
 use warnings;
 use Test::More;
@@ -161,14 +163,29 @@ subtest 'an explicit site-wide rule still works' => sub {
     is_deeply( $g->{acl}{read}, ['alice'], 'the root rule is stored' );
 };
 
-subtest 'recovery stays at least as easy as the mistake' => sub {
-    # acl-remove KEEPS its default. Its direction of failure is to un-protect the
-    # root, which is what recovery looks like - so requiring an explicit path
-    # here would make rescuing a site harder than breaking it, which is the wrong
-    # way round for a safety change.
-    my $d = api_post( 'action=acl-remove', {} );
-    ok( $d->{ok}, 'acl-remove with no path still clears the root rule' )
+subtest 'acl-remove with no path is refused, and the root rule stays (SM1270)' => sub {
+    # Ruling 17 (2026-10-23) replaced SM306's recovery default: no path is not
+    # the site-wide rule. Both spellings of "nothing" are refused - absent, and
+    # the empty path= a form sends from a blank field.
+    for my $qs ( 'action=acl-remove', 'action=acl-remove&path=' ) {
+        my $d = api_post( $qs, {} );
+        ok( !$d->{ok}, "$qs is refused" )
+            or diag( 'Reply: ' . encode_json($d) );
+        like( $d->{error} // '', qr{\bpath=/},
+            "$qs: the message names path=/ as the way to remove the site-wide rule" );
+
+        my $g = api_get('action=acl-get&path=/');
+        is_deeply( ( $g->{acl} || {} )->{read}, ['alice'],
+            "$qs: and the site-wide rule is still in place" )
+            or diag( 'Root ACL after the refused call: ' . encode_json($g) );
+    }
+};
+
+subtest 'recovery is acl-remove with path=/' => sub {
+    my $d = api_post( 'action=acl-remove&path=/', {} );
+    ok( $d->{ok}, 'acl-remove with path=/ clears the root rule' )
         or diag( 'Reply: ' . encode_json($d) );
+    is( $d->{removed}, 1, 'and says it removed one' );
 
     my $g = api_get('action=acl-get&path=/');
     ok( !( $g->{acl} && @{ $g->{acl}{read} || [] } ),

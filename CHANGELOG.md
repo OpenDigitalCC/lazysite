@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1270 (PENDING) **acl-remove needs a path.** The control API's `acl-remove` with no path,
+  or an empty one, removed the site-wide rule and published everything it held back (the
+  dispatcher's `/` default, which SM306 kept for recovery). It is refused now, on every
+  channel and before the scope check, with a message saying the site-wide rule is removed
+  with `path=/`; `Files::action_acl_remove` refuses it for the CLI and MCP too. The action
+  declares `path` required, as MCP `remove_permissions` does. `/`, `.` and `./` still remove
+  the site-wide rule. Ruled 2026-10-23 (ruling 17), replacing SM306's no-path default.
+
 ## 0.16.2 - EDGE: a security release: a theme archive cannot plant a link in the served asset mirror (2026-10-23)
 
 - SM1307 (a33a0406) **security: a security release reaches the stable sites of a Hestia

@@ -615,6 +615,8 @@ my $ACL_PATHS_MAX = $Lazysite::Manager::Files::ACL_PATHS_MAX;
 #    file-upload is left out: its path is the FOLDER the files go into, and an
 #    empty one is the root, which clients use (t/integration/120) - nothing
 #    resolves to the docroot as a FILE there.
+#  - SM1270: acl-remove with no path, or an empty one. Absent meant the
+#    site-wide rule; the site-wide rule is now removed with path=/ only.
 sub _refuse_unread_or_missing_path {
     my ($origin) = @_;
     my $spec     = $Lazysite::ControlApi::Actions::ACTION{$action} || {};
@@ -638,6 +640,14 @@ sub _refuse_unread_or_missing_path {
                 error => "path is required (in the query). $action names the file or folder "
                     . 'it writes by a docroot-relative path, such as ?path=/about.md. Nothing was changed.' },
             $origin, 'missing-parameter: path missing - path is required (in the query)', '' );
+    }
+    # SM1270 (ruling 17, 2026-10-23): acl-remove with no path, or an empty one,
+    # is refused. Absent meant '/', and removing the site-wide rule publishes
+    # everything it held back; SM306 kept that default for recovery, and the
+    # ruling replaces it. Here, before the scope check reads the '/'.
+    if ( $action eq 'acl-remove' && !length( $params{path} // '' ) ) {
+        _refuse( Lazysite::Manager::Files::acl_remove_needs_a_path(),
+            $origin, 'missing-parameter: path missing - acl-remove takes path=/ for the site-wide rule', '' );
     }
     return;
 }
@@ -1438,7 +1448,11 @@ elsif ( $action eq 'acl-get' ) { $result = action_acl_get( $path, $auth_user ) }
 elsif ( $action eq 'acl-set' ) {
     ( $result, $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER ) = dispatch_acl_set();
 }
-elsif ( $action eq 'acl-remove' ) { $result = action_acl_remove( $path, $auth_user ) }
+elsif ( $action eq 'acl-remove' ) {
+    # SM1270: the path as sent, never the dispatcher's '/' default, so the
+    # handler's own refusal stands behind the one above.
+    $result = action_acl_remove( $params{path}, $auth_user );
+}
 elsif ( $action eq 'protected-sections' ) {
     # SM267: read-only, and scoped - a confined manager is shown only the
     # sections inside their own scope, so the list cannot be used to discover

@@ -63,8 +63,8 @@ my %DIFFERENCE = (
     'acl-get' => { path => 'an absent path reads the root rule, which SM310 made the canonical spelling of that question; read-only either way (t/lint/52)' },
     # SM1052: acl-set takes a list `paths` in the body instead of `path`, so
     # neither alone is required; an absent path with no list is refused (SM306).
-    # SM1263: acl-remove keeps the dispatcher's "/" default (SM306, t/integration/52).
-    'acl-remove' => { path => 'SM306: with no path it removes the root rule, so recovery stays as easy as the mistake; remove_permissions requires it' },
+    # SM1263 recorded acl-remove's "/" default here (SM306); ruling 17 (SM1270,
+    # 2026-10-23) made path required on both surfaces, so it agrees and is gone.
     'acl-set' => { path => 'SM1052: `paths`, a list of paths given the one rule, may be sent instead of path' },
     # SM696: brief-delete accepts the parts that CREATED the entry (type, table,
     # key) in place of a path; with neither it refuses.

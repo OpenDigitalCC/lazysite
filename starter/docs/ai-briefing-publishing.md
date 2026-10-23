@@ -270,6 +270,8 @@ found nothing - so check the key before concluding a feature is broken.
 : `path=<file>`. `acl-get` returns the entry; `acl-remove` clears it
   (owner-only; a holder of `manage_users` is no exception - only the CLI as
   `local` and a member of the operator group are). Needs `webdav`.
+  `acl-remove` refuses a call with no path or an empty one: the site-wide rule is
+  removed with `path=/`.
 
 A file that arrives in a folder whose rule holds content back (a read list, or
 `draft`) lands in the private store however it arrives - `save`, `move`, `copy`,

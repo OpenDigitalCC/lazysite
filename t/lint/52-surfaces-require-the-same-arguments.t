@@ -148,12 +148,10 @@ my %SAFE_WITH_DEFAULT = (
     # the hazardous sibling (acl-set) is guarded, not excepted, above.
     'acl-get' => 'a defaulted path reads the root rule, which SM310 made the '
         . 'canonical spelling of that question. Read-only either way.',
-    # SM1263 paired acl-remove with remove_permissions, which requires path. The
-    # API keeps its default ON PURPOSE (t/integration/52, SM306): the default
-    # un-protects the root, which is what recovering a site looks like.
-    'acl-remove' => 'SM306 kept this default deliberately: with no path it removes the '
-        . 'root rule, so recovering a site stays as easy as the mistake that broke it '
-        . '(t/integration/52). MCP requires the path, so an agent says what it removes.',
+    # SM1263 paired acl-remove with remove_permissions, which requires path; SM306's
+    # default (no path removed the root rule, for recovery) was recorded here until
+    # ruling 17 (SM1270, 2026-10-23) replaced it. acl-remove is guarded now, and
+    # asserted directly below, as acl-set is.
 );
 
 subtest 'every argument MCP requires is not silently supplied by the API' => sub {
@@ -166,6 +164,9 @@ subtest 'every argument MCP requires is not silently supplied by the API' => sub
         # own subtest, because the branch-extraction regex here is documented
         # there as having once reported a guard that was plainly present.
         next if $action eq 'acl-set';
+        # SM1270: acl-remove's guard sits before the scope check, outside its
+        # branch, so it is asserted directly in its own subtest too.
+        next if $action eq 'acl-remove';
         my $tool = $pair{$action};
         my $req  = $requires{$tool} or next;
 
@@ -241,6 +242,28 @@ subtest 'acl-set, the case this came from, is guarded rather than exempted' => s
         'acl-set requires an explicit, non-empty path' );
     like( $acl, qr/\Q$want_body\E/,
         'and refuses a body path that is not the one it was checked against' );
+};
+
+subtest 'acl-remove, which SM306 left defaulted, is guarded now (SM1270)' => sub {
+    # Ruling 17 (2026-10-23): no path is refused, and the site-wide rule is
+    # removed with path=/. Two places, both asserted: the dispatcher refuses
+    # before the scope check reads the defaulted '/', and the branch passes the
+    # path as sent - never $path - so the handler's own refusal stands behind it.
+    my $refuse = $SUB{_refuse_unread_or_missing_path} // '';
+    like( $refuse, qr/\$action eq 'acl-remove' && !length\( \$params\{path\} \/\/ '' \)/,
+        'the dispatcher refuses acl-remove with an absent or empty path' );
+    like( $refuse, qr/acl_remove_needs_a_path\(\)/,
+        'with the shared refusal that names path=/' );
+
+    my $branch = branch_of('acl-remove') // '';
+    like( $branch, qr/action_acl_remove\(\s*\$params\{path\}/,
+        'the branch hands the handler the path as sent' );
+    unlike( $branch, qr/action_acl_remove\(\s*\$path\b/,
+        'and never the dispatcher default' );
+
+    like( $SUB{action_acl_remove} // '',
+        qr/return acl_remove_needs_a_path\(\) unless defined \$rel_path && length \$rel_path/,
+        'and the handler refuses it too, for the CLI and MCP that call it directly' );
 };
 
 done_testing();

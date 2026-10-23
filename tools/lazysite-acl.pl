@@ -615,7 +615,9 @@ sub _still_in_docroot {
 sub cmd_remove {
     my $path  = shift @ARGV;
     my $actor = require_actor();
-    fail('a PATH is required') unless defined $path && length $path;
+    # SM1270 (ruling 17): no PATH is never the site-wide rule; that one is `/`.
+    fail('a PATH is required - to remove the rule that governs the whole site, give / as the PATH')
+        unless defined $path && length $path;
 
     my $r = with_actor( $actor,
         sub { return action_acl_remove( $path, $actor ) } );

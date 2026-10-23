@@ -403,7 +403,10 @@ our %ACTION = (
     'accounts-import-stage' => { mcp => 'stage_accounts', mutates => 1, cookie_cap => 'manage_users', params => [ { name => 'accounts', in => 'body' }, { name => 'csv', in => 'body' } ] },
     'acl-get' => { mcp => 'get_permissions', scoped => 1, file_surface => 'read', cookie_gates_itself => 'the owner reads their rule, manage_users reads any (SM464, Files::action_acl_get)', params => [ { name => 'path', in => 'query' } ] },
     # [changes_access] see acl-set: one rule, set or cleared.
-    'acl-remove' => { mcp => 'remove_permissions', mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may remove its rule (Files::action_acl_remove)', params => [ { name => 'path', in => 'query' } ] },
+    # SM1270 (ruling 17, 2026-10-23): path is required - the dispatcher and
+    # Files::action_acl_remove refuse an absent or empty one - as MCP's
+    # remove_permissions has required it since SM1263.
+    'acl-remove' => { mcp => 'remove_permissions', mutates => 1, changes_access => 1, scoped => 1, file_surface => 'write', cookie_gates_itself => 'only the owner of a file may remove its rule (Files::action_acl_remove)', params => [ { name => 'path', in => 'query', required => 1, note => 'path=/ removes the rule that governs the whole site; an absent or empty path is refused (SM1270)' } ] },
 # [changes_access] acl-set / acl-remove   set or clear the rule that decides who may read a
 #                          path. acl-set is also the draft/publish pair the
 #                          filing names - there is no separate publish verb;

@@ -72,4 +72,6 @@ and the CLI has `lazysite acl remove`. MCP had no tool for it, and
   this change required it, and t/integration/52 refused it as SM306's ruling. The two
   arguments are: with no path, a script that drops its argument publishes a gated site;
   with a path required, an operator recovering a site types `path=/`. That is the release
-  manager's choice to revisit, not this change's.
+  manager's choice to revisit, not this change's. **Ruled 2026-10-23 (ruling 17): the
+  control API's acl-remove needs a path, and the site-wide rule takes `path=/`. SM1270
+  carries it, and lints 52 and 265 no longer record a difference.**
