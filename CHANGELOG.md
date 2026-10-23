@@ -123,6 +123,12 @@ Archive
   `lazysite-chrome.css` under `.lazysite-fallback`, as SM1251 did for the contact page: a site
   with no layout sees the same pages, and a themed site sees its theme. An upgrade refreshes a
   starter copy the site never changed and keeps one it did. Ruling 12.
+- SM1297 (PENDING) **the maintenance switch can be cleared back to unset.** Switched on
+  and off through config-set, lazysite.conf read `maintenance: off` where it had been
+  empty, and config-set refused an empty value. Empty is now accepted and means off, as
+  an absent key does; the Config page's switch sends it when turned off, so the key is
+  cleared. Edge walk of 0.16.1, O-1.
+
 - SM1298 (PENDING) **every form's unknown-rule warning says which form, in one
   wording.** The first form's warning for a `key:value` the renderer ignores had no
   "form 1:" and was worded differently from a later form's ("form 2: unknown form rule

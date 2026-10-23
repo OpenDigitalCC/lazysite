@@ -55,7 +55,7 @@ subtest 'the switch takes on and off, nothing else' => sub {
     like( conf(), qr/^maintenance: on$/m, '...is written' );
     ok( set( 'boss', maintenance => 'OFF' )->{ok}, 'off (any case)' );
     like( conf(), qr/^maintenance: off$/m, '...is written, lower case' );
-    for my $bad ( 'yes please', 'enabled', 'true', '1', '' ) {
+    for my $bad ( 'yes please', 'enabled', 'true', '1' ) {    # SM1297: empty clears it (t/unit/manager/411)
         my $r = set( 'boss', maintenance => $bad );
         ok( !$r->{ok}, "refused: '$bad'" );
         is( $r->{field}, 'maintenance', '...naming the field' ) if length $bad;

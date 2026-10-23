@@ -158,8 +158,10 @@ var SITE_SCHEMA = [
     note: 'now (the default): an installed app switches to a new version at once. wait: it switches only when the page asks, so a form being filled in is not swapped under the person. Write now or wait. With wait the page needs a few lines of script to offer a Reload (see the app documentation).' },
   // SM1118 (ruled 2026-10-20, #338): the maintenance switch. The instance switch covers
   // every domain; one domain is put in maintenance from its own sheet on the Domains page.
+  // SM1297 (O-1): off clears the key (unset, the same as off), so a site switched on and
+  // off reads as one that never was.
   { key: 'maintenance', label: 'Site in maintenance', type: 'toggle',
-    on: 'on', off: 'off', default: 'off', group: 'Maintenance',
+    on: 'on', off: '', default: '', group: 'Maintenance',
     note: 'On: every page request goes to the maintenance page (a 302; the page itself answers 503 with Retry-After), a posted form is refused and not stored, and MCP, the control API, WebDAV and the data endpoint answer 503, except to accounts that hold Access during maintenance (the operator group holds it by default). The sign-in pages and the maintenance page stay open so an operator can sign in. This switch covers every domain; one domain is put in maintenance on the Domains page. You need the capability yourself to switch it on. A request for a file the web server serves by name (an image, a stylesheet) is not a page request and is not affected.' },
   { key: 'maintenance_page', placeholder: '/maintenance', label: 'Maintenance page (optional)', type: 'text', default: '',
     group: 'Maintenance',
@@ -561,7 +563,9 @@ function renderSiteForm(values) {
     if (f.type === 'toggle') {
       // SM114: a boolean rendered as a switch. A hidden input carries the on/off
       // string so the existing form serialisation (el.value) round-trips it.
-      var onVal = f.on || 'enabled', offVal = f.off || 'disabled';
+      // SM1297: a toggle may name '' as its off value - off then clears the key back
+      // to unset, which `f.off || ...` read as no off value given.
+      var onVal = f.on || 'enabled', offVal = (f.off !== undefined ? f.off : 'disabled');
       var isOn = (String(v) === onVal);
       html += '<input type="hidden" name="'+f.key+'" id="cfg-'+esc(f.key)+'" value="'+esc(isOn?onVal:offVal)+'">';
       html += '<label class="mg-chk"><input type="checkbox" class="mg-toggle"'+(isOn?' checked':'')

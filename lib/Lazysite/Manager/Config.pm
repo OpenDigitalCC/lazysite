@@ -455,11 +455,17 @@ sub action_config_set {
     # leave the site open). Turning it ON needs the capability to get through it: the
     # account that switched the site off for everyone else must not be shut out of
     # the door that switches it back, which would leave only the host to undo it.
+    #
+    # SM1297 (O-1): and EMPTY, which clears the line back to unset - what a site that
+    # never switched it reads, and the same as off. Switched on and off, the key was
+    # left reading `off` with no way back, though empty is what the Domains page's
+    # copy of this switch has always taken.
     if ( $key eq 'maintenance' ) {
         $value = lc( $value // '' );
         $value =~ s/^\s+|\s+$//g;
-        return { ok => 0, kind => 'invalid', field => $key, error => "maintenance must be 'on' or 'off'" }
-            unless $value eq 'on' || $value eq 'off';
+        return { ok => 0, kind => 'invalid', field => $key,
+            error => "maintenance must be 'on', 'off' or empty (unset, the same as off)" }
+            unless $value eq 'on' || $value eq 'off' || $value eq '';
         return { ok => 0, kind => 'forbidden', field => $key,
             error => 'Switching maintenance on needs the "Access during maintenance" capability '
                 . '(maintenance_access) on your own account: without it the next request would '
@@ -534,12 +540,13 @@ sub action_config_set {
     # (auto-detect), asset_max_age (SM416: the revalidation default) and
     # backup_retention (SM753: 3). SM782: the field ships empty and meant the
     # default, and "A value is required" made the shipped state unreachable
-    # through the API. Every other key needs a value.
+    # through the API. SM1297: maintenance, whose empty is unset (off), and SM1294
+    # permissions_policy_allow, whose empty is no ceiling. Every other key needs a value.
     my %clearable = map { $_ => 1 } qw(canonical_ip asset_max_age backup_retention
         manager_addresses manager_addresses_deny signin_addresses signin_addresses_deny
         app_name app_short_name app_scope app_start_url app_theme_colour app_background_colour
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
-        app_offline_pages app_update maintenance_page maintenance_until
+        app_offline_pages app_update maintenance maintenance_page maintenance_until
         permissions_policy_allow);
     return { ok => 0,
         error => "A value is required: '$key' has no default to fall back to, so it "

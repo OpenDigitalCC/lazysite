@@ -91,10 +91,11 @@ Directory scan
   serving several domains `alias.<host>.maintenance: on` puts one declared
   domain in maintenance (and `alias.<host>.maintenance_page`, `.maintenance_until`
   give it its own), while `maintenance: on` covers them all. Anything but `on`
-  is off. Set on the Config page, and per domain on the Domains page; `lazysite
-  check` warns while it is on. A file the web server serves by name (an image, a
-  stylesheet, a cached page asked for by its `.html` name) is not a page request
-  and is not affected.
+  is off; `off` and empty (unset) mean the same, and the Config page's switch
+  clears the key when turned off. Set on the Config page, and per domain on the
+  Domains page; `lazysite check` warns while it is on. A file the web server
+  serves by name (an image, a stylesheet, a cached page asked for by its `.html`
+  name) is not a page request and is not affected.
 
 `csp_script_src`, `csp_connect_src`, `csp_img_src`, `csp_frame_src`
 : Hosts a page may load from beyond its own, each list appended to the
