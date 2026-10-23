@@ -128,9 +128,11 @@ sub _mode_for {
     return () unless defined $docroot;
 
     my $state = "$docroot/lazysite/.install-state.json";
-    return ( '--mode', 'provision' ) unless -f $state;
+    # SM1285: a provision here asks for the starter pages, which this file's
+    # seed and backup subtests are about; a new site gets none without it.
+    return ( '--mode', 'provision', '--starter' ) unless -f $state;
 
-    open my $fh, '<', $state or return ( '--mode', 'provision' );
+    open my $fh, '<', $state or return ( '--mode', 'provision', '--starter' );
     my $json = do { local $/; <$fh> };
     close $fh;
     my ($have) = $json =~ /"version"\s*:\s*"([^"]+)"/;

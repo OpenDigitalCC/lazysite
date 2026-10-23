@@ -131,6 +131,9 @@ sub install {
     delete $ENV{PERL5LIB};
     my @cmd = ( $^X, "$ROOT/install.pl", '--docroot', $docroot, '--cgibin', $cgibin,
         '--mode', $mode, '--serving-group', ( getgrgid( $) + 0 ) // ( $) + 0 ) ) );
+    # SM1285: this file is about the starter contact page, which a new site gets
+    # only when asked for.
+    push @cmd, '--starter' if $mode eq 'provision';
     my $cmd = join ' ', map {quotemeta} @cmd;
     my $out = `$cmd 2>&1`;
     return ( $? >> 8, $out );
