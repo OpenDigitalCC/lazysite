@@ -2,7 +2,7 @@
       ::: account-bell
       :::
     Lists the notices addressed to the signed-in account (`me-notices`) - a
-    notification rule's per-member bell - and marks them read or dismisses them
+    notification rule's per-member bell - and marks them read or dismisses them, one or all
     (`me-notices-seen`) through /assets/lazysite-account.js. Never the site's
     broadcast notices, which are the operators'. Messages and links go in as
     text and are checked to be http(s) or site paths. A layout may override this
@@ -11,6 +11,6 @@
   <p class="lz-account-count" data-ls-field="unread"></p>
   <ul class="lz-account-notices" data-ls-rows></ul>
   <p data-ls-empty hidden>Nothing for you yet.</p>
-  <div class="lz-account-actions"><button type="button" data-ls-mark-all>Mark all read</button></div>
+  <div class="lz-account-actions"><button type="button" data-ls-mark-all title="Mark every notice read and remove it from the list">Dismiss all</button></div>
   <p class="lz-account-status" data-ls-status role="status" aria-live="polite"></p>
 </section>

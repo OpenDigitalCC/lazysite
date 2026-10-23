@@ -1046,11 +1046,12 @@ under `read_submissions`). A form without a file handler links to the Handlers
 page.
 
 **Read state is per notice (SM938).** Opening the panel marks nothing. Following
-a notice's link marks that notice read, **Mark all read** marks the lot, and
-**Dismiss** takes one out of the panel - a second marker, so the store keeps
-every line. Each notice carries a stable `id`; `notices-seen` takes `id` (mark
-one) or `id` plus `dismiss`, and with neither marks all read. State is per
-principal.
+a notice's link marks that notice read, **Dismiss** takes one out of the panel -
+a second marker, so the store keeps every line - and **Dismiss all** (SM1274, once
+"Mark all read") marks every notice read and takes it out of the panel; they stay in
+the store, and a notice that arrives later is unread. Each notice carries a stable
+`id`; `notices-seen` takes `id` (mark one) or `id` plus `dismiss`, and with neither
+marks all read and dismisses them. State is per principal.
 
 **Where a form is announced (SM938).** The Handlers page shows, for each form,
 the endpoints its submission notice reaches and, for each one it will not reach,

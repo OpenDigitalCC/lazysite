@@ -218,7 +218,8 @@ sign out everywhere.
   rate limiter for both the address and the account.
 - **Your notices** (`::: account-bell`, actions `me-notices` and
   `me-notices-seen`): the notices a notification rule addressed to this
-  account, newest first, with read, dismiss and mark-all-read. Never the site's
+  account, newest first, with read, dismiss, and dismiss all (every notice read
+  and out of the list; a notice that arrives later is unread). Never the site's
   broadcast notices - those are the operators' bell, behind `notifications` -
   and never another account's. The account keeps its own last 100, however
   busy the site's store is.

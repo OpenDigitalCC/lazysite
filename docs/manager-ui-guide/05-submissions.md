@@ -15,8 +15,8 @@ on its own page - the page a submission notice links to.
 
 The entry carries a count: this account's unread submission notices, from the
 bell's own read state. Opening the page marks nothing read. Following a notice
-(from the bell) or a row's **Open** marks that notice read, **Mark all read** in
-the bell clears the lot, and the count moves with each.
+(from the bell) or a row's **Open** marks that notice read, **Dismiss all** in
+the bell marks the lot read and empties the panel, and the count moves with each.
 
 ## Read what was submitted
 

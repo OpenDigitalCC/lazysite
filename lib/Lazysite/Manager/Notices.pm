@@ -139,7 +139,8 @@ sub _read_seen_map {
 # panel, which made the badge a has-opened-the-panel indicator rather than an
 # outstanding-work one. It is now principal => { mark, read, dismissed }:
 #
-#   mark       everything at or before this time is read ("mark all read")
+#   mark       everything at or before this time is read ("mark all read"
+#              until SM1274, which dismisses by id instead; still honoured)
 #   read       ids read one at a time, so marking one does not mark the rest
 #   dismissed  ids dealt with and out of the panel. A second marker, NOT a
 #              delete - the store is the record and stays one (the report's
@@ -230,7 +231,8 @@ sub action_notices {
 #
 #   (no id)              mark ALL read - the explicit control that replaces
 #                        marking on open. "Opening a list is reading it only when
-#                        the list is short" (the report's own words).
+#                        the list is short" (the report's own words). SM1274:
+#                        and dismiss them all, so the panel is empty after it.
 #   id => X              mark ONE read, so the rest stay outstanding.
 #   id => X, dismiss => 1  take one out of the panel. Implies read.
 #
@@ -276,7 +278,13 @@ sub action_notices_seen {
         else                 { $e->{read}{$id}      = 1; }
     }
     else {
-        $e->{mark} = time();
+        # SM1274 (ruling 26, 2026-10-23): MARK ALL READ ALSO DISMISSES - every
+        # notice now in this principal's bell is read and out of the panel, and
+        # stays in the store, as a single dismiss leaves it. By id, the ones
+        # this read saw, never by time: a notice appended in the same second
+        # after it is not one of them, so it arrives unread. (The `mark` this
+        # used to advance stays as it was; an entry that has one still reads.)
+        $e->{dismissed}{$_} = 1 for grep { length } keys %live;
     }
 
     # Bounded: ids that have aged out of the window can never be shown again, so

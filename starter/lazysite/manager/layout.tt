@@ -410,8 +410,9 @@
   // made the badge a has-opened-the-panel indicator rather than outstanding
   // work: an operator who had acted on nothing had already lost the count.
   // Reading is now said, not inferred - following a notice's link marks THAT
-  // notice read, "Mark all read" marks the lot, and "Dismiss" takes one out of
-  // the panel (a second marker; the store keeps the record).
+  // notice read, "Dismiss" takes one out of the panel (a second marker; the
+  // store keeps the record), and "Dismiss all" (SM1274, once "Mark all read")
+  // marks the lot read and takes them all out.
   //
   // SM951: WHEN THE PAGE IS READY, not at once. This script is in <head> and the
   // bell is in <body>, so a check made immediately never finds it - the block
@@ -462,9 +463,10 @@
     function render(){
       var panel = document.getElementById('mg-notif-panel'); if (!panel) return;
       if (!notices.length) { panel.innerHTML = '<div class="mg-notif-empty">No notifications.</div>'; return; }
-      var head = unreadCount()
-        ? '<div class="mg-notif-item"><button type="button" class="mg-btn-sm" data-notif-all="1">Mark all read</button></div>'
-        : '';
+      // SM1274: it marks every notification read AND takes it out of the list,
+      // so it is offered whenever the list has any, read or not.
+      var head = '<div class="mg-notif-item"><button type="button" class="mg-btn-sm" data-notif-all="1"'
+        + ' title="Mark every notification read and remove it from the list">Dismiss all</button></div>';
       panel.innerHTML = head + notices.map(function(n){
         var inner = '<div class="mg-notif-msg">' + (n.read ? '' : '<strong>') + nesc(n.message||'')
                   + (n.read ? '' : '</strong>') + '</div>'
@@ -504,7 +506,9 @@
       if (!t) return;
       if (t.hasAttribute('data-notif-all')) {
         seen('').then(function(d){
-          if (d && d.ok) { notices.forEach(function(n){ n.read = true; }); setBadge(0); render(); }
+          // SM1274: all read and all dismissed, so the list is empty; the next
+          // load() reads the same from the store (SM1100 keeps the mark).
+          if (d && d.ok) { notices = []; setBadge(d.unread || 0); render(); }
           // SM1100: a mark that was not saved says so, here, rather than
           // leaving the operator to find the notices unread on the next page.
           else if (d && d.error) {

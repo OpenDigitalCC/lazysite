@@ -96,7 +96,9 @@ subtest 'ask 3: a dismissed notice leaves the panel and stays in the store' => s
 subtest 'ask 2: mark all read is an explicit act' => sub {
     my $r = mark('op');
     is( $r->{unread}, 0, 'mark-all leaves nothing unread' );
-    ok( by_msg( bell('op') )->{third}{read}, 'including the one never marked singly' );
+    # SM1274 (ruling 26): and it dismisses, so the one never marked singly is
+    # out of the panel too. t/unit/lib/208 holds the rest.
+    ok( !by_msg( bell('op') )->{third}, 'including the one never marked singly, now out of the panel' );
 };
 
 subtest 'opening the panel no longer marks anything' => sub {
@@ -114,7 +116,7 @@ subtest 'opening the panel no longer marks anything' => sub {
         or diag( 'Opening a list is reading it only when the list is short '
             . '(the report). A badge that clears on open measures panel '
             . 'openings, not work.' );
-    like( $tt, qr/Mark all read/, 'the panel offers mark-all explicitly' );
+    like( $tt, qr/data-notif-all="1"[^>]*>Dismiss all</, 'the panel offers mark-all explicitly (SM1274: "Dismiss all")' );
     like( $tt, qr/data-notif-dismiss/, 'and a dismiss control per notice' );
 };
 

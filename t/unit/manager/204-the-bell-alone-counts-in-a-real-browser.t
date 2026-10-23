@@ -102,6 +102,9 @@ sub scenario {
         "  r.count = c ? (c.hidden ? 'hidden' : c.textContent) : 'absent';\n",
         "  r.bubble = document.getElementById('mg-nav-subs-count') ? 'present' : 'absent';\n",
         "  r.bell = document.getElementById('mg-notif') ? 'present' : 'gone';\n",
+        "  r.items = document.querySelectorAll('[data-notif-dismiss]').length;\n",
+        "  r.empty = document.querySelector('.mg-notif-empty') ? 1 : 0;\n",
+        "  r.all = document.querySelector('[data-notif-all]') ? 1 : 0;\n",
         "  return r;\n}\n",
         "window.addEventListener('load', function () { setTimeout(function () {\n",
         "  var r = { before: report({}).count };\n",
@@ -147,6 +150,16 @@ is( scalar @{ $other->{seen} }, 0, 'and sends nothing' );
 
 my $all = scenario( 'all', \%NOTICES, "window.mgToggleNotif(); document.querySelector('[data-notif-all]').click();" );
 is( $all->{count}, 'hidden', 'mark all read clears the bell' ) or diag explain $all;
+# SM1274 (ruling 26): and it dismisses - the panel is left empty, not a list of
+# read notices.
+is( $all->{items}, 0, 'Dismiss all leaves no notice in the panel' ) or diag explain $all;
+is( $all->{empty}, 1, 'the panel says there are none' );
+
+my %ALLREAD = ( %NOTICES, unread => 0, unread_by_type => {},
+    notices => [ map { +{ %$_, read => JSON::PP::true } } @{ $NOTICES{notices} } ] );
+my $read = scenario( 'allread', \%ALLREAD, 'window.mgToggleNotif();' );
+is( $read->{all}, 1, 'Dismiss all is offered while the panel holds notices, read ones too' )
+    or diag explain $read;
 
 my $refused = scenario( 'refused', { ok => 0, kind => 'forbidden', error => 'no' }, '' );
 is( $refused->{before}, 'absent', 'no notifications grant: no bell badge' ) or diag explain $refused;

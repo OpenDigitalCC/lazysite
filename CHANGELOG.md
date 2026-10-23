@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1274 (PENDING) **Dismiss all empties the notices panel.** "Mark all read" marked every
+  notice read and left them all in the panel. Now called Dismiss all, it also takes them out:
+  the panel is empty and the count 0, on screen and on the next page, and the notices stay in
+  the store, as a single Dismiss leaves them. A notice that arrives afterwards is unread. The
+  manager offers it whenever the panel holds a notice; a member's own bell does the same.
+  Ruled 2026-10-23 (ruling 26).
+
 - SM1273 (PENDING) **lazysite repair gives a manager group the capabilities a release
   added.** A site whose only warning was a manager group's not-yet-held capability was left
   "awaiting your decision", though there was nothing to decide. Before it checks again,

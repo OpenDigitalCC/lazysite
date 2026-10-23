@@ -84,7 +84,8 @@ need `manage_forms` as well.
 The menu entry shows a count when the account holds `notifications`: its unread
 submission notices, from the bell's own read state. Opening the page marks
 nothing read; following a notice, or a row's Open, marks that notice read, and
-the bell's Mark all read clears the count. The address the viewer used to live
+the bell's Dismiss all marks every notice read, takes them out of the panel and
+clears the count. The address the viewer used to live
 at, `/manager/plugin-config?submissions=<store>`, redirects here.
 
 ### Site settings
