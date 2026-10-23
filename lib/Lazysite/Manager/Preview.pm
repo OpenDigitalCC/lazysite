@@ -10,7 +10,9 @@ package Lazysite::Manager::Preview;
 #   _preview_secret        the per-install auth secret, read or minted
 #   action_preview_grant   preview-grant: mint the cookie for a layout/theme
 #   action_preview_clear   preview-clear: expire the caller's preview cookies
-#   action_preview         preview: render a page through the processor
+#   action_preview         preview: render a page through the processor, in
+#                          an installed theme other than the active one when
+#                          asked (SM1290)
 #
 # The request context ($auth_user) is read from Lazysite::Manager::Common, which
 # lazysite-manager-api.pl sets and nothing here assigns (t/lint/217). Loaded
@@ -26,7 +28,7 @@ use Digest::SHA                qw(hmac_sha256_hex);
 use JSON::PP                   ();
 use Lazysite::Util             qw(log_event write_private_atomic);
 use Lazysite::Manager::Domains ();
-use Lazysite::Manager::Common  qw($auth_user respond processor_path _emit_json);
+use Lazysite::Manager::Common qw($auth_user respond processor_path _emit_json _user_caps _operator);
 
 our @EXPORT_OK = qw(action_preview action_preview_grant action_preview_clear);
 
@@ -156,7 +158,7 @@ sub action_preview_clear {
 }
 
 sub action_preview {
-    my ($rel_path) = @_;
+    my ( $rel_path, $theme ) = @_;
 
     # SM944 S24 (c), ruled 2026-10-09: A PREVIEW IS RENDERED FOR AN ACCOUNT. As
     # for preview-grant: inside a request $auth_user is never empty here;
@@ -164,6 +166,24 @@ sub action_preview {
     return { ok => 0, kind => 'forbidden',
         error => 'A preview is rendered for a signed-in manager, and no account is asking.' }
         unless length $auth_user;
+
+    # SM1290 (K-4): `theme` renders the page in an installed theme that is not
+    # the active one, as MCP preview_page's `theme` does, and with the same
+    # gate: the capability preview-grant asks for, since this shows a theme
+    # the caller could not otherwise see. Nothing is written (the processor
+    # treats it as a draft render), and the processor says whether the theme
+    # was installed for the layout this page renders with.
+    if ( defined $theme && length $theme ) {
+        my $caps = _user_caps($auth_user);
+        return { ok => 0, kind => 'forbidden',
+            error => 'Previewing a page in another theme needs manage_themes or manage_layouts.' }
+            unless _operator() || $caps->{manage_themes} || $caps->{manage_layouts};
+        return { ok => 0, kind => 'invalid', error => 'theme must be an installed theme\'s name ([A-Za-z0-9_-]).' }
+            unless $theme =~ /\A[A-Za-z0-9_-]+\z/;
+        return { ok => 0, kind => 'not-found', error => "No theme '$theme' is installed." }
+            unless grep { -f $_ } glob("$LAZYSITE_DIR/layouts/*/themes/$theme/theme.json");
+    }
+    else { undef $theme }
 
     my $uri = $rel_path;
     $uri =~ s{^/*}{/};
@@ -180,6 +200,13 @@ sub action_preview {
     $ENV{REDIRECT_URL}     = $url;
     $ENV{DOCUMENT_ROOT}    = $DOCROOT;
     $ENV{LAZYSITE_PREVIEW} = '1';        # SM1064: a preview is no visit (SM1031)
+    if ( defined $theme ) {    # SM1290: a single-shot GET, as the processor requires
+        $ENV{LAZYSITE_PREVIEW_THEME} = $theme;
+        $ENV{REQUEST_METHOD}         = 'GET';
+        $ENV{QUERY_STRING}           = '';
+        $ENV{CONTENT_LENGTH}         = '0';
+    }
+    else { delete $ENV{LAZYSITE_PREVIEW_THEME} }
 
     # SM441: render under the Host of the domain that OWNS this path. Without
     # it the preview inherited the Host of whatever the sysop was browsing
@@ -199,8 +226,17 @@ sub action_preview {
     my $output    = qx($^X \Q$processor\E 2>/dev/null);
 
     # Strip CGI headers
-    $output =~ s/\A.*?\r?\n\r?\n//s;
+    my $head = $output =~ s/\A(.*?)\r?\n\r?\n//s ? $1 : '';
 
+    if ( defined $theme ) {
+        my ($said) = $head =~ /^X-Lazysite-Preview-Theme:\s*([^\r\n]*)/mi;
+        unless ( defined $said && $said eq 'applied' ) {
+            ( my $why = $said // 'the render did not say' ) =~ s/\Arefused:?\s*//;
+            return { ok => 0, kind => 'theme-not-installed', theme => $theme,
+                error => "The page was not previewed in '$theme': $why." };
+        }
+        return { ok => 1, html => $output, theme => $theme };
+    }
     return { ok => 1, html => $output };
 }
 

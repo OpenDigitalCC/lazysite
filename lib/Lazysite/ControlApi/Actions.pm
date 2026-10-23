@@ -797,7 +797,7 @@ our %ACTION = (
     'plugin-list'    => { params => [] },
     'plugin-read' => { cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' } ] },
     'plugin-save' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'values', in => 'body' }, { name => 'add', in => 'body' } ] },
-    'preview' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' } ] },
+    'preview' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' }, { name => 'theme', in => 'query', note => 'SM1290: an installed theme to render with instead of the active one; needs manage_themes or manage_layouts' } ] },
     'preview-clear' => { mutates => 1, audited => 0, cookie_cap => 'manage_themes|manage_layouts', params => [] },
 # [changes_access deliberately unset] SM649: preview-grant and preview-clear are NOT here, and were. The comment
 # that justified them said a preview "lets somebody read a page"; it does not.

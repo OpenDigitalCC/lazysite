@@ -13,15 +13,16 @@ package main;
 #         _instance_id(), the SM156 per-install identifier, which sits among
 #         them; the SM1030 draft render: _draft_requested, _draft_read (the
 #         draft from STDIN), _draft_bind, _draft_is, _draft_stat, _draft_text,
-#         _draft_real and _draft_refuse.
+#         _draft_real and _draft_refuse; the SM1290 theme preview:
+#         _theme_preview_requested and _theme_preview_read.
 # OWNS    the request's identity facts: its host and its address; whether its
-#         page source is a draft, and that draft.
+#         page source is a draft, and that draft; the theme a preview asked for.
 # CALLS   realpath, hmac_sha256_hex, inet_pton, inet_ntop, decode and the Socket
 #         AF_INET/AF_INET6 constants (imported by the script's `use`, before its
 #         parts load; the constants written as calls, so the part compiles alone);
 #         Encode::FB_CROAK by its full name; _runtime, log_event and
 #         _security_headers (the script and its parts).
-# READS   $DOCROOT, $CONF_FILE; SETS $DRAFT_BYTES and %ACCESS_REC (the script's,
+# READS   $DOCROOT, $CONF_FILE; SETS $DRAFT_BYTES, $PREVIEW_THEME and %ACCESS_REC (the script's,
 #         declared `our` there).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S13). It is package main, required
@@ -30,7 +31,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $CONF_FILE, $DRAFT_BYTES, $DRAFT_MD, %ACCESS_REC );
+our ( $DOCROOT, $CONF_FILE, $DRAFT_BYTES, $DRAFT_MD, $PREVIEW_THEME, %ACCESS_REC );
 
 # SM110: the request's Host header, sanitised for alias matching: lowercased,
 # port stripped, trailing dot dropped, validated against the DNS hostname
@@ -239,9 +240,19 @@ sub _proxy_identity {
 # records, the registries, the cached error pages, a form's derived rules, the
 # form secret, the access log, a remote layout's cache and the TT compile cache.
 
-# Is this request a draft render? True whenever the variable is set, so a writer
-# asked this refuses even when the draft itself was refused.
+# Is this request a render that writes nothing - a draft, or (SM1290) a page
+# previewed in a theme that is not the active one? True whenever either
+# variable is set, so a writer asked this refuses even when the request itself
+# was refused. Every writer a render reaches asks this, which is what makes a
+# theme preview read-only as a draft is: a page cache, dependency or registry
+# record written under another theme would serve visitors that theme's page.
 sub _draft_requested {
+    return 1 if _draft_path_given();
+    return _theme_preview_requested();
+}
+
+# A draft proper: its page source comes from STDIN.
+sub _draft_path_given {
     my $rel = $ENV{LAZYSITE_DRAFT_PATH};
     return ( defined $rel && length $rel ) ? 1 : 0;
 }
@@ -253,7 +264,7 @@ sub _draft_cap { return 512 * 1024 }
 # At the top of main(): take the whole draft from STDIN. 1 to carry on; 0 when
 # it answered with a refusal.
 sub _draft_read {
-    return 1 unless _draft_requested();
+    return 1 unless _draft_path_given();
     return _draft_refuse('a draft renders only on a single-shot CGI GET')
         unless _runtime() eq 'cgi' && ( $ENV{REQUEST_METHOD} // '' ) eq 'GET';
     my $rel = $ENV{LAZYSITE_DRAFT_PATH};
@@ -329,6 +340,51 @@ sub _draft_refuse {
     print "$_\n" for _security_headers();    # SM381
     print "Content-type: text/plain; charset=utf-8\n";
     print "X-Lazysite-Draft: refused\n\n";
+    print "$why\n";
+    return 0;
+}
+
+# SM1290 (K-4): A PAGE PREVIEWED IN AN INSTALLED THEME THAT IS NOT THE ACTIVE ONE.
+#
+# MCP preview_page with `theme` (and the manager's preview with it) renders the
+# page as a visitor would get it under that theme, so a designer can check a
+# theme on real pages before anyone activates it. The caller names the theme in
+# LAZYSITE_PREVIEW_THEME; the layout step (resolve_layout_vars) renders with it
+# in place of the site's, the page's and the section's theme, and records in
+# $PREVIEW_THEME_STATE whether it could - a theme not installed for the layout
+# this page renders with is refused there, and the response says so in
+# X-Lazysite-Preview-Theme (output_page), which the caller reads.
+#
+# WHO CAN ASK, as for a draft: an environment variable is not something a
+# visitor sets, and it is honoured only on the single-shot CGI path for a GET.
+# NOTHING IS WRITTEN: _draft_requested is true for it, so every writer refuses,
+# and main() keeps it off the page cache.
+sub _theme_preview_requested {
+    my $t = $ENV{LAZYSITE_PREVIEW_THEME};
+    return ( defined $t && length $t ) ? 1 : 0;
+}
+
+# At the top of main(): 1 to carry on (no preview, or a well-formed one, now in
+# $PREVIEW_THEME); 0 when it answered with a refusal.
+sub _theme_preview_read {
+    return 1 unless _theme_preview_requested();
+    my $t = $ENV{LAZYSITE_PREVIEW_THEME};
+    return _theme_preview_refuse('a theme preview renders only on a single-shot CGI GET')
+        unless _runtime() eq 'cgi' && ( $ENV{REQUEST_METHOD} // '' ) eq 'GET';
+    return _theme_preview_refuse('the theme name is not [A-Za-z0-9_-]')
+        unless $t =~ /\A[A-Za-z0-9_-]+\z/;
+    $PREVIEW_THEME = $t;
+    return 1;
+}
+
+sub _theme_preview_refuse {
+    my ($why) = @_;
+    log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'theme preview not rendered', reason => $why );
+    $ACCESS_REC{s} = 422;
+    print "Status: 422 Unprocessable Content\n";
+    print "$_\n" for _security_headers();
+    print "Content-type: text/plain; charset=utf-8\n";
+    print "X-Lazysite-Preview-Theme: refused\n\n";
     print "$why\n";
     return 0;
 }

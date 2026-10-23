@@ -23,6 +23,7 @@ package main;
 #         and its parts); hmac_sha256_hex, sha256, encode_base64 (imported by
 #         the script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $REQUEST_CROOT, $RESPONSE_LANG, %ACCESS_REC,
+#         $PREVIEW_THEME, $PREVIEW_THEME_STATE (SM1290),
 #         $FORM_TS_PLACEHOLDER, $FORM_TK_PLACEHOLDER (the script's, declared
 #         `our` there; the two placeholders are set in the script's BEGIN,
 #         which runs after this part loads and before any sub here is called).
@@ -33,7 +34,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $REQUEST_CROOT, $RESPONSE_LANG, %ACCESS_REC, $FORM_TS_PLACEHOLDER, $FORM_TK_PLACEHOLDER, %MAINT );
+our ( $DOCROOT, $LAZYSITE_DIR, $REQUEST_CROOT, $RESPONSE_LANG, %ACCESS_REC, $FORM_TS_PLACEHOLDER, $FORM_TK_PLACEHOLDER, %MAINT, $PREVIEW_THEME, $PREVIEW_THEME_STATE );
 
 # --- Output ---
 
@@ -99,6 +100,11 @@ sub output_page {
     # had to discover from live traffic, for a fact the source already states.
     print "$_\n" for _security_headers( html => $content, permissions => $permissions ); # SM352, SM1266
     print "$_\n" for @{ $extra || [] };                                        # SM381
+
+    # SM1290: whether a theme preview rendered with the theme it asked for. The
+    # caller (MCP preview_page, the manager's preview) refuses on anything else.
+    print "X-Lazysite-Preview-Theme: " . ( $PREVIEW_THEME_STATE // 'refused: the page rendered with no layout' ) . "\n"
+        if defined $PREVIEW_THEME;
     print "Content-Language: $RESPONSE_LANG\n" if $RESPONSE_LANG;    # SM179 (P1)
     if ($auth_protected) {
         print "Cache-Control: no-store, private\n";

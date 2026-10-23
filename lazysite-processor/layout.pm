@@ -26,7 +26,8 @@ package main;
 #         script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $LAYOUT_CACHE_DIR,
 #         $MANAGER_LAYOUT, $FALLBACK_LAYOUT, $REMOTE_TTL, $REQUEST_CROOT,
-#         $TT_COMPILE_DIR, %AUTH_CONTEXT (the script's, declared `our` there).
+#         $TT_COMPILE_DIR, $PREVIEW_THEME, %AUTH_CONTEXT (the script's, declared `our`
+#         there); SETS $PREVIEW_THEME_STATE (SM1290).
 #
 # A PART OF THE PROCESSOR, NOT A MODULE (SM944 S17). It is package main, required
 # by absolute path from lazysite-processor.pl's BEGIN and never through @INC, and
@@ -34,7 +35,7 @@ package main;
 use strict;
 use warnings;
 
-our ( $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $LAYOUT_CACHE_DIR, $MANAGER_LAYOUT, $FALLBACK_LAYOUT, $REMOTE_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, %AUTH_CONTEXT, %MAINT );
+our ( $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $LAYOUT_CACHE_DIR, $MANAGER_LAYOUT, $FALLBACK_LAYOUT, $REMOTE_TTL, $REQUEST_CROOT, $TT_COMPILE_DIR, $PREVIEW_THEME, $PREVIEW_THEME_STATE, %AUTH_CONTEXT, %MAINT );
 
 # --- Layout, theme and injection ---
 #
@@ -366,6 +367,8 @@ sub resolve_layout_vars {
         $vars->{theme_assets} = "/lazysite-assets/$layout_key";
         $vars->{theme}        = {};
         $vars->{theme_css}    = '';
+        $PREVIEW_THEME_STATE = 'refused: this page renders with a remote layout, which has no installed themes'
+            if defined $PREVIEW_THEME;    # SM1290
     }
     elsif ( defined $layout_key ) {
         # Local layout. Expose layout_name and resolve the active theme
@@ -398,6 +401,21 @@ sub resolve_layout_vars {
         my $page_theme = $meta->{theme};
         $page_theme = _section_theme( $meta->{_md_path} ) // $vars->{theme}
             unless defined $page_theme && $page_theme =~ /^[A-Za-z0-9_-]+$/;
+        # SM1290: a theme preview renders with the theme it names, over the page,
+        # section and site alike - that is the question it asks - and only when
+        # that theme is installed for this layout; otherwise the render goes on
+        # as the page's own and the state says why, for the caller to refuse.
+        if ( defined $PREVIEW_THEME ) {
+            my $want = resolve_theme( $layout_key, $PREVIEW_THEME );
+            if ( $want->{is_active} ) {
+                $page_theme          = $PREVIEW_THEME;
+                $PREVIEW_THEME_STATE = 'applied';
+            }
+            else {
+                $PREVIEW_THEME_STATE = "refused: no theme '$PREVIEW_THEME' is installed for the layout "
+                    . "'$layout_key' this page renders with";
+            }
+        }
         my $info = resolve_theme( $layout_key, $page_theme );
         if ( $info->{is_active} ) {
             $vars->{theme_name}   = $info->{theme_name};

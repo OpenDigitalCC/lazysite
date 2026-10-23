@@ -1490,7 +1490,7 @@ elsif ( $action eq 'git-init' )   { $result = action_git_init($auth_user) }
 elsif ( $action eq 'lock' ) { $result = lock_refusal( $path, $auth_user ) // acquire_lock( $path, $auth_user ) }
 elsif ( $action eq 'unlock' ) { $result = lock_refusal( $path, $auth_user ) // release_lock( $path, $auth_user ) }
 elsif ( $action eq 'renew-lock' ) { $result = lock_refusal( $path, $auth_user ) // renew_lock( $path, $auth_user ) }
-elsif ( $action eq 'preview' )    { $result = action_preview($path) }
+elsif ( $action eq 'preview' ) { $result = action_preview( $path, $params{theme} ) } # SM1290: theme
 elsif ( $action eq 'cache-list' ) { $result = action_cache_list() }
 elsif ( $action eq 'cache-invalidate' ) {
     # SM976: a host's own cached copy is that domain's.

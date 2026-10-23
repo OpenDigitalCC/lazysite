@@ -92,6 +92,14 @@ Archive
   says whether it was made. `settle_odoo_writes` is declared by the Odoo extension, so it is
   grantable only where the extension is installed, and every operator group holds it: a new
   site's at once, an older site's by the SM645 top-up. A declined 0 stays declined.
+- SM1290 (PENDING) **a page previews in a theme that is not active.** MCP `preview_page` takes
+  `theme`: the page, or a draft, renders with that installed theme in place of the site's,
+  the section's and the page's own, so a theme can be checked on real pages before it is
+  activated. Nothing is activated, cached or written, and a theme not installed for the
+  layout the page renders with is refused. It needs `manage_themes` or `manage_layouts` as
+  well as `manage_content`, as the manager's theme preview does; the manager's page preview
+  takes the same `theme`. From the lazysite.io site agent (K-4).
+
 - SM1289 (PENDING) **a form under any theme has base styles, and the theme overrides them.**
   Under a theme with no form rules (lumen, edge observation O-4) a stepped form's fields and
   buttons were the browser's own. `lazysite-chrome.css` now carries small base rules for the

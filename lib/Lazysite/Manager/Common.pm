@@ -1865,7 +1865,7 @@ our %REFUSAL_STATUS = (
             qw(not-found unknown-domain
             no_such_table no_such_row no_such_form db-table-missing) ),
     ( map { $_ => '409 Conflict' }
-            qw(exists in-use confirm needs_confirmation has_submissions conflict draft-not-rendered) ), # SM858, SM1030
+            qw(exists in-use confirm needs_confirmation has_submissions conflict draft-not-rendered theme-not-installed) ), # SM858, SM1030, SM1290
     'too-large' => '413 Payload Too Large',
     'page-encoding-refused' => '415 Unsupported Media Type', # SM976 Q15h: the content, not the request
     'rate'                  => '429 Too Many Requests',

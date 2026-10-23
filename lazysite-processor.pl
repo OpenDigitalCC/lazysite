@@ -293,6 +293,8 @@ our $REQUEST_CROOT;    # SM151: the request's confined content root (undef => do
     # resolve_site_vars (which calls resolve_scan for conf directives)
 our $DRAFT_BYTES;      # SM1030: a draft's source, read from STDIN (request.pm)
 our $DRAFT_MD;         # SM1030: the page path that draft stands in for
+our $PREVIEW_THEME;    # SM1290: the installed theme a preview renders with (request.pm)
+our $PREVIEW_THEME_STATE;    # SM1290: 'applied' or why not, once the layout resolved it
 our $ACL_MAP_CACHE;    # SM268 H13: acls.json parsed at most once per request -
                       # a scan asks the read decision up to 200 times. undef =
                       # not loaded, 0 = load failed (fail closed), hashref = the
@@ -976,6 +978,7 @@ sub main {
     # printed, so the caller writing it can never wait on a reader that waits on
     # it (request.pm).
     return unless _draft_read();
+    return unless _theme_preview_read();    # SM1290
 
     # SM268 01-L2: REQUEST_URI is percent-ENCODED; REDIRECT_URL is not.
     #
@@ -1502,6 +1505,13 @@ sub main {
         $ENV{LAZYSITE_NOCACHE} = '1';
     }
 
+    # SM1290: a page previewed in a theme that is not the active one takes the
+    # draft's treatment: never read from or written to any cache.
+    if ( defined $PREVIEW_THEME ) {
+        $protected = 1;
+        $ENV{LAZYSITE_NOCACHE} = '1';
+    }
+
     # Check if this page declares query_params and request has matching ones
     my $has_query_request = 0;
     my $declared_params   = undef;
@@ -1988,6 +1998,8 @@ sub _lazy_lib {
         undef $ACL_MAP_CACHE;    # SM973: a pooled worker re-reads acls.json
         undef $DRAFT_BYTES;      # SM1030
         undef $DRAFT_MD;
+        undef $PREVIEW_THEME;    # SM1290
+        undef $PREVIEW_THEME_STATE;
         _reset_peek_cache();
         # SM1169 (t/lint/269): three more a pooled worker kept from the last visitor.
         # The payer and the paid flag of a payment-gated page fed the template

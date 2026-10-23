@@ -236,6 +236,8 @@ my %T = (
         '$REQUEST_CROOT'         => [ reset  => 'reset_request_state' ],
         '$DRAFT_BYTES'           => [ reset  => 'reset_request_state' ],
         '$DRAFT_MD'              => [ reset  => 'reset_request_state' ],
+        '$PREVIEW_THEME'         => [ reset  => 'reset_request_state' ],    # SM1290
+        '$PREVIEW_THEME_STATE'   => [ reset  => 'reset_request_state' ],
         '$ACL_MAP_CACHE'         => [ reset  => 'reset_request_state' ],
         # SM1181 S2: the request's identity value; handle_one_request clears it at
         # its end as well (t/integration/292 holds both ends).

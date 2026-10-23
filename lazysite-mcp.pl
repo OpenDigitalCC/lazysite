@@ -2320,18 +2320,24 @@ my %TOOLS = (
     },
     preview_page => {
         path_args => [qw(path)],
-        description => 'Render a page server-side (fresh, bypassing the cache) and return its HTML, so you can verify layout / nav / form output in-channel - no web fetch needed. Renders the public view; a protected page shows the auth gate. Pass `content` to render a DRAFT before saving it: the draft is rendered at `path`, which decides the domain, layout, theme, navigation and access rules that apply, and NOTHING is written - no file, no cache, no content history; the saved page is untouched. A draft is refused for anything a save of it at that path would be refused for (not UTF-8, a form you do not reach, a template that does not parse, raw HTML, the path\'s own write rules), and is limited to 512 KiB.',
+        description => 'Render a page server-side (fresh, bypassing the cache) and return its HTML, so you can verify layout / nav / form output in-channel - no web fetch needed. Renders the public view; a protected page shows the auth gate. Pass `content` to render a DRAFT before saving it: the draft is rendered at `path`, which decides the domain, layout, theme, navigation and access rules that apply, and NOTHING is written - no file, no cache, no content history; the saved page is untouched. A draft is refused for anything a save of it at that path would be refused for (not UTF-8, a form you do not reach, a template that does not parse, raw HTML, the path\'s own write rules), and is limited to 512 KiB. Pass `theme` to render the page (or the draft) with an INSTALLED theme that is not the active one, so a theme can be checked on real pages before it is activated: it replaces the site\'s, the section\'s and the page\'s own theme for this render only, nothing is written, and it is refused for a theme that is not installed for the layout the page renders with. `theme` also needs manage_themes or manage_layouts - the capability that already lets a manager preview a theme in the browser (preview-grant).',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 path => { type => 'string', description => 'page path, e.g. /enquire - with content, where the draft is rendered (domain, layout, theme, nav, access rules)' },
                 content => { type => 'string', description => 'draft page source (front matter + Markdown) to render at path instead of the saved page; nothing is saved' },
+                theme => { type => 'string', description => 'an installed theme (list_themes) to render with instead of the active one; nothing is activated or written. Needs manage_themes or manage_layouts as well' },
             },
             required => ['path'], additionalProperties => JSON::PP::false },
         run => sub {
-            return _preview_draft( $_[0]->{path}, $_[0]->{content}, $_[1], $_[2] )
-                if defined $_[0]->{content};    # SM1030
-            return _preview_page( $_[0]->{path}, $_[1] );
+            my ( $a, $user, $caps ) = @_;
+            if ( defined $a->{theme} ) {    # SM1290
+                my $no = _preview_theme_refusal( $a->{theme}, $caps );
+                return $no if $no;
+            }
+            return _preview_draft( $a->{path}, $a->{content}, $user, $caps, $a->{theme} )
+                if defined $a->{content};    # SM1030
+            return _preview_page( $a->{path}, $user, $a->{theme} );
         },
     },
     page_status => {
@@ -2759,8 +2765,55 @@ sub _processor_tool {
     return Lazysite::Paths::find_processor( $DOCROOT, __FILE__ );
 }
 
+# SM1290 (K-4): MAY THIS CALLER PREVIEW A PAGE IN ANOTHER THEME, and is there
+# such a theme? undef when it may; a refusal otherwise.
+#
+# THE CAPABILITY. preview_page is manage_content, and a theme preview reveals
+# what that grant does not reach: which themes are installed (list_themes is
+# manage_themes) and what each renders as - its tokens, its stylesheet links.
+# So it also needs the capability that already lets a manager see a page in a
+# theme that is not active, preview-grant's: manage_themes or manage_layouts.
+#
+# THE THEME. Installed under some layout here; whether it is installed for the
+# layout THIS page renders with is the processor's to say, because only the
+# render knows the layout (a page's `layout:`, its domain's), and it says so in
+# X-Lazysite-Preview-Theme, read by _preview_theme_result.
+sub _preview_theme_refusal {
+    my ( $theme, $caps ) = @_;
+    $caps ||= {};
+    unless ( $caps->{manage_themes} || $caps->{manage_layouts} ) {
+        return { ok => 0, kind => 'forbidden',
+            error => 'Previewing a page in another theme needs manage_themes or manage_layouts as well as '
+                . 'manage_content - the theme is something this grant cannot otherwise see. Preview without '
+                . '`theme`, or ask the sysop for one of them.',
+            audit_detail => 'forbidden: theme preview needs manage_themes or manage_layouts - ask for one' };
+    }
+    unless ( defined $theme && $theme =~ /\A[A-Za-z0-9_-]+\z/ ) {
+        return { ok => 0, kind => 'invalid', error => 'theme must be an installed theme\'s name ([A-Za-z0-9_-]).',
+            audit_detail => 'invalid: the theme name is not [A-Za-z0-9_-] - use a name list_themes gives' };
+    }
+    return undef if grep { -f $_ } glob("$LAZYSITE_DIR/layouts/*/themes/$theme/theme.json");
+    return { ok => 0, kind => 'not-found', theme => $theme,
+        error => "No theme '$theme' is installed. list_themes names the installed ones; a theme is installed with "
+            . 'install_theme, create_theme or copy_theme before it can be previewed.',
+        audit_detail => "not-found: no theme '$theme' is installed - preview an installed one" };
+}
+
+# SM1290: the processor's answer to a theme preview, from the response head.
+# undef when the theme was applied; a refusal when it was not.
+sub _preview_theme_result {
+    my ( $theme, $head, $path ) = @_;
+    my ($said) = ( $head // '' ) =~ /^X-Lazysite-Preview-Theme:\s*([^\r\n]*)/mi;
+    return undef if defined $said && $said eq 'applied';
+    ( my $why = $said // 'the render did not say' ) =~ s/\Arefused:?\s*//;
+    return { ok => 0, kind => 'theme-not-installed', path => $path, theme => $theme,
+        error => "The page was not previewed in '$theme': $why. list_themes shows which layouts each theme is "
+            . 'installed for.',
+        audit_detail => "theme-not-installed: $why - preview a theme installed for this page's layout" };
+}
+
 sub _preview_page {
-    my ( $path, $user ) = @_;
+    my ( $path, $user, $theme ) = @_;
     return { ok => 0, error => 'path required' } unless defined $path && length $path;
     ( my $slug = $path ) =~ s{^/+}{}; $slug =~ s{\.\.}{}g; $slug =~ s{\.md$}{}; $slug =~ s{/+$}{};
     my $proc = _processor_tool()
@@ -2795,6 +2848,10 @@ sub _preview_page {
     $ENV{LAZYSITE_PREVIEW} = '1';
     if ( length $owner ) { $ENV{HTTP_HOST} = $owner }
     else                 { delete $ENV{HTTP_HOST} }
+    # SM1290: render with this theme instead of the active one - read-only, as a
+    # draft is (lazysite-processor/request.pm).
+    if ( defined $theme ) { $ENV{LAZYSITE_PREVIEW_THEME} = $theme }
+    else                  { delete $ENV{LAZYSITE_PREVIEW_THEME} }
 
     my $out = '';
     # Decode the rendered HTML so the JSON layer encodes it once (raw bytes here
@@ -2806,6 +2863,9 @@ sub _preview_page {
     $body = '' unless defined $body;
     my ($status) = ( ( $head // '' ) =~ /Status:\s*(\d+)/i );
     $status ||= 200;
+    if ( defined $theme ) {
+        if ( my $no = _preview_theme_result( $theme, $head, "/$slug" ) ) { return $no }
+    }
 
     # SM976 Q15j: a page that is not UTF-8 renders nothing (a 500) or renders
     # its bytes into HTML the JSON encoder dies on, which left the call with no
@@ -2832,8 +2892,10 @@ sub _preview_page {
     if ( length $body > $MAX_READ_BYTES ) { $body = substr( $body, 0, $MAX_READ_BYTES ); $truncated = 1 }
     return { ok => 1, path => "/$slug", status => $status, bytes => length $body, html => $body,
         truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ),
-        ( length $owner ? ( rendered_as_host => $owner ) : () ),
-        note => 'rendered fresh as a public visitor; a protected page shows the auth gate' };
+        ( length $owner  ? ( rendered_as_host => $owner ) : () ),
+        ( defined $theme ? ( theme => $theme )            : () ),
+        note => 'rendered fresh as a public visitor; a protected page shows the auth gate'
+            . ( defined $theme ? "; in the theme '$theme', which is not activated - nothing was written" : '' ) };
 }
 
 # SM1030 (ruled 2026-10-12 by the release manager, "yes queue the preview_page
@@ -2879,7 +2941,7 @@ sub _draft_page_rel {
 }
 
 sub _preview_draft {
-    my ( $path, $content, $user, $caps ) = @_;
+    my ( $path, $content, $user, $caps, $theme ) = @_;
     return { ok => 0, kind => 'invalid-path', error => 'path required: a draft is rendered at a page path' }
         unless defined $path && length $path;
     my $rel = _draft_page_rel($path);
@@ -2930,6 +2992,8 @@ sub _preview_draft {
     $ENV{LAZYSITE_DRAFT_PATH} = $rel;
     if ( length $owner ) { $ENV{HTTP_HOST} = $owner }
     else                 { delete $ENV{HTTP_HOST} }
+    if ( defined $theme ) { $ENV{LAZYSITE_PREVIEW_THEME} = $theme }    # SM1290
+    else                  { delete $ENV{LAZYSITE_PREVIEW_THEME} }
 
     my ( $ran, $raw ) = _run_json_tool( [$proc], $bytes );
     return { ok => 0, error => 'could not run the processor' } unless $ran;
@@ -2945,6 +3009,9 @@ sub _preview_draft {
         return { ok => 0, kind => 'draft-not-rendered', path => "/$rel",
             error => "The draft was not rendered: $why.",
             audit_detail => "draft-not-rendered: $why - check the path names the page to preview" };
+    }
+    if ( defined $theme ) {
+        if ( my $no = _preview_theme_result( $theme, $head, "/$rel" ) ) { return $no }
     }
 
     # The draft is UTF-8, so HTML that is not was put there by a file the page
@@ -2962,8 +3029,10 @@ sub _preview_draft {
     return { ok => 1, path => "/$rel", draft => JSON::PP::true, status => $status + 0,
         bytes => length $body, html => $body,
         truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ),
-        ( length $owner ? ( rendered_as_host => $owner ) : () ),
-        note => 'the draft rendered fresh as a public visitor at this path, against its site\'s layout, theme '
+        ( length $owner  ? ( rendered_as_host => $owner ) : () ),
+        ( defined $theme ? ( theme            => $theme ) : () ),
+        note => 'the draft rendered fresh as a public visitor at this path, against its site\'s layout, '
+            . ( defined $theme ? "the theme '$theme' (not activated), " : 'theme ' )
             . 'and navigation; nothing was written and the saved page is unchanged' };
 }
 

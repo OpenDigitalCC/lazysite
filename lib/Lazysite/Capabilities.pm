@@ -183,7 +183,7 @@ my %ACTION_INFO = (
     manage_themes => {
         section => 'Appearance',
         title   => 'Install and activate themes.',
-        grants => 'Install, author and activate themes, which decide how every page on the site looks.',
+        grants => 'Install, author and activate themes, which decide how every page on the site looks - and, with manage_content, preview a page in a theme that is not active (preview_page with theme, SM1290).',
         unlocks => {
             # SM457: these are gated on [manage_themes, manage_layouts] -
             # EITHER admits - so both must name them. A partner holding only
@@ -198,7 +198,7 @@ my %ACTION_INFO = (
     manage_layouts => {
         section => 'Appearance',
         title   => 'Install, author and activate layouts.',
-        grants => 'Install, author and activate layouts, which decide the shape of every page on the site.',
+        grants => 'Install, author and activate layouts, which decide the shape of every page on the site - and, with manage_content, preview a page in a theme that is not active (preview_page with theme, SM1290).',
         unlocks => {
             # SM457: as above - cross-gated actions belong on both lists.
             api => [ qw(layout-activate layout-install layout-delete layouts-available

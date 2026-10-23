@@ -190,6 +190,15 @@ served from cache, so a preview cannot leak into what anonymous visitors
 see. Click **Stop preview** to end it; the cookie also expires on its
 own after an hour.
 
+**One page, from an agent.** MCP `preview_page` takes `theme`: the page
+(or a draft passed as `content`) is rendered with that installed theme
+in place of the site's, the section's and the page's own, and the HTML
+comes back in the result. Nothing is activated, cached or written. It
+needs `manage_themes` or `manage_layouts` as well as `manage_content`,
+and a theme that is not installed for the layout the page renders with
+is refused, naming the layout. The manager's page preview (the
+`preview` action) takes the same `theme` parameter.
+
 ### Theme name sanitisation
 
 Theme names are sanitised to `[A-Za-z0-9_-]` at both install and
