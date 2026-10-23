@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1279 (PENDING) **An unknown Odoo run is kept until it is settled or dismissed.** Ruling 10c:
+  no expiry. The plan store's seven days, the daemon run folders' schedule and SM1162's purge
+  of a spent plan's file bytes no longer reach a run left unknown and still open, since a resume
+  reads its plan, its journal and the bytes of a change it sends again. Settled or dismissed, it
+  goes on the ordinary schedule and its bytes go at once.
 - SM1275 (PENDING) **An Odoo run that ended unknown is read back and settled.** Rulings 10a and
   10b, with OOM 0.42's resume: an apply that left a change unknown now names its run (`run`,
   the plan id; no path), and `POST {run, resume: true}` resumes it. OOM reads each unknown

@@ -1378,6 +1378,10 @@ sub _daemon_run_gone {
 # be tried again (a rate cap, a sign-in) leaves it waiting.
 sub _plan_spent {
     my ( $res, $err ) = @_;
+    # SM1279: an apply that left a change unknown is a run that may be resumed, and a
+    # change it carries is sent with its bytes: they go when it is settled or dismissed
+    return 0 if ref $res eq 'HASH' && ref $res->{result} eq 'HASH' && ref $res->{result}{counts} eq 'HASH'
+        && $res->{result}{counts}{unknown};
     return 1 if ref $res eq 'HASH' && $res->{applied};
     return 0 unless ref $err && eval { $err->isa('Odoo::Error') } && ( $err->kind // '' ) eq 'refused';
     return ( ( $err->code // '' ) =~ /\A(?:stale|fingerprint|applied|instance)\z/ ) ? 1 : 0;
@@ -1671,6 +1675,10 @@ sub resume {
         $meta->{settled} = { at => time, by => _actor_label(%c), run => $res->{plan} };
         eval { _write_json_file( "$dir/meta.json", $meta ); 1 }
             or log_event( 'WARN', 'odoo', 'a settled run could not be recorded as settled', plan => $pid );
+        # SM1279: the settled run's file bytes go now, and the resumed plan's once it is spent
+        purge_plan_blobs( $pid, $meta );
+        my $nmeta = _read_json_file( plans_dir() . "/$res->{plan}/meta.json" );
+        purge_plan_blobs( $res->{plan}, $nmeta ) if _plan_spent( $res, undef );
         $out = _note_unknown( $out, $b, $conn, cap => $cap, may_assume => ( $own || $cap ) );
     }
     elsif ( ( $out->{kind} // '' ) eq 'unknown-outcome' ) {
@@ -2604,28 +2612,45 @@ sub _new_plan_dir {
     return ( $pid, $dir );
 }
 
+# SM1279 (ruling 10c): A RUN LEFT UNKNOWN IS KEPT UNTIL IT IS SETTLED OR DISMISSED,
+# however old: its plan, its journal (here, or in the daemon's run folder) and the
+# file bytes it holds are what a resume reads. Once settled or dismissed it goes on
+# the plans' schedule, by the age it was made.
+sub _open_unknown {
+    my ($m) = @_;
+    return ref $m eq 'HASH' && $m->{unknown} && !$m->{settled} && !$m->{dismissed} && !$m->{withdrawn} ? 1 : 0;
+}
+
 sub _prune_plans {
     my $root = plans_dir();
-    _prune_runs();
-    opendir my $dh, $root or return;
+    opendir my $dh, $root or return _prune_runs( {} );
     my $cut = time - $PLAN_KEEP_DAYS * 86400;
+    my %keep;
     for my $e ( grep { /\A[0-9a-f]{32}\z/ } readdir $dh ) {
         my $m = _read_json_file("$root/$e/meta.json");
+        if ( _open_unknown($m) ) {
+            $keep{ $m->{run_id} } = 1 if defined $m->{run_id} && !ref $m->{run_id};
+            next;
+        }
         next unless ref $m eq 'HASH' && ( $m->{created} // $cut ) < $cut;
         require File::Path;
         File::Path::remove_tree("$root/$e");
     }
     closedir $dh;
+    _prune_runs( \%keep );
     return;
 }
 
 # SM1164 D3: the daemon's run folders (plans it made, journals it kept) go on the
-# plans' schedule - a run older than the keep is removed.
+# plans' schedule - a run older than the keep is removed. SM1279: except the run of
+# a plan left unknown and still open ($keep).
 sub _prune_runs {
+    my ($keep) = @_;
     my $root = store_dir() . '/runs';
     opendir my $dh, $root or return;
     my $cut = time - $PLAN_KEEP_DAYS * 86400;
     for my $e ( grep { !/\A\./ } readdir $dh ) {
+        next if $keep && $keep->{$e};
         my @st = stat "$root/$e" or next;
         next unless $st[9] < $cut;
         require File::Path;
