@@ -194,12 +194,18 @@ our $PREVIEW_COOKIE = 'lzs_preview';    # SM071: theme/layout preview cookie
 # engine default (the page answers 404 unless a site wrote its own) and turns
 # its me-* actions off with it.
 # SM1118: and `maintenance`, the page a site in maintenance sends its visitors to.
-my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim forgot logout account maintenance 402 403 404);
+# SM1295 (#340): and `odoo-signin`, the ready-made sign-in page for a site whose
+# sign-in is the person's Odoo login (SM1160) - its engine default is served only
+# while that is switched on (odoo_site_signin: on, with the Odoo extension
+# enabled), as `account` is only while account_page allows it. Point auth_redirect
+# at it to send a visitor there for a page that needs a sign-in.
+my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim forgot logout account maintenance odoo-signin 402 403 404);
 
 sub _system_page_md {
     my ( $base, $croot ) = @_;
     return undef unless defined $base && $SYSTEM_PAGES{$base};
     return undef if $base eq 'account' && !_account_page_enabled();
+    return undef if $base eq 'odoo-signin' && !_odoo_site_signin_on();    # SM1295
     $croot = $DOCROOT unless defined $croot && length $croot;
     for my $cand ( "$croot/$base.md", "$DOCROOT/$base.md",
         "$LAZYSITE_DIR/templates/system/$base.md" )

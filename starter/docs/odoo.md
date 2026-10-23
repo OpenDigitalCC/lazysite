@@ -822,6 +822,15 @@ site without it behaves as it always did.
   sign-in link. A layout of your own renders the variable, or carries
   `data-ls-odoo-name`, `data-ls-odoo-signin` and `data-ls-odoo-signout` itself.
   Set `auth_redirect` to a page that carries the sign-in link.
+- **A ready-made sign-in page.** While `odoo_site_signin` is on, the site has
+  `/odoo-signin`: a sign-in page in the site's own layout with a "Sign in with
+  your Odoo login" button that opens the sign-in dialog, and, once signed in, who
+  is signed in and a sign-out. Set `auth_redirect: /odoo-signin` to send a visitor
+  there for a page that needs a sign-in. It is a system page, like `/login`: write
+  your own `odoo-signin.md` to replace it, and deleting yours brings the default
+  back. The button is the `::: odoo-signin` component, which you can put on any
+  page, and which a layout may restyle with its own `components/odoo-signin.tt`.
+  With the switch off, `/odoo-signin` is not found.
 
 ## The browser helper
 

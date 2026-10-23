@@ -669,17 +669,23 @@ sub render_content {
 }
 
 
+# SM1160: is this an Odoo-sign-in site? The opt-in, read as the banner always read it.
+# SM1295: also what serves the ready-made /odoo-signin system page (_system_page_md).
+sub _odoo_site_signin_on {
+    my $en = _enabled_plugins();
+    return 0 unless $en->{odoo};
+    open my $fh, '<:utf8', "$LAZYSITE_DIR/odoo.conf" or return 0;
+    my $on = '';
+    while ( my $l = <$fh> ) { $on = lc $1 if $l =~ /\A\s*odoo_site_signin\s*:\s*(.*?)\s*\z/ }
+    close $fh;
+    return $on =~ /\A(?:on|yes|true|1)\z/ ? 1 : 0;
+}
+
 # SM1160: is this an Odoo-sign-in site, and if so the banner. The processor loads no
 # Lazysite:: module (ADR 0001), so the one key is read here; t/unit/odoo holds this reader
 # and Lazysite::Odoo::SiteSignin::enabled to the same answer.
 sub _odoo_signin_banner {
-    my $en = _enabled_plugins();
-    return '' unless $en->{odoo};
-    open my $fh, '<:utf8', "$LAZYSITE_DIR/odoo.conf" or return '';
-    my $on = '';
-    while ( my $l = <$fh> ) { $on = lc $1 if $l =~ /\A\s*odoo_site_signin\s*:\s*(.*?)\s*\z/ }
-    close $fh;
-    return '' unless $on =~ /\A(?:on|yes|true|1)\z/;
+    return '' unless _odoo_site_signin_on();
     return '<span class="ls-odoo-banner" data-ls-odoo-banner style="font-size:0.8rem;margin-left:auto;">'
         . '<span data-ls-odoo-in hidden>Signed in as <strong data-ls-odoo-name></strong> '
         . '<a href="#" data-ls-odoo-signout>Sign out</a></span>'

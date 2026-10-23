@@ -1,0 +1,13 @@
+[%# SM1295 (#340): built-in Odoo sign-in component - the ready-made /odoo-signin
+    page's (SM1160's site sign-in). Use on a page:
+      ::: odoo-signin
+      :::
+    The button opens the Odoo sign-in dialog (password, then the authenticator code
+    where Odoo asks) through /assets/lazysite-odoo.js, which the processor adds for
+    any page carrying data-ls-odoo-*; once signed in, the helper hides the button
+    and shows who is signed in, with a sign-out that ends the Odoo session too. No
+    inline style: the form classes are styled by the fallback chrome and the base
+    form rules. A layout may override it, keeping the data-ls-odoo-* attributes.
+    ONE LINE ON PURPOSE: the page's Markdown pass ends an HTML block early on an
+    indented or repeated tag and wraps the rest in <p>, which split this markup. -%]
+<section class="lz-odoo-signin"><div class="lazysite-form" data-ls-odoo-out><p class="form-field form-submit"><button type="button" data-ls-odoo-signin>Sign in with your Odoo login</button></p></div><p class="lz-odoo-signed-in" data-ls-odoo-in hidden>Signed in as <strong data-ls-odoo-name></strong>. <a href="/">Go to the site</a> &middot; <a href="#" data-ls-odoo-signout>Sign out</a></p><noscript><p>Signing in needs JavaScript in your browser.</p></noscript></section>

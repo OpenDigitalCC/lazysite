@@ -123,6 +123,15 @@ Archive
   `lazysite-chrome.css` under `.lazysite-fallback`, as SM1251 did for the contact page: a site
   with no layout sees the same pages, and a themed site sees its theme. An upgrade refreshes a
   starter copy the site never changed and keeps one it did. Ruling 12.
+- SM1295 (PENDING) **a ready-made sign-in page for a site whose sign-in is the Odoo
+  login.** While `odoo_site_signin` is on, `/odoo-signin` is a sign-in page in the site's
+  own layout: a "Sign in with your Odoo login" button that opens the sign-in dialog, and,
+  once signed in, who is signed in and a sign-out. Set `auth_redirect: /odoo-signin` to
+  send visitors there. It is a system page like `/login`, so a site's own `odoo-signin.md`
+  replaces it, and with the switch off it is not found. The button is the `::: odoo-signin`
+  component, which a layout may restyle; the page carries no inline style. SM1160's
+  follow-up (#340).
+
 - SM1296 (PENDING) **get_permissions on a page's stem answers the rule that governs the
   page.** On edge, `/zz76/b` answered `acl: null` while `/zz76/b.md` was a draft, because a
   move had folded the draft into the page's own key (SM1257). A stem that names a page, and
