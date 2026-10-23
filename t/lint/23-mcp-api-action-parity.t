@@ -303,6 +303,9 @@ my %MCP_ONLY = (
     'upload_file'     => 'deliberate (SM240) - the API channel has WebDAV for bulk bytes',
     'theme_tokens'    => 'undecided',
     'create_theme'    => 'undecided',
+    # SM1291: theme-upload is its counterpart, the manager UI's cookie-only spelling of the
+    # same install (one function); a token client installs theme files over WebDAV (lint 87).
+    'install_theme'   => 'SM1291: its twin theme-upload is cookie-only; a token client has WebDAV',
     # SM262: create_theme's counterpart now exists; see the %PAIR entry.
     'audit_site'         => 'undecided',
     'create_form'        => 'undecided',

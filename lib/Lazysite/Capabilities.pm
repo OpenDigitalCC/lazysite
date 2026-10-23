@@ -191,7 +191,7 @@ my %ACTION_INFO = (
             api => [ qw(theme-activate theme-copy theme-list themes-for-layout themes-list-all
                     artifact-manifest artifact-validate preview-grant theme-delete
                     layouts-available layouts-manifest) ],
-            mcp => [qw(list_themes theme_tokens activate_theme create_theme copy_theme delete_theme)],
+            mcp => [qw(list_themes theme_tokens activate_theme create_theme copy_theme delete_theme install_theme)],
             webdav => ['lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only)'],
         },
     },

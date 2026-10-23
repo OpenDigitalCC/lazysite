@@ -33,7 +33,7 @@ our @EXPORT_OK = qw(
     _token_warning_list
     action_layout_activate action_theme_delete action_theme_copy
     active_layout_and_theme
-    action_theme_upload action_cache_list action_cache_invalidate
+    action_theme_upload action_cache_list action_cache_invalidate _record_theme_creator
     _read_active_layout_and_theme _install_theme_from_dir
     action_artifact_manifest action_artifact_validate
     _snapshot_artifact _prune_backups _snapshot_wanted _swap_in _staging_for _mirror_theme_assets _mirror_warning _mirror_layout_themes

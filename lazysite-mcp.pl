@@ -44,7 +44,7 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_git_history action_git_history_summary action_git_show action_git_restore);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
     action_cache_invalidate _read_active_layout_and_theme action_themes_list_all
-    action_theme_tokens action_create_theme action_theme_copy theme_config_issues
+    action_theme_tokens action_create_theme action_theme_copy action_theme_upload _record_theme_creator theme_config_issues
     _layout_declared_tokens _theme_config_tokens _token_mismatch
     _token_warning_list);
 use Lazysite::Manager::Nav     qw(action_nav_read action_nav_save);
@@ -1757,6 +1757,23 @@ my %TOOLS = (
             return action_theme_copy( $a->{theme}, $a->{new_name},
                 { layout => $a->{layout} } );
         },
+    },
+    # SM1291 (K-5): the control API's theme-upload, over MCP. The same function
+    # does the work (Manager::Themes::action_theme_upload), so the checks, the
+    # size limit and the refusals are one set; the audit row is theme-upload's.
+    install_theme => {
+        description => 'Install a theme from a ZIP archive in one call, its fonts and images with it - what the manager\'s Upload Theme does, through the same code and the same checks. The zip holds theme.json at its root (with `layouts`, every one of them installed) and the theme\'s files; an `assets/` folder in it is what browsers fetch, mirrored to /lazysite-assets/LAYOUT/THEME/. Every entry is checked before any is extracted: no absolute path, no `..`, no symbolic link, no file type a web server would run. The theme is installed under each layout it names; if one of that name is already installed it is installed BESIDE it under a dated name (YYYYMMDD-name, given as `installed_as`), never over it. Nothing is activated: check it with preview_page `theme`, then activate_theme. The archive is limited to the site\'s upload limit, named in the refusal. Give `content_base64` as standard base64.',
+        cap         => 'manage_themes',
+        inputSchema => {
+            type       => 'object',
+            properties => {
+                content_base64 => { type => 'string', description => 'the zip archive, base64-encoded' },
+                filename => { type => 'string', description => 'the archive\'s file name, for the record (optional)' },
+            },
+            required             => ['content_base64'],
+            additionalProperties => JSON::PP::false,
+        },
+        run => sub { _install_theme( $_[0], $_[1] ) },
     },
     activate_layout => {
         description => 'Activate a layout (optionally naming a compatible theme). WITHOUT `host` this is INSTANCE-WIDE and changes the whole site. WITH `host` it binds the layout to that one configured domain and leaves the others alone. Call list_domains first if the instance may serve more than one site. A grant confined to some domains is refused the instance-wide form: it binds its own domains with host.',
@@ -3854,27 +3871,54 @@ sub _yaml_scalar {
 # and the handlers hard to find. The code is unchanged; only where it lives is.
 
 sub _upload_file {
-    my ( $a, $user ) = @_;
-    my $b64 = $a->{content_base64} // '';
+    my ( $a,     $user ) = @_;
+    my ( $bytes, $no )   = _decode_base64_arg( $a->{content_base64} );
+    return $no if $no;
+    return action_save_binary( $a->{path}, $user, $bytes );
+}
+
+# SM1291 (K-5): install_theme. The archive is decoded as upload_file decodes its
+# bytes, and handed to the function the manager's Upload Theme calls, so every
+# check is the one that action makes (Manager::Themes::action_theme_upload). The
+# install is recorded as this caller's, as create_theme and copy_theme record
+# theirs, so delete_theme - which over MCP reaches only themes the caller made
+# (SM262) - can take it away again.
+sub _install_theme {
+    my ( $a,     $user ) = @_;
+    my ( $bytes, $no )   = _decode_base64_arg( $a->{content_base64} );
+    return $no if $no;
+    local $Lazysite::Manager::Themes::action = 'theme-upload';
+    my $r = action_theme_upload( $bytes, $a->{filename} );
+    return $r unless ref $r eq 'HASH' && $r->{ok};
+    _record_theme_creator( $_, $r->{name}, $user ) for @{ $r->{layouts} || [] };
+    $r->{next} = "preview it on a page with preview_page theme:'$r->{name}', then activate_theme '$r->{name}'";
+    return $r;
+}
+
+# Standard base64 to bytes, refusing what does not decode. ( $bytes ) or
+# ( undef, $refusal ).
+sub _decode_base64_arg {
+    my ($b64) = @_;
+    $b64 //= '';
     ( my $clean = $b64 ) =~ s/\s+//g;
     # Reject what does not decode rather than writing a corrupt file:
     # decode_base64 silently ignores characters outside the alphabet, so
     # a truncated or mangled payload would otherwise land on disk looking
     # like a successful upload.
-    return { ok => 0, kind => 'bad-encoding',
-        error => 'content_base64 is not valid base64 - expected only '
-            . 'A-Z a-z 0-9 + / and = padding.' }
+    return ( undef, { ok => 0, kind => 'bad-encoding',
+            error => 'content_base64 is not valid base64 - expected only '
+                . 'A-Z a-z 0-9 + / and = padding.' } )
         if $clean =~ m{[^A-Za-z0-9+/=]} || $clean =~ m{=[^=]};
-    return { ok => 0, kind => 'bad-encoding',
-        error => 'content_base64 length is not a multiple of 4 - the '
-            . 'payload looks truncated.' }
+    return ( undef, { ok => 0, kind => 'bad-encoding',
+            error => 'content_base64 length is not a multiple of 4 - the '
+                . 'payload looks truncated.' } )
         if length($clean) % 4;
     require MIME::Base64;
     my $bytes = MIME::Base64::decode_base64($clean);
-    return { ok => 0, kind => 'bad-encoding',
-        error => 'content_base64 decoded to nothing.' }
+    return ( undef, { ok => 0, kind => 'bad-encoding',
+            error => 'content_base64 decoded to nothing.' } )
         unless length $bytes;
-    return action_save_binary( $a->{path}, $user, $bytes );
+    return ($bytes);
 }
 
 sub _site_apply {
@@ -4239,6 +4283,7 @@ my %OWN_ANNOTATE = (
     describe_capabilities  => [ 1, 0, 0 ],
     upload_file            => [ 0, 0, 1 ],
     create_form           => [ 0, 0, 1 ],
+    install_theme         => [ 0, 0, 1 ],
     list_files           => [ 1, 0, 0 ],
     read_file            => [ 1, 0, 0 ],
     search_files         => [ 1, 0, 0 ],
@@ -4843,6 +4888,8 @@ elsif ( $method eq 'tools/call' ) {
     if ( !$READ{$name} || !$aok ) {
         my $target = $args->{path} // $args->{from} // $args->{theme}
             // $args->{name} // $args->{layout} // '';
+        # SM1291: an installed theme is named by what it was installed as.
+        $target = $out->{name} // $args->{filename} // '' if $name eq 'install_theme' && ref $out eq 'HASH';
         # Meaningful file-event labels (create/edit/delete/move) to match the
         # manager UI + WebDAV audit vocabulary.
         my $act =
@@ -4851,6 +4898,7 @@ elsif ( $method eq 'tools/call' ) {
             : $name eq 'create_page'        ? 'create'
             : $name eq 'create_theme'       ? 'theme-create'
             : $name eq 'copy_theme'         ? 'theme-copy'
+            : $name eq 'install_theme'      ? 'theme-upload'
             : $name eq 'delete_file'        ? 'delete'
             : $name eq 'delete_page'        ? 'delete'
             : $name eq 'rename_page'        ? 'move'

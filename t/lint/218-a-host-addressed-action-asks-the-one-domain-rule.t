@@ -358,6 +358,8 @@ my %MCP_NOT_INSTANCE_WIDE = (
     create_theme => 'a new theme nothing serves; activate:true makes it the instance\'s, and '
         . 'that asks instance_wide_refusal in its block (below)',
     submit_feedback => 'a report to the operator; nothing on the live site changes',
+    install_theme => 'SM1291: a new theme nothing serves (one of a name already installed goes beside it), '
+        . 'as theme-upload, its control-API counterpart, is accounted above',
 );
 my @mcp_iw_missing = grep {
     !( $TOOL{$_} && $TOOL{$_} =~ /path_aware\s*=>\s*1/ ) && !$MCP_NOT_INSTANCE_WIDE{$_}

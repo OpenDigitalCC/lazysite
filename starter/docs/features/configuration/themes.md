@@ -162,6 +162,12 @@ archive over the site's upload limit (`manager_upload_max_mb`). A theme
 whose name is already installed is installed beside it under a dated
 name (`YYYYMMDD-name`), never over it. Nothing is activated.
 
+**Over MCP.** `install_theme` takes the same zip, base64-encoded, and
+installs it through the same code with the same checks - so a theme's
+fonts and images travel with its stylesheet in one call. It needs
+`manage_themes`. Preview the result with `preview_page` and `theme`,
+then `activate_theme`.
+
 A theme declaring `layouts: ["default", "landing"]` ends up
 with files duplicated under both layouts. That's the trade-off
 for per-layout scoping; the manager doesn't symlink or share.

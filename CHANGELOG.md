@@ -92,6 +92,13 @@ Archive
   says whether it was made. `settle_odoo_writes` is declared by the Odoo extension, so it is
   grantable only where the extension is installed, and every operator group holds it: a new
   site's at once, an older site's by the SM645 top-up. A declined 0 stays declined.
+- SM1291 (PENDING) **a theme installs from a zip over MCP, its fonts with it.** MCP
+  `install_theme` (manage_themes) takes a theme's zip as base64 and installs it through the
+  function the manager's Upload Theme uses, so the checks and refusals are the same ones -
+  0.16.2's among them (SM1303): the site's upload limit, and no symbolic link or file type
+  the web server runs. The audit row is theme-upload's, and the caller can `delete_theme`
+  what it installed. From the lazysite.io site agent (K-5).
+
 - SM1290 (PENDING) **a page previews in a theme that is not active.** MCP `preview_page` takes
   `theme`: the page, or a draft, renders with that installed theme in place of the site's,
   the section's and the page's own, so a theme can be checked on real pages before it is
