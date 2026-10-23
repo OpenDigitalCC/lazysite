@@ -131,6 +131,144 @@ body.lazysite-fallback { font-family: system-ui, sans-serif; max-width: 800px;
     color: #666;
 }
 
+/* --- the shipped sign-in and search pages, fallback only ------------------
+ * SM1288: the inline <style> blocks of the starter /forgot.md and
+ * /search-results.md, and of the engine's own login, forgot and claim pages
+ * (lazysite/templates/system/), moved here for the reason SM1251 moved the
+ * contact page's: a page's <style> comes after the theme's stylesheet and beat
+ * its rules on that page. Under the fallback class they apply where no layout
+ * renders; under a layout the theme styles these pages (and the :where() base
+ * rules below give an unstyled theme readable forms). The login rules keep
+ * their var(--theme-colours-*) references, which resolve to the fallbacks
+ * here. */
+.lazysite-fallback .reset-form,
+.lazysite-fallback .claim-form {
+    max-width: min(440px, 100%);
+    margin: 1rem 0;
+    display: grid;
+    grid-template-columns: 9rem 1fr;
+    gap: 0.6rem 0.75rem;
+    align-items: center;
+}
+.lazysite-fallback .claim-form { grid-template-columns: 8rem 1fr; }
+.lazysite-fallback .reset-form label,
+.lazysite-fallback .claim-form label { text-align: right; }
+.lazysite-fallback .reset-form input[type="text"],
+.lazysite-fallback .claim-form input[type="password"] {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font: inherit;
+}
+.lazysite-fallback .claim-form input:focus { outline: 2px solid #0056b3; outline-offset: 0; }
+.lazysite-fallback .reset-form .reset-submit,
+.lazysite-fallback .claim-form .claim-submit { grid-column: 2; }
+.lazysite-fallback .reset-form button,
+.lazysite-fallback .claim-form button {
+    padding: 0.45rem 1.25rem;
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid #0056b3;
+    background: #0056b3;
+    color: #fff;
+    border-radius: 3px;
+}
+.lazysite-fallback .reset-form button:hover,
+.lazysite-fallback .claim-form button:hover { background: #003d80; border-color: #003d80; }
+
+/* Single-column stack (label above input). Deliberately NOT a 2-column grid:
+   the login page is Markdown, which wraps the form's fields in <p>, so a grid
+   that relies on label/input being separate grid items mis-aligns (password
+   ends up beside the 2FA field). A block stack is immune to that wrapping. */
+.lazysite-fallback .login-form {
+    max-width: min(360px, 100%);
+    margin: 1rem 0;
+}
+.lazysite-fallback .login-form label {
+    display: block;
+    font-weight: 600;
+    margin: 0.7rem 0 0.2rem;
+}
+.lazysite-fallback .login-form input[type="text"],
+.lazysite-fallback .login-form input[type="password"] {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--theme-colours-border, #ccc);
+    border-radius: 3px;
+    background: var(--theme-colours-surface, #fff);
+    color: var(--theme-colours-text, inherit);
+    font: inherit;
+}
+.lazysite-fallback .login-context {
+    background: var(--theme-colours-surface, #f0f4ff);
+    border-left: 3px solid var(--theme-colours-accent, #0066cc);
+    padding: 0.5rem 0.75rem;
+    border-radius: 3px;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    max-width: min(480px, 100%);
+    box-sizing: border-box;
+}
+.lazysite-fallback .login-form input:focus { outline: 2px solid var(--theme-colours-accent, #0056b3); outline-offset: 0; }
+.lazysite-fallback .login-form .login-submit { margin-top: 1rem; }
+.lazysite-fallback .login-form button {
+    padding: 0.45rem 1.25rem;
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid var(--theme-colours-accent, #0056b3);
+    background: var(--theme-colours-accent, #0056b3);
+    color: var(--theme-colours-on-accent, #fff);
+    border-radius: 3px;
+}
+/* brightness shift adapts to any accent, no second hardcoded colour needed */
+.lazysite-fallback .login-form button:hover { filter: brightness(0.92); }
+.lazysite-fallback .auth-error {
+    color: #b00;
+    background: #fee;
+    border: 1px solid #fcc;
+    padding: 0.5rem 0.75rem;
+    border-radius: 3px;
+    max-width: 440px;
+    box-sizing: border-box;
+    margin: 1rem 0;
+}
+.lazysite-fallback .demo-creds code {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    background: var(--theme-colours-surface, #f0f0f0);
+    padding: 0.1em 0.4em;
+    border-radius: 3px;
+}
+/* SM052: .login-context-url replaces a <code> wrapper that was eating the TT
+   expression inside it. render_content's code-block protection regex treats
+   <code>...</code> as literal and skips TT evaluation. This span looks the
+   same but isn't caught. */
+.lazysite-fallback .login-context-url {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    background: var(--theme-colours-surface, #f0f0f0);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    word-break: break-all;
+}
+
+.lazysite-fallback .search-result { border-bottom: 1px solid #eee; padding: 1rem 0; margin-bottom: 0.5rem; }
+.lazysite-fallback .search-result h2 { font-size: 1.1rem; margin: 0 0 0.3rem; }
+.lazysite-fallback .search-result h2 a { text-decoration: none; }
+.lazysite-fallback .search-result h2 a:hover { text-decoration: underline; }
+.lazysite-fallback .search-subtitle { color: #666; margin: 0.2rem 0; font-size: 0.95rem; }
+.lazysite-fallback .search-excerpt { margin: 0.4rem 0; font-size: 0.9rem; line-height: 1.5; }
+.lazysite-fallback .search-tags { margin: 0.3rem 0; }
+.lazysite-fallback .search-tag { display: inline-block; background: #f0f0f0; border-radius: 3px;
+       padding: 0.1rem 0.4rem; font-size: 0.8rem; margin-right: 0.3rem; }
+.lazysite-fallback .search-date { color: #888; font-size: 0.8rem; }
+.lazysite-fallback mark { background: #fff3cd; padding: 0.1em 0; }
+.lazysite-fallback #search-status { color: #666; margin: 0.5rem 0; font-size: 0.9rem; }
+
 /* --- SM098 multi-step forms ----------------------------------------------
  * Progressive enhancement: WITHOUT the JS-added `lsf-js` class every step
  * shows and the nav is hidden, so a visitor with no JavaScript gets one long

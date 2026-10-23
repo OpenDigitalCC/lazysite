@@ -92,6 +92,14 @@ Archive
   says whether it was made. `settle_odoo_writes` is declared by the Odoo extension, so it is
   grantable only where the extension is installed, and every operator group holds it: a new
   site's at once, an older site's by the SM645 top-up. A declined 0 stays declined.
+- SM1288 (PENDING) **the sign-in and search pages no longer override the theme.** The starter
+  `/forgot.md` and `/search-results.md`, and the engine's login, forgot and claim pages, each
+  opened with a `<style>` block that came after the theme's stylesheet, so on a themed site
+  those pages wore the engine's buttons and grid. The blocks are gone and the same rules are in
+  `lazysite-chrome.css` under `.lazysite-fallback`, as SM1251 did for the contact page: a site
+  with no layout sees the same pages, and a themed site sees its theme. An upgrade refreshes a
+  starter copy the site never changed and keeps one it did. Ruling 12.
+
 - SM1274 (PENDING) **Dismiss all empties the notices panel.** "Mark all read" marked every
   notice read and left them all in the panel. Now called Dismiss all, it also takes them out:
   the panel is empty and the count 0, on screen and on the next page, and the notices stay in
