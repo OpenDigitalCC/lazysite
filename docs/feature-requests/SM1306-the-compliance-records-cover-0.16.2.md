@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the compliance check run alone for 0.16.2 (tmp/n738-compliance-check.sh): two blocking findings, as the 0.16.1 gate had (SM1269)"
 area: release
-status-note: "SHIPPED (PENDING) on n738: docs only. OBLIGATIONS.md reviewed_at_version and TECHNICAL-FILE.md covers_version 0.16.2; POLICY.md's technical-file row; docs/architecture/security.md on the zip upload. The register entry is SM1303's. content_sha is left for the release manager to stamp at sign-off."
+status-note: "SHIPPED (0.16.2) on n738: docs only. OBLIGATIONS.md reviewed_at_version and TECHNICAL-FILE.md covers_version 0.16.2; POLICY.md's technical-file row; docs/architecture/security.md on the zip upload. The register entry is SM1303's. content_sha is left for the release manager to stamp at sign-off."
 ---
 
 # What was asked

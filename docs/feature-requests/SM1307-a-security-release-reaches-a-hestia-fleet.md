@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "found building SM1305 for ruling 41b; asked for by the supervisor the same day"
 area: installers
-status-note: "SHIPPED (PENDING) on n738: lazysite-hestia-update-all.sh --force-security; install.pl --force-security (the channel override, checked against the manifest); the per-site deploy passes it; lazysite upgrade --all on a Hestia host with no registry names the updater and exits 1. t/tools/291."
+status-note: "SHIPPED (0.16.2) on n738: lazysite-hestia-update-all.sh --force-security; install.pl --force-security (the channel override, checked against the manifest); the per-site deploy passes it; lazysite upgrade --all on a Hestia host with no registry names the updater and exits 1. t/tools/291."
 ---
 
 # What happened

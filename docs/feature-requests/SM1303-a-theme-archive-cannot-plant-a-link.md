@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "found while building SM1291 (MCP install_theme) on n735; ruling 41 as revised and 41b (2026-10-23): a security release, 0.16.2, cut from main"
 area: security
-status-note: "SHIPPED (PENDING) on n738: Manager::Themes::action_theme_upload applies the site's upload limit and refuses a symbolic link and a server-run file type before extracting anything. The Themes.pm part of n735's 306e5c778, without the MCP tool; the register entry from eb634ffa0, re-keyed. t/integration/336."
+status-note: "SHIPPED (0.16.2) on n738: Manager::Themes::action_theme_upload applies the site's upload limit and refuses a symbolic link and a server-run file type before extracting anything. The Themes.pm part of n735's 306e5c778, without the MCP tool; the register entry from eb634ffa0, re-keyed. t/integration/336."
 ---
 
 # What happened

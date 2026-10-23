@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.1"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.2"
 brand: plain
 ---
 
@@ -2032,6 +2032,13 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.2** (2026-10-23, edge) - **A security release: a theme archive cannot
+  plant a link in the served asset mirror.** the manager's theme upload refuses
+  a symbolic link, a server-run file type and an oversized archive before
+  extracting anything (SM1303); lazysite check names every symbolic link in the
+  served asset mirror, and repair counts it as needing a human (SM1304);
+  release.sh cuts a release marked security-critical (SM1305), and the Hestia
+  updater takes it to every site with --force-security (SM1307)
 - **0.16.1** (2026-10-23, edge) - **The first batch on the 0.16 line: a moved
   draft stays a draft, and maintenance mode.** a page drafted through its stem
   rule stays a draft when it moves (SM1257); a site can be put into maintenance

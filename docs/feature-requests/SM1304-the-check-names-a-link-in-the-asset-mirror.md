@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "ruling 42 (2026-10-23), with the security release SM1303 belongs to"
 area: security
-status-note: "SHIPPED (PENDING) on n738: lazysite-check.pl report_asset_links, one WARN per link with the remedy on the line itself; lazysite repair puts a site with one among those needing a human. t/tools/290."
+status-note: "SHIPPED (0.16.2) on n738: lazysite-check.pl report_asset_links, one WARN per link with the remedy on the line itself; lazysite repair puts a site with one among those needing a human. t/tools/290."
 ---
 
 # What was asked

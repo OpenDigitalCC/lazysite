@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1307 (PENDING) **security: a security release reaches the stable sites of a Hestia
+## 0.16.2 - EDGE: a security release: a theme archive cannot plant a link in the served asset mirror (2026-10-23)
+
+- SM1307 (a33a0406) **security: a security release reaches the stable sites of a Hestia
   fleet.** `lazysite upgrade --all --force-security` reaches registered sites, and a Hestia
   host registers none, while its updater scoped by `update_channel` alone.
   `lazysite-hestia-update-all.sh --force-security` deploys a release whose manifest declares
@@ -63,19 +65,19 @@ Archive
   release that does not declare it. `upgrade --all` on such a host names the updater
   instead of reporting nothing to do (ruling 41b).
 
-- SM1306 (PENDING) **docs: the compliance records cover 0.16.2.** OBLIGATIONS.md and
+- SM1306 (6bbe2fe6) **docs: the compliance records cover 0.16.2.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against this security release's changes (SM1303-SM1305) and
   stamped 0.16.2: the SM1303 register entry, the SBOM on the 0.16.2 tree, 0.16.2 as the first
   release cut security-critical, and an operator row for SM1304's planted links. Docs only;
   nothing is signed.
 
-- SM1305 (PENDING) **release: `tools/release.sh` cuts a security release.**
+- SM1305 (c8f8d554) **release: `tools/release.sh` cuts a security release.**
   `--security-critical` is passed to `build-manifest.pl`, so the shipped manifest carries
   `"security_critical": true`, the declaration `lazysite upgrade --all --force-security`
   needs before it overrides every site's channel and policy. A build without the flag
   carries no such key. OPERATOR.md and docs/development.md say how (ruling 41b).
 
-- SM1304 (PENDING) **security: `lazysite check` names a symbolic link in the served asset
+- SM1304 (6d23dfaf) **security: `lazysite check` names a symbolic link in the served asset
   mirror.** A link a theme upload planted before 0.16.2 (SM1303) stays after the upgrade,
   still serving what it points at. The check now warns for every symbolic link under
   `lazysite-assets/`, naming it and its target, and the line says to remove it and rotate
@@ -83,7 +85,7 @@ Archive
   deletes one, and `lazysite repair` counts such a site as needing a human, not as repaired
   (ruling 42).
 
-- SM1303 (PENDING) **security: a theme archive cannot plant a link in the served asset
+- SM1303 (dac205ff) **security: a theme archive cannot plant a link in the served asset
   mirror.** The manager's Upload Theme (`theme-upload`, `manage_themes`) extracted a zip's
   symbolic link and copied it into `/lazysite-assets/` as a link, so a public URL served any
   file the web server can read - `lazysite/auth/.secret`, the session-signing secret, among

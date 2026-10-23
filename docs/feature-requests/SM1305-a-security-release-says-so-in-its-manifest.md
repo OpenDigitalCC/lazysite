@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "ruling 41b (2026-10-23): 0.16.2 is cut marked security_critical, release.sh gaining --security-critical"
 area: release
-status-note: "SHIPPED (PENDING) on n738: tools/release.sh --security-critical passes the flag to build-manifest.pl; OPERATOR.md and docs/development.md say how a security release is cut. t/tools/104."
+status-note: "SHIPPED (0.16.2) on n738: tools/release.sh --security-critical passes the flag to build-manifest.pl; OPERATOR.md and docs/development.md say how a security release is cut. t/tools/104."
 ---
 
 # What was asked
