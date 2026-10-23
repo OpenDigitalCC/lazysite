@@ -3260,7 +3260,8 @@ sub action_odoo_dismiss {
     my ( $pid, $reason, %w ) = @_;
     my %base = ( call_id => new_call_id(), actor => $w{user} // '', ip => $w{ip} // '',
         mode => 'authenticated', phase => 'dismiss', decision => 'dismiss' );
-    return { ok => 0, kind => 'disabled', error => 'the Odoo extension is switched off' } unless _extension_enabled();
+    # refused as any call is, and recorded as one: an operator's attempt is in the record
+    return ( _refusal( \%base, 'disabled', 'the Odoo extension is switched off' ) )[1] unless _extension_enabled();
     return ( _refusal( \%base, 'forbidden', "dismissing an Odoo run needs $SETTLE_CAP" ) )[1]
         unless ref $w{caps} eq 'HASH' && $w{caps}{$SETTLE_CAP};
     return ( _refusal( \%base, 'invalid', 'reason is a line of text, at most 300 characters' ) )[1]

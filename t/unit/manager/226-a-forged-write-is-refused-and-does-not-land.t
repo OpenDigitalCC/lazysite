@@ -276,6 +276,8 @@ my %REQ = (
     'odoo-secret-set'      => { body  => { secret => 'odoo-k3y-value' } },
     'odoo-run'             => { body  => { binding => 'ob' } },
     'odoo-confirm'         => { body  => { plan => '0' x 32 } },
+    'odoo-resume'          => { body  => { run  => '0' x 32 } },    # SM1278: refused not-found, and recorded
+    'odoo-dismiss'         => { body  => { run  => '0' x 32 } },
     'copy'                 => { query => 'path=page.md&to=copy.md' },
     'data-import' => { query => 'table=notes&apply=1', multipart( 'file', 'notes.csv', 'text/csv', "slug\nb\n" ) },
     'data-migrate'    => { query => 'table=pending' },
