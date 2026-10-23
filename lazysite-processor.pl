@@ -215,6 +215,28 @@ sub _system_page_md {
     return undef;
 }
 
+# SM1283: IS THIS SOURCE ONE OF THE ENGINE'S OWN PAGES?
+#
+# The render path confines a page's source to the content root (SM151), and the
+# engine's protected pages are not under it once the engine tree has moved
+# beside the docroot (SM293): <docroot>-lazysite/templates/system/claim.md
+# resolves outside <docroot>, so every system page whose docroot copy was absent
+# answered 404 on exactly the layout SM293 recommends - /claim and /login among
+# them. The fallback chose the file and the confinement then refused it.
+#
+# Narrow on purpose, like SM382's engine-asset list: the real path must sit
+# under one of the engine's page trees, resolved once, and only a source the
+# fallback itself chose is asked about.
+sub _engine_page_real {
+    my ($real) = @_;
+    return 0 unless defined $real && length $real;
+    for my $tree ( "$LAZYSITE_DIR/templates/system" ) {
+        my $t = realpath($tree);
+        return 1 if defined $t && _path_under( $real, $t );
+    }
+    return 0;
+}
+
 # F0003: lazysite.conf path override
 # Priority: --conf arg > LAZYSITE_CONF env var > default
 my $CONF_OVERRIDE;
@@ -1208,8 +1230,10 @@ sub main {
     # SM201: a system page (login / claim / error) whose content-root copy is
     # absent falls back to the docroot root, then the protected engine default -
     # so a deleted or never-seeded copy self-heals instead of 404ing.
+    my $engine_page = 0;    # SM1283: the source is the engine's, not the site's
     if ( !defined $DRAFT_BYTES && !-f $md_path && ( my $sys = _system_page_md( $base, $croot ) ) ) {
-        $md_path = $sys;
+        $md_path     = $sys;
+        $engine_page = 1;
     }
     my $url_path  = "$croot/$base.url";
     my $html_path = "$croot/$base.html";
@@ -1566,7 +1590,9 @@ sub main {
         # content_root), so a symlink inside one domain's tree cannot serve a
         # sibling domain's or the docroot's files (spec S1).
         my $real = _draft_is($md_path) ? _draft_real($md_path) : realpath($md_path); # SM1030
-        if ( !_path_under_content( $real, $croot ) ) {
+        if ( !_path_under_content( $real, $croot )
+            && !( $engine_page && _engine_page_real($real) ) )    # SM1283
+        {
             not_found($uri);
             return;
         }

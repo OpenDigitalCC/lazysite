@@ -171,6 +171,13 @@ Archive
   refuses them by name, a hand-written one grants nothing, and `lazysite check` names it.
   On the Config page under Browser features; the site's for every domain, never set per
   domain alias. Page status shows what the response sends. Ruled 2026-10-23 (ruling 29).
+- SM1283 (PENDING) **The sign-in and error pages serve when the engine tree is beside the
+  docroot.** On a site that had moved its engine tree to `<docroot>-lazysite` (SM293), the
+  engine's own `/claim` and `/login` (SM201) answered 404 whenever the docroot had no copy
+  of its own, which a fresh install never seeds. The fallback chose the engine's file and
+  the content-root check then refused it, because its real path is outside the docroot. A
+  source the fallback chose is now accepted when it sits under the engine's page tree.
+  Every other source is confined as before.
 
 - SM1274 (PENDING) **Dismiss all empties the notices panel.** "Mark all read" marked every
   notice read and left them all in the panel. Now called Dismiss all, it also takes them out:
