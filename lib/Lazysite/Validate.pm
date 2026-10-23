@@ -824,7 +824,8 @@ sub _check_form_rules {
     if ( $content =~ /:::\s*form\b(.*?):::/s ) {
         for my $f ( _form_block_findings($1) ) {
             $said{ $f->{message} }++;
-            if ( $f->{what} eq 'key' ) {    # SM1298: a warning, so it says which form, as the others do
+            # SM1298: a warning, so it says which form, as the others do
+            if ( $f->{what} eq 'key' ) {
                 push @$warnings, { kind => 'unknown-form-rule', message => "form 1: $f->{message}" };
             }
             else {
