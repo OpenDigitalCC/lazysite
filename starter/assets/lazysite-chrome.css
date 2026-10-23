@@ -269,6 +269,50 @@ body.lazysite-fallback { font-family: system-ui, sans-serif; max-width: 800px;
 .lazysite-fallback mark { background: #fff3cd; padding: 0.1em 0; }
 .lazysite-fallback #search-status { color: #666; margin: 0.5rem 0; font-size: 0.9rem; }
 
+/* --- native-form base, any page with a form --------------------------------
+ * SM1289 (ruling 30): the least a form needs to be usable under a theme that
+ * says nothing about forms - spacing, full-width fields, readable buttons, the
+ * step fieldsets, error text. EVERY SELECTOR HERE IS ONE :where(), so each rule
+ * has zero specificity and any theme rule about the same element wins; the
+ * engine links this file first in the head, so a theme's own zero-specificity
+ * rule (`*`) wins by order too. No colour beyond currentColor and inherit: a
+ * theme never has to undo one. The fallback rules above are more specific and
+ * win here as well. t/unit/processor/161 holds every selector to :where(). */
+:where(.lazysite-form, .login-form, .claim-form, .reset-form) { max-width: 40rem; }
+:where(.lazysite-form .form-field) { margin: 0 0 0.75rem; }
+:where(.lazysite-form .form-field > label, .login-form label, .claim-form label, .reset-form label) {
+    display: block;
+    margin: 0 0 0.25rem;
+}
+:where(.lazysite-form, .login-form, .claim-form, .reset-form)
+    :where(input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="submit"],
+        [type="button"], .form-option-qty), textarea, select) {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    padding: 0.4rem 0.5rem;
+    font: inherit;
+    color: inherit;
+}
+:where(.lazysite-form textarea) { min-height: 6rem; resize: vertical; }
+:where(.lazysite-form .form-options) { display: flex; flex-direction: column; gap: 0.35rem; }
+:where(.lazysite-form .form-option) { display: flex; align-items: center; gap: 0.5rem; }
+:where(.lazysite-form button, .login-form button, .claim-form button, .reset-form button) {
+    padding: 0.45rem 1.1rem;
+    font: inherit;
+    cursor: pointer;
+}
+:where(.lazysite-form .form-submit, .login-form .login-submit) { margin-top: 1rem; }
+:where(.lazysite-form .lsf-step) { border: 0; margin: 0 0 1rem; padding: 0; min-width: 0; }
+:where(.lazysite-form .lsf-step > legend) { font-weight: 600; padding: 0; margin: 0 0 0.5rem; }
+:where(.form-status) { margin: 0.5rem 0; }
+:where(.form-status-error, .auth-error, .login-context) {
+    border-left: 3px solid currentColor;
+    padding: 0.4rem 0.75rem;
+}
+:where(.form-status-error, .auth-error) { font-weight: 600; }
+:where(.login-context-url) { font-family: ui-monospace, monospace; word-break: break-all; }
+
 /* --- SM098 multi-step forms ----------------------------------------------
  * Progressive enhancement: WITHOUT the JS-added `lsf-js` class every step
  * shows and the nav is hidden, so a visitor with no JavaScript gets one long

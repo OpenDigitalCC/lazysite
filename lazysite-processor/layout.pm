@@ -10,7 +10,7 @@ package main;
 #         _section_indexes, _section_theme, _theme_version,
 #         _render_fallback_layout; generate_theme_css (the processor's theme
 #         token generator, lint 61); the injectors that edit the finished
-#         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_odoo_helper, _inject_app, _inject_meta,
+#         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_odoo_helper, _inject_app, _inject_form_base, _inject_meta,
 #         _inject_canonical, and the admin bar (_inject_admin_bar,
 #         _admin_bar_choice, _inject_admin_bar_live); _enabled_plugins,
 #         _manager_style, _asset_fingerprint; _engine_mtime and
@@ -547,7 +547,6 @@ sub render_template {
         $output = _inject_account_helper($output);    # SM1043
         $output = _inject_odoo_helper($output);       # SM747 D
         $output = _inject_app( $output, $vars );      # SM1155
-
         # Admin bar injected per-request at output time, not cached (see note below).
         return $output;
     }
@@ -677,6 +676,7 @@ sub render_template {
     $output = _inject_account_helper($output);    # SM1043
     $output = _inject_odoo_helper($output);       # SM747 D
     $output = _inject_app( $output, $vars );      # SM1155
+    $output = _inject_form_base($output);         # SM1289
 
     # NOTE: the manager admin bar is deliberately NOT injected here. It is
     # per-viewer (manager-only) and this output is written to the shared page
@@ -753,6 +753,41 @@ sub _inject_account_helper {
     my $script = '<script src="/assets/lazysite-account.js?v='
         . _lazysite_version() . '" defer></script>';
     $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
+    return $html;
+}
+
+# SM1289 (ruling 30, edge observation O-4): THE NATIVE-FORM BASE STYLES, on any
+# page under a layout whose rendered markup carries a form they style.
+#
+# Under a theme with no form rules (lumen) a stepped form's fields and buttons
+# were the browser's own. lazysite-chrome.css now carries a small set of base
+# rules for the engine's forms - the native `::: form` and the sign-in pages' -
+# every one of them inside :where(), so its specificity is zero and any rule a
+# theme writes about the same element wins. The fallback template links the
+# file already; this is the layout half.
+#
+# THE LINK GOES FIRST IN THE HEAD, ahead of the layout's stylesheets, so a theme
+# rule of equal (zero) specificity - `*` or a :where() of its own - wins by
+# order as well. And the stepped form's own link in the body (SM098/SM1252) is
+# dropped once the head carries one: the same file linked again after the
+# theme's stylesheet would put the base rules back after the theme.
+#
+# THE TRIGGER IS THE RENDERED MARKUP, as for the data helper: a form element of
+# one of the classes the base rules style. A layout's own search box in its
+# header is not one, so a themed site does not fetch the file on every page.
+sub _inject_form_base {
+    my ($html) = @_;
+    return $html
+        unless $html =~ m{ <form\b [^>]* \bclass="[^"]* \b(?:lazysite-form|login-form|claim-form|reset-form)\b }xi;
+    my ($head) = $html =~ m{(<head\b.*?</head>)}is;
+    return $html unless defined $head;    # a fragment: the form's own link stands
+    unless ( $head =~ m{/assets/lazysite-chrome\.css} ) {
+        my $link = '<link rel="stylesheet" href="/assets/lazysite-chrome.css?v='
+            . _lazysite_version() . '">';
+        $html =~ s{(<head\b[^>]*>(?:\s*<meta\s+charset=[^>]*>)?)}{$1$link}i;
+    }
+    $html =~ s{ \n? [ \t]* <link\ rel="stylesheet"\ href="/assets/lazysite-chrome\.css\?v=[^"]*">
+                (?= \s* <input\ type="hidden"\ name="_form" ) }{}gx;
     return $html;
 }
 

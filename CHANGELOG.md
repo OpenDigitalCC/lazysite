@@ -92,6 +92,15 @@ Archive
   says whether it was made. `settle_odoo_writes` is declared by the Odoo extension, so it is
   grantable only where the extension is installed, and every operator group holds it: a new
   site's at once, an older site's by the SM645 top-up. A declined 0 stays declined.
+- SM1289 (PENDING) **a form under any theme has base styles, and the theme overrides them.**
+  Under a theme with no form rules (lumen, edge observation O-4) a stepped form's fields and
+  buttons were the browser's own. `lazysite-chrome.css` now carries small base rules for the
+  engine's forms - field spacing, full-width inputs, buttons in the page's font, the step
+  fieldsets, the error line - each inside `:where()`, so its specificity is zero, and with no
+  colour beyond `currentColor` and `inherit`. Any page with a form links them, with or without
+  a layout; under a layout the link goes first in the head, so any theme rule about the same
+  element wins. Ruling 30.
+
 - SM1288 (PENDING) **the sign-in and search pages no longer override the theme.** The starter
   `/forgot.md` and `/search-results.md`, and the engine's login, forgot and claim pages, each
   opened with a `<style>` block that came after the theme's stylesheet, so on a themed site

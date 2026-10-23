@@ -119,6 +119,18 @@ The advantage over hardcoded values: a single theme fork copy
 can tweak just the colours while reusing the layout's structure
 and the theme's base stylesheet.
 
+### Forms under a theme
+
+A page carrying a form (a `::: form` block, or the sign-in, reset and
+set-password pages) links `/assets/lazysite-chrome.css`, first in the
+head. It gives the form a usable base: spacing between fields, full-width
+inputs, buttons in the page's font, the step fieldsets of a stepped form
+and a marked error line. Every one of those rules is inside `:where()`,
+so it has zero specificity, and it sets no colour beyond `currentColor`
+and `inherit`. Any rule your theme writes about the same element wins,
+even a bare `button { ... }`, so a theme that styles forms needs no
+override and one that does not still gets readable forms.
+
 ### theme_assets TT variable
 
 `[% theme_assets %]` resolves to `/lazysite-assets/LAYOUT/THEME/`

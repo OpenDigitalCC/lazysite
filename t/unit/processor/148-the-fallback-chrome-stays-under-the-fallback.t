@@ -33,10 +33,34 @@ sub selectors_of {
     unlike( $css, qr/@/, 'the chrome stylesheet has no at-rules, so every rule is read below' );
     my @sel;
     while ( $css =~ /([^{}]+)\{[^{}]*\}/g ) {
-        my $list = $1;
-        push @sel, map { s/^\s+|\s+$//gr } split /,/, $list;
+        push @sel, split_selector_list($1);
     }
     return @sel;
+}
+
+# SM1289: a selector list split at its TOP-LEVEL commas only - the native-form
+# base rules carry lists inside :where() and :not(), which are one selector.
+sub split_selector_list {
+    my ($list) = @_;
+    my @out;
+    my ( $cur, $depth ) = ( '', 0 );
+    for my $ch ( split //, $list ) {
+        $depth++ if $ch eq '(';
+        $depth-- if $ch eq ')';
+        if ( $ch eq ',' && !$depth ) { push @out, $cur; $cur = ''; next }
+        $cur .= $ch;
+    }
+    push @out, $cur;
+    return map { s/\s+/ /gr =~ s/^\s+|\s+$//gr } @out;
+}
+
+# SM1289: a selector made only of :where() compounds (and the combinators
+# between them) has zero specificity, so it cannot beat a theme's rule.
+sub zero_specificity {
+    my ($sel) = @_;
+    my $where = qr/:where(\((?:[^()]++|(?-1))*\))/;
+    ( my $rest = $sel ) =~ s/$where//g;
+    return $sel =~ /\A:where\(/ && $rest =~ /\A[\s>+~]*\z/;
 }
 
 {
@@ -46,10 +70,10 @@ sub selectors_of {
     my @sel = selectors_of($css);
     cmp_ok( scalar @sel, '>', 20, 'the stylesheet was read (' . scalar(@sel) . ' selectors)' );
 
-    my @loose = grep { !/\A(?:body\.lazysite-fallback\b|\.lazysite-fallback\s|\.lazysite-form\b)/ } @sel;
+    my @loose = grep { !/\A(?:body\.lazysite-fallback\b|\.lazysite-fallback\s|\.lazysite-form\b)/ && !zero_specificity($_) } @sel;
     is_deeply( \@loose, [],
-        'every rule is scoped to the fallback body or to a native form - '
-            . 'none can restyle a layout\'s page' )
+        'every rule is scoped to the fallback body or to a native form, or is a '
+            . 'zero-specificity :where() base rule - none can restyle a layout\'s page' )
         or diag( "unscoped: @loose" );
 
     my @step = grep { /\A\.lazysite-form(?:\.lsf-js)?\[data-multistep\]/ } @sel;
