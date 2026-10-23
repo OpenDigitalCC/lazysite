@@ -11,6 +11,7 @@
 # Usage:
 #   tools/release.sh gate    VERSION [--commit SHA] [--beta|--final|--certified]
 #   tools/release.sh build   VERSION --notes FILE   [--beta|--final|--certified]
+#                            [--security-critical]
 #   tools/release.sh publish VERSION
 #
 #   GATE (Claude, detached, usually via tools/gate-main.sh): clones the commit
@@ -63,6 +64,11 @@
 #   says so. --stage-dir DIR (or LAZYSITE_STAGE_DIR) says where the stage goes;
 #   --keep-stage keeps a successful one. A failed stage is always kept, and the
 #   next run removes it.
+#
+#   --security-critical (SM1305) marks the release in its manifest
+#   ("security_critical": true, build-manifest.pl --security-critical), which
+#   is what lets `lazysite upgrade --all --force-security` push it past every
+#   site's channel and policy. A release without it does not carry the key.
 set -e
 
 # The repository this script belongs to - the one it gates, builds and tags.
@@ -93,6 +99,7 @@ VERSION=""
 NOTES_FILE=""
 COMMIT_REF=""
 CHANNEL="edge"          # ladder: edge (default) < beta < stable < certified
+SECURITY_CRITICAL=()    # SM1305: (--security-critical) for build-manifest.pl, or empty
 
 # SM303: THREE JOBS THAT SHARE ONLY A VERSION NUMBER.
 #
@@ -159,8 +166,12 @@ while [ $# -gt 0 ]; do
             KEEP_STAGE=1
             shift
             ;;
+        --security-critical)
+            SECURITY_CRITICAL=(--security-critical)
+            shift
+            ;;
         -h|--help)
-            sed -n '2,65p' "$0" | sed 's/^# \?//'
+            sed -n '2,71p' "$0" | sed 's/^# \?//'
             exit 0
             ;;
         -*)
@@ -242,7 +253,7 @@ if [ "$MODE" = publish ]; then
 fi
 
 if [ -z "$MODE" ]; then
-    sed -n '2,65p' "$0" | sed 's/^# \?//'
+    sed -n '2,71p' "$0" | sed 's/^# \?//'
     exit 0
 fi
 
@@ -1129,7 +1140,7 @@ fi    # gate
 # clone has none. Build it from the staged tree before the SBOM gate
 # (which reads it) and the tarball (which ships it).
 
-echo "==> build-manifest.pl (channel: $CHANNEL)"
+echo "==> build-manifest.pl (channel: $CHANNEL${SECURITY_CRITICAL[0]:+, security-critical})"
 if ! perl "$STAGE/tools/build-manifest.pl" \
         --staged  "$STAGE" \
         --out     "$STAGE/release-manifest.json" \
@@ -1137,7 +1148,8 @@ if ! perl "$STAGE/tools/build-manifest.pl" \
         --channel "$CHANNEL" \
         --commit      "$TARGET_SHA" \
         --gate-files  "$GATE_FILES" \
-        --gate-tests  "$GATE_TESTS" ; then
+        --gate-tests  "$GATE_TESTS" \
+        "${SECURITY_CRITICAL[@]}" ; then
     abort_build "manifest build failed; not releasing."
 fi
 

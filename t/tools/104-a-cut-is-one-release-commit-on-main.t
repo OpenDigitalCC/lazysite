@@ -66,7 +66,10 @@ open my $i, '<', "$root/docs/FEATURES.md" or die; my ($s) = grep { /^subtitle:/ 
 open my $f, '>', "$root/docs/INDEX.md" or die; print {$f} "index of: $s";
 PL
     'tools/lazysite-compliance.pl' => "print qq{compliance: stand-in\\n};\n",
-    'tools/build-manifest.pl' => "my %o = \@ARGV; open my \$f, '>', \$o{'--out'} or die; print {\$f} \"{}\\n\";\n",
+    # SM1305: as the real one does (t/tools/29), the key only with the flag.
+    'tools/build-manifest.pl' => "my \$sc = grep { \$_ eq '--security-critical' } \@ARGV;\n"
+        . "my %o = grep { \$_ ne '--security-critical' } \@ARGV; open my \$f, '>', \$o{'--out'} or die;\n"
+        . "print {\$f} \$sc ? qq({\"security_critical\":true}\\n) : \"{}\\n\";\n",
     'tools/manifest-to-sbom.pl' => "shift; my %o = \@ARGV; open my \$f, '>', \$o{'--out'} or die; print {\$f} \"{}\\n\";\n",
     'tools/gen-manpages.pl' => "use File::Path qw(make_path); make_path(\$ARGV[0]); open my \$f, '>', \"\$ARGV[0]/x.1\" or die; print {\$f} \".TH X 1\\n\";\n",
     'tools/bench.pl'           => "print qq{bench: stand-in\\n};\n",
@@ -246,6 +249,28 @@ subtest 'build: one release commit on main, tagged, from the receipt' => sub {
     is( git( $d, 'worktree', 'list', '--porcelain' ) =~ tr/\n// > 4 ? 'stale' : 'clean', 'clean',
         'the build worktree is gone' );
     like( $out, qr/tools\/release\.sh publish 0\.1\.1/, 'and it names the release manager\'s step' );
+};
+
+# SM1305 (ruling 41b): a security release is cut by release.sh, which had no way
+# to ask build-manifest.pl for "security_critical": true - the declaration
+# `lazysite upgrade --all --force-security` refuses to act without. The shipped
+# manifest is read back from the tarball, where the installer reads it.
+subtest 'build --security-critical marks the shipped manifest; a build without it does not' => sub {
+    for my $sc ( 0, 1 ) {
+        my $d = repo();
+        receipt($d);
+        my ( $rc, $out ) = release( $d, 'build', '0.1.1', '--notes', $NOTES, ( $sc ? '--security-critical' : () ) );
+        is( $rc, 0, ( $sc ? 'with' : 'without' ) . ' the flag, the build passes' ) or return diag($out);
+        my $m = run_cmd( 'tar', '-xzOf', "$d/dist/lazysite-0.1.1.tar.gz", 'lazysite-0.1.1/release-manifest.json' );
+        if ($sc) {
+            like( $m, qr/"security_critical":true/, 'the manifest declares the release security-critical' );
+            like( $out, qr/^==> build-manifest\.pl \(channel: edge, security-critical\)$/m, 'and the build says so' );
+        }
+        else {
+            unlike( $m, qr/security_critical/, 'the manifest carries no security_critical key' );
+            like( $out, qr/^==> build-manifest\.pl \(channel: edge\)$/m, 'and the build names the channel only' );
+        }
+    }
 };
 
 # Q16e (ruled 2026-10-11, "queue the dist fix"): a build run from a git

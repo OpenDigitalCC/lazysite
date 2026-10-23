@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1305 (PENDING) **release: `tools/release.sh` cuts a security release.**
+  `--security-critical` is passed to `build-manifest.pl`, so the shipped manifest carries
+  `"security_critical": true`, the declaration `lazysite upgrade --all --force-security`
+  needs before it overrides every site's channel and policy. A build without the flag
+  carries no such key. OPERATOR.md and docs/development.md say how (ruling 41b).
+
 - SM1304 (PENDING) **security: `lazysite check` names a symbolic link in the served asset
   mirror.** A link a theme upload planted before 0.16.2 (SM1303) stays after the upgrade,
   still serving what it points at. The check now warns for every symbolic link under

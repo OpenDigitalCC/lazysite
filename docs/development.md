@@ -88,7 +88,7 @@ for a test, and a release is one commit on main (SM971).
 | land | release manager | vcs-review | - |
 | gate | Claude, after each landing | `tools/gate-main.sh [--version X.Y.Z] [--beta\|--final]` | the suite, bench and coverage (~6 min to ~75 min; coverage is reused when its inputs are unchanged) |
 | cut | release manager | says "cut X" | - |
-| build | Claude | `tools/release.sh build X --notes FILE [--beta\|--final]` | minutes |
+| build | Claude | `tools/release.sh build X --notes FILE [--beta\|--final] [--security-critical]` | minutes |
 | publish | release manager | `tools/release.sh publish X` | seconds |
 
 ### The release material, written by one generator
@@ -189,6 +189,14 @@ Claude-Session, becomes the release commit's trailers. Then build:
 
 The artefacts land in `dist/`. There is no post-release record: the GATE-LOG row
 and the coverage record are in the release commit.
+
+**A security release** is built with `--security-critical` (SM1305):
+`tools/release.sh build X --notes FILE --security-critical`. Build passes it to
+`tools/build-manifest.pl`, so the shipped manifest carries
+`"security_critical": true` - the declaration without which
+`lazysite upgrade --all --force-security` refuses to push the release past each
+site's channel and policy (OPERATOR.md, "Security releases"). A build without the
+flag carries no such key.
 
 ### Publish
 
