@@ -53,6 +53,7 @@ my (\$a) = \$in =~ /"action"\\s*:\\s*"([^"]+)"/;
 open my \$lg, '>>', '$log' or die \$!;
 print {\$lg} ( \$a // '?' ), "\\n";
 close \$lg;
+# The stub drives the child itself: it is the manager's child, not the test's.
 open my \$p, '|-', \$^X, '$utool', \@ARGV or die \$!;
 print {\$p} \$in;
 close \$p;

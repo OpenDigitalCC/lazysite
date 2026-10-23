@@ -213,6 +213,10 @@ Archive
   the content-root check then refused it, because its real path is outside the docroot. A
   source the fallback chose is now accepted when it sits under the engine's page tree.
   Every other source is confined as before.
+- SM1302 (PENDING) **internal: a test opens no pipe to a child itself.** t/lint/284, t/lint/273's
+  sibling, fails a test that opens a pipe to or from a child (`'-|'`, `'|-'`, the forking open,
+  `'cmd |'`) itself, unless it says it drives the child itself or the text is fixture text.
+
 - SM1301 (PENDING) **internal: a one-way pipe in a test has a timeout too.** SM1245 bounded the
   two-way spawns under t/ and left 58 one-way pipe opens in 54 files, mostly git, find, tar and
   the tools under test, with no limit: a child that never exits hung its test with nothing to

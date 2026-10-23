@@ -68,6 +68,7 @@ my %TREE = (
         . "ok( quiet() );\ndone_testing();\n",
     't/unit/spawn.t'  => "system(\$^X, 'x.pl');\n",
     't/unit/qx.t'     => "my \$o = qx(true);\n",
+    # Fixture text, not a spawn: the two pipe opens the digest must classify.
     't/unit/pipe.t'   => "open my \$fh, '-|', 'true';\n",
     't/unit/two.t'    => "open my \$fh, 'true |';\n",
     't/unit/do.t'     => "my \$r = do \$ENV{X};\n",
