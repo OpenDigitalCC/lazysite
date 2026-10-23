@@ -1493,7 +1493,7 @@ verdict
 
 ### 2026-10-23 - SM1226 (0.16.1): the Odoo endpoint runs warm-forked
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-23.
 
 what changed
 : On a site with a pool conf and the Odoo extension on (never on a plain-CGI site),
@@ -1532,7 +1532,7 @@ residual risk
   under `lazysited@<domain>` and systemd on a production host.
 
 verdict
-: proposed: accepted. The trigger fires on a local socket and is contained: the
+: accepted, confirmed by the release manager on 2026-10-23. The trigger fires on a local socket and is contained: the
   socket is the request-path user's alone, the parent holds compiled code and nothing a
   request or a configuration carries, and the endpoint's own gates run unchanged in each
   child. No ahead-of-schedule third-party engagement beyond the one ADR 0007 already
@@ -1540,7 +1540,7 @@ verdict
 
 ### 2026-10-23 - SM1257, SM1242, SM1258 (0.16.1): a page's stem rule moves and goes with the page
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-23.
 
 what changed
 : A rule set on `/about` is stored as `about` and governs `about.md` (SM268 H14). Every
@@ -1573,13 +1573,13 @@ residual risk
   left at its old stem holds back only a page written there later.
 
 verdict
-: proposed: accepted. No trigger fired; recorded because it closed a bypass of a
+: accepted, confirmed by the release manager on 2026-10-23. No trigger fired; recorded because it closed a bypass of a
   boundary this register names, as the SM1213 entry was. The remediation record ADR 0007
   asks for stays for the certified release (`docs/compliance/OBLIGATIONS.md`).
 
 ### 2026-10-23 - SM1223-SM1225, SM1244, SM1247, SM1248, SM1261 (0.16.1): the Odoo extension's options and OOM 0.42
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-23.
 
 what changed
 : SM1223: a page's `Idempotency-Key` (8 to 128 characters) is hashed with the binding and
@@ -1617,12 +1617,12 @@ residual risk
   upgraded; the check says so and does not refuse.
 
 verdict
-: proposed: accepted. No trigger fired; recorded because the extension's inputs, outputs
+: accepted, confirmed by the release manager on 2026-10-23. No trigger fired; recorded because the extension's inputs, outputs
   and dependency version moved.
 
 ### 2026-10-23 - SM1233 (0.16.1): a Docker Compose package
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-23.
 
 what changed
 : `installers/docker/` ships in the tarball: one container running nginx, the one-rule
@@ -1654,12 +1654,12 @@ residual risk
   who publishes the port beyond loopback without a TLS front end serves sign-in in clear.
 
 verdict
-: proposed: accepted. No trigger fired; recorded because it is a new way the product is
+: accepted, confirmed by the release manager on 2026-10-23. No trigger fired; recorded because it is a new way the product is
   distributed and run.
 
 ### 2026-10-23 - SM1240, SM1241, SM1262, SM1263, SM1266, SM1221, SM1235-SM1239, SM1249, SM1265, SM1256, SM1259, SM1260 (0.16.1): access, rollout and channel changes with no trigger
 
-Assessment drafted by the developer agent; the release manager confirms.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-10-23.
 
 what changed
 : SM1240: the sign-in rate counter `auth/.login-rate.db` is created 0660 in the auth
@@ -1703,7 +1703,7 @@ residual risk
   gain the shipped bundles' capabilities on upgrade, as a new install's have them.
 
 verdict
-: proposed: accepted. No trigger fired; recorded because access, a sign-in control and a
+: accepted, confirmed by the release manager on 2026-10-23. No trigger fired; recorded because access, a sign-in control and a
   security header moved.
 
 ### 2026-10-23 - SM1303 (0.16.2): a theme archive's symbolic link reached the served asset mirror

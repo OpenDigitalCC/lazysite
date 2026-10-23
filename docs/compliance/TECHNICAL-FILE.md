@@ -28,7 +28,7 @@ rises monotonically.
 :::
 
 ```yaml
-status:              index - complete in coverage, walked row by row on 2026-10-23 against 0.16.2, a security release (main d167c6d28 (0.16.1) plus SM1303-SM1305 and SM1307); the SM1303 register entry is a draft a person confirms, as are the threat model rows and, at certified, the declaration
+status:              index - complete in coverage, walked row by row on 2026-10-23 against 0.16.2, a security release (main d167c6d28 (0.16.1) plus SM1303-SM1305 and SM1307); the 0.16.1 register entries of 2026-10-23 were accepted by the release manager on 2026-10-23; the SM1303 register entry is a draft a person confirms, as are the threat model rows and, at certified, the declaration
 covers_version:      0.16.2
 content_sha:         148b3776ec692b5c
 ce_marking_due:      2027-12-11
@@ -47,7 +47,7 @@ text: 2
 General description: intended purpose, versions, product form | docs/FEATURES.md; README.md; CHANGELOG.md; the product forms in docs/IMPLEMENTOR.md (tarball, debs, Hestia, and from 0.16.1 the Docker Compose package, installers/docker/README.md) | current - checked at each release by tools/lazysite-compliance.pl
 Design and development: architecture, components | docs/architecture/*.md; docs/adr/*.md (ADRs record decision AND cause) | current
 Production and monitoring processes | docs/development.md; tools/release.sh; docs/RELIABILITY.md | current
-Cybersecurity risk assessment | docs/SECURITY.md (STRIDE, ASVS L1, fourteen-boundary model and the significant-change register); docs/architecture/security.md | current to 0.16.2 - SM1303's exposure (a theme archive's link in the served asset mirror) and SM1304's warning added 23 Oct 2026, that entry a draft awaiting the release manager; the 0.16.1 changes (the warm-fork parent, the stem-rule fix SM1257, the Odoo options and OOM 0.42, the Docker package) added 23 Oct 2026, those register entries drafts awaiting the release manager; the 0.11-0.15 changes and their entries confirmed on 21 Oct 2026
+Cybersecurity risk assessment | docs/SECURITY.md (STRIDE, ASVS L1, fourteen-boundary model and the significant-change register); docs/architecture/security.md | current to 0.16.2 - SM1303's exposure (a theme archive's link in the served asset mirror) and SM1304's warning added 23 Oct 2026, that entry a draft awaiting the release manager; the 0.16.1 changes (the warm-fork parent, the stem-rule fix SM1257, the Odoo options and OOM 0.42, the Docker package) added 23 Oct 2026, those register entries confirmed by the release manager on 23 Oct 2026; the 0.11-0.15 changes and their entries confirmed on 21 Oct 2026
 Applicable harmonised standards | docs/POLICY.md | current
 Vulnerability handling processes | SECURITY.md (CVD intake); docs/adr/0007-pentest-deferral.md (SLAs, triggers) | PARTIAL - no dated remediation record; 0.16.2 is the first release cut security-critical (SM1305: its manifest declares it, so `upgrade --all --force-security` and, on a Hestia host, the updater's `--force-security` (SM1307) push it past every site's channel)
 Support-period statement | docs/POLICY.md; docs/compliance/OBLIGATIONS.md (absolute date) | current
