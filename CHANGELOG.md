@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1307 (PENDING) **security: a security release reaches the stable sites of a Hestia
+  fleet.** `lazysite upgrade --all --force-security` reaches registered sites, and a Hestia
+  host registers none, while its updater scoped by `update_channel` alone.
+  `lazysite-hestia-update-all.sh --force-security` deploys a release whose manifest declares
+  `security_critical` to the sites whose channel refuses it (`install.pl --force-security`,
+  through the per-site deploy), names each one in the table, the findings and the summary,
+  and audits it as `upgrade-forced`; excluded sites stay excluded. Both refuse the flag for a
+  release that does not declare it. `upgrade --all` on such a host names the updater
+  instead of reporting nothing to do (ruling 41b).
+
 - SM1306 (PENDING) **docs: the compliance records cover 0.16.2.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against this security release's changes (SM1303-SM1305) and
   stamped 0.16.2: the SM1303 register entry, the SBOM on the 0.16.2 tree, 0.16.2 as the first

@@ -24,6 +24,12 @@
 #   5  installed, and the site is NOT serviceable: the health check still names
 #      a failure after the permission pass and the repair - a human is needed
 #
+# LAZYSITE_FORCE_SECURITY=1 (SM1307, set by lazysite-hestia-update-all.sh
+# --force-security) passes --force-security to install.pl, for the channel
+# check and the upgrade: a site whose update_channel refuses the build takes it
+# anyway, and only when the release's manifest declares security_critical -
+# install.pl refuses the flag for any other payload, and so does this script.
+#
 # STAGE_DIR is the unpacked release (defaults to this script's dir, so it
 # works straight from inside an extracted tarball: installers/hestia/..).
 set -e
@@ -75,10 +81,18 @@ LZ="$(lazysite_dir "$DOC")"
 # no-op: doing the pre-install chown but then exiting on the skip (before the
 # corrective permission pass) left skipped sites half-configured and 500ing.
 # Read-only (lazysite.conf + manifest); run as root so it can always read them.
+FORCE_ARGS=()
+[ "${LAZYSITE_FORCE_SECURITY:-}" = 1 ] && FORCE_ARGS=(--force-security)
 set +e
-perl "$STAGE/install.pl" --channel-check --docroot "$DOC"
+perl "$STAGE/install.pl" --channel-check --docroot "$DOC" "${FORCE_ARGS[@]}"
 CC=$?
 set -e
+# SM1307: install.pl refuses --force-security (exit 2) for a payload that does
+# not declare security_critical. Nothing has been touched; stop here.
+if [ "${#FORCE_ARGS[@]}" -gt 0 ] && [ "$CC" != 0 ] && [ "$CC" != 3 ]; then
+  echo "==> --force-security refused by install.pl (exit $CC). Nothing touched." >&2
+  exit 2
+fi
 if [ "$CC" = 3 ]; then
   echo "==> upgrade SKIPPED: stable channel, edge build. Nothing touched."
   exit 4
@@ -125,7 +139,7 @@ echo "==> install.pl --mode $MODE (as $U)"
 # four "could not read ... Permission denied" warnings; the final check below runs
 # as root, after the permission pass, and is the deploy's one verdict.
 set +e
-sudo -u "$U" perl "$STAGE/install.pl" --mode "$MODE" --docroot "$DOC" --cgibin "$CGI" --health-check-by-caller
+sudo -u "$U" perl "$STAGE/install.pl" --mode "$MODE" --docroot "$DOC" --cgibin "$CGI" --health-check-by-caller "${FORCE_ARGS[@]}"
 IRC=$?
 set -e
 # Exit 3 = the install was skipped by the site's update-channel policy (this site

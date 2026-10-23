@@ -46,6 +46,25 @@ reads the engine fresh per request and needs nothing. A site on the persistent
 runtime or the FastCGI pool has the previous engine in memory; the single-site
 verbs name the units, and `upgrade --all` (root) restarts them itself.
 
+**A security release reaches every site, stable ones included.** A release whose
+manifest declares `"security_critical": true` (cut with `tools/release.sh
+--security-critical`) is pushed past each site's `update_channel`:
+
+```bash
+# a HestiaCP host - its sites are not in the registry; as root:
+bash /tmp/lazysite-X.Y.Z/installers/hestia/lazysite-hestia-update-all.sh --force-security /tmp/lazysite-X.Y.Z
+# a host whose sites are registered (/etc/lazysite/sites.d):
+sudo lazysite upgrade --all --force-security
+```
+
+Both refuse the flag, before any site is touched, for a release that does not
+declare itself security-critical. The Hestia updater names each site it forced
+in the table, the findings and the summary, and each site's audit log records
+`upgrade-forced`; a site excluded from the update (an install marker without the
+lazysite-app template) stays excluded. On a Hestia host with no registry,
+`lazysite upgrade --all` says to use the updater rather than reporting nothing
+to do (SM1307).
+
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 

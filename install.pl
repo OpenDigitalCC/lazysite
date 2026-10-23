@@ -118,6 +118,11 @@ Optional:
   --force             Upgrade even if the site's update channel would skip this
                       release (e.g. a 'stable' site taking an 'edge' build). The
                       override is recorded in the audit log.
+  --force-security    --force, for a security release only (SM1307): refused
+                      unless this payload's manifest declares
+                      "security_critical": true. With --channel-check, a site
+                      whose channel refuses the build answers 0 (forced).
+                      Recorded in the audit log as upgrade-forced.
   --channel edge|beta|stable|certified
                       Set the site's update channel (update_channel in
                       lazysite.conf) and exit - no install. The ladder is
@@ -223,6 +228,8 @@ Getopt::Long::GetOptions(
     'policy=s'       => \$opt{policy},
     'restore-full=s' => \$opt{restore_full},
     'force'          => \$opt{force},
+    # SM1307: the Hestia fleet updater's --force-security reaches a site here.
+    'force-security' => \$opt{force_security},
     'mode=s'         => \$opt{mode},
     'invoked-as=s'   => \$opt{invoked_as},
     # SM933 PR1: the group the web server runs as, for the post-install health
@@ -242,6 +249,23 @@ Getopt::Long::GetOptions(
 };
 
 usage(0) if $opt{help};
+
+# SM1307: --force-security IS ONLY AS STRONG AS THE RELEASE'S OWN DECLARATION.
+# It is --force - past the site's update_channel - for a payload whose manifest
+# says "security_critical": true (build-manifest.pl --security-critical, which
+# release.sh --security-critical passes), and refused for any other before a
+# site is read, as the CLI's `upgrade --all --force-security` is. The Hestia
+# updater's --force-security arrives here through the per-site deploy.
+if ( $opt{force_security} ) {
+    my $m = load_manifest("$STAGE_DIR/release-manifest.json");
+    _usage_error( '--force-security refused: payload ' . ( $m->{version} // 'unknown' )
+            . ' (channel: ' . ( $m->{channel} || 'edge' ) . ') does not declare '
+            . '"security_critical": true in its release manifest. The override is only as '
+            . "strong as the release's own declaration; for a routine out-of-channel "
+            . 'upgrade use --force.' )
+        unless $m->{security_critical};
+    $opt{force} = 1;
+}
 
 if ( $opt{theme} ) {
     warn "WARNING: --theme is no longer supported. install.pl "
@@ -273,7 +297,16 @@ if ( $opt{channel_check} ) {
         my ( $site, $problem ) = read_update_channel( $opt{docroot} );
         my $rel = $manifest->{channel} || 'edge';
         warn "channel-check: $problem\n" if defined $problem;
-        exit 3                           if channel_refuses( $site, $rel );
+        if ( channel_refuses( $site, $rel ) ) {
+            # SM1307: forced past the channel, and saying so - the caller
+            # reports which sites a security release reached this way.
+            if ( $opt{force_security} ) {
+                warn "channel-check: the site's channel refuses this '$rel' build; "
+                    . "--force-security overrides it (the release declares security_critical)\n";
+                exit 0;
+            }
+            exit 3;
+        }
     }
     exit 0;
 }
@@ -770,11 +803,14 @@ sub cmd_install {
         # the normal upgrade event is still logged when the install completes.
         my ( $site, $rel, $refuses ) = channel_verdict( $o->{docroot}, $manifest );
         if ($refuses) {
-            info( "--force: installing '$rel' build $manifest->{version} over the "
+            my $how = $o->{force_security}
+                ? '--force-security, the release declares security_critical'
+                : '--force';
+            info( "$how: installing '$rel' build $manifest->{version} over the "
                     . "site's '$site' channel policy (sysop override)." );
             audit_channel_outcome( $o->{docroot}, 'upgrade-forced',
                 $state->{version}, $manifest->{version}, $rel, $site,
-                '; --force override' );
+                ( $o->{force_security} ? '; --force-security override (security_critical release)' : '; --force override' ) );
         }
     }
 
@@ -2831,6 +2867,15 @@ an upgrade to see what would be written.
 Upgrade even when the site's C<update_channel> would skip this release (for
 example a C<stable> site taking an C<edge> build). A deliberate operator override,
 recorded in the site's audit log as C<upgrade-forced>.
+
+=item B<--force-security>
+
+C<--force>, for a security release only (SM1307): refused, before any site is
+read, unless this payload's C<release-manifest.json> declares
+C<"security_critical": true>. With B<--channel-check>, a site whose channel
+refuses the build answers 0 and says it was forced. The Hestia fleet updater's
+C<--force-security> passes it through the per-site deploy. Recorded as
+C<upgrade-forced>, naming the override.
 
 =item B<--channel> C<edge>|C<beta>|C<stable>|C<certified>
 

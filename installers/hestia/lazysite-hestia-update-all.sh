@@ -2,7 +2,7 @@
 # lazysite-hestia-update-all.sh - update EVERY lazysite site on this Hestia
 # host from one staged release. RUN AS ROOT.
 #
-#   lazysite-hestia-update-all.sh [--list] [--templates] [STAGE_DIR]
+#   lazysite-hestia-update-all.sh [--list] [--templates] [--force-security] [STAGE_DIR]
 #
 # It discovers lazysite sites Hestia-authoritatively, via lazysite-hestia-list.sh
 # --template-only: a domain is updated only when its Hestia web template is
@@ -96,6 +96,20 @@
 #                 are served straight off the docroot by nginx and the correct
 #                 Apache ACL rules never see the request.
 #
+#   --force-security  SM1307: a SECURITY RELEASE reaches every site, stable ones
+#                 included. A site whose update_channel refuses this build is
+#                 put in scope and deployed anyway (install.pl --force-security,
+#                 through the per-site deploy), and the table, the findings and
+#                 the summary name each one; the site's audit log records it as
+#                 upgrade-forced. Accepted ONLY when the staged release's
+#                 manifest declares "security_critical": true (release.sh
+#                 --security-critical); for any other payload it is refused
+#                 before a site is looked at - the override is only as strong as
+#                 the release's own declaration, as with the CLI's `upgrade --all
+#                 --force-security`. An excluded site (marker without the
+#                 lazysite-app template) stays excluded. This updater reads no
+#                 update_policy, so there is none to override.
+#
 #   STAGE_DIR     the unpacked release (default: this script's release root).
 #
 # SM317: every run ends with an OUTSIDE-IN ACL probe per site - it gates a probe
@@ -127,6 +141,7 @@ DO_TPL=0
 DO_REBUILD=0
 DO_REBUILD_EXPOSED=0
 DO_PROXY=0
+FORCE_SECURITY=0
 ARGS=()
 for a in "$@"; do
     case "$a" in
@@ -138,6 +153,7 @@ for a in "$@"; do
         --proxy)      DO_PROXY=1; DO_TPL=1 ;;
         --reapply-acls) DO_REAPPLY=1 ;;
         --reapply-acls-dry-run) DO_REAPPLY_DRY=1 ;;
+        --force-security) FORCE_SECURITY=1 ;;
         *)            ARGS+=("$a") ;;
     esac
 done
@@ -146,6 +162,19 @@ STAGE="${ARGS[0]:-$(cd "$(dirname "$0")/../.." && pwd)}"
 if [ "$LIST" = 1 ] && [ "$DO_REBUILD_EXPOSED" = 1 ]; then
     echo "$0: --rebuild-exposed rebuilds vhosts and --list changes nothing - give one or the other" >&2
     exit 2
+fi
+
+# SM1307: --force-security is refused before anything else for a payload that
+# does not declare itself security-critical. Read from the manifest the
+# per-site deploy installs, so the refusal and install.pl's agree.
+if [ "$FORCE_SECURITY" = 1 ]; then
+    if ! perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $m = eval { JSON::PP->new->decode(<$f>) } or exit 1; exit( $m->{security_critical} ? 0 : 1 )' \
+            "$STAGE/release-manifest.json" 2>/dev/null; then
+        echo "$0: --force-security refused: $STAGE/release-manifest.json does not declare" >&2
+        echo "$0: \"security_critical\": true. The override is only as strong as the release's" >&2
+        echo "$0: own declaration; nothing was touched." >&2
+        exit 2
+    fi
 fi
 
 [ "$(id -u)" = 0 ] || { echo "$0: must run as root" >&2; exit 1; }
@@ -967,7 +996,7 @@ fi
 # nothing, and is the same code the per-site deploy obeys. A second copy in bash
 # would be one fact in two places, which is the defect this project keeps
 # closing.
-IN_USERS=(); IN_DOMAINS=(); IN_DOCS=(); IN_VERS=(); OUT_OF_SCOPE=()
+IN_USERS=(); IN_DOMAINS=(); IN_DOCS=(); IN_VERS=(); OUT_OF_SCOPE=(); FORCED=()
 CHANS=(); SCOPES=(); ENGINES=(); VHOSTS=()
 STAGED_REV="$(template_rev "$STAGE/installers/hestia/lazysite-app.stpl")"
 for i in "${!DOMAINS[@]}"; do
@@ -986,6 +1015,14 @@ for i in "${!DOMAINS[@]}"; do
     set +e
     perl "$STAGE/install.pl" --channel-check --docroot "$_dr" >/dev/null 2>&1
     _cc=$?
+    # SM1307: out of scope by its channel, and this is a security release run
+    # with --force-security: install.pl says whether the override holds for this
+    # payload (it answers 0 only when the manifest declares security_critical).
+    _forced=0
+    if [ "$_cc" = 3 ] && [ "$FORCE_SECURITY" = 1 ] \
+        && perl "$STAGE/install.pl" --channel-check --force-security --docroot "$_dr" >/dev/null 2>&1; then
+        _forced=1; _cc=0; FORCED+=( "$_d" )
+    fi
     set -e
     if [ "$_cc" = 3 ]; then
         OUT_OF_SCOPE+=( "$_d" )
@@ -1001,7 +1038,12 @@ for i in "${!DOMAINS[@]}"; do
     _ch=$(sed -n 's/^[[:space:]]*update_channel[[:space:]]*:[[:space:]]*\([^[:space:]]*\).*/\1/p' \
             "$(lazysite_dir "$_dr")/lazysite.conf" 2>/dev/null | head -1)
     CHANS+=( "${_ch:-(unset)}" )
-    SCOPES+=( "$( [ "$_cc" = 3 ] && echo 'out of scope' || echo 'in scope' )" )
+    if [ "$_forced" = 1 ]; then
+        SCOPES+=( 'in scope (forced: security release)' )
+        [ -z "${FINDINGS_FILE:-}" ] || printf '%s\t%s\n' "$_d" "NOTE: forced in by --force-security: its update_channel (${_ch:-(unset)}) refuses this '$NEWVER' build, which declares itself security-critical" >> "$FINDINGS_FILE"
+    else
+        SCOPES+=( "$( [ "$_cc" = 3 ] && echo 'out of scope' || echo 'in scope' )" )
+    fi
 done
 
 # --- ONE TABLE: every candidate, what it runs, what it is set to, and whether
@@ -1025,6 +1067,8 @@ done
 echo
 printf '  %d candidate(s): %d in scope, %d out of scope, %d excluded\n' \
     "$(( n + ${#EXC_D[@]} ))" "${#IN_DOMAINS[@]}" "${#OUT_OF_SCOPE[@]}" "${#EXC_D[@]}"
+[ "${#FORCED[@]}" -gt 0 ] && \
+    printf '  Forced in (--force-security; the release declares security_critical): %s\n' "${FORCED[*]}"
 [ "${#OUT_OF_SCOPE[@]}" -gt 0 ] && \
     echo '  Out of scope: update_channel does not accept this build - no template change, no rebuild, no repair, no probe.'
 [ "${#EXC_D[@]}" -gt 0 ] && \
@@ -1191,6 +1235,8 @@ fi
 # printed "deployed". The deploy script now maps it to 5 at its boundary, and 5
 # is its own column: the site took the release and needs a human, so it is not
 # a skip and not a retryable install failure (exit 2 below, not 1).
+# SM1307: the per-site deploy passes --force-security to install.pl.
+[ "$FORCE_SECURITY" = 1 ] && export LAZYSITE_FORCE_SECURITY=1
 ok=0; SKIPPED=(); FAILED=(); UNSERVICEABLE=(); RESULTS=()
 for i in "${!DOMAINS[@]}"; do
     d="${DOMAINS[$i]}"; u="${USERS[$i]}"
@@ -1359,6 +1405,8 @@ fi
 [ "${#FAILED[@]}" -gt 0 ]  && printf 'FAILED to upgrade: %s\n' "${FAILED[*]}"
 [ "${#UNSERVICEABLE[@]}" -gt 0 ] && \
     printf 'NOT SERVICEABLE (installed; the health check still fails - needs a human): %s\n' "${UNSERVICEABLE[*]}"
+[ "${#FORCED[@]}" -gt 0 ] && \
+    printf 'FORCED IN (security release, --force-security, past their update_channel): %s\n' "${FORCED[*]}"
 
 echo
 if [ "$DO_PROXY" = 1 ]; then

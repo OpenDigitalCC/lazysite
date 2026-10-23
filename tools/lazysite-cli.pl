@@ -1168,7 +1168,28 @@ sub _have {
 sub cmd_upgrade_all {
     my ($o) = @_;
     my $sites = read_registry();
-    return _no_sites_registered() if !@$sites;
+    if ( !@$sites ) {
+        # SM1307: a Hestia host keeps no registry (provision writes it, and the
+        # tarball path never runs provision), so "no sites registered", exit 0,
+        # read as a fleet with nothing to do - and a security release pushed
+        # this way reached none of its sites. The Hestia updater is that fleet's
+        # path; say so, and fail.
+        my $lister = payload_root() . '/installers/hestia/lazysite-hestia-list.sh';
+        # Hestia's per-user registry, at the lister's knob (LAZYSITE_HESTIA_USERS).
+        my $hestia_users = $ENV{LAZYSITE_HESTIA_USERS} || '/usr/local/hestia/data/users';
+        if ( -f $lister && -d $hestia_users ) {
+            my $updater = payload_root() . '/installers/hestia/lazysite-hestia-update-all.sh';
+            fail( 'no sites registered in ' . registry_dir() . ", and this is a Hestia host:\n"
+                    . "its sites are upgraded by the Hestia updater, not by upgrade --all. As root:\n"
+                    . "  bash $updater "
+                    . ( $o->{force_security} ? '--force-security ' : '' )
+                    . payload_root() . "\n"
+                    . ( $o->{force_security}
+                    ? "(--force-security takes a security release past each site's update_channel.)"
+                    : "(add --force-security for a security release, to pass each site's update_channel.)" ) );
+        }
+        return _no_sites_registered();
+    }
     my $me      = current_user();
     my $is_root = running_as_root();
     if ( !$is_root ) {

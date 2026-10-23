@@ -122,6 +122,22 @@ fleet-wide. Against a payload that does not declare it, the command refuses
 before touching any site: the override is only as strong as the release's
 own declaration.
 
+`upgrade --all` reaches the sites in the registry. A HestiaCP host has none
+(the tarball path never runs `provision`), so its fleet takes a security
+release through the Hestia updater, as root (SM1307):
+
+```bash
+bash STAGE/installers/hestia/lazysite-hestia-update-all.sh --force-security STAGE
+```
+
+It refuses the flag the same way for a payload that does not declare
+`security_critical`. With it, each site whose `update_channel` refuses the build
+is deployed anyway (`install.pl --force-security` through the per-site deploy),
+named as forced in the table, the findings and the summary, and audited as
+`upgrade-forced`; excluded sites stay excluded. The updater reads no
+`update_policy`, so there is none to override. On such a host
+`lazysite upgrade --all` names this command instead of reporting no sites.
+
 ### Repairing permissions and ownership - the one way
 
 **`lazysite repair`.** It runs the doctor, applies its safe fixes, then checks
