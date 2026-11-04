@@ -52,7 +52,7 @@ manifest declares `"security_critical": true` (cut on stable with `tools/release
 
 ```bash
 # a HestiaCP host - its sites are not in the registry; as root:
-bash /tmp/lazysite-X.Y.Z/installers/hestia/lazysite-hestia-update-all.sh --force-security /tmp/lazysite-X.Y.Z
+bash /tmp/lazysite-X.Y.Z/installers/hestia/lazysite-hestia-update-all.sh --force-security
 # a host whose sites are registered (/etc/lazysite/sites.d):
 sudo lazysite upgrade --all --force-security
 ```

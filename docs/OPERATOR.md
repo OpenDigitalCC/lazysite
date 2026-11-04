@@ -129,7 +129,7 @@ own declaration.
 release through the Hestia updater, as root (SM1307):
 
 ```bash
-bash STAGE/installers/hestia/lazysite-hestia-update-all.sh --force-security STAGE
+bash STAGE/installers/hestia/lazysite-hestia-update-all.sh --force-security
 ```
 
 It refuses the flag the same way for a payload that does not declare

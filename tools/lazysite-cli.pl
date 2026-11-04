@@ -1223,12 +1223,13 @@ sub cmd_upgrade_all {
         # Hestia's per-user registry, at the lister's knob (LAZYSITE_HESTIA_USERS).
         my $hestia_users = $ENV{LAZYSITE_HESTIA_USERS} || '/usr/local/hestia/data/users';
         if ( -f $lister && -d $hestia_users ) {
+            # SM1316: no stage argument - the updater's stage defaults to the
+            # release it runs from, which $updater already names.
             my $updater = payload_root() . '/installers/hestia/lazysite-hestia-update-all.sh';
             fail( 'no sites registered in ' . registry_dir() . ", and this is a Hestia host:\n"
                     . "its sites are upgraded by the Hestia updater, not by upgrade --all. As root:\n"
-                    . "  bash $updater "
-                    . ( $o->{force_security} ? '--force-security ' : '' )
-                    . payload_root() . "\n"
+                    . "  bash $updater"
+                    . ( $o->{force_security} ? ' --force-security' : '' ) . "\n"
                     . ( $o->{force_security}
                     ? "(--force-security takes a security release past each site's update_channel.)"
                     : "(add --force-security for a security release, to pass each site's update_channel.)" ) );

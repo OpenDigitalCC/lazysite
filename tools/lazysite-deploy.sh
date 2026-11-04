@@ -186,7 +186,10 @@ deploy() {
     #
     # `|| rc=$?` never trips -e in the first place, so no option needs saving
     # or restoring and there is nothing to leave in the wrong state.
-    ssh "$HOST" "cd /tmp; sudo bash /tmp/lazysite-$ver/installers/hestia/lazysite-hestia-update-all.sh $flags /tmp/lazysite-$ver" || rc=$?
+    #
+    # No STAGE argument (SM1316): the updater's stage defaults to the release it
+    # runs from, which is /tmp/lazysite-$ver - giving it again said it twice.
+    ssh "$HOST" "cd /tmp; sudo bash /tmp/lazysite-$ver/installers/hestia/lazysite-hestia-update-all.sh $flags" || rc=$?
     return "$rc"
 }
 

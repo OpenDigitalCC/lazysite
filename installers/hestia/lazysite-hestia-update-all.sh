@@ -110,7 +110,8 @@
 #                 lazysite-app template) stays excluded. This updater reads no
 #                 update_policy, so there is none to override.
 #
-#   STAGE_DIR     the unpacked release (default: this script's release root).
+#   STAGE_DIR     the unpacked release. Default, and the usual form: this
+#                 script's own release root, so it need not be given (SM1316).
 #
 # SM317: every run ends with an OUTSIDE-IN ACL probe per site - it gates a probe
 # folder, fetches it anonymously over https, and reports whether the FRONT END

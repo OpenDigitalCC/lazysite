@@ -172,6 +172,22 @@ subtest 'upgrade --all on a Hestia host with no registry names the updater' => s
     like( $r->{out}, qr/this is a Hestia host/, 'it says what kind of host this is' );
     like( $r->{out}, qr/lazysite-hestia-update-all\.sh/, 'names the updater' );
     like( $r->{out}, qr/--force-security/, 'and the flag a security release needs' );
+    # SM1316: the updater's stage defaults to the release it runs from, so the
+    # command names it once - in the updater's own path.
+    like( $r->{out}, qr{^  bash \S+/installers/hestia/lazysite-hestia-update-all\.sh$}m,
+        'the command gives the updater no stage argument' ) or diag $r->{out};
+    # --force-security is checked against the payload's manifest first, which a
+    # checkout has none of: a payload of the CLI beside a security-critical one.
+    my $p = tempdir( CLEANUP => 1 );
+    make_path( "$p/tools", "$p/installers/hestia" );
+    spit( "$p/tools/lazysite-cli.pl", slurp("$root/tools/lazysite-cli.pl") );
+    spit( "$p/$_", "\n" ) for qw(install.pl installers/hestia/lazysite-hestia-list.sh);
+    spit( "$p/VERSION", "9.9.9\n" );
+    spit( "$p/release-manifest.json",
+        encode_json( { version => '9.9.9', channel => 'stable', security_critical => JSON::PP::true() } ) );
+    $r = run_child( [ $^X, "$p/tools/lazysite-cli.pl", 'upgrade', '--all', '--force-security' ], stderr => 'merge' );
+    like( $r->{out}, qr{^  bash \S+/installers/hestia/lazysite-hestia-update-all\.sh --force-security$}m,
+        'nor with --force-security' ) or diag $r->{out};
 };
 
 done_testing();

@@ -306,6 +306,15 @@ Archive
   with `path=/`; `Files::action_acl_remove` refuses it for the CLI and MCP too. The action
   declares `path` required, as MCP `remove_permissions` does. `/`, `.` and `./` still remove
   the site-wide rule. Ruled 2026-10-23 (ruling 17), replacing SM306's no-path default.
+- SM1316 (PENDING) **docs: the Hestia updater is given its stage once.**
+  `lazysite-hestia-update-all.sh` defaults its stage to the release it runs from, and every
+  command that told an operator to run it named the stage twice
+  (`bash STAGE/installers/hestia/lazysite-hestia-update-all.sh --force-security STAGE`).
+  OPERATOR.md, UPGRADE.md, the hint `lazysite upgrade --all` prints on a Hestia host and the
+  deploy hook's own command drop the second one, and the updater's usage says it need not be
+  given. t/lint/292 refuses the doubled form anywhere outside the release history (ruling
+  45).
+
 - SM1315 (PENDING) **release: the deploy hook passes `--force-security` itself.** A
   release whose manifest declares `"security_critical": true` was deployed by
   `tools/lazysite-deploy.sh` with its usual flags, so the Hestia updater scoped it by each
