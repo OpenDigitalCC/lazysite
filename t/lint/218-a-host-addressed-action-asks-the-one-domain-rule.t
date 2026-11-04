@@ -285,8 +285,9 @@ my %NOT_INSTANCE_WIDE = (
         . 'which asks the domain rule',
     'theme-copy' => 'a new theme under a new name, served by nothing until a host-addressed '
         . 'activation (SM749)',
-    'theme-upload' => 'installs a theme under a name not already installed (one that exists is '
-        . 'refused), served by nothing until activated',
+    'theme-upload' => 'installs a theme under a name not already installed (a theme of a name '
+        . 'already installed goes beside it under a dated name, YYYYMMDD-name, never over it), '
+        . 'served by nothing until activated',
     'theme-delete' => 'a confined caller deletes only a theme it created (SM262 '
         . 'restrict_to_creator, asked below); a theme the primary or any domain serves is '
         . 'refused to everyone (SM177)',

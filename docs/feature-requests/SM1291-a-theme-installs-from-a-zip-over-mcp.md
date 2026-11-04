@@ -81,3 +81,16 @@ main's version of it, and `install_theme` reaches it through the function:
   ordinary theme installs; a symbolic link, a `.php` entry and an oversized
   archive are refused with nothing installed and nothing in the mirror. With
   Themes.pm as before, the three refusals fail, and the link is in the mirror.
+
+# Rulings
+
+Ruling 41 (2026-10-23): the symbolic-link exposure ships in 0.16.2 with a
+security-register entry, drafted for the release manager's confirmation. As
+revised (41, 41b, 44) it shipped as a security release: the entry is
+docs/SECURITY.md "2026-10-23 - SM1303 (0.16.2)", re-keyed from this filing,
+with no Article 14 notification and no advisory. The
+three questions this filing raised were answered the same day: the new
+refusals stay in the shared function, so the manager's upload has them; the
+control API's `theme-upload` stays cookie-only and `install_theme` MCP-only;
+and lint 218's reason for `theme-upload` now says a theme of a name already
+installed goes beside it under a dated name.
