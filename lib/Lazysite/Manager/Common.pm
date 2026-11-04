@@ -1861,6 +1861,7 @@ sub processor_path {
 our %REFUSAL_STATUS = (
     'address' => '403 Forbidden', # SM1139: the file is limited by the address it is asked from
     ( map { $_ => '403 Forbidden' } qw(forbidden not-yours permission blocked disabled served-artifact-refused form-bind-refused) ),
+    'widens-enclosing-rule' => '403 Forbidden',  # SM1309: a rule its writer may not widen
     ( map { $_ => '404 Not Found' }
             qw(not-found unknown-domain
             no_such_table no_such_row no_such_form db-table-missing) ),

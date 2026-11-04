@@ -1002,4 +1002,136 @@ sub _acl_denied {
     return { ok => 0, error => "You do not have $mode access to this file", kind => 'permission' };
 }
 
+# SM1309 (ruling 46, T-02): A RULE UNDER AN ENCLOSING RULE MAY NOT ADMIT ANYONE
+# THAT RULE DOES NOT, UNLESS THE OPERATOR OR THE ENCLOSING RULE'S OWNER WRITES IT.
+#
+# A mode's list is decided by the LONGEST match (_acl_entry_and_key), so a rule
+# on a subfolder replaces its parent's for that mode rather than narrowing it,
+# and anyone with write access to a path may create its first rule. A member of
+# a protected area, or the member's own agent, therefore opened a subfolder to a
+# non-member with one set_permissions call, while changing the area's own rule
+# was refused to anyone but its owner. Longest match stays: it is what lets an
+# operator carve a wider audience out of a private site (SM287, SM223). What is
+# held back is who may write such a carve-out.
+#
+# THE ENCLOSING RULE is the one that would govern $rel for the mode if $rel had
+# no rule of its own: the walk with $rel's own key taken out, so its page stem,
+# each ancestor folder and the site-wide rule take part in the precedence the
+# readers use. undef when nothing encloses $rel for that mode, which leaves the
+# first rule on an ungoverned path to anyone who may write the path, as before.
+sub enclosing_rule {
+    my ( $map, $rel, $mode ) = @_;
+    $rel = _acl_norm($rel) // '';
+    $rel =~ s{/+\z}{};
+    return unless length $rel && ref $map eq 'HASH';
+    my %m = %$map;
+    delete @m{ $rel, "$rel/" };
+    return _acl_entry_and_key( \%m, $rel, $mode );
+}
+
+# Who a rule ADMITS for a mode: the names in its list, and its owner, who passes
+# every mode (_acl_allows) - but only while the list is non-empty, since a rule
+# with no list for a mode does not govern it and admits nobody new.
+sub _admitted_by {
+    my ( $rec, $mode ) = @_;
+    return () unless ref $rec eq 'HASH' && ref $rec->{$mode} eq 'ARRAY';
+    my @in = grep { defined && length } @{ $rec->{$mode} };
+    return () unless @in;
+    push @in, $rec->{owner} if defined $rec->{owner} && length $rec->{owner};
+    my %seen;
+    return grep { !$seen{$_}++ } @in;
+}
+
+# The principals in @who that the enclosing rule $enc does not admit for $mode.
+# An account is admitted when it is named, is the owner, or is in a named group
+# (nesting included, as _acl_allows reads it); a group when it is named or is
+# nested in a named group, so all its members are. Group names compare without
+# case, account names exactly - the readers' own semantics.
+sub _not_admitted {
+    my ( $enc, $mode, @who ) = @_;
+    my @list = ref $enc->{$mode} eq 'ARRAY' ? @{ $enc->{$mode} } : ();
+    my %name = map { $_ => 1 } grep { defined && !/\A\@/ } @list;
+    $name{ $enc->{owner} } = 1 if defined $enc->{owner} && length $enc->{owner};
+    my %grp = map { /\A\@(.+)\z/ ? ( lc($1) => 1 ) : () } grep { defined } @list;
+    local $Lazysite::Auth::Settings::AUTH_DIR = _settings_dir();
+    my @out;
+    for my $p (@who) {
+        if ( $p =~ /\A\@(.+)\z/ ) {
+            my $g = $1;
+            next if grep { $grp{ lc $_ } } ( $g, Lazysite::Auth::Settings::group_closure($g) );
+        }
+        else {
+            next if $name{$p};
+            next if grep { $grp{ lc $_ } } groups_for_user($p);
+        }
+        push @out, $p;
+    }
+    return @out;
+}
+
+# The refusal for writing $rec at $rel, or undef. $was is the rule $rel holds
+# now (undef for none): only principals it does not already admit are asked
+# about, so the owner of an existing carve-out can still re-apply or edit it
+# without widening it further. $o{bypass} is the operator (file_rule_bypass,
+# decided by the caller, because WebDAV has no operator); $user is the writer,
+# who passes when it owns the enclosing rule. Every surface that writes a rule
+# - acl-set on the manager and the control API, MCP set_permissions and
+# `lazysite acl set` through Files::action_acl_set, and the movers that carry
+# rules to a new key - asks this.
+sub widening_refusal {
+    my ( $map, $rel, $rec, $was, $user, %o ) = @_;
+    return undef if $o{bypass};
+    for my $mode (qw(read write)) {
+        my @new   = _admitted_by( $rec, $mode ) or next;
+        my %had   = map  { $_ => 1 } _admitted_by( $was, $mode );
+        my @added = grep { !$had{$_} } @new or next;
+        my ( $enc, $key ) = enclosing_rule( $map, $rel, $mode );
+        next unless ref $enc eq 'HASH';
+        next if defined $enc->{owner} && defined $user && length $user && $enc->{owner} eq $user;
+        my @beyond = _not_admitted( $enc, $mode, @added ) or next;
+        my $where = ( $key eq '/' || $key eq '' || $key eq '.' ) ? 'the site-wide rule' : "the rule on '$key'";
+        ( my $at = _acl_norm($rel) // '' ) =~ s{/+\z}{};
+        return {
+            ok        => 0,
+            kind      => 'widens-enclosing-rule',
+            field     => $mode,
+            enclosing => $key,
+            admits    => \@beyond,
+            error => "This rule would let " . join( ', ', @beyond ) . " $mode '$at', which "
+                . "$where encloses and does not let them $mode. A rule inside another may "
+                . "narrow who can $mode, and only the operator or the owner of $where may "
+                . 'widen it. Nothing was changed.',
+        };
+    }
+    return undef;
+}
+
+# SM1309: the same question for a MOVE, which carries every rule at or under
+# $from to the same place under $to (rekey_path) - so a member could write a
+# wide rule where nothing encloses it and move it inside the protected area.
+# Each carried rule is asked against what will enclose it at its new key, with
+# every carried key out of the map, as rekey_path will leave it. The page stem
+# rule fold_page_stem would carry is asked too.
+sub move_widening_refusal {
+    my ( $from, $to, $user, %o ) = @_;
+    return undef if $o{bypass};
+    $from = _acl_norm($from) // '';
+    $to   = _acl_norm($to)   // '';
+    s{/+\z}{} for $from, $to;
+    return undef unless length $from && length $to && $from ne $to;
+    my $map  = load_acls();
+    my $stem = $from =~ m{\A(.+)\.(?:md|url|html)\z} ? $1 : undef;
+    my @carried = grep { $_ eq $from || index( $_, "$from/" ) == 0 || ( defined $stem && $_ eq $stem ) }
+        sort keys %$map;
+    return undef unless @carried;
+    my %rest = %$map;
+    delete @rest{@carried};
+    for my $k (@carried) {
+        my $nk = ( defined $stem && $k eq $stem ) ? $to : $k eq $from ? $to : $to . substr( $k, length $from );
+        my $r = widening_refusal( \%rest, $nk, $map->{$k}, undef, $user );
+        return $r if $r;
+    }
+    return undef;
+}
+
 1;

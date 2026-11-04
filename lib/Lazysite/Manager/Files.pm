@@ -1253,6 +1253,15 @@ sub action_move {
     # rule names somebody else.
     if ( my $deny = _acl_denied( $d->{rel}, 'write', $username ) ) { return $deny }
 
+    # SM1309 (ruling 46): the rules the move carries land under whatever encloses
+    # the target, and are held to it as a rule written there is - or a wide rule
+    # written where nothing encloses it could be moved into a protected area.
+    if ( my $no = Lazysite::Auth::Acl::move_widening_refusal( $s->{rel}, $d->{rel}, $username,
+            bypass => file_rule_bypass() ) )
+    {
+        return $no;
+    }
+
     my $dst_dir = dirname($dst_full);
     my ( $mok, $merr ) = _mkpath_checked($dst_dir);
     return { ok => 0, error => "$merr (target folder)" } unless $mok;
@@ -2807,6 +2816,18 @@ sub action_acl_set {
     my %rec = ( owner => $owner );
     my $rl  = _to_list($read);  $rec{read}  = $rl if defined $rl;
     my $wl  = _to_list($write); $rec{write} = $wl if defined $wl;
+
+    # SM1309 (ruling 46): and a rule under an enclosing rule admits nobody that
+    # rule does not, unless the operator or its owner writes it. Every surface
+    # that writes a rule funnels through here (SM267), so one check covers the
+    # manager, the control API, MCP set_permissions and `lazysite acl set`. The
+    # record is rebuilt from the request, so a list it leaves out is no list and
+    # the enclosing rule governs that mode: only a list given can widen.
+    if ( my $no = Lazysite::Auth::Acl::widening_refusal( $acls, $rel, \%rec, $existing, $user,
+            bypass => file_rule_bypass() ) )
+    {
+        return $no;
+    }
 
     # SM1139 (slice B of SM1134): THE RULE MAY NAME ADDRESS LISTS. `addresses`
     # (allow) and `addresses_deny` are lists of list NAMES from the store SM1138

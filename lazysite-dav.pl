@@ -1378,6 +1378,17 @@ sub do_copy_move {
         }
     }
 
+    # SM1309 (ruling 46): a MOVE carries its rules to the destination, where they
+    # are held to the rule that encloses them as a rule written there is. A
+    # WebDAV account is never the operator, so only the enclosing rule's owner
+    # passes.
+    if ($move) {
+        if ( my $no = Lazysite::Auth::Acl::move_widening_refusal( $a{rel}, $drel, $a{user}, bypass => 0 ) ) {
+            $REFUSAL_DETAIL = $no->{kind};
+            return send_status( 403, body => "$no->{error}\n" );
+        }
+    }
+
     _remove_entry( $dst->{abs} ) if $dst_exists;
 
     my $ok;

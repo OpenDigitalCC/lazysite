@@ -222,6 +222,18 @@ Archive
   the tools under test, with no limit: a child that never exits hung its test with nothing to
   name it. They run through TestHelper::run_child now, which fails the test naming itself and
   the child after `child_timeout()`.
+- SM1309 (PENDING) **a rule inside another may narrow it; only the operator or the
+  enclosing rule's owner may widen it.** A subfolder's rule replaces its parent's for a mode
+  (longest match), and anyone who may write a path may write its first rule, so a member of
+  a protected area, or the member's agent, opened a subfolder to a non-member with one
+  `set_permissions` call. Writing a rule that admits, to read or to write, anyone the
+  enclosing rule does not is now refused (`kind: widens-enclosing-rule`, naming the
+  enclosing rule) unless the operator or that rule's owner writes it, on the manager, the
+  control API, MCP and `lazysite acl set`. A move that would carry such a rule inside the
+  area is refused the same way, on the manager, MCP and WebDAV. Longest match stays, so an
+  operator's carve-out still works, and an existing carve-out can be re-applied by its
+  owner. Ruled 2026-11-04 (ruling 46).
+
 - SM1308 (PENDING) **a confined agent lists and searches only its scope.** An MCP grant
   confined to a scope was answered `list_pages`, `list_files` and `search_files` from the
   whole docroot when it named no path, because the scope check skips an argument that is not
