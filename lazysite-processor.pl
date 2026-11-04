@@ -2090,13 +2090,13 @@ sub _lazy_lib {
         %_site_vars_cache  = ();
         $_site_vars_loaded = 0;
         $_site_vars_sig    = '';
-        undef $REQUEST_CROOT;    # SM151: recomputed per request in main()
+        undef $REQUEST_CROOT;        # SM151: recomputed per request in main()
         undef $ENGINE_DOC_RENDER;    # SM1284
-        %MAINT = ();             # SM1118: this request's maintenance outcome
-        undef $ACL_MAP_CACHE;    # SM973: a pooled worker re-reads acls.json
-        undef $DRAFT_BYTES;      # SM1030
+        %MAINT = ();                 # SM1118: this request's maintenance outcome
+        undef $ACL_MAP_CACHE;        # SM973: a pooled worker re-reads acls.json
+        undef $DRAFT_BYTES;          # SM1030
         undef $DRAFT_MD;
-        undef $PREVIEW_THEME;    # SM1290
+        undef $PREVIEW_THEME;        # SM1290
         undef $PREVIEW_THEME_STATE;
         _reset_peek_cache();
         # SM1169 (t/lint/269): three more a pooled worker kept from the last visitor.
