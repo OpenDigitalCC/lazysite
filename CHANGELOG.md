@@ -222,6 +222,11 @@ Archive
   the tools under test, with no limit: a child that never exits hung its test with nothing to
   name it. They run through TestHelper::run_child now, which fails the test naming itself and
   the child after `child_timeout()`.
+- SM1312 (PENDING) **list_pages leaves out a page the caller may not read.** It read every
+  page's title without asking the page's rule, so a gated page still in the document root
+  (protected before 0.10.8, or under a rule with only address lists) had its title listed.
+  Ruled 2026-11-04 (ruling 60).
+
 - SM1311 (PENDING) **a confined audit is of its scope.** `audit_site` walked the whole site
   for a grant confined to a scope. It now audits the scope (`scope_roots`). A link to a page
   outside it is listed in `outside_scope_links`, never as broken, and its target is not

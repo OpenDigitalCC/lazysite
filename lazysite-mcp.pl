@@ -2344,7 +2344,7 @@ my %TOOLS = (
         description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list. A grant confined to a scope is answered the pages within its scope. Walks at most 1,000 pages: "truncated" says whether it stopped there, and when it did "page_cap" is that limit and "count" covers only the pages walked, never the site\'s total.',
         cap => 'manage_content',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { _list_pages( _walk_roots( $_[2] ) ) },
+        run => sub { _list_pages( _walk_roots( $_[2] ), $_[1] ) },
     },
     read_page => {
         path_args => [qw(path)],
@@ -3252,10 +3252,16 @@ sub _walk_roots {
 }
 
 sub _list_pages {
-    my ($roots) = @_;
+    my ( $roots, $user ) = @_;
     my @pages;
     my $truncated = _each_page( sub {
             my ( $rel, $full ) = @_;
+            # SM1312 (ruling 60): A PAGE THE CALLER MAY NOT READ IS NOT LISTED.
+            # Its title is its text, so its rule decides it before it is opened,
+            # as read_page's does. A page under a read rule left in the document
+            # root (a section protected before 0.10.8, or a rule carrying only
+            # address lists) had its title listed to a grant read_page refuses.
+            return if defined $user && _acl_denied( $rel, 'read', $user );
             open my $fh, '<:utf8', $full or return;
             local $/; my $c = <$fh>; close $fh;
             my ($fm) = _split_front_matter($c);
