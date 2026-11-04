@@ -67,6 +67,23 @@ tarball_ready() {
     [ -s "$f" ] && gzip -t "$f" 2>/dev/null
 }
 
+# Print yes, no or unreadable: whether the release-manifest.json of version $1,
+# inside tarball $2, declares "security_critical": true. The tarball is the
+# stage the updater runs from once unpacked, so this is the manifest the
+# updater's own --force-security check reads, and the test is the same: the
+# key's truth, as JSON::PP decodes it.
+security_critical() {
+    local ver=$1 tarball=$2 rc=0
+    tar -xzOf "$tarball" "lazysite-$ver/release-manifest.json" 2>/dev/null |
+        perl -MJSON::PP -e 'local $/; my $m = eval { JSON::PP->new->decode(<STDIN>) }; exit 2 unless ref $m eq "HASH"; exit( $m->{security_critical} ? 0 : 1 )' ||
+        rc=$?
+    case $rc in
+        0) printf 'yes\n' ;;
+        1) printf 'no\n' ;;
+        *) printf 'unreadable\n' ;;
+    esac
+}
+
 # The flags the updater must be given for a given target version.
 #
 # SM345 - WHAT CHANGED, AND WHY: this passed `--rebuild` on EVERY deploy.
@@ -100,13 +117,38 @@ tarball_ready() {
 #
 # Version-gated because this watcher deploys whatever appears in dist: passing a
 # flag to a release that predates it fails the whole run on an unknown option.
+#
+# SM1315 (ruling 45): --force-security when the release declares itself
+# security-critical. 0.16.2 did, and the updater scoped it by each site's
+# update_channel, so it reached the edge sites only and the rest were pushed by
+# hand. The declaration is read from the release's own manifest (see
+# security_critical above); a missing or false key, or a manifest that cannot be
+# read, adds nothing. No version gate is needed: a manifest carries the key only
+# from 0.16.2 (SM1305), whose updater takes the flag (SM1307). It changes which
+# SITES the updater puts in scope, never which VERSIONS this watcher deploys: a
+# version that is not strictly higher is still not deployed.
 updater_flags() {
-    local ver=$1 flags="${LAZYSITE_DEPLOY_FLAGS:-}"
+    local ver=$1 tarball=${2:-} flags="${LAZYSITE_DEPLOY_FLAGS:-}" sc
     # An `if`, not `a && b`: this script runs under `set -e` unattended, and a
     # bare AND-list whose left side fails is exactly the construct whose -e
     # behaviour people disagree about. Not worth being clever in a deploy loop.
     if version_gt "$ver" '0.10.8'; then
         flags="$flags --reapply-acls"
+    fi
+    if [ -n "$tarball" ]; then
+        sc=$(security_critical "$ver" "$tarball")
+        case $sc in
+            yes)
+                case " $flags " in
+                    *' --force-security '*) ;;
+                    *) flags="$flags --force-security" ;;
+                esac
+                ;;
+            unreadable)
+                printf 'lazysite-deploy: %s: no readable release-manifest.json in %s; deploying without --force-security\n' \
+                    "$ver" "$tarball" >&2
+                ;;
+        esac
     fi
     printf '%s\n' "$flags"
 }
@@ -121,7 +163,7 @@ updater_flags() {
 #   *  the rollout failed
 deploy() {
     local ver=$1 src="$DIST/lazysite-$1.tar.gz" flags rc=0
-    flags=$(updater_flags "$ver")
+    flags=$(updater_flags "$ver" "$src")
     printf '\n=== Deploying %s -> %s (%s) ===\n' "$ver" "$HOST" "${flags:-plain deploy}"
     scp "$src" "$HOST:/tmp" || return 1
     ssh "$HOST" "cd /tmp; tar -xzf lazysite-$ver.tar.gz" || return 1

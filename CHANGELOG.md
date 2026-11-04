@@ -306,6 +306,15 @@ Archive
   with `path=/`; `Files::action_acl_remove` refuses it for the CLI and MCP too. The action
   declares `path` required, as MCP `remove_permissions` does. `/`, `.` and `./` still remove
   the site-wide rule. Ruled 2026-10-23 (ruling 17), replacing SM306's no-path default.
+- SM1315 (PENDING) **release: the deploy hook passes `--force-security` itself.** A
+  release whose manifest declares `"security_critical": true` was deployed by
+  `tools/lazysite-deploy.sh` with its usual flags, so the Hestia updater scoped it by each
+  site's `update_channel` and the operator pushed it to the rest by hand. The hook now reads
+  `release-manifest.json` from the tarball it deploys and adds `--force-security` to the
+  updater's flags when the key is true; a missing or false key adds nothing, and a manifest
+  it cannot read adds nothing and says so. It still deploys only a strictly higher version
+  (ruling 45).
+
 - SM1314 (PENDING) **release: a security release is cut on stable.** 0.16.2 was cut
   `--security-critical` on edge, so the standard deploy reached only the edge sites and the
   rest were pushed by hand with the Hestia updater's `--force-security`.

@@ -137,7 +137,10 @@ It refuses the flag the same way for a payload that does not declare
 is deployed anyway (`install.pl --force-security` through the per-site deploy),
 named as forced in the table, the findings and the summary, and audited as
 `upgrade-forced`; excluded sites stay excluded. The updater reads no
-`update_policy`, so there is none to override. On such a host
+`update_policy`, so there is none to override. The release watcher
+(`tools/lazysite-deploy.sh`) runs the updater with `--force-security` itself when
+the manifest of the release it deploys declares `security_critical` (SM1315), so
+such a release needs no hand push. On a Hestia host
 `lazysite upgrade --all` names this command instead of reporting no sites.
 
 ### Repairing permissions and ownership - the one way
