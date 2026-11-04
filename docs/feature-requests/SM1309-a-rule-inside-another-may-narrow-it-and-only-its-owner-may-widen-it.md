@@ -82,9 +82,10 @@ narrowing rule and the owner and operator writes are the controls). With
 # Not done
 
 - **Rules already written.** A carve-out a member wrote before 0.16.3 is honoured; the
-  check is on writing, and the ruling keeps longest match. Finding them needs a reading
-  of each rule against its enclosing one; `lazysite check` does not do that.
+  check is on writing, and the ruling keeps longest match. `lazysite check` names each one
+  for the operator to review (SM1313, ruling 61) and changes nothing.
 - **A group's membership** is read when the rule is written. Adding someone to a group a
   subfolder rule names later admits them there, as it always has.
-- **The site package** (`site_apply`) restores an acls.json as it was packaged; it is an
-  operator's act and is not asked.
+- **The site package** (`site_apply`) restores an acls.json as it was packaged. It is an
+  operator's act and is not checked (ruling 62). The move route is within ruling 46
+  (ruling 64).

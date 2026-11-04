@@ -109,8 +109,8 @@ Information disclosure | A page or a group's rights reaching an address the oper
 Information disclosure | A page held back by a rule keyed by its stem (`/about` stored as `about`) published by a move or a delete that re-keys only the page's own key, its bytes synced back into the document root (SM1257, SM1242, SM1258) | `Acl::fold_page_stem` is the one function every mover and deleter calls (the manager, MCP `move_file` and `rename_page`, the control API, WebDAV MOVE and DELETE): the stem rule moves or goes with the page while no folder of that name exists, and the store sync puts the bytes where the rule says | Closed in 0.16.1; a stem key that is a folder's rule is left alone by design (t/unit/manager/160, t/unit/dav/34)
 Information disclosure | A long-lived parent that every Odoo endpoint child is forked from holds a key, a secret or one visitor's request, and every later child inherits it (SM1226) | The parent requires code and runs none of it, reads no configuration or key and never reads a request; a fresh child per request, which exits; the child's environment is the parameters less every identity variable, and the endpoint verifies the cookie itself; `srand` in the child | t/integration/325 reads the parent's memory after signed-in requests and finds no secret, key, cookie signature, token or parameter; t/lint/272 classifies what it holds
 Elevation of privilege | A theme archive's symbolic link copied into the served asset mirror, so a public URL under `/lazysite-assets/` named any file the web server can read - the session-signing secret `lazysite/auth/.secret` among them, from which a `manage_themes` holder could mint an operator's session (SM1303) | The theme upload checks every entry before extracting any and refuses a symbolic link, a file type the web server runs and an archive over the upload limit; `lazysite check` warns for every link under `lazysite-assets/` (SM1304) | Closed in 0.16.2; a link planted before then stays until removed, and the secret it may have served until rotated (t/integration/336, t/tools/290)
-Information disclosure | A grant confined to a scope answered from the whole docroot by a listing or search that names no path, which the scope check skips; a search quoting lines of a file whose rule the caller does not pass (SM1308) | A confined grant's missing or empty path is its scope roots and every walk starts there (MCP `list_files`, `list_pages`, `search_files`, `delete_page`'s references, `rename_page`'s link rewrite; the manager API's `list` and `pages`); each search hit is asked `_acl_denied`, read_file's question | Closed in 0.16.3 (t/unit/mcp/65, t/unit/manager/415); `audit_site` still walks the whole site for a confined grant
-Elevation of privilege | A member of a protected area writing a rule on a subfolder that admits a non-member, which replaces the area's rule there by longest match (SM1309) | Writing or moving a rule that admits, to read or write, anyone its enclosing rule does not is refused unless the operator or the enclosing rule's owner does it (`Acl::widening_refusal`, `move_widening_refusal`), on every surface that writes or moves a rule | Closed in 0.16.3 (t/unit/mcp/66, t/unit/dav/36); a carve-out written before then is honoured until removed
+Information disclosure | A grant confined to a scope answered from the whole docroot by a listing or search that names no path, which the scope check skips; a search quoting lines of a file whose rule the caller does not pass (SM1308) | A confined grant's missing or empty path is its scope roots and every walk starts there (MCP `list_files`, `list_pages`, `search_files`, `delete_page`'s references, `rename_page`'s link rewrite; the manager API's `list` and `pages`); each search hit is asked `_acl_denied`, read_file's question | Closed in 0.16.3 (t/unit/mcp/65, t/unit/manager/415); `audit_site` is confined too and a page's title is listed only to a caller who may read it (SM1311, SM1312; t/unit/mcp/68, t/unit/mcp/69)
+Elevation of privilege | A member of a protected area writing a rule on a subfolder that admits a non-member, which replaces the area's rule there by longest match (SM1309) | Writing or moving a rule that admits, to read or write, anyone its enclosing rule does not is refused unless the operator or the enclosing rule's owner does it (`Acl::widening_refusal`, `move_widening_refusal`), on every surface that writes or moves a rule | Closed in 0.16.3 (t/unit/mcp/66, t/unit/dav/36); a carve-out written before then is honoured until removed, and `lazysite check` names each for review (SM1313; t/tools/295)
 ```
 
 ## Five priority entries (from the review)
@@ -1774,7 +1774,7 @@ verdict
   remediation record ADR 0007 asks for stays for the certified release
   (`docs/compliance/OBLIGATIONS.md`).
 
-### 2026-11-04 - SM1308, SM1309 (0.16.3): a confined agent reached outside its scope, and a member could widen an area's rule
+### 2026-11-04 - SM1308, SM1309, SM1311-SM1313 (0.16.3): a confined agent reached outside its scope, and a member could widen an area's rule
 
 Assessment drafted by the developer agent for the release manager's confirmation. Both were reported on 2026-10-27 by a site building a protected, agent-first intranet (gaps G3 and G4), verified against the source in the inbox triage of 2026-11-04 (T-01, T-02), and ruled on the same day (rulings 47 and 46): both are fixed in 0.16.3, the edge batch, with this entry. Whether either needs a security release, a notice or an advisory is the release manager's to decide; no exploitation outside the reporter's own test site is known.
 
@@ -1792,6 +1792,9 @@ what changed
   reverted t/unit/mcp/65 and t/unit/manager/415 reproduce each. A confined grant's missing
   or empty path is now its scope roots, every one of those walks starts there, and the
   search asks each file read_file's question (`_acl_denied`) before it quotes it.
+  Rulings 59 and 60 close the two walks left: `audit_site` audits a confined grant's scope
+  and lists a link outside it as outside the scope, never as broken (SM1311), and
+  `list_pages` asks a page's rule before it lists the title (SM1312).
 : SM1309 (T-02). A mode's list is decided by the longest match, so a rule on a subfolder
   replaces the enclosing rule there rather than narrowing it, and anyone with write access
   to a path may write its first rule. A member of a protected area, or the member's agent,
@@ -1801,7 +1804,9 @@ what changed
   Writing a rule that admits, to read or to write, anyone the enclosing rule does not is
   now refused unless the operator or the enclosing rule's owner writes it, naming the
   enclosing rule; a move that would carry such a rule inside the area is refused the same
-  way, since a move carries the rules under it to the target.
+  way, since a move carries the rules under it to the target (within ruling 46, ruling
+  64). `lazysite check` names each stored rule of that kind for the operator to review,
+  and changes nothing (SM1313, ruling 61).
 
 affected versions
 : SM1308: 0.7.19 (2026-07-16), when MCP and the control API began confining a partner to
@@ -1857,17 +1862,16 @@ controls
   anything moves. t/unit/mcp/66 and t/unit/dav/36 fail with the change reverted.
 
 residual risk
-: SM1308: `audit_site` still walks the whole site for a confined grant (titles, links,
-  unprotected statics, rule keys); confining it changes what its broken-link report means,
-  so it waits for a ruling. Protected content is not searched at all (T-15, 0.16.4).
-: SM1309: a carve-out a member wrote before 0.16.3 is honoured until removed: the check is
-  on writing, and nothing reads each stored rule against its enclosing one. A group's
-  membership is read when the rule is written, so a group a carve-out names admits whoever
-  joins it later, as it always has. A site package restore (`site_apply`) writes its rules
-  as packaged; it is an operator's act.
+: SM1308: protected content is not searched at all (T-15, 0.16.4).
+: SM1309: a carve-out a member wrote before 0.16.3 is honoured until an operator removes
+  it. The check is on writing; `lazysite check` names each such rule as a WARN and changes
+  nothing, and `lazysite repair` leaves it for a person (SM1313). A group's membership is
+  read when the rule is written, so a group a carve-out names admits whoever joins it
+  later, as it always has. A site package restore (`site_apply`) writes its rules as
+  packaged; it is an operator's act and is not checked (ruling 62).
 
 verdict
 : proposed: accepted, pending the release manager's confirmation. Recorded because each
   closed a bypass of a boundary this register names (confinement; the access rule), as the
-  SM1257 and SM1303 entries were. Whether existing sites should be told to review their
-  rules for a member-written carve-out is the release manager's call.
+  SM1257 and SM1303 entries were. The 0.16.3 notes tell an operator to read the check's
+  new warning and review each rule it names (ruling 61).

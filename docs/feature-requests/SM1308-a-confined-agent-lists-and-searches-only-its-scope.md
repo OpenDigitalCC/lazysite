@@ -78,11 +78,9 @@ steps pass).
 
 # Not done
 
-- **audit_site** walks the whole site for a confined grant too (titles, links,
-  unprotected statics, ACL keys). Confining its page walk would report a link to a page
-  outside the scope as broken, so it needs a ruling on what a confined audit says.
-- **list_pages applies no ACL to the titles it reads.** A page under a read rule is in
-  the private store since SM286 (0.10.8), which the walk does not enter; a page left in
-  the document root by an earlier release would have its title listed.
+- **audit_site** also walked the whole site for a confined grant. It is confined by
+  SM1311 (ruling 59), and a link outside the scope is reported as outside the scope.
+- **list_pages applied no ACL to the titles it reads.** SM1312 (ruling 60) has it ask
+  each page's rule first.
 - **Protected content in the search (T-15)** is 0.16.4: the search still walks the
   document root only.
