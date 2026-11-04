@@ -109,6 +109,8 @@ Information disclosure | A page or a group's rights reaching an address the oper
 Information disclosure | A page held back by a rule keyed by its stem (`/about` stored as `about`) published by a move or a delete that re-keys only the page's own key, its bytes synced back into the document root (SM1257, SM1242, SM1258) | `Acl::fold_page_stem` is the one function every mover and deleter calls (the manager, MCP `move_file` and `rename_page`, the control API, WebDAV MOVE and DELETE): the stem rule moves or goes with the page while no folder of that name exists, and the store sync puts the bytes where the rule says | Closed in 0.16.1; a stem key that is a folder's rule is left alone by design (t/unit/manager/160, t/unit/dav/34)
 Information disclosure | A long-lived parent that every Odoo endpoint child is forked from holds a key, a secret or one visitor's request, and every later child inherits it (SM1226) | The parent requires code and runs none of it, reads no configuration or key and never reads a request; a fresh child per request, which exits; the child's environment is the parameters less every identity variable, and the endpoint verifies the cookie itself; `srand` in the child | t/integration/325 reads the parent's memory after signed-in requests and finds no secret, key, cookie signature, token or parameter; t/lint/272 classifies what it holds
 Elevation of privilege | A theme archive's symbolic link copied into the served asset mirror, so a public URL under `/lazysite-assets/` named any file the web server can read - the session-signing secret `lazysite/auth/.secret` among them, from which a `manage_themes` holder could mint an operator's session (SM1303) | The theme upload checks every entry before extracting any and refuses a symbolic link, a file type the web server runs and an archive over the upload limit; `lazysite check` warns for every link under `lazysite-assets/` (SM1304) | Closed in 0.16.2; a link planted before then stays until removed, and the secret it may have served until rotated (t/integration/336, t/tools/290)
+Information disclosure | A grant confined to a scope answered from the whole docroot by a listing or search that names no path, which the scope check skips; a search quoting lines of a file whose rule the caller does not pass (SM1308) | A confined grant's missing or empty path is its scope roots and every walk starts there (MCP `list_files`, `list_pages`, `search_files`, `delete_page`'s references, `rename_page`'s link rewrite; the manager API's `list` and `pages`); each search hit is asked `_acl_denied`, read_file's question | Closed in 0.16.3 (t/unit/mcp/65, t/unit/manager/415); `audit_site` still walks the whole site for a confined grant
+Elevation of privilege | A member of a protected area writing a rule on a subfolder that admits a non-member, which replaces the area's rule there by longest match (SM1309) | Writing or moving a rule that admits, to read or write, anyone its enclosing rule does not is refused unless the operator or the enclosing rule's owner does it (`Acl::widening_refusal`, `move_widening_refusal`), on every surface that writes or moves a rule | Closed in 0.16.3 (t/unit/mcp/66, t/unit/dav/36); a carve-out written before then is honoured until removed
 ```
 
 ## Five priority entries (from the review)
@@ -1771,3 +1773,101 @@ verdict
   bypass of a boundary this register names, as the SM1213 and SM1257 entries were. The
   remediation record ADR 0007 asks for stays for the certified release
   (`docs/compliance/OBLIGATIONS.md`).
+
+### 2026-11-04 - SM1308, SM1309 (0.16.3): a confined agent reached outside its scope, and a member could widen an area's rule
+
+Assessment drafted by the developer agent for the release manager's confirmation. Both were reported on 2026-10-27 by a site building a protected, agent-first intranet (gaps G3 and G4), verified against the source in the inbox triage of 2026-11-04 (T-01, T-02), and ruled on the same day (rulings 47 and 46): both are fixed in 0.16.3, the edge batch, with this entry. Whether either needs a security release, a notice or an advisory is the release manager's to decide; no exploitation outside the reporter's own test site is known.
+
+what changed
+: SM1308 (T-01). MCP's scope pass checks each path argument a tool declares and skips
+  one that is absent or empty, so a grant confined to a scope, refused `/` when it named
+  it, was answered from the whole document root when it named nothing: `list_files`
+  defaulted to `/`, `search_files` walked the docroot, `list_pages` (which takes no path)
+  walked it too, as did `delete_page`'s reference list and `rename_page`'s link rewrite,
+  which saved pages outside the scope. The manager API's `pages` took no path, and its
+  `list` with an empty path listed the docroot. And `search_files` quoted lines of any file
+  it walked, with no per-file rule asked, where `read_file` refuses a file whose read list
+  or address rule the caller does not pass. Shown, not assumed: the reporter's agent found
+  a line of a page outside its area and was listed 108 site pages, and with the fix
+  reverted t/unit/mcp/65 and t/unit/manager/415 reproduce each. A confined grant's missing
+  or empty path is now its scope roots, every one of those walks starts there, and the
+  search asks each file read_file's question (`_acl_denied`) before it quotes it.
+: SM1309 (T-02). A mode's list is decided by the longest match, so a rule on a subfolder
+  replaces the enclosing rule there rather than narrowing it, and anyone with write access
+  to a path may write its first rule. A member of a protected area, or the member's agent,
+  therefore opened a subfolder to a non-member with one `set_permissions` call, and the
+  non-member read its pages (the reporter measured 403, then 200). Longest match stays, so
+  an operator can still carve a wider audience out of a private site (SM287, SM223).
+  Writing a rule that admits, to read or to write, anyone the enclosing rule does not is
+  now refused unless the operator or the enclosing rule's owner writes it, naming the
+  enclosing rule; a move that would carry such a rule inside the area is refused the same
+  way, since a move carries the rules under it to the target.
+
+affected versions
+: SM1308: 0.7.19 (2026-07-16), when MCP and the control API began confining a partner to
+  its scope (SEC-2026-07 M2, SM155), to 0.16.2. Before 0.7.19 nothing confined a partner,
+  so there was no scope to reach outside. The search's missing per-file check is older:
+  `search_files` shipped in 0.4.11 (2026-06-25) and has quoted files under a read rule
+  since then. From 0.10.8 (SM286) such a file is moved out of the document root, so after
+  that it is reached only where content stayed in the docroot: a section protected before
+  0.10.8 and not re-applied, or a rule carrying only address lists (SM1134, 0.15.10),
+  which moves nothing.
+: SM1309: 0.10.5 (2026-08-09), when a folder rule began to govern its section by longest
+  match (SM181, SM223; on the manager, MCP and WebDAV from SM268 H3 in the same release),
+  to 0.16.2. The move route is from 0.10.19 on WebDAV (CF-2) and 0.10.32 on the manager
+  (SM518), inside that range.
+: Both are fixed in 0.16.3.
+
+who could do it
+: SM1308: an MCP grant holding `mcp` and `manage_content` and confined to a scope (a token
+  or OAuth partner whose account's group a domain names in `allowed_groups`); on the manager
+  API, a signed-in editor or a token so confined, through `pages` (`manage_content` or
+  `manage_nav`) and, for a cookie session, `list` with an empty path. It could read the
+  names, titles and text of pages outside its scope, other domains' among them, and, through
+  `rename_page`'s link rewrite, change the links in them. The search's per-file half reached
+  any `manage_content` grant, confined or not, for the files described above. Not
+  anonymous, and not a write beyond the link rewrite.
+: SM1309: an account that may write a path inside a protected area: a member of the
+  area's write list (or, with no write list, anyone with `manage_content` there), through
+  the manager, the control API, MCP `set_permissions`, `lazysite acl set` as that account,
+  or a move over the manager, MCP or WebDAV. The audience it could add is any account or
+  group, so the area's content reached people its owner had not admitted; with a write
+  list, they could change it too. Not anonymous: an anonymous visitor matches no read list.
+
+threat delta
+: Information disclosure, and for SM1309 elevation of privilege inside the access model.
+  SM1308 crossed the confinement boundary SEC-2026-07 drew between a domain's partner and
+  the rest of the instance; SM1309 let a member decide an audience the area's owner
+  decides, which the documented "a folder rule gates its section" read as closed. No trigger
+  of ADR 0007's four fired: the fixes add no interface, method, dependency or data. The
+  refusals are new answers on existing calls (`widens-enclosing-rule`; a confined
+  listing's `scope_roots`).
+
+controls
+: SM1308: `_walk_roots` (the grant's scope roots, nested ones dropped) for every MCP walk;
+  `Files::action_list_scope_roots`, the one answer to a confined listing that names no
+  folder on both doors; `outside_all_scopes` asked again of every search candidate; and
+  `Acl::_acl_denied` at each file's first matching line, before the match is counted.
+  t/unit/mcp/65 and t/unit/manager/415 fail with the change reverted.
+: SM1309: `Acl::widening_refusal` (the enclosing rule by the readers' own walk with the
+  path's key taken out; only principals the path's present rule does not already admit;
+  nesting and case as the readers read them), asked by `Files::action_acl_set`, which
+  every rule writer calls, before it writes or answers a dry run; and
+  `Acl::move_widening_refusal`, asked by `Files::action_move` and WebDAV MOVE before
+  anything moves. t/unit/mcp/66 and t/unit/dav/36 fail with the change reverted.
+
+residual risk
+: SM1308: `audit_site` still walks the whole site for a confined grant (titles, links,
+  unprotected statics, rule keys); confining it changes what its broken-link report means,
+  so it waits for a ruling. Protected content is not searched at all (T-15, 0.16.4).
+: SM1309: a carve-out a member wrote before 0.16.3 is honoured until removed: the check is
+  on writing, and nothing reads each stored rule against its enclosing one. A group's
+  membership is read when the rule is written, so a group a carve-out names admits whoever
+  joins it later, as it always has. A site package restore (`site_apply`) writes its rules
+  as packaged; it is an operator's act.
+
+verdict
+: proposed: accepted, pending the release manager's confirmation. Recorded because each
+  closed a bypass of a boundary this register names (confinement; the access rule), as the
+  SM1257 and SM1303 entries were. Whether existing sites should be told to review their
+  rules for a member-written carve-out is the release manager's call.
