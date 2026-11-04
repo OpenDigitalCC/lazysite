@@ -1406,8 +1406,8 @@ sub run_checks {
     report_csp_allow_lists();
     report_permissions_ceiling();    # SM1294
     report_group_acl_reach();
-    report_address_rules();    # SM1141
-    report_widened_rules();    # SM1313
+    report_address_rules();          # SM1141
+    report_widened_rules();          # SM1313
 
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
     report_stray_public();
