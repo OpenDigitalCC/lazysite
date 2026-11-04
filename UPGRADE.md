@@ -47,8 +47,8 @@ runtime or the FastCGI pool has the previous engine in memory; the single-site
 verbs name the units, and `upgrade --all` (root) restarts them itself.
 
 **A security release reaches every site, stable ones included.** A release whose
-manifest declares `"security_critical": true` (cut with `tools/release.sh
---security-critical`) is pushed past each site's `update_channel`:
+manifest declares `"security_critical": true` (cut on stable with `tools/release.sh
+--final --security-critical`; SM1314) is pushed past each site's `update_channel`:
 
 ```bash
 # a HestiaCP host - its sites are not in the registry; as root:

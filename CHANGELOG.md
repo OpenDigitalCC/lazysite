@@ -306,6 +306,13 @@ Archive
   with `path=/`; `Files::action_acl_remove` refuses it for the CLI and MCP too. The action
   declares `path` required, as MCP `remove_permissions` does. `/`, `.` and `./` still remove
   the site-wide rule. Ruled 2026-10-23 (ruling 17), replacing SM306's no-path default.
+- SM1314 (PENDING) **release: a security release is cut on stable.** 0.16.2 was cut
+  `--security-critical` on edge, so the standard deploy reached only the edge sites and the
+  rest were pushed by hand with the Hestia updater's `--force-security`.
+  `tools/release.sh build X --security-critical` now refuses (exit 2) unless `--final` (or
+  `--certified`) is given too, before a receipt is read, saying a security release is cut on
+  stable so the standard deploy reaches every site. OPERATOR.md, UPGRADE.md and
+  docs/development.md give the stable form (ruling 45).
 
 ## 0.16.2 - EDGE: a security release: a theme archive cannot plant a link in the served asset mirror (2026-10-23)
 

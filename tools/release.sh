@@ -69,6 +69,8 @@
 #   ("security_critical": true, build-manifest.pl --security-critical), which
 #   is what lets `lazysite upgrade --all --force-security` push it past every
 #   site's channel and policy. A release without it does not carry the key.
+#   It needs --final (or --certified): a security release is cut on stable so
+#   the standard deploy reaches every site (SM1314, ruling 45).
 set -e
 
 # The repository this script belongs to - the one it gates, builds and tags.
@@ -171,7 +173,7 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         -h|--help)
-            sed -n '2,71p' "$0" | sed 's/^# \?//'
+            sed -n '2,73p' "$0" | sed 's/^# \?//'
             exit 0
             ;;
         -*)
@@ -253,8 +255,25 @@ if [ "$MODE" = publish ]; then
 fi
 
 if [ -z "$MODE" ]; then
-    sed -n '2,71p' "$0" | sed 's/^# \?//'
+    sed -n '2,73p' "$0" | sed 's/^# \?//'
     exit 0
+fi
+
+# SM1314 (ruling 45): A SECURITY RELEASE IS CUT ON STABLE. 0.16.2 was cut
+# security-critical on edge, so the standard deploy reached only the edge sites
+# and the rest were pushed by hand with --force-security. A stable build is one
+# every site below certified accepts, and the deploy hook adds --force-security
+# for the rest (SM1315). Refused before anything is read or staged.
+if [ "${#SECURITY_CRITICAL[@]}" -gt 0 ]; then
+    case "$CHANNEL" in
+        stable | certified) ;;
+        *)
+            echo "release.sh: --security-critical needs --final: a security release is cut on" >&2
+            echo "release.sh: stable, so the standard deploy reaches every site (ruling 45)." >&2
+            echo "release.sh: This $CHANNEL cut would reach only the sites that take $CHANNEL builds." >&2
+            exit 2
+            ;;
+    esac
 fi
 
 # A version is always given: gate-main.sh decides it for a gate, and the

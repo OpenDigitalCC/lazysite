@@ -255,22 +255,47 @@ subtest 'build: one release commit on main, tagged, from the receipt' => sub {
 # to ask build-manifest.pl for "security_critical": true - the declaration
 # `lazysite upgrade --all --force-security` refuses to act without. The shipped
 # manifest is read back from the tarball, where the installer reads it.
+# SM1314 (ruling 45): on stable, which is where a security release is cut.
 subtest 'build --security-critical marks the shipped manifest; a build without it does not' => sub {
     for my $sc ( 0, 1 ) {
         my $d = repo();
-        receipt($d);
-        my ( $rc, $out ) = release( $d, 'build', '0.1.1', '--notes', $NOTES, ( $sc ? '--security-critical' : () ) );
+        receipt( $d, channel => 'stable' );
+        my ( $rc, $out ) = release( $d, 'build', '0.1.1', '--notes', $NOTES, '--final', ( $sc ? '--security-critical' : () ) );
         is( $rc, 0, ( $sc ? 'with' : 'without' ) . ' the flag, the build passes' ) or return diag($out);
         my $m = run_cmd( 'tar', '-xzOf', "$d/dist/lazysite-0.1.1.tar.gz", 'lazysite-0.1.1/release-manifest.json' );
         if ($sc) {
             like( $m, qr/"security_critical":true/, 'the manifest declares the release security-critical' );
-            like( $out, qr/^==> build-manifest\.pl \(channel: edge, security-critical\)$/m, 'and the build says so' );
+            like( $out, qr/^==> build-manifest\.pl \(channel: stable, security-critical\)$/m, 'and the build says so' );
         }
         else {
             unlike( $m, qr/security_critical/, 'the manifest carries no security_critical key' );
-            like( $out, qr/^==> build-manifest\.pl \(channel: edge\)$/m, 'and the build names the channel only' );
+            like( $out, qr/^==> build-manifest\.pl \(channel: stable\)$/m, 'and the build names the channel only' );
         }
     }
+};
+
+# SM1314 (ruling 45): 0.16.2 was cut security-critical on EDGE, so the standard
+# deploy reached the edge sites only and the rest were pushed by hand. A
+# security release is cut on stable; below it the build refuses, before a
+# receipt is read, and main and the tags are as they were.
+subtest 'build --security-critical refuses below stable, and says why' => sub {
+    for my $ch ( [ 'edge' ], [ 'beta', '--beta' ] ) {
+        my ( $name, @flag ) = @$ch;
+        my $d    = repo();
+        my $main = git( $d, 'rev-parse', 'main' );
+        receipt( $d, channel => $name );
+        my ( $rc, $out ) = release( $d, 'build', '0.1.1', '--notes', $NOTES, @flag, '--security-critical' );
+        is( $rc, 2, "a $name build with --security-critical is refused" ) or diag($out);
+        like( $out, qr/--security-critical needs --final: a security release is cut on\nrelease\.sh: stable, so the standard deploy reaches every site \(ruling 45\)\./,
+            'saying a security release is cut on stable so the standard deploy reaches every site' );
+        like( $out, qr/This \Q$name\E cut would reach only the sites that take \Q$name\E builds\./, 'and what this one would reach' );
+        is( git( $d, 'rev-parse', 'main' ), $main, 'main is untouched' );
+        is( tags($d), '', 'and no tag is made' );
+    }
+    my $d = repo();
+    receipt( $d, channel => 'certified' );
+    my ( $rc, $out ) = release( $d, 'build', '0.1.1', '--notes', $NOTES, '--certified', '--security-critical' );
+    unlike( $out, qr/--security-critical needs --final/, 'certified, above stable, is not refused for it' );
 };
 
 # Q16e (ruled 2026-10-11, "queue the dist fix"): a build run from a git

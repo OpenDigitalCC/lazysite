@@ -114,9 +114,11 @@ Two per-site keys in `lazysite.conf` gate `upgrade --all`:
   channel accepts; the skip is the installer's usual clean exit-3, audited.
 
 **Security releases.** A release built with
-`tools/release.sh build VERSION --notes FILE --security-critical`, which passes
-`--security-critical` to `tools/build-manifest.pl` (SM1305), carries
-`"security_critical": true` in its manifest. Only then does
+`tools/release.sh build VERSION --notes FILE --final --security-critical`, which
+passes `--security-critical` to `tools/build-manifest.pl` (SM1305), carries
+`"security_critical": true` in its manifest. It is cut on stable - release.sh
+refuses the flag without `--final` (SM1314, ruling 45) - so the standard deploy
+reaches every site. Only then does
 `upgrade --all --force-security` work - it overrides both channel and policy
 fleet-wide. Against a payload that does not declare it, the command refuses
 before touching any site: the override is only as strong as the release's
