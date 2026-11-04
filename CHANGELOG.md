@@ -222,6 +222,12 @@ Archive
   the tools under test, with no limit: a child that never exits hung its test with nothing to
   name it. They run through TestHelper::run_child now, which fails the test naming itself and
   the child after `child_timeout()`.
+- SM1311 (PENDING) **a confined audit is of its scope.** `audit_site` walked the whole site
+  for a grant confined to a scope. It now audits the scope (`scope_roots`). A link to a page
+  outside it is listed in `outside_scope_links`, never as broken, and its target is not
+  looked up; a path on the domain the scope root serves is read there. An unconfined
+  audit is unchanged. Ruled 2026-11-04 (ruling 59).
+
 - SM1310 (PENDING) **replace_text refuses a page changed under it.** It saved without the
   modification time it read, which skips the save's conflict check, so of two agents
   replacing text on one page at once both answered `replacements: 1` and one change was

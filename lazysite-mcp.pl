@@ -2217,10 +2217,10 @@ my %TOOLS = (
         },
     },
     audit_site => {
-        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL. The page checks walk at most 1,000 pages: "truncated" says whether they stopped there, and when they did "page_cap" is that limit and "pages" and every per-page list cover only the pages walked.',
+        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL. The page checks walk at most 1,000 pages: "truncated" says whether they stopped there, and when they did "page_cap" is that limit and "pages" and every per-page list cover only the pages walked. A grant confined to a scope is audited within it ("scope_roots"): a link whose target is outside the scope is listed in "outside_scope_links", never as broken.',
         cap => 'manage_content',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { _audit_site() },
+        run => sub { _audit_site( _walk_roots( $_[2] ) ) },
     },
     analyse_visitors => {
         description => 'Visitor-log analysis for trend reporting (read-only). Returns a SANITISED JSON: per-day and per-month totals, a people/AI-assistant/bot/noise/scanner traffic breakdown (scanner = a visitor that probed a non-existent path, so its whole session - including a spoofed referrer - is excluded from people), top pages, referrers, status codes, a not_found split (plausible missing pages vs a junk scanner-chorus count), auth_refused (paths a visitor was TURNED AWAY from rather than paths that were missing - a file here that should be public means an access rule is refusing it, which is how a mis-scoped ACL surfaces), a device breakdown, and - ONLY where the sysop has switched it on - the top internal SEARCH TERMS visitors typed, which are people\'s own words rather than facts about a page and are held to terms used by at least three separate visits, and a bounded recent event SAMPLE - never the raw log, any filesystem path, or a visitor IP (IPs are anonymised; events carry only a network-level visitor token). The aggregates are complete over data_from..window.to and durably stored one file per day (SM213); "events"/"sample" is a recent sample, not the dataset - use data_from and the sample.{from,to,count} fields to tell them apart. Selectors: index (the days+months index, plus trail_days - which days have trails), day=YYYY-MM-DD (one day\'s rollup), month=YYYY-MM (one month\'s rollup), trails=YYYY-MM-DD (one day\'s recorded visit trails - the ORDERED page sequence per visit, which the aggregates above cannot answer); otherwise a windowed view. Read /docs/ai-briefing-stats to interpret the fields, then answer the sysop\'s question (trends, month-on-month, rising/falling pages, AI-crawler share). Heuristic and not authenticated.',
@@ -3362,6 +3362,7 @@ sub _domain_presentation_set {
 # out: the ORDER is part of the answer, since a reader works down the report.
 
 sub _audit_collect {
+    my ($roots) = @_;
     my ( %exists, %para, @info, @links, @forms, @rawpages, @starter );
     my %class_used;        # SM358: class name -> the first page that uses it
     my %component_used;    # SM358 follow-up: component name -> a page invoking it
@@ -3460,24 +3461,39 @@ sub _audit_collect {
                 $p =~ s/\s+/ /g; $p =~ s/^\s+|\s+$//g;
                 push @{ $para{$p} }, $slug if length $p >= 60;
             }
-    }, 'audit_site' );
+    }, 'audit_site', $roots );
     return { exists => \%exists, para => \%para, info => \@info,
         links      => \@links,      forms          => \@forms,
         rawpages   => \@rawpages,   starter        => \@starter,
         class_used => \%class_used, component_used => \%component_used, truncated => $truncated };
 }
 
+# SM1311 (ruling 59): for a confined grant ($roots), a link outside every scope
+# root is first read as a path on a domain served from one of them (a content
+# root's URLs are relative to it); failing that it is listed in @outside -
+# "outside your scope" - never as broken, and never looked up, so the audit
+# says nothing about whether a page outside the scope exists.
 sub _audit_links {
-    my ( $exists, $info, $links ) = @_;
+    my ( $exists, $info, $links, $roots ) = @_;
     my %inbound;
-    my @broken;
+    my ( @broken, @outside );
+    my $there = sub {
+        my ($t) = @_;
+        return $exists->{$t} || -e "$DOCROOT$t" || -f "$DOCROOT$t.md" || -f "$DOCROOT$t.html";
+    };
     for my $l (@$links) {
         my ( $from, $to ) = @$l;
         next unless $to =~ m{^/};
         next if $to     =~ m{^/(?:cgi-bin|manager|lazysite|img|lazysite-assets)/};
         ( my $t = $to ) =~ s/[#?].*$//; $t =~ s{/$}{};
         next unless length $t;
-        if ( $exists->{$t} || -e "$DOCROOT$t" || -f "$DOCROOT$t.md" || -f "$DOCROOT$t.html" ) {
+        if ( $roots && Lazysite::Manager::Common::outside_all_scopes( $roots, $t ) ) {
+            my ($in) = grep { $there->("/$_$t") } @$roots;
+            if ( defined $in ) { $inbound{"/$in$t"}++; next }
+            push @outside, { from => $from, to => $to } if @outside < 200;
+            next;
+        }
+        if ( $there->($t) ) {
             $inbound{$t}++;
         }
         else { push @broken, { from => $from, to => $to }; last if @broken >= 200 }
@@ -3485,7 +3501,7 @@ sub _audit_links {
 
     my @orphans = map { $_->{slug} } grep { $_->{slug} ne '/index' && !$inbound{ $_->{slug} } } @$info;
     my @no_title = map { $_->{slug} } grep { !length $_->{title} } @$info;
-    return ( \@broken, \@orphans, \@no_title );
+    return ( \@broken, \@orphans, \@no_title, \@outside );
 }
 
 sub _audit_hidden_by_script {
@@ -3647,6 +3663,7 @@ sub _audit_hidden_by_script {
 }
 
 sub _audit_static_exposure {
+    my ($roots) = @_;
     # Stale generated HTML: a rendered .html with no .md source.
     #
     # SM260: this was `my ( @stale, @stack ) = ( (), $DOCROOT );`, which does not
@@ -3658,7 +3675,8 @@ sub _audit_static_exposure {
     # path (including the hosting account name) handed to every token and MCP
     # partner. Declared separately so the shape cannot mislead again.
     my @stale;
-    my @stack = ($DOCROOT);
+    # SM1311: a confined grant's walk starts at its scope roots.
+    my @stack = $roots ? ( map { "$DOCROOT/$_" } reverse @$roots ) : ($DOCROOT);
 
     # SM223: a site whose auth_default is protective still serves STATIC files to
     # anyone who knows the path. A file with no .md source is never evaluated
@@ -3715,7 +3733,12 @@ sub _audit_static_exposure {
     return ( \@stale, \@unprotected, $auth_default );
 }
 
+# SM1311: a confined grant ($roots) is told of the rule keys inside its scope
+# only, and offered only its own content roots as the repair.
+sub _outside_roots { return $_[0] && Lazysite::Manager::Common::outside_all_scopes(@_) ? 1 : 0 }
+
 sub _audit_acl_keys {
+    my ($roots) = @_;
     # SM268 01-M3: an ACL key that matches nothing on disk.
     #
     # ACL keys are DOCROOT-relative; a content-rooted domain's URLs are relative
@@ -3750,11 +3773,12 @@ sub _audit_acl_keys {
                 next unless $l =~ /^alias\.\S+\.content_root\s*:\s*(\S+)/;
                 my $c = $1;
                 $c =~ s{^/+|/+$}{}g;
-                push @croots, $c if length $c;
+                push @croots, $c if length $c && !_outside_roots( $roots, $c );
             }
             for my $k ( sort keys %$map ) {
                 ( my $rel = $k ) =~ s{^/+|/+$}{}g;
                 next unless length $rel;
+                next if _outside_roots( $roots, $rel );
                 next if -e "$DOCROOT/$rel";
                 my @would = grep { -e "$DOCROOT/$_/$rel" } @croots;
                 push @acl_unmatched, {
@@ -3800,17 +3824,25 @@ sub _audit_duplicates {
     return \@dups;
 }
 
+# SM1311 (ruling 59): A CONFINED GRANT'S AUDIT IS OF ITS SCOPE. It walked the
+# whole site - every domain's titles, links, statics and rule keys - for a grant
+# read_file confines to one; confining the page walk alone would have reported
+# each link to a page outside the scope as broken. $roots is _walk_roots.
 sub _audit_site {
-    my $c = _audit_collect();
-    my ( $broken, $orphans, $no_title )
-        = _audit_links( $c->{exists}, $c->{info}, $c->{links} );
+    my ($roots) = @_;
+    my $c = _audit_collect($roots);
+    my ( $broken, $orphans, $no_title, $outside )
+        = _audit_links( $c->{exists}, $c->{info}, $c->{links}, $roots );
     my $hidden = _audit_hidden_by_script( $c->{class_used}, $c->{component_used} );
-    my ( $stale, $unprotected, $auth_default ) = _audit_static_exposure();
-    my ( $acl_unmatched, $acl_unreadable ) = _audit_acl_keys();
+    my ( $stale, $unprotected, $auth_default ) = _audit_static_exposure($roots);
+    my ( $acl_unmatched, $acl_unreadable ) = _audit_acl_keys($roots);
     my $dups = _audit_duplicates( $c->{para} );
 
     return { ok => 1, pages => scalar @{ $c->{info} }, _page_cap_keys( $c->{truncated} ),
         broken_links  => $broken,     orphan_pages   => $orphans,
+        # SM1311: for a confined grant only - its scope, and the links whose
+        # target is outside it, which this audit does not judge.
+        ( $roots ? ( scope_roots => $roots, outside_scope_links => $outside ) : () ),
         missing_title => $no_title,   stale_html     => $stale, duplicate_blocks => $dups,
         broken_forms  => $c->{forms}, raw_html_pages => $c->{rawpages},
         starter_pages => $c->{starter},
