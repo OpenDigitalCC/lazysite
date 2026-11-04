@@ -1407,6 +1407,7 @@ sub run_checks {
     report_permissions_ceiling();    # SM1294
     report_group_acl_reach();
     report_address_rules();    # SM1141
+    report_widened_rules();    # SM1313
 
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
     report_stray_public();
@@ -2565,6 +2566,51 @@ sub report_rows_without_a_policy {
             . 'writer the table admits may amend it. These rows predate the flag. Set '
             . 'their row_policy with an operator write, or leave them shared knowingly.' )
         if @open_rows;
+    return;
+}
+
+# SM1313 (ruling 61): A STORED RULE WIDER THAN THE RULE ENCLOSING IT IS NAMED.
+#
+# Before 0.16.3 anyone who could write a path inside a protected area could
+# write a rule there admitting people the area's rule does not (SM1309), and the
+# longest match then let them in. 0.16.3 refuses such a write unless the
+# operator or the enclosing rule's owner makes it, and keeps every rule already
+# stored. This finds the stored ones of the kind it now refuses: a rule wider
+# than its enclosing rule whose owner is neither that rule's owner nor an
+# operator, so a carve-out the operator or the area's owner made is not named.
+# The judgement is Acl::widening_refusal's, asked one mode at a time with the
+# rule's owner as the writer - never a second copy of it.
+#
+# A WARN, and nothing is changed: whether a carve-out is right is the
+# operator's to decide, so `lazysite repair` leaves it as a decision for a human.
+sub report_widened_rules {
+    my $d = $opt{docroot};
+    my ( $map, $state ) = _read_json_state( _acls_file($d) );
+    return unless $state eq 'ok' && ref $map eq 'HASH' && keys %$map;
+    return if _probe_load_engine($d);    # the engine is not loadable here: nothing to ask
+    my $n = 0;
+    for my $key ( sort keys %$map ) {
+        my $rec = $map->{$key};
+        next unless ref $rec eq 'HASH';
+        my $owner = $rec->{owner};
+        next if defined $owner && length $owner
+            && eval { Lazysite::Auth::Acl::account_is_operator($owner) };
+        for my $mode (qw(read write)) {
+            next unless ref $rec->{$mode} eq 'ARRAY' && @{ $rec->{$mode} };
+            my %one = ( $mode => $rec->{$mode}, ( defined $owner ? ( owner => $owner ) : () ) );
+            my $r = Lazysite::Auth::Acl::widening_refusal( $map, $key, \%one, undef, $owner );
+            next unless $r;
+            my $enc = ( $r->{enclosing} =~ m{\A(?:/|\.|)\z} ) ? 'the site-wide rule' : "the rule on '$r->{enclosing}'";
+            report( 'WARN',
+                "the rule on '$key' lets " . join( ', ', @{ $r->{admits} } ) . " $mode it, which "
+                    . "$enc does not - a rule inside another that widens it, of the "
+                    . 'kind 0.16.3 refuses unless the operator or the enclosing rule\'s owner writes it',
+                "review it: keep it if it is meant (it stays in force), or remove it with "
+                    . "lazysite acl remove '$key' --actor local --docroot $d" );
+            last if ++$n >= 50;
+        }
+        last if $n >= 50;
+    }
     return;
 }
 

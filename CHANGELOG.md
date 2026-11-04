@@ -222,6 +222,13 @@ Archive
   the tools under test, with no limit: a child that never exits hung its test with nothing to
   name it. They run through TestHelper::run_child now, which fails the test naming itself and
   the child after `child_timeout()`.
+- SM1313 (PENDING) **lazysite check names a rule wider than its enclosing rule.** 0.16.3
+  refuses such a rule unless the operator or the enclosing rule's owner writes it (SM1309),
+  and keeps the ones already stored. The check now names each stored one whose owner is
+  neither, as a WARN naming the path, the enclosing rule and whom it admits beyond it, and
+  asks the operator to review it. It changes nothing, and `lazysite repair` leaves it to a
+  person. Ruled 2026-11-04 (ruling 61).
+
 - SM1312 (PENDING) **list_pages leaves out a page the caller may not read.** It read every
   page's title without asking the page's rule, so a gated page still in the document root
   (protected before 0.10.8, or under a rule with only address lists) had its title listed.
