@@ -31,9 +31,10 @@ package Lazysite::Odoo::Binding;
 #   visitor_param  the parameter that receives the visitor's key - minted by
 #                  the server (Lazysite::Odoo::Visitor), never read from input.
 #                  This is what keeps a visitor to their own basket.
-#   address_param  SM1280 (ruling 3): with `address_list`, the parameter that
-#                  receives WHETHER the call came from inside that address list
-#                  (SM1134) - 1 or 0, decided by the server from the request's
+#   address_param  SM1280 (ruling 3): with `address_profile` (ruling 58: address
+#                  lists become address profiles; for now it names an address
+#                  list), the parameter that receives WHETHER the call came from
+#                  inside it (SM1134) - 1 or 0, decided by the server from the request's
 #                  address behind the trusted proxies (SM929). The address itself
 #                  is never passed, and nothing a request sends can set it.
 #
@@ -213,16 +214,16 @@ sub parse {
     # from inside a named address list - a soft fence (on the office network, accept;
     # elsewhere, ask for more), where SM1159's signin_addresses is a hard one. Only the
     # yes or no reaches the operation, never the address.
-    my ( $al, $ap ) = map { ( $_ // '' ) =~ s/\A\s+|\s+\z//gr } $h->{address_list}, $h->{address_param};
+    my ( $al, $ap ) = map { ( $_ // '' ) =~ s/\A\s+|\s+\z//gr } $h->{address_profile}, $h->{address_param};
     if ( length $al || length $ap ) {
-        return ( undef, 'address_list and address_param go together: the list says where from, and the '
-                . 'parameter receives whether the call came from inside it', length $al ? 'address_param' : 'address_list' )
+        return ( undef, 'address_profile and address_param go together: the profile says where from, and the '
+                . 'parameter receives whether the call came from inside it', length $al ? 'address_param' : 'address_profile' )
             unless length $al && length $ap;
-        return ( undef, "address_list: '$al' is not an address list name", 'address_list' ) unless $al =~ /\A[a-z0-9_-]{1,64}\z/;
+        return ( undef, "address_profile: '$al' is not the name of an address profile (for now, an address list's name)", 'address_profile' ) unless $al =~ /\A[a-z0-9_-]{1,64}\z/;
         return ( undef, "address_param '$ap' is not a parameter name", 'address_param' ) unless $ap =~ $PARAM;
     }
-    $b{address_list}  = $al;
-    $b{address_param} = $ap;
+    $b{address_profile} = $al;
+    $b{address_param}   = $ap;
 
     # ONE SOURCE PER PARAMETER.
     my %src;
@@ -247,7 +248,7 @@ sub parse {
         unless grep { $_ } values %modes;
     $b{modes} = \%modes;
     return ( undef, 'a scheduled run comes from no address, so it cannot say whether it came from inside '
-            . 'an address list - take scheduled off the modes, or the address_list off the binding', 'modes' )
+            . 'an address profile - take scheduled off the modes, or the address_profile off the binding', 'modes' )
         if length $ap && $modes{scheduled};
 
     my @callers = grep { length } split /\s*,\s*/, ( $h->{callers} // '' );
@@ -476,7 +477,7 @@ sub check_against {
 #
 #   visitor  the visitor key, for the visitor parameter
 #   address_inside  SM1280: whether the call came from inside the binding's
-#            address_list, for the address parameter (the engine decides it)
+#            address_profile, for the address parameter (the engine decides it)
 #   strict   refuse an input field the binding does not map (the endpoint);
 #            without it unmapped fields are dropped (a form, which posts
 #            every field it has)

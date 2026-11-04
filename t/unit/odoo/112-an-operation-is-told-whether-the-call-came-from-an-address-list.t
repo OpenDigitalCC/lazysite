@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 # SM1280 (ruling 3, 2026-10-22; inbox 2026-10-22 P-8 to P-10, the OOM Lab's clock-in
-# from the office network): a binding names an address list (SM1134) and a yes/no
+# from the office network): a binding names an address profile (`address_profile`,
+# ruling 58; for now an address list's name, SM1134) and a yes/no
 # parameter, and its operation receives ONLY whether the call came from inside that
 # list - never the address. The server decides it from the request's address behind
 # the trusted proxies (the endpoint's _ip, SM929), and nothing the page sends can set
@@ -47,21 +48,23 @@ sub save {
 my %WHERE = ( operation => 'shop.where', modes => 'public', params => 'note=note' );
 
 subtest 'a binding names the list and the parameter together, and the parameter has one source' => sub {
-    like( save( id => 'w1', %WHERE, address_list => 'office' )->{error} // '', qr/go together/, 'a list alone is refused' );
+    like( save( id => 'w1', %WHERE, address_profile => 'office' )->{error} // '', qr/go together/, 'a list alone is refused' );
     like( save( id => 'w2', %WHERE, address_param => 'onsite' )->{error} // '', qr/go together/, 'a parameter alone is refused' );
-    like( save( id => 'w3', %WHERE, address_list => 'Office HQ', address_param => 'onsite' )->{error} // '',
-        qr/not an address list name/, 'a list name that is not one is refused' );
-    like( save( id => 'w4', %WHERE, params => 'note=note, onsite=onsite', address_list => 'office', address_param => 'onsite' )->{error} // '',
+    like( save( id => 'w3', %WHERE, address_profile => 'Office HQ', address_param => 'onsite' )->{error} // '',
+        qr/not the name of an address profile/, 'a name that is not one is refused' );
+    like( save( id => 'w8', %WHERE, address_list => 'office', address_param => 'onsite' )->{error} // '', qr/does not take: address_list\b/,
+        'the old key address_list is no alias (ruling 56): it is refused by name' );
+    like( save( id => 'w4', %WHERE, params => 'note=note, onsite=onsite', address_profile => 'office', address_param => 'onsite' )->{error} // '',
         qr/one source/, 'a parameter a request feeds cannot be the address parameter' );
-    like( save( id => 'w5', %WHERE, fixed => 'onsite=1', address_list => 'office', address_param => 'onsite' )->{error} // '',
+    like( save( id => 'w5', %WHERE, fixed => 'onsite=1', address_profile => 'office', address_param => 'onsite' )->{error} // '',
         qr/one source/, 'nor one the operator fixes' );
-    like( save( id => 'w6', %WHERE, params => '', address_list => 'office', address_param => 'note' )->{error} // '',
+    like( save( id => 'w6', %WHERE, params => '', address_profile => 'office', address_param => 'note' )->{error} // '',
         qr/bool/, 'the parameter is a yes/no one' );
-    like( save( id => 'w7', %WHERE, modes => 'scheduled', address_list => 'office', address_param => 'onsite' )->{error} // '',
+    like( save( id => 'w7', %WHERE, modes => 'scheduled', address_profile => 'office', address_param => 'onsite' )->{error} // '',
         qr/scheduled run comes from no address/, 'a scheduled binding has no address to tell' );
-    ok( save( id => 'where', %WHERE, address_list => 'office', address_param => 'onsite' )->{ok}, 'a binding that names both is saved' );
-    ok( save( id => 'where-deny', %WHERE, address_list => 'blocked', address_param => 'onsite' )->{ok}, 'a deny list may be named: it is membership' );
-    ok( save( id => 'where-gone', %WHERE, address_list => 'nonesuch', address_param => 'onsite' )->{ok}, 'and one not (yet) in the store' );
+    ok( save( id => 'where', %WHERE, address_profile => 'office', address_param => 'onsite' )->{ok}, 'a binding that names both is saved' );
+    ok( save( id => 'where-deny', %WHERE, address_profile => 'blocked', address_param => 'onsite' )->{ok}, 'a deny list may be named: it is membership' );
+    ok( save( id => 'where-gone', %WHERE, address_profile => 'nonesuch', address_param => 'onsite' )->{ok}, 'and one not (yet) in the store' );
 };
 
 sub run_at {

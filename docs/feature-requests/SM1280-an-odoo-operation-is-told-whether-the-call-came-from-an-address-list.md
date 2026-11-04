@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the lazysite-sites agent for the OOM Lab (inbox 2026-10-22, P-8 to P-10); ruled by the release manager, ruling 3"
 area: odoo
-status-note: "SHIPPED (PENDING) on n733: binding keys address_list + address_param (Lazysite::Odoo::Binding parse, check_against, assemble), decided in Lazysite::Odoo::call by _address_inside (AddressLists::in_list on the call's ip); the list is a binding reference in AddressRefs (slot match); a page variable refuses such a binding. t/unit/odoo/112."
+status-note: "SHIPPED (PENDING) on n733: binding keys address_profile + address_param (Lazysite::Odoo::Binding parse, check_against, assemble), decided in Lazysite::Odoo::call by _address_inside (AddressLists::in_list on the call's ip); the list is a binding reference in AddressRefs (slot match); a page variable refuses such a binding. t/unit/odoo/112."
 ---
 
 # What was asked
@@ -39,7 +39,7 @@ the address."
 
 # What shipped
 
-- **Two binding keys, together**: `address_list` (an address-list name, SM1138's
+- **Two binding keys, together**: `address_profile` (for now an address-list name, SM1138's
   `[a-z0-9_-]{1,64}`) and `address_param` (a parameter name).
   - Saving refuses one without the other.
   - The parameter is a source of its own, so it cannot also be in `params`, `fixed`,
@@ -63,7 +63,7 @@ the address."
 - **A page variable refuses such a binding.** A render is shared and cached, and the
   answer depends on the viewer's address (`lazysite-processor/sources.pm`).
 - **The Handlers page** offers the two keys, with notes (`Lazysite::Handlers`).
-- **Docs**: `starter/docs/odoo.md`, `address_list`, `address_param`, and how an
+- **Docs**: `starter/docs/odoo.md`, `address_profile`, `address_param`, and how an
   operation reads the value: declare it `type => 'bool'` with a default of 0, and read
   `$self->param(...)`.
 
@@ -78,6 +78,7 @@ and a test operation `shop.where` that answers what it was given:
   - the parameter also in `params`, or in `fixed`;
   - a non-bool parameter;
   - a scheduled binding.
+  - the old key `address_list`, which is no alias.
 
   It accepts a deny list, and a list not yet made.
 - **The engine** answers:
@@ -97,6 +98,18 @@ and a test operation `shop.where` that answers what it was given:
 
 With Binding.pm, Odoo.pm, Handlers.pm and AddressRefs.pm at SM1277, all five subtests
 fail.
+
+# The key's name (ruling 58, 2026-11-04)
+
+The key was built as `address_list` and renamed `address_profile` before it shipped.
+Address lists are to become address profiles: neutral named sets, allowed or denied where
+they are used (inbox `2026-10-24-address-profiles-replace-address-lists.md`). For now the
+key names an existing address list by its name. There is no alias (ruling 56: rename
+outright): a binding that says `address_list` is refused at save by name ("does not
+take: address_list"). t/unit/odoo/112 holds that. The refusal
+messages, the Handlers page label and the in-use guard's reader
+(`Lazysite::Auth::AddressRefs`, which reads the binding's `address_profile`) say profile.
+`address_param` keeps its name.
 
 # Not done
 

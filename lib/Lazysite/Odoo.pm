@@ -1175,7 +1175,7 @@ sub call {
     return _session_end( $b, $out );
 }
 
-# SM1280 (ruling 3): whether the call came from inside the binding's address_list -
+# SM1280 (ruling 3): whether the call came from inside the binding's address_profile -
 # the request's address (the endpoint's _ip: the visitor's, behind the trusted
 # proxies, SM929) in the named list, by the one matcher every address rule uses
 # (Lazysite::Auth::AddressLists::in_list). A call with no address, a list that is not
@@ -1183,11 +1183,11 @@ sub call {
 # cannot tell says "not inside". The address goes no further than this.
 sub _address_inside {
     my ( $b, $ip ) = @_;
-    return 0 unless length( $b->{address_list} // '' ) && length( $ip // '' );
+    return 0 unless length( $b->{address_profile} // '' ) && length( $ip // '' );
     require Lazysite::Auth::AddressLists;
     no warnings 'once';
     local $Lazysite::Auth::AddressLists::AUTH_DIR = _lz() . '/auth';
-    return Lazysite::Auth::AddressLists::in_list( $ip, $b->{address_list} ) ? 1 : 0;
+    return Lazysite::Auth::AddressLists::in_list( $ip, $b->{address_profile} ) ? 1 : 0;
 }
 
 # SM1162: what a binding's files weigh at the endpoint, BEFORE the body is read.

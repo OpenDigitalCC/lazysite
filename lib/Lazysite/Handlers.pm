@@ -298,12 +298,12 @@ our %TYPES      = (
                 note => 'The parameter that receives the visitor\'s own key (a basket, say). '
                     . 'The server mints the key; a visitor cannot choose or see another\'s.' },
             # SM1280 (ruling 3): whether the call came from inside an address list.
-            { key => 'address_list', label => 'Address list the operation is told about', type => 'text',
-                note => 'Optional: the name of an address list (Access, Address lists). With an address '
+            { key => 'address_profile', label => 'Address profile the operation is told about', type => 'text',
+                note => 'Optional: the name of an address profile - for now, of an address list (Access, Address lists). With an address '
                     . 'parameter, the operation is told whether the call came from inside it - yes or no, '
                     . 'never the address. Needs trusted_proxies to cover your front end.' },
             { key => 'address_param', label => 'Address parameter', type => 'text',
-                note => 'With an address list: the parameter (declared yes/no) that receives whether the '
+                note => 'With an address profile: the parameter (declared yes/no) that receives whether the '
                     . 'call came from inside it. Set by the server; a request cannot set it.' },
             { key => 'modes', label => 'Who may run it', type => 'text',
                 default => 'authenticated',

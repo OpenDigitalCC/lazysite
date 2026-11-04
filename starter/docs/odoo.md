@@ -254,9 +254,10 @@ says what a request may set and who may cause it:
 : The parameter that receives the visitor's key (see *The anonymous write
   path*). The server supplies it; a request cannot.
 
-`address_list`, `address_param`
-: Optional, and together. `address_list` names an address list (Access, *Address
-  lists*); `address_param` names a parameter the operation declares as `bool`. The
+`address_profile`, `address_param`
+: Optional, and together. `address_profile` names an address profile: for now, an
+  address list by its name (Access, *Address lists*). `address_param` names a parameter
+  the operation declares as `bool`. The
   operation then receives, in that parameter, **only whether the call came from
   inside the list**: `1` or `0`, never the address. The server decides it from the
   request's address, worked out behind the front ends `trusted_proxies` names (the
@@ -281,7 +282,7 @@ says what a request may set and who may cause it:
     modes: authenticated
     callers: staff
     params: latitude=latitude, longitude=longitude
-    address_list: office
+    address_profile: office
     address_param: onsite
   ```
 
