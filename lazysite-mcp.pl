@@ -1577,7 +1577,18 @@ my %TOOLS = (
             my $count = @parts - 1;
             return { ok => 0, error => 'text not found in ' . ( $a->{path} // '' ) } unless $count;
             my $content = join( ( defined $a->{new} ? $a->{new} : '' ), @parts );
-            my $s       = action_save( $a->{path}, $user, $content, undef );
+            # SM1310 (ruling 51 (a), T-06): SAVED WITH THE MODIFICATION TIME IT
+            # READ, so action_save's conflict check runs. It passed undef, which
+            # skips the check, and of two agents replacing text in one page at
+            # once, each answered "replacements: 1" and the later save wrote the
+            # page it had read over the other's change.
+            my $s = action_save( $a->{path}, $user, $content, $r->{mtime} );
+            if ( ref $s eq 'HASH' && $s->{conflict} ) {
+                return { %$s, kind => 'conflict',
+                    error => "'" . ( $a->{path} // '' ) . "' was changed by another save while "
+                        . 'this one was being made, so nothing was written. Run replace_text '
+                        . 'again: it reads the file afresh.' };
+            }
             $s->{replacements} = $count if ref $s eq 'HASH' && $s->{ok};
             return $s;
         },

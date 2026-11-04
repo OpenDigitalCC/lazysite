@@ -222,6 +222,14 @@ Archive
   the tools under test, with no limit: a child that never exits hung its test with nothing to
   name it. They run through TestHelper::run_child now, which fails the test naming itself and
   the child after `child_timeout()`.
+- SM1310 (PENDING) **replace_text refuses a page changed under it.** It saved without the
+  modification time it read, which skips the save's conflict check, so of two agents
+  replacing text on one page at once both answered `replacements: 1` and one change was
+  lost. It saves with that time now: a page another writer saved in between is refused as a
+  conflict (`kind: conflict`), nothing written, and the agent is told to run it again. The
+  check's resolution is one second. Ruled 2026-11-04 (ruling 51, part (a); `write_file`'s
+  base version is 0.16.4).
+
 - SM1309 (PENDING) **a rule inside another may narrow it; only the operator or the
   enclosing rule's owner may widen it.** A subfolder's rule replaces its parent's for a mode
   (longest match), and anyone who may write a path may write its first rule, so a member of
