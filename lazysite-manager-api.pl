@@ -652,6 +652,11 @@ sub _refuse_unread_or_missing_path {
     return;
 }
 
+# SM1308: did this request name the folder to list? An absent `path` defaults
+# to '/' and an empty one was listed as '/', past the scope check's skip of an
+# empty path - so a confined caller's `list&path=` showed the docroot.
+sub _list_names_a_folder { return length( $params{path} // '' ) ? 1 : 0 }
+
 # Confine this request to a SET of content-root scopes, refusing any content
 # path outside EVERY scope. SM155: the binding moved to groups, so the set is the
 # UNION of the user's scoped groups (already resolved into the settings'
@@ -661,7 +666,10 @@ sub _refuse_unread_or_missing_path {
 sub _confine_scope {
     my ( $scopes, $origin ) = @_;
     return unless $SCOPED_ACTION{$action} && ref $scopes eq 'ARRAY' && @$scopes;
-    for my $p ( grep { defined && length } ( $path, $params{to}, $params{from}, @ACL_PATHS ) ) {
+    # SM1308 (ruling 47): `list` naming no folder is answered its scope roots at
+    # dispatch, so the '/' an absent path defaults to is not a path it named.
+    my $named = ( $action eq 'list' && !_list_names_a_folder() ) ? undef : $path;
+    for my $p ( grep { defined && length } ( $named, $params{to}, $params{from}, @ACL_PATHS ) ) {
         next if $p =~ m{^/?lazysite/};
         next
             unless Lazysite::Manager::Common::outside_all_scopes( $scopes, $p );
@@ -1437,7 +1445,13 @@ END { _audit_crashed_dispatch() }
 END { Lazysite::Manager::Files::start_registry_rebuild() unless $ENV{LAZYSITE_API_LOAD_ONLY} }
 
 my $result;
-if    ( $action eq 'list' ) { $result = action_list($path) }
+if ( $action eq 'list' ) {
+    # SM1308 (ruling 47): a confined caller naming no folder is shown its scope
+    # roots, as MCP list_files is - one function for both doors.
+    $result = ( @REQUEST_SCOPES && !_list_names_a_folder() )
+        ? Lazysite::Manager::Files::action_list_scope_roots( \@REQUEST_SCOPES )
+        : action_list($path);
+}
 elsif ( $action eq 'read' ) { $result = action_read( $path, $auth_user ) }
 elsif ( $action eq 'save' ) {
     my $req = _json_body();
@@ -3401,7 +3415,13 @@ sub _table_audits_rows {
 # SM097: the public-page URL list, for the nav editor's autocomplete. Walks the
 # docroot for .md/.url pages and maps each to its clean URL (about.md -> /about,
 # index.md -> /, foo/index.md -> /foo/), skipping internal trees.
+#
+# SM1308 (ruling 47): a caller confined to a scope is answered the pages within
+# it, as MCP list_pages is. The action takes no path, so _confine_scope had
+# nothing to inspect, and a grant confined to one domain read every page name
+# on the instance.
 sub action_pages {
+    my @scopes = @REQUEST_SCOPES;
     my @urls;
     my $walk;
     $walk = sub {
@@ -3416,6 +3436,7 @@ sub action_pages {
                 $walk->( $full, $rel );
             }
             elsif ( $e =~ /\.(?:md|url)$/ ) {
+                next if Lazysite::Manager::Common::outside_all_scopes( \@scopes, $rel );
                 ( my $u = $rel ) =~ s/\.(?:md|url)$//;
                 $u =~ s{(^|/)index$}{$1};                  # index -> the dir itself
                 $u = "/$u";

@@ -42,6 +42,7 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_save_binary copy_target_refusal
     action_move action_acl_get action_acl_set action_acl_remove
     action_git_history action_git_history_summary action_git_show action_git_restore);
+use Lazysite::Auth::Acl qw(_acl_denied);    # SM1308: read_file's question, per search hit
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
     action_cache_invalidate _read_active_layout_and_theme action_themes_list_all
     action_theme_tokens action_create_theme action_theme_copy action_theme_upload _record_theme_creator theme_config_issues
@@ -956,12 +957,20 @@ my %TOOLS = (
     },
     list_files => {
         path_args => [qw(path)],
-        description => 'List files and folders under a site-relative directory path (default "/").',
+        description => 'List files and folders under a site-relative directory path (default "/"; for a grant confined to a scope, the default is its scope roots).',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string', description => 'Directory path, e.g. /content' } },
             additionalProperties => JSON::PP::false },
-        run => sub { action_list( $_[0]->{path} // '/' ) },
+        run => sub {
+            # SM1308 (ruling 47): a missing path is the scope roots of a confined
+            # grant, never the docroot - the scope pass skips an argument that is
+            # not given, so '/' was listed to a grant the pass refuses '/' to.
+            my $p = $_[0]->{path};
+            return action_list( defined $p && length $p ? $p : '/' ) unless _walk_roots( $_[2] );
+            return action_list($p) if defined $p && length $p;
+            return Lazysite::Manager::Files::action_list_scope_roots( $_[2]{dav_scopes} );
+        },
     },
     read_file => {
         path_args   => [qw(path)],
@@ -2304,7 +2313,7 @@ my %TOOLS = (
                 path => { type => 'string', description => 'Or the page path as read_page spells it (/about.md) - either identifier works' },
             },
             additionalProperties => JSON::PP::false },
-        run => sub { _delete_page( $_[0], $_[1] ) },
+        run => sub { _delete_page( $_[0], $_[1], $_[2] ) },
     },
     rename_page => {
         path_args => [qw(old new)],
@@ -2318,13 +2327,13 @@ my %TOOLS = (
                     description => 'Add the old URL to the new page\'s aliases: so the retired URL keeps working. Creates the front-matter block if the page has none. The result reports alias_added (it was written), or alias_present (it was already there), so you can tell the two apart.' },
             },
             required => [ 'old', 'new' ], additionalProperties => JSON::PP::false },
-        run => sub { _rename_page( $_[0], $_[1] ) },
+        run => sub { _rename_page( $_[0], $_[1], $_[2] ) },
     },
     list_pages => {
-        description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list. Walks at most 1,000 pages: "truncated" says whether it stopped there, and when it did "page_cap" is that limit and "count" covers only the pages walked, never the site\'s total.',
+        description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list. A grant confined to a scope is answered the pages within its scope. Walks at most 1,000 pages: "truncated" says whether it stopped there, and when it did "page_cap" is that limit and "count" covers only the pages walked, never the site\'s total.',
         cap => 'manage_content',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { _list_pages() },
+        run => sub { _list_pages( _walk_roots( $_[2] ) ) },
     },
     read_page => {
         path_args => [qw(path)],
@@ -2368,12 +2377,12 @@ my %TOOLS = (
     },
     search_files => {
         path_args => [qw(path)],
-        description => 'Search the site text files for a string (case-insensitive). Returns matching files with line numbers and snippets - use to find pages mentioning a term, links to a path, or duplicated text. Excludes the lazysite/ infrastructure and binary/asset files. "count" is how many matches this response CARRIES, never how many exist; no total is available, because the search stops early by design and counting them all would mean reading every file. When "truncated" is true, "truncated_reason" says what stopped it: "match_limit" - there are more matches, so page on with "offset" or narrow the query; "file_budget" - the tree was too large to finish, so narrow "path" instead. Paging re-walks the tree each call, so a result set that changes underneath you can skip or repeat an entry.',
+        description => 'Search the site text files for a string (case-insensitive). Returns matching files with line numbers and snippets - use to find pages mentioning a term, links to a path, or duplicated text. Excludes the lazysite/ infrastructure and binary/asset files, and every file you may not read. A grant confined to a scope searches only within it, and by default its scope roots. "count" is how many matches this response CARRIES, never how many exist; no total is available, because the search stops early by design and counting them all would mean reading every file. When "truncated" is true, "truncated_reason" says what stopped it: "match_limit" - there are more matches, so page on with "offset" or narrow the query; "file_budget" - the tree was too large to finish, so narrow "path" instead. Paging re-walks the tree each call, so a result set that changes underneath you can skip or repeat an entry.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 query => { type => 'string', description => 'text to search for' },
-                path => { type => 'string', description => 'directory to search under (default /)' },
+                path => { type => 'string', description => 'directory to search under (default /, or your scope roots when your grant is confined to a scope)' },
                 limit => { type => 'integer',
                     description => 'maximum matches to return (default 200, maximum 500)' },
                 offset => { type => 'integer',
@@ -2381,7 +2390,8 @@ my %TOOLS = (
             },
             required => ['query'], additionalProperties => JSON::PP::false },
         run => sub {
-            _mcp_search( $_[0]->{query}, $_[0]->{path}, $_[0]->{limit}, $_[0]->{offset} );
+            _mcp_search( $_[0]->{query}, $_[0]->{path}, $_[0]->{limit}, $_[0]->{offset},
+                roots => _walk_roots( $_[2] ), user => $_[1] );
         },
     },
     regenerate_registries => {
@@ -2516,13 +2526,14 @@ our $SEARCH_LIMIT_DEF   = 200;
 my %SEARCH_EXT = map { $_ => 1 } qw(md txt html htm xml json js css svg atom rss);
 
 sub _mcp_search {
-    my ( $query, $base, $limit, $offset ) = @_;
+    my ( $query, $base, $limit, $offset, %o ) = @_;
 
     $limit  = $SEARCH_LIMIT_DEF unless defined $limit  && $limit =~ /^\d+$/ && $limit > 0;
     $offset = 0                 unless defined $offset && $offset =~ /^\d+$/;
     $limit  = $SEARCH_LIMIT_MAX if $limit > $SEARCH_LIMIT_MAX;
     return { ok => 0, error => 'query must not be empty' } unless defined $query && length $query;
-    $base = '/' unless defined $base && length $base;
+    my $named = defined $base && length $base;
+    $base = '/' unless $named;
     $base =~ s{^/+}{}; $base =~ s{/+$}{}; $base =~ s{\.\.}{}g;
 
     # SM268 04-F4: the lazysite/ exclusion below only applies while DESCENDING,
@@ -2538,10 +2549,19 @@ sub _mcp_search {
             . 'store, ACLs and engine state, none of which is site content' }
         if Lazysite::Manager::Common::path_is_reserved($base);
 
-    my $root = $DOCROOT . ( length $base ? "/$base" : '' );
-    my $qre  = qr/\Q$query\E/i;
+    # SM1308 (ruling 47): A GRANT CONFINED TO A SCOPE SEARCHES WITHIN IT. The
+    # dispatcher's scope pass skips an argument that is not given, so no `path`
+    # walked the whole docroot for a grant that is refused '/' when it names it.
+    # No base is its scope roots; a base it names was held to the scope by that
+    # pass, and every file is asked again below, as the blocklist is.
+    my $roots = ref $o{roots} eq 'ARRAY' ? $o{roots} : undef;
+    my @start
+        = ( $roots && !$named )
+        ? ( map { "$DOCROOT/$_" } reverse @$roots )
+        : ( $DOCROOT . ( length $base ? "/$base" : '' ) );
+    my $qre = qr/\Q$query\E/i;
     my ( @matches, $files, $truncated, $reason, $seen );
-    my @stack = ($root);
+    my @stack = @start;
     while (@stack) {
         my $dir = pop @stack;
         opendir my $dh, $dir or next;
@@ -2560,6 +2580,7 @@ sub _mcp_search {
             # question the read path asks about the file actually being opened.
             ( my $key = $full ) =~ s{^\Q$DOCROOT\E/?}{};
             next if Lazysite::Manager::Common::is_blocked_path($key);
+            next if $roots && Lazysite::Manager::Common::outside_all_scopes( $roots, $key );
             if ( ++$files > $SEARCH_FILE_BUDGET ) {
                 $truncated = 1;
                 $reason    = 'file_budget';
@@ -2568,9 +2589,22 @@ sub _mcp_search {
             next if _search_unreadable( $full, $key );
             open my $fh, '<:utf8', $full or next;
             my $ln = 0;
+            my $asked;
             while ( my $line = <$fh> ) {
                 $ln++;
                 next unless $line =~ $qre;
+
+                # SM1308 (ruling 47): AND A HIT IS ONE THE CALLER MAY READ. A
+                # matched line is the file's text, so the file's rule decides it
+                # as read_file's does (_acl_denied: the read list, the address
+                # rule). Asked at the first match, so a file with none costs
+                # nothing, and before it is counted, so paging cannot step over
+                # what it was never shown.
+                if ( !$asked++ && defined $o{user}
+                    && _acl_denied( $key, 'read', $o{user} ) )
+                {
+                    last;
+                }
 
                 # SM359: count every match, return only this page's worth. The
                 # walk continues one match PAST the limit so `truncated` means
@@ -3130,10 +3164,13 @@ my %ENGINE_DIRS = map { $_ => 1 } qw(lazysite-assets manager);
 # and rename_page left the links in every page past it unrewritten.
 our $PAGE_CAP = 1000;
 
+# SM1308 (ruling 47): $roots, when given, are the docroot-relative folders the
+# walk starts from instead of the docroot - a confined grant's scope roots
+# (_walk_roots), so list_pages and rename_page's link rewrite stay inside them.
 sub _each_page {
-    my ( $cb, $tool ) = @_;
-    my @stack = ($DOCROOT);
-    my $n     = 0;
+    my ( $cb, $tool, $roots ) = @_;
+    my @stack = ref $roots eq 'ARRAY' ? ( map { "$DOCROOT/$_" } reverse @$roots ) : ($DOCROOT);
+    my $n = 0;
     while (@stack) {
         my $dir = pop @stack;
         opendir my $dh, $dir or next;
@@ -3180,7 +3217,31 @@ sub _each_page_call {
     return;
 }
 
+# SM1308 (ruling 47): THE FOLDERS A CONFINED GRANT'S WALKS START FROM - its
+# scope roots, docroot-relative, or undef for a grant with no scope, which
+# reaches the whole primary site as a content path check reads it
+# (Common::outside_all_scopes). list_pages, search_files and list_files took no
+# path, or skipped a path not given, so the dispatcher's scope pass never saw
+# them and they answered from the whole docroot (T-01). A root nested in
+# another is dropped, so no page is walked twice; one that names the docroot
+# itself is no confinement.
+sub _walk_roots {
+    my ($caps) = @_;
+    my $s = ref $caps eq 'HASH' ? $caps->{dav_scopes} : undef;
+    return undef unless ref $s eq 'ARRAY' && @$s;
+    my @r = map { ( my $x = $_ ) =~ s{^/+|/+$}{}g; $x } @$s;
+    return undef if grep { !length } @r;
+    my %seen;
+    @r = sort grep { !$seen{$_}++ } @r;
+    my @out;
+    for my $x (@r) {
+        push @out, $x unless grep { index( $x, "$_/" ) == 0 } @out;
+    }
+    return \@out;
+}
+
 sub _list_pages {
+    my ($roots) = @_;
     my @pages;
     my $truncated = _each_page( sub {
             my ( $rel, $full ) = @_;
@@ -3191,7 +3252,7 @@ sub _list_pages {
             push @pages, { path => "/$rel", title => ( $h->{title} // '' ),
                 registers => ( ref $h->{register} eq 'ARRAY' ? $h->{register} : ( $h->{register} ? [ $h->{register} ] : [] ) ),
                 public_url => _public_url($rel) };
-    }, 'list_pages' );
+    }, 'list_pages', $roots );
     @pages = sort { $a->{path} cmp $b->{path} } @pages;
     return { ok => 1, count => scalar @pages, pages => \@pages, _page_cap_keys($truncated) };
 }
@@ -4123,7 +4184,7 @@ sub _create_page {
 }
 
 sub _delete_page {
-    my ( $a, $user ) = @_;
+    my ( $a, $user, $caps ) = @_;
 
     # SM513: `slug` as before, or `path` in read_page's spelling - two page
     # tools with two identifiers was a mistake every agent made once.
@@ -4140,7 +4201,10 @@ sub _delete_page {
     # short - and the one thing the caller uses it for is deciding whether
     # deleting this page breaks anything. Ask for the ceiling the search will
     # enforce anyway.
-    my $s = _mcp_search( "/$slug", '/', $SEARCH_LIMIT_MAX );
+    # SM1308: and only where this grant reaches, and only pages it may read -
+    # the search's own rule, so the list names no path search_files would not.
+    my $s = _mcp_search( "/$slug", undef, $SEARCH_LIMIT_MAX, 0,
+        roots => _walk_roots($caps), user => $user );
     my %seen;
     $r->{still_referenced_in} = [ grep { !$seen{$_}++ } map { $_->{path} } @{ $s->{matches} || [] } ];
 
@@ -4156,8 +4220,10 @@ sub _delete_page {
     return $r;
 }
 
+# SM1308: a confined grant rewrites links in the pages of its own scope only;
+# the walk wrote every page on the site that linked to the old path.
 sub _rewrite_links {
-    my ( $old, $new, $user ) = @_;
+    my ( $old, $new, $user, $roots ) = @_;
     my $changed = 0;
     my $truncated = _each_page( sub {
             my ( $rel, $full ) = @_;
@@ -4170,19 +4236,19 @@ sub _rewrite_links {
                 my $sr = action_save( "/$rel", $user, $c, undef );
                 $changed++ if ref $sr eq 'HASH' && $sr->{ok};
             }
-    } );
+    }, undef, $roots );
     return wantarray ? ( $changed, $truncated ) : $changed;
 }
 
 sub _rename_page {
-    my ( $a,   $user ) = @_;
-    my ( $old, $new )  = ( $a->{old} // '', $a->{new} // '' );
+    my ( $a, $user, $caps ) = @_;
+    my ( $old, $new ) = ( $a->{old} // '', $a->{new} // '' );
     for my $s ( \$old, \$new ) { $$s = _norm_slug( $$s, dots => 1, md => 1, trail => 1 ) }
     return { ok => 0, error => 'old and new required' } unless length $old && length $new;
     my $r = action_move( "/$old.md", "/$new.md", $user );
     return $r unless ref $r eq 'HASH' && $r->{ok};
     if ( $a->{update_links} ) {
-        ( $r->{links_updated}, my $truncated ) = _rewrite_links( $old, $new, $user );
+        ( $r->{links_updated}, my $truncated ) = _rewrite_links( $old, $new, $user, _walk_roots($caps) );
         %$r = ( %$r, _page_cap_keys($truncated) );
     }
 

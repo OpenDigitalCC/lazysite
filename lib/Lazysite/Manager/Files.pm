@@ -168,6 +168,30 @@ sub _governing_acl_key {
 # migrate-to-local. Every one of them opens on validate_path and the two
 # blocklists before it touches the filesystem.
 
+# SM1308 (ruling 47): A LISTING ASKED FOR NO FOLDER, BY A CALLER CONFINED TO A
+# SCOPE, IS ITS SCOPE ROOTS - never the docroot. MCP list_files defaulted a
+# missing path to '/', after the scope pass had skipped the argument for not
+# being given, so a grant refused '/' when it named it was shown the docroot
+# when it named nothing (T-01). The control API's `list` refused instead, its
+# '/' default reaching the scope check; both doors now answer this. Each root
+# is a folder entry, so one shape serves one scope or several, and a root that
+# exists in neither tree is left out. The names are the grant's own, so the
+# answer discloses nothing the caller was not given.
+sub action_list_scope_roots {
+    my ($scopes) = @_;
+    my ( %seen, @entries );
+    for my $s ( ref $scopes eq 'ARRAY' ? @$scopes : () ) {
+        ( my $r = $s // '' ) =~ s{\A/+|/+\z}{}g;
+        next unless length $r && !$seen{$r}++;
+        my ( $full, $where ) = Lazysite::Private::resolve( $DOCROOT, $r );
+        next unless defined $full && -d $full;
+        my @st = stat $full;
+        push @entries, { name => $r, path => "/$r", type => 'dir', size => 0,
+            mtime => $st[9] // 0, store => $where };
+    }
+    return { ok => 1, path => '/', scope_roots => JSON::PP::true, entries => \@entries };
+}
+
 sub action_list {
     my ($dir_path) = @_;
     $dir_path //= '/';

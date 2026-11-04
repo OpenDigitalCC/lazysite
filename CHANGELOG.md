@@ -222,6 +222,15 @@ Archive
   the tools under test, with no limit: a child that never exits hung its test with nothing to
   name it. They run through TestHelper::run_child now, which fails the test naming itself and
   the child after `child_timeout()`.
+- SM1308 (PENDING) **a confined agent lists and searches only its scope.** An MCP grant
+  confined to a scope was answered `list_pages`, `list_files` and `search_files` from the
+  whole docroot when it named no path, because the scope check skips an argument that is not
+  given; and the search printed lines of files whose rule the caller does not pass. A
+  missing or empty path is now the grant's scope roots, the walks stay inside them (as do
+  `delete_page`'s reference list and `rename_page`'s link rewrite, which wrote pages outside
+  the scope), and each search hit is a file the caller may read. The manager API's `list`
+  with no or an empty path, and `pages`, answer a confined caller the same way. Ruled
+  2026-11-04 (ruling 47).
 
 - SM1274 (PENDING) **Dismiss all empties the notices panel.** "Mark all read" marked every
   notice read and left them all in the panel. Now called Dismiss all, it also takes them out:
