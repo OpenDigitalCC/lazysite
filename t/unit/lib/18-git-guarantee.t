@@ -139,6 +139,7 @@ my %EXEMPT = (
         'read-only - resolves the content root a host serves from, for SM647\'s scope check',
     # --- Files ---
     'Files::action_list'                => 'read-only',
+    'Files::action_list_scope_roots'    => 'read-only - SM1308: a confined caller\'s scope roots, as a listing',
     'Files::action_read'                => 'read-only',
     'Files::action_aliases_list'        => 'read-only',
     'Files::action_acl_get'             => 'read-only',
