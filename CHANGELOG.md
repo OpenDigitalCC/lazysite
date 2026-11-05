@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM1321 (PENDING) **The bad-URL blocker spares the site's own files and exempt addresses.**
+  `vendor/` is a probe pattern and also where a theme keeps its scripts. The blocker counted a
+  site's own assets, and behind a front proxy every visitor was 127.0.0.1, so everyone got 403
+  for 1 h 44 min. A path that resolves to a regular file under the docroot is never counted now
+  (plain segments only: no `..`, no symbolic link on the way, no dot name, not the engine
+  tree). Loopback (127.0.0.0/8, ::1) is always exempt: never counted or refused, a block on
+  file included. The new `bad_url_exempt` key names address lists whose addresses are exempt
+  too, in addition to loopback; only the value `none` removes loopback. It takes list names
+  only: the Config page refuses an address or a list that does not exist, `lazysite check`
+  warns about one, and a list it names counts as in use. Ruled 2026-11-04 (ruling 48) and
+  2026-11-05 (rulings 83, 84).
+
 - SM1345 (PENDING) **The upgrade turns each address list into an address profile, and no
   site changes behaviour.** The request's A-4: once, install.pl converts
   `lazysite/auth/address-lists.json` to `address-profiles.json`, the same names and entries

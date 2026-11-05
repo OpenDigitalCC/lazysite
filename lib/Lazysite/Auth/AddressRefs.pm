@@ -16,6 +16,8 @@ package Lazysite::Auth::AddressRefs;
 #   groups-settings.json  fields addresses, addresses_deny (a list of names)
 #   lazysite.conf         manager_addresses, manager_addresses_deny (comma list)
 #                         signin_addresses, signin_addresses_deny
+#                         bad_url_exempt (SM1321: list names only, ruling 84; the
+#                         blocker asks membership only, so slot 'match')
 #   handlers.conf         a type-odoo binding's signin_addresses, signin_addresses_deny
 #                         (SM1229; SM1159 held them on the binding's calls), and its
 #                         address_profile (SM1280: whether a call came from inside it)
@@ -100,7 +102,7 @@ sub _conf_names {
     my %v;
     open my $fh, '<:utf8', $conf or return %v;
     while ( my $l = <$fh> ) {
-        $v{$1} = $2 if $l =~ /^((?:manager|signin)_addresses(?:_deny)?)\s*:\s*(.*?)\s*$/;
+        $v{$1} = $2 if $l =~ /^( (?:manager|signin)_addresses(?:_deny)? | bad_url_exempt )\s*:\s*(.*?)\s*$/x;
     }
     close $fh;
     return %v;
@@ -232,6 +234,10 @@ sub rules {
         for _names( $conf{signin_addresses} );
     push @rules, { where => 'conf', ref => 'signin_addresses_deny', slot => 'deny', name => $_ }
         for _names( $conf{signin_addresses_deny} );
+    # SM1321: the bad-URL blocker's exempt lists (ruling 84: names only, so every item
+    # is one, and one the store lacks is reported like any other; `none` is no name).
+    push @rules, { where => 'conf', ref => 'bad_url_exempt', slot => 'match', name => $_ }
+        for grep { lc $_ ne 'none' } _names( $conf{bad_url_exempt} );
 
     _binding_rules( "$lz/forms/handlers.conf", \@rules, \@faults );
 

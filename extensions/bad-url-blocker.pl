@@ -26,7 +26,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                 . 'unblock, are on this page.',
             version     => '1.0',
             config_file => 'lazysite/lazysite.conf',
-            config_keys => [qw(bad_url_block bad_url_threshold bad_url_window bad_url_extra)],
+            config_keys => [qw(bad_url_block bad_url_threshold bad_url_window bad_url_extra bad_url_exempt)],
             config_schema => [
                 {
                     key     => 'bad_url_block',
@@ -61,6 +61,18 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                     default => '',
                     note    => 'Comma-separated substrings to treat as probes on top of '
                         . 'the built-ins.',
+                },
+                # SM1321 (rulings 48, 83, 84): address lists never counted or refused.
+                {
+                    key      => 'bad_url_exempt',
+                    label    => 'Never block',
+                    type     => 'text',
+                    default  => '',
+                    validate => 'Lazysite::BadUrl::validate_exempt',
+                    note => 'Comma-separated names of address lists (Access -> Address lists) '
+                        . 'whose addresses are never counted or blocked. Loopback (127.0.0.0/8, ::1) '
+                        . 'is always exempt; the value none exempts nothing, loopback included. '
+                        . 'A path to a file the site has is never counted.',
                 },
             ],
         }

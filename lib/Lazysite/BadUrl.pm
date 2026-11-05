@@ -17,7 +17,7 @@ use Lazysite::Paths ();
 use JSON::PP        ();
 use Fcntl           qw(:flock);
 use Exporter 'import';
-our @EXPORT_OK = qw(guard is_bad_url is_blocked record_and_check list_blocks block unblock);
+our @EXPORT_OK = qw(guard is_bad_url is_blocked exempt exempt_names validate_exempt site_has_file record_and_check list_blocks block unblock);
 
 # SM128 / SM1181 S1: THE GUARD, one function for every caller in the request path.
 #
@@ -34,6 +34,14 @@ our @EXPORT_OK = qw(guard is_bad_url is_blocked record_and_check list_blocks blo
 # address is never refused. A refused request is the caller's to answer (the CGI
 # prints a 403 and exits; a worker must not exit): this decides, and writes the
 # audit row and the log line when THIS request is the one that trips a block.
+#
+# SM1321 (ruling 48, T-03): TWO THINGS ARE NEVER COUNTED. A path that resolves to a
+# file the site really has is not a probe, whatever it looks like: `vendor/` is a
+# probe pattern and also where a theme keeps its scripts, and counting a site's own
+# assets blocked 127.0.0.1 - every visitor behind the front proxy - for 1h44m. And
+# an exempt address - loopback always (ruling 83), and the address lists
+# `bad_url_exempt` names - is never counted and never refused, a block already on
+# file included.
 sub guard {
     my (%o) = @_;
     my %c;
@@ -45,10 +53,14 @@ sub guard {
     return 0 unless defined $ip && length $ip;
     my ( $docroot, $path ) = ( $o{docroot}, $o{path} );
 
-    return 1 if is_blocked( $docroot, $ip );
+    # The exemption is asked only when it would change the answer: a blocked
+    # address, or a probe about to be counted. The common request asks nothing.
+    return 1 if is_blocked( $docroot, $ip ) && !exempt( $docroot, $ip, $c{bad_url_exempt} );
 
     my @extra = grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $c{bad_url_extra} // '' );
     return 0 unless is_bad_url( $path, \@extra );
+    return 0 if site_has_file( $docroot, $path );
+    return 0 if exempt( $docroot, $ip, $c{bad_url_exempt} );
 
     my $threshold = ( $c{bad_url_threshold} || 10 ) + 0;
     my $window    = ( $c{bad_url_window}    || 3600 ) + 0;
@@ -80,6 +92,116 @@ my $BAD_RE = qr{
 
 my $BLOCK_CAP = 10_000;    # keep the blocked store bounded (drop oldest over this)
 my $HIT_CAP   = 20_000;    # keep the hit store bounded (drop oldest IPs over this)
+
+# SM1321 (ruling 83): loopback is ALWAYS exempt. It is the front proxy and the
+# machine's own checks; blocking it refuses everyone at once. Only the value `none`
+# takes it away.
+our $LOOPBACK = '127.0.0.0/8, ::1';
+
+# SM1321: IS THIS ADDRESS EXEMPT FROM THE BLOCKER? Loopback is (above), and so is an
+# address in an address list `bad_url_exempt` (lazysite.conf) names: a comma list of
+# list NAMES only (ruling 84; SM1138 lists, membership only, so either kind). No
+# address or range is written in the key - an exemption is a list the Access pages
+# show. The value `none` exempts nothing, loopback included (ruling 83).
+#
+# An item that names no list in the store exempts nobody and is never silent:
+# AddressLists logs it once, validate_exempt refuses it at save, and `lazysite check`
+# names it (AddressRefs reads this key). An unreadable store exempts nobody but
+# loopback (fails toward counting, never toward letting a scanner through).
+#
+# THE ONE PLACE THE BLOCKER TOUCHES ADDRESS LISTS (rulings 56-58 rename them address
+# profiles): exempt_names, exempt and validate_exempt here, and AddressRefs' line for
+# the key.
+#
+# exempt_names($spec) -> ( $loopback, @names )
+sub exempt_names {
+    my ($spec) = @_;
+    return (1) unless defined $spec && $spec =~ /\S/;
+    ( my $v = $spec ) =~ s/\A\s+|\s+\z//g;
+    return (0) if lc $v eq 'none';
+    return ( 1, grep { length && lc ne 'none' } map { s/\A\s+|\s+\z//gr } split /,/, $v );
+}
+
+sub exempt {
+    my ( $docroot, $ip, $spec ) = @_;
+    return 0 unless defined $ip && length $ip;
+    my ( $loopback, @names ) = exempt_names($spec);
+    if ($loopback) {
+        require Lazysite::Util;
+        my ($set) = Lazysite::Util::parse_trusted_proxies($LOOPBACK);
+        my $p = Lazysite::Util::_packed_address($ip); ## no critic (Subroutines::ProtectPrivateSubs)
+        return 1 if length $p && Lazysite::Util::_address_in_set( $p, $set ); ## no critic (Subroutines::ProtectPrivateSubs)
+    }
+    return 0 unless @names;
+    my $lz = Lazysite::Paths::lazysite_dir($docroot);
+    return 0 unless defined $lz;
+    require Lazysite::Auth::AddressLists;
+    no warnings 'once';
+    local $Lazysite::Auth::AddressLists::AUTH_DIR = "$lz/auth";
+    for my $n (@names) { return 1 if Lazysite::Auth::AddressLists::in_list( $ip, $n ) }
+    return 0;
+}
+
+# SM1321 (ruling 84): the Config page's save-time check of `bad_url_exempt` (the
+# descriptor names it; Manager::Plugins calls it with the lazysite dir). '' when the
+# value may be stored, else why not: an item that is not a list name (an address or
+# a range among them: the key names lists only), a name the store does not hold, and
+# `none` beside names (it is the whole value or nothing).
+sub validate_exempt {
+    my ( $value, $lz ) = @_;
+    return '' unless defined $value && $value =~ /\S/;
+    ( my $v = $value ) =~ s/\A\s+|\s+\z//g;
+    return '' if lc $v eq 'none';
+    my @items = grep { length } map { s/\A\s+|\s+\z//gr } split /,/, $v;
+    require Lazysite::Auth::AddressLists;
+    no warnings 'once';
+    local $Lazysite::Auth::AddressLists::AUTH_DIR = defined $lz ? "$lz/auth" : undef;
+    my %have  = map { $_ => 1 } Lazysite::Auth::AddressLists::list_names();
+    my $fault = Lazysite::Auth::AddressLists::store_fault();
+    my @why;
+    for my $i (@items) {
+        if ( lc $i eq 'none' ) {
+            push @why, "'none' is the whole value (it turns off loopback's exemption too) and cannot stand beside list names";
+        }
+        elsif ( !Lazysite::Auth::AddressLists::valid_name($i) ) {
+            push @why, "'$i' is not an address list name (this key names address lists only; loopback is always exempt)";
+        }
+        elsif ( !$fault && !$have{$i} ) {
+            push @why, "'$i' is not an address list (make it under Access -> Address lists first)";
+        }
+    }
+    return join '; ', @why;
+}
+
+# SM1321: DOES THIS REQUEST PATH NAME A FILE THE SITE HAS? Then it is the site's own
+# asset and not a probe. Resolved without trusting the path: the query goes, it is
+# percent-decoded once, and it must be plain segments under the docroot - a `.` or
+# `..` segment, a NUL or a backslash is not a file of the site's. Each step is
+# lstat'd from the docroot down, every folder a real folder and the last a regular
+# file, so a symbolic link anywhere on the way does not count (it could point out of
+# the site). A dot segment does not count either (`.env`, `.git/config` are exactly
+# what a scanner asks for, and a site serves none), nor does the engine tree under
+# the docroot (lazysite/, which the web server refuses).
+sub site_has_file {
+    my ( $docroot, $path ) = @_;
+    return 0 unless defined $docroot && length $docroot && defined $path;
+    ( my $p = $path ) =~ s/[?#].*\z//s;
+    $p                =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
+    return 0 if $p    =~ /[\0\\]/;
+    my @seg = grep { length } split m{/}, $p;
+    return 0 unless @seg;
+    return 0 if grep { /\A\./ } @seg;                   # `.`, `..` and every hidden name
+    return 0 if $seg[0] eq $Lazysite::Paths::DIRNAME;
+    ( my $at = $docroot ) =~ s{/+\z}{};
+    for my $i ( 0 .. $#seg ) {
+        $at .= "/$seg[$i]";
+        lstat $at or return 0;
+        return 0 if -l _;
+        if   ( $i < $#seg ) { return 0 unless -d _ }
+        else                { return 0 unless -f _ }
+    }
+    return 1;
+}
 
 sub _blocked_path { return Lazysite::Paths::lazysite_dir( $_[0] ) . "/cache/bad-url-blocked.json" }
 sub _hits_path { return Lazysite::Paths::lazysite_dir( $_[0] ) . "/cache/bad-url-hits.json" }

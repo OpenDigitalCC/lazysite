@@ -58,8 +58,10 @@ sub spit {
 sub slurp { open my $fh, '<', $_[0] or return ''; local $/; return scalar <$fh> // '' }
 
 my $SECRET = 'f' x 64;
+# SM1321: loopback is exempt from the blocker by default and every probe here comes
+# from 127.0.0.1, so the exemption is turned off.
 spit( "$LZ/lazysite.conf", "site_name: T\nmanager: enabled\nmcp_enabled: true\noauth_enabled: true\n"
-        . "bad_url_threshold: 3\nextensions:\n  - extensions/odoo.pl\n  - extensions/data.pl\n" );
+        . "bad_url_threshold: 3\nbad_url_exempt: none\nextensions:\n  - extensions/odoo.pl\n  - extensions/data.pl\n" );
 spit( "$LZ/auth/.secret", "$SECRET\n" );
 chmod 0600, "$LZ/auth/.secret";
 spit( "$LZ/auth/users", "boss:x\nmem:x\n" );
