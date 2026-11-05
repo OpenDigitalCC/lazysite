@@ -98,6 +98,15 @@ page:
 : Perl namespaces of operation packs installed beyond OOM's own, comma
   separated.
 
+`odoo_display_name`
+: The name a visitor or a manager is shown for Odoo, default `Odoo`: the sign-in
+  dialog's labels, the `/odoo-signin` page and its button, the `/login` link to it,
+  the browser helper's messages, the errors the page endpoint answers and the
+  Unknown Odoo writes panel all say it. Empty, they name nothing ("Sign in", "That
+  sign-in was not accepted"). The extension, its page, its daemon and these
+  settings keep the name Odoo. A page already cached shows the old name until it
+  is next rendered.
+
 ## The connection user's key
 
 The connection user signs in with an **API key** issued in Odoo, never a
@@ -834,7 +843,8 @@ site without it behaves as it always did.
   Set `auth_redirect` to a page that carries the sign-in link.
 - **A ready-made sign-in page.** While `odoo_site_signin` is on, the site has
   `/odoo-signin`: a sign-in page in the site's own layout with a "Sign in with
-  your Odoo login" button that opens the sign-in dialog. Once the person is signed
+  your Odoo login" button (Odoo named by `odoo_display_name`) that opens the
+  sign-in dialog. Once the person is signed
   in it goes to the page's `?next=` when that is a path on this site (checked by
   the endpoint as `/login` checks its own return), and to `/` otherwise; a person
   already signed in sees who, and a sign-out. `/login` on such a site shows a

@@ -788,6 +788,14 @@ function unblockIp(ip) {
 // own login, so only they can resume it: it is offered Close run alone. The keys are
 // held in window._unknownRuns and named by index, never written into a handler.
 
+// SM1328: Odoo by the site's odoo_display_name, which the listing answers ('' for
+// none: the text then names nothing); "Odoo" until a listing has said.
+window._odooName = 'Odoo';
+function odooSaid(named, plain) {
+  var n = window._odooName;
+  return n ? named.split('{name}').join(n) : plain;
+}
+
 function toggleUnknownRuns(btn) {
   var el = document.getElementById('odoo-unknown-body');
   if (!el) return;
@@ -803,12 +811,13 @@ function loadUnknownRuns() {
   fetch(API + '?action=odoo-unknown-runs').then(function (r) { return r.json(); }).then(function (d) {
     if (!d || !d.ok) { el.innerHTML = '<p class="mg-muted">' + esc((d && d.error) || 'Unavailable.') + '</p>'; return; }
     window._unknownRuns = d.runs || [];
-    if (!window._unknownRuns.length) { el.innerHTML = '<p class="mg-muted">No Odoo run is waiting.</p>'; return; }
+    if (d.display_name !== undefined) window._odooName = String(d.display_name || '');
+    if (!window._unknownRuns.length) { el.innerHTML = '<p class="mg-muted">' + esc(odooSaid('No {name} run is waiting.', 'No run is waiting.')) + '</p>'; return; }
     var h = '<div class="mg-table-wrap"><table class="mg-table"><thead><tr>'
           + '<th>Binding</th><th>Made by</th><th>When</th><th>Change</th><th></th></tr></thead><tbody>';
     window._unknownRuns.forEach(function (run, i) {
       var when = run.at ? new Date(run.at * 1000).toLocaleString() : '';
-      var who = run.person ? 'a person signed in to Odoo' : (run.owner || '');
+      var who = run.person ? odooSaid('a person signed in to {name}', 'a signed-in person') : (run.owner || '');
       var changes = run.changes && run.changes.length ? run.changes : [{}];
       changes.forEach(function (c, j) {
         var what = [c.key || ('#' + (c.seq || '')), c.action, c.model, c.id].filter(function (x) { return x !== undefined && x !== ''; }).join(' ');
@@ -835,7 +844,7 @@ function resumeRun(body, done) {
     .then(function (r) { return r.json(); })
     .then(function (d) {
       if (d && d.ok) showStatus(done);
-      else if (d && d.kind === 'unknown-outcome') showStatus('Odoo cannot be asked about a change of this run. Say whether it was made.', true);
+      else if (d && d.kind === 'unknown-outcome') showStatus(odooSaid('{name} cannot be asked about a change of this run. Say whether it was made.', 'A change of this run cannot be read back. Say whether it was made.'), true);
       else if (d && d.unknown) showStatus('The run went on and a change got no answer again. It is listed below.', true);
       else showStatus((d && d.error) || 'The run was not resumed', true);
       loadUnknownRuns();
@@ -861,7 +870,7 @@ function settleChange(i, j, how) {
 function dismissRun(i) {
   var run = (window._unknownRuns || [])[i];
   if (!run) return;
-  mgConfirm('Close this run? It is no longer offered, and nothing is sent to Odoo.', { ok: 'Close run' }).then(function (ok) {
+  mgConfirm(odooSaid('Close this run? It is no longer offered, and nothing is sent to {name}.', 'Close this run? It is no longer offered, and nothing is sent.'), { ok: 'Close run' }).then(function (ok) {
     if (!ok) return;
     fetch(API + '?action=odoo-dismiss', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run: run.run })

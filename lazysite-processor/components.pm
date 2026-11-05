@@ -10,6 +10,7 @@ package main;
 # OWNS    what a component fence becomes on the page.
 # CALLS   convert_fenced_divs, convert_fenced_include, convert_md, the
 #         markdown/json/url_safe filters, log_event (lazysite-processor.pl);
+#         _odoo_display_name (render.pm, on first ask);
 #         Template (loaded by the script before its parts load).
 # READS   $LAZYSITE_DIR (the script's, declared `our` there).
 #
@@ -166,7 +167,10 @@ sub _render_component {
     );
     my $rendered = '';
     $tt->process( "components/$name.tt",
-        { content => $content, attrs => \%attrs, slots => \%slots }, \$rendered )
+        { content => $content, attrs => \%attrs, slots => \%slots,
+            # SM1328: the built-in odoo-signin's button names Odoo by the site's name
+            # for it; asked only by a component that says it, as the page's own is.
+            odoo_display_name => sub { _odoo_display_name() } }, \$rendered )
         or do {
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'component render failed',
             component => $name, error => $tt->error() );

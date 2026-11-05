@@ -21,7 +21,7 @@ package main;
 #         engine version and install time a render is keyed and stamped with.
 # CALLS   render_content, _tt_render, _cgi_can_write, _content_abs, _draft_requested,
 #         _content_rel, _esc_html, _is_manager, _json_filter, _markdown_filter,
-#         _url_safe_filter, fetch_url, log_event (the script and its parts);
+#         _url_safe_filter, _odoo_display_name, fetch_url, log_event (the script and its parts);
 #         decode_json, sha256_hex, dirname and make_path (imported by the
 #         script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $LAYOUT_CACHE_DIR,
@@ -820,7 +820,11 @@ sub _inject_odoo_helper {
     return $html unless $html =~ m{</body>}i;
     return $html unless $html =~ m{\bdata-ls-odoo\b};
     return $html if $html =~ m{/assets/lazysite-odoo\.js};
-    my $script = '<script src="/assets/lazysite-odoo.js?v=' . _lazysite_version() . '" defer></script>';
+    # SM1328: the script tag carries the site's name for Odoo, which the helper's
+    # dialog and messages say ('' for none); a page that loads the helper itself
+    # has no attribute, and the helper says "Odoo".
+    my $script = '<script src="/assets/lazysite-odoo.js?v=' . _lazysite_version() . '"'
+        . ' data-ls-odoo-display-name="' . _esc_html( _odoo_display_name() ) . '" defer></script>';
     $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
     return $html;
 }

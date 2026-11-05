@@ -87,6 +87,20 @@
 
   function doc() { return root.document; }
 
+  /* SM1328 (ruling 52): the name the site gives Odoo, from the script tag the engine
+   * adds (data-ls-odoo-display-name, '' for none); "Odoo" when the tag has none.
+   * said(named, plain) is `named` with every {name} replaced by it, or `plain` when
+   * the site gives no name - each text is written both ways, so neither has a hole. */
+  function displayName() {
+    var d = doc();
+    var s = d && d.querySelector ? d.querySelector('script[data-ls-odoo-display-name]') : null;
+    return s ? String(s.getAttribute('data-ls-odoo-display-name') || '') : 'Odoo';
+  }
+  function said(named, plain) {
+    var n = displayName();
+    return n ? named.split('{name}').join(n) : plain;
+  }
+
   function url(query) {
     return API.endpoint + (query ? '?' + query : '');
   }
@@ -299,8 +313,10 @@
     clear(node);
     if (!data || !data.run) { node.setAttribute('data-ls-odoo-state', 'stale'); return; }
     node.setAttribute('data-ls-odoo-state', 'unknown');
-    node.appendChild(el('p', { role: 'status' }, 'It is not known whether Odoo made '
-      + (unknownOf(data).length === 1 ? 'this change.' : 'these changes.')));
+    var one = unknownOf(data).length === 1;
+    node.appendChild(el('p', { role: 'status' }, said('It is not known whether {name} made '
+      + (one ? 'this change.' : 'these changes.'),
+      'It is not known whether ' + (one ? 'this change was' : 'these changes were') + ' made.')));
     var list = el('ul');
     var buttons = [];
     function go(o) {
@@ -519,11 +535,11 @@
     var d = doc();
     if (!d || !d.body) return Promise.resolve(false);
     return new Promise(function (resolve) {
-      var box = el('div', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Sign in to Odoo', 'data-ls-odoo-prompt': '' });
+      var box = el('div', { role: 'dialog', 'aria-modal': 'true', 'aria-label': said('Sign in to {name}', 'Sign in'), 'data-ls-odoo-prompt': '' });
       var form = el('form', { autocomplete: 'on' });
-      var msg = el('p', { role: 'alert' }, why || 'Sign in to Odoo to continue.');
-      var login = el('input', { type: 'text', name: 'login', autocomplete: 'username', 'aria-label': 'Odoo login', required: 'required' });
-      var pass = el('input', { type: 'password', name: 'password', autocomplete: 'current-password', 'aria-label': 'Odoo password', required: 'required' });
+      var msg = el('p', { role: 'alert' }, why || said('Sign in to {name} to continue.', 'Sign in to continue.'));
+      var login = el('input', { type: 'text', name: 'login', autocomplete: 'username', 'aria-label': said('{name} login', 'Login'), required: 'required' });
+      var pass = el('input', { type: 'password', name: 'password', autocomplete: 'current-password', 'aria-label': said('{name} password', 'Password'), required: 'required' });
       var go = el('button', { type: 'submit' }, 'Sign in');
       var no = el('button', { type: 'button' }, 'Cancel');
       [msg, login, pass, go, no].forEach(function (n) { form.appendChild(n); });
@@ -590,7 +606,7 @@
           }, function () {
             c = null;
             verify.disabled = false;
-            cmsg.textContent = 'Odoo could not be reached. Try again.';
+            cmsg.textContent = said('{name} could not be reached. Try again.', 'No answer came. Try again.');
           });
         });
       }
@@ -614,7 +630,7 @@
         }, function () {
           p = null;
           go.disabled = false;
-          msg.textContent = 'Odoo could not be reached. Try again.';
+          msg.textContent = said('{name} could not be reached. Try again.', 'No answer came. Try again.');
         });
       });
 

@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1328 (PENDING) **Odoo is shown by the name the site gives it.** Every dialog label and
+  error text a visitor or a manager reads said "Odoo", with no way for a site to call its
+  back office what its people call it. One setting, `odoo_display_name` in the Odoo
+  extension's settings (default `Odoo`), is now said by the sign-in dialog, `/odoo-signin`
+  and its button, `/login`'s link to it, the browser helper's messages, the errors the page
+  endpoint answers and the Unknown Odoo writes panel. Empty, they name nothing, and each
+  text is written to read whole without it ("Sign in", "That sign-in was not accepted").
+  The extension's own name, its page, its daemon, its settings and the logs keep "Odoo".
+  The setting has one reader, `Lazysite::Odoo::Name`. Ruled 2026-11-04 (ruling 52).
+
 - SM1327 (PENDING) **A write names the version it replaces.** MCP `write_file` saved with
   no modification time, which skips the save's conflict check, so an agent writing back a
   file it had read replaced whatever another writer saved in between. It takes an optional

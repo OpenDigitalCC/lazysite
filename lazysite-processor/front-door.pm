@@ -76,6 +76,7 @@ our @POOL_PRELOAD = qw(
     Lazysite::Odoo::Fields
     Lazysite::Odoo::Identity
     Lazysite::Odoo::Visitor
+    Lazysite::Odoo::Name
     Lazysite::Auth::Session
     Lazysite::BadUrl
     Lazysite::Maintenance

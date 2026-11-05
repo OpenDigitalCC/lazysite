@@ -57,8 +57,22 @@ my $ID   = qr/\A[A-Za-z0-9_-]{8,200}\z/;
 my $PATH = qr{\A/[A-Za-z0-9._/-]{0,200}\z};
 
 # What a two-factor account is told while the sign-in has no code step.
-my $TWO_FACTOR = 'Odoo accepted that sign-in but opened no session. An account with two-factor '
-    . 'authentication cannot sign in with a password alone here.';
+sub _two_factor {
+    return _said( '{name} accepted that sign-in but opened no session. An account with two-factor '
+            . 'authentication cannot sign in with a password alone here.',
+        'That sign-in was accepted but opened no session. An account with two-factor '
+            . 'authentication cannot sign in with a password alone here.' );
+}
+
+# SM1328 (ruling 52): a text naming Odoo, with the site's odoo_display_name or, when it
+# gives none, as $plain. Lazysite::Odoo, which calls everything here, holds the docroot.
+sub _said {
+    my ( $named, $plain ) = @_;
+    require Lazysite::Odoo::Name;
+    require Lazysite::Paths;
+    no warnings 'once';
+    return Lazysite::Odoo::Name::phrase( $named, $plain, Lazysite::Paths::lazysite_dir($Lazysite::Odoo::DOCROOT) );
+}
 
 sub _secret {
     require Lazysite::Odoo::Visitor;
@@ -215,7 +229,7 @@ sub login_label {
 sub sign_in {
     my ( $conn, $login, $password, %o ) = @_;
     my $t = eval { _transport($conn) };
-    return _fail( 'config', 'the Odoo connection is not configured correctly - see the event log' ) unless $t;
+    return _fail( 'config', _said( 'the {name} connection is not configured correctly - see the event log', 'the connection is not configured correctly - see the event log' ) ) unless $t;
     my $identity = eval {
         $t->authenticate( $conn->{db}, $login, $password,
             ( defined $o{trusted_device} ? ( trusted_device => $o{trusted_device} ) : () ) );
@@ -237,14 +251,14 @@ sub sign_in {
         unless ( $t->can('complete_totp') && defined $sid && $sid =~ $ID ) {
             eval { $t->destroy };
             log_event( 'WARN', 'odoo', 'odoo sign-in refused', kind => 'two-factor', who => login_label($login) );
-            return _fail( 'two-factor', $TWO_FACTOR );
+            return _fail( 'two-factor', _two_factor() );
         }
         return { ok => 0, pending => 1, session_id => $sid, kind => 'second-factor-required' };
     }
     my $sid = $t->session_id;
     unless ( defined $sid && $sid =~ $ID ) {
         eval { $t->destroy };
-        return _fail( 'unavailable', 'Odoo opened a session this host cannot carry' );
+        return _fail( 'unavailable', _said( '{name} opened a session this host cannot carry', 'the sign-in opened a session this host cannot carry' ) );
     }
     return {
         ok         => 1,
@@ -295,7 +309,7 @@ sub complete_totp {
     # Resumed on the one transport _transport builds, so the code step reaches
     # Odoo the way the password step did - its CA bundle (SM1149) included.
     my $t = eval { _transport($conn)->resume_pending( db => $conn->{db}, session => $pending_sid ) };
-    return _fail( 'config', 'the Odoo connection is not configured correctly - see the event log' )
+    return _fail( 'config', _said( 'the {name} connection is not configured correctly - see the event log', 'the connection is not configured correctly - see the event log' ) )
         unless $t && $t->can('complete_totp');
     my $remember = $o{remember} ? 1 : 0;
     my $ua       = $o{user_agent};
@@ -308,7 +322,8 @@ sub complete_totp {
         if ( $cat eq 'second-factor' ) {
             log_event( 'WARN', 'odoo', 'odoo second-factor code refused', kind => 'second-factor', who => session_label($pending_sid) );
             return _fail( 'second-factor',
-                'Odoo did not accept that code. Check the 6-digit code and try again; Odoo limits how many tries it allows.' );
+                _said( '{name} did not accept that code. Check the 6-digit code and try again; {name} limits how many tries it allows.',
+                    'That code was not accepted. Check the 6-digit code and try again; the number of tries is limited.' ) );
         }
         if ( $cat eq 'session' ) {
             log_event( 'WARN', 'odoo', 'odoo pending sign-in lapsed', kind => 'signin-required', who => session_label($pending_sid) );
@@ -321,7 +336,7 @@ sub complete_totp {
     my $sid = $t->session_id;
     unless ( defined $sid && $sid =~ $ID ) {
         eval { $t->destroy };
-        return { %{ _fail( 'unavailable', 'Odoo opened a session this host cannot carry' ) }, clear_pending => 1 };
+        return { %{ _fail( 'unavailable', _said( '{name} opened a session this host cannot carry', 'the sign-in opened a session this host cannot carry' ) ) }, clear_pending => 1 };
     }
     my $td = ref $identity->{trusted_device} eq 'HASH' ? $identity->{trusted_device}{value} : undef;
     return {
@@ -351,7 +366,7 @@ sub _facts {
 # which leaves the person signed in and the page with no identity to show.
 sub identity_of {
     my ( $conn, $sid ) = @_;
-    return _fail( 'signin-required', 'no Odoo sign-in' ) unless defined $sid && $sid =~ $ID;
+    return _fail( 'signin-required', _said( 'no {name} sign-in', 'no sign-in' ) ) unless defined $sid && $sid =~ $ID;
     my $id = eval {
         require Odoo::Client;
         my $t = _transport( $conn, session => $sid );
@@ -360,10 +375,10 @@ sub identity_of {
     my $err = $@;
     return { ok => 1, identity => _facts($id) } if ref $id eq 'HASH';
     if ( ref $err && eval { $err->isa('Odoo::Error') } && $err->is_session_expired ) {
-        return { %{ _fail( 'signin-required', 'your Odoo sign-in has ended - sign in again' ) }, clear_session => 1 };
+        return { %{ _fail( 'signin-required', _said( 'your {name} sign-in has ended - sign in again', 'your sign-in has ended - sign in again' ) ) }, clear_session => 1 };
     }
     log_event( 'WARN', 'odoo', 'odoo identity refresh failed', who => session_label($sid) );
-    return _fail( 'transport-failure', 'Odoo could not be reached, or did not answer in a usable way' );
+    return _fail( 'transport-failure', _said( '{name} could not be reached, or did not answer in a usable way', 'the connection could not be made, or the answer was not usable' ) );
 }
 
 sub _fail {
@@ -379,9 +394,9 @@ sub _classify {
     my ($err) = @_;
     if ( ref $err && eval { $err->isa('Odoo::Error') } ) {
         my $k = $err->kind // '';
-        return ( 'transport-failure', 'Odoo could not be reached, or did not answer in a usable way' )
+        return ( 'transport-failure', _said( '{name} could not be reached, or did not answer in a usable way', 'the connection could not be made, or the answer was not usable' ) )
             if $k eq 'transport';
-        return ( 'config', 'the Odoo connection is not configured correctly - see the event log' )
+        return ( 'config', _said( 'the {name} connection is not configured correctly - see the event log', 'the connection is not configured correctly - see the event log' ) )
             if $k eq 'config';
         if ( $k eq 'fault' ) {
             # SM1117: OOM 0.24 gave "accepted, no session opened" its own category
@@ -392,11 +407,11 @@ sub _classify {
             # test below can no longer sit behind the credential test. The signal
             # is read first; the message stays for an OOM before 0.24.
             my $cat = $err->can('fault_category') ? ( $err->fault_category // '' ) : '';
-            return ( 'two-factor', $TWO_FACTOR )
+            return ( 'two-factor', _two_factor() )
                 if ( $err->can('is_no_session') && $err->is_no_session )
                 || $cat eq 'second_factor' || $cat eq 'second-factor-required'
                 || ( $err->message // '' ) =~ /did not establish a session/;
-            return ( 'signin-refused', 'Odoo did not accept that sign-in' ) if $err->is_invalid_credential;
+            return ( 'signin-refused', _said( '{name} did not accept that sign-in', 'That sign-in was not accepted' ) ) if $err->is_invalid_credential;
         }
     }
     return ( 'internal', 'the sign-in failed inside the engine - see the event log' );

@@ -104,6 +104,13 @@ sub describe {
                     . 'that page access and file ACLs read. A site group that carries any capability '
                     . '(the manager, the API, anything on the Groups page) is refused by name: a person '
                     . 'signed in through Odoo is never given manager rights.' },
+            # SM1328 (ruling 52): the one name every dialog and message says for Odoo.
+            { key => 'odoo_display_name', label => 'Name shown for Odoo', type => 'text',
+                default => 'Odoo',
+                note => 'What the sign-in dialog, the sign-in page and button, and the messages a '
+                    . 'visitor or a manager reads call Odoo - the name people know it by here. '
+                    . 'Empty: they name nothing ("Sign in", "That sign-in was not accepted"). '
+                    . 'A page already cached shows the old name until it is next rendered.' },
             { key => 'odoo_packs', label => 'Extra operation packs', type => 'text', list => ',',
                 note => 'Leave blank unless you have installed an extra OOM operation pack. '
                     . 'An operation pack is a set of named Odoo operations (list, plan, apply); '
@@ -134,7 +141,7 @@ sub describe {
 
         owns => {
             config_keys =>
-                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_remember_device odoo_identity_ttl odoo_site_signin odoo_group_map odoo_packs odoo_pack_dirs odoo_daemon odoo_daemon_workers)],
+                [qw(odoo_url odoo_db odoo_login odoo_timeout odoo_max_kb odoo_allow_writes odoo_ca_file odoo_remember_device odoo_identity_ttl odoo_site_signin odoo_group_map odoo_display_name odoo_packs odoo_pack_dirs odoo_daemon odoo_daemon_workers)],
 
             # NO `storage`, deliberately. lazysite/odoo/ holds the connection
             # user's key and plans carrying Odoo's own records; a site package

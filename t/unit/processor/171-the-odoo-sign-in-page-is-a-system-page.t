@@ -65,8 +65,8 @@ subtest 'switched on: the page renders, in the site\'s layout' => sub {
         'and the signed-in line the helper fills' );
     like( $out, qr{<section class="lz-odoo-signin"><div class="lazysite-form" data-ls-odoo-out><p class="form-field form-submit"><button}, '...as one block the Markdown pass leaves whole' );
     unlike( $out, qr{<p></section>|</p></p>}, '...with no stray paragraph tags' );
-    like( $out, qr{<script src="/assets/lazysite-odoo\.js\?v=[^"]*" defer></script>},
-        'and the Odoo helper, added by the processor' );
+    like( $out, qr{<script src="/assets/lazysite-odoo\.js\?v=[^"]*" data-ls-odoo-display-name="Odoo" defer></script>},
+        'and the Odoo helper, added by the processor (SM1328: carrying the name it says)' );
     my ($body) = $out =~ /<header>SITE-LAYOUT-PROBE<\/header>(.*)<\/body>/s;
     unlike( $body // '', qr/\bstyle\s*=|<style\b/i, 'the page itself carries no inline style' );
 };

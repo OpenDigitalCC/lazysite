@@ -69,16 +69,13 @@ our $OVERRIDE_CAP = 'manage_connectors';
 
 sub _lz        { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 sub store_dir  { return _lz() . '/odoo' }
-sub calls_file { return store_dir() . '/calls.jsonl' }
 
-# SM1347: a text that names Odoo to a visitor or a manager, written with {name} and
-# without it, said here as "Odoo". SM1328 (n744) makes this the one reader of the
-# site's odoo_display_name: stacked on it, this is its `said` and its body is
-# `Lazysite::Odoo::Name::phrase( $named, $plain, _lz() )` - one line.
+# SM1328 (ruling 52): a text that names Odoo to a visitor or a manager, said with the
+# site's odoo_display_name ({name}) or, when the site gives none, as $plain.
 sub said {
     my ( $named, $plain ) = @_;
-    ( my $t = $named ) =~ s/\{name\}/Odoo/g;
-    return $t;
+    require Lazysite::Odoo::Name;
+    return Lazysite::Odoo::Name::phrase( $named, $plain, _lz() );
 }
 
 # A kind table's entry - [ kind, text ] or [ kind, text with {name}, text without ].
@@ -86,6 +83,7 @@ sub _kind_said {
     my ($e) = @_;
     return ( $e->[0], @$e > 2 ? said( $e->[1], $e->[2] ) : $e->[1] );
 }
+sub calls_file { return store_dir() . '/calls.jsonl' }
 
 # The extension's config file (`config_file: lazysite/odoo.conf`), in the
 # engine tree as the resolver finds it - as notify-xmpp.conf is read.
@@ -336,28 +334,34 @@ sub connection {
 # say which refusal it was, so a caller can tell "re-plan" from "switch writes
 # on" without reading prose.
 my %FAULT_KIND = (
-    access => [ 'odoo-access-refused', 'Odoo refused this operation: the connection user\'s rights in Odoo do not allow it' ],
-    credential => [ 'invalid-credential', 'Odoo did not accept the connection user\'s login or API key' ],
-    session    => [ 'session-expired', 'the Odoo session has expired' ],
-    validation => [ 'odoo-validation', 'Odoo refused the values the operation sent' ],
-    missing => [ 'odoo-missing', 'a record the operation needed is no longer in Odoo' ],
-    other   => [ 'odoo-fault',   'Odoo answered with an error' ],
+    access => [ 'odoo-access-refused', '{name} refused this operation: the connection user\'s rights in {name} do not allow it',
+        'this operation was refused: the connection user\'s rights do not allow it' ],
+    credential => [ 'invalid-credential', '{name} did not accept the connection user\'s login or API key',
+        'the connection user\'s login or API key was not accepted' ],
+    session => [ 'session-expired', 'the {name} session has expired', 'the session has expired' ],
+    validation => [ 'odoo-validation', '{name} refused the values the operation sent', 'the values the operation sent were refused' ],
+    missing => [ 'odoo-missing', 'a record the operation needed is no longer in {name}', 'a record the operation needed is no longer there' ],
+    other => [ 'odoo-fault', '{name} answered with an error', 'the answer was an error' ],
 );
 my %REFUSED_KIND = (
     scope => [ 'scope-refused', 'the operation asked for something outside its declared scope, so nothing was sent' ],
-    redirect => [ 'refused', 'Odoo answered with a redirect, which is never followed - the credential would travel with it' ],
-    oversize => [ 'refused', 'Odoo\'s answer was larger than odoo_max_kb allows' ],
-    'read-only' => [ 'read-only', 'writes are switched off for this Odoo connection (odoo_allow_writes)' ],
-    instance => [ 'instance', 'the plan was made against a different Odoo connection' ],
+    redirect => [ 'refused', '{name} answered with a redirect, which is never followed - the credential would travel with it',
+        'the answer was a redirect, which is never followed - the credential would travel with it' ],
+    oversize => [ 'refused', '{name}\'s answer was larger than odoo_max_kb allows', 'the answer was larger than odoo_max_kb allows' ],
+    'read-only' => [ 'read-only', 'writes are switched off for this {name} connection (odoo_allow_writes)',
+        'writes are switched off for this connection (odoo_allow_writes)' ],
+    instance => [ 'instance', 'the plan was made against a different {name} connection', 'the plan was made against a different connection' ],
     applied  => [ 'applied',  'this plan has already been applied' ],
-    stale => [ 'stale', 'the plan is stale: the data in Odoo changed after it was made - make it again' ],
+    stale => [ 'stale', 'the plan is stale: the data in {name} changed after it was made - make it again',
+        'the plan is stale: the data changed after it was made - make it again' ],
     fingerprint => [ 'edited', 'the plan was changed after it was made, so it cannot be applied' ],
     'not-a-plan' => [ 'invalid', 'that is a result, not a plan' ],
     'idem-mismatch' => [ 'refused', 'that Idempotency-Key was used for a different request - give this request a key of its own' ],
     'idem-withdrawn' => [ 'refused', 'the plan made with that Idempotency-Key was withdrawn - give the request a new key' ],
     'run-gone' => [ 'not-found', 'this plan is no longer held by the Odoo daemon - make the plan again' ], # SM1261
         # SM1275: OOM read every unknown change it could and one names no read that tells
-    'unknown-outcome' => [ 'unknown-outcome', 'a change of this run cannot be read back from Odoo, so whether it was made is for a person to say: look in Odoo, then resume it saying it was made or was not' ],
+    'unknown-outcome' => [ 'unknown-outcome', 'a change of this run cannot be read back from {name}, so whether it was made is for a person to say: look in {name}, then resume it saying it was made or was not',
+        'a change of this run cannot be read back, so whether it was made is for a person to say: look at the record, then resume it saying it was made or was not' ],
     closed => [ 'dismissed', 'this run was closed in OOM, so it is not resumed' ],
     # SM1347 (ruling 104): since OOM 0.43 a record the account may not read is `access`,
     # one that does not exist `missing`; each is said as what it is
@@ -381,7 +385,9 @@ my %REFUSED_KIND = (
 our $USAGE_TEXT_MAX = 300;
 
 # SM1218: what an apply says when a change was sent and no answer came (see _add_unknown).
-our $UNKNOWN_ANSWER = 'the plan may not have applied completely: a change was sent to Odoo and no answer came, so it is not known whether Odoo made it - read it back in Odoo before repeating it';
+# SM1328: [ with the name, without ] - said through said().
+our @UNKNOWN_ANSWER = ( 'the plan may not have applied completely: a change was sent to {name} and no answer came, so it is not known whether {name} made it - read it back in {name} before repeating it',
+    'the plan may not have applied completely: a change was sent and no answer came, so it is not known whether it was made - read it back before repeating it' );
 
 sub _usage_text {
     my ($t) = @_;
@@ -415,7 +421,7 @@ sub fault {
         %why = ( oom_kind => $k, code => ( $err->code // '' ),
             category => ( $err->fault_category // '' ) );
         if ( $k eq 'fault' ) {
-            ( $kind, $said ) = @{ $FAULT_KIND{ $err->fault_category // 'other' } // $FAULT_KIND{other} };
+            ( $kind, $said ) = _kind_said( $FAULT_KIND{ $err->fault_category // 'other' } // $FAULT_KIND{other} );
         }
         elsif ( $k eq 'transport' && ( $err->code // '' ) eq 'daemon-down' ) {
             # SM1164 D3: odoo_daemon: required and the daemon is not there. OOM's own
@@ -423,14 +429,16 @@ sub fault {
             ( $kind, $said ) = ( 'daemon-down', 'the Odoo daemon is not running, and this site requires it (odoo_daemon: required)' );
         }
         elsif ( $k eq 'transport' ) {
-            ( $kind, $said ) = ( 'transport-failure', 'Odoo could not be reached, or did not answer in a usable way' );
+            ( $kind, $said ) = ( 'transport-failure', said( '{name} could not be reached, or did not answer in a usable way',
+                    'the connection could not be made, or the answer was not usable' ) );
         }
         elsif ( $k eq 'refused' ) {
             ( $kind, $said ) = _kind_said( $REFUSED_KIND{ $err->code // '' }
-                    // [ 'refused', 'the call was refused before Odoo answered' ] );
+                    // [ 'refused', 'the call was refused before {name} answered', 'the call was refused before it was answered' ] );
         }
         elsif ( $k eq 'config' ) {
-            ( $kind, $said ) = ( 'config', 'the Odoo connection is not configured correctly - see the event log' );
+            ( $kind, $said ) = ( 'config', said( 'the {name} connection is not configured correctly - see the event log',
+                    'the connection is not configured correctly - see the event log' ) );
         }
         else {
             ( $kind, $said ) = ( 'invalid', 'the operation refused what it was given - see the event log' );
@@ -450,7 +458,8 @@ sub fault {
         $why{detail} = $err->message // '';
     }
     else {
-        ( $kind, $said ) = ( 'internal', 'the Odoo call failed inside the engine - see the event log' );
+        ( $kind, $said ) = ( 'internal', said( 'the {name} call failed inside the engine - see the event log',
+                'the call failed inside the engine - see the event log' ) );
         ( $why{detail} = "$err" ) =~ s/\s+\z//;
     }
     log_event( 'WARN', 'odoo', 'odoo call failed', kind => $kind, %why,
@@ -631,8 +640,10 @@ sub gate {
     # without that sign-in. It is refused - never run as the connection user, whose
     # account is likely wider than the person's.
     return _refusal( \%rec, 'signin-required',
-        'this binding runs as a person signed in to Odoo, and the call carries no Odoo sign-in '
-            . '- only the Odoo endpoint, for a person who has signed in, carries one' )
+        said( 'this binding runs as a person signed in to {name}, and the call carries no {name} sign-in '
+                . '- only the Odoo endpoint, for a person who has signed in, carries one',
+            'this binding runs as a signed-in person, and the call carries no sign-in '
+                . '- only the Odoo endpoint, for a person who has signed in, carries one' ) )
         if session_binding($binding) && !length( $ctx{odoo_session} // '' );
 
     my ( $may, $why ) = may_call( $binding, %ctx );
@@ -1676,8 +1687,10 @@ sub resume {
     if ( session_binding($b) ) {
         # It ran as the person, on their own Odoo login; OOM refuses another login's run.
         return ( _refusal( \%base, 'not-yours',
-                'this run was made by a person signed in to Odoo, as them: only they can resume it, signed in; '
-                    . 'an operator may dismiss it' ) )[1]
+                said( 'this run was made by a person signed in to {name}, as them: only they can resume it, signed in; '
+                        . 'an operator may dismiss it',
+                    'this run was made by a signed-in person, as them: only they can resume it, signed in; '
+                        . 'an operator may dismiss it' ) ) )[1]
             unless length $swho && ( $meta->{owner} // '' ) eq $swho;
         %c = ( %c, odoo_session => $sess, actor => $swho, mode => 'authenticated' );
     }
@@ -1801,7 +1814,7 @@ sub _session_end {
     return $r unless session_binding($b) && ref $r eq 'HASH' && !$r->{ok};
     return $r unless ( $r->{kind} // '' ) =~ /\A(?:session-expired|invalid-credential)\z/;
     return { ok => 0, kind => 'signin-required', clear_session => 1,
-        error => 'your Odoo sign-in has ended - sign in again' };
+        error => said( 'your {name} sign-in has ended - sign in again', 'your sign-in has ended - sign in again' ) };
 }
 
 # OOM's Runner applies only an APPROVED plan (its run registry, 2026-10-13; the
@@ -1838,8 +1851,9 @@ sub _ready {
                     'the connection user\'s key cannot be read by this process - see the event log' ) )[1] )
             unless defined $has;
         return ( undef, ( _refusal( $rec, 'no-key',
-                    ( $conn->{key_kind} && $conn->{key_kind} eq 'scheduled' ? 'this binding\'s own Odoo login has no API key set'
-                        : $conn->{key_account} ? 'this grant\'s Odoo account has no API key set'
+                    ( $conn->{key_kind} && $conn->{key_kind} eq 'scheduled'
+                        ? said( 'this binding\'s own {name} login has no API key set', 'this binding\'s own login has no API key set' )
+                        : $conn->{key_account} ? said( 'this grant\'s {name} account has no API key set', 'this grant\'s account has no API key set' )
                         : 'the connection user has no API key set' ) . ' - a sysop sets it on the Odoo page' ) )[1] )
             unless $has;
     }
@@ -2047,7 +2061,7 @@ sub _finish {
         my $u = ref $res->{result} eq 'HASH' && ref $res->{result}{counts} eq 'HASH' ? $res->{result}{counts}{unknown} : 0;
         if ($u) {
             $res->{unknown} = $u + 0;
-            $res->{error}   = $UNKNOWN_ANSWER;
+            $res->{error}   = said(@UNKNOWN_ANSWER);
         }
         else { $res->{error} = 'the plan did not apply completely - see the counts' }
         $res->{kind} = 'apply-incomplete';
@@ -2097,7 +2111,8 @@ sub _result_summary {
 # trace or a secret's name withholds it whole). A withheld message is replaced by a
 # plain sentence and `withheld => 1`, so a page can tell. A failure whose journal
 # could not be read still gets its entry.
-my $WITHHELD = 'Odoo refused this change; its reason is kept for the operator';
+my @WITHHELD = ( '{name} refused this change; its reason is kept for the operator',
+    'this change was refused; its reason is kept for the operator' );
 
 sub _add_failures {
     my ( $changes, $failed ) = @_;
@@ -2113,7 +2128,7 @@ sub _add_failures {
         $c->{key}  = $f->{key}  if defined $f->{key}  && !ref $f->{key};
         $c->{code} = $f->{code} if defined $f->{code} && !ref $f->{code};
         my $m = _usage_text( $f->{message} );
-        $c->{message}  = defined $m ? $m : $WITHHELD;
+        $c->{message}  = defined $m ? $m : said(@WITHHELD);
         $c->{withheld} = 1 unless defined $m;
     }
     return;
@@ -2146,7 +2161,8 @@ sub _add_unknown {
         $c->{message}  = $m if defined $m;
         $c->{withheld} = 1 unless defined $m;
         my $r = _usage_text( $f->{reason} );
-        $c->{reason} = defined $r ? $r : 'the request was sent and no answer came; Odoo may have made this change';
+        $c->{reason} = defined $r ? $r : said( 'the request was sent and no answer came; {name} may have made this change',
+            'the request was sent and no answer came; this change may have been made' );
     }
     return;
 }
@@ -2482,7 +2498,7 @@ sub refresh_identity {
     require Lazysite::Odoo::Session;
     my ($have) = oom_check();
     my ($conn) = $have ? connection() : ();
-    return { ok => 0, kind => 'config', error => 'the Odoo connection is not available' } unless $conn;
+    return { ok => 0, kind => 'config', error => said( 'the {name} connection is not available', 'the connection is not available' ) } unless $conn;
     my $r = Lazysite::Odoo::Session::identity_of( $conn, $a{session_id} );
     return $r unless $r->{ok};
     my $c = _identity_cookie( $r->{identity} );
@@ -2532,7 +2548,7 @@ sub site_groups {
     return { ok => 1, groups => [] } unless %$map;
     my ($have) = oom_check();
     my ($conn) = $have ? connection() : ();
-    return { ok => 0, kind => 'config', error => 'the Odoo connection is not available' } unless $conn;
+    return { ok => 0, kind => 'config', error => said( 'the {name} connection is not available', 'the connection is not available' ) } unless $conn;
     my ($class) = operation_class( $conn, 'core.has_groups' );
     return { ok => 0, kind => 'unavailable', error => 'the Odoo extension needs OOM 0.33 or later to read a person\'s groups' }
         unless $class;
@@ -2543,10 +2559,11 @@ sub site_groups {
     my $err = $@;
     unless ( ref $report eq 'HASH' && ref $report->{groups} eq 'HASH' ) {
         return { ok => 0, kind => 'signin-required', clear_session => 1,
-            error => 'your Odoo sign-in has ended - sign in again' }
+            error => said( 'your {name} sign-in has ended - sign in again', 'your sign-in has ended - sign in again' ) }
             if ref $err && eval { $err->isa('Odoo::Error') } && $err->is_session_expired;
         log_event( 'WARN', 'odoo', 'the person\'s groups could not be read', who => Lazysite::Odoo::Session::session_label( $a{session_id} ) );
-        return { ok => 0, kind => 'transport-failure', error => 'Odoo could not be asked which groups the person holds' };
+        return { ok => 0, kind => 'transport-failure', error => said( '{name} could not be asked which groups the person holds',
+                'the groups the person holds could not be asked' ) };
     }
     return { ok => 1, groups => Lazysite::Odoo::SiteSignin::groups_held( $report->{groups}, $map ) };
 }
@@ -2567,20 +2584,22 @@ sub site_session_start {
         log_event( 'WARN', 'odoo', 'site sign-in refused', why => $why );
         return ( undef, $why );
     };
-    return $fail->('Odoo did not say which login this is, so no site sign-in can be made')
+    return $fail->( said( '{name} did not say which login this is, so no site sign-in can be made',
+            'the sign-in did not say which login this is, so no site sign-in can be made' ) )
         unless Lazysite::Odoo::SiteSignin::login_ok($login);
     {
         no warnings 'once';
         local $Lazysite::Auth::Settings::AUTH_DIR = _lz() . '/auth';
         return $fail->( 'this site has no group that grants manager access, so it is unsecured; '
-                . 'the Odoo sign-in can be the site sign-in only on a secured site' )
+                . said( 'the {name} sign-in can be the site sign-in only on a secured site',
+                'this sign-in can be the site sign-in only on a secured site' ) )
             unless Lazysite::Auth::Settings::site_grants_manager();
     }
     my $g = site_groups( session_id => $r->{session_id} );
 
     # Groups that cannot be read are no groups, never a guess: the person is signed in and
     # holds nothing a mapping would give. A session Odoo has already ended is no sign-in.
-    return $fail->('your Odoo sign-in has ended - sign in again') if $g->{clear_session};
+    return $fail->( said( 'your {name} sign-in has ended - sign in again', 'your sign-in has ended - sign in again' ) ) if $g->{clear_session};
     no warnings 'once';
     local $Lazysite::Auth::Session::LAZYSITE_DIR = _lz();
     my ($cookie) = Lazysite::Auth::Session::mint_odoo_session(
@@ -3283,7 +3302,9 @@ sub action_odoo_unknown_runs {
         closedir $dh;
     }
     @out = sort { ( $b->{at} // 0 ) <=> ( $a->{at} // 0 ) } @out;
-    return { ok => 1, runs => \@out };
+    # SM1328: the panel says Odoo by the site's name for it ('' for none).
+    require Lazysite::Odoo::Name;
+    return { ok => 1, runs => \@out, display_name => Lazysite::Odoo::Name::display_name( _lz() ) };
 }
 
 sub action_odoo_resume {

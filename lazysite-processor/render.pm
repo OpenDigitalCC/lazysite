@@ -23,7 +23,8 @@ package main;
 #         _front_matter_private, _content_rel,
 #         _request_address, _trusted_proxy_spec, _lazysite_version,
 #         _manager_style, _enabled_extensions, _placeholder_key, _url_safe_filter,
-#         _lazy_lib (the address test, on first ask),
+#         _lazy_lib (the address test, and odoo_display_name's reader
+#         Lazysite::Odoo::Name, each on first ask),
 #         log_event (the script and its parts); Template->new and make_path
 #         (loaded by the script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $TT_COMPILE_DIR, %AUTH_CONTEXT,
@@ -495,6 +496,9 @@ sub _render_stash {
   # in by the browser helper from the signed identity (so a cached page is never one
   # person's). '' on any other site; a layout renders [% odoo_signin_banner %].
         odoo_signin_banner => _odoo_signin_banner(),
+    # SM1328 (ruling 52): the name the site gives Odoo ('' for none), asked only by a
+    # template that says it - [% odoo_display_name %] - so no other page loads the reader.
+        odoo_display_name => sub { _odoo_display_name() },
         sections => $meta->{sections} || [],    # D035 Phase 3: data-driven pages
         editor   => $editor_flag,
         year     => sprintf( '%04d', (localtime)[5] + 1900 ),
@@ -679,6 +683,13 @@ sub _odoo_site_signin_on {
     while ( my $l = <$fh> ) { $on = lc $1 if $l =~ /\A\s*odoo_site_signin\s*:\s*(.*?)\s*\z/ }
     close $fh;
     return $on =~ /\A(?:on|yes|true|1)\z/ ? 1 : 0;
+}
+
+# SM1328 (ruling 52): odoo_display_name, read by its one reader (Lazysite::Odoo::Name),
+# loaded on first ask: a page that names Odoo nowhere never loads it.
+sub _odoo_display_name {
+    _lazy_lib('Lazysite::Odoo::Name');
+    return Lazysite::Odoo::Name::display_name($LAZYSITE_DIR);
 }
 
 # SM1160: is this an Odoo-sign-in site, and if so the banner. The processor loads no
