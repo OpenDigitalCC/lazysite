@@ -43,7 +43,7 @@ cmp_ok( scalar @scripts, '>=', 8, 'the root CGIs are found (' . scalar(@scripts)
 
 my ($linked) = slurp("$root/install.pl") =~ m{for my \$plugin \(qw\(([^)]+)\)\) \{\n\s+my \$src = "\$plugin_dir/\$plugin\.pl";\n\s+my \$dst = "\$cgibin/\$plugin\.pl";};
 ok( defined $linked, 'install.pl names the plugins it puts in the cgi-bin' );
-push @scripts, map { "plugins/$_.pl" } split ' ', $linked // '';
+push @scripts, map { "extensions/$_.pl" } split ' ', $linked // '';
 
 for my $s (@scripts) {
     my @lines = map  { norm($_) } split /\n/, slurp("$root/$s");

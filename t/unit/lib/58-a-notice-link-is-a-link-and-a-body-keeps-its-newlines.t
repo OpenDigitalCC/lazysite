@@ -5,7 +5,7 @@
 # SM926: `site_url` holds `${REQUEST_SCHEME}://${SERVER_NAME}` on every site
 # install.pl or TestHelper creates. Notify returned it RAW, so the first XMPP
 # notification to arrive on a live site carried
-# `${REQUEST_SCHEME}://${SERVER_NAME}/manager/plugins` as its link. Two other
+# `${REQUEST_SCHEME}://${SERVER_NAME}/manager/extensions` as its link. Two other
 # readers in the tree expanded it; this was the third and the only one that did not.
 #
 # SM928 defect 1: the newline strip before the notices.jsonl append also fed %vars,
@@ -93,7 +93,7 @@ subtest 'a multi-line message reaches the template whole' => sub {
     print {$xf} "jid: a\@b\npassword: p\nto: c\@d\n";
     close $xf;
     open my $cf, '>>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$cf} "extensions:\n  - plugins/notify-xmpp.pl\n";
+    print {$cf} "extensions:\n  - extensions/notify-xmpp.pl\n";
     close $cf;
 
     Lazysite::Notify::notify( $d,

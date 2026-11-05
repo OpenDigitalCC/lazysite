@@ -1094,12 +1094,8 @@ sub _resolve_account {
 # Send the setup link by invoking the form-smtp plugin (--pipe).
 sub _send_setup_email {
     my ( $to, $user, $link ) = @_;
-    my $smtp;
-    for my $c ( dirname($0) . "/../plugins/form-smtp.pl",
-        "$DOCROOT/../plugins/form-smtp.pl",
-        "$DOCROOT/plugins/form-smtp.pl" ) {
-        if ( -f $c ) { $smtp = $c; last }
-    }
+    require Lazysite::Extensions;
+    my $smtp = Lazysite::Extensions::locate( 'form-smtp.pl', dirname($0) . '/..', "$DOCROOT/.." );
     return unless $smtp;
     require JSON::PP;
     my $payload = JSON::PP::encode_json( {

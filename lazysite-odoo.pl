@@ -177,7 +177,7 @@ sub main {
     return reply( '403 Forbidden',
         { ok => 0, kind => 'disabled',
             error => 'The Odoo extension is disabled. A sysop can enable it on the Extensions page.' } )
-        unless Lazysite::Manager::Plugins::plugin_enabled('plugins/odoo.pl');
+        unless Lazysite::Manager::Plugins::plugin_enabled('extensions/odoo.pl');
 
     # SM1147: the visitor cookie, the session cookie and the identity cookie are
     # read by these small modules; Lazysite::Odoo (the engine, with Egress under

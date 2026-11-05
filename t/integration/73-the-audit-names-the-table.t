@@ -18,7 +18,7 @@ make_path("$docroot/lazysite/auth");
 make_path("$docroot/lazysite/db/tables");
 make_path("$docroot/lazysite/logs");
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $cf;
 open my $df, '>', "$docroot/lazysite/db/tables/events.yaml" or die $!;
 print {$df}

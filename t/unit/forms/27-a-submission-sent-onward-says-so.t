@@ -34,7 +34,7 @@ BEGIN {
 use Lazysite::Manager::Connectors ();
 
 my $root    = repo_root();
-my $cgi     = "$root/plugins/form-handler.pl";
+my $cgi     = "$root/extensions/form-handler.pl";
 my $docroot = site_tempdir();
 make_path( "$docroot/lazysite/forms", "$docroot/lazysite/auth",
     "$docroot/lazysite/connectors", "$docroot/lazysite/logs", "$docroot/subs" );

@@ -2229,7 +2229,7 @@ sub brief_write_refusal {
     no warnings 'once';
     local $Lazysite::Manager::Plugins::DOCROOT = $droot;
     return
-        unless eval { Lazysite::Manager::Plugins::plugin_enabled('plugins/briefs.pl') };
+        unless eval { Lazysite::Manager::Plugins::plugin_enabled('extensions/briefs.pl') };
     return _refusal(
         'This site holds briefs in the brief store, not in .brief sidecar '
             . 'files - a sidecar written here would be an inert file no listing '

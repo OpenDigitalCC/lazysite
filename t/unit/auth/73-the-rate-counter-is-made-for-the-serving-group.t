@@ -22,7 +22,7 @@ sub site {
     my $d = site_tempdir();
     make_path("$d/lazysite/auth");
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print $cf "site_name: R\nplugins:\n  - plugins/login-rate-limit.pl\n";
+    print $cf "site_name: R\nextensions:\n  - extensions/login-rate-limit.pl\n";
     close $cf;
     return $d;
 }

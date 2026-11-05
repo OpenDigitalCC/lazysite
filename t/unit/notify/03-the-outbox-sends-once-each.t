@@ -41,7 +41,7 @@ sub site {
     my (%rule) = @_;
     my $d = site_tempdir();
     make_path( "$d/lazysite/forms", "$d/lazysite/logs", "$d/lazysite/db/tables", "$d/lazysite/notify-templates" );
-    spit( "$d/lazysite/lazysite.conf", "site_name: T\nsite_url: https://news.example\nplugins:\n  - plugins/data.pl\n" );
+    spit( "$d/lazysite/lazysite.conf", "site_name: T\nsite_url: https://news.example\nextensions:\n  - extensions/data.pl\n" );
     $OUT  = "$d/mail.out";
     $FAIL = "$d/fail-for";
     spit( "$d/sendmail", "#!$^X\n" . <<"MOCK" );
@@ -183,7 +183,7 @@ subtest 'a ledger that will not open stops the run' => sub {
 
 subtest 'unsubscribe on with no absolute site address fails the entry, visibly' => sub {
     site();
-    spit( "$D/lazysite/lazysite.conf", "site_name: T\nplugins:\n  - plugins/data.pl\n" );
+    spit( "$D/lazysite/lazysite.conf", "site_name: T\nextensions:\n  - extensions/data.pl\n" );
     comment( post => 'p1', comment => 'x' );
     run_job();
     is( scalar( () = messages() ), 0, 'nothing was sent' );

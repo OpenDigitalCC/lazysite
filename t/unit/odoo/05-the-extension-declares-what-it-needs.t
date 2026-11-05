@@ -18,7 +18,7 @@ use OdooTest                qw(oom_lib);
 use Lazysite::Plugins::Owns qw(validate_owns parse_dep);
 
 my $root   = repo_root();
-my $plugin = "$root/plugins/odoo.pl";
+my $plugin = "$root/extensions/odoo.pl";
 my $d      = eval { decode_json( scalar run_cmd( $^X, $plugin, '--describe' ) ) };
 ok( ref $d eq 'HASH', '--describe answers JSON' ) or BAIL_OUT('no descriptor');
 
@@ -51,7 +51,7 @@ sub missing_with {
     my $out = run_cmd( $^X, ( map { "-I$_" } @inc, "$root/lib" ), '-MJSON::PP=encode_json',
         '-MLazysite::Manager::Plugins', '-e',
         'my $d = JSON::PP::decode_json(qx($^X ' . $plugin . ' --describe));'
-            . 'my ($m, $b) = Lazysite::Manager::Plugins::_missing_deps("plugins/odoo.pl", "'
+            . 'my ($m, $b) = Lazysite::Manager::Plugins::_missing_deps("extensions/odoo.pl", "'
             . $plugin . '", $d); print encode_json([$m, $b]);' );
     return eval { decode_json($out) } // [ $out, [] ];
 }

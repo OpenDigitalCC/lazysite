@@ -36,7 +36,7 @@ my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
 make_path( "$docroot/lazysite/db/tables", "$docroot/lazysite/auth" );
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $cf;
 open my $df, '>', "$docroot/lazysite/db/tables/notes.yaml" or die $!;
 print {$df} "public: true\nkey: code\nfields:\n  code:\n    type: text\n"

@@ -36,6 +36,7 @@ use JSON::PP        ();
 use Fcntl           qw(:flock);
 use Lazysite::Util  qw(log_event cannot_read interpolate_env);
 use Lazysite::Paths ();
+use Lazysite::Extensions ();
 use Exporter 'import';
 our @EXPORT_OK = qw(notify notify_types form_notify_mode route_report);
 
@@ -596,12 +597,8 @@ sub _record_mail_sent {
 # are the extension scripts" and two copies of it would diverge the first time
 # somebody moved the tree (SM850 is that lesson).
 sub _smtp_script {
-    my @tried = (
-        __FILE__ =~ s{/lib/Lazysite/Notify\.pm\z}{}r . '/plugins/form-smtp.pl',
-        '/usr/share/lazysite/plugins/form-smtp.pl',
-    );
-    for my $p (@tried) { return $p if -f $p }
-    return undef;
+    return Lazysite::Extensions::locate( 'form-smtp.pl',
+        __FILE__ =~ s{/lib/Lazysite/Notify\.pm\z}{}r );
 }
 
 # Hand the composed notice to the Form SMTP extension over its --pipe interface.
@@ -640,7 +637,7 @@ sub _mail_send {
 #
 # SM938 D2: A FORM'S `notify:` STATE, PARSED ONCE.
 #
-# This parse lived in plugins/form-handler.pl, which is a CGI - the manager cannot
+# This parse lived in extensions/form-handler.pl, which is a CGI - the manager cannot
 # call it, so showing an operator what a form does with its notices would have
 # meant a second reader of the same line. It lives here now and the handler calls
 # it, so the page and the delivery path cannot disagree about what `notify: fll`
@@ -825,7 +822,7 @@ sub _site_name { return _conf_value( $_[0], 'site_name' ) }
 # SM926: `site_url` HOLDS A TEMPLATE, NOT A URL - `${REQUEST_SCHEME}://${SERVER_NAME}`
 # is what install.pl and TestHelper write, so one config works on any domain. This
 # returned the raw line, so the first XMPP notification to arrive on a live site
-# carried `${REQUEST_SCHEME}://${SERVER_NAME}/manager/plugins` as its link. The
+# carried `${REQUEST_SCHEME}://${SERVER_NAME}/manager/extensions` as its link. The
 # processor and tools/lazysite-users.pl both expand it; this was the third reader
 # and the only one that did not.
 #
@@ -898,18 +895,8 @@ sub _plugin_enabled {
     my ( $in, $found ) = ( 0, 0 );
     while ( my $l = <$fh> ) {
         chomp $l;
-        # SM915: BOTH SPELLINGS, because SM817 renamed this list to
-        # `extensions:` and said the two open the same one - "a site cannot end
-        # up with two lists that disagree about what is enabled". This reader
-        # accepted only the old name, so on a site that adopted the new one it
-        # reported every extension disabled, and a notice reached no endpoint but
-        # the bell. That is not a new hole: XMPP delivery has been silently off
-        # on those sites since the rename, which SM485's build walked into while
-        # looking for the SMTP transport. Three more readers are still wrong and
-        # one of them WRITES a second list - measured and filed as SM915, not
-        # fixed here, because the writer needs a ruling about a conf that already
-        # carries both headers.
-        if    ( $l =~ /^(?:extensions|plugins)\s*:\s*$/ ) { $in = 1; next }
+        # SM1142: the one header; the upgrade rewrote the old one.
+        if    ( $l =~ /^extensions\s*:\s*$/ ) { $in = 1; next }
         elsif ( $in && $l =~ /^\s+-\s+(.+?)\s*$/ ) {
             ( my $base = $1 ) =~ s{.*/}{};
             $found = 1 if $base eq $name;
@@ -1257,7 +1244,7 @@ sub _test_body {
         type   => 'test',
         target => '',
         to     => '',
-        url    => '/manager/plugins',
+        url    => '/manager/extensions',
         site   => _site_name($docroot),
         base   => _site_url($docroot),
     );

@@ -39,7 +39,7 @@ use Lazysite::Manager::Data ();
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/db/tables");
 open my $c, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$c} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$c} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $c;
 $Lazysite::Manager::Data::DOCROOT = $docroot;
 
@@ -117,7 +117,7 @@ subtest 'the control API refuses the four cases the field measured' => sub {
     my @ALL = qw(ui manage_data write_data);
     my $site = new_site(
         root => $root,
-        conf => "control_api_enabled: true\nplugins:\n  - plugins/data.pl\n"
+        conf => "control_api_enabled: true\nextensions:\n  - extensions/data.pl\n"
     );
     make_path( $site->docroot . '/lazysite/db/tables' );
 

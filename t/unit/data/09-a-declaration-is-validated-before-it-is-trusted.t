@@ -97,7 +97,7 @@ subtest 'every problem is reported, not just the first' => sub {
 };
 
 subtest 'the shipped plugins that declare owns, declare it soundly' => sub {
-    my $dir = "$FindBin::Bin/../../../plugins";
+    my $dir = "$FindBin::Bin/../../../extensions";
     my @declaring;
     for my $f ( sort glob "$dir/*.pl" ) {
         my $d = eval { decode_json( `$^X \Q$f\E --describe 2>/dev/null` ) };

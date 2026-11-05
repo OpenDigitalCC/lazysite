@@ -38,7 +38,7 @@ use Lazysite::Auth::Settings ();
 use Lazysite::Capabilities   ();
 
 my $root    = "$FindBin::Bin/../..";
-my $plugins = "$root/plugins";
+my $plugins = "$root/extensions";
 plan skip_all => 'no plugins directory' unless -d $plugins;
 
 # Every capability every plugin claims, and who claims it.

@@ -5,12 +5,12 @@ search: false
 ---
 
 <!-- SM957: ONE MENU ENTRY, "Extensions", for two pages that were two entries:
-     this one enables and disables, /manager/plugin-config configures what is
+     this one enables and disables, /manager/extension-config configures what is
      enabled. Both addresses work and both light the same entry; each links to
      the other. Handlers left the menu by ruling and is reached from here and
      from each form on the Submissions page. -->
 <div class="mg-toolbar">
-  <a class="mg-btn mg-btn-sm" href="/manager/plugins">Enable or disable</a>
+  <a class="mg-btn mg-btn-sm" href="/manager/extensions">Enable or disable</a>
   <a class="mg-btn mg-btn-sm" href="/manager/handlers">Handlers</a>
 </div>
 

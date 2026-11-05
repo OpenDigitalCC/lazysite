@@ -94,7 +94,7 @@ ok( !unblock( $d, '9.9.9.9' ),  'unblocking an absent IP is a no-op (false)' );
 }
 
 # --- built-in patterns stay in sync with the stats noise set ----------------
-my $stats = do { open my $f, '<', "$FindBin::Bin/../../../plugins/stats.pl"; local $/; <$f> };
+my $stats = do { open my $f, '<', "$FindBin::Bin/../../../extensions/stats.pl"; local $/; <$f> };
 for my $probe (qw(wp-login xmlrpc phpmyadmin actuator autodiscover)) {
     like( $stats, qr/\Q$probe\E/, "stats noise set still mentions '$probe' (keep BadUrl in sync)" );
 }

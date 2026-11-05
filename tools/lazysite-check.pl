@@ -1418,6 +1418,9 @@ sub run_checks {
     # --- 8g. can this site's private store actually be written? (SM296) --------
     report_private_store_usable();
 
+    # --- 8g1. is every enabled extension listed under the one name? (SM1142) ----
+    report_extensions_list();
+
     # --- 8g2. is the login rate limiter actually counting? (SM798) --------------
     report_login_rate_limit();
 
@@ -3359,7 +3362,7 @@ sub report_daemon_runtime {
     my $wanted = 0;
     if ( open my $cf, '<', "$opt{docroot}/lazysite/lazysite.conf" ) {
         while ( my $l = <$cf> ) {
-            $wanted = 1 if $l =~ m{^\s*-\s*plugins/daemon\.pl\s*$};
+            $wanted = 1 if $l =~ m{^\s*-\s*extensions/daemon\.pl\s*$};
         }
         close $cf;
     }
@@ -3611,6 +3614,56 @@ sub report_theme_assets_mirrored {
     return;
 }
 
+# SM1142: THE OLD NAME IS READ BY NOTHING, SO THIS IS WHERE IT IS NAMED.
+#
+# The upgrade converts a site's list and moves its directory (install.pl,
+# extensions-rename) and from then on the readers know `extensions:` and
+# `extensions/<file>.pl` only (R3). A list or an entry an operator writes back
+# under the old spelling afterwards reads as OFF everywhere, and silently - the
+# login rate limiter among what it switches off - so each such line is named
+# here with the line to write instead, and so is an old directory left beside
+# the docroot, whose files nothing runs.
+#
+# old-name: begin (SM1142, the check names the spelling it finds)
+sub report_extensions_list {
+    my $old = 'plugins';
+    my @found;
+    if ( open my $fh, '<', "$LZ/lazysite.conf" ) {
+        my ( $n, $in ) = ( 0, 0 );
+        while ( my $l = <$fh> ) {
+            $n++;
+            chomp $l;
+            if ( $l =~ /^(extensions|\Q$old\E)\s*:\s*$/ ) {
+                $in = 1;
+                push @found, [ $n, "`$old:` - write `extensions:`" ] if $1 eq $old;
+                next;
+            }
+            if ( $in && $l =~ /^\s+-\s+\Q$old\E\/(\S+)\s*$/ ) {
+                push @found, [ $n, "`- $old/$1` - write `- extensions/$1`" ];
+                next;
+            }
+            $in = 0 if $in && $l !~ /^\s/;
+        }
+        close $fh;
+    }
+    for my $f (@found) {
+        report( 'WARN',
+            "lazysite.conf line $f->[0] uses the old name: $f->[1]. Nothing reads it, so "
+                . 'the extensions it lists are off',
+            "edit $LZ/lazysite.conf line $f->[0] (SM1142)" );
+    }
+    my $dir = "$DOC/../$old";
+    if ( -d $dir ) {
+        report( 'WARN',
+            "$dir is still beside the docroot - nothing runs the files in it",
+            'move what you need into the extensions/ beside it and remove it (SM1142)' );
+        push @found, 1;
+    }
+    report( 'OK', 'the enabled extensions are listed under extensions:' ) unless @found;
+    return;
+}
+# old-name: end
+
 # SM798: THE LOGIN RATE LIMITER FAILS OPEN, SO THIS IS WHERE IT SAYS SO.
 #
 # Without DB_File, or with a counter the sign-in CGI cannot open, every attempt
@@ -3626,11 +3679,11 @@ sub report_login_rate_limit {
         require Lazysite::Manager::Plugins;
         no warnings 'once';
         local $Lazysite::Manager::Plugins::DOCROOT = $opt{docroot};
-        unless ( Lazysite::Manager::Plugins::plugin_enabled('plugins/login-rate-limit.pl') ) {
+        unless ( Lazysite::Manager::Plugins::plugin_enabled('extensions/login-rate-limit.pl') ) {
             report( 'WARN',
                 'the login rate limiter is NOT in force: the login rate limit extension is '
                     . 'switched off, so sign-in attempts are not counted and every one is allowed',
-                'switch it on in the manager\'s extensions list (plugins/login-rate-limit.pl), '
+                'switch it on in the manager\'s extensions list (extensions/login-rate-limit.pl), '
                     . 'unless this site is meant to run without it' );
             return;
         }
@@ -3735,7 +3788,7 @@ sub report_odoo_oom_version {
         require Lazysite::Manager::Plugins;
         no warnings 'once';
         local $Lazysite::Manager::Plugins::DOCROOT = $opt{docroot};
-        Lazysite::Manager::Plugins::plugin_enabled('plugins/odoo.pl');
+        Lazysite::Manager::Plugins::plugin_enabled('extensions/odoo.pl');
     };
     return unless $on;
     my ( $have, $file );

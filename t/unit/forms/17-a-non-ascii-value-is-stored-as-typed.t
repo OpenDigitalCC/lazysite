@@ -29,7 +29,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root env_passthrough site_tempdir);
 
 my $root    = repo_root();
-my $handler = "$root/plugins/form-handler.pl";
+my $handler = "$root/extensions/form-handler.pl";
 plan skip_all => "no $handler" unless -f $handler;
 my $SECRET = 'c' x 64;
 

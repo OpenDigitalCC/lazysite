@@ -66,7 +66,7 @@ for my $p (@pages) {
     my $page = do { local $/; <$ph> };
     close $ph;
     # MATCHED ON THE VERB, not on `action=`, because a page can compose the
-    # action name before it sends it. plugins.md did exactly that -
+    # action name before it sends it. extensions.md did exactly that -
     #
     #   var action = input.checked ? 'plugin-enable' : 'plugin-disable';
     #   fetch(API + '?action=' + action, ...)
@@ -84,7 +84,7 @@ for my $p (@pages) {
     # `<div id="plugin-list">`, getElementById('plugin-list'), 'plugin-modal',
     # 'plugin-' + id. The ids have not moved and are not what this is about, so
     # they are removed before the match rather than guessed at - the first
-    # version of this stronger check reported plugin-config.md on the strength
+    # version of this stronger check reported extension-config.md on the strength
     # of a div.
     my $scan = $page;
     $scan =~ s/getElementById\(\s*['"][^'"]*['"]\s*\)//g;

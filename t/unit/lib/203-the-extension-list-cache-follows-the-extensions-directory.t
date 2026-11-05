@@ -3,7 +3,7 @@
 # extensions directory appeared beside the docroot, until deleted by hand.
 #
 # The cache (lazysite/cache/plugin-list.cache) was trusted for 60 seconds on its
-# age alone. A dev-server set-up lists extensions once with no plugins/ yet,
+# age alone. A dev-server set-up lists extensions once with no extensions/ yet,
 # creates the directory, lists again - and is told there are none. The cache now
 # records the state of what it was built from (the directory and the scripts in
 # it) and is used only while that state is unchanged; and an empty list built
@@ -22,8 +22,8 @@ sub put { my ( $p, $c ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} 
 
 sub widget {
     my ($d) = @_;
-    make_path("$d/../plugins");
-    put( "$d/../plugins/widget.pl", <<'PLUGIN' );
+    make_path("$d/../extensions");
+    put( "$d/../extensions/widget.pl", <<'PLUGIN' );
 #!/usr/bin/perl
 use strict; use warnings; use JSON::PP qw(encode_json);
 if ( grep { $_ eq '--describe' } @ARGV ) {
@@ -58,7 +58,7 @@ action_plugin_list();
 is( ( stat $cache )[9], $old, 'an unchanged directory leaves the cache alone' );
 
 # A script added later is seen too.
-put( "$d/../plugins/second.pl", <<'PLUGIN' );
+put( "$d/../extensions/second.pl", <<'PLUGIN' );
 #!/usr/bin/perl
 use strict; use warnings; use JSON::PP qw(encode_json);
 print encode_json({ id => 'second', name => 'Second', description => 'x',
@@ -67,7 +67,7 @@ PLUGIN
 is( ids( action_plugin_list() ), 'second,widget', 'an extension added to a listed directory is seen' );
 
 # And one removed.
-unlink "$d/../plugins/second.pl";
+unlink "$d/../extensions/second.pl";
 is( ids( action_plugin_list() ), 'widget', 'and one removed' );
 
 done_testing;

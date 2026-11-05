@@ -33,7 +33,7 @@ $s->users( 'address-list-set', 'blocked', '--kind', 'deny',  '--entry', $IN );
 sub set_conf {
     my (%k) = @_;
     spit( "$d/lazysite/lazysite.conf",
-        "site_name: S\nauth_redirect: /login\ntrusted_proxies: 127.0.0.1\nplugins:\n  - plugins/login-rate-limit.pl\n"
+        "site_name: S\nauth_redirect: /login\ntrusted_proxies: 127.0.0.1\nextensions:\n  - extensions/login-rate-limit.pl\n"
             . join( '', map { "$_: $k{$_}\n" } sort keys %k ) );
 }
 

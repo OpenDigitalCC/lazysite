@@ -224,7 +224,7 @@ subtest 'what was typed and the session are in no log or record' => sub {
 subtest 'sign-in attempts are counted by the site\'s own limiter' => sub {
     plan skip_all => 'DB_File is not installed' unless eval { require DB_File; 1 };
     open my $cf, '>>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$cf} "  - plugins/login-rate-limit.pl\n";
+    print {$cf} "  - extensions/login-rate-limit.pl\n";
     close $cf;
     my @st;
     push @st, ( sign_in( password => 'wrong', env => { REMOTE_ADDR => '203.0.113.9' } ) )[0] for 1 .. 6;

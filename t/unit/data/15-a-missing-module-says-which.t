@@ -47,7 +47,7 @@ sub site {
     my $d = tempdir( CLEANUP => 1 );
     make_path("$d/lazysite/db/tables");
     open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$c} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+    print {$c} "site_name: T\nextensions:\n  - extensions/data.pl\n";
     close $c;
     return $d;
 }

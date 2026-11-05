@@ -144,7 +144,7 @@ subtest 'forms: failed submission write reports failure, not success' => sub {
     $ENV{CONTENT_LENGTH} = length $body;
     $ENV{REMOTE_ADDR}    = '10.7.7.7';
 
-    my $out = run_limited( "$root/plugins/form-handler.pl", $body );
+    my $out = run_limited( "$root/extensions/form-handler.pl", $body );
     $out =~ s/\A.*?\r?\n\r?\n//s;
     my $resp = eval { decode_json($out) } || {};
     ok( !$resp->{ok}, 'submission reports FAILURE when the record cannot be written' )

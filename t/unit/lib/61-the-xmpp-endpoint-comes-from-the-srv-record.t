@@ -124,7 +124,7 @@ subtest 'the real resolver reports a failure rather than swallowing it' => sub {
 # notices, and it sits beside the code that made the dependency load-bearing.
 subtest 'notify-xmpp declares the resolver dependency' => sub {
     require JSON::PP;
-    my $plugin = "$FindBin::Bin/../../../plugins/notify-xmpp.pl";
+    my $plugin = "$FindBin::Bin/../../../extensions/notify-xmpp.pl";
     my $desc   = JSON::PP::decode_json( scalar qx{$^X "$plugin" --describe} );
     my @deps   = @{ $desc->{owns}{deps} // [] };
     ok( ( grep { $_ eq 'Net::DNS' } @deps ),

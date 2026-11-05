@@ -91,7 +91,7 @@ my @SHAPE = (
     [ Site   => 'Navigation',         '/manager/nav' ],
     [ Site   => 'Visitor statistics', '/manager/stats' ],
     [ Setup  => 'Appearance',         '/manager/appearance' ],
-    [ Setup  => 'Extensions',         '/manager/plugins' ],
+    [ Setup  => 'Extensions',         '/manager/extensions' ],
     [ Setup  => 'Connectors',         '/manager/connectors' ],
     [ Setup  => 'Data tables',        '/manager/data' ],
     [ Setup  => 'Domains',            '/manager/domains' ],
@@ -114,7 +114,7 @@ subtest 'every grant: the ruled groups, entries and order, every one a link' => 
     is( scalar( grep { $_->{class} =~ /mg-nav-locked/ } @m ), 0, 'nothing is locked' );
     my ($nav) = $html =~ m{(<nav class="mg-nav".*?</nav>)}s;
     unlike( $nav, qr{/manager/handlers|>Handlers}, 'Handlers is OFF the menu (ruling, M5)' );
-    unlike( $nav, qr{/manager/plugin-config|Extension (?:Manager|Config)},
+    unlike( $nav, qr{/manager/extension-config|Extension (?:Manager|Config)},
         'and the two extension entries are one, "Extensions" (M4)' );
     unlike( $m[0]{html}, qr{mg-nav-count|mg-nav-subs-count},
         'SM1097: Submissions carries no bubble - the bell is the one indicator of a new submission' );
@@ -159,7 +159,7 @@ subtest 'with the notifications grant too, the entry still has no bubble (SM1097
 };
 
 subtest 'one entry lights for both extension pages' => sub {
-    for my $uri (qw(/manager/plugins /manager/plugin-config)) {
+    for my $uri (qw(/manager/extensions /manager/extension-config)) {
         my ($x) = grep { $_->{label} eq 'Extensions' } menu( render( request_uri => $uri ) );
         like( $x->{html}, qr/class="active" aria-current="page"/, "$uri: Extensions is current" );
     }
@@ -176,14 +176,14 @@ subtest 'the palette lists exactly what the menu links to, in its order' => sub 
 };
 
 # --- ONE viewer -------------------------------------------------------------
-my $pc   = page_source("$root/starter/manager/plugin-config.md");
+my $pc   = page_source("$root/starter/manager/extension-config.md");
 my $subs = page_source("$root/starter/manager/submissions.md");
 
 subtest 'the viewer lives on the Submissions page and nowhere else' => sub {
     for my $fn ( qw(showSubmissionTable subsNode setSubsBody deleteSubmissionRow
         approveSubmissionRow confirmSubmissionRow bulkDeleteSubmissions downloadSubmissionsCsv) ) {
         ok( defined PageScript::try_extract( $subs, $fn ), "submissions.md has $fn" );
-        ok( !defined PageScript::try_extract( $pc, $fn ), "plugin-config.md keeps no copy of $fn" );
+        ok( !defined PageScript::try_extract( $pc, $fn ), "extension-config.md keeps no copy of $fn" );
     }
     like( $pc, qr{<a class="mg-btn mg-btn-sm" href="/manager/submissions">Submissions</a>},
         'the form handler row links to the page' );
@@ -209,7 +209,7 @@ SKIP: {
     };
 
     subtest 'the old address redirects to the page, carrying the store' => sub {
-        my $fn = extract_function( $pc, 'redirectLegacySubmissions', 'plugin-config.md' );
+        my $fn = extract_function( $pc, 'redirectLegacySubmissions', 'extension-config.md' );
         my $r  = $run->( $fn . <<'JS' );
 
 var out = {};

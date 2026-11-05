@@ -38,7 +38,7 @@ for my $x (qw(mine other)) {
 }
 {
     open my $cf, '>>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$cf} "extensions:\n  - plugins/remap.pl\n";
+    print {$cf} "extensions:\n  - extensions/remap.pl\n";
     close $cf;
 }
 

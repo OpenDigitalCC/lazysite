@@ -2,7 +2,7 @@
 # SM752: the daemon plugin's Status action produces output, in the state an
 # operator actually clicks it.
 #
-# 0.13.0 shipped with `require Lazysite::Daemon::Supervisor` in plugins/daemon.pl
+# 0.13.0 shipped with `require Lazysite::Daemon::Supervisor` in extensions/daemon.pl
 # and no @INC bootstrap. The manager runs a plugin action as a SUBPROCESS, so
 # the require died, and a plugin action that dies prints nothing to stdout - so
 # the manager answered "Action produced no output".
@@ -30,7 +30,7 @@ use TestHelper qw(repo_root);
 use JSON::PP   ();
 
 my $root   = repo_root();
-my $plugin = "$root/plugins/daemon.pl";
+my $plugin = "$root/extensions/daemon.pl";
 plan skip_all => 'no daemon plugin' unless -f $plugin;
 
 sub status_for {
@@ -53,7 +53,7 @@ sub site {
     open my $fh, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$fh} "site_name: t\n";
     if (@plugins) {
-        print {$fh} "plugins:\n";
+        print {$fh} "extensions:\n";
         print {$fh} "  - $_\n" for @plugins;
     }
     close $fh;
@@ -61,7 +61,7 @@ sub site {
 }
 
 subtest 'enabled but not started - the state the field found empty' => sub {
-    my $out = status_for( site('plugins/daemon.pl') );
+    my $out = status_for( site('extensions/daemon.pl') );
 
     ok( defined $out && length $out,
         'the action produces OUTPUT - this returned nothing in 0.13.0' )

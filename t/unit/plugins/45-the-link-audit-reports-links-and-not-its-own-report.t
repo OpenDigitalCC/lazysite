@@ -19,7 +19,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $PLUGIN = repo_root() . '/plugins/audit.pl';
+my $PLUGIN = repo_root() . '/extensions/audit.pl';
 ok( -f $PLUGIN, 'the audit plugin is present' ) or BAIL_OUT('no plugin');
 
 sub w {

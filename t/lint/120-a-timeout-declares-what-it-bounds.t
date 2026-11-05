@@ -27,7 +27,7 @@ use File::Find;
 my $root = "$FindBin::Bin/../..";
 my @src;
 find( { wanted => sub { push @src, $File::Find::name if /\.(pm|pl)\z/ && -f }, no_chdir => 1 },
-    "$root/lib", "$root/plugins", "$root/tools" );
+    "$root/lib", "$root/extensions", "$root/tools" );
 push @src, glob("$root/lazysite-*.pl"), glob("$root/lazysite-processor/*.pm");
 
 my ( @sites, @bad );

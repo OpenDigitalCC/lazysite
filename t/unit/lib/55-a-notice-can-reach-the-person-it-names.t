@@ -66,7 +66,7 @@ sub site_conf {
 # The SMTP extension: present, listed, and configured. Each of the three is
 # taken away on its own further down, because a refusal has to name the RIGHT
 # one of them.
-site_conf("site_name: T\nextensions:\n  - plugins/form-smtp.pl\n");
+site_conf("site_name: T\nextensions:\n  - extensions/form-smtp.pl\n");
 open my $sc, '>', "$d/lazysite/forms/smtp.conf" or die $!;
 print {$sc} "method: sendmail\nfrom: site\@example.com\n";
 close $sc;
@@ -189,7 +189,7 @@ subtest 'THE REFUSAL NAMES THE EXTENSION, and names which thing is wrong' => sub
         'and the reason says the extension is off' );
 
     # (b) on, but never configured
-    site_conf("site_name: T\nextensions:\n  - plugins/form-smtp.pl\n");
+    site_conf("site_name: T\nextensions:\n  - extensions/form-smtp.pl\n");
     rename "$d/lazysite/forms/smtp.conf", "$d/lazysite/forms/smtp.conf.away" or die $!;
     @logged = ();
     send_notice( message => 'x', to => 'ada' );

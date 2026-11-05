@@ -75,7 +75,7 @@ insert_row( $docroot, 'notes', { body => 'NOBODY-EMPTY', status => 'open' } );
 insert_row( $docroot, 'plain', { body => "PLAIN-$_" } ) for 1 .. 2;
 
 open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "plugins:\n  - plugins/data.pl\n";
+print {$cf} "extensions:\n  - extensions/data.pl\n";
 close $cf;
 
 my $LIST = '[% FOREACH i IN items %]<li>[% i.body %]</li>[% END %]';

@@ -104,7 +104,7 @@ subtest 'the service is wanted only behind a pool, while the Odoo extension is e
     local $ENV{LAZYSITE_POOLS_DIR} = "$base/pools";    # the host's /etc/lazysite/pools, stood in
     spit( "$base/pools/t.conf", "DOCROOT=$d\nUSER=nobody\n" );
     ok( !Lazysite::Daemon::Service::OdooEndpoint::wanted($d), 'the extension off: no process' );
-    spit( "$LZ/lazysite.conf", "site_name: T\nplugins:\n  - plugins/odoo.pl\n" );
+    spit( "$LZ/lazysite.conf", "site_name: T\nextensions:\n  - extensions/odoo.pl\n" );
     ok( Lazysite::Daemon::Service::OdooEndpoint::wanted($d), 'the extension on, a pool conf for this docroot: wanted' );
     unlink "$base/pools/t.conf";
     ok( !Lazysite::Daemon::Service::OdooEndpoint::wanted($d), 'no pool conf (plain CGI): no process' );

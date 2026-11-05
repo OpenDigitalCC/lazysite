@@ -21,13 +21,13 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root env_passthrough site_tempdir grant_caps);
 
 my $root    = repo_root();
-my $handler = "$root/plugins/form-handler.pl";
+my $handler = "$root/extensions/form-handler.pl";
 my $docroot = site_tempdir( plugins => 1 );
 make_path( "$docroot/lazysite/auth", "$docroot/lazysite/forms" );
 sub conf {
     my ($extra) = @_;
     open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-    print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n$extra";
+    print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n$extra";
     close $cf;
 }
 conf("maintenance: on\n");

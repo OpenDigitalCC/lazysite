@@ -2,7 +2,7 @@
 # N13-04, then SM842: the audit trail's switch has one reader.
 #
 # N13-04 found two writers of the audit trail - Lazysite::Audit, and
-# plugins/form-handler.pl, which wrote form submissions to the same file
+# extensions/form-handler.pl, which wrote form submissions to the same file
 # directly because it loaded no modules - and pinned the handler's marked copy
 # of the switch reader to the module's, so `audit_trail: off` could not stop one
 # and not the other.
@@ -24,7 +24,7 @@ use TestHelper qw(repo_root site_tempdir);
 use Lazysite::Audit ();
 
 my $root = repo_root();
-open my $fh, '<:utf8', "$root/plugins/form-handler.pl" or die $!;
+open my $fh, '<:utf8', "$root/extensions/form-handler.pl" or die $!;
 my $src = do { local $/; <$fh> };
 close $fh;
 ( my $code = $src ) =~ s/^\s*#.*$//mg;

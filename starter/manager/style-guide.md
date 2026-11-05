@@ -465,7 +465,7 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-file-table"><span class="mg-sg-tag">.mg-file-table</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-plugin <span class="mg-sg-count">11</span></h3>
-<p class="mg-sg-note">Used by <code>plugins.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<p class="mg-sg-note">Used by <code>extensions.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-plugin-card"><span class="mg-sg-tag">.mg-plugin-card</span><div class="mg-plugin-row-config"><span class="mg-sg-tag">.mg-plugin-row-config</span></div>
 <div class="mg-muted"><span class="mg-sg-tag">.mg-muted</span></div>
@@ -618,7 +618,7 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-code-token"><span class="mg-sg-tag">.mg-code-token</span></div></div>
 </div>
 <h3 class="mg-sg-fam">mg-wizard <span class="mg-sg-count">4</span></h3>
-<p class="mg-sg-note">Used by <code>plugin-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<p class="mg-sg-note">Used by <code>extension-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-wizard"><span class="mg-sg-tag">.mg-wizard</span><div class="mg-wizard-actions"><span class="mg-sg-tag">.mg-wizard-actions</span><div class="mg-wizard-section-label"><span class="mg-sg-tag">.mg-wizard-section-label</span></div></div>
 <div class="mg-wizard-title"><span class="mg-sg-tag">.mg-wizard-title</span></div></div>
@@ -815,7 +815,7 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-foot"><span class="mg-sg-tag">.mg-foot</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-form <span class="mg-sg-count">4</span></h3>
-<p class="mg-sg-note">Used by <code>plugin-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<p class="mg-sg-note">Used by <code>extension-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-form-entry"><span class="mg-sg-tag">.mg-form-entry</span><div class="mg-form-entry-header"><span class="mg-sg-tag">.mg-form-entry-header</span>
 <div class="mg-form-name"><span class="mg-sg-tag">.mg-form-name</span></div></div></div>
@@ -980,7 +980,7 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-split-bar"><span class="mg-sg-tag">.mg-split-bar</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-sub <span class="mg-sg-count">1</span></h3>
-<p class="mg-sg-note">Used by <code>plugin-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<p class="mg-sg-note">Used by <code>extension-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-sub-cb"><span class="mg-sg-tag">.mg-sub-cb</span></div>
 </div>
@@ -990,7 +990,7 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-subcount"><span class="mg-sg-tag">.mg-subcount</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-submissions <span class="mg-sg-count">2</span></h3>
-<p class="mg-sg-note">Used by <code>plugin-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<p class="mg-sg-note">Used by <code>extension-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <p class="mg-sg-note">SM919: <strong>scroll this table sideways.</strong> The tick box stays pinned at the left and the row&rsquo;s actions at the right, so selecting a row and then deleting it never needs a round trip across the table. One column per form field means a real submissions table is usually wider than its box &mdash; and the two controls used together were at opposite ends of the data. They are pinned rather than moved out of the table so that the button still belongs to the row the browser says it does; an actions strip rendered alongside has to keep its row heights in step, and a drift of one row aims Delete at the wrong submission. This demo has enough columns to overflow on purpose &mdash; the previous one was a single cell, so the state that matters could not be seen.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-submissions-panel"><span class="mg-sg-tag">.mg-submissions-panel</span>

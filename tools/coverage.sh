@@ -412,7 +412,7 @@ if [ "$1" = "--check" ]; then
     branch_floor=$(grep -E '^branch_floor=' "$FLOOR_FILE" 2>/dev/null | grep -oE '[0-9]+' | head -1)
     : "${branch_floor:=60}"
     # Check each cleanly-measured production CGI's statement AND branch %
-    # against the floors. (install.pl/plugins are split across tempdir copies -
+    # against the floors. (install.pl/extensions are split across tempdir copies -
     # a known limitation, excluded from the gate; see dist/config/coverage-floor.
     # lazysite-auth.pl's tests run it from the repo path, so it is gated.)
     # $report is the one run above - it was run a second time here, another

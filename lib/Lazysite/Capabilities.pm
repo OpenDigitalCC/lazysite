@@ -222,7 +222,7 @@ my %ACTION_INFO = (
             mcp => [qw(list_domains domain_set preview_domain site_backup site_apply)],
         },
     },
-    # SM447 / ADR 0009. DECLARED BY plugins/data.pl and mirrored here; the
+    # SM447 / ADR 0009. DECLARED BY extensions/data.pl and mirrored here; the
     # plugin is the owner and t/lint/76 refuses a mirror with no plugin
     # claiming it, or one claimed twice.
     #
@@ -376,7 +376,7 @@ my %ACTION_INFO = (
             # validate before storing.
         },
     },
-    # SM576 part 1: DECLARED BY plugins/briefs.pl and mirrored in @CAP_KEYS,
+    # SM576 part 1: DECLARED BY extensions/briefs.pl and mirrored in @CAP_KEYS,
     # the manage_data pattern (ADR 0009), so that writing another principal's
     # authoring record is a grant of its own rather than a side effect of being
     # allowed to edit pages - which is what SM575 measured happening.

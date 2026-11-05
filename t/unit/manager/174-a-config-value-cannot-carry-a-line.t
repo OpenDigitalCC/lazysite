@@ -29,9 +29,9 @@ use Lazysite::Manager::Plugins ();
 my $root   = repo_root();
 my $parent = site_tempdir();    # lint 118: not a bare tempdir
 my $d      = "$parent/public_html";
-make_path( "$d/lazysite", "$parent/plugins" );
-copy( "$root/plugins/log.pl", "$parent/plugins/log.pl" ) or die $!;
-chmod 0755, "$parent/plugins/log.pl";
+make_path( "$d/lazysite", "$parent/extensions" );
+copy( "$root/extensions/log.pl", "$parent/extensions/log.pl" ) or die $!;
+chmod 0755, "$parent/extensions/log.pl";
 local $ENV{PERL5LIB} = "$root/lib" . ( $ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : '' );
 
 my $conf = "$d/lazysite/lazysite.conf";
@@ -39,7 +39,7 @@ sub reset_conf { open my $c, '>', $conf or die $!; print {$c} "site_name: T\n"; 
 sub conf       { open my $h, '<', $conf or return ''; local $/; return <$h> }
 $Lazysite::Manager::Plugins::DOCROOT = $d;
 
-sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'plugins/log.pl', {@_} ) }
+sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/log.pl', {@_} ) }
 
 # --- THE CANARY -------------------------------------------------------------
 # A refusal test passes against a save that writes nothing at all, so first prove

@@ -74,10 +74,10 @@ sub action_page_pdf {
     }
     my $part_outside;    # the first part refused for scope, to say so below
 
-    my $plugin = "$DOCROOT/../plugins/pandoc.pl";
-    $plugin = "$DOCROOT/plugins/pandoc.pl" unless -f $plugin;
+    require Lazysite::Extensions;
+    my $plugin = Lazysite::Extensions::locate( 'pandoc.pl', "$DOCROOT/.." );
     return { ok => 0, error => 'The Branded PDF plugin is not installed' }
-        unless -f $plugin;
+        unless defined $plugin;
 
     # The plugin decides everything about the conversion. This supplies only
     # what it cannot reach for: the docroot, and an answer to "may this reader

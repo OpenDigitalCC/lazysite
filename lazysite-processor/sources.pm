@@ -401,7 +401,7 @@ sub resolve_db {
     # lazy-require bug survived until the field proved the source resolved at
     # all. A refusal that names the switched-off unit is the whole difference
     # between a defect and a message.
-    if ( !_unit_enabled('plugins/data.pl') ) {
+    if ( !_unit_enabled('extensions/data.pl') ) {
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
             'db: page variable needs the data extension, which is switched off',
             key => $key );
@@ -676,7 +676,7 @@ sub _escape_db_rows {
 sub resolve_odoo {
     my ( $id, $key ) = @_;
     my $page = $ENV{REDIRECT_URL} // '-';
-    if ( !_unit_enabled('plugins/odoo.pl') ) {
+    if ( !_unit_enabled('extensions/odoo.pl') ) {
         log_event( 'WARN', $page, 'odoo: page variable needs the Odoo extension, which is switched off',
             key => $key );
         return '';

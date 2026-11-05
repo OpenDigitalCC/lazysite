@@ -10,7 +10,7 @@ use File::Path qw(make_path);
 # If every target is disabled / unknown / failed (e.g. the delivery plugin is
 # turned off) the submission is NOT saved, so the handler must ERROR rather than
 # show a false "thank you".
-my $PLUGIN = 'plugins/form-handler.pl';
+my $PLUGIN = 'extensions/form-handler.pl';
 ok( -f $PLUGIN, 'form handler present' );
 
 my $d = tempdir( CLEANUP => 1 );

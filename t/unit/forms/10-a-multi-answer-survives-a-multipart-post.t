@@ -18,7 +18,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root env_passthrough);
 
 my $root    = repo_root();
-my $handler = "$root/plugins/form-handler.pl";
+my $handler = "$root/extensions/form-handler.pl";
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/forms");
 my $SECRET = 'b' x 64;

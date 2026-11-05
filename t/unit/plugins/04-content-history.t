@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# The Content history plugin (plugins/content-history.pl) - the operator
+# The Content history plugin (extensions/content-history.pl) - the operator
 # surface for SM085's engine, moved off the Backups page (field feedback:
 # it is not a backup, it is the enabling of change logging). What matters:
 # the descriptor shape (Status + a confirmed Enable action in action mode),
@@ -22,7 +22,7 @@ use TestHelper qw(run_child);
 use Lazysite::Git ();
 
 my $ROOT   = "$FindBin::Bin/../../..";
-my $PLUGIN = "$ROOT/plugins/content-history.pl";
+my $PLUGIN = "$ROOT/extensions/content-history.pl";
 ok( -f $PLUGIN, 'content-history plugin present' );
 
 sub t_spit { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close $fh }
@@ -151,7 +151,7 @@ my $D = mksite();
 SKIP: {
     require Lazysite::Manager::Plugins;
     my $base = tempdir( CLEANUP => 1 );
-    symlink( "$ROOT/plugins", "$base/plugins" )
+    symlink( "$ROOT/extensions", "$base/extensions" )
         or skip 'no symlink support', 1;
     my $site = "$base/site";
     make_path("$site/lazysite");
@@ -164,18 +164,18 @@ SKIP: {
     ok( $list->{ok}, 'plugin-list ok' );
     my %by_id = map { $_->{id} => $_ } @{ $list->{plugins} };
     ok( $by_id{'content-history'}, 'content-history is auto-discovered' );
-    is( $by_id{'content-history'}{_script}, 'plugins/content-history.pl',
-        'with its plugins/ script path' );
+    is( $by_id{'content-history'}{_script}, 'extensions/content-history.pl',
+        'with its extensions/ script path' );
     ok( $by_id{'git-sync'}, 'beside its sibling git-sync' );
     like( $by_id{'git-sync'}{description}, qr/Content history extension/,
         'git-sync now points at the plugin, not the Backups page' );
 
     my $st = Lazysite::Manager::Plugins::action_plugin_action( 'content-history',
-        'plugins/content-history.pl', 'status', undef );
+        'extensions/content-history.pl', 'status', undef );
     ok( $st->{ok} && !$st->{enabled}, 'status dispatches through the manager seam' );
 
     my $en = Lazysite::Manager::Plugins::action_plugin_action( 'content-history',
-        'plugins/content-history.pl', 'enable', undef );
+        'extensions/content-history.pl', 'enable', undef );
     ok( $en->{ok}, 'enable dispatches through the manager seam' ) or diag explain $en;
     like( $en->{commit}, qr/\A[0-9a-f]{40}\z/, 'and reports the adoption commit' );
     ok( -f "$site/lazysite/git/HEAD", 'the site repo is initialised' );
@@ -192,7 +192,7 @@ SKIP: {
 SKIP: {
     require Lazysite::Manager::Plugins;
     my $base = tempdir( CLEANUP => 1 );
-    symlink( "$ROOT/plugins", "$base/plugins" )
+    symlink( "$ROOT/extensions", "$base/extensions" )
         or skip 'no symlink support', 1;
     my $site = "$base/site";
     make_path("$site/lazysite");
@@ -205,7 +205,7 @@ SKIP: {
     is( $desc->{on_enable},  'enable',  'descriptor declares the on_enable hook' );
     is( $desc->{on_disable}, 'disable', 'descriptor declares the on_disable hook' );
 
-    my $en = Lazysite::Manager::Plugins::action_plugin_enable('plugins/content-history.pl');
+    my $en = Lazysite::Manager::Plugins::action_plugin_enable('extensions/content-history.pl');
     ok( $en->{ok}, 'plugin-enable ok' ) or diag explain $en;
     ok( $en->{hook} && $en->{hook}{ok}, 'the toggle ran the on_enable hook' )
         or diag explain $en;
@@ -217,13 +217,13 @@ SKIP: {
     # indifferent to which of the two spellings opens the list. t/unit/manager/198
     # is where the spelling belongs.
     like( t_slurp("$site/lazysite/lazysite.conf"),
-        qr{^\s+-\s+plugins/content-history\.pl$}m, 'plugin listed in conf' );
+        qr{^\s+-\s+extensions/content-history\.pl$}m, 'plugin listed in conf' );
     Lazysite::Git::reset_cache();
     ok( Lazysite::Git::enabled($site), 'recording is ON after the one switch' );
     my $commits = Lazysite::Git::count_commits($site);
     my $first_log = Lazysite::Git::file_log( $site, 'index.md' );
 
-    my $dis = Lazysite::Manager::Plugins::action_plugin_disable('plugins/content-history.pl');
+    my $dis = Lazysite::Manager::Plugins::action_plugin_disable('extensions/content-history.pl');
     ok( $dis->{ok}, 'plugin-disable ok' ) or diag explain $dis;
     ok( $dis->{hook} && $dis->{hook}{ok}, 'the toggle ran the on_disable hook' )
         or diag explain $dis;
@@ -234,7 +234,7 @@ SKIP: {
     like( t_slurp("$site/lazysite/lazysite.conf"), qr/^git_history:/m,
         'conf keys survive removing the last plugin on their own lines (line-glue regression)' );
 
-    my $re = Lazysite::Manager::Plugins::action_plugin_enable('plugins/content-history.pl');
+    my $re = Lazysite::Manager::Plugins::action_plugin_enable('extensions/content-history.pl');
     ok( $re->{ok} && $re->{hook} && $re->{hook}{ok}, 're-enable resumes recording' )
         or diag explain $re;
     Lazysite::Git::reset_cache();
@@ -259,7 +259,7 @@ SKIP: {
         'every version kept - history only ever grows' );
 
     # A plugin with no lifecycle hooks toggles exactly as before (no hook key).
-    my $plain = Lazysite::Manager::Plugins::action_plugin_enable('plugins/git-sync.pl');
+    my $plain = Lazysite::Manager::Plugins::action_plugin_enable('extensions/git-sync.pl');
     ok( $plain->{ok} && !exists $plain->{hook}, 'a hookless plugin toggles with no hook result' )
         or diag explain $plain;
 }

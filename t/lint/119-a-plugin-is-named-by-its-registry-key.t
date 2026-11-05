@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM759: a plugin's enabled state is keyed by its REGISTRY KEY - `plugins/<name>.pl`
+# SM759: a plugin's enabled state is keyed by its REGISTRY KEY - `extensions/<name>.pl`
 # - because that is what the Plugin Manager writes into lazysite.conf and what
 # _enabled_map() reads back. A reader that asks plugin_enabled('daemon.pl') is
 # asking about a word the conf never holds, and gets "disabled" forever.
@@ -20,15 +20,15 @@ use File::Find;
 my $root = "$FindBin::Bin/../..";
 sub slurp { my $f = shift; open my $i, '<', $f or die "$f: $!"; local $/; my $s = <$i>; close $i; $s }
 
-opendir my $pd, "$root/plugins" or die $!;
+opendir my $pd, "$root/extensions" or die $!;
 my @names = grep { /\.pl\z/ } readdir $pd;
 closedir $pd;
-ok( @names >= 10, 'plugins/ enumerated' );
+ok( @names >= 10, 'extensions/ enumerated' );
 my $bare = join '|', map { quotemeta } @names;
 
 my @src;
 find( { wanted => sub { push @src, $File::Find::name if /\.(pm|pl)\z/ && -f }, no_chdir => 1 },
-    "$root/lib", "$root/tools", "$root/plugins" );
+    "$root/lib", "$root/tools", "$root/extensions" );
 push @src, glob("$root/lazysite-*.pl"), glob("$root/lazysite-processor/*.pm");
 
 my @bad;
@@ -36,10 +36,10 @@ for my $f ( sort @src ) {
     my $s   = slurp($f);
     my $rel = $f =~ s{^\Q$root\E/}{}r;
     while ( $s =~ /plugin_enabled\(\s*(['"])([^'"]+)\1/g ) {
-        push @bad, "$rel: plugin_enabled('$2')" unless $2 =~ m{^plugins/};
+        push @bad, "$rel: plugin_enabled('$2')" unless $2 =~ m{^extensions/};
     }
     while ( $s =~ /^\s*our\s+\$PLUGIN\s*=\s*(['"])([^'"]+)\1/mg ) {
-        push @bad, "$rel: \$PLUGIN = '$2'" unless $2 =~ m{^plugins/};
+        push @bad, "$rel: \$PLUGIN = '$2'" unless $2 =~ m{^extensions/};
     }
     while ( $s =~ /\bplugin\s*=>\s*(['"])([^'"]+)\1/g ) {
         push @bad, "$rel: plugin => '$2'" if $2 =~ /^(?:$bare)$/;

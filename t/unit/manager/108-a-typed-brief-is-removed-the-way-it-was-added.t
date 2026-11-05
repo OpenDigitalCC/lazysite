@@ -25,7 +25,7 @@ use Lazysite::Manager::Briefs ();
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/briefs");
 open my $c, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$c} "site_name: T\nplugins:\n  - plugins/briefs.pl\n";
+print {$c} "site_name: T\nextensions:\n  - extensions/briefs.pl\n";
 close $c;
 $Lazysite::Manager::Briefs::DOCROOT = $docroot;
 {

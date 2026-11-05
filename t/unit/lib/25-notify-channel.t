@@ -33,7 +33,7 @@ sub fixture {
     make_path("$d/lazysite/logs");
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: My Site\nsite_url: https://example.test/\n"
-        . "plugins:\n  - plugins/notify-xmpp.pl\n";
+        . "extensions:\n  - extensions/notify-xmpp.pl\n";
     close $cf;
     open my $xf, '>', "$d/lazysite/notify-xmpp.conf" or die $!;
     print {$xf} "jid: bot\@example.test\npassword: pw\nto: ops\@example.test\n";

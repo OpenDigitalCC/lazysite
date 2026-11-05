@@ -49,7 +49,7 @@ sub fresh_site {
     my (%o) = @_;
     my $d = site_tempdir();
     make_path( "$d/lazysite/forms", "$d/lazysite/logs", "$d/lazysite/db/tables" );
-    spit( "$d/lazysite/lazysite.conf", "site_name: T\nplugins:\n  - plugins/data.pl\n" );
+    spit( "$d/lazysite/lazysite.conf", "site_name: T\nextensions:\n  - extensions/data.pl\n" );
     spit( "$d/lazysite/db/tables/applications.yaml",
         "title: Applications\ntimestamps: true\n"
             . ( $o{table_policy} // 1 ? "row_policy: true\n" : '' )

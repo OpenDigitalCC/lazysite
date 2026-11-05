@@ -28,7 +28,7 @@ sub src {
     return <$fh>;
 }
 my $conn = src('lib/Lazysite/Manager/Connectors.pm');
-my $form = src('plugins/form-handler.pl');
+my $form = src('extensions/form-handler.pl');
 
 # The reference this is measured against, so the test says WHICH bounds rather
 # than "some bounds": Fetch was hardened for exactly this under SEC-2026-07 H6.

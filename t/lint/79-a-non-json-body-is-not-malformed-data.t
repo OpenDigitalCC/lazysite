@@ -30,7 +30,7 @@ my $files  = "$root/starter/manager/files.md";
 # the Plugin Config page. The per-file History control stays on Files, so both
 # pages are still read here - the guard being tested is a property of the
 # FETCH and has to hold wherever the fetch lives.
-my $plug   = "$root/starter/manager/plugin-config.md";
+my $plug   = "$root/starter/manager/extension-config.md";
 plan skip_all => 'manager pages missing'
     unless -f $layout && -f $files && -f $plug;
 

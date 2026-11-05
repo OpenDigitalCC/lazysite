@@ -13,7 +13,7 @@
 #   repair  the engine owns it absolutely. These are the directories the CGI MUST
 #           write; an operator "tightening" lazysite/cache breaks their own site
 #           and the failure reads as a rendering fault, not a permission one.
-#   leave   set on creation, never touched. ../plugins is EXECUTED, not written.
+#   leave   set on creation, never touched. ../extensions is EXECUTED, not written.
 #
 # The installer is driven from the manifest, so this exercises the function
 # directly with model-shaped input rather than running a whole install.

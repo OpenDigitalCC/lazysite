@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# plugins/login-rate-limit.pl - the login rate limiter extension (SM798).
+# extensions/login-rate-limit.pl - the login rate limiter extension (SM798).
 #
 # Counts sign-in attempts per address and refuses the sixth in five minutes. The
 # counting lives in lazysite-auth.pl; this file is the unit: what it is, what it

@@ -25,20 +25,20 @@ my $fake_root = "$tmp/fake-repo";
 my $docroot   = "$fake_root/public_html";
 make_path( "$docroot/lazysite/cache",
     "$fake_root/tools",
-    "$fake_root/plugins" );
+    "$fake_root/extensions" );
 
 # Symlink each discoverable script so plugin-list can spawn them.
-# D022: plugins moved under plugins/ (form-handler, form-smtp, log,
+# D022: plugins moved under extensions/ (form-handler, form-smtp, log,
 # audit, payment-demo), core scripts stay at root.
 for my $rel ( qw(
     lazysite-auth.pl
     lazysite-manager-api.pl
     lazysite-processor.pl
-    plugins/form-handler.pl
-    plugins/form-smtp.pl
-    plugins/payment-demo.pl
-    plugins/log.pl
-    plugins/audit.pl
+    extensions/form-handler.pl
+    extensions/form-smtp.pl
+    extensions/payment-demo.pl
+    extensions/log.pl
+    extensions/audit.pl
     ) ) {
     symlink "$root/$rel", "$fake_root/$rel";
 }

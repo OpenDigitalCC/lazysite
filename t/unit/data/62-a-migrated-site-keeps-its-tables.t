@@ -36,7 +36,7 @@ my $d    = site_tempdir();
 my $base = File::Basename::dirname($d);
 my $lz   = Lazysite::Paths::external_lazysite_dir($d);
 make_path( $d, "$lz/db/tables", "$lz/forms", "$lz/logs" );
-spit( "$lz/lazysite.conf",        "site_name: T\nplugins:\n  - plugins/data.pl\n" );
+spit( "$lz/lazysite.conf",        "site_name: T\nextensions:\n  - extensions/data.pl\n" );
 spit( "$lz/db/tables/leads.yaml", "public: true\nfields:\n  name:\n    type: text\n" );
 spit( "$lz/forms/.secret",        'b' x 64 );
 spit( "$lz/forms/join.conf", "spam_dwell: off\nrate_limit: off\ntargets:\n  - handler: leads\n" );
@@ -57,7 +57,7 @@ subtest 'a form bound to the table stores its row' => sub {
     my $body = "_form=join&name=Ada&_hp=&_ts=$ts&_tk=$tk";
     my $bf   = "$base/.body";
     spit( $bf, $body );
-    my $handler = repo_root() . '/plugins/form-handler.pl';
+    my $handler = repo_root() . '/extensions/form-handler.pl';
     local %ENV = ( env_passthrough(),
         DOCUMENT_ROOT  => $d,
         REQUEST_METHOD => 'POST',

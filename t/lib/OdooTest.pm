@@ -172,7 +172,7 @@ sub enable_odoo {
     my ($docroot) = @_;
     make_path("$docroot/lazysite");
     open my $fh, '>>', "$docroot/lazysite/lazysite.conf" or die "lazysite.conf: $!";
-    print {$fh} "plugins:\n  - plugins/odoo.pl\n";
+    print {$fh} "extensions:\n  - extensions/odoo.pl\n";
     close $fh;
     return;
 }

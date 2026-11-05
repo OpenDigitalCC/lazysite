@@ -59,11 +59,11 @@ PLUGIN
 sub fixture {
     my $base = tempdir( CLEANUP => 1 );
     my $d    = "$base/web";
-    make_path( "$d/lazysite", "$base/plugins" );
+    make_path( "$d/lazysite", "$base/extensions" );
     spit( "$d/lazysite/lazysite.conf", "site_name: T\n" );
-    write_plugin( "$base/plugins/contract-demo.pl",
+    write_plugin( "$base/extensions/contract-demo.pl",
         id => 'contract-demo', contract => 1, witness => "$base/contract-ran" );
-    write_plugin( "$base/plugins/legacy-demo.pl",
+    write_plugin( "$base/extensions/legacy-demo.pl",
         id => 'legacy-demo', contract => 0, witness => "$base/legacy-ran" );
     $Lazysite::Manager::Plugins::DOCROOT = $d;
     return ( $base, $d );
@@ -71,9 +71,9 @@ sub fixture {
 
 subtest 'a contract plugin is BORN DISABLED and executes nothing' => sub {
     my ( $base, $d ) = fixture();
-    ok( !plugin_enabled('plugins/contract-demo.pl'), 'not in the list' );
+    ok( !plugin_enabled('extensions/contract-demo.pl'), 'not in the list' );
 
-    my $r = action_plugin_action( 'contract-demo', 'plugins/contract-demo.pl',
+    my $r = action_plugin_action( 'contract-demo', 'extensions/contract-demo.pl',
         'touch', {} );
     ok( !$r->{ok}, 'execution refused' );
     like( $r->{error}, qr/disabled.*Extensions page/s,
@@ -82,7 +82,7 @@ subtest 'a contract plugin is BORN DISABLED and executes nothing' => sub {
         'and the plugin really did not run - no witness file' );
 
     # SM765: a declared READ answers while disabled - and leaves no witness.
-    my $peek = action_plugin_action( 'contract-demo', 'plugins/contract-demo.pl',
+    my $peek = action_plugin_action( 'contract-demo', 'extensions/contract-demo.pl',
         'peek', {} );
     ok( $peek->{ok} && $peek->{peeked}, 'a read action answers while the plugin is off' )
         or diag $peek->{error};
@@ -91,10 +91,10 @@ subtest 'a contract plugin is BORN DISABLED and executes nothing' => sub {
 
 subtest 'a LEGACY plugin is untouched by the gate' => sub {
     my ( $base, $d ) = fixture();
-    ok( !plugin_enabled('plugins/legacy-demo.pl'),
+    ok( !plugin_enabled('extensions/legacy-demo.pl'),
         'also not in the list - same list state as the contract plugin' );
 
-    my $r = action_plugin_action( 'legacy-demo', 'plugins/legacy-demo.pl',
+    my $r = action_plugin_action( 'legacy-demo', 'extensions/legacy-demo.pl',
         'touch', {} );
     ok( $r->{ok},              'runs exactly as it always has' ) or diag $r->{error};
     ok( -f "$base/legacy-ran", 'the witness file proves it ran' );
@@ -103,18 +103,18 @@ subtest 'a LEGACY plugin is untouched by the gate' => sub {
 subtest 'enabling turns the contract plugin on; disabling turns it OFF' => sub {
     my ( $base, $d ) = fixture();
 
-    my $en = action_plugin_enable('plugins/contract-demo.pl');
+    my $en = action_plugin_enable('extensions/contract-demo.pl');
     ok( $en->{ok},                                  'enabled' ) or diag $en->{error};
-    ok( plugin_enabled('plugins/contract-demo.pl'), 'the predicate agrees' );
+    ok( plugin_enabled('extensions/contract-demo.pl'), 'the predicate agrees' );
 
-    my $r = action_plugin_action( 'contract-demo', 'plugins/contract-demo.pl',
+    my $r = action_plugin_action( 'contract-demo', 'extensions/contract-demo.pl',
         'touch', {} );
     ok( $r->{ok} && -f "$base/contract-ran", 'and it executes' );
 
     unlink "$base/contract-ran";
-    my $dis = action_plugin_disable('plugins/contract-demo.pl');
+    my $dis = action_plugin_disable('extensions/contract-demo.pl');
     ok( $dis->{ok}, 'disabled' );
-    my $r2 = action_plugin_action( 'contract-demo', 'plugins/contract-demo.pl',
+    my $r2 = action_plugin_action( 'contract-demo', 'extensions/contract-demo.pl',
         'touch', {} );
     ok( !$r2->{ok},               'off means off again' );
     ok( !-f "$base/contract-ran", 'no witness - it truly did not run' );
@@ -124,9 +124,9 @@ subtest 'config stays reachable on a DISABLED contract plugin' => sub {
     # An operator must be able to configure a plugin before enabling it, and
     # the enable flow itself is a config surface - so read/save are not gated.
     my ( $base, $d ) = fixture();
-    my $read = action_plugin_read( 'contract-demo', 'plugins/contract-demo.pl' );
+    my $read = action_plugin_read( 'contract-demo', 'extensions/contract-demo.pl' );
     ok( $read->{ok}, 'config read works while disabled' ) or diag $read->{error};
-    my $save = action_plugin_save( 'contract-demo', 'plugins/contract-demo.pl',
+    my $save = action_plugin_save( 'contract-demo', 'extensions/contract-demo.pl',
         { note => 'configured before first enable' } );
     ok( $save->{ok}, 'config save works while disabled' ) or diag $save->{error};
 };

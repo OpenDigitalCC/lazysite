@@ -37,7 +37,7 @@ make_path("$d/docs");
 # without it returns "the briefs plugin is disabled" for each one - which looks
 # exactly like the feature not working.
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/briefs.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/briefs.pl\n";
 close $cf;
 open my $pg, '>', "$d/docs/page.md" or die $!;
 print {$pg} "---\ntitle: p\n---\n\nBody.\n";

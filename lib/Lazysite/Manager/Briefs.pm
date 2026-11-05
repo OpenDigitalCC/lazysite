@@ -25,7 +25,7 @@ sub _gate {
     local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
     require Lazysite::Manager::Plugins;
     return undef
-        if Lazysite::Manager::Plugins::plugin_enabled('plugins/briefs.pl');
+        if Lazysite::Manager::Plugins::plugin_enabled('extensions/briefs.pl');
     return { ok => 0,
         error => 'The briefs plugin is disabled. An operator can enable it '
             . 'on the Extensions page.' };

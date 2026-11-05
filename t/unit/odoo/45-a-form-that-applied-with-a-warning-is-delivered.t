@@ -26,7 +26,7 @@ use OdooTest   qw(oom_or_skip shop_ready bind odoo_site);
 BEGIN { oom_or_skip() }
 
 my $root    = repo_root();
-my $handler = "$root/plugins/form-handler.pl";
+my $handler = "$root/extensions/form-handler.pl";
 my ( $d, undef ) = shop_ready();
 my $SECRET = 'c' x 64;
 

@@ -52,6 +52,7 @@ use POSIX           qw(strftime);
 use Fcntl           qw(:flock);
 use Lazysite::Util  qw(log_event cannot_read);
 use Lazysite::Paths ();
+use Lazysite::Extensions ();
 
 our $VERSION = '1.0';
 our $DOCROOT = '';
@@ -1180,7 +1181,7 @@ sub _destination_problem {
 # SM913 S4: A FORM'S QUARANTINE STATE, read for the manager.
 #
 # An operator could not tell from any page whether a public form's quarantine
-# was on. The form handler (plugins/form-handler.pl, load_form_conf) is a CGI the
+# was on. The form handler (extensions/form-handler.pl, load_form_conf) is a CGI the
 # manager cannot load, so this reads the same four keys with the same defaults;
 # t/unit/forms/35 posts through the real handler for every spelling and asserts
 # the two agree, so they cannot drift apart unseen.
@@ -2076,7 +2077,7 @@ sub _table_row {
         no warnings 'once';
         local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
         return { ok => 0, why => 'the Data tables extension is disabled, so no row can be stored' }
-            unless Lazysite::Manager::Plugins::plugin_enabled('plugins/data.pl');
+            unless Lazysite::Manager::Plugins::plugin_enabled('extensions/data.pl');
     }
     my %row;
     for my $from ( sort keys %$map ) {
@@ -2348,17 +2349,12 @@ sub _find_script {
     my ($name) = @_;
     require Cwd;
     my $here = dirname( Cwd::abs_path(__FILE__) // __FILE__ );
-    # SM1222: the dev server's --extensions directories first (real files only).
-    for my $d ( Lazysite::Paths::dev_extension_dirs() ) {
-        my $p = "$d/$name";
-        return $p if -f $p && !-l $p;
-    }
-    for my $p ( "$here/../../plugins/$name", "$DOCROOT/../plugins/$name",
-        "$DOCROOT/../cgi-bin/$name", '/usr/share/lazysite/plugins/' . $name )
-    {
-        return $p if -f $p;
-    }
-    return undef;
+    # SM1142: the one resolver (the dev server's --extensions directories first,
+    # SM1222), then the site's cgi-bin copy.
+    my $p = Lazysite::Extensions::locate( $name, "$here/../..", "$DOCROOT/.." );
+    return $p if defined $p;
+    $p = "$DOCROOT/../cgi-bin/$name";
+    return -f $p ? $p : undef;
 }
 
 # SM579: the connector decides - its modes (a form is public invocation, the

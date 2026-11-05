@@ -60,7 +60,7 @@ my $PROXY  = '10.1.2.3';        # in auth_proxy_trusted_from
 my $d = site_tempdir();
 my $t = $d =~ s{/site/[^/]+\z}{}r;
 spit( "$d/lazysite/lazysite.conf",
-    "site_name: T\nplugins:\n  - plugins/data.pl\n"
+    "site_name: T\nextensions:\n  - extensions/data.pl\n"
         . "auth_proxy_trusted: true\nauth_proxy_trusted_from: 10.0.0.0/8\n"
         . "auth_header_user: X-Authentik-Username\nauth_header_groups: X-Authentik-Groups\n"
         . "auth_header_groups_separator: |\n" );

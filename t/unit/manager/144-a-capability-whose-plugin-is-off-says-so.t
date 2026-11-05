@@ -30,7 +30,7 @@ sub site_with {
     my $s = new_site(
         root => repo_root(),
         conf => "site_name: T\ncontrol_api_enabled: true\n"
-            . ( $plugins ? "plugins:\n" . join( '', map {"  - $_\n"} @{$plugins} ) : '' )
+            . ( $plugins ? "extensions:\n" . join( '', map {"  - $_\n"} @{$plugins} ) : '' )
     );
     $s->add_user('boss');
     $s->grant( 'boss', 'bosses', [qw(ui manage_users manage_config)],
@@ -39,7 +39,7 @@ sub site_with {
 }
 
 subtest 'the map is DERIVED from what each plugin declares it owns' => sub {
-    my $s = site_with( ['plugins/data.pl'] );
+    my $s = site_with( ['extensions/data.pl'] );
     my $r = $s->call( 'boss', 'channel-services' );
     ok( $r->{ok}, 'the call succeeds' ) or diag( $r->{error} // '' );
 
@@ -70,7 +70,7 @@ subtest 'the map is DERIVED from what each plugin declares it owns' => sub {
 };
 
 subtest 'enabled and disabled are told apart' => sub {
-    my $on = site_with( ['plugins/data.pl'] );
+    my $on = site_with( ['extensions/data.pl'] );
     my $r1 = $on->call( 'boss', 'channel-services' );
     is( ( $r1->{capability_plugin} || {} )->{manage_data}{enabled}, JSON::PP::true,
         'an enabled plugin reports enabled' );

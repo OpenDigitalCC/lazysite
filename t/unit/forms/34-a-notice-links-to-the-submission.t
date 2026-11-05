@@ -29,7 +29,7 @@ use TestHelper qw(repo_root site_tempdir);
 use Lazysite::Manager::Plugins ();
 use Lazysite::Handlers         ();
 
-my $PLUGIN = repo_root() . '/plugins/form-handler.pl';
+my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
 my $d = site_tempdir();

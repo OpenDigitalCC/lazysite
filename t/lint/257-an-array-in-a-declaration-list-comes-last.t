@@ -67,7 +67,7 @@ find(
             push @files, $_ if $first =~ /\A#!.*\bperl\b/;
         },
     },
-    grep { -d } map { "$root/$_" } qw(lib tools plugins lazysite-processor scripts installers githooks t)
+    grep { -d } map { "$root/$_" } qw(lib tools extensions lazysite-processor scripts installers githooks t)
 );
 push @files, glob("$root/*.pl");
 cmp_ok( scalar @files, '>', 100, 'the Perl sources are present' );

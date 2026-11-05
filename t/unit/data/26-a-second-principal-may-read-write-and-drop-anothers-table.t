@@ -72,7 +72,7 @@ make_path( "$d/lazysite/auth", "$d/lazysite/db/rebuilds" );
 # included - on being enabled (ADR 0009 / SM469), so the rig has to enable it
 # or the file would assert nothing but "the plugin is off".
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $cf;
 
 # The same two-principal rig as t/unit/manager/112-114: real accounts,

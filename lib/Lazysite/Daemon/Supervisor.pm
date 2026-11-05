@@ -48,14 +48,14 @@ our $VERSION = '0.1';
 # into being a display state.
 # SM759: the REGISTRY KEY, which is what the Plugin Manager writes into the
 # conf's plugins: list and what every other enabled-check in the engine reads
-# (`plugins/data.pl`, `plugins/briefs.pl`). This was 'daemon.pl' - a name the
+# (`extensions/data.pl`, `extensions/briefs.pl`). This was 'daemon.pl' - a name the
 # conf never holds - so should_run() was 0 on every site in the field: Enable
-# wrote `plugins/daemon.pl`, the listing read it back as enabled, and the
+# wrote `extensions/daemon.pl`, the listing read it back as enabled, and the
 # runtime read the same file, looked for a different word, and reported the
 # plugin disabled. Every test fixture had written `- daemon.pl` by hand, so
 # the fixture agreed with the reader and never met the writer. t/unit/daemon/09
 # now enables through the real writer; t/lint/119 refuses a bare name.
-our $PLUGIN = 'plugins/daemon.pl';
+our $PLUGIN = 'extensions/daemon.pl';
 
 # Injectable for tests, and for the entry point which knows its own root.
 our $DOCROOT;

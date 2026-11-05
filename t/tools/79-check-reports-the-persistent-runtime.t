@@ -41,7 +41,7 @@ sub set_conf {
     my ($with_daemon) = @_;
     open my $fh, '>', "$docroot/lazysite/lazysite.conf" or die $!;
     print {$fh} "site_name: T\n";
-    print {$fh} "plugins:\n  - plugins/daemon.pl\n" if $with_daemon;
+    print {$fh} "extensions:\n  - extensions/daemon.pl\n" if $with_daemon;
     close $fh;
     return;
 }

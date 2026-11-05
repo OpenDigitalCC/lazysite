@@ -26,11 +26,11 @@ use TestHelper qw(repo_root env_passthrough);
 use Lazysite::Data::Tables qw(apply_schema read_rows);
 
 my $root    = repo_root();
-my $handler = "$root/plugins/form-handler.pl";
+my $handler = "$root/extensions/form-handler.pl";
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/$_") for qw(db/tables forms logs);
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $cf;
 open my $df, '>', "$docroot/lazysite/db/tables/enquiries.yaml" or die $!;
 print {$df} <<'YAML';

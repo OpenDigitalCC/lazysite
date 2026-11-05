@@ -21,7 +21,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root   = repo_root();
-my $plugin = "$root/plugins/data.pl";
+my $plugin = "$root/extensions/data.pl";
 
 sub status_for {
     my ($docroot) = @_;

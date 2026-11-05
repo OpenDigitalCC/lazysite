@@ -262,7 +262,7 @@ sub cmd_add {
 
     # --- root layout pass (bounded; the only root actions on the tree) ---
     # The Hestia domain root is mode 0551: the owner cannot create entries
-    # in it, so the sibling trees install.pl populates (plugins/, tools/,
+    # in it, so the sibling trees install.pl populates (extensions/, tools/,
     # lib/) must be pre-created by root, owned by the user.
     print "==> preparing domain layout (as root)\n";
     for my $sib (qw(plugins tools lib)) {
@@ -661,7 +661,7 @@ describes the full packaged onboarding.
 =item B<add> USER DOMAIN [--channel edge|beta|stable|certified] [--policy auto|manual] [--fcgi] [--workers N] [--max-requests N] [--daemon] [--starter]
 
 Onboard an existing Hestia web domain (create it in Hestia first). As
-root it prepares the panel-specific layout: the C<plugins/>, C<tools/>
+root it prepares the panel-specific layout: the C<extensions/>, C<tools/>
 and C<lib/> siblings inside the 0551-locked domain root, and the docroot
 and cgi-bin handed to C<USER:www-data> with setgid dirs so files the
 site user creates inherit the web group. It then drops to USER and runs

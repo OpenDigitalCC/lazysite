@@ -26,6 +26,7 @@ use warnings;
 use File::Basename  qw(dirname);
 use Lazysite::Util  ();
 use Lazysite::Paths ();
+use Lazysite::Extensions ();
 
 our $VERSION = '0.1';
 
@@ -33,7 +34,7 @@ our $VERSION = '0.1';
 
 # Where the stats plugin lives. The same candidates the manager API tries
 # (_tool_path), because the layouts are the same: the repo, the Hestia domain
-# root with plugins/ beside public_html, and the packaged /usr/share/lazysite.
+# root with extensions/ beside public_html, and the packaged /usr/share/lazysite.
 #
 # SM792: ONLY WHERE A DEPLOY PUTS IT. LAZYSITE_STATS_TOOL used to win here,
 # first and unconditionally, so whatever owned the runtime's environment could
@@ -41,15 +42,7 @@ our $VERSION = '0.1';
 # put their stub where the real lookup finds it, beside the docroot.
 sub _stats_tool {
     my ($root) = @_;
-    for my $c (
-        dirname($0) . '/../plugins/stats.pl',
-        "$root/../plugins/stats.pl",
-        '/usr/share/lazysite/plugins/stats.pl',
-        )
-    {
-        return $c if defined $c && -f $c;
-    }
-    return undef;
+    return Lazysite::Extensions::locate( 'stats.pl', dirname($0) . '/..', "$root/.." );
 }
 
 # Close the day without anyone looking (SM343).

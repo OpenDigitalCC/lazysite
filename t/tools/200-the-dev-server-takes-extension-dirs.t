@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM1222 (ruled 2026-10-20, "an extensions dir, yes, that allows multiple"):
 # tools/lazysite-server.pl --extensions DIR, repeatable. The OOM Lab (L-6) could
-# not run extensions from the tree: they were found only in plugins/ beside the
+# not run extensions from the tree: they were found only in extensions/ beside the
 # docroot. Held here:
 #   - two directories both load, the first named wins a shared name, and the
 #     startup lines say so
@@ -28,7 +28,7 @@ my $site = site_tempdir();    # <t>/site/public_html
 ( my $base = $site ) =~ s{/public_html\z}{};
 my $ext = "$base/ext";
 my ( $d1, $d2 ) = ( "$ext/one", "$ext/two" );
-make_path( $d1, $d2, "$base/plugins", "$ext/elsewhere" );
+make_path( $d1, $d2, "$base/extensions", "$ext/elsewhere" );
 
 sub put {
     my ( $path, $body ) = @_;
@@ -43,7 +43,7 @@ put( "$d2/beta.pl",     "#!/usr/bin/perl\nprint 'two';\n" );
 put( "$d2/shared.pl",   "#!/usr/bin/perl\nprint 'two';\n" );
 put( "$ext/elsewhere/hidden.pl", "#!/usr/bin/perl\n" );
 symlink( "$ext/elsewhere/hidden.pl", "$d2/linked.pl" ) or die $!;
-put( "$base/plugins/native.pl", "#!/usr/bin/perl\n" );
+put( "$base/extensions/native.pl", "#!/usr/bin/perl\n" );
 symlink( $d1, "$ext/linkdir" ) or die $!;
 
 sub registry {
@@ -57,19 +57,19 @@ sub registry {
 
 subtest 'two directories both load, and the first named wins a shared name' => sub {
     my $r = registry( LAZYSITE_DEV_SERVER => 1, LAZYSITE_EXTENSION_DIRS => "$d1:$d2" );
-    is( $r->{'plugins/alpha.pl'}, "$d1/alpha.pl", 'a script of the first directory loads' );
-    is( $r->{'plugins/beta.pl'},  "$d2/beta.pl",  'a script of the second directory loads' );
-    is( $r->{'plugins/shared.pl'}, "$d1/shared.pl", 'a name in both is the first directory\'s' );
-    is( $r->{'plugins/native.pl'}, "$base/plugins/native.pl", 'the docroot\'s own plugins/ still loads, searched last' );
+    is( $r->{'extensions/alpha.pl'}, "$d1/alpha.pl", 'a script of the first directory loads' );
+    is( $r->{'extensions/beta.pl'},  "$d2/beta.pl",  'a script of the second directory loads' );
+    is( $r->{'extensions/shared.pl'}, "$d1/shared.pl", 'a name in both is the first directory\'s' );
+    is( $r->{'extensions/native.pl'}, "$base/extensions/native.pl", 'the docroot\'s own extensions/ still loads, searched last' );
     my $swapped = registry( LAZYSITE_DEV_SERVER => 1, LAZYSITE_EXTENSION_DIRS => "$d2:$d1" );
-    is( $swapped->{'plugins/shared.pl'}, "$d2/shared.pl", 'and the order given decides it' );
+    is( $swapped->{'extensions/shared.pl'}, "$d2/shared.pl", 'and the order given decides it' );
 };
 
 subtest 'a symlink is still refused' => sub {
     my $r = registry( LAZYSITE_DEV_SERVER => 1, LAZYSITE_EXTENSION_DIRS => "$d1:$d2" );
-    ok( !exists $r->{'plugins/linked.pl'}, 'a symlinked script in a directory is not registered' );
+    ok( !exists $r->{'extensions/linked.pl'}, 'a symlinked script in a directory is not registered' );
     my $l = registry( LAZYSITE_DEV_SERVER => 1, LAZYSITE_EXTENSION_DIRS => "$ext/linkdir" );
-    ok( !exists $l->{'plugins/alpha.pl'}, 'a symlinked directory in the list loads nothing' );
+    ok( !exists $l->{'extensions/alpha.pl'}, 'a symlinked directory in the list loads nothing' );
     my ( $abs, $err ) = main::check_extension_dir("$ext/linkdir");
     ok( !defined $abs && $err =~ /symlink/, 'and the server refuses it at start' ) or diag( $err // '' );
     ( $abs, $err ) = main::check_extension_dir("$ext/none");
@@ -80,10 +80,10 @@ subtest 'a symlink is still refused' => sub {
 
 subtest 'the installed engine\'s lookup is unchanged' => sub {
     my $none = registry();
-    ok( !grep( { m{^plugins/(?:alpha|beta|shared)\.pl\z} } keys %{$none} ), 'no variables: no extra directory is read' );
-    is( $none->{'plugins/native.pl'}, "$base/plugins/native.pl", 'and plugins/ beside the docroot is the one lookup' );
+    ok( !grep( { m{^extensions/(?:alpha|beta|shared)\.pl\z} } keys %{$none} ), 'no variables: no extra directory is read' );
+    is( $none->{'extensions/native.pl'}, "$base/extensions/native.pl", 'and extensions/ beside the docroot is the one lookup' );
     my $listed = registry( LAZYSITE_EXTENSION_DIRS => $d1 );
-    ok( !exists $listed->{'plugins/alpha.pl'}, 'a directory list without the dev server\'s flag widens nothing' );
+    ok( !exists $listed->{'extensions/alpha.pl'}, 'a directory list without the dev server\'s flag widens nothing' );
     is_deeply( [ do { local $ENV{LAZYSITE_EXTENSION_DIRS} = $d1; Lazysite::Paths::dev_extension_dirs() } ], [], 'dev_extension_dirs is empty without the flag' );
     require Lazysite::Handlers;
     local $Lazysite::Handlers::DOCROOT = $site;

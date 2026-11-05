@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM085 phase 1 (sync half): plugins/git-sync.pl - push/pull the content
+# SM085 phase 1 (sync half): extensions/git-sync.pl - push/pull the content
 # history to an operator-configured remote. What matters: the descriptor
 # (password-typed token field = the 0660 config rule; the pull action declares
 # its keep_mine/take_theirs choices), remote-address validation refusals
@@ -25,7 +25,7 @@ use TestHelper qw(run_child);
 use Lazysite::Git ();
 
 my $ROOT   = "$FindBin::Bin/../../..";
-my $PLUGIN = "$ROOT/plugins/git-sync.pl";
+my $PLUGIN = "$ROOT/extensions/git-sync.pl";
 ok( -f $PLUGIN, 'git-sync plugin present' );
 
 sub t_spit { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close $fh }
@@ -376,7 +376,7 @@ conf_sync( $D, $REMOTE );
 {
     require Lazysite::Manager::Plugins;
     my $base = tempdir( CLEANUP => 1 );
-    symlink( "$ROOT/plugins", "$base/plugins" )
+    symlink( "$ROOT/extensions", "$base/extensions" )
         or plan skip_all => 'no symlink support';
     my $site = "$base/site";
     make_path($site);
@@ -388,21 +388,21 @@ conf_sync( $D, $REMOTE );
     # A request-supplied choice must match a descriptor-declared id - nothing
     # request-controlled reaches the command line.
     my $r = Lazysite::Manager::Plugins::action_plugin_action( 'git-sync',
-        'plugins/git-sync.pl', 'pull', { choice => 'bogus; rm -rf /' } );
+        'extensions/git-sync.pl', 'pull', { choice => 'bogus; rm -rf /' } );
     ok( !$r->{ok}, 'manager refuses an undeclared choice value' );
     like( $r->{error}, qr/Unknown choice/, 'with the Unknown choice error' );
 
     $r = Lazysite::Manager::Plugins::action_plugin_action( 'git-sync',
-        'plugins/git-sync.pl', 'push', undef );
+        'extensions/git-sync.pl', 'push', undef );
     ok( $r->{ok}, 'push dispatches through the manager action seam' ) or diag explain $r;
     like( $r->{message}, qr/Pushed \d+ new change/, 'and reports as a push' );
 
     $r = Lazysite::Manager::Plugins::action_plugin_action( 'git-sync',
-        'plugins/git-sync.pl', 'test', undef );
+        'extensions/git-sync.pl', 'test', undef );
     ok( $r->{ok} && $r->{reachable}, 'test connection rides the legacy --scan path' );
 
     $r = Lazysite::Manager::Plugins::action_plugin_action( 'git-sync',
-        'plugins/git-sync.pl', 'nope', undef );
+        'extensions/git-sync.pl', 'nope', undef );
     ok( !$r->{ok}, 'an undeclared action id is refused' );
 }
 

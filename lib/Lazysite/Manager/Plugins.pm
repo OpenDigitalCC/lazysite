@@ -16,6 +16,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(write_file_checked);
 use Exporter 'import';
 use Lazysite::Paths ();
+use Lazysite::Extensions ();
 
 our @EXPORT_OK = qw(
     action_plugin_list action_plugin_enable action_plugin_disable
@@ -58,7 +59,7 @@ sub _write_conf_content {
 
 # SM152: the plugin registry - the canonical, authoritative enumeration of the
 # scripts the manager may probe/run. Keys are the stable plugin identifiers
-# ("plugins/<name>.pl", plus the two core descriptor scripts); values are the
+# ("extensions/<name>.pl", plus the two core descriptor scripts); values are the
 # resolved absolute paths. This is the ONLY place a plugin identity maps to a
 # filesystem path, and it is built by SCANNING the known locations - never from
 # request input. A request names a plugin by its registry KEY; the key is looked
@@ -80,16 +81,16 @@ sub plugin_registry {
         }
     }
 
-    # Installed plugins: plugins/<name>.pl. Name restricted to a plain filename
+    # Installed plugins: extensions/<name>.pl. Name restricted to a plain filename
     # (no path separators), so a symlink/entry cannot smuggle a traversal key.
     # SM1222: under the dev server, its --extensions directories come first and
     # the first directory holding a name wins; on an installed engine
     # dev_extension_dirs() is empty and this is the one directory it always was.
-    for my $dir ( Lazysite::Paths::dev_extension_dirs(), "$base/plugins" ) {
+    for my $dir ( Lazysite::Paths::dev_extension_dirs(), Lazysite::Extensions::extensions_dir($base) ) {
         if ( opendir my $pd, $dir ) {
             for my $f ( sort grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
                 my $p = "$dir/$f";
-                $reg{"plugins/$f"} //= $p if -f $p && -r $p && !-l $p;
+                $reg{ Lazysite::Extensions::registry_key($f) } //= $p if -f $p && -r $p && !-l $p;
             }
             closedir $pd;
         }
@@ -109,11 +110,10 @@ sub _enabled_map {
         my $in_plugins = 0;
         while (<$fh>) {
             chomp;
-            # SM817: `extensions:` is the name, `plugins:` is the old one,
-            # and a site keeps whichever it has. Both open the SAME list -
-            # there is one registry, spelled two ways, so a site cannot end
-            # up with two lists that disagree about what is enabled.
-            if (/^(?:extensions|plugins)\s*:\s*$/) { $in_plugins = 1; next }
+            # SM1142: `extensions:` is the one name. The upgrade rewrote the
+            # old one (install.pl, extensions-rename), and `lazysite check`
+            # names a list that came back under it.
+            if (/^extensions\s*:\s*$/) { $in_plugins = 1; next }
             if ( $in_plugins && /^\s+-\s+(.+)$/ ) {
                 my $entry = $1;
                 $entry =~ s/\s+$//;
@@ -204,7 +204,7 @@ sub _resolve_plugin_or_why {
     # sent the caller back to plugin-list, whose `id` was the value just refused.
     # The field followed the error message literally and went round in a circle.
     #
-    # NOT BY FILENAME. `plugins/<id>.pl` is right for twelve of the fourteen and
+    # NOT BY FILENAME. `extensions/<id>.pl` is right for twelve of the fourteen and
     # wrong for two - audit.pl publishes `link-audit` and log.pl publishes
     # `logging` - so the stem is only ever a GUESS, and it is confirmed against
     # the id the plugin itself declares before it is used. A guess that is not
@@ -218,7 +218,7 @@ sub _resolve_plugin_or_why {
     my $reg;
     for my $want ( grep { defined && /\A[A-Za-z0-9_.-]+\z/ } ( $script, $plugin_id ) ) {
         $reg //= plugin_registry();
-        my $guess = "plugins/$want.pl";
+        my $guess = "extensions/$want.pl";
         if ( my $full = $reg->{$guess} ) {
             my $desc = _describe($full);
             return ( $full, '' )
@@ -248,7 +248,7 @@ sub _resolve_plugin_or_why {
 sub _plugin_list_state {
     my ($reg) = @_;
     my $base  = Cwd::realpath("$DOCROOT/..") // '';
-    my @dir   = stat("$base/plugins");
+    my @dir   = stat( Lazysite::Extensions::extensions_dir($base) );
     my @bits  = ( @dir ? "dir:$dir[9]" : 'dir:none' );
     for my $xd ( Lazysite::Paths::dev_extension_dirs() ) {
         my @xs = stat($xd);
@@ -277,7 +277,7 @@ sub action_plugin_list {
 
     my %enabled = %{ _enabled_map() };
 
-    # D022: plugins moved to plugins/ with the lazysite- prefix
+    # D022: plugins moved to extensions/ with the lazysite- prefix
     # dropped. lazysite-processor.pl and lazysite-auth.pl stay at
     # repo root (core) but expose --describe and are plugins in
     # the manager-UI sense — the site config page at config.md
@@ -287,9 +287,9 @@ sub action_plugin_list {
     my @plugins;
 
     # SM152: the registry is the single canonical enumeration - core descriptor
-    # scripts + plugins/*.pl, each mapped to its resolved absolute path. Every
+    # scripts + extensions/*.pl, each mapped to its resolved absolute path. Every
     # candidate is still validated by --describe below (a non-plugin .pl is
-    # dropped); a new plugins/*.pl appears automatically. This is the same map
+    # dropped); a new extensions/*.pl appears automatically. This is the same map
     # resolve_plugin_script uses, so what is LISTED is exactly what can be RUN.
     # ($reg is built above, with the state the cache is checked against.)
 
@@ -344,11 +344,11 @@ sub action_plugin_list {
     } @plugins;
 
     # SM1153: NOTHING IS KEPT FOR A DIRECTORY THAT IS NOT THERE. An empty list
-    # built because plugins/ does not exist yet is the list the lab was handed
+    # built because extensions/ does not exist yet is the list the lab was handed
     # for good; it answers this request and no later one.
     my $base      = Cwd::realpath("$DOCROOT/..") // '';
     my $cache_dir = dirname($cache_file);
-    if ( -d "$base/plugins" || Lazysite::Paths::dev_extension_dirs() ) {
+    if ( -d Lazysite::Extensions::extensions_dir($base) || Lazysite::Paths::dev_extension_dirs() ) {
         make_path($cache_dir) unless -d $cache_dir;
         if ( open my $fh, '>', $cache_file ) {
             print $fh encode_json( { ok => 1, state => $state, plugins => \@plugins } );
@@ -622,22 +622,12 @@ sub _update_plugins_conf {
     my @after;
     my $phase = 'before';
 
-    # SM915: this matched `plugins:` ALONE, and SM817 had renamed the list to
-    # `extensions:` saying both spellings open the same one - "a site cannot end
-    # up with two lists that disagree about what is enabled". On a site that
-    # adopted the new name the header and all its entries fell through to
-    # @before, @plugins came out empty, and the rebuild below emitted a SECOND
-    # list under the old spelling carrying only the script just added. Enabling
-    # one extension gave the conf two lists; disabling one removed nothing from
-    # a list it could not see and reported ok. Reproduced in tmp/sm915-repro.pl
-    # before this fix: enable -> 2 lists, disable -> ok=1 and nothing removed.
-    #
-    # %headers_seen records the SPELLING, not just that a block exists, because
-    # the rebuild has to write back the one the site already uses.
-    my %headers_seen;
+    # SM1142: one header, `extensions:`. SM915 made this match both spellings
+    # and refuse a conf carrying the two; the upgrade now rewrites the old one
+    # (install.pl, extensions-rename), so there is one to match and nothing to
+    # choose between when writing it back.
     for my $line (@lines) {
-        if ( $line =~ /^(extensions|plugins)\s*:\s*$/ ) {
-            $headers_seen{$1} = 1;
+        if ( $line =~ /^extensions\s*:\s*$/ ) {
             $in_plugins       = 1;
             $found_block      = 1;
             $phase            = 'plugins';
@@ -660,25 +650,6 @@ sub _update_plugins_conf {
         elsif ( $phase eq 'after' )  { push @after,  $line }
     }
 
-    # SM915, RULED 2026-09-29: refuse when BOTH spellings are present, naming the
-    # file. A conf in that state is what the defect above produced, and its two
-    # lists disagree - the reader at plugin_enabled() merges them and sees
-    # everything, while the others see one block and read the rest as disabled.
-    # Merging them here would edit a list the operator did not ask to be edited
-    # in this call, which is the same shape as the defect; leaving it alone keeps
-    # a damaged conf damaged and silent, which is the state that was reported. So
-    # it is handed back to be fixed deliberately, and the message says how.
-    if ( keys %headers_seen > 1 ) {
-        return {
-            ok    => 0,
-            error => "$conf_path carries both an `extensions:` and a `plugins:` "
-                . 'list. They are one registry spelled two ways, so two blocks '
-                . 'disagree about what is enabled. Merge them by hand into the '
-                . 'one this site uses - keep `extensions:`, the current name - '
-                . 'and then enable or disable again.',
-        };
-    }
-
     if ( $op eq 'add' ) {
         push @plugins, $script unless grep { $_ eq $script } @plugins;
     }
@@ -691,15 +662,7 @@ sub _update_plugins_conf {
     # plugins block emptied - removing a site's only plugin glued two conf
     # keys into one corrupt line.)
     my @out = @before;
-    if (@plugins) {
-        # SM915: write back the header THIS SITE USES, which is the ruling - not
-        # a hardcoded `plugins:`. Exactly one spelling can be in %headers_seen by
-        # here, because two were refused above. A conf with no list at all gets
-        # `extensions:`, the name SM817 introduced, rather than reviving the old
-        # one on a site that never had it.
-        my ($header) = keys %headers_seen;
-        push @out, ( $header // 'extensions' ) . ':', map { "  - $_" } @plugins;
-    }
+    push @out, 'extensions:', map { "  - $_" } @plugins if @plugins;
     push @out, @after;
     my $new_conf = join( "\n", @out );
     $new_conf =~ s/\n{3,}/\n\n/g;
@@ -1054,7 +1017,7 @@ sub _handlers_module {
 }
 
 # SM214: enumerate the site's forms for a token client (or the manager) that can
-# read submissions but cannot list plugins/handlers (those are cookie-only). A
+# read submissions but cannot list extensions/handlers (those are cookie-only). A
 # "form" is a lazysite/forms/<name>.conf, excluding the special handlers.conf and
 # smtp.conf. Read-only and PII-free (names + handler types + row COUNTS only, never
 # submission content), so it is safe on the read_submissions gate. Answers "what

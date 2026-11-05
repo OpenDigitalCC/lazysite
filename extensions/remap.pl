@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# plugins/remap.pl - the URL remapper extension (SM802).
+# extensions/remap.pl - the URL remapper extension (SM802).
 #
 # Per-domain prefix redirects for a site replacing another on the same hostname
 # while links to the old one are still in the world - notifications, invoices,

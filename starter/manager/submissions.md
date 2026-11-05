@@ -41,9 +41,9 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 // SM957: THIS WAS A MODAL ON THE EXTENSION CONFIG PAGE, opened from the form
 // handler's row - the task an operator does most days, three clicks into an
 // extension's configuration. It MOVED here rather than being copied: there is
-// one viewer, and the old address (plugin-config?submissions=<store>) is a
+// one viewer, and the old address (extension-config?submissions=<store>) is a
 // redirect to this page. t/unit/manager/180 and 201 drive these functions, and
-// 202 holds that plugin-config.md keeps no second copy.
+// 202 holds that extension-config.md keeps no second copy.
 //
 // SM793: EVERY VALUE ARRIVES AS TEXT. The table is built from DOM nodes and
 // textContent, and each button's action is a closure rather than an attribute,

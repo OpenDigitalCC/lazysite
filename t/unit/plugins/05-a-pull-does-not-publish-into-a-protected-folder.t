@@ -33,7 +33,7 @@ use Lazysite::Git     ();
 use Lazysite::Private ();
 
 my $ROOT   = "$FindBin::Bin/../../..";
-my $PLUGIN = "$ROOT/plugins/git-sync.pl";
+my $PLUGIN = "$ROOT/extensions/git-sync.pl";
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 plan skip_all => 'git not installed on this host'
     unless Lazysite::Git::git_available();

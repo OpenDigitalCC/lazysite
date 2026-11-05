@@ -13,7 +13,7 @@ use JSON::PP qw(decode_json);
 use FindBin;
 
 my $root   = "$FindBin::Bin/../../..";
-my $plugin = "$root/plugins/form-smtp.pl";
+my $plugin = "$root/extensions/form-smtp.pl";
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/forms");

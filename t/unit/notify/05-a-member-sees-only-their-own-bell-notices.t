@@ -25,7 +25,7 @@ sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh}
 my $root = repo_root();
 my $d    = site_tempdir();
 make_path( "$d/lazysite/forms", "$d/lazysite/logs", "$d/lazysite/db/tables" );
-spit( "$d/lazysite/lazysite.conf", "site_name: T\nsite_url: https://news.example\nplugins:\n  - plugins/data.pl\n" );
+spit( "$d/lazysite/lazysite.conf", "site_name: T\nsite_url: https://news.example\nextensions:\n  - extensions/data.pl\n" );
 spit( "$d/lazysite/db/tables/subscriptions.yaml",
     "title: Subscriptions\ntimestamps: true\nfields:\n  post:\n    type: text\n" );
 spit( "$d/lazysite/forms/handlers.conf",

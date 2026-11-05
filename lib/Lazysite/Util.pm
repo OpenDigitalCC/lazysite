@@ -350,7 +350,7 @@ sub const_eq {
 # has an allowlist; tools/lazysite-users.pl hand-rolls two of the same variables
 # with a comment explaining why it must; Lazysite::Notify had a seven-line reader
 # that returned the raw line - so the first XMPP notification to arrive on a live
-# site carried the URL `${REQUEST_SCHEME}://${SERVER_NAME}/manager/plugins`. The
+# site carried the URL `${REQUEST_SCHEME}://${SERVER_NAME}/manager/extensions`. The
 # third hand-rolled copy is how that happened, and a fourth would be the same
 # mistake with a different symptom, so this is the one home for it.
 #

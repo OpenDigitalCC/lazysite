@@ -24,7 +24,7 @@ use JSON::PP;
 use FindBin;
 
 my $root   = "$FindBin::Bin/../../..";
-my $plugin = "$root/plugins/data.pl";
+my $plugin = "$root/extensions/data.pl";
 plan skip_all => 'plugin not present' unless -f $plugin;
 
 my $d = eval { decode_json(`$^X \Q$plugin\E --describe`) };

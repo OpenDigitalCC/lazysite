@@ -1066,13 +1066,13 @@ subtest 'the login rate limit extension is switched on once, and only once' => s
     my ( $rc1, $out1 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
     is( $rc1, 0, 'fresh ok' ) or diag $out1;
     my $conf = "$docroot/lazysite/lazysite.conf";
-    like( slurp($conf), qr/^plugins:\n(?:  - .*\n)*  - plugins\/login-rate-limit\.pl$/m,
+    like( slurp($conf), qr/^extensions:\n(?:  - .*\n)*  - extensions\/login-rate-limit\.pl$/m,
         'a fresh site lists it in its registry' );
     ok( ( grep { $_ eq 'login-rate-limit-on' } @{ load_state($docroot)->{once} || [] } ),
         'and the install state records that it was done' );
 
     # The operator switches it off.
-    my $off = slurp($conf) =~ s/^  - plugins\/login-rate-limit\.pl\n//mr;
+    my $off = slurp($conf) =~ s/^  - extensions\/login-rate-limit\.pl\n//mr;
     open my $w, '>', $conf or die $!;
     print {$w} $off;
     close $w;
@@ -1089,7 +1089,7 @@ subtest 'the login rate limit extension is switched on once, and only once' => s
     close $sw;
     my ( $rc3, $out3 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
     is( $rc3, 0, 'an upgrade of such a site succeeds' ) or diag $out3;
-    like( slurp($conf), qr/^  - plugins\/login-rate-limit\.pl$/m, 'and switches the limiter on, so it keeps rate limiting' );
+    like( slurp($conf), qr/^  - extensions\/login-rate-limit\.pl$/m, 'and switches the limiter on, so it keeps rate limiting' );
     like( $out3, qr/switched on the login rate limit extension/, 'saying so' );
 };
 

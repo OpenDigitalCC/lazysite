@@ -4,7 +4,7 @@
 # A native form posts to /cgi-bin/form-handler.pl. tools/lazysite-server.pl
 # routed only /cgi-bin/lazysite-*.pl, so the post fell through to the processor
 # and answered 404 ("Could not send: Server returned 404", reported from a
-# staged site shown on a LAN). Installed sites link plugins/form-handler.pl into
+# staged site shown on a LAN). Installed sites link extensions/form-handler.pl into
 # cgi-bin (install.pl post_install_steps) and serve it as a plain CGI, not
 # behind the auth wrapper (SM402) - so the dev server now does the same.
 #
@@ -27,7 +27,7 @@ sub route { my @r = main::cgi_target_for( $_[0], "$root/tools", $proc ); return 
 
 subtest 'a form post reaches the form handler, as on an installed site' => sub {
     my ( $t, $rel, $direct ) = @{ route('/cgi-bin/form-handler.pl') };
-    is( $t, "$root/plugins/form-handler.pl", 'the plugin is the target' );
+    is( $t, "$root/extensions/form-handler.pl", 'the plugin is the target' );
     is( $rel, 'form-handler.pl', 'named as the installed link is' ); # bare-name-on-purpose: the cgi-bin name
     ok( $direct, 'and it runs directly, not behind the auth wrapper (SM402)' );
 };

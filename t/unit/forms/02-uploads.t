@@ -9,7 +9,7 @@ use File::Path qw(make_path);
 # Binary uploads on the form handler: multipart files are parsed binary-safe,
 # validated against the form's upload constraints, stored in a per-submission
 # subdir next to the <form>.jsonl, and their names recorded in the submission.
-my $PLUGIN = 'plugins/form-handler.pl';
+my $PLUGIN = 'extensions/form-handler.pl';
 ok( -f $PLUGIN, 'form handler present' );
 
 my $d = tempdir( CLEANUP => 1 );

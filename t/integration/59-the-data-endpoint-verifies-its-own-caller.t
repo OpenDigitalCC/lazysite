@@ -30,7 +30,7 @@ my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
 make_path( "$docroot/lazysite/db/tables", "$docroot/lazysite/auth" );
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $cf;
 open my $df, '>', "$docroot/lazysite/db/tables/products.yaml" or die $!;
 # `public: true` because THIS file is about identity, not publication (SM476).
@@ -169,7 +169,7 @@ subtest 'a disabled plugin refuses here too' => sub {
             . 'and a direct-CGI plugin refuses its own requests.' );
     like( $d->{error}, qr/disabled/, 'saying so' );
     open my $on, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-    print {$on} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+    print {$on} "site_name: T\nextensions:\n  - extensions/data.pl\n";
     close $on;
 };
 

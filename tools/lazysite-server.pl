@@ -34,6 +34,7 @@ BEGIN {
 }
 
 use Lazysite::Paths ();
+use Lazysite::Extensions ();
 
 # --- Module check ---
 
@@ -182,7 +183,7 @@ Options:
   --docroot   PATH    Document root (default: ../starter)
   --processor PATH    Processor path (default: ../lazysite-processor.pl)
   --extensions DIR    Also look for extensions in DIR; repeat for several. Searched
-                      in the order given, before the docroot's plugins/; a name
+                      in the order given, before the docroot's extensions/; a name
                       in two directories is served from the first. Each must be a
                       real directory (a symlink is refused), and a symlinked
                       script inside is skipped. Dev server only.
@@ -254,7 +255,7 @@ if (@EXTENSION_DIRS) {
         push @real, $dir;
     }
     @EXTENSION_DIRS = @real;
-    @EXT_REPORT     = extension_report( \@EXTENSION_DIRS, "$DOCROOT/../plugins" );
+    @EXT_REPORT     = extension_report( \@EXTENSION_DIRS, Lazysite::Extensions::extensions_dir("$DOCROOT/..") );
 
     # The CGIs this server runs read these; an installed engine is never started
     # here, so for it neither is set and its lookup is unchanged. PERL5LIB gives
@@ -563,7 +564,7 @@ sub check_extension_dir {
 # SM1222: the startup lines for the directories (already checked), in the order
 # searched: what each holds, a symlinked script skipped, and any name held by
 # more than one directory with the one that wins. $beside is the docroot's own
-# plugins/, searched after them.
+# extensions/, searched after them.
 sub extension_report {
     my ( $dirs, $beside ) = @_;
     my ( @lines, %first );
@@ -606,11 +607,10 @@ sub cgi_target_for {
     }
     if ( $uri =~ m{\A/cgi-bin/(form-handler\.pl)\z} ) {
         my $rel = $1;
-        # SM1222: the --extensions directories first (a real file, no symlink).
-        for my $d ( Lazysite::Paths::dev_extension_dirs() ) {
-            return ( "$d/$rel", $rel, 1 ) if -f "$d/$rel" && !-l "$d/$rel";
-        }
-        my $cgi = abs_path("$script_dir/../plugins/$rel");
+        # SM1142: the one resolver, which takes the --extensions directories
+        # first (a real file, no symlink; SM1222).
+        my $found = Lazysite::Extensions::locate( $rel, "$script_dir/.." );
+        my $cgi   = defined $found ? abs_path($found) : undef;
         return ( $cgi, $rel, 1 ) if $cgi && -f $cgi;
     }
     return ( $processor, undef, 0 );

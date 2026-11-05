@@ -33,7 +33,7 @@ my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/db/tables");
 make_path("$docroot/lazysite/auth");
 open my $c, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$c} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$c} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $c;
 
 for my $t (qw(governed open owned_only empty_rule)) {

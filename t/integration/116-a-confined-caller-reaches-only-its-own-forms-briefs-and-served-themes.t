@@ -56,7 +56,7 @@ sub slurp { open my $fh, '<', $_[0] or return ''; local $/; return scalar <$fh> 
 my $s = new_site( root => $root,
     conf => "control_api_enabled: true\nmcp_enabled: true\nwebdav_enabled: true\n"
         . "layout: base\ntheme: one\n"
-        . "extensions:\n  - plugins/data.pl\n  - plugins/briefs.pl\n" );
+        . "extensions:\n  - extensions/data.pl\n  - extensions/briefs.pl\n" );
 my $d = $s->docroot;
 make_path( "$d/sites/mine", "$d/sites/other", "$d/lazysite/db/tables", "$d/lazysite/forms/submissions" );
 spit( "$d/sites/$_/index.md", "# $_\n" ) for qw(mine other);

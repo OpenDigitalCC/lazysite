@@ -13,7 +13,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/plugins/audit.pl';
+my $PLUGIN = repo_root() . '/extensions/audit.pl';
 ok( -f $PLUGIN, 'audit plugin present' );
 
 my $d = tempdir( CLEANUP => 1 );

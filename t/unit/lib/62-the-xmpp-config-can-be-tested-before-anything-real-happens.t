@@ -86,7 +86,7 @@ sub site {
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: Test Site\n";
     print {$cf} 'site_url: ' . ( $o{site_url} // 'https://test.example' ) . "\n";
-    print {$cf} "extensions:\n  - plugins/notify-xmpp.pl\n" unless $o{disabled};
+    print {$cf} "extensions:\n  - extensions/notify-xmpp.pl\n" unless $o{disabled};
     close $cf;
     if ( defined $o{conf} ) {
         open my $xf, '>', "$d/lazysite/notify-xmpp.conf" or die $!;
@@ -182,7 +182,7 @@ subtest 'the rendered body is returned, and reads as a test' => sub {
             . 'reads like an alert teaches people to ignore alerts' );
     like( $sent, qr/Test Site/,     'it carries the site name, as a real notice does' );
     like( $sent, qr/Nothing needs doing/, 'and tells the reader not to act' );
-    like( $sent, qr{https://test\.example/manager/plugins},
+    like( $sent, qr{https://test\.example/manager/extensions},
         'and the link a real notice would carry on this site' );
 
     my ($msg) = grep { $_->[0] eq 'MessageSend' } @CALLS;
@@ -201,7 +201,7 @@ subtest 'no request context: the body degrades to a path, and shows it' => sub {
     unlike( $res->{sent}, qr{://},
         'the body carries no half-built URL - that is SM926, and it was invisible '
             . 'until somebody read a payload' );
-    like( $res->{sent}, qr{/manager/plugins},
+    like( $res->{sent}, qr{/manager/extensions},
         'the path survives, which a reader can still use against the host they are on' );
 };
 
@@ -363,7 +363,7 @@ subtest 'a test leaves no notice behind' => sub {
 
 subtest 'the plugin answers --scan with the same result' => sub {
     my $d     = site();    # enabled, not configured
-    my $pl    = "$FindBin::Bin/../../../plugins/notify-xmpp.pl";
+    my $pl    = "$FindBin::Bin/../../../extensions/notify-xmpp.pl";
     my $out   = qx{$^X "$pl" --scan --docroot "$d" 2>/dev/null};
     my $res   = eval { decode_json($out) };
     ok( $res, 'it answers JSON' ) or diag "output was: $out";
@@ -373,7 +373,7 @@ subtest 'the plugin answers --scan with the same result' => sub {
 };
 
 subtest 'the action is declared, gated on the account' => sub {
-    my $pl   = "$FindBin::Bin/../../../plugins/notify-xmpp.pl";
+    my $pl   = "$FindBin::Bin/../../../extensions/notify-xmpp.pl";
     my $desc = decode_json( scalar qx{$^X "$pl" --describe} );
     my ($action) = grep { $_->{id} eq 'test' } @{ $desc->{actions} // [] };
     ok( $action, 'notify-xmpp declares a test action' );

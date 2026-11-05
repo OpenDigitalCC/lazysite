@@ -94,7 +94,7 @@ sub streamed_ok {
     return;
 }
 
-w( 'lazysite/lazysite.conf', "site_name: Downloads\nplugins:\n  - plugins/data.pl\n" );
+w( 'lazysite/lazysite.conf', "site_name: Downloads\nextensions:\n  - extensions/data.pl\n" );
 w( 'lazysite/auth/.secret',  $secret );
 w( 'content/page.md',        "---\ntitle: Page\n---\n\nBody\n" );
 w( 'content/a.txt',          "alpha bytes\n" );

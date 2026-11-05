@@ -39,7 +39,7 @@ subtest 'the dependency check returns the names, not only the sentence' => sub {
     };
 
     my ( $msg, $absent )
-        = Lazysite::Manager::Plugins::_missing_deps( 'plugins/x.pl',
+        = Lazysite::Manager::Plugins::_missing_deps( 'extensions/x.pl',
         '/nonexistent/x.pl', $desc );
 
     ok( defined $msg, 'a refusal message is produced' ) or return;
@@ -64,7 +64,7 @@ subtest 'the dependency check returns the names, not only the sentence' => sub {
 subtest 'an installed dependency is not reported missing' => sub {
     # The test is only worth anything if it can pass for the right reason.
     my $desc = { owns => { deps => ['Test::More'] } };
-    my ($msg) = Lazysite::Manager::Plugins::_missing_deps( 'plugins/x.pl',
+    my ($msg) = Lazysite::Manager::Plugins::_missing_deps( 'extensions/x.pl',
         '/nonexistent/x.pl', $desc );
     is( $msg, undef, 'a module that IS installed produces no refusal' );
 };

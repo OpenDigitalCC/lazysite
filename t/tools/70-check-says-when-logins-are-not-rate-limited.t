@@ -30,7 +30,7 @@ sub site {
     my $base = File::Basename::dirname($doc);
     make_path("$doc/lazysite/$_") for qw(auth cache logs manager);
     open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
-    print {$cf} "site_name: T\n" . ( $on ? "plugins:\n  - plugins/login-rate-limit.pl\n" : '' );
+    print {$cf} "site_name: T\n" . ( $on ? "extensions:\n  - extensions/login-rate-limit.pl\n" : '' );
     close $cf;
     return ( $base, $doc );
 }

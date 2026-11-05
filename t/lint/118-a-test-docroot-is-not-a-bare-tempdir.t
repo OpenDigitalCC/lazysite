@@ -1,9 +1,9 @@
 #!/usr/bin/perl
 # SM754: a test that uses a bare tempdir() as a docroot leaks the docroot's
 # siblings into /tmp - the private store at <docroot>-lazysite-private, the
-# Hestia layout's plugins/ tools/ lib/ at ../ - because File::Temp cleans only
+# Hestia layout's extensions/ tools/ lib/ at ../ - because File::Temp cleans only
 # the directory it made. Measured on the dev host: 15,386 entries, 356 MB, and
-# a leaked /tmp/plugins/stats.pl that made a "not found" assertion pass for the
+# a leaked /tmp/extensions/stats.pl that made a "not found" assertion pass for the
 # wrong reason.
 #
 # TestHelper::site_tempdir() puts the docroot one level down so every sibling

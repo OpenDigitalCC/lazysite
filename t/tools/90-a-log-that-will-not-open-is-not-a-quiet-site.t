@@ -24,7 +24,7 @@ subtest 'AT6: the visitor log is in the store that holds the audit trail' => sub
     ok( $logs, 'the catalogue knows the directory' ) or return;
     ok( $logs->{store}, 'and classifies it as a store' );
     my %mods = map { $_ => 1 } @{ $logs->{modules} || [] };
-    ok( $mods{'plugins/stats.pl'},
+    ok( $mods{'extensions/stats.pl'},
         'the visitor-log reader is one of its modules' )
         or diag( 'Listed, or lint 121 never looks at the six readers that '
             . 'answered empty.' );
@@ -34,7 +34,7 @@ subtest 'AT6: the MAIN access log already refused correctly - protect that' => s
     # Measured while building this, and it narrowed the filing: the headline read
     # was never the lie. An unreadable access log does not report a quiet site; it
     # refuses and says which fault it is. This subtest exists so that stays true.
-    my $stats = "$root/plugins/stats.pl";
+    my $stats = "$root/extensions/stats.pl";
     plan skip_all => "no $stats" unless -f $stats;
 
     my $d   = site_tempdir();
@@ -59,7 +59,7 @@ subtest 'AT6: the secondary log readers no longer skip in silence' => sub {
     # empty or skipped on a failed open. Those do not change the headline count,
     # they shorten it - which is worse in one way, because nothing looks wrong.
     my $src = do {
-        open my $fh, '<', "$root/plugins/stats.pl" or die $!;
+        open my $fh, '<', "$root/extensions/stats.pl" or die $!;
         local $/;
         <$fh>;
     };

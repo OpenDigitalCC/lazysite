@@ -30,7 +30,7 @@ use Lazysite::Auth::Acl    ();
 
 my $root = repo_root();
 my $s    = new_site( root => $root,
-    conf => "control_api_enabled: true\nmcp_enabled: true\nplugins:\n  - plugins/data.pl\n" );
+    conf => "control_api_enabled: true\nmcp_enabled: true\nextensions:\n  - extensions/data.pl\n" );
 my $d = $s->docroot;
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 

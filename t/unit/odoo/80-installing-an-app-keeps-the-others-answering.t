@@ -37,9 +37,9 @@ OdooTest::pretend_released();
 my $root   = repo_root();
 my $parent = site_tempdir();
 my $d      = "$parent/public_html";
-make_path( "$d/lazysite", "$parent/plugins" );
-copy( "$root/plugins/odoo.pl", "$parent/plugins/odoo.pl" ) or die $!;
-chmod 0755, "$parent/plugins/odoo.pl";
+make_path( "$d/lazysite", "$parent/extensions" );
+copy( "$root/extensions/odoo.pl", "$parent/extensions/odoo.pl" ) or die $!;
+chmod 0755, "$parent/extensions/odoo.pl";
 local $ENV{PERL5LIB} = "$root/lib" . ( $ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : '' );
 
 my $PACK_A = 'LazysiteTest::OdooOps';       # shop.products
@@ -55,7 +55,7 @@ $Lazysite::Manager::Plugins::DOCROOT = $d;
 
 sub conf_text  { open my $h, '<', $conf or return ''; local $/; return <$h> }
 sub packs_line { return conf_text() =~ /^odoo_packs:[ \t]*(.*)$/m ? $1 : '' }
-sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'plugins/odoo.pl', @_ ) }
+sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/odoo.pl', @_ ) }
 
 bind( $d, id => 'products', operation => 'shop.products', modes => 'public', params => 'limit=limit' );
 sub call_a {

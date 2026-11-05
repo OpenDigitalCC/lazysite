@@ -3,7 +3,7 @@ package Lazysite::Auth::AddressAudit;
 # SM1139 (slice B of SM1134): THE AUDIT ROW FOR A REFUSAL BY ADDRESS, once per
 # target per address per hour. The ruling (SM1134): "one audit row per refusal per
 # address per hour, like SM1115, so a scan cannot fill the trail". SM1115's pattern
-# is plugins/form-handler.pl _audit_rate_refusal: a marker per key holding the clock
+# is extensions/form-handler.pl _audit_rate_refusal: a marker per key holding the clock
 # hour, written when the row is, and the row skipped while the marker is this hour's.
 # This is that pattern for pages, files and the doors that serve them, in one place
 # so the processor, WebDAV and the manager API write the same row. SM1140's group

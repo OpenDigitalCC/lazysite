@@ -40,7 +40,7 @@ use TestHelper     qw(repo_root);
 use ManagerSession qw(new_site);
 
 my $root   = repo_root();
-my $PLUGIN = "$root/plugins/form-handler.pl";
+my $PLUGIN = "$root/extensions/form-handler.pl";
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
 my $s = new_site( root => $root );

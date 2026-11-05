@@ -27,7 +27,7 @@ plan skip_all => 'root reads everything; the permission cases need an unprivileg
 my $d = site_tempdir();
 make_path("$d/lazysite/auth");
 sub put { my ( $p, $c ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $c; close $fh }
-put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
+put( "$d/lazysite/lazysite.conf", "site_name: t\nextensions:\n  - extensions/daemon.pl\n" );
 put( "$d/lazysite/daemon.conf",   "daemon_job_user: jobs\n" );
 put( "$d/lazysite/auth/users",    "jobs:x\n" );
 put( "$d/lazysite/auth/groups",   "runners: jobs\n" );

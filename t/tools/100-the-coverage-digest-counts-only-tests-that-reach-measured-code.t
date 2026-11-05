@@ -49,7 +49,7 @@ my %TREE = (
     'tools/lazysite-bundle-apply.pl' => "1;\n",
     'dist/config/coverage-floor'     => "floor=75\n",
     'tools/coverage.sh'              => "#!/bin/sh\n",
-    'plugins/stats.pl'               => "sub stats { 1 }\n1;\n",
+    'extensions/stats.pl'               => "sub stats { 1 }\n1;\n",
     'CHANGELOG.md'                   => "# Changelog\n",
     'docs/guide.md'                  => "A guide.\n",
     'lib/Lazysite/Plain.pm' => "package Lazysite::Plain;\nsub tidy { return 1 }\n1;\n",
@@ -126,7 +126,7 @@ sub moves {
 subtest '(a) a change to anything measured moves the digest' => sub {
     for my $f (
         qw(lazysite-processor.pl tools/lazysite-users.pl dist/config/coverage-floor lib/Lazysite/Plain.pm
-        plugins/stats.pl t/lib/Helper.pm tools/coverage.sh tools/coverage-inputs.pl)
+        extensions/stats.pl t/lib/Helper.pm tools/coverage.sh tools/coverage-inputs.pl)
         )
     {
         ok( moves($f), "$f" );

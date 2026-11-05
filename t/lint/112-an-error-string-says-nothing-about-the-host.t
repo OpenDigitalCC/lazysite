@@ -27,7 +27,7 @@ my $root = repo_root();
 # make this noisy enough to switch off - which is how a lint dies.
 my @SURFACES = qw(
     lazysite-manager-api.pl lazysite-mcp.pl lazysite-dav.pl lazysite-data.pl
-    lazysite-auth.pl lazysite-oauth.pl plugins/pandoc.pl
+    lazysite-auth.pl lazysite-oauth.pl extensions/pandoc.pl
 );
 push @SURFACES, map { "lib/Lazysite/$_" }
     qw(Data/Tables.pm Manager/Common.pm Manager/Upload.pm);
@@ -80,7 +80,7 @@ subtest 'the cleaner that exists is used where it must be' => sub {
 
 subtest 'the converter failure says nothing at all about the host' => sub {
     my $p = do {
-        open my $fh, '<', "$root/plugins/pandoc.pl" or die $!;
+        open my $fh, '<', "$root/extensions/pandoc.pl" or die $!;
         local $/; <$fh>;
     };
     # SM739: fixed text, because a denylist over the converter's chatter kept

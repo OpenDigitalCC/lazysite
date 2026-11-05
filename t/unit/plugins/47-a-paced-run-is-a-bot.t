@@ -18,7 +18,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $plugin = repo_root() . '/plugins/stats.pl';
+my $plugin = repo_root() . '/extensions/stats.pl';
 plan skip_all => "no $plugin" unless -f $plugin;
 
 # One export run against a hand-built access log. Each request is

@@ -22,7 +22,7 @@ my $root = repo_root();
 my $d    = site_tempdir();
 make_path( "$d/lazysite/auth", "$d/lazysite/daemon" );
 sub put { my ( $p, $c ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $c; close $fh }
-put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
+put( "$d/lazysite/lazysite.conf", "site_name: t\nextensions:\n  - extensions/daemon.pl\n" );
 
 # a private /etc/lazysite/daemon for the test
 my $etc = tempdir( CLEANUP => 1 );
@@ -97,10 +97,10 @@ subtest 'the job account checks say which job will be refused, before it is' => 
 };
 
 subtest 'the plugin runs Status on Enable and the toggle line gets the summary' => sub {
-    my $src = do { local ( @ARGV, $/ ) = "$root/plugins/daemon.pl"; <> };
+    my $src = do { local ( @ARGV, $/ ) = "$root/extensions/daemon.pl"; <> };
     like( $src, qr/on_enable\s*=>\s*'status'/, 'on_enable names the status action' );
     like( $src, qr/\$st->\{message\} = \$st->\{summary\}/, 'and the action puts the summary where the toggle line reads' );
-    my $plugins = do { local ( @ARGV, $/ ) = "$root/starter/manager/plugins.md"; <> };
+    my $plugins = do { local ( @ARGV, $/ ) = "$root/starter/manager/extensions.md"; <> };
     like( $plugins, qr/if \(h && h\.message\) \{ warn\(name \+ ': ' \+ h\.message\); \}/, 'which is h.message on the Extensions page' );
 };
 
@@ -117,11 +117,11 @@ subtest 'disabled: the line says so and says what to do' => sub {
     # 'off' is a healthy verdict by the lifecycle contract (desired off, not
     # running), so it carries no remedy field; the next step is in the line.
     like( summary_of(), qr/disabled and the runtime is stopped.*enable it on the Extensions page/, 'the state and the next step, in the one line' );
-    put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
+    put( "$d/lazysite/lazysite.conf", "site_name: t\nextensions:\n  - extensions/daemon.pl\n" );
 };
 
 subtest 'every state that is not running carries a remedy' => sub {
-    for my $conf ( "site_name: t\n", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" ) {
+    for my $conf ( "site_name: t\n", "site_name: t\nextensions:\n  - extensions/daemon.pl\n" ) {
         put( "$d/lazysite/lazysite.conf", $conf );
         my $st = Lazysite::Daemon::Supervisor::status($d);
         next if $st->{verdict} eq 'on';
@@ -138,7 +138,7 @@ subtest 'every state that is not running carries a remedy' => sub {
 # `kill 0` from another unix user answers EPERM. A running runtime is
 # reported running, healthy, with no remedy and the runs beside it.
 subtest 'running: said so, healthy, no remedy' => sub {
-    put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
+    put( "$d/lazysite/lazysite.conf", "site_name: t\nextensions:\n  - extensions/daemon.pl\n" );
     Lazysite::Daemon::Supervisor::_write_pid( $d, 'scheduler', $$ );
     Lazysite::Daemon::Supervisor::_write_state( $d, 'scheduler',
         { fails => 0, started => time, start_ticks => Lazysite::Daemon::Supervisor::_start_ticks($$) } );
@@ -157,7 +157,7 @@ subtest 'running: said so, healthy, no remedy' => sub {
     unlink Lazysite::Daemon::Supervisor::_pid_file( $d, 'scheduler' ), Lazysite::Daemon::Supervisor::_state_file( $d, 'scheduler' );
     $off = Lazysite::Daemon::Supervisor::status($d);
     like( $off->{summary}, qr/disabled and the runtime is stopped/, 'disabled with no process: stopped' );
-    put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
+    put( "$d/lazysite/lazysite.conf", "site_name: t\nextensions:\n  - extensions/daemon.pl\n" );
 };
 
 subtest 'Status carries the run record, which no remote grant can read' => sub {

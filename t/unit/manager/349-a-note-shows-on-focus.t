@@ -44,7 +44,7 @@ for my $css (@sheets) {
 chomp( my $node = `sh -c 'command -v node || command -v nodejs' 2>/dev/null` );
 SKIP: {
     skip 'node not installed', 2 unless length $node && -x $node;
-    my $page = PageScript::page_source("$root/starter/manager/plugin-config.md");
+    my $page = PageScript::page_source("$root/starter/manager/extension-config.md");
     my $fns  = join "\n", map { PageScript::extract_function( $page, $_ ) } qw(esc renderForm);
     my $plugin = encode_json(
         {   id => 'x', _script => 'x.pl',
@@ -60,7 +60,7 @@ SKIP: {
         'the config mark carries the escaped note in data-note';
     unlike $html, qr/\btitle=/, 'and no title that would show it twice';
 
-    my $plugins = PageScript::page_source("$root/starter/manager/plugins.md");
+    my $plugins = PageScript::page_source("$root/starter/manager/extensions.md");
     like $plugins, qr/class="mg-info"[^;]*data-note="'/, 'the Extensions row mark carries data-note too';
 }
 

@@ -48,7 +48,7 @@ my $d = Cwd::realpath( TestHelper::site_tempdir( plugins => 1 ) );
 make_path( "$d/lazysite/db/tables", "$d/lazysite/db/rebuilds", "$d/lazysite/auth",
     map { "$d/sites/$_" } qw(alpha alpha/blog beta) );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n"
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n"
     . "alias_hosts: alpha.test, blog.test, beta.test, mirror.test\n"
     . "alias.alpha.test.content_root: sites/alpha\nalias.blog.test.content_root: sites/alpha/blog\n"
     . "alias.beta.test.content_root: sites/beta\n";

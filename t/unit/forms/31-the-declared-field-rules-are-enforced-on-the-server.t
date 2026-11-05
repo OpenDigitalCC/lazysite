@@ -125,12 +125,12 @@ subtest 'the sidecar records what the browser was told' => sub {
 
 # --- part 2: enforcement, against that same file ------------------------------
 my $src = do {
-    open my $fh, '<', "$root/plugins/form-handler.pl" or die $!;
+    open my $fh, '<', "$root/extensions/form-handler.pl" or die $!;
     local $/;
     <$fh>;
 };
 my ($sub) = $src =~ /^(sub validate_fields \{.*?^\})/ms
-    or BAIL_OUT('could not lift validate_fields out of plugins/form-handler.pl');
+    or BAIL_OUT('could not lift validate_fields out of extensions/form-handler.pl');
 
 # BOTH SUBS, because validate_fields refuses THROUGH reject_invalid and a stub
 # written here would be a second definition of the thing under test. Lifting it
@@ -142,17 +142,17 @@ my ($sub) = $src =~ /^(sub validate_fields \{.*?^\})/ms
 # called an undefined sub, died inside the eval, and recorded no refusals - so
 # every assertion would have passed vacuously. The guard below is what caught it.
 my ($rej) = $src =~ /^(sub reject_invalid \{.*?^\})/ms
-    or BAIL_OUT('could not lift reject_invalid out of plugins/form-handler.pl');
+    or BAIL_OUT('could not lift reject_invalid out of extensions/form-handler.pl');
 
 # SM1124: reject_invalid now refuses through `refuse`, which builds the message
 # from the handler's %REFUSAL_SAID table - lifted too, so the wording asserted
 # below is still the handler's own.
 my ($refuse) = $src =~ /^(sub refuse \{.*?^\})/ms
-    or BAIL_OUT('could not lift refuse out of plugins/form-handler.pl');
+    or BAIL_OUT('could not lift refuse out of extensions/form-handler.pl');
 my ($rtext) = $src =~ /^(sub refusal_text \{.*?^\})/ms
-    or BAIL_OUT('could not lift refusal_text out of plugins/form-handler.pl');
+    or BAIL_OUT('could not lift refusal_text out of extensions/form-handler.pl');
 my ($table) = $src =~ /^(our %REFUSAL_SAID = \(.*?\n\);)/ms
-    or BAIL_OUT('could not lift %REFUSAL_SAID out of plugins/form-handler.pl');
+    or BAIL_OUT('could not lift %REFUSAL_SAID out of extensions/form-handler.pl');
 
 our @REJECTED;
 {

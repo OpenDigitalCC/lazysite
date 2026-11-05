@@ -82,7 +82,7 @@ subtest 'the plugin can be loaded without executing itself' => sub {
     # frame - so loading defines the subs and prints nothing. If that ever
     # stopped being true, the plugin would emit JSON into the middle of an HTTP
     # response, which is the kind of fault that looks like a corrupt download.
-    my $plugin = "$root/plugins/pandoc.pl";
+    my $plugin = "$root/extensions/pandoc.pl";
     ok( -f $plugin, 'the plugin is present' ) or return;
 
     # LIST FORM, so there is no shell command string at all - t/lint/40

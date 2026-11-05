@@ -1,16 +1,15 @@
 #!/usr/bin/perl
-# SM915: the writer matched `plugins:` alone, so on a site using the name SM817
-# introduced (`extensions:`) the header and all its entries fell through to the
-# preserved-lines list, the rebuild emitted a SECOND list under the old spelling
-# carrying only the script just added, and disable removed nothing from a list it
-# could not see - and reported ok.
+# SM915: the writer matched the old list header alone, so on a site using the
+# name SM817 introduced (`extensions:`) the header and all its entries fell
+# through to the preserved-lines list, the rebuild emitted a SECOND list carrying
+# only the script just added, and disable removed nothing from a list it could
+# not see - and reported ok.
 #
-# Reproduced in tmp/sm915-repro.pl before the fix: on an `extensions:` site,
-# enable gave 2 lists and disable answered ok=1 having removed nothing.
-#
-# Every case below runs on BOTH spellings, because a `plugins:` site worked all
-# along and a test that only exercises the broken one cannot tell a fix from a
-# swap of which spelling is broken.
+# SM1142 (R3): `extensions:` is now the one name - the upgrade rewrites the old
+# one - so the writer reads and writes that list and no other. A list an operator
+# writes back under the old header afterwards is not a list to the writer (nor
+# to any reader); it is left as the operator wrote it, and `lazysite check` names
+# the line (t/tools/... the check's own test).
 use strict;
 use warnings;
 use Test::More;
@@ -28,7 +27,7 @@ sub site {
     make_path("$d/lazysite/cache");
     open my $fh, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$fh} "site_name: T\n";
-    print {$fh} "$header:\n  - plugins/stats.pl\n  - plugins/audit.pl\n" if $header;
+    print {$fh} "$header:\n  - extensions/stats.pl\n  - extensions/audit.pl\n" if $header;
     print {$fh} @extra;
     print {$fh} "auth_default: none\n";
     close $fh;
@@ -44,77 +43,54 @@ sub conf {
     return $c;
 }
 
-sub lists {
-    my ($c) = @_;
-    return ( scalar( () = $c =~ /^plugins\s*:\s*$/mg ),
-        scalar( () = $c =~ /^extensions\s*:\s*$/mg ) );
-}
+sub lists { my ($c) = @_; return scalar( () = $c =~ /^extensions\s*:\s*$/mg ) }
 
-for my $header (qw(plugins extensions)) {
-
-    subtest "enable on a `$header:` site writes ONE list, under that header" => sub {
-        my $d = site($header);
-        local $Lazysite::Manager::Plugins::DOCROOT = $d;
-        my $r = Lazysite::Manager::Plugins::_update_plugins_conf(
-            'plugins/notify-xmpp.pl', 'add' );
-        ok( $r->{ok}, 'the enable is accepted' );
-        my $c = conf($d);
-        my ( $p, $e ) = lists($c);
-        is( $p + $e, 1, 'exactly one list in the conf' );
-        is( $header eq 'plugins' ? $p : $e, 1, "and it is the `$header:` one" );
-        is( $header eq 'plugins' ? $e : $p, 0, 'the other spelling was not introduced' );
-        like( $c, qr{^\s+-\s+plugins/notify-xmpp\.pl$}m, 'the new entry is listed' );
-        like( $c, qr{^\s+-\s+plugins/stats\.pl$}m,  'and the entries already there survive' );
-        like( $c, qr{^\s+-\s+plugins/audit\.pl$}m,  'both of them' );
-        like( $c, qr/^auth_default: none$/m, 'the keys after the list survive' );
-    };
-
-    subtest "disable on a `$header:` site actually removes the entry" => sub {
-        my $d = site($header);
-        local $Lazysite::Manager::Plugins::DOCROOT = $d;
-        my $r = Lazysite::Manager::Plugins::_update_plugins_conf(
-            'plugins/stats.pl', 'remove' );
-        ok( $r->{ok}, 'the disable is accepted' );
-        my $c = conf($d);
-        unlike( $c, qr{^\s+-\s+plugins/stats\.pl$}m, 'the entry is gone' );
-        like( $c, qr{^\s+-\s+plugins/audit\.pl$}m, 'the other entry is not' );
-        my ( $p, $e ) = lists($c);
-        is( $p + $e, 1, 'still exactly one list' );
-    };
-}
-
-# The state the defect produced on live sites, and the 2026-09-29 ruling: refuse,
-# name the file, and change nothing. Merging would edit a list the operator did
-# not ask to be edited in this call; leaving it silent is the state that was
-# reported.
-subtest 'a conf carrying BOTH headers is refused, by name, and left alone' => sub {
-    my $d = site( 'extensions', "plugins:\n  - plugins/form-handler.pl\n" );
+subtest 'enable writes ONE list' => sub {
+    my $d = site('extensions');
     local $Lazysite::Manager::Plugins::DOCROOT = $d;
-    my $before = conf($d);
-
-    for my $op (qw(add remove)) {
-        my $r = Lazysite::Manager::Plugins::_update_plugins_conf(
-            ( $op eq 'add' ? 'plugins/notify-xmpp.pl' : 'plugins/stats.pl' ), $op );
-        ok( !$r->{ok}, "$op is refused" );
-        like( $r->{error}, qr/\Qlazysite.conf\E/,
-            "$op names the file, so the operator knows which one to fix" );
-        like( $r->{error}, qr/both an `extensions:` and a `plugins:` list/,
-            "$op says what is wrong with it" );
-        is( conf($d), $before, "$op wrote nothing" );
-    }
+    my $r = Lazysite::Manager::Plugins::_update_plugins_conf( 'extensions/notify-xmpp.pl', 'add' );
+    ok( $r->{ok}, 'the enable is accepted' );
+    my $c = conf($d);
+    is( lists($c), 1, 'exactly one list in the conf' );
+    like( $c, qr{^\s+-\s+extensions/notify-xmpp\.pl$}m, 'the new entry is listed' );
+    like( $c, qr{^\s+-\s+extensions/stats\.pl$}m,  'and the entries already there survive' );
+    like( $c, qr{^\s+-\s+extensions/audit\.pl$}m,  'both of them' );
+    like( $c, qr/^auth_default: none$/m, 'the keys after the list survive' );
 };
 
-# A site with no list at all gets the CURRENT name, not the retired one - there is
-# no header it "already uses", and reviving `plugins:` on a site that never had it
-# would spread the old spelling.
+subtest 'disable actually removes the entry' => sub {
+    my $d = site('extensions');
+    local $Lazysite::Manager::Plugins::DOCROOT = $d;
+    my $r = Lazysite::Manager::Plugins::_update_plugins_conf( 'extensions/stats.pl', 'remove' );
+    ok( $r->{ok}, 'the disable is accepted' );
+    my $c = conf($d);
+    unlike( $c, qr{^\s+-\s+extensions/stats\.pl$}m, 'the entry is gone' );
+    like( $c, qr{^\s+-\s+extensions/audit\.pl$}m, 'the other entry is not' );
+    is( lists($c), 1, 'still exactly one list' );
+};
+
 subtest 'a site with no list at all gets `extensions:`' => sub {
     my $d = site(undef);
     local $Lazysite::Manager::Plugins::DOCROOT = $d;
-    my $r = Lazysite::Manager::Plugins::_update_plugins_conf( 'plugins/stats.pl', 'add' );
+    my $r = Lazysite::Manager::Plugins::_update_plugins_conf( 'extensions/stats.pl', 'add' );
     ok( $r->{ok}, 'the enable is accepted' );
-    my ( $p, $e ) = lists( conf($d) );
-    is( $e, 1, 'the new list is written as `extensions:`' );
-    is( $p, 0, 'and not as `plugins:`' );
+    is( lists( conf($d) ), 1, 'the new list is written as `extensions:`' );
 };
+
+# old-name: begin (SM1142, the writer is shown to leave the old header alone)
+subtest 'a list under the old header is not the writer\'s, and is left as written' => sub {
+    my $d = site('plugins');
+    local $Lazysite::Manager::Plugins::DOCROOT = $d;
+    my $r = Lazysite::Manager::Plugins::_update_plugins_conf( 'extensions/notify-xmpp.pl', 'add' );
+    ok( $r->{ok}, 'the enable is accepted' );
+    my $c = conf($d);
+    like( $c, qr/^plugins:\n  - extensions\/stats\.pl\n  - extensions\/audit\.pl\n/m,
+        'the old block is untouched' );
+    like( $c, qr/^extensions:\n  - extensions\/notify-xmpp\.pl$/m,
+        'and the enabled extension is listed under the one name' );
+    ok( !Lazysite::Manager::Plugins::plugin_enabled('extensions/stats.pl'),
+        'an entry under the old header reads as off' );
+};
+# old-name: end
 
 done_testing();

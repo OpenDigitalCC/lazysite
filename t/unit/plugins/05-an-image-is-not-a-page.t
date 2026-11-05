@@ -35,7 +35,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root   = repo_root();
-my $plugin = "$root/plugins/stats.pl";
+my $plugin = "$root/extensions/stats.pl";
 ok( -f $plugin, 'the stats plugin is present' );
 
 my $src = do { open my $fh, '<', $plugin or die $!; local $/; <$fh> };

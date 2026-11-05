@@ -35,7 +35,7 @@ sub conf {
     my ($on) = @_;
     open my $c, '>', "$docroot/lazysite/lazysite.conf" or die $!;
     print {$c} "site_name: T\n";
-    print {$c} "plugins:\n  - plugins/data.pl\n" if $on;
+    print {$c} "extensions:\n  - extensions/data.pl\n" if $on;
     close $c;
 }
 sub descriptor {

@@ -6,7 +6,7 @@
 # check_rate_limit refused with `reject`, whose message is never shown, and no
 # refusal of a submission was audited.
 #
-# What this holds, on the limiter lifted out of plugins/form-handler.pl (as
+# What this holds, on the limiter lifted out of extensions/form-handler.pl (as
 # t/unit/forms/30 does) with the real audit trail:
 #
 # - the refusal is a USER message: it names the limit and when to try again
@@ -29,19 +29,19 @@ my $doc  = site_tempdir();
 make_path( "$doc/lazysite/forms", "$doc/lazysite/logs" );
 
 my $src = do {
-    open my $fh, '<', "$root/plugins/form-handler.pl" or die $!;
+    open my $fh, '<', "$root/extensions/form-handler.pl" or die $!;
     local $/;
     <$fh>;
 };
 my $sub = join "\n", map {
     my ($one) = $src =~ /^(sub \Q$_\E \{.*?^\})/ms
-        or BAIL_OUT("could not lift $_ out of plugins/form-handler.pl");
+        or BAIL_OUT("could not lift $_ out of extensions/form-handler.pl");
     $one;
 } qw(check_rate_limit refuse refusal_text record_rate_stamp _rate_key _rate_stamps _rate_db _audit_rate_refusal);
 
 # SM1124: the sentences are a table in the handler, which `refuse` reads.
 my ($table) = $src =~ /^(our %REFUSAL_SAID = \(.*?\n\);)/ms
-    or BAIL_OUT('could not lift %REFUSAL_SAID out of plugins/form-handler.pl');
+    or BAIL_OUT('could not lift %REFUSAL_SAID out of extensions/form-handler.pl');
 
 our ( @SAID, @REASON );
 my $code = <<'HEAD' . $table . "\n" . $sub . "\n1;\n";

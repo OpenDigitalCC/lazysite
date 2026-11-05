@@ -31,7 +31,7 @@ sub src {
 
 # 1. The name shares a token with everything else it is called.
 subtest 'the word everyone uses appears where a person searches' => sub {
-    my $d = src('plugins/daemon.pl');
+    my $d = src('extensions/daemon.pl');
     my ($name) = $d =~ /name\s*=>\s*'([^']+)'/;
     like( $name, qr/daemon/i,
         'the plugin name contains "daemon"' )

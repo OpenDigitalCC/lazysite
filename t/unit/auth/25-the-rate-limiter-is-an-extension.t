@@ -69,7 +69,7 @@ sub login_once {
 }
 
 subtest 'listed in the registry, it counts and refuses the sixth attempt' => sub {
-    my $d = site("plugins:\n  - plugins/login-rate-limit.pl\n");
+    my $d = site("extensions:\n  - extensions/login-rate-limit.pl\n");
     seed_max($d);
     my ( $out, $log ) = login_once($d);
     like( $out, qr{Location:[^\n]*error=rate}, 'the sixth attempt is rate-limited' ) or diag $log;

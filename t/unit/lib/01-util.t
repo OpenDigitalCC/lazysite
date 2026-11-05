@@ -46,7 +46,7 @@ sub capture_stderr {
     like( $j, qr/"message":"msg"/,      'json: message' );
 }
 
-# The module lives where it installs (DOCROOT/../lib, beside tools/ + plugins/).
+# The module lives where it installs (DOCROOT/../lib, beside tools/ + extensions/).
 ok( -f "$FindBin::Bin/../../../lib/Lazysite/Util.pm", 'Util.pm present in lib/Lazysite' );
 
 done_testing();

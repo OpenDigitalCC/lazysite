@@ -49,7 +49,7 @@
 #     Util 100/92 · Auth::Acl 100/85 · Session 100/73 · Credential 100/72
 #     Settings 96/69 · Audit 100/70 · Manager::Files 96/72 · Common 88/76
 #     Upload 82/69 · Themes 76/52 · Layouts 75/54 · Plugins 66/43
-#     Backups 70/56 · OAuth 88/50 · plugins/stats.pl 94/68
+#     Backups 70/56 · OAuth 88/50 · extensions/stats.pl 94/68
 #
 # NOTE (historical): Plugins/Upload previously measured 21/11 and 37/29 - an
 # artifact of %ENV-rebuilding tests dropping PERL5OPT so subprocess children

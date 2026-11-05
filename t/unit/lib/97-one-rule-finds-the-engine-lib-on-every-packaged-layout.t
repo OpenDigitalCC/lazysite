@@ -20,7 +20,7 @@
 #   dev server, demo,   the CGIs run from the payload (repo, tarball or
 #   deb pool            /usr/share/lazysite) with lib beside them
 #   plugin links        install.pl links form-handler/payment-demo into the
-#                       cgi-bin from {DOCROOT}/../plugins, or copies them there
+#                       cgi-bin from {DOCROOT}/../extensions, or copies them there
 #   doc-only            docs/OPERATOR.md: a cgi-bin inside the docroot
 use strict;
 use warnings;
@@ -83,7 +83,7 @@ sub rule_of {
     return $sub;
 }
 my %rule = map { ( $_ => rule_of("$root/$_") ) } @cgis;
-$rule{"plugins/$_.pl"} = rule_of("$root/plugins/$_.pl") for @linked;
+$rule{"extensions/$_.pl"} = rule_of("$root/extensions/$_.pl") for @linked;
 
 # The rule before SM1078, verbatim: relative to the script only.
 sub before {
@@ -104,13 +104,13 @@ sub lib_at { my ($d) = @_; make_path("$d/Lazysite"); return $d }
 
 sub install_layout {
     my ( $docroot, $cgibin, %o ) = @_;
-    make_path( $docroot, $cgibin, "$docroot/../plugins" );
+    make_path( $docroot, $cgibin, "$docroot/../extensions" );
     lib_at("$docroot/../lib");
     for my $p (@linked) {
-        open my $fh, '>', "$docroot/../plugins/$p.pl" or die $!;
+        open my $fh, '>', "$docroot/../extensions/$p.pl" or die $!;
         close $fh;
         if ( $o{copy_plugins} ) { open my $c, '>', "$cgibin/$p.pl" or die $!; close $c }
-        else { symlink( abs_path("$docroot/../plugins") . "/$p.pl", "$cgibin/$p.pl" ) or die $! }
+        else { symlink( abs_path("$docroot/../extensions") . "/$p.pl", "$cgibin/$p.pl" ) or die $! }
     }
     return;
 }
@@ -152,7 +152,7 @@ for my $name ( sort keys %layout ) {
     my %seen;
     for my $script ( sort keys %rule ) {
         my $path = $script =~ m{\Aplugins/} && $run ne "$t/payload" ? "$run/" . basename($script) : "$run/$script";
-        if ( !-e $path ) {    # the payload carries its plugins under plugins/
+        if ( !-e $path ) {    # the payload carries its plugins under extensions/
             make_path( dirname($path) );
             open my $fh, '>', $path or die "$path: $!";
             close $fh;
@@ -179,11 +179,11 @@ for my $name ( sort keys %layout ) {
 cmp_ok( $kept, '>', 0, "$kept layout/CGI cases kept their lib" );
 
 # The cases that found nothing before: every CGI on install.pl's example (bar the
-# linked plugins, which resolve through the link to {DOCROOT}/../plugins), and on
+# linked plugins, which resolve through the link to {DOCROOT}/../extensions), and on
 # the doc-only inside-the-docroot layout the two scripts with the short list.
 my @expect = (
     ( map { "install.pl --cgibin /usr/lib/cgi-bin: $_" } @cgis ),
-    ( map { "install.pl example, plugins copied: $_" } @cgis, map { "plugins/$_.pl" } @linked ),
+    ( map { "install.pl example, plugins copied: $_" } @cgis, map { "extensions/$_.pl" } @linked ),
     ( map { "doc-only: cgi-bin inside the docroot: $_" } qw(lazysite-data.pl lazysite-odoo.pl) ),
 );
 is_deeply( [ sort @fixed ], [ sort @expect ], 'exactly these found no lib before and find it now' )

@@ -61,7 +61,7 @@ sub basic { 'Basic ' . encode_base64( "$_[0]:$_[1]", '' ) }
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "control_api_enabled: true\nplugins:\n  - plugins/briefs.pl\n";
+print $cf "control_api_enabled: true\nextensions:\n  - extensions/briefs.pl\n";
 close $cf;
 open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
 print $gsf '{"admins":{"label":"Admins","ui":1,"manage_users":1}}';
@@ -152,7 +152,7 @@ like( $cap{list_briefs} // '', qr/cap_also\s*=>\s*'manage_content'/,
 # ADR 0009: the plugin is the one place that says what it owns. t/lint/76 does
 # the discovering; this asserts the declaration exists at all, because a lint
 # that finds no declarations passes while checking nothing.
-my $decl = eval { decode_json(`$^X \Q$root/plugins/briefs.pl\E --describe 2>/dev/null`) };
+my $decl = eval { decode_json(`$^X \Q$root/extensions/briefs.pl\E --describe 2>/dev/null`) };
 ok( ref $decl eq 'HASH', 'the briefs plugin answers --describe' );
 is_deeply( ( $decl || {} )->{owns}{capabilities}, ['manage_briefs'],
     'and DECLARES manage_briefs, as the data plugin declares manage_data' );

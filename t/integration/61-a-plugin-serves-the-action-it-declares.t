@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
 my $root = repo_root();
-my @plugins = sort glob("$root/plugins/*.pl");
+my @plugins = sort glob("$root/extensions/*.pl");
 ok( scalar @plugins, 'there are plugins to check' ) or BAIL_OUT('no plugins found');
 
 my $docroot = tempdir( CLEANUP => 1 );

@@ -66,9 +66,9 @@ update_policy: manual
 # Scripts with --describe support appear in the manager.
 # Use the manager Plugins page to enable or disable them.
 # To pre-enable plugins without using the manager:
-# plugins:
-#   - plugins/form-smtp.pl
-#   - plugins/audit.pl
+# extensions:
+#   - extensions/form-smtp.pl
+#   - extensions/audit.pl
 
 # Manager limits (defaults shown).
 # manager_upload_max_mb caps a single multipart upload request.

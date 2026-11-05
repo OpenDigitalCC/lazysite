@@ -278,7 +278,7 @@ File::Find::find(
             push @sources, $File::Find::name;
         },
     },
-    grep { -d } map { "$root/$_" } qw(lib tools plugins lazysite-processor),
+    grep { -d } map { "$root/$_" } qw(lib tools extensions lazysite-processor),
 );
 push @sources, grep { -f } glob "$root/*.pl";
 ok( scalar @sources > 50, 'found the sources to scan' );

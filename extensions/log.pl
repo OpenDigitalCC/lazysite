@@ -76,5 +76,5 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
     exit 0;
 }
 
-print "Usage: plugins/log.pl --describe\n";
+print "Usage: extensions/log.pl --describe\n";
 exit 1;

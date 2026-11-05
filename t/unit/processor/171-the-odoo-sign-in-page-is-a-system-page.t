@@ -33,7 +33,7 @@ sub site {
                 . '<body><header>SITE-LAYOUT-PROBE</header>[% content %]</body></html>' );
         $conf .= "layout: probe\n";
     }
-    $conf .= "plugins:\n  - plugins/odoo.pl\n" if $o{extension};
+    $conf .= "extensions:\n  - extensions/odoo.pl\n" if $o{extension};
     spit( "$d/lazysite/lazysite.conf", $conf );
     spit( "$d/lazysite/odoo.conf", "odoo_site_signin: $o{signin}\n" ) if defined $o{signin};
     return $d;

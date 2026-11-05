@@ -59,7 +59,7 @@ sub slurp { open my $fh, '<', $_[0] or return ''; local $/; return scalar <$fh> 
 
 my $SECRET = 'f' x 64;
 spit( "$LZ/lazysite.conf", "site_name: T\nmanager: enabled\nmcp_enabled: true\noauth_enabled: true\n"
-        . "bad_url_threshold: 3\nplugins:\n  - plugins/odoo.pl\n  - plugins/data.pl\n" );
+        . "bad_url_threshold: 3\nextensions:\n  - extensions/odoo.pl\n  - extensions/data.pl\n" );
 spit( "$LZ/auth/.secret", "$SECRET\n" );
 chmod 0600, "$LZ/auth/.secret";
 spit( "$LZ/auth/users", "boss:x\nmem:x\n" );

@@ -22,7 +22,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/plugins/stats.pl';
+my $PLUGIN = repo_root() . '/extensions/stats.pl';
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
 my $d = tempdir( 'lazysite-rules-XXXXXX', TMPDIR => 1, CLEANUP => 1 );

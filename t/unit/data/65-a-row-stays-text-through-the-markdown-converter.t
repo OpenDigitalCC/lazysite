@@ -32,7 +32,7 @@ spit( "$docroot/lazysite/db/tables/notes.yaml",
     "title: Notes\npublic: true\nfields:\n  body:\n    type: text\n" );
 apply_schema( $docroot, 'notes' );
 open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "plugins:\n  - plugins/data.pl\n";
+print {$cf} "extensions:\n  - extensions/data.pl\n";
 close $cf;
 
 my @ROWS = (

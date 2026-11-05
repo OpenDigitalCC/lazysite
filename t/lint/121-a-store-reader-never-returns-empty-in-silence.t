@@ -216,7 +216,7 @@ subtest 'a read-open naming a store reports, whichever file it is in' => sub {
     push @src, grep { -f } map { "$root/$_" } qw(
         lazysite-manager-api.pl lazysite-mcp.pl lazysite-auth.pl
         lazysite-processor.pl lazysite-dav.pl
-        plugins/stats.pl plugins/form-handler.pl tools/lazysite-users.pl
+        extensions/stats.pl extensions/form-handler.pl tools/lazysite-users.pl
     );
     push @src, glob("$root/lazysite-processor/*.pm");    # SM944: its parts
 

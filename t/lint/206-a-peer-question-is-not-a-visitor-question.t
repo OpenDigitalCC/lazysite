@@ -69,9 +69,9 @@ my @NO_BARE_READS = (
     'lazysite-mcp.pl',
     'lazysite-oauth.pl',
     'the manager API',
-    'plugins/form-handler.pl',
-    'plugins/form-smtp.pl',
-    'plugins/payment-demo.pl',
+    'extensions/form-handler.pl',
+    'extensions/form-smtp.pl',
+    'extensions/payment-demo.pl',
 );
 
 my @PROCESSOR = ( 'lazysite-processor.pl',

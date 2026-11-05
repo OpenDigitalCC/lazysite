@@ -55,7 +55,7 @@ sub _remap_parse {
 }
 
 sub _remap_redirect {
-    return 0 unless _unit_enabled('plugins/remap.pl');
+    return 0 unless _unit_enabled('extensions/remap.pl');
     my $file = "$LAZYSITE_DIR/remap/rules.conf";
     return 0 unless -f $file;
     open my $fh, '<:utf8', $file or return 0;

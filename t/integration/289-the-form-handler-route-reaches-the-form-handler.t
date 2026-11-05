@@ -6,7 +6,7 @@
 # lazysite-[a-z-]+.pl pattern, so it appears to fall to 'page miss' and reach
 # the processor, not the form handler. Read, not tried."
 #
-# Tried here. install.pl links plugins/form-handler.pl (and payment-demo.pl)
+# Tried here. install.pl links extensions/form-handler.pl (and payment-demo.pl)
 # into cgi-bin as /cgi-bin/<name>.pl - no lazysite- prefix - and every native
 # form posts to /cgi-bin/form-handler.pl. The one-rule template sends EVERY url
 # to the front door, whose dispatch was an allow-list of lazysite-*.pl names, so
@@ -52,7 +52,7 @@ for my $s (qw(lazysite-processor.pl lazysite-auth.pl)) {
     symlink "$root/$s", "$cgibin/$s" or die "symlink $s: $!";
 }
 for my $p (qw(form-handler payment-demo)) {
-    symlink "$root/plugins/$p.pl", "$cgibin/$p.pl" or die "symlink $p: $!";
+    symlink "$root/extensions/$p.pl", "$cgibin/$p.pl" or die "symlink $p: $!";
 }
 # A stray executable that is NOT on the list.
 spit( "$cgibin/x.pl", "#!/usr/bin/perl\nprint \"Content-Type: text/plain\\r\\n\\r\\nRAN-X\\n\";\n" );

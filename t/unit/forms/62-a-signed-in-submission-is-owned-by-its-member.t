@@ -23,14 +23,14 @@ use TestHelper             qw(repo_root site_tempdir env_passthrough run_cmd);
 use Lazysite::Data::Tables qw(apply_schema read_rows);
 
 my $root    = repo_root();
-my $handler = "$root/plugins/form-handler.pl";
+my $handler = "$root/extensions/form-handler.pl";
 plan skip_all => "no $handler" unless -f $handler;
 
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 
 my $d = site_tempdir();
 make_path( "$d/lazysite/forms", "$d/lazysite/logs", "$d/lazysite/db/tables", "$d/lazysite/auth" );
-spit( "$d/lazysite/lazysite.conf", "site_name: T\nplugins:\n  - plugins/data.pl\n" );
+spit( "$d/lazysite/lazysite.conf", "site_name: T\nextensions:\n  - extensions/data.pl\n" );
 spit( "$d/lazysite/db/tables/comments.yaml",
     "title: Comments\ntimestamps: true\nrow_policy: true\n"
         . "fields:\n  post:\n    type: text\n  comment:\n    type: text\n" );

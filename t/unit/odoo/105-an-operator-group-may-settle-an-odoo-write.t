@@ -22,9 +22,9 @@ my $root = repo_root();
 my $CAP  = 'settle_odoo_writes';
 
 subtest 'the Odoo extension declares it, and it is grantable' => sub {
-    my $r = run_child( [ $^X, "$root/plugins/odoo.pl", '--describe' ] );
+    my $r = run_child( [ $^X, "$root/extensions/odoo.pl", '--describe' ] );
     my $d = eval { decode_json( $r->{out} ) } || {};
-    is_deeply( $d->{owns}{capabilities}, [$CAP], 'plugins/odoo.pl owns it' );
+    is_deeply( $d->{owns}{capabilities}, [$CAP], 'extensions/odoo.pl owns it' );
     ok( ( grep { $_ eq $CAP } @Lazysite::Auth::Settings::CAP_KEYS ), 'it is in @CAP_KEYS' );
     my $info = Lazysite::Capabilities::describe()->{capabilities}{$CAP};
     ok( $info, 'and described' );

@@ -22,7 +22,7 @@ use Lazysite::Manager::Plugins ();
 use File::Copy qw(copy);
 
 my $root   = repo_root();
-my $script = "$root/plugins/form-smtp.pl";
+my $script = "$root/extensions/form-smtp.pl";
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 sub slurp { my ($p) = @_; open my $fh, '<', $p or return ''; local $/; my $t = <$fh>; close $fh; return $t // '' }
 
@@ -102,12 +102,12 @@ subtest 'site_url that does not resolve keeps the old fallback and says so' => s
 subtest 'a From setting is validated when it is saved' => sub {
     my $parent = site_tempdir();
     my $dr     = "$parent/public_html";
-    make_path( "$dr/lazysite/forms", "$parent/plugins" );
-    copy( $script, "$parent/plugins/form-smtp.pl" ) or die $!;
-    chmod 0755, "$parent/plugins/form-smtp.pl";
+    make_path( "$dr/lazysite/forms", "$parent/extensions" );
+    copy( $script, "$parent/extensions/form-smtp.pl" ) or die $!;
+    chmod 0755, "$parent/extensions/form-smtp.pl";
     local $ENV{PERL5LIB} = "$root/lib" . ( $ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : '' );
     $Lazysite::Manager::Plugins::DOCROOT = $dr;
-    my $save = sub { Lazysite::Manager::Plugins::action_plugin_save( undef, 'plugins/form-smtp.pl', {@_} ) };
+    my $save = sub { Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/form-smtp.pl', {@_} ) };
     my $conf = "$dr/lazysite/forms/smtp.conf";
 
     my $r = $save->( from => 'ops@example.org' );

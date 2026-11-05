@@ -45,7 +45,7 @@ sub site {
     my $d = site_tempdir();
     make_path( "$d/lazysite/db/tables", "$d/lazysite/auth" );
     spit( "$d/lazysite/lazysite.conf",
-        "site_name: T\nplugins:\n  - plugins/data.pl\n"
+        "site_name: T\nextensions:\n  - extensions/data.pl\n"
             . "auth_proxy_trusted: true\nauth_proxy_trusted_from: 127.0.0.1\n" );
     spit( "$d/lazysite/db/tables/members.yaml",
         "key: code\nfields:\n  code:\n    type: text\n    required: true\n  name:\n    type: text\n" );

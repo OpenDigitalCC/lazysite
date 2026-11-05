@@ -103,7 +103,7 @@ subtest 'a dismissed run goes on the plan store\'s schedule' => sub {
 };
 
 subtest 'the Odoo extension\'s row on the Extensions page offers them' => sub {
-    my $page = do { local $/; open my $fh, '<', "$FindBin::Bin/../../../starter/manager/plugin-config.md" or die $!; <$fh> };
+    my $page = do { local $/; open my $fh, '<', "$FindBin::Bin/../../../starter/manager/extension-config.md" or die $!; <$fh> };
     like( $page, qr/plugin\.id === 'odoo'.*Unknown Odoo writes/s, 'an Unknown Odoo writes panel on the Odoo row' );
     like( $page, qr/action=odoo-unknown-runs/, 'listing the open runs' );
     like( $page, qr/action=odoo-resume/,       'checking again and assuming' );

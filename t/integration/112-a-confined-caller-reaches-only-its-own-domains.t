@@ -60,7 +60,7 @@ sub instance {
     my (%o) = @_;
     my $s = new_site( root => $root,
         conf => "control_api_enabled: true\nmcp_enabled: true\nwebdav_enabled: true\n"
-            . "extensions:\n  - plugins/remap.pl\n" );
+            . "extensions:\n  - extensions/remap.pl\n" );
     my $d = $s->docroot;
     make_path( "$d/sites/mine/tm", "$d/sites/other/to" );
     spit( "$d/sites/$_/index.md", "# $_\n" ) for qw(mine other);

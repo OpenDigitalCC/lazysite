@@ -42,7 +42,7 @@ my $src  = do {
 
 # The subs are lifted out of the processor rather than re-implemented here: the
 # render path is module-free (ADR 0001), so there is nothing to `use`. _yaml_block
-# and its helpers have ONE definition - checked across lib/, plugins/, tools/ and
+# and its helpers have ONE definition - checked across lib/, extensions/, tools/ and
 # t/ - so there is no pinned copy for this test to drift from.
 my @want = qw(_parse_sections _yaml_block _yaml_value _yaml_scalar
     _yaml_split_flow _yaml_quoted_scalar_line);

@@ -66,6 +66,7 @@ BEGIN {
     }
 }
 use Lazysite::Paths ();
+use Lazysite::Extensions ();
 
 my %opt = ( n => 3, surface => '', json => 0, docroot => '', socket => '', with_pool => 0, cold_workers => 0, with_warm_fork => 0,
     odoo_margin => 0, margin_ms => 20, margin_docroot => '', margin_binding => '', margin_query => '' );
@@ -148,13 +149,15 @@ sub put {
 sub build_site {
     $tmp     = tempdir( CLEANUP => 1 );
     $docroot = "$tmp/site/public_html";
-    make_path( $docroot, "$tmp/site/plugins" );
+    my $ext = Lazysite::Extensions::extensions_dir("$tmp/site");
+    make_path( $docroot, $ext );
     $LZ = Lazysite::Paths::lazysite_dir($docroot);    # asked, never built (t/lint/37)
     make_path( "$LZ/auth", "$LZ/cache", "$LZ/layouts/bench" );
 # The plugins the registry looks for beside the docroot (copies: SM152 refuses a symlink).
-    opendir my $pd, "$ROOT/plugins" or die "plugins: $!";
+    my $shipped = Lazysite::Extensions::extensions_dir($ROOT);
+    opendir my $pd, $shipped or die "$shipped: $!";
     for my $f ( grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
-        File::Copy::copy( "$ROOT/plugins/$f", "$tmp/site/plugins/$f" );
+        File::Copy::copy( "$shipped/$f", "$ext/$f" );
     }
     closedir $pd;
 
@@ -162,7 +165,7 @@ sub build_site {
     put( "$LZ/lazysite.conf",
         "site_name: Bench\nsite_url: http://localhost\nlayout: bench\nserver_timing: on\n"
             . "manager: enabled\ncontrol_api_enabled: true\nmcp_enabled: true\nwebdav_enabled: true\n"
-            . "plugins:\n  - plugins/odoo.pl\n" . ( $sqlite ? "  - plugins/data.pl\n" : '' ) );
+            . "extensions:\n  - extensions/odoo.pl\n" . ( $sqlite ? "  - extensions/data.pl\n" : '' ) );
     put( "$LZ/layouts/bench/layout.tt",
         '<!DOCTYPE html><html><head><title>[% page_title %]</title></head><body>[% content %]</body></html>' );
     put( "$docroot/index.md",

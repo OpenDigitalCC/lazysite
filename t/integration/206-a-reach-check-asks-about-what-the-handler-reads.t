@@ -34,7 +34,7 @@ sub slurp { open my $fh, '<', $_[0] or return ''; local $/; return scalar <$fh> 
 my @WORK = qw(manage_content manage_forms read_submissions manage_briefs manage_data);
 my @ALL  = ( qw(api ui manage_users manage_domains), @WORK );
 my $s    = new_site( root => $root,
-    conf => "control_api_enabled: true\nextensions:\n  - plugins/data.pl\n  - plugins/briefs.pl\n" );
+    conf => "control_api_enabled: true\nextensions:\n  - extensions/data.pl\n  - extensions/briefs.pl\n" );
 my $d = $s->docroot;
 make_path( "$d/sites/mine", "$d/sites/other", "$d/lazysite/db/tables", "$d/lazysite/forms/submissions" );
 spit( "$d/sites/$_/index.md", "# $_\n" ) for qw(mine other);

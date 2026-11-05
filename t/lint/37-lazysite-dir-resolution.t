@@ -193,7 +193,7 @@ subtest 'nothing derives the engine dir behind the resolver' => sub {
     my @files;
     File::Find::find(
         sub { push @files, $File::Find::name if /\.(?:pm|pl)\z/ && -f },
-        "$root/lib", "$root/tools", "$root/plugins"
+        "$root/lib", "$root/tools", "$root/extensions"
     );
     push @files, grep { -f } glob("$root/lazysite-*.pl"), glob("$root/lazysite-processor/*.pm"), "$root/install.pl";
     cmp_ok( scalar @files, '>', 100, 'the canary: found the Perl that ships' );

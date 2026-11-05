@@ -53,7 +53,7 @@ is( $ui->{target}, 'content/about.md', 'SM078: target recorded' );
 # --- plugin actions name the plugin, not '/' ---
 is( main::_audit_plugin_target( { plugin => 'stats' }, undef ),
     'stats', 'plugin param used as audit target' );
-is( main::_audit_plugin_target( {}, '{"script":"/x/plugins/form-handler.pl"}' ),
+is( main::_audit_plugin_target( {}, '{"script":"/x/extensions/form-handler.pl"}' ),
     'form-handler', 'plugin target derived from body script basename' );
 is( main::_audit_plugin_target( {}, '{"script":"form-smtp"}' ),
     'form-smtp', 'plugin target from a bare script name' );

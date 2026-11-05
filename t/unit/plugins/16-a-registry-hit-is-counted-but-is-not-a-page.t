@@ -22,7 +22,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root   = repo_root();
-my $plugin = "$root/plugins/stats.pl";
+my $plugin = "$root/extensions/stats.pl";
 plan skip_all => "no $plugin" unless -f $plugin;
 
 # --- the processor must record the hit at all -------------------------

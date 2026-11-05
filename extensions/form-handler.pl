@@ -862,7 +862,7 @@ sub _audit_submission {
 # matcher: honeypot, too_fast, expired, token, rate. Each is passed by the
 # control that raises the refusal (see `reject` / `reject_user`), and a refusal
 # with no code is not an anti-spam control - method, validation, delivery - and
-# is deliberately not counted. plugins/stats.pl buckets whatever code arrives
+# is deliberately not counted. extensions/stats.pl buckets whatever code arrives
 # and has its own `other` fallback, so it needs no matching list.
 
 # SM216-2: append one outcome line so the stats plugin can fold blocked-vs-stored
@@ -1003,7 +1003,7 @@ sub _notify_submission {
     # processor's lazy-require does; on any failure fall through to the plain
     # bell-store append below so a submission notice is never lost.
     #
-    # SM928 defect 4 moved `url` off `/manager/plugins` to the Handlers page; it
+    # SM928 defect 4 moved `url` off `/manager/extensions` to the Handlers page; it
     # said a deep link needed the store PATH, which only the handler that stored
     # it knows. SM938 D5 is that plumbing: the file handler reports the row it
     # wrote, and the notice links to that one submission.
@@ -1760,7 +1760,7 @@ sub _forward_diag {
 }
 
 # Put the engine's module tree on @INC, if it is findable from here - relative
-# to the real file, so the cgi-bin symlink finds the lib beside plugins/. The
+# to the real file, so the cgi-bin symlink finds the lib beside extensions/. The
 # SM473 lesson is why it is needed at all: `prove -l` puts lib/ on @INC and a
 # real install does not. It runs once at start-up (SM842: delivery needs the
 # tree); the notify and forward helpers still call it, harmlessly, for the

@@ -59,7 +59,7 @@ make_path( "$d/lazysite/auth", "$d/content" );
 # enabled (ADR 0009 / SM469), so the rig has to enable it or the whole file
 # would assert nothing but "the plugin is off".
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/briefs.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/briefs.pl\n";
 close $cf;
 
 open my $pf, '>', "$d/content/launch.md" or die $!;

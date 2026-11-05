@@ -11,7 +11,7 @@
 #
 # It does not scan for an undeclared `require`. The `require Net::XMPP` is not in
 # the plugin at all - delivery lives in Lazysite::Notify and the plugin is a
-# descriptor - so a sweep of plugins/ for undeclared requires finds nothing here.
+# descriptor - so a sweep of extensions/ for undeclared requires finds nothing here.
 # That is what tmp/sm925-dep-audit.pl did on its first run: it flagged two other
 # plugins and missed the one the report was about.
 #
@@ -36,7 +36,7 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
 my $root    = repo_root();
-my @plugins = sort glob( $root . '/plugins/*.pl' );
+my @plugins = sort glob( $root . '/extensions/*.pl' );
 cmp_ok( scalar @plugins, '>=', 10, 'the plugin set is present' );
 
 my $named = 0;

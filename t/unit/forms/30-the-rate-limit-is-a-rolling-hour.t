@@ -40,13 +40,13 @@ make_path("$doc/lazysite/forms");
 # The handler is a CGI: loading it would run it. The rate limiter is lifted the
 # way t/unit/processor/86 lifts the YAML subs - one definition, no module to use.
 my $src = do {
-    open my $fh, '<', "$root/plugins/form-handler.pl" or die $!;
+    open my $fh, '<', "$root/extensions/form-handler.pl" or die $!;
     local $/;
     <$fh>;
 };
 my $sub = join "\n", map {
     my ($one) = $src =~ /^(sub \Q$_\E \{.*?^\})/ms
-        or BAIL_OUT("could not lift $_ out of plugins/form-handler.pl");
+        or BAIL_OUT("could not lift $_ out of extensions/form-handler.pl");
     $one;
 } qw(check_rate_limit record_rate_stamp _rate_key _rate_stamps _rate_db _audit_rate_refusal);
 

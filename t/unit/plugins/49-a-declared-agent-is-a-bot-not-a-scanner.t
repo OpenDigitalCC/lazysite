@@ -19,7 +19,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $plugin = repo_root() . '/plugins/stats.pl';
+my $plugin = repo_root() . '/extensions/stats.pl';
 plan skip_all => "no $plugin" unless -f $plugin;
 
 my $BASE = int( time() / 86400 ) * 86400 - 86400 + 3600;

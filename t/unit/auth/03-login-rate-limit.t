@@ -32,7 +32,7 @@ close $uf;
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 # SM798: the limiter is an extension, on where the registry lists it -
 # as the installer does on every site.
-print $cf "site_name: R\nauth_redirect: /login\nplugins:\n  - plugins/login-rate-limit.pl\n";
+print $cf "site_name: R\nauth_redirect: /login\nextensions:\n  - extensions/login-rate-limit.pl\n";
 close $cf;
 
 my $rate_db = "$docroot/lazysite/auth/.login-rate.db";

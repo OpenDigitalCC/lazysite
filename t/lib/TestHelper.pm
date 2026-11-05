@@ -399,19 +399,19 @@ sub env_passthrough {
 # CLEANUP removes.
 #
 # The engine writes beside a docroot by design - the private store at
-# <docroot>-lazysite-private (t/lint/51), the Hestia layout's plugins/ tools/
+# <docroot>-lazysite-private (t/lint/51), the Hestia layout's extensions/ tools/
 # lib/ at ../ - and File::Temp cleans only the directory it made. A bare
 # tempdir() docroot therefore leaks its siblings into /tmp: 15,386 entries and
 # 356 MB on the dev host when this was written, and one of them - a leaked
-# /tmp/plugins/stats.pl - made a "plugin not found" assertion pass for the
+# /tmp/extensions/stats.pl - made a "plugin not found" assertion pass for the
 # wrong reason (t/unit/daemon/05, where this was first done by hand).
 #
 # Returns the docroot path; everything the engine writes beside it lands
 # inside the tempdir and goes with it. Pass a name for the leaf (default
 # public_html, the Hestia shape) when a test cares what the docroot is called.
-# plugins => 1 puts real copies of the repo's plugins at DOCROOT/../plugins,
+# plugins => 1 puts real copies of the repo's plugins at DOCROOT/../extensions,
 # where the plugin registry looks. A test that asks what a plugin owns or whether
-# it is enabled needs them; under a bare tempdir() that path is /tmp/plugins, and
+# it is enabled needs them; under a bare tempdir() that path is /tmp/extensions, and
 # such tests passed on whatever another test had left in /tmp - until a reboot
 # cleared it. Copies, not symlinks: the registry refuses a symlinked plugin
 # (SM152).
@@ -421,11 +421,11 @@ sub site_tempdir {
     my $d   = "$t/site/" . ( $o{leaf} // 'public_html' );
     make_path($d);
     if ( $o{plugins} ) {
-        my $src = repo_root() . '/plugins';
-        make_path("$t/site/plugins");
+        my $src = repo_root() . '/extensions';
+        make_path("$t/site/extensions");
         opendir my $pd, $src or die "$src: $!";
         for my $f ( grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
-            File::Copy::copy( "$src/$f", "$t/site/plugins/$f" ) or die "copy $f: $!";
+            File::Copy::copy( "$src/$f", "$t/site/extensions/$f" ) or die "copy $f: $!";
         }
         closedir $pd;
     }

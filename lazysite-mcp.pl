@@ -363,10 +363,9 @@ sub _users_api {
 
 sub _stats_tool {
     my $bin = dirname( Cwd::abs_path(__FILE__) );
+    require Lazysite::Extensions;
     return _sibling_tool( $ENV{LAZYSITE_STATS_TOOL},
-        "$bin/plugins/stats.pl",
-        "$bin/../plugins/stats.pl",
-        "$DOCROOT/../plugins/stats.pl" );
+        Lazysite::Extensions::locate( 'stats.pl', $bin, "$bin/..", "$DOCROOT/.." ) );
 }
 
 # Run the visitor-stats AI export (cached, incremental). Returns the SANITISED

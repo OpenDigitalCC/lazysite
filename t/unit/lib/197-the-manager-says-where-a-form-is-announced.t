@@ -41,7 +41,7 @@ sub write_file {
 sub conf {
     my ($xmpp_on) = @_;
     write_file( "$lz/lazysite.conf",
-        "site_name: T\n" . ( $xmpp_on ? "extensions:\n  - plugins/notify-xmpp.pl\n" : '' ) );
+        "site_name: T\n" . ( $xmpp_on ? "extensions:\n  - extensions/notify-xmpp.pl\n" : '' ) );
 }
 sub xmpp_account { write_file( "$lz/notify-xmpp.conf", $_[0] ) }
 sub notify_conf  { write_file( "$lz/notify.conf", $_[0] ) }
@@ -147,7 +147,7 @@ subtest 'notify: is parsed once, and the handler uses it' => sub {
     is( $bad, 'fll', 'and is returned so the caller can name it' );
 
     my $src = do {
-        open my $f, '<', repo_root() . '/plugins/form-handler.pl' or die;
+        open my $f, '<', repo_root() . '/extensions/form-handler.pl' or die;
         local $/;
         <$f>;
     };

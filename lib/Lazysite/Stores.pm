@@ -180,7 +180,7 @@ my @STORES = (
     # store an empty bell, in the `if ( open ... )` form t/lint/121 cannot see.
     { dir => 'logs',
         store   => 1,
-        modules => [ 'lazysite-manager-api.pl', 'plugins/stats.pl', 'lib/Lazysite/Notify.pm',
+        modules => [ 'lazysite-manager-api.pl', 'extensions/stats.pl', 'lib/Lazysite/Notify.pm',
             'lib/Lazysite/Manager/Notices.pm',
             'lib/Lazysite/Manager/AuditTrail.pm',    # SM944 S31: the audit trail's reader
         ],

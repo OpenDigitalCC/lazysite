@@ -33,7 +33,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root    = repo_root();
-my $handler = "$root/plugins/form-handler.pl";
+my $handler = "$root/extensions/form-handler.pl";
 plan skip_all => "no $handler" unless -f $handler;
 
 my $src = do { open my $fh, '<', $handler or die $!; local $/; <$fh> };
@@ -99,7 +99,7 @@ my @users = ( $hcode =~ /_visible\(\$fields\)/g );
 cmp_ok( scalar @users, '>=', 3,
     'the file, SMTP and connector deliverers each build their record through it' );
 
-my $smtp = "$root/plugins/form-smtp.pl";
+my $smtp = "$root/extensions/form-smtp.pl";
 SKIP: {
     skip 'no form-smtp plugin', 1 unless -f $smtp;
     my $s = do { open my $fh, '<', $smtp or die $!; local $/; <$fh> };

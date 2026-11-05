@@ -2,7 +2,7 @@
 # SM832: plugin-list's `id` is a key plugin-read accepts.
 #
 # Reported from the field (1311E-06): plugin-list returned
-# {"id": "bad-url-blocker", "_script": "plugins/bad-url-blocker.pl"}, and
+# {"id": "bad-url-blocker", "_script": "extensions/bad-url-blocker.pl"}, and
 # plugin-read&plugin=bad-url-blocker answered "no plugin 'bad-url-blocker' is
 # installed - call plugin-list for the ids this site has". A caller who did
 # exactly what the error said arrived back where they started.
@@ -25,9 +25,9 @@ use TestHelper qw(repo_root);
 use Lazysite::Manager::Plugins ();
 
 my $root = repo_root();
-plan skip_all => 'no plugins/ in this tree' unless -d "$root/plugins";
+plan skip_all => 'no extensions/ in this tree' unless -d "$root/extensions";
 
-# plugin_registry scans realpath("$DOCROOT/..")/plugins, so point DOCROOT one
+# plugin_registry scans realpath("$DOCROOT/..")/extensions, so point DOCROOT one
 # level below the repository root and it finds the shipped plugins directly.
 $Lazysite::Manager::Plugins::DOCROOT = "$root/starter";
 
@@ -39,25 +39,25 @@ sub resolve {
 
 # --- THE CANARY -------------------------------------------------------------
 {
-    my ($got) = resolve( undef, 'plugins/bad-url-blocker.pl' );
-    is( $got, 'plugins/bad-url-blocker.pl', 'the script path resolves, as it always did' );
+    my ($got) = resolve( undef, 'extensions/bad-url-blocker.pl' );
+    is( $got, 'extensions/bad-url-blocker.pl', 'the script path resolves, as it always did' );
 }
 
 # --- THE FINDING ------------------------------------------------------------
 {
     my ($got) = resolve( 'bad-url-blocker', undef );
-    is( $got, 'plugins/bad-url-blocker.pl',
+    is( $got, 'extensions/bad-url-blocker.pl',
         "the listing's `id` resolves to its script" );
 }
 
 # --- WHERE A FILENAME RULE WOULD HAVE FAILED --------------------------------
 {
     my ($got) = resolve( 'link-audit', undef );
-    is( $got, 'plugins/audit.pl', "an id that is not its filename still resolves (link-audit)" );
+    is( $got, 'extensions/audit.pl', "an id that is not its filename still resolves (link-audit)" );
 }
 {
     my ($got) = resolve( 'logging', undef );
-    is( $got, 'plugins/log.pl', "...and so does the other one (logging)" );
+    is( $got, 'extensions/log.pl', "...and so does the other one (logging)" );
 }
 
 # --- THE BODY ROUTE (SM839) --------------------------------------------------
@@ -66,11 +66,11 @@ sub resolve {
 # the refusal told the caller to pass the id. Both exceptions, on that route.
 {
     my ($got) = resolve( undef, 'link-audit' );
-    is( $got, 'plugins/audit.pl', 'an id in the body script key resolves (link-audit)' );
+    is( $got, 'extensions/audit.pl', 'an id in the body script key resolves (link-audit)' );
 }
 {
     my ($got) = resolve( undef, 'logging' );
-    is( $got, 'plugins/log.pl', '...and the other exception (logging)' );
+    is( $got, 'extensions/log.pl', '...and the other exception (logging)' );
 }
 {
     my ( $got ) = resolve( undef, 'audit' );

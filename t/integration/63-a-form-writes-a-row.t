@@ -37,7 +37,7 @@ my $docroot = tempdir( CLEANUP => 1 );
 make_path( "$docroot/lazysite/db/tables", "$docroot/lazysite/forms",
     "$docroot/lazysite/logs" );
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $cf;
 
 open my $df, '>', "$docroot/lazysite/db/tables/enquiries.yaml" or die $!;
@@ -76,7 +76,7 @@ sub set_plugins {
     my ($on) = @_;
     open my $f, '>', "$docroot/lazysite/lazysite.conf" or die $!;
     print {$f} "site_name: T\n";
-    print {$f} "plugins:\n  - plugins/data.pl\n" if $on;
+    print {$f} "extensions:\n  - extensions/data.pl\n" if $on;
     close $f;
 }
 set_plugins(1);

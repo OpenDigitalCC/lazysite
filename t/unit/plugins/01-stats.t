@@ -6,7 +6,7 @@ use File::Temp qw(tempdir);
 use POSIX      qw(strftime);
 
 # SM083: the visitor-stats plugin parses the access log into aggregates.
-my $PLUGIN = 'plugins/stats.pl';
+my $PLUGIN = 'extensions/stats.pl';
 ok( -f $PLUGIN, 'stats plugin present' );
 
 my $desc = decode_json(qx($^X $PLUGIN --describe));

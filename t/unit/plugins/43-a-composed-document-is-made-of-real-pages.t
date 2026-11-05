@@ -17,7 +17,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 
 my $src = do {
-    open my $fh, '<', "$FindBin::Bin/../../../plugins/pandoc.pl" or die $!;
+    open my $fh, '<', "$FindBin::Bin/../../../extensions/pandoc.pl" or die $!;
     local $/; <$fh>;
 };
 

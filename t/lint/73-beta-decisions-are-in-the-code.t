@@ -27,7 +27,7 @@ my $page = repo_root() . '/starter/manager/files.md';
 # SM664: the all-files overview moved to the Plugin Config page, so the decision
 # recorded below is now held across two files - one that must NOT carry it, and
 # one that must.
-my $ppage = repo_root() . '/starter/manager/plugin-config.md';
+my $ppage = repo_root() . '/starter/manager/extension-config.md';
 plan skip_all => 'manager pages missing' unless -f $page && -f $ppage;
 my $src  = do { open my $fh, '<', $page  or die $!; local $/; <$fh> };
 my $plug = do { open my $fh, '<', $ppage or die $!; local $/; <$fh> };

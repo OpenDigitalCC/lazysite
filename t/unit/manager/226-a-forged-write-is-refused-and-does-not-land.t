@@ -135,7 +135,7 @@ my $tpl_site = dirname($tpl_doc);              # <tmp>/site: the docroot and its
 my $lz       = "$tpl_doc/lazysite";
 spit( "$lz/lazysite.conf",
     "site_name: T\nmanager: enabled\nmanager_groups: managers\nlayout: base\ntheme: one\n"
-        . "plugins:\n  - plugins/data.pl\n  - plugins/briefs.pl\n  - plugins/remap.pl\n" );
+        . "extensions:\n  - extensions/data.pl\n  - extensions/briefs.pl\n  - extensions/remap.pl\n" );
 spit( "$lz/auth/.secret", $secret );
 chmod 0600, "$lz/auth/.secret";
 
@@ -324,9 +324,9 @@ my %REQ = (
     'nav-save'         => { body  => { items => [ { label => 'Home', url => '/' } ] } },
     'page-pdf'         => { query => 'path=nosuch.md' },
     'plugin-action'    => { query => 'plugin=nosuch' },
-    'plugin-disable'   => { body  => { script => 'plugins/briefs.pl' } },
-    'plugin-enable'    => { body  => { script => 'plugins/stats.pl' } },
-    'plugin-save' => { query => 'plugin=stats', body => { script => 'plugins/stats.pl', values => {} } },
+    'plugin-disable'   => { body  => { script => 'extensions/briefs.pl' } },
+    'plugin-enable'    => { body  => { script => 'extensions/stats.pl' } },
+    'plugin-save' => { query => 'plugin=stats', body => { script => 'extensions/stats.pl', values => {} } },
     'preview-grant' => { query => 'layout=extra' },
     'remap-save' => { body => { host => 'b.test', rules => [ { prefix => '/a', destination => '/b', code => 301 } ] } },
     'renew-lock' => { query => 'path=page.md' },

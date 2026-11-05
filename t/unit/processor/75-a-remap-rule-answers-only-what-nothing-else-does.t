@@ -38,7 +38,7 @@ sub set_unit {
     my ($on) = @_;
     open my $cf, '>', "$lz/lazysite.conf" or die $!;
     print {$cf} "site_name: T\n";
-    print {$cf} "extensions:\n  - plugins/remap.pl\n" if $on;
+    print {$cf} "extensions:\n  - extensions/remap.pl\n" if $on;
     close $cf;
 }
 

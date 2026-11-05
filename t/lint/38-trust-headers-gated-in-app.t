@@ -53,7 +53,7 @@ my @cgis = map { m{([^/]+)\z} } sort glob("$root/*.pl");
 {
     my @mods;
     File::Find::find( { no_chdir => 1, wanted => sub { push @mods, $File::Find::name if /\.pm\z/ } },
-        grep { -d } "$root/lib", "$root/plugins" );
+        grep { -d } "$root/lib", "$root/extensions" );
     push @cgis, map { s{^\Q$root\E/}{}r } sort @mods;
 }
 

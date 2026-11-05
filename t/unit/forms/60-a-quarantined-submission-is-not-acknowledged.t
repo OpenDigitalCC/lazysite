@@ -8,7 +8,7 @@
 # `_quarantined` - and the form handler strips every `_` key before delivery
 # and carries the flag as context instead. The only test of it called the sub
 # directly with the key in the fields, which is the one arrangement the real
-# path never produces. So this file posts through plugins/form-handler.pl, the
+# path never produces. So this file posts through extensions/form-handler.pl, the
 # CGI a visitor reaches, and counts what the mock sendmail was handed.
 #
 # F2 is here too, on the same path: a submitter address naming two recipients
@@ -23,7 +23,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $PLUGIN = repo_root() . '/plugins/form-handler.pl';
+my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
 my $SECRET   = 'test-secret-1017-abcdefghij';

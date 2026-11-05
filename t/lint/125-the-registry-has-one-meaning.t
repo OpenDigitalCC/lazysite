@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM222 L0: the two readers of the unit registry agree.
 #
-# `plugins:` in lazysite.conf is the registry. It has TWO readers by necessity,
+# `extensions:` in lazysite.conf is the registry. It has TWO readers by necessity,
 # not by accident: Lazysite::Manager::Plugins::_enabled_map for the manager tree,
 # and a marked copy in lazysite-processor.pl for the render path, which is
 # deliberately module-free under ADR 0001 and cannot call the first one.
@@ -39,23 +39,23 @@ my $conf = "$docroot/lazysite/lazysite.conf";
 # must be considered enabled in it.
 my @CASES = (
     [ 'a plain list',
-      "plugins:\n  - plugins/stats.pl\n  - plugins/data.pl\n",
-      [ 'plugins/stats.pl', 'plugins/data.pl' ] ],
+      "extensions:\n  - extensions/stats.pl\n  - extensions/data.pl\n",
+      [ 'extensions/stats.pl', 'extensions/data.pl' ] ],
 
     [ 'trailing whitespace on an entry',
-      "plugins:\n  - plugins/stats.pl   \n",
-      ['plugins/stats.pl'] ],
+      "extensions:\n  - extensions/stats.pl   \n",
+      ['extensions/stats.pl'] ],
 
     [ 'a key after the list ends the list',
-      "plugins:\n  - plugins/stats.pl\nsite_name: After\n",
-      ['plugins/stats.pl'] ],
+      "extensions:\n  - extensions/stats.pl\nsite_name: After\n",
+      ['extensions/stats.pl'] ],
 
     [ 'a key BEFORE the list does not join it',
-      "site_name: Before\nplugins:\n  - plugins/data.pl\n",
-      ['plugins/data.pl'] ],
+      "site_name: Before\nextensions:\n  - extensions/data.pl\n",
+      ['extensions/data.pl'] ],
 
     [ 'an empty list enables nothing',
-      "plugins:\nsite_name: Empty\n",
+      "extensions:\nsite_name: Empty\n",
       [] ],
 
     [ 'no plugins key at all enables nothing',
@@ -63,32 +63,31 @@ my @CASES = (
       [] ],
 
     [ 'deeper indentation is still an entry',
-      "plugins:\n    - plugins/stats.pl\n",
-      ['plugins/stats.pl'] ],
+      "extensions:\n    - extensions/stats.pl\n",
+      ['extensions/stats.pl'] ],
 
-    # SM817: `extensions:` is the name and `plugins:` the old one. BOTH readers
-    # have to learn it together, which is exactly what this file is for - a
-    # rename that reached the manager and not the render path would put a unit
-    # in one reader's list and out of the other's.
-    [ 'the new spelling of the key',
-      "extensions:\n  - plugins/stats.pl\n  - plugins/data.pl\n",
-      [ 'plugins/stats.pl', 'plugins/data.pl' ] ],
+    [ 'the key, a key after it',
+      "extensions:\n  - extensions/data.pl\nsite_name: After\n",
+      ['extensions/data.pl'] ],
 
-    [ 'the new key, a key after it',
-      "extensions:\n  - plugins/data.pl\nsite_name: After\n",
-      ['plugins/data.pl'] ],
+    # SM1142 (R3): `extensions:` is the one name. The upgrade rewrites the old
+    # one, and after it BOTH readers must stop reading it together - a reader
+    # that kept the old spelling would put a unit in its list and out of the
+    # other's, which is exactly what this file is for.
+    # old-name: begin (SM1142, the readers are shown to refuse it)
+    [ 'the old header opens nothing',
+      "plugins:\n  - extensions/stats.pl\n",
+      [] ],
 
-    # ONE REGISTRY, SPELLED TWO WAYS. A site that somehow carries both keys must
-    # not end up with two lists that disagree about what is enabled, so both
-    # open the same list rather than one winning.
-    [ 'both spellings present open the one list',
-      "extensions:\n  - plugins/data.pl\nplugins:\n  - plugins/stats.pl\n",
-      [ 'plugins/data.pl', 'plugins/stats.pl' ] ],
+    [ 'beside the one name, the old header adds nothing',
+      "extensions:\n  - extensions/data.pl\nplugins:\n  - extensions/stats.pl\n",
+      ['extensions/data.pl'] ],
+    # old-name: end
 );
 
 # Every entry either case mentions, so we test the NEGATIVE answers too - a
 # reader that returned true for everything would pass a positives-only check.
-my @UNIVERSE = qw(plugins/stats.pl plugins/data.pl plugins/briefs.pl);
+my @UNIVERSE = qw(extensions/stats.pl extensions/data.pl extensions/briefs.pl);
 
 for my $c (@CASES) {
     my ( $name, $body, $on ) = @$c;

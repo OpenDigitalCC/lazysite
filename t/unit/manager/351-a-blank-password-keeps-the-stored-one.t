@@ -22,9 +22,9 @@ use Lazysite::Manager::Plugins ();
 my $root   = repo_root();
 my $parent = site_tempdir();    # lint 118: not a bare tempdir
 my $d      = "$parent/public_html";
-make_path( "$d/lazysite/forms", "$parent/plugins" );
-copy( "$root/plugins/form-smtp.pl", "$parent/plugins/form-smtp.pl" ) or die $!;
-chmod 0755, "$parent/plugins/form-smtp.pl";
+make_path( "$d/lazysite/forms", "$parent/extensions" );
+copy( "$root/extensions/form-smtp.pl", "$parent/extensions/form-smtp.pl" ) or die $!;
+chmod 0755, "$parent/extensions/form-smtp.pl";
 local $ENV{PERL5LIB} = "$root/lib" . ( $ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : '' );
 
 my $conf = "$d/lazysite/forms/smtp.conf";
@@ -35,7 +35,7 @@ sub reset_conf {
 }
 sub conf { open my $h, '<', $conf or return ''; local $/; return <$h> }
 $Lazysite::Manager::Plugins::DOCROOT = $d;
-sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'plugins/form-smtp.pl', {@_} ) }
+sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/form-smtp.pl', {@_} ) }
 
 # The canary: a real new password lands, and is reported as changed.
 reset_conf();

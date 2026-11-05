@@ -96,7 +96,7 @@ sub site {
     make_path( "$d/lazysite/auth", "$d/lazysite/logs" );
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print $cf "site_name: T\nmanager: enabled\ncontrol_api_enabled: true\n"
-        . "plugins:\n  - plugins/login-rate-limit.pl\n" . ( $extra // '' );
+        . "extensions:\n  - extensions/login-rate-limit.pl\n" . ( $extra // '' );
     close $cf;
     open my $sf, '>', "$d/lazysite/auth/.secret" or die $!;
     print $sf "$secret\n";

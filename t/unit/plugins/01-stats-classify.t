@@ -14,7 +14,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root   = repo_root();
-my $plugin = "$root/plugins/stats.pl";
+my $plugin = "$root/extensions/stats.pl";
 my $doc    = tempdir( CLEANUP => 1 );
 make_path("$doc/lazysite");
 

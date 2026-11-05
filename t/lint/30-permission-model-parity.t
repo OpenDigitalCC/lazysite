@@ -8,7 +8,7 @@
 #   lazysite/forms              check wanted 2770; the model did not mention it
 #   lazysite/git                check wanted 2770; the model did not mention it
 #   lazysite/stats/form-events  check wanted 2775; the model did not mention it
-#   ../plugins                  the model declared 0755; check never looked
+#   ../extensions                  the model declared 0755; check never looked
 #
 # Nobody had noticed, because nothing compared them. That is the whole shape of
 # the incident this request came from: a permission fact maintained by hand in
@@ -88,7 +88,7 @@ cmp_ok( scalar keys %check, '>=', 8, 'and parsed' );
 
 # --- they must agree --------------------------------------------------------
 # Only the paths the check tool is responsible for: it verifies the docroot, so
-# a model entry outside it ({DOCROOT}/../plugins) is legitimately absent.
+# a model entry outside it ({DOCROOT}/../extensions) is legitimately absent.
 my @disagree;
 for my $p ( sort keys %check ) {
     my $m = $model{$p};
@@ -103,7 +103,7 @@ for my $p ( sort keys %model ) {
     next if $p =~ m{\A\.\./};    # outside the docroot; not the check tool's job
 
     # SM321: the private store is outside the docroot too - it is a SIBLING, so
-    # it does not normalise to a ../ prefix the way {DOCROOT}/../plugins does.
+    # it does not normalise to a ../ prefix the way {DOCROOT}/../extensions does.
     #
     # It is exempt from the MODE-TABLE comparison and emphatically not from
     # checking: report_private_store_usable tests whether the CGI identity can

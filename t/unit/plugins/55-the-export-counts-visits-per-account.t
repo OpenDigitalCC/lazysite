@@ -21,7 +21,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir run_child);
 
 my $root   = repo_root();
-my $plugin = "$root/plugins/stats.pl";
+my $plugin = "$root/extensions/stats.pl";
 plan skip_all => "no $plugin" unless -f $plugin;
 
 my $d = site_tempdir();

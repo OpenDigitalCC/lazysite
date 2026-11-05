@@ -23,7 +23,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(site_tempdir);
 
-my $plug = "$FindBin::Bin/../../../plugins/pandoc.pl";
+my $plug = "$FindBin::Bin/../../../extensions/pandoc.pl";
 plan skip_all => "no $plug" unless -f $plug;
 require $plug;
 

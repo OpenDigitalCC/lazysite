@@ -22,7 +22,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $handler = repo_root() . '/plugins/form-handler.pl';
+my $handler = repo_root() . '/extensions/form-handler.pl';
 plan skip_all => "no $handler" unless -f $handler;
 
 my $src = do { open my $fh, '<', $handler or die $!; local $/; <$fh> };

@@ -42,7 +42,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $plugin = repo_root() . '/plugins/stats.pl';
+my $plugin = repo_root() . '/extensions/stats.pl';
 ok( -f $plugin, 'the stats plugin is present' );
 
 # Q14g (SM974): WHEN the requests happened. This was `time() - 3600` with the

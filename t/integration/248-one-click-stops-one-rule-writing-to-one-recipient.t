@@ -37,7 +37,7 @@ sub slurp { my ($p) = @_; open my $fh, '<:utf8', $p or return ''; local $/; my $
 
 my $d = site_tempdir();
 make_path( "$d/lazysite/forms", "$d/lazysite/logs", "$d/lazysite/db/tables", "$d/lazysite/auth" );
-spit( "$d/lazysite/lazysite.conf", "site_name: T\nsite_url: https://news.example\nplugins:\n  - plugins/data.pl\n" );
+spit( "$d/lazysite/lazysite.conf", "site_name: T\nsite_url: https://news.example\nextensions:\n  - extensions/data.pl\n" );
 spit( "$d/sendmail", "#!$^X\n" . <<"MOCK" );
 local \$/; my \$m = <STDIN>;
 open my \$w, '>>', '$d/mail.out' or exit 1; print {\$w} "--MESSAGE--\\n", \$m; close \$w;

@@ -27,7 +27,7 @@ use lib "$FindBin::Bin/../../lib";
 use Lazysite::ControlApi::Actions ();
 
 my $root    = "$FindBin::Bin/../..";
-my $plugins = "$root/plugins";
+my $plugins = "$root/extensions";
 plan skip_all => 'no plugins directory' unless -d $plugins;
 
 # Which capabilities are plugin-owned, and which module answers for them.

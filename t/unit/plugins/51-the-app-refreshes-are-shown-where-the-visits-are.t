@@ -14,7 +14,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir run_child);
 
 my $root   = repo_root();
-my $plugin = "$root/plugins/stats.pl";
+my $plugin = "$root/extensions/stats.pl";
 plan skip_all => "no $plugin" unless -f $plugin;
 
 # Two days, 90 minutes back and a day and a half back, clear of UTC midnight.

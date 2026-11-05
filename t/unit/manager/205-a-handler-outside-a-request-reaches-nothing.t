@@ -101,7 +101,7 @@ subtest 'the remap handlers, loaded outside a request, reach no domain' => sub {
     $s->add_user('boss');
     $s->grant( 'boss', 'bosses', \@ALL, \@ALL );
     open my $cf, '>>', $s->docroot . '/lazysite/lazysite.conf' or die $!;
-    print {$cf} "extensions:\n  - plugins/remap.pl\n";
+    print {$cf} "extensions:\n  - extensions/remap.pl\n";
     close $cf;
     my $d = $s->call( 'boss', 'domain-add',
         body => { host => 'mine.example.org', content_root => 'sites/mine',
@@ -278,7 +278,7 @@ subtest 'the describe actions, loaded outside a request, describe nothing' => su
     require ManagerSession;
     require Lazysite::Manager::Describe;
     my $s = ManagerSession::new_site( root => repo_root(),
-        conf => "control_api_enabled: true\nplugins:\n  - plugins/form-smtp.pl\n" );
+        conf => "control_api_enabled: true\nextensions:\n  - extensions/form-smtp.pl\n" );
     $s->add_user('boss');
     $s->grant( 'boss', 'bosses', [qw(ui api manage_content)], [qw(ui api manage_content)] );
     no warnings 'once';
@@ -787,7 +787,7 @@ subtest 'the listings extracted from the dispatch chain list nothing outside a r
     require Lazysite::Manager::SiteBackup;
     require ManagerSession;
     my $s = ManagerSession::new_site( root => repo_root(),
-        conf => "control_api_enabled: true\nplugins:\n  - plugins/briefs.pl\n" );
+        conf => "control_api_enabled: true\nextensions:\n  - extensions/briefs.pl\n" );
     my @ALL = qw(ui manage_users manage_config manage_content manage_forms briefs);
     $s->add_user('boss');
     $s->grant( 'boss', 'bosses', \@ALL, \@ALL );

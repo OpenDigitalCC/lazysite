@@ -29,7 +29,7 @@ sub slurp { my ($p) = @_; open my $fh, '<:raw', $p or return ''; local $/; my $t
 
 my $d = site_tempdir();
 make_path( "$d/lazysite/forms", "$d/lazysite/logs", "$d/lazysite/db/tables" );
-spit( "$d/lazysite/lazysite.conf", "site_name: T\nsite_url: https://news.example\nplugins:\n  - plugins/data.pl\n" );
+spit( "$d/lazysite/lazysite.conf", "site_name: T\nsite_url: https://news.example\nextensions:\n  - extensions/data.pl\n" );
 my $OUT = "$d/mail.out";
 spit( "$d/sendmail", "#!$^X\nopen my \$w, '>>', '$OUT' or exit 1; local \$/; print {\$w} \"--MESSAGE--\\n\", <STDIN>; close \$w;\n" );
 chmod 0755, "$d/sendmail";
@@ -81,7 +81,7 @@ subtest 'RFC 2047: a Subject that is not ASCII is encoded, and ASCII is left alo
 };
 
 subtest 'the message mode carries only the headers it knows, in their shape' => sub {
-    my $script = "$root/plugins/form-smtp.pl";
+    my $script = "$root/extensions/form-smtp.pl";
     my $send   = sub {
         my ($headers) = @_;
         local $ENV{DOCUMENT_ROOT} = $d;

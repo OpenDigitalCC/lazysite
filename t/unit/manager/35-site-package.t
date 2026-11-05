@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM158: Lazysite::Manager::SitePackage::package_create - package one domain's
 # SITE (content root + nav override + bundled theme/layout + manifest) into a
-# portable tar.gz alongside the backups. Excludes plugins/settings/secrets.
+# portable tar.gz alongside the backups. Excludes extensions/settings/secrets.
 use strict;
 use warnings;
 use Test::More;

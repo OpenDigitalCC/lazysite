@@ -16,7 +16,7 @@ use lib "$FindBin::Bin/../../lib";
 use JSON::PP   qw(decode_json);
 use TestHelper qw(repo_root site_tempdir);
 
-my $page = repo_root() . '/starter/manager/plugin-config.md';
+my $page = repo_root() . '/starter/manager/extension-config.md';
 plan skip_all => "no $page" unless -f $page;
 my $src = do { open my $fh, '<', $page or die "$page: $!"; local $/; <$fh> };
 

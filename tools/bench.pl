@@ -33,6 +33,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
+use Lazysite::Extensions ();
 use Lazysite::Auth::Verify ();    # SM685: the credential path a request uses
 my $ITER = 20;
 # SM327: 1.25, and the figure is DELIBERATE rather than merely tighter.
@@ -66,7 +67,7 @@ my $mode      = ( grep { $_ eq '--baseline' } @ARGV ) ? 'baseline'
 
 my $utool = "$ROOT/tools/lazysite-users.pl";
 my $proc  = "$ROOT/lazysite-processor.pl";
-my $stats = "$ROOT/plugins/stats.pl";          # SM340
+my $stats = Lazysite::Extensions::locate( 'stats.pl', $ROOT );    # SM340, SM1142
 
 sub uapi {
     my ( $d, $p ) = @_;

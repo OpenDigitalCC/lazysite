@@ -28,8 +28,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir env_passthrough run_child);
 
-my $plugin  = repo_root() . '/plugins/stats.pl';
-my $handler = repo_root() . '/plugins/form-handler.pl';
+my $plugin  = repo_root() . '/extensions/stats.pl';
+my $handler = repo_root() . '/extensions/form-handler.pl';
 ok( -f $plugin, 'the stats plugin is present' );
 
 # Three-letter name: glibc ignores a POSIX zone whose name is shorter.

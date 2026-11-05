@@ -33,7 +33,7 @@ use TestHelper qw(repo_root);
 # SM752: PLUGINS TOO, and the reason is that the property was never about
 # tools.
 #
-# plugins/daemon.pl shipped in 0.13.0 with `require Lazysite::Daemon::Supervisor`
+# extensions/daemon.pl shipped in 0.13.0 with `require Lazysite::Daemon::Supervisor`
 # and no bootstrap. The manager runs a plugin action as a SUBPROCESS, exactly as
 # it runs a tool, so the require died - and a plugin action that dies prints
 # nothing to stdout, so the manager reported "Action produced no output". The
@@ -46,7 +46,7 @@ use TestHelper qw(repo_root);
 my $root = repo_root();
 
 my @scripts;
-for my $dir (qw(tools plugins)) {
+for my $dir (qw(tools extensions)) {
     opendir my $dh, "$root/$dir" or die "$dir/: $!";
     push @scripts, map { "$dir/$_" } sort grep { /\.pl$/ } readdir $dh;
     closedir $dh;
@@ -68,7 +68,7 @@ for my $t (@scripts) {
 
 is_deeply( \@unbootstrapped, [],
     'every script that loads a Lazysite module can locate it' )
-    or diag( "Without a bootstrap (tools/ and plugins/): @unbootstrapped\n"
+    or diag( "Without a bootstrap (tools/ and extensions/): @unbootstrapped\n"
         . 'These run from the repo and die on a tarball or Hestia install. '
         . 'Copy the BEGIN block from tools/lazysite-users.pl.' );
 
@@ -76,13 +76,13 @@ is_deeply( \@unbootstrapped, [],
 # "is the string present" check cannot see.
 #
 # TEXTUAL ORDER ONLY MEANS EXECUTION ORDER FOR A COMPILE-TIME LOAD, and
-# extending this test to plugins/ is what made that matter. A `use Lazysite::X`
+# extending this test to extensions/ is what made that matter. A `use Lazysite::X`
 # at the top runs when the file is compiled, so a bootstrap below it is too
 # late and the position comparison is exactly right.
 #
 # A `require Lazysite::X` INSIDE A SUB does not run then - it runs when the sub
 # is called, which may be long after a bootstrap that sits below it in the
-# file. plugins/form-handler.pl is the shape: four lazy requires between lines
+# file. extensions/form-handler.pl is the shape: four lazy requires between lines
 # 174 and 1235, and `_locate_lib` at 1256, called before any of them. It is
 # correct, and the first version of this extension failed it - a lint reporting
 # a working file as broken because it read position as sequence.

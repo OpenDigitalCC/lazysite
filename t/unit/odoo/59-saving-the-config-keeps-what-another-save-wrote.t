@@ -29,9 +29,9 @@ use Lazysite::Manager::Plugins ();
 my $root   = repo_root();
 my $parent = site_tempdir();
 my $d      = "$parent/public_html";
-make_path( "$d/lazysite", "$parent/plugins" );
-copy( "$root/plugins/odoo.pl", "$parent/plugins/odoo.pl" ) or die $!;
-chmod 0755, "$parent/plugins/odoo.pl";
+make_path( "$d/lazysite", "$parent/extensions" );
+copy( "$root/extensions/odoo.pl", "$parent/extensions/odoo.pl" ) or die $!;
+chmod 0755, "$parent/extensions/odoo.pl";
 local $ENV{PERL5LIB} = "$root/lib" . ( $ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : '' );
 
 my $conf = "$d/lazysite/odoo.conf";
@@ -42,7 +42,7 @@ sub reset_conf {
     close $c;
 }
 $Lazysite::Manager::Plugins::DOCROOT = $d;
-sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'plugins/odoo.pl', {@_} ) }
+sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/odoo.pl', {@_} ) }
 
 # Run $second at the point the first save has read the file; say whether the lock
 # was free there. A held lock means the second save would wait, so it runs after.

@@ -70,9 +70,9 @@ sub slurp {
         'editor: no beforeunload lock release (cancelling the leave prompt keeps the lock)' );
 }
 
-# --- plugin-config.md: config forms (SM842 moved the handler forms) -------
+# --- extension-config.md: config forms (SM842 moved the handler forms) -------
 {
-    my $page = slurp('starter/manager/plugin-config.md');
+    my $page = slurp('starter/manager/extension-config.md');
     like( $page, qr/class="mg-note mg-note-info"/, 'plugin-config: dirty-note markup present' );
     like( $page, qr/markPluginDirty/,       'plugin-config: config forms mark dirty' );
     like( $page, qr/clearPluginDirty\(pluginId\)/,

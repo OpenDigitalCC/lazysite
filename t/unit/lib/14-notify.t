@@ -24,7 +24,7 @@ local $Lazysite::Notify::XMPP_SENDER = sub { push @sent, [@_]; 1 };
 
 # --- bell-store append ---
 ok( notify( $d, { type => 'submission', message => "New form submission: contact",
-    target => 'contact', url => '/manager/plugins' } ), 'notify returns true' );
+    target => 'contact', url => '/manager/extensions' } ), 'notify returns true' );
 open my $nf, '<', "$d/lazysite/logs/notices.jsonl" or die $!;
 my @lines = <$nf>;
 close $nf;
@@ -47,7 +47,7 @@ is( scalar @sent, 0, 'no XMPP send while the notify-xmpp plugin is disabled' );
 
 # --- enabled + configured -> the sender is called with the conf and message ---
 open $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "site_name: My Test Site!\nplugins:\n  - plugins/notify-xmpp.pl\n";
+print $cf "site_name: My Test Site!\nextensions:\n  - extensions/notify-xmpp.pl\n";
 close $cf;
 open my $xc, '>', "$d/lazysite/notify-xmpp.conf" or die $!;
 print $xc "jid: sitebot\@example.com\npassword: s3cret\nto: ops\@example.com\n";

@@ -4,7 +4,7 @@
 #
 # Three places hold the rule, and each is asked here:
 #   * the definition, Lazysite::Mail::one_address;
-#   * the one writer of the header, plugins/form-smtp.pl, which every message
+#   * the one writer of the header, extensions/form-smtp.pl, which every message
 #     passes through - it used to strip < > CR LF and send the rest, so
 #     `x<b@example.org>` went to a different address and `root,b@example.org`
 #     went to two;
@@ -54,7 +54,7 @@ subtest 'the definition' => sub {
 };
 
 subtest 'the header writer refuses rather than repairs' => sub {
-    my $script = repo_root() . '/plugins/form-smtp.pl';
+    my $script = repo_root() . '/extensions/form-smtp.pl';
     plan skip_all => "no $script" unless -f $script;
     my $d = site_tempdir();
     make_path("$d/lazysite/forms");

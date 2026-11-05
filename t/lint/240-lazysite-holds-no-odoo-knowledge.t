@@ -39,7 +39,7 @@ use TestHelper qw(repo_root);
 my $root = repo_root();
 
 my @files = sort( glob("$root/*.pl"), glob("$root/lazysite-processor/*.pm"),
-    glob("$root/plugins/*.pl"), glob("$root/tools/*.pl"), glob("$root/tools/*.sh"),
+    glob("$root/extensions/*.pl"), glob("$root/tools/*.pl"), glob("$root/tools/*.sh"),
     _pm_under("$root/lib"),     glob("$root/starter/assets/*.js") );
 cmp_ok( scalar @files, '>', 50, 'the functional files were found' );
 

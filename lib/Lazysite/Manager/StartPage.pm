@@ -63,8 +63,8 @@ our %PAGES = (
     'nav'        => { label => 'Navigation',    caps => ['manage_nav'] },
     'appearance' => { label => 'Appearance', caps => [ 'manage_themes', 'manage_layouts' ] },
     # SM957: ONE entry, "Extensions"; its configuration is a tab of the same
-    # page (/manager/plugin-config), so it is not a start page of its own.
-    'plugins'  => { label => 'Extensions',      caps => [] },
+    # page (/manager/extension-config), so it is not a start page of its own.
+    'extensions' => { label => 'Extensions',    caps => [] },
     'users'         => { label => 'Users',           caps => [] },
     'groups'        => { label => 'Groups',          caps => [] },
     'address-lists' => { label => 'Address lists',   caps => [] },                # SM1138
@@ -80,11 +80,11 @@ our %PAGES = (
     # SM957: Handlers left the menu (reached from each form and from
     # Extensions), so it is not offered as a start page either - lint 116.
     # SM759: registry keys, as the conf lists them - a bare name matches nothing.
-    'data' => { label => 'Data tables', caps => ['manage_data'], plugin => 'plugins/data.pl' },
-    'stats' => { label => 'Visitor statistics', caps => [], plugin => 'plugins/stats.pl' },
+    'data' => { label => 'Data tables', caps => ['manage_data'], plugin => 'extensions/data.pl' },
+    'stats' => { label => 'Visitor statistics', caps => [], plugin => 'extensions/stats.pl' },
 );
 # SM957: the menu's order.
-my @PAGE_ORDER = qw(submissions files nav stats appearance plugins connectors data
+my @PAGE_ORDER = qw(submissions files nav stats appearance extensions connectors data
     domains users groups address-lists sessions index cache backups audit);
 
 sub manager_pages { return map { { id => $_, %{ $PAGES{$_} } } } @PAGE_ORDER }

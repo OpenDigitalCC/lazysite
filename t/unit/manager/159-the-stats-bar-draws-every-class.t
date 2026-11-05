@@ -11,7 +11,7 @@
 # ROW. A missing row is visibly missing. A full-width bar states that what it
 # shows is all there is.
 #
-# plugins/stats.pl had already learned this and says so where it builds the
+# extensions/stats.pl had already learned this and says so where it builds the
 # payload: it derives `classes` from @CLASSES "so a sixth class cannot be left
 # off this view the way `scanner` was left off the index". This page was the
 # view it meant, and it held its own copy of the list - which is how it fell a
@@ -52,13 +52,13 @@ ok( $block, 'the page carries the class-list builder' )
 #
 # Read from the plugin, so the next class to arrive appears here the day it is
 # declared and this stays a test of the PAGE rather than of a list typed twice.
-my $plugin = repo_root() . '/plugins/stats.pl';
+my $plugin = repo_root() . '/extensions/stats.pl';
 my ($cls_decl) = do {
     open my $pf, '<', $plugin or die $!;
     local $/;
     <$pf> =~ /our \@CLASSES = qw\(([^)]+)\)/;
 };
-ok( $cls_decl, 'the canonical class list was found in plugins/stats.pl' )
+ok( $cls_decl, 'the canonical class list was found in extensions/stats.pl' )
     or do { done_testing(); exit };
 my @classes = split ' ', $cls_decl;
 cmp_ok( scalar @classes, '>=', 4, 'and it is a plausible list' );

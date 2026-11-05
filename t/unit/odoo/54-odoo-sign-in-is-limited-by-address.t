@@ -59,7 +59,7 @@ spit( "$d/lazysite/auth/address-lists.json", encode_json( {
 sub set_conf {
     my (%k) = @_;
     spit( "$d/lazysite/lazysite.conf",
-        "site_name: T\nplugins:\n  - plugins/odoo.pl\n  - plugins/login-rate-limit.pl\ntrusted_proxies: 127.0.0.1\n"
+        "site_name: T\nextensions:\n  - extensions/odoo.pl\n  - extensions/login-rate-limit.pl\ntrusted_proxies: 127.0.0.1\n"
             . join( '', map { "$_: $k{$_}\n" } sort keys %k ) );
 }
 set_conf();

@@ -101,7 +101,7 @@ cmp_ok( $checked, '>=', 3,
 my @STAMPING = qw(insert_row update_row import_rows);
 my $calls_re = join '|', @STAMPING;
 my @FILES    = grep { -f } (
-    glob("$root/*.pl"), glob("$root/tools/*.pl"), glob("$root/plugins/*.pl"),
+    glob("$root/*.pl"), glob("$root/tools/*.pl"), glob("$root/extensions/*.pl"),
 );
 {
     my @dirs = ("$root/lib");

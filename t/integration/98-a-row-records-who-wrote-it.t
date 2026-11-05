@@ -41,7 +41,7 @@ my $docroot = site_tempdir();
 make_path( "$docroot/lazysite/db/tables", "$docroot/lazysite/auth" );
 
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $cf;
 
 # timestamps: true is what supplies created_by at all.

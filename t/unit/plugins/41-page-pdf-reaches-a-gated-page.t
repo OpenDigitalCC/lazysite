@@ -23,7 +23,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $plugin = repo_root() . '/plugins/pandoc.pl';
+my $plugin = repo_root() . '/extensions/pandoc.pl';
 require $plugin;
 
 my $d = site_tempdir();

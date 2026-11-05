@@ -18,7 +18,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/plugins/stats.pl';
+my $PLUGIN = repo_root() . '/extensions/stats.pl';
 ok( -f $PLUGIN, 'stats plugin present' );
 
 # Q14g (SM974): one instant, stamped as what it says it is - this was localtime

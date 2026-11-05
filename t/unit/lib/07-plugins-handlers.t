@@ -19,14 +19,14 @@ use Lazysite::Manager::Plugins qw(
     action_form_list action_form_submission_confirm action_form_submissions_delete_bulk
     resolve_plugin_script);
 
-# SM152: a real install layout - base holds plugins/, docroot is base/public_html
-# - so the plugin registry (base/plugins/*.pl + core) resolves. enable/disable
+# SM152: a real install layout - base holds extensions/, docroot is base/public_html
+# - so the plugin registry (base/extensions/*.pl + core) resolves. enable/disable
 # and resolve now go through that registry, not an arbitrary path.
 my $base = tempdir( CLEANUP => 1 );
 my $d    = "$base/public_html";
-make_path( "$d/lazysite/forms", "$d/lazysite/cache", "$base/plugins" );
+make_path( "$d/lazysite/forms", "$d/lazysite/cache", "$base/extensions" );
 for my $p (qw(log.pl audit.pl)) {
-    open my $pf, '>', "$base/plugins/$p" or die $!;
+    open my $pf, '>', "$base/extensions/$p" or die $!;
     print {$pf} "print '{\"id\":\"$p\",\"actions\":[]}' if \"@ARGV\"=~/--describe/; exit 0;\n";
     close $pf;
 }
@@ -39,19 +39,19 @@ close $c;
 
 sub slurp_conf { open my $f, '<', "$d/lazysite/lazysite.conf"; local $/; <$f> }
 # --- plugin enable / disable mutate the conf correctly ---
-ok( action_plugin_enable('plugins/log.pl')->{ok}, 'enable a plugin' );
+ok( action_plugin_enable('extensions/log.pl')->{ok}, 'enable a plugin' );
 # SM915: this fixture's conf carries NO list, so there is no header the site
 # "already uses" and the writer creates one under `extensions:` - the name SM817
 # introduced - rather than reviving `plugins:` on a site that never had it. The
 # assertion used to expect the old spelling, which was correct only while the
 # writer hardcoded it. Both directions are checked so this cannot pass on either
 # spelling indifferently; t/unit/manager/198 holds the rest of the behaviour.
-like( slurp_conf(), qr{extensions:\s*\n\s+- plugins/log\.pl}s,
+like( slurp_conf(), qr{extensions:\s*\n\s+- extensions/log\.pl}s,
     'a new list is created under `extensions:`, the current name' );
 unlike( slurp_conf(), qr{^plugins:}m, 'and not under the retired spelling' );
-ok( action_plugin_enable('plugins/audit.pl')->{ok}, 'enable a second' );
+ok( action_plugin_enable('extensions/audit.pl')->{ok}, 'enable a second' );
 like( slurp_conf(), qr{audit\.pl}, 'second plugin present' );
-ok( action_plugin_disable('plugins/log.pl')->{ok}, 'disable a plugin' );
+ok( action_plugin_disable('extensions/log.pl')->{ok}, 'disable a plugin' );
 unlike( slurp_conf(), qr{log\.pl}, 'disabled plugin removed' );
 like( slurp_conf(), qr{audit\.pl}, 'the other plugin survives the disable' );
 my $bad = action_plugin_enable('');
@@ -59,7 +59,7 @@ ok( !$bad->{ok}, 'empty script rejected' );
 like( $bad->{error}, qr/no script/i, 'with a "No script" error' );
 
 # --- resolve_plugin_script (SM152: registry-only) ---
-is( resolve_plugin_script('plugins/log.pl'), "$base/plugins/log.pl",
+is( resolve_plugin_script('extensions/log.pl'), "$base/extensions/log.pl",
     'a registered plugin resolves to its canonical path' );
 ok( !defined resolve_plugin_script('does-not-exist.pl'),
     'an unregistered name resolves to undef' );

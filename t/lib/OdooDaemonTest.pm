@@ -46,7 +46,7 @@ sub oomd_site {
     my $d = TestHelper::site_tempdir( plugins => 1 );
     make_path("$d/lazysite");
     open my $fh, '>>', "$d/lazysite/lazysite.conf" or die "lazysite.conf: $!";
-    print {$fh} "plugins:\n  - plugins/odoo.pl\n  - plugins/daemon.pl\n";
+    print {$fh} "extensions:\n  - extensions/odoo.pl\n  - extensions/daemon.pl\n";
     close $fh;
     write_conf( $d,
         odoo_url          => 'https://odoo.example',

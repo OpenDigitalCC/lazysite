@@ -24,7 +24,7 @@ use Lazysite::Util             ();
 use Lazysite::Manager::Plugins ();
 use Lazysite::Handlers         ();
 
-my $PLUGIN = repo_root() . '/plugins/form-handler.pl';
+my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
 alarm 60;    # a lock that is never released must fail this file, not hang the suite
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 

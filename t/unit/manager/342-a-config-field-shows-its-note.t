@@ -28,7 +28,7 @@ use PageScript ();
 my $root = repo_root();
 
 subtest 'every Odoo config field explains itself' => sub {
-    my $json = `\Q$^X\E \Q$root/plugins/odoo.pl\E --describe 2>/dev/null`;
+    my $json = `\Q$^X\E \Q$root/extensions/odoo.pl\E --describe 2>/dev/null`;
     my $desc = eval { JSON::PP::decode_json($json) } or return fail('odoo --describe');
     my @fields = @{ $desc->{config_schema} || [] };
     ok @fields, 'the schema has fields';
@@ -40,7 +40,7 @@ subtest 'every Odoo config field explains itself' => sub {
 chomp( my $node = `sh -c 'command -v node || command -v nodejs' 2>/dev/null` );
 SKIP: {
     skip 'node not installed', 1 unless length $node && -x $node;
-    my $page = PageScript::page_source("$root/starter/manager/plugin-config.md");
+    my $page = PageScript::page_source("$root/starter/manager/extension-config.md");
     my $fns  = join "\n", map { PageScript::extract_function( $page, $_ ) } qw(esc renderForm);
     my $plugin = encode_json(
         {   id => 'x', _script => 'x.pl',

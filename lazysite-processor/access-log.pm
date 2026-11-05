@@ -106,8 +106,8 @@ sub _timing_header {
                 my $in_plugins = 0;
                 while ( my $l = <$fh> ) {
                     chomp $l;
-                    # SM817: both spellings open the one registry.
-                    if ( $l =~ /^(?:extensions|plugins)\s*:\s*$/ ) {
+                    # SM1142: the one header; the upgrade rewrote the old one.
+                    if ( $l =~ /^extensions\s*:\s*$/ ) {
                         $in_plugins = 1;
                         next;
                     }
@@ -207,7 +207,7 @@ sub _access_field {
 # worker re-fetches each offline page behind every view of it (SM1197) and says so
 # with `X-Lazysite-App: keep`; such a fetch is the app keeping its copy and not a
 # visit, so a page request that carries it goes on the `app` channel, as a registry
-# fetch goes on `registry` - recorded and counted apart (plugins/stats.pl), never
+# fetch goes on `registry` - recorded and counted apart (extensions/stats.pl), never
 # dropped and never a page view. It changes nothing but this field: the page, its
 # cache key and the access decisions never read the header. A visitor who sends it
 # themselves hides only their own hit.
@@ -252,7 +252,7 @@ sub _access_record {
         # is a ruling rather than an oversight.
         #
         # `_unit_enabled` exists below and reads `plugins:` correctly. Gating
-        # here was built, tested and reverted, because plugins/stats.pl declares
+        # here was built, tested and reverted, because extensions/stats.pl declares
         # no `contract` key and is therefore a LEGACY descriptor. SM409 / ADR
         # 0009 carry the release manager's ruling for those: a legacy plugin
         # keeps running exactly as it always has until its own migration SM

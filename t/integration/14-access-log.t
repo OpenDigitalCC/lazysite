@@ -88,7 +88,7 @@ my $root = repo_root();
 open my $sc, '>', "$d/lazysite/stats.conf" or die $!;
 print $sc "window_days: 30\n";
 close $sc;
-my $s = decode_json( qx($^X $root/plugins/stats.pl --scan --docroot '$d') );
+my $s = decode_json( qx($^X $root/extensions/stats.pl --scan --docroot '$d') );
 ok( $s->{ok}, 'first-party scan ok' ) or diag( $s->{error} );
 is( $s->{source}, 'first-party', 'source is the first-party log' );
 # SM941 AV2: TWO page views and ONE not-found. `/nope` is a 404 - nobody read a
@@ -104,7 +104,7 @@ is( scalar @{ $s->{referrers}{external} }, 1, 'external referrer counted' );
 ok( $s->{anonymised}, 'reported as anonymised' );
 
 # --- the AI export (analyse_visitors) reads first-party data too (i3) ---
-my $e = decode_json( qx($^X $root/plugins/stats.pl --export --docroot '$d') );
+my $e = decode_json( qx($^X $root/extensions/stats.pl --export --docroot '$d') );
 ok( $e->{ok}, 'first-party export ok' ) or diag( $e->{error} );
 is( $e->{source}, 'first-party', 'export source is the first-party log' );
 is( $e->{totals}{pageviews},  2, 'export totals from first-party data' );
@@ -112,7 +112,7 @@ is( $e->{totals}{error_hits}, 1, 'and the export splits the 404 out too' );
 is( $e->{totals}{unique_visitors}, 2, 'export distinct daily visitor keys' );
 ok( @{ $e->{events} } >= 3, 'sanitised event stream present' );
 unlike( encode_json($e), qr/198\.51\.100/, 'no raw IP anywhere in the export' );
-my $e2 = decode_json( qx($^X $root/plugins/stats.pl --export --docroot '$d') );
+my $e2 = decode_json( qx($^X $root/extensions/stats.pl --export --docroot '$d') );
 is( $e2->{totals}{pageviews}, 2,
     'second export identical (incremental per-file offsets, nothing re-read)' );
 

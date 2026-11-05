@@ -152,7 +152,7 @@ subtest 'when every placement takes, unplaced is present and empty' => sub {
 
 # --- SM858's button, through the manager API --------------------------------
 
-my $PLUGIN = repo_root() . '/plugins/form-handler.pl';
+my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
 SKIP: {
     skip "no $PLUGIN", 1 unless -f $PLUGIN;
     subtest 'the approve button reports it, and its trail records it' => sub {

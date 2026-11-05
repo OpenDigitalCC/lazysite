@@ -36,9 +36,9 @@ my $ROOT = repo_root();
 sub site {
 
     # One level down, so the docroot's PARENT is ours too. The stats tool is
-    # looked for at ../plugins/stats.pl beside the docroot (the Hestia
+    # looked for at ../extensions/stats.pl beside the docroot (the Hestia
     # layout), and a bare tempdir's parent is /tmp - where another test's
-    # leaked install can leave a plugins/ that makes 'not found' unreachable.
+    # leaked install can leave a extensions/ that makes 'not found' unreachable.
     my $t = tempdir( CLEANUP => 1 );
     mkdir "$t/site";
     my $d = "$t/site/public_html";
@@ -69,12 +69,12 @@ sub slurp {
 }
 
 # SM792: the stats job runs only the plugin where a deploy puts it - here the
-# Hestia layout, plugins/ beside the docroot - so a stub is put there.
+# Hestia layout, extensions/ beside the docroot - so a stub is put there.
 sub install_stats {
     my ( $root, $tool ) = @_;
-    mkdir "$root/../plugins";
-    unlink "$root/../plugins/stats.pl";
-    symlink $tool, "$root/../plugins/stats.pl" or die "symlink: $!";
+    mkdir "$root/../extensions";
+    unlink "$root/../extensions/stats.pl";
+    symlink $tool, "$root/../extensions/stats.pl" or die "symlink: $!";
     return;
 }
 
@@ -273,7 +273,7 @@ subtest 'stats-rollup: against the real plugin, yesterday closes unread' => sub 
         "\n";
     close $fh;
 
-    install_stats( $root, "$ROOT/plugins/stats.pl" );
+    install_stats( $root, "$ROOT/extensions/stats.pl" );
     my $r = by_job( Lazysite::Daemon::Service::Scheduler::tick( docroot => $root ) );
     is( $r->{'stats-rollup'}{outcome}, 'ok', 'the real plugin ran under the job' )
         or diag explain $r;
@@ -306,7 +306,7 @@ subtest 'a job that reports failure is recorded with its reason' => sub {
 
     # No plugin at all: the failure names that, rather than "exited 2" or a
     # shell error.
-    unlink "$root/../plugins/stats.pl";
+    unlink "$root/../extensions/stats.pl";
     delete $runs->{'stats-rollup'};
     open my $w, '>', "$root/lazysite/daemon/scheduler-runs.json" or die $!;
     print {$w} JSON::PP::encode_json($runs);

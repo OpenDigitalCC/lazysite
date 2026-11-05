@@ -34,7 +34,7 @@ make_path("$docroot/lazysite/db/tables");
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 # SM469: a contract plugin is born DISABLED, so enabling it is part of
 # setting a site up - and the refusal when it is off is asserted below.
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $cf;
 
 open my $df, '>', "$docroot/lazysite/db/tables/products.yaml" or die $!;
@@ -131,7 +131,7 @@ subtest 'SM469: with the plugin DISABLED, every action refuses' => sub {
             . 'operator with nowhere to go.' );
 
     open my $on, '>', $conf or die $!;
-    print {$on} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+    print {$on} "site_name: T\nextensions:\n  - extensions/data.pl\n";
     close $on;
     ok( api_get('action=data-tables')->{ok}, 'and answers again once enabled' );
 };

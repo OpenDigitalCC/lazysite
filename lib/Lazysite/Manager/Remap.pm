@@ -46,7 +46,7 @@ our $DOCROOT;    # set by the script
 # action asks the same question, which this check was the model for.
 
 sub _remap_unit_off {
-    return undef if Lazysite::Manager::Plugins::plugin_enabled('plugins/remap.pl');
+    return undef if Lazysite::Manager::Plugins::plugin_enabled('extensions/remap.pl');
     return { ok => 0, kind => 'disabled',
         error => 'The URL remapper extension is switched off. An operator can '
             . 'enable it on the Extensions page.' };

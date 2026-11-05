@@ -24,7 +24,7 @@ local $ENV{LAZYSITE_PROCESSOR} = "$root/lazysite-processor.pl";
 
 my @ALL = qw(ui api manage_users manage_content);
 my $s   = new_site( root => $root, conf => "control_api_enabled: true\n"
-        . "site_url: https://www.example.org\n" . "plugins:\n  - plugins/form-smtp.pl\n" );
+        . "site_url: https://www.example.org\n" . "extensions:\n  - extensions/form-smtp.pl\n" );
 my $d = $s->docroot;
 $s->add_user( 'op', 'pw-op-0123456789' );
 $s->grant( 'op', 'g-op', [qw(ui manage_users manage_content)], \@ALL );

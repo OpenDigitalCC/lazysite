@@ -54,7 +54,7 @@ sub conf_write {
 sub set_plugins {
     my (@p) = @_;
     open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$c} "site_name: t\nplugins:\n" . join( '', map { "  - plugins/$_.pl\n" } @p );
+    print {$c} "site_name: t\nextensions:\n" . join( '', map { "  - extensions/$_.pl\n" } @p );
     close $c;
 }
 

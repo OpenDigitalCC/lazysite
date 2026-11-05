@@ -36,7 +36,7 @@ make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 # SM469: a contract plugin is born disabled, so an operator enables it - the
 # fixture does what an operator would.
-print {$cf} "mcp_enabled: true\nplugins:\n  - plugins/data.pl\n";
+print {$cf} "mcp_enabled: true\nextensions:\n  - extensions/data.pl\n";
 close $cf;
 
 
@@ -224,7 +224,7 @@ subtest 'SM469: a disabled plugin refuses over MCP too' => sub {
     like( $r->{error}, qr/disabled/, 'and says so' );
 
     open my $on, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$on} "mcp_enabled: true\nplugins:\n  - plugins/data.pl\n";
+    print {$on} "mcp_enabled: true\nextensions:\n  - extensions/data.pl\n";
     close $on;
     ok( call('list_data_tables')->{ok}, 'and answers again once enabled' );
 };

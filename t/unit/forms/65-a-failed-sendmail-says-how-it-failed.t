@@ -14,7 +14,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root site_tempdir run_child);
 
-my $script = repo_root() . '/plugins/form-smtp.pl';
+my $script = repo_root() . '/extensions/form-smtp.pl';
 my $d      = site_tempdir();
 make_path("$d/lazysite/forms");
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }

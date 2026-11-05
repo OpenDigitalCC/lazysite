@@ -22,7 +22,7 @@ use TestHelper qw(repo_root);
 use Digest::SHA qw(hmac_sha256_hex);
 
 my $root = repo_root();
-my $fh_p = "$root/plugins/form-handler.pl";
+my $fh_p = "$root/extensions/form-handler.pl";
 plan skip_all => 'form handler missing' unless -f $fh_p;
 
 my $src = do { open my $f, '<', $fh_p or die $!; local $/; <$f> };

@@ -112,9 +112,9 @@ for my $f (qw(starter/lazysite/templates/docs/auth.md starter/lazysite/templates
 }
 
 # --- D-7: the block list is on the plugin's own page ----------------------------
-unlike( slurp('plugins/bad-url-blocker.pl'), qr/live on the Stats\s*(?:#\s*)?page/,
+unlike( slurp('extensions/bad-url-blocker.pl'), qr/live on the Stats\s*(?:#\s*)?page/,
     'the blocker does not place its block list on the Stats page' );
-like( slurp('starter/manager/plugin-config.md'), qr/action=bad-url-blocks/,
+like( slurp('starter/manager/extension-config.md'), qr/action=bad-url-blocks/,
     'the plugin config page is where the list is read' );
 
 # --- D-8: page URLs go to the processor, which serves the cache -------------------

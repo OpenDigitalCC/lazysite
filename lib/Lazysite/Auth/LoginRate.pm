@@ -34,7 +34,7 @@ sub _rate_limit_switched_on {
     require Lazysite::Manager::Plugins;
     no warnings 'once';    # SM557: required at runtime
     local $Lazysite::Manager::Plugins::DOCROOT = $docroot;
-    return Lazysite::Manager::Plugins::plugin_enabled('plugins/login-rate-limit.pl');
+    return Lazysite::Manager::Plugins::plugin_enabled('extensions/login-rate-limit.pl');
 }
 
 # H-3: per-key login rate limit. Fails open if DB_File tie fails so a
@@ -47,7 +47,7 @@ sub check_login_rate {
     my $LOGIN_RATE_DB = "$AUTH_DIR/.login-rate.db";
 
     # SM798, RULED 2026-09-10 AND 2026-09-11: A SWITCHABLE EXTENSION, ON BY
-    # DEFAULT. plugins/login-rate-limit.pl is the unit, and the registry says
+    # DEFAULT. extensions/login-rate-limit.pl is the unit, and the registry says
     # whether it is on - the installer lists it on every site, so this is off
     # only where an operator switched it off. Off means nothing is counted and no
     # counter is kept, and it says so in the same words as the two cases below:

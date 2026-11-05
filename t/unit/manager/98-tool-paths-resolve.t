@@ -48,9 +48,9 @@ close $fh;
         'LAZYSITE_USERS_TOOL is taken when it names a file' );
 }
 {
-    local $ENV{LAZYSITE_STATS_TOOL} = "$root/plugins/stats.pl";
+    local $ENV{LAZYSITE_STATS_TOOL} = "$root/extensions/stats.pl";
     # SM944 S26: the stats tool's path moved to Manager::Services.
-    is( Lazysite::Manager::Services::_stats_tool_path(), "$root/plugins/stats.pl",
+    is( Lazysite::Manager::Services::_stats_tool_path(), "$root/extensions/stats.pl",
         'LAZYSITE_STATS_TOOL is taken when it names a file' );
 }
 

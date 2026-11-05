@@ -43,7 +43,7 @@ sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh}
 
 my $s = new_site( root => $root,
     conf => "control_api_enabled: true\nmcp_enabled: true\nlayout: base\ntheme: one\n"
-        . "layouts_repo: invalid\nextensions:\n  - plugins/remap.pl\n" );
+        . "layouts_repo: invalid\nextensions:\n  - extensions/remap.pl\n" );
 my $d = $s->docroot;
 make_path( "$d/sites/mine", "$d/sites/other" );
 spit( "$d/sites/$_/index.md", "# $_\n" ) for qw(mine other);
@@ -128,10 +128,10 @@ my %CALL = (
     'layout-install'     => [ { layout => 'x' } ],
     'layouts-install'    => [ { tag    => 'v1' } ],
     'layout-delete'      => [ {}, 'action=layout-delete&layout=gone' ],
-    'plugin-enable'      => [ { script => 'plugins/remap.pl' } ],
-    'plugin-disable'     => [ { script => 'plugins/remap.pl' } ],
-    'plugin-save'        => [ { script => 'plugins/remap.pl', values    => {} } ],
-    'plugin-action'      => [ { script => 'plugins/remap.pl', action_id => 'none' } ],
+    'plugin-enable'      => [ { script => 'extensions/remap.pl' } ],
+    'plugin-disable'     => [ { script => 'extensions/remap.pl' } ],
+    'plugin-save'        => [ { script => 'extensions/remap.pl', values    => {} } ],
+    'plugin-action'      => [ { script => 'extensions/remap.pl', action_id => 'none' } ],
     'audit-trail-set'    => [ { state  => 'on',               reason    => 'probe' } ],
     'git-init'           => [ {} ],
     'bad-url-block'      => [ { ip => '192.0.2.7' } ],

@@ -22,7 +22,7 @@ plan skip_all => 'IO::Socket::SSL is not installed' unless eval { require IO::So
 my $openssl = -x '/usr/bin/openssl' ? '/usr/bin/openssl' : '';
 plan skip_all => 'no openssl to make a certificate' unless $openssl;
 
-my $script = repo_root() . '/plugins/form-smtp.pl';
+my $script = repo_root() . '/extensions/form-smtp.pl';
 my $d      = site_tempdir();
 make_path("$d/lazysite/forms");
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }

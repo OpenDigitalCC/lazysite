@@ -46,7 +46,7 @@ insert_row( $docroot, 'things', { slug => "s$_" } ) for 1 .. 3;
 insert_row( $docroot, 'secret', { slug => "x$_" } ) for 1 .. 2;
 
 open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "plugins:\n  - plugins/data.pl\n";
+print {$cf} "extensions:\n  - extensions/data.pl\n";
 close $cf;
 
 load_processor($docroot);

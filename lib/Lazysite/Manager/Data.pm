@@ -91,7 +91,7 @@ our $auth_user       = ''; # SM468: the actor for schema-history rows; set by ea
 # still answering" is the state SM409 exists to remove.
 sub _gate {
     local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
-    return undef if Lazysite::Manager::Plugins::plugin_enabled('plugins/data.pl');
+    return undef if Lazysite::Manager::Plugins::plugin_enabled('extensions/data.pl');
     return { ok => 0,
         error => 'The data plugin is disabled. An operator can enable it on '
             . 'the Extensions page.' };

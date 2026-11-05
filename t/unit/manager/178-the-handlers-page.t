@@ -141,9 +141,9 @@ subtest 'the page is registered, and the old handler UI is gone' => sub {
     my $subs = PageScript::page_source("$root/starter/manager/submissions.md");
     like( $subs, qr{'/manager/handlers\?form=' \+ encodeURIComponent\(name\)},
         'each form on the Submissions page links to its handlers' );
-    my $ext = PageScript::page_source("$root/starter/manager/plugins.md");
+    my $ext = PageScript::page_source("$root/starter/manager/extensions.md");
     like( $ext, qr{href="/manager/handlers"}, 'and the Extensions page links here' );
-    my $pc = PageScript::page_source("$root/starter/manager/plugin-config.md");
+    my $pc = PageScript::page_source("$root/starter/manager/extension-config.md");
     unlike( $pc, qr/handler-save|form-targets-save|renderHandlerList|showAddHandlerForm/,
         'the Extension Config page no longer draws or saves handlers' );
     like( $pc, qr/href="\/manager\/handlers">Handlers</, 'its form handler row links here' );

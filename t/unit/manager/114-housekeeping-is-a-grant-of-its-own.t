@@ -62,7 +62,7 @@ sub basic { 'Basic ' . encode_base64( "$_[0]:$_[1]", '' ) }
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "control_api_enabled: true\nplugins:\n  - plugins/briefs.pl\n";
+print $cf "control_api_enabled: true\nextensions:\n  - extensions/briefs.pl\n";
 close $cf;
 open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
 print $gsf '{"admins":{"label":"Admins","ui":1,"manage_users":1,"assignable":1}}';

@@ -25,7 +25,7 @@ use TestHelper qw(repo_root);
 my $root = repo_root();
 
 my @files;
-for my $dir ( "$root/lib", $root, "$root/plugins" ) {
+for my $dir ( "$root/lib", $root, "$root/extensions" ) {
     next unless -d $dir;
     opendir my $dh, $dir or next;
     push @files, map { "$dir/$_" } grep { /\.p[lm]$/ } readdir $dh;

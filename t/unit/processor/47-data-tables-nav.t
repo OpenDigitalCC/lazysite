@@ -110,7 +110,7 @@ subtest 'it does not disturb the rest of the menu' => sub {
         manager_caps    => { manage_data => 1 },
     );
     like( $on, qr{/manager/cache},   'Cache is still there' );
-    like( $on, qr{/manager/plugins}, 'and Extensions' );
+    like( $on, qr{/manager/extensions}, 'and Extensions' );
 };
 
 done_testing();

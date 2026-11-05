@@ -50,7 +50,7 @@ my $rule = [ { prefix => '/web', destination => 'https://backend.example.com' } 
 # Switch it on the way an operator would.
 {
     open my $cf, '>>', $s->docroot . '/lazysite/lazysite.conf' or die $!;
-    print {$cf} "extensions:\n  - plugins/remap.pl\n";
+    print {$cf} "extensions:\n  - extensions/remap.pl\n";
     close $cf;
 }
 

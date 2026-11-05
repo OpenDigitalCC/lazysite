@@ -21,7 +21,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 
-my $plugin = "$FindBin::Bin/../../../plugins/pandoc.pl";
+my $plugin = "$FindBin::Bin/../../../extensions/pandoc.pl";
 plan skip_all => 'the plugin is not present' unless -f $plugin;
 
 # Loaded, not run: `run(@ARGV) unless caller` guards its entry point.

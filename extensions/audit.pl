@@ -2,7 +2,7 @@
 # audit.pl - link audit for lazysite docroots
 # Reports orphaned pages (exist but not linked) and broken links
 #
-# Usage: perl plugins/audit.pl [options] [docroot]
+# Usage: perl extensions/audit.pl [options] [docroot]
 #
 # Options:
 #   --exclude path,path,...   comma-separated canonical paths to exclude

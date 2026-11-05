@@ -162,7 +162,7 @@ SKIP: {
         "title: Links\npublic: true\nfields:\n  label:\n    type: text\n  url:\n    type: text\n" );
     Lazysite::Data::Tables::apply_schema( $dr, 'links' );
     open my $cf, '>>', "$dr/lazysite/lazysite.conf" or die $!;
-    print {$cf} "plugins:\n  - plugins/data.pl\n";
+    print {$cf} "extensions:\n  - extensions/data.pl\n";
     close $cf;
     my $good = 'https://example.test/?a=1&b=<2>';
     Lazysite::Data::Tables::insert_row( $dr, 'links', { label => 'good', url => $good } );

@@ -8,7 +8,7 @@ use File::Temp qw(tempdir);
 # SMTP form transport: when the handler's attach_files is on, uploaded files are
 # attached to the email and listed (name + size) below the message. Off (default)
 # = a plain-text email, no attachments.
-my $SMTP = 'plugins/form-smtp.pl';
+my $SMTP = 'extensions/form-smtp.pl';
 ok( -f $SMTP, 'form-smtp present' );
 
 my $d = tempdir( CLEANUP => 1 );

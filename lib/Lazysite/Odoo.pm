@@ -707,7 +707,7 @@ sub _extension_enabled {
         require Lazysite::Manager::Plugins;
         no warnings 'once';
         local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
-        Lazysite::Manager::Plugins::plugin_enabled('plugins/odoo.pl');
+        Lazysite::Manager::Plugins::plugin_enabled('extensions/odoo.pl');
     };
     return $ok ? 1 : 0;
 }

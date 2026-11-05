@@ -28,7 +28,8 @@ use JSON::PP                   qw(decode_json);
 use Lazysite::Util             ();
 use Lazysite::Capabilities     qw(channel_service);
 use Lazysite::Manager::Plugins qw(action_plugin_list);
-use Lazysite::Manager::Common  qw($auth_user _tool_path);
+use Lazysite::Manager::Common  qw($auth_user);
+use File::Basename             qw(dirname);
 
 our @EXPORT_OK = qw(action_channel_services action_analyse_visitors _service_state action_version
     visitor_scope_args);
@@ -98,7 +99,11 @@ sub action_channel_services {
 }
 
 # The visitor-stats plugin. LAZYSITE_STATS_TOOL wins.
-sub _stats_tool_path { return _tool_path( 'LAZYSITE_STATS_TOOL', 'plugins/stats.pl' ) }
+sub _stats_tool_path {
+    return $ENV{LAZYSITE_STATS_TOOL} if defined $ENV{LAZYSITE_STATS_TOOL} && -f $ENV{LAZYSITE_STATS_TOOL};
+    require Lazysite::Extensions;
+    return Lazysite::Extensions::locate( 'stats.pl', dirname($0) . '/..', dirname($0), "$DOCROOT/.." );
+}
 
 # P15 (WORK-PLAN-0154, ruled 2026-10-12 "Record host"): WHOSE TRAFFIC. Every
 # first-party event carries the host that served it; analyse_visitors filters

@@ -25,7 +25,7 @@ use Lazysite::Manager::Plugins ();
 
 my $base = tempdir( CLEANUP => 1 );
 my $doc  = "$base/public_html";
-make_path( "$doc/lazysite", "$base/plugins" );
+make_path( "$doc/lazysite", "$base/extensions" );
 open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\n";
 close $cf;
@@ -34,7 +34,7 @@ close $cf;
 sub plugin {
     my ( $name, @deps ) = @_;
     my $list = join ', ', map {"'$_'"} @deps;
-    open my $fh, '>', "$base/plugins/$name.pl" or die $!;
+    open my $fh, '>', "$base/extensions/$name.pl" or die $!;
     print {$fh} <<"P";
 #!/usr/bin/perl
 use strict; use warnings; use JSON::PP qw(encode_json);
@@ -43,8 +43,8 @@ print encode_json({ id => '$name', name => '$name', version => '1',
     contract => 1, owns => { deps => [ $list ] } });
 P
     close $fh;
-    chmod 0755, "$base/plugins/$name.pl";
-    return "plugins/$name.pl";
+    chmod 0755, "$base/extensions/$name.pl";
+    return "extensions/$name.pl";
 }
 
 local $Lazysite::Manager::Plugins::DOCROOT = $doc;

@@ -103,7 +103,7 @@ sleep 4;
         QUERY_STRING   => '',
     );
 
-    my $out = run_child( [ $^X, "$root/plugins/form-handler.pl" ],
+    my $out = run_child( [ $^X, "$root/extensions/form-handler.pl" ],
         stdin => $body, stderr => 'inherit' )->{out};
 
     like( $out, qr/Status: 200 OK/, 'form POST → 200' );
@@ -154,7 +154,7 @@ sleep 4;
         REMOTE_ADDR    => '127.0.0.9',
         QUERY_STRING   => '',
     );
-    my $out = run_child( [ $^X, "$root/plugins/form-handler.pl" ],
+    my $out = run_child( [ $^X, "$root/extensions/form-handler.pl" ],
         stdin => $body, stderr => 'inherit' )->{out};
     like( $out, qr/Status: 200 OK/, 'spammy submission still 200 (stored, not rejected)' );
 
@@ -184,7 +184,7 @@ sleep 4;
         CONTENT_TYPE   => 'application/x-www-form-urlencoded',
         REMOTE_ADDR    => '127.0.0.1',
     );
-    my $out = run_child( [ $^X, "$root/plugins/form-handler.pl" ],
+    my $out = run_child( [ $^X, "$root/extensions/form-handler.pl" ],
         stdin => $body, stderr => 'inherit' )->{out};
     $out =~ s/\A.*?\r?\n\r?\n//s;
     my $r = decode_json($out);
@@ -204,7 +204,7 @@ sleep 4;
         CONTENT_TYPE   => 'application/x-www-form-urlencoded',
         REMOTE_ADDR    => '127.0.0.1',
     );
-    my $out = run_child( [ $^X, "$root/plugins/form-handler.pl" ],
+    my $out = run_child( [ $^X, "$root/extensions/form-handler.pl" ],
         stdin => $body, stderr => 'inherit' )->{out};
     $out =~ s/\A.*?\r?\n\r?\n//s;
     my $r = decode_json($out);

@@ -33,7 +33,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(site_tempdir);
 
-my $PLUGIN = 'plugins/form-handler.pl';
+my $PLUGIN = 'extensions/form-handler.pl';
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
 # A real docroot a level down, not a bare tempdir: $d is handed to the engine as

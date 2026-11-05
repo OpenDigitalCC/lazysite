@@ -71,7 +71,7 @@ subtest 'DISABLED MEANS DISABLED (ADR 0009, the SM469 clause)' => sub {
 };
 
 open my $ap, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$ap} "plugins:\n  - plugins/briefs.pl\n";
+print {$ap} "extensions:\n  - extensions/briefs.pl\n";
 close $ap;
 
 subtest 'the round trip: append, then read back, attributed and stamped' => sub {

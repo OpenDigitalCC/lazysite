@@ -50,7 +50,7 @@ sub site {
     my $d = site_tempdir();
     make_path( "$d/lazysite/db/tables", "$d/lazysite/auth" );
     spit( "$d/lazysite/lazysite.conf",
-        "site_name: T\nplugins:\n  - plugins/data.pl\n"
+        "site_name: T\nextensions:\n  - extensions/data.pl\n"
             . "auth_header_user: X-Authentik-Username\n"
             . "auth_header_groups: X-Authentik-Groups\n"
             . "auth_header_groups_separator: |\n"

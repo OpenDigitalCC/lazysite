@@ -2,7 +2,7 @@
 # SM913 S4: the manager says whether a form's quarantine is on - and says what
 # the form handler will actually do.
 #
-# The handler (plugins/form-handler.pl) is a CGI the manager cannot load, so the
+# The handler (extensions/form-handler.pl) is a CGI the manager cannot load, so the
 # manager reads the form's config through Lazysite::Handlers::form_quarantine_state,
 # a second reader of the same keys. Two readers of one setting is the defect this
 # project keeps closing, so this file holds them together by BEHAVIOUR: for every
@@ -20,7 +20,7 @@ use TestHelper qw(repo_root site_tempdir);
 use Lazysite::Handlers;
 use PageScript qw(extract_function page_source);
 
-my $PLUGIN = repo_root() . '/plugins/form-handler.pl';
+my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
 my $d = site_tempdir();

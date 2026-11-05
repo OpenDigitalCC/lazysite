@@ -11,7 +11,7 @@
 # already rule that a contract plugin executes only when listed and defaults to
 # disabled. Manager/Data.pm honours it and resolve_db did not, so this restores
 # a standing ruling on one code path rather than changing behaviour in the
-# field. (The access log was tried first and reverted: plugins/stats.pl is a
+# field. (The access log was tried first and reverted: extensions/stats.pl is a
 # LEGACY descriptor, which the same ADR says must keep running until its own
 # migration - and `plugins:` cannot express "off" for a unit nobody has listed,
 # so absence there is not a decision.)
@@ -55,7 +55,7 @@ sub rows_with_unit {
     my ($listed) = @_;
     open my $fh, '>:utf8', $conf or die $!;
     print $fh "site_name: L0 test\n";
-    print $fh "plugins:\n  - plugins/data.pl\n" if $listed;
+    print $fh "extensions:\n  - extensions/data.pl\n" if $listed;
     close $fh;
 
     main::_reset_units();    # an FCGI worker re-reads; so must the test

@@ -555,7 +555,7 @@ subtest 'one induced failure, every surface agrees; one fix, every surface recov
             '--docroot', $d, '--group', $grp, @_ );
     };
     my $status = sub {
-        my $out = qx($^X "$root/plugins/content-history.pl" --scan --docroot "$d");
+        my $out = qx($^X "$root/extensions/content-history.pl" --scan --docroot "$d");
         return eval { decode_json($out) } // {};
     };
 

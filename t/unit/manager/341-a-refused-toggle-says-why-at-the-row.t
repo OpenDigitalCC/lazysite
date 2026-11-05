@@ -30,7 +30,7 @@ my $root = repo_root();
 chomp( my $node = `sh -c 'command -v node || command -v nodejs' 2>/dev/null` );
 plan skip_all => 'node not installed' unless length $node && -x $node;
 
-my $page = PageScript::page_source("$root/starter/manager/plugins.md");
+my $page = PageScript::page_source("$root/starter/manager/extensions.md");
 my $fns  = join "\n",
     map { PageScript::extract_function( $page, $_ ) }
     qw(warn showRowRefusal clearRowRefusal togglePlugin);
@@ -83,7 +83,7 @@ my $drive = <<'JS';
   var said = 'This plugin needs Odoo::Ops (Debian: odoo-oom) and they are not installed.';
   reply = function () { return ok({ ok: 0, kind: 'missing_deps', error: said }); };
   input.checked = true;
-  togglePlugin(input, 'plugins/odoo.pl', 'Odoo');
+  togglePlugin(input, 'extensions/odoo.pl', 'Odoo');
   await new Promise(function (r) { setTimeout(r, 10); });
   var note = main.querySelector('.mg-plugin-refusal');
   out({ step: 'refused', checked: input.checked, row: refusal(),
@@ -92,12 +92,12 @@ my $drive = <<'JS';
 
   reply = function () { return new Promise(function () {}); };
   input.checked = true;
-  togglePlugin(input, 'plugins/odoo.pl', 'Odoo');
+  togglePlugin(input, 'extensions/odoo.pl', 'Odoo');
   out({ step: 'retry', row: refusal() });
 
   reply = function () { return Promise.reject(new Error('network down')); };
   input.disabled = false; input.checked = true;
-  togglePlugin(input, 'plugins/odoo.pl', 'Odoo');
+  togglePlugin(input, 'extensions/odoo.pl', 'Odoo');
   await new Promise(function (r) { setTimeout(r, 10); });
   out({ step: 'unreachable', row: refusal(), checked: input.checked });
 })();

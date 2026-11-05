@@ -87,7 +87,7 @@ subtest 'a filter in the binding cannot widen it' => sub {
 
 subtest 'the same holds through a rendered page' => sub {
     open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
-    print {$cf} "plugins:\n  - plugins/data.pl\n";
+    print {$cf} "extensions:\n  - extensions/data.pl\n";
     close $cf;
     spit( "$docroot/mine.md",
         "---\ntitle: Mine\ntt_page_var:\n  items: db:posts(mine,order=body)\n"

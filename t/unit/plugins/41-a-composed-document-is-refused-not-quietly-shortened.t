@@ -27,7 +27,7 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 
-my $plug = "$FindBin::Bin/../../../plugins/pandoc.pl";
+my $plug = "$FindBin::Bin/../../../extensions/pandoc.pl";
 plan skip_all => "no $plug" unless -f $plug;
 require $plug;
 

@@ -86,7 +86,7 @@ subtest 'a table without stamps is told which of its fields only look like one' 
     print {$y} "title: QA\nkey: qid\nfields:\n  qid:\n    type: text\n    required: true\n  added_at:\n    type: text\n    max: 40\n  saved_at:\n    type: datetime\n  body:\n    type: text\n";
     close $y;
     open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-    print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+    print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
     close $cf;
     require Lazysite::Manager::Data;
     no warnings 'once';

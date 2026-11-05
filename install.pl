@@ -958,9 +958,21 @@ sub cmd_install {
     # 2026-09-11: on by default). Listed on a fresh install and on the first
     # upgrade that knows about it; switched off afterwards, it stays off.
     my @once = ( $state && ref $state->{once} eq 'ARRAY' ) ? @{ $state->{once} } : ();
+
+    # extensions-rename (SM1142): before the step below, which writes into the
+    # list this converts.
+    unless ( grep { $_ eq 'extensions-rename' } @once ) {
+        my ( $changed, $warn ) = extensions_rename( $o->{docroot}, $o->{cgibin}, \%subs );
+        _drop_old_dir_orphans( $plan_stats, $warnings, \%subs );
+        info("  extensions: $_") for @$changed;
+        $plan_stats->{extensions_rename} = $changed;
+        push @$warnings, @$warn;
+        push @once, 'extensions-rename' unless @$warn;
+    }
+
     unless ( grep { $_ eq 'login-rate-limit-on' } @once ) {
         my ( $added, $err ) = enable_extension_in_conf( _conf_path( $o->{docroot} ),
-            'plugins/login-rate-limit.pl' );
+            'extensions/login-rate-limit.pl' );
         if ( defined $err ) {
             push @$warnings, "RATE LIMIT: could not switch the login rate limit extension on ($err) - "
                 . 'switch it on in the manager\'s extensions list, or this site has no login rate limiting';
@@ -1086,10 +1098,11 @@ sub convert_retired_conf_keys {
 # and an error when the conf could not be written. A missing conf is left alone
 # and reported as an error, so the step is not recorded as done.
 #
-# The registry is the `plugins:` block (or `extensions:`, its SM817 name - one
-# list spelled two ways), read by Lazysite::Manager::Plugins::_enabled_map. Text
-# in, text out: the installer loads no Lazysite module (SM767). Commented lines
-# are not a block, so the shipped example's own `# plugins:` prose is untouched.
+# The registry is the `extensions:` block, read by
+# Lazysite::Manager::Plugins::_enabled_map; SM1142's extensions-rename has
+# converted a site's old list before this runs. Text in, text out: the installer
+# loads no Lazysite module (SM767). Commented lines are not a block, so the
+# shipped example's own `# extensions:` prose is untouched.
 sub enable_extension_in_conf {
     my ( $conf, $script ) = @_;
     return ( 0, "no lazysite.conf at $conf" ) unless -f $conf;
@@ -1100,7 +1113,7 @@ sub enable_extension_in_conf {
     my ( $head, $last );
     for my $i ( 0 .. $#lines ) {
         if ( !defined $head ) {
-            $head = $last = $i if $lines[$i] =~ /^(?:extensions|plugins)\s*:\s*$/;
+            $head = $last = $i if $lines[$i] =~ /^extensions\s*:\s*$/;
             next;
         }
         if ( $lines[$i] =~ /^\s+-\s+(.+?)\s*$/ ) {
@@ -1115,11 +1128,180 @@ sub enable_extension_in_conf {
     }
     else {
         $lines[-1] .= "\n" if @lines && $lines[-1] !~ /\n\z/;
-        push @lines, "plugins:\n", "  - $script\n";
+        push @lines, "extensions:\n", "  - $script\n";
     }
     my ( $ok, $why ) = _replace_conf( $conf, \@lines );
     return $ok ? ( 1, undef ) : ( 0, $why );
 }
+
+# SM1142 S1: EXTENSIONS-RENAME, THE UPGRADE THAT MOVES A SITE TO THE ONE NAME.
+#
+# Ruled 2026-10-17 (R3): "fixup on upgrade, then its done" - nothing reads the
+# old directory or the old conf spelling after this, so everything that held
+# them is converted here, once, and the result is in the upgrade summary:
+#
+#   - every entry left in the old directory beside the docroot moves to
+#     extensions/. By the time this runs the plan has installed the payload
+#     there and removed the old copies it had installed unedited, so what is
+#     left is a copy the site edited or a file the site added. A name the
+#     payload already holds keeps the payload's copy, as an edited code file
+#     always has on upgrade, and the site's version is kept beside it as
+#     <name>.from-plugins (not a .pl, so the registry never lists it);
+#   - a cgi-bin symlink into the old directory is pointed at the moved file
+#     (the two the installer makes are re-made by post_install_steps already;
+#     this catches one made by hand from the docs);
+#   - lazysite.conf: the old list header becomes `extensions:` and each
+#     `- <old>/<file>` entry `- extensions/<file>`, so every extension that was
+#     on stays on - login rate limiting among them, which reads as off, and
+#     silently, if this is missed. A conf that carried both headers (SM915's
+#     damaged shape, which the readers merged) gets the union in one list;
+#   - a start page stored as the old Extensions page names the new one;
+#   - the old directory is removed when it is empty. Where its parent is not
+#     ours to write (Hestia's root-owned domain root), the root-run deploy
+#     removes it after this, and the summary says so.
+#
+# Idempotent: a second run finds nothing to move and nothing to rewrite.
+# Returns ( \@changed, \@warnings ). Text in, text out (SM767).
+#
+# old-name: begin (SM1142, the migration names what it migrates)
+# A sub, not a file-scope variable: cmd_install runs before the top level of
+# this file reaches any assignment below it.
+sub _old_ext_dir { return 'plugins' }
+
+sub extensions_rename {
+    my ( $docroot, $cgibin, $subs ) = @_;
+    my $od = _old_ext_dir();
+    my ( @changed, @warn );
+    my $old = resolve_placeholders( "{DOCROOT}/../$od", $subs );
+    my $new = resolve_placeholders( '{DOCROOT}/../extensions',   $subs );
+    # The step moves every entry of $old: it must be the old directory and
+    # nothing wider, whatever the placeholders resolved to.
+    return ( [], ["EXTENSIONS: refusing to convert - the directories resolved to $old and $new"] )
+        unless $old =~ m{/\Q$od\E\z} && $new =~ m{/extensions\z};
+
+    if ( -d $old && !-l $old ) {
+        if ( !-d $new && !make_path($new) ) {
+            push @warn, "EXTENSIONS: could not create $new ($!) - the files in $old were "
+                . 'not moved, and nothing reads them now. Create it (on Hestia, as root) and '
+                . 'run the upgrade again';
+        }
+        elsif ( opendir my $dh, $old ) {
+            for my $e ( sort grep { $_ ne '.' && $_ ne '..' } readdir $dh ) {
+                my $src = "$old/$e";
+                my $dst = ( -e "$new/$e" || -l "$new/$e" ) ? "$new/$e.from-plugins" : "$new/$e";
+                if ( -e $dst || -l $dst ) {
+                    push @warn, "EXTENSIONS: $src was left in place - $dst already exists. "
+                        . 'Compare the two and remove the one you do not want';
+                    next;
+                }
+                if ( rename $src, $dst ) {
+                    push @changed, $dst =~ /\.from-plugins\z/
+                        ? "kept the site's copy of $e as extensions/$e.from-plugins (the release's copy is extensions/$e)"
+                        : "moved $e to extensions/";
+                }
+                else {
+                    push @warn, "EXTENSIONS: could not move $src to $dst ($!) - nothing reads it there";
+                }
+            }
+            closedir $dh;
+        }
+        if ( -d $old ) {
+            if ( rmdir $old ) {
+                push @changed, "removed the empty $od/ directory";
+            }
+            elsif ( opendir my $left, $old ) {
+                my $n = grep { $_ ne '.' && $_ ne '..' } readdir $left;
+                closedir $left;
+                push @changed, "the empty $old is not ours to remove (its parent is not writable) - "
+                    . 'the root-run deploy removes it'
+                    unless $n;
+            }
+        }
+    }
+
+    # The cgi-bin links into the old directory.
+    if ( length( $cgibin // '' ) && opendir my $ch, $cgibin ) {
+        for my $e ( sort grep { -l "$cgibin/$_" } readdir $ch ) {
+            my $link   = "$cgibin/$e";
+            my $target = readlink $link;
+            next unless defined $target;
+            my $abs = $target =~ m{\A/} ? $target : "$cgibin/$target";
+            my ($file) = $abs =~ m{/\Q$od\E/([^/]+)\z} or next;
+            my $to = "$new/$file";
+            next unless -f $to;
+            unlink $link;
+            if ( symlink $to, $link ) {
+                push @changed, "re-pointed $link at extensions/$file";
+            }
+            else {
+                push @warn, "EXTENSIONS: could not re-point $link at $to ($!)";
+            }
+        }
+        closedir $ch;
+    }
+
+    # lazysite.conf.
+    my $conf = _conf_path($docroot);
+    if ( -f $conf && open my $in, '<', $conf ) {
+        my @lines = <$in>;
+        close $in;
+        my ( @out, @entries, %seen, $at, $in_list, $was_old );
+        for my $l (@lines) {
+            if ( $l =~ /^(extensions|\Q$od\E)\s*:\s*$/ ) {
+                $was_old = 1 if $1 eq $od;
+                $at //= scalar @out;
+                $in_list = 1;
+                next;
+            }
+            if ($in_list) {
+                if ( $l =~ /^\s+-\s+(.+?)\s*$/ ) {
+                    ( my $entry = $1 ) =~ s{\A\Q$od\E/}{extensions/};
+                    $was_old = 1 if $entry ne $1;
+                    push @entries, $entry unless $seen{$entry}++;
+                    next;
+                }
+                # As the readers do: an indented line stays in the list (and is
+                # kept), anything else - a blank line included - ends it.
+                if ( $l =~ /^[ \t]/ ) { push @out, $l; next }
+                $in_list = 0;
+            }
+            push @out, $l;
+        }
+        if ($was_old) {
+            splice @out, $at, 0, "extensions:\n", map { "  - $_\n" } @entries;
+            $out[ $at - 1 ] .= "\n" if $at && $out[ $at - 1 ] !~ /\n\z/;
+            my ( $ok, $why ) = _replace_conf( $conf, \@out );
+            if   ($ok) { push @changed, 'lazysite.conf lists the enabled extensions under extensions:, as extensions/<file>' }
+            else       { push @warn, "EXTENSIONS: could not rewrite $conf ($why) - every extension reads as off until it is" }
+        }
+    }
+
+    # A start page naming the old Extensions page.
+    my $settings = lazysite_dir_for($docroot) . '/auth/user-settings.json';
+    if ( -f $settings && open my $sin, '<', $settings ) {
+        my $text = do { local $/; <$sin> };
+        close $sin;
+        my $n = $text =~ s/("start_page"\s*:\s*"manager:)\Q$od\E(")/$1extensions$2/g;
+        if ($n) {
+            my ( $ok, $why ) = _replace_conf( $settings, [$text] );
+            if   ($ok) { push @changed, "$n start page(s) now name /manager/extensions" }
+            else       { push @warn, "EXTENSIONS: could not rewrite $settings ($why) - $n account(s) land on the account sheet until their start page is set again" }
+        }
+    }
+    return ( \@changed, \@warn );
+}
+
+# The plan's orphan lines for the old directory: the step above moved them.
+sub _drop_old_dir_orphans {
+    my ( $stats, $warnings, $subs ) = @_;
+    my $od = _old_ext_dir();
+    my $old = resolve_placeholders( "{DOCROOT}/../$od", $subs );
+    my $is_old = sub { index( $_[0], "$old/" ) == 0 };
+    @{ $stats->{orphaned} } = grep { !$is_old->($_) } @{ $stats->{orphaned} };
+    @$warnings = grep { !( /\Aorphan \(edited post-install, left in place\): (.+)\z/ && $is_old->($1) ) } @$warnings;
+    return;
+}
+# old-name: end
 
 # =========================================================
 # ---------- plan computation ----------
@@ -1660,13 +1842,13 @@ sub install_file {
         # pass it through rather than burying it under the Hestia hint, which
         # would send the reader to re-apply a web template that cannot fix it.
         die $err if $err =~ /^No declared mode/;
-        # Most often: a site-root sibling (plugins/, tools/, lib/) on a Hestia
+        # Most often: a site-root sibling (extensions/, tools/, lib/) on a Hestia
         # domain, whose root is mode 0551 - the template hook (lazysite-app.sh)
         # must pre-create those as root. Give an actionable message rather than
         # a bare "mkdir ... Permission denied".
         die "Cannot create directory $dir: $err"
             . "  If this is a Hestia install, the domain root is not user-writable;\n"
-            . "  re-apply the lazysite-app web template (it pre-creates plugins/,\n"
+            . "  re-apply the lazysite-app web template (it pre-creates extensions/,\n"
             . "  tools/ and lib/ as root), then re-run the install.\n";
     }
     my $new = !-e $dest;    # SM933 A2: regroup only what this copy CREATES
@@ -1718,7 +1900,7 @@ sub post_install_steps {
 
     my $docroot    = $o->{docroot};
     my $cgibin     = $o->{cgibin};
-    my $plugin_dir = resolve_placeholders( '{DOCROOT}/../plugins', $subs );
+    my $plugin_dir = resolve_placeholders( '{DOCROOT}/../extensions', $subs );
 
     # --- cgi-bin symlinks for plugin endpoints ---
     #
@@ -2006,7 +2188,7 @@ sub create_runtime_paths {
             #            able to write; a sysop who "tightens" lazysite/cache
             #            breaks their own site, silently, and the failure looks
             #            like a rendering fault rather than a permission one.
-            #   leave  - set on creation, never touched again. ../plugins is
+            #   leave  - set on creation, never touched again. ../extensions is
             #            EXECUTED, not written, so 0755 is right and hardening it
             #            further is a legitimate sysop choice.
             #
@@ -2742,7 +2924,7 @@ sub resolve_placeholders {
         $out =~ s/\{\Q$k\E\}/$subs->{$k}/g;
     }
     # Collapse any "/../" sequences where the docroot placeholder
-    # introduced them (e.g. {DOCROOT}/../plugins), by normalising
+    # introduced them (e.g. {DOCROOT}/../extensions), by normalising
     # through a simple textual pass. Do NOT use abs_path here - the
     # directory may not exist yet.
     #
@@ -2813,6 +2995,11 @@ sub print_summary {
         print STDERR "    - $_\n" for @{ $stats->{orphaned} };
     }
     print STDERR "  Backup:     $backup_path\n" if $backup_path;
+    # SM1142: what the move to extensions/ did, on the upgrade that did it.
+    if ( @{ $stats->{extensions_rename} || [] } ) {
+        print STDERR "  Extensions: converted to extensions/ (SM1142):\n";
+        print STDERR "    - $_\n" for @{ $stats->{extensions_rename} };
+    }
 
     # SM933 A2: the paths this run could not give the docroot's group. Said in the
     # summary rather than left for the reader to infer from check failures,

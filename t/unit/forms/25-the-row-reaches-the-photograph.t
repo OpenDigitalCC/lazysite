@@ -46,7 +46,7 @@ sub fresh_site {
     my ($conf) = @_;
     my $d = site_tempdir();
     make_path( "$d/lazysite/forms", "$d/lazysite/logs", "$d/lazysite/db/tables" );
-    spit( "$d/lazysite/lazysite.conf", "site_name: T\nplugins:\n  - plugins/data.pl\n" );
+    spit( "$d/lazysite/lazysite.conf", "site_name: T\nextensions:\n  - extensions/data.pl\n" );
     spit( "$d/lazysite/db/tables/leads.yaml",
         "fields:\n  name:\n    type: text\n  email:\n    type: text\n  files:\n    type: text\n" );
     spit( "$d/lazysite/forms/handlers.conf",

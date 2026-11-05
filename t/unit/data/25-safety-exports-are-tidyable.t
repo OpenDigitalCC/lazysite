@@ -17,7 +17,7 @@ use Lazysite::Manager::Data
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/db/rebuilds");
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $cf;
 $Lazysite::Manager::Data::DOCROOT = $docroot;
 for my $f (qw(zz-dropped-20260824T133544Z.json things-20260824T140000Z.json notes.txt)) {

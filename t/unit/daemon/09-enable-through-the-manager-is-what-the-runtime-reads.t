@@ -3,7 +3,7 @@
 # through the SAME WRITER the Plugin Manager uses - never a fixture's idea of
 # what the conf holds.
 #
-# The field found it: Enable wrote `plugins/daemon.pl` into the conf, the
+# The field found it: Enable wrote `extensions/daemon.pl` into the conf, the
 # listing read it back as enabled, and the runtime looked up 'daemon.pl' -
 # a word the conf never holds - and reported "the plugin is disabled" five
 # minutes after the sysop had switched it on. Every daemon test had written
@@ -25,10 +25,10 @@ use Lazysite::Manager::StartPage;
 
 my $engine = "$FindBin::Bin/../../..";
 
-# The registry scans "$DOCROOT/../plugins", so the site sits one level below
+# The registry scans "$DOCROOT/../extensions", so the site sits one level below
 # a directory that carries the engine's real plugins.
 my $base = tempdir( CLEANUP => 1 );
-symlink( "$engine/plugins", "$base/plugins" ) or die "symlink: $!";
+symlink( "$engine/extensions", "$base/extensions" ) or die "symlink: $!";
 my $root = "$base/site";
 make_path("$root/lazysite/auth");
 open my $c, '>', "$root/lazysite/lazysite.conf" or die $!;
@@ -47,12 +47,12 @@ subtest 'before: the runtime reads disabled' => sub {
 };
 
 subtest 'enable through the manager: the runtime reads enabled' => sub {
-    my $r = Lazysite::Manager::Plugins::action_plugin_enable('plugins/daemon.pl');
+    my $r = Lazysite::Manager::Plugins::action_plugin_enable('extensions/daemon.pl');
     ok( $r->{ok}, 'the manager enabled it' ) or diag explain $r;
     open my $fh, '<', "$root/lazysite/lazysite.conf" or die $!;
     my $conf = do { local $/; <$fh> };
     close $fh;
-    like( $conf, qr/^\s+-\s+plugins\/daemon\.pl$/m, 'the conf holds the registry key' );
+    like( $conf, qr/^\s+-\s+extensions\/daemon\.pl$/m, 'the conf holds the registry key' );
 
     is( Lazysite::Daemon::Supervisor::should_run($root), 1,
         'should_run reads the key the manager wrote' );
@@ -67,7 +67,7 @@ subtest 'enable through the manager: the runtime reads enabled' => sub {
 };
 
 subtest 'disable through the manager: the runtime reads disabled' => sub {
-    my $r = Lazysite::Manager::Plugins::action_plugin_disable('plugins/daemon.pl');
+    my $r = Lazysite::Manager::Plugins::action_plugin_disable('extensions/daemon.pl');
     ok( $r->{ok}, 'disabled' ) or diag explain $r;
     is( Lazysite::Daemon::Supervisor::should_run($root), 0, 'should_run follows' );
 
@@ -75,7 +75,7 @@ subtest 'disable through the manager: the runtime reads disabled' => sub {
     # afterwards - answers with the state, not the refusal. The disable hook
     # had shown it seconds earlier; the field found the button blank a minute
     # later.
-    my $st = Lazysite::Manager::Plugins::action_plugin_action( 'daemon', 'plugins/daemon.pl', 'status' );
+    my $st = Lazysite::Manager::Plugins::action_plugin_action( 'daemon', 'extensions/daemon.pl', 'status' );
     ok( $st->{ok}, 'Status answers while the plugin is disabled' ) or diag explain $st;
     is( $st->{desired}, 'off', 'desired off' );
     like( $st->{summary}, qr/disabled and the runtime is stopped/, 'and says the runtime stopped' );
@@ -86,7 +86,7 @@ subtest 'the start-page gate reads the same key' => sub {
     my $caps = { ui => 1 };
     is( Lazysite::Manager::StartPage::_page_reachable( 'stats', $caps ), 0,
         'stats page unreachable while its plugin is off' );
-    my $r = Lazysite::Manager::Plugins::action_plugin_enable('plugins/stats.pl');
+    my $r = Lazysite::Manager::Plugins::action_plugin_enable('extensions/stats.pl');
     ok( $r->{ok}, 'stats plugin enabled through the manager' ) or diag explain $r;
     is( Lazysite::Manager::StartPage::_page_reachable( 'stats', $caps ), 1,
         'and now reachable - the gate read what the manager wrote' );

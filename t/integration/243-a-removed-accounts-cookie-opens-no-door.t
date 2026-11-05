@@ -37,7 +37,7 @@ my $auth = "$root/lazysite-auth.pl";
 my $mapi = "$root/lazysite-manager-api.pl";
 my $proc = "$root/lazysite-processor.pl";
 my $data = "$root/lazysite-data.pl";
-my $form = "$root/plugins/form-handler.pl";
+my $form = "$root/extensions/form-handler.pl";
 my $utl  = "$root/tools/lazysite-users.pl";
 
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
@@ -59,7 +59,7 @@ sub users { return run_cmd( $^X, $utl, '--docroot', @_ ) }
 sub site {
     my $d = site_tempdir();
     make_path( map { "$d/lazysite/$_" } qw(auth logs forms db/tables) );
-    spit( "$d/lazysite/lazysite.conf", "site_name: T\nmanager: enabled\nplugins:\n  - plugins/data.pl\n" );
+    spit( "$d/lazysite/lazysite.conf", "site_name: T\nmanager: enabled\nextensions:\n  - extensions/data.pl\n" );
     spit( "$d/lazysite/forms/.secret", 'b' x 64 );
     spit( "$d/index.md",               "---\ntitle: Home\n---\nHOME\n" );
     spit( "$d/members.md", "---\ntitle: M\nauth: required\n---\nSECRET-MEMBERS\n" );

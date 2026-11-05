@@ -19,7 +19,7 @@ use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root site_tempdir env_passthrough run_cmd);
 
 my $root    = repo_root();
-my $handler = "$root/plugins/form-handler.pl";
+my $handler = "$root/extensions/form-handler.pl";
 plan skip_all => "no $handler" unless -f $handler;
 
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }

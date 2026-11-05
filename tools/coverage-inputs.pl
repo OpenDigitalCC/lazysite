@@ -27,7 +27,7 @@
 #   - its code has none of those constructs, and no dynamic call (`->can`,
 #     `->$name`, `&$ref`, goto) that could reach one unseen;
 #   - it names no measured file and builds no `lazysite-$...` name; and
-#   - it mentions no sub, in any module under lib/, t/ or plugins/, that
+#   - it mentions no sub, in any module under lib/, t/ or extensions/, that
 #     launches - directly or through a sub that does - and loads no module
 #     whose load-time code launches, directly or through what IT loads.
 #
@@ -74,7 +74,7 @@ my @HARNESS = qw(tools/coverage.sh tools/coverage-inputs.pl);
 # a change to one moves the digest exactly as a change to the script does.
 my @files = grep { -f } @EXPLICIT, @HARNESS, glob('lazysite-processor/*.pm');
 my ( @tests, @code );
-for my $dir (qw(t lib plugins)) {
+for my $dir (qw(t lib extensions)) {
     next unless -d $dir;
     find(
         { no_chdir => 1,
@@ -107,7 +107,7 @@ my $LAUNCH_MODULE = qr{^(?:IPC|Proc|Capture|Test::Script|Test::Command|Test::TCP
 # What a TEST may load and still be shown inert: core and CPAN modules that
 # start no process and load no file by name. A test that loads anything else -
 # a network client, a template engine, a module not listed - is in. Modules
-# under lib/, t/ and plugins/ are judged by their own code instead.
+# under lib/, t/ and extensions/ are judged by their own code instead.
 my %INERT = map { $_ => 1 } qw(
     strict warnings utf8 lib feature open constant parent base vars integer bytes
     Test::More Test::Builder FindBin File::Path File::Temp File::Basename File::Copy File::Find
@@ -328,7 +328,7 @@ while ( $HAVE_PPI && $grew ) {
 # file is assumed to, or a module they load does.
 my ( %loads, %pkg_of );
 for my $f (@code) {
-    ( my $p = $f ) =~ s{^(?:t/(?:[\w/]*/)?lib|lib|plugins)/}{};
+    ( my $p = $f ) =~ s{^(?:t/(?:[\w/]*/)?lib|lib|extensions)/}{};
     $p             =~ s{\.p[ml]$}{};
     $p             =~ s{/}{::}g;
     $pkg_of{$f} = [ $p, @{ $an{$f}{pkgs} || [] } ];

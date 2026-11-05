@@ -42,7 +42,7 @@ sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh}
 sub desc { my ($dom) = @_; return "title: t\n" . ( $dom ? "domain: $dom\n" : '' ) . "key: slug\nfields:\n  slug:\n    type: text\n" }
 
 my $s = new_site( root => $root,
-    conf => "control_api_enabled: true\nmcp_enabled: true\nextensions:\n  - plugins/data.pl\n" );
+    conf => "control_api_enabled: true\nmcp_enabled: true\nextensions:\n  - extensions/data.pl\n" );
 my $d = $s->docroot;
 make_path( "$d/sites/mine", "$d/sites/other", "$d/lazysite/db/tables", "$d/lazysite/db/rebuilds" );
 $s->add_user('op');

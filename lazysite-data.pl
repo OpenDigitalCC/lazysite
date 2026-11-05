@@ -127,7 +127,7 @@ sub main {
         { ok => 0,
             error => 'The data plugin is disabled. A sysop can enable it '
                 . 'on the Extensions page.' } )
-        unless Lazysite::Manager::Plugins::plugin_enabled('plugins/data.pl');
+        unless Lazysite::Manager::Plugins::plugin_enabled('extensions/data.pl');
 
     my %q;
     for my $pair ( split /&/, ( $ENV{QUERY_STRING} // '' ) ) {

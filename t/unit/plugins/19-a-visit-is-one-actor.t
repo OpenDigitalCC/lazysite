@@ -27,7 +27,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/plugins/stats.pl';
+my $PLUGIN = repo_root() . '/extensions/stats.pl';
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
 my $d = tempdir( CLEANUP => 1 );
@@ -109,7 +109,7 @@ subtest 'unique visitors stays ONE - counting keeps the bare token' => sub {
     # basis change look like a failure of SM417's rule, which is a different
     # thing entirely.
     my ($current) = do {
-        open my $ph, q{<}, repo_root() . q{/plugins/stats.pl} or die $!;
+        open my $ph, q{<}, repo_root() . q{/extensions/stats.pl} or die $!;
         local $/;
         <$ph> =~ /our \$COUNTING_BASIS = (\d+);/;
     };

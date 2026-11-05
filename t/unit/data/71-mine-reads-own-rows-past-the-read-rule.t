@@ -51,7 +51,7 @@ insert_row( $docroot, 'follows', { post => 'P-NOBODY' }, actor => '' );
 insert_row( $docroot, 'plain',   { post => 'PLAIN-1' },  actor => 'ann' );
 
 open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "plugins:\n  - plugins/data.pl\n";
+print {$cf} "extensions:\n  - extensions/data.pl\n";
 close $cf;
 
 my $LIST = '[% FOREACH i IN items %]<li>[% i.post %]</li>[% END %]';

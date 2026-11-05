@@ -30,7 +30,7 @@ use Lazysite::Manager::Data ();
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/db/tables");
 open my $c, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$c} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+print {$c} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $c;
 my $path = "$docroot/lazysite/db/tables/live.yaml";
 sub describe { open my $f, '>', $path or die $!; print {$f} $_[0]; close $f }

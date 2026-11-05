@@ -41,7 +41,7 @@ sub site {
     my (%rule) = @_;
     my $d = site_tempdir();
     make_path( "$d/lazysite/forms", "$d/lazysite/logs", "$d/lazysite/db/tables", "$d/lazysite/notify-templates" );
-    spit( "$d/lazysite/lazysite.conf", "site_name: T\nsite_url: https://news.example\nplugins:\n  - plugins/data.pl\n" );
+    spit( "$d/lazysite/lazysite.conf", "site_name: T\nsite_url: https://news.example\nextensions:\n  - extensions/data.pl\n" );
     $OUT  = "$d/mail.out";
     $FAIL = "$d/fail-for";
     spit( "$d/sendmail", "#!$^X\n" . <<"MOCK" );

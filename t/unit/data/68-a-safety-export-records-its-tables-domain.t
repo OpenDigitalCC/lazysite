@@ -33,7 +33,7 @@ use Lazysite::Manager::Domains ();
 my $d = Cwd::realpath( TestHelper::site_tempdir( plugins => 1 ) );
 make_path( "$d/lazysite/db/tables", "$d/lazysite/auth", "$d/sites/alpha", "$d/sites/beta" );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\nalias_hosts: alpha.test, beta.test\n"
+print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\nalias_hosts: alpha.test, beta.test\n"
     . "alias.alpha.test.content_root: sites/alpha\nalias.beta.test.content_root: sites/beta\n";
 close $cf;
 $Lazysite::Manager::Common::DOCROOT  = $d;

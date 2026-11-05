@@ -26,7 +26,7 @@ my $d    = site_tempdir();
 make_path( "$d/lazysite/auth", "$d/lazysite/briefs" );
 sub spit { my ( $p, $t ) = @_; open my $fh, '>:raw', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 spit( "$d/lazysite/lazysite.conf",
-    "site_name: T\nmcp_enabled: true\ngit_history: enabled\nplugins:\n  - plugins/briefs.pl\n" );
+    "site_name: T\nmcp_enabled: true\ngit_history: enabled\nextensions:\n  - extensions/briefs.pl\n" );
 spit( "$d/index.md", "---\ntitle: Home\n---\nHome caf\xC3\xA9.\n" );  # UTF-8: the control
 spit( "$d/bad.md",   "---\ntitle: B\n---\nBody caf\xE9 here.\n" );    # offset 25
 spit( "$d/badfm.md", "---\ntitle: B\xFF\n---\nBody.\n" );             # offset 12

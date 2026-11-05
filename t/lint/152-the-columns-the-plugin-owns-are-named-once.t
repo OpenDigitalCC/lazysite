@@ -27,7 +27,7 @@ my $HOME = 'lib/Lazysite/Data/Owned.pm';
 
 # Every Perl file the engine ships, which is where a copy would appear.
 my @files;
-for my $dir ( 'lib', 'plugins', 'tools' ) {
+for my $dir ( 'lib', 'extensions', 'tools' ) {
     next unless -d "$root/$dir";
     push @files, split /\n/,
         run_child( [ 'find', "$root/$dir", '-type', 'f', '-name', '*.p[lm]' ], stderr => 'inherit' )->{out};

@@ -15,7 +15,7 @@
 # the matcher looking for words that then existed nowhere in the tree. An
 # unmatched refusal returns '', the caller reads '' as "not an anti-spam
 # control", and records NOTHING - not even a blocked line with an empty reason,
-# which `plugins/stats.pl` would at least have bucketed as `other`. So the
+# which `extensions/stats.pl` would at least have bucketed as `other`. So the
 # report's "controls stopped N" quietly lost two of its five reasons.
 #
 # REPRODUCED before it was fixed, against this same handler: a POST inside the
@@ -41,7 +41,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root env_passthrough site_tempdir);
 
 my $root    = repo_root();
-my $handler = "$root/plugins/form-handler.pl";
+my $handler = "$root/extensions/form-handler.pl";
 plan skip_all => "no $handler" unless -f $handler;
 my $SECRET = 'b' x 64;
 
@@ -319,7 +319,7 @@ subtest 'every anti-spam control in the source declares a reason code' => sub {
 
     for my $code ( sort keys %declared ) {
         ok( $driven{$code}, "'$code' is a code this file actually drives" )
-            or diag( "plugins/form-handler.pl raises a refusal under '$code' "
+            or diag( "extensions/form-handler.pl raises a refusal under '$code' "
                 . 'and nothing here proves it is recorded. Add a case above: '
                 . 'an uncounted control is invisible to the sysop, which is '
                 . 'the whole of SM888 A7.' );

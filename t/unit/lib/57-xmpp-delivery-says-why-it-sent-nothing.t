@@ -29,7 +29,7 @@ sub site {
     make_path("$d/lazysite/logs");
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: T\n";
-    print {$cf} "extensions:\n  - plugins/notify-xmpp.pl\n" unless $o{disabled};
+    print {$cf} "extensions:\n  - extensions/notify-xmpp.pl\n" unless $o{disabled};
     close $cf;
     if ( defined $o{conf} ) {
         open my $xf, '>', "$d/lazysite/notify-xmpp.conf" or die $!;

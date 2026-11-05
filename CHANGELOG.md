@@ -65,6 +65,24 @@ Archive
   settle capability. Docs only; nothing is signed.
 
 - SM1280 (9e591e18) **An Odoo operation is told whether the call came from an address list.**
+- SM1142 (PENDING) **The upgrade moves a site to `extensions/`, and nothing reads the old name
+  after it.** Slice S1 of the rename (ruled 2026-10-17, R1 and R3: "fixup on upgrade, then its
+  done"). The engine's extensions ship in `extensions/` (deb: `/usr/share/lazysite/extensions`)
+  and a site's lazysite.conf lists them as `extensions/<file>.pl` under `extensions:`, the one
+  header every reader and the writer now accept. A one-time upgrade step (`extensions-rename`)
+  converts each site in place: it moves what is left in the old directory beside the docroot
+  into `extensions/` (an edited copy of a shipped one is kept as `<file>.from-plugins` beside
+  the release's), rewrites the list and its entries so every extension that was on stays on -
+  login rate limiting among them - re-points a hand-made cgi-bin link, moves a start page on
+  the Extensions page to its new address, removes the empty old directory, and says what it did
+  in the upgrade summary. The manager pages are `/manager/extensions` and
+  `/manager/extension-config`; the old addresses are not kept (R2). Eleven script lookups ask
+  one resolver, `Lazysite::Extensions` (t/lint/306 refuses a twelfth), and `lazysite check`
+  names a list or entry written back under the old name, by line. ON UPGRADE: check anything
+  of your own that names the old directory - a crontab running `extensions/stats.pl`, a pipe to
+  `extensions/form-smtp.pl` (UPGRADE.md lists them).
+
+- SM1280 (PENDING) **An Odoo operation is told whether the call came from an address list.**
   Ruling 3 (the OOM Lab's office-network clock-in): a binding names an `address_profile` and an
   `address_param` (a yes/no parameter), and its operation receives only 1 or 0 - never the
   address. The server decides it from the request's address behind `trusted_proxies`, and a page

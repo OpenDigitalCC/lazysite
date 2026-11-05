@@ -5,7 +5,7 @@
 # Driven end to end: submissions are POSTED THROUGH THE REAL FORM HANDLER, so the
 # field the form's conf names (`account_email:`) is held to the key the handler
 # actually stored - the conf is read by Lazysite::Handlers::form_account_email
-# and the row is written by plugins/form-handler.pl, and this is where the two
+# and the row is written by extensions/form-handler.pl, and this is where the two
 # meet. The approval is then made over the manager API as a signed-in person
 # (ManagerSession), and every assertion reads the account store afterwards
 # rather than trusting the answer.
@@ -22,7 +22,7 @@ use TestHelper     qw(repo_root);
 use ManagerSession qw(new_site);
 use Lazysite::ControlApi::Actions;
 
-my $PLUGIN = repo_root() . '/plugins/form-handler.pl';
+my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
 my $s = new_site( root => repo_root() );

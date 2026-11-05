@@ -30,7 +30,7 @@ plan skip_all => 'manager api missing' unless -f repo_root() . '/lazysite-manage
 my @ALL = qw(ui manage_data manage_users write_data);
 my $s   = new_site(
     root => repo_root(),
-    conf => "control_api_enabled: true\nplugins:\n  - plugins/data.pl\n"
+    conf => "control_api_enabled: true\nextensions:\n  - extensions/data.pl\n"
 );
 make_path( $s->docroot . '/lazysite/db/tables' );
 

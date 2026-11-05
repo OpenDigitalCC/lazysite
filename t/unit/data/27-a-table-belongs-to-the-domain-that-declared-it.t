@@ -38,8 +38,8 @@ make_path( "$d/lazysite/db/tables", "$d/lazysite/auth",
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} <<"CONF";
 site_name: T
-plugins:
-  - plugins/data.pl
+extensions:
+  - extensions/data.pl
 alias_hosts: alpha.test, beta.test
 alias.alpha.test.content_root: sites/alpha
 alias.beta.test.content_root: sites/beta

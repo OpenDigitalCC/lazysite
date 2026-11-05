@@ -8,7 +8,7 @@
 #
 #   1. every top-level code area has its own row: each lazysite-*.pl front end,
 #      lazysite-processor/, each directory under lib/Lazysite/, lib/Lazysite/
-#      itself (its single modules), plugins/ and tools/;
+#      itself (its single modules), extensions/ and tools/;
 #   1b. every test helper under t/lib/ has its own row (n562): the manager
 #      integration tests reach the API only through t/lib/ManagerSession.pm, and
 #      a change to that helper selected nothing;
@@ -37,7 +37,7 @@ subtest 'every top-level code area has its own row' => sub {
         ( map { s{^\Q$root\E/}{}r } glob("$root/lazysite-*.pl") ),
         'lazysite-processor/',
         ( map { s{^\Q$root\E/}{}r . '/' } grep { -d } glob("$root/lib/Lazysite/*") ),
-        'lib/Lazysite/', 'plugins/', 'tools/',
+        'lib/Lazysite/', 'extensions/', 'tools/',
     );
     cmp_ok( scalar @areas, '>', 15, 'found the code areas to check' );
     my @missing = grep { !$row{$_} } @areas;

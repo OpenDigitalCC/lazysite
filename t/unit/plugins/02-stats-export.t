@@ -12,7 +12,7 @@ use TestHelper qw(repo_root run_cmd);
 # The AI visitor-stats export: a SANITISED, cached, incremental JSON the agent
 # reasons over - aggregates + an event stream, never the raw log, a filesystem
 # path, or a visitor IP.
-my $PLUGIN = repo_root() . '/plugins/stats.pl';
+my $PLUGIN = repo_root() . '/extensions/stats.pl';
 ok( -f $PLUGIN, 'stats plugin present' );
 
 my $d = tempdir( CLEANUP => 1 );

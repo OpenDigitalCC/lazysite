@@ -90,7 +90,7 @@ sub list_tables {
 #      second is read fresh every time until it settles.
 #   3. NOTHING ASSIGNS INTO THE RETURNED DESCRIPTOR, so the shared reference
 #      cannot be poisoned by a caller. Verified across Manager/Data.pm,
-#      Manager/SitePackage.pm, plugins/data.pl, lazysite-data.pl,
+#      Manager/SitePackage.pm, extensions/data.pl, lazysite-data.pl,
 #      lazysite-mcp.pl and this file: the only writes into a descriptor are
 #      Descriptor.pm's own normalisation of `required` and `unique`, which
 #      happens during the load being cached.

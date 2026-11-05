@@ -43,7 +43,7 @@ BEGIN {
     # t/lint/59 asserts this property for everything under tools/ and its own
     # comment says it "asserts the property rather than the six files". The
     # property is not about tools: it is about any script the manager runs as
-    # a SUBPROCESS, which is every plugin. The lint now covers plugins/ too.
+    # a SUBPROCESS, which is every plugin. The lint now covers extensions/ too.
     require Cwd;
     require File::Basename;
     my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
@@ -204,7 +204,7 @@ sub run {
         my $st = Lazysite::Daemon::Supervisor::status( $opt{docroot},
             settle => ( Lazysite::Daemon::Supervisor::should_run( $opt{docroot} ) ? 0 : $Lazysite::Daemon::Supervisor::GATE_EVERY + 5 ) );
 
-        # The toggle's status line shows `message` (plugins.md); make it the
+        # The toggle's status line shows `message` (extensions.md); make it the
         # whole sentence - the state, the remedy, and the first failing check.
         $st->{message} = $st->{summary} if defined $st->{summary};
         print JSON::PP->new->canonical->pretty->encode($st);

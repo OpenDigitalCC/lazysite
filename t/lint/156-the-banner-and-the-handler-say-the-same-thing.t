@@ -3,7 +3,7 @@
 #
 # A successful submission is answered twice, on two paths that cannot share code:
 #
-#   the JS path   - plugins/form-handler.pl returns { ok: 1, message: "..." }
+#   the JS path   - extensions/form-handler.pl returns { ok: 1, message: "..." }
 #   the no-JS path - it redirects with `?form=X&outcome=<token>`, and
 #                    lazysite-processor.pl renders the sentence for that token
 #
@@ -64,13 +64,13 @@ sub said_in {
     return ( \%said, $pairs );
 }
 
-my ( $handler,   $h_pairs ) = said_in( slurp("$root/plugins/form-handler.pl"), 'our %OUTCOME_SAID' );
+my ( $handler,   $h_pairs ) = said_in( slurp("$root/extensions/form-handler.pl"), 'our %OUTCOME_SAID' );
 # SM944 S11: the banner is rendered by _render_form, in the processor's forms part.
 my $FORMS = "$root/lazysite-processor/forms.pm";
 my ( $processor, $p_pairs ) = said_in( slurp($FORMS), 'my %SAID' );
 
 cmp_ok( scalar keys %{$handler}, '>=', 2, 'the handler declares its sentences' )
-    or diag( 'Looked for `our %OUTCOME_SAID = (...)` in plugins/form-handler.pl.' );
+    or diag( 'Looked for `our %OUTCOME_SAID = (...)` in extensions/form-handler.pl.' );
 cmp_ok( scalar keys %{$processor}, '>=', 2, 'and the processor declares the banner\'s' )
     or diag('Looked for `my %SAID = (...)` beside the banner in lazysite-processor/forms.pm.');
 
@@ -99,7 +99,7 @@ is_deeply( $processor, $handler,
 # never its sentence; the page owns the wording. So the handler's %REFUSAL_SAID and
 # the processor's %REFUSED must agree, code for code, sentence for sentence.
 {
-    my ( $h_ref, $h_n ) = said_in( slurp("$root/plugins/form-handler.pl"), 'our %REFUSAL_SAID' );
+    my ( $h_ref, $h_n ) = said_in( slurp("$root/extensions/form-handler.pl"), 'our %REFUSAL_SAID' );
     my ( $p_ref, $p_n ) = said_in( slurp($FORMS), 'my %REFUSED' );
     cmp_ok( scalar keys %{$h_ref}, '>=', 10, 'the handler declares its refusal sentences' );
     is( scalar keys %{$h_ref}, $h_n, 'every refusal sentence the handler declares was read' );

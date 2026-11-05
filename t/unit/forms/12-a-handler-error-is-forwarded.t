@@ -56,7 +56,7 @@ sub rig {
         LAZYSITE_SYSLOG_DUMP => $dump,
     );
     my $err = "$d/stderr";
-    qx($^X \Q$root/plugins/form-handler.pl\E < \Q$bf\E 2> \Q$err\E);
+    qx($^X \Q$root/extensions/form-handler.pl\E < \Q$bf\E 2> \Q$err\E);
     like( slurp($err), qr/\[ERROR\] \[form-handler\] .*processing failed/,
         'form-handler: the error is on STDERR (unchanged)' );
     like( slurp($dump), qr/^err .*\[form-handler\] .*processing failed/m,
@@ -70,7 +70,7 @@ sub rig {
         DOCUMENT_ROOT        => $d,
         LAZYSITE_SYSLOG_DUMP => $dump,
     );
-    qx($^X \Q$root/plugins/form-smtp.pl\E --pipe < /dev/null 2>/dev/null);
+    qx($^X \Q$root/extensions/form-smtp.pl\E --pipe < /dev/null 2>/dev/null);
     like( slurp($dump), qr/^err .*\[form-smtp\] .*smtp failed/m,
         'form-smtp: the pipe failure was forwarded at err priority' );
 }
@@ -83,7 +83,7 @@ sub rig {
     close $md;
     local %ENV = ( env_passthrough(), LAZYSITE_SYSLOG_DUMP => $dump );
     delete $ENV{DOCUMENT_ROOT};
-    qx($^X \Q$root/plugins/audit.pl\E --scan --docroot \Q$d\E 2>/dev/null >/dev/null);
+    qx($^X \Q$root/extensions/audit.pl\E --scan --docroot \Q$d\E 2>/dev/null >/dev/null);
     like( slurp($dump), qr/^info .*\[audit\] .*audit started/m,
         'audit: the scan start was forwarded at info priority' );
 }
@@ -113,7 +113,7 @@ sub rig {
         REMOTE_ADDR          => '203.0.113.5',
         LAZYSITE_SYSLOG_DUMP => $dump,
     );
-    my $out = qx($^X \Q$root/plugins/form-handler.pl\E < \Q$bf\E 2>/dev/null);
+    my $out = qx($^X \Q$root/extensions/form-handler.pl\E < \Q$bf\E 2>/dev/null);
     like( $out, qr/"ok":0/, 'the refusal is still answered' );
     ok( !-s $dump, 'and with forwarding explicitly off nothing is forwarded' );
 }
@@ -140,7 +140,7 @@ sub rig {
         REMOTE_ADDR          => '203.0.113.5',
         LAZYSITE_SYSLOG_DUMP => $dump,
     );
-    my $out = qx($^X \Q$root/plugins/form-handler.pl\E < \Q$bf\E 2>/dev/null);
+    my $out = qx($^X \Q$root/extensions/form-handler.pl\E < \Q$bf\E 2>/dev/null);
     like( $out, qr/"ok":0/, 'the refusal is still answered' );
     like( slurp($dump), qr/^err .*processing failed/m,
         'SM932: with no forward_diagnostics key at all, the ERROR still reaches syslog' );
@@ -148,7 +148,7 @@ sub rig {
 
 # --- payment-demo: its copy hands the line on too (pinned at source) --------
 {
-    my $src = slurp("$root/plugins/payment-demo.pl");
+    my $src = slurp("$root/extensions/payment-demo.pl");
     like( $src, qr/^sub _forward_diag \{/m, 'payment-demo carries the forwarder' );
     my ($le) = $src =~ /(^sub log_event \{.*?^\}$)/ms;
     is( scalar( () = ( $le // '' ) =~ /_forward_diag\(/g ), 2,

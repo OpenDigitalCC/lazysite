@@ -17,7 +17,7 @@ VERSION                 usr/share/lazysite
 LICENSE                 usr/share/lazysite
 release-manifest.json   usr/share/lazysite
 lib                     usr/share/lazysite
-plugins                 usr/share/lazysite
+extensions              usr/share/lazysite
 starter                 usr/share/lazysite
 tools                   usr/share/lazysite
 docs/reference/host-dependencies.md usr/share/lazysite/docs/reference

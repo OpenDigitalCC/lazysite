@@ -31,7 +31,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $plugin = repo_root() . '/plugins/stats.pl';
+my $plugin = repo_root() . '/extensions/stats.pl';
 ok( -f $plugin, 'the stats plugin is present' );
 
 # A docroot on the FIRST-PARTY path, which is the default and the one that was

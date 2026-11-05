@@ -35,11 +35,11 @@ use Lazysite::Daemon::Service::Scheduler ();
 my $ROOT = repo_root();
 
 sub site {
-    my $d = site_tempdir();    # <tmp>/site/public_html, so plugins/ can sit beside it
+    my $d = site_tempdir();    # <tmp>/site/public_html, so extensions/ can sit beside it
     my $t = File::Basename::dirname( File::Basename::dirname($d) );
     mkdir "$d/$_" for qw(lazysite lazysite/auth lazysite/daemon lazysite/logs lazysite/cache);
     open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$c} "site_name: t\nplugins:\n  - plugins/daemon.pl\n";
+    print {$c} "site_name: t\nextensions:\n  - extensions/daemon.pl\n";
     close $c;
     return ( $t, $d );
 }
@@ -58,14 +58,14 @@ subtest 'the stats job runs the deploy\'s plugin, not whatever the environment n
     spit( $elsewhere, "open my \$o, '>', '$marker' or die; close \$o; print '{\"ok\":true,\"days\":[]}';\n" );
 
     local $ENV{LAZYSITE_STATS_TOOL} = $elsewhere;
-    local $0 = "$t/nowhere/lazysited.pl";    # no sibling plugins/ either
+    local $0 = "$t/nowhere/lazysited.pl";    # no sibling extensions/ either
     Lazysite::Daemon::Service::Scheduler::tick( docroot => $d );
     ok( !-e $marker, 'a script named by LAZYSITE_STATS_TOOL is not run' );
 
-    # The real lookup still works: the Hestia layout, plugins/ beside the docroot.
-    mkdir "$t/site/plugins";
+    # The real lookup still works: the Hestia layout, extensions/ beside the docroot.
+    mkdir "$t/site/extensions";
     my $found = "$t/found-the-deploy-plugin";
-    spit( "$t/site/plugins/stats.pl",
+    spit( "$t/site/extensions/stats.pl",
         "open my \$o, '>', '$found' or die; close \$o; print '{\"ok\":true,\"days\":[]}';\n" );
     unlink "$d/lazysite/daemon/scheduler-runs.json";
     Lazysite::Daemon::Service::Scheduler::tick( docroot => $d );

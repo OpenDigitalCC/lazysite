@@ -262,20 +262,20 @@ subtest 'the map is checked: a capability-carrying group is refused by name, at 
     # the plugin-save path refuses it with the operator on the form
     my $parent = site_tempdir();
     my $sd     = "$parent/public_html";
-    make_path( "$sd/lazysite/auth", "$parent/plugins" );
-    copy( "$root/plugins/odoo.pl", "$parent/plugins/odoo.pl" ) or die $!;
-    chmod 0755, "$parent/plugins/odoo.pl";
+    make_path( "$sd/lazysite/auth", "$parent/extensions" );
+    copy( "$root/extensions/odoo.pl", "$parent/extensions/odoo.pl" ) or die $!;
+    chmod 0755, "$parent/extensions/odoo.pl";
     copy( $gsf, "$sd/lazysite/auth/groups-settings.json" ) or die $!;
     local $ENV{PERL5LIB} = "$root/lib" . ( $ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : '' );
     local $Lazysite::Manager::Plugins::DOCROOT = $sd;
-    my $res = Lazysite::Manager::Plugins::action_plugin_save( undef, 'plugins/odoo.pl',
+    my $res = Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/odoo.pl',
         { odoo_group_map => 'sales.group_admin = role-opsuser' } );
     is( $res->{ok}, 0, 'saving a mapping to a capability group fails' );
     is( $res->{field}, 'odoo_group_map', 'naming the field' );
     like( $res->{error}, qr/sales\.group_admin = role-opsuser/, 'and the entry' );
     ok( !-e "$sd/lazysite/odoo.conf" || ( do { open my $c, '<', "$sd/lazysite/odoo.conf"; local $/; <$c> } // '' ) !~ /group_admin/,
         'and it was not written' );
-    $res = Lazysite::Manager::Plugins::action_plugin_save( undef, 'plugins/odoo.pl',
+    $res = Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/odoo.pl',
         { odoo_group_map => 'base.group_user = staff' } );
     ok( $res->{ok}, 'a clean map saves' );
 };

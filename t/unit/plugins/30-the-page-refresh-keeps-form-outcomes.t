@@ -15,7 +15,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root run_cmd);
 
-my $PLUGIN = repo_root() . '/plugins/stats.pl';
+my $PLUGIN = repo_root() . '/extensions/stats.pl';
 ok( -f $PLUGIN, 'stats plugin present' );
 
 my $d = tempdir( CLEANUP => 1 );

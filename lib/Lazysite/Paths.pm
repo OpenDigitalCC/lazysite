@@ -276,7 +276,7 @@ sub processor_candidates {
 # one, as before. A directory that is not a real directory (missing, or itself a
 # symlink) is dropped here again, so a hand-set variable cannot widen the lookup
 # past what the server accepts. Each is searched BEFORE the docroot's own
-# plugins/: an explicit choice outranks the implicit default, and a development
+# extensions/: an explicit choice outranks the implicit default, and a development
 # copy can stand in for a shipped one. A name in two directories: the first wins.
 sub dev_extension_dirs {
     return () unless $ENV{LAZYSITE_DEV_SERVER};
