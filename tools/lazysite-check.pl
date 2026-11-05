@@ -2210,7 +2210,8 @@ sub report_old_address_template_calls {
     my %skip = map { ( "$lz/$_" => 1 ) } qw(backups cache logs auth forms sessions tmp);
     my ( %seen, @hits );
     for my $root ( grep { defined && -d $_ } $docroot, $lz, $priv ) {
-        File::Find::find(
+        find_noting(
+            'the old address test calls',
             { no_chdir => 1,
                 wanted => sub {
                     my $p = $File::Find::name;
