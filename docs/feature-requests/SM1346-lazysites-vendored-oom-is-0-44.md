@@ -80,8 +80,7 @@ MANIFEST.
   `verified` and, per change, the journal's `outcome`; it passes neither
   `not_verified` nor the change's `not_held`, so a page cannot tell a write Odoo
   dropped from one it kept. Whether to show it, and how much (the asked value is the
-  caller's, the found value is Odoo's record), is a product decision and is asked,
-  not built. The unknown-run settle ([[SM1275]] to [[SM1279]]) is not affected: OOM
+  caller's, the found value is Odoo's record), is a product decision. Ruled 2026-11-05 (ruling 103): [[SM1347]]. The unknown-run settle ([[SM1275]] to [[SM1279]]) is not affected: OOM
   reads a formerly unknown change back as made or not made and does not compare its
   fields; the changes a resume carries are applied as any apply, with the same gap.
 - **The gate host needs libdatetime-perl and libdatetime-timezone-perl**, which are
@@ -93,4 +92,4 @@ MANIFEST.
   tells a record the user may not read (`access`) from one that does not exist
   (`missing`). lazysite answers both with the generic refusal, whose sentence is
   wrong for `access`: Odoo did answer. Naming the two codes in `%REFUSED_KIND` is a
-  small follow-up and is asked, not built.
+  small follow-up. Ruled 2026-11-05 (ruling 104): [[SM1347]].

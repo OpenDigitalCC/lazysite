@@ -354,6 +354,16 @@ says what a request may set and who may cause it:
   `unknown`. The answer also names the run (`run`), which is resumed: see *A write
   whose answer never came*.
 
+  A change Odoo did not keep as asked (OOM 0.44 compares each field written with
+  Odoo's record afterwards; a value Odoo dropped or reset in the same write) is
+  still `done`, and its entry also carries `not_kept`, the names of the fields
+  Odoo did not keep, and `note`, a sentence that says so. The values asked and
+  found are never in the answer. `result.not_verified` counts the done changes
+  that were not confirmed by a read-back: these, and those OOM does not read back
+  (a call, a delete). The same for the changes a resumed run carries. The browser
+  helper draws each `note` into a `<div data-ls-odoo-not-kept>` when the page has
+  one.
+
 `rate_per_visitor_hour`, `rate_per_hour`
 : The rate caps. **The default depends on what the binding does** - see
   *Rate caps: reads and writes* below. Leave them out to take the default.
@@ -943,7 +953,7 @@ never returned. The kinds a caller meets most:
 | `second-factor` | 401 | Odoo did not accept the code; the person may try again |
 | `invalid` | 400 | a parameter is unmapped, of the wrong type, or missing; for a file, of a type the binding does not accept, a name that is not a plain name, or too many files |
 | `too-large` | 413 | a multipart request is larger than the binding's `file_max_kb` allows (refused before its body is read), or one file is over the cap; or a JSON body is over 64 KB (or the budget a declared rows `max` gives its binding); or a download over `download_max_kb` |
-| `refused` | 400 | OOM refused it before Odoo answered; with an `Idempotency-Key`, that the key was used for a different request, or its plan was withdrawn |
+| `refused` | 400 | OOM refused it before Odoo answered; with an `Idempotency-Key`, that the key was used for a different request, or its plan was withdrawn; from OOM 0.43, that the account may not read the record (`access`) or that the record no longer exists (`missing`), each with its own sentence |
 | `rate` | 429 | a rate cap is reached |
 | `method` | 405 | a `POST` to a binding with `answer: download`, or a `GET` of one that writes |
 | `not-found` | 404 | no such binding, or no such plan for this caller; or the Odoo daemon no longer holds the plan it made (its run folder is gone): make the plan again |

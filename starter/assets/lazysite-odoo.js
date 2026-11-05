@@ -19,7 +19,9 @@
  *      multipart/form-data (SM1162), see `write` below;
  *   9. shows what a write left unknown - its request was sent and no answer came -
  *      with "check again", and the person's own "it was made" / "it was not made"
- *      where the server says they may (SM1277), see `showUnknown` below.
+ *      where the server says they may (SM1277), see `showUnknown` below;
+ *  10. shows which fields of an applied write Odoo did not keep (SM1347), see
+ *      `showNotKept` below - the field names and the server's sentence, never a value.
  *
  * THE SECOND FACTOR (SM1157). An Odoo account with two-factor authentication
  * answers the password with { second_factor: 'totp' } and nothing else: the
@@ -61,6 +63,10 @@
  * `<div data-ls-odoo-unknown>` is where a write() or confirm() whose answer left a
  * change unknown is drawn (SM1277): the changes, as text, and the buttons to settle
  * them. A page without one gets the answer from write() as before.
+ *
+ * `<div data-ls-odoo-not-kept>` is where a write(), confirm() or a settled resume
+ * whose answer says Odoo did not keep a change is drawn (SM1347): one line per such
+ * change, as text. Its data-ls-odoo-state says not-kept or kept.
  *
  * `<span data-ls-odoo-name>` is filled, as text, with the display name of the
  * person signed in to Odoo when the page loads (SM1145): from the answer to the
@@ -245,16 +251,16 @@
   API.write = function (binding, params, opts) {
     var split = splitFiles(params);
     if (split.files) {
-      return withSignin(function () { return postFiles(binding, split, keyHeader(opts)); }, opts).then(autoUnknown);
+      return withSignin(function () { return postFiles(binding, split, keyHeader(opts)); }, opts).then(autoUnknown).then(autoNotKept);
     }
     return withSignin(function () { return post({ binding: binding, params: params || {} }, keyHeader(opts)); }, opts)
-      .then(autoUnknown);
+      .then(autoUnknown).then(autoNotKept);
   };
 
   /* apply a plan this person made */
   API.confirm = function (plan, opts) {
     return withSignin(function () { return post({ plan: plan, confirm: true }, keyHeader(opts)); }, opts)
-      .then(autoUnknown);
+      .then(autoUnknown).then(autoNotKept);
   };
 
   /* SM1277 (rulings 10a, 10b): A WRITE WHOSE ANSWER NEVER CAME. An apply that left
@@ -306,6 +312,8 @@
         clear(node);
         node.setAttribute('data-ls-odoo-state', a.ok ? 'settled' : 'stale');
         node.appendChild(el('p', { role: 'status' }, a.ok ? 'Done.' : (a.error || 'That did not work.')));
+        notKeptOf(a).forEach(function (c) { node.appendChild(el('p', { role: 'status' }, String(c.note || ''))); });
+        autoNotKept(r);
         return r;
       }, function () {
         buttons.forEach(function (b) { b.disabled = false; });
@@ -343,6 +351,35 @@
     if (!d || !a || !a.run || !(a.unknown || a.kind === 'unknown-outcome')) return r;
     var node = d.querySelector && d.querySelector('[data-ls-odoo-unknown]');
     if (node) API.showUnknown(node, a);
+    return r;
+  }
+
+  /* SM1347 (ruling 103): the changes of an applied answer (a write, a confirm, a
+   * resume's carried changes) that Odoo did not keep as asked. Each names its
+   * fields (`not_kept`) and carries the server's sentence (`note`); the values asked
+   * and found are never in the answer. */
+  function notKeptOf(data) {
+    var ch = (data && data.result && data.result.changes) || [];
+    return ch.filter(function (c) { return c && c.not_kept && c.not_kept.length; });
+  }
+  API.notKept = notKeptOf;
+
+  /* Draws, into `node`, as text, one line per change Odoo did not keep. */
+  API.showNotKept = function (node, data) {
+    if (!doc() || !node) return;
+    clear(node);
+    var list = notKeptOf(data);
+    node.setAttribute('data-ls-odoo-state', list.length ? 'not-kept' : 'kept');
+    list.forEach(function (c) { node.appendChild(el('p', { role: 'status' }, String(c.note || ''))); });
+  };
+
+  /* An applied answer is drawn into the page's [data-ls-odoo-not-kept], when it has one. */
+  function autoNotKept(r) {
+    var d = doc();
+    var a = r && r.data;
+    if (!d || !a || !a.result) return r;
+    var node = d.querySelector && d.querySelector('[data-ls-odoo-not-kept]');
+    if (node) API.showNotKept(node, a);
     return r;
   }
 

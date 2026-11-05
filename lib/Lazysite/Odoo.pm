@@ -71,6 +71,22 @@ sub _lz        { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 sub store_dir  { return _lz() . '/odoo' }
 sub calls_file { return store_dir() . '/calls.jsonl' }
 
+# SM1347: a text that names Odoo to a visitor or a manager, written with {name} and
+# without it, said here as "Odoo". SM1328 (n744) makes this the one reader of the
+# site's odoo_display_name: stacked on it, this is its `said` and its body is
+# `Lazysite::Odoo::Name::phrase( $named, $plain, _lz() )` - one line.
+sub said {
+    my ( $named, $plain ) = @_;
+    ( my $t = $named ) =~ s/\{name\}/Odoo/g;
+    return $t;
+}
+
+# A kind table's entry - [ kind, text ] or [ kind, text with {name}, text without ].
+sub _kind_said {
+    my ($e) = @_;
+    return ( $e->[0], @$e > 2 ? said( $e->[1], $e->[2] ) : $e->[1] );
+}
+
 # The extension's config file (`config_file: lazysite/odoo.conf`), in the
 # engine tree as the resolver finds it - as notify-xmpp.conf is read.
 sub conf_file { return _lz() . '/odoo.conf' }
@@ -343,6 +359,10 @@ my %REFUSED_KIND = (
         # SM1275: OOM read every unknown change it could and one names no read that tells
     'unknown-outcome' => [ 'unknown-outcome', 'a change of this run cannot be read back from Odoo, so whether it was made is for a person to say: look in Odoo, then resume it saying it was made or was not' ],
     closed => [ 'dismissed', 'this run was closed in OOM, so it is not resumed' ],
+    # SM1347 (ruling 104): since OOM 0.43 a record the account may not read is `access`,
+    # one that does not exist `missing`; each is said as what it is
+    access => [ 'refused', '{name} refused: this account may not do that', 'refused: this account may not do that' ],
+    missing => [ 'refused', 'that record no longer exists in {name}', 'that record no longer exists' ],
 );
 
 # SM1186: the text of an OOM `usage` error, as far as a page may have it, or undef
@@ -406,8 +426,8 @@ sub fault {
             ( $kind, $said ) = ( 'transport-failure', 'Odoo could not be reached, or did not answer in a usable way' );
         }
         elsif ( $k eq 'refused' ) {
-            ( $kind, $said ) = @{ $REFUSED_KIND{ $err->code // '' }
-                    // [ 'refused', 'the call was refused before Odoo answered' ] };
+            ( $kind, $said ) = _kind_said( $REFUSED_KIND{ $err->code // '' }
+                    // [ 'refused', 'the call was refused before Odoo answered' ] );
         }
         elsif ( $k eq 'config' ) {
             ( $kind, $said ) = ( 'config', 'the Odoo connection is not configured correctly - see the event log' );
@@ -1611,7 +1631,7 @@ sub _resumed_meta {
 sub _nothing_left {
     my ( $npid, $pid, $settled ) = @_;
     return { ok => 1, applied => 1, plan => $npid, resumes => $pid, settled => $settled,
-        result => { total => 0, counts => {}, by_bucket => {}, verified => 0, changes => [] } };
+        result => { total => 0, counts => {}, by_bucket => {}, verified => 0, not_verified => 0, changes => [] } };
 }
 
 # resume( $run, %ctx, assume_done => [...], assume_not_done => [...] ) -> { ok, ... }
@@ -1989,7 +2009,7 @@ sub _run_daemon {
 sub _applied_answer {
     my ( $pid, $ar ) = @_;
     return { ok => 1, applied => 1, plan => $pid,
-        result => { total => 0, counts => {}, by_bucket => {}, verified => 0, changes => [] } }
+        result => { total => 0, counts => {}, by_bucket => {}, verified => 0, not_verified => 0, changes => [] } }
         unless ref $ar eq 'HASH' && $ar->{result};
     return { ok => ( $ar->{result}->ok ? 1 : 0 ), applied => 1, plan => $pid,
         ( $ar->{repeat} ? ( repeat => 1 ) : () ), result => _result_summary( $ar->{result} ) };
@@ -2061,6 +2081,9 @@ sub _result_summary {
     $out{changes} = _applied_changes( $h->{journal} );
     _add_failures( $out{changes}, $h->{failed_changes} );
     _add_unknown( $out{changes}, $h->{unknown_changes} );
+
+    # SM1347 (ruling 103): OOM's count of the done changes no read-back confirmed
+    $out{not_verified} = $h->{not_verified} // 0;
     return \%out;
 }
 
@@ -2166,11 +2189,29 @@ sub _applied_changes {
     for my $e (@$rows) {
         my %c = map { ( $_ => $e->{$_} ) } grep { defined $e->{$_} } qw(seq bucket action model id outcome);
         $c{reason} = $e->{reason} if defined $e->{reason} && ( $e->{outcome} // '' ) =~ /\A(?:held|skipped)\z/;
+        _add_not_kept( \%c, $e->{not_held} );
         $c{returned} = _capped( _journal_value( $path, $e->{returned} ) )
             if ( $e->{action} // '' ) eq 'custom' && defined $e->{returned};
         push @out, \%c;
     }
     return \@out;
+}
+
+# SM1347 (ruling 103; OOM 0.44 verify-44). OOM compares each field a write asked for
+# with Odoo's row after it; a field Odoo dropped or reset leaves the change `done`
+# and names it in the journal's `not_held` with the value asked and the value found.
+# The page is told the change was not kept (`not_kept`, the field names) and a
+# sentence (`note`) - NEVER the asked or found values: a change's values are not
+# passed (see _result_summary). A name that is not an Odoo field name is left out.
+sub _add_not_kept {
+    my ( $c, $not_held ) = @_;
+    return unless ref $not_held eq 'HASH';
+    my @f = grep { /\A[A-Za-z_][A-Za-z0-9_]{0,63}\z/ } sort keys %$not_held;
+    return unless @f;
+    $c->{not_kept} = \@f;
+    $c->{note} = said( '{name} did not keep this change as asked: ' . join( ', ', @f ),
+        'this change was not kept as asked: ' . join( ', ', @f ) );
+    return;
 }
 
 # Since OOM 0.32 a journal keeps a value over `blob_min` (64 KiB by default) in
