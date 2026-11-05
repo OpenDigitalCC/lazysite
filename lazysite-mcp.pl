@@ -5006,10 +5006,13 @@ elsif ( $method eq 'tools/call' ) {
     # and a read whose answer is a refusal or an error (SM943 ruling 1): a read
     # that succeeds is site activity, and one that is refused is an event.
     my $aok = ref $out eq 'HASH' && $out->{ok};
-    # SM1325 (ruling 50): and a successful read of a page or a file, when the
-    # site has asked for its AI reads to be recorded (`audit_reads: on`).
-    my $read_audited = $aok && $READ{$name} && Lazysite::Audit::records_read( 'mcp', $name );
-    if ( !$READ{$name} || !$aok || $read_audited ) {
+    # SM1325 (rulings 50, 97): and a successful read of a page or a file, when
+    # the site has asked for its AI reads to be recorded (`audit_reads: on`) -
+    # on the reads file, never the change trail.
+    if ( $aok && $READ{$name} && Lazysite::Audit::records_read( 'mcp', $name ) ) {
+        Lazysite::Audit::audit_read_log( $user, $name, ( $args->{path} // '' ), _request_ip(), 'mcp' );
+    }
+    elsif ( !$READ{$name} || !$aok ) {
         my $target = $args->{path} // $args->{from} // $args->{theme}
             // $args->{name} // $args->{layout} // '';
         # SM1291: an installed theme is named by what it was installed as.

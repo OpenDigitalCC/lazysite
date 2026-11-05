@@ -2707,11 +2707,13 @@ $DISPATCH_CRASH_GUARD = 0;    # P24: the chain finished
 # reads over GET, and its refused read was the one row this block never wrote.
 # MCP applies the same rule to the same declaration (t/lint/23).
 my $AUDIT_FAILED = ref $result eq 'HASH' && !$result->{ok};
-# SM1325 (ruling 50): a token's successful read of a page or a file, when the
-# site has asked for its AI reads to be recorded (`audit_reads: on`). A token
-# only: the ruling is about AI reads, and a signed-in person's browsing is not.
-my $AUDIT_READ = !$AUDIT_FAILED && $token_auth && Lazysite::Audit::records_read( 'api', $action );
-if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED || $AUDIT_READ ) {
+# SM1325 (rulings 50, 97): a token's successful read of a page or a file, when
+# the site has asked for its AI reads to be recorded (`audit_reads: on`), on the
+# reads file rather than the change trail. A token only: the ruling is about AI
+# reads, and a signed-in person's browsing is not.
+Lazysite::Audit::audit_read_log( $auth_user, $action, ( $path // '' ), _request_ip(), 'api' )
+    if !$AUDIT_FAILED && $token_auth && Lazysite::Audit::records_read( 'api', $action );
+if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
@@ -2869,7 +2871,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED || $AUDIT_READ ) 
     # A read is skipped when it succeeds and recorded when it fails; a write the
     # declaration leaves unaudited (lock, cache-invalidate, ...) stays skipped.
     if ( defined $aud_action
-        && ( !$skip{$aud_action} || ( $AUDIT_FAILED && !$MUTATING{$aud_action} ) || $AUDIT_READ ) )
+        && ( !$skip{$aud_action} || ( $AUDIT_FAILED && !$MUTATING{$aud_action} ) ) )
     {
         my $ok = ref $result eq 'HASH' && $result->{ok};
         # On failure, record a short reason (kind, else the error text) as the

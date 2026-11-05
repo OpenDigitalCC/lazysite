@@ -2063,7 +2063,7 @@ sub post_install_steps {
     @gw = map { "{DOCROOT}/$_" } qw(
         lazysite/nav.conf lazysite/lazysite.conf
         lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json
-        lazysite/logs/audit.log
+        lazysite/logs/audit.log lazysite/logs/audit-reads.log
     ) unless @gw;
     for my $spec (@gw) {
         ( my $rel = $spec ) =~ s/\{DOCROOT\}\///;

@@ -319,11 +319,15 @@ sub _audit_parse_line {
 
 # Append-only cache: parse only the audit lines appended since last call, keeping
 # the most recent CAP entries (chronological order). Rotation/truncation-aware.
+# SM1325 (ruling 97): $reads selects the reads file, audit-reads.log, with its
+# own cache and its own cap, so reads never push a change off the change view.
 sub _audit_cached_entries {
-    my $file       = "$LAZYSITE_DIR/logs/audit.log";
+    my ($reads)    = @_;
+    my $name       = $reads ? 'audit-reads' : 'audit';
+    my $file       = "$LAZYSITE_DIR/logs/$name.log";
     my $CAP        = 5000;
     my $cache_dir  = "$LAZYSITE_DIR/cache";
-    my $cache_file = "$cache_dir/audit-cache.json";
+    my $cache_file = "$cache_dir/$name-cache.json";
     # SM907: the stat serves the CACHE KEY - file identity, and how much is new
     # since last time - and never the absence decision. `return [] unless -f`
     # stood here, which is the guard lint 121 forbids on a store read now that
@@ -355,7 +359,7 @@ sub _audit_cached_entries {
     if ( $size > $offset ) {
         open my $fh, '<', $file or do {
             # It stat'd and will not open: a permissions fault, never absence.
-            Lazysite::Util::cannot_read( 'audit.log', $file );
+            Lazysite::Util::cannot_read( "$name.log", $file );
             return $cache->{entries};
         };
         seek $fh, $offset, 0;
@@ -403,13 +407,21 @@ sub _audit_cached_entries {
 #
 # `why` and `repair` are composed here rather than in the page, so the control
 # API and the manager say the same sentence about the same state.
+# SM1325 (ruling 97): $reads asks the same of the AI reads file, which has a
+# sixth answer of its own - `reads-off`, the read audit not switched on.
 sub _audit_trail_state {
-    my $dir  = "$LAZYSITE_DIR/logs";
-    my $file = "$dir/audit.log";
+    my ($reads) = @_;
+    my $dir     = "$LAZYSITE_DIR/logs";
+    my $name    = $reads ? 'audit-reads.log' : 'audit.log';
+    my $file    = "$dir/$name";
     return { state => 'off', file => $file,
         why => 'Recording is switched off, so this is not the whole story - it is '
             . 'what was collected before the trail was switched off.' }
         if Lazysite::Audit::audit_trail_state() eq 'off';
+    return { state => 'reads-off', file => $file,
+        why => 'AI reads are not being recorded (Config, Record AI reads), so this is '
+            . 'what was collected while they were.' }
+        if $reads && Lazysite::Audit::audit_reads_state() ne 'on';
 
     if ( open my $fh, '<:raw', $file ) {
         close $fh;
@@ -420,7 +432,7 @@ sub _audit_trail_state {
             repair => 'run `lazysite check --fix` on the host' };
     }
     unless ( $!{ENOENT} ) {
-        Lazysite::Util::cannot_read( 'audit.log', $file );
+        Lazysite::Util::cannot_read( $name, $file );
         return { state => 'unreadable', file => $file };
     }
     return { state => 'never-written', file => $file } if -w $dir;
@@ -492,7 +504,7 @@ sub dispatch_audit {
     }
     $result = action_audit( user => $params{user}, target => $params{target},
         start    => $params{start},    end   => $params{end}, page => $params{page},
-        per_page => $params{per_page}, scope => $scope )
+        per_page => $params{per_page}, scope => $scope,       view => $params{view} )
         unless $denied;
     return $result;
 }
@@ -513,14 +525,15 @@ sub action_audit {
     # its own record, which is SM873's kind and a 500 - never an empty list. The
     # entries behind an unopenable file are not "none", they are unknown, and
     # answering ok with nothing in it is the lie this filing is about.
-    my $trail = _audit_trail_state();
+    my $reads = ( $opt{view} // '' ) eq 'reads' ? 1 : 0;    # SM1325: the AI reads file
+    my $trail = _audit_trail_state($reads);
     return { ok => 0, kind => 'store-uninspectable', reason => 'open',
         error => "The audit trail exists and cannot be read ($trail->{file}), so "
             . 'what this site recorded cannot be shown. Run `lazysite check --fix` '
             . 'on the host to repair it.' }
         if $trail->{state} eq 'unreadable';
 
-    my $cached = _audit_cached_entries();
+    my $cached = _audit_cached_entries($reads);
     my $want   = $opt{user};
     my $want_t = $opt{target};              # SM077: filter to one file's history
         # Date-range filter: timestamps are ISO (2026-06-27T14:47:24Z) so they sort
@@ -590,7 +603,7 @@ sub action_audit {
     # dropdown. Only real accounts are resolved - `%fusers` also holds the
     # invented names SM641 describes, and a name for one of those would be a
     # claim the store cannot support.
-    return { ok => 1, entries => \@slice,
+    return { ok => 1, entries => \@slice, view => ( $reads ? 'reads' : 'changes' ),
         total    => $total, page => $page, per_page => $per, pages => $pages,
         trail    => $trail,                    # SM907: why this list is what it is
         scoped   => ( $scope ? JSON::PP::true() : JSON::PP::false() ),    # SM173

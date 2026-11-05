@@ -358,10 +358,16 @@ systemctl restart lazysited@<domain>
   page or a file by an AI as well - MCP `read_file`, `read_page`, `view_version`
   and `preview_page`, and the control API's `git-show` for a token - naming the
   account, the path and the time. Off by default, and any other value is off. A
-  signed-in person's reads and WebDAV are not recorded. It is set in the file only,
-  by whoever runs the site. The rows go to the same trail and rotate with it; the
-  manager's Audit page shows the newest 5,000 rows, so on a busy site the reads can
-  push older changes off that page (the file keeps them).
+  signed-in person's reads and WebDAV are not recorded. The Config page switches it
+  (Record AI reads) for an account holding Site config and the audit trail switch
+  permission, as the trail's own switch needs. The rows go to a file of their own,
+  `lazysite/logs/audit-reads.log`, rotated by the same logrotate stanza and forwarded
+  as the trail is, and the Audit page shows them under Show: AI reads, apart from
+  the changes.
+- **A protected folder's history** (SM1324) is kept when its rule says `history`,
+  and stays when the flag is cleared or the rule removed. To delete it:
+  `lazysite acl purge-history FOLDER --docroot D --actor local` (the operator only;
+  audited as `history-purge`). The folder's files and rule are not touched.
 - Optional syslog forwarding of the audit trail as well: `forward_audit`, a plain
   on/off, default **off**. Both keys and `syslog_facility` are managed by the
   **Logging & forwarding** extension.

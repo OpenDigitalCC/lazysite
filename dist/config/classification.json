@@ -504,6 +504,11 @@
       "path": "{LAZYSITE}/logs/audit.log",
       "ensure": "group-write",
       "why": "every surface APPENDS here; a 0644 file loses audit entries without trace"
+    },
+    {
+      "path": "{LAZYSITE}/logs/audit-reads.log",
+      "ensure": "group-write",
+      "why": "SM1325: MCP and the control API APPEND the AI read audit here; a 0644 file loses those rows without trace"
     }
   ],
   "install_dirs": [

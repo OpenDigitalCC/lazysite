@@ -31,7 +31,7 @@ use Fcntl qw(O_WRONLY O_APPEND O_CREAT);
 use Exporter 'import';
 use Lazysite::Util ();
 
-our @EXPORT_OK = qw(audit_log audit_trail_state audit_reads_state records_read);
+our @EXPORT_OK = qw(audit_log audit_read_log audit_trail_state audit_reads_state records_read);
 
 our $LAZYSITE_DIR;
 
@@ -91,7 +91,12 @@ sub audit_trail_state {
 # lazysite.conf. Here ABSENCE IS OFF, the other way round from the trail's own
 # switch, because this one records more about who read what: only an explicit
 # `on` (or true/yes/enabled) turns it on, and a value it cannot read is off.
-# It writes to the same trail, so the same rotation keeps it bounded.
+#
+# ITS OWN FILE (ruling 97): logs/audit-reads.log, beside audit.log, rotated by
+# the same logrotate stanza (lazysite/logs/*.log) and forwarded as the trail
+# is - so reads never push a change off the Audit page's change view, which
+# keeps the newest 5,000 rows. `audit_trail: off` stops it too. The manager
+# switches it (ruling 96) with the trail's own gate: Manager::Config.
 #
 # THE READS, named once for both doors: the ones that hand back a page's or a
 # file's content. A listing, a search or a status is not one.
@@ -129,10 +134,20 @@ sub records_read {
     return audit_reads_state($lzdir) eq 'on' ? 1 : 0;
 }
 
-sub audit_log {
-    my ( $user, $act, $target, $ip, $status, $origin, $detail ) = @_;
+# SM1325: one successful read, on its own file (see above). The line is the
+# trail's shape, status `ok`, so one parser reads both.
+sub audit_read_log {
+    my ( $user, $act, $target, $ip, $origin ) = @_;
     return unless defined $LAZYSITE_DIR;
-    return if audit_trail_state() eq 'off';    # the switch: see above
+    return if audit_trail_state() eq 'off';
+    my $line = _line( $user, $act, $target, $ip, 'ok', $origin, '' );
+    _append_line( $act, $line, 'audit-reads.log' );
+    Lazysite::Util::forward_line( 'audit', 'info', $line );
+    return;
+}
+
+sub _line {
+    my ( $user, $act, $target, $ip, $status, $origin, $detail ) = @_;
     my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
     $_ = defined $_ ? "$_" : '' for ( $user, $act, $target, $ip, $status, $origin, $detail );
     s/[|\r\n]+/ /g for ( $user, $act, $target, $ip, $status, $origin, $detail );
@@ -140,6 +155,14 @@ sub audit_log {
     # older 7-field readers/lines stay valid.
     my $line = "$ts | $user | $act | $target | $ip | $status | $origin";
     $line .= " | $detail" if length $detail;
+    return $line;
+}
+
+sub audit_log {
+    my ( $user, $act, $target, $ip, $status, $origin, $detail ) = @_;
+    return unless defined $LAZYSITE_DIR;
+    return if audit_trail_state() eq 'off';    # the switch: see above
+    my $line = _line( $user, $act, $target, $ip, $status, $origin, $detail );
 
     _append_line( $act, $line );
     # External forwarding (the 'Logging & forwarding' extension): best-effort,
@@ -152,13 +175,13 @@ sub audit_log {
 # The file append, with every failure mode made LOUD (via _warn_once) instead
 # of dropped: unmakeable dir, unopenable/unwritable file, failed print.
 sub _append_line {
-    my ( $act, $line ) = @_;
+    my ( $act, $line, $name ) = @_;
     my $dir = "$LAZYSITE_DIR/logs";
     unless ( -d $dir || mkdir($dir) ) {
         _warn_once( $act, "cannot create $dir: $!" );
         return;
     }
-    my $file = "$dir/audit.log";
+    my $file = "$dir/" . ( $name // 'audit.log' );
     my @s    = stat $file;
     # Self-heal: a file created 0644 by an older writer (or a stray umask)
     # locks the other identity out; if we own it, restore group-append now.

@@ -452,7 +452,7 @@ our %ACTION = (
     'artifact-backups-delete' => { instance_wide => 1, mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'path', in => 'query' } ] },
     'artifact-manifest'       => { params => [] },
     'artifact-validate'       => { params => [] },
-    'audit' => { cookie_gates_itself => 'create_sub_users without audit gets a scoped view (SM173), not a refusal', params => [ { name => 'user', in => 'query' }, { name => 'target', in => 'query' }, { name => 'start', in => 'query' }, { name => 'end', in => 'query' }, { name => 'page', in => 'query' }, { name => 'per_page', in => 'query' } ] },
+    'audit' => { cookie_gates_itself => 'create_sub_users without audit gets a scoped view (SM173), not a refusal', params => [ { name => 'user', in => 'query' }, { name => 'target', in => 'query' }, { name => 'start', in => 'query' }, { name => 'end', in => 'query' }, { name => 'page', in => 'query' }, { name => 'per_page', in => 'query' }, { name => 'view', in => 'query', note => 'SM1325: reads for the AI reads file (audit-reads.log); anything else the changes' } ] },
     'backup-create' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'scope', in => 'query' } ] },
     # [cookie_cap] SM268 03-F11: removing a snapshot is the same authority as taking or
     # restoring one.

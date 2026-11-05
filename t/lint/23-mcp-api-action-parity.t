@@ -466,14 +466,12 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
 
     # A read's REFUSAL or ERROR is recorded on both, by the same test of the
     # result. Behaviour is proved in t/unit/mcp/28 and t/unit/manager/206; this
-    # pins that each CGI still states the rule they prove. SM1325 adds one
-    # clause to each - a successful read the site asked to have recorded
-    # (`audit_reads: on`), proved in t/unit/mcp/72 - and takes none away.
-    like( $mcp_src, qr/if \( !\$READ\{\$name\} \|\| !\$aok(?: \|\| \$read_audited)? \) \{/,
+    # pins that each CGI still states the rule they prove.
+    like( $mcp_src, qr/if \( !\$READ\{\$name\} \|\| !\$aok \) \{/,
         'MCP records a read whose answer is a refusal or an error' );
     like( $api_src, qr/!\$skip\{\$aud_action\} \|\| \( \$AUDIT_FAILED && !\$MUTATING\{\$aud_action\} \)/,
         'the control API records a read whose answer is a refusal or an error' );
-    like( $api_src, qr/eq 'POST' \|\| \$AUDIT_FAILED(?: \|\| \$AUDIT_READ)? \)/,
+    like( $api_src, qr/eq 'POST' \|\| \$AUDIT_FAILED \)/,
         '...over GET as well, which is how a token client reads' );
 }
 

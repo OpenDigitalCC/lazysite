@@ -169,6 +169,11 @@ var SITE_SCHEMA = [
   { key: 'maintenance_until', placeholder: '2026-11-01 18:30', label: 'Expected back, UTC (optional)', type: 'text', default: '',
     group: 'Maintenance',
     note: 'A UTC time, YYYY-MM-DD HH:MM. Sent to browsers and crawlers as Retry-After and shown to visitors. Blank sends an hour.' },
+  // SM1325 (rulings 50, 96): the read audit. Needs Site config AND the audit trail
+  // switch permission, as the trail's own switch does; off clears the key.
+  { key: 'audit_reads', label: 'Record AI reads', type: 'toggle',
+    on: 'on', off: '', default: '', group: 'Audit',
+    note: 'On: each successful read of a page or a file by an AI connection (MCP, or a control-API token) is recorded with the account, the path and the time, in a file of its own beside the audit trail (Audit, Show: AI reads). A signed-in person\'s reads and WebDAV are not recorded. Switching it needs the audit trail switch permission as well as Site config.' },
   // SM1294 (ruling 29): the site's optional ceiling on the browser features a page may ask for.
   { key: 'permissions_policy_allow', placeholder: 'any a page asks for', label: 'Browser features pages may ask for', type: 'text',
     default: '', group: 'Browser features',

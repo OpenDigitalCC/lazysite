@@ -1,6 +1,8 @@
 # lazysite log rotation (eight-dimension review D5: nothing shipped rotated
 # the site logs, a slow disk-full vector on hosts that have actually hit
 # ENOSPC). The audit reader is rotation-aware, so this is config only.
+# The *.log glob covers audit.log and, since SM1325, audit-reads.log (the AI
+# read audit), so the two rotate alike.
 #
 # DEPLOYMENT (operator, root; held for pre-launch per
 # docs/review/2026-07-01-eight-dimension/90-prelaunch-operational-holds.md):

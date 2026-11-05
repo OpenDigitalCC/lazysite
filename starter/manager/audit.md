@@ -13,6 +13,8 @@ query_params:
 <div class="mg-card-body">
 
 <div class="mg-line">
+  <label for="audit-view">Show</label>
+  <select id="audit-view" class="mg-inp" onchange="filterAudit()"><option value="">Changes</option><option value="reads">AI reads</option></select>
   <label for="audit-user">User</label>
   <select id="audit-user" class="mg-inp" style="max-width:12rem" onchange="filterAudit()"><option value="">(all users)</option></select>
   <label for="audit-target-f">Target</label>
@@ -172,13 +174,15 @@ function loadAudit() {
   var t = document.getElementById('audit-target-f').value;
   var from = document.getElementById('audit-from').value;
   var to   = document.getElementById('audit-to').value;
+  var view = document.getElementById('audit-view').value;   // SM1325
   auditTarget = t;   // kept for the scope note
   var url = '/cgi-bin/lazysite-manager-api.pl?action=audit'
           + '&page=' + auditPage + '&per_page=50'
           + (u ? ('&user=' + encodeURIComponent(u)) : '')
           + (t ? ('&target=' + encodeURIComponent(t)) : '')
           + (from ? ('&start=' + encodeURIComponent(from)) : '')
-          + (to ? ('&end=' + encodeURIComponent(to)) : '');
+          + (to ? ('&end=' + encodeURIComponent(to)) : '')
+          + (view ? ('&view=' + encodeURIComponent(view)) : '');
   fetch(url).then(function (r) { return r.json(); }).then(function (d) {
     var el = document.getElementById('audit-table');
     if (!d.ok) { el.textContent = d.error || 'Failed to load.'; return; }

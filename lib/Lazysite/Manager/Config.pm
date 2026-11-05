@@ -72,7 +72,7 @@ sub action_config_read {
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
         app_offline_pages app_update
         maintenance maintenance_page maintenance_until
-        permissions_policy_allow
+        permissions_policy_allow audit_reads
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
@@ -322,7 +322,7 @@ sub action_config_set {
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
         app_offline_pages app_update
         maintenance maintenance_page maintenance_until
-        permissions_policy_allow
+        permissions_policy_allow audit_reads
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
 
     # SM612: settable, but NOT BY A TOKEN CLIENT. The operator toggles the
@@ -472,6 +472,25 @@ sub action_config_set {
                 . 'be refused and only the host could switch it off again.' }
             if $value eq 'on' && !_user_caps($auth_user)->{maintenance_access};
     }
+    # SM1325 (rulings 50, 96): THE READ AUDIT IS SWITCHED WITH THE TRAIL'S OWN GATE.
+    # Whether the trail records who read what is the same size of decision as
+    # whether it records at all (Manager::AuditTrail::_audit_trail_set), so it
+    # needs manage_config AND audit_switch, on a token's own grant or an
+    # account's groups. on, off, or empty (unset: off).
+    if ( $key eq 'audit_reads' ) {
+        $value = lc( $value // '' );
+        $value =~ s/^\s+|\s+$//g;
+        return { ok => 0, kind => 'invalid', field => $key,
+            error => "audit_reads must be 'on', 'off' or empty (unset, the same as off)" }
+            unless $value eq 'on' || $value eq 'off' || $value eq '';
+        no warnings 'once';
+        my $caps = $token_auth ? \%Lazysite::Manager::Common::token_caps : _user_caps($auth_user);
+        return { ok => 0, kind => 'forbidden', field => $key,
+            error => 'Switching the read audit needs Site config as well as the audit trail '
+                . 'switch permission, as switching the trail does. An administrator can grant both '
+                . 'on the Groups page.' }
+            unless $caps->{manage_config} && $caps->{audit_switch};
+    }
     if ( $key eq 'maintenance_page' && defined $value && length $value ) {
         $value =~ s/^\s+|\s+$//g;
         require Lazysite::Maintenance;
@@ -547,7 +566,7 @@ sub action_config_set {
         app_name app_short_name app_scope app_start_url app_theme_colour app_background_colour
         app_icon_64 app_icon_192 app_icon_512 app_icon_maskable app_shell
         app_offline_pages app_update maintenance maintenance_page maintenance_until
-        permissions_policy_allow);
+        permissions_policy_allow audit_reads);
     return { ok => 0,
         error => "A value is required: '$key' has no default to fall back to, so it "
             . 'cannot be cleared (the keys that can are '

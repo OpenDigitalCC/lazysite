@@ -95,28 +95,34 @@ sub api {
     local %ENV = %ENV;
     delete @ENV{qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS LAZYSITE_AUTH_TRUSTED HTTP_COOKIE HTTP_AUTHORIZATION)};
     $ENV{DOCUMENT_ROOT}  = $d;
-    $ENV{REQUEST_METHOD} = 'GET';
+    $ENV{REQUEST_METHOD} = $o{body} ? 'POST' : 'GET';
     $ENV{QUERY_STRING}   = $query;
-    $ENV{CONTENT_LENGTH} = 0;
+    $ENV{CONTENT_LENGTH} = $o{body} ? length $o{body} : 0;
+    $ENV{CONTENT_TYPE}   = 'application/json' if $o{body};
     if ( $o{cookie_user} ) {
         $ENV{HTTP_X_REMOTE_USER}    = $o{cookie_user};
         $ENV{LAZYSITE_AUTH_TRUSTED} = 1;
     }
-    else { $ENV{HTTP_AUTHORIZATION} = 'Basic ' . encode_base64( "rd:$tok", '' ) }
-    my $out = run_child( [ $^X, $mapi ], stdin => '' )->{out};
+    else {
+        my ( $u, $k ) = $o{as} ? @{ $o{as} } : ( 'rd', $tok );
+        $ENV{HTTP_AUTHORIZATION} = 'Basic ' . encode_base64( "$u:$k", '' );
+    }
+    my $out = run_child( [ $^X, $mapi ], stdin => ( $o{body} // '' ) )->{out};
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     return eval { decode_json( $jb // '' ) } // { _raw => $out };
 }
 
-my $log = "$d/lazysite/logs/audit.log";
+# Ruling 97: the reads have a file of their own; the change trail never sees them.
+my $log     = "$d/lazysite/logs/audit-reads.log";
+my $changes = "$d/lazysite/logs/audit.log";
 sub rows_since {
-    my ($from) = @_;
-    open my $fh, '<', $log or return ();
+    my ( $from, $file ) = @_;
+    open my $fh, '<', ( $file // $log ) or return ();
     my @l = <$fh>;
     close $fh;
     return @l[ $from .. $#l ];
 }
-sub mark { my @all = rows_since(0); return scalar @all }
+sub mark { my @all = rows_since( 0, $_[0] ); return scalar @all }
 
 # A version to view: content history on, and one save through MCP.
 ok( $tok, 'a token for the control API' ) or BAIL_OUT('no token');
@@ -158,6 +164,7 @@ subtest 'off by default: a successful read writes no row' => sub {
 
 subtest 'on: each AI read of a page or a file is one row' => sub {
     conf("audit_reads: on\n");
+    my $cm    = mark($changes);
     my @reads = mcp_reads();
     is( scalar @reads, 4, 'four MCP content reads, view_version among them' );
     for my $c (@reads) {
@@ -176,6 +183,8 @@ subtest 'on: each AI read of a page or a file is one row' => sub {
     my @new = grep { /\| git-show \|/ } rows_since($m);
     is( scalar @new, 1, 'and writes one row' ) or diag @new;
     like( $new[0] // '', qr/\| rd \| git-show \| \/hist\.md \| .* \| ok \| api/, '...naming the token account' );
+    is( scalar( grep { /\| (?:read_file|read_page|view_version|preview_page|git-show) \|/ } rows_since( $cm, $changes ) ),
+        0, 'and none of them is on the change trail' );
 };
 
 subtest 'on: reads that are not of a page or file, and a person, write none' => sub {
@@ -197,6 +206,80 @@ subtest 'a value other than on is off' => sub {
     my $m = mark();
     call( 'read_file', { path => '/here.md' } );
     is( scalar( grep { /\| read_file \|/ } rows_since($m) ), 0, 'no row' );
+};
+
+# Ruling 96: the manager switches it, with the trail's own gate - Site config
+# AND the audit trail switch permission.
+subtest 'config-set switches it, gated by manage_config AND audit_switch' => sub {
+    conf();
+    uapi( { action => 'add', username => $_, password => 'x-long-enough' } ) for qw(cfg sw);
+    grant_caps( $d, 'cfg', qw(api manage_config) );
+    grant_caps( $d, 'sw',  qw(api manage_config audit_switch audit) );
+    my $ct = uapi( { action => 'token', username => 'cfg' } )->{token};
+    my $st = uapi( { action => 'token', username => 'sw' } )->{token};
+    my $body = encode_json( { key => 'audit_reads', value => 'on' } );
+    my $no = api( 'action=config-set', as => [ 'cfg', $ct ], body => $body );
+    ok( !$no->{ok}, 'manage_config alone is refused' ) or diag encode_json($no);
+    like( $no->{error} // '', qr/audit trail switch/, '...naming the permission it lacks' );
+    unlike( do { open my $c, '<', "$d/lazysite/lazysite.conf"; local $/; <$c> }, qr/^audit_reads/m,
+        '...and nothing is written' );
+    my $yes = api( 'action=config-set', as => [ 'sw', $st ], body => $body );
+    ok( $yes->{ok}, 'manage_config with audit_switch switches it on' ) or diag encode_json($yes);
+    my $r = call( 'read_file', { path => '/here.md' } );
+    ok( $r && !$r->{result}{isError}, 'a read' );
+    my $bad = api( 'action=config-set', as => [ 'sw', $st ],
+        body => encode_json( { key => 'audit_reads', value => 'maybe' } ) );
+    ok( !$bad->{ok}, 'a value other than on, off or empty is refused' );
+
+    # Ruling 97: the Audit page's reads view reads that file; the change view does not.
+    my $reads = api( 'action=audit&view=reads', as => [ 'sw', $st ] );
+    ok( $reads->{ok} && $reads->{view} eq 'reads', 'the reads view answers' ) or diag encode_json($reads);
+    ok( ( grep { ($_->{action} // '') eq 'read_file' } @{ $reads->{entries} || [] } ), '...with the read' );
+    my $chg = api( 'action=audit', as => [ 'sw', $st ] );
+    ok( $chg->{ok} && $chg->{view} eq 'changes', 'the change view answers' );
+    ok( !( grep { ($_->{action} // '') eq 'read_file' && ($_->{status} // '') eq 'ok' } @{ $chg->{entries} || [] } ),
+        '...without it' );
+    ok( ( grep { ($_->{action} // '') eq 'config-set' } @{ $chg->{entries} || [] } ),
+        '...and with the switch itself, which is a change' );
+};
+
+# The reads file is a store the web server appends to: the installer and
+# `lazysite check` keep it group-writable (the model they share, which
+# t/lint/30 holds check 4b to), and the Audit page says when it is not.
+subtest 'the reads file is kept writable, and its health is reported' => sub {
+    my $model = do {
+        open my $m, '<', "$root/dist/config/classification.json" or die $!;
+        local $/;
+        decode_json(<$m>);
+    };
+    ok( ( grep { ( $_->{path} // '' ) eq '{LAZYSITE}/logs/audit-reads.log' && ( $_->{ensure} // '' ) eq 'group-write' }
+                @{ $model->{runtime_files} || [] } ),
+        'the permission model declares it group-writable' );
+
+    uapi( { action => 'add', username => 'hv', password => 'x-long-enough' } );
+    grant_caps( $d, 'hv', qw(api audit) );
+    my $ht = uapi( { action => 'token', username => 'hv' } )->{token};
+
+    conf();
+    my $off = api( 'action=audit&view=reads', as => [ 'hv', $ht ] );
+    is( $off->{trail}{state}, 'reads-off', 'off: the reads view says reads are not being recorded' )
+        or diag encode_json( $off->{trail} );
+
+    conf("audit_reads: on\n");
+    call( 'read_file', { path => '/here.md' } );
+    my $on = api( 'action=audit&view=reads', as => [ 'hv', $ht ] );
+    is( $on->{trail}{state}, 'appendable', 'on: the reads file is appendable' );
+    like( $on->{trail}{file} // '', qr{/audit-reads\.log\z}, '...and it is the reads file that was asked' );
+
+  SKIP: {
+        skip 'root can write a read-only file', 2 if $> == 0;
+        chmod 0444, $log or die $!;
+        my $bad = api( 'action=audit&view=reads', as => [ 'hv', $ht ] );
+        chmod 0664, $log;
+        is( $bad->{trail}{state}, 'unwritable', 'a reads file the server cannot append to is reported' );
+        is( api( 'action=audit', as => [ 'hv', $ht ] )->{trail}{state}, 'appendable',
+            '...while the change view reports its own file' );
+    }
 };
 
 done_testing();

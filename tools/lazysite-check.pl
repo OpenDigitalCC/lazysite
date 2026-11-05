@@ -314,6 +314,9 @@ my %UNWRITABLE_MEANS = (
     'lazysite/logs/audit.log' =>
         'every surface appends here, so events are being LOST as they happen '
         . 'and the Audit page shows a short list that looks healthy',
+    'lazysite/logs/audit-reads.log' =>
+        'MCP and the control API append the AI read audit here (SM1325), so those '
+        . 'rows are being LOST and the Audit page\'s AI reads view looks quiet',
     'lazysite/auth/groups-settings.json' =>
         'the manager cannot save a capability change, and a group whose record '
         . 'cannot be written cannot be given to a person',
@@ -727,6 +730,7 @@ sub run_checks {
         lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json
         lazysite/auth/groups-settings.json
         lazysite/logs/audit.log
+        lazysite/logs/audit-reads.log
         ) ) {
         my $path = model_path($rel);
         next unless -f $path;

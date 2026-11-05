@@ -2106,21 +2106,25 @@ the trail, so it is recorded here.
 what changed
 : `audit_reads: on` in lazysite.conf records each successful MCP `read_file`, `read_page`,
   `view_version` and `preview_page`, and a token's control-API `git-show`, as one `ok` row
-  (time, account, path, address, origin) in the existing trail. Off by default; any value
+  (time, account, path, address, origin) in `logs/audit-reads.log`, beside the trail
+  (ruling 97). Off by default; any value
   but on is off. A signed-in person's reads and WebDAV are not recorded.
 
 who can switch it
-: whoever edits lazysite.conf on the host. No manager, API or MCP surface sets it.
+: an account or token holding `manage_config` AND `audit_switch` (the Config page,
+  `config-set`), the gate of the trail's own switch (ruling 96); and whoever edits
+  lazysite.conf on the host. The switch itself is on the change trail.
 
 data and privacy
 : the trail gains which account read which file, and when, and from which address. That
   is about agents' accounts, and it names protected paths to whoever may read the audit
-  (the Audit page, scoped as before). It is kept and rotated as the trail is (logrotate,
-  weekly, eight kept, where installed), and forwarded to syslog if `forward_audit` is on.
+  (the Audit page's AI reads view, scoped as the trail is). It is kept and rotated as the
+  trail is (the logrotate stanza covers `logs/*.log`: weekly, eight kept, where installed),
+  and forwarded to syslog if `forward_audit` is on.
 
 residual risk
-: volume. A busy agent can write many rows; the Audit page shows the newest 5,000, so
-  reads can push older changes off that page while the file keeps them.
+: volume, bounded by rotation only. The reads have their own file and view, so they do
+  not push a change off the change view.
 
 verdict
 : proposed: accepted, pending the release manager's confirmation.

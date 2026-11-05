@@ -60,6 +60,13 @@ Archive
   time. Off by default, and a value other than on is off. A signed-in person's reads are not
   recorded. It is set in the file only, for now. The rows rotate with the trail.
 
+  token's control-API `git-show`, with the account, the path and the time, in a file of its
+  own beside the trail, `logs/audit-reads.log` (ruling 97): rotated and forwarded as the trail
+  is, and shown on the Audit page under Show: AI reads, so reads never push a change off the
+  change view. Off by default, and a value other than on is off. A signed-in person's reads
+  are not recorded. The Config page switches it (Record AI reads; `config-set`), and only for
+  an account or token holding Site config AND the audit trail switch permission, the trail's
+  own gate (ruling 96).
 - SM1324 (PENDING) **A protected folder can keep a history, by choice.** Ruling 50 (T-16):
   protected content is kept out of the content history, which may be pushed to a remote. A
   folder rule may now carry `history: true` (the manager's Keep history, `history` on the
