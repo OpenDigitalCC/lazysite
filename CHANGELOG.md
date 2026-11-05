@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1334 (PENDING) **A group can pin its members to a domain.** Ruling 78: only a pin removes the
+  other domains, for an account or a group. An account's pin is a domain's `locked_users`; a
+  domain's new `locked_groups` pins every member of the groups it names the same way: they reach
+  only the domains that lock them, of the ones they are granted. Set it on the Domains sheet
+  (Groups locked to this domain, the primary's row included), with `domain-set`, MCP
+  `domain_set` or `lazysite-domains.pl pin-add`/`pin-remove`; it needs `manage_users`, as the
+  other access keys do. A pin on the primary confines to the primary. A group a request's address
+  leaves out can no longer lift a pin: the request's domains are held inside the account's.
+
 - SM1333 (PENDING) **The primary is a row on every domain surface.** Ruling 78: the Domains page
   lists the primary as `(default)` with an Access sheet (groups allowed, users locked), and
   `domain-set` on the control API, MCP `domain_set` and `lazysite-domains.pl` (`--host '(default)'

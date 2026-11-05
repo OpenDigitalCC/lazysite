@@ -93,8 +93,8 @@ subtest 'only a pin removes the others' => sub {
     $d = conf("allowed_groups: agent-ai\nlocked_users: agent\n");
     is_deeply( scopes( $d, 'agent', ['agent-ai'] ), [PRIMARY_SCOPE], 'pinned to the primary: the primary only' );
     $d = conf("locked_users: agent\n");
-    is_deeply( scopes( $d, 'agent', ['agent-ai'] ), [],
-        'pinned to a primary that names nobody: the primary, unbound, as before' );
+    is_deeply( scopes( $d, 'agent', ['agent-ai'] ), [PRIMARY_SCOPE],
+        'pinned to a primary that names nobody: the primary, confined there (SM1334), never unbound' );
 };
 
 subtest 'the primary scope in the sub-user ceiling meets only itself' => sub {

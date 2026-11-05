@@ -82,7 +82,9 @@ Expect
   A user granted nothing anywhere reaches the primary site. A user granted a
   secondary domain reaches the primary only when the primary's own row grants
   them too: name their group in the **(default)** row's Groups allowed to manage.
-  Only a lock takes the other domains away.
+  Only a lock takes the other domains away: **Users locked to this domain** for
+  an account, **Groups locked to this domain** for every member of a group
+  (SM1334); locked to the primary, they reach the primary only.
 
   Before Save, adding or removing a group or user marks the field changed and
   the sheet counts it; Save then says **Saved**, and the domain lists the

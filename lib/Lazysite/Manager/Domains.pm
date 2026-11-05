@@ -39,13 +39,14 @@ our $auth_user = '';    # for log attribution
 # content_root is the one that actually roots a domain's content; the rest are
 # presentation. SM165 adds the two ACCESS keys: allowed_groups (comma list of
 # groups that may manage this domain) and locked_users (comma list of accounts
-# confined to it). SM179 adds the language keys: lang (this host's language) and
+# confined to it); SM1334 a third, locked_groups (groups whose members are
+# confined to it - the pin on a group). SM179 adds the language keys: lang (this host's language) and
 # lang_group (the language set it belongs to) - so a language set is configurable
 # through the Domains page / control API / CLI, not only by hand-editing the conf.
 # SM1118 adds the maintenance keys: maintenance (on|off), maintenance_page and
 # maintenance_until put ONE domain in maintenance (Lazysite::Maintenance::status).
 my @DOMAIN_KEYS = qw(content_root site_url site_name theme layout nav_file
-    search_default allowed_groups locked_users lang lang_group
+    search_default allowed_groups locked_users locked_groups lang lang_group
     maintenance maintenance_page maintenance_until);
 my %IS_KEY = map { $_ => 1 } @DOMAIN_KEYS;
 
@@ -53,7 +54,7 @@ my %IS_KEY = map { $_ => 1 } @DOMAIN_KEYS;
 # them; since the primary has a row of its own (SM1332), a listing that let a
 # secondary inherit the primary's allowed_groups would show - and Groups would
 # read - a grant that row does not make.
-my %IS_ACCESS = map { $_ => 1 } qw(allowed_groups locked_users);
+my %IS_ACCESS = map { $_ => 1 } qw(allowed_groups locked_users locked_groups);
 
 # SM583: the two keys that name a layout or a theme rather than describing one.
 my %IS_PRESENTATION = map { $_ => 1 } qw(layout theme);
@@ -1211,7 +1212,7 @@ sub _access_value {
     # (DomainAccess compares it with the groups file's), so the @ comes off
     # here. locked_users names accounts, where an @ is no part of a name and
     # stays refused below.
-    @toks = map { s/\A\@//r } @toks if $key eq 'allowed_groups';
+    @toks = map { s/\A\@//r } @toks if $key ne 'locked_users';    # the group keys
     for my $t (@toks) {
         return { ok => 0, kind => 'invalid', error => "Invalid name in $key: $t" }
             unless $t =~ /^[A-Za-z0-9_-]+\z/;
@@ -1240,7 +1241,7 @@ sub _is_primary_host {
 sub _primary_access_set {
     my ( $key, $value ) = @_;
     return { ok => 0, kind => 'invalid',
-        error => 'The primary site\'s row sets its access keys here (allowed_groups, locked_users); '
+        error => 'The primary site\'s row sets its access keys here (allowed_groups, locked_users, locked_groups); '
             . 'its other settings are the site\'s own, on the Config page (config-set).' }
         unless defined $key && $IS_ACCESS{$key};
     my $v = _access_value( '(default)', $key, $value );
@@ -1448,7 +1449,7 @@ sub domain_set {
 # naming the store, rather than taken as "nobody exists".
 sub _refuse_unknown_names {
     my ( $host, $key, @names ) = @_;
-    my $kind = $key eq 'allowed_groups' ? 'group' : 'account';
+    my $kind = $key eq 'locked_users' ? 'account' : 'group';
     my ( $base, $ov ) = _parse();
     my $own = _is_primary_host($host)    # SM1333: the primary's row is the bare line
         ? ( ref $base eq 'HASH' && $base->{$key} )
@@ -1521,10 +1522,10 @@ sub domain_access_edit {
     my $primary = _is_primary_host($host);    # SM1333: the primary's row, '(default)'
     $host = $primary ? '(default)' : lc( $host // '' );
     return host_refusal($host) unless $primary || valid_host($host);
-    my %KIND = ( allowed_groups => 'group', locked_users => 'account' );
+    my %KIND = ( allowed_groups => 'group', locked_users => 'account', locked_groups => 'group' );
     my $kind = $KIND{ $key // '' }
         or return { ok => 0, kind => 'invalid',
-        error => 'Not an access key: ' . ( $key // '' ) . ' (allowed_groups or locked_users)' };
+        error => 'Not an access key: ' . ( $key // '' ) . ' (allowed_groups, locked_users or locked_groups)' };
     return { ok => 0, kind => 'invalid', error => "Not an operation: " . ( $op // '' ) }
         unless defined $op && ( $op eq 'add' || $op eq 'remove' );
 
@@ -2034,7 +2035,7 @@ sub action_domain_check {
 # manager only displays them, never edits them.
 sub action_domains_list {
     my @keys = qw(site_name site_url content_root theme layout nav_file search_default
-        allowed_groups locked_users lang lang_group
+        allowed_groups locked_users locked_groups lang lang_group
         maintenance maintenance_page maintenance_until);
     my %base;
     my %ov;    # host => { key => value }

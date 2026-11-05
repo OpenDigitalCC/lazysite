@@ -1592,8 +1592,9 @@ elsif ( $action eq 'domain-set' ) {
     # a conferral, and widening this would break domain management for a grant
     # that never touches access.
     {
+        # SM1334: locked_groups, the group pin, is an access key too.
         my $caps       = $token_auth ? \%token_caps : _user_caps($auth_user);
-        my %ACCESS_KEY = ( allowed_groups => 1, locked_users => 1 );
+        my %ACCESS_KEY = ( allowed_groups => 1, locked_users => 1, locked_groups => 1 );
         my $key        = $req->{key} // '';
 
         if ( $ACCESS_KEY{$key} && !$caps->{manage_users} ) {

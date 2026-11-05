@@ -135,4 +135,19 @@ subtest 'a group named only on the primary row is confined to the primary' => su
     is_deeply( hosts( $s->call( 'boss', 'domains-list' ) ), [ '(default)', 'mine.example.org', 'bare.example.org' ], 'and reaches every domain again' );
 };
 
+# SM1334: the group pin is an access key like the others.
+subtest 'locked_groups is set as an access key' => sub {
+    my $r = $s->call( 'boss', 'domain-set', body => { host => 'mine.example.org', key => 'locked_groups', value => '@others' } );
+    ok( $r->{ok}, 'domain-set locked_groups' ) or diag( $r->{error} // '' );
+    like( conf(), qr/^alias\.mine\.example\.org\.locked_groups: others$/m, 'stored as the plain name' );
+    is( row( $s->call( 'boss', 'domains-list' ), 'mine.example.org' )->{locked_groups}, 'others', 'listed' );
+    $r = $s->call( 'boss', 'domain-set', body => { host => '(default)', key => 'locked_groups', value => 'others' } );
+    ok( $r->{ok}, 'and on the primary row' ) or diag( $r->{error} // '' );
+    like( conf(), qr/^locked_groups: others$/m, 'the bare line' );
+    $r = $s->call( 'boss', 'domain-set', body => { host => 'mine.example.org', key => 'locked_groups', value => 'nosuch' } );
+    is( $r->{kind}, 'unknown-principals', 'a group the site does not have is refused' );
+    $r = $s->call( 'dm', 'domain-set', body => { host => 'mine.example.org', key => 'locked_groups', value => '' } );
+    like( $r->{error} // '', qr/Users & groups/, 'without manage_users it is refused, as the other access keys are' );
+};
+
 done_testing();

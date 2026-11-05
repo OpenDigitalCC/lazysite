@@ -298,7 +298,8 @@ sub resolve_user_scopes {
 # scopes are what the request's groups reach, and when the account is confined by
 # what it is granted and nothing of that is left, it is confined to nothing
 # (DENY_ALL_SCOPE), never unconfined. The request's set is always within the whole
-# (fewer groups reach fewer domains; a lock is the account's own).
+# (fewer groups reach fewer domains; and since a group can carry a lock, SM1334,
+# the request's set is cut to the whole, so a group left out cannot lift one).
 #
 # Returns ( \@whole, \@request ). Equal, and nothing more read, when no group carries
 # an address rule or there is no request.
@@ -311,6 +312,10 @@ sub _scopes_whole_and_request {
     return ( \@whole, \@whole ) unless %{ _address_blocked_groups( read_group_settings() ) };
     my @req = Lazysite::Auth::DomainAccess::effective_scopes( $domains, $user, [ _effective_groups($user) ] );
     @req = ( Lazysite::Auth::DomainAccess::DENY_ALL_SCOPE() ) if @whole && !@req;
+    # SM1334: a GROUP can pin now (locked_groups), so a group left out of the
+    # walk can take a pin away with it, and the request's set would be wider than
+    # the whole. It is held inside the whole, so losing a group never widens.
+    @req = Lazysite::Auth::DomainAccess::intersect_scopes( \@req, \@whole ) if @whole;
     return ( \@whole, \@req );
 }
 

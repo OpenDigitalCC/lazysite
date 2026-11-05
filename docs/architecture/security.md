@@ -614,7 +614,9 @@ per-user flags:
   chain. Grants add (SM1332): the primary has a row of its own, the bare
   `allowed_groups:` line, whose grant adds the scope `/` (the docroot, read
   as the primary only by the domain rule); an account granted nothing keeps
-  the primary; only a lock removes the other domains. The per-account and per-group `dav_scope` settings that
+  the primary; only a lock removes the other domains - a domain's
+  `locked_users` for an account, its `locked_groups` for a group's members
+  (SM1334). The per-account and per-group `dav_scope` settings that
   preceded it are retired (SM279) and refused by the tooling; the
   resolved scopes still travel under the name `dav_scopes` everywhere
   they are enforced.

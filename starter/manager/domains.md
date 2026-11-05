@@ -96,6 +96,7 @@ var LABELS = {
   theme: 'Theme', layout: 'Layout', appearance: 'Appearance (layout & theme)',
   nav_file: 'Navigation menu', search_default: 'Search',
   allowed_groups: 'Groups allowed to manage', locked_users: 'Users locked to this domain',
+  locked_groups: 'Groups locked to this domain',
   maintenance: 'In maintenance', maintenance_page: 'Maintenance page', maintenance_until: 'Expected back (UTC)'
 };
 function label(k) { return LABELS[k] || k; }
@@ -172,7 +173,7 @@ var DISPLAY_KEYS = ['content_root', 'site_name', 'theme'];
 // SM167: theme + layout are edited as one 'appearance' field (a layout/theme
 // pair); saveDomain splits it back into the two conf keys.
 var EDIT_KEYS = ['content_root', 'site_url', 'site_name', 'appearance', 'nav_file', 'search_default',
-  'allowed_groups', 'locked_users', 'lang', 'lang_group',
+  'allowed_groups', 'locked_users', 'locked_groups', 'lang', 'lang_group',
   'maintenance', 'maintenance_page', 'maintenance_until'];
 // The editor groups the keys into labelled sections so the sheet reads
 // top-to-bottom like the Add form, rather than one ragged row of mixed-width
@@ -181,7 +182,7 @@ var EDIT_KEYS = ['content_root', 'site_url', 'site_name', 'appearance', 'nav_fil
 var EDIT_SECTIONS = [
   { title: 'Identity',     note: '',                                  keys: ['site_url', 'site_name', 'content_root'] },
   { title: 'Presentation', note: 'optional – inherits the default',   keys: ['appearance', 'nav_file', 'search_default'] },
-  { title: 'Access',       note: 'who may manage this domain',        keys: ['allowed_groups', 'locked_users'] },
+  { title: 'Access',       note: 'who may manage this domain',        keys: ['allowed_groups', 'locked_users', 'locked_groups'] },
   { title: 'Language',     note: 'for a multilingual set',            keys: ['lang', 'lang_group'] },
   // SM1118: one domain in maintenance, the rest of the instance untouched. The
   // instance switch (Config, Maintenance) covers every domain and wins over this.
@@ -198,7 +199,8 @@ var EDIT_HINTS = {
   maintenance_page: 'A path on this site or an https address. Blank uses the instance setting, then /maintenance.',
   maintenance_until: 'Optional, UTC: 2026-11-01 18:30. Shown to visitors and sent as Retry-After.',
   allowed_groups: 'Add the groups whose members may manage this domain. Grants add: a member reaches every domain naming one of its groups, the primary only when its own row names one. None = only operators.',
-  locked_users: 'Add accounts that can reach ONLY this domain (of the ones their groups allow) – nothing else.'
+  locked_users: 'Add accounts that can reach ONLY this domain (of the ones their groups allow) – nothing else.',
+  locked_groups: 'Add groups whose members can reach ONLY the domains that lock them (of the ones their groups allow) – the same lock, on a group.'
 };
 // SM259: two hints read differently when the domain does not exist yet - a
 // content folder is CREATED rather than repointed, and the site URL is derived
@@ -222,7 +224,7 @@ var EDIT_OPTIONS = {
 // <select> (SM305) + Add button, with removable pills - so the group/user UI is
 // consistent everywhere. allowed_groups picks from the site's groups;
 // locked_users from its accounts. PRINCIPALS feeds the shared picker.
-var PICK_KEYS = { allowed_groups: 'groups', locked_users: 'users' };
+var PICK_KEYS = { allowed_groups: 'groups', locked_users: 'users', locked_groups: 'groups' };
 var PRINCIPALS = { users: [], groups: [] };
 function loadPrincipals() {
   return fetch(API + '?action=principals', { credentials: 'same-origin' })
@@ -359,7 +361,8 @@ var NEW_HOST = '__new__';
 // settings are the site's own (Config), which every other domain inherits.
 var PRIMARY_HINTS = {
   allowed_groups: 'Add the groups whose members may manage the primary site. As on any domain, a group reaches the domains that name it: one named on another domain reaches the primary too only when it is named here, and one named only here reaches the primary only. An account no domain names reaches the primary anyway.',
-  locked_users: 'Add accounts that can reach ONLY the primary site (of the ones their groups allow) – no other domain.'
+  locked_users: 'Add accounts that can reach ONLY the primary site (of the ones their groups allow) – no other domain.',
+  locked_groups: 'Add groups whose members can reach ONLY the primary site (of the ones their groups allow) – no other domain.'
 };
 function primarySettingsHtml(row) {
   var host = row.host;

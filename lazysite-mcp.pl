@@ -1438,13 +1438,13 @@ my %TOOLS = (
         },
     },
     domain_set => {
-        description => 'Set ONE presentation or routing key on ONE configured domain: theme, layout, site_name, site_url, nav_file, search_default, lang or lang_group. This is how a secondary domain gets its own look - binding a theme or layout here publishes that theme\'s assets and leaves every other domain, including the primary, untouched. To bind both a layout and a theme, call twice (layout first). Does NOT create or remove domains. The host (default) is the primary site\'s row, which takes allowed_groups and locked_users only: grants add, so a group named on a secondary domain reaches the primary too only when the primary\'s row names it.',
+        description => 'Set ONE presentation or routing key on ONE configured domain: theme, layout, site_name, site_url, nav_file, search_default, lang or lang_group. This is how a secondary domain gets its own look - binding a theme or layout here publishes that theme\'s assets and leaves every other domain, including the primary, untouched. To bind both a layout and a theme, call twice (layout first). Does NOT create or remove domains. The host (default) is the primary site\'s row, which takes allowed_groups, locked_users and locked_groups only: grants add, so a group named on a secondary domain reaches the primary too only when the primary\'s row names it.',
         cap         => 'manage_domains',
         inputSchema => { type => 'object',
             properties => {
                 host => { type => 'string', description => 'The configured domain, e.g. clienta.example, or (default) for the primary\'s row' },
-                key => { type => 'string', description => 'theme | layout | site_name | site_url | nav_file | search_default | lang | lang_group | allowed_groups | locked_users (the last two also need manage_users)' },
-                value => { type => 'string', description => 'The value; an empty string clears the override so the domain inherits the primary again. allowed_groups is a comma-separated list of groups, each @name or name and each a group on this site (stored as the name; the whole list is replaced); locked_users a comma-separated list of accounts on this site. A name the site does not have is refused' },
+                key => { type => 'string', description => 'theme | layout | site_name | site_url | nav_file | search_default | lang | lang_group | allowed_groups | locked_users | locked_groups (the last three also need manage_users)' },
+                value => { type => 'string', description => 'The value; an empty string clears the override so the domain inherits the primary again. allowed_groups is a comma-separated list of groups, each @name or name and each a group on this site (stored as the name; the whole list is replaced); locked_users a comma-separated list of accounts on this site; locked_groups a list of groups whose members can reach ONLY the domains that lock them. A name the site does not have is refused' },
             },
             required => [ 'host', 'key' ], additionalProperties => JSON::PP::false },
         run => sub {
@@ -1469,7 +1469,7 @@ my %TOOLS = (
                 error => "Setting '$a->{key}' decides WHO may reach this domain's "
                     . "content, so it requires the 'Users & groups' permission "
                     . '(manage_users) as well as domain management.' }
-                if ( $a->{key} // '' ) =~ /\A(?:allowed_groups|locked_users)\z/
+                if ( $a->{key} // '' ) =~ /\A(?:allowed_groups|locked_users|locked_groups)\z/
                 && !$caps->{manage_users};
             if ( my $r = _host_reach_refusal( $caps, $a->{host} ) ) { return $r }
             return _domain_presentation_set( $a->{host}, $a->{key}, $a->{value} // '' );

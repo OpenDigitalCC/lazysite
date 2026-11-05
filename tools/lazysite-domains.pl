@@ -56,6 +56,10 @@ Commands:
   user-add --host H --user U      add ONE account to the domain's locked_users;
                                   U must be an account on this site
   user-remove --host H --user U   take ONE account out of locked_users
+  pin-add --host H --group G      add ONE group to the domain's locked_groups:
+                                  its members reach ONLY the domains that lock
+                                  them (of the ones their groups are granted)
+  pin-remove --host H --group G   take ONE group out of locked_groups
   remove --host H [--purge]       remove a domain (--purge: its content too)
   check --host H [--self-ip IP]   DNS, TLS and vhost checks; exits 2 until the
                                   domain is fully configured. --self-ip
@@ -63,10 +67,10 @@ Commands:
                                   otherwise discovered from canonical_ip or the
                                   install's own domain
 
---host '(default)' names the primary site's row, which takes its access keys
-only (allowed_groups, locked_users, and so group-add & co): an account a
-secondary domain grants reaches the primary when the primary's row grants it
-too. Its other settings are the site's own (config-set).
+--host '(default)' names the primary site's row, which takes its access
+keys only (allowed_groups, locked_users, locked_groups, and so group-add & co):
+an account a secondary domain grants reaches the primary when the primary's
+row grants it too. Its other settings are the site's own (config-set).
 
 group-add, group-remove, user-add and user-remove write through the same
 path as `set` (validation, the content-history commit, the log line). Adding
@@ -136,10 +140,14 @@ elsif ( $cmd eq 'set' ) {
         unless defined $opt{host} && defined $opt{key};
     $result = domain_set( $opt{host}, $opt{key}, $opt{value} );
 }
-elsif ( $cmd =~ /\A(group|user)-(add|remove)\z/ ) {
-    # SM1015: one name in, or out, of a domain's access list.
+elsif ( $cmd =~ /\A(group|user|pin)-(add|remove)\z/ ) {
+    # SM1015: one name in, or out, of a domain's access list. SM1334: pin-*
+    # is a group's lock (locked_groups).
     my ( $what, $op ) = ( $1, $2 );
-    my ( $flag, $key ) = $what eq 'group' ? ( 'group', 'allowed_groups' ) : ( 'user', 'locked_users' );
+    my ( $flag, $key )
+        = $what eq 'group' ? ( 'group', 'allowed_groups' )
+        : $what eq 'pin'   ? ( 'group', 'locked_groups' )
+        :                    ( 'user', 'locked_users' );
     die "lazysite-domains: $cmd requires --host and --$flag\n"
         unless defined $opt{host} && defined $opt{$flag};
     $result = domain_access_edit( $opt{host}, $key, $op, $opt{$flag} );
@@ -165,7 +173,7 @@ elsif ( $cmd eq 'check' ) {
 }
 else {
     die "lazysite-domains: unknown command '$cmd' "
-        . "(list|add|set|group-add|group-remove|user-add|user-remove|remove|check); "
+        . "(list|add|set|group-add|group-remove|user-add|user-remove|pin-add|pin-remove|remove|check); "
         . "run with --help for usage.\n";
 }
 
@@ -194,7 +202,7 @@ elsif ( $result->{ok} ) {
         print( ( $result->{changed} ? 'ok: ' : 'unchanged: ' ), $result->{message}, "\n" );
         my $now = $result->{value} // '';
         $now = join ', ', map { "\@$_" } grep { length } split /\s*,\s*/, $now
-            if ( $result->{key} // '' ) eq 'allowed_groups';
+            if ( $result->{key} // '' ) ne 'locked_users';
         print "  $result->{key}: ", ( length $now ? $now : '(none)' ), "\n";
     }
     else {

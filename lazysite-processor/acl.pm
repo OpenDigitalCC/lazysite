@@ -1017,7 +1017,7 @@ sub _group_closure {
 # cannot ACT outside its ceiling).
 sub _read_domain_access {
     my $f   = "$LAZYSITE_DIR/lazysite.conf";
-    my %dom = ( '' => { content_root => '', allowed_groups => [], locked_users => [] } );
+    my %dom = ( '' => { content_root => '', allowed_groups => [], locked_users => [], locked_groups => [] } );
     open my $fh, '<:utf8', $f or return %dom;
     while ( my $l = <$fh> ) {
         chomp $l;
@@ -1026,14 +1026,14 @@ sub _read_domain_access {
         if ( $l =~ /^content_root\s*:\s*(.+)/ ) {
             ( $dom{''}{content_root} = $1 ) =~ s/^\s+|\s+$//g;
         }
-        # SM1332: the primary's row.
-        elsif ( $l =~ /^(allowed_groups|locked_users)\s*:\s*(.+)/ ) {
+        # SM1332: the primary's row; SM1334: locked_groups, the pin on a group.
+        elsif ( $l =~ /^(allowed_groups|locked_users|locked_groups)\s*:\s*(.+)/ ) {
             $dom{''}{$1} = [ grep { length } map { s/^\s+|\s+$//gr } split /,/, $2 ];
         }
-        elsif ( $l =~ /^alias\.(.+)\.(content_root|allowed_groups|locked_users)\s*:\s*(.+)/x ) {
+        elsif ( $l =~ /^alias\.(.+)\.(content_root|allowed_groups|locked_users|locked_groups)\s*:\s*(.+)/x ) {
             my ( $h, $k, $v ) = ( $1, $2, $3 );
             $v =~ s/^\s+|\s+$//g;
-            $dom{$h} ||= { content_root => '', allowed_groups => [], locked_users => [] };
+            $dom{$h} ||= { content_root => '', allowed_groups => [], locked_users => [], locked_groups => [] };
             if ( $k eq 'content_root' ) { $dom{$h}{content_root} = $v }
             else { $dom{$h}{$k} = [ grep { length } map { s/^\s+|\s+$//gr } split /,/, $v ] }
         }
@@ -1054,11 +1054,13 @@ sub _domain_eff {
         my @ag = @{ $dom{$h}{allowed_groups} || [] };
         $granted{$h} = 1 if @ag && grep { $g{$_} } @ag;
         $locked{$h} = 1
-            if defined $user && grep { $_ eq $user } @{ $dom{$h}{locked_users} || [] };
+            if ( defined $user && grep { $_ eq $user } @{ $dom{$h}{locked_users} || [] } )
+            || grep { $g{$_} } @{ $dom{$h}{locked_groups} || [] };
     }
     my %allowed = %granted;
     $allowed{''} = 1 if !%granted || !@{ $dom{''}{allowed_groups} || [] };
     my @eff = %locked ? ( grep { $allowed{$_} } keys %locked ) : ( keys %allowed );
+    $granted{''} = 1 if $locked{''};    # SM1334: pinned to the primary names it
     return ( \%dom, \@eff, \%granted );
 }
 

@@ -90,14 +90,15 @@ sub intersect_scopes {
 # with it and creates every alias with it; the two copies drifting apart is
 # what this closes.
 sub _blank_domain {
-    return { content_root => '', allowed_groups => [], locked_users => [] };
+    return { content_root => '', allowed_groups => [], locked_users => [], locked_groups => [] };
 }
 
 # Parse the domain records from a lazysite.conf path:
-#   { host => { content_root, allowed_groups => [...], locked_users => [...] } }
+#   { host => { content_root, allowed_groups => [...], locked_users => [...],
+#               locked_groups => [...] } }
 # The default site is the record under host ''. Its access keys are the bare
-# `allowed_groups:` and `locked_users:` lines (SM1332), as
-# its content root is the bare `content_root:`. Read-only; never writes.
+# `allowed_groups:`, `locked_users:` and `locked_groups:` lines (SM1332, SM1334),
+# as its content root is the bare `content_root:`. Read-only; never writes.
 sub read_domains {
     my ($conf_path) = @_;
     my %dom = ( '' => _blank_domain() );
@@ -109,10 +110,10 @@ sub read_domains {
         if ( $line =~ /^content_root\s*:\s*(.+)/ ) {
             $dom{''}{content_root} = _trim($1);
         }
-        elsif ( $line =~ /^(allowed_groups|locked_users)\s*:\s*(.+)/ ) {
+        elsif ( $line =~ /^(allowed_groups|locked_users|locked_groups)\s*:\s*(.+)/ ) {
             $dom{''}{$1} = [ grep { length } map { _trim($_) } split /,/, $2 ];
         }
-        elsif ( $line =~ /^alias\.(.+)\.(content_root|allowed_groups|locked_users)\s*:\s*(.+)/x ) {
+        elsif ( $line =~ /^alias\.(.+)\.(content_root|allowed_groups|locked_users|locked_groups)\s*:\s*(.+)/x ) {
             my ( $host, $key, $val ) = ( $1, $2, $3 );
             $dom{$host} ||= _blank_domain();
             if ( $key eq 'content_root' ) {
@@ -134,7 +135,8 @@ sub read_domains {
 #   allowed(U)   : granted(U); and the primary when nothing is granted to U
 #                  anywhere, or when the primary's own list is empty (the default
 #                  site needs no allow, SM165).
-#   locked(U)    : domains whose locked_users include U.
+#   locked(U)    : domains whose locked_users include U, or whose locked_groups
+#                  name one of U's groups (SM1334: the pin, on a group).
 #   effective(U) : allowed, narrowed to locked when U is locked anywhere.
 #   result       : the content_roots of the effective domains (deduped); for
 #                  the primary, PRIMARY_SCOPE when it is GRANTED, and nothing
@@ -152,8 +154,9 @@ sub read_domains {
 # on the primary's row).
 #
 # The effective domain HOSTS for a user, whether the user is locked anywhere, and
-# the hosts GRANTED to it: allowed(U) [INTERSECT locked(U) when locked]. Shared
-# by the public resolvers so the allow/lock logic lives in ONE place.
+# the hosts GRANTED to it (with the primary when it is pinned there): allowed(U)
+# [INTERSECT locked(U) when locked]. Shared by the public resolvers so the
+# allow/lock logic lives in ONE place.
 sub _effective_hosts {
     my ( $dom, $user, $groups ) = @_;
     my %g = map { $_ => 1 } @{ $groups || [] };
@@ -164,7 +167,8 @@ sub _effective_hosts {
         my @ag = @{ $d->{allowed_groups} || [] };
         $granted{$host} = 1 if @ag && grep { $g{$_} } @ag;
         $locked{$host} = 1
-            if defined $user && grep { $_ eq $user } @{ $d->{locked_users} || [] };
+            if ( defined $user && grep { $_ eq $user } @{ $d->{locked_users} || [] } )
+            || grep { $g{$_} } @{ $d->{locked_groups} || [] };
     }
     my %allowed = %granted;
     $allowed{''} = 1
@@ -174,7 +178,11 @@ sub _effective_hosts {
     my @eff       = $is_locked
         ? ( grep { $allowed{$_} } keys %locked )    # allowed INTERSECT locked
         : ( keys %allowed );
-    return ( \@eff, $is_locked, \%granted );
+    # SM1334: a pin on the primary names it as a grant does - pinned there, the
+    # account is confined to the primary, never left unbound. (No pin on the
+    # primary could be written before SM1332 gave it a row.)
+    my %named = ( %granted, ( $locked{''} ? ( '' => 1 ) : () ) );
+    return ( \@eff, $is_locked, \%named );
 }
 
 sub effective_scopes {
@@ -188,8 +196,9 @@ sub effective_scopes {
     my ( %seen, @scopes );
     for my $host ( @{$eff} ) {
         my $cr = $dom->{$host}{content_root} // '';
-        # SM1332: the primary GRANTED on its row is a scope of its own; only
-        # allowed (granted nothing, or its list empty), it confines nothing.
+        # SM1332: the primary GRANTED (or pinned, SM1334) on its row is a scope of
+        # its own; only allowed (granted nothing, or its list empty), it confines
+        # nothing.
         $cr = PRIMARY_SCOPE() if $host eq '' && !length $cr && $granted->{''};
         next unless length $cr;    # a docroot-rooted domain does not confine
         push @scopes, $cr unless $seen{$cr}++;
@@ -205,8 +214,8 @@ sub effective_scopes {
 sub effective_home_domain {
     my ( $dom, $user, $groups ) = @_;
     my ( $eff, undef, $granted ) = _effective_hosts( $dom, $user, $groups );
-    # SM1332: a granted primary is one of the domains, so primary + one other is
-    # two, and no single home.
+    # SM1332: a granted (or pinned, SM1334) primary is one of the domains, so
+    # primary + one other is two, and no single home.
     my @rooted = grep { length( $dom->{$_}{content_root} // '' ) || ( $_ eq '' && $granted->{''} ) } @{$eff};
     return ( @rooted == 1 ) ? $rooted[0] : '';
 }

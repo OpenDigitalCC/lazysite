@@ -44,9 +44,11 @@ my $BASE = "alias_hosts: a.test, b.test\nalias.a.test.content_root: sites/a\nali
     . "alias.b.test.content_root: sites/b\nalias.b.test.allowed_groups: gb\nalias.b.test.locked_users: pin\n";
 
 my @WHO = ( [ 'free', [] ], [ 'ua', ['ga'] ], [ 'up', ['gp'] ], [ 'uap', [ 'ga', 'gp' ] ],
-    [ 'pin', [ 'ga', 'gb', 'gp' ] ] );
+    [ 'pin', [ 'ga', 'gb', 'gp' ] ], [ 'gpin', [ 'ga', 'gb', 'lock-a' ] ], [ 'ppin', [ 'ga', 'lock-p' ] ] );
 
-for my $case ( [ 'today\'s data', '' ], [ 'the primary row granted', "allowed_groups: gp\n" ] ) {
+for my $case ( [ 'today\'s data', '' ], [ 'the primary row granted', "allowed_groups: gp\n" ],
+    [ 'a group pin, on a domain and on the primary (SM1334)', "alias.a.test.locked_groups: lock-a\nlocked_groups: lock-p\n" ] )
+{
     my ( $name, $extra ) = @$case;
     open my $fh, '>', "$lz/lazysite.conf" or die $!;
     print {$fh} $BASE, $extra;
@@ -64,7 +66,13 @@ for my $case ( [ 'today\'s data', '' ], [ 'the primary row granted', "allowed_gr
     };
 }
 
-# And the answer itself, so two copies wrong the same way would not pass.
+# And the answers themselves, so two copies wrong the same way would not pass.
+# The last case's conf is in place: the group pins.
+is_deeply( [ ProcCopy::_domain_scopes( 'gpin', 'ga', 'gb', 'lock-a' ) ], ['sites/a'], 'a group pinned to a: a only' );
+is_deeply( [ ProcCopy::_domain_scopes( 'ppin', 'ga', 'lock-p' ) ], ['/'], 'a group pinned to the primary: the primary' );
+open my $fh, '>', "$lz/lazysite.conf" or die $!;
+print {$fh} $BASE, "allowed_groups: gp\n";
+close $fh;
 is_deeply( [ sort( ProcCopy::_domain_scopes( 'uap', 'ga', 'gp' ) ) ], [ '/', 'sites/a' ],
     'granted a and the primary row: both, the primary as the docroot' );
 

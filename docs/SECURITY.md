@@ -2126,7 +2126,7 @@ residual risk
 : volume, bounded by rotation only. The reads have their own file and view, so they do
   not push a change off the change view.
 
-### 2026-11-05 - SM1332 (0.16.5): a domain grant adds, and the primary can be granted
+### 2026-11-05 - SM1332-SM1334 (0.16.5): a domain grant adds, the primary can be granted, and a group can pin
 
 Assessment drafted by the developer agent; for the release manager's confirmation.
 
@@ -2137,6 +2137,13 @@ what changed
   the other domains it is granted. An account granted nothing keeps the primary, as
   before. `caller_may_reach_domain` reads `/` as the primary only; the content checks read
   it as the whole docroot, as they read an unbound account's empty list.
+: SM1333: the primary's row is written through `domain-set` with host `(default)`
+  (control API, MCP `domain_set`, `lazysite-domains.pl`, the Domains page), access
+  keys only; a secondary row no longer displays the primary's access as inherited.
+: SM1334: a domain's `locked_groups` pins every member of the groups it names, as
+  `locked_users` pins an account; a pin on the primary confines to the primary; a
+  request's scopes are held inside the account's whole, so a group its address leaves
+  out cannot lift a pin.
 
 threat delta
 : Elevation of privilege is the question: a scope that by path contains every domain's
@@ -2150,6 +2157,9 @@ threat delta
   widens at upgrade: no primary row named a group before (t/unit/lib/210). No trigger of
   ADR 0007's four fires: no interface, method, dependency or data is added; the row is a
   new value for an existing key, written through the existing `domain-set`.
+: SM1334 only narrows: a pin removes domains and never adds one, and it closes a
+  widening the group pin would otherwise have opened (a request's group left out by its
+  address taking the pin with it; t/unit/lib/211).
 
 controls
 : One resolver (`DomainAccess::effective_scopes`, with the processor's rooting copy held

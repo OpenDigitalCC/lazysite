@@ -43,6 +43,7 @@ is( $? >> 8, 0, 'the primary\'s sheet renders' ) or diag($html);
 
 like( $html, qr/id="e-\(default\)-allowed_groups"/, 'groups allowed to manage' );
 like( $html, qr/id="e-\(default\)-locked_users"/,   'users locked' );
+like( $html, qr/id="e-\(default\)-locked_groups"/,  'groups locked (SM1334)' );
 like( $html, qr/data-val="agents"/,                  'holding the row\'s own groups' );
 like( $html, qr/Grants add|As on any domain, a group reaches the domains that name it/,
     'the hint says how a grant on the primary adds' );
