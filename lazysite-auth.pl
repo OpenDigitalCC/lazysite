@@ -290,6 +290,9 @@ elsif ( $action eq 'forgot' && $method eq 'POST' ) {
 elsif ( $action eq 'unsubscribe' ) {
     handle_unsubscribe();
 }
+elsif ( $action eq 'session' && $method eq 'GET' ) {
+    handle_session();
+}
 else {
     handle_request();
 }
@@ -619,7 +622,62 @@ sub handle_logout {
     print "Content-Type: text/html; charset=utf-8\r\n";                           # SM353
     print "Set-Cookie: $COOKIE_NAME=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n"; # SM099 marker
-    print "Location: /logout\r\n\r\n";
+    print "Location: " . _logout_landing() . "\r\n\r\n";
+}
+
+# SM1322 (ruling 85): "Sign in as someone else" on /login is this sign-out with
+# ?then=signin, landing on the sign-in page (auth_redirect, as a refused sign-in
+# does) with the ?next= the page carried - through sanitise_next, so it is a path on
+# this site or nothing. Every other sign-out lands on /logout, as before.
+sub _logout_landing {
+    return '/logout' unless _query_param('then') eq 'signin';
+    my $next = sanitise_next( _query_param('next') );
+    my $to   = read_conf_key('auth_redirect') || '/login';
+    return $next eq '/' ? $to : "$to?next=$next";
+}
+
+# One decoded query parameter, '' when absent.
+sub _query_param {
+    my ($name) = @_;
+    for my $pair ( split /[&;]/, $query ) {
+        my ( $k, $v ) = split /=/, $pair, 2;
+        next unless defined $k && $k eq $name;
+        $v //= '';
+        $v =~ s/\+/ /g;
+        $v =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
+        return $v;
+    }
+    return '';
+}
+
+# SM1322 (ruling 49, T-07): DOES THE SERVER STILL HONOUR THIS SESSION? /login asks
+# here instead of believing the lzs_session marker, which lives for the whole
+# session lifetime: a session since revoked, expired, or an Odoo session gone
+# odoo-stale (it then has no groups) kept the marker, and the page said "already
+# signed in" to a visitor the site had just refused. The answer is
+# request_session's, the one every surface asks, so it cannot disagree with the
+# page the visitor was refused. Not honoured clears the marker (the HttpOnly
+# cookie is left to the endpoints that own it: the Odoo endpoint may still renew
+# a stale one). Says only yes or no - why is the site's log line, not the page's.
+sub handle_session {
+    my $pid = Lazysite::Util::proxy_identity($LAZYSITE_DIR);
+    my ( $ident, $why, %detail ) = Lazysite::Auth::Session::request_session(
+        lazysite_dir => $LAZYSITE_DIR, proxy => $pid, cookie => $ENV{HTTP_COOKIE} // '' );
+    my @line = Lazysite::Auth::Session::session_log_line( $ident, $why, \%detail,
+        cookie_sent => length( $ENV{HTTP_COOKIE} // '' ) ? 1 : 0 );
+    log_event( $line[0], $uri, @line[ 1 .. $#line ] ) if @line;
+
+    require JSON::PP;
+    my $secure = $ENV{HTTPS} ? '; Secure' : '';
+    binmode( STDOUT, ':utf8' );
+    print "Status: 200 OK\r\n";
+    print "Content-Type: application/json; charset=utf-8\r\n";
+    print "Cache-Control: no-store\r\n";
+    # SM099 marker
+    print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n" unless $ident;
+    print "\r\n";
+    print JSON::PP::encode_json( { ok => JSON::PP::true(), signed_in => $ident ? JSON::PP::true() : JSON::PP::false() } );
+    return;
 }
 
 # SM072: public claim redemption. The holder of a single-use setup/reset

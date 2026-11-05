@@ -34,9 +34,14 @@ query_params:
 </p>
 [% END %]
 
-<div class="login-context" data-ls-auth-out style="display:none">
+[%# SM1322 (ruling 49): data-ls-auth-check has the chrome script ask the server whether the
+    session is still honoured; a refused or stale one shows the sign-in below instead.
+    Ruling 85: a session it honours may still be one ?next= does not admit, so the panel
+    offers "Sign in as someone else": the sign-out, landing back on this form with next. %]
+<div class="login-context" data-ls-auth-out data-ls-auth-check style="display:none">
   <p><strong>You are already signed in.</strong></p>
   <p><a href="/">Go to the site</a> &middot; <a href="/account">Your account</a> &middot; <a href="/cgi-bin/lazysite-auth.pl?action=logout">Sign out</a></p>
+  <p><a href="/cgi-bin/lazysite-auth.pl?action=logout&amp;then=signin[% IF query.next %]&amp;next=[% query.next | uri %][% END %]" data-ls-signin-other>Sign in as someone else</a></p>
 </div>
 
 <form method="POST" action="/cgi-bin/lazysite-auth.pl?action=login" class="login-form" data-ls-auth-in>

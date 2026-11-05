@@ -34,13 +34,37 @@
    * DISPLAY ONLY - the signed HttpOnly cookie is still the gate, and this
    * cannot grant anything. It exists so a cached page shows the right control
    * to the visitor holding it. */
+  function markerSet() {
+    return /(?:^|;\s*)lzs_session=1(?:;|$)/.test(document.cookie);
+  }
+
   function syncAuthControls() {
-    var signedIn = /(?:^|;\s*)lzs_session=1(?:;|$)/.test(document.cookie);
+    var signedIn = markerSet();
     var show = document.querySelectorAll('[data-ls-auth-out]');
     var hide = document.querySelectorAll('[data-ls-auth-in]');
     var k;
     for (k = 0; k < show.length; k++) { show[k].style.display = signedIn ? '' : 'none'; }
     for (k = 0; k < hide.length; k++) { hide[k].style.display = signedIn ? 'none' : ''; }
+  }
+
+  /* SM1322 (ruling 49): the marker says a session was opened, not that the site
+   * still honours it - it outlives a revoked session and an Odoo session gone
+   * stale. A page that must not take its word (/login, which said "already
+   * signed in" to a visitor just refused) carries data-ls-auth-check, and this
+   * asks the server. Refused: the marker goes and the sign-in shows. An answer
+   * that is not a refusal, or none at all, leaves the page as the marker drew it. */
+  function checkSession() {
+    if (!document.querySelector('[data-ls-auth-check]') || !markerSet()) { return; }
+    if (typeof fetch !== 'function') { return; }
+    fetch('/cgi-bin/lazysite-auth.pl?action=session',
+          { credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || d.signed_in !== false) { return; }
+        document.cookie = 'lzs_session=; Path=/; Max-Age=0; SameSite=Lax';
+        syncAuthControls();
+      })
+      .catch(function () {});
   }
 
   /* SM098 / SM352: native form submission, for EVERY form on the page.
@@ -136,6 +160,7 @@
   function start() {
     hideChromeInFrame();
     syncAuthControls();
+    checkSession();
     bindForms();
   }
 

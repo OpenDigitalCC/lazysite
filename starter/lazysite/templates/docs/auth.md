@@ -205,7 +205,12 @@ sign out everywhere.
 
 - `/account` is a **system page**: the engine's copy is used unless a site
   writes its own `account.md`, and it comes back if a site's copy is deleted.
-  The login page's "already signed in" panel links to it.
+  The login page's "already signed in" panel links to it. The panel shows only
+  while the site still honours the session: the page asks the server
+  (`/cgi-bin/lazysite-auth.pl?action=session`), and a session that was revoked,
+  has ended or has gone stale shows the sign-in form instead. The panel also
+  offers "Sign in as someone else", for an account the page asked for does not
+  admit: it signs out and comes back to the form, keeping the page to return to.
 - It is built from components a site can rearrange and a layout can restyle:
   `::: account-summary`, `::: account-password`, `::: account-sessions`. A
   layout's `components/<name>.tt` of the same name wins; keep the `data-ls-*`

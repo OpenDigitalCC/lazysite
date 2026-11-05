@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM1322 (PENDING) **/login asks the server whether the session is honoured.** It judged
+  "signed in" from the `lzs_session` display marker alone, which outlives a revoked or
+  expired session and an Odoo session gone stale, so it told a visitor the site had just
+  refused "You are already signed in" and hid the form. The panel now carries
+  `data-ls-auth-check`, and the chrome script asks the new
+  `/cgi-bin/lazysite-auth.pl?action=session` (yes or no, uncached, from the verdict every
+  surface uses). A no clears the marker and shows the sign-in; no answer leaves the page as
+  it was. A session it does honour is offered "Sign in as someone else": the sign-out with
+  `then=signin`, which revokes the session and lands back on the form with the page's
+  `?next=`. A site with its own `login.md` adds both to its panel. Ruled 2026-11-04 (ruling
+  49) and 2026-11-05 (ruling 85).
+
 - SM1321 (PENDING) **The bad-URL blocker spares the site's own files and exempt addresses.**
   `vendor/` is a probe pattern and also where a theme keeps its scripts. The blocker counted a
   site's own assets, and behind a front proxy every visitor was 127.0.0.1, so everyone got 403
