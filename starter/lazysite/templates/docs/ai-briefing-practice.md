@@ -9,9 +9,9 @@ register:
      engine-version: 0.16.3
      imported: 2026-11-06
      agent: the lazysite site agent (Claude Code)
-     source: docs/practice/authoring-practice.md sha256=24d4158eb67fcee6b6a4dc70dc672726dfb84a16f1d3a9cf8a7740743197dead modified=2026-10-01
-     source: docs/practice/app-practice.md sha256=b037eabc5f3315f25114f192b5484d92e294cf6d6a8a283ad1bf3c1abddfa031 modified=2026-10-20
-     body-sha256: 0ab4a5785240bb19968c90d1f10d0efb5a51988e8d1e8f5b1aa7711a01a2c45c
+     source: docs/practice/authoring-practice.md sha256=24d4158eb67fcee6b6a4dc70dc672726dfb84a16f1d3a9cf8a7740743197dead modified=2026-11-05
+     source: docs/practice/app-practice.md sha256=b037eabc5f3315f25114f192b5484d92e294cf6d6a8a283ad1bf3c1abddfa031 modified=2026-11-05
+     body-sha256: 5cbffd333df3c07838577bf68211488df856aa023a433568523c301e151bb981
 -->
 
 ## What this is, and what it is not
@@ -1654,8 +1654,8 @@ Imported on **2026-11-06** by `tools/import-field-practice.pl`, for the engine v
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
-| `docs/practice/authoring-practice.md` | sites and content | 2026-10-01 |
-| `docs/practice/app-practice.md` | apps and data | 2026-10-20 |
+| `docs/practice/authoring-practice.md` | sites and content | 2026-11-05 |
+| `docs/practice/app-practice.md` | apps and data | 2026-11-05 |
 
 Those paths are in the lazysite source repository and are **not** installed with this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
 

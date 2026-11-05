@@ -58,9 +58,9 @@ require Lazysite::Daemon::Supervisor;
 ok( Lazysite::Daemon::Supervisor::should_run($docroot), 'the persistent runtime may still start' );
 
 require Lazysite::Notify;
-ok( Lazysite::Notify::_extension_enabled( $docroot, 'form-smtp.pl' ),
+ok( Lazysite::Notify::_extension_enabled( $docroot, 'form-smtp.pl' ),    # bare-name-on-purpose: the notifier is asked by file name
     'the notifier still sends through the SMTP extension' );
-ok( !Lazysite::Notify::_extension_enabled( $docroot, 'notify-xmpp.pl' ),
+ok( !Lazysite::Notify::_extension_enabled( $docroot, 'notify-xmpp.pl' ),    # bare-name-on-purpose
     'and one that was off is still off' );
 
 load_processor($docroot);

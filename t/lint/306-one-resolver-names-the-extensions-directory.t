@@ -48,6 +48,7 @@ for my $f ( sort @src ) {
         $pod = 0, next if $l =~ /^=cut/;
         next if $pod || $l =~ /^\s*#/;
         ( my $code = $l ) =~ s{/manager/extensions\b}{}g;
+        $code =~ s{t/unit/extensions\b}{}g;    # the tests' own directory
         push @bad, "$rel:$n: $l" if $code =~ $PATH;
     }
     close $fh;
