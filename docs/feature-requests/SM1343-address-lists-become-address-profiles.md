@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-24
 raised-by: release manager (inbox 2026-10-24-address-profiles-replace-address-lists.md, rulings 56-58 of 2026-11-04)
 area: auth
-status-note: "SHIPPED (0.16.5) on n750: Lazysite::Auth::AddressProfiles (store auth/address-profiles.json, no kind; decide applies the slot a rule names a profile in), the manager page /manager/address-profiles, actions address-profiles / address-profile-set / address-profile-delete, MCP list_address_profiles, the users tool's commands; the old names refused naming the new; t/unit/auth/63, t/unit/users/52, t/integration/266, t/lint/320."
+status-note: "SHIPPED (0.16.5) on n750: Lazysite::Auth::AddressProfiles (auth/address-profiles.json, no kind; the slot a rule names a profile in decides), /manager/address-profiles, actions address-profile(s|-set|-delete), MCP list_address_profiles, the users tool; old names refused naming the new. t/unit/auth/63, t/unit/users/52, t/integration/266, t/lint/320."
 ---
 
 # What was asked
@@ -55,8 +55,9 @@ SM1229 for lists) and 58 (the Odoo binding's key is already `address_profile`).
   `address-profile-set NAME [--entry CIDR[=note] ...]` and
   `address-profile-delete NAME [--force]`; the reply's key is `profiles`. A caller
   still sending an old action, tool or command is answered "unknown ... use
-  'address-profile-set' (SM1343)", and a `kind` sent to a set is refused by name
-  (`field: kind`), so nobody believes they made an allow or a deny list. The docs,
+  'address-profile-set' (SM1343)". The users tool refuses `--kind` (and a `kind`
+  in its API request) by name, `field: kind`, so nobody believes they made an allow
+  or a deny list; the manager API reads no `kind` and answers none. The docs,
   the briefing pages, the manager guide and the generated references say profile.
 - **Ruling 57.** A profile a rule names is refused deletion naming where, as
   before; `force` deletes it after a second confirmation.

@@ -78,7 +78,7 @@ Archive
   `auth/address-profiles.json`, the page Access, Address profiles, the actions
   `address-profiles`, `address-profile-set` and `address-profile-delete`, the MCP tool
   `list_address_profiles` and the users tool's commands the same; an old name is refused naming
-  the new one, and a `kind` sent is refused by name. A profile a rule names is still not deleted
+  the new one, and the users tool refuses `--kind` by name. A profile a rule names is still not deleted
   without a second confirmation. A site whose lists were never converted refuses every rule that
   names a profile, rather than letting its deny rules block nobody.
 

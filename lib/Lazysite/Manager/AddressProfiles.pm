@@ -94,8 +94,8 @@ sub _write_refusal {
 }
 
 # address-profile-set: { name, entries => [ {cidr, note} ] }. The whole request is
-# validated in the users tool, the store's owner, before anything is written; a
-# `kind` sent is passed on, for the tool to refuse by name (SM1343).
+# validated in the users tool, the store's owner, before anything is written. A
+# profile has no kind (SM1343): none is passed, and the reply carries none.
 sub address_profile_set {
     my ( $req, %who ) = @_;
     if ( my $no = _write_refusal(%who) ) { return $no }
@@ -103,7 +103,6 @@ sub address_profile_set {
     my $r = Lazysite::Manager::Common::users_api( {
             action => 'address-profile-set',
             name   => $req->{name},
-            ( exists $req->{kind}    ? ( kind    => $req->{kind} )    : () ),
             ( exists $req->{entries} ? ( entries => $req->{entries} ) : () ),
             actor => $who{actor},
     } ) || {};

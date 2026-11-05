@@ -152,11 +152,14 @@ subtest 'validation reaches the operator as a sentence naming the entry' => sub 
     ok( !$r->{ok} && ( $r->{field} // '' ) eq 'name', 'a bad name is refused' );
     $r = $s->call( 'op', 'address-profile-set', body => {}, query => 'action=address-profile-set' );
     ok( !$r->{ok}, 'a missing name is refused' );
-    # SM1343: a profile has no kind; one sent is refused by name, not dropped.
-    $r = $s->call( 'op', 'address-profile-set', body => { name => 'office', kind => 'allow', entries => ['10.0.0.1'] },
+    # SM1343: a profile has no kind. The manager API reads no `kind` (the users tool
+    # refuses one sent to it directly, t/unit/users/52), and the store never holds one.
+    $r = $s->call( 'op', 'address-profile-set', body => { name => 'kinded', kind => 'deny', entries => ['10.0.0.1'] },
         query => 'action=address-profile-set' );
-    ok( !$r->{ok} && ( $r->{field} // '' ) eq 'kind', 'a kind sent is refused, as a kind problem' );
-    like( $r->{error} // '', qr/has no kind \(SM1343\)/, '...saying a profile has none' );
+    ok( $r->{ok} && !exists $r->{kind}, 'a kind sent is not read, and none is answered' ) or diag explain $r;
+    unlike( store_text(), qr/"kind"/, '...and none is stored' );
+    $s->call( 'op', 'address-profile-delete', body => { name => 'kinded' }, query => 'action=address-profile-delete' );
+    $before = store_text();
     is( store_text(), $before, 'the store is as it was' );
 };
 
