@@ -2536,7 +2536,7 @@ sub dispatch_acl_set {
     # Every signal available to them said protected. That is worse than an
     # unimplemented parameter, and it is why this refuses rather than warns.
     elsif ( my @misrouted = grep { exists $params{$_} }
-        qw(read write owner draft addresses addresses_deny) )
+        qw(read write owner draft addresses addresses_deny history) )
     {
         $result = { ok => 0,
             kind  => 'misrouted-argument',
@@ -2574,10 +2574,11 @@ sub dispatch_acl_set {
         my $r_draft = $req->{draft};
         my $r_addr  = $req->{addresses};
         my $r_deny  = $req->{addresses_deny};
+        my $r_hist  = $req->{history};
 
         $result = action_acl_set( $Lazysite::Manager::Common::path, $Lazysite::Manager::Common::auth_user,
             $r_read,  $r_write,
-            $r_owner, $r_draft, { addresses => $r_addr, addresses_deny => $r_deny } );
+            $r_owner, $r_draft, { addresses => $r_addr, addresses_deny => $r_deny, history => $r_hist } );
         # SM1091: the audit's after-state is the rule action_acl_set STORED, not
         # the request that asked for it. The request's lists arrive as an array
         # or as a string ("@g" / "a, b"), and the formatter reads arrays only, so
@@ -2626,7 +2627,7 @@ sub _acl_set_many {
             error => 'acl-set was given a path and a list of paths. Send one of them. '
                 . 'Nothing was changed.' }, undef, undef )
         if exists $params{path} || exists $req->{path};
-    if ( my @misrouted = grep { exists $params{$_} } qw(read write owner draft addresses addresses_deny) ) {
+    if ( my @misrouted = grep { exists $params{$_} } qw(read write owner draft addresses addresses_deny history) ) {
         return ( { ok => 0, kind => 'misrouted-argument',
                 error => 'acl-set reads its lists from the JSON request body, not the query '
                     . 'string, so ' . join( ' and ', map { "\"$_\"" } @misrouted )
@@ -2640,11 +2641,12 @@ sub _acl_set_many {
     my $m_draft = $req->{draft};
     my $m_addr  = $req->{addresses};
     my $m_deny  = $req->{addresses_deny};
+    my $m_hist  = $req->{history};
 
     my @refused;
     for my $p (@paths) {
         my $v = action_acl_set( $p, $user, $m_read, $m_write, $m_owner, $m_draft,
-            { dry_run => 1, addresses => $m_addr, addresses_deny => $m_deny } );
+            { dry_run => 1, addresses => $m_addr, addresses_deny => $m_deny, history => $m_hist } );
         push @refused, { path => $p, error => $v->{error} // 'refused',
             ( $v->{kind} ? ( kind => $v->{kind} ) : () ) }
             unless ref $v eq 'HASH' && $v->{ok};
@@ -2661,7 +2663,7 @@ sub _acl_set_many {
     for my $p (@paths) {
         my $before = action_acl_get( $p, $user, { exact => 1 } );
         my $r      = action_acl_set( $p, $user, $m_read, $m_write, $m_owner, $m_draft,
-            { addresses => $m_addr, addresses_deny => $m_deny } );
+            { addresses => $m_addr, addresses_deny => $m_deny, history => $m_hist } );
         my $ok = ref $r eq 'HASH' && $r->{ok} ? 1 : 0;
         $all_ok &&= $ok;
         push @results, { path => ( ref $r eq 'HASH' && $r->{path} ) // $p, ok => $ok,
@@ -3001,6 +3003,40 @@ sub action_acl_set {
     elsif ( $existing && $existing->{draft} ) {
         $rec{draft} = JSON::PP::true();
     }
+
+    # SM1324 (ruling 50): `history` keeps a history of a protected FOLDER, in the
+    # private store's own repository (Lazysite::ProtectedHistory). Read as `draft`
+    # is: absent leaves it as it is, an unrecognised value is refused. Set by
+    # whoever may set the rule - the operator or the rule's owner, the check
+    # above - on every surface, since they all funnel through here. A folder
+    # only: the site-wide rule moves nothing into the store, and a single file
+    # is not a folder.
+    if ( defined( my $hist = ref $opts eq 'HASH' ? $opts->{history} : undef ) ) {
+        my $on;
+        if    ( ref $hist eq 'JSON::PP::Boolean' )                { $on = $hist ? 1 : 0 }
+        elsif ( !ref $hist && $hist =~ /\A(?:1|true|yes|on)\z/i ) { $on = 1 }
+        elsif ( !ref $hist && $hist =~ /\A(?:0|false|no|off|)\z/i ) { $on = 0 }
+        else {
+            return { ok => 0, kind => 'invalid', field => 'history',
+                error => "The 'history' setting must be true or false. Nothing was changed." };
+        }
+        if ( $on && $rel eq '/' ) {
+            return { ok => 0, kind => 'invalid', field => 'history',
+                error => 'History is kept for a protected folder, and the site-wide rule '
+                    . 'is not one: it moves nothing into the private store, so its content '
+                    . "is in the site's history already. Set history on the folder's own "
+                    . 'rule. Nothing was changed.' };
+        }
+        if ( $on && !( -d "$DOCROOT/$rel" || -d ( Lazysite::Private::private_path( $DOCROOT, $rel ) // '' ) ) ) {
+            return { ok => 0, kind => 'invalid', field => 'history',
+                error => "History is kept for a protected folder, and '$rel' is not a "
+                    . 'folder. Set it on the rule of the folder that holds it. Nothing was changed.' };
+        }
+        $rec{history} = JSON::PP::true() if $on;
+    }
+    elsif ( $existing && $existing->{history} ) {
+        $rec{history} = JSON::PP::true();
+    }
     return { ok => 1, dry_run => 1, path => $rel } if ref $opts eq 'HASH' && $opts->{dry_run};
     $acls->{$rel} = \%rec;
     save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
@@ -3022,6 +3058,27 @@ sub action_acl_set {
     local $CONTENT_MOVED       = 1;
     local $CONTENT_MOVE_FAILED = 0;
     push @warnings, _sync_private_store( $rel, \%rec );
+
+    # SM1324: a folder that has just opted in gets its first version now, so
+    # its history starts with what it holds rather than with its next edit.
+    # Said when nothing will be kept yet, rather than left to be found.
+    if ( $rec{history} ) {
+        require Lazysite::Git;
+        require Lazysite::ProtectedHistory;
+        if ( !( $rec{draft} || ( ref $rec{read} eq 'ARRAY' && @{ $rec{read} } ) ) ) {
+            push @warnings, "history is set on '$rel', and this rule does not protect it (no read "
+                . "list, no draft), so its content stays in the document root and in the site's "
+                . 'own history. The setting takes effect when the folder is protected.';
+        }
+        elsif ( !Lazysite::Git::enabled($DOCROOT) ) {
+            push @warnings, "history is set on '$rel', and the site's content history is not "
+                . 'enabled, so nothing is recorded yet. It is kept from the moment content '
+                . 'history is enabled.';
+        }
+        elsif ( !( $existing && $existing->{history} ) ) {
+            Lazysite::ProtectedHistory::baseline( $DOCROOT, $user, $rel );
+        }
+    }
 
     # SM243/SM224 corrected: the old text ended 'Name those accounts
     # individually if they need access', and that remedy CANNOT WORK.
@@ -3391,6 +3448,8 @@ sub action_protected_sections {
             pages  => $pages,
             assets => $assets,
             exists => ( -d $dir ) ? 1 : 0,
+            # SM1324: whether this folder keeps a private history of its own.
+            history => ( $a->{history} ? 1 : 0 ),
         };
     }
     # SM462: scope to the folder being browsed, when one is given.
@@ -3532,6 +3591,19 @@ sub _git_target {
     return $r;
 }
 
+# SM1324: the repository holding a resolved target's history - the site's for
+# content in the docroot, the private store's own for content in the store (a
+# protected folder that keeps history, SM683's second repository), or undef
+# for content in the store when no folder has ever kept any.
+sub _history_root {
+    my ($r) = @_;
+    return $DOCROOT unless ( $r->{store} // '' ) eq 'private';
+    require Lazysite::ProtectedHistory;
+    return Lazysite::ProtectedHistory::initialised($DOCROOT)
+        ? Lazysite::ProtectedHistory::root($DOCROOT)
+        : undef;
+}
+
 # Feature status for the Files page's History control (the operator-facing
 # enable/status surface is the content-history extension, which drives the same
 # Lazysite::Git machinery).
@@ -3560,6 +3632,7 @@ sub action_git_history {
     my $r = _git_target( $rel_path, $username );
     return $r unless $r->{ok};
     require Lazysite::Git;
+    require Lazysite::ProtectedHistory;
     my $enabled = Lazysite::Git::enabled($DOCROOT);
 
     # SM286: content in the private store is NOT under version control, and this
@@ -3591,6 +3664,13 @@ sub action_git_history {
     # never in the history at all.
     my $excluded = Lazysite::Git::excluded_from_history( $r->{rel} ) ? 1 : 0;
 
+    # SM1324 (ruling 50): AND A PROTECTED FOLDER THAT KEEPS HISTORY BY CHOICE.
+    # Its versions are in the private store's own repository; the read rule
+    # _git_target applied above is the content's, so the history is no wider.
+    # A folder that switched it off keeps what was recorded, listed as before.
+    my $kept = $in_store ? Lazysite::ProtectedHistory::recording( $DOCROOT, $r->{rel} ) : 0;
+    my $repo = _history_root($r);
+
     return {
         ok      => 1,
         path    => $r->{rel},
@@ -3602,17 +3682,19 @@ sub action_git_history {
         # it was returning two `entries` perfectly well. A wrong key and an
         # empty result are indistinguishable, so the failure mode is not an
         # error but a confident wrong conclusion.
-        versions => ( $enabled && !$in_store && !$excluded
-            ? Lazysite::Git::file_log( $DOCROOT, $r->{rel}, $limit )
+        versions => ( $enabled && !$excluded && defined $repo
+            ? Lazysite::Git::file_log( $repo, $r->{rel}, $limit )
             : [] ),
 
-        versioned => _git_bool( $enabled && !$in_store && !$excluded ),
-        ( $in_store
+        versioned => _git_bool( $enabled && !$excluded && ( !$in_store || $kept ) ),
+        ( $in_store && $kept ? ( history_kept_by => '/' . Lazysite::ProtectedHistory::kept_by( $DOCROOT, $r->{rel} ) ) : () ),
+        ( $in_store && !$kept
             ? ( notice => 'This content is protected, and protected content is'
                     . ' kept out of the version history - a history can be'
                     . ' pushed to a remote, and this content is not meant to'
                     . ' travel. Its history runs up to the point it was'
-                    . ' protected.' )
+                    . ' protected. Its folder can keep a private history of'
+                    . ' its own: set history on the folder\'s rule.' )
             : $excluded
             ? ( notice => 'This path is kept out of the version history'
                     . ' entirely - the auth and forms stores, runtime state and'
@@ -3658,6 +3740,18 @@ sub action_git_history_summary {
         $enabled
         ? Lazysite::Git::files_summary($DOCROOT)
         : { files => [], summary => { files => 0, revisions => 0 } };
+
+    # SM1324: and the protected folders that keep history, from the private
+    # store's own repository - through the same filter below, so a protected
+    # file is listed only to a caller its read rule admits (SM683 step one is
+    # what made this safe to add).
+    require Lazysite::ProtectedHistory;
+    if ( $enabled && Lazysite::ProtectedHistory::initialised($DOCROOT) ) {
+        my $p = Lazysite::Git::files_summary( Lazysite::ProtectedHistory::root($DOCROOT) );
+        my %public = map { $_->{path} => 1 } @{ $s->{files} || [] };
+        push @{ $s->{files} }, grep { !$public{ $_->{path} } } @{ $p->{files} || [] };
+        @{ $s->{files} } = sort { $a->{path} cmp $b->{path} } @{ $s->{files} };
+    }
 
     # SM683 STEP ONE: THE ACL, WHICH THIS FILTER DID NOT APPLY.
     #
@@ -3713,16 +3807,19 @@ sub action_git_show {
     require Lazysite::Git;
     return { ok => 0, error => 'Content history is not enabled' }
         unless Lazysite::Git::enabled($DOCROOT);
+    # SM1324: from the repository that holds this file's history.
+    my $repo = _history_root($r);
+    return { ok => 0, error => 'No such version of this file' } unless defined $repo;
     # SM175: history may have crossed a rename - read from the path this file
     # HAD at $sha (resolved server-side through its own lineage, never a
     # client-supplied path), and diff that historic blob against the current one.
-    my $read    = Lazysite::Git::path_at( $DOCROOT, $r->{rel}, $sha ) // $r->{rel};
-    my $content = Lazysite::Git::file_at( $DOCROOT, $sha, $read );
+    my $read    = Lazysite::Git::path_at( $repo, $r->{rel}, $sha ) // $r->{rel};
+    my $content = Lazysite::Git::file_at( $repo, $sha, $read );
     return { ok => 0, error => 'No such version of this file' }
         unless defined $content;
     my $diff = ( $read eq $r->{rel} )
-        ? Lazysite::Git::file_diff( $DOCROOT, $sha, $r->{rel} )
-        : Lazysite::Git::file_diff_across( $DOCROOT, $sha, $read, $r->{rel} );
+        ? Lazysite::Git::file_diff( $repo, $sha, $r->{rel} )
+        : Lazysite::Git::file_diff_across( $repo, $sha, $read, $r->{rel} );
     return {
         ok   => 1,
         path => $r->{rel},
@@ -3747,10 +3844,13 @@ sub action_git_restore {
     require Lazysite::Git;
     return { ok => 0, error => 'Content history is not enabled' }
         unless Lazysite::Git::enabled($DOCROOT);
+    # SM1324: from the repository that holds this file's history.
+    my $repo = _history_root($r);
+    return { ok => 0, error => 'No such version of this file' } unless defined $repo;
     # SM175: read from the path this file HAD at $sha (lineage-resolved), so a
     # pre-rename version restores into the CURRENT path rather than 404ing.
-    my $read    = Lazysite::Git::path_at( $DOCROOT, $r->{rel}, $sha ) // $r->{rel};
-    my $content = Lazysite::Git::file_at( $DOCROOT, $sha, $read );
+    my $read    = Lazysite::Git::path_at( $repo, $r->{rel}, $sha ) // $r->{rel};
+    my $content = Lazysite::Git::file_at( $repo, $sha, $read );
     return { ok => 0, error => 'No such version of this file' }
         unless defined $content;
     my $sha7 = substr $sha, 0, 7;

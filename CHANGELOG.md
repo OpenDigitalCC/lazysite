@@ -53,6 +53,20 @@ Archive
 
 ## Unreleased
 
+- SM1324 (PENDING) **A protected folder can keep a history, by choice.** Ruling 50 (T-16):
+  protected content is kept out of the content history, which may be pushed to a remote. A
+  folder rule may now carry `history: true` (the manager's Keep history, `history` on the
+  control API's `acl-set` and MCP `set_permissions`, `lazysite acl set --history`; whoever may
+  set the rule may set it). The folder's versions are kept in a second repository whose work
+  tree is the private store (`<store>/lazysite/git`, 02770), never the public one. Its first
+  version is taken when it is set; it records while the site's content history is on, and
+  clearing it stops recording and keeps what was recorded. Every history read
+  (`list_versions`, `view_version`, `restore_version`, `list_content_history` and the
+  manager's history view) applies the file's read rule, and a restore its write rule. Off by
+  default: a site that does not set it changes nothing and gets no repository. MCP
+  `list_content_history` now passes the caller to the read rule, so it lists a protected
+  file to its readers.
+
 - SM1346 (PENDING) **lazysite is tested on OOM 0.44.** The pinned snapshot in
   `t/vendor/oom` moves from 0.42 to OOM 0.44 (f32c444), skipping 0.43, checked against
   the 0.44 debs. No lazysite code changes, and every Odoo test passes on it. For an

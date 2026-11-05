@@ -703,6 +703,21 @@ sub relocating_key {
     return $best;
 }
 
+# SM1324 (ruling 50): the key of the folder rule that keeps history for $rel, or
+# undef. The rule that relocates the path decides - the nearest, as for every
+# other question a rule answers - so a subfolder with a rule of its own keeps
+# history only if that rule says so. A store that will not read keeps none.
+sub history_key {
+    my ( $docroot, $rel ) = @_;
+    return undef unless defined $rel && length $rel;
+    local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
+    my ($map) = _acl_map_or_state();
+    return undef unless ref $map eq 'HASH';
+    return undef unless grep { ref $_ eq 'HASH' && $_->{history} } values %$map;
+    my $k = relocating_key( $map, $rel );
+    return ( defined $k && $map->{$k}{history} ) ? $k : undef;
+}
+
 # SM882: is EVERY page under this root gated? The invariant the release manager
 # ruled on the same day - a fully gated content root contains nothing public - is
 # only checkable if something can answer this, and it is the same store read.

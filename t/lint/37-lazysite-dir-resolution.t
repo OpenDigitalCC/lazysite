@@ -188,6 +188,11 @@ subtest 'nothing derives the engine dir behind the resolver' => sub {
         # for the purpose, as the tests under t/ do; neither touches a site.
         'tools/deparse-subs.pl'  => [qr{mkdir "\$doc/lazysite"}],
         'tools/deparse-block.pl' => [qr{mkdir "\$doc/lazysite"}],
+
+        # SM1324: the PRIVATE STORE's reserved name, holding its own history
+        # repository. Not a docroot's engine tree: the store has none, so
+        # Lazysite::Paths has nothing to resolve there.
+        'lib/Lazysite/ProtectedHistory.pm' => [qr{return "\$root/lazysite"}],
     );
 
     my @files;

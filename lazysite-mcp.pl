@@ -1651,12 +1651,15 @@ my %TOOLS = (
                     description => 'Comma-separated names of ALLOW address lists: the path is served only to a visitor whose address is in one of them (and every enclosing folder rule that names lists says the same). A name the store does not hold yet is accepted with a warning. Omit to leave the current setting alone; empty clears it.' },
                 addresses_deny => { type => 'string',
                     description => 'Comma-separated names of DENY address lists: a visitor whose address is in one of them is refused, whatever else allows it. Omit to leave the current setting alone; empty clears it.' },
+                history => { type => 'boolean',
+                    description => 'SM1324: keep a version history for this protected FOLDER, in a private repository beside the private store (never the public one). History reads (list_versions, view_version, restore_version) apply the folder\'s read rule. Omit to leave the current setting alone; false stops recording and keeps what was recorded. Off by default.' },
             },
             required => ['path'], additionalProperties => JSON::PP::false },
         run => sub {
             action_acl_set( $_[0]->{path}, $_[1], $_[0]->{read}, $_[0]->{write},
                 undef, $_[0]->{draft},
-                { addresses => $_[0]->{addresses}, addresses_deny => $_[0]->{addresses_deny} } );
+                { addresses => $_[0]->{addresses}, addresses_deny => $_[0]->{addresses_deny},
+                    history => $_[0]->{history} } );
         },
     },
     # SM1263 (ruled 2026-10-22): acl-remove's MCP twin. set_permissions with empty
@@ -2473,7 +2476,9 @@ my %TOOLS = (
         # SM419: the partner's resolved scope union, as the path_aware tools
         # get via the dispatcher - this tool carries no path for that block to
         # filter, so it takes the scopes directly.
-        run => sub { action_git_history_summary( $_[2] ? $_[2]->{dav_scopes} : undef ) },
+        # SM1324: and the caller, so a protected folder's history is listed to
+        # its readers - the summary applies the read rule to whoever it is given.
+        run => sub { action_git_history_summary( ( $_[2] ? $_[2]->{dav_scopes} : undef ), $_[1] ) },
     },
     view_version => {
         path_args => [qw(path)],

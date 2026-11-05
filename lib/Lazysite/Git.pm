@@ -25,12 +25,30 @@ our @EXPORT_OK = qw(enabled initialised git_available git_dir init
     commit_paths commit_all commit_move file_log file_at file_diff file_diff_across
     path_at count_commits run_git breadcrumb_path health files_summary);
 
-sub git_dir { return Lazysite::Paths::lazysite_dir( $_[0] ) . "/git" }
-
 # Feature gate: conf key `git_history: enabled` AND an initialised repo.
 # Cached per docroot per process (CGI is one-shot; hooks may check repeatedly).
 our %ENABLED_CACHE;
 our %AVAILABLE_CACHE;
+
+# SM1324: a repository whose work tree is not a docroot - the private store's
+# own history (Lazysite::ProtectedHistory) - is registered here with its git dir,
+# so every reader and the commit plumbing below serve it unchanged. Its gate is
+# its caller's (a folder rule that keeps history), never a lazysite.conf beside
+# it: the store has no engine tree of its own.
+our %REPO;    # work-tree root => git dir
+
+sub register_repo {
+    my ( $root, $gd ) = @_;
+    $REPO{$root} = $gd;
+    delete $ENABLED_CACHE{$root};
+    return;
+}
+
+sub git_dir {
+    my ($root) = @_;
+    return $REPO{$root} if defined $root && exists $REPO{$root};
+    return Lazysite::Paths::lazysite_dir($root) . "/git";
+}
 sub reset_cache { %ENABLED_CACHE = (); %AVAILABLE_CACHE = (); return }
 
 sub _conf_enabled {
@@ -53,7 +71,7 @@ sub enabled {
     my ($docroot) = @_;
     return 0 unless defined $docroot && length $docroot;
     $ENABLED_CACHE{$docroot} //=
-        ( _conf_enabled($docroot) && initialised($docroot) ) ? 1 : 0;
+        ( ( exists $REPO{$docroot} || _conf_enabled($docroot) ) && initialised($docroot) ) ? 1 : 0;
     return $ENABLED_CACHE{$docroot};
 }
 
@@ -338,6 +356,13 @@ sub _stage_and_commit {
     return $made;
 }
 
+# SM1324: the staging commit and the identity rules, for a registered
+# repository's own writer (Lazysite::ProtectedHistory), which validated its
+# pathspecs and must not take the public repository's protected-path hook.
+sub commit_specs { return _stage_and_commit(@_) }
+sub author_for   { return _author(@_) }
+sub commit_text  { return _clean_message(@_) }
+
 # commit_paths($docroot, $user, $message, @paths): one commit staging exactly
 # those paths (a batched operation is one commit). Instant no-op when the
 # feature is off; invalid paths are dropped before any git call.
@@ -346,7 +371,28 @@ sub commit_paths {
     return 0 unless enabled($docroot);
     my @specs = grep { defined } map { _norm_rel($_) } @paths;
     return 0 unless @specs;
+    _record_protected( $docroot, $user, $message, undef, @specs );
     return _stage_and_commit( $docroot, $user, $message, undef, @specs );
+}
+
+# SM1324: the same write, recorded in the private store's own history for the
+# paths a folder rule keeps history for. Here, once, so every write hook - the
+# manager, WebDAV, MCP, uploads, restores - records protected content without
+# knowing it exists. Never for a registered repository (that is the private one
+# already), and never fatal: a history that could not be kept must not break
+# the save, as for the public one.
+sub _record_protected {
+    my ( $docroot, $user, $message, $from, @specs ) = @_;
+    return if exists $REPO{$docroot};
+    my $ok = eval {
+        require Lazysite::ProtectedHistory;
+        Lazysite::ProtectedHistory::record( $docroot, $user, $message, $from, @specs );
+        1;
+    };
+    log_event( 'WARN', 'git', 'protected history was not recorded (the write itself succeeded)',
+        error => ( $@ // 'unknown' ), user => ( $user // '' ) )
+        unless $ok;
+    return;
 }
 
 # commit_all: stage the whole versioned set (the backup-restore hook - a
@@ -371,6 +417,7 @@ sub commit_move {
     my $from_rel = _norm_rel($from);
     my @specs    = grep { defined } map { _norm_rel($_) } @paths;
     return 0 unless @specs && defined $from_rel;
+    _record_protected( $docroot, $user, $message, $from_rel, @specs );
     return _stage_and_commit( $docroot, $user, $message,
         ["Lazysite-Renamed-From:$from_rel"], @specs );
 }

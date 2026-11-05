@@ -43,7 +43,7 @@ ok( $tools, 'the tool table was found' )
 my %NOT_A_PATH = map { $_ => 1 } qw(
     inputSchema accept activate add_alias adopt_identity all apply bad body by_account by_host caps clean
     config confirm confirm_lost content content_base64 context css day description
-    descriptor draft enabled entry every fields form good group handler handlers host id
+    descriptor draft enabled history entry every fields form good group handler handlers host id
     index items key layout limit logins max_files max_kb month name new_name notify
     offset order order_by payload query rating read register row submit subtitle
     summary table tags theme title trails update update_links uploads value

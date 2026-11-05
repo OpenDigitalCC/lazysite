@@ -3318,6 +3318,7 @@ sub _acl_audit_fmt {
     push @bits, "owner: $acl->{owner}"
         if defined $acl->{owner} && length $acl->{owner};
     push @bits, 'draft' if $acl->{draft};
+    push @bits, 'history' if $acl->{history};    # SM1324
     return @bits ? join( '; ', @bits ) : 'no restriction';
 }
 

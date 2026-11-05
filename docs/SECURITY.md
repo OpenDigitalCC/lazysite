@@ -2057,3 +2057,38 @@ verdict
   recorded because the upgrade moves files and links in every site's tree (on HestiaCP
   after a root-run step), decides which extensions stay on, the login rate limiter among
   them, and changes what an external reader and the audit trail see (ruling 95).
+
+### 2026-11-05 - SM1324 (0.16.5): a protected folder keeps a history, by choice
+
+Assessment drafted by the developer agent for the release manager's confirmation. Ruling
+50 (T-16) made history for a protected folder an opt-in. It creates a second copy of
+protected content, so it is recorded here.
+
+what changed
+: A folder rule may carry `history: true`. The folder's versions are kept in a second git
+  repository whose work tree is the private store, with its own object store, at
+  `<store>/lazysite/git` (02770, as the store). The public repository never holds them,
+  so a git-sync remote never receives them. Off by default: a site with no such rule never
+  creates the repository.
+
+who can do it
+: whoever may set the folder's rule (`Files::action_acl_set`: the operator, or the rule's
+  owner), on the manager, the control API, MCP and the CLI.
+
+who can read it
+: whoever may read the file. Every history reader resolves its target through
+  `_git_target`, which applies the file's read rule; a restore goes through `action_save`
+  and its write rule; the overview filters each path by the read rule (SM683 step one).
+
+data and privacy
+: a second copy of protected content, kept for as long as the repository is kept. Clearing
+  the flag stops recording and keeps what was recorded; nothing deletes it but an
+  operator. It is in a site backup, as the store is. The public repository still holds a
+  file's versions from before its folder was protected (SM683's third step, open).
+
+residual risk
+: the repository's permissions are set when it is made and are not probed by
+  `lazysite check`.
+
+verdict
+: proposed: accepted, pending the release manager's confirmation.

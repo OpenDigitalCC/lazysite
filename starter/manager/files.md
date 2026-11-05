@@ -592,7 +592,9 @@ function protectionBlock(f) {
     + ( draft
         ? '<button class="mg-btn mg-btn-sm" onclick="publishSection(\'' + escHtml(s.prefix) + '\',true)">Publish</button> '
         : '' )
-    + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="publishSection(\'' + escHtml(s.prefix) + '\',false)">Remove protection</button>'
+    + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="publishSection(\'' + escHtml(s.prefix) + '\',false)">Remove protection</button> '
+    + ( s.site_wide ? '' : '<button class="mg-btn mg-btn-sm mg-btn-change" data-impact="change" onclick="sectionHistory(\'' + escHtml(s.prefix) + '\',' + (s.history ? 'false' : 'true') + ')">'
+        + (s.history ? 'Stop keeping history' : 'Keep history') + '</button>' )
     + '</div>';
 
   return '<div class="mg-perms-rights-label" style="margin-top:10px;">Protection</div>'
@@ -1394,6 +1396,31 @@ function publishSection(prefix, draftOnly) {
       .then(function(d) {
         if (!d.ok) { showStatus(d.error || 'Failed', true); return; }
         showStatus(draftOnly ? 'Section published.' : 'Protection removed.');
+        loadProtectedSections();
+      })
+      .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
+}
+
+// SM1324: keep (or stop keeping) a private version history for a protected
+// folder - the rule's `history` flag, through the same acl-set as the rest of
+// the rule, so the same owner check decides. Stopping keeps what was recorded.
+function sectionHistory(prefix, on) {
+  var msg = on
+    ? 'Keep a version history for "' + prefix + '"? Its versions are kept in a private '
+      + 'repository beside the private store, readable only by those who may read the folder.'
+    : 'Stop keeping history for "' + prefix + '"? Versions already recorded are kept.';
+  mgConfirm(msg, { ok: on ? 'Keep history' : 'Stop' }).then(function(okd) {
+    if (!okd) return;
+    fetch(API + '?action=acl-set&path=' + encodeURIComponent(prefix), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ history: on })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.ok) { showStatus(d.error || 'Failed', true); return; }
+        showStatus((on ? 'History is kept for this folder.' : 'History is no longer kept for this folder.')
+          + (d.warnings && d.warnings.length ? ' ' + d.warnings.join(' ') : ''));
         loadProtectedSections();
       })
       .catch(function(e) { showStatus('Error: ' + e.message, true); });

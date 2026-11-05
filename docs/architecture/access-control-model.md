@@ -257,12 +257,20 @@ front end should protect its folders as well.
 |---|---|---|
 | **Backup** | **Yes** | Local recovery. A backup that silently stopped covering protected sections would be discovered at restore time, which is the worst moment. |
 | **Site package** | **No**, and reports the count | A package travels between organisations, and the ACL rules live under `lazysite/` and are never packaged - so the content would arrive with nothing governing it. |
-| **Content history** | **No**, and says so | A history may be pushed to a remote, and `Git.pm`'s exclude list is a security boundary for exactly that reason. |
+| **Content history** | **No**, and says so - unless the folder opts in | A history may be pushed to a remote, and `Git.pm`'s exclude list is a security boundary for exactly that reason. |
+| **A folder's own history** ([[SM1324]]) | **Yes, by choice**: `history: true` on the folder's rule | A second repository whose work tree is the private store (git dir `<store>/lazysite/git`, 02770), never the public one. Off by default. Its readers are the folder's: every history read applies the file's read rule, and a restore its write rule. |
 
 In every case the omission was already happening and completely silent, because
 the store is outside the tree each of them walks. What each now does is **say
 so** - a count in the package manifest, `versioned: false` plus a notice on the
 history response.
+
+A folder's history is recorded while the site's content history is enabled and
+the rule that relocates the path - the nearest, as for every other question a
+rule answers - carries `history`. Setting it records the folder's current
+content as the first version; clearing it stops recording and keeps what was
+recorded. The public repository's versions of a file from before its folder was
+protected stay where they were (SM683's third step).
 
 ## Checking it, rather than believing it
 
