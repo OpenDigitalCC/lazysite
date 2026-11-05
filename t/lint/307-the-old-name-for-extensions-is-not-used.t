@@ -57,6 +57,7 @@ my @HISTORY = (
 my %REGIONS = (
     'install.pl'                                                => 1,
     'tools/lazysite-check.pl'                                   => 1,
+    'installers/hestia/lazysite-hestia-deploy.sh'                => 1,
     'lazysite-manager-api.pl'                                   => 1,
     't/lib/PreRenameSite.pm'                                    => 1,
     't/tools/306-an-upgrade-moves-a-site-to-extensions.t'       => 1,
@@ -75,11 +76,9 @@ my @ALLOWED = (
     qr{t/lint/307-the-old-name-for-extensions-is-not-used\.t},
 );
 
-# SM1142 S2: what the slices still to land in this stack rename - S3 the
-# installers and packaging, S4 the docs, the starter docs and the test files'
-# names. Each slice deletes its lines; none survives the stack.
+# SM1142 S2: what the slice still to land in this stack renames - S4 the docs,
+# the starter docs and the test files' names. S4 deletes these lines.
 my @PENDING = (
-    qr{\Ainstallers/}, qr{\Adebian/}, qr{\Atools/lazysite-hestia-domain\.pl\z},    # S3
     qr{\Adocs/}, qr{\AREADME\.md\z}, qr{\Askills/}, qr{\Astarter/lazysite/templates/docs/},
     qr{\Astarter/index\.md\z},                                                     # S4
 );

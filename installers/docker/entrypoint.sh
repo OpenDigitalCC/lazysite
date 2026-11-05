@@ -13,7 +13,7 @@
 #   no state                    provision  a fresh site, into the empty volumes
 #   state at this image's       nothing    the volumes' data is left alone; the
 #   version                                engine's copy (cgi-bin, tools, lib,
-#                                          plugins) lives in the container
+#                                          extensions) lives in the container
 #                                          layer, so a RECREATED container lays
 #                                          it again with reinstall, which keeps
 #                                          content
@@ -35,8 +35,8 @@ SITE_DOMAIN=${SITE_DOMAIN:-localhost}
 PERL=${LAZYSITE_PERL:-perl}
 NGINX=${LAZYSITE_NGINX:-nginx}
 SOCKET_DIR=${LAZYSITE_RUN_DIR:-/run/lazysite}
-# lazysited exits 0 when the daemon plugin is off; the timer unit re-runs it
-# every five minutes so that switching the plugin on is picked up. The same
+# lazysited exits 0 when the daemon extension is off; the timer unit re-runs it
+# every five minutes so that switching the extension on is picked up. The same
 # interval, here.
 DAEMON_RETRY=${LAZYSITE_DAEMON_RETRY:-300}
 

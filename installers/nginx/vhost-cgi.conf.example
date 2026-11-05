@@ -132,7 +132,7 @@ server {
     }
 
     # Any other /cgi-bin script (lazysite-auth.pl itself - the login
-    # endpoint - and plugin endpoints installed as cgi-bin symlinks)
+    # endpoint - and extension endpoints installed as cgi-bin symlinks)
     # runs as plain CGI via fcgiwrap: Apache's ScriptAlias equivalent.
     # One path segment only - no traversal out of the cgi-bin.
     location ~ ^/cgi-bin/(?<lazysite_script>[^/]+)$ {

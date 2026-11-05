@@ -4,7 +4,7 @@
 # One-command lazysite install/upgrade for a HestiaCP domain. RUN AS ROOT.
 # It folds the whole INSTALL-RUNBOOK into a single invocation:
 #   1. on FIRST-TIME setup only, apply the lazysite-app web template (its
-#      rebuild hook, as root, creates the plugins/ and tools/ children of the
+#      rebuild hook, as root, creates the extensions/ and tools/ children of the
 #      0551-locked domain root and sets the base www-data docroot perms). An
 #      upgrade leaves the Hestia web template untouched - it only refreshes
 #      code/content/perms - so a deliberately-changed template is preserved.
@@ -116,12 +116,24 @@ fi
 # root, which the user-run install.pl below then cannot overwrite ("Permission
 # denied", failed upgrade). This script runs as root, so make the domain user own
 # everything install.pl writes BEFORE running it: the docroot, the cgi-bin, and the
-# sibling lib/ plugins/ tools/ trees (DOCROOT/../{lib,plugins,tools}).
+# sibling lib/ extensions/ tools/ trees (DOCROOT/../{lib,extensions,tools}).
 echo "==> normalising ownership to $U:www-data (so the user-run install can write)"
+# SM1142 (R4): extensions/ is made HERE, before the user-run install, on every
+# run - an existing site never has the web template re-applied, and the 0551
+# domain root stops the site user creating it, so without this the upgrade that
+# moves a site to extensions/ could not.
+mkdir -p "$DOM/extensions"
 # A moved engine tree is written by install.pl too, so it is on the list.
-for tgt in "$DOC" "$LZ" "$CGI" "$DOM/lib" "$DOM/plugins" "$DOM/tools"; do
+for tgt in "$DOC" "$LZ" "$CGI" "$DOM/lib" "$DOM/extensions" "$DOM/tools"; do
   [ -e "$tgt" ] && chown -R "$U":www-data "$tgt" 2>/dev/null || true
 done
+# old-name: begin (SM1142, the deploy names the directory the upgrade empties)
+# The old directory, which install.pl's extensions-rename moves the files out of:
+# the site user must own it to move them, and cannot remove it from the 0551
+# domain root afterwards - that is done below, once the install has run.
+OLD_EXT="$DOM/plugins"
+[ -d "$OLD_EXT" ] && chown -R "$U":www-data "$OLD_EXT" 2>/dev/null || true
+# old-name: end
 
 # SM892: DECLARE WHICH OF THE TWO THIS IS. install.pl no longer infers it, and
 # this script already knows the answer - the state file it read above is the
@@ -177,6 +189,17 @@ elif [ "$IRC" = 4 ]; then
 elif [ "$IRC" != 0 ]; then
   echo "ERROR: install failed (exit $IRC)" >&2
   exit "$IRC"
+fi
+
+# SM1142: the old directory, emptied by the install's extensions-rename. Only
+# when empty: a file left there is one the step could not move, and the
+# install's summary named it.
+if [ -d "$OLD_EXT" ]; then
+  if rmdir "$OLD_EXT" 2>/dev/null; then
+    echo "==> removed the emptied $OLD_EXT (SM1142)"
+  else
+    echo "==> $OLD_EXT is not empty - left in place; nothing reads it (see the install summary above)"
+  fi
 fi
 
 # Verify the installed code actually matches the release before trusting the
@@ -291,11 +314,11 @@ fi
 #   - the templated unit and its timer are installed from STAGE into
 #     /etc/systemd/system (refreshed when the release changed them);
 #   - the TIMER is enabled: it starts the service every five minutes while the
-#     service is not running, so a sysop enabling the plugin in the manager -
+#     service is not running, so a sysop enabling the extension in the manager -
 #     which has no root - is picked up within five minutes;
 #   - a runtime that is RUNNING is restarted, so an upgrade takes effect the way
 #     a pool restart does, without anybody remembering to.
-# The plugin stays the site's switch: with it disabled the service exits 0 in
+# The extension stays the site's switch: with it disabled the service exits 0 in
 # well under a second and the timer tries again in five minutes. Nothing here
 # writes into the site tree.
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
@@ -344,7 +367,7 @@ if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
       && echo "    runtime restarted on the new release" \
       || echo "  (could not restart lazysited@$DOMAIN - run: systemctl restart lazysited@$DOMAIN)"
   else
-    echo "    runtime provisioned; it starts within five minutes of the daemon plugin being enabled"
+    echo "    runtime provisioned; it starts within five minutes of the daemon extension being enabled"
   fi
 
   # N141-05: AND THE FastCGI POOL, WHICH NOTHING RESTARTED.
@@ -377,7 +400,7 @@ if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
       || echo "  (could not restart lazysite@$DOMAIN - run: systemctl restart lazysite@$DOMAIN)"
   fi
 else
-  echo "==> persistent runtime: no systemd on this host - not provisioned (the daemon plugin will report it)"
+  echo "==> persistent runtime: no systemd on this host - not provisioned (the daemon extension will report it)"
 fi
 
 echo "==> verifying install (permissions + health, auto-repair)"

@@ -12,9 +12,9 @@
 # payload. EnvironmentFile= overrides Environment=, which is the mechanism.
 #
 # AND A TIMER (lazysited@.timer) beside it, because the manager has no root: a
-# sysop enabling the plugin cannot start this unit, and a unit that exited 0
+# sysop enabling the extension cannot start this unit, and a unit that exited 0
 # for "disabled" is not restarted by Restart=on-failure. The timer re-runs the
-# service every five minutes while it is inactive, so an enabled plugin is
+# service every five minutes while it is inactive, so an enabled extension is
 # picked up within five minutes at the cost of one short-lived process per
 # five minutes per disabled site - and nothing while it runs. Enable the TIMER;
 # it starts the service.
@@ -29,23 +29,23 @@
 #
 # THERE ARE TWO SWITCHES, AND THAT IS INTENDED.
 #   1. This unit, enabled by the host operator.
-#   2. The `daemon` plugin, enabled by the site's sysop in the manager.
+#   2. The `daemon` extension, enabled by the site's sysop in the manager.
 # Both must be on for anything to run. The manager has no root, so enabling the
-# plugin cannot start a service - and the runtime reports that honestly rather
+# extension cannot start a service - and the runtime reports that honestly rather
 # than pretending: `lazysited --docroot DIR --status` answers desired=on with
 # verdict=inconsistent and a remedy naming this unit, which tells an
 # operator exactly which of the two switches is missing (SM222's contract).
 #
 # ON A HOST WITH HUNDREDS OF SITES, the cost at rest is nothing. An
-# uninstantiated unit does not exist; an instantiated one whose plugin is
+# uninstantiated unit does not exist; an instantiated one whose extension is
 # disabled exits immediately without creating so much as a state directory.
 # What runs is the number of sites that have deliberately turned this on, not
 # the number of sites installed.
 #
 # WHY Restart=on-failure AND NOT always, which is where this differs from the
-# pool and the difference matters: a runtime whose plugin is disabled exits 0,
+# pool and the difference matters: a runtime whose extension is disabled exits 0,
 # on purpose. Under Restart=always systemd would restart it forever - a hot
-# loop on every site that has the unit enabled and the plugin off, which is the
+# loop on every site that has the unit enabled and the extension off, which is the
 # common case. lazysited exits 0 for "disabled" and for a clean stop, and
 # non-zero only for a real failure, so on-failure is correct for all three.
 

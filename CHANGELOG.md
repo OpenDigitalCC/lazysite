@@ -65,6 +65,15 @@ Archive
   settle capability. Docs only; nothing is signed.
 
 - SM1280 (9e591e18) **An Odoo operation is told whether the call came from an address list.**
+- SM1142 (PENDING) **On Hestia the root-run scripts make `extensions/`, and clear the old
+  directory.** Slice S3 (R4: no separate installer release ahead - the root-run deploy runs
+  before the user-run install anyway). The domain root is mode 0551, so the site user cannot
+  create a sibling of the docroot: the deploy now makes `extensions/` and hands it to the site
+  user on every run, before the install, and after the install removes the old directory the
+  upgrade emptied - only when empty, with rmdir. The lazysite-app template's hook and
+  `lazysite-hestia-domain.pl` make `extensions/` for a new site. The deb ships
+  `/usr/share/lazysite/extensions`; the installers' and packaging's words follow.
+
 - SM1142 (PENDING) **The code says extension, and the old action spelling is answered with the
   new one.** Slice S2 (R5: "so that the namespace of plugin is fully free"). The modules are
   `Lazysite::Manager::Extensions` and `Lazysite::Extensions::Owns`, and the functions, the

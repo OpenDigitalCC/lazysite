@@ -15,7 +15,7 @@
 # below.
 #
 # Needs: apt install fcgiwrap (the CGI path: /manager, /login, /dav,
-#        plugin endpoints), and the pool itself:
+#        extension endpoints), and the pool itself:
 #        /etc/lazysite/pools/__DOMAIN__.conf +
 #        `systemctl enable --now lazysite@__DOMAIN__`
 #        (see the lazysite-common README.Debian).
@@ -156,7 +156,7 @@ server {
     }
 
     # Any other /cgi-bin script (lazysite-auth.pl itself - the login
-    # endpoint - and plugin endpoints installed as cgi-bin symlinks)
+    # endpoint - and extension endpoints installed as cgi-bin symlinks)
     # runs as plain CGI via fcgiwrap: Apache's ScriptAlias equivalent.
     # One path segment only - no traversal out of the cgi-bin.
     location ~ ^/cgi-bin/(?<lazysite_script>[^/]+)$ {

@@ -40,14 +40,14 @@ for script in lazysite-form-handler.pl lazysite-form-smtp.pl \
     fi
 done
 
-# Install logging plugin at docroot parent (matches manager-api @CANDIDATES)
+# Install logging extension at docroot parent (matches manager-api @CANDIDATES)
 if [ -f "$TEMPLATE_DIR/lazysite-log.pl" ]; then
     install -m 755 -o "$user" -g "$user" \
         "$TEMPLATE_DIR/lazysite-log.pl" \
         "$docroot/../lazysite-log.pl"
 fi
 
-# Install tools used by manager-api and audit plugin
+# Install tools used by manager-api and audit extension
 mkdir -p "$docroot/../tools"
 chown "$user":"$user" "$docroot/../tools"
 for tool in lazysite-users.pl lazysite-audit.pl; do

@@ -48,7 +48,7 @@
     RequestHeader unset X-Payment-Verified
     RequestHeader unset X-Payment-Payer
 
-    # The site's cgi-bin (lazysite scripts + plugin endpoints). Needs
+    # The site's cgi-bin (lazysite scripts + extension endpoints). Needs
     # mod_cgid (or mod_cgi on a prefork MPM).
     ScriptAlias /cgi-bin/ __CGIBIN__/
     # SM070: WebDAV publishing endpoint - its own Basic auth, bypasses

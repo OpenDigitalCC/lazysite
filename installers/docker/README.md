@@ -57,7 +57,7 @@ sysop. Until the first sysop exists the manager is closed and `/manager/` answer
 | `lazysite-private` | `/srv/lazysite/html-lazysite-private` | The private store (protected content, outside the docroot) |
 
 Everything else is the image: the engine (`/usr/share/lazysite`, and the
-engine's copy installed beside the docroot at `/srv/lazysite/{cgi-bin,tools,lib,plugins}`),
+engine's copy installed beside the docroot at `/srv/lazysite/{cgi-bin,tools,lib,extensions}`),
 nginx and its configuration.
 
 ## First start, later starts, upgrades
@@ -83,9 +83,9 @@ unless-stopped` restarts it) if the pool or nginx dies. nginx's access and
 error logs go to the container's streams (`docker compose logs`); the engine's
 own logs are in `lazysite/logs/` in the settings volume.
 
-`lazysited` exits at once while the `daemon` plugin is off; the entrypoint tries
+`lazysited` exits at once while the `daemon` extension is off; the entrypoint tries
 it again every five minutes (as `lazysited@.timer` does), so switching the
-plugin on in the manager is picked up.
+extension on in the manager is picked up.
 
 ## Security
 

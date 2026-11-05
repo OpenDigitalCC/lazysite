@@ -100,7 +100,7 @@ Verbs:
         ALWAYS writes /etc/lazysite/daemon/DOMAIN.conf and enables
         lazysited@DOMAIN.timer, the site's persistent runtime (SM666).
         That does nothing until the site's sysop also enables the
-        `daemon` plugin - the unit is the host's switch, the plugin the
+        `daemon` extension - the unit is the host's switch, the extension the
         site's - so a site not using it costs one short-lived process
         every five minutes and shows as `inactive (dead)`, which is the
         correct resting state and not a fault. --daemon is accepted and
@@ -265,7 +265,7 @@ sub cmd_add {
     # in it, so the sibling trees install.pl populates (extensions/, tools/,
     # lib/) must be pre-created by root, owned by the user.
     print "==> preparing domain layout (as root)\n";
-    for my $sib (qw(plugins tools lib)) {
+    for my $sib (qw(extensions tools lib)) {
         my $d = "$domdir/$sib";
         if ( !-d $d ) {
             mkdir $d or fail("mkdir $d: $!");
@@ -364,8 +364,8 @@ sub cmd_add {
     # The conf carries the same two keys the pool's does, because the unit
     # has the same problem: systemd cannot template User= from an instance
     # name that is a domain. lazysited drops to USER before loading any
-    # daemon code. The OTHER switch is the `daemon` plugin, the site's own
-    # and born disabled (ADR 0009); with the plugin off the unit starts,
+    # daemon code. The OTHER switch is the `daemon` extension, the site's own
+    # and born disabled (ADR 0009); with the extension off the unit starts,
     # exits 0 and stays quiet, which is why it is safe to enable here.
     # SM893: ARMED FOR EVERY SITE, ruled by the release manager 2026-09-15.
     #
@@ -373,11 +373,11 @@ sub cmd_add {
     # remember. The Hestia deploy path already armed every site on every run,
     # so the two flows disagreed: a tarball site got the host half whether it
     # wanted it or not, and a deb site got it only if the operator typed
-    # --daemon. A sysop who then enabled the plugin on such a site got a
+    # --daemon. A sysop who then enabled the extension on such a site got a
     # runtime that never ran and nothing that said why.
     #
     # Arming everyone is safe for the reason written below and already
-    # demonstrated by the tarball flow: with the plugin off the unit starts,
+    # demonstrated by the tarball flow: with the extension off the unit starts,
     # exits 0 and stays quiet. The cost is one short-lived process every five
     # minutes per site that is not using it; the benefit is that enabling the
     # extension is all a sysop ever has to do.
@@ -405,10 +405,10 @@ sub cmd_add {
         print "==> daemon config: $conf\n";
         # SM757: the TIMER is what is enabled - it starts the service, and
         # re-starts it every five minutes while it is not running, so a sysop
-        # enabling the plugin (no root) is picked up without an operator.
+        # enabling the extension (no root) is picked up without an operator.
         enable_unit( 'lazysited', "$domain.timer",
             "runtime enabled: lazysited\@$domain.timer - it starts the runtime "
-                . 'within five minutes of the sysop enabling the daemon plugin '
+                . 'within five minutes of the sysop enabling the daemon extension '
                 . 'and naming a daemon_job_user holding run_jobs' );
     }
 
@@ -683,8 +683,8 @@ With C<--daemon> it also writes F</etc/lazysite/daemon/DOMAIN.conf>
 runs C<systemctl enable --now lazysited@DOMAIN>, giving the domain its
 persistent runtime (SM666). This is the host's half of two switches:
 the runtime does nothing until the site's sysop enables the C<daemon>
-plugin on the Plugin Manager page and names a C<daemon_job_user>
-holding C<run_jobs>. With the plugin off the unit starts, exits 0 and
+extension on the Extension Manager page and names a C<daemon_job_user>
+holding C<run_jobs>. With the extension off the unit starts, exits 0 and
 stays quiet, so enabling it at onboarding costs nothing.
 
 It finishes by printing the two template-application commands

@@ -113,7 +113,7 @@ Architecture: all
 # the pair must move together. fcgiwrap is Recommends because BOTH
 # shipped patterns use it: it is the whole CGI engine for the plain-CGI
 # pattern, and the FastCGI-pool pattern still routes /manager, /login,
-# /dav and plugin endpoints through it (the pool is anonymous by design).
+# /dav and extension endpoints through it (the pool is anonymous by design).
 Depends:
  lazysite-common (= ${source:Version}),
  ${perl:Depends},
